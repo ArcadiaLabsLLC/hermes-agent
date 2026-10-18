@@ -16,6 +16,10 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 _REPO = Path(__file__).resolve().parents[2]
 _TABLES = (
     _REPO / "tests" / "_downstream" / "id_markers" / "upstream_reds.py",

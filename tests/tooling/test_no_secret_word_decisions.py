@@ -20,6 +20,10 @@ import ast
 
 from scripts import god_file_probe as probe
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 SECRET_WORDS = (
     "secret", "token", "password", "passwd", "api_key", "apikey", "api-key",
     "credential", "bearer", "authorization", "cookie", "private_key", "sk-",

@@ -54,6 +54,8 @@ import pytest
 
 from tests._fork_scope import is_fork_authored
 
+pytestmark = pytest.mark.gate
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Directories that never participate in the import-time hazard (test code may
@@ -336,7 +338,11 @@ def _module_level_binding_lines(rel: str, name: str) -> list[int]:
 
     import ast
 
-    tree = ast.parse((REPO_ROOT / rel).read_text(encoding="utf-8"))
+    from scripts import source_cache
+
+    tree = source_cache.tree(REPO_ROOT / rel)  # the shared parse; read-only
+    if tree is None:
+        raise SyntaxError(f"{rel} does not parse")
     lines: list[int] = []
     for node in tree.body:
         if isinstance(node, ast.Assign):

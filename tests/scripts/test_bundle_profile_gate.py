@@ -12,6 +12,8 @@ import pytest
 
 from scripts.bundle_profile_gate import distribution_findings, is_pure, module_findings
 
+pytestmark = pytest.mark.gate
+
 
 def _findings(tmp_path, source: str) -> list[tuple[str, str]]:
     path = tmp_path / "mod.py"

@@ -74,7 +74,7 @@ import pytest
 #: (h-red-gates, 2026-10-07) - past ``addopts``' ``--timeout=30``, which then
 #: kills the gate with a hang trace instead of its verdict. The bound is a hang
 #: guard, not the gate: what it checks is unchanged.
-pytestmark = pytest.mark.timeout(180)
+pytestmark = [pytest.mark.timeout(180), pytest.mark.gate]
 
 HERMES_ROOT = pathlib.Path(__file__).resolve().parents[2]
 PACKAGE = HERMES_ROOT / "agent_runtime"

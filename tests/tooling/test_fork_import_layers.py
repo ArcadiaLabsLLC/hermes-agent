@@ -28,6 +28,8 @@ import pytest
 
 from scripts import god_file_probe as probe
 
+pytestmark = pytest.mark.gate
+
 
 def _arm(key: str) -> probe.Drift:
     live = set(probe.layer_census()[key])

@@ -8,6 +8,10 @@ from pathlib import Path
 
 from scripts.bundle_vuln_scan import affects, dedupe, judge, main
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 TODAY = dt.date(2026, 9, 28)
 
 

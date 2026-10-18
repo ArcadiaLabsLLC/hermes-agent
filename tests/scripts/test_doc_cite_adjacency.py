@@ -22,6 +22,8 @@ import pytest
 
 from scripts import doc_cite_adjacency as probe
 
+pytestmark = pytest.mark.gate
+
 
 LIVE_ROOT = "docs/agent-runtime-harness"
 LIVE_EXCLUDE = ["archive/", "planned/"]

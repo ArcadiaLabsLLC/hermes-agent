@@ -62,6 +62,8 @@ import pytest
 from agent_runtime.runtime_config import RuntimeConfig
 from tests.agent_runtime import _tree_index
 
+pytestmark = pytest.mark.gate
+
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 

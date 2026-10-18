@@ -27,6 +27,8 @@ from scripts import changed_line_mutation_check as gate
 from scripts.mutation_check import run as run_lane
 from scripts.mutation_check import selection
 
+pytestmark = pytest.mark.gate
+
 
 #: Captured at import, BEFORE `conftest.no_changed_sources_by_default` swaps
 #: the module attribute for a stub. The census's own test has to call the real

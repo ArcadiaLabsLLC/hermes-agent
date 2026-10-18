@@ -14,6 +14,10 @@ from pathlib import Path
 
 from scripts.upstream_footprint import MANIFEST, count_footprint, ledger_rows, manifest_paths, measure, merge_ledger, read_manifest
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "upstream_footprint.json"
 NUMBERS = ("files", "deleted_lines", "heavy")
 
@@ -73,6 +77,43 @@ def test_every_raise_cites_an_owner_ruling():
     assert unruled_reasons({"reasons": [*fixture["reasons"], ruled]}) == []
     borrowed = {"reasons": [*fixture["reasons"], {**row, "grandfathered": True}]}
     assert grandfathered_count(borrowed) == grandfathered_count(fixture) + 1
+
+
+def test_every_grandfathered_row_is_one_of_the_pinned_originals():
+    """The grandfathered rows are a fixed SET, not a count (audit 2026-10-17): each row's
+    identity is pinned in ``upstream_footprint_grandfathered.txt``, which only loses lines, so a
+    new row cannot take a departed exemption's slot or swap in for one at the same count."""
+    from scripts.upstream_footprint import (
+        GRANDFATHERED_REASONS, grandfathered_count, grandfathered_pins, reason_identity, unpinned_grandfathered,
+    )
+
+    fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    pins = grandfathered_pins()
+    assert len(pins) == len(set(pins)) <= GRANDFATHERED_REASONS, (
+        f"{len(pins)} pinned grandfathered identities (ceiling {GRANDFATHERED_REASONS}): the pin "
+        "file only loses lines. " + RAISE_REFUSAL
+    )
+    unpinned = unpinned_grandfathered(fixture, pins)
+    assert not unpinned, f"{unpinned}: marked grandfathered but not a pinned original. " + RAISE_REFUSAL
+    live = {reason_identity(r) for r in fixture["reasons"] if r.get("grandfathered") is True}
+    assert set(pins) <= live, (
+        f"pinned identities with no row in {FIXTURE.name}: {sorted(set(pins) - live)} — a row left "
+        "(or was edited): drop its pin line in this commit so the slot cannot be reused"
+    )
+
+    # Controls. Removal is allowed; reuse of the vacant slot and a same-count swap are caught.
+    old = next(r for r in fixture["reasons"] if r.get("grandfathered") is True)
+    new = {"change": "planted", "before": {}, "after": {}, "reason": "why", "grandfathered": True}
+    removed = {"reasons": [r for r in fixture["reasons"] if r is not old]}
+    assert unpinned_grandfathered(removed, pins) == []
+    reused = {"reasons": [*removed["reasons"], new]}
+    assert grandfathered_count(reused) <= GRANDFATHERED_REASONS
+    assert unpinned_grandfathered(reused, pins) == ["planted"]
+    swapped = {"reasons": [new if r is old else r for r in fixture["reasons"]]}
+    assert grandfathered_count(swapped) == grandfathered_count(fixture)
+    assert unpinned_grandfathered(swapped, pins) == ["planted"]
+    reworded = {"reasons": [{**old, "reason": "edited"} if r is old else r for r in fixture["reasons"]]}
+    assert unpinned_grandfathered(reworded, pins) == [old["change"]]
 
 
 NUMSTAT_Z = (

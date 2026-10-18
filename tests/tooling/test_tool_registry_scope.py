@@ -13,6 +13,10 @@ import os
 from tests._downstream.tool_registry_scope import mark_tool_registry, restore_tool_registry
 from tools.registry import registry
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 _THROWAWAY = "r_isolation_throwaway_tool"
 _SCHEMA = {"name": _THROWAWAY, "description": "x", "parameters": {"type": "object", "properties": {}}}
 

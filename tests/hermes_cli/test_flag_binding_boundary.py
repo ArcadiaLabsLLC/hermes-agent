@@ -83,6 +83,8 @@ from hermes_cli.flag_binding import (
 )
 from tests._fork_scope import is_fork_authored, is_fork_touched, upstream_blobs
 
+pytestmark = pytest.mark.gate
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_ROOT = REPO_ROOT / "hermes_cli"

@@ -1,0 +1,120 @@
+78b9dcc16c4ca0ef Owner-requested conversation approval and speed controls
+ec433cb89a27f287 Owner-approved reviewed Redo using existing native restore/recovery
+43143b3a540e67e6 Owner-authorized native Codex retry-test isolation repair
+e0a0e3e84efcabc4 Carry the upstream relay delivery test repair PR #137478; retire its Windows marker
+b3a85caf24825f42 Owner-authorized carry of upstream Session API ordering fix PR #137460
+f075757f577047ee User-approved first-class reasoning capabilities for the Console
+534d2d974f4b4b96 console-history-repair: native restore extraction, reviewed consumer consolidation, baseline/deletion compatibility and finite lock waits
+4ca3a69e6ff347f3 console-history-repair: native atomic history receipts, reviewed file restore/recovery and checkpoint observer API
+943efa038d8bb3f9 lane build-1011-B5 (design sweep D3.02, owner-ruled 2026-10-10): one additive guard in hermes_state_repair.preflight_db_writability skips a sidecar that no longer exists
+6516e6ec958b5a68 lane build-1011-B5 (design sweep D3.15, owner-ruled 2026-10-10): one additive guard in scripts/install.ps1 Set-LauncherUserPath honours HERMES_REGISTRY_WRITE_FENCE=1
+9c1ac1299db043e0 release merge v0.21.6 (lane rel-0216): manifest re-based ee5f49b943 -> 818c13be1d (the tag), tirith retired, the daily branch's fix(merge) commits carried
+b3622552e1114f4f lane opus-w1-hermes (fork-hygiene row: footprint red on main, qualified 184 / 959 / 4 on merge-base 74a64be15e and the warm-prep batch): baseline what the carried-PR sync landed unledgered
+6c52a8920b8f722d lane h-title-defer (runtime-queue Seams CLASS row: the turn-start title upgrade runs inside anchor->request_sent on turns 1-3): the auto-title upgrade starts at the turn's request_sent
+df3f2796cd98b24b lane h-turn1-conn (runtime-queue row: turn 0 still ~110 ms behind warm): a turn that adopted a prewarmed system prompt writes the prompt and its tools pin after request_sent
+9f81fbc846e6ea00 lane h-mergeprep: AGENTS.md fork pointer removed; AGENTS.md is byte-identical to the merge base ee5f49b943
+6590a7bc23cab3bb lane h-upgaps (fork-hygiene row: footprint 172->175 red + ledger gaps): baseline the three MCP job-wake seams that landed unledgered (d9bb0469d2, owner ruling 2026-10-03)
+85586f8697122e92 lane h-turn1-tail A5 (turn-latency-h-turn1-2026-10-05.md): sub-stamps inside build_api_request split the first-turn preflight_done -> request_built span
+cd541c9fcbea5176 lane h-prompt-surface S3 (prompt-surface-2026-10-05.md): the chat lane's skills index names its persona's categories in full and every other names-only
+e101ac7a541a0400 lane h-turn1-prewarm A3 (owner ruling A3-r1, turn-latency-h-turn1-2026-10-05.md): a prewarmed chat's first turn adopts the system prompt the prewarm built
+f75fd94a2e94385f owner ruling 2026-10-02 (lane w13-hm): drop the Copilot plain-client carry in agent/process_bootstrap.py build_keepalive_http_client — upstream's bytes restored there
+9bef83f3f4d9a282 owner ruling 2026-10-01: drop the watcher reply_to carry in gateway/run_notifications.py — Eternia Harness reports finished background work in Mission Control's own Background Work panel; chat-platform alerts follow upstream 10938a7cf9 (#52694, standalone, no stale reply anchor)
+84abf3e0c01ad17c lane rw-h RW2/RW3: a foreground terminal command is observable while it runs (pid, deadline, output tail) and a Hermes deadline survives into the result as timed_out.
+f6b176964e961a0e Provider closeout: move GUI auth commands to the Harness parser; carry native terminal error evidence.
+364825d86624cca4 Owner-approved provider-access cleanup: native readers use a neutral plugin contract; shared-sign-in policy stays in Eternia Harness.
+37f6aaeb93c1659d lane s2-g5: agent/secret_sources/bitwarden.py's _derive_encrypted_cache_key imports cryptography ImportError-guarded (raises RuntimeError, which both callers' best-effort cache paths already absorb) — phone-gate plan 2026-09-30, lane G5, owner decision D3
+409c1206b4ddc35c Owner-approved unified Launcher documents: connect native agents to the existing app-function authority.
+0e26363435237f18 lane s2-g4: hermes_bootstrap's module-level relaunch moved into hermes_cli.venv_sync.relaunch_if_needed (imported guarded) and tui_gateway.methods_prompt's pdf.attach moved into the new fork-carried tui_gateway/methods_pdf.py (registered in tui_gateway/server.py behind a guarded import) — phone-gate plan 2026-09-30, lane G4, bucket D4 (M6 doors with fork carry)
+12c2fe86abf1e8d6 lane s2-g2: the phone's kept psutil and tty import sites guarded — hermes_cli/process_identity.py::_kill_process_tree_windows, hermes_constants_scratch.py::_own_lineage / reap_processes_rooted_in (psutil) and hermes_cli/secret_prompt.py::_masked_secret_prompt_posix (termios/tty) (phone-gate plan 2026-09-30, lane G2, buckets A psutil and B; the thin seams the plan names M6 with fork carry)
+13cf6cda1a60ef32 lane h13-sweep: the three MC timing stamps in agent/turn_api_request.py dropped (owner-delegated 2026-09-29, runtime-queue DOORS-A row option 1)
+b9d826eab7e9c64c lane h13-phone: the phone's home-built history seal deleted (owner 2026-09-30: history relies on the OS's file protection + a no-cloud-backup mark the phone host sets through HostStoreCallbacks.protect_history_dir)
+79b5128148c946cc lane h13-del: kanban crash evidence moved whole onto upstream's on_kanban_worker_exited observer (eternia-harness plugin)
+ed3cc415dd27a408 lane h13-del: the fork process-notification sanitiser deleted (one authority: upstream's _redact_process_result at enqueue)
+1e88df10af5e6573 lane h12-fp: main.py profile bootstrap restored in place; the phone openai shim; distribution switches and auth PR-1 sit on prepared upstream PR branches
+83ead89043cef422 2026-09-29 owner-approved chat-first groups and per-message comparison
+2e7f1bd544b268d7 lane h11-code, runtime-queue class C3: hermes_bootstrap.py's interpreter-ABI seam
+0db1e1ee8f63987b 2026-09-29 owner-approved shared provider authority and confirmed native model selection
+088845f487d1cd4b lane h11-mcp (5c8e850b18, c05c9d58d7), landed on main while h10-fhrel was landing
+64117ba08ead365f landing of lane h10-fhrel onto main (after h10-rtseam and h10-rtfork)
+60d58a10f3c2842a lane h10-fhrel (lane/h10-fhrel): reconcile main's growth since the ee5f49b943 re-baseline (460ac86c9b); main measured 182/958/4, red
+5bde3a879d1200cb upstream merge ee5f49b943 (merge/upstream-2026-09-29)
+8a6662e4d9599a67 phone-P1 landing tip (lanes p1-hsplit + p1-hsec + p1-hloop + p1-hint) on origin/main 48ec00999a
+0d861ac46f85b123 Owner-approved optional Discussion conclusion, 2026-09-28
+3547e4e2a5b834b2 phone credentials + history storage seams (lane p1-hsec, embedded-hermes Stage 2 steps 5/9)
+d8976d655955d58a ACP named-provider identity correction (owner requested 2026-09-24)
+8fe47215ff010732 seam Stage 1 (seam/s1-proof)
+ad9a4225fdb46b69 S4+S5 landing (seam/s45-landing)
+0a6e9ad5d0e9edd0 lane MECH (seam/mech-apply-2026-09-24)
+acb2ac460648b425 lane S2 (seam/s2-plugin-surface-2026-09-24)
+006798cf15b107ad weekly merge upstream/main f24a1d7f92 (seam/upstream-merge-2026-09-24)
+3d9b315a223a9e7a lane CARRY (seam/test-carries-out-2026-09-24)
+c08af909589a0892 lane ADOPT group 3 (seam/carry-adopt-2026-09-24)
+074f0383a61614db lane ADOPT group 5 (seam/carry-adopt-2026-09-24)
+f3e81550646117e5 lane ADOPT group 15 (seam/carry-adopt-2026-09-24)
+26f7f7bb463ce5cc lane ADOPT group 16 (seam/carry-adopt-2026-09-24)
+3ce0b70079aebfbc lane META (seam/carry-meta-2026-09-24)
+c327e0be1964f221 lane CARRY2A (seam/test-carries-cli-2026-09-24)
+5f5dcba1978bc54d lane MOVE-A group 9 (seam/carry-move-a-2026-09-24)
+0f6a15d386985e37 lane MOVE-A group 12 (seam/carry-move-a-2026-09-24)
+b1555bed33ac9bec lane MOVE-A group 16 (seam/carry-move-a-2026-09-24)
+e424bb72bed5cc10 lane MOVE-A group 4 (seam/carry-move-a-2026-09-24)
+6da15b77b06567c2 lane CARRY2B (seam/test-carries-rest-2026-09-24)
+e899b260431dd3d3 lane CARRY3 tests/ (seam/carry-pass-2026-09-24)
+dd71ff8d691f0031 lane CARRY3 tools/ (seam/carry-pass-2026-09-24)
+453205396223c589 lane CARRY3 hermes_cli/ (seam/carry-pass-2026-09-24)
+10454580dcea637c lane REDS3 t6b briefs (fork/main-reds-2026-09-24)
+9243be45e70bcf69 lane CLOSE (seam/close-2026-09-24)
+a134ee21c1b68556 lane LEDGER-DOCS follow-down (fork/ledger-rows-2026-09-24)
+9cba93fce032ba6e lane TESTS (fork/test-rows-2026-09-24)
+d2bd7c8377141b71 lane DOORS-A process notify (seam/doors-a-2026-09-24)
+9ae82655f43c6828 lane DOORS-A BG ruling (seam/doors-a-2026-09-24)
+4283307e363c3617 lane DOORS-A claim TTL (seam/doors-a-2026-09-24)
+f989479f9529dc6f lane DOORS-A PM watcher (seam/doors-a-2026-09-24)
+ecb0bf989792e54f lane DOORS-A queue-status (seam/doors-a-2026-09-24)
+c1c35633fbd34602 lane DOORS-A dispatch timing (seam/doors-a-2026-09-24)
+eb645c58d942aa23 lane DOORS-A lazy installs (seam/doors-a-2026-09-24)
+03ef1597477b159f lane DOORS-A persona cache routing (seam/doors-a-2026-09-24)
+22f046803d0e6c23 lane DOORS-A required-skill note (seam/doors-a-2026-09-24)
+a4e888faaad5bf60 lane DOORS-A profile tombstone (seam/doors-a-2026-09-24)
+429d1d75bda51f05 weekly merge upstream/main 749220ef00 (merge/upstream-2026-09-24)
+8d526eae09d1a5ca owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/auth.py
+586ebc6e6c4223ec owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/auth_codex.py
+fc4ab9ce219031f9 owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/auth_codex_browser.py
+f8ea223e4128fb13 owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/auth_minimax.py
+946f21412d4395a9 owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/auth_nous.py
+996fbe4ef6c3d8b4 owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/auth_xai.py
+590477da25360280 owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/provider_catalog.py
+3cc80ed9cedbb714 owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/subcommands/auth.py
+52516330cc4f46a0 weekly merge upstream/main 067fa1a257 (merge/upstream-2026-09-25, merge commit 2aa09594c5) + re-seats A/B + the supersession pass
+8c6f1b7ab8c19815 merge lane Q7 re-applies (merge/upstream-2026-09-25, d0a074a395 and the interaction-reds commit)
+8111105f8beef341 lane CI-FORK (lane/ci-fork)
+849348561aa45669 lane ACP-DROP: the fork's ACP surface dropped (owner ruling 2026-09-26: "we aren't using ACP, just remove that")
+8863ef7cd4edd180 lane CI-RESTORE (lane/ci-restore)
+1a5fa326c6de6d84 lane AUTH-MOVE (lane/auth-move): auth sheet L1, hunks H1 H2 H5 H7 H8 H10
+c33a1b4c68cb51fc lane PF-1 (lane/pf-1): the blocked-tool set and the terminal schema move behind the eternia-harness plugin
+835a42403bede0d4 lane DROP-EXEC (lane/drop-exec): the 19 DROP verdicts of the fix triage
+2384f65f2c1324a3 merge upstream/main 2f14d5e6e4 (lane MERGE-0927, 1,347 commits, 8 conflicts); manifest re-based 067fa1a257 -> 2f14d5e6e4
+68b432de31ab1ee2 lane CARRY-DELETE (lane/carry-delete): door-fit EXISTS carries + the DROP-AT-MERGE residue
+078f6505c7a7fcb7 277580092a (Windows console signal safety, landed 2026-09-27 by another session without a fixture row)
+da38331f7757a24e lane FOOTPRINT-DROP (lane/footprint-drop): sort-and-drop of the 151 footprint files (table: docs/agent-runtime-harness/planned/footprint-drop-2026-09-27.md)
+1dad8db0bd12e030 lane hq-b (HQ3, 2026-10-01): two added lines in hermes_cli/main.py main() install hermes_cli.gettext_find_memo (fork-owned, stdlib-only) before the parser tree is built
+4421ad690b5bf51c lane h-conn-pool (2026-10-06): one guarded additive block in agent/auxiliary_client.py _CodexCompletionsAdapter.create drains the settled Responses stream (agent_runtime.stream_reuse) before it is closed
+971bde35d976dd55 lane 1011-M1 (2026-10-10): three added lines at the end of pm/plugins_state.py rebind read_home_selection through pm._fork_selection_memo (fork-owned, stdlib-only), one parse per config content per process
+75b9a5b21a35b083 lane 1011-M2 (M2.01, 2026-10-10): two additive branches in gateway/run.py — _drain_gateway_watch_events keeps an mcp_job_finished event and _format_gateway_process_notification renders it through format_process_notification
+921b10c911195c6a lane-1011-M3 (L4.04, 2026-10-10): an additive os.name == 'nt' stdout-and-return block at the top of hermes_cli/terminal_notify.py write_tty
+89d3410ddc274401 lane-1011-M3 (L6.12, 2026-10-10): a 5-line additive guard in hermes_cli/_launchers.py _expose_windows_user_bin calling fork-owned hermes_cli/launcher_root_owner.foreign_launcher_root
+2016b014b2e72f03 lane-1011-M3 (L7.32, 2026-10-10): additive exit-grace constant and tolerant wait in pm/client.py _request before its 5 s exit wait
+226cd0b92e86441a lane-1011-M3 (L8.12, 2026-10-10): one additive _EXCLUDED_NAMES.add("serve_socket.lock") in hermes_cli/backup.py (plus a two-line comment)
+3f2ce2b5c6cbecd3 lane build-1011-C5 (D3.03 stage 1, MOVE): the fork's reused-durable-history persist-boundary test moved out of tests/agent/test_turn_context.py into fork-owned tests/agent/test_turn_context_downstream.py; the upstream file restored to v0.21.6 bytes
+cc1ff944fa718269 lane build-1011-C5 (D3.03 stage 2): the 2026-10-07 carried-PR sync's remaining unledgered upstream edits settled — tests/hermes_cli/test_worktree_sync_base.py restored to v0.21.6 bytes; plugins/plugin_loader.py (5/1 -> 3/0) and tools/file_tools_read_tracking.py (12/4 -> 11/0) rewritten additively (owner ruling D3.03); the duplicate _posix_match_forms def at the foot of tools/file_tools.py deleted for one import (29/4 -> 9/4); three test files named under their PRs in carried_prs.json
+e7b5c658be376d2d Owner-authorized native Windows shutdown-test repair (H09)
+a42fc38c959c6f8b codex-transcript-repair (2026-10-14): typed input in the existing steer buffer
+affbf0c501fde99d Wave w1015-prov-h: provider/runtime environment fixes (fork-hygiene F34, runtime R596, R259/R497)
+e660950038bde70a Wave w1015-prov-h runtime R749: retry a uv sync that failed only on a Windows sharing violation (os error 32)
+36666396c60b2db7 fork-hygiene row 'one-line deletion drift' (w1015b-fh-a): name the auth_nous.py deletion the w1015-prov-h raise absorbed
+22e8391ca78922e5 fork-hygiene row 'scripts/check on a cp1252 console' (w1015b-fh-a)
+91a97aadd874016b fork-hygiene row 'ADOPT _split_pathspec' (w1015b-fh-a): retire the fork's _split_path_list carry
+2075bf2fef19797b runtime row 'first setup installs extras all ... omits anthropic' (w1015c-dev): the Developer Edition's default selection carries the provider SDKs
+fc8d9c2105d17dd5 fork-hygiene row 'Include the interpreter ABI dependency in upstream update-CI routing' (w1015e-fh-h)
+506f713455d03d5b fork-hygiene row test_powershell_stage_publishes_without_a_checkout_venv (lane w1015h-fh-h)
+7d1ef132dcbb1976 Owner-approved Console subagents Step 4 (2026-10-15)

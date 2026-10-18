@@ -78,6 +78,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.gate
+
 
 #: module path -> binding names that must no longer be bound in it.
 #:

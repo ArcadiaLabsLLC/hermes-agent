@@ -49,6 +49,8 @@ from tools.toolset_manifest import (
     builtin_toolset_names,
 )
 
+pytestmark = pytest.mark.gate
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 

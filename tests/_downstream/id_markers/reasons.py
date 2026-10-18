@@ -42,6 +42,9 @@ SPAWNS_GATEWAY_LOOKALIKE_MARK = "spawns_gateway_lookalike"
 #: A live-machine premise, not a platform one: the test reads the REAL fleet
 #: process table and needs it to hold no hermes gateway (``pytest_runtest_setup``).
 NO_LIVE_GATEWAY_MARK = "requires_no_live_gateway"
+#: A file the gate directory (``docs/agent-runtime-harness/11-gate-directory.md``) lists;
+#: ``tests/tooling/test_gate_directory_current.py`` enumerates the files that carry it.
+GATE_MARK = "gate"
 
 _PATH_SPELLING = (
     "upstream interpolates a Windows tmp_path into a JSON string literal "
@@ -119,6 +122,7 @@ _HOST_DISK_HAS_ROOM = getattr(pytest.mark, HOST_DISK_HAS_ROOM_MARK)
 _UPSTREAM_WIRE_UNBRIEFED = getattr(pytest.mark, UPSTREAM_WIRE_UNBRIEFED_MARK)
 
 _CLAUDE_HOME_TMP = getattr(pytest.mark, CLAUDE_HOME_IS_TMP_PATH_MARK)
+_GATE = getattr(pytest.mark, GATE_MARK)
 
 def _fork_replaces(symbol: str, sibling: str) -> pytest.MarkDecorator:
     return pytest.mark.xfail(strict=True, reason=(

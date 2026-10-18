@@ -28,6 +28,10 @@ from pathlib import Path
 
 import agent_runtime
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 #: The package's own location, so the scan cannot depend on the caller's cwd.
 _ROOT = Path(agent_runtime.__file__).resolve().parent
 

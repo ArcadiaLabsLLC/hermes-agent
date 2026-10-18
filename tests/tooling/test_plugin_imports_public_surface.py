@@ -22,6 +22,10 @@ from pathlib import Path
 
 from scripts.upstream_footprint import MANIFEST, read_manifest
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 ROOT = Path(__file__).resolve().parents[2]
 PLUGIN = ROOT / "plugins" / "eternia-harness"
 

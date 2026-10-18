@@ -86,6 +86,8 @@ import pytest
 from agent_runtime import snapshot
 from agent_runtime.snapshot import SNAPSHOT_CONTRACT_VERSION
 
+pytestmark = pytest.mark.gate
+
 
 #: Trees walked by the structural gate. Production is included deliberately:
 #: the producer restating its own constant one line away from the definition is

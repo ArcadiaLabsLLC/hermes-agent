@@ -7,6 +7,10 @@ any real venv.
 import sys
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.check_test_env_drift import diff_pins, parse_freeze  # noqa: E402

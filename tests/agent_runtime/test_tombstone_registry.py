@@ -141,6 +141,8 @@ import pytest
 
 from agent_runtime.events import ALLOWED_EVENT_TYPES
 
+pytestmark = pytest.mark.gate
+
 HERMES_ROOT = Path(__file__).resolve().parents[2]
 
 #: Production packages every row is enforced over unless it narrows the scope.

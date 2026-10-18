@@ -30,6 +30,10 @@ from functools import lru_cache, cache
 from scripts import god_file_probe as probe
 from scripts import god_file_scope as scope
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 _FUNCS = (ast.FunctionDef, ast.AsyncFunctionDef)
 _DEFERRED = re.compile(r"^[ \t]+(?:from[ \t]+([\w.]+)[ \t]+import|import[ \t]+([\w.]+))", re.MULTILINE)
 _FORK_PREFIXES = ("agent_runtime", "hermes_cli.harness")

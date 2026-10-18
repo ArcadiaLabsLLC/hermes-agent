@@ -7,9 +7,14 @@ tests.md`; this page is the list. Owner-requested 2026-10-18, a navigation excep
 like [10 — Command directory](10-command-directory.md).
 
 This page cannot go stale silently: `tests/tooling/test_gate_directory_current.py` reds
-when a path named here no longer exists, or when a gate in the enumerated places
+when a path named here no longer exists, when a gate in the enumerated places
 (`tests/tooling/test_*.py`, `scripts/check*`, `scripts/*_gate.py`,
-`scripts/dump_*_contract.py`) is missing from it.
+`scripts/dump_*_contract.py`, and every test file carrying `pytest.mark.gate`) is
+missing from it, or when a test file named here does not carry the mark. A fork gate
+file says `pytestmark = pytest.mark.gate` (in a list with any other module mark); an
+upstream test file takes no edit, so its mark is a file row in
+`tests/_downstream/id_markers/fork_marks.py`. A new gate anywhere under `tests/` joins
+this page by its mark, not by the directory it sits in.
 
 Kinds: **fence** (a NEGATIVE guarantee, a source walk: "this is never written"),
 **ratchet** (a count or list that may only shrink), **fresh** (a generated artifact
@@ -102,6 +107,7 @@ or registry entry names something real).
 | gate | kind | guarantees |
 | --- | --- | --- |
 | `tests/scripts/test_upstream_skip_list.py` | claims | the skip list names upstream files only, unused rows cite ADR 0015, and the runner skips exactly them |
+| `tests/test_no_shadowed_test_definitions_downstream.py` | fence | no test module defines one name twice in one scope (upstream's walk, through the shared parse) |
 | `tests/tooling/test_session_chain_contract.py` | runtime | one test per promise the session chain (conftests, `tests/_downstream/`, bundle plugins) makes |
 | `tests/tooling/test_registry_write_fence.py` | runtime | the registry-write fence is live in a test process |
 | `tests/tooling/test_registry_write_fence_children.py` | runtime | a child a test spawns cannot write the registry either |
@@ -153,15 +159,24 @@ lazy-deps, profile-archive and blob-size guards (`tests/scripts/test_code_health
 
 Measured from the gate store, 2026-10-18 (`.pytest_cache/hermes_gate/durations.json`,
 seconds at `-j 8`): the gates add about 360 s of work to a cold landing gate (~45 s of
-wall time). Seven whole-tree walkers are three quarters of it —
-`test_upstream_skip_list` 76, `test_s55_registered_events_have_emitters` 39,
-`test_fork_import_layers` 37, `test_no_ladder_routing` 34, `test_coverage_claims_resolve`
-33, `test_no_frozen_hermes_home` 24, `test_no_silent_package_patches` 20 — each
-re-reading and re-parsing the tree on its own (fork-hygiene row: one parse per session).
+wall time). Eight whole-tree walkers are three quarters of it. They read and parse
+through one shared cache, `scripts/source_cache.py` (one read and one parse per file
+version per process; a tree is kept only by a walker that comes back to it, because a
+process holding trees pays for them on every garbage collection). Alone, before → after
+(wall seconds, one process each, 2026-10-18, a busy box): `test_upstream_skip_list`
+64.3 → 64.5 (runner discovery, no parse), `test_s55_registered_events_have_emitters`
+30.7 → 27.7, `test_fork_import_layers` 32.0 → 31.4, `test_no_ladder_routing`
+18.6 → 19.3, `test_coverage_claims_resolve` 21.6 → 21.6, `test_no_frozen_hermes_home`
+17.4 → 9.1 (a subprocess import probe, no parse; noise), `test_no_silent_package_patches`
+17.6 → 16.0, upstream's shadow walk 19.7 → 11.4 (run by
+`tests/test_no_shadowed_test_definitions_downstream.py`, a `def`-name pre-filter). All
+eight in one process: 217.5 → 173.9. Most of what remains is not parsing: the skip
+list's discovery and each layer case's census are fork-hygiene rows.
 `--affected` never selects a whole-tree walker.
 
 ## Positive controls
 
 A new gate lands with its killing mutation named and its red recorded in the commit
-body; a control that has not been run is a belief. Adding a gate means adding its row
-here in the same commit — `test_gate_directory_current.py` reds otherwise.
+body; a control that has not been run is a belief. Adding a gate means marking its file
+`pytest.mark.gate` and adding its row here in the same commit —
+`test_gate_directory_current.py` reds otherwise.

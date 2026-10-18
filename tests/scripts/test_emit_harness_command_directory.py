@@ -11,6 +11,8 @@ from scripts.emit_harness_command_directory import (
     REFERENCE, REPO_ROOT, build_tree, check_reference, command_parsers, render,
 )
 
+pytestmark = pytest.mark.gate
+
 DIRECTORY = REPO_ROOT / "docs/agent-runtime-harness/10-command-directory.md"
 
 

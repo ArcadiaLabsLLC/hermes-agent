@@ -25,6 +25,8 @@ import hermes_constants
 import hermes_state  # imported here so the chain's state-db fixture finds it at setup
 import pm.shell  # imported here so the chain's bash-probe memo finds it at setup
 
+pytestmark = pytest.mark.gate
+
 #: the platform-native Hermes home, read at import — before any autouse fixture patches it
 _NATIVE_HOME = hermes_constants._get_platform_default_hermes_home()
 _CREDENTIAL = "OPENAI_API_KEY"

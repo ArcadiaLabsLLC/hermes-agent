@@ -31,6 +31,10 @@ import types
 from scripts import god_file_fences as fences
 from scripts import god_file_probe as probe
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 
 def test_the_borrowed_callable_check_reds_a_reexport():
     """Positive control: one borrowed repo callable is caught; allowlisted, local, stdlib and modules are not."""

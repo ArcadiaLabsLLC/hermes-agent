@@ -58,6 +58,8 @@ import re
 
 import pytest
 
+pytestmark = pytest.mark.gate
+
 HERMES_ROOT = pathlib.Path(__file__).resolve().parents[2]
 SUPPORT = HERMES_ROOT / "hermes_cli" / "harness_support.py"
 

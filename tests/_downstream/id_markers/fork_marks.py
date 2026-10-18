@@ -23,6 +23,7 @@ from tests._downstream.id_markers.reasons import (
     _fork_replaces,
     _FORK_SPAWN_DETACHED,
     _FORK_SYSTEM_PATH,
+    _GATE,
     _HOST_DISK_HAS_ROOM,
     __layer__,
     _LOOKALIKE,
@@ -319,6 +320,28 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/hermes_cli/test_web_server.py::TestWebServerEndpoints::"
             "test_telegram_onboarding_apply_reports_restart_failure_after_save",
             "tests/hermes_cli/test_web_server.py::TestDesktopCronTicker::test_ticker_runs_when_desktop",
+        )
+    },
+    # Upstream's whole-tests/ shadow walk parses ~7,000 files (33.4 s alone, over the 30 s
+    # cap under load); the fork half runs the same check through the shared parse.
+    "tests/test_no_shadowed_test_definitions.py::test_no_shadowed_definitions_in_test_modules": (
+        pytest.mark.skip(reason="run by tests/test_no_shadowed_test_definitions_downstream.py "
+                                "(upstream's _duplicates_in, the shared parse, a def-name pre-filter)"),
+    ),
+    # Upstream test files the gate directory lists (its lint checkers): an upstream file
+    # takes no edit, so its file-level ``gate`` mark is applied here
+    # (tests/tooling/test_gate_directory_current.py reads it through ``ids_marked``).
+    **{
+        path: (_GATE,)
+        for path in (
+            "tests/hermes_cli/test_config_yaml_comment_preservation.py",
+            "tests/scripts/test_bash_shebangs.py",
+            "tests/scripts/test_case_collision_check.py",
+            "tests/scripts/test_check_no_tmp_literals.py",
+            "tests/scripts/test_check_profile_scope_patterns.py",
+            "tests/scripts/test_code_health_cli.py",
+            "tests/scripts/test_footgun_subprocess_encoding.py",
+            "tests/tools/test_subprocess_stdin_guard.py",
         )
     },
 }

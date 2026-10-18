@@ -12,6 +12,10 @@ from __future__ import annotations
 
 from scripts import god_file_probe as probe
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 
 def _drift() -> probe.Drift:
     return probe.compare_numbers("W0-G1 size ceiling", probe.size_live(), probe.size_fixture())
