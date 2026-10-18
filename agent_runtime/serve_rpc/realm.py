@@ -224,13 +224,15 @@ def _adopt(p: dict) -> dict:
 
 
 def _revoked(p: dict) -> dict:
-    """Params: ``realm_id``, ``reason`` (a backend ``RealmRevokedReason``)."""
-    from agent_runtime.realm_sync.revocation import RealmRevokedReason
+    """Params: ``realm_id``, ``reason`` — a ``RealmRevokedReason`` (the
+    ``realm.revoked`` event's) or a credential-mint refusal ``error.code``
+    (``realms.git_host_unbound`` / ``realms.git_host_binding_lost``)."""
+    from agent_runtime.realm_sync.revocation import BACKEND_REFUSAL_REASONS, RealmRevokedReason
     from agent_runtime.realm_verbs import realm_mark_revoked
 
     realm_id, reason = _realm(p), _param_text(p, "reason", required=True)
     try:
-        typed = RealmRevokedReason(reason)
+        typed = BACKEND_REFUSAL_REASONS.get(reason) or RealmRevokedReason(reason)
     except ValueError:
         raise _Refused(
             "invalid_request", "reason must be one of " + ", ".join(item.value for item in RealmRevokedReason)

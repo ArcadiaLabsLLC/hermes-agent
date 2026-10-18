@@ -36,6 +36,8 @@ from .models import RealmSyncError
 
 __layer__ = "stores"
 __all__ = [
+    "BACKEND_REFUSAL_REASONS",
+    "HOST_STATE_REASONS",
     "REALM_REVOKED_CODE",
     "RealmRevokedReason",
     "clear_realm_revocation",
@@ -50,7 +52,11 @@ REALM_REVOKED_CODE = "realm_revoked"
 
 
 class RealmRevokedReason(str, Enum):
-    """Backend ``RealmRevokedReason`` (``realms/services.py``), verbatim."""
+    """Backend ``RealmRevokedReason`` (``realms/services.py``), verbatim, plus
+    ``git_host_binding_lost``: no event carries it — it is the backend's
+    permanent ``409 realms.git_host_binding_lost`` on the credential mint
+    (App uninstalled, repo dropped), which the launcher records here exactly
+    as it records ``git_host_unbound`` (``BACKEND_REFUSAL_REASONS``)."""
 
     MEMBERSHIP_LEFT = "membership_left"
     MEMBERSHIP_KICKED = "membership_kicked"
@@ -61,11 +67,24 @@ class RealmRevokedReason(str, Enum):
     REALM_DELETED = "realm_deleted"
     SERVER_DELETED = "server_deleted"
     GIT_HOST_UNBOUND = "git_host_unbound"
+    GIT_HOST_BINDING_LOST = "git_host_binding_lost"
 
 
 #: Reasons that are the git HOST's state, not the member's: the launcher shows
 #: the host state (reconnect via ``install_url``) instead of "access revoked".
-HOST_STATE_REASONS = frozenset({RealmRevokedReason.GIT_HOST_UNBOUND})
+#: No ``realm.granted`` follows a reconnect (``connect_github`` emits none), so
+#: these are lifted by the next ADMITTED credential instead of a re-adopt: the
+#: mint re-verifies the binding (``ensure_repo``, backend 02 §5 step 5) and
+#: refuses with these same 409s while it is still gone.
+HOST_STATE_REASONS = frozenset({RealmRevokedReason.GIT_HOST_UNBOUND, RealmRevokedReason.GIT_HOST_BINDING_LOST})
+
+#: Backend refusal ``error.code`` on the credential mint -> the mark it is.
+#: Both are permanent (no ``Retry-After``): never ``sync_remote_unreachable``,
+#: which is the retryable ``503 realm.sync.git_unavailable``'s word.
+BACKEND_REFUSAL_REASONS: dict[str, RealmRevokedReason] = {
+    "realms.git_host_unbound": RealmRevokedReason.GIT_HOST_UNBOUND,
+    "realms.git_host_binding_lost": RealmRevokedReason.GIT_HOST_BINDING_LOST,
+}
 
 
 def realm_revocation_path(realm_id: str) -> Path:
@@ -120,10 +139,15 @@ def clear_realm_revocation(realm: Realm) -> bool:
     return True
 
 
-def refuse_if_revoked(realm: Realm) -> None:
-    """Raise ``realm_revoked`` (not retryable) for a marked realm."""
+def refuse_if_revoked(realm: Realm, *, credential_admitted: bool = False) -> None:
+    """Raise ``realm_revoked`` (not retryable) for a marked realm. A host-state
+    mark is lifted instead when the call carries a credential minted for this
+    realm (``HOST_STATE_REASONS``)."""
     mark = read_realm_revocation(realm.id)
     if mark is None:
+        return
+    if mark["host_state"] and credential_admitted:
+        clear_realm_revocation(realm)
         return
     raise RealmSyncError(
         REALM_REVOKED_CODE,

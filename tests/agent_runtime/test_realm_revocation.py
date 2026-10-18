@@ -101,3 +101,48 @@ def test_a_re_adopt_lifts_the_mark(realm, monkeypatch):
     adopt_realms(credential)
     assert read_realm_revocation(realm.id) is None
     _authorize(RealmStore().get(realm.id), "pull", membership.RealmMembershipProvider(), None)  # no raise
+
+
+# --- RT-MAP-BACKEND-409-REALMS: the mint's permanent 409s are host-state marks ---
+
+
+def _admitted_credential(realm_id: str):
+    from agent_runtime.realm_membership import RealmSyncCredential
+
+    return RealmSyncCredential.parse({
+        "schema_version": 1, "realm_id": realm_id, "api_base": "https://api.test.invalid/api",
+        "api_token": "etk_t", "git_url": "https://git.test.invalid/r.git",
+        "git_authorization": "Basic x", "expires_at": "2999-01-01T00:00:00Z",
+    })
+
+
+@pytest.mark.parametrize(
+    ("backend_code", "reason"),
+    [("realms.git_host_binding_lost", "git_host_binding_lost"), ("realms.git_host_unbound", "git_host_unbound")],
+)
+def test_a_mint_409_is_a_permanent_host_state_refusal_not_unreachable(realm, backend_code, reason):
+    reply = _rpc("runtime.realm.revoked", {"realm_id": realm.id, "reason": backend_code})
+    assert (reply["result"]["reason"], reply["result"]["host_state"]) == (reason, True)
+    with pytest.raises(RealmSyncError) as excinfo:
+        _authorize(realm, "pull", None, None)
+    assert excinfo.value.code == "realm_revoked"  # never sync_remote_unreachable
+    assert excinfo.value.retryable is False
+    assert excinfo.value.safe_details == {"revoked_reason": reason, "host_state": True}
+
+
+def test_an_admitted_credential_lifts_a_host_state_mark(realm, monkeypatch):
+    import agent_runtime.realm_membership as membership
+
+    _rpc("runtime.realm.revoked", {"realm_id": realm.id, "reason": "realms.git_host_binding_lost"})
+    monkeypatch.setattr(membership, "_request_json", lambda *a, **k: (200, {"allowed": True}))
+    realm.sync_manifest_ref = "https://git.test.invalid/r.git"
+    _authorize(realm, "pull", None, _admitted_credential(realm.id))  # a fresh mint re-verified the binding
+    assert read_realm_revocation(realm.id) is None
+
+
+def test_an_admitted_credential_never_lifts_a_membership_mark(realm):
+    mark_realm_revoked(realm, RealmRevokedReason.MEMBERSHIP_BANNED)
+    with pytest.raises(RealmSyncError) as excinfo:
+        _authorize(realm, "pull", None, _admitted_credential(realm.id))
+    assert excinfo.value.code == "realm_revoked"
+    assert read_realm_revocation(realm.id) is not None

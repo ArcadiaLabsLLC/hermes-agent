@@ -819,7 +819,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-15 (backend build wave A, realms)
 
-- **`RT-MAP-BACKEND-409-REALMS` — Map backend `409 realms.git_host_binding_lost` like `realms.git_host_unbound` (stop retrying), not to `sync_remote_unreachable`** · `hermes` · the backend's realm sync used to answer a permanent 503 when the GitHub App binding vanished mid-sync; since backend `0543d8b6` (REALM-SYNC-PERMANENT-503-1) it is a typed 409 that will not heal on retry · backend `docs/architecture/contracts/nexus/FRONTEND_STAGES.md` realms errors. · READY 2026-10-16 · **TAKEN 2026-10-18 w2-realm**
 
 
 
