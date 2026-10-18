@@ -38,15 +38,57 @@ looks at the document's shape, and it still needs no knowledge of the schema.
 
 from __future__ import annotations
 
-import hashlib
-import json
-from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
 from . import paths
+from .realm_sync.document_family import (
+    REFUSAL_MISSING_VERSION,
+    REFUSAL_NOT_AN_OBJECT,
+    REFUSAL_TOO_LARGE,
+    REFUSAL_UNREADABLE_DOCUMENT,
+    DocumentError,
+    DocumentFamily,
+    DocumentPullSummary,
+    DocumentStore,
+    apply_document_pull,
+    document_hash,
+    expectation_matches,
+    read_document_baseline,
+    read_remote_documents,
+    stored_sha256,
+    update_document_baseline_after_publish,
+    validate_document,
+    write_document_baseline,
+)
 
 __layer__ = "stores"
+
+__all__ = [
+    "LEVEL_FAMILY",
+    "LEVEL_PUBLISHED_PREFIX",
+    "MAX_LEVEL_DOCUMENT_BYTES",
+    "REFUSAL_MISSING_VERSION",
+    "REFUSAL_NOT_AN_OBJECT",
+    "REFUSAL_TOO_LARGE",
+    "REFUSAL_UNREADABLE_DOCUMENT",
+    "REFUSAL_UNREADABLE_LOCAL",
+    "REFUSAL_UNREADABLE_REMOTE",
+    "LevelDocumentError",
+    "LevelPullSummary",
+    "LevelStore",
+    "apply_level_pull",
+    "level_baseline_key",
+    "level_document_hash",
+    "level_document_row",
+    "level_expectation_matches",
+    "published_relative_path",
+    "read_level_baseline",
+    "read_remote_levels",
+    "stored_level_sha256",
+    "update_level_baseline_after_publish",
+    "validate_level_document",
+    "write_level_baseline",
+]
 
 #: Published subtree prefix for this family. Unknown to every older hermes:
 #: ``_destination_for_sync_path`` answers ``None`` for it through the final
@@ -62,17 +104,6 @@ LEVEL_PUBLISHED_PREFIX = "store/levels/"
 #: git repo, where the cost is permanent. Refused loudly at both doors instead.
 MAX_LEVEL_DOCUMENT_BYTES = 1024 * 1024
 
-#: The bytes are not UTF-8, or not JSON at all.
-REFUSAL_UNREADABLE_DOCUMENT = "unreadable_document"
-#: Valid JSON, but not an object — so it cannot carry a ``version`` and is not a
-#: level document whatever else it may be.
-REFUSAL_NOT_AN_OBJECT = "not_an_object"
-#: No numeric ``version``. The one schema fact hermes reads, and it reads it
-#: because every store on the other end gates on it: a document with no version
-#: is one the launcher's own loader answers ``SceneLoadMalformed`` for.
-REFUSAL_MISSING_VERSION = "missing_version"
-#: Over :data:`MAX_LEVEL_DOCUMENT_BYTES`.
-REFUSAL_TOO_LARGE = "document_too_large"
 #: The LOCAL stored level exists and will not read. Refused rather than reported
 #: absent: absent drives the ADOPT arm, and adopting over a file this machine
 #: could not read would overwrite an environment nobody has seen.
@@ -90,109 +121,65 @@ _REFUSAL_MESSAGES = {
 }
 
 
-def _refusal(key: str, code: str, *, message: str | None = None) -> dict[str, str]:
-    return {"key": key, "code": code, "message": message or _REFUSAL_MESSAGES.get(code, code)}
+class LevelDocumentError(DocumentError):
+    """A level document this runtime refuses to store or publish (typed ``code``)."""
+
+    messages = _REFUSAL_MESSAGES
 
 
-class LevelDocumentError(ValueError):
-    """A level document this runtime refuses to store or publish.
+class LevelPullSummary(DocumentPullSummary):
+    """The level pull's accounting, carried on a pull ack as
+    ``result["level_sync"]`` — :class:`DocumentPullSummary`'s arms."""
 
-    Carries the typed ``code`` rather than only a sentence, because every caller
-    — the CLI's exit taxonomy, the publish scan's refusal list, the pull's
-    per-entity isolation — spends the code and none of them should be re-deriving
-    it from a message.
-    """
-
-    def __init__(self, code: str, message: str | None = None):
-        super().__init__(message or _REFUSAL_MESSAGES.get(code, code))
-        self.code = code
+    __slots__ = ()
 
 
-# --- the two facts hermes reads -------------------------------------------
+#: The level family: one document per WORKSPACE, keyed by its token.
+LEVEL_FAMILY = DocumentFamily(
+    noun="level",
+    published_prefix=LEVEL_PUBLISHED_PREFIX,
+    max_bytes=MAX_LEVEL_DOCUMENT_BYTES,
+    error=LevelDocumentError,
+    messages=_REFUSAL_MESSAGES,
+    refusal_unreadable_local=REFUSAL_UNREADABLE_LOCAL,
+    refusal_unreadable_remote=REFUSAL_UNREADABLE_REMOTE,
+    token_field="workspace_token",
+    document_path=lambda token: paths.level_path(token),
+    store_root=lambda: paths.levels_root(),
+    baseline_path=lambda realm_id: paths.level_baseline_path(realm_id),
+    conflict_path=lambda realm_id, token: paths.level_conflict_path(realm_id, token),
+    summary_type=LevelPullSummary,
+)
+
+
+# --- the two facts hermes reads (``document_family``) -------------------------
 
 
 def validate_level_document(raw: bytes) -> dict[str, Any]:
     """Refuse anything that is not a size-bounded JSON object with a ``version``.
+    Returns the parsed object for the caller's accounting; never what is stored."""
 
-    Returns the parsed object for the CALLER's accounting (the CLI prints the
-    version it accepted). **It is never what gets stored** — every writer in this
-    module writes ``raw``, because the whole contract is that the launcher's
-    bytes survive the round trip unchanged.
-    """
-
-    if len(raw) > MAX_LEVEL_DOCUMENT_BYTES:
-        raise LevelDocumentError(REFUSAL_TOO_LARGE)
-    try:
-        parsed = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, ValueError) as exc:
-        raise LevelDocumentError(REFUSAL_UNREADABLE_DOCUMENT) from exc
-    if not isinstance(parsed, dict):
-        raise LevelDocumentError(REFUSAL_NOT_AN_OBJECT)
-    if not isinstance(parsed.get("version"), (int, float)) or isinstance(
-        parsed.get("version"), bool
-    ):
-        raise LevelDocumentError(REFUSAL_MISSING_VERSION)
-    return parsed
+    return validate_document(LEVEL_FAMILY, raw)
 
 
 def level_document_hash(raw: bytes) -> str:
-    """Semantic content hash of one level document.
+    """Semantic content hash of one level document — the merge key."""
 
-    Parses and re-serialises canonically (sorted keys, no whitespace) so the
-    merge keys on the JSON VALUE. Two publishers whose serializers differ only
-    in indentation converge; a real edit diverges. The stored bytes are
-    untouched by this — nothing here is ever written back.
-
-    Assumes :func:`validate_level_document` has already accepted ``raw``; a
-    caller that has not validated gets the same ``LevelDocumentError``.
-    """
-
-    parsed = validate_level_document(raw)
-    canonical = json.dumps(parsed, sort_keys=True, separators=(",", ":"), default=str)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return document_hash(LEVEL_FAMILY, raw)
 
 
 def stored_level_sha256(raw: bytes) -> str:
-    """Hash of the STORED BYTES — the compare-and-set token, not the merge key.
+    """Hash of the STORED BYTES — the compare-and-set token, not the merge key."""
 
-    Named apart from :func:`level_document_hash` because the two answer
-    different questions and only one of them is safe to guard a write with.
-    This one answers "are the bytes I read still the bytes you hold": a
-    re-indentation changes it, which is exactly what a caller doing
-    compare-and-set needs, while the semantic hash would call that write a no-op
-    and let a lost update through.
-    """
-
-    return hashlib.sha256(raw).hexdigest()
+    return stored_sha256(raw)
 
 
-def level_expectation_matches(
-    stored: bytes | None, expect_sha256: str | None, *, provided: bool
-) -> bool:
-    """Does the store still hold what a compare-and-set caller last read?
+def level_expectation_matches(stored: bytes | None, expect_sha256: str | None, *, provided: bool) -> bool:
+    """Compare-and-set check (``document_family.expectation_matches``). The
+    ``None`` arm is how a first write says *I believe I am authoring this
+    workspace's level*."""
 
-    Three meanings, and the third is the one a bool parameter is carrying
-    because ``None`` is already spoken for:
-
-    - ``provided=False`` (the caller omitted the key) — UNCONDITIONAL, always
-      true. A launcher that never read the level is not forced to invent a token.
-    - ``expect_sha256 is None`` — "there must be nothing stored". This is how a
-      first write says *I believe I am authoring this workspace's level*, and it
-      is the arm that catches two machines authoring one workspace at once.
-    - a hex string — it must equal the sha256 of the STORED BYTES.
-
-    Compared case-insensitively, because a client that upper-cases its hex is
-    not making a different claim. Keyed on the stored-byte hash and never on
-    :func:`level_document_hash`: the semantic hash calls a re-serialisation a
-    no-op, which is precisely the lost update a compare-and-set exists to refuse.
-    """
-
-    if not provided:
-        return True
-    current = stored_level_sha256(stored) if stored is not None else None
-    if expect_sha256 is None:
-        return current is None
-    return current is not None and current.lower() == str(expect_sha256).lower()
+    return expectation_matches(stored, expect_sha256, provided=provided)
 
 
 def level_document_row(
@@ -236,7 +223,7 @@ def level_document_row(
 def level_baseline_key(workspace_token: str) -> str:
     """This family's baseline key, namespaced like every sibling family's."""
 
-    return f"level:{workspace_token}"
+    return LEVEL_FAMILY.baseline_key(workspace_token)
 
 
 def published_relative_path(workspace_id: str) -> str:
@@ -250,219 +237,49 @@ def published_relative_path(workspace_id: str) -> str:
     return f"{LEVEL_PUBLISHED_PREFIX}{paths.safe_path_token(workspace_id)}.json"
 
 
-# --- the store door ---------------------------------------------------------
-#
-# Below the line on purpose: everything above is pure, so the validation, the
-# hash and the path grammar stay unit-testable without a store. Same two-halves
-# shape as ``flow_graph_sync`` and ``persona_instance_sync``, for the same
-# reason — one module per synced family beats a pure module and a sidecar module
-# that can drift apart.
+# --- the store door -----------------------------------------------------------
 
 
-class LevelStore:
-    """Read and write one workspace's level document.
+class LevelStore(DocumentStore):
+    """Read and write one workspace's level document — THE door
+    (``document_family.DocumentStore``). Absence is not an error: most
+    workspaces never had a level applied. A clear is local; the realm's level
+    comes back on the next pull."""
 
-    THE door. Both the CLI verbs and the realm-sync pull applier write through
-    it, so "hermes accepted this level" means one thing on this machine. A raw
-    file write beside it would be a second author with a different idea of what
-    a level document has to satisfy — which is the shape ``apply_persona_
-    instance_pull`` names as its reason for existing too.
-    """
-
-    def read(self, workspace_id: str) -> bytes | None:
-        """The stored bytes, or ``None`` when this workspace has no level.
-
-        Absence is not an error: most workspaces never had a level applied, and
-        an unauthored environment is the normal case.
-        """
-
-        path = paths.level_path(workspace_id)
-        try:
-            return path.read_bytes() if path.is_file() else None
-        except OSError:
-            return None
-
-    def write(self, workspace_id: str, raw: bytes) -> dict[str, Any]:
-        """Store ``raw`` VERBATIM after validating it, and report what happened.
-
-        Writing BYTES is load-bearing rather than tidy: a text-mode write
-        translates ``\\n`` to the host's line ending, which on Windows would make
-        hermes rewrite every line of a document it promised not to touch — and
-        the publish lane's own EOL canonicalisation would then report a change on
-        a no-op set.
-        """
-
-        from utils import atomic_write_bytes
-
-        validate_level_document(raw)
-        path = paths.level_path(workspace_id)
-        before = self.read(workspace_id)
-        if before == raw:
-            return {"path": path, "changed": False}
-        atomic_write_bytes(path, raw)
-        return {"path": path, "changed": True}
-
-    def clear(self, workspace_id: str) -> dict[str, Any]:
-        """Delete this workspace's level, and say whether one was there.
-
-        Beside :meth:`write` because it is the same door: "hermes no longer
-        holds a level for this workspace" has to mean one thing on this machine,
-        and a caller unlinking ``paths.level_path`` itself would be the second
-        author this class exists to prevent.
-
-        ``changed: False`` for a workspace that had no level is an honest
-        answer, not an error — the same reading :meth:`read` gives absence, and
-        the one that makes a clear IDEMPOTENT for a launcher that retries.
-
-        **A clear is local.** It removes nothing from a realm and writes no
-        baseline: the pull's ``upstream_absent`` arm is deliberately never a
-        delete, so a cleared level that the realm still publishes comes back on
-        the next pull. That is the family's ruling, not an oversight here.
-        """
-
-        path = paths.level_path(workspace_id)
-        existed = path.is_file()
-        try:
-            path.unlink(missing_ok=True)
-        except OSError:
-            if path.is_file():
-                raise
-            existed = False
-        return {"path": path, "changed": existed}
+    family = LEVEL_FAMILY
 
     def list_workspace_tokens(self) -> list[str]:
         """Every workspace token this store holds a level for, sorted."""
 
-        root = paths.levels_root()
-        if not root.is_dir():
-            return []
-        return sorted(path.stem for path in root.glob("*.json") if path.is_file())
+        return self.list_tokens()
 
 
 # --- baseline sidecar (never synced, never published) ------------------------
 
 
 def read_level_baseline(realm_id: str) -> dict[str, str]:
-    path = paths.level_baseline_path(realm_id)
-    if not path.exists():
-        return {}
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    entries = raw.get("entries") if isinstance(raw, dict) else None
-    return {str(k): str(v) for k, v in entries.items()} if isinstance(entries, dict) else {}
+    return read_document_baseline(LEVEL_FAMILY, realm_id)
 
 
 def write_level_baseline(realm_id: str, entries: dict[str, str]) -> None:
-    from utils import atomic_json_write
-
-    atomic_json_write(
-        paths.level_baseline_path(realm_id),
-        {"schema_version": 1, "entries": entries},
-        indent=2,
-        sort_keys=True,
-    )
+    write_document_baseline(LEVEL_FAMILY, realm_id, entries)
 
 
 def update_level_baseline_after_publish(realm_id: str, hashes: dict[str, str]) -> None:
-    """Record the published levels' hashes as the new baseline.
+    """Record the published levels' hashes as the new baseline, so a publisher's
+    next pull is not handed a held environment over content nobody disagreed about."""
 
-    Without it a member who publishes and then pulls reads the level they just
-    shipped as locally-edited-and-remotely-changed — and for this family, as for
-    the canvas, the answer to a two-sided divergence is a HOLD with a conflict
-    sidecar. The publisher would be handed a held environment over content
-    nobody disagreed about.
-    """
-
-    baseline = read_level_baseline(realm_id)
-    for token, body_hash in hashes.items():
-        baseline[level_baseline_key(token)] = body_hash
-    write_level_baseline(realm_id, baseline)
+    update_document_baseline_after_publish(LEVEL_FAMILY, realm_id, hashes)
 
 
 # --- pull: adopt, keep or HOLD — whole document, never merged ----------------
 
 
 def read_remote_levels(subtree) -> tuple[dict[str, bytes], list[dict[str, str]]]:
-    """Level bytes carried by a pulled realm subtree, keyed by workspace token.
+    """Level bytes carried by a pulled realm subtree, keyed by workspace token;
+    ``(levels, refused)`` — an unreadable file is refused by name, never omitted."""
 
-    ``(levels, refused)``. A file under the prefix that will not read is REFUSED
-    by name rather than omitted, because an omission is indistinguishable from
-    "the realm stopped publishing this level" — which drives the
-    ``upstream_absent`` arm, and answering a read failure with a removal-shaped
-    decision is the mistake this family cannot afford to make about somebody's
-    authored environment.
-    """
-
-    root = Path(subtree).joinpath(*LEVEL_PUBLISHED_PREFIX.strip("/").split("/"))
-    levels: dict[str, bytes] = {}
-    refused: list[dict[str, str]] = []
-    if not root.is_dir():
-        return levels, refused
-    for path in sorted(root.glob("*.json")):
-        if not path.is_file():
-            continue
-        token = path.stem
-        try:
-            raw = path.read_bytes()
-            validate_level_document(raw)
-        except (OSError, LevelDocumentError) as exc:
-            code = getattr(exc, "code", REFUSAL_UNREADABLE_REMOTE)
-            refused.append(_refusal(token, REFUSAL_UNREADABLE_REMOTE, message=_REFUSAL_MESSAGES.get(code, code)))
-            continue
-        levels[token] = raw
-    return levels, refused
-
-
-@dataclass(slots=True)
-class LevelPullSummary:
-    """Typed accounting for the level pull — the contract seam the launcher
-    renders, carried on a pull ack as ``result["level_sync"]``.
-
-    - ``adopted`` — the realm's level was written whole, through the store door
-      so it was validated on the way in.
-    - ``converged`` — local already equals remote; nothing written.
-    - ``kept_local`` — this machine changed its level and the realm did not.
-    - ``held`` — BOTH sides changed it. The local level is untouched and the
-      remote bytes are parked in a conflict sidecar. One document has no natural
-      three-way resolution, so this is a loud hold, never a merge.
-    - ``upstream_absent`` — the realm no longer carries a level this baseline
-      says it published. **Never a delete.** A level is authored work and this
-      family has no archive; the baseline is KEPT so a repaired publish still
-      converges.
-    - ``refused`` — a published level that will not read, or a local one that
-      will not. Per-entity isolation: nothing is written, the refusal is named,
-      the pull continues.
-
-    ``source`` is ``None`` when the subtree carries no level directory at all —
-    an older publisher, or a realm whose workspaces never had one applied.
-    Absence is never a removal, and the launcher's version-skew rule keys on the
-    distinction, which is why the key is emitted unconditionally.
-    """
-
-    adopted: list[str] = field(default_factory=list)
-    converged: list[str] = field(default_factory=list)
-    kept_local: list[str] = field(default_factory=list)
-    held: list[str] = field(default_factory=list)
-    upstream_absent: list[str] = field(default_factory=list)
-    refused: list[dict[str, str]] = field(default_factory=list)
-    source: str | None = None
-
-    @property
-    def changed(self) -> bool:
-        return bool(self.adopted)
-
-    def as_dict(self) -> dict[str, Any]:
-        return {
-            "adopted": sorted(set(self.adopted)),
-            "converged": sorted(set(self.converged)),
-            "kept_local": sorted(set(self.kept_local)),
-            "held": sorted(set(self.held)),
-            "upstream_absent": sorted(set(self.upstream_absent)),
-            "refused": list(self.refused),
-            "source": self.source,
-        }
+    return read_remote_documents(LEVEL_FAMILY, subtree)
 
 
 def apply_level_pull(realm_id: str, subtree) -> LevelPullSummary:
@@ -483,100 +300,4 @@ def apply_level_pull(realm_id: str, subtree) -> LevelPullSummary:
     argument.
     """
 
-    from .sync_merge import PullAction, classify_three_way_pull
-
-    summary = LevelPullSummary()
-    root = Path(subtree).joinpath(*LEVEL_PUBLISHED_PREFIX.strip("/").split("/"))
-    if not root.is_dir():
-        # Not published. Never a removal — no baselined level is touched, so an
-        # older peer in the rotation cannot strand this machine's environments.
-        return summary
-    summary.source = "subtree"
-    remote, refused = read_remote_levels(subtree)
-    summary.refused.extend(refused)
-
-    store = LevelStore()
-    baseline = read_level_baseline(realm_id)
-    prefix = level_baseline_key("")
-    baselined = {key[len(prefix) :] for key in baseline if key.startswith(prefix)}
-    for token in sorted(set(remote) | baselined):
-        remote_raw = remote.get(token)
-        # A token that refused above is neither adopted nor treated as absent:
-        # it is already named on ``refused`` and must not fall into the
-        # upstream_absent arm, which is delete-SHAPED reporting about a file that
-        # is right there and merely would not open.
-        if remote_raw is None and any(row["key"] == token for row in refused):
-            continue
-        try:
-            local_raw = store.read(token)
-            local_hash = level_document_hash(local_raw) if local_raw is not None else None
-        except LevelDocumentError:
-            summary.refused.append(_refusal(token, REFUSAL_UNREADABLE_LOCAL))
-            continue
-        if remote_raw is None:
-            summary.upstream_absent.append(token)
-            continue
-        remote_hash = level_document_hash(remote_raw)
-        decision = classify_three_way_pull(
-            local_hash, remote_hash, baseline.get(level_baseline_key(token))
-        )
-        if decision.action is PullAction.NOOP:
-            summary.converged.append(token)
-            continue
-        if decision.action is PullAction.KEEP_LOCAL:
-            summary.kept_local.append(token)
-            continue
-        if decision.action is PullAction.CONFLICT:
-            summary.held.append(token)
-            _write_conflict_sidecar(realm_id, token, remote_raw, local_hash, remote_hash)
-            continue
-        if decision.action is PullAction.ARCHIVE_LOCAL:
-            # Unreachable with ``remote_raw`` in hand — the classifier only
-            # answers ARCHIVE_LOCAL for an absent remote, which the arm above
-            # already took. Named rather than folded into the adopt arm so a
-            # future classifier change cannot silently start overwriting a level
-            # on a removal decision.
-            summary.upstream_absent.append(token)
-            continue
-        store.write(token, remote_raw)
-        baseline[level_baseline_key(token)] = remote_hash
-        summary.adopted.append(token)
-    if summary.adopted:
-        write_level_baseline(realm_id, baseline)
-    return summary
-
-
-def _write_conflict_sidecar(
-    realm_id: str,
-    workspace_token: str,
-    remote_raw: bytes,
-    local_hash: str | None,
-    remote_hash: str | None,
-) -> None:
-    """Park the environment a HOLD refused to adopt.
-
-    Best-effort: a sidecar this machine cannot write is not a reason to clobber
-    the level the hold exists to protect. The remote bytes are carried as TEXT
-    rather than re-parsed JSON so the parked copy is the one the publisher wrote
-    — a resolve that took it would otherwise adopt hermes's re-serialisation of
-    somebody else's document.
-    """
-
-    from utils import atomic_json_write
-
-    try:
-        atomic_json_write(
-            paths.level_conflict_path(realm_id, workspace_token),
-            {
-                "schema_version": 1,
-                "realm_id": realm_id,
-                "workspace_token": workspace_token,
-                "local_hash": local_hash,
-                "remote_hash": remote_hash,
-                "remote_document": remote_raw.decode("utf-8", errors="replace"),
-            },
-            indent=2,
-            sort_keys=True,
-        )
-    except Exception:  # noqa: BLE001 — the HOLD stands with or without its receipt
-        pass
+    return apply_document_pull(LEVEL_FAMILY, realm_id, subtree)  # type: ignore[return-value]
