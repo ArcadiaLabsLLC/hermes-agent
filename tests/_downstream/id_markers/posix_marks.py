@@ -99,6 +99,8 @@ if _WIN:
         # Lane r-gateway (2026-10-17, owner ruling 2026-10-18): the test spins on
         # `st_ctime_ns` moving under `os.utime`; win32 st_ctime is creation time, so the
         # loop never ends (30 s cap), and `utils.file_signature` documents mtime + size there.
+        # Replaces the upstream_reds xfail row (class e-ID: copy2 keeps the NTFS file id and
+        # creation ctime): an xfail still ran the loop to the cap.
         "tests/tui_gateway/test_tui_gateway_server.py::"
         "test_load_cfg_raw_sees_replacement_with_pinned_mtime_and_size": (
             _posix_only("POSIX change-time premise; win32 st_ctime is creation time and "

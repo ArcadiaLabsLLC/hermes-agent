@@ -243,11 +243,6 @@ if _WIN:
             _up_red("app.darwin.location is str(tmp_path), a drive-letter path the declaration "
                     "rejects as not absolute, so the plugin is disabled at load (class c-D)"),
         ),
-        "tests/tui_gateway/test_tui_gateway_server.py::"
-        "test_load_cfg_raw_sees_replacement_with_pinned_mtime_and_size": (
-            _up_red("shutil.copy2 over an existing file keeps its NTFS file id and creation "
-                    "ctime, so no field of the cache signature moves (class e-ID)"),
-        ),
         # A SKIP: the red is a teardown error, which a strict xfail cannot cover (the
         # call phase passes and reads XPASS(strict)).
         **{node: (_up_red_skip("the Proactor loop close in tests/conftest.py _ensure_current_event_loop "
