@@ -92,6 +92,7 @@ or registry entry names something real).
 | gate | kind | guarantees |
 | --- | --- | --- |
 | `scripts/doc_cite_adjacency.py` ↔ `tests/scripts/test_doc_cite_adjacency.py` | claims | a canon cite lands on the thing the sentence names (ruled scope `--exclude archive --exclude planned`) |
+| `tests/tooling/test_work_queue_row_grammar.py` | claims | every `type: queue` row under `Harness_Brain/` is in the launcher's row grammar (ID, one line, exactly one status, valid BLOCKED reason) so the Mission Control board can read it |
 | `tests/test_docket_stage_claims.py` | claims | a plan that says EXECUTED names a SHA in this history |
 | `tests/test_coverage_claims_resolve.py` | claims | a coverage claim names a test that exists |
 | `tests/scripts/test_mutation_claims_still_anchor.py` | claims | every registered mutation claim still anchors |
