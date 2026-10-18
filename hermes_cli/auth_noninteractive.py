@@ -177,10 +177,7 @@ def set_key(
                 SOURCE_MANUAL,
                 load_pool,
             )
-            from hermes_cli.auth_commands import (
-                _api_key_default_label,
-                _provider_base_url,
-            )
+            from hermes_cli.auth_commands import _provider_base_url
 
             if not normalized.startswith(CUSTOM_POOL_PREFIX):
                 raise NonInteractiveAuthError(
@@ -189,9 +186,8 @@ def set_key(
                     code="no_key_var",
                 )
             pool = load_pool(normalized)
-            resolved_label = (label or "").strip() or _api_key_default_label(
-                len(pool.entries()) + 1
-            )
+            # Upstream's `auth add` default (it inlined its `_api_key_default_label`).
+            resolved_label = (label or "").strip() or f"api-key-{len(pool.entries()) + 1}"
             pool.add_entry(
                 PooledCredential(
                     provider=normalized,

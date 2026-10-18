@@ -58,18 +58,14 @@ def no_dial_allowed(monkeypatch):
     which is the version of this feature that does not work.
     """
 
-    from hermes_cli.harness_parts import gateway_commands
-
     def _explode(*args, **kwargs):
         raise AssertionError(
             "peers join opened a connection: the fingerprint mismatch must be "
             "answered before any dial"
         )
 
-    monkeypatch.setattr(gateway_commands, "ServeSocketClient", _explode, raising=False)
     # ``cmd_gateway_peers_join`` imports the class inside the function, so the
-    # module attribute above is not the one it reads. Patch the source module
-    # too — belt and braces, and the one that actually fires.
+    # source module's attribute is the one it reads.
     from agent_runtime import serve_socket
 
     monkeypatch.setattr(serve_socket.client, "ServeSocketClient", _explode)

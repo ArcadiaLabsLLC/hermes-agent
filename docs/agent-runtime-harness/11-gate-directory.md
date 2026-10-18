@@ -123,6 +123,7 @@ or registry entry names something real).
 | `scripts/upstream_footprint.py` ↔ `tests/scripts/test_upstream_footprint.py` | ratchet | the fork's footprint in upstream files only goes down; every raise cites an owner ruling |
 | `scripts/upstream_sync_gate.py` ↔ `tests/scripts/test_upstream_sync_gate.py` | runtime | the weekly merge's sync gate |
 | `scripts/check_carried_prs.py` ↔ `tests/scripts/test_check_carried_prs_downstream.py` | runtime | carried upstream-PR hunks have not drifted |
+| `scripts/upstream_retirement_scan.py` ↔ `tests/tooling/test_upstream_retirement_scan.py` | fence | no fork import or patch target names an upstream module or name the merged release tag (the manifest's base) lacks; the scan's other arms (`hunks`, `twins`, `carried`) report only |
 
 ## The mutation gate
 
