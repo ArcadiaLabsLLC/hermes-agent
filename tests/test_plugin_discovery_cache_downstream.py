@@ -95,3 +95,41 @@ def test_bytecode_written_into_a_plugin_dir_is_not_a_miss(tmp_path):
     assert cache._tree_signature(str(root)) == before
     manifest.write_text("name: one\nversion: 2\n", encoding="utf-8")
     assert cache._tree_signature(str(root)) != before
+
+
+def test_the_checkout_root_walks_its_signature_once_per_test(tmp_path, monkeypatch):
+    """For the checkout's own ``plugins/`` (``once_per_test``) a hit inside one test skips the tree walk;
+    the next test's first discovery walks it again and sees an edit. Killing mutation: drop the
+    ``kept[2] == test`` clause (every later test is served the stale scan)."""
+
+    root = tmp_path / "bundled"
+    (root / "one").mkdir(parents=True)
+    calls, walks = [], []
+    real_signature = cache._tree_signature
+    monkeypatch.setattr(cache, "_tree_signature", lambda path, depth=0: (walks.append(path) if depth == 0 else None) or real_signature(path, depth))
+
+    def real(path, source, *, skip_names=None, prefix="", depth=0):
+        calls.append(path)
+        return [sorted(p.name for p in root.iterdir())]
+
+    scan = cache._caching_scan(real, root, once_per_test=True)
+    cache.clear()
+    try:
+        assert scan(root, "bundled") == [["one"]]
+        assert scan(root, "bundled") == [["one"]] and len(calls) == 1 and len(walks) == 1, "a hit in one test walks nothing"
+        (root / "two").mkdir()
+        cache.next_test()
+        assert scan(root, "bundled") == [["one", "two"]] and len(calls) == 2 and len(walks) == 2
+        cache.next_test()
+        assert scan(root, "bundled") == [["one", "two"]] and len(calls) == 2, "an unchanged tree is a hit after its walk"
+    finally:
+        cache.clear()
+
+
+def test_only_the_checkout_root_skips_the_per_discovery_walk(tmp_path):
+    """A test's own bundled tree (``HERMES_BUNDLED_PLUGINS`` -> tmp) keeps the per-discovery check."""
+
+    assert cache._checkout_bundled_root() == os.path.normcase(os.path.abspath(plugins.get_bundled_plugins_dir())) or os.getenv(
+        "HERMES_BUNDLED_PLUGINS"
+    )
+    assert os.path.normcase(os.path.abspath(tmp_path)) != cache._checkout_bundled_root()
