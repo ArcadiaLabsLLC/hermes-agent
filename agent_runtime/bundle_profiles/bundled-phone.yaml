@@ -302,6 +302,11 @@ packaging:
     - tools.connectors.portal
     - tools.connectors.gateway.client
     - tools.connectors.gateway.wire
+    # The connector tool bridge and its file staging (files imports the wire at module level). Kept code
+    # reaches them only lazily, behind connections_in_scope (tools/connectors/search.py), which a phone
+    # never satisfies: tools.connectors.enabled false keeps manage_connections out of the schema.
+    - tools.connectors.gateway.bridge
+    - tools.connectors.gateway.files
     # MCP OAuth: its provider and manager import the `mcp` SDK (a provider SDK the phone never ships).
     - tools.mcp_oauth_device
     - tools.mcp_oauth_manager
@@ -377,6 +382,10 @@ packaging:
     - hermes_cli.setup_tts
     - hermes_cli.memory_setup
     - hermes_cli.model_setup_flows
+    # `hermes model` → Local models (it drives the dashboard's FastAPI route handlers, and fastapi
+    # requires pydantic): reached only from the desktop picker (hermes_cli.main), and
+    # hermes_cli.local_runtime is off already.
+    - hermes_cli.model_setup_flows_local
     - hermes_cli.plugin_validate
     - hermes_cli.plugins_provenance
     - hermes_cli.plugins_updates
