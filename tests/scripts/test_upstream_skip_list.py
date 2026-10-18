@@ -185,8 +185,7 @@ def _select(rows, changed, *, since_merge, named=()):
     files = bundled.rtp._discover_files([_REPO_ROOT / "tests" / "hermes_cli"])
     sel = bundled.select_scope(
         files, _REPO_ROOT, bundled.load_manifest(MANIFEST), changed, named=named, skipped=rows,
-        chain_sample=not since_merge,  # select_for_run: --scope fork samples the chain, --since-merge does not
-    )
+    )  # since ADR 0016 --scope fork and --since-merge select alike; both ids stay so either reach is pinned
     return {bundled._rel(p, _REPO_ROOT) for p in sel.selected}, {bundled._rel(p, _REPO_ROOT) for p in sel.skipped_red}
 
 
