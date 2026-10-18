@@ -240,19 +240,27 @@ def test_the_budget_refusal_precedes_the_lock(gate):
 def test_a_held_gate_lock_leaves_git_status_clean(tmp_path, monkeypatch):
     """The lock's directory ignores itself, so the root `.gitignore` needs no
     fork entry. Positive control: without the directory's ignore file the same
-    lock IS untracked litter."""
+    lock IS untracked litter.
+
+    The repository is its own directory, never ``tmp_path`` itself: the test
+    chain seeds the per-test Hermes home inside ``tmp_path``
+    (``tests/_downstream/home_config.py`` writes ``hermes_test/config.yaml``),
+    and a status read over that tree reported the chain's file as this lock's
+    litter (FORK-MUTATION-LOCK-TEST-UNTRACKED-CONFIG)."""
 
     import shutil
     import subprocess
 
     if shutil.which("git") is None:
         pytest.skip("git is not on PATH")
-    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
-    monkeypatch.setattr(module, "LOCK_PATH", tmp_path / ".mutation-gate" / "lock")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    monkeypatch.setattr(module, "LOCK_PATH", repo / ".mutation-gate" / "lock")
 
     def untracked() -> str:
         return subprocess.run(
-            ["git", "-C", str(tmp_path), "status", "--porcelain", "--untracked-files=all"],
+            ["git", "-C", str(repo), "status", "--porcelain", "--untracked-files=all"],
             capture_output=True, text=True, check=True,
         ).stdout
 
