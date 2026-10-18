@@ -19,6 +19,7 @@ from pathlib import Path
 
 import pytest
 
+from hermes_cli import plugins  # imported here so the chain installs the discovery cache
 import hermes_constants
 
 #: the platform-native Hermes home, read at import — before any autouse fixture patches it
@@ -150,3 +151,20 @@ def test_a_real_loopback_listener_still_connects(family, host):
             accepted, _ = server.accept()
             accepted.close()
             assert client.getpeername()[1] == port
+
+
+def test_bundled_plugin_discovery_is_kept_between_tests():
+    """``tests/_downstream/plugin_discovery_cache.py``: once the plugin stack is imported, a fresh manager's
+    discovery re-uses the kept bundled scan instead of walking and parsing ``plugins/`` again (owner
+    ruling 2026-10-10). Mutation: drop the ``_plugin_discovery_cache`` re-export from ``conftest_plugin``."""
+
+    import hermes_cli.plugins_discovery as discovery
+    from tests._downstream import plugin_discovery_cache as cache
+
+    assert getattr(discovery.scan_directory, "_fork_discovery_cache", False)
+    plugins._reset_plugin_managers_for_tests()
+    plugins.discover_plugins()
+    hits = cache.stats()["hits"]
+    plugins._reset_plugin_managers_for_tests()
+    plugins.discover_plugins()
+    assert cache.stats()["hits"] > hits

@@ -21,9 +21,6 @@ from hermes_cli import models as hermes_models
 from tests.agent_runtime.test_operator_session_inspection import inspect, target
 from tests.agent_runtime.test_serve_rpc_open_chat import PERSONA, _call, qa_persona, placed_agent
 from tests.agent_runtime.test_instance_conversation_owner import chat_head, OWNER, OTHER
-from tests.plugin_manifest_memo import memoized_plugin_manifests  # the fixture, used by name
-
-pytestmark = pytest.mark.usefixtures("memoized_plugin_manifests")
 
 PROVIDER = "custom:test-endpoint"
 
