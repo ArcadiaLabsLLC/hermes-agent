@@ -1667,65 +1667,53 @@ recovery and pending discovery serve both directions.
 
 ## Native Work methods
 
-`agent_runtime/work/` adapts Hermes's public Kanban APIs. Tasks, task IDs,
-dispatch, runs and outcomes remain native. There is no second task store or
-Companion engine. `agent_runtime/work/rpc.py` registers console-private
-methods on the existing authenticated lane; all database work is deferred.
-The former blanket import gate now admits exactly two public imports in
-`work/native.py`. Mission Control's advisory board still has no task-execution
-dependency. Phone bundles omit the Work adapter and never advertise its methods.
+`agent_runtime/work/` serves Work on the workspace todo boards (plan
+[work-on-markdown-2026-10-18.md](planned/work-on-markdown-2026-10-18.md) §2, §5, §6.2). An owner is a
+WORKSPACE; its board is the `type: queue` notes of every repo slot it binds (plus the auto-created
+default brain when none carries a brain); a row in the ADR 0011 grammar IS a task, keyed `(slot, ID)`.
+The default brain is a MACHINE-LOCAL binding
+(`<store_root>/work/<ws>/default_brain.json`), never a declared slot, so it needs no realm publish right
+(owner ruling 2026-10-18); once a repo slot with a brain is bound, its rows move into that brain's
+`work-queue.md` in one commit and the default board drops from `boards[]`. There is no task database: reads come from hermes's own worktree of each slot after a fetch, and every
+write is ONE row operation committed and pushed fast-forward by `agent_runtime/work_store/writer.py`.
+Upstream's kanban is not read or written. All methods are console-tier and deferred through
+`spawn_reply`; replies carry `version: 2`, `install_id` and (owner calls) `owner`; a refusal is error 4090
+`{"reason", "detail"}` with `reason` a `agent_runtime/work_store/reasons.py::Reason` word. Phone bundles
+omit the module and never advertise the methods.
 
-| Method | Input beyond scope | Result |
-|---|---|---|
-| `runtime.work.capabilities` | none | version 1, installation, owners, limitations |
-| `runtime.work.context` | client_scope, conversation | installation, scopes, agent_profile, can_start |
-| `runtime.work.list` | optional cursor `[created_at, id]`, view, conversation | tasks, next cursor |
-| `runtime.work.inspect` | task_id | task or null |
-| `runtime.work.start` | client_scope, request_id, title, body | accepted task |
+| Method | Input beyond scope | Result | Typed refusals |
+|---|---|---|---|
+| `runtime.work.capabilities` | none | `owners[] {owner, workspace_id, label, operations}`, `default_brain {ws: {state: present \| created \| moved (+ `into`) \| absent \| unavailable (+ `reason`)}}`, `limitations[]`, `chat_scopes`, `execution_identity_guard` | `scope_denied`, `work_unavailable` |
+| `runtime.work.context` | `client_scope`, `conversation` | `scopes`, `agent_profile`, `assignee`, `can_start` | `invalid_request`, `work_owner_changed` |
+| `runtime.work.list` | `slot?`, `status?` (`READY` / `BLOCKED` / `DEFERRED` / `NEEDS PLAN` / `TAKEN`), `assignee?` (`persona:<token>`), `view?` (`all` / `conversation`), `stale_ok?` | `boards[] {slot, label, brain_dir, bound_here, local, is_default, default_branch, committed_at, queues[] {note, program, title, rows[]}}` — grouped per brain, then per domain (one queue note each; `program` from its frontmatter; every row carries `slot` and `program`), `cursor: null`, `read_at`, `stale` | `work_owner_changed`, `fetch_failed` (unless `stale_ok`) |
+| `runtime.work.inspect` | `slot`, `task_id` | `task` or null; `ending {commit, at, subject, body}` (the deleting commit) when null | `work_owner_changed`, `slot_unbound` |
+| `runtime.work.start` | `request_id`, `title` (≤160), `body?` (≤50,000), `slot?`, `note?`, `assignee?` | `task`, `disposition: accepted`, `receipt` — a minted `WORK-<6>` row; a non-empty body is its brief note | `invalid_request`, `no_brain`, `slot_unbound`, `assignee_unknown`, `push_contended`, the git reasons |
+| `runtime.work.assign` | `request_id`, `slot`, `task_id`, `assignee` (or null to clear) | `task`, `receipt` | `row_gone`, `assignee_unknown`, git reasons |
+| `runtime.work.claim` | `request_id`, `slot`, `task_id`, `who?` (`persona:<instance_id>`, default the context's assignee) | `task`, `receipt` | `row_gone`, `already_taken`, `assignee_unknown`, git reasons |
+| `runtime.work.release` | `request_id`, `slot`, `task_id`, `status?` | `task`, `receipt` | `row_gone`, `not_claimant`, git reasons |
+| `runtime.work.set_status` | `request_id`, `slot`, `task_id`, `status` (a full status segment) | `task`, `receipt` | `row_gone`, `grammar_invalid`, `not_claimant`, git reasons |
+| `runtime.work.done` | `request_id`, `slot`, `task_id`, `result` (≤4,000, one paragraph) | `ending`, `receipt` — the row is deleted; the commit body carries the result | `row_gone`, `not_claimant`, git reasons |
+| `runtime.work.create_brain` | `request_id`, `slot?` (omitted: the default brain) | `board`, `receipt` | `slot_unbound`, git reasons |
 
-Scope is `install_id` plus an opaque `owner` returned by capabilities. Its
-fingerprint binds installation, native database, board, profile and profile home.
-Every call resolves those facts again. Missing or changed owners refuse; no call
-falls back to the active board. The dispatcher must already be configured by the
-operator; acceptance means queued in Hermes, never proof of execution.
+Scope is `install_id` plus the opaque `owner` = `fingerprint([install, workspace_id])`; every call
+re-derives the owner set and a missing or changed owner refuses. The idempotency key is `request_id`
+(the commit body's `request_id: <rid>` line at the tip): a repeat returns the recorded receipt
+(`replayed: true`). The operator's console writes as `who: operator` and may release or re-status a row
+another claimant holds; a paired device writes as `device:<id>` and may not borrow the operator's name.
+The git reasons are `slot_unbound`, `git_unavailable`, `machine_identity_unavailable`, `worktree_failed`,
+`remote_missing`, `fetch_failed`, `branch_missing`, `worktree_dirty`, `note_missing`, `grammar_invalid`,
+`commit_failed`, `push_refused`, `push_contended` — one per failure branch of the plan's §5 step table.
+Every write logs one receipt line `work.row_<op>` (`agent_runtime/work_store/receipts.py`); the serve log
+is the receipt log.
 
-The outer native write transaction serializes replay lookup and create. A request
-key binds the installation owner (or paired device), client scope, owner and request ID. Changed payloads
-refuse. Archived records reconcile without recreation; deleting the native task
-also deletes replay evidence. Clients persist the exact pending command before
-send and retry that identity after uncertain replies.
-
-List uses native task ordering and keyset slicing, 40 rows per frame. Native
-`list_tasks` currently materializes the matching profile's records before slicing;
-the adapter does not own a parallel query schema. Inspect bounds result text at
-64,000 characters and marks truncation. No result is independently verified by
-this projection. Unknown and archived lifecycle states are never flattened to
-success. Stop, redirect and retry are not advertised.
-
-Launcher presentation and verification record:
-`EterniaLauncher/docs/archive/companion/HERMES_WORK_VIEW_2026-09-30.md`.
+A session that races the writer on the same queue note re-applies its op by ID with
+`scripts/work_row.py` in its own checkout (never a text merge).
 
 ### Conversation-scoped Work
 
-`agent_runtime/work/context.py` resolves optional `conversation` references through
-existing conversation authorities. Every contextual request includes `client_scope`.
-A native reference is `{kind: native, profile, profile_home, session_id}`; the session
-ID is the existing client route, resolved under its caller/account/profile scope.
-A null session permits browsing but cannot start linked work. A route without turns
-also cannot start: its native session is not yet stable.
-
-An operator reference is `{kind: operator, workspace_id, persona_id, persona_instance_id,
-session_id}` and passes `validate_operator_conversation`. Its persona is not a
-native dispatcher profile: it offers conversation/all scopes and real destination
-choices, never an invented assignment to that persona.
-
-Capabilities advertise `chat_scopes: true`. Views are `conversation`, `agent`, `all`.
-Native `task.session_id` is the originating conversation; the harness creates no
-relationship table. Task creation stamps this origin, native agent-created tasks
-already carry it, and replay compares it. Projection adds `in_conversation`.
-Unknown or mismatched account, home, installation or session refuses without a
-global fallback. Pending clients retain the original reference when another surface
-retries. Native task transfer may deliberately clear origin under native policy.
-
-The shared presentation receipt is
-`EterniaLauncher/docs/archive/companion/SCOPED_CHAT_WORK_2026-10-01.md`.
+`agent_runtime/work/context.py` resolves optional `conversation` references through existing
+conversation authorities. A native reference is `{kind: native, profile, profile_home, session_id}`
+(browse only; it names no assignee). An operator reference is `{kind: operator, workspace_id, persona_id,
+persona_instance_id, session_id}`; it passes `validate_operator_conversation`, and its persona instance
+IS the assignee: `context.assignee = persona:<persona_instance_id>`, the default `who` of a claim, and the
+`conversation` view lists the rows that instance holds (`in_conversation`).

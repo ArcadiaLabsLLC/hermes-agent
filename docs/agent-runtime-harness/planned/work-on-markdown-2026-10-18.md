@@ -663,6 +663,8 @@ Ruled 2026-10-18 (recorded on `RT-WORK-W1-STORE` and `MC-WORK-W4-BOARD`, binding
 tip; done = delete; both assignee forms; claim-only first; default brain local-only; hermes's own identity;
 engine the only agent-side writer; kanban retirement as W5.
 
+`RULED 2026-10-18: owner — the default brain is a MACHINE-LOCAL binding, never a declared slot (no publish right, every realm alike); every workspace with no repo brain gets one; when a repo brain is bound its rows move there once (one commit, IDs kept) and the default board drops; a remote for it is RT-WORK-DEFAULT-BRAIN-REMOTE (NEEDS PLAN).` The decision below is closed by that ruling; §4's declaration and publish-right paragraphs are superseded.
+
 New (one, because it changes the operator's product):
 
 - **Default brain in a server-bound realm.** The auto-create cannot hold the realm publish credential, so a

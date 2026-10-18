@@ -6,7 +6,9 @@ A row in the ADR 0011 grammar IS a task; nothing is copied into a second store.
 reasons: every Work refusal (one ``Reason`` enum) and ``WorkRefused``;
 grammar: the Python twin of the launcher's ``WorkQueueRowParser`` and the pure one-line row edit;
 board: a workspace's boards (one per live slot) and the rows read from them;
-default_brain: the brain a workspace with no repo brain gets, and the commit identity pairs.
+default_brain: the brain a workspace with no repo brain gets, and the commit identity pairs;
+writer: the one write path (§5) — a row op per commit in hermes's own worktree, pushed fast-forward;
+receipts: the one log line each write emits.
 """
 
 __layer__ = "models"

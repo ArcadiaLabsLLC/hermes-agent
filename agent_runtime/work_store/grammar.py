@@ -76,6 +76,7 @@ class Op(StrEnum):
     RELEASE = "release"
     SET_STATUS = "set_status"
     DELETE = "delete"
+    ASSIGN = "assign"
 
 
 @dataclass(frozen=True)
@@ -354,6 +355,19 @@ def _delete(line: str, *, who: str, date: str, payload: dict) -> None:
     return None
 
 
+def _assign(line: str, *, who: str, date: str, payload: dict) -> str:
+    """Drop any ``assignee:`` segment; with ``payload["assignee"]`` (a token), set one before the status."""
+
+    token = payload.get("assignee")
+    if token is not None and not ASSIGNEE.match(f"assignee: persona:{token}"):
+        raise WorkRefused(Reason.INVALID, "payload.assignee is a persona token [A-Za-z0-9_.-]+")
+    segments = [s for s in split_segments(line) if not s.strip().startswith("assignee:")]
+    if token is not None:
+        at = next((i for i, s in enumerate(segments) if i and STATUS.match(s.strip())), len(segments))
+        segments.insert(at, f"assignee: persona:{token}")
+    return SEPARATOR.join(segments).rstrip()
+
+
 def _append(line: str, *, who: str, date: str, payload: dict) -> str:
     raise WorkRefused(Reason.INVALID, "APPEND is not a line edit; the caller appends payload.row under the note's last heading")
 
@@ -364,6 +378,7 @@ _EDITS: dict[Op, Callable[..., str | None]] = {
     Op.SET_STATUS: _set_status,
     Op.DELETE: _delete,
     Op.APPEND: _append,
+    Op.ASSIGN: _assign,
 }
 
 

@@ -1206,6 +1206,41 @@ lane reasons (`agent_chat/mission_agent_model_switcher_view_model.dart`);
 (`hermes_cli/harness_parts/usage/detect.py::_usage_failure_reason`), with class-name-only discipline preserved for
 everything that is not an HTTP status, because a bare status code leaks nothing.
 
+## The todo board
+
+A workspace's todo board is the union of the `type: queue` notes of every repo slot the workspace
+binds — `<bound path>/<brain dir>/*.md`, the brain dir pinned in the slot's `context.brain_dir` or
+discovered as `*_Brain/20 — Active Initiatives` — plus, when no bound slot carries a brain, the
+auto-created local default brain (listed as slot `brain`, `Work_Brain/`, no remote). The default brain is a
+machine-local binding (`<store_root>/work/<ws>/default_brain.json`, which also carries `remote_url` for the
+later promotion lane `RT-WORK-DEFAULT-BRAIN-REMOTE`), never a declared slot, so it works the same in
+every realm (owner ruling 2026-10-18). When a repo slot with a brain is bound (the first by slot name — the
+slot document records no declaration order), the default board's rows move into that brain's `work-queue.md` in one commit with their IDs
+kept, the default board drops from the list, and new rows land in the repo brain. A row in the ADR 0011 grammar
+IS a task; nothing is copied, and tasks are keyed `(slot, ID)` (plan
+[work-on-markdown-2026-10-18.md](planned/work-on-markdown-2026-10-18.md) §2, §4; the wire is doc 03 §
+Native Work methods).
+
+The write path (plan §5), in six lines:
+
+1. hermes keeps its OWN worktree of each slot's clone (`<store_root>/work/<ws>/worktrees/<slot>`, branch
+   `work/<machine_id>`, `--no-checkout` + a sparse checkout of the brain folder); the operator's index and
+   tree are never touched.
+2. Each write fetches the tip, `reset --hard`s the worktree to it, and replays by `request_id` when the
+   tip already carries the commit.
+3. The op's precondition is read at the tip (claim: present and untaken; release: held by `who`;
+   re-status / delete / assign: a taken row answers only its holder or the operator).
+4. The edit is one line by ID (`agent_runtime/work_store/grammar.py::apply`), never a text merge; a note
+   whose rows fail the grammar is never edited (`grammar_invalid`).
+5. The commit carries hermes's identity as `-c` pairs (`Eternia Harness <harness+<machine>@eternia.local>`);
+   the push is fast-forward only, and a rejection replays from the fetch, at most 8 times
+   (`push_contended`). A local slot moves its branch with a compare-and-swap `update-ref`.
+6. Done = the row deleted; the deleting commit's body carries `result:`, which `runtime.work.inspect`
+   answers as the gone row's `ending`.
+
+Receipts are log lines, one per write: `work.row_append | row_claim | row_release | row_set_status |
+row_delete | row_assign`, `work.brain_create` and `work.default_brain_move` (`agent_runtime/work_store/receipts.py`).
+
 ## The board — method twins on the hermes side, argv on the launcher
 
 The board is the office's sibling surface and it is half way through the same

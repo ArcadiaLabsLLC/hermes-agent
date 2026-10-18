@@ -59,7 +59,6 @@
   "gateway/hosted_room_limits.py|gateway.hosted_room_discussion|_thread_messages",
   "gateway/hosted_room_limits.py|gateway.hosted_room_discussion|_zero_based_int",
   "hermes_cli/harness_parts/pets_commands.py|agent.pet.render|_frame_is_blank",
-  "hermes_cli/kanban_crash_evidence.py|hermes_cli.kanban_db|_pid_alive",
   "hermes_cli/plugins_manifest_cli_commands.py|hermes_cli.plugins|_get_disabled_plugins",
   "hermes_cli/plugins_manifest_cli_commands.py|hermes_cli.plugins|_get_enabled_plugins",
   "scripts/bundle_profile_closure.py|pm|_HOME",
