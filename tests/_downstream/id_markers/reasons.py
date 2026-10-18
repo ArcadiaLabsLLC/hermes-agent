@@ -28,6 +28,7 @@ _WIN = sys.platform == "win32"
 # these is a mark nothing reads -- which is why there is only one.
 # ``real_windows_gateway_pause`` is ``tests/hermes_cli/_gateway_fence.REAL_PAUSE_MARK``.
 ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK = "allow_claude_code_credentials_file"
+CHILDREN_DIE_WITH_THE_TEST_MARK = "children_die_with_the_test"
 CLAUDE_HOME_IS_TMP_PATH_MARK = "claude_home_is_tmp_path"
 HOST_DISK_HAS_ROOM_MARK = "host_disk_has_room"
 NO_REAL_ORPHAN_REAP_MARK = "no_real_orphan_reap"
@@ -93,6 +94,7 @@ _CREDENTIALS_FILE = getattr(pytest.mark, ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK
 _REAL_PAUSE = getattr(pytest.mark, REAL_PAUSE_MARK)
 _NO_LIVE_GATEWAY = getattr(pytest.mark, NO_LIVE_GATEWAY_MARK)
 _NO_REAL_ORPHAN_REAP = getattr(pytest.mark, NO_REAL_ORPHAN_REAP_MARK)
+_CHILDREN_DIE_WITH_THE_TEST = getattr(pytest.mark, CHILDREN_DIE_WITH_THE_TEST_MARK)
 
 #: Prefix of every row that skips an upstream test because it is POSIX-only
 #: (not because of fork behaviour); the tests-PR lane turns these rows into

@@ -57,6 +57,10 @@ from tests._downstream.idle_box import (  # noqa: F401 — hook re-exports (owne
     pytest_configure_idle_box,
     pytest_runtest_setup_idle_box,
 )
+from tests._downstream.child_job import (  # noqa: F401 — hook and fixture re-exports
+    _children_die_with_the_test,
+    pytest_configure_child_job,
+)
 from tests._downstream import registry_write_fence
 from tests._downstream.fork_readonly_readers import file_reads_through
 from tests._downstream.id_markers.reasons import (

@@ -56,7 +56,7 @@ _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
 _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
 
 
-def _enter_kill_on_close_job():
+def enter_kill_on_close_job():
     """Put this process in a new Job Object that kills its members when its last
     handle closes (this process's exit). Returns the handle, or None when Windows
     refused (the command then runs unwrapped, as before)."""
@@ -107,7 +107,7 @@ def job_wrap(argv: list[str]) -> int:
 
     import subprocess
 
-    job = _enter_kill_on_close_job()  # held until this process exits  # noqa: F841
+    job = enter_kill_on_close_job()  # held until this process exits  # noqa: F841
     try:
         return subprocess.call(argv)
     except KeyboardInterrupt:

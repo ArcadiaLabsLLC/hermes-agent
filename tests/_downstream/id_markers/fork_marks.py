@@ -15,6 +15,7 @@ from __future__ import annotations
 import pytest
 
 from tests._downstream.id_markers.reasons import (
+    _CHILDREN_DIE_WITH_THE_TEST,
     _CLAUDE_HOME_TMP,
     _CREDENTIALS_FILE,
     _FORK_LIVE_SYSTEM_GUARD,
@@ -215,7 +216,9 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # ~0.3 s apiece on Windows): 3.5-4 s a probe measured outside pytest, nine probes in the
     # first test and six in the second -> 35.96 s and 24.51 s alone with --timeout=0
     # (lane r-gateway, 2026-10-17); the fork's 30 s cap killed the first every run.
-    "tests/hermes_cli/test_completion_backlog.py": (pytest.mark.timeout(120),),
+    # A timeout's os._exit skipped the probe's finally and left its busy-waiters alive
+    # (40 on 2026-10-18); the job keeps them from outliving the test (tests/_downstream/child_job.py).
+    "tests/hermes_cli/test_completion_backlog.py": (pytest.mark.timeout(120), _CHILDREN_DIE_WITH_THE_TEST),
     # The fork runs the whole tree under --timeout=30; these PowerShell
     # harnesses carry their own child budgets above that.
     "tests/scripts/desktop_update/test_desktop_update_windows_cwd.py": (pytest.mark.timeout(75),),
