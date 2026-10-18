@@ -14,6 +14,25 @@ tags: [adr, brain, process]
 > [!note] Amended 2026-09-22
 > The queue clause is superseded: the hermes half of Mission Control is now [[runtime-queue]] in this vault, split by ownership — [[0012 — The hermes half of Mission Control is queued here, split by ownership]]. The rest stands.
 
+> [!note] Amended 2026-10-18 — the row grammar is the launcher's, and lives here
+> Owner decisions 2026-10-18: the launcher's queue-row grammar is canonical across the three repos, every row carries an ID, and `VERDICT` is retired in favour of `BLOCKED … owner decision` / `RULED`. The launcher's Mission Control Queues tab reads this vault's `type: queue` notes straight from the checkout, so a row off the grammar is invisible or mis-filed on the owner's board. § Row grammar below is the grammar's one home in this repo; `tests/tooling/test_work_queue_row_grammar.py` enforces it on every `type: queue` note under `Harness_Brain/`. The reference is the launcher's parser, `EterniaLauncher/lib/features/mission_control/work_queue/policy/work_queue_row_parser.dart`.
+
+## Row grammar
+
+Identical in the launcher, this repo and the backend; do not diverge.
+
+- **One physical line per row:** `- **`<ID>` — <title>** · <segment> · …` (no `- [ ] ` checkbox).
+- **`<ID>` is required**, uppercase `^[A-Z0-9][A-Z0-9._-]*$`, unique across this vault's queues. Mint a domain-prefixed short slug (`RT-…` in [[runtime-queue]], `FORK-…` in [[fork-hygiene-queue]], `DEAD-…` in [[dead-code-burn-down-queue]]); never renumber an existing ID.
+- **Segments** are separated by ` · ` outside backticks. A pointer is a backticked repo-relative path, optionally `path:line` or `path::symbol`; another repo's file carries its repo prefix.
+- **EXACTLY ONE status segment:**
+  - `READY <date>` — a lane can start it now;
+  - `BLOCKED <date>: <reason> — <detail/pointer>`, reason ∈ {`owner decision`, `owner sitting`, `backend`, `hermes`, `launcher`, `upstream`, `another lane`}. `backend` / `hermes` / `launcher` name the sibling repo the row waits on; `upstream` means only a blocker outside the three repos (NousResearch, a provider, a library); `another lane` is a lane in this repo. A live serve, the Windows box or an idle workstation is `owner sitting`. **A lane-blocked row names the row it waits on, so it cannot sit in limbo** (owner, 2026-10-18): for `backend`, `hermes`, `launcher` and `another lane` the text after ` — ` opens with the blocking row's ID in backticks — `BLOCKED <date>: launcher — `MC-SOME-ROW` <detail>`. A same-repo (`another lane`) ID must be a row in this vault unless the repo is named right after it. `upstream`, `owner decision` and `owner sitting` need no ID. The rows that predate this rule are a shrink-only ceiling (`BLOCKER_ID_CEILING` in the lint);
+  - `DEFERRED <date>: <why>`;
+  - `NEEDS PLAN <date>: <what the plan must decide>` — the honest default for unscoped work.
+- **An open owner question** is `BLOCKED <date>: owner decision — <question> · Recommend: <answer>`. Once answered it becomes a `RULED <date>: <decision>` record beside a real status.
+- **Records beside the status:** `RULED <date>: <decision>`, always dated; write new ones with the colon straight after the date (`RULED 2026-10-15: owner — …`), which is the form the board reads as a ruling (older `RULED <date> owner: …` records are kept as written). `VERDICT`, `DESIGN`, `OWNER`, `PLAN` and `VERIFY` are not statuses and never open a segment.
+- **Claim:** `**TAKEN <date> <who>**` on the row's own line — after a bare `READY <date>` as its own ` · ` segment. A claim, never a status.
+
 ## Context
 
 The hermes side had no brain: standing rulings lived in one operator's per-machine session memory (~50 entries), cursors in plan headers, and the launcher's Mission Control queue already carried hermes rows. Opening a second Mission Control queue here would create the "two copies of a moving list" defect ADR 0025 retires. The operator asked for the vault on 2026-09-21 ("populate the new obsidian brain … with our fork specific logic").

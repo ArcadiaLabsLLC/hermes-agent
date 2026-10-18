@@ -9,7 +9,7 @@ tags: [moc, todo]
 
 **If you are starting work:** open the queue for your domain, not this file and not a report. Then **claim the row before you touch anything** — fetch, append `**TAKEN <date> <who>**` to the row's line, commit that alone and push it. A row already marked `TAKEN` is not yours.
 
-**If you are landing a report, audit or agent finding:** split it into the queue on arrival. The report stays as EVIDENCE and the rows point at it. A ` · VERDICT <date>:` suffix on a row is an owner decision, not lane work.
+**If you are landing a report, audit or agent finding:** split it into the queue on arrival. The report stays as EVIDENCE and the rows point at it. Every row follows [[0011 — One brain per repo, one Mission Control queue in the launcher]] § Row grammar: an ID, one line, exactly one status. An open owner question is `BLOCKED <date>: owner decision — … · Recommend: …` (owner work, not lane work); its answer is a `RULED <date>:` record beside a real status. `VERDICT` is retired.
 
 ## The queues
 
