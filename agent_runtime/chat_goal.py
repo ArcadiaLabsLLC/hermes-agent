@@ -8,7 +8,10 @@ adds two things the runtime needs and upstream does not hold:
   behind ``runtime.chat.goal.<op>`` (``serve_rpc/chat_goal.py``);
 * a :class:`GoalBinding` per root — which Work run owns the root's goal, the turn template its
   continuations are forged from, and where its gates run — so the after-turn hook
-  (``work_store/persona_turn.py``) can continue or settle the run after a restart.
+  (``work_store/persona_turn.py``) can continue or settle the run after a restart;
+* a :class:`ChatGoalPark` per root whose goal NO run owns and the judge parked on ``wait`` — the
+  settled turn's arguments, so the serve's waker (``goal_turns.wake_parked``) can forge its
+  continuation when the barrier lifts.
 
 ``arm`` is ``GoalManager.set`` with a ``GoalContract`` drawn from the brief's acceptance, then one
 ``add_gate`` per test command (owner ruling 2026-10-18: gates from the brief's test commands, on by
@@ -30,6 +33,7 @@ from .work_store.reasons import Reason, WorkRefused
 __layer__ = "stores"
 __all__ = [
     "OPS",
+    "ChatGoalPark",
     "GoalBinding",
     "GoalOp",
     "arm",
@@ -38,7 +42,10 @@ __all__ = [
     "bindings",
     "execute",
     "manager",
+    "park",
+    "parked",
     "unbind",
+    "unpark",
     "wire",
 ]
 
@@ -193,13 +200,53 @@ def binding(root_session_id: str) -> GoalBinding | None:
     return _read_binding(paths.chat_goal_binding_path(root_session_id))
 
 
-def bindings() -> list[GoalBinding]:
-    """Every root a Work run's goal is bound to (an unreadable record is skipped, as :func:`binding` does)."""
+def _records(directory: Any, read: Callable[[Any], Any]) -> list[Any]:
+    """Every readable record in ``directory`` (an unreadable one is skipped, as a single read does)."""
 
-    directory = paths.chat_goal_bindings_dir()
-    found = (_read_binding(path) for path in sorted(directory.glob("*.json"))) if directory.is_dir() else ()
-    return [bound for bound in found if bound is not None]
+    found = (read(path) for path in sorted(directory.glob("*.json"))) if directory.is_dir() else ()
+    return [record for record in found if record is not None]
+
+
+def bindings() -> list[GoalBinding]:
+    """Every root a Work run's goal is bound to."""
+
+    return _records(paths.chat_goal_bindings_dir(), _read_binding)
 
 
 def unbind(root_session_id: str) -> None:
     paths.chat_goal_binding_path(root_session_id).unlink(missing_ok=True)
+
+
+# ── a chat goal no Work run owns, parked by the judge ─────────────────────
+
+
+@dataclass(frozen=True)
+class ChatGoalPark:
+    root_session_id: str
+    #: The settled turn's arguments minus the ones that name that one send; the continuation's template.
+    turn_args: Mapping[str, Any] = field(default_factory=dict)
+    #: The settled turn's client message id; the continuation's id is derived from it.
+    after_cmid: str = ""
+
+
+def park(record: ChatGoalPark) -> ChatGoalPark:
+    write_json_atomic(paths.chat_goal_park_path(record.root_session_id),
+                      {**asdict(record), "turn_args": dict(record.turn_args)})
+    return record
+
+
+def _read_park(path: Any) -> ChatGoalPark | None:
+    try:
+        return ChatGoalPark(**json.loads(path.read_text(encoding="utf-8")))
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def parked() -> list[ChatGoalPark]:
+    """Every root whose chat goal waits on a judge barrier with no Work run bound."""
+
+    return _records(paths.chat_goal_parks_dir(), _read_park)
+
+
+def unpark(root_session_id: str) -> None:
+    paths.chat_goal_park_path(root_session_id).unlink(missing_ok=True)

@@ -1728,7 +1728,9 @@ on a bound root reaches the after-turn hook (the queued-send runner's `on_settle
 in the persona's workdir; a continuation is forged as the run's next queued send, never a direct turn; an
 operator send already waiting wins the slot (the run holds and is judged again after it). A `work_report`
 of `blocked`/`stopped`, a failed turn, or a judge decision other than continue ends the run; the goal is
-paused and the root unbound. Receipts: `work.goal_arm | goal_continue | goal_hold | goal_end`.
+paused and the root unbound. Receipts: `work.goal_arm | goal_continue | goal_hold | goal_end`. A judge `wait` parks the goal on upstream's barrier; the Work engine's tick
+(`goal_turns.wake_parked`) continues it when the barrier lifts — a bound run from its binding, a chat goal
+no run owns from the settled turn's arguments its `wait` recorded (`<store_root>/chat_goal_parks/<root>.json`).
 
 ### Batch methods
 

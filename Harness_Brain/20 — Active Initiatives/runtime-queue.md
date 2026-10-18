@@ -871,7 +871,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ## Filed on arrival — 2026-10-18 (land w3)
 
 ### Filed on arrival — 2026-10-18 (lane w5-misc, branch `w5/misc`)
-- **`RT-CHAT-GOAL-WAIT-NO-WAKER` — a chat goal set by `runtime.chat.goal.set` (no Work run bound) that the judge parks on `wait` has no waker: `goal_turns.wake_parked` scans only `chat_goal.bindings()`, and an unbound goal persists no turn template to forge its continuation from, so it resumes only when another turn settles on the root** · fork / Work + chat goal · `agent_runtime/work_store/goal_turns.py::wake_parked`, `::after_chat_goal_turn` · persist the settled turn's args per chat-goal root when the judge parks it, and let the waker forge from them (origin `chat_goal`) · READY 2026-10-18 · **TAKEN 2026-10-18 w6-misc**
 
 ### Filed on arrival — 2026-10-18 (lane w5-sched, branch `w5/sched`)
 - **`RT-SCHEDULE-RUN-ASSIGNMENT-CLAIM` — a scheduled `RunAssignment` fire queues its brief through `PersonaTurnExecutor.start_from` but claims no row: the Work engine holds no `RunRecord` for it, so the settle writes nothing back (no delete, no BLOCKED, no release)** · fork / scheduling, Work · `agent_runtime/work_store/serve_scheduler.py::ServeTickScheduler._fire_assignment`, `engine.py::WorkEngine.on_settle` · READY 2026-10-18 · **TAKEN 2026-10-18 w6-misc**

@@ -16,6 +16,7 @@ from types import SimpleNamespace
 from agent_runtime import chat_goal
 from agent_runtime import chat_root_send_queue as send_queue
 from agent_runtime.work_store import engine as work_engine
+from agent_runtime.work_store import goal_turns
 from agent_runtime.work_store.persona_turn import PersonaTurnExecutor
 
 from tests.agent_runtime.work_store.contract_fakes import FakeGoal, FakeGoals, decision
@@ -112,3 +113,52 @@ def test_the_engine_loop_runs_the_waker_after_each_tick():
     thread.join(10)
 
     assert calls[:2] == ["tick", "wake"]
+
+
+# ── RT-CHAT-GOAL-WAIT-NO-WAKER: a chat goal no Work run owns parks and wakes the same way ──
+
+CHAT_ROOT = "persona_chat_root_chat_goal_wait"
+
+
+def _parked_chat_goal():
+    goals = _Goals()
+    executor = PersonaTurnExecutor(instances=SimpleNamespace(), root_of=lambda store, **_: CHAT_ROOT,
+                                   wake=lambda: None, goals=goals, workdir_of=lambda instance: None)
+    goals(CHAT_ROOT).set("ship it")
+    entry = send_queue.enqueue(CHAT_ROOT, "operator-1", {"persona_id": "neko", "message": "start the build",
+                                                         "idempotency_key": "k1"})[0]
+    goals(CHAT_ROOT).decisions.append(decision("wait", reason="the build is running"))
+    executor.settled(entry, 0, {"ok": True, "reply": "started the build"})
+    send_queue.remove(CHAT_ROOT, "operator-1")
+    assert chat_goal.binding(CHAT_ROOT) is None and send_queue.entries(CHAT_ROOT) == []
+    return executor, goals
+
+
+def test_a_chat_goal_parked_on_wait_holds_while_the_barrier_holds():
+    executor, _ = _parked_chat_goal()
+
+    assert executor.wake_parked() == 0
+    assert send_queue.entries(CHAT_ROOT) == []
+
+
+def test_a_lifted_barrier_continues_a_chat_goal_from_the_settled_turn():
+    """Killing mutation: drop the chat-goal park (``chat_goal.park``) or its scan in ``wake_parked`` → red."""
+
+    executor, goals = _parked_chat_goal()
+    goals(CHAT_ROOT).holding = False
+
+    assert executor.wake_parked() == 1
+    [entry] = send_queue.entries(CHAT_ROOT)
+    assert entry.args["persona_id"] == "neko" and "idempotency_key" not in entry.args
+    assert entry.args["message"].startswith("[Continuing toward your standing goal]")
+    assert entry.args[send_queue.ORIGIN_ARG][goal_turns.CHAT_GOAL_ORIGIN] is True
+    assert executor.wake_parked() == 0  # one continuation, never two
+
+
+def test_a_chat_goal_that_ends_leaves_nothing_parked():
+    executor, goals = _parked_chat_goal()
+    goals(CHAT_ROOT).pause("operator paused")
+    goals(CHAT_ROOT).holding = False
+
+    assert executor.wake_parked() == 0
+    assert chat_goal.parked() == []
