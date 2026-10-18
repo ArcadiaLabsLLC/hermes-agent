@@ -230,6 +230,15 @@ be deleted and replaced rather than kept alive by a compatibility path. Hermes
 holds no migration for them and needs none: an old `<persona>_desk` item still
 decodes and still writes here, because this store never knew what the id meant.
 
+The launcher's drop is a READ, so an actor whose only item was a legacy desk was never
+rewritten and its file stayed. Owner ruling 2026-10-15 (RT-DROPPED-LEGACY-DESK-LEAVES):
+clean them up once and report the count. `agent_runtime.office_legacy_migration`'s
+`sweep_legacy_desks` step (one-shot per store, report in
+`<store>/migrations/office_legacy_desks.json`) drops every desk whose `persona_id` is not
+its own `item_id` from each LIVE actor file, and archives through `remove_actor` an actor
+left with no items. `is_legacy_desk_item` is the launcher's
+`missionOfficeIsLegacyDeskAddress`, spelled once on this side.
+
 The plan is `EterniaLauncher/docs/archive/mission_control/generic-desk-and-inspector-tables.md`
 (slice 1 is this change), cited in prose rather than linked because a cross-repo
 link is a dead link the docs gate takes.

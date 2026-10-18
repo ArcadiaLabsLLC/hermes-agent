@@ -27,7 +27,13 @@ from utils import atomic_json_write
 
 __layer__ = "stores"
 
-__all__ = ["STEPS", "run_office_legacy_migrations_once", "strip_item_minted_kind"]
+__all__ = [
+    "STEPS",
+    "is_legacy_desk_item",
+    "run_office_legacy_migrations_once",
+    "strip_item_minted_kind",
+    "sweep_legacy_desks",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -90,8 +96,99 @@ def strip_item_minted_kind(store_root: Path) -> dict[str, Any]:
     return {"stripped_items": stripped_items, "files": files, "errors": errors}
 
 
+def is_legacy_desk_item(item: Any) -> bool:
+    """A desk addressed by a PERSONA — written by the per-persona-desk era.
+
+    The launcher's rule (``missionOfficeIsLegacyDeskAddress``, owner ruling 5,
+    2026-09-18), spelled once on this side: a generic desk is self-addressed
+    (its ``persona_id`` IS its ``item_id``), so a desk filed under anything else
+    is legacy. Blank on either side is not legacy.
+    """
+
+    if not isinstance(item, dict) or str(item.get("kind") or "").strip() != "desk":
+        return False
+    item_id = str(item.get("item_id") or "").strip()
+    persona_id = str(item.get("persona_id") or "").strip()
+    return bool(item_id and persona_id and item_id != persona_id)
+
+
+def sweep_legacy_desks(store_root: Path) -> dict[str, Any]:
+    """Drop every legacy desk from every LIVE actor file (RT-DROPPED-LEGACY-DESK-LEAVES).
+
+    The launcher drops these at its load chokepoint, but that is a read: an
+    actor whose only item was a legacy desk was never rewritten, so its file
+    stayed. An actor that keeps other items is rewritten without the desks
+    (revision + 1); an actor left with none is archived through
+    ``OfficeStore.remove_actor``, the office's one delete. Archived copies are
+    left to the archive retention.
+    """
+
+    from hermes_time import now
+
+    from .locks import office_lock
+    from .office_store import OfficeStore
+    from .serde import to_jsonable
+
+    dropped = 0
+    rewritten: list[str] = []
+    emptied: list[tuple[str, str]] = []
+    errors: list[dict[str, str]] = []
+    by_workspace: dict[str, list[Path]] = {}
+    for workspace, path in _actor_files(store_root):
+        if path.parent.name == "actors":
+            by_workspace.setdefault(workspace, []).append(path)
+    for workspace, paths in by_workspace.items():
+        try:
+            with office_lock(workspace):
+                for path in paths:
+                    row = json.loads(path.read_text(encoding="utf-8"))
+                    items = row.get("items") if isinstance(row, dict) else None
+                    if not isinstance(items, list):
+                        continue
+                    kept = [item for item in items if not is_legacy_desk_item(item)]
+                    if len(kept) == len(items):
+                        continue
+                    dropped += len(items) - len(kept)
+                    if not kept:
+                        emptied.append((str(row.get("workspace_id") or workspace), str(row.get("actor_key") or "")))
+                        continue
+                    row["items"] = kept
+                    row["revision"] = int(row.get("revision") or 0) + 1
+                    row["updated_at"] = to_jsonable(now())
+                    row["updated_by"] = "legacy_desk_sweep"
+                    atomic_json_write(path, row, indent=2, sort_keys=True)
+                    rewritten.append(f"{workspace}/{path.name}")
+        except Exception as exc:  # noqa: BLE001 - reported, retried next start
+            errors.append({"workspace": workspace, "error": type(exc).__name__})
+            logger.warning("office_legacy_desk_sweep_failed workspace=%s error=%s", workspace, type(exc).__name__)
+    archived: list[str] = []
+    store = OfficeStore()
+    for workspace_id, actor_key in emptied:
+        try:
+            store.remove_actor(
+                workspace_id, actor_key, reason="legacy_desk_sweep", updated_by="legacy_desk_sweep"
+            )
+            archived.append(f"{workspace_id}/{actor_key}")
+        except Exception as exc:  # noqa: BLE001 - reported, retried next start
+            errors.append({"workspace": workspace_id, "actor_key": actor_key, "error": type(exc).__name__})
+    if dropped:
+        logger.warning(
+            "office_legacy_desks_dropped desks=%d rewritten=%d archived=%d",
+            dropped,
+            len(rewritten),
+            len(archived),
+        )
+    return {
+        "dropped_desks": dropped,
+        "rewritten_actors": rewritten,
+        "archived_actors": archived,
+        "errors": errors,
+    }
+
+
 STEPS: tuple[tuple[str, Callable[[Path], dict[str, Any]]], ...] = (
     ("office_item_minted_kind.json", strip_item_minted_kind),
+    ("office_legacy_desks.json", sweep_legacy_desks),
 )
 
 
