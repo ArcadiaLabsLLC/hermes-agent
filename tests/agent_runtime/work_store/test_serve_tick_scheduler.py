@@ -315,3 +315,19 @@ def test_max_parallel_is_the_root_config_knob_read_each_tick(raw, cap):
     assert scheduler._cap() == cap
     path.write_text("agent_runtime:\n  scheduler:\n    max_parallel: 2\n", encoding="utf-8")
     assert scheduler._cap() == 2  # call time: the next tick reads the edit
+
+
+def test_each_fire_of_a_repeating_assignment_runs_under_its_own_request_id():
+    """RT-SCHEDULE-REPEAT-REQUEST-ID: a repeating ``RunAssignment`` fires as ``<armed id>@<fire stamp>``, so a
+    second fire after a release claims and writes back under its own id; a one-shot keeps the armed id.
+    Killing mutation: ``_fire`` hands the fire ``record.action`` (the armed id) → both fires share one id, red."""
+
+    adopted = []
+    scheduler, _ = _scheduler(start_assignment=lambda a, origin: adopted.append(a) or SimpleNamespace(run_id="r"))
+    armed = Assignment((RowRef("repo", "q.md", "RT-N"),), "inst-1", Brief(title="n", objective="n"), "ws:repo:RT-N:r")
+    scheduler.arm("repeat", Trigger.every(5), RunAssignment(armed))
+    scheduler.tick(T0 + timedelta(minutes=5))
+    scheduler.tick(T0 + timedelta(minutes=10))
+    first, second = (a.request_id for a in adopted)
+    assert first == "ws:repo:RT-N:r@20261018T120500Z" and second == "ws:repo:RT-N:r@20261018T121000Z"
+    assert adopted[0].rows == armed.rows and schedule_store.load_one("repeat").action.assignment == armed

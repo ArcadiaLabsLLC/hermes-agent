@@ -35,6 +35,7 @@ from __future__ import annotations
 import logging
 import threading
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -108,6 +109,20 @@ def _workspace_automation(workspace_id: str) -> str:
 
 def _stamp(when: datetime) -> str:
     return when.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
+
+
+def _per_fire(record: ScheduleRecord) -> Action:
+    """The action one fire runs. A repeating ``RunAssignment`` fires under ``<armed request id>@<fire stamp>``,
+    so each fire's claim, queued cmid and write-back replay by that fire's own id and a second fire after
+    a release never converges on the first fire's replayed ops; a re-fire of the SAME due time (a crash
+    before ``next_fire`` advanced) keeps the same stamp and so joins its own replay. A one-shot fires once
+    under the armed id."""
+
+    action = record.action
+    if not isinstance(action, RunAssignment) or record.trigger.kind in _ONE_SHOT:
+        return action
+    stamp = _stamp(record.next_fire or record.armed_at)
+    return RunAssignment(replace(action.assignment, request_id=f"{action.assignment.request_id}@{stamp}"))
 
 
 class ServeTickScheduler:
@@ -258,7 +273,7 @@ class ServeTickScheduler:
         origin = {ORIGIN_KEY: record.key, "fire": fire_id, "fired_at": now.isoformat(timespec="seconds")}
         waited = int((now - record.held_since).total_seconds()) if record.held_since else 0
         try:
-            result, refused = self._fires[type(record.action)](record.action, fire_id, origin), None
+            result, refused = self._fires[type(record.action)](_per_fire(record), fire_id, origin), None
         except WorkRefused as refusal:
             result, refused = {}, refusal
         nxt = None if record.trigger.kind in _ONE_SHOT else _NEXT_FIRE[record.trigger.kind](record.trigger, now)

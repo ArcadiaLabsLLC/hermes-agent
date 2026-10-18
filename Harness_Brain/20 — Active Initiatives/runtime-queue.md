@@ -34,7 +34,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 - **`RT-BATCH-GATE-RECEIPT` — the landing's green is the persona's `work_report` verdict; no code-run gate result is recorded for `approve` to check** · fork / batch · `agent_runtime/batch/dispatcher.py::_landing_settled`, `lander.py::GitLander` · NEEDS PLAN 2026-10-18: who runs the gate (the persona, or the executor off-thread)
 
 ### Filed on arrival — 2026-10-18 (lane w6-misc, branch `w6/misc`)
-- **`RT-SCHEDULE-REPEAT-REQUEST-ID` — a repeating (`every`/`cron`) `run_assignment` schedule fires the armed `Assignment.request_id` every time: the claim (`<request_id>:claim`), the queued cmid (`work-<request_id>`) and every write-back step replay by that id, so a second fire after a BLOCKED/STOPPED release converges on the first fire's replayed ops and claims nothing** · fork / scheduling, Work · `agent_runtime/work_store/serve_scheduler.py::ServeTickScheduler._fire_assignment`, `agent_runtime/work_store/engine.py::WorkEngine.adopt` · derive a per-fire request id (`<request_id>@<fire stamp>`) in `_fire_assignment` and pin a second fire after a release · READY 2026-10-18 · **TAKEN 2026-10-18 w7**
 
 ### Filed on arrival — 2026-10-18 (land w5)
 
