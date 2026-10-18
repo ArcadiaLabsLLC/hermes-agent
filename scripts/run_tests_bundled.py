@@ -459,16 +459,18 @@ def _solo_policy(
 
 
 def _with_shards(
-    policy: solo.SoloPolicy, files: Sequence[Path], repo_root: Path, durations: dict[str, float], jobs: int
+    policy: solo.SoloPolicy, files: Sequence[Path], repo_root: Path, durations: dict[str, float], jobs: int,
+    runs: Path,
 ) -> solo.SoloPolicy:
     """``policy`` with the run's shard plan (fast-gate §3): files cached green ≥ 90 s
-    with ≥ 2k recorded tests split k ways when the run is tail-bound; never a
-    known red, never a file on ``scripts/test_files_unsharded.txt``."""
+    with ≥ 2k recorded tests (``runs``: the gate store's run record) split k ways
+    when the run is tail-bound; never a known red, never a file on
+    ``scripts/test_files_unsharded.txt``."""
 
     estimates = {_rel(f, repo_root): _estimate(f, repo_root, durations) for f in files}
     green = {rel: solo.green_seconds(durations, rel) for rel in estimates}
     exclude = policy.known | scope.load_path_list(repo_root / shard.UNSHARDED_LIST)
-    shards = shard.plan_shards(estimates, green, plan.last_record(repo_root).get("tests") or {}, jobs, exclude)
+    shards = shard.plan_shards(estimates, green, shard.recorded_tests(runs), jobs, exclude)
     return dataclasses.replace(policy, shards=shards, joiner=shard.ShardJoin(shards, policy.rel_of))
 
 
@@ -866,7 +868,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     unbundled = load_unbundled(args.unbundled_list)
     known_reds, timed_out = gate.known_reds, gate.timed_out
     policy = _solo_policy(repo_root, args.file_timeout, args.file_retries, durations, known_reds, timed_out)
-    policy = _with_shards(policy, gate.to_run, repo_root, durations, args.jobs)
+    policy = _with_shards(policy, gate.to_run, repo_root, durations, args.jobs, gate.store.runs)
     print(
         f"Bundled runner: {len(files)} test files, bundles of ≤{args.bundle_size} files / ≤{args.bundle_seconds:g}s, "
         f"solo over {args.solo_seconds:g}s, {len(unbundled)} listed unbundled, {len(policy.known)} known red "

@@ -63,13 +63,17 @@ def _setup(root: Path, *, others: int = 2, tests: int = 40, slow_seconds: float 
     rels = [_SLOW] + [f"tests/alpha/test_{i}.py" for i in range(others)]
     files = _tree(root, rels)
     durations = {str(Path(_SLOW)): slow_seconds}
-    plan.record_run(root, {}, {}, {}, {}, extra={"tests": {_SLOW: tests}})
+    plan.record_run(root, {}, {}, {}, {}, extra={"tests": {_SLOW: tests}}, record_path=_runs(root))
     return files, durations
+
+
+def _runs(root: Path) -> Path:
+    return root / "gate" / "runs.jsonl"  # the gate store's run record, never the checkout's retired one
 
 
 def _policy(root, files, durations, jobs=2, known=None):
     base = bundled._solo_policy(root, 300.0, 0, durations, known or {})
-    return bundled._with_shards(base, files, root, durations, jobs)
+    return bundled._with_shards(base, files, root, durations, jobs, _runs(root))
 
 
 def _run(root, files, durations, policy, calls, **runner):
@@ -172,3 +176,21 @@ def test_the_record_keeps_a_slow_files_test_count_and_carries_unrun_ones():
     previous = {"tests/gone_slow.py": 30, "tests/unrun.py": 12}
 
     assert shard.tests_after(previous, ran) == {"tests/slow.py": 50, "tests/unrun.py": 12}
+
+
+def test_the_planner_reads_the_gate_stores_record_folded_and_never_the_retired_checkout_file(tmp_path):
+    """q-runner 2026-10-18: the planner read ``.pytest_cache/hermes_bundled_runs.jsonl`` after the
+    record moved into the gate store, saw no count, and never sharded; the newest line wins per file."""
+
+    rels = [_SLOW] + [f"tests/alpha/test_{i}.py" for i in range(2)]
+    files = _tree(tmp_path, rels)
+    durations = {str(Path(_SLOW)): 290.0}
+    plan.record_run(tmp_path, {}, {}, {}, {}, extra={"tests": {_SLOW: 40}})  # the retired file: ignored
+    plan.record_run(tmp_path, {}, {}, {}, {}, extra={"tests": {_SLOW: 1}}, record_path=_runs(tmp_path))
+    plan.record_run(tmp_path, {}, {}, {}, {}, extra={"tests": {"tests/other.py": 9}}, record_path=_runs(tmp_path))
+    assert _policy(tmp_path, files, durations).shards.counts == {}, "1 test runs whole; the retired 40 never counts"
+
+    plan.record_run(tmp_path, {}, {}, {}, {}, extra={"tests": {_SLOW: 40}}, record_path=_runs(tmp_path))
+    plan.record_run(tmp_path, {}, {}, {}, {}, extra={"tests": {}}, record_path=_runs(tmp_path))
+    assert shard.recorded_tests(_runs(tmp_path)) == {_SLOW: 40, "tests/other.py": 9}
+    assert _policy(tmp_path, files, durations).shards.counts == {_SLOW: 4}

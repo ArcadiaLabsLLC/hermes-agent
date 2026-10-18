@@ -452,7 +452,7 @@ def main(args, repo_root: Path, runner, pytest_args: List[str]) -> int:
     first_red: List[str] = []
     for number, wave in enumerate(waves, 1):
         rc = _run_wave(args, repo_root, runner, pytest_args, [by_rel[p.rel] for p in wave], durations,
-                       first_red, started)
+                       first_red, started, store.runs)
         if rc and args.fail_fast:
             print(f"--fail-fast: stopped after wave {number} of {len(waves)} ({wave_name(wave)})")
             return rc
@@ -473,8 +473,15 @@ def wave_name(wave: Sequence[Pick]) -> str:
 
 
 def _run_wave(args, repo_root: Path, runner, pytest_args: List[str], files: List[Path], durations,
-              first_red: List[str], run_started: float) -> int:
+              first_red: List[str], run_started: float, runs: Path) -> int:
     done = [0]
+    # the gate's solo policy and shard plan (known reds once, alone; a slow file split by node id
+    # when the wave is tail-bound): a hub-module edit selects a few 100-190 s files (q-runner)
+    known = runner.plan.load_known_reds(repo_root, runs)
+    policy = runner._solo_policy(repo_root, args.file_timeout, args.file_retries, durations, known,
+                                 runner.plan.load_timed_out(repo_root, runs))
+    policy = runner._with_shards(policy, files, repo_root, durations, args.jobs, runs)
+    print(f"wave: {len(files)} file(s), {policy.shards.line()}, -j {args.jobs}", flush=True)
 
     def progress(outcome) -> None:
         done[0] += 1
@@ -493,7 +500,9 @@ def _run_wave(args, repo_root: Path, runner, pytest_args: List[str], files: List
         files, pytest_args, repo_root, jobs=args.jobs, bundle_size=args.bundle_size,
         unbundled=runner.load_unbundled(args.unbundled_list), flat_timeout=args.file_timeout,
         retries=args.file_retries, durations=durations, bundle_seconds=args.bundle_seconds,
-        solo_seconds=args.solo_seconds, on_outcome=progress,
+        solo_seconds=args.solo_seconds, known_reds=known, solo_policy=policy, on_outcome=progress,
     )
     elapsed = time.monotonic() - started
+    for line in policy.closing_lines():  # unsharded-list candidates
+        print(line)
     return runner._print_summary(result, files, repo_root, elapsed, args.jobs, result.ledger.summary(args.jobs))
