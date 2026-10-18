@@ -169,6 +169,22 @@ def _estimate(path: Path, repo_root: Path, durations: dict[str, float]) -> float
     return float(durations.get(rtp._format_file(path, repo_root)) or _UNCACHED_ESTIMATE_SECONDS)
 
 
+def prepare_child_environ(environ) -> None:
+    """The environment every bundle child inherits, set once before any worker starts (race-free).
+
+    * the plugin directory goes first on ``PYTHONPATH``, so every child loads the plugin by name;
+    * ``PYTHONDONTWRITEBYTECODE`` is dropped: with it set (agent shells export it) no child writes a
+      ``.pyc`` and pytest keeps no rewritten test module, so EVERY process recompiled every module it
+      imported — on a fresh landing worktree, the whole import graph. Measured on 40 small files
+      (h6-collect, 2026-10-18): 11.3–11.8 CPU-s per process with it, 7.2–7.6 without.
+    """
+
+    environ["PYTHONPATH"] = os.pathsep.join(
+        [str(_PLUGIN_DIR)] + [p for p in environ.get("PYTHONPATH", "").split(os.pathsep) if p]
+    )
+    environ.pop("PYTHONDONTWRITEBYTECODE", None)
+
+
 def bundle_timeout(
     bundle: Sequence[Path],
     repo_root: Path,
@@ -861,11 +877,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(f"  deselected (upstream skip list node; name the file to run it): {node}  # {skip_rows[node].why}")
     pytest_args = pytest_args + deselect
 
-    # Constant for the whole run, so setting it before any worker starts is
-    # race-free: every bundle child can then load the plugin by name.
-    os.environ["PYTHONPATH"] = os.pathsep.join(
-        [str(_PLUGIN_DIR)] + [p for p in os.environ.get("PYTHONPATH", "").split(os.pathsep) if p]
-    )
+    prepare_child_environ(os.environ)
     # The gate pays the fresh-SessionDB census (D3.11): every child appends its
     # per-file counts to .pytest_cache/hermes_fresh_dbs.jsonl. Set before the gate
     # starts, so the cache key's runner env is the same every run.

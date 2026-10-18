@@ -525,3 +525,13 @@ def test_the_manifest_is_read_without_its_comment_lines(tmp_path):
     manifest.write_text("# base abc\ntests/a/test_x.py\n\n", encoding="utf-8")
 
     assert bundled.load_manifest(manifest) == {"tests/a/test_x.py"}
+
+
+def test_bundle_children_write_bytecode_and_load_the_plugin_by_name():
+    """An inherited PYTHONDONTWRITEBYTECODE made every bundle process recompile its whole import
+    graph (h6-collect, 2026-10-18); the runner drops it before any worker starts."""
+
+    environ = {"PYTHONDONTWRITEBYTECODE": "1", "PYTHONPATH": "elsewhere"}
+    bundled.prepare_child_environ(environ)
+    assert "PYTHONDONTWRITEBYTECODE" not in environ
+    assert environ["PYTHONPATH"].split(bundled.os.pathsep) == [str(bundled._PLUGIN_DIR), "elsewhere"]
