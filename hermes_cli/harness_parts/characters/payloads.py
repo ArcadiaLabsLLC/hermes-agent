@@ -16,6 +16,7 @@ __all__ = [
     "_characters_emit",
     "_characters_error",
     "_characters_next",
+    "_characters_print",
     "_characters_refusal_extra",
     "_characters_verb",
 ]
@@ -80,11 +81,24 @@ def _characters_next(verb: str, *flags: str, alternatives=()) -> dict:
     return hint
 
 
-def _characters_emit(args, data: dict, human: str) -> int:
+def _characters_print(args, data: dict, human: str) -> int:
+    """Print one payload as it stands: ``--json`` with the draftsman stamp, else the human line."""
     from agent.charsheet.draft.payloads import draftsman
 
     print(emit_json({**data, **draftsman()}) if getattr(args, "json", False) else human)
     return 0
+
+
+def _characters_emit(args, data: dict, human: str) -> int:
+    """Every ``characters`` success payload: stamped with the ``home`` it read, then printed.
+
+    An empty library from a wrong home is a well-formed ``ok: true``; the ``home`` block
+    (``agent_runtime.root_observability.attach_characters_home``) is how the envelope says
+    which home answered (D3.17).
+    """
+    from agent_runtime.root_observability import attach_characters_home
+
+    return _characters_print(args, attach_characters_home(dict(data)), human)
 
 
 def _attempt_label(index: int, total: int | None = None) -> str:

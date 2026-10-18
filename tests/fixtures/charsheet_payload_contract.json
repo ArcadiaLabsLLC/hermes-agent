@@ -226,6 +226,38 @@
             "palette"
           ]
         },
+        "home": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default",
+            "palette"
+          ]
+        },
+        "home.characters_dir": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default",
+            "palette"
+          ]
+        },
+        "home.hermes_home": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default",
+            "palette"
+          ]
+        },
+        "home.source": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default",
+            "palette"
+          ]
+        },
         "ok": {
           "conditional": false,
           "dynamic": false,
@@ -507,6 +539,38 @@
             "sheet"
           ]
         },
+        "home": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "no-sheet",
+            "sheet"
+          ]
+        },
+        "home.characters_dir": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "no-sheet",
+            "sheet"
+          ]
+        },
+        "home.hermes_home": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "no-sheet",
+            "sheet"
+          ]
+        },
+        "home.source": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "no-sheet",
+            "sheet"
+          ]
+        },
         "ok": {
           "conditional": false,
           "dynamic": false,
@@ -527,6 +591,38 @@
       "argv": "harness characters status --draft <id> --json",
       "keys": {
         "draft": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default",
+            "palette"
+          ]
+        },
+        "home": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default",
+            "palette"
+          ]
+        },
+        "home.characters_dir": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default",
+            "palette"
+          ]
+        },
+        "home.hermes_home": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default",
+            "palette"
+          ]
+        },
+        "home.source": {
           "conditional": false,
           "dynamic": false,
           "modes": [
@@ -1158,6 +1254,38 @@
           ]
         },
         "height": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "direction",
+            "row"
+          ]
+        },
+        "home": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "direction",
+            "row"
+          ]
+        },
+        "home.characters_dir": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "direction",
+            "row"
+          ]
+        },
+        "home.hermes_home": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "direction",
+            "row"
+          ]
+        },
+        "home.source": {
           "conditional": false,
           "dynamic": false,
           "modes": [

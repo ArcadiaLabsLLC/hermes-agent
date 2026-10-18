@@ -29,11 +29,13 @@ without a written ledger reason) fails CI.
 
 from __future__ import annotations
 
+import os
+from enum import Enum
 from typing import Any
 
 __layer__ = "stores"
 
-__all__ = ["attach_root_observability"]
+__all__ = ["CharactersHomeSource", "attach_characters_home", "attach_root_observability"]
 
 
 def attach_root_observability(
@@ -80,4 +82,51 @@ def attach_root_observability(
                 "error_kind": "chat_scope_unavailable",
                 "error": type(exc).__name__,
             }
+    return payload
+
+
+class CharactersHomeSource(str, Enum):
+    """Which rung named the character library a charsheet envelope answered from."""
+
+    SHARED_CHARACTERS_ENV = "shared_characters_env"  # HERMES_SHARED_CHARACTERS names it outright
+    HOME_OVERRIDE = "home_override"  # a context-local home override (a scoped persona turn)
+    HERMES_HOME_ENV = "hermes_home_env"
+    PLATFORM_DEFAULT = "platform_default"
+
+
+def _characters_home_source() -> CharactersHomeSource:
+    from hermes_constants import get_hermes_home_override
+
+    if os.getenv("HERMES_SHARED_CHARACTERS", "").strip():
+        return CharactersHomeSource.SHARED_CHARACTERS_ENV
+    if get_hermes_home_override():
+        return CharactersHomeSource.HOME_OVERRIDE
+    if os.environ.get("HERMES_HOME", "").strip():
+        return CharactersHomeSource.HERMES_HOME_ENV
+    return CharactersHomeSource.PLATFORM_DEFAULT
+
+
+def attach_characters_home(payload: dict[str, Any]) -> dict[str, Any]:
+    """Additively stamp ``home``: the Hermes home and the character library a charsheet verb read.
+
+    The charsheet family answers from the install-wide library under the HERMES home
+    (``agent_runtime.profile_home.get_shared_characters_dir``), not from the store root, so
+    ``resolution`` would name the wrong root for it; an empty ``characters`` list from a wrong
+    home is the same well-formed empty answer this module exists to expose. Same rules as
+    :func:`attach_root_observability`: never overwrites, never raises, never creates the
+    directory it names.
+    """
+    if not isinstance(payload, dict) or "home" in payload:
+        return payload
+    try:
+        from hermes_constants import get_hermes_home
+        from .profile_home import get_shared_characters_dir
+
+        payload["home"] = {
+            "hermes_home": str(get_hermes_home()),
+            "characters_dir": str(get_shared_characters_dir()),
+            "source": _characters_home_source().value,
+        }
+    except Exception as exc:  # accounted, never raised
+        payload["home"] = {"error_kind": "home_unavailable", "error": type(exc).__name__}
     return payload
