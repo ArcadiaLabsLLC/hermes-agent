@@ -22,7 +22,7 @@ from ..work_store.reasons import Reason, WorkRefused
 from ..work_store.source import Claimant
 from ..work_store.writer import Receipt, RowOp
 
-__layer__ = "stores"
+__layer__ = "lanes"  # imports work_store.source.Claimant (a lanes module); RT-BATCH-LAYER-TYPES
 __all__ = ["BoardSource"]
 
 

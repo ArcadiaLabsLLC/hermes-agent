@@ -118,8 +118,10 @@ def _commit_skeleton(root: Path, workspace_id: str, machine: str) -> None:
              reason=Reason.COMMIT_FAILED)
 
 
-def _machine() -> str:
-    """This machine's id (the commit identity); whether git is shipped is the lanes caller's check."""
+def this_machine() -> str:
+    """This machine's id (the commit identity), refused ``machine_identity_unavailable`` as a Work refusal;
+    the one owner of that wrapper (the batch dispatcher and the serve scheduler read it). Whether git is
+    shipped is the lanes caller's check."""
 
     try:
         return machine_id()
@@ -169,7 +171,7 @@ def ensure_default_brain(workspace_id: str, *, issued_at: str) -> Board:
         if record.get("retired_into"):
             _write_binding(workspace_id, {**record, "retired_into": None, "retired_at": None})
         return _default(workspace_id)
-    machine = _machine()
+    machine = this_machine()
     root.mkdir(parents=True, exist_ok=True)
     skeleton(root)
     _commit_skeleton(root, workspace_id, machine)

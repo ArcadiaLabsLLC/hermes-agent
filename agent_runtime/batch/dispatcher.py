@@ -35,6 +35,7 @@ from datetime import UTC, datetime
 from typing import Any, Protocol
 
 from ..work_store import receipts
+from ..work_store.default_brain import this_machine
 from ..work_store.executor import Assignment, Executor, Outcome, RowEnding, Run, StopReason, Verdict
 from ..work_store.grammar import RowRef, Status
 from ..work_store.reasons import Reason, WorkRefused
@@ -434,7 +435,7 @@ class BatchDispatcher:
 # ── the serve's defaults ───────────────────────────────────────────────────
 
 
-def _roster(workspace_id: str) -> list[Member]:
+def _workspace_roster(workspace_id: str) -> list[Member]:
     from ..persona_assignments.store import PersonaInstanceStore
 
     # The workspace's own instances first, then the runtime-global ones (workspace_id None) the
@@ -457,15 +458,6 @@ def _budget(workspace_id: str) -> Budget:
     return Budget(max_lanes=default_cap(workspace_id))
 
 
-def _this_machine() -> str:
-    from ..workspace_slots import SlotRefused, machine_id
-
-    try:
-        return machine_id()
-    except SlotRefused as exc:
-        raise WorkRefused(Reason.MACHINE_UNIDENTIFIED, exc.detail) from exc
-
-
 def _workspace_ids() -> list[str]:
     from ..work.service import workspace_ids
 
@@ -480,5 +472,5 @@ def default_dispatcher(*, executor: Executor | None = None, lander: Lander | Non
     from .manifest import BrainManifestStore
 
     return BatchDispatcher(source_for=BoardSource, manifests=BrainManifestStore(),
-                           executor=executor or PersonaTurnExecutor(), machine=_this_machine, roster=_roster,
+                           executor=executor or PersonaTurnExecutor(), machine=this_machine, roster=_workspace_roster,
                            slot_roles=_slot_roles, budget_for=_budget, lander=lander, workspaces=_workspace_ids)

@@ -38,6 +38,7 @@ from zoneinfo import ZoneInfo
 
 from .. import chat_root_send_queue as send_queue
 from . import receipts, schedule_store
+from .default_brain import this_machine
 from .reasons import Reason, WorkRefused
 from .schedule_store import ScheduleRecord
 from .scheduler import KEY, Action, Armed, Fire, PersonaPrompt, RunAssignment, StartBatch, Trigger, TriggerKind
@@ -102,15 +103,6 @@ def _workspace_automation(workspace_id: str) -> str:
         return "off"
 
 
-def _this_machine() -> str:
-    from ..workspace_slots import machine_id
-
-    try:
-        return machine_id()
-    except Exception as exc:
-        raise WorkRefused(Reason.MACHINE_UNIDENTIFIED, str(exc)) from exc
-
-
 def _stamp(when: datetime) -> str:
     return when.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
 
@@ -127,7 +119,7 @@ class ServeTickScheduler:
         root_idle: Callable[[str], bool] = _root_idle,
         in_flight: Callable[[], int] = _in_flight,
         automation: Callable[[str], str] = _workspace_automation,
-        machine: Callable[[], str] = _this_machine,
+        machine: Callable[[], str] = this_machine,
         max_parallel: int = DEFAULT_MAX_PARALLEL,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:

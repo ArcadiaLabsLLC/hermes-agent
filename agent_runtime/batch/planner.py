@@ -36,7 +36,7 @@ from ..work_store.grammar import Row, RowRef
 from ..work_store.reasons import Reason, WorkRefused
 from ..work_store.source import Domain, domain_of
 
-__layer__ = "policy"
+__layer__ = "lanes"  # imports work_store.executor.Brief and work_store.source.Domain (a lanes module); RT-BATCH-LAYER-TYPES
 __all__ = [
     "LANDING_ID",
     "Budget",

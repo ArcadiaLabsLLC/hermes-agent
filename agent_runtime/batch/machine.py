@@ -22,7 +22,7 @@ from ..work_store.grammar import RowRef
 from ..work_store.reasons import Reason, WorkRefused
 from .planner import Budget, Lane, LaneKind
 
-__layer__ = "policy"
+__layer__ = "lanes"  # imports work_store.executor.Verdict (a lanes module); RT-BATCH-LAYER-TYPES
 __all__ = [
     "AUTOMATABLE",
     "BATCH_MOVES",
