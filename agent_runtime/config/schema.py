@@ -125,6 +125,7 @@ ROOT_ONLY_CONFIG_KEYS: tuple[tuple[tuple[str, ...], str], ...] = (
     (("personas", "*", "chat_lane_defer_tools"), "agent_runtime.config.chat_lane_defer_tools"),
     (("personas", "*", "workdir"), "agent_runtime.config.mission_chat_workdir"),
     (("mission_chat", "lean_operative_rules"), "agent_runtime.config.mission_chat_lean_operative_rules"),
+    (("scheduler", "max_parallel"), "agent_runtime.config.scheduler_max_parallel"),
 )
 
 

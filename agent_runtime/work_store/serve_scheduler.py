@@ -18,7 +18,8 @@ Manual by default: nothing fires unless an operator armed it (``runtime.schedule
   settle is written back to the row. ``StartBatch`` goes through the batch door the
   dispatcher binds (``door_unbound`` until it does) and is armed only when the workspace's
   ``batch_automation`` is ``start``. An Action is never a script (RT-D1).
-* **The cap.** At most ``max_parallel`` scheduled turns in flight (default 4, ``0`` unlimited); a due fire
+* **The cap.** At most ``max_parallel`` scheduled turns in flight — the root config's
+  ``agent_runtime.scheduler.max_parallel``, read each tick (default 4, ``0`` unlimited); a due fire
   over the cap stays due, logs ``schedule.queued`` once, and its ``schedule.fire`` carries ``waited_s``
   (RT-D5 by construction).
 * **WHEN_IDLE** is the Launcher's ``AfterReplyScheduler`` rule: the root reads idle (no turn holds its lease,
@@ -123,7 +124,7 @@ class ServeTickScheduler:
         in_flight: Callable[[], int] = _in_flight,
         automation: Callable[[str], str] = _workspace_automation,
         machine: Callable[[], str] = this_machine,
-        max_parallel: int = DEFAULT_MAX_PARALLEL,
+        max_parallel: int | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._executor = executor
@@ -134,7 +135,7 @@ class ServeTickScheduler:
         self._in_flight = in_flight
         self._automation = automation
         self._machine = machine
-        self._max_parallel = max(0, int(max_parallel))
+        self._max_parallel = None if max_parallel is None else max(0, int(max_parallel))
         self._clock = clock
         self._lock = threading.Lock()
         self._fires: dict[type, Callable[[Any, str, dict[str, Any]], dict[str, Any]]] = {
@@ -201,16 +202,25 @@ class ServeTickScheduler:
                 if record is not None and (record.next_fire is not None and record.next_fire <= now
                                            or self._idle_ripe(record)):
                     due.append(record)
-            flying = self._in_flight()
+            flying, cap = self._in_flight(), self._cap()
             for record in sorted(due, key=lambda r: (r.next_fire or now, r.key)):
-                if self._max_parallel and flying >= self._max_parallel:
-                    out += self._hold(record, now)
+                if cap and flying >= cap:
+                    out += self._hold(record, now, cap)
                     continue
                 out.append(self._fire(record, now))
                 flying += 1
             return out
 
     # ── the tick's steps ─────────────────────────────────────────────────
+
+    def _cap(self) -> int:
+        """The constructor's ``max_parallel`` when given, else the root-config knob, read now."""
+
+        if self._max_parallel is not None:
+            return self._max_parallel
+        from ..config import scheduler_max_parallel
+
+        return scheduler_max_parallel(DEFAULT_MAX_PARALLEL)
 
     def _mine(self) -> str:
         try:
@@ -235,13 +245,13 @@ class ServeTickScheduler:
         schedule_store.save(record)
         return record
 
-    def _hold(self, record: ScheduleRecord, now: datetime) -> list[dict[str, Any]]:
+    def _hold(self, record: ScheduleRecord, now: datetime, cap: int) -> list[dict[str, Any]]:
         if record.held_since is not None:
             return []
         schedule_store.save(record.evolve(held_since=now))
         return [receipts.emit("schedule.queued", key=record.key, trigger=record.trigger.kind.value,
                               next_fire=record.next_fire, action=type(record.action).__name__,
-                              reason=Reason.CAP_REACHED.value, max_parallel=self._max_parallel)]
+                              reason=Reason.CAP_REACHED.value, max_parallel=cap)]
 
     def _fire(self, record: ScheduleRecord, now: datetime) -> dict[str, Any]:
         fire_id = f"{record.key}:{_stamp(record.next_fire or record.armed_at)}"

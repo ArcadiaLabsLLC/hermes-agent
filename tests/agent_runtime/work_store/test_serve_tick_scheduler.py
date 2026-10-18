@@ -298,3 +298,20 @@ def test_the_serve_binds_run_assignment_to_its_work_engine():
     [receipt] = scheduler.tick(T0)
     assert receipt["refused"] is None and receipt["run_id"] == "r/1"
     assert adopted[0][0] == action.assignment and adopted[0][1][ORIGIN_KEY] == "adopted"
+
+
+@pytest.mark.parametrize(("raw", "cap"), [(None, 4), ("1", 1), ("0", 0), ("-2", 4), ("true", 4), ("'3'", 4)])
+def test_max_parallel_is_the_root_config_knob_read_each_tick(raw, cap):
+    """RT-SCHEDULE-SYNC-AND-KNOB: ``agent_runtime.scheduler.max_parallel`` in the ROOT config, read at call time.
+    Killing mutation: ``_cap`` returns ``DEFAULT_MAX_PARALLEL`` without reading the knob → the ``1``/``0`` rows red."""
+
+    from agent_runtime.config import harness_root_config_path
+
+    path = harness_root_config_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = "" if raw is None else f"agent_runtime:\n  scheduler:\n    max_parallel: {raw}\n"
+    path.write_text(body, encoding="utf-8")
+    scheduler, _ = _scheduler()
+    assert scheduler._cap() == cap
+    path.write_text("agent_runtime:\n  scheduler:\n    max_parallel: 2\n", encoding="utf-8")
+    assert scheduler._cap() == 2  # call time: the next tick reads the edit

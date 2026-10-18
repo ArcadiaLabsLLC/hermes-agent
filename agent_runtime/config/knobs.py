@@ -304,3 +304,28 @@ def mission_chat_workdir(persona_id: str, cfg: AgentRuntimeConfig | None = None)
                 value, field=f"agent_runtime.personas.{key}.workdir"
             )
     return None
+
+
+#: ``agent_runtime.scheduler.max_parallel`` in the ROOT config: how many scheduled turns may be in flight.
+SCHEDULER_MAX_PARALLEL_KEY = ("agent_runtime", "scheduler", "max_parallel")
+
+
+def scheduler_max_parallel(default: int) -> int:
+    """The serve scheduler's cap on scheduled turns in flight; ``0`` is unlimited (dispatcher plan §2.3).
+
+    Harness-wide, so ROOT config only, read at call time (each tick). Absent, negative, a bool or not an
+    integer reads as ``default`` (the scheduler's built-in 4); a config fault reads as ``default`` too.
+    """
+
+    try:
+        from ..parse_cache import cached_yaml_file
+
+        node: Any = cached_yaml_file(harness_root_config_path(), default=None)
+        for key in SCHEDULER_MAX_PARALLEL_KEY:
+            node = node.get(key) if isinstance(node, dict) else None
+    except Exception:  # pragma: no cover - defensive; a config fault must not stop the scheduler
+        logger.debug("scheduler.max_parallel load failed; using the built-in cap", exc_info=True)
+        return default
+    if isinstance(node, bool) or not isinstance(node, int) or node < 0:
+        return default
+    return node

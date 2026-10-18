@@ -1782,7 +1782,7 @@ not `start`) and `machine_identity_unavailable` (4090).
 The serve ticks it every 60 s beside the Work engine (`queued_turns.start_serve_scheduler`); nothing fires
 during a drain, and only the owning machine fires a record. A fire is a QUEUED send on the instance's
 chat root (`PersonaTurnExecutor.queue_prompt` / `start_from`), its origin naming `schedule: <key>`; at most
-4 scheduled turns are in flight (an over-cap fire stays due and logs `schedule.queued`, its fire carries
+`agent_runtime.scheduler.max_parallel` (root config, read each tick; default 4, `0` unlimited) scheduled turns are in flight (an over-cap fire stays due and logs `schedule.queued`, its fire carries
 `waited_s`); `when_idle` fires after `settle_ticks` consecutive idle ticks or gives up after 15 minutes.
 A `run_assignment` fire is the Work engine's (`WorkEngine.adopt`): its one row is claimed
 `persona:<instance_id>`, recorded and started, so its settle is written back like any engine run; a fire
