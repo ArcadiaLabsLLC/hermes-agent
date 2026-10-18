@@ -267,11 +267,29 @@ class Writer:
             written.append(target.as_posix())
         return written
 
+    def _append_files(self, appends: Mapping[str, str]) -> list[str]:
+        """``payload.appends``: text added to the END of a brain file (created when absent), read at the tip.
+
+        Read after step 3's reset, so a replay after a lost race appends to the newer tip instead of
+        overwriting it (the batch manifest's one-line-per-state log, dispatcher plan §3.4).
+        """
+
+        written = []
+        for relative, body in sorted(appends.items()):
+            target = PurePosixPath(self.brain_root, relative)
+            if ".." in target.parts or target.is_absolute():
+                raise WorkRefused(Reason.INVALID, f"payload append {relative!r} leaves the brain")
+            path = self.worktree / target
+            text = path.read_bytes().decode("utf-8") if path.is_file() else ""
+            _write_atomic(path, text + ("" if text.endswith("\n") or not text else "\n") + str(body))
+            written.append(target.as_posix())
+        return written
+
     def _append(self, op: RowOp) -> list[str]:
         """``payload.row`` (one line) or ``payload.rows`` (several, one commit) under the note's end."""
 
         lines = [str(line) for line in op.payload.get("rows") or [op.payload.get("row") or ""] if line]
-        written = self._write_files(op.payload.get("files") or {})
+        written = self._write_files(op.payload.get("files") or {}) + self._append_files(op.payload.get("appends") or {})
         if not lines:
             return written
         defects = [d for line in lines for d in row_defects(line)]

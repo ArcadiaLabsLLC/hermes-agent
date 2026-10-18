@@ -103,6 +103,18 @@ def queued_turn_runner_policy(session: Any) -> Any:
     )
 
 
+def _batch_hooks(executor: Any) -> dict[str, Any]:
+    """The batch dispatcher on the serve's executor (dispatcher plan §3, B2): it hears every settle,
+    the engine skips the rows a batch lane holds, and the engine's tick advances owned batches."""
+
+    from agent_runtime.batch.dispatcher import default_dispatcher
+    from agent_runtime.batch.manifest import held_refs
+
+    dispatcher = default_dispatcher(executor=executor)
+    executor.on_settle(dispatcher.settled)
+    return {"held": held_refs, "after_tick": dispatcher.tick}
+
+
 def start_serve_work_engine(session: Any) -> Any:
     """Build the serve's Work executor and engine and tick it beside the lens poller (work plan §6.3).
 
@@ -121,6 +133,7 @@ def start_serve_work_engine(session: Any) -> Any:
     home = getattr(session, "serve_request_home", None)
     with home_scope(home):
         session.work_executor = PersonaTurnExecutor(draining=lambda: session.drain_state is not None)
-        session.work_engine = WorkEngine(executor=session.work_executor)
+        hooks = _batch_hooks(session.work_executor) if shipped("agent_runtime.batch") else {}
+        session.work_engine = WorkEngine(executor=session.work_executor, **hooks)
     start_work_engine(stop_event=session.liveness_stop, engine=session.work_engine, home=home)
     return session.work_engine

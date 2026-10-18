@@ -214,8 +214,14 @@ class WorkEngine:
         cap_for: Callable[[str], int] | None = None,
         now: Callable[[], datetime] | None = None,
         brief_of: Callable[[Row, Any], str] | None = None,
+        held: Callable[[str, Any], set[RowRef]] | None = None,
+        after_tick: Callable[[], Any] | None = None,
     ) -> None:
         self.executor = executor
+        # Rows another dispatcher runs (a batch lane's, dispatcher plan §3): claimed persona:<id> too,
+        # but handed to their lane's ONE turn, never one engine run per row.
+        self._held = held or (lambda _workspace_id, _view: set())
+        self._after_tick = after_tick
         self._sync = sync or _default_sync
         self._workspaces = workspaces or _default_workspaces
         self._cap_for = cap_for or default_cap
@@ -243,6 +249,11 @@ class WorkEngine:
             except Exception:
                 logger.warning("work engine could not read workspace %s", workspace_id, exc_info=True)
         counts["reaped"] = self._reap()
+        if self._after_tick is not None:
+            try:
+                self._after_tick()
+            except Exception:
+                logger.warning("work engine after-tick hook failed", exc_info=True)
         tally = {key: value for key, value in counts.items() if value}
         if tally:
             receipts.emit("work.engine_tick", counts=tally)
@@ -293,6 +304,7 @@ class WorkEngine:
         counts: Counter[str] = Counter()
         with self._lock:
             view = self._sync(workspace_id)
+            held = self._held(workspace_id, view)
             live = {record.ref: record for record in records()
                     if record.workspace_id == workspace_id and record.state is not RecordState.CLOSED}
             for board in view.boards:
@@ -300,8 +312,8 @@ class WorkEngine:
                 if writer is None or board.read_root is None:
                     continue
                 for row in board_rows(board):
-                    if row.taken is None or row.taken.persona_instance_id is None:
-                        continue  # untaken (the engine never claims) or a session lane's claim
+                    if row.taken is None or row.taken.persona_instance_id is None or row.ref in held:
+                        continue  # untaken (the engine never claims), a session lane's claim, or a batch lane's
                     handed = self._hand_off(workspace_id, row, writer, live.get(row.ref))
                     counts.update([handed] if handed else [])
         return counts

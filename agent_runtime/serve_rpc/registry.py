@@ -20,6 +20,7 @@ __layer__ = "lanes"
 __all__ = [
     "_METHODS",
     "_METHOD_TIERS",
+    "_ensure_batch_methods",
     "_ensure_conversation_methods",
     "_ensure_discussion_methods",
     "_ensure_local_llama_methods",
@@ -121,6 +122,15 @@ def _ensure_work_methods():
         register(method)
 
 
+def _ensure_batch_methods():
+    from ..loop_tool_lifecycles import shipped
+
+    # The batch dispatcher rides Work (dispatcher plan §3); the phone wheel ships neither.
+    if "runtime.batch.plan" not in _METHODS and shipped("agent_runtime.batch") and shipped("agent_runtime.work"):
+        from ..batch.rpc import register
+        register(method)
+
+
 def method_names() -> list[str]:
     # Registration is lazy to keep imports one-directional and avoid eager
     # filesystem/process work on every client of the method manifest.
@@ -128,6 +138,7 @@ def method_names() -> list[str]:
     _ensure_discussion_methods()
     _ensure_conversation_methods()
     _ensure_work_methods()
+    _ensure_batch_methods()
     return sorted(_METHODS)
 
 
