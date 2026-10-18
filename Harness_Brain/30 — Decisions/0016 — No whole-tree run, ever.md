@@ -20,7 +20,7 @@ tags: [adr, tests, gate]
 The last whole-tree run (v0.22.2 release gate, 2026-10-16) took 9,657 s at 8 workers; upstream test
 files are 31,504 of the gate store's 38,887 serial seconds. The fork does not ship much of what those
 files test ([[0015 — Upstream features the fork does not ship leave the suite and the boot path]]),
-and a whole-tree pass re-proves upstream code the change did not touch. Evidence: [[r-perf-2026-10-17]].
+and a whole-tree pass re-proves upstream code the change did not touch. Upstream tests its own code at every release; the fork proves only what it changes and what it ships (owner). Evidence: [[r-perf-2026-10-17]].
 
 ## Consequences
 
