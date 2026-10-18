@@ -1,8 +1,8 @@
 {
-  "measured_at": "2026-10-17",
+  "measured_at": "2026-10-18",
   "base": "d923a5eb48",
-  "files": 224,
-  "deleted_lines": 1031,
+  "files": 225,
+  "deleted_lines": 1032,
   "heavy": 1,
   "reasons": [
     {
@@ -948,6 +948,21 @@
       },
       "reason": "hermes_cli/version_info.py: an additive seam wraps _run_git/_git_version_info with fork-owned hermes_cli/version_info_cache.py (git answers cached per HEAD commit + tag refs state; HEAD read from .git files). Six plugins/model-providers/*/__init__.py User-Agents read the no-git release_version(). Held as one upstream PR candidate.",
       "owner_ruling": "2026-10-17, owner in session (route 1, version-info cache)"
+    },
+    {
+      "change": "r-drift phone fix",
+      "before": {
+        "files": 224,
+        "deleted_lines": 1031,
+        "heavy": 1
+      },
+      "after": {
+        "files": 225,
+        "deleted_lines": 1032,
+        "heavy": 1
+      },
+      "reason": "phone closure: tool_search must not load connectors.gateway.wire (pydantic) at import; bridge constants imported inside the functions that use them",
+      "owner_ruling": "2026-10-18, owner in session: fix all reds (phone closure)"
     }
   ]
 }
