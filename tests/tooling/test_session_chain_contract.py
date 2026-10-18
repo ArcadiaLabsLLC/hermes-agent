@@ -251,13 +251,12 @@ def test_teardown_delivery_stand_in_is_restored_when_get_plugin_manager_is_unpat
     from tests._downstream.teardown_plugin_delivery import no_cold_discovery
 
     real = plugins._delivery_manager
-    patch = pytest.MonkeyPatch()
-    patch.setattr(plugins, "get_plugin_manager", lambda: "the test's manager")
+    scoped = pytest.MonkeyPatch.context()
+    scoped.__enter__().setattr(plugins, "get_plugin_manager", lambda: "the test's manager")
     try:
         with no_cold_discovery():
-            patch.undo()
+            scoped.__exit__(None, None, None)  # the patch is undone while the teardown is open
     finally:
-        patch.undo()
         stuck = plugins._delivery_manager is not real
         plugins._delivery_manager = real
     assert not stuck

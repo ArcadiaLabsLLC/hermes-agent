@@ -52,10 +52,10 @@ def test_a_pin_left_on_a_live_room_by_a_crash_is_cleared_at_start_up(tmp_path, m
         def crash(*_args, **_kwargs):
             raise _Crash()
 
-        monkeypatch.setattr(hosted_rooms, "disband_room", crash)
-        with pytest.raises(_Crash):
-            command(service, run, "end")
-        monkeypatch.undo()
+        with pytest.MonkeyPatch.context() as patched:
+            patched.setattr(hosted_rooms, "disband_room", crash)
+            with pytest.raises(_Crash):
+                command(service, run, "end")
         assert pins.live_room_pins(service.db_path) == [run["run_id"]]
     finally:
         service.close()
@@ -84,10 +84,11 @@ def test_a_refused_disband_ends_the_run_and_start_up_retries_it(tmp_path, monkey
         def refuse(*_args, **_kwargs):
             raise hosted_rooms.AuthorityConflictError("stale hosted room authority")
 
-        monkeypatch.setattr(hosted_rooms, "disband_room", refuse)
-        command(service, run, "end")
-        ended = wait_until(lambda: (r if (r := service.runs.get(run["run_id"]))["phase"] == "ended" else None), 15)
-        monkeypatch.undo()
+        with pytest.MonkeyPatch.context() as patched:
+            patched.setattr(hosted_rooms, "disband_room", refuse)
+            command(service, run, "end")
+            ended = wait_until(
+                lambda: (r if (r := service.runs.get(run["run_id"]))["phase"] == "ended" else None), 15)
         assert ended["error"] == DISBAND_DEFERRED
         with sqlite3.connect(service.db_path) as conn:
             assert conn.execute("SELECT COUNT(*) FROM mc_discussion_instance_claims WHERE run_id=?",
