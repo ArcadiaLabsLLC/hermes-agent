@@ -163,8 +163,12 @@ def _warm_sdk_event_parse(agent: Any) -> None:
     import json
 
     import httpx
-    import openai
-    from openai.types.responses import ResponseStreamEvent
+
+    try:
+        import openai
+        from openai.types.responses import ResponseStreamEvent
+    except ImportError:  # no SDK (the phone profile omits it; the shim has no Stream): nothing to warm
+        return
 
     client = getattr(agent, "client", None)
     if not isinstance(client, openai.OpenAI):
