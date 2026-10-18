@@ -95,10 +95,29 @@ class ExecutionContext(NativeContext):
 # in-process DiscussionService over a per-test SQLite runtime, not a serve,
 # and every test writes tables, runs and claims into it; its cost is the
 # twelve-instance test's own work, not a boot.
+#: The room-driver lease every in-process DiscussionService in these tests runs
+#: with. A successor service adopts a room whose owner left a task running only
+#: when this lease expires, so the production 30 s was paid in full by every
+#: restart test (lane h2-sleep: 58 s of one file's 67). The driver renews only
+#: between room cycles, so the lease must outlive the longest cycle: 1.5-2.7 s
+#: with the doubled workers here on a quiet box (2026-10-18), hence 10 s.
+TEST_LEASE_TTL = 10.0
+
+#: Real native workers block a room cycle for 6.5 s on a quiet box, and at 5 s
+#: the lease lapsed mid-turn and the turn never settled
+#: (`test_real_group_compare_discuss_target_and_reopen`), so they keep production's.
+NATIVE_LEASE_TTL = 30.0
+
+
+def room_timings(active_poll: float = .02, *, lease_ttl: float = TEST_LEASE_TTL) -> dict[str, float]:
+    """The one knob for a test DiscussionService's poll interval and lease."""
+    return {"active_poll_interval": active_poll, "lease_ttl": lease_ttl}
+
+
 @pytest.fixture
 def engine(tmp_path):
     context = ExecutionContext(tmp_path)
-    service = DiscussionService(context, active_poll_interval=.02)
+    service = DiscussionService(context, **room_timings())
     service.start()
     yield service, context
     context.hold.clear()
@@ -264,3 +283,15 @@ def test_wire_shapes_validate_and_produce_real_authoring_response(engine):
         with pytest.raises(DefinitionError):
             execute(service, "table.list", payload, actor_id="operator")
     assert execute(service, "capabilities", {}, actor_id="operator")["accepting"] is True
+
+
+def test_the_lease_ttl_reaches_the_room_driver_and_production_keeps_thirty_seconds(tmp_path):
+    """The test knob must be the lease the driver actually renews and waits out."""
+    tuned = DiscussionService(ExecutionContext(tmp_path / "tuned"), **room_timings())
+    default = DiscussionService(ExecutionContext(tmp_path / "default"))
+    try:
+        assert tuned.runtime.lease_ttl_seconds == TEST_LEASE_TTL
+        assert default.runtime.lease_ttl_seconds == 30.0
+    finally:
+        tuned.close()
+        default.close()

@@ -3,12 +3,12 @@ from agent_runtime.discussions.contract import CONTRACT_VERSION
 from agent_runtime.discussions.rpc import execute
 from agent_runtime.discussions.service import DiscussionService
 from tests.agent_runtime.test_discussion_definitions import table_value
-from tests.agent_runtime.test_discussion_runtime import ExecutionContext, wait_until, settled
+from tests.agent_runtime.test_discussion_runtime import ExecutionContext, room_timings, wait_until, settled
 
 
 def wire_cases(tmp_path):
     context = ExecutionContext(tmp_path)
-    service = DiscussionService(context, active_poll_interval=.02)
+    service = DiscussionService(context, **room_timings())
     service.start()
     def call(operation, **params):
         return {"contract_version": CONTRACT_VERSION, **execute(service, operation, params, actor_id="operator")}

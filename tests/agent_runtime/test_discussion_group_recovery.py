@@ -6,7 +6,7 @@ from agent_runtime.discussions.definitions import DefinitionError
 from agent_runtime.discussions.profile_groups import ProfileGroupSpec
 from agent_runtime.discussions.service import DiscussionService
 from tests.agent_runtime.test_discussion_profile_groups import groups as groups, create, act, sends, complete, idle
-from tests.agent_runtime.test_discussion_runtime import wait_until
+from tests.agent_runtime.test_discussion_runtime import room_timings, wait_until
 
 pytestmark = pytest.mark.timeout(90)
 
@@ -23,7 +23,7 @@ def test_reconstructs_same_turn_and_question_without_resend(groups, waiting):
         worker.question(sent["session_id"], "srq-review", method="clarify",
                         questions=[{"qid": "part", "question": "Which part?", "choices": []}])
     service.close()
-    replacement = DiscussionService(service.context, active_poll_interval=.02, conversations=lambda: conversations)
+    replacement = DiscussionService(service.context, **room_timings(), conversations=lambda: conversations)
     replacement.start()
     try:
         view = replacement.view(run["workspace_id"], run["run_id"])
