@@ -149,6 +149,9 @@ packaging:
     - distribution: pillow-heif
       imports: [pillow_heif]
       degrades: nothing — the phone host transcodes HEIC/AVIF photos to JPEG before handing them to Hermes (owner D2 2026-09-30); agent.image_routing's HEIF opener registration is ImportError-guarded
+    - distribution: fastapi
+      imports: [fastapi]
+      degrades: a history row holding a native-vision image attachment shows its stored text, not the `@image:` refs (tui_gateway/session_history.py::_user_image_display_text verifies the file through the web server's helpers; its import is ImportError-guarded, RT-PHONE-HISTORY-IMAGE-IMPORT); the web dashboard and its routers are not packaged
     - distribution: psutil
       imports: [psutil]
       degrades: nothing a phone has — it starts no sibling process; pid liveness falls back to the stdlib (hermes_cli/_subprocess_compat.py::pid_exists_stdlib), and every kept import site is ImportError-guarded (discussions/native.py, conversations/native_peer.py, process_identity.py and hermes_constants_scratch.py since lane s2-g2)
