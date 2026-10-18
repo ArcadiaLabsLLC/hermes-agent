@@ -22,6 +22,7 @@ from tests._downstream.id_markers.reasons import (
     _fork_replaces,
     _FORK_SPAWN_DETACHED,
     _FORK_SYSTEM_PATH,
+    _HOST_DISK_HAS_ROOM,
     __layer__,
     _LOOKALIKE,
     _NO_LIVE_GATEWAY,
@@ -281,6 +282,10 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
         pytest.mark.skip(reason="probes the real hermes install, which the fork keeps under "
                                 "the guarded real store root (<root>/bin/hermes.exe)"),
     ),
+    # Upstream asserts an all-ok readiness while probing the REAL test-tmp volume; the
+    # fork's test-tmp drive is over the probe's 90 % line (fixture: host_disk_room).
+    "tests/gateway/test_readiness.py::"
+    "test_collect_runtime_readiness_reports_healthy_local_runtime": (_HOST_DISK_HAS_ROOM,),
     # Upstream web-server tests whose restart / desktop-startup path runs the REAL
     # gateway orphan reap and its 30 s exit wait (fixture: conftest_plugin).
     **{

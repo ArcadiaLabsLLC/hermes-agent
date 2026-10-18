@@ -33,6 +33,10 @@ from tests._downstream.id_markers import (  # noqa: F401 — hook re-exports
 # The mark NAMES the id table applies, spelled once (id_markers/reasons.py):
 # registered below, read by the consumer fixtures.
 from tests._downstream.real_browser_fence import _no_real_browser_spawn  # noqa: F401 — autouse fence
+from tests._downstream.host_disk_room import (  # noqa: F401 — id-marked fixture + hook re-export
+    _host_disk_has_room,
+    pytest_configure_host_disk_room,
+)
 from tests._downstream.state_db_scope import _state_db_resolves_through_scope  # noqa: F401 — id-marked
 from tests._downstream.tool_registry_scope import _tool_registry_scope  # noqa: F401 — autouse (plan S3)
 from tests._downstream.plugin_discovery_cache import (  # noqa: F401 — autouse + reset fixture (ruling 2026-10-10)
