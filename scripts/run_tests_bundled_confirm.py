@@ -68,7 +68,7 @@ def add_arguments(parser) -> None:
     parser.add_argument("--confirm-base", default=DEFAULT_BASE, metavar="REF", help=f"the base (default {DEFAULT_BASE})")
 
 
-def _git(cwd: Path, *args: str) -> str:
+def _git_strict(cwd: Path, *args: str) -> str:
     proc = subprocess.run(
         ["git", *args], cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False,
     )
@@ -112,10 +112,10 @@ def confirm(
     out(f"confirm-red {rel}: HEAD {_state(head)} alone")
     attempt = None
     if head_rc != 0:
-        sha = _git(repo_root, "rev-parse", "--verify", f"{base}^{{commit}}")
+        sha = _git_strict(repo_root, "rev-parse", "--verify", f"{base}^{{commit}}")
         tree = Path(tempfile.mkdtemp(prefix=f"confirm-red-{sha[:10]}-", dir=worktree_home(primary)))
         tree.rmdir()
-        _git(primary.parent, "-C", str(primary), "worktree", "add", "--detach", str(tree), sha)  # a neutral cwd
+        _git_strict(primary.parent, "-C", str(primary), "worktree", "add", "--detach", str(tree), sha)  # a neutral cwd
         try:
             if (tree / rel).is_file():
                 rc, text = runner(tree / rel, tree, timeout)
@@ -125,7 +125,7 @@ def confirm(
                 out(f"  {base} {sha[:10]}: the file does not exist there")
         finally:
             try:
-                _git(primary.parent, "-C", str(primary), "worktree", "remove", "--force", str(tree))
+                _git_strict(primary.parent, "-C", str(primary), "worktree", "remove", "--force", str(tree))
             except RuntimeError as exc:  # a process the test leaked still holds it: the verdict stands
                 out(f"  note: {tree} not removed ({exc}); remove it and run `git worktree prune` once its holder exits")
     verdict, new = judge(head, attempt)
