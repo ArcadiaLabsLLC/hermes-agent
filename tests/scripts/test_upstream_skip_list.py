@@ -27,6 +27,8 @@ import pytest
 from scripts import run_tests_bundled as bundled
 from scripts import source_cache
 
+pytestmark = pytest.mark.gate
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 plan = bundled.plan
 SKIP_LIST = _REPO_ROOT / plan.SKIP_LIST

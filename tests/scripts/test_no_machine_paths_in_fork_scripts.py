@@ -12,6 +12,10 @@ import re
 import subprocess
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 REPO = Path(__file__).resolve().parents[2]
 MACHINE_PATH = re.compile(r"[A-Za-z]:[\/]+Eternia\b|[A-Za-z]:[\/]+Users[\/]+beast\b", re.IGNORECASE)
 

@@ -20,8 +20,12 @@ import re
 from collections import Counter
 from pathlib import Path
 
+import pytest
+
 from scripts import source_cache
 from tests import test_no_shadowed_test_definitions as upstream
+
+pytestmark = pytest.mark.gate
 
 _DEF = re.compile(r"\bdef\s+([A-Za-z_]\w*)")
 

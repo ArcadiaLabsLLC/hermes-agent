@@ -6,6 +6,8 @@ import pytest
 
 from scripts.check_carried_prs import check, fetch_commands, ledger_pairs
 
+pytestmark = pytest.mark.gate
+
 
 def git(repo, *args):
     return subprocess.run(['git', '-C', str(repo), *args], check=True,

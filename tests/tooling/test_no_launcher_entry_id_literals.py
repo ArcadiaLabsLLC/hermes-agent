@@ -22,6 +22,10 @@ from pathlib import PurePosixPath
 
 from scripts import god_file_probe as probe
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 #: An entry id: ``launcher.`` and at least two dotted segments. ``launcher.pid``
 #: and ``launcher.sh`` (file names) have one, and are not ids; ``launcher.parent.name``
 #: is a ``Path`` named ``launcher`` walking up (upstream ``hermes_cli/install_state.py``

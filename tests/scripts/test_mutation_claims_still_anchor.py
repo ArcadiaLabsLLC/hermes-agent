@@ -46,6 +46,8 @@ import pytest
 from scripts import changed_line_mutation_check as gate
 from scripts.mutation_check import anchor as anchor_policy
 
+pytestmark = pytest.mark.gate
+
 
 #: Floors, not exact counts: the registry grows, and a gate that has to be
 #: edited on every growth gets edited without being read. They exist because a

@@ -968,6 +968,11 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
     )
     config.addinivalue_line(
         "markers",
+        "gate: a file the gate directory (docs/agent-runtime-harness/11-gate-directory.md) lists; "
+        "tests/tooling/test_gate_directory_current.py enumerates every file that carries it",
+    )
+    config.addinivalue_line(
+        "markers",
         "slow_native: a real native-turn test whose wall is the turn itself (tens of seconds); "
         "the scheduler runs it first and alone rather than under suite CPU load "
         "(docs/agent-runtime-harness/planned/suite-speed-2026-10-05.md, Stage 4C)",

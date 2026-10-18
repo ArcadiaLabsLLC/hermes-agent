@@ -185,6 +185,8 @@ import pytest
 
 from tests._fork_scope import is_fork_authored, is_fork_touched, upstream_blobs
 
+pytestmark = pytest.mark.gate
+
 
 #: The tree this gate polices: the WHOLE test tree, since 2026-08-17 (ML-4).
 #: The pin that makes the defect dangerous is the root ``tests/conftest.py``'s,

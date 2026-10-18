@@ -29,6 +29,10 @@ import sys
 import textwrap
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 REPO = Path(__file__).resolve().parents[3]
 
 CHILD = textwrap.dedent('''

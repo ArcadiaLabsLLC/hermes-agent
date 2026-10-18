@@ -36,7 +36,7 @@ import pytest
 
 from tests._downstream.registry_write_fence import CHILD_FENCE_ENV
 
-pytestmark = pytest.mark.platforms("windows")
+pytestmark = [pytest.mark.platforms("windows"), pytest.mark.gate]
 
 ROOT = Path(__file__).resolve().parents[2]
 

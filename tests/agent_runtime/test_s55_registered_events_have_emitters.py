@@ -107,6 +107,8 @@ import pytest
 from agent_runtime.decision_contract_registry import event_catalog
 from scripts import source_cache
 
+pytestmark = pytest.mark.gate
+
 
 #: Production packages scanned for emitters. Tests are excluded on purpose: an
 #: event type kept alive only by a test append is exactly the debt S15 named.

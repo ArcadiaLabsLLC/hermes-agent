@@ -14,6 +14,10 @@ from pathlib import Path
 
 from scripts.upstream_footprint import MANIFEST, count_footprint, ledger_rows, manifest_paths, measure, merge_ledger, read_manifest
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "upstream_footprint.json"
 NUMBERS = ("files", "deleted_lines", "heavy")
 

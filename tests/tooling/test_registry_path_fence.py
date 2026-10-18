@@ -27,6 +27,8 @@ import pytest
 from hermes_cli import _registry_write_fence as fence
 from tests._downstream.registry_write_fence import CHILD_FENCE_ENV
 
+pytestmark = pytest.mark.gate
+
 ROOT = Path(__file__).resolve().parents[2]
 
 

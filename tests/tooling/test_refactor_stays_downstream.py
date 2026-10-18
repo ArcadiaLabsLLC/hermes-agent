@@ -21,6 +21,8 @@ import pytest
 from scripts import god_file_fences as fences
 from scripts import god_file_probe as probe
 
+pytestmark = pytest.mark.gate
+
 
 def _git(root: Path, *args: str) -> str:
     return subprocess.run(

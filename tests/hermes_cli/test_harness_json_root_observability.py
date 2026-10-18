@@ -21,6 +21,10 @@ from pathlib import Path
 import hermes_cli.harness as harness_module
 from tests._downstream.call_graph import CallGraph, module_name
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 _HARNESS_PY = Path(harness_module.__file__)
 _PARTS_DIR = _HARNESS_PY.parent / "harness_parts"
 _REPO_ROOT = _HARNESS_PY.parent.parent

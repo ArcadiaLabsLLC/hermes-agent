@@ -20,6 +20,10 @@ import subprocess
 
 from scripts import god_file_probe as probe
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 _FORBIDDEN = "yaml"
 
 

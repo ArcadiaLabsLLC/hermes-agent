@@ -33,6 +33,10 @@ import json
 
 from scripts import god_file_probe as probe
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 #: Flip once every allowlist row carries a reason instead of the seed marker.
 ENFORCE = False
 

@@ -7,9 +7,14 @@ tests.md`; this page is the list. Owner-requested 2026-10-18, a navigation excep
 like [10 — Command directory](10-command-directory.md).
 
 This page cannot go stale silently: `tests/tooling/test_gate_directory_current.py` reds
-when a path named here no longer exists, or when a gate in the enumerated places
+when a path named here no longer exists, when a gate in the enumerated places
 (`tests/tooling/test_*.py`, `scripts/check*`, `scripts/*_gate.py`,
-`scripts/dump_*_contract.py`) is missing from it.
+`scripts/dump_*_contract.py`, and every test file carrying `pytest.mark.gate`) is
+missing from it, or when a test file named here does not carry the mark. A fork gate
+file says `pytestmark = pytest.mark.gate` (in a list with any other module mark); an
+upstream test file takes no edit, so its mark is a file row in
+`tests/_downstream/id_markers/fork_marks.py`. A new gate anywhere under `tests/` joins
+this page by its mark, not by the directory it sits in.
 
 Kinds: **fence** (a NEGATIVE guarantee, a source walk: "this is never written"),
 **ratchet** (a count or list that may only shrink), **fresh** (a generated artifact
@@ -102,6 +107,7 @@ or registry entry names something real).
 | gate | kind | guarantees |
 | --- | --- | --- |
 | `tests/scripts/test_upstream_skip_list.py` | claims | the skip list names upstream files only, unused rows cite ADR 0015, and the runner skips exactly them |
+| `tests/test_no_shadowed_test_definitions_downstream.py` | fence | no test module defines one name twice in one scope (upstream's walk, through the shared parse) |
 | `tests/tooling/test_session_chain_contract.py` | runtime | one test per promise the session chain (conftests, `tests/_downstream/`, bundle plugins) makes |
 | `tests/tooling/test_registry_write_fence.py` | runtime | the registry-write fence is live in a test process |
 | `tests/tooling/test_registry_write_fence_children.py` | runtime | a child a test spawns cannot write the registry either |
@@ -171,5 +177,6 @@ list's discovery and each layer case's census are fork-hygiene rows.
 ## Positive controls
 
 A new gate lands with its killing mutation named and its red recorded in the commit
-body; a control that has not been run is a belief. Adding a gate means adding its row
-here in the same commit — `test_gate_directory_current.py` reds otherwise.
+body; a control that has not been run is a belief. Adding a gate means marking its file
+`pytest.mark.gate` and adding its row here in the same commit —
+`test_gate_directory_current.py` reds otherwise.

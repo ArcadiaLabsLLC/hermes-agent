@@ -95,7 +95,7 @@ TESTS_ROOT = REPO_ROOT / "tests"
 #: under ``run_tests_parallel``'s 300 s per-FILE wall, which is still the real
 #: bound on a hang: this marker buys headroom for a slow corpus walk, not for a
 #: loop.
-pytestmark = pytest.mark.timeout(180)
+pytestmark = [pytest.mark.timeout(180), pytest.mark.gate]
 
 #: Markdown roots. Root-level ``*.md`` is included: AGENTS.md and the READMEs
 #: carry runner examples, and a rotted claim there is read by every contributor.

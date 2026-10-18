@@ -2,6 +2,10 @@ from pathlib import Path
 
 from scripts.upstream_sync_gate import build_gate_commands
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 
 def test_gate_commands_include_required_harness_lanes():
     commands = build_gate_commands(

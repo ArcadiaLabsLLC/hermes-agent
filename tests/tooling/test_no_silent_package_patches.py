@@ -51,6 +51,8 @@ import pytest
 from scripts import god_file_probe as probe
 from scripts import source_cache
 
+pytestmark = pytest.mark.gate
+
 FIXTURE = probe.FIXTURES / "silent_package_patches_grandfathered.json"
 _SETATTR = re.compile(r"monkeypatch\.setattr\(")
 _HELPER = re.compile(r"patch_where_bound\(")

@@ -13,6 +13,10 @@ import ast
 
 from scripts import god_file_probe as probe
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 
 def _drift() -> probe.Drift:
     return probe.compare_numbers("W0-G7 legibility floor", probe.floor_live(), probe.floor_fixture())

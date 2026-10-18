@@ -33,6 +33,8 @@ from agent_runtime.persona_profiles import declared_lane_toolsets, effective_too
 from agent_runtime.tool_visibility import ToolVisibilityOptions, resolve_tool_visibility
 from tests.agent_runtime.persona_samples import sample_personas
 
+pytestmark = pytest.mark.gate
+
 
 HARNESS_CORE_MEMBERS = [
     "agent_chat", "board", "clarify", "delegation", "terminal", "file",

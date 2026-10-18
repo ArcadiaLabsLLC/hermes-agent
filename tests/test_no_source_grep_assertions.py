@@ -90,6 +90,8 @@ import pytest
 
 from tests._fork_scope import is_fork_authored
 
+pytestmark = pytest.mark.gate
+
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TESTS_ROOT = REPO_ROOT / "tests"

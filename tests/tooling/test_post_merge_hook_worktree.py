@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.gate
+
 HOOK = Path(__file__).resolve().parents[2] / ".githooks" / "post-merge"
 STUB = "import sys, pathlib\npathlib.Path(sys.argv[0]).with_name('argv.txt').write_text(' '.join(sys.argv[1:]) or '<repair>')\n"
 
