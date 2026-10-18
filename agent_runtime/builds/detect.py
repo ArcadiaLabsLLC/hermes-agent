@@ -217,7 +217,11 @@ def scan(*, now: float, census: Any, owned: set[int], table: Iterable[Any] | Non
         return result
     scanner = _Scanner(result, now=now, bound=list(census.bound), owned=owned, clock=clock, budget_ms=budget_ms)
     try:
-        for proc in (table if table is not None else psutil_table()):
+        if table is None:
+            import psutil  # the phone profile omits it: ImportError is "I could not look", below
+
+            table = psutil_table(psutil)
+        for proc in table:
             scanner.consider(proc)
             if scanner.over_budget():
                 result.status, result.reason, result.builds = "unavailable", SUB_REASON_SCAN_BUDGET, []
@@ -283,7 +287,5 @@ class _PsutilProcess:
         return [(parent.pid, parent.name()) for parent in self._proc.parents()]
 
 
-def psutil_table() -> Iterable[Any]:
-    import psutil
-
+def psutil_table(psutil: Any) -> Iterable[Any]:
     return (_PsutilProcess(proc) for proc in psutil.process_iter(["pid", "name"]))
