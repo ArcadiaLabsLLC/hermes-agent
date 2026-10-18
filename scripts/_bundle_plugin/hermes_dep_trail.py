@@ -21,6 +21,26 @@ _PATH_EVENTS = frozenset({"open"})
 _DIR_EVENTS = frozenset({"os.listdir", "os.scandir"})
 _SPAWN_EVENTS = frozenset({"subprocess.Popen", "os.system", "os.exec", "os.posix_spawn", "os.spawn", "os.startfile"})
 _SESSION = ""
+#: the import system's directory scan: ``FileFinder._fill_cache`` in ``importlib._bootstrap_external``
+_IMPORT_LISTER = "_fill_cache"
+
+
+def _listed_by_import_system() -> bool:
+    """Whether the ``os.listdir`` being audited was called by the import system
+    (``FileFinder._fill_cache``), read off the caller frames of the hook."""
+
+    try:
+        frame = sys._getframe(2)
+    except ValueError:
+        return False
+    for _ in range(3):
+        if frame is None:
+            return False
+        code = frame.f_code
+        if code.co_name == _IMPORT_LISTER and "importlib" in code.co_filename:
+            return True
+        frame = frame.f_back
+    return False
 
 
 class PathFilter:
@@ -99,11 +119,13 @@ def is_python(program: str) -> bool:
 
 
 class Bucket:
-    __slots__ = ("paths", "dirs", "spawn_py", "spawn_other")
+    __slots__ = ("paths", "dirs", "idirs", "spawn_py", "spawn_other")
 
     def __init__(self) -> None:
         self.paths: set[str] = set()
         self.dirs: set[str] = set()
+        #: directories the import system listed (keyed on the entries a tried module name matches)
+        self.idirs: set[str] = set()
         self.spawn_py = 0
         self.spawn_other = 0
 
@@ -116,6 +138,8 @@ class AuditTrail:
         self.filter = PathFilter(root)
         self.current = _SESSION
         self.buckets: dict[str, Bucket] = {_SESSION: Bucket()}
+        #: the last dotted component of every module the process tried to import (``import`` event)
+        self.import_names: set[str] = set()
         self.active = True
 
     def bucket(self, name: str) -> Bucket:
@@ -138,7 +162,13 @@ class AuditTrail:
                 if rel is None and os.path.normcase(os.path.abspath(os.fspath(target))) == self.filter._root:
                     rel = "."
                 if rel is not None:
-                    self.bucket(self.current).dirs.add(rel)
+                    bucket = self.bucket(self.current)
+                    if event == "os.listdir" and _listed_by_import_system():
+                        bucket.idirs.add(rel)
+                    else:
+                        bucket.dirs.add(rel)
+            elif event == "import":
+                self.import_names.add(str(args[0]).rpartition(".")[2])
             elif event in _SPAWN_EVENTS:
                 bucket = self.bucket(self.current)
                 if is_python(spawned_program(event, args)):

@@ -120,6 +120,40 @@ def test_the_store_keeps_one_module_set_per_digest_and_reads_back_the_newest_lin
     assert sets[loaded["tests/u.py"].mods[0]] == ["pkg/a.py", "pkg/b.py"]
 
 
+_FILE_IMPORTS = '''
+import os
+
+def test_imports_a_package_and_lists_a_directory():
+    import pkgx.sub  # FileFinder lists pkgx/ for the submodule: an import-system listing
+    assert pkgx.sub.VALUE == 2
+    assert os.listdir(os.path.join(os.path.dirname(__file__), "listed")) == ["one.txt"]
+'''
+
+
+@pytest.mark.timeout(150)
+def test_an_import_system_listing_is_recorded_apart_from_a_plain_listing_with_the_names_tried(tmp_path):
+    root = tmp_path / "proj"
+    (root / "pkgx").mkdir(parents=True)
+    (root / "listed").mkdir()
+    (root / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+    (root / "pkgx" / "__init__.py").write_text("", encoding="utf-8")
+    (root / "pkgx" / "sub.py").write_text("VALUE = 2\n", encoding="utf-8")
+    (root / "listed" / "one.txt").write_text("1", encoding="utf-8")
+    (root / "test_i.py").write_text(_FILE_IMPORTS, encoding="utf-8")
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join([str(_PLUGIN_DIR), str(root)])}
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_dep_record",
+         f"--hermes-gate-deps={tmp_path / 'deps'}", "test_i.py"],
+        cwd=root, env=env, capture_output=True, text=True, timeout=120,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+    i = cache.DepsCollector(tmp_path / "deps").poll()["test_i.py"]
+    assert "pkgx" in i.idirs and "pkgx" not in i.dirs, "FileFinder's listing is an import-system listing"
+    assert "listed" in i.dirs and "listed" not in i.idirs, "a test's own listing keeps today's whole key"
+    assert {"pkgx", "sub"} <= i.inames, "the last dotted component of every module the process tried"
+
+
 def test_the_store_is_the_primary_checkouts_unless_overridden(tmp_path):
     primary, worktree = tmp_path / "primary", tmp_path / "landing"
     assert cache.gate_store_dir(worktree, primary) == primary / ".pytest_cache" / "hermes_gate"

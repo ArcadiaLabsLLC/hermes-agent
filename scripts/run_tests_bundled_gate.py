@@ -154,7 +154,7 @@ class GateRun:
             )
             self.disabled = fixed.disabled
             deps = self.store.load_deps()
-            modsets = self.store.load_modsets({d for entry in deps.values() for d in entry.mods})
+            modsets = self.store.load_modsets({d for entry in deps.values() for d in entry.digests})
             shapes = fixtures.Fingerprints(self.repo_root, snapshot.blob, cache.git_blob_id)
             self.keyer = cache.Keyer(snapshot, fixed, modsets, shapes)
             self.generation = self.store.generation()

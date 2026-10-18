@@ -11,8 +11,14 @@ finish, one JSON line per file goes to ``<dir>/deps-<pid>-<ns>.jsonl``::
 
 * ``paths`` — repo-relative files the file opened (``open`` / ``io.open_code``);
 * ``dirs`` — repo-relative directories it listed (``os.listdir``, ``os.scandir``:
-  ``glob``, ``os.walk``, ``Path.iterdir`` and the import system's own directory
-  scans all go through these; ``"."`` is the repo root);
+  ``glob``, ``os.walk`` and ``Path.iterdir`` go through these; ``"."`` is the repo root);
+* ``idirs`` — the directories the import system listed (``FileFinder``'s
+  ``os.listdir``, its caller frame in ``importlib``): the cache keys each on only
+  the entries whose stem matches a name the process tried to import, so a new
+  file no import asked for misses no green;
+* ``inames_add`` — the last dotted component of each module the process tried to
+  import (the ``import`` audit event) not in an earlier line of this process
+  file; the reader unions them over the whole process file;
 * ``spawn_py`` / ``spawn_other`` — processes it started, by whether the program
   is a Python interpreter (a Python child that inherits the environment records
   itself through ``sitecustomize``; anything else is a hole the cache closes by
@@ -65,6 +71,7 @@ class _DepRecorder:
         self._handle = open(path, "a", encoding="utf-8")  # noqa: SIM115 — closed at unconfigure
         self._trail = AuditTrail(root)
         self._written_mods: set[str] = set()
+        self._written_names: set[str] = set()
         self._flushed: set[str] = set()
         self._running: str | None = None
         self._fixtures: dict[str, set[str]] = {}
@@ -88,14 +95,19 @@ class _DepRecorder:
         mods = self._trail.filter.modules()
         added = sorted(mods - self._written_mods)
         self._written_mods |= mods
+        names = set(self._trail.import_names)
+        names_added = sorted(names - self._written_names)
+        self._written_names |= names
         return {
             "k": kind,
             "f": rel,
             "paths": sorted(bucket.paths | session.paths | {rel}),
             "dirs": sorted(bucket.dirs | session.dirs),
+            "idirs": sorted(bucket.idirs | session.idirs),
             "spawn_py": bucket.spawn_py + session.spawn_py,
             "spawn_other": bucket.spawn_other + session.spawn_other,
             "mods_add": added,
+            "inames_add": names_added,
         }
 
     def _write(self, record: dict) -> None:

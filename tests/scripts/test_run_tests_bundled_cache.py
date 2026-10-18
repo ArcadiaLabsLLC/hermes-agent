@@ -68,7 +68,7 @@ def _keyer(root: Path, store: "cache.GateStore", env=None, args=()) -> "cache.Ke
     snap = cache.TreeSnapshot.take(root, bundled.scope._scope_git)
     fixed = cache.FixedInputs.collect(snap, list(args), env or {}, interp=["interp\tpinned"])
     deps = store.load_deps()
-    return cache.Keyer(snap, fixed, store.load_modsets({d for e in deps.values() for d in e.mods}))
+    return cache.Keyer(snap, fixed, store.load_modsets({d for e in deps.values() for d in e.digests}))
 
 
 def _green(root: Path, store, deps=None, env=None, *, gen=0) -> None:
@@ -116,6 +116,23 @@ def test_a_file_added_to_a_listed_directory_misses_and_an_unrelated_edit_does_no
     _commit(repo)
     assert _reason(repo, store) == "hit"
     _write(repo, "listed/b.txt", "b\n")
+    assert _reason(repo, store) == "changed"
+
+
+def test_an_import_listed_directory_keys_only_the_entries_a_tried_module_name_matches(repo, store):
+    """land/q2: one new file in scripts/ missed every green, because every record had
+    the import system's listing of scripts/ keyed whole. An import listing keys only
+    the entries whose stem is a name the process tried to import."""
+
+    deps = cache.FileDeps(**{k: set(v) for k, v in _DEPS.items()}, idirs={"pkg"},
+                          name_sets=[{"mod", "never_found", "pkg"}])
+    _green(repo, store, deps)
+    assert _reason(repo, store) == "hit"
+    _write(repo, "pkg/brand_new.py", "NEW = 1\n")  # no import asked for it
+    _commit(repo)
+    assert _reason(repo, store) == "hit", "a file no import names must not move the key"
+    _write(repo, "pkg/never_found.py", "NOW = 1\n")  # a name the process tried and did not find
+    _commit(repo)
     assert _reason(repo, store) == "changed"
 
 

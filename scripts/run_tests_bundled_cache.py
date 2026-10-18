@@ -32,7 +32,7 @@ from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 #: bumped when the key's shape changes; part of every key
-CACHE_SCHEMA = 2
+CACHE_SCHEMA = 3
 STORE_SUBDIR = Path(".pytest_cache") / "hermes_gate"
 STORE_ENV = "HERMES_GATE_CACHE_DIR"
 #: tracked prefixes a file that spawned an unrecorded process may ignore (owner ruling Q1)
@@ -90,6 +90,10 @@ class FileDeps:
     paths: set = field(default_factory=set)
     dirs: set = field(default_factory=set)
     mods: set = field(default_factory=set)
+    #: directories the import system listed, and the name sets of the processes that ran the file:
+    #: each process's set is shared and still growing until its file is read to the end
+    idirs: set = field(default_factory=set)
+    name_sets: list = field(default_factory=list)
     spawn_py: int = 0
     spawn_other: int = 0
     #: records written by Python children that inherited the file (stage 1b)
@@ -108,6 +112,16 @@ class FileDeps:
         return bool(self.spawn_py or self.spawn_other)
 
     @property
+    def inames(self) -> set:
+        """Every module name a process that ran the file tried to import (a superset of the file's own)."""
+
+        return set().union(*self.name_sets) if self.name_sets else set()
+
+    def note_names(self, names: set) -> None:
+        if not any(found is names for found in self.name_sets):
+            self.name_sets.append(names)
+
+    @property
     def fx(self) -> Optional[list[str]]:
         """The fixtures the file set up, or None when a record did not say (the blob key applies)."""
 
@@ -117,6 +131,7 @@ class FileDeps:
     def merge(self, record: dict, mods: Iterable[str]) -> None:
         self.paths.update(record.get("paths") or ())
         self.dirs.update(record.get("dirs") or ())
+        self.idirs.update(record.get("idirs") or ())
         self.mods.update(mods)
         self.spawn_py += int(record.get("spawn_py") or 0)
         self.spawn_other += int(record.get("spawn_other") or 0)
@@ -160,6 +175,7 @@ class DepsCollector:
         self.partial: Dict[str, FileDeps] = {}
         self._offsets: Dict[str, int] = {}
         self._mods: Dict[str, set] = {}
+        self._names: Dict[str, set] = {}
 
     def poll(self) -> Dict[str, FileDeps]:
         try:
@@ -183,6 +199,7 @@ class DepsCollector:
             return
         self._offsets[name] = self._offsets.get(name, 0) + end + 1
         mods = self._mods.setdefault(name, set())
+        names = self._names.setdefault(name, set())
         for line in data[: end + 1].splitlines():
             try:
                 record = json.loads(line)
@@ -192,17 +209,22 @@ class DepsCollector:
                 continue
             handler = _RECORD_HANDLERS.get(record.get("k"))
             if handler is not None:
-                handler(self, record, mods)
+                names.update(record.get("inames_add") or ())
+                handler(self, record, mods, names)
 
-    def _on_deps(self, record: dict, mods: set) -> None:
+    def _on_deps(self, record: dict, mods: set, names: set) -> None:
         mods.update(record.get("mods_add") or ())
-        self.files.setdefault(record["f"], FileDeps()).merge_deps(record, mods)
+        entry = self.files.setdefault(record["f"], FileDeps())
+        entry.merge_deps(record, mods)
+        entry.note_names(names)
 
-    def _on_partial(self, record: dict, mods: set) -> None:
+    def _on_partial(self, record: dict, mods: set, names: set) -> None:
         mods.update(record.get("mods_add") or ())
-        self.partial.setdefault(record["f"], FileDeps()).merge(record, mods)
+        entry = self.partial.setdefault(record["f"], FileDeps())
+        entry.merge(record, mods)
+        entry.note_names(names)
 
-    def _on_child(self, record: dict, mods: set) -> None:
+    def _on_child(self, record: dict, mods: set, names: set) -> None:
         """A Python child of the file (sitecustomize, stage 1b)."""
 
         self.files.setdefault(record["f"], FileDeps()).merge_child(record)
@@ -275,6 +297,15 @@ class StoredDeps:
     #: the fixtures the file set up (None: not recorded, blob keys) and the paths kept by blob
     fx: Optional[list[str]] = None
     keep: list[str] = field(default_factory=list)
+    #: directories the import system listed, and the digest of the module names tried (in modsets.jsonl)
+    idirs: list[str] = field(default_factory=list)
+    inames: list[str] = field(default_factory=list)
+
+    @property
+    def digests(self) -> list[str]:
+        """Every modsets.jsonl id this line names."""
+
+        return self.mods + self.inames
 
 
 class GateStore:
@@ -320,6 +351,13 @@ class GateStore:
             }
             if deps.fx is not None:
                 line.update(fx=deps.fx, keep=sorted(deps.own | deps.opaque))
+            if deps.idirs:
+                names = deps.inames
+                named = _digest(names)
+                if named not in known:
+                    known.add(named)
+                    modsets.append({"id": named, "z": _pack(names)})
+                line.update(idirs=sorted(deps.idirs), inames=[named])
             lines.append(line)
         _append_lines(self.modsets, modsets)
         _append_lines(self.deps, lines)
@@ -334,7 +372,7 @@ class GateStore:
                 rel, list(r.get("paths") or ()), list(r.get("dirs") or ()), list(r.get("mods") or ()),
                 int(r.get("spawn_py") or 0), int(r.get("spawn_other") or 0), int(r.get("child") or 0),
                 str(r.get("run") or ""), list(r["fx"]) if isinstance(r.get("fx"), list) else None,
-                list(r.get("keep") or ()),
+                list(r.get("keep") or ()), list(r.get("idirs") or ()), list(r.get("inames") or ()),
             )
         return out
 
@@ -431,7 +469,7 @@ class GateStore:
                 _rewrite(path, newest.values())
                 done.append(path.name)
         if _size(self.modsets) > modsets_limit:
-            wanted = {d for entry in self.load_deps().values() for d in entry.mods}
+            wanted = {d for entry in self.load_deps().values() for d in entry.digests}
             kept = {r["id"]: r for r in _read_jsonl(self.modsets) if r.get("id") in wanted}
             _rewrite(self.modsets, kept.values())
             self._known_modsets = None
@@ -567,6 +605,15 @@ class TreeSnapshot:
         found = self._dirs[rel] = MISSING if names is None else "/".join(sorted(names))
         return found
 
+    def import_entries(self, rel: str, names: frozenset) -> str:
+        """An import-listed directory: only its entries whose stem (the name before
+        the first dot, case-folded) is one of ``names`` (case-folded module names)."""
+
+        listing = self.dir_names(rel)
+        if listing == MISSING:
+            return MISSING
+        return "/".join(e for e in listing.split("/") if e.split(".", 1)[0].casefold() in names)
+
     def all_digest(self) -> str:
         """The ALL sentinel: every visible path and blob outside the excluded prefixes."""
 
@@ -686,6 +733,28 @@ class Keyer:
         self.shapes = shapes
         self._modset_hash: Dict[str, str] = {}
         self._modset_rest: dict[str, tuple[str, list[str]]] = {}
+        self._names: Dict[tuple, Optional[frozenset]] = {}
+        self._idir: Dict[tuple, str] = {}
+
+    def _idir_lines(self, idirs: Iterable[str], inames: Sequence[str]) -> List[str]:
+        """``idir`` lines: each import-listed directory keyed on the entries a tried name matches."""
+
+        digests = tuple(sorted(set(inames)))
+        names = self._names.get(digests, ())
+        if names == ():
+            sets = [self.modsets.get(d) for d in digests]
+            names = None if any(s is None for s in sets) else frozenset(n.casefold() for s in sets for n in s)
+            self._names[digests] = names
+        lines = []
+        for d in sorted(set(idirs)):
+            if names is None:
+                lines.append(f"idir\t{d}\t{MISSING}")
+                continue
+            found = self._idir.get((d, digests))
+            if found is None:
+                found = self._idir[(d, digests)] = self.snapshot.import_entries(d, names)
+            lines.append(f"idir\t{d}\t{found}")
+        return lines
 
     def _mods(self, digest: str) -> str:
         found = self._modset_hash.get(digest)
@@ -731,6 +800,7 @@ class Keyer:
     def key(
         self, rel: str, paths: Iterable[str], dirs: Iterable[str], mods: Iterable[str], uncovered: bool,
         fx: Optional[Sequence[str]] = None, keep: Iterable[str] = (),
+        idirs: Iterable[str] = (), inames: Sequence[str] = (),
     ) -> str:
         snap = self.snapshot
         if fx is None or self.shapes is None:
@@ -743,6 +813,7 @@ class Keyer:
             lines += [f"dir\t{d}\t{snap.dir_names(d)}" for d in sorted(set(dirs))]
             lines += [f"mods\t{self._mods_split(m, fx, kept, rel)}" for m in sorted(set(mods))]
             lines.append("fx\t1")
+        lines += self._idir_lines(idirs, inames)
         if uncovered:
             lines.append(f"ALL\t{snap.all_digest()}")
         lines.append(f"fixed\t{self.fixed.digest}")
@@ -752,14 +823,20 @@ class Keyer:
         return self.key(
             deps.rel, deps.paths, deps.dirs, deps.mods,
             uncovered_spawn(deps.spawn_py, deps.spawn_other, deps.child_records), deps.fx, deps.keep,
+            deps.idirs, deps.inames,
         )
 
     def key_fresh(self, rel: str, deps: FileDeps) -> str:
         digest = _digest(deps.mods)
         self.modsets.setdefault(digest, sorted(deps.mods))
+        named: list[str] = []
+        if deps.idirs:
+            names = deps.inames
+            named = [_digest(names)]
+            self.modsets.setdefault(named[0], sorted(names))
         return self.key(
             rel, deps.paths, deps.dirs, [digest], uncovered_spawn(deps.spawn_py, deps.spawn_other, deps.child_records),
-            deps.fx, deps.own | deps.opaque,
+            deps.fx, deps.own | deps.opaque, deps.idirs, named,
         )
 
 
