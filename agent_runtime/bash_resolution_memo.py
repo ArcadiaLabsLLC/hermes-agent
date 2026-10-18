@@ -19,6 +19,7 @@ import os
 import threading
 from typing import Callable
 
+__layer__ = "policy"
 __all__ = ["clear", "memoize_find_bash"]
 
 _KEY_VARIABLES = ("PATH", "HERMES_GIT_BASH_PATH", "HERMES_HOME", "HERMES_RUNTIME_DIR", "HERMES_INSTALL_ROOT")
