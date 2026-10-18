@@ -329,6 +329,16 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         'agent_runtime.worker_actions',
     ),
     *rows(
+        "s-q-stale",
+        "HEAD",
+        Form.MODULE,
+        "the mission goal-create lane (removed 2026-07-30 with the mission lane); "
+        "its absence stubs in test_mission_goal.py and test_stage38_fixtures.py move here "
+        "(the tool module's absence also keeps mission_goal_create unregistered)",
+        "agent_runtime.mission_goal",
+        "tools.mission_goal_tool",
+    ),
+    *rows(
         "s6",
         "5a1267ef6",
         Form.MODULE,
