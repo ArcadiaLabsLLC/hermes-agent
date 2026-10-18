@@ -76,8 +76,28 @@ def restore_tool_registry(mark: RegistryMark) -> list[str]:
     return undone
 
 
+_MARK_KEY = pytest.StashKey[RegistryMark]()
+
+
 @pytest.fixture(autouse=True)
-def _tool_registry_scope():
-    mark = mark_tool_registry()
-    yield
-    restore_tool_registry(mark)
+def _tool_registry_scope(request):
+    """Mark the slot at setup; the restore is :func:`pytest_runtest_teardown_tool_registry`."""
+    request.node.stash[_MARK_KEY] = mark_tool_registry()
+
+
+@pytest.hookimpl(specname="pytest_runtest_teardown", wrapper=True)
+def pytest_runtest_teardown_tool_registry(item, nextitem):  # noqa: D401 — pytest hook
+    """Restore AFTER every function fixture, ``monkeypatch`` included.
+
+    The restore reads the registry, which resolves the Hermes home (``Path.resolve`` ->
+    ``os.getcwd``). As a fixture teardown it ran before ``monkeypatch`` undid a test's
+    process-wide patch, so a test patching ``os.getcwd`` to raise errored in teardown
+    (``tests/tools/test_terminal_task_cwd.py``, lane r-state 2026-10-18).
+    """
+    try:
+        return (yield)
+    finally:
+        mark = item.stash.get(_MARK_KEY, None)
+        if mark is not None:
+            del item.stash[_MARK_KEY]
+            restore_tool_registry(mark)
