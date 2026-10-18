@@ -30,6 +30,7 @@ __all__ = [
     "DEFAULT_BRAIN_SLOT",
     "Board",
     "binding_path",
+    "board_rows",
     "boards",
     "brain_dir_of",
     "declared_boards",
@@ -172,7 +173,9 @@ def notes(board: Board) -> list[Path]:
     return [path for path in sorted(directory.glob("*.md")) if is_queue(path.read_text(encoding="utf-8"))]
 
 
-def _board_rows(board: Board) -> list[Row]:
+def board_rows(board: Board) -> list[Row]:
+    """Every row of the board's queue notes, keyed by its slot and the note's path under the read root."""
+
     root = board.read_root or Path()
     return [
         row
@@ -192,7 +195,7 @@ def rows(
     """Every row on the workspace's boards, filtered by status, slot and assignee token."""
 
     found = [row for board in boards(workspace_id, read_roots=read_roots)
-             if slot is None or board.slot == slot for row in _board_rows(board)]
+             if slot is None or board.slot == slot for row in board_rows(board)]
     return [
         row for row in found
         if (status is None or row.status is status)
@@ -209,7 +212,7 @@ def ready(workspace_id: str, *, read_roots: Mapping[str, Path] | None = None) ->
 def ids_in_brain(board: Board) -> set[str]:
     """Every row ID across the board's queue notes (an ID is unique within a brain)."""
 
-    return {row.ref.id for row in _board_rows(board) if row.ref.id}
+    return {row.ref.id for row in board_rows(board) if row.ref.id}
 
 
 def has_brain_here(board: Board) -> bool:

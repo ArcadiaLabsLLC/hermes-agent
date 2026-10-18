@@ -23,7 +23,7 @@ from hermes_cli.harness_parts.serve.frames import _request_id, _request_sink
 
 __layer__ = "lanes"
 
-__all__ = ["QueuedTurnStream", "queued_turn_runner_policy"]
+__all__ = ["QueuedTurnStream", "queued_turn_runner_policy", "start_serve_work_engine"]
 
 
 class _ControlSink:
@@ -82,9 +82,45 @@ def _queued_turn_stream(session: Any, entry: Any) -> Iterator[QueuedTurnStream]:
         _request_id.reset(rid_token)
 
 
+def _work_settled(session: Any, entry: Any, exit_code: int, payload: dict | None) -> None:
+    executor = getattr(session, "work_executor", None)
+    if executor is not None:
+        executor.settled(entry, exit_code, payload)
+
+
 def queued_turn_runner_policy(session: Any) -> Any:
-    """The runner policy a serve starts its queued-send runner with."""
+    """The runner policy a serve starts its queued-send runner with.
+
+    ``on_settle`` hands every terminal settle to the serve's Work executor when one was built
+    (:func:`start_serve_work_engine`); it reads ``session.work_executor`` at settle time.
+    """
 
     from agent_runtime.chat_root_send_runner import RunnerPolicy
 
-    return RunnerPolicy(stream=lambda entry: _queued_turn_stream(session, entry))
+    return RunnerPolicy(
+        stream=lambda entry: _queued_turn_stream(session, entry),
+        on_settle=lambda entry, exit_code, payload: _work_settled(session, entry, exit_code, payload),
+    )
+
+
+def start_serve_work_engine(session: Any) -> Any:
+    """Build the serve's Work executor and engine and tick it beside the lens poller (work plan §6.3).
+
+    Called BEFORE the queued-send runner starts, so the engine's boot read of its run records sees
+    every run that ended while the serve was down before the runner can settle a resumed one. A
+    bundle that does not ship Work or git (the phone) builds nothing. Returns the engine or None.
+    """
+
+    from agent_runtime.loop_tool_lifecycles import shipped
+
+    if not (shipped("agent_runtime.work") and shipped("agent_runtime.git_cmd")):
+        return None
+    from agent_runtime.work_store.engine import WorkEngine, home_scope, start_work_engine
+    from agent_runtime.work_store.persona_turn import PersonaTurnExecutor
+
+    home = getattr(session, "serve_request_home", None)
+    with home_scope(home):
+        session.work_executor = PersonaTurnExecutor(draining=lambda: session.drain_state is not None)
+        session.work_engine = WorkEngine(executor=session.work_executor)
+    start_work_engine(stop_event=session.liveness_stop, engine=session.work_engine, home=home)
+    return session.work_engine

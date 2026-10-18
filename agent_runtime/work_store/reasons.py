@@ -40,6 +40,13 @@ class Reason(StrEnum):
     NO_BRAIN = "no_brain"
     ASSIGNEE_UNKNOWN = "assignee_unknown"
     NOT_BUILT = "not_built"
+    # The executor's refusals (dispatcher plan §2.2; W3 adds them, B1 extends the enum).
+    PERSONA_UNAVAILABLE = "persona_unavailable"
+    DRAIN_BEGUN = "drain_begun"
+    GOAL_MODE_UNSUPPORTED = "goal_mode_unsupported"
+    CAP_REACHED = "cap_reached"
+    EXECUTOR_BUSY = "executor_busy"
+    DOOR_UNBOUND = "door_unbound"
 
 
 class WorkRefused(ValueError):
