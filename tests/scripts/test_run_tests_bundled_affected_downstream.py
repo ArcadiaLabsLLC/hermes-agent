@@ -143,3 +143,18 @@ def test_a_new_file_selects_a_walker_of_its_directory_but_not_its_siblings(tmp_p
 
     assert sel.picks[T_OTHER].why == f"lists tests/agent_runtime/ ({new} added or removed)"
     assert T_DIRECT not in sel.picks and sel.picks[new].why == "edited"
+
+
+def test_a_source_walker_is_counted_not_run_and_a_data_file_it_opened_selects_it(tmp_path):
+    store = cache.GateStore(tmp_path / "gate")
+    store.write_deps({
+        T_OTHER: cache.FileDeps(paths={T_OTHER, MOD}),  # read MOD's text, imports none of it
+        T_FAR: cache.FileDeps(paths={T_FAR, "docs/table.md"}),
+    }, "run-1")
+    sel = affected.select_affected(
+        [T_OTHER, T_FAR], affected.Change({MOD, "docs/table.md"}), store.load_deps(), store.load_modsets(),
+        affected.ImportGraph(IMPORTS),
+    )
+
+    assert sel.walkers == [T_OTHER] and T_OTHER not in sel.picks
+    assert sel.picks[T_FAR].why == "opened docs/table.md"

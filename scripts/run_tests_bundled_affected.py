@@ -8,13 +8,16 @@ when (``select_affected``):
 * its LATEST record in the gate store (``deps.jsonl`` / ``modsets.jsonl``) names a
   changed path: a module its process imported that the file's own import chain also
   reaches (``imports <path>`` / ``reaches <path> (import chain)``; a recorded module
-  set is the whole process's, see ``ImportGraph``), a file it opened or a module
-  first loaded while it ran (``opened`` / ``loaded <path>``; the session's own opens
-  are the chain's), or a directory it listed that a changed path was added to or removed
+  set is the whole process's, see ``ImportGraph``), a non-``.py`` file it opened
+  itself (``opened <path>``; the session's opens are the chain's), or a directory it listed that a changed path was added to or removed
   from (``lists <dir>/``; a directory most records list is the session's listing, and
   one the file sits in is its collection's: neither counts; an import-listed one counts when the path's stem is a name the
   process tried to import);
 * the session chain changed: the chain's contract (``session-chain contract``);
+* NOT a file whose only tie is a changed ``.py`` it opened (``open``/``open_code``) with
+  no import reach: that is a whole-tree source walker or a module first loaded deeper
+  than two hops — 70 of 180 files for ``agent_runtime/locks.py``, 310 of 370 for
+  ``tools/checkpoint_manager.py`` (2026-10-17). Counted in the header, never run;
 * a changed path no record names (a new module, a file nothing recorded) reaches it
   by the ``--scope fork`` reach rules, for that path only — its convention source, a
   ``conftest.py`` above it, a direct import (``reach rule: …``); a test file with no
@@ -229,6 +232,9 @@ class AffectedSelection:
     picks: Dict[str, Pick] = field(default_factory=dict)
     skipped: List[str] = field(default_factory=list)  # selected, but on the skip or idle-box list
     uncovered: List[str] = field(default_factory=list)  # changed paths no record names
+    #: files whose only tie is a changed .py they opened: source walkers (whole-tree AST gates, 100-240 s
+    #: each) and deeper first loads — not run; the landing gate's
+    walkers: List[str] = field(default_factory=list)
 
     def ordered(self, durations: Mapping[str, float]) -> List[Pick]:
         return sorted(
@@ -294,12 +300,14 @@ def select_affected(
         opened = sorted(changed.intersection(own))
         in_mods = set().union(*(digest_hits.get(d, set()) for d in record.mods))
         why = _reach_why(reached[rel]) if rel in reached and reached[rel][0] in in_mods else None
-        if why is None and opened:  # a .py the file opened is a module first loaded while it ran
-            why = f"{'loaded' if opened[0].endswith('.py') else 'opened'} {opened[0]}"
+        if why is None and any(not p.endswith(".py") for p in opened):
+            why = f"opened {next(p for p in opened if not p.endswith('.py'))}"
         if why is None:
             why = _listed(record, churn_dirs, churn_names, modsets)
         if why is not None:
             sel.picks.setdefault(rel, Pick(rel, why))
+        elif opened:  # a .py opened with no import reach: a source walker (or a deep first load)
+            sel.walkers.append(rel)
         elif cache.uncovered_spawn(record.spawn_py, record.spawn_other, record.child_records):
             sentinel.append(rel)
 
@@ -391,7 +399,8 @@ def main(args, repo_root: Path, runner, pytest_args: List[str]) -> int:
     print(
         f"Affected: {len(change.paths)} changed path(s) → {len(picks)} of {len(by_rel)} test file(s) "
         f"({time.monotonic() - started:.1f}s to select; {len(sel.uncovered)} changed path(s) no record names, "
-        f"reach rules for those); never a gate — the landing gate is the backstop",
+        f"reach rules for those; {len(sel.walkers)} source walker(s) left out); never a gate — the landing "
+        "gate is the backstop",
         flush=True,
     )
     for pick in picks:
