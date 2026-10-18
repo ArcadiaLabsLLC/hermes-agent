@@ -13,13 +13,11 @@ from agent_runtime.init_observability import init_timing_callback
 from agent_runtime.receipt_sink import ReceiptSink, receipt_callback
 
 
-def test_an_upstream_two_argument_callback_never_receives_a_receipt(monkeypatch):
-    import tui_gateway.agent_callbacks as tui
-
+def test_an_upstream_two_argument_callback_never_receives_a_receipt():
+    # The shape upstream's surfaces install (the TUI's is ``_agent_status_update(sid, kind, text)``,
+    # which publishes ``kind`` as a ``status.update``): anything reaching it is published.
     published: list[tuple] = []
-    monkeypatch.setattr(tui, "_status_update", lambda *args: published.append(args), raising=False)
-    monkeypatch.setattr(tui, "_agent_presentation_enabled", lambda sid, diagnostic=False: True)
-    agent = SimpleNamespace(status_callback=lambda kind, text=None: tui._agent_status_update("sid", kind, text))
+    agent = SimpleNamespace(status_callback=lambda kind, text=None: published.append((kind, text)))
 
     _emit_conversation_timing(agent, "turn_context", time.perf_counter())
     _emit_phase_marker(agent, "conversation_preflight_done")

@@ -171,7 +171,8 @@ LEDGER.update({name: _CHARSHEET_REASON for name in (
     "_cmd_characters_add_state", "_cmd_characters_approve_direction", "_cmd_characters_auto",
     "_cmd_characters_backfill_home", "_cmd_characters_base", "_cmd_characters_compose",
     "_cmd_characters_list", "_cmd_characters_migrate_home", "_cmd_characters_payload_contract",
-    "_cmd_characters_reopen", "_cmd_characters_reroll_direction", "_cmd_characters_reroll_row",
+    "_cmd_characters_recolour", "_cmd_characters_reopen", "_cmd_characters_reroll_direction",
+    "_cmd_characters_reroll_row",
     "_cmd_characters_rows", "_cmd_characters_sprite", "_cmd_characters_start",
     "_cmd_characters_status", "_cmd_characters_thumb", "_cmd_characters_turnaround",
 )})

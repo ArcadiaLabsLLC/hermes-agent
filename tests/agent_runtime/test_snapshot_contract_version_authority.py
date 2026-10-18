@@ -63,7 +63,7 @@ RED-PROOF. Three, run before this file landed:
    red, naming the cross-repo checklist. Every other consumer travels silently
    — which is the entire point. Reverted.
 2. Restoring ``assert frame["parity"]["contract_version"] == 52`` in
-   ``test_stage19_visibility``: :func:`test_no_other_module_states_the_contract_version`
+   ``test_office_store``: :func:`test_no_other_module_states_the_contract_version`
    goes red naming that file and line. Reverted.
 3. :func:`test_the_restatement_detector_is_not_vacuous` runs permanently. It
    feeds the detector five synthetic modules — one per restatement idiom — and
@@ -478,7 +478,6 @@ def test_the_gate_scanned_a_real_tree():
     # Files the gate MUST be looking at, because each one held a stale literal.
     for expected in (
         "context.py",
-        "test_stage19_visibility.py",
         "test_office_store.py",
         "test_stream_contract_fixture.py",
     ):

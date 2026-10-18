@@ -22,6 +22,8 @@ import pytest
 
 from scripts import upstream_retirement_scan as scan
 
+pytestmark = pytest.mark.gate
+
 
 class _FakeTree:
     """A tree from a dict, shaped like ``scan.Tree``: no git."""

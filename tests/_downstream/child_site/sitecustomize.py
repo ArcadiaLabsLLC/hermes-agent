@@ -43,7 +43,7 @@ def _active() -> bool:
     return bool(os.environ.get(ENV)) and "pytest" not in sys.modules
 
 
-def _read(name: str) -> dict:
+def _read_snapshot(name: str) -> dict:
     try:
         with open(os.path.join(os.environ[ENV], name), encoding="utf-8") as handle:
             data = json.load(handle)
@@ -52,7 +52,7 @@ def _read(name: str) -> dict:
         return {}
 
 
-def _write(name: str, data: dict) -> None:
+def _write_snapshot(name: str, data: dict) -> None:
     try:
         directory = os.environ[ENV]
         os.makedirs(directory, exist_ok=True)
@@ -80,7 +80,7 @@ def _hook_version_info(module) -> None:
         head = read_head(repo_dir) if repo == _REPO else None
         if head is None:
             return real(repo_dir, include_untracked=include_untracked)
-        recorded = _read(VERSION_FILE)
+        recorded = _read_snapshot(VERSION_FILE)
         if recorded.get("repo") == repo and recorded.get("head") == head.commit:
             try:
                 info = module.VersionInfo(**recorded["info"])
@@ -90,7 +90,7 @@ def _hook_version_info(module) -> None:
                 pass
         info = real(repo_dir, include_untracked=include_untracked)
         stats["version_miss"] += 1
-        _write(VERSION_FILE, {"repo": repo, "head": head.commit,
+        _write_snapshot(VERSION_FILE, {"repo": repo, "head": head.commit,
                               "info": {name: getattr(info, name) for name in fields}})
         return info
 
@@ -107,7 +107,7 @@ _manifests_dirty = False
 def _hook_utils(module) -> None:
     global _manifests
     real = module.fast_safe_load
-    _manifests = _read(MANIFEST_FILE)
+    _manifests = _read_snapshot(MANIFEST_FILE)
 
     def fast_safe_load(stream):
         global _manifests_dirty
@@ -143,7 +143,7 @@ def _flush_manifests(_module=None) -> None:
     global _manifests_dirty
     if _manifests_dirty:
         _manifests_dirty = False
-        _write(MANIFEST_FILE, _manifests)
+        _write_snapshot(MANIFEST_FILE, _manifests)
 
 
 # ── hermes_cli.banner ────────────────────────────────────────────────────────

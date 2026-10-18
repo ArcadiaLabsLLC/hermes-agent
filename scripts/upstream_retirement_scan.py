@@ -71,7 +71,7 @@ class Finding:
 # ---------------------------------------------------------------- git and trees
 
 
-def _git(*args: str, check: bool = True) -> str:
+def _run_git(*args: str, check: bool = True) -> str:
     result = subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True,
                             encoding="utf-8", errors="surrogateescape", check=False)
     if check and result.returncode != 0:
@@ -84,24 +84,24 @@ def manifest_base(path: Path = MANIFEST) -> str:
     match = re.match(r"# base ([0-9a-f]+)", first)
     if not match:
         raise SystemExit(f"[retire] {path} carries no '# base <sha>' header")
-    return _git("rev-parse", "--verify", match[1] + "^{commit}").strip()
+    return _run_git("rev-parse", "--verify", match[1] + "^{commit}").strip()
 
 
 def previous_release(tag: str) -> str | None:
     """The release merged before ``tag``: the second-newest release merge on main's first parents."""
-    log = _git("log", "--first-parent", "--merges", "--format=%H %s", "HEAD")
+    log = _run_git("log", "--first-parent", "--merges", "--format=%H %s", "HEAD")
     seen = []
     for line in log.splitlines():
         sha, _, subject = line.partition(" ")
         if RELEASE_MERGE.match(subject):
-            seen.append(_git("rev-parse", sha + "^2").strip())
+            seen.append(_run_git("rev-parse", sha + "^2").strip())
     later = [sha for sha in seen if sha != tag]
     return later[0] if later else None
 
 
 def fork_point(tag: str) -> str:
     """The newest first-parent commit of HEAD that is still an ancestor of ``tag``."""
-    chain = _git("rev-list", "--first-parent", "--reverse", "HEAD").split()
+    chain = _run_git("rev-list", "--first-parent", "--reverse", "HEAD").split()
     lo, hi = 0, len(chain) - 1
     while hi - lo > 1:
         mid = (lo + hi) // 2
@@ -122,7 +122,7 @@ class Tree:
 
     def __init__(self, ref: str):
         self.ref = ref
-        listing = _git("-c", "core.quotepath=off", "ls-tree", "-r", "--name-only", ref)
+        listing = _run_git("-c", "core.quotepath=off", "ls-tree", "-r", "--name-only", ref)
         self.paths = frozenset(listing.splitlines())
         self.dirs = frozenset(str(Path(p).parent).replace("\\", "/") for p in self.paths)
 
@@ -172,7 +172,7 @@ class WorkTree:
 
     def __init__(self):
         self.ref = "WORKTREE"
-        self.paths = frozenset(_git("-c", "core.quotepath=off", "ls-files").splitlines())
+        self.paths = frozenset(_run_git("-c", "core.quotepath=off", "ls-files").splitlines())
         self.dirs = frozenset(str(Path(p).parent).replace("\\", "/") for p in self.paths)
 
     def read(self, path: str) -> str | None:
@@ -184,7 +184,7 @@ class WorkTree:
     module_path = Tree.module_path
 
 
-def _parse(source: str | None) -> ast.Module | None:
+def _parse_source(source: str | None) -> ast.Module | None:
     if source is None:
         return None
     try:
@@ -206,7 +206,7 @@ def bound_names(tree: ast.Module | None) -> frozenset[str] | None:
         return None
     names: set[str] = set()
     for node in _top_statements(tree.body):
-        dynamic = _bind(node, names)
+        dynamic = _record_binding(node, names)
         if dynamic:
             return None
     return frozenset(names)
@@ -222,24 +222,45 @@ def _top_statements(body: list[ast.stmt]) -> Iterator[ast.stmt]:
             yield from _top_statements(nested)
 
 
-def _bind(node: ast.stmt, names: set[str]) -> bool:
-    """Add what ``node`` binds to ``names``; True when the binding is dynamic."""
-    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-        names.add(node.name)
-        return node.name == "__getattr__"
-    if isinstance(node, ast.Expr):
-        return _exports_namespace(node.value)
-    if isinstance(node, (ast.Import, ast.ImportFrom)):
-        for alias in node.names:
-            if alias.name == "*":
-                return True
-            names.add((alias.asname or alias.name).split(".")[0])
-        return False
+def _bind_definition(node, names: set[str]) -> bool:
+    names.add(node.name)
+    return node.name == "__getattr__"
+
+
+def _bind_expression(node, names: set[str]) -> bool:
+    return _exports_namespace(node.value)
+
+
+def _bind_import(node, names: set[str]) -> bool:
+    for alias in node.names:
+        if alias.name == "*":
+            return True
+        names.add((alias.asname or alias.name).split(".")[0])
+    return False
+
+
+def _bind_assignment(node, names: set[str]) -> bool:
     targets = node.targets if isinstance(node, ast.Assign) else [getattr(node, "target", None)]
     for target in targets:
         if target is not None:
             names.update(n.id for n in ast.walk(target) if isinstance(n, ast.Name))
     return False
+
+
+# What each statement kind binds at module scope; anything else binds through its targets.
+_BINDERS = {
+    ast.FunctionDef: _bind_definition,
+    ast.AsyncFunctionDef: _bind_definition,
+    ast.ClassDef: _bind_definition,
+    ast.Expr: _bind_expression,
+    ast.Import: _bind_import,
+    ast.ImportFrom: _bind_import,
+}
+
+
+def _record_binding(node: ast.stmt, names: set[str]) -> bool:
+    """Add what ``node`` binds to ``names``; True when the binding is dynamic."""
+    return _BINDERS.get(type(node), _bind_assignment)(node, names)
 
 
 def _exports_namespace(node: ast.expr) -> bool:
@@ -355,7 +376,7 @@ class ImportArm:
     def run(self) -> list[Finding]:
         findings: list[Finding] = []
         for path in fork_python_files(self.head, self.tag):
-            tree = _parse(self.head.read(path))
+            tree = _parse_source(self.head.read(path))
             if tree is None:
                 continue
             for ref in references(path, tree):
@@ -397,7 +418,7 @@ class ImportArm:
                 self._names[module] = frozenset(
                     p[len(path):].split("/")[0].removesuffix(".py") for p in self.tag.paths if p.startswith(path))
             else:
-                self._names[module] = bound_names(_parse(self.tag.read(path)))
+                self._names[module] = bound_names(_parse_source(self.tag.read(path)))
         return self._names[module]
 
     def _module_gone(self, ref: Ref) -> Finding | None:
@@ -419,14 +440,14 @@ class ImportArm:
     def _was_upstream(self, path: str) -> bool:
         """Did upstream ever ship ``path`` and delete it before the tag? One history walk, cached."""
         if self._deleted is None:
-            listing = _git("log", "--diff-filter=D", "--name-only", "--format=", self.tag.ref, "--", "*.py")
+            listing = _run_git("log", "--diff-filter=D", "--name-only", "--format=", self.tag.ref, "--", "*.py")
             self._deleted = frozenset(listing.split())
         stem = path.rstrip("/")
         return path in self._deleted or any(p.startswith(stem + "/") for p in self._deleted)
 
     def _name_gone(self, ref: Ref, module: str, name: str) -> Finding | None:
         path = self.tag.module_path(module)
-        head_names = bound_names(_parse(self.head.read(path)))
+        head_names = bound_names(_parse_source(self.head.read(path)))
         in_head = head_names is None or name in head_names or self.head.module_path(f"{module}.{name}")
         if in_head and not self._ever_upstream(module, path, name):
             return None  # a name the fork's own edit adds: footprint, not retirement
@@ -435,7 +456,7 @@ class ImportArm:
 
     def _ever_upstream(self, module: str, path: str, name: str) -> bool:
         """Upstream had ``module.name`` (a binding or a submodule) at the fork point or the previous release."""
-        return any(tree.module_path(f"{module}.{name}") or name in (bound_names(_parse(tree.read(path))) or ())
+        return any(tree.module_path(f"{module}.{name}") or name in (bound_names(_parse_source(tree.read(path))) or ())
                    for tree in self.history)
 
 
@@ -473,7 +494,7 @@ def enclosing(funcs: dict[str, ast.AST], line: int) -> str | None:
 
 
 def changed_lines(base: str, path: str) -> list[int]:
-    diff = _git("diff", "-U0", "--no-color", base, "--", path)
+    diff = _run_git("diff", "-U0", "--no-color", base, "--", path)
     lines = []
     for match in re.finditer(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", diff, re.M):
         start, count = int(match[1]), int(match[2] or 1)
@@ -482,12 +503,12 @@ def changed_lines(base: str, path: str) -> list[int]:
 
 
 def hunk_arm(head: WorkTree, tag: Tree, prev: Tree) -> list[Finding]:
-    edited = _git("diff", "--name-only", tag.ref, "--", "*.py").splitlines()
+    edited = _run_git("diff", "--name-only", tag.ref, "--", "*.py").splitlines()
     findings: set[Finding] = set()
     for path in (p for p in edited if p in tag.paths):
-        head_funcs = functions(_parse(head.read(path)))
-        tag_funcs = functions(_parse(tag.read(path)))
-        prev_funcs = functions(_parse(prev.read(path)))
+        head_funcs = functions(_parse_source(head.read(path)))
+        tag_funcs = functions(_parse_source(tag.read(path)))
+        prev_funcs = functions(_parse_source(prev.read(path)))
         for line in changed_lines(tag.ref, path):
             qual = enclosing(head_funcs, line)
             kind = _hunk_kind(qual, tag_funcs, prev_funcs)
@@ -520,11 +541,11 @@ def _size(node: ast.AST) -> int:
 
 def upstream_additions(tag: Tree, point: Tree) -> dict[str, tuple[str, str]]:
     """``body -> (path, qualname)`` for functions upstream added between the fork point and the tag."""
-    changed = _git("diff", "--name-only", "--diff-filter=AM", point.ref, tag.ref, "--", "*.py").splitlines()
+    changed = _run_git("diff", "--name-only", "--diff-filter=AM", point.ref, tag.ref, "--", "*.py").splitlines()
     added: dict[str, tuple[str, str]] = {}
     for path in changed:
-        before = functions(_parse(point.read(path)))
-        for qual, node in functions(_parse(tag.read(path))).items():
+        before = functions(_parse_source(point.read(path)))
+        for qual, node in functions(_parse_source(tag.read(path))).items():
             if qual not in before and _size(node) >= TWIN_MIN_NODES:
                 added[_body_key(node)] = (path, qual)
     return added
@@ -534,7 +555,7 @@ def fork_functions(head: WorkTree, tag: Tree) -> Iterator[tuple[str, str, ast.AS
     for path in fork_python_files(head, tag):
         if path.startswith("tests/"):
             continue
-        for qual, node in functions(_parse(head.read(path))).items():
+        for qual, node in functions(_parse_source(head.read(path))).items():
             if _size(node) >= TWIN_MIN_NODES:
                 yield path, qual, node
 
@@ -579,7 +600,7 @@ def carried_arm(tag: Tree, manifest: Path = CARRIED) -> list[Finding]:
             continue
         merged = _is_ancestor(head, tag.ref)
         for path, rule in sorted(entry["files"].items()):
-            patch = _git("diff", base, head, "--", rule.get("pr_path", path), check=False)
+            patch = _run_git("diff", base, head, "--", rule.get("pr_path", path), check=False)
             blocks = [b for b in added_blocks(patch) if sum(len(x.strip()) for x in b) >= 20]
             lines = (tag.read(path) or "").splitlines()
             held = sum(1 for b in blocks if contains_lines(lines, "\n".join(b)))
@@ -649,7 +670,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--fork-point", help="default: newest first-parent commit of HEAD inside the tag")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
-    tag = _git("rev-parse", "--verify", args.tag + "^{commit}").strip() if args.tag else manifest_base()
+    tag = _run_git("rev-parse", "--verify", args.tag + "^{commit}").strip() if args.tag else manifest_base()
     pins = Pins(tag=tag, prev=args.prev, point=args.fork_point)
     results = scan(args.arm or list(ARMS), pins)
     if args.json:
