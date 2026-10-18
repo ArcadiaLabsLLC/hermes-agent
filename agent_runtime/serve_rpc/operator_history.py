@@ -12,7 +12,7 @@ from agent_runtime.operator_redo import preview_operator_redo, operator_redo_ava
 from agent_runtime.operator_history_recovery import operator_history_pending, cancel_unapplied_history
 from .operator_inspection import _inspect_off_reader
 from .registry import method
-from .protocol import DEFERRED, deferred_reply, ok, err
+from .protocol import defer_or_inline, ok, err
 from tools.checkpoint_pruning import CheckpointStoreBusy
 
 __layer__ = "lanes"
@@ -131,7 +131,4 @@ def _mutate_off_reader(rid, params, context, operation, mutate):
         except Exception:
             return err(rid, -32000, "The operation's outcome could not be confirmed.",
                        {"reason": "turn_outcome_unknown"})
-    build = deferred_reply(rid, operation, reply)
-    if context is not None and context.spawn_reply is not None and context.spawn_reply(build):
-        return DEFERRED
-    return build()
+    return defer_or_inline(rid, operation, context, reply)

@@ -2,7 +2,7 @@
 from functools import partial
 
 from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
-from .protocol import err, ok, deferred_reply, DEFERRED, ERR_INVALID_PARAMS, ERR_NOT_FOUND, ERR_CONFLICT
+from .protocol import err, ok, defer_or_inline, ERR_INVALID_PARAMS, ERR_NOT_FOUND, ERR_CONFLICT
 from .registry import method
 from agent_runtime.param_readers import read_text
 __layer__ = "lanes"
@@ -32,10 +32,7 @@ def _operation(rid, params, context, name, run):
         except Exception as exc:
             return err(rid, ERR_CONFLICT, "The operation could not complete.",
                        {"reason": "operation_failed", "error_class": type(exc).__name__})
-    build = deferred_reply(rid, name, execute)
-    if context is not None and context.spawn_reply is not None and context.spawn_reply(build):
-        return DEFERRED
-    return build()
+    return defer_or_inline(rid, name, context, execute)
 
 
 def _console_model(params, instance):

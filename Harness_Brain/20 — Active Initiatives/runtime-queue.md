@@ -30,6 +30,9 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-18 (lane w6-misc, branch `w6/misc`)
+- **`RT-RPC-DEFER-OR-REFUSE-STRAGGLERS` — two method families still hand-write the defer-or-refuse shape `defer_or_refuse` closed (`context.spawn_reply is None or not context.spawn_reply(reply)` → a hand-built 4090 `runtime_stopping`), outside `deferred_reply`'s fault boundary** · fork / serve RPC · `agent_runtime/serve_rpc/schedule.py::_schedule_method`, `agent_runtime/batch/rpc.py`; both allowlisted in `tests/agent_runtime/test_defer_or_inline.py::_LANE_CALLERS` · fold both onto `serve_rpc/protocol.py::defer_or_refuse`, pin their 4090 bytes in `test_defer_or_refuse.py::FAMILIES`, drop both from `_LANE_CALLERS` · READY 2026-10-18
+
 ### Filed on arrival — 2026-10-18 (land w5)
 
 - **`RT-BATCH-LAYER-TYPES` — `agent_runtime/batch/{planner,machine,manifest,board_source}` declared policy/stores but import value types from lanes modules (`work_store.executor.Verdict`/`Brief`, `work_store.source.Domain`/`Claimant`); land w5 re-declared all four `lanes` to green W0-G6** · fork / batch · `tests/tooling/test_fork_import_layers.py::test_declared_layers_are_bound_at_runtime_and_point_down`; move the value types to a `models` module of `work_store` and restore the four layers · READY 2026-10-18 · **TAKEN 2026-10-18 w6-lane**
@@ -868,7 +871,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ## Filed on arrival — 2026-10-18 (land w3)
 
 ### Filed on arrival — 2026-10-18 (lane w5-misc, branch `w5/misc`)
-- **`RT-RPC-DEFER-OR-INLINE-HANDWRITTEN` — nine method handlers hand-write the defer-else-answer-inline shape (`context is not None and context.spawn_reply is not None and context.spawn_reply(deferred_reply(...))`, else build on the reader lane): the sibling of the defer-or-refuse class `defer_or_refuse` closed** · fork / serve RPC · `agent_runtime/serve_rpc/console_operations.py`, `instance_history.py`, `operator_conversation.py`, `operator_history.py`, `operator_inspection.py`, `operator_subagents.py`, `realm.py`, `speech.py` (two) · one `defer_or_inline(rid, method_name, context, build)` door beside `serve_rpc/protocol.py::defer_or_refuse`, MOVE the nine onto it, wire byte-identical · READY 2026-10-18 · **TAKEN 2026-10-18 w6-misc**
 - **`RT-CHAT-GOAL-WAIT-NO-WAKER` — a chat goal set by `runtime.chat.goal.set` (no Work run bound) that the judge parks on `wait` has no waker: `goal_turns.wake_parked` scans only `chat_goal.bindings()`, and an unbound goal persists no turn template to forge its continuation from, so it resumes only when another turn settles on the root** · fork / Work + chat goal · `agent_runtime/work_store/goal_turns.py::wake_parked`, `::after_chat_goal_turn` · persist the settled turn's args per chat-goal root when the judge parks it, and let the waker forge from them (origin `chat_goal`) · READY 2026-10-18 · **TAKEN 2026-10-18 w6-misc**
 
 ### Filed on arrival — 2026-10-18 (lane w5-sched, branch `w5/sched`)

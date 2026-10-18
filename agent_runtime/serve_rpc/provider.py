@@ -20,13 +20,12 @@ from typing import Any, Callable
 from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
 
 from agent_runtime.serve_rpc.protocol import (
-    DEFERRED,
     ERR_CONFLICT,
     ERR_HANDLER_FAILED,
     ERR_INVALID_PARAMS,
     ERR_NOT_FOUND,
     RpcContext,
-    deferred_reply,
+    defer_or_inline,
     err,
     ok,
 )
@@ -89,11 +88,7 @@ def _answer(rid: Any, method_name: str, work: Callable[[], dict]) -> dict:
 
 def _off_reader(rid: Any, method_name: str, context: RpcContext | None, work: Callable[[], dict]) -> dict:
     """Network-bound work goes to the worker lane when the transport has one."""
-    spawn = None if context is None else context.spawn_reply
-    build = lambda: _answer(rid, method_name, work)  # noqa: E731
-    if spawn is not None and spawn(deferred_reply(rid, method_name, build)):
-        return DEFERRED
-    return build()
+    return defer_or_inline(rid, method_name, context, lambda: _answer(rid, method_name, work))
 
 
 def _provider_or_refuse(rid: Any, method_name: str, params: dict) -> tuple[str | None, dict | None]:

@@ -5,7 +5,7 @@ from agent_runtime.call_authorization import TIER_CONSOLE
 from agent_runtime.operator_conversation import OperatorConversationRefused
 from agent_runtime.subagents.model import OPERATIONS, MUTATIONS, Refusal, SubagentError
 from agent_runtime.subagents.operator import inspect_operator
-from .protocol import DEFERRED, deferred_reply, err, ok
+from .protocol import defer_or_inline, err, ok
 from .registry import method
 
 __layer__ = "lanes"
@@ -23,10 +23,7 @@ def _subagent_reply(operation, rid, params):
 
 def _dispatch(operation, rid, params, context=None):
     name = "runtime.operator.conversation.subagents." + operation
-    build = deferred_reply(rid, name, lambda: _subagent_reply(operation, rid, params))
-    if context is not None and context.spawn_reply is not None and context.spawn_reply(build):
-        return DEFERRED
-    return build()
+    return defer_or_inline(rid, name, context, lambda: _subagent_reply(operation, rid, params))
 
 
 for _operation in OPERATIONS:

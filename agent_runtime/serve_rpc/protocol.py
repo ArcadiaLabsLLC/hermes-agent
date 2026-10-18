@@ -151,6 +151,7 @@ __all__ = [
     "RPC_CONTRACT_VERSION",
     "RUNTIME_STOPPING",
     "RpcContext",
+    "defer_or_inline",
     "defer_or_refuse",
     "deferred_reply",
     "err",
@@ -314,6 +315,21 @@ def defer_or_refuse(
     if context.spawn_reply is None or not context.spawn_reply(deferred_reply(rid, method_name, build)):
         return err(rid, ERR_CONFLICT, message, {"reason": RUNTIME_STOPPING})
     return DEFERRED
+
+
+def defer_or_inline(rid: Any, method_name: str, context: RpcContext | None, build: Callable[[], dict]) -> dict:
+    """Hand ``build`` to the worker lane and answer :data:`DEFERRED`, else answer it inline.
+
+    The sibling of :func:`defer_or_refuse` for a method whose work is bounded enough to run on the reader
+    lane when the transport has no worker lane (a direct call, a test) or will not take the deferral.
+    Both paths run ``build`` inside :func:`deferred_reply`'s fault boundary, so a raise is the same
+    ``-32000`` frame on the same ``id`` whichever thread it raised on.
+    """
+
+    reply = deferred_reply(rid, method_name, build)
+    if context is not None and context.spawn_reply is not None and context.spawn_reply(reply):
+        return DEFERRED
+    return reply()
 
 
 @dataclass(frozen=True)
