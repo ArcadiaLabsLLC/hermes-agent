@@ -114,14 +114,5 @@ def test_a_server_less_realm_gets_its_brain(monkeypatch):
     assert default_brain.ensure_default_brain(local, issued_at=ISSUED).is_default
 
 
-def test_git_switched_off_refuses_git_unavailable(workspace, monkeypatch):
-    from agent_runtime import loop_tool_lifecycles
-
-    monkeypatch.setattr(loop_tool_lifecycles, "shipped", lambda module: module != "agent_runtime.git_cmd")
-    with pytest.raises(WorkRefused) as refused:
-        default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
-    assert refused.value.reason is Reason.GIT_UNAVAILABLE
-
-
 def test_identity_pairs_are_hermes_own():
     assert default_brain.IDENTITY_PAIRS("m-1") == ("user.name=Eternia Harness", "user.email=harness+m-1@eternia.local")

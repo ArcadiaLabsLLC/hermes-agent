@@ -3,6 +3,7 @@ from agent_runtime.execution_identity import execution_identity
 from agent_runtime.serve_rpc import handle_request, method_tier
 from agent_runtime.serve_rpc.protocol import DEFERRED, RpcContext
 from agent_runtime.work import rpc as work
+from agent_runtime.work_store.reasons import Reason, WorkRefused
 
 
 def test_work_family_private_deferred_and_execution_guarded(monkeypatch):
@@ -11,7 +12,9 @@ def test_work_family_private_deferred_and_execution_guarded(monkeypatch):
         calls.append(operation)
         return {"version": 1}
     monkeypatch.setattr(work, "execute", execute)
-    for operation in ("capabilities", "context", "list", "inspect", "start"):
+    assert work.OPERATIONS == ("capabilities", "context", "list", "inspect", "start", "assign", "claim",
+                               "release", "set_status", "done", "create_brain")
+    for operation in work.OPERATIONS:
         name = "runtime.work." + operation
         request = {"jsonrpc": "2.0", "id": operation, "method": name, "params": {}}
         assert method_tier(name) == "console"
@@ -35,3 +38,12 @@ def test_work_failure_does_not_leak_native_diagnostics(monkeypatch):
     reply = work._work_reply("r", "start", {}, STDIO_OWNER)
     assert reply["error"]["data"]["reason"] == "work_outcome_unknown"
     assert "private prompt" not in str(reply)
+
+
+def test_work_refusal_carries_reason_and_detail(monkeypatch):
+    def refuse(*args):
+        raise WorkRefused(Reason.ALREADY_TAKEN, "persona:pi_alice_01")
+    monkeypatch.setattr(work, "execute", refuse)
+    reply = work._work_reply("r", "claim", {}, STDIO_OWNER)
+    assert reply["error"]["code"] == 4090
+    assert reply["error"]["data"] == {"reason": "already_taken", "detail": "persona:pi_alice_01"}

@@ -104,15 +104,15 @@ def _commit_skeleton(root: Path, workspace_id: str, machine: str) -> None:
              reason=Reason.COMMIT_FAILED)
 
 
-def _preconditions(workspace_id: str) -> str:
-    """This machine's id, after the git door and the publish right; typed refusals otherwise."""
+def _preconditions(workspace_id: str, credential: object = None) -> str:
+    """This machine's id, after the publish right; typed refusals otherwise.
 
-    from ..loop_tool_lifecycles import shipped
+    Whether git is shipped at all is the LANES caller's check (``agent_runtime/work/service.py``):
+    the presence test lives in ``loop_tool_lifecycles`` (lanes), which a store may not import.
+    """
 
-    if not shipped("agent_runtime.git_cmd"):
-        raise WorkRefused(Reason.GIT_UNAVAILABLE, "git is switched off in this bundle")
     try:
-        require_publish_right(workspace_id, None)
+        require_publish_right(workspace_id, credential)
     except SlotRefused as exc:
         if exc.reason != REASON_REALM_PUBLISH_DENIED:
             raise
@@ -127,11 +127,13 @@ def _brain_board(workspace_id: str) -> Board:
     return next(board for board in boards(workspace_id) if board.slot == DEFAULT_BRAIN_SLOT)
 
 
-def ensure_default_brain(workspace_id: str, *, issued_at: str) -> Board:
+def ensure_default_brain(workspace_id: str, *, issued_at: str, credential: object = None) -> Board:
     """The board a workspace's work lands on, creating the default brain only when it has none.
 
     Idempotent: a live ``brain`` slot returns its board. A workspace with a slot whose bound
-    checkout carries a brain gets no default brain; that board is returned instead.
+    checkout carries a brain gets no default brain; that board is returned instead. ``credential``
+    is the realm publish credential the operator's ``runtime.work.create_brain`` carries (the
+    auto-create in ``capabilities`` never holds one).
     """
 
     if DEFAULT_BRAIN_SLOT in live_slots(load_document(workspace_id)):
@@ -139,7 +141,7 @@ def ensure_default_brain(workspace_id: str, *, issued_at: str) -> Board:
     found = boards(workspace_id)
     if not needs_default_brain(found):
         return next(board for board in found if has_brain_here(board))
-    machine = _preconditions(workspace_id)
+    machine = _preconditions(workspace_id, credential)
     root = paths.default_brain_dir(workspace_id)
     root.mkdir(parents=True, exist_ok=True)
     skeleton(root)
