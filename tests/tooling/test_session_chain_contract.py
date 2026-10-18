@@ -117,6 +117,28 @@ def test_the_dependency_recorder_is_live_when_the_gate_asks(request):
     assert os.environ.get("HERMES_GATE_CHILD_EVENTS") == os.fspath(directory)
 
 
+def test_the_recorder_gives_a_module_first_loaded_during_a_test_to_that_tests_file(request):
+    """``scripts/_bundle_plugin/hermes_dep_record.py``: a repo module that enters ``sys.modules`` while
+    a file runs is that file's ``mods_own`` (what ``--affected`` selects on), swept at every change of
+    file. Mutation: drop the ``_sweep()`` call from ``_DepRecorder._point``."""
+
+    import sys
+    import types
+
+    recorder = request.config.pluginmanager.get_plugin("hermes_dep_recorder")
+    if recorder is None:
+        pytest.skip("not under the bundled runner's green-result cache")
+    current = recorder._trail.current
+    module = types.ModuleType("_session_chain_contract_probe")
+    module.__file__ = __file__
+    sys.modules[module.__name__] = module
+    try:
+        recorder._point(current)  # the same file again: only the sweep runs
+    finally:
+        del sys.modules[module.__name__]
+    assert current and recorder._trail.filter.rel(__file__) in recorder._own_mods.get(current, set())
+
+
 def _a_port_nothing_listens_on() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as held:
         held.bind(("127.0.0.1", 0))

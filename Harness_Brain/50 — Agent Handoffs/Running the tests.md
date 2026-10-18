@@ -16,6 +16,7 @@ opens a page (never bare `pytest` over a directory). The fork's gate definition 
 $HERMES_PYTHON -m pytest -q -p no:cacheprovider <file>          # ONE file, debugging only (the test venv's python; see below)
 scripts/run_tests_bundled.sh tests                              # THE LANDING GATE: --scope fork over `tests` (fork files + the upstream files the change reaches)
 scripts/run_tests_bundled.sh --confirm-red <file>               # one named red: alone on HEAD and on origin/main → caused / pre-existing / load
+scripts/run_tests_bundled.sh --affected [--fail-fast]           # fast loop: the tests your uncommitted edits can break; never a gate
 # --scope full: RETIRED (owner ruling 2026-10-17, ADR 0016) — exits 2 unless every PATH is a file; nothing runs the whole tree
 scripts/run_tests_bundled.sh --scope features tests             # on-demand quiet-box measurement → diagnosis.jsonl; never a gate
 scripts/run_tests_bundled.sh --since-merge <merge-sha> tests   # a release merge's landing gate (Merging upstream.md step 7)
@@ -36,6 +37,7 @@ change can break, and nothing more. Nothing runs the whole tree.
 | moment | who | command | covers |
 |---|---|---|---|
 | While writing code | a lane | `scripts/run_tests.sh <file>` | the one file; no cache |
+| While writing code (fast loop) | a lane or the owner | `scripts/run_tests_bundled.sh --affected` | the tests your edits can break; never a gate |
 | End of a lane | a lane | one `python -m pytest -q -p no:cacheprovider <files>` run over only the test files importing what it touched | its blast radius; no gates, no scopes |
 | Landing a batch | the landing session, once per batch, peers frozen | `scripts/run_tests_bundled.sh tests` (`--scope fork`) | fork files + the upstream files the change reaches, minus the skip list (unused features included, even when reached); cached greens skipped; a session-chain edit runs contract + sample |
 | Release merge | the release lane | `scripts/run_tests_bundled.sh --since-merge <sha> tests` | the same, over what the merge produced (a chain edit: contract + sample) |
@@ -50,6 +52,18 @@ naming a skip-listed or idle-box file on the command line to run it.
 then runs only those files); a timing run beside other work; a gate per lane.
 
 ### The rules behind the table
+
+**`--affected` reads the gate store's records; it never writes them.** The change is the working tree
+against HEAD plus untracked files (`--since REF` adds `REF...HEAD`). It runs: each edited test file; each
+file whose latest record names a changed path — a module its process imported AND its own static imports
+reach within two hops (a recorded module set is the whole process's: 4,847 of 6,733 records named
+`agent_runtime/locks.py`), a non-`.py` file it opened itself, a non-session directory it listed that a path
+joined or left; for a changed path no record names, the `--scope fork` reach rules; the chain's contract
+when a chain path changed. An ALL-sentinel file (it spawned an unrecorded program) runs only when a code
+path changed and its imports reach it. A file tied only by a `.py` it opened (a whole-tree source walker) is counted in the header, never run. The skip and idle-box lists win; nothing is cached, sampled or
+audited; `--cache-dry-run` lists without running; `--fail-fast` runs edited → direct importers → the rest
+as waves. A session-chain or dynamic-import reach is not selected: the landing gate is the backstop. The
+import memo lives beside the store (`.pytest_cache/hermes_affected_imports.json`; cold build ~8 s).
 
 **A one-file debugging run names the test venv's interpreter, and reads a red twice.** A bare
 `python` on this box is the system Python 3.12 without the test venv, so its import errors are

@@ -596,11 +596,13 @@ _reds = _load_sibling("run_tests_bundled_reds")  # known reds whose key is uncha
 _leftovers = _load_sibling("run_tests_bundled_leftovers")  # processes a run started that outlive it
 _gate = _load_sibling("run_tests_bundled_gate")  # ... and its wiring into a run
 _confirm = _load_sibling("run_tests_bundled_confirm")  # --confirm-red: one named red, alone, on HEAD and the base
+_affected = _load_sibling("run_tests_bundled_affected")  # --affected: the tests your edits can break, never a gate
 
 _OUR_FLAGS = {
     "-h", "--help", "-j", "--jobs", "--bundle-size", "--file-timeout",
     "--file-retries", "--unbundled-list", "--scope", "--since", "--since-merge", "--manifest",
     "--bundle-seconds", "--solo-seconds", "--skip-list", "--git-audit", *_gate.FLAGS, *_confirm.FLAGS,
+    *_affected.FLAGS,
 }
 _PYTEST_VALUE_FLAGS = {"-k", "-m", "-p", "-o", "-c", "-r", "-W"}
 
@@ -766,8 +768,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     change = parser.add_mutually_exclusive_group()
     change.add_argument(
-        "--since", default=_DEFAULT_SINCE, metavar="REF",
-        help=f"--scope fork: the change is `git diff <REF>...HEAD` plus working-tree edits (default {_DEFAULT_SINCE})",
+        "--since", default=None, metavar="REF",
+        help=f"--scope fork: the change is `git diff <REF>...HEAD` plus working-tree edits (default {_DEFAULT_SINCE}); "
+        "--affected: adds `git diff <REF>...HEAD` to the working-tree change (default: none)",
     )
     change.add_argument(
         "--since-merge", metavar="SHA", help="--scope fork after a release merge: the change is what the merge "
@@ -780,6 +783,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     _gate.add_arguments(parser)
     _confirm.add_arguments(parser)
+    _affected.add_arguments(parser)
     parser.add_argument("paths", nargs="*", metavar="PATH")
     args = parser.parse_args(ours)
     if args.git_audit:  # every bundle child inherits it (tests/_downstream/git_audit.py)
@@ -789,6 +793,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         parser.error("node ids are not supported here; run the file with scripts/run_tests.sh")
 
     repo_root = _SCRIPTS_DIR.parent
+    if args.affected:
+        return _affected.main(args, repo_root, sys.modules[__name__], pytest_args)
+    args.since = args.since or _DEFAULT_SINCE
     if args.confirm_red:
         primary = plan.primary_checkout(repo_root) or repo_root
         return _confirm.main(args, repo_root, Path(primary), lambda p: _rel(p, repo_root))

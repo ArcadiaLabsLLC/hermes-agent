@@ -45,6 +45,7 @@ def test_spawns():
 _FILE_C = '''
 import subprocess
 import sys
+import c_only_mod  # loaded while C is collected, after A's collection and before any test runs
 
 def test_spawns_isolated():
     subprocess.run([sys.executable, "-I", "-c", "pass"], check=True)  # -I ignores PYTHONPATH: no record
@@ -63,6 +64,7 @@ def _bundle(tmp_path: Path) -> Path:
     (root / "test_b.py").write_text(_FILE_B, encoding="utf-8")
     (root / "test_c.py").write_text(_FILE_C, encoding="utf-8")
     (root / "child_mod.py").write_text("CHILD = 1\n", encoding="utf-8")
+    (root / "c_only_mod.py").write_text("C = 1\n", encoding="utf-8")
     return root
 
 
@@ -93,6 +95,15 @@ def test_each_file_records_its_module_fixture_directory_and_spawns(tmp_path):
     # superset by design: B imported helper_mod after A loaded it, and still depends on it
     assert "helper_mod.py" in b.mods
 
+    # the file's own: A loaded helper_mod first; B only names it (an earlier member loaded it)
+    assert a.own_known and b.own_known
+    assert "helper_mod.py" in a.mods_own and "helper_mod.py" not in b.mods_own
+    assert "helper_mod.py" in b.mods_ref
+    assert "child_mod.py" in b.mods_own, "a Python child's modules are the file's own"
+    c = files["test_c.py"]
+    assert "helper_mod.py" not in c.mods_own | c.mods_ref
+    assert "c_only_mod.py" in c.mods_own and "c_only_mod.py" not in a.mods_own, "collection loads are the file's"
+
 
 def test_paths_outside_the_root_or_under_caches_are_dropped(tmp_path):
     spec = importlib.util.spec_from_file_location("hermes_dep_trail_under_test", _PLUGIN_DIR / "hermes_dep_trail.py")
@@ -105,6 +116,19 @@ def test_paths_outside_the_root_or_under_caches_are_dropped(tmp_path):
     assert keep.rel(tmp_path.parent / "elsewhere.py") is None
     assert keep.rel(3) is None  # an fd, not a path
     assert rec.is_python(sys.executable) and not rec.is_python("git")
+
+
+def test_the_store_keeps_the_files_own_modules_only_when_every_record_said(tmp_path):
+    store = cache.GateStore(tmp_path / "store")
+    known = cache.FileDeps(paths={"tests/t.py"}, mods={"pkg/a.py", "pkg/b.py"}, mods_own={"pkg/a.py"},
+                           mods_ref={"pkg/c.py"}, own_records=1, deps_records=1)
+    unknown = cache.FileDeps(paths={"tests/u.py"}, mods={"pkg/a.py"}, mods_own={"pkg/a.py"}, deps_records=1)
+    store.write_deps({"tests/t.py": known, "tests/u.py": unknown}, "run-1")
+
+    loaded, sets = store.load_deps(), store.load_modsets()
+    assert sets[loaded["tests/t.py"].mown[0]] == ["pkg/a.py", "pkg/c.py"]
+    assert sets[loaded["tests/t.py"].mref[0]] == ["pkg/c.py"]
+    assert loaded["tests/u.py"].mown is None, "a record that did not say keeps the static reach"
 
 
 def test_the_store_keeps_one_module_set_per_digest_and_reads_back_the_newest_line(tmp_path):

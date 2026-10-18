@@ -106,6 +106,12 @@ class FileDeps:
     #: both stay keyed by their whole blob (``run_tests_bundled_fixtures``)
     own: set = field(default_factory=set)
     opaque: set = field(default_factory=set)
+    #: the modules the file itself first loaded (``mods_own``, a child's whole set included) and the
+    #: ones its test module names (``mods_ref``), and how many deps records carried them: read by
+    #: ``--affected`` only, never by a key
+    mods_own: set = field(default_factory=set)
+    mods_ref: set = field(default_factory=set)
+    own_records: int = 0
 
     @property
     def spawned(self) -> bool:
@@ -120,6 +126,12 @@ class FileDeps:
     def note_names(self, names: set) -> None:
         if not any(found is names for found in self.name_sets):
             self.name_sets.append(names)
+
+    @property
+    def own_known(self) -> bool:
+        """Every deps record of the file said which modules it loaded itself."""
+
+        return bool(self.deps_records) and self.own_records == self.deps_records
 
     @property
     def fx(self) -> Optional[list[str]]:
@@ -145,6 +157,10 @@ class FileDeps:
             self.fx_records += 1
             self.fixtures.update(record["fx"])
         self.own.update(record.get("own") or ())
+        if isinstance(record.get("mods_own"), list):
+            self.own_records += 1
+            self.mods_own.update(record["mods_own"])
+            self.mods_ref.update(record.get("mods_ref") or ())
 
     def merge_child(self, record: dict) -> None:
         """One ``child`` line: a Python child's paths and modules are never fingerprinted."""
@@ -154,6 +170,7 @@ class FileDeps:
         self.child_records += 1
         self.opaque.update(record.get("paths") or ())
         self.opaque.update(mods)
+        self.mods_own.update(mods)
 
     @property
     def child_covered(self) -> bool:
@@ -300,12 +317,16 @@ class StoredDeps:
     #: directories the import system listed, and the digest of the module names tried (in modsets.jsonl)
     idirs: list[str] = field(default_factory=list)
     inames: list[str] = field(default_factory=list)
+    #: ``--affected`` only: the digest of the modules the file loaded or named itself (None: not
+    #: recorded, the static reach applies) and of the ones its test module named
+    mown: Optional[list[str]] = None
+    mref: list[str] = field(default_factory=list)
 
     @property
     def digests(self) -> list[str]:
         """Every modsets.jsonl id this line names."""
 
-        return self.mods + self.inames
+        return self.mods + self.inames + (self.mown or []) + self.mref
 
 
 class GateStore:
@@ -358,6 +379,15 @@ class GateStore:
                     known.add(named)
                     modsets.append({"id": named, "z": _pack(names)})
                 line.update(idirs=sorted(deps.idirs), inames=[named])
+            if deps.own_known:
+                own_sets = []
+                for paths in (deps.mods_own | deps.mods_ref, deps.mods_ref):
+                    digest = _digest(paths)
+                    if digest not in known:
+                        known.add(digest)
+                        modsets.append({"id": digest, "z": _pack(paths)})
+                    own_sets.append(digest)
+                line.update(mown=own_sets[:1], mref=own_sets[1:])
             lines.append(line)
         _append_lines(self.modsets, modsets)
         _append_lines(self.deps, lines)
@@ -373,6 +403,7 @@ class GateStore:
                 int(r.get("spawn_py") or 0), int(r.get("spawn_other") or 0), int(r.get("child") or 0),
                 str(r.get("run") or ""), list(r["fx"]) if isinstance(r.get("fx"), list) else None,
                 list(r.get("keep") or ()), list(r.get("idirs") or ()), list(r.get("inames") or ()),
+                list(r["mown"]) if isinstance(r.get("mown"), list) else None, list(r.get("mref") or ()),
             )
         return out
 
