@@ -98,6 +98,10 @@ class RunnerPolicy:
     root_is_idle: Callable[[str], bool] = _root_is_idle
     run_turn: Callable[[Any], "tuple[int, dict | None]"] = _run_turn
     stream: "Callable[[queue.QueuedSend], ContextManager[TurnStream]] | None" = None
+    #: Told once per TERMINAL settle, after it is recorded (never for a "queued" answer):
+    #: ``(entry, exit_code, payload)``. The serve's Work executor reads its runs' endings here
+    #: (``agent_runtime/work_store/persona_turn.py::PersonaTurnExecutor.settled``).
+    on_settle: "Callable[[queue.QueuedSend, int, dict | None], None] | None" = None
 
 
 DEFAULT_RUNNER_POLICY = RunnerPolicy()
@@ -120,6 +124,7 @@ def _run_entry(entry: queue.QueuedSend, policy: RunnerPolicy) -> None:
             refusal_class=str(ChatErrorKind.CHAT_TURN_OUTCOME_UNKNOWN),
             summary=f"the queued turn raised {attempts} times: {type(exc).__name__}",
         ))
+        _tell_settled(policy, entry, 2, None)
         queue.remove(root, cmid)
         return
     if (payload or {}).get("queued") is True:
@@ -128,7 +133,19 @@ def _run_entry(entry: queue.QueuedSend, policy: RunnerPolicy) -> None:
         queue.mark(root, cmid, state=queue.STATE_QUEUED)
         return
     _settle(entry, int(exit_code), outcome_from_payload(payload))
+    _tell_settled(policy, entry, int(exit_code), payload)
     queue.remove(root, cmid)
+
+
+def _tell_settled(policy: RunnerPolicy, entry: queue.QueuedSend, exit_code: int, payload: dict | None) -> None:
+    """``policy.on_settle`` after a terminal settle; its failure is logged, never the runner's."""
+
+    if policy.on_settle is None:
+        return
+    try:
+        policy.on_settle(entry, exit_code, payload)
+    except Exception:
+        logger.warning("on_settle for queued send %s failed", entry.client_message_id, exc_info=True)
 
 
 def _run_streamed(entry: queue.QueuedSend, policy: RunnerPolicy) -> tuple[int, dict | None]:

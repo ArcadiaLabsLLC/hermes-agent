@@ -612,3 +612,38 @@ def test_no_registered_serve_reads_as_no_runtime(isolate_agent_runtime_root):
     from hermes_cli.harness_parts.persona import chat_send_queue
 
     assert chat_send_queue._live_serve_on_this_store() is False
+
+
+# --------------------------------------------------------------------------- #
+# The runner tells ``on_settle`` once, after the settle, never for "queued"     #
+# --------------------------------------------------------------------------- #
+
+
+def test_on_settle_is_called_once_after_a_terminal_settle_and_not_for_queued(isolate_agent_runtime_root):
+    """Work plan §6.3: the serve's Work executor reads its runs' endings from this hook, so it must
+    fire only for a TERMINAL settle, after the settle record is durable, and exactly once."""
+
+    root = "persona_chat_root_settle_hook"
+    chat_root_send_queue.enqueue(root, "cm-hook", {})
+    answers = iter([(0, {"queued": True}), (0, {"ok": True, "reply": "done"})])
+    told: list[tuple[str, int, dict | None, bool]] = []
+
+    def on_settle(entry, exit_code, payload):
+        settled = chat_turn_settles.read_settle(chat_turn_settles.settle_id_for(root, entry.client_message_id))
+        told.append((entry.client_message_id, exit_code, payload, settled is not None))
+
+    policy = RunnerPolicy(root_is_idle=lambda _root: True, run_turn=lambda args: next(answers), on_settle=on_settle)
+    run_queued_sends_once(policy)
+    assert told == [], "a 'queued' answer is not a settle"
+    assert chat_root_send_queue.find(root, "cm-hook") is not None
+
+    run_queued_sends_once(policy)
+    assert told == [("cm-hook", 0, {"ok": True, "reply": "done"}, True)]
+    assert chat_root_send_queue.find(root, "cm-hook") is None
+
+    # A raising hook is the hook's problem: the runner still removes the entry.
+    chat_root_send_queue.enqueue(root, "cm-hook-2", {})
+    broken = RunnerPolicy(root_is_idle=lambda _root: True, run_turn=lambda args: (0, {"ok": True}),
+                          on_settle=lambda *_: 1 / 0)
+    run_queued_sends_once(broken)
+    assert chat_root_send_queue.find(root, "cm-hook-2") is None

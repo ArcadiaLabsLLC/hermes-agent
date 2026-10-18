@@ -182,7 +182,9 @@ def status_word(row: Row) -> str | None:
     return "TAKEN" if row.taken is not None else (row.status.value if row.status else None)
 
 
-def _brief(row: Row, worktree: Path | None) -> str:
+def brief_text(row: Row, worktree: Path | None) -> str:
+    """The text of the brief note the row's `brief:` pointer names, read from `worktree` ("" when none)."""
+
     segment = next((s for s in row.segments[1:] if s.startswith("brief:")), None)
     pointer = next((p for p in row.pointers if segment and f"`{p}`" in segment), None)
     path = worktree / pointer if worktree and pointer else None
@@ -202,7 +204,7 @@ def note_meta(path: Path) -> dict[str, Any]:
 
 def project(row: Row, writer: Writer | None, *, context=None, detail: bool = False,
             program: str | None = None) -> dict[str, Any]:
-    body = _brief(row, writer.worktree if writer else None) if detail else ""
+    body = brief_text(row, writer.worktree if writer else None) if detail else ""
     if program is None and writer is not None:
         program = note_meta(writer.worktree / row.ref.note)["program"]
     taken = row.taken

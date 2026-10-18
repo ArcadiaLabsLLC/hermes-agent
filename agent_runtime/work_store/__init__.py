@@ -8,7 +8,10 @@ grammar: the Python twin of the launcher's ``WorkQueueRowParser`` and the pure o
 board: a workspace's boards (one per live slot) and the rows read from them;
 default_brain: the brain a workspace with no repo brain gets, and the commit identity pairs;
 writer: the one write path (§5) — a row op per commit in hermes's own worktree, pushed fast-forward;
-receipts: the one log line each write emits.
+receipts: the one log line each write emits;
+executor: the EXECUTOR contract (dispatcher plan §2.2) — who runs a claimed row;
+persona_turn: ``PersonaTurnExecutor`` — a claimed row as one queued chat turn of the claiming instance;
+engine: the serve's Work engine — run records, the tick, the write-back table.
 """
 
 __layer__ = "models"

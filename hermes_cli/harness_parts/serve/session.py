@@ -751,6 +751,17 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
                 "agent_chat_send(wait=false) will be refused for this serve",
                 exc_info=True,
             )
+        # Same owner: the Work engine (work plan §6.3), built BEFORE the runner so its boot read of
+        # the run records precedes the runner's first pass.
+        try:
+            from hermes_cli.harness_parts.serve.queued_turns import start_serve_work_engine
+
+            start_serve_work_engine(self)
+        except Exception:
+            import logging as _work_logging
+
+            _work_logging.getLogger(__name__).warning(
+                "work engine did not start; claimed rows wait for the next serve", exc_info=True)
         # Same owner as the drain: one serve runs the busy-root send queue.
         try:
             from agent_runtime.chat_root_send_runner import start_queued_send_runner

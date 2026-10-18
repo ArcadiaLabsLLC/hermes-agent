@@ -1241,6 +1241,20 @@ The write path (plan §5), in six lines:
 Receipts are log lines, one per write: `work.row_append | row_claim | row_release | row_set_status |
 row_delete | row_assign`, `work.brain_create` and `work.default_brain_move` (`agent_runtime/work_store/receipts.py`).
 
+The worker engine (plan §6.3, `agent_runtime/work_store/engine.py`) runs in the socket-owning serve only and
+never claims: every 15 s it hands each row `**TAKEN <date> persona:<instance_id>**` with no live run to
+that instance as ONE chat turn — `PersonaTurnExecutor` (`persona_turn.py`, behind the dispatcher's EXECUTOR
+contract `executor.py`) enqueues the brief on the instance's chat root through the busy-root send queue, so
+the turn runs when the root is idle; a session lane's claim is never touched. The turn's ending is the LAST
+fenced `work_report` block of its reply, read when the queued-send runner settles it
+(`RunnerPolicy.on_settle`): done deletes the row; blocked writes `BLOCKED <date>: owner decision — … ·
+Recommend: …` and releases; stopped releases and writes `DEFERRED <date>: stopped — …`; an unreadable
+ending, or a run that ended while the serve was down, releases and writes `NEEDS PLAN <date>: …` (re-claim
+to retry). Each step is one writer op by row ID with a request id derived from the run's. A run is a file
+under `<store_root>/work/<ws>/runs/` (the engine's whole state); `goal_mode=UNTIL_DONE` is refused until
+the dispatcher's B3. Receipts: `work.run_start | run_settle | run_refused | engine_tick` and the executor's
+`work.exec_start | exec_settle | exec_stop`.
+
 ## The board — method twins on the hermes side, argv on the launcher
 
 The board is the office's sibling surface and it is half way through the same
