@@ -298,3 +298,24 @@ def test_teardown_delivers_hooks_without_a_cold_plugin_discovery(request, monkey
     assert loads == []
     plugins.invoke_hook("on_session_finalize", session_id="s", platform="tui")
     assert len(loads) == 1  # outside teardown the lazy discovery is untouched
+
+
+def test_a_run_naming_files_builds_no_node_for_a_sibling(request, tmp_path):
+    """``tests/_downstream/named_files_collect.py``: when every argument is a file, a directory entry that is
+    neither a named file nor on the way to one is ignored before pytest builds a node for it (pytest walked
+    every sibling of every named file: ~0.9 CPU-s for one file of ``tests/hermes_cli``). A run naming a
+    directory is untouched. Mutation: drop the ``pytest_ignore_collect_named_files`` re-export from
+    ``conftest_plugin``."""
+
+    from tests._downstream.named_files_collect import named_scope
+
+    hooked = [impl.function.__name__ for impl in request.config.pluginmanager.hook.pytest_ignore_collect.get_hookimpls()]
+    assert "pytest_ignore_collect_named_files" in hooked
+    (tmp_path / "pkg").mkdir()
+    named = tmp_path / "pkg" / "test_named.py"
+    named.write_text("", encoding="utf-8")
+    files, ancestors = named_scope(["pkg/test_named.py::test_x"], tmp_path)
+    norm = lambda p: os.path.normcase(os.path.abspath(p))  # noqa: E731
+    assert files == {norm(named)} and norm(tmp_path / "pkg") in ancestors and norm(tmp_path) in ancestors
+    assert norm(tmp_path / "pkg" / "test_sibling.py") not in files | ancestors
+    assert named_scope(["pkg"], tmp_path) is None  # a directory argument: pytest's own walk
