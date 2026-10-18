@@ -52,6 +52,7 @@ from tests._downstream.plugin_discovery_cache import (  # noqa: F401 — autouse
     cold_plugin_discovery,
 )
 from tests._downstream.plugin_load_memo import _plugin_load_memo  # noqa: F401 — autouse (suite speed, h3-plugins)
+from tests._downstream.parse_memo import _bundled_parse_memo  # noqa: F401 — autouse (suite speed, w2-speed-b)
 from tests._downstream.plugin_module_keep import _plugin_module_keep  # noqa: F401 — autouse, opt-in env, OFF (h3-plugins)
 from tests._downstream.teardown_plugin_delivery import (  # noqa: F401 — teardown hook (suite speed, h6-collect)
     pytest_runtest_teardown_plugin_delivery,
@@ -73,7 +74,7 @@ from tests._downstream.child_job import (  # noqa: F401 — hook and fixture re-
     _children_die_with_the_test,
     pytest_configure_child_job,
 )
-from tests._downstream import child_startup, registry_write_fence
+from tests._downstream import child_startup, registry_write_fence, server_shutdown_poll
 from tests._downstream.fork_readonly_readers import file_reads_through
 from tests._downstream.id_markers.reasons import (
     ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK as _ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK,
@@ -89,6 +90,8 @@ from tests._downstream.id_markers.reasons import (
 registry_write_fence.install()
 # Process-wide, at import: every child a test spawns inherits the start-up shortcut (q-chain).
 child_startup.install()
+# Process-wide, at import: a test's socketserver notices shutdown() within 50 ms (w2-speed-b).
+server_shutdown_poll.install()
 
 
 # ── Opt-in test-temp root (suite-perf Stage 7, ruled 2026-09-01) ─────────────

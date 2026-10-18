@@ -210,6 +210,38 @@ def test_a_discovery_sweep_reads_the_load_deadline_once():
     assert getattr(plugins.PluginManager._discover_and_load_inner, "_fork_sweep_timeout_memo", False)
 
 
+def test_a_bundled_yaml_file_parses_once_per_process():
+    """``tests/_downstream/parse_memo.py``: once ``hermes_yaml`` is imported, a checkout file's parse is kept
+    for the process (lane w2-speed-b). Mutation: drop the ``_bundled_parse_memo`` re-export from
+    ``conftest_plugin``."""
+
+    import hermes_yaml
+
+    assert getattr(hermes_yaml.safe_load, "_fork_bundled_parse_memo", False)
+
+
+def test_a_test_server_notices_shutdown_within_the_short_poll():
+    """``tests/_downstream/server_shutdown_poll.py``: a thread-served ``socketserver`` exits in well under its
+    0.5 s stock poll (lane w2-speed-b). Mutation: drop ``server_shutdown_poll.install()`` from
+    ``conftest_plugin``."""
+
+    import socketserver
+    import threading
+    import time
+
+    from tests._downstream import server_shutdown_poll
+
+    with socketserver.TCPServer(("127.0.0.1", 0), socketserver.BaseRequestHandler) as server:
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        time.sleep(0.02)
+        started = time.perf_counter()
+        server.shutdown()
+        took = time.perf_counter() - started
+        thread.join(timeout=5)
+    assert took < 0.4, f"shutdown took {took:.3f} s; the poll is not {server_shutdown_poll.TEST_POLL_INTERVAL}"
+
+
 def test_bundled_plugin_modules_are_not_kept_without_the_opt_in(monkeypatch):
     """``tests/_downstream/plugin_module_keep.py`` is OFF unless ``HERMES_TEST_KEEP_PLUGIN_MODULES`` is set
     (owner ruling pending): two discoveries import each bundled plugin twice. Mutation: make
@@ -314,12 +346,16 @@ def test_a_spawned_child_gets_the_start_up_shortcut():
     from tests._downstream import child_startup
 
     done = subprocess.run(
-        [sys.executable, "-c", "import os, sitecustomize; print(sitecustomize.__file__); print(os.environ['HERMES_TEST_CHILD_STARTUP'])"],
+        [sys.executable, "-c", "import os, sys, sitecustomize; print(sitecustomize.__file__); "
+         "print(os.environ['HERMES_TEST_CHILD_STARTUP']); print(sys.dont_write_bytecode)"],
         capture_output=True, text=True, timeout=60, check=False)
     assert done.returncode == 0, done.stderr[-2000:]
-    site_file, snapshot = done.stdout.split()
+    site_file, snapshot, no_bytecode = done.stdout.split()
     assert Path(site_file).parent == child_startup.CHILD_SITE
     assert snapshot == os.environ[child_startup.ENV]
+    # The child writes the bytecode it compiles (w2-speed-b). Mutation: drop the
+    # ``PYTHONDONTWRITEBYTECODE`` pop from ``child_startup.install``, run from a shell that exports it.
+    assert no_bytecode == "False"
 
 
 def test_the_version_identity_is_put_back_after_every_test(request):

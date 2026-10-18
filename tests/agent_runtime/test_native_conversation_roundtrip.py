@@ -91,8 +91,6 @@ def test_real_profile_a_b_a_native_turns_and_persistent_sessions(tmp_path, compu
             if profile in sessions:
                 assert sessions[profile] == sid
             sessions[profile] = sid
-            # Give native prewarming time to run, as when a user waits before typing.
-            time.sleep(1)
             if shared and number in {0, 2}:
                 choice = json.dumps(["custom:local-test", "test-model" if number == 0 else "alternate-model"], separators=(",", ":"))
                 facts = service.select_model(scope, sid, choice, save_default=True)
