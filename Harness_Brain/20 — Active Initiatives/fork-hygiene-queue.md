@@ -508,7 +508,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 ## Filed on arrival — 2026-10-18 (lane w2-reds)
 
 ## Filed on arrival — 2026-10-18 (lane w2-speed-b)
-- **`FORK-TEST-PREWARM-ISOLATION-UNPINNED` — nothing pins that a native-conversation prewarm respects compute isolation: since `8591d5b841` (2026-09-30) every `ConversationService` session carries `source: eternia_intelligence`, so `tui_gateway.server._schedule_agent_build` returns lazy before its timer and no prewarm runs; with BOTH lazy returns dropped, `test_native_conversation_roundtrip.py`'s compute-child case stays green at the old 1 s pause and at 0.25 s (the 2026-09-26 control in `docs/downstream/native-recovery-repairs-2026-09-26.md` no longer reproduces)** · fork / suite · lane w2-speed-b commit "the native round trip drops its dead 1 s pause" · decide whether the guard still needs a pin; if so, a unit test of `_schedule_agent_build` with a compute-host session that is not an intelligence session · READY 2026-10-18 · **TAKEN 2026-10-18 w3-misc**
 
 ## Filed on arrival — 2026-10-18 (landing land-w2)
 
