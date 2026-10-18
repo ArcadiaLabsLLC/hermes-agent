@@ -130,10 +130,6 @@ def cut_by_budget(members: Sequence[Tuple[Path, float]], budget: float, cap: int
     return bundles
 
 
-#: a run expected to take longer than this, from a session-chain edit, says how to avoid paying it
-CHAIN_SPLIT_HINT_SECONDS = 20 * 60.0
-
-
 def expected_wall(estimates: Mapping[str, Optional[float]], jobs: int, default: float) -> tuple[float, str]:
     """The run's expected wall seconds before it starts, and the plan line that says so.
 
@@ -152,17 +148,6 @@ def expected_wall(estimates: Mapping[str, Optional[float]], jobs: int, default: 
         f"recorded time counted at {default:.0f}s)"
     )
     return wall, line
-
-
-def chain_split_hint(wall: float, chain_paths: Sequence[str]) -> Optional[str]:
-    """The advice a long run caused by a session-chain edit prints up front."""
-
-    if not chain_paths or wall < CHAIN_SPLIT_HINT_SECONDS:
-        return None
-    return (
-        f"  this is a whole-tree run because {', '.join(chain_paths)} changed (session chain): land that change "
-        "alone, or with the release merge, instead of inside a batch"
-    )
 
 
 # ── Stage 0: the run ledger ─────────────────────────────────────────────────

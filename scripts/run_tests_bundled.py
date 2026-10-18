@@ -46,9 +46,9 @@ The runner's core (``assign_bundles``, ``tally_events``, ``effective_bundle_rc``
 ``run_tests_parallel.py`` as a ``--bundle-size`` flag.
 
 Usage:
-    python scripts/run_tests_bundled.py [--scope fork|full] [--since REF | --since-merge SHA] [--bundle-size N] [-j N] [PATH ...] [pytest args]
-    scripts/run_tests_bundled.sh tests/agent_runtime tests/hermes_cli tests/hermes_state  # landing gate (fork scope)
-    scripts/run_tests_bundled.sh --scope full tests/agent_runtime tests/hermes_cli tests/hermes_state  # weekly merge lane
+    python scripts/run_tests_bundled.py [--since REF | --since-merge SHA] [--bundle-size N] [-j N] [PATH ...] [pytest args]
+    scripts/run_tests_bundled.sh tests  # landing gate (fork scope)
+    scripts/run_tests_bundled.sh --since-merge <merge> tests  # release merge
 
 Exit code: 0 if every file passed (alone or in its bundle); 1 otherwise.
 """
@@ -713,16 +713,13 @@ def _print_summary(
     return 1 if failures else 0
 
 
-def _print_expected_wall(to_run, repo_root: Path, durations: dict[str, float], jobs: int, sel) -> None:
-    """The plan line that says how long the run will take, and why when a chain edit made it long."""
-    wall, line = plan.expected_wall(
+def _print_expected_wall(to_run, repo_root: Path, durations: dict[str, float], jobs: int) -> None:
+    """The plan line that says how long the run will take."""
+    _wall, line = plan.expected_wall(
         {_rel(f, repo_root): durations.get(rtp._format_file(f, repo_root)) for f in to_run},
         jobs, _UNCACHED_ESTIMATE_SECONDS,
     )
     print(line, flush=True)
-    hint = plan.chain_split_hint(wall, sel.chain_paths) if sel.chain and not sel.chain_sampled else None
-    if hint:
-        print(hint, flush=True)
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -755,7 +752,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument(
         "--scope", choices=(SCOPE_FORK, SCOPE_FULL), default=SCOPE_FORK,
         help="fork (default, the landing gate): files absent from the upstream manifest plus the "
-        "inherited files the change reaches; full: every discovered file (the weekly merge lane)",
+        "inherited files the change reaches; full: RETIRED (ADR 0016) — exit 2 unless every PATH is a file",
     )
     change = parser.add_mutually_exclusive_group()
     change.add_argument(
@@ -832,7 +829,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         f"(run once, alone, capped), {policy.shards.line()}, -j {args.jobs}",
         flush=True,
     )
-    _print_expected_wall(gate.to_run, repo_root, durations, args.jobs, sel)
+    _print_expected_wall(gate.to_run, repo_root, durations, args.jobs)
 
     done = 0
     counter_lock = threading.Lock()

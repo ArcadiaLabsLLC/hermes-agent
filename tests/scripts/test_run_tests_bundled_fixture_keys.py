@@ -178,10 +178,6 @@ def test_the_plan_line_states_the_expected_wall_before_the_run():
     assert "~10 min at -j 2" in line and "1 without a recorded time counted at 30s" in line
     wall, _line = plan.expected_wall({f"f{i}.py": 60.0 for i in range(80)}, 8, 30.0)
     assert wall == 600.0
-    assert plan.chain_split_hint(wall, ["tests/_downstream/conftest_plugin.py"]) is None
-    hint = plan.chain_split_hint(3 * 3600.0, ["tests/_downstream/conftest_plugin.py"])
-    assert hint and "land that change alone" in hint
-    assert plan.chain_split_hint(3 * 3600.0, []) is None
 
 
 # ── r-fastgate (owner ruling 2026-10-16): each file keys on the chain it loaded ──

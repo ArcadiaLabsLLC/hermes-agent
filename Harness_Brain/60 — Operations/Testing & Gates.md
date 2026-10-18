@@ -12,7 +12,7 @@ Every check this repo has, who runs it, and what it protects. There is no push g
 | gate | command / test | protects | shrinks-only list? |
 |---|---|---|---|
 | fork landing gate (once per batch, at its landing) | `scripts/run_tests_bundled.sh tests` (`--scope fork`: every fork test + the upstream tests the change reaches) | everything the change can break; minutes ([[Running the tests]]) | — |
-| full scope (upstream release merge only; not on a workstation while the P0 freeze row is open) | `scripts/run_tests_bundled.sh --scope full tests` | upstream's untouched code too; ~1 h+ | — |
+| release merge | `scripts/run_tests_bundled.sh --since-merge <merge> tests` | what the merge produced; a chain edit runs contract + sample. `--scope full` is retired: it exits 2 ([[0016 — No whole-tree run, ever]]) | — |
 | CLI contract | `scripts/dump_cli_contract.py --check` ↔ `tests/hermes_cli/test_cli_contract_dump.py` | the launcher's argv buttons | — |
 | payload contract | `scripts/dump_payload_contract.py --check` ↔ `tests/hermes_cli/test_payload_contract_dump.py` | the launcher's character keys | — |
 | doc-cite adjacency | `scripts/doc_cite_adjacency.py --exclude archive --exclude planned` (RULED scope; the bare walk is red by 829 by ruling) | canon anchors point at real code | — |
