@@ -650,7 +650,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-10-17 (harvest)
 
-- **`RT-ONBOARDING-PATH-IMPORT` — Repair the upstream onboarding import that blocks native gateway startup.** Clean `b9e7e77cc7` reproduces `NameError: Path` at `tui_gateway/methods_onboarding.py:71` before handler binding; existing worker/compute tests and all six subagent process round trips fail before routing. Evidence: `docs/downstream/agent-console-subagents-settings-2026-10-16.md` § Qualification. Keep the native footprint ruling explicit; Step 6 does not silently absorb a fifth seam. · upstream / gateway · UNCLAIMED · carried from origin/codex/subagent-settings-hermes 698e0da (2026-10-17 harvest) · READY 2026-10-18: re-read 2026-10-18 on `4f5e793ca1`, `import tui_gateway.methods_onboarding` still raises `NameError: Path` (the fork-edited file lacks upstream's `from pathlib import Path`) · **TAKEN 2026-10-18 w2-seams**
 
 ### Filed on arrival — 2026-10-17 (lane r-perf)
 
