@@ -122,5 +122,6 @@ def start_serve_work_engine(session: Any) -> Any:
     with home_scope(home):
         session.work_executor = PersonaTurnExecutor(draining=lambda: session.drain_state is not None)
         session.work_engine = WorkEngine(executor=session.work_executor)
-    start_work_engine(stop_event=session.liveness_stop, engine=session.work_engine, home=home)
+    start_work_engine(stop_event=session.liveness_stop, engine=session.work_engine, home=home,
+                      on_tick=session.work_executor.wake_parked)
     return session.work_engine

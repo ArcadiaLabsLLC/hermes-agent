@@ -32,7 +32,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-18 (land w4)
 
-- **`RT-GOAL-WAIT-WAKER` — a judge `wait` decision parks a bound Work run with no waker (upstream's gateway polls the barrier; the serve does not), so the run holds until another turn settles on its root** · fork / Work · `agent_runtime/work_store/goal_turns.py::DECISION_ENDINGS` · READY 2026-10-18 · **TAKEN 2026-10-18 w5-misc**
 
 ### Filed on arrival — 2026-10-18 (lane w4-fold, branch `w4/fold`)
 

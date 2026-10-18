@@ -35,6 +35,7 @@ __all__ = [
     "arm",
     "bind",
     "binding",
+    "bindings",
     "execute",
     "manager",
     "unbind",
@@ -180,13 +181,24 @@ def bind(record: GoalBinding) -> GoalBinding:
     return record
 
 
-def binding(root_session_id: str) -> GoalBinding | None:
-    path = paths.chat_goal_binding_path(root_session_id)
+def _read_binding(path: Any) -> GoalBinding | None:
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
         return GoalBinding(**{**raw, "rows": tuple(tuple(map(str, r)) for r in raw.get("rows") or [])})
     except (OSError, ValueError, TypeError):
         return None
+
+
+def binding(root_session_id: str) -> GoalBinding | None:
+    return _read_binding(paths.chat_goal_binding_path(root_session_id))
+
+
+def bindings() -> list[GoalBinding]:
+    """Every root a Work run's goal is bound to (an unreadable record is skipped, as :func:`binding` does)."""
+
+    directory = paths.chat_goal_bindings_dir()
+    found = (_read_binding(path) for path in sorted(directory.glob("*.json"))) if directory.is_dir() else ()
+    return [bound for bound in found if bound is not None]
 
 
 def unbind(root_session_id: str) -> None:

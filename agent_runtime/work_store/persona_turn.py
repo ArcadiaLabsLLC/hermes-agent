@@ -281,6 +281,11 @@ class PersonaTurnExecutor:
             return
         self.settled(goal_turns.direct_entry(root, cmid, args_of()), exit_code, payload)
 
+    def wake_parked(self) -> int:
+        """The serve's waker for a judge ``wait`` (``goal_turns.wake_parked``), run on the engine's tick."""
+
+        return goal_turns.wake_parked(goals=self._goals, enqueue=self._enqueue, wake=self._wake or _wake_runner)
+
     def _report(self, request_id: str, root: str, cmid: str, queued_at: str, rows: tuple[RowRef, ...],
                 outcome: Outcome) -> None:
         if self._callback is None:

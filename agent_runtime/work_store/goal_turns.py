@@ -22,8 +22,11 @@ from the serve's direct-turn settle (``settle_push.SettlePush._record_turn_settl
 runner's ``on_settle``, so no turn is evaluated twice. A root with an active goal and NO run bound
 (``runtime.chat.goal.set``) goes through :func:`after_chat_goal_turn`: the judge, then a continuation
 queued from the settled turn's own arguments (origin ``chat_goal``), never a Work report.
-Receipts: ``work.goal_arm | goal_continue | goal_hold | goal_end | chat_goal_continue | chat_goal_hold
-| chat_goal_settle``.
+A judge ``wait`` parks the run on upstream's barrier (a pid, a process session, a deadline). Upstream's
+CLI polls that barrier when idle; the serve's poll is :func:`wake_parked`, run on the Work engine's
+tick, which continues a parked run whose barrier lifted and whose root has nothing queued.
+Receipts: ``work.goal_arm | goal_continue | goal_hold | goal_wake | goal_end | chat_goal_continue |
+chat_goal_hold | chat_goal_settle``.
 """
 
 from __future__ import annotations
@@ -43,7 +46,7 @@ from .reasons import Reason, WorkRefused
 __layer__ = "lanes"
 __all__ = [
     "CHAT_GOAL_ORIGIN", "DECISION_ENDINGS", "after_chat_goal_turn", "after_turn", "arm_run", "direct_entry",
-    "first_cmid", "run_status", "stop_run",
+    "first_cmid", "run_status", "stop_run", "wake_parked",
 ]
 
 #: The origin key a chat goal's own continuation carries (``user_initiated=False`` when it settles).
@@ -75,11 +78,14 @@ def _stopped(decision: Mapping[str, Any], report: RowEnding | None) -> RowEnding
     return RowEnding(Verdict.STOPPED, reason=f"goal {decision.get('verdict') or 'ended'}: {why}")
 
 
-#: A judge decision that does NOT continue → the run's ending; ``None`` keeps the run (a parked wait).
+#: A judge decision that does NOT continue → the run's ending; ``None`` keeps the run parked: the judge's
+#: ``wait`` sets a barrier, and ``waiting`` is a turn that settled while one still held. Either way the run
+#: resumes when :func:`wake_parked` finds the barrier lifted (or another turn settles on the root).
 DECISION_ENDINGS: dict[str, Callable[[Mapping[str, Any], RowEnding | None], RowEnding | None]] = {
     "done": _done,
     "blocked": _blocked,
     "wait": lambda decision, report: None,
+    "waiting": lambda decision, report: None,
 }
 
 
@@ -244,3 +250,39 @@ def after_chat_goal_turn(entry: send_queue.QueuedSend, payload: dict | None, *, 
     wake()
     receipts.emit("work.chat_goal_continue", root=root, cmid=cmid)
     return True
+
+
+def _parked(goal: Any) -> bool:
+    """The goal is active and carries a barrier (upstream ``GoalState.waiting_*``), lifted or not."""
+
+    state = getattr(goal, "state", None)
+    if state is None or getattr(state, "status", None) != "active":
+        return False
+    return (getattr(state, "waiting_on_pid", None) is not None
+            or getattr(state, "waiting_on_session", None) is not None or bool(getattr(state, "waiting_until", 0)))
+
+
+def wake_parked(*, goals: Callable[[str], Any], enqueue: Callable[..., Any], wake: Callable[[], None]) -> int:
+    """``RT-GOAL-WAIT-WAKER``: continue every bound run whose judge ``wait`` barrier has lifted.
+
+    A run is parked when it is held, not stopping, its root has no send queued or running (that send's
+    settle evaluates on its own), and its goal carries a barrier. ``is_waiting()`` is upstream's own test
+    (pid alive, session still running, deadline ahead, the age cap) and clears a lifted barrier. Returns
+    how many runs were continued.
+    """
+
+    woken = 0
+    for bound in chat_goal.bindings():
+        root = bound.root_session_id
+        if not bound.held or bound.stopping or send_queue.entries(root):
+            continue
+        goal = goals(root)
+        if not _parked(goal) or goal.is_waiting():
+            continue
+        prompt = goal.next_continuation_prompt()
+        if not prompt:
+            continue
+        _forge(bound, direct_entry(root, bound.cmid), str(prompt), enqueue=enqueue, wake=wake)
+        receipts.emit("work.goal_wake", root=root, request_id=bound.request_id)
+        woken += 1
+    return woken
