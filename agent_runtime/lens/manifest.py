@@ -20,8 +20,8 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from .feed import read_feed
-from .rules import read_rule
+from .feed import ValueKind, read_feed, value_type_of
+from .rules import RuleForm, read_rule, rule_feed_ids
 from .wire_value import (
     MAXIMUM_MANIFEST_BYTES,
     WireError,
@@ -84,10 +84,30 @@ def read_manifest(value: Any) -> dict[str, Any]:
     require(len(set(feed_ids)) == len(feed_ids), "duplicate feed id")
     rule_ids = [rule["id"] for rule in manifest["rules"]]
     require(len(set(rule_ids)) == len(rule_ids), "duplicate rule id")
-    require(all(rule["feed_id"] in feed_ids for rule in manifest["rules"]), "rule names an unknown feed")
+    require(all(set(rule_feed_ids(rule)) <= set(feed_ids) for rule in manifest["rules"]), "rule names an unknown feed")
+    _check_typed_rules(manifest)
     if len(canonical_bytes(manifest)) > MAXIMUM_MANIFEST_BYTES:
         raise WireError(WireRefusal.OVER_BUDGET, "manifest byte budget")
     return manifest
+
+
+#: The forms an instant feed admits: a deadline, or the deadline moving.
+_INSTANT_FORMS = frozenset({RuleForm.ENDS_WITHIN, RuleForm.CHANGED, RuleForm.MOVED_BY})
+
+
+def _check_typed_rules(manifest: dict[str, Any]) -> None:
+    """A comparison is only between like values; a deadline rule only reads an instant (W5, W7)."""
+
+    types = {feed["id"]: value_type_of(feed) for feed in manifest["feeds"]}
+    for rule in manifest["rules"]:
+        form = RuleForm(rule["form"])
+        if form is RuleForm.BEST_OF:
+            group = [types[feed] for feed in rule_feed_ids(rule)]
+            require(all(t == group[0] for t in group), "best_of group mixes value types")
+            require(group[0]["kind"] != ValueKind.INSTANT.value, "best_of over instants")
+        instant = types[rule["feed_id"]]["kind"] == ValueKind.INSTANT.value
+        require(instant or form is not RuleForm.ENDS_WITHIN, "ends_within reads an instant feed")
+        require(not instant or form in _INSTANT_FORMS, "an instant is compared by deadline or by change")
 
 
 def decode_manifest(source: str | bytes) -> dict[str, Any]:

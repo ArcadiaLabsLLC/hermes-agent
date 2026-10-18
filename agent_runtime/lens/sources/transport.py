@@ -50,6 +50,9 @@ class ReadReason(str, Enum):
     AMBIGUOUS_SERIES = "ambiguous_series"
     QUERY_FAILED = "query_failed"
     WATCHER_OFFLINE = "watcher_offline"
+    #: The source answered, but the feed's value type or plausible range refused it (W2).
+    TYPE_MISMATCH = "type_mismatch"
+    IMPLAUSIBLE = "implausible"
     SOURCE_FAILED = "source_failed"
 
 

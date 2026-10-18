@@ -28,7 +28,7 @@ from datetime import datetime, timedelta, timezone, UTC
 from typing import Any, Callable
 
 from .episode import EpisodeState, observe
-from .rules import evaluate
+from .rules import CLOCK_FORMS, RuleForm, evaluate, rule_feed_ids
 from .sources import read_feed_source
 from .sources.transport import ReadReason, ReadResult
 from .store import LensStore, MonitorState, from_ms, to_ms
@@ -112,6 +112,7 @@ class LensPoller:
                 self._record(store, monitor_id, manifest, feed, result, observed=now, received=received)
                 self._reschedule(clock, feed, result, now)
                 reads += 1
+        self._clock_rules(store, now)
         self._retention(store, now)
         WATCHER.last_tick = now
         return reads
@@ -130,26 +131,42 @@ class LensPoller:
 
     def _record(self, store: LensStore, monitor_id: str, manifest: dict[str, Any], feed: dict[str, Any],
                 result: ReadResult, *, observed: datetime, received: datetime) -> None:
-        received = max(observed, received)
-        store.record(monitor_id, feed["id"], observed_at=observed, received_at=received,
-                     value=result.value, reason=result.reason.value, http_status=result.http_status)
-        for rule in manifest["rules"]:
-            if rule["feed_id"] == feed["id"]:
-                # Evaluated at the RECEIVE time: an observation is never later than its verdict.
-                self._evaluate(store, monitor_id, feed, rule, received)
+        from .feed import typed_reading
 
-    def _evaluate(self, store: LensStore, monitor_id: str, feed: dict[str, Any], rule: dict[str, Any],
+        received = max(observed, received)
+        # W2: a read the feed's type or plausible range refuses is a gap with its reason.
+        value, refusal = typed_reading(feed, result.value)
+        reason = result.reason.value if refusal is None else refusal.value
+        store.record(monitor_id, feed["id"], observed_at=observed, received_at=received,
+                     value=value, reason=reason, http_status=result.http_status)
+        for rule in manifest["rules"]:
+            if feed["id"] in rule_feed_ids(rule):
+                # Evaluated at the RECEIVE time: an observation is never later than its verdict.
+                self._evaluate(store, monitor_id, manifest, rule, received)
+
+    def _clock_rules(self, store: LensStore, now: datetime) -> None:
+        """W7: a deadline rule moves with the runtime clock, not only when its feed is read."""
+
+        for monitor_id, manifest in self._enabled(store):
+            for rule in manifest["rules"]:
+                if RuleForm(rule["form"]) in CLOCK_FORMS:
+                    self._evaluate(store, monitor_id, manifest, rule, now)
+
+    def _evaluate(self, store: LensStore, monitor_id: str, manifest: dict[str, Any], rule: dict[str, Any],
                   now: datetime) -> None:
         from .feed import Observation
 
-        interval = timedelta(milliseconds=feed["interval_ms"])
-        span = timedelta(milliseconds=rule["window_ms"]) + interval * (rule["samples"] + 3)
-        rows = store.observations(monitor_id, feed["id"], start=now - span, end=now + timedelta(milliseconds=1))
+        feeds = {feed["id"]: feed for feed in manifest["feeds"]}
+        interval = max(timedelta(milliseconds=feeds[f]["interval_ms"]) for f in rule_feed_ids(rule))
+        # A deadline's lead time is not an evidence window: it reads only the newest reads.
+        lookback = 0 if RuleForm(rule["form"]) in CLOCK_FORMS else rule["window_ms"]
+        span = timedelta(milliseconds=lookback) + interval * (rule["samples"] + 3)
         observations = [
-            Observation(monitor_id=monitor_id, feed_id=feed["id"], sequence=row["sequence"],
+            Observation(monitor_id=monitor_id, feed_id=feed_id, sequence=row["sequence"],
                         observed_at=from_ms(row["observed_ms"]), received_at=from_ms(row["received_ms"]),
                         value=row["value"], gap=row["gap"])
-            for row in rows
+            for feed_id in rule_feed_ids(rule)
+            for row in store.observations(monitor_id, feed_id, start=now - span, end=now + timedelta(milliseconds=1))
         ]
         previous = store.latest_episode(monitor_id, rule["id"])
         verdict = evaluate(rule, observations, now=now, expected_interval=interval,
