@@ -63,7 +63,7 @@ from typing import Dict, List, Optional, Tuple
 # "skipped on this host" note and the lanes can never disagree.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scripts.ci.list_os_marked_tests import gated_specs, spec_hosts
-from scripts._fork_runner import pytest_argv as _fork_pytest_argv
+from scripts._fork_runner import pytest_argv as _fork_pytest_argv, run_once as _fork_run_once
 
 
 def _sweep_killed_run_roots(root: str) -> None:
@@ -590,7 +590,7 @@ def _run_one_file(
     if rc < 0 or rc == 124:
         retries = 0
     while rc != 0 and attempt < retries:
-        if _is_retryable_timeout_result(rc, output, summary):
+        if _is_retryable_timeout_result(rc, output, summary) or _fork_run_once(file):
             break
         attempt += 1
         first_output = output

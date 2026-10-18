@@ -19,8 +19,38 @@ import sys
 from pathlib import Path
 
 COVERAGE_RC_ENV = "HERMES_TEST_COVERAGE_RC"
+#: test files whose red writes real machine state (the user PATH, the registry): run once,
+#: alone, never re-run (``run_once``). One repo-relative path per line; ``#`` starts the why.
+RUN_ONCE_LIST = Path(__file__).resolve().parent / "test_files_run_once.txt"
 #: the argument that makes this file a Job Object wrapper (``__main__``)
 JOB_FLAG = "--job"
+
+
+def run_once_list(path: Path = RUN_ONCE_LIST) -> frozenset[str]:
+    """The listed files (repo-relative POSIX); a missing list is empty."""
+
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return frozenset()
+    return frozenset(entry for line in lines if (entry := line.split("#", 1)[0].strip()))
+
+
+def run_once(file: Path, listed: frozenset[str] | None = None) -> bool:
+    """Whether ``file`` is on the run-once list: the upstream runner's retry loop stops on it
+    (``run_tests_parallel._run_one_file``), so a red that wrote the user PATH writes it once
+    (build-1011-B5 D3.15: the install.ps1 fence mutation wrote it twice). The bundled runner
+    runs a listed file alone and never shards it (``run_tests_bundled.load_unbundled``)."""
+
+    listed = run_once_list() if listed is None else listed
+    if not listed:
+        return False
+    rel = Path(os.path.relpath(_abs(file), RUN_ONCE_LIST.parent.parent)).as_posix()
+    return rel in listed
+
+
+def _abs(file) -> str:
+    return os.path.abspath(str(file))
 
 
 def job_prefix() -> list[str]:

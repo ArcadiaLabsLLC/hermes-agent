@@ -498,7 +498,7 @@ def _run_wave(args, repo_root: Path, runner, pytest_args: List[str], files: List
     started = time.monotonic()
     result = runner.run(
         files, pytest_args, repo_root, jobs=args.jobs, bundle_size=args.bundle_size,
-        unbundled=runner.load_unbundled(args.unbundled_list), flat_timeout=args.file_timeout,
+        unbundled=runner.unbundled_files(args.unbundled_list), flat_timeout=args.file_timeout,
         retries=args.file_retries, durations=durations, bundle_seconds=args.bundle_seconds,
         solo_seconds=args.solo_seconds, known_reds=known, solo_policy=policy, on_outcome=progress,
     )

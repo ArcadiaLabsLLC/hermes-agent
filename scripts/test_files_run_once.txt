@@ -1,0 +1,4 @@
+# Test files whose red writes real machine state (the user PATH, the registry): the runners run
+# each once, alone, never re-run and never sharded (scripts/_fork_runner.py::run_once). One
+# repo-relative path per line; after `#`, the state its red writes and where that was seen.
+tests/scripts/test_install_ps1_path_fence_downstream.py  # HKCU Path: the fence mutation wrote it twice (build-1011-B5 D3.15)

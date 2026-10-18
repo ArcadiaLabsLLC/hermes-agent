@@ -406,7 +406,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-10 (fork-fixable sweep lane-1011, filed by the orchestrator)
 
-- [ ] **`run_tests.sh` re-runs a red file alone, so a test whose red writes real machine state (registry, user PATH) writes it twice; a destructive-on-red test has no opt-out from the retry** · fork / suite · build-1011-B5 D3.15 mutation (2 PATH entries from 1 run) · lane: runner · `scripts/run_tests.sh` is upstream-owned, so a destructive-on-red opt-out needs a fork-owned runner door · NEEDS PLAN 2026-10-16: where the fork-owned door lives (a bundled-runner flag or a test marker the retry honours) and how a destructive-on-red test declares itself **TAKEN 2026-10-18 q-runner**
 - [ ] **The shared test venv's SQLite 3.50.4 forces `journal_mode=DELETE`, so no WAL-path behaviour (sidecar races, checkpoints) can be exercised live on the workstation** · fork / suite · build-1011-B5 D3.02 stage 3 · lane: test-venv refresh · still true 2026-10-15 (venv Python 3.14.5 links SQLite 3.50.4); WAL needs an interpreter linking SQLite >= 3.51.3 or the 3.50.7 backport · RULED 2026-10-15 (owner): yes, rebuild the shared venv at the next landing · BLOCKED 2026-10-16: another lane — the next hermes landing rebuilds the shared venv
 
 ## Filed on arrival — 2026-10-10 (build batch 1, build-1011-B1..B5, filed by the orchestrator)
