@@ -44,7 +44,7 @@ from ..serde import write_json_atomic
 from . import receipts
 from .board import board_rows
 from .executor import Assignment, Brief, Executor, Outcome, RowEnding, Run, RunStatus, StopReason, Verdict
-from .grammar import Op, Row, RowRef, Status, render_status
+from .grammar import Op, Row, RowRef, Status, render_status, segment_text
 from .reasons import Reason, WorkRefused
 
 __layer__ = "lanes"
@@ -68,7 +68,6 @@ DEFAULT_CAP = 4
 _ABANDON = frozenset({Reason.ROW_GONE, Reason.NOT_CLAIMANT, Reason.ALREADY_TAKEN})
 _ENDED = frozenset({RunStatus.SETTLED, RunStatus.STOPPED})
 _TOKEN = re.compile(r"[^A-Za-z0-9_.-]")
-_SEGMENT_FORBIDDEN = re.compile(r"[`*·]")
 _CONSTRAINT = "Work only this row; the engine writes its ending to the queue — do not edit the row yourself."
 
 
@@ -107,30 +106,24 @@ class RunRecord:
 Step = tuple[str, Op, dict[str, Any]]
 
 
-def _clean(value: str, limit: int = 300) -> str:
-    """One grammar-safe segment text: no code span, bold or separator can leak into the row."""
-
-    return " ".join(_SEGMENT_FORBIDDEN.sub("-", str(value or "")).split())[:limit]
-
-
 def _done(record: RunRecord, ending: RowEnding, date: str) -> list[Step]:
     return [("done", Op.DELETE, {"result": " ".join(str(ending.result or "done").split())[:4000]})]
 
 
 def _blocked(record: RunRecord, ending: RowEnding, date: str) -> list[Step]:
-    status = render_status(Status.BLOCKED, date, f"owner decision — {_clean(ending.question)}")
-    status += f" · Recommend: {_clean(ending.recommend) or 'none offered'}"
+    status = render_status(Status.BLOCKED, date, f"owner decision — {segment_text(ending.question)}")
+    status += f" · Recommend: {segment_text(ending.recommend) or 'none offered'}"
     return [("blocked:status", Op.SET_STATUS, {"status": status}), ("blocked:release", Op.RELEASE, {})]
 
 
 def _stopped(record: RunRecord, ending: RowEnding, date: str) -> list[Step]:
-    status = render_status(Status.DEFERRED, date, f"stopped — {_clean(ending.reason) or 'no reason given'}")
+    status = render_status(Status.DEFERRED, date, f"stopped — {segment_text(ending.reason) or 'no reason given'}")
     return [("stopped:release", Op.RELEASE, {}), ("stopped:status", Op.SET_STATUS, {"status": status})]
 
 
 def _failed(record: RunRecord, ending: RowEnding, date: str) -> list[Step]:
     body = (f"work run {record.request_id} ended without a readable work_report "
-            f"({_clean(ending.reason, 200) or 'no detail'}); re-claim to retry")
+            f"({segment_text(ending.reason, 200) or 'no detail'}); re-claim to retry")
     return [("failed:release", Op.RELEASE, {}),
             ("failed:status", Op.SET_STATUS, {"status": render_status(Status.NEEDS_PLAN, date, body)})]
 
@@ -221,8 +214,14 @@ class WorkEngine:
         cap_for: Callable[[str], int] | None = None,
         now: Callable[[], datetime] | None = None,
         brief_of: Callable[[Row, Any], str] | None = None,
+        held: Callable[[str, Any], set[RowRef]] | None = None,
+        after_tick: Callable[[], Any] | None = None,
     ) -> None:
         self.executor = executor
+        # Rows another dispatcher runs (a batch lane's, dispatcher plan §3): claimed persona:<id> too,
+        # but handed to their lane's ONE turn, never one engine run per row.
+        self._held = held or (lambda _workspace_id, _view: set())
+        self._after_tick = after_tick
         self._sync = sync or _default_sync
         self._workspaces = workspaces or _default_workspaces
         self._cap_for = cap_for or default_cap
@@ -250,6 +249,11 @@ class WorkEngine:
             except Exception:
                 logger.warning("work engine could not read workspace %s", workspace_id, exc_info=True)
         counts["reaped"] = self._reap()
+        if self._after_tick is not None:
+            try:
+                self._after_tick()
+            except Exception:
+                logger.warning("work engine after-tick hook failed", exc_info=True)
         tally = {key: value for key, value in counts.items() if value}
         if tally:
             receipts.emit("work.engine_tick", counts=tally)
@@ -300,6 +304,7 @@ class WorkEngine:
         counts: Counter[str] = Counter()
         with self._lock:
             view = self._sync(workspace_id)
+            held = self._held(workspace_id, view)
             live = {record.ref: record for record in records()
                     if record.workspace_id == workspace_id and record.state is not RecordState.CLOSED}
             for board in view.boards:
@@ -307,8 +312,8 @@ class WorkEngine:
                 if writer is None or board.read_root is None:
                     continue
                 for row in board_rows(board):
-                    if row.taken is None or row.taken.persona_instance_id is None:
-                        continue  # untaken (the engine never claims) or a session lane's claim
+                    if row.taken is None or row.taken.persona_instance_id is None or row.ref in held:
+                        continue  # untaken (the engine never claims), a session lane's claim, or a batch lane's
                     handed = self._hand_off(workspace_id, row, writer, live.get(row.ref))
                     counts.update([handed] if handed else [])
         return counts

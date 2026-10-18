@@ -19,6 +19,7 @@ which continues the run as further queued sends until upstream's gates and judge
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 from collections.abc import Callable, Mapping
@@ -37,6 +38,7 @@ from .grammar import RowRef
 from .reasons import Reason, WorkRefused
 
 __layer__ = "lanes"
+logger = logging.getLogger(__name__)
 __all__ = ["BRIEF_MAX_LINES", "REPORT_INFO", "PersonaTurnExecutor", "parse_work_report", "render_brief"]
 
 REPORT_INFO = "work_report"
@@ -137,7 +139,7 @@ class PersonaTurnExecutor:
         self._draining = draining
         self._goals = goals
         self._workdir_of = workdir_of or _persona_workdir
-        self._callback: Callable[[Run, Outcome], None] | None = None
+        self._callbacks: list[Callable[[Run, Outcome], None]] = []
 
     # ── the seams, resolved on first use (the serve builds this before the door is bound) ──
 
@@ -236,7 +238,11 @@ class PersonaTurnExecutor:
                              detail=detail)
 
     def on_settle(self, cb: Callable[[Run, Outcome], None]) -> None:
-        self._callback = cb
+        """Add a listener: the W3 engine and the batch dispatcher (B2) each hear every settle and
+        ignore a run they did not start (the engine by run record, the dispatcher by ``BATCH-`` id)."""
+
+        if cb not in self._callbacks:
+            self._callbacks.append(cb)
 
     # ── the runner's hook ────────────────────────────────────────────────
 
@@ -288,12 +294,16 @@ class PersonaTurnExecutor:
 
     def _report(self, request_id: str, root: str, cmid: str, queued_at: str, rows: tuple[RowRef, ...],
                 outcome: Outcome) -> None:
-        if self._callback is None:
+        if not self._callbacks:
             return
         run = Run(_run_id(root, cmid), request_id, None, root, cmid, queued_at, RunStatus.SETTLED)
         receipts.emit("work.exec_settle", run_id=run.run_id, request_id=run.request_id, rows=[r.id for r in rows],
                       executor=self.kind.value, verdict=outcome.verdict.value, tool_calls=outcome.tool_calls)
-        self._callback(run, outcome)
+        for callback in list(self._callbacks):
+            try:
+                callback(run, outcome)
+            except Exception:
+                logger.warning("a settle listener failed on %s", run.request_id, exc_info=True)
 
 
 def outcome_of(exit_code: int, payload: dict | None, rows: tuple[RowRef, ...]) -> Outcome:

@@ -1730,6 +1730,38 @@ operator send already waiting wins the slot (the run holds and is judged again a
 of `blocked`/`stopped`, a failed turn, or a judge decision other than continue ends the run; the goal is
 paused and the root unbound. Receipts: `work.goal_arm | goal_continue | goal_hold | goal_end`.
 
+### Batch methods
+
+`runtime.batch.plan | start | status | stop | land | approve` (`agent_runtime/batch/rpc.py` over
+`agent_runtime/batch/dispatcher.py::BatchDispatcher`; dispatcher plan
+[dispatcher-and-libraries-2026-10-18.md](planned/dispatcher-and-libraries-2026-10-18.md) §3) plan the
+workspace's READY rows into thick lanes (one per `Domain(slot, note, heading)`, sized by the files the rows
+name — 65 rows only a ceiling — a lane sharing a file with an earlier one sequenced after it, one landing
+lane), claim them `persona:<instance_id>` (the rows' assignee, else the roster instance whose role is the
+slot's `context.role`, else the operator names it: `start` `personas {lane: instance}`), run each lane as
+ONE executor assignment, and write every row's ending back by ID. Scope, tier, deferral and the 4090
+refusal shape are Work's; replies carry `version: 1`, `install_id`, `owner`.
+
+| Method | Input beyond scope | Result | Typed refusals |
+|---|---|---|---|
+| `runtime.batch.plan` | none | `plan {id: BATCH-<6>, lanes[], landing, budget, asks[]}` — writes nothing | `plan_refused` (`nothing_ready`, `mixed_assignees`) |
+| `runtime.batch.start` | `batch_id` (the plan's id), `personas?` | `batch` | `idempotency_conflict` (the board moved), `persona_unresolved`, `not_owner_machine`, git reasons |
+| `runtime.batch.status` | `batch_id?` | `batches[] {…, lanes[], landing, marks {slot/ID: who \| status \| gone}}`, `automation`, `machine` | `batch_missing` |
+| `runtime.batch.stop` | `batch_id`, `lane?` (omitted: abort the batch) | `batch` | `state_transition_invalid`, `batch_missing` |
+| `runtime.batch.land` | `batch_id`, `persona?` | `batch` | `state_transition_invalid`, `landing_in_progress`, `not_owner_machine` |
+| `runtime.batch.approve` | `batch_id` | `batch` (`LANDED`, `landing_sha`) | `state_transition_invalid`, `not_owner_machine`, `not_built` (the push is `RT-DISPATCH-B5-LANE-EXECUTOR`'s) |
+
+A batch is its manifest note, `<default brain>/50 — Agent Handoffs/batches/<BATCH-id>.md` (frontmatter
+`type: batch`, `owner_machine`; one appended line per lane per state), its lane briefs beside it, and its
+rows' claim marks — no other store; every call folds it afresh. The default brain is the board
+`ensure_default_brain` returns (the first bound repo brain, else the machine-local one). `stop` on a
+running lane WAITS for the turn (`STOP_REQUESTED`; the settle ends it `STOPPED`, rows released
+`DEFERRED`); `approve` is the only edge to `LANDED`. `batch_automation` (`off | plan | start`, default
+`off`) is the frontmatter of `batches/settings.md`; it gates only a scheduler fire, and `land`/`approve`
+are never automated. The W3 engine skips a row a live batch lane holds. Receipts: `batch.planned |
+started | lane_refused | waiting_box | lane_settled | stop_requested | ready_to_land | landing |
+awaiting_approval | landing_red | landed | aborted`. Phone bundles omit the module.
+
 ### Conversation-scoped Work
 
 `agent_runtime/work/context.py` resolves optional `conversation` references through existing

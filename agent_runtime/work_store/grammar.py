@@ -38,6 +38,7 @@ __all__ = [
     "parse_row",
     "render_status",
     "row_defects",
+    "segment_text",
     "split_segments",
 ]
 
@@ -56,6 +57,7 @@ CODE_SPAN = re.compile(r"`([^`]+)`")
 #: A claim and the separator that set it off, as :func:`apply` removes it.
 _CLAIM_SEGMENT = re.compile(r"(?: · | )?\*\*TAKEN \d{4}-\d{2}-\d{2} [^*]+?\*\*")
 _WHO = re.compile(r"^[^*\s][^*]*$")
+_SEGMENT_FORBIDDEN = re.compile(r"[`*·]")
 
 BLOCKED_REASONS = ("owner decision", "owner sitting", "backend", "hermes", "launcher", "upstream", "another lane")
 OWNER_DECISION = BLOCKED_REASONS[0]
@@ -311,6 +313,12 @@ def find(rows: Iterable[Row], row_id: str) -> Row | None:
 
 def render_status(status: Status, date: str, body: str = "") -> str:
     return f"{status.value} {date}" + (f": {body}" if body else "")
+
+
+def segment_text(value: str, limit: int = 300) -> str:
+    """One grammar-safe segment text: no code span, bold or separator can leak into the row."""
+
+    return " ".join(_SEGMENT_FORBIDDEN.sub("-", str(value or "")).split())[:limit]
 
 
 def mint_id(rand: bytes | None = None) -> str:

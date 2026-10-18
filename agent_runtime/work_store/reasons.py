@@ -54,6 +54,13 @@ class Reason(StrEnum):
     NOT_OWNER_MACHINE = "not_owner_machine"
     # The goal door's (dispatcher plan §5; B3): a verb that needs a goal on a root holding none.
     NO_GOAL = "no_goal"
+    # The batch dispatcher's (dispatcher plan §3; B2): a plan that cannot be made, a lane with no
+    # persona, a move the state table does not hold, a second landing on this machine, an unknown batch.
+    PLAN_REFUSED = "plan_refused"
+    PERSONA_UNRESOLVED = "persona_unresolved"
+    STATE_TRANSITION_INVALID = "state_transition_invalid"
+    LANDING_IN_PROGRESS = "landing_in_progress"
+    BATCH_MISSING = "batch_missing"
 
 
 class WorkRefused(ValueError):
