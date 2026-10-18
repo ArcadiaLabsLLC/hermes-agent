@@ -29,3 +29,7 @@ and a whole-tree pass re-proves upstream code the change did not touch. Upstream
 - The runner stops offering `--scope full` and stops widening `--since-merge` to every file on a chain
   path (fork-hygiene row, lane q-runner).
 - Upstream files still run when a change reaches them, and when named on the command line.
+- `--scope features` runs every fork file plus every upstream file not on the skip list (so
+  [[0015 — Upstream features the fork does not ship leave the suite and the boot path]]'s unused files
+  stay out): an on-demand measurement on a quiet box, never a gate; `--scope full` still refuses
+  (owner 2026-10-17).

@@ -178,6 +178,7 @@ def bundle_timeout(
 
 scope = _load_sibling("run_tests_bundled_scope")
 SCOPE_FORK, SCOPE_FULL, _DEFAULT_SINCE = scope.SCOPE_FORK, scope.SCOPE_FULL, scope._DEFAULT_SINCE
+SCOPE_FEATURES = scope.SCOPE_FEATURES
 ScopeSelection, select_scope, load_manifest, changed_paths = (
     scope.ScopeSelection, scope.select_scope, scope.load_manifest, scope.changed_paths
 )
@@ -750,9 +751,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     parser.add_argument("--unbundled-list", type=Path, default=_DEFAULT_UNBUNDLED)
     parser.add_argument(
-        "--scope", choices=(SCOPE_FORK, SCOPE_FULL), default=SCOPE_FORK,
+        "--scope", choices=(SCOPE_FORK, SCOPE_FEATURES, SCOPE_FULL), default=SCOPE_FORK,
         help="fork (default, the landing gate): files absent from the upstream manifest plus the "
-        "inherited files the change reaches; full: RETIRED (ADR 0016) — exit 2 unless every PATH is a file",
+        "inherited files the change reaches; features: every file not on the skip list, a quiet-box "
+        "measurement, never a gate; full: RETIRED (ADR 0016) — exit 2 unless every PATH is a file",
     )
     change = parser.add_mutually_exclusive_group()
     change.add_argument(

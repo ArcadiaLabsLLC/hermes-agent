@@ -244,3 +244,18 @@ def test_since_merge_treats_a_chain_path_as_contract_plus_sample(tmp_path, capsy
     assert _rels(repo, sel.chain) == ["tests/pkg/test_a.py"], "one sample for the folder nothing else reached"
     assert _rels(repo, sel.excluded) == ["tests/pkg/test_b.py", "tests/tooling/test_other.py"]
     assert "contract + sample" in capsys.readouterr().out
+
+
+def test_scope_features_runs_every_file_but_the_skip_list_and_full_still_refuses(tmp_path, capsys):
+    files = _tree(tmp_path)
+    import types
+
+    skip = {"tests/pkg/test_up.py": types.SimpleNamespace(why="upstream red")}
+
+    sel = scope.select_for_run(_args(scope=scope.SCOPE_FEATURES), files, tmp_path, [tmp_path / "tests"], skip)
+
+    assert _rels(tmp_path, sel.selected) == ["tests/other/deep/test_up2.py", "tests/pkg/test_fork.py"], (
+        "every fork and upstream file, no reach rule, the skip list still out")
+    assert _rels(tmp_path, sel.skipped_red) == ["tests/pkg/test_up.py"]
+    assert "never a gate" in capsys.readouterr().out
+    assert scope.select_for_run(_args(scope=bundled.SCOPE_FULL), files, tmp_path, [tmp_path / "tests"], {}) is None

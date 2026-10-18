@@ -16,7 +16,10 @@ working-tree edits; after a release merge it is ``--since-merge <merge>``
 (``merge_change``: what the merge itself produced, plus what came after it,
 less each conftest whose standing fork hunk the merge left unchanged). ``full`` is
 retired (ADR 0016): it refuses with exit 2 unless every path on the command line
-is a file, and then runs exactly those files, as a named file always runs. A
+is a file, and then runs exactly those files, as a named file always runs.
+``features`` runs every fork file plus every upstream file not on the skip list
+(ADR 0015's unused files stay out): an on-demand measurement on a quiet box,
+never a gate (ADR 0016). A
 file on ``tests/fixtures/upstream_skip_list.txt`` (upstream-owned reds and the
 P0 freeze files) does not run unless it is named on the command line, and nor
 does a file on ``scripts/test_idle_box_files.txt`` (the timing files that run
@@ -51,6 +54,7 @@ def _rel_posix(path: Path, repo_root: Path) -> str:
 
 SCOPE_FORK = "fork"
 SCOPE_FULL = "full"
+SCOPE_FEATURES = "features"
 _DEFAULT_MANIFEST = Path("tests") / "fixtures" / "upstream_manifest.txt"
 _DEFAULT_SINCE = "origin/main"
 #: files that run only on an idle box, serial (owner ruling 2026-10-10; design sweep D3.01)
@@ -396,7 +400,11 @@ def select_for_run(args, files: List[Path], repo_root: Path, roots: List[Path], 
 
     named = [r for r in roots if r.is_file()]
     idle_box = load_path_list(repo_root / IDLE_BOX_LIST)
-    if args.scope == SCOPE_FULL:
+    if args.scope == SCOPE_FEATURES:  # every discovered file the lists leave in: no reach rule
+        sel = select_scope(files, repo_root, set(), set(), named=named, skipped=skip_rows, idle_box=idle_box)
+        print(f"Scope features: {len(sel.selected)} file(s) — every fork file and every upstream file not on the "
+              "skip list; an on-demand measurement on a quiet box, never a gate (ADR 0016)", flush=True)
+    elif args.scope == SCOPE_FULL:
         if len(named) != len(roots):
             print(FULL_RETIRED, file=sys.stderr)
             return None
