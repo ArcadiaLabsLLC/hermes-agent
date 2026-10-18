@@ -187,7 +187,9 @@ Modules, lowest layer first; no module imports one above it (W0-G6)::
                                 the build plan), the status derived from liveness + outcome once
       lanes_build.py    lanes   BuildLane: terminal -> build reclassification in place, the
                                 announced registry, the detected sub-source
-      surface.py        lanes   _COLLECTORS (the table over the six lanes), build_running_work,
+      lanes_schedule.py lanes   ScheduledTurnLane: a scheduler fire, read from the send-queue
+                                entries whose origin names a schedule (RT-SCHEDULE-TURN-RUNNING-WORK)
+      surface.py        lanes   _COLLECTORS (the table over the lanes), build_running_work,
                                 find_work_row, split_work_id, peek_work, cancel_work
 
     entry point                                  opens
@@ -209,7 +211,7 @@ attribute reaches none of them — patch the binding module.
 
 from __future__ import annotations
 
-from . import build_rows, lanes_build, lanes_chat, lanes_process, ownership, rows, surface, vocabulary
+from . import build_rows, lanes_build, lanes_chat, lanes_process, lanes_schedule, ownership, rows, surface, vocabulary
 from .lanes_chat import (
     DELEGATION_RECORD_RUNNING,
     DELEGATION_STATUS_BY_RECORD,
@@ -256,6 +258,7 @@ from .vocabulary import (
     KIND_DELEGATION,
     KIND_DISPATCH,
     KIND_MCP_JOB,
+    KIND_SCHEDULED_TURN,
     KIND_TERMINAL,
     KIND_TOOL_CALL,
     LANE_DURABLE,
@@ -296,6 +299,7 @@ __all__ = [
     "KIND_DELEGATION",
     "KIND_DISPATCH",
     "KIND_MCP_JOB",
+    "KIND_SCHEDULED_TURN",
     "KIND_TERMINAL",
     "KIND_TOOL_CALL",
     "PEEK_TAIL_LIMIT",

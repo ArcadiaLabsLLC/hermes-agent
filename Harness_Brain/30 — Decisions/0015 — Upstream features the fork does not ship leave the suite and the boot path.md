@@ -44,4 +44,10 @@ kanban ~1,300 s, messaging adapters ~610 s. Evidence for the wider suite timing:
   match.
 - Adding a feature to this list, or taking one off (cron when the launcher-clock cron lands), is an
   owner ruling recorded here.
+- Cron, 2026-10-18 (`RT-DISPATCH-B4-SCHEDULER`, owner RULED: scrap upstream cron for the fork's own
+  scheduler): the "launcher-clock cron" this ADR anticipated is `agent_runtime/work_store/serve_scheduler.py::ServeTickScheduler`
+  (dispatcher plan §2.3, §4). The serve imports nothing of upstream's cron runner and `cronjob` stays out of
+  `harness_core`; `Trigger.from_cron_job` is the one compatibility door; on a phone a schedule rides the OS
+  (`MC-MOBILE-SCHEDULES-OS`). Cron stays on this list as a feature the fork does not run; moving its test
+  files to the skip list is a separate ruling.
 - Kanban is unused for fork code too (2026-10-18, Work W5): the fork's kanban modules (`hermes_cli/kanban_blocked_pm.py`, `kanban_blocked_pm_tick.py`, `kanban_crash_evidence.py`) and the plugin's two `on_kanban_*` hooks are deleted; Work is the markdown todo board (`docs/agent-runtime-harness/planned/work-on-markdown-2026-10-18.md`), guarded by `tests/plugins/test_eternia_harness_registers_no_kanban_hook.py` and `tests/agent_runtime/test_no_kanban_dependency.py`.

@@ -32,7 +32,7 @@ from .. import paths
 from ..chat_turn_settles import outcome_from_payload, read_settle, settle_id_for
 from . import goal_turns, receipts
 from .executor import (
-    Assignment, ExecutorKind, GoalMode, Outcome, RowEnding, Run, RunStatus, StopReason, Verdict,
+    Assignment, Brief, ExecutorKind, GoalMode, Outcome, RowEnding, Run, RunStatus, StopReason, Verdict,
 )
 from .grammar import RowRef
 from .reasons import Reason, WorkRefused
@@ -163,13 +163,13 @@ class PersonaTurnExecutor:
             self._root_of = resolve_default_chat_session_id_for_instance
         return self._root_of(self._store(), persona_id=instance.persona_id, persona_instance_id=instance.id)
 
-    def _open(self, instance: Any, a: Assignment) -> str:
+    def _open(self, instance: Any, request_id: str) -> str:
         from ..mission_chat_door import MissionChatDoorUnbound, run_open_chat
 
         args = SimpleNamespace(
             persona_id=instance.persona_id, persona_instance_id=instance.id, session_id=None, new_session=False,
-            client_scope=None, kill_active=False, idempotency_key=f"work-open-{a.request_id}",
-            requested_by=f"work:{a.request_id}", add_instance=False, placement_id=None, display_name=None,
+            client_scope=None, kill_active=False, idempotency_key=f"work-open-{request_id}",
+            requested_by=f"work:{request_id}", add_instance=False, placement_id=None, display_name=None,
             workspace_id=None, realm_id=None, coordinator_id=None, coordinator_max_spawns=None,
             coordinator_spawns_used=0, coordinator_may_kill_own=None, coordinator_no_kill_own=None,
             coordinator_may_kill_others=None, json=True, stream=False,
@@ -194,16 +194,22 @@ class PersonaTurnExecutor:
         return None
 
     def start(self, a: Assignment) -> Run:
+        return self.start_from(a, {})
+
+    def start_from(self, a: Assignment, origin: Mapping[str, Any]) -> Run:
+        """:meth:`start`, with ``origin`` added to the queued entry's origin (a scheduled fire names itself there)."""
+
         refusal = self.can_start(a)
         if refusal is not None:
             raise WorkRefused(refusal, a.persona_instance_id)
         instance = self._instance(a.persona_instance_id)
-        root = self._root(instance) or self._open(instance, a)
+        root = self._root(instance) or self._open(instance, a.request_id)
         cmid = goal_turns.first_cmid(a.request_id)
         until_done = a.goal_mode is GoalMode.UNTIL_DONE
-        origin = {"owner": None, "gateway": False, "work": a.request_id,
+        origin = {**dict(origin), "owner": None, "gateway": False, "work": a.request_id,
                   "rows": [[ref.slot, ref.note, ref.id] for ref in a.rows], "goal": until_done}
-        args = send_queue.persistable_args(_turn_args(instance, root, cmid, a), origin=origin)
+        turn = _turn_args(instance, root, cmid, render_brief(a), f"work:{a.request_id}")
+        args = send_queue.persistable_args(turn, origin=origin)
         if until_done:
             goal_turns.arm_run(root, a, args, cwd=self._workdir_of(instance), goals=self._goals)
         entry, _position, _replay = self._enqueue(root, cmid, args)
@@ -212,6 +218,27 @@ class PersonaTurnExecutor:
                       persona_instance_id=a.persona_instance_id, rows=[ref.id for ref in a.rows],
                       executor=self.kind.value)
         return Run(_run_id(root, cmid), a.request_id, a, root, cmid, entry.queued_at, RunStatus.QUEUED)
+
+    def queue_prompt(self, persona_instance_id: str, message: str, *, request_id: str,
+                     origin: Mapping[str, Any]) -> Run:
+        """Queue ``message`` as one turn of the instance's chat root — a scheduled ``PersonaPrompt`` (B4).
+
+        The same hold-until-idle path as :meth:`start` (the root's send queue, never the door), but the
+        message is the prompt verbatim and the entry is no Work run: its settle reports to nobody.
+        Idempotent by ``request_id``: a re-fired prompt converges on the one queued entry.
+        """
+
+        probe = Assignment((), persona_instance_id, Brief(title="", objective=""), request_id)
+        refusal = self.can_start(probe)
+        if refusal is not None:
+            raise WorkRefused(refusal, persona_instance_id)
+        instance = self._instance(persona_instance_id)
+        root = self._root(instance) or self._open(instance, request_id)
+        cmid = f"schedule-{request_id}"
+        turn = _turn_args(instance, root, cmid, message, f"schedule:{request_id}")
+        entry, _position, _replay = self._enqueue(root, cmid, send_queue.persistable_args(turn, origin=origin))
+        (self._wake or _wake_runner)()
+        return Run(_run_id(root, cmid), request_id, None, root, cmid, entry.queued_at, RunStatus.QUEUED)
 
     def status(self, run_id: str) -> RunStatus:
         root, _sep, cmid = run_id.partition("/")
@@ -332,16 +359,16 @@ def _wake_runner() -> None:
     wake_queued_send_runner()
 
 
-def _turn_args(instance: Any, root: str, cmid: str, a: Assignment) -> SimpleNamespace:
-    """The namespace ``dispatch_delivery.forge.forge_delivery_turn`` builds, carrying the brief."""
+def _turn_args(instance: Any, root: str, cmid: str, message: str, requested_by: str) -> SimpleNamespace:
+    """The namespace ``dispatch_delivery.forge.forge_delivery_turn`` builds, carrying ``message``."""
 
     from ..config import mission_chat_default_max_seconds
 
     return SimpleNamespace(
         persona_id=instance.persona_id, persona_instance_id=instance.id, session_id=root, clarify_token=None,
-        new_session=False, task_id=None, goal_id=None, title=None, message=render_brief(a), provider=None,
+        new_session=False, task_id=None, goal_id=None, title=None, message=message, provider=None,
         model=None, use_agent_default=False, surface_prompt="", intent_hint="chat",
-        requested_by=f"work:{a.request_id}", client_message_id=cmid, stream=False,
+        requested_by=requested_by, client_message_id=cmid, stream=False,
         max_seconds=float(mission_chat_default_max_seconds()), json=True, requested_by_session=root,
         relay_chain=[], relay_deadline_epoch=None,
     )

@@ -14,9 +14,9 @@ fire is the operator's ``runtime.batch.start``. Every method returns a value or 
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -130,6 +130,46 @@ class Trigger:
     @classmethod
     def when_idle(cls, root: str, settle_ticks: int = 2) -> Trigger:
         return cls(TriggerKind.WHEN_IDLE, root=root, settle_ticks=settle_ticks)
+
+    @classmethod
+    def from_cron_job(cls, job: Mapping[str, Any], tz: str = "UTC") -> Trigger:
+        """Upstream's cron job record as a Trigger — the ONE compatibility door (B4, RULED 2026-10-18).
+
+        ``parse_schedule``'s kinds map one-to-one: ``once`` -> AT, ``interval`` -> EVERY, ``cron`` -> CRON.
+        A job is evaluated in a zone: its own ``tz`` / ``timezone`` when it carries one, else ``tz`` (the
+        configured Hermes zone upstream evaluates it in); a naive ``run_at`` is read in that zone. Nothing
+        of upstream's cron runner is imported; anything unreadable refuses ``schedule_invalid``.
+        """
+
+        schedule = job.get("schedule") if isinstance(job, Mapping) else None
+        convert = _FROM_CRON_KIND.get(str(schedule.get("kind") or "")) if isinstance(schedule, Mapping) else None
+        if convert is None:
+            raise WorkRefused(Reason.SCHEDULE_INVALID, "a cron job record carries no once/interval/cron schedule")
+        zone = str(job.get("tz") or job.get("timezone") or schedule.get("tz") or tz)
+        try:
+            return convert(schedule, zone)
+        except WorkRefused:
+            raise
+        except (KeyError, TypeError, ValueError) as exc:
+            raise WorkRefused(Reason.SCHEDULE_INVALID, f"cron job schedule: {exc}") from exc
+
+
+def _cron_run_at(schedule: Mapping[str, Any], zone: str) -> Trigger:
+    when = datetime.fromisoformat(str(schedule["run_at"]))
+    if when.utcoffset() is None:
+        defect = _zone_defect(zone)
+        if defect is not None:
+            raise WorkRefused(Reason.SCHEDULE_INVALID, defect)
+        when = when.replace(tzinfo=ZoneInfo(zone))
+    return Trigger.at_utc(when.astimezone(UTC))
+
+
+#: Upstream ``cron/jobs.py::parse_schedule`` kind -> the Trigger it is (plan §4: one-to-one).
+_FROM_CRON_KIND: dict[str, Callable[[Mapping[str, Any], str], Trigger]] = {
+    "once": _cron_run_at,
+    "interval": lambda schedule, _zone: Trigger.every(int(schedule["minutes"])),
+    "cron": lambda schedule, zone: Trigger.cron(str(schedule["expr"]), zone),
+}
 
 
 @dataclass(frozen=True)

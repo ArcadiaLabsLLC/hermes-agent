@@ -9,7 +9,8 @@ them only deferred a stale-code restart by the launcher's whole recheck
 interval (2026-10-08: attach at 04:25:14, drain at 04:26:05). A cron job
 running in this process holds it too: it runs on the scheduler's own pool,
 outside every turn table, so only ``cron.scheduler.get_running_job_ids()``
-sees it (upstream's gateway drain reads the same set). The refusal
+sees it (upstream's gateway drain reads the same set); a fire of the serve's own
+scheduler still on its root's send queue holds it the same way (``scheduled_turn``). The refusal
 names WHICH hold answered, so the launcher reads the reason and never guesses
 at idleness from a ``work`` count.
 """
@@ -33,6 +34,7 @@ class IdleDrainHold(str, Enum):
     CONVERSATION_TURN = "conversation_turn"
     DISCUSSION = "discussion"
     CRON_JOB = "cron_job"
+    SCHEDULED_TURN = "scheduled_turn"
     UNREADABLE = "unreadable"
 
     @property
@@ -52,7 +54,7 @@ def claim_idle_drain(session: Any) -> IdleDrainHold | None:
         return IdleDrainHold.CHAT_TURN
     if any(getattr(item, "is_long_run", False) for item in items):
         return IdleDrainHold.LONG_RUN
-    cron_hold = _cron_job_hold()
+    cron_hold = _cron_job_hold() or _scheduled_turn_hold()
     if cron_hold is not None:
         return cron_hold
     try:
@@ -92,3 +94,15 @@ def native_pending_count(owner: Any) -> int:
         return owner.pending_count()
     except Exception:
         return 1  # Unreadable ownership cannot prove idle.
+
+
+def _scheduled_turn_hold() -> IdleDrainHold | None:
+    """A scheduler fire still on its chat root's send queue (queued or running) holds the drain: the
+    queued-send runner runs it outside every turn table (``running_work`` kind ``scheduled_turn``)."""
+    from agent_runtime import chat_root_send_queue as send_queue
+
+    try:
+        waiting = send_queue.entries_from(send_queue.SCHEDULE_ORIGIN_KEY)
+    except OSError:
+        return IdleDrainHold.UNREADABLE
+    return IdleDrainHold.SCHEDULED_TURN if waiting else None

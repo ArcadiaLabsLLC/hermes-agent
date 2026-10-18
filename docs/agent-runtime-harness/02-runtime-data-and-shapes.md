@@ -752,6 +752,16 @@ ruling as ``mcp_job``: nothing left the wire, ``sources`` is a map, ``kind`` an
 open string. The goldens and ``work_list_empty.json`` moved; the launcher mirror
 is owed (``tests/fixtures/stream_frames/README.md``).
 
+54 KEPT (w5-sched, 2026-10-18) — ``running_work`` gained a ``scheduled_turn`` kind
+and SOURCE (RT-SCHEDULE-TURN-RUNNING-WORK, RULED: its own kind, not ``cron_job``):
+a fire of ``work_store/serve_scheduler.py::ServeTickScheduler`` from the moment it
+queues on its chat root until the runner removes the entry, read durably from the
+send-queue entries whose origin names a schedule
+(``running_work/lanes_schedule.py``). A row adds ``schedule_key``, ``fire``,
+``phase`` (``queued`` | ``running``) and ``work_request``. Same ruling as
+``tool_call``: nothing left the wire. The goldens and ``work_list_empty.json``
+moved; the launcher mirror is owed (``tests/fixtures/stream_frames/README.md``).
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.

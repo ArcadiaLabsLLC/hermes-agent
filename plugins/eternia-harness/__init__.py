@@ -401,6 +401,14 @@ def register(ctx) -> None:
         "skill_search", toolset="skills", schema=SKILL_SEARCH_SCHEMA, handler=_handle_skill_search,
         check_fn=_check_skill_search, emoji="🔎",
     )
+    # The serve scheduler's one tool (dispatcher plan §4, B4), in the opt-in `schedule` toolset — never
+    # harness_core: a persona schedules only when the operator opted its profile in.
+    from agent_runtime.work_store.schedule_tool import (
+        SCHEDULE_MANAGE_SCHEMA, SCHEDULE_TOOLSET, handle_schedule_manage,
+    )
+
+    ctx.register_tool("schedule_manage", toolset=SCHEDULE_TOOLSET, schema=SCHEDULE_MANAGE_SCHEMA,
+                      handler=handle_schedule_manage, emoji="⏰")
     # handler_fn=None: every harness subparser sets its own func= (behind _harness_entry).
     ctx.register_cli_command("harness", help=_HARNESS_HELP, setup_fn=_setup_harness_parser, handler_fn=None)
     ctx.register_cli_command(

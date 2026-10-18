@@ -23,7 +23,7 @@ from hermes_cli.harness_parts.serve.frames import _request_id, _request_sink
 
 __layer__ = "lanes"
 
-__all__ = ["QueuedTurnStream", "queued_turn_runner_policy", "start_serve_work_engine"]
+__all__ = ["QueuedTurnStream", "queued_turn_runner_policy", "start_serve_scheduler", "start_serve_work_engine"]
 
 
 class _ControlSink:
@@ -137,4 +137,23 @@ def start_serve_work_engine(session: Any) -> Any:
         session.work_engine = WorkEngine(executor=session.work_executor, **hooks)
     start_work_engine(stop_event=session.liveness_stop, engine=session.work_engine, home=home,
                       on_tick=session.work_executor.wake_parked)
+    start_serve_scheduler(session)
     return session.work_engine
+
+
+def start_serve_scheduler(session: Any) -> Any:
+    """Tick the serve's ``ServeTickScheduler`` (dispatcher plan §2.3, B4) on the Work executor.
+
+    Started with the Work engine, so a fire queues through the same executor whose settles the runner
+    reports; it fires nothing once the drain begins. Returns the scheduler.
+    """
+
+    from agent_runtime.work_store.engine import home_scope
+    from agent_runtime.work_store.serve_scheduler import ServeTickScheduler, start_schedule_ticker
+
+    home = getattr(session, "serve_request_home", None)
+    with home_scope(home):
+        session.scheduler = ServeTickScheduler(executor=session.work_executor,
+                                               can_dispatch=lambda: session.drain_state is None)
+    start_schedule_ticker(stop_event=session.liveness_stop, scheduler=session.scheduler, home=home)
+    return session.scheduler
