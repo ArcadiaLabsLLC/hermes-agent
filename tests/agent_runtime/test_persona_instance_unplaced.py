@@ -2,7 +2,7 @@
 
 THE LIVE DEFECT, measured 2026-09-11. The operator's Default workspace dropdown
 read "3 agents" while the office canvas drew two. The third was
-``personainst_chara_a2_7b31d0e4`` ("Chara A2 – Tier1 authoring"): minted by
+``personainst_chara_a2_7b31d0e4_agent_1`` ("Chara A2 – Tier1 authoring"): minted by
 ``persona instance create`` on 08-28, so its id carries no ``_agent_`` marker;
 placed on the Default floor on 09-01; removed on 09-04. The launcher routed that
 removal to ``runtime.office.remove`` — on the strength of the id's SPELLING —
@@ -75,7 +75,7 @@ OTHER_WORKSPACE = "ws_unplaced_other"
 #: The 2026-09-11 id, verbatim in its shape: an instance minted by
 #: ``persona instance create``, so no ``_agent_`` marker, and an office actor's
 #: ``persona_instance_id`` all the same.
-PLACEMENT_ID = "chara_a2_7b31d0e4"
+PLACEMENT_ID = "chara_a2_7b31d0e4_agent_1"
 
 
 @pytest.fixture
@@ -145,13 +145,19 @@ def _place(*, workspace_id: str = WORKSPACE, placement_id: str = PLACEMENT_ID) -
     return {"persona_instance_id": instance.id, "actor_key": instance.id}
 
 
-def test_the_placement_verb_really_does_refuse_this_id_shape(seeded_workspaces):
-    """The premise the whole suite rests on, checked rather than assumed.
+#: The 2026-09-11 ghost's own token: no ``_agent_`` marker. No door can mint it now.
+UNMARKED_PLACEMENT_ID = "chara_a2_7b31d0e4"
 
-    If ``agent.create`` ever started accepting an unmarked placement id, the
-    fixture above would stop being the only route to this state and the story
-    these tests tell about WHY the launcher's spelling split looked safe would
-    be wrong. Pinned so that change cannot be silent.
+
+def test_the_placement_verb_really_does_refuse_this_id_shape(seeded_workspaces):
+    """Both routes that minted the ghost now refuse its id shape
+    (RT-AGENT-CREATE-REFUSES-UNMARKED, owner ruling 2026-10-15: one id shape,
+    one rule). The create door refused it already; the store's
+    ``add_instance`` (the ``persona instance create`` route) now refuses it too,
+    so the classifier's id-blindness is about legacy rows on disk, not new ones.
+
+    KILLING MUTATION: drop the ``looks_like_deliberate_placement`` floor in
+    ``PersonaInstanceStore.add_instance`` -> the ``pytest.raises`` below fails.
     """
 
     from agent_runtime.agent_create import perform_agent_create
@@ -162,11 +168,15 @@ def test_the_placement_verb_really_does_refuse_this_id_shape(seeded_workspaces):
             "workspace_id": WORKSPACE,
             "position": [0.0, 0.0],
             "idempotency_key": "unplaced-fixture-premise",
-            "placement_id": PLACEMENT_ID,
+            "placement_id": UNMARKED_PLACEMENT_ID,
         }
     )
     assert outcome.refusal is not None
     assert outcome.refusal.data["reason"] == "placement_id_not_discriminable"
+    with pytest.raises(ValueError, match="placement_id_not_discriminable"):
+        PersonaInstanceStore().add_instance(
+            persona_id="qa", placement_id=UNMARKED_PLACEMENT_ID, workspace_id=WORKSPACE
+        )
 
 
 def _age_row(instance_id: str, *, days: float) -> None:
@@ -469,3 +479,33 @@ def test_reconcile_is_idempotent_on_the_unplaced_lane(seeded_workspaces):
     second = reconcile_persona_instances(apply=True)
     assert second["unplaced_pruned"] == []
     assert second["unplaced_held"] == []
+
+
+# ── the snapshot's warning (RT-SNAPSHOT-UNPLACED-INSTANCE) ──────────────────
+
+
+def _snapshot_warnings(monkeypatch) -> list[dict]:
+    from agent_runtime.config import AgentRuntimeConfig
+    from agent_runtime.snapshot import build_snapshot
+
+    cfg = AgentRuntimeConfig()
+    monkeypatch.setattr("agent_runtime.snapshot.envelope.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.sections.load_agent_runtime_config", lambda: cfg)
+    return list(build_snapshot()["parity"]["warnings"])
+
+
+def test_the_snapshot_names_the_ghost_the_reconcile_lane_would_prune(seeded_workspaces, monkeypatch):
+    """The launcher learns of a ghost from the snapshot, not only from
+    ``reconcile --dry-run``: same classifier, evidence carried on the office row."""
+
+    placed = _place()
+    instance_id = placed["persona_instance_id"]
+    before = {w.get("entity_id") for w in _snapshot_warnings(monkeypatch) if w.get("code") == "unplaced_persona_instance"}
+    assert instance_id not in before, "a placed instance must not warn (the control)"
+
+    seeded_workspaces.remove_actor(WORKSPACE, placed["actor_key"])
+    _age_row(instance_id, days=5)
+
+    after = [w for w in _snapshot_warnings(monkeypatch) if w.get("code") == "unplaced_persona_instance"]
+    assert [w["entity_id"] for w in after] == [instance_id]
+    assert {w["entity_id"] for w in after} == _ids(_classify(seeded_workspaces)["prunable"])

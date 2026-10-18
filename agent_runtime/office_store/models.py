@@ -16,6 +16,7 @@ __layer__ = "models"
 
 __all__ = [
     "ActorScan",
+    "ARCHIVED_ACTOR_FILES_RETAIN",
     "ARCHIVED_LEDGER_CAP",
     "ConflictScan",
     "MAX_FOLDERS",
@@ -30,6 +31,14 @@ __all__ = [
 
 
 ARCHIVED_LEDGER_CAP = 5000
+#: How many archived actor FILES one workspace keeps under ``office/<ws>/archive/``
+#: (owner ruling 2026-10-15, RT-OFFICE-ARCHIVE-DIRECTORY): the newest 20, the
+#: same bound the agent archive keeps. The tombstone is the surface's
+#: ``archived_actor_keys`` ledger (``ARCHIVED_LEDGER_CAP``), not the file, so a
+#: pruned copy never lets a removed key resurrect; what goes is
+#: ``actor-restore`` for the 21st-oldest removal and the history an unbounded
+#: directory made every reader walk.
+ARCHIVED_ACTOR_FILES_RETAIN = 20
 MAX_ITEMS_PER_ACTOR = 32
 MAX_FOLDERS = 64
 

@@ -226,7 +226,7 @@ def test_retired_persona_instance_send_refusal_is_durably_recorded(
     db = _canonical_db()
     harness = _chat_lane(monkeypatch, db)
     store = PersonaInstanceStore()
-    instance = store.add_instance(persona_id="dev", placement_id="dev_agent_retired")
+    instance = store.add_instance(persona_id="dev", placement_id="dev_agent_retired_agent_1")
     db.create_session(
         instance.session_id,
         "agent_runtime_persona_chat",

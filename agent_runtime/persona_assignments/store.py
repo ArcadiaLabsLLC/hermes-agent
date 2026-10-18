@@ -407,6 +407,22 @@ class PersonaInstanceStore:
         normalized_placement = safe_assignment_token(placement_id)
         if not normalized_placement:
             raise ValueError("placement_id is required for an additional persona instance")
+        # ONE id shape and one rule (owner ruling 2026-10-15,
+        # RT-AGENT-CREATE-REFUSES-UNMARKED): every placement door already asked
+        # this, but the store took any token, and that is how the unmarked
+        # ``personainst_chara_a2_7b31d0e4`` ghost was minted. The doors keep
+        # their typed refusals; this is the floor none of them can skip.
+        from agent_runtime.models import (
+            PLACEMENT_ID_NOT_DISCRIMINABLE_REASON,
+            looks_like_deliberate_placement,
+            placement_id_not_discriminable_message,
+        )
+
+        if not looks_like_deliberate_placement(normalized_placement):
+            raise ValueError(
+                f"{PLACEMENT_ID_NOT_DISCRIMINABLE_REASON}: "
+                + placement_id_not_discriminable_message(normalized_placement)
+            )
         instance_id = persona_instance_id_for_placement(normalized_placement)
         try:
             existing = self.get(instance_id)

@@ -4572,7 +4572,7 @@ def test_contention_warning_still_fires_for_genuinely_open_goal():
 # ---------------------------------------------------------------------------
 
 
-def _placement_instance(persona_id: str = "dev", placement_id: str = "scene_child_2", display_name: str = "Dev (2)") -> PersonaInstance:
+def _placement_instance(persona_id: str = "dev", placement_id: str = "scene_child_2_agent_1", display_name: str = "Dev (2)") -> PersonaInstance:
     return PersonaInstanceStore().add_instance(
         persona_id=persona_id,
         placement_id=placement_id,
@@ -4585,7 +4585,7 @@ def test_retire_archives_placement_row_and_emits_event(isolate_agent_runtime_roo
 
     store = PersonaInstanceStore()
     instance = _placement_instance()
-    assert instance.id == "personainst_scene_child_2"
+    assert instance.id == "personainst_scene_child_2_agent_1"
     session_id = instance.session_id
     assert session_id  # a real chat session pointer we must NOT destroy
 

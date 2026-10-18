@@ -113,6 +113,13 @@ eviction — a doctor remediation, a dispatch step, a census cleanup aimed only 
 local projection; that lane gets its own local-only mode rather than borrowing
 this one.
 
+**Archive retention (ruled 2026-10-15).** `office/<ws>/archive/` keeps the newest
+`ARCHIVED_ACTOR_FILES_RETAIN` (20) actor copies per workspace; every archive write prunes
+the older ones (`_prune_archived_actor_files`, logged as `office archive retention`). The
+tombstone is the `archived_actor_keys` ledger, not the file, so a pruned key still refuses a
+plain re-add; what the 21st-oldest removal loses is `actor-restore`. A `--local-only` removal
+has no ledger entry, so once its copy is pruned nothing fences it.
+
 **What that local-only mode withholds, and what it does not (AX7).**
 `remove_actor` writes two things: the archive copy, and the
 `archived_actor_keys` ledger entry. Only the ledger crosses machines —
@@ -222,6 +229,15 @@ chokepoint, by the owner's general ruling that old schema is reported so it can
 be deleted and replaced rather than kept alive by a compatibility path. Hermes
 holds no migration for them and needs none: an old `<persona>_desk` item still
 decodes and still writes here, because this store never knew what the id meant.
+
+The launcher's drop is a READ, so an actor whose only item was a legacy desk was never
+rewritten and its file stayed. Owner ruling 2026-10-15 (RT-DROPPED-LEGACY-DESK-LEAVES):
+clean them up once and report the count. `agent_runtime.office_legacy_migration`'s
+`sweep_legacy_desks` step (one-shot per store, report in
+`<store>/migrations/office_legacy_desks.json`) drops every desk whose `persona_id` is not
+its own `item_id` from each LIVE actor file, and archives through `remove_actor` an actor
+left with no items. `is_legacy_desk_item` is the launcher's
+`missionOfficeIsLegacyDeskAddress`, spelled once on this side.
 
 The plan is `EterniaLauncher/docs/archive/mission_control/generic-desk-and-inspector-tables.md`
 (slice 1 is this change), cited in prose rather than linked because a cross-repo
@@ -1115,6 +1131,18 @@ find this key" to the operator sentence; the CLI prints the guess list under
 hands over a count and no tokens. Both keys are additive — a row from an older
 core has no such list, which reads as exactly the claim the bare list used to
 make silently.
+
+**The `unplaced_persona_instance` warning (2026-10-18, RT-SNAPSHOT-UNPLACED-INSTANCE).**
+`_offices_summary` also gathers, per workspace, the instances an ARCHIVED actor of that
+office was bound to and no live actor there still is (`scan_actors(include_archived=True)`,
+bounded by the archive retention above; `None` when either directory had an unreadable
+file). That evidence is BUILD-ONLY: `OfficesProjection.archived_placement_instance_ids`
+reaches `parity_envelope(office_evidence=)` as an argument and never rides the frame, so
+the byte-pinned stream goldens do not move. The parity check runs
+`classify_unplaced_persona_instances` (the classifier the reconcile lane prunes by) and
+emits `unplaced_persona_instance` / `held_unplaced_persona_instance`; it says nothing when
+the evidence is absent or `None`, or any office row's live list is truncated or unreadable.
+The launcher shows it through its generic `warningCodes`; no launcher change is needed.
 
 **`office_actors_unreadable` out of `copy_workspace_content`**, same commit and
 same shape: it skipped an undecodable source actor and emitted NOTHING, while

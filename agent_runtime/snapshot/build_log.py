@@ -51,7 +51,7 @@ BUILD_REASON_UNKNOWN = "-"
 #: ``builds_overlapped`` -- and a ``role=led`` grep must keep counting led builds.
 SNAPSHOT_BUILD_SHADOW_RECEIPT = (
     "snapshot_build_shadow caller=%s reason=shadow build_ms=%s offset=%s sections_top=%s "
-    "executor=%s turns=%s worker_pid=%s pid=%d"
+    "sections=%s executor=%s turns=%s worker_pid=%s pid=%d"
 )
 
 #: The pid a build-time receipt names. A worker build's receipts are written by
@@ -124,13 +124,14 @@ def _log_snapshot_build_core(
     facts = build_receipt_facts(snapshot)
     logger.info(
         "snapshot_build_core role=%s caller=%s generation=%s build_ms=%s offset=%s "
-        "sections_top=%s reason=%s executor=%s turns=%s worker_pid=%s pid=%d",
+        "sections_top=%s sections=%s reason=%s executor=%s turns=%s worker_pid=%s pid=%d",
         BUILD_ROLE_LED,
         caller,
         "-" if generation is None else int(generation),
         "unknown" if facts["build_ms"] is None else int(facts["build_ms"]),
         "unknown" if facts["offset"] is None else int(facts["offset"]),
         facts["sections_top"],
+        facts["sections"],
         reason or BUILD_REASON_UNKNOWN,
         executor,
         turns or "-",
@@ -151,6 +152,7 @@ def _log_snapshot_build_shadow(
         "unknown" if facts["build_ms"] is None else int(facts["build_ms"]),
         "unknown" if facts["offset"] is None else int(facts["offset"]),
         facts["sections_top"],
+        facts["sections"],
         executor,
         turns or "-",
         _pid_field(worker_pid),

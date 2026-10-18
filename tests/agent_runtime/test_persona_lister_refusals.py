@@ -104,8 +104,8 @@ def test_steering_repair_refuses_typed_when_a_row_will_not_decode(
     """
 
     store = PersonaInstanceStore()
-    parent = _instance("steer_parent")
-    child = _instance("steer_child", display_name="Child")
+    parent = _instance("steer_parent_agent_1")
+    child = _instance("steer_child_agent_1", display_name="Child")
     store.steer(child.id, parent_instance_id=parent.id)
 
     # The parent is live and readable; the corruption is elsewhere entirely.
@@ -145,8 +145,8 @@ def test_steering_repair_destroys_no_edge_it_cannot_prove_is_dangling(
     """
 
     store = PersonaInstanceStore()
-    parent = _instance("recorder_parent")
-    child = _instance("recorder_child", display_name="Child")
+    parent = _instance("recorder_parent_agent_1")
+    child = _instance("recorder_child_agent_1", display_name="Child")
     store.steer(child.id, parent_instance_id=parent.id)
 
     # THE PARENT ITSELF is the row that will not decode, which is the scenario
@@ -156,7 +156,7 @@ def test_steering_repair_destroys_no_edge_it_cannot_prove_is_dangling(
     # exercise this — an earlier draft of this gate did exactly that and passed
     # against the mutant, because nothing pointed at the row it corrupted.
     paths.persona_instance_path(parent.id).write_text(
-        '{"id": "personainst_recorder_parent"', encoding="utf-8"
+        '{"id": "personainst_recorder_parent_agent_1"', encoding="utf-8"
     )
 
     before = _instance_row_bytes()
@@ -180,8 +180,8 @@ def test_steering_repair_still_strips_a_genuinely_dangling_parent(
     """
 
     store = PersonaInstanceStore()
-    parent = _instance("gone_parent")
-    child = _instance("live_child", display_name="Child")
+    parent = _instance("gone_parent_agent_1")
+    child = _instance("live_child_agent_1", display_name="Child")
     store.steer(child.id, parent_instance_id=parent.id)
     paths.persona_instance_path(parent.id).unlink()
 
@@ -223,7 +223,7 @@ def test_an_undecodable_assignment_row_is_no_longer_a_retire_refusal(
     """
 
     store = PersonaInstanceStore()
-    instance = _instance("retire_me")
+    instance = _instance("retire_me_agent_1")
     corrupt = _corrupt_assignment_rows(corrupt_count)
 
     result = store.retire(instance.id, reason="placement deleted")
@@ -238,7 +238,7 @@ def test_retire_succeeds_on_a_clean_store(isolate_agent_runtime_root):
     """The fence is not a disabled verb."""
 
     store = PersonaInstanceStore()
-    instance = _instance("retire_clean")
+    instance = _instance("retire_clean_agent_1")
     result = store.retire(instance.id, reason="placement deleted")
     assert result["persona_instance_id"] == instance.id
     assert not paths.persona_instance_path(instance.id).exists()
@@ -256,7 +256,7 @@ def test_a_retire_no_longer_reads_the_assignment_store_at_all(
     """
 
     store = PersonaInstanceStore()
-    instance = _instance("retire_faulted")
+    instance = _instance("retire_faulted_agent_1")
 
     def _explode(self):
         raise AssertionError("the retire must not scan the assignment store")
@@ -287,8 +287,8 @@ def test_owner_removal_refuses_when_child_backlinks_cannot_all_be_seen(
     """
 
     store = PersonaInstanceStore()
-    parent = _instance("owner_parent")
-    child = _instance("owner_child", display_name="Child")
+    parent = _instance("owner_parent_agent_1")
+    child = _instance("owner_child_agent_1", display_name="Child")
     store.steer(child.id, parent_instance_id=parent.id)
     _corrupt_instance_rows(corrupt_count)
 
@@ -315,7 +315,7 @@ def test_session_ownership_guard_refuses_rather_than_answering_unowned(
     """
 
     store = PersonaInstanceStore()
-    instance = _instance("owner_a")
+    instance = _instance("owner_a_agent_1")
     _corrupt_instance_rows(corrupt_count)
 
     with pytest.raises(PersonaInstancesUnreadable) as excinfo:
@@ -329,8 +329,8 @@ def test_session_ownership_guard_still_detects_a_real_owner(isolate_agent_runtim
     """Clean store: the guard still answers the question it exists for."""
 
     store = PersonaInstanceStore()
-    first = _instance("owner_first")
-    second = _instance("owner_second", display_name="Second")
+    first = _instance("owner_first_agent_1")
+    second = _instance("owner_second_agent_1", display_name="Second")
     session_id = PersonaInstanceStore().get(first.id).default_chat_session_id
     assert session_id, "the fixture must give the first instance a chat pointer"
 
@@ -351,8 +351,8 @@ def test_steering_cycle_check_refuses_when_an_ancestor_will_not_decode(
     """
 
     store = PersonaInstanceStore()
-    parent = _instance("cycle_parent")
-    child = _instance("cycle_child", display_name="Child")
+    parent = _instance("cycle_parent_agent_1")
+    child = _instance("cycle_child_agent_1", display_name="Child")
 
     corrupt_names = _corrupt_instance_rows(corrupt_count)
     corrupt_ids = [Path(name).stem for name in corrupt_names]
@@ -382,8 +382,8 @@ def test_steering_cycle_check_still_admits_and_still_rejects_on_a_clean_store(
     """
 
     store = PersonaInstanceStore()
-    parent = _instance("clean_parent")
-    child = _instance("clean_child", display_name="Child")
+    parent = _instance("clean_parent_agent_1")
+    child = _instance("clean_child_agent_1", display_name="Child")
 
     # Admits a legitimate edge.
     store._validate_no_steering_cycle(child.id, parent.id)

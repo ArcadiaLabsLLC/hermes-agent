@@ -185,8 +185,8 @@ what the fixture mirror below enforces.
 
 | receipt (grep this) | emitter | consumer |
 |---|---|---|
-| `snapshot_build_core role=… caller=… generation=… build_ms=… offset=… sections_top=… reason=… executor=… turns=… worker_pid=… pid=…` | `agent_runtime/snapshot/build_log.py::_log_snapshot_build_core`, called from `snapshot/build.py::_lead_build_now` | operator grep (`role=led` is the build count); `hermes harness observe snapshot-builds`; `tests/agent_runtime/test_snapshot_build_logging.py` pins the prefix and `pid` last |
-| `snapshot_build_shadow caller=… reason=shadow build_ms=… offset=… sections_top=… executor=… turns=… worker_pid=… pid=…` | const `SNAPSHOT_BUILD_SHADOW_RECEIPT` (`snapshot/build_log.py`), emitted by `snapshot/build.py::_shadow_build` | the cache-hit boot's shadow validation build, which had no line; NOT `role=led` (it holds no coalescer slot and is not in `builds_overlapped`); `observe snapshot-builds`; `tests/agent_runtime/test_snapshot_worker.py` |
+| `snapshot_build_core role=… caller=… generation=… build_ms=… offset=… sections_top=… sections=… reason=… executor=… turns=… worker_pid=… pid=…` | `agent_runtime/snapshot/build_log.py::_log_snapshot_build_core`, called from `snapshot/build.py::_lead_build_now` | operator grep (`role=led` is the build count); `hermes harness observe snapshot-builds`; `tests/agent_runtime/test_snapshot_build_logging.py` pins the prefix and `pid` last |
+| `snapshot_build_shadow caller=… reason=shadow build_ms=… offset=… sections_top=… sections=… executor=… turns=… worker_pid=… pid=…` | const `SNAPSHOT_BUILD_SHADOW_RECEIPT` (`snapshot/build_log.py`), emitted by `snapshot/build.py::_shadow_build` | the cache-hit boot's shadow validation build, which had no line; NOT `role=led` (it holds no coalescer slot and is not in `builds_overlapped`); `observe snapshot-builds`; `tests/agent_runtime/test_snapshot_worker.py` |
 | `snapshot_worker op=spawn/lost/retired/off/close …` (`lost` carries `reason=` one of `exited`, `silent` (no `snapshot.ready` within 20 s of the spawn, or no beat for 5 s), `idle` (the request's thread burned no CPU for 15 s), `timeout`, `build_error`, `bad_reply`, `spawn_failed`, then `fallback=in_process`) | consts in `agent_runtime/snapshot_worker/executor.py` (`WORKER_*_RECEIPT`) | the resident snapshot worker's life; `op=lost` lines are `observe snapshot-builds`' `worker_fallbacks`; `tests/agent_runtime/test_snapshot_worker.py` |
 | `chat_turn_duplicate_refused request= twin= verb= client_message_id=` | `DUPLICATE_REFUSED_RECEIPT` in `hermes_cli/harness_parts/serve/request_pool.py` | a chat turn presented again (same `--client-message-id`) while another worker of this serve runs it: no handler ran, the request was answered `chat_turn_duplicate_in_flight` (exit 2); `tests/agent_runtime/test_pool_starve_downstream.py` |
 | `chat_turn_accept_to_anchor request=… queue_ms=… link_ms=… dispatch_ms=… total_ms=… turn=…` | `ACCEPT_TO_ANCHOR_RECEIPT` in `agent_runtime/turn_activity.py`, emitted by `admitted_turn` at the handler anchor | one line per turn that came through the serve's pool: where accept -> anchor went (`queue` behind other work, `link` the Launcher app-function bind, `dispatch` the argv parse and imports). `turn=` (h-perf-guard) is the client message id; a line written before it joins its turn record on the anchor instant. `hermes harness observe turn-timing`; `tests/agent_runtime/test_turn_timing_census_downstream.py`, `test_pool_starve_downstream.py` |
@@ -219,7 +219,7 @@ boot's "three concurrent builds" were one build plus two riders logging their
 waits, and the most expensive build of that boot — the serve prewarm — logged
 nothing at all (`snapshot/build_log.py:34-41`). A build that raised logs nothing: "the
 exception is the receipt" (`:685-686`). An injected-store (fixture) build emits
-no receipt (`:570-573`). `sections_top` rides every `snapshot_build_core`, and a
+no receipt (`:570-573`). `sections_top` (the top three) and, since 2026-10-18, `sections` (EVERY section, same order and format; RT-SECTIONS-TOP-PRINTS-THREE) ride every `snapshot_build_core`, and a
 WAIT line only when the build under it crossed `BUILD_SECTIONS_WAIT_THRESHOLD_MS`
 (`agent_runtime/stream/build.py::_is_one_shot`). `pid=` goes LAST on
 all three join families so no adjacency moves — an additive field, never a
@@ -698,12 +698,13 @@ as a compatible change. Nothing in the launcher read the key (checked
 repo-wide), and `orphan_actors`, `unplaced_rows` and `duplicate_placements` are
 untouched: all three ask about ACTORS and item IDs, never about kinds.
 
-`OfficeItem.minted_kind` (H-H12) was stamped for that classifier and is now
-stamped with NO reader. It is deliberately left in place: it is persisted
-provenance on every item every store has written since 2026-08-30, it is
-excluded from `office_content_hash` (`office_models._ITEM_HASH_EXCLUDE`) and
-from the wire, and removing it is a stored-data change that belongs to whoever
-decides it is worth one. Recorded here rather than left to be rediscovered.
+`OfficeItem.minted_kind` (H-H12) was stamped for that classifier and outlived it
+with no reader. It was DELETED on 2026-10-18 (RT-OFFICEITEM-MINTED-KIND, the standing
+old-schema rule): the field, its stamp and its `office_content_hash` exclusion are gone,
+and `agent_runtime.office_legacy_migration` strips the stored key from every live and
+archived actor file once per store, reporting the count in
+`<store>/migrations/office_item_minted_kind.json`. Hashes do not move: the key was
+already excluded.
 
 **`duplicate_placements`** (H-H8) is the section's second sweep, and it
 OUTLIVED the residual it was written for: an instance-keyed write claiming an

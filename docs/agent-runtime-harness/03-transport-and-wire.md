@@ -1460,6 +1460,34 @@ chat-lane doc. Relay hops are gated by `agent_runtime/relay_policy.py` — one
 authority, so in-process tool relay, CLI and serve transport get the same depth
 / cycle / budget answer from explicit envelope data rather than inference.
 
+## 11. Wire value contracts — what a value MEANS (owner rulings 2026-10-15)
+
+The launcher decodes one wire fact in several files; where those readers disagreed the
+disagreement was a per-file policy with no hermes contract behind it. These rules are that
+contract. Producer halves are pinned in `tests/agent_runtime/test_wire_value_contracts.py`.
+
+**11.1 Integers are strict (RT-WIRE-FACT-DECODES-DIFFERENT).** Every integer hermes puts
+on the wire is a JSON integer: never a numeric string, never a float, never a bool. A
+reader may refuse anything else and must not round or truncate a number into one. A value
+hermes does not know is ABSENT (or `null`), never a sentinel it invents; a value a tool
+reported is passed through as reported, so a tool's `exit_code` of `-1` (upstream's
+terminal and code-kernel spelling of "no process exit") is `-1` on every lane, not absent
+on one and `-1` on another. Gate: every integer-named key in a built hydrate frame and in
+every committed stream golden is a JSON integer.
+
+**11.2 An empty realm-adopt reply is a failure (RT-TWO-RESOLVERS-ANSWER-HARNESS).**
+`harness realm adopt` succeeds with exit 0 and a non-empty `kind: list` envelope, even
+when nothing was adopted (`count: 0`); it fails with a non-zero exit and an error
+envelope. A reply with exit 0 and no payload, or a null payload, is therefore never
+success, and every reader of the verb treats it as a failure. Gate: a successful adopt
+of nothing still answers the list envelope.
+
+**11.3 An absent status word is `unknown` (RT-MISSIONAGENTLOGSTATUS).** Hermes writes
+a `state` on every persona-instance row (a `WorkerSessionState` value, `idle` by
+default) and does not emit agent-log rows at all (the launcher derives them). So no
+hermes row ever omits its status word, and a reader that finds none has no evidence of
+anything: it reads `unknown` on every door, never `idle`.
+
 ## Invariants
 
 1. **Parse per line, branch on `type`, ignore unknown fields.** Hub-vs-argv
