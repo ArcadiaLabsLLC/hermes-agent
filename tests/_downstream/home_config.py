@@ -15,6 +15,10 @@ that points ``HERMES_HOME`` at its own directory is untouched.
 
 ``hermes_cli.config`` is never imported for a test (import order is some tests' subject): a
 test that has not loaded it yet gets no file.
+
+The home sits inside the test's ``tmp_path``, so a test whose subject is that directory gets
+no file (``BARE_HOME_FILES``): one that ``git init``s ``tmp_path`` and reads its status, and
+one that proves no ROOT config exists before it writes one.
 """
 
 from __future__ import annotations
@@ -33,8 +37,18 @@ def stamped_config_text(config_module) -> str | None:
     return f"_config_version: {version}\n"
 
 
+#: Test files whose subject is the bare ``tmp_path`` the home sits in (land h1018).
+BARE_HOME_FILES = frozenset({
+    "tests/agent_runtime/test_dirty_state.py",
+    "tests/agent_runtime/test_root_config_hermetic.py",
+})
+
+
 @pytest.fixture(autouse=True)
-def _home_carries_a_config(_hermetic_environment):
+def _home_carries_a_config(request, _hermetic_environment):
+    if Path(str(request.node.path)).as_posix().split("/tests/", 1)[-1] in {
+            name.split("tests/", 1)[1] for name in BARE_HOME_FILES}:
+        return
     config_module = sys.modules.get("hermes_cli.config")
     if config_module is None:
         return

@@ -126,7 +126,7 @@ def template_key(sandbox: str | None = None) -> tuple:
     return (hash(modules), _attr_ids(vars(session_db), sandbox), config, env)
 
 
-def _strip(path: Path) -> None:
+def _strip_fresh_open_marks(path: Path) -> None:
     """Undo what a fresh open mints, so the next open of a copy mints its own."""
 
     conn = sqlite3.connect(str(path), isolation_level=None)
@@ -140,7 +140,7 @@ def _strip(path: Path) -> None:
         conn.close()
 
 
-def _build(tmp_path_factory, init) -> tuple[bytes, tuple[str, ...]]:
+def _build_template(tmp_path_factory, init) -> tuple[bytes, tuple[str, ...]]:
     from hermes_state import SessionDB
 
     path = tmp_path_factory.mktemp("session_db_template") / "state.db"
@@ -151,7 +151,7 @@ def _build(tmp_path_factory, init) -> tuple[bytes, tuple[str, ...]]:
         db.close()
     finally:
         _BUILDING.active = False
-    _strip(path)
+    _strip_fresh_open_marks(path)
     sidecars = tuple(
         p.name[len(path.name):] for p in path.parent.iterdir() if p.name.startswith(path.name + ".") and p.name.endswith(".lock")
     )
@@ -166,7 +166,7 @@ def _seed(target: Path, tmp_path_factory, init) -> None:
     with _LOCK:
         template = _TEMPLATES.get(key)
         if template is None:
-            template = _TEMPLATES[key] = _build(tmp_path_factory, init)
+            template = _TEMPLATES[key] = _build_template(tmp_path_factory, init)
     data, sidecars = template
     hermes_state.mkdir_under_hermes_home(target.parent)  # what _open_writer does first, idempotent
     with open(target, "xb") as handle:  # never over a store that appeared meanwhile

@@ -40,6 +40,7 @@ import os
 import re
 import sys
 import threading
+import logging
 import types
 from dataclasses import dataclass, field
 from pathlib import Path, PurePath
@@ -86,27 +87,31 @@ class _Kept:
 _KEPT: dict[tuple[str, str], _Kept] = {}
 
 
+def _attrs_picture(value: Any) -> Any:
+    attrs = getattr(value, "__dict__", None)
+    if not (isinstance(value, type) or isinstance(attrs, dict)):
+        return None
+    items = dict(vars(value)) if isinstance(value, type) else dict(attrs)
+    return ("attrs", tuple((k, v, _contents(v) if isinstance(v, _CONTAINERS) else None)
+                           for k, v in items.items()))
+
+
+#: How each mutable kind is pictured: (types, picture). The first match wins; a kind not
+#: listed falls through to its ``__dict__``. ``None`` = never compared.
+_PICTURES: tuple = (
+    (_IMMUTABLE + (types.ModuleType, types.FunctionType, types.BuiltinFunctionType, types.MethodType,
+                   logging.Logger, logging.LoggerAdapter), lambda value: None),
+    ((dict,), lambda value: ("dict", tuple(value.items()))),
+    ((list, bytearray), lambda value: ("seq", tuple(value))),
+    ((set,), lambda value: ("set", frozenset(value))),
+)
+
+
 def _contents(value: Any) -> Any:
     """A shallow, identity-comparable picture of a mutable value; None when it is not compared."""
 
-    if isinstance(value, _IMMUTABLE) or isinstance(value, (types.ModuleType, types.FunctionType,
-                                                           types.BuiltinFunctionType, types.MethodType)):
-        return None
-    if isinstance(value, dict):
-        return ("dict", tuple(value.items()))
-    if isinstance(value, (list, bytearray)):
-        return ("seq", tuple(value))
-    if isinstance(value, set):
-        return ("set", frozenset(value))
-    import logging
-    if isinstance(value, (logging.Logger, logging.LoggerAdapter)):
-        return None
-    attrs = getattr(value, "__dict__", None)
-    if isinstance(value, type) or isinstance(attrs, dict):
-        items = dict(vars(value)) if isinstance(value, type) else dict(attrs)
-        return ("attrs", tuple((k, v, _contents(v) if isinstance(v, _CONTAINERS) else None)
-                               for k, v in items.items()))
-    return None
+    picture = next((make for kinds, make in _PICTURES if isinstance(value, kinds)), _attrs_picture)
+    return picture(value)
 
 
 def _same(a: Any, b: Any) -> bool:
@@ -129,7 +134,7 @@ def _same(a: Any, b: Any) -> bool:
     return True
 
 
-def _owned(module: types.ModuleType, package: str, value: Any) -> bool:
+def _owned_by_plugin(module: types.ModuleType, package: str, value: Any) -> bool:
     """Whether a global is state the package's import created (classes/objects), not an imported object."""
 
     if isinstance(value, type):
@@ -230,7 +235,7 @@ def _snapshot(name: str, env_before: dict[str, str]) -> _Kept:
         for key, value in namespace.items():
             if key.startswith("__") and key.endswith("__"):
                 continue
-            if _owned(module, name, value):
+            if _owned_by_plugin(module, name, value):
                 picture = _contents(value)
                 if picture is not None:
                     kept.contents[(mod_name, key)] = (value, picture)
