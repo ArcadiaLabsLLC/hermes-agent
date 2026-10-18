@@ -229,3 +229,12 @@ def test_a_bash_that_started_is_not_probed_again():
     finally:
         watching.clear()
     assert spawns == []
+
+
+def test_every_test_starts_with_an_empty_bash_memo(request):
+    """``tests/_downstream/bash_resolution_reset.py``: the production bash memo
+    (``agent_runtime/bash_resolution_memo.py``) is emptied before every test, so a test that fakes a
+    candidate is never handed an earlier test's bash. Mutation: drop the ``_bash_resolution_reset``
+    re-export from ``conftest_plugin``."""
+
+    assert "_bash_resolution_reset" in request.fixturenames

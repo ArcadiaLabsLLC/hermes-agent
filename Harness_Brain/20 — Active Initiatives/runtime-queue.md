@@ -666,7 +666,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-10-18 (lane r-state, branch `q/r-state`)
 
-- [ ] **`pm.shell.bash()` spawns a `bash -c "exit 0"` probe on every call, and `tools/environments/local.py::_find_bash` calls it for every local-backend command, so each Windows command costs two bash spawns (~0.3 s each)** · upstream-owned (`pm/shell.py`) · evidence: lane r-state 2026-10-18, `test_known_file_write_baseline.py::test_own_patch_after_own_write_keeps_the_baseline` ran 35 spawns, half of them the probe; the test chain now memoizes a started candidate (`tests/_downstream/bash_probe_memo.py`), production does not · lane: an upstream PR memoizing a started candidate in `pm.shell` (or a caller-side memo in a fork seam), then drop the test-chain memo · READY 2026-10-18 **TAKEN 2026-10-18 q-pm**
 
 ### Filed on arrival — 2026-10-17 (harvest)
 
