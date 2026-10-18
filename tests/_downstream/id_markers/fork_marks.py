@@ -318,6 +318,12 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/hermes_cli/test_web_server.py::TestDesktopCronTicker::test_ticker_runs_when_desktop",
         )
     },
+    # Upstream's whole-tests/ shadow walk parses ~7,000 files (33.4 s alone, over the 30 s
+    # cap under load); the fork half runs the same check through the shared parse.
+    "tests/test_no_shadowed_test_definitions.py::test_no_shadowed_definitions_in_test_modules": (
+        pytest.mark.skip(reason="run by tests/test_no_shadowed_test_definitions_downstream.py "
+                                "(upstream's _duplicates_in, the shared parse, a def-name pre-filter)"),
+    ),
 }
 
 if _WIN:

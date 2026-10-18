@@ -76,6 +76,8 @@ from pathlib import Path
 
 import pytest
 
+from scripts import source_cache
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TESTS_ROOT = REPO_ROOT / "tests"
 
@@ -348,9 +350,8 @@ def _defined_names(path: Path) -> set[str]:
 
     if path in _NAME_CACHE:
         return _NAME_CACHE[path]
-    try:
-        tree = ast.parse(_read(path))
-    except SyntaxError:  # pragma: no cover - a broken test file is its own red
+    tree = source_cache.tree(path, keep=False)  # the shared parse when kept; read-only
+    if tree is None:  # pragma: no cover - a broken test file is its own red
         _NAME_CACHE[path] = set()
         return _NAME_CACHE[path]
     names: set[str] = set()
@@ -425,7 +426,10 @@ def _statement_walk(tree: ast.AST):
                 queue.extend(child for child in children if isinstance(child, ast.AST))
 
 
-def _comment_and_docstring_lines(text: str) -> list[tuple[int, str]]:
+_PARSE_TEXT = object()
+
+
+def _comment_and_docstring_lines(text: str, parsed: object = _PARSE_TEXT) -> list[tuple[int, str]]:
     """(lineno, text) for comment lines and docstring lines only.
 
     Live code is excluded: ``importlib.import_module("tests.x")`` is machinery,
@@ -436,14 +440,18 @@ def _comment_and_docstring_lines(text: str) -> list[tuple[int, str]]:
     for i, line in enumerate(text.splitlines(), 1):
         if line.lstrip().startswith("#"):
             out.append((i, line))
-    try:
-        with warnings.catch_warnings():
-            # Upstream files carry unescaped regex literals; their SyntaxWarnings
-            # are noise from THIS gate's parse, not a finding of it.
-            warnings.simplefilter("ignore", SyntaxWarning)
-            tree = ast.parse(text)
-    except SyntaxError:
+    if parsed is _PARSE_TEXT:
+        try:
+            with warnings.catch_warnings():
+                # Upstream files carry unescaped regex literals; their SyntaxWarnings
+                # are noise from THIS gate's parse, not a finding of it.
+                warnings.simplefilter("ignore", SyntaxWarning)
+                parsed = ast.parse(text)
+        except SyntaxError:
+            return out
+    if parsed is None:  # the shared parse (``scripts/source_cache.py``) found a syntax error
         return out
+    tree = parsed
     for node in _statement_walk(tree):
         if not isinstance(
             node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
@@ -606,7 +614,7 @@ def collect_claims() -> tuple[list[Claim], dict[str, int]]:
 
     for path in _py_files():
         census["py_files"] += 1
-        text = _read(path)
+        text = source_cache.source(path)
         # Cheap pre-filter. A file with no ``test_`` substring anywhere cannot
         # carry a claim under any arm, and AST-parsing ~3.9k files to learn
         # that costs more than the whole rest of the gate. Counted in the
@@ -615,7 +623,7 @@ def collect_claims() -> tuple[list[Claim], dict[str, int]]:
             continue
         rel = path.relative_to(REPO_ROOT).as_posix()
         claims.extend(
-            _scan_lines(rel, _comment_and_docstring_lines(text), is_plan_doc=False)
+            _scan_lines(rel, _comment_and_docstring_lines(text, source_cache.tree(path, keep=False)), is_plan_doc=False)
         )
 
     by_name = _test_files_by_name()

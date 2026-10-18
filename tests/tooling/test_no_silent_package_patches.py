@@ -44,12 +44,12 @@ import ast
 import functools
 import json
 import re
-import warnings
 from pathlib import Path
 
 import pytest
 
 from scripts import god_file_probe as probe
+from scripts import source_cache
 
 FIXTURE = probe.FIXTURES / "silent_package_patches_grandfathered.json"
 _SETATTR = re.compile(r"monkeypatch\.setattr\(")
@@ -57,12 +57,11 @@ _HELPER = re.compile(r"patch_where_bound\(")
 _IDENT = re.compile(r"[A-Za-z_]\w*")
 
 
-def _parse(path: Path) -> ast.Module | None:
+def _parse(path: Path, *, keep: bool = False) -> ast.Module | None:
+    """The shared parse (``scripts/source_cache.py``): read it, never mutate it."""
     try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", SyntaxWarning)
-            return ast.parse(path.read_text(encoding="utf-8"))
-    except (OSError, SyntaxError, UnicodeDecodeError):
+        return source_cache.tree(path, keep=keep)
+    except OSError:
         return None
 
 
@@ -91,7 +90,7 @@ class ForkModules:
     def tree(self, dotted: str) -> ast.Module | None:
         if dotted not in self._trees:
             path = self.paths.get(dotted)
-            self._trees[dotted] = _parse(self.root / path) if path else None
+            self._trees[dotted] = _parse(self.root / path, keep=True) if path else None
         return self._trees[dotted]
 
     def is_package(self, dotted: str) -> bool:
@@ -270,8 +269,8 @@ def silent_package_patches(root: Path = probe.ROOT) -> set[str]:
         if "fixtures" in path.parts:
             continue
         try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+            text = source_cache.source(path)
+        except OSError:
             continue
         calls = [text[m.end() : m.end() + 240] for m in _SETATTR.finditer(text)]
         helper_calls = [text[m.end() : m.end() + 240] for m in _HELPER.finditer(text)]

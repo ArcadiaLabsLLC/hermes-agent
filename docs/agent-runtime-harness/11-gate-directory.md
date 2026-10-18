@@ -153,11 +153,19 @@ lazy-deps, profile-archive and blob-size guards (`tests/scripts/test_code_health
 
 Measured from the gate store, 2026-10-18 (`.pytest_cache/hermes_gate/durations.json`,
 seconds at `-j 8`): the gates add about 360 s of work to a cold landing gate (~45 s of
-wall time). Seven whole-tree walkers are three quarters of it —
-`test_upstream_skip_list` 76, `test_s55_registered_events_have_emitters` 39,
-`test_fork_import_layers` 37, `test_no_ladder_routing` 34, `test_coverage_claims_resolve`
-33, `test_no_frozen_hermes_home` 24, `test_no_silent_package_patches` 20 — each
-re-reading and re-parsing the tree on its own (fork-hygiene row: one parse per session).
+wall time). Eight whole-tree walkers are three quarters of it. They read and parse
+through one shared cache, `scripts/source_cache.py` (one read and one parse per file
+version per process; a tree is kept only by a walker that comes back to it, because a
+process holding trees pays for them on every garbage collection). Alone, before → after
+(wall seconds, one process each, 2026-10-18, a busy box): `test_upstream_skip_list`
+64.3 → 64.5 (runner discovery, no parse), `test_s55_registered_events_have_emitters`
+30.7 → 27.7, `test_fork_import_layers` 32.0 → 31.4, `test_no_ladder_routing`
+18.6 → 19.3, `test_coverage_claims_resolve` 21.6 → 21.6, `test_no_frozen_hermes_home`
+17.4 → 9.1 (a subprocess import probe, no parse; noise), `test_no_silent_package_patches`
+17.6 → 16.0, upstream's shadow walk 19.7 → 11.4 (run by
+`tests/test_no_shadowed_test_definitions_downstream.py`, a `def`-name pre-filter). All
+eight in one process: 217.5 → 173.9. Most of what remains is not parsing: the skip
+list's discovery and each layer case's census are fork-hygiene rows.
 `--affected` never selects a whole-tree walker.
 
 ## Positive controls

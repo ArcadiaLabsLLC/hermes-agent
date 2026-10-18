@@ -105,6 +105,7 @@ from pathlib import Path
 import pytest
 
 from agent_runtime.decision_contract_registry import event_catalog
+from scripts import source_cache
 
 
 #: Production packages scanned for emitters. Tests are excluded on purpose: an
@@ -199,10 +200,9 @@ def _production_trees_uncached() -> dict[str, ast.Module]:
             paths += [Path(dirpath) / name for name in filenames if name.endswith(".py")]
     paths += [p for p in root.glob("*.py")]
     for path in paths:
-        try:
-            trees[str(path)] = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
-        except SyntaxError:
-            continue
+        tree = source_cache.tree(path)  # shared with every whole-tree walker; read-only
+        if tree is not None:
+            trees[str(path)] = tree
     return trees
 
 

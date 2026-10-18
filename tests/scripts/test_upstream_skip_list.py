@@ -25,6 +25,7 @@ from pathlib import Path
 import pytest
 
 from scripts import run_tests_bundled as bundled
+from scripts import source_cache
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 plan = bundled.plan
@@ -71,7 +72,7 @@ def file_rows_naming_a_node(list_path: Path) -> list[str]:
     for rel, row in plan.load_skip_list(list_path).items():
         if row.node:
             continue
-        defined = set(re.findall(r"def (test_\w+)", (_REPO_ROOT / rel).read_text(encoding="utf-8")))
+        defined = set(re.findall(r"def (test_\w+)", source_cache.source(_REPO_ROOT / rel)))
         if defined & set(re.findall(r"\btest_\w+", row.why)):
             offenders.append(rel)
     return offenders
@@ -113,7 +114,7 @@ def test_every_row_is_an_existing_upstream_file_with_a_class_and_a_sha():
         assert (_REPO_ROOT / rel).is_file(), f"{rel}: listed but not in the tree — drop the row"
         if row.node:
             name = row.node.rsplit("::", 1)[-1].split("[", 1)[0]
-            assert f"def {name}(" in (_REPO_ROOT / rel).read_text(encoding="utf-8"), f"{key}: no such test"
+            assert f"def {name}(" in source_cache.source(_REPO_ROOT / rel), f"{key}: no such test"
         assert rel in inherited, f"{rel}: not in the upstream manifest — a fork file is fixed, never listed"
         assert row.klass in plan.SKIP_CLASSES, f"{rel}: why must start with one of {plan.SKIP_CLASSES}: {row.why!r}"
         assert _SHA.match(row.sha), f"{rel}: the third field must be the upstream SHA it was recorded at: {row.sha!r}"
