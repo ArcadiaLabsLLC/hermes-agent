@@ -15,7 +15,7 @@ from agent_runtime.work_store import board
 from agent_runtime.work_store.grammar import parse_note
 from agent_runtime.workspace_slots import declare
 from tests.agent_runtime.persona_instance_mint import mint_free_floating
-from tests.agent_runtime.test_work_service import call, start, work  # noqa: F401
+from tests.agent_runtime.test_work_service import call, rows_of, start, work  # noqa: F401
 
 BRAIN = "Harness_Brain/20 — Active Initiatives"
 MOVED_NOTE = f"{BRAIN}/work-queue.md"
@@ -75,9 +75,12 @@ def test_binding_a_repo_brain_moves_the_open_rows_once_and_drops_the_default_boa
     bind(work.ws, hermes=clone)
     listed = call(work, "list")
     assert [b["slot"] for b in listed["boards"]] == ["hermes"]
-    assert {row["id"]: row["note"] for row in listed["rows"]} == {"RT-A": f"{BRAIN}/q.md", first: MOVED_NOTE,
+    assert {row["id"]: row["note"] for row in rows_of(listed)} == {"RT-A": f"{BRAIN}/q.md", first: MOVED_NOTE,
                                                                   second: MOVED_NOTE}
-    assert next(row for row in listed["rows"] if row["id"] == second)["taken"]["who"] == f"persona:{alice.id}"
+    (hermes,) = listed["boards"]
+    assert {q["note"]: (q["program"], [r["id"] for r in q["rows"]]) for q in hermes["queues"]} == {
+        f"{BRAIN}/q.md": ("test", ["RT-A"]), MOVED_NOTE: ("work", [first, second])}
+    assert next(row for row in rows_of(listed) if row["id"] == second)["taken"]["who"] == f"persona:{alice.id}"
     assert commits(origin) == before + 1
     moved = parse_note(git("show", f"main:{MOVED_NOTE}", cwd=origin), slot="hermes", note=MOVED_NOTE)
     assert [row.ref.id for row in moved] == [first, second] and not any(row.defects for row in moved)

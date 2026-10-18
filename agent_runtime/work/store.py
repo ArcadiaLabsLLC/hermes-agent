@@ -189,11 +189,26 @@ def _brief(row: Row, worktree: Path | None) -> str:
     return path.read_bytes().decode("utf-8") if path and path.is_file() else ""
 
 
-def project(row: Row, writer: Writer | None, *, context=None, detail: bool = False) -> dict[str, Any]:
+def note_meta(path: Path) -> dict[str, Any]:
+    """A queue note's ``program`` (frontmatter) and ``title`` (its first ``# `` heading, else the file stem)."""
+
+    text = path.read_bytes().decode("utf-8") if path.is_file() else ""
+    lines = text.split("\n")
+    front = lines[1:lines.index("---", 1)] if lines[:1] == ["---"] and "---" in lines[1:] else []
+    program = next((line.split(":", 1)[1].strip() for line in front if line.startswith("program:")), None)
+    title = next((line[2:].strip() for line in lines if line.startswith("# ")), path.stem)
+    return {"program": program or None, "title": title}
+
+
+def project(row: Row, writer: Writer | None, *, context=None, detail: bool = False,
+            program: str | None = None) -> dict[str, Any]:
     body = _brief(row, writer.worktree if writer else None) if detail else ""
+    if program is None and writer is not None:
+        program = note_meta(writer.worktree / row.ref.note)["program"]
     taken = row.taken
     value = {
-        "id": row.ref.id, "slot": row.ref.slot, "note": row.ref.note, "line": row.line_no, "title": row.title,
+        "id": row.ref.id, "slot": row.ref.slot, "program": program, "note": row.ref.note, "line": row.line_no,
+        "title": row.title,
         "status": status_word(row), "status_word": row.status.value if row.status else None,
         "status_date": row.status_date, "status_body": row.status_body, "recommend": row.recommend,
         "assignee": f"persona:{row.assignee.token}" if row.assignee else None,
@@ -210,7 +225,8 @@ def project(row: Row, writer: Writer | None, *, context=None, detail: bool = Fal
 
 
 def board_wire(board: Board, writer: Writer | None) -> dict[str, Any]:
-    return {"slot": board.slot, "brain_dir": board.brain_dir, "bound_here": board.bound_here, "local": board.local,
+    return {"slot": board.slot, "label": "Work" if board.is_default else board.slot, "brain_dir": board.brain_dir,
+            "bound_here": board.bound_here, "local": board.local,
             "is_default": board.is_default, "default_branch": board.default_branch,
             "committed_at": writer.note_committed_at(board.brain_dir) if writer and board.brain_dir else None}
 
@@ -247,10 +263,25 @@ def list_work(scope, params, *, context=None):
     view = synced(scope.workspace_id, stale_ok=params.get("stale_ok") is True)
     keep = _row_filter(params, context)
     slot = params.get("slot")
-    rows = [row for row in boards_store.rows(scope.workspace_id, slot=slot, read_roots=view.read_roots) if keep(row)]
-    return {"boards": [board_wire(b, view.writers.get(b.slot)) for b in view.boards],
-            "rows": [project(row, view.writers.get(row.ref.slot), context=context) for row in rows],
+    listed = [b for b in view.boards if slot is None or b.slot == slot]
+    return {"boards": [{**board_wire(b, view.writers.get(b.slot)),
+                        "queues": _queues(b, view.writers.get(b.slot), keep, context)} for b in listed],
             "cursor": None, "read_at": _now().isoformat(timespec="seconds"), "stale": view.stale}
+
+
+def _queues(board: Board, writer: Writer | None, keep, context) -> list[dict[str, Any]]:
+    """One entry per ``type: queue`` note (a domain), its rows filtered; an empty domain is still listed."""
+
+    if writer is None or board.read_root is None:
+        return []
+    out = []
+    for path in boards_store.notes(board):
+        note = path.relative_to(board.read_root).as_posix()
+        meta = note_meta(path)
+        rows = parse_note(path.read_bytes().decode("utf-8"), slot=board.slot, note=note)
+        out.append({"note": note, **meta, "rows": [project(row, writer, context=context, program=meta["program"])
+                                                   for row in rows if keep(row)]})
+    return out
 
 
 def inspect(scope, params, *, context=None):
@@ -283,7 +314,8 @@ def _first_note(board: Board, params: Mapping[str, Any]) -> str:
     notes = boards_store.notes(board)
     if not notes or board.read_root is None:
         raise WorkRefused(Reason.NOTE_MISSING, board.slot)
-    return notes[0].relative_to(board.read_root).as_posix()
+    named = [path for path in notes if board.is_default and path.name == QUEUE_NOTE]
+    return (named or notes)[0].relative_to(board.read_root).as_posix()
 
 
 def _start_row(row_id: str, title: str, brief: str | None, token: str | None, date: str) -> str:

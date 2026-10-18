@@ -37,6 +37,11 @@ def call(work, operation, caller=STDIO_OWNER, **params):
     return service.execute(operation, {**work.scope, **params}, caller)
 
 
+def rows_of(listing):
+    """The rows of a grouped ``runtime.work.list`` reply, board by board, queue by queue."""
+    return [row for board in listing["boards"] for queue in board["queues"] for row in queue["rows"]]
+
+
 def start(work, request_id="request-1", **overrides):
     return call(work, "start", **{"request_id": request_id, "title": "Review", "body": "Review the change.", **overrides})
 
@@ -63,7 +68,7 @@ def test_start_mints_a_work_id_and_replays_by_request_id(work):
     assert first["disposition"] == "accepted" and first["receipt"]["kind"] == "work.row_append"
     again = start(work)
     assert again["task"]["id"] == task["id"] and again["receipt"]["replayed"] is True
-    rows = call(work, "list")["rows"]
+    rows = rows_of(call(work, "list"))
     assert [row["id"] for row in rows] == [task["id"]]
 
 
@@ -79,7 +84,7 @@ def test_claim_release_set_status_done_through_the_writer(work):
     call(work, "claim", request_id="c2", who=f"persona:{alice.id}", **where)
     ending = call(work, "done", request_id="d1", result="Shipped the review.", **where)["ending"]
     assert "result: Shipped the review." in ending["body"]
-    assert call(work, "list")["rows"] == []
+    assert rows_of(call(work, "list")) == []
 
 
 def test_operator_reference_is_the_assignee(work, monkeypatch):
@@ -101,7 +106,7 @@ def test_unknown_caller_and_wrong_install_refuse(work):
         with pytest.raises(WorkRefused) as changed:
             call(work, "list", **wrong)
         assert changed.value.reason is Reason.OWNER_CHANGED
-    assert call(work, "list", LOCAL_CONSOLE)["rows"] == []
+    assert rows_of(call(work, "list", LOCAL_CONSOLE)) == []
 
 
 def test_inspect_of_a_gone_row_carries_its_ending(work):
@@ -119,10 +124,10 @@ def test_list_filters_slot_status_assignee(work):
     assigned = start(work, "q2", title="Assigned", assignee=f"persona:{alice.persona_id}")["task"]["id"]
     listed = call(work, "list")
     assert {board["slot"]: (board["is_default"], board["local"]) for board in listed["boards"]} == {"brain": (True, True)}
-    assert {row["id"] for row in call(work, "list", status="READY")["rows"]} == {plain, assigned}
-    assert [row["id"] for row in call(work, "list", assignee=f"persona:{alice.persona_id}")["rows"]] == [assigned]
-    assert call(work, "list", slot="elsewhere")["rows"] == []
-    assert call(work, "list", status="TAKEN")["rows"] == []
+    assert {row["id"] for row in rows_of(call(work, "list", status="READY"))} == {plain, assigned}
+    assert [row["id"] for row in rows_of(call(work, "list", assignee=f"persona:{alice.persona_id}"))] == [assigned]
+    assert rows_of(call(work, "list", slot="elsewhere")) == []
+    assert rows_of(call(work, "list", status="TAKEN")) == []
 
 
 def test_refusals_are_typed_and_leak_nothing(work):
@@ -156,3 +161,28 @@ def test_git_switched_off_refuses_git_unavailable(work, monkeypatch):
     caps = service.execute("capabilities", {}, STDIO_OWNER)
     assert caps["default_brain"][fresh] == {"state": "unavailable", "reason": "git_unavailable"}
     assert not paths.default_brain_dir(fresh).exists()
+
+
+def test_list_groups_rows_per_brain_then_per_domain(work):
+    task_id = start(work)["task"]["id"]
+    (board,) = call(work, "list")["boards"]
+    assert (board["slot"], board["label"], board["brain_dir"]) == ("brain", "Work", "Work_Brain/20 — Active Initiatives")
+    (queue,) = board["queues"]
+    assert (queue["note"], queue["program"], queue["title"]) == (
+        "Work_Brain/20 — Active Initiatives/work-queue.md", "work", "Work queue")
+    assert [(row["id"], row["slot"], row["program"]) for row in queue["rows"]] == [(task_id, "brain", "work")]
+    assert "rows" not in call(work, "list")
+
+
+def test_engine_rows_on_the_default_board_land_in_its_work_queue(work):
+    import subprocess
+
+    root = paths.default_brain_dir(work.ws)
+    other = root / "Work_Brain" / "20 — Active Initiatives" / "alpha-queue.md"
+    other.write_text("---\ntype: queue\nprogram: alpha\n---\n\n# Alpha\n", encoding="utf-8", newline="\n")
+    for args in (["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@t.invalid", "commit", "-q", "-m", "alpha"]):
+        subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
+    task = start(work)["task"]
+    assert task["note"].endswith("/work-queue.md") and task["program"] == "work"
+    (board,) = call(work, "list")["boards"]
+    assert [(q["program"], q["title"]) for q in board["queues"]] == [("alpha", "Alpha"), ("work", "Work queue")]

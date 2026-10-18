@@ -12,7 +12,7 @@ from agent_runtime.conversations.store import ConversationStore
 from agent_runtime.work import service
 from agent_runtime.work.model import Reason, WorkRefused
 from tests.agent_runtime.persona_instance_mint import mint_free_floating
-from tests.agent_runtime.test_work_service import call, start, work  # noqa: F401
+from tests.agent_runtime.test_work_service import call, rows_of, start, work  # noqa: F401
 
 
 @pytest.fixture
@@ -66,7 +66,7 @@ def test_operator_reference_names_its_instance_as_the_assignee(work, monkeypatch
     start(work, "q2", title="Someone else's")
     claimed = call(work, "claim", request_id="c1", slot="brain", task_id=mine, conversation=reference)["task"]
     assert claimed["taken"]["who"] == f"persona:{alice.id}" and claimed["in_conversation"] is True
-    rows = call(work, "list", view="conversation", conversation=reference)["rows"]
+    rows = rows_of(call(work, "list", view="conversation", conversation=reference))
     assert [row["id"] for row in rows] == [mine]
 
     def refuse(value):
