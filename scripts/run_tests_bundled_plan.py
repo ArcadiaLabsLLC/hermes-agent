@@ -38,8 +38,9 @@ if TYPE_CHECKING:
 # ── Stage 1: the upstream-red skip list ─────────────────────────────────────
 
 SKIP_LIST = Path("tests") / "fixtures" / "upstream_skip_list.txt"
-#: the class word a row's ``why`` starts with; the merge lane keys its re-check on it
-SKIP_CLASSES = ("P0", "env", "upstream")
+#: the class word a row's ``why`` starts with; the merge lane keys its re-check on it.
+#: ``unused`` is a feature the fork does not ship (ADR 0015): any upstream file, never re-checked red/green
+SKIP_CLASSES = ("P0", "env", "upstream", "unused")
 _FIELD_SEP = " · "
 
 

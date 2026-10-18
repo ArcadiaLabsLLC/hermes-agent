@@ -5,12 +5,14 @@
 # One row per NODE: `path::node · why · upstream SHA`, the three fields separated
 # by " · " — the file still runs and only that node is deselected. A FILE row
 # (`path · why · upstream SHA`) keeps the whole file out, and is only for a file
-# that hangs, freezes or cannot collect; a file row whose `why` names one of the
+# that hangs, freezes or cannot collect, or whose subject is `unused`; a file row whose `why` names one of the
 # file's tests is refused (tests/scripts/test_upstream_skip_list.py). `why` starts with a class word the weekly merge lane keys its re-check
 # on (Harness_Brain/50 — Agent Handoffs/Merging upstream.md, step 5b):
 #   P0       — a freeze candidate: re-run only under the watchdog/VM the P0 row names
 #   env      — environmental (provider-network hang, WSL bash shadow, missing acp/ripgrep): re-run bare
 #   upstream — an upstream bug, with its issue/PR link: re-run bare, drop when green
+#   unused   — a feature the fork does not ship (Harness_Brain/30 — Decisions/0015); cites "ADR 0015";
+#              any upstream file may carry it; the release merge lists unused files upstream added/removed
 # `upstream SHA` is the upstream/main tip the red was recorded against.
 #
 # Every path is in tests/fixtures/upstream_manifest.txt. A FORK file is never
