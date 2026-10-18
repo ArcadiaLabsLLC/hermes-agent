@@ -19,7 +19,9 @@ that entry would leave the tool unregistered for the rest of the process.
 from __future__ import annotations
 
 import sys
+from contextlib import contextmanager
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import pytest
 
@@ -37,8 +39,31 @@ def _registry():
     return getattr(module, "registry", None) if module is not None else None
 
 
+@contextmanager
+def _home_resolves_to_a_path():
+    """Coerce a str-returning ``get_hermes_home`` stub to a Path while the registry lists.
+
+    The listing resolves the current profile scope through ``hermes_constants.get_hermes_home``,
+    and this fixture tears down while the test's ``monkeypatch`` is still active (it is set up
+    first). An upstream test that stubs that function with ``lambda: str(tmp_path)``
+    (``tests/gateway/test_routing_save_fast_path.py``) then reds every teardown with
+    ``'str' object has no attribute 'expanduser'``. The stub's home is kept; only its type is.
+    """
+    module = sys.modules.get("hermes_constants")
+    current = getattr(module, "get_hermes_home", None) if module is not None else None
+    if current is None:
+        yield
+        return
+    module.get_hermes_home = lambda: Path(current())
+    try:
+        yield
+    finally:
+        module.get_hermes_home = current
+
+
 def _global_entries(registry) -> dict:
-    names = registry.get_all_tool_names()
+    with _home_resolves_to_a_path():
+        names = registry.get_all_tool_names()
     return {
         name: entry
         for name in names

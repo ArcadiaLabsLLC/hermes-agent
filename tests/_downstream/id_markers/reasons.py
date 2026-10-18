@@ -29,10 +29,12 @@ _WIN = sys.platform == "win32"
 # ``real_windows_gateway_pause`` is ``tests/hermes_cli/_gateway_fence.REAL_PAUSE_MARK``.
 ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK = "allow_claude_code_credentials_file"
 CLAUDE_HOME_IS_TMP_PATH_MARK = "claude_home_is_tmp_path"
+HOST_DISK_HAS_ROOM_MARK = "host_disk_has_room"
 NO_REAL_ORPHAN_REAP_MARK = "no_real_orphan_reap"
 SCOPED_MONKEYPATCH_UNDO_MARK = "scoped_monkeypatch_undo"
 STRIP_REAL_HOME_PATH_MARK = "strip_real_home_path"
 STATE_DB_RESOLVES_THROUGH_SCOPE_MARK = "state_db_resolves_through_scope"
+STATE_DB_COMMITS_UNSYNCED_MARK = "state_db_commits_unsynced"
 UPSTREAM_WIRE_UNBRIEFED_MARK = "upstream_wire_unbriefed"
 #: Upstream's own mark (read by ``tests/conftest.py``'s live-system guard, used by
 #: upstream tests); nobody registers it -- see tests/test_id_markers_downstream.py.
@@ -112,6 +114,8 @@ _LOOKALIKE = getattr(pytest.mark, SPAWNS_GATEWAY_LOOKALIKE_MARK)
 _SCOPED_UNDO = getattr(pytest.mark, SCOPED_MONKEYPATCH_UNDO_MARK)
 _STRIP_REAL_HOME_PATH = getattr(pytest.mark, STRIP_REAL_HOME_PATH_MARK)
 _STATE_DB_THROUGH_SCOPE = getattr(pytest.mark, STATE_DB_RESOLVES_THROUGH_SCOPE_MARK)
+_HOST_DISK_HAS_ROOM = getattr(pytest.mark, HOST_DISK_HAS_ROOM_MARK)
+_STATE_DB_UNSYNCED = getattr(pytest.mark, STATE_DB_COMMITS_UNSYNCED_MARK)
 _UPSTREAM_WIRE_UNBRIEFED = getattr(pytest.mark, UPSTREAM_WIRE_UNBRIEFED_MARK)
 
 _CLAUDE_HOME_TMP = getattr(pytest.mark, CLAUDE_HOME_IS_TMP_PATH_MARK)

@@ -49,3 +49,17 @@ def test_z1_leave_a_registration_behind():
 def test_z2_a_registration_by_the_previous_test_is_gone():
     # Runs after test_z1 in file order: the autouse fixture undid its registration.
     assert registry.snapshot_registration(_THROWAWAY) is None
+
+
+def test_restore_survives_a_str_returning_home_stub(monkeypatch, tmp_path):
+    # Upstream tests stub get_hermes_home with ``lambda: str(tmp_path)``; the fixture's
+    # teardown runs while that stub is active. Killing mutation: drop
+    # ``_home_resolves_to_a_path`` from ``_global_entries`` -> AttributeError here.
+    import hermes_constants
+
+    mark = mark_tool_registry()
+    registry.register(_THROWAWAY, "r_isolation_set", _SCHEMA, _handler)
+    monkeypatch.setattr(hermes_constants, "get_hermes_home", lambda: str(tmp_path))
+
+    assert restore_tool_registry(mark) == [_THROWAWAY]
+    assert hermes_constants.get_hermes_home() == str(tmp_path)

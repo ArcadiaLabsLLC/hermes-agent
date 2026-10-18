@@ -383,6 +383,7 @@ tests/gateway/test_slack_status_update.py · unused: messaging platform adapters
 tests/gateway/test_slack_thread_require_mention.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
 tests/gateway/test_slack_unfurl_duplicate_turn.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
 tests/gateway/test_slack_wake_external_bot_messages.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_stream_consumer_wecom_native.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
 tests/gateway/test_telegram_auth_check.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
 tests/gateway/test_telegram_bot_auth_bypass.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
 tests/gateway/test_telegram_callback_auth_fail_closed.py · unused: messaging platform adapters (ADR 0015) · e6899c8090

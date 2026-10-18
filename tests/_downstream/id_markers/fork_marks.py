@@ -22,12 +22,14 @@ from tests._downstream.id_markers.reasons import (
     _fork_replaces,
     _FORK_SPAWN_DETACHED,
     _FORK_SYSTEM_PATH,
+    _HOST_DISK_HAS_ROOM,
     __layer__,
     _LOOKALIKE,
     _NO_LIVE_GATEWAY,
     _NO_REAL_ORPHAN_REAP,
     _REAL_PAUSE,
     _STATE_DB_THROUGH_SCOPE,
+    _STATE_DB_UNSYNCED,
     _STRIP_REAL_HOME_PATH,
     _UPSTREAM_WIRE_UNBRIEFED,
     _WIN,
@@ -210,6 +212,11 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     "test_stale_served_turn_never_recreates_archived_profile": (_STATE_DB_THROUGH_SCOPE,),
     "tests/gateway/test_multiplex_routing_authz.py::"
     "test_completion_preflight_runs_in_target_profile_scope": (_STATE_DB_THROUGH_SCOPE,),
+    # Each probe spawns twelve children through spawn_local (bash + python per child,
+    # ~0.3 s apiece on Windows): 3.5-4 s a probe measured outside pytest, nine probes in the
+    # first test and six in the second -> 35.96 s and 24.51 s alone with --timeout=0
+    # (lane r-gateway, 2026-10-17); the fork's 30 s cap killed the first every run.
+    "tests/hermes_cli/test_completion_backlog.py": (pytest.mark.timeout(120),),
     # The fork runs the whole tree under --timeout=30; these PowerShell
     # harnesses carry their own child budgets above that.
     "tests/scripts/desktop_update/test_desktop_update_windows_cwd.py": (pytest.mark.timeout(75),),
@@ -298,6 +305,15 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
         pytest.mark.skip(reason="probes the real hermes install, which the fork keeps under "
                                 "the guarded real store root (<root>/bin/hermes.exe)"),
     ),
+    # Fresh state.db stores and row-by-row writes in journal_mode=DELETE: fsync on the
+    # test-tmp drive alone crossed the 30 s cap (fixture: state_db_unsynced).
+    "tests/gateway/test_child_notice_profile_admission.py": (_STATE_DB_UNSYNCED,),
+    "tests/hermes_cli/test_web_server.py::TestWebServerEndpoints::"
+    "test_profiles_sessions_pages_past_500_rows": (_STATE_DB_UNSYNCED,),
+    # Upstream asserts an all-ok readiness while probing the REAL test-tmp volume; the
+    # fork's test-tmp drive is over the probe's 90 % line (fixture: host_disk_room).
+    "tests/gateway/test_readiness.py::"
+    "test_collect_runtime_readiness_reports_healthy_local_runtime": (_HOST_DISK_HAS_ROOM,),
     # Upstream web-server tests whose restart / desktop-startup path runs the REAL
     # gateway orphan reap and its 30 s exit wait (fixture: conftest_plugin).
     **{
