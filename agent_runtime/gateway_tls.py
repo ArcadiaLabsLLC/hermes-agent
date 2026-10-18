@@ -77,7 +77,7 @@ File permissions
 ----------------
 
 The private key is written ``0600`` where that means something and narrowed
-with a best-effort ``icacls`` on Windows where it does not — the same treatment,
+with a best-effort DACL on Windows where it does not — the same treatment,
 for the same reason, as ``serve_gateway_auth``'s device store, whose docstring
 carries the full note. The certificate itself is public by construction: it
 travels to every client that dials the listener.
