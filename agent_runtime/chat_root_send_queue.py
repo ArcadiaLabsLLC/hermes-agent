@@ -45,6 +45,9 @@ QUEUED_RUN_ARG = "queued_send_run"
 #: the serve's queued-turn stream binds the link a direct run would and answers a
 #: paired-device sender (``hermes_cli/harness_parts/serve/queued_turn_origin.py``).
 ORIGIN_ARG = "send_origin"
+#: The origin key a scheduler fire carries (``work_store/serve_scheduler.py``); the ``scheduled_turn``
+#: running-work lane reads the entries that name it (:func:`entries_from`).
+SCHEDULE_ORIGIN_KEY = "schedule"
 
 #: Fields of the send's argument namespace that are never persisted: the
 #: transport (the queued run is answered through the door's sink, never a

@@ -158,3 +158,19 @@ def test_unreadable_cron_registry_is_not_idle(rig, monkeypatch):
     monkeypatch.setattr(scheduler, "get_running_job_ids", unreadable)
     assert request(rig)["held_by"] == "unreadable"
     assert session.drain_state is None and owner.capabilities()["accepting"]
+
+
+def test_a_scheduled_turn_on_the_send_queue_holds_the_idle_drain(rig):
+    # RT-SCHEDULE-TURN-RUNNING-WORK: a scheduler fire runs on the queued-send runner, outside every
+    # turn table, so only its send-queue entry says it exists.
+    # MUTATION: drop `_scheduled_turn_hold()` from `claim_idle_drain` and the first request drains.
+    from agent_runtime import chat_root_send_queue as send_queue
+
+    session, owner, *_ = rig
+    origin = {send_queue.SCHEDULE_ORIGIN_KEY: "standup", "owner": None}
+    send_queue.enqueue("root-sched", "schedule-standup", {send_queue.ORIGIN_ARG: origin, "message": "go"})
+    refusal = request(rig)
+    assert (refusal["reason"], refusal["held_by"]) == ("busy", "scheduled_turn")
+    assert session.drain_state is None and owner.capabilities()["accepting"]
+    send_queue.remove("root-sched", "schedule-standup")
+    assert request(rig)["event"] == "draining"

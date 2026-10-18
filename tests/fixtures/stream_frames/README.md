@@ -12,6 +12,12 @@ and parses them through its real decode + read-model pipeline
 split is structural, not an oversight, and the script names both halves
 (`GENERATED_FRAME_FILES` / `PINNED_ONLY_FILES`).
 
+> **CROSS-STACK COPY STATUS (w5-sched, 2026-10-18) — launcher copy OWED.**
+> Every core-carrying golden moved for one reason: `running_work.sources` gained
+> `scheduled_turn` (RT-SCHEDULE-TURN-RUNNING-WORK). Copy the nine moved frames and
+> `MANIFEST.sha256` into `test/fixtures/harness_stream/`, and `work_list_empty.json`
+> with the response-envelope manifest.
+
 > **CROSS-STACK COPY STATUS (w2-agent, 2026-10-18) — launcher copy OWED.**
 > One generated golden moved: the persona row's `autonomy` default reads
 > `propose_only` where it read `review` (RT-AUTONOMY-APPLY-WITH-REVIEW — the field is

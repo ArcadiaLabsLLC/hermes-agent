@@ -44,6 +44,10 @@ KIND_MCP_JOB = "mcp_job"
 #: by its own writer into the build registry, or detected under a bound repo slot
 #: (plan ``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md`` §1).
 KIND_BUILD = "build"
+#: A scheduler fire (``work_store/serve_scheduler.py``) from the moment it queues on its chat root until
+#: the turn settles — read durably from the send-queue entries whose origin names a schedule
+#: (RT-SCHEDULE-TURN-RUNNING-WORK, RULED 2026-10-18: its own kind, not ``cron_job``).
+KIND_SCHEDULED_TURN = "scheduled_turn"
 
 #: How far back an UNDELIVERABLE dispatch keeps surfacing on the Activity
 #: projection. A day, because "your agent's answer was thrown away" is worth
@@ -68,6 +72,7 @@ RUNNING_WORK_KINDS = (
     KIND_TOOL_CALL,
     KIND_MCP_JOB,
     KIND_BUILD,
+    KIND_SCHEDULED_TURN,
 )
 
 #: The lanes that report a ``sources`` entry on every build. ``dispatch`` joined
@@ -83,6 +88,7 @@ RUNNING_WORK_SOURCES = (
     KIND_MCP_JOB,
     KIND_TOOL_CALL,
     KIND_BUILD,
+    KIND_SCHEDULED_TURN,
 )
 
 STATUS_RUNNING = "running"

@@ -36,6 +36,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from .. import chat_root_send_queue as send_queue
 from . import receipts, schedule_store
 from .reasons import Reason, WorkRefused
 from .schedule_store import ScheduleRecord
@@ -51,7 +52,7 @@ TICK_SECONDS = 60.0
 DEFAULT_MAX_PARALLEL = 4
 ABANDON_AFTER = timedelta(minutes=15)
 #: The send-queue origin key a scheduled fire carries (the ``scheduled_turn`` lane reads it).
-ORIGIN_KEY = "schedule"
+ORIGIN_KEY = send_queue.SCHEDULE_ORIGIN_KEY
 _ONE_SHOT = frozenset({TriggerKind.AT, TriggerKind.WHEN_IDLE})
 
 
@@ -80,15 +81,12 @@ _NEXT_FIRE: dict[TriggerKind, Callable[[Trigger, datetime], datetime | None]] = 
 def _root_idle(root: str) -> bool:
     """No turn holds the root's lease and nothing waits on it — the unresolved-turn count is zero."""
 
-    from .. import chat_root_send_queue as send_queue
     from ..chat_root_send_runner import _root_is_idle
 
     return not send_queue.has_entries(root) and _root_is_idle(root)
 
 
 def _in_flight() -> int:
-    from .. import chat_root_send_queue as send_queue
-
     return len(send_queue.entries_from(ORIGIN_KEY))
 
 
