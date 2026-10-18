@@ -1,7 +1,7 @@
 {
-  "measured_at": "2026-10-17",
+  "measured_at": "2026-10-18",
   "base": "d923a5eb48",
-  "files": 224,
+  "files": 225,
   "deleted_lines": 1031,
   "heavy": 1,
   "reasons": [
@@ -948,6 +948,21 @@
       },
       "reason": "hermes_cli/version_info.py: an additive seam wraps _run_git/_git_version_info with fork-owned hermes_cli/version_info_cache.py (git answers cached per HEAD commit + tag refs state; HEAD read from .git files). Six plugins/model-providers/*/__init__.py User-Agents read the no-git release_version(). Held as one upstream PR candidate.",
       "owner_ruling": "2026-10-17, owner in session (route 1, version-info cache)"
+    },
+    {
+      "change": "lane r-runner: fork-hygiene/runtime-queue row 'test_readiness_timeout_when_nothing_listens hits the 30 s pytest-timeout on Windows'",
+      "before": {
+        "files": 224,
+        "deleted_lines": 1031,
+        "heavy": 1
+      },
+      "after": {
+        "files": 225,
+        "deleted_lines": 1031,
+        "heavy": 1
+      },
+      "reason": "Windows start-phase teardown: _terminate_process_group's proc.terminate() kills only the shell (shell=True), the start command's child keeps the stdout pipe, so _run_start_phase's proc.stdout.read() blocked for the child's life (30 s, tests/verify/test_environment_and_runner.py::test_readiness_timeout_when_nothing_listens). +3 lines: on os.name == 'nt' kill the tree with upstream's own agent.deadline.kill_process_tree first. Upstream PR candidate (the same three lines).",
+      "owner_ruling": "2026-10-17, owner: fix all reds"
     }
   ]
 }
