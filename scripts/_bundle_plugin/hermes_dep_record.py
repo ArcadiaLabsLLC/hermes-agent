@@ -11,7 +11,8 @@ finish, one JSON line per file goes to ``<dir>/deps-<pid>-<ns>.jsonl``::
 
 * ``paths`` — repo-relative files the file opened (``open`` / ``io.open_code``);
 * ``dirs`` — repo-relative directories it listed (``os.listdir``, ``os.scandir``:
-  ``glob``, ``os.walk`` and ``Path.iterdir`` go through these; ``"."`` is the repo root);
+  ``glob``, ``os.walk`` and ``Path.iterdir`` go through these; ``"."`` is the repo root),
+  never pytest's own collection walk (``hermes_dep_trail._listed_by_pytest_collection``);
 * ``idirs`` — the directories the import system listed (``FileFinder``'s
   ``os.listdir``, its caller frame in ``importlib``): the cache keys each on only
   the entries whose stem matches a name the process tried to import, so a new

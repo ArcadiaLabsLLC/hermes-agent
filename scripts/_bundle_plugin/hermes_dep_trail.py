@@ -48,6 +48,31 @@ def _listed_by_import_system() -> bool:
     return False
 
 
+#: pytest's own collection walk (``Dir.collect`` / ``Package.collect`` through
+#: ``_pytest.pathlib.scandir``): it lists the root, ``tests`` and every directory above a
+#: named file, yet collects only the named file — a new sibling changes nothing it does.
+#: 6,733 of 6,736 records listed the repo root ``.`` and 6,727 their own directory this way
+#: (gate store, q-runner 2026-10-18), so any new top-level or sibling file missed every green.
+_COLLECT_LISTERS = frozenset({"collect", "visit", "_recurse"})
+
+
+def _listed_by_pytest_collection() -> bool:
+    """Whether the listing being audited is pytest's collection walk, read off the caller frames."""
+
+    try:
+        frame = sys._getframe(2)
+    except ValueError:
+        return False
+    for _ in range(4):
+        if frame is None:
+            return False
+        code = frame.f_code
+        if code.co_name in _COLLECT_LISTERS and os.path.basename(os.path.dirname(code.co_filename)) == "_pytest":
+            return True
+        frame = frame.f_back
+    return False
+
+
 class PathFilter:
     """Absolute path → repo-relative POSIX path, or None when it is not the repo's."""
 
@@ -177,7 +202,7 @@ class AuditTrail:
                 rel = self.filter.rel(target)
                 if rel is None and _normcase(_abspath(os.fspath(target))) == self.filter._root:
                     rel = "."
-                if rel is not None:
+                if rel is not None and not _listed_by_pytest_collection():
                     bucket = self.bucket(self.current)
                     if event == "os.listdir" and _listed_by_import_system():
                         bucket.idirs.add(rel)
