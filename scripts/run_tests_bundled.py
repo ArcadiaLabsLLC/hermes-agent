@@ -731,9 +731,29 @@ def _print_expected_wall(to_run, repo_root: Path, durations: dict[str, float], j
     print(line, flush=True)
 
 
-def main(argv: Optional[list[str]] = None) -> int:
-    rtp._make_stdio_glyph_safe()
-    ours, pytest_args = _split_argv(list(sys.argv[1:] if argv is None else argv))
+def _progress_printer(total: int, repo_root: Path, pytest_args: list[str]) -> Callable[[FileOutcome], None]:
+    """One ``[n/total]`` line per finished file, a failure's tail printed inline; thread-safe."""
+    done = 0
+    counter_lock = threading.Lock()
+
+    def _progress(outcome: FileOutcome) -> None:
+        nonlocal done
+        with counter_lock:
+            done += 1
+            status = "✓" if outcome.rc == 0 else "✗"
+            print(
+                f"[{done:>5}/{total}] {status} {_rel(outcome.file, repo_root)} "
+                f"({outcome.via}, {outcome.seconds:.1f}s) {outcome.summary}",
+                flush=True,
+            )
+            if outcome.rc != 0:
+                rtp._print_inline_failure(outcome.file, outcome.output, repo_root, pytest_args)
+
+    return _progress
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    """The runner's own options; everything else on the argv goes to pytest (``_split_argv``)."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
         "-j", "--jobs", type=int,
@@ -781,6 +801,13 @@ def main(argv: Optional[list[str]] = None) -> int:
     _gate.add_arguments(parser)
     _confirm.add_arguments(parser)
     parser.add_argument("paths", nargs="*", metavar="PATH")
+    return parser
+
+
+def main(argv: Optional[list[str]] = None) -> int:
+    rtp._make_stdio_glyph_safe()
+    ours, pytest_args = _split_argv(list(sys.argv[1:] if argv is None else argv))
+    parser = _build_parser()
     args = parser.parse_args(ours)
     if args.git_audit:  # every bundle child inherits it (tests/_downstream/git_audit.py)
         os.environ["HERMES_TEST_GIT_AUDIT"] = "1"
@@ -841,22 +868,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     _print_expected_wall(gate.to_run, repo_root, durations, args.jobs)
 
-    done = 0
-    counter_lock = threading.Lock()
-
-    def _progress(outcome: FileOutcome) -> None:
-        nonlocal done
-        with counter_lock:
-            done += 1
-            status = "✓" if outcome.rc == 0 else "✗"
-            print(
-                f"[{done:>5}/{len(files)}] {status} {_rel(outcome.file, repo_root)} "
-                f"({outcome.via}, {outcome.seconds:.1f}s) {outcome.summary}",
-                flush=True,
-            )
-            if outcome.rc != 0:
-                rtp._print_inline_failure(outcome.file, outcome.output, repo_root, pytest_args)
-
+    _progress = _progress_printer(len(files), repo_root, pytest_args)
     gate.emit_cached(FileOutcome, _progress)  # skipped as cached green: no process
     started, run_wall = time.monotonic(), time.time()
     result = run(
