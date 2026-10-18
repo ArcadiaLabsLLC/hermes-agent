@@ -30,6 +30,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-18 (lane q-stale, branch `q/q-stale`)
+
+- [ ] **The fork's kanban code serves only a feature ADR 0015 marks unused: `hermes_cli/kanban_blocked_pm.py`, `kanban_blocked_pm_tick.py`, `kanban_crash_evidence.py`, the eternia-harness plugin's `route_blocked_kanban_cards` / `record_kanban_crash_evidence` hook registrations and `tests/_downstream/conftest_plugin.py::_kanban_guard_denies_recorded_root`; retire them and their five `tests/hermes_cli/test_kanban_*` files together (owner call: the plugin registers the hooks at boot today)** · fork / runtime · `Harness_Brain/20 — Active Initiatives/stale-fork-test-sweep-2026-10-18.md` · DECIDE
+
 ### Filed on arrival — 2026-10-16 (lane r-realm-lens, branch `q/r-realm-lens`)
 
 - [ ] **Lens L1 has no live proof: a real HTTP feed polled by a running serve, an Episode raised, and the stored evidence row read back redacted** · fork / runtime · r-realm-lens `13cf04f76fa` (no serve started) · BLOCKED live: needs an operator serve with `plugins/eternia-lens` shipped
@@ -530,6 +534,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 - [ ] **No door to upstream's goal engine on the persona chat lane: `hermes_cli/goals.py` (per-session judge, continuation, turn budget, completion contracts, quality gates, park on a background process, pause/resume, persisted in SessionDB) is reachable only as the `/goal` slash command in CLI/TUI/gateway; the runtime has no `runtime.chat.goal.*` method and the console no action, so a persona chat cannot "keep going until it is done". The fork's `goal_id` / `current_chat_goal` are a label and a display string, not a loop** · fork / chat RPC · evidence: `docs/agent-runtime-harness/planned/upstream-capability-audit-2026-10-12.md` §1–§2; `agent_runtime/state_patches/persona_instance.py` (`current_chat_goal`) · lane: DESIGN — set / status / pause / clear over the RPC lane keyed by the persona chat root, continuation turns forged through the mission-chat door the delivery drain uses; everyday surface: none (the persona keeps going), developer mode: a status line. OWNER RULES. · carried from origin/ccr-cc6cbc42-w6ahvk cb32d71 (2026-10-17 harvest) **TAKEN 2026-10-18 r-agent**
 
 ## Seams
+
+### Filed on arrival — 2026-10-18 (lane q-stale, branch `q/q-stale`)
+
+- [ ] **15 fork hunks sit inside upstream functions v0.22.2 rewrote since v0.21.7 (`agent/agent_init.py::init_agent`, `tools/tool_search.py` ×3, `tools/connectors/search.py` ×3, `tui_gateway/*` ×5, `runtime_provider_custom`, `pm/environment`, `tools/environments/local`): re-read each against the new body — still needed, still placed right, or now a hook** · seam / upstream-merge · `Harness_Brain/20 — Active Initiatives/stale-fork-test-sweep-2026-10-18.md`; `python scripts/upstream_retirement_scan.py --arm hunks` · READY
 
 ### Filed on arrival — 2026-10-16 (lane r-realm-lens, branch `q/r-realm-lens`)
 
