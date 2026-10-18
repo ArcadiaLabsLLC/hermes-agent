@@ -22,6 +22,7 @@ from .reasons import Reason
 
 __layer__ = "lanes"
 __all__ = [
+    "REFUSALS",
     "Assignment",
     "Brief",
     "Executor",
@@ -34,6 +35,13 @@ __all__ = [
     "StopReason",
     "Verdict",
 ]
+
+
+#: Every refusal an EXECUTOR may answer or raise (plan §2.2; B1 named the set).
+REFUSALS: frozenset[Reason] = frozenset({
+    Reason.EXECUTOR_BUSY, Reason.PERSONA_UNAVAILABLE, Reason.CAP_REACHED, Reason.DRAIN_BEGUN,
+    Reason.DOOR_UNBOUND, Reason.WORKTREE_FAILED, Reason.GOAL_MODE_UNSUPPORTED,
+})
 
 
 class ExecutorKind(StrEnum):

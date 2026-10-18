@@ -2,7 +2,8 @@
 
 The first six are ``agent_runtime/work/model.py::Reason`` verbatim (W2 turns that one into a
 re-export of this); the rest are the write path's step-table branches (§5) and the default
-brain's. The dispatcher plan's B1 EXTENDS this enum; it never opens a second one.
+brain's, then the dispatcher contracts' (B1 extended it with the scheduler's; each contract names
+its own subset as ``REFUSALS`` in ``source.py``, ``executor.py`` and ``scheduler.py``).
 """
 
 from __future__ import annotations
@@ -47,6 +48,10 @@ class Reason(StrEnum):
     CAP_REACHED = "cap_reached"
     EXECUTOR_BUSY = "executor_busy"
     DOOR_UNBOUND = "door_unbound"
+    # The scheduler's refusals (dispatcher plan §2.3; B1).
+    SCHEDULE_INVALID = "schedule_invalid"
+    AUTOMATION_OFF = "automation_off"
+    NOT_OWNER_MACHINE = "not_owner_machine"
 
 
 class WorkRefused(ValueError):
