@@ -1,7 +1,7 @@
 {
-  "measured_at": "2026-10-17",
+  "measured_at": "2026-10-18",
   "base": "d923a5eb48",
-  "files": 224,
+  "files": 225,
   "deleted_lines": 1031,
   "heavy": 1,
   "reasons": [
@@ -948,6 +948,21 @@
       },
       "reason": "hermes_cli/version_info.py: an additive seam wraps _run_git/_git_version_info with fork-owned hermes_cli/version_info_cache.py (git answers cached per HEAD commit + tag refs state; HEAD read from .git files). Six plugins/model-providers/*/__init__.py User-Agents read the no-git release_version(). Held as one upstream PR candidate.",
       "owner_ruling": "2026-10-17, owner in session (route 1, version-info cache)"
+    },
+    {
+      "change": "lane r-plugins: isolated internal git drops the user's core.autocrlf (fork-hygiene row test_worktree_gc 2 red)",
+      "before": {
+        "files": 224,
+        "deleted_lines": 1031,
+        "heavy": 1
+      },
+      "after": {
+        "files": 225,
+        "deleted_lines": 1031,
+        "heavy": 1
+      },
+      "reason": "hermes_cli/_subprocess_compat.py: two lines marked '# fork seam: r-plugins' at the end of noninteractive_git_env's override block extend it with fork-owned hermes_cli/git_line_endings.py, which replays the user's effective system/global core.autocrlf and core.eol (documented values only, cached per config-file state). The isolation blanked them, so on Git for Windows (system core.autocrlf=true by default) an isolated git status read every CRLF checkout as modified and worktree GC kept clean trees. Command scope outranks a repo-local value; git skips autocrlf conversion when the index already holds CRLF, so the user's own view still matches. Upstream PR candidate. Control: tests/hermes_cli/test_git_line_endings_downstream.py.",
+      "owner_ruling": "2026-10-17, owner: fix all reds"
     }
   ]
 }
