@@ -10,7 +10,7 @@ import threading
 
 from agent_runtime.cli_format import emit_json
 from agent_runtime.config import ensure_persisted_personas
-from agent_runtime.models import AgentPersona
+from agent_runtime.models import AgentPersona, AutonomyLevel
 from agent_runtime.persona_assignments import (
     PERSONA_INSTANCE_ID_PREFIX,
     PersonaAssignmentStore,
@@ -78,7 +78,7 @@ def _persona_by_id(cfg, persona_id: str):
             provider=default_provider or getattr(cfg, "default_provider", None),
             api_mode=default_api_mode or getattr(cfg, "default_api_mode", None),
             system_prompt_path="",
-            autonomy=str(default_autonomy or "review"),
+            autonomy=default_autonomy or AutonomyLevel.PROPOSE_ONLY,
             hermes_profile=profile_id,
             skills=[],
             include_profile_memory=True,

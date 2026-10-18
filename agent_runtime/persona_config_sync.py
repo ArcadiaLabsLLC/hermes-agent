@@ -256,7 +256,9 @@ def _plain(value: Any) -> Any:
     the content hash.
     """
 
-    if value is None or isinstance(value, (str, bool, int, float)):
+    if isinstance(value, str):
+        return str(value)  # a StrEnum member (``autonomy``) publishes its plain value
+    if value is None or isinstance(value, (bool, int, float)):
         return value
     if isinstance(value, (list, tuple)):
         return [_plain(item) for item in value]
