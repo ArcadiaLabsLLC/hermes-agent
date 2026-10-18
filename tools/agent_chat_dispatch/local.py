@@ -73,12 +73,14 @@ def _get_executor(max_workers: int):
 
 
 #: Cancellations asked of dispatches THIS process supervises: dispatch id ->
-#: reason. Written by :func:`request_cancel`, read by the supervisor at the
+#: (reason, killed). Written by :func:`request_cancel`, read by the supervisor at the
 #: two points a cancel can land (before the spawn, and after the child exits)
 #: and consumed by the settle. The supervisor owns the ``proc`` handle on its
 #: own stack, so the request has to travel through here rather than a method
-#: on something the canceller could reach.
-_CANCEL_REQUESTED: dict[str, str] = {}
+#: on something the canceller could reach. ``killed`` is the ONE kill claim
+#: (:func:`_claim_kill`): a cancel landing between the spawn's owner stamp and its
+#: mark check is seen by both sides, and only the first to claim it kills.
+_CANCEL_REQUESTED: dict[str, tuple[str, bool]] = {}
 _CANCEL_LOCK = threading.Lock()
 
 CANCEL_STOPPING = "stopping"
@@ -92,17 +94,31 @@ CANCEL_REQUESTED = "cancel_requested"
 
 def _request_cancel_mark(dispatch_id: str, reason: str) -> None:
     with _CANCEL_LOCK:
-        _CANCEL_REQUESTED[str(dispatch_id)] = str(reason or "operator_cancel")
+        held = _CANCEL_REQUESTED.get(str(dispatch_id))
+        _CANCEL_REQUESTED[str(dispatch_id)] = (str(reason or "operator_cancel"), bool(held and held[1]))
 
 
 def _take_cancel_mark(dispatch_id: str) -> str | None:
     with _CANCEL_LOCK:
-        return _CANCEL_REQUESTED.pop(str(dispatch_id), None)
+        held = _CANCEL_REQUESTED.pop(str(dispatch_id), None)
+    return None if held is None else held[0]
 
 
 def _peek_cancel_mark(dispatch_id: str) -> str | None:
     with _CANCEL_LOCK:
-        return _CANCEL_REQUESTED.get(str(dispatch_id))
+        held = _CANCEL_REQUESTED.get(str(dispatch_id))
+    return None if held is None else held[0]
+
+
+def _claim_kill(dispatch_id: str) -> bool:
+    """True for the first caller to kill a cancelled dispatch's child; False after (or with no mark)."""
+
+    with _CANCEL_LOCK:
+        held = _CANCEL_REQUESTED.get(str(dispatch_id))
+        if held is None or held[1]:
+            return False
+        _CANCEL_REQUESTED[str(dispatch_id)] = (held[0], True)
+        return True
 
 
 def _durable_cancel_reason(dispatch_id: str) -> str:
@@ -157,7 +173,8 @@ def request_cancel(dispatch_id: str, *, reason: str = "operator_cancel") -> dict
     row = dispatch_store.get_dispatch(dispatch_id) or row
     owner_pid = row.get("owner_pid")
     if owner_pid and row.get("started_at"):
-        _kill_child(int(owner_pid), row.get("owner_started_at"))
+        if _claim_kill(dispatch_id):
+            _kill_child(int(owner_pid), row.get("owner_started_at"))
         return {"dispatch_id": dispatch_id, "outcome": CANCEL_STOPPING, "reason": reason}
     # Not spawned: settle it now. The worker consults the mark before spawning.
     dispatch_store.record_completion(
@@ -322,9 +339,10 @@ def _run_dispatch_guarded(dispatch_id: str, spec: dict[str, Any]) -> None:
     durable = "" if _peek_cancel_mark(dispatch_id) is not None else _durable_cancel_reason(dispatch_id)
     if durable:
         _request_cancel_mark(dispatch_id, durable)
-    if _peek_cancel_mark(dispatch_id) is not None:
+    if _claim_kill(dispatch_id):
         # The cancel landed between the queue check and the owner stamp, so
-        # nobody killed anything yet. This side does.
+        # nobody killed anything yet. This side does — unless the cancel saw the
+        # stamp and already claimed the kill.
         _kill_child(proc.pid, started_at)
 
     out_thread = drain(proc.stdout, stdout_tail)

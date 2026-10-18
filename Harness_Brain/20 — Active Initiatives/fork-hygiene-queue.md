@@ -28,7 +28,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-10-18 (land w4)
 
-- **`FORK-FLAKE-CANCEL-KILLS-TWICE` — `test_agent_chat_dispatch.py::test_cancel_of_a_running_child_kills_it_and_settles_cancelled` flakes `[(4242, 777), (4242, 777)] == [(4242, 777)]` (the kill ran twice) under `run_tests.sh -j 4`, green on retry** · fork / suite · evidence: w4-misc run 1 (72 files, 1405 passed after one retry) · READY 2026-10-18 · **TAKEN 2026-10-18 w5-misc**
 
 ## Filed on arrival — 2026-10-16 (landing land-h5, reds proven on `origin/main` `b11585e6424` by `scripts/run_tests.sh` alone)
 
