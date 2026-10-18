@@ -43,6 +43,7 @@ import threading
 import time
 
 import pytest
+from hermes_dep_trail import first_program, is_python
 
 _OPTION = "--hermes-bundle-events"
 _WRAP_OPTION = "--hermes-diag-wrap"
@@ -66,21 +67,10 @@ def pytest_addoption(parser):
 def program_kind(args) -> str:
     """``python`` / ``git`` / ``other`` for a Popen's args (or an ``os.system`` command)."""
 
-    if isinstance(args, (str, bytes)):
-        text = os.fsdecode(args).strip()  # Windows audits the command line: a quoted program may hold spaces
-        if text.startswith('"'):
-            first = text[1:].partition('"')[0]
-        else:
-            first = text.split()[0] if text.split() else ""
-    else:
-        try:
-            first = os.fsdecode(list(args)[0])
-        except (TypeError, IndexError):
-            first = ""
-    base = os.path.basename(first).lower()
-    if base.startswith("python") or (first and os.path.normcase(first) == os.path.normcase(sys.executable)):
+    first = first_program(args)  # the recorder's reader and judge: one owner (hermes_dep_trail)
+    if is_python(first):
         return "python"
-    return "git" if base in ("git", "git.exe") else "other"
+    return "git" if os.path.basename(first).lower() in ("git", "git.exe") else "other"
 
 
 class _Probe:

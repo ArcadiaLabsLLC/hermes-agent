@@ -80,18 +80,29 @@ class PathFilter:
         return out
 
 
-def _popen_program(args: tuple) -> str:
-    executable, argv = args[0], args[1]
-    if executable:
-        return os.fsdecode(executable) if isinstance(executable, bytes) else str(executable)
+def first_program(argv) -> str:
+    """The program an argv (a sequence, or a command line) names first. Windows audits the
+    command line: a quoted program may hold spaces (``"C:\Program Files\python.exe" -c``),
+    so a quoted head is read to its closing quote, never split on spaces. The ONE reader:
+    ``hermes_bundle_report.program_kind`` classifies through it too."""
+
     if isinstance(argv, (str, bytes)):
-        text = os.fsdecode(argv) if isinstance(argv, bytes) else argv
-        return text.split()[0].strip('"') if text.split() else ""
+        text = os.fsdecode(argv).strip()
+        if text.startswith('"'):
+            return text[1:].partition('"')[0]
+        return text.split()[0] if text.split() else ""
     try:
         first = list(argv)[0]
     except (TypeError, IndexError):
         return ""
     return os.fsdecode(first) if isinstance(first, bytes) else str(first)
+
+
+def _popen_program(args: tuple) -> str:
+    executable, argv = args[0], args[1]
+    if executable:
+        return os.fsdecode(executable) if isinstance(executable, bytes) else str(executable)
+    return first_program(argv)
 
 
 #: spawn audit event → the program it starts, read off the event's arguments
