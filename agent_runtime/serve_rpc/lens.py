@@ -137,13 +137,13 @@ def _runtime_lens_get(rid: Any, params: dict, context: RpcContext | None = None)
 def _runtime_lens_preview(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     def body() -> dict:
         from agent_runtime.lens.manifest import read_manifest
-        from agent_runtime.lens.sources import read_feed_source, typed_result
+        from agent_runtime.lens.sources import preview_reads
 
         manifest = read_manifest((params or {}).get("manifest"))
-        # The value the poller would store, not the raw read (W2: a refused read is a gap).
+        # The value the poller would store, not the raw read (W2: a refused read is a gap; W5: a total).
         return {"monitor_id": manifest["monitor_id"],
-                "feeds": [{"feed_id": feed["id"], **typed_result(feed, read_feed_source(feed)).to_json()}
-                          for feed in manifest["feeds"]]}
+                "feeds": [{"feed_id": feed_id, **result.to_json()}
+                          for feed_id, result in preview_reads(manifest).items()]}
 
     return _lens_call(rid, body)
 

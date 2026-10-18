@@ -18,6 +18,21 @@ currency, an instant in epoch milliseconds) and the range a read must fall in
 (``plausible``); :func:`typed_reading` turns a read that breaks either into a
 recorded gap with its reason, before any rule sees it (plan §6b W2, W5).
 
+Two more guards stand between a read and a rule (plan §6b W2(c), W5):
+
+* ``outlier_guard: {window, deviations}`` — a fast feed's read more than
+  ``deviations`` robust deviations (1.4826 x the median absolute deviation) from
+  the median of its last ``window`` reads is a gap ``outlier``
+  (:func:`outlier_refused`). The window holds the refused reads too, so a real
+  level shift is admitted once it is the median, never refused for ever; a flat
+  window (deviation 0) abstains — a price step is a change, not an outlier.
+* ``value_type.total_cost: {shipping?, tax_rate?, fx?}`` on a money feed — the
+  stored value is the TOTAL cost, ``(price + shipping) x (1 + tax_rate)``,
+  converted by a dated exchange-rate feed of the same monitor when the listing's
+  currency (``fx.from``) is not the feed's ``currency`` (:func:`total_cost`). A
+  rate older than ``fx.max_age_ms`` at the read, or none, is a gap ``fx_stale``:
+  a comparison never silently mixes currencies. ``best_of`` compares the total.
+
 Observations keep the reference's honesty rules: a gap is a gap (``value`` is
 ``None`` and ``gap`` is True, never interpolated), and an observation carries
 both the source's time and the time it was received.
@@ -112,7 +127,9 @@ FEED_KEYS_REQUIRED = frozenset({"version", "id", "kind", "interval_ms", "source"
 #: the explicit opt-in a loopback / private / link-local source needs.
 #: ``value_type`` and ``plausible`` (W2): what the number IS, and the range a read
 #: must fall in before any rule may see it.
-FEED_KEYS_OPTIONAL = frozenset({"credential_ref", "allow_private_network", "value_type", "plausible"})
+#: ``outlier_guard`` (W2(c)): the median/deviation guard for a fast feed.
+FEED_KEYS_OPTIONAL = frozenset({"credential_ref", "allow_private_network", "value_type", "plausible",
+                                "outlier_guard"})
 
 
 # --- typed values (W2(c), W5) --------------------------------------------------
@@ -132,6 +149,8 @@ class ReadingRefusal(str, Enum):
 
     TYPE_MISMATCH = "type_mismatch"
     IMPLAUSIBLE = "implausible"
+    OUTLIER = "outlier"
+    FX_STALE = "fx_stale"
 
 
 _CURRENCY = re.compile(r"^[A-Z]{3}$")
@@ -139,18 +158,57 @@ _CURRENCY = re.compile(r"^[A-Z]{3}$")
 _MAXIMUM_INSTANT_MS = 9007199254740991
 
 
-def read_value_type(value: Any) -> dict[str, Any]:
-    """``{kind}``, plus ``currency`` (ISO 4217) exactly when the kind is money."""
+def _currency(value: Any) -> str:
+    currency = bounded_string(value, maximum=3)
+    require(_CURRENCY.fullmatch(currency) is not None, "currency", WireRefusal.INVALID_STRING)
+    return currency
 
-    m = checked_object(value, {"kind"}, {"currency"})
+
+#: The longest a dated exchange rate may be older than the read it converts (7 d).
+MAXIMUM_FX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+
+
+def read_total_cost(value: Any, currency: str) -> dict[str, Any]:
+    """``{shipping?, tax_rate?, fx?: {feed_id, from, max_age_ms}}``; a default leaves no key (W5)."""
+
+    m = checked_object(value, (), {"shipping", "tax_rate", "fx"})
+    out: dict[str, Any] = {}
+    if m.get("shipping") is not None:
+        shipping = finite_number(m["shipping"])
+        require(shipping >= 0, "shipping")
+        if shipping:
+            out["shipping"] = shipping
+    if m.get("tax_rate") is not None:
+        rate = finite_number(m["tax_rate"])
+        require(0 <= rate <= 1, "tax_rate")
+        if rate:
+            out["tax_rate"] = rate
+    if m.get("fx") is not None:
+        fx = checked_object(m["fx"], {"feed_id", "from", "max_age_ms"})
+        source = _currency(fx["from"])
+        require(source != currency, "fx converts between two currencies")
+        out["fx"] = {"feed_id": opaque_id(fx["feed_id"]), "from": source,
+                     "max_age_ms": bounded_int(fx["max_age_ms"], minimum=MINIMUM_INTERVAL_MS,
+                                               maximum=MAXIMUM_FX_AGE_MS)}
+    return out
+
+
+def read_value_type(value: Any) -> dict[str, Any]:
+    """``{kind}``, plus ``currency`` (ISO 4217) exactly when the kind is money, and a
+    money feed's optional ``total_cost``."""
+
+    m = checked_object(value, {"kind"}, {"currency", "total_cost"})
     kind = enum_value(m["kind"], ValueKind)
     out: dict[str, Any] = {"kind": kind.value}
     if kind is ValueKind.MONEY:
-        currency = bounded_string(m.get("currency"), maximum=3)
-        require(_CURRENCY.fullmatch(currency) is not None, "currency", WireRefusal.INVALID_STRING)
-        out["currency"] = currency
+        out["currency"] = _currency(m.get("currency"))
+        if m.get("total_cost") is not None:
+            cost = read_total_cost(m["total_cost"], out["currency"])
+            if cost:
+                out["total_cost"] = cost
     else:
         require(m.get("currency") is None, "currency only for money")
+        require(m.get("total_cost") is None, "total_cost only for money")
     return out
 
 
@@ -165,6 +223,74 @@ def value_type_of(feed: dict[str, Any]) -> dict[str, Any]:
     """The feed's value type; an untyped feed is a plain number."""
 
     return feed.get("value_type") or {"kind": ValueKind.NUMBER.value}
+
+
+def comparable_type(feed: dict[str, Any]) -> dict[str, Any]:
+    """What two feeds must share to be compared: the kind and the stored currency.
+
+    A listing's shipping, tax and source currency fold into its total, so they may
+    differ inside one ``best_of`` group (W5)."""
+
+    value_type = value_type_of(feed)
+    return {key: value_type[key] for key in ("kind", "currency") if key in value_type}
+
+
+def fx_feed_id(feed: dict[str, Any]) -> str | None:
+    """The exchange-rate feed this feed's total converts through, if any."""
+
+    fx = (value_type_of(feed).get("total_cost") or {}).get("fx")
+    return None if fx is None else fx["feed_id"]
+
+
+MINIMUM_OUTLIER_WINDOW = 5
+MAXIMUM_OUTLIER_WINDOW = 64
+#: The median absolute deviation's consistency constant for a normal spread.
+_MAD_SCALE = 1.4826
+
+
+def read_outlier_guard(value: Any) -> dict[str, Any]:
+    m = checked_object(value, {"window", "deviations"})
+    deviations = finite_number(m["deviations"])
+    require(0 < deviations <= 100, "outlier deviations")
+    return {"window": bounded_int(m["window"], minimum=MINIMUM_OUTLIER_WINDOW, maximum=MAXIMUM_OUTLIER_WINDOW),
+            "deviations": deviations}
+
+
+def _median(values: list[float]) -> float:
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    return ordered[middle] if len(ordered) % 2 else (ordered[middle - 1] + ordered[middle]) / 2
+
+
+def outlier_refused(feed: dict[str, Any], history: list[float], value: float) -> bool:
+    """True when ``value`` is an outlier against the feed's last ``window`` reads (W2(c)).
+
+    The guard abstains until it holds a full window, and over a flat window."""
+
+    guard = feed.get("outlier_guard")
+    if guard is None or len(history) < guard["window"]:
+        return False
+    window = history[-guard["window"]:]
+    median = _median(window)
+    spread = _median([abs(x - median) for x in window]) * _MAD_SCALE
+    return spread > 0 and abs(value - median) > guard["deviations"] * spread
+
+
+def total_cost(feed: dict[str, Any], price: float, fx_rate: float | None) -> tuple[float | None, ReadingRefusal | None]:
+    """The stored value of a money read: its total cost in the feed's currency (W5).
+
+    ``fx_rate`` is units of the feed's ``currency`` per one ``fx.from``, from a
+    current dated rate; None when there is none, which is a gap ``fx_stale``."""
+
+    cost = value_type_of(feed).get("total_cost")
+    if not cost:
+        return price, None
+    total = (price + cost.get("shipping", 0.0)) * (1.0 + cost.get("tax_rate", 0.0))
+    if "fx" in cost:
+        if fx_rate is None or not fx_rate > 0:
+            return None, ReadingRefusal.FX_STALE
+        total *= fx_rate
+    return round(total, 6), None
 
 
 def typed_reading(feed: dict[str, Any], value: float | None) -> tuple[float | None, ReadingRefusal | None]:
@@ -212,6 +338,8 @@ def read_feed(value: Any) -> dict[str, Any]:
             feed["value_type"] = value_type
     if m.get("plausible") is not None:
         feed["plausible"] = read_plausible(m["plausible"])
+    if m.get("outlier_guard") is not None:
+        feed["outlier_guard"] = read_outlier_guard(m["outlier_guard"])
     return feed
 
 
