@@ -422,7 +422,9 @@ def served_cached_core(core: dict, *, stale: bool) -> dict:
     if isinstance(lens, dict):
         from agent_runtime.lens.snapshot_fold import watcher_state
 
-        lens["watcher"] = watcher_state()
+        # Key-sorted like the rest of the persisted core it joins, so a watcher that did not move
+        # serves the persisted bytes (the stream goldens pin them).
+        lens["watcher"] = dict(sorted(watcher_state().items()))
     return core
 
 
