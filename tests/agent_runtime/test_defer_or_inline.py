@@ -105,8 +105,6 @@ def test_the_door_runs_an_inline_build_inside_the_fault_boundary():
 _LANE_CALLERS = {
     "agent_runtime/serve_rpc/protocol.py": "the doors (defer_or_refuse, defer_or_inline)",
     "agent_runtime/serve_rpc/media.py": "its inline fallback dials a different path than its deferred build",
-    "agent_runtime/serve_rpc/schedule.py": "hand-written defer-or-refuse; RT-RPC-DEFER-OR-REFUSE-STRAGGLERS",
-    "agent_runtime/batch/rpc.py": "hand-written defer-or-refuse; RT-RPC-DEFER-OR-REFUSE-STRAGGLERS",
 }
 
 
@@ -134,3 +132,30 @@ def test_only_the_doors_hand_a_build_to_the_worker_lane():
             found.add(path.relative_to(REPO).as_posix())
 
     assert found == set(_LANE_CALLERS)
+
+
+#: The defer-or-REFUSE stragglers folded onto ``defer_or_refuse`` (RT-RPC-DEFER-OR-REFUSE-STRAGGLERS):
+#: (method, the module whose reply builder is patched, its attribute, tag).
+REFUSERS = [
+    ("runtime.schedule.list", "agent_runtime.serve_rpc.schedule", "_schedule_reply", "schedule"),
+    ("runtime.batch.status", "agent_runtime.batch.rpc", "_batch_reply", "batch"),
+]
+
+
+@pytest.mark.parametrize(("name", "module", "attr", "tag"), REFUSERS, ids=[r[0] for r in REFUSERS])
+def test_each_refusing_family_answers_the_same_bytes_on_every_lane(monkeypatch, name, module, attr, tag):
+    import importlib
+
+    monkeypatch.setattr(importlib.import_module(module), attr, _frame(tag))
+    request = {"jsonrpc": "2.0", "id": "r1", "method": name, "params": {}}
+    refused = ('{"jsonrpc": "2.0", "id": "r1", "error": {"code": 4090, "message": "The runtime is unavailable.", '
+               '"data": {"reason": "runtime_stopping"}}}')
+
+    for lane, spawn_reply in _lanes().items():
+        frame = handle_request(request, RpcContext(caller=STDIO_OWNER, spawn_reply=spawn_reply))
+        assert json.dumps(frame) == refused, lane
+
+    builds = []
+    accepted = RpcContext(caller=STDIO_OWNER, spawn_reply=lambda build: builds.append(build) or True)
+    assert handle_request(request, accepted) is DEFERRED
+    assert json.dumps(builds.pop()()) == '{"jsonrpc": "2.0", "id": "r1", "result": {"pinned": "' + tag + '"}}'

@@ -32,7 +32,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-18 (lane w6-misc, branch `w6/misc`)
 - **`RT-SCHEDULE-REPEAT-REQUEST-ID` — a repeating (`every`/`cron`) `run_assignment` schedule fires the armed `Assignment.request_id` every time: the claim (`<request_id>:claim`), the queued cmid (`work-<request_id>`) and every write-back step replay by that id, so a second fire after a BLOCKED/STOPPED release converges on the first fire's replayed ops and claims nothing** · fork / scheduling, Work · `agent_runtime/work_store/serve_scheduler.py::ServeTickScheduler._fire_assignment`, `agent_runtime/work_store/engine.py::WorkEngine.adopt` · derive a per-fire request id (`<request_id>@<fire stamp>`) in `_fire_assignment` and pin a second fire after a release · READY 2026-10-18
-- **`RT-RPC-DEFER-OR-REFUSE-STRAGGLERS` — two method families still hand-write the defer-or-refuse shape `defer_or_refuse` closed (`context.spawn_reply is None or not context.spawn_reply(reply)` → a hand-built 4090 `runtime_stopping`), outside `deferred_reply`'s fault boundary** · fork / serve RPC · `agent_runtime/serve_rpc/schedule.py::_schedule_method`, `agent_runtime/batch/rpc.py`; both allowlisted in `tests/agent_runtime/test_defer_or_inline.py::_LANE_CALLERS` · fold both onto `serve_rpc/protocol.py::defer_or_refuse`, pin their 4090 bytes in `test_defer_or_refuse.py::FAMILIES`, drop both from `_LANE_CALLERS` · READY 2026-10-18
 
 ### Filed on arrival — 2026-10-18 (land w5)
 

@@ -18,7 +18,7 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 from agent_runtime.call_authorization import TIER_CONSOLE, authorize_call
-from agent_runtime.serve_rpc.protocol import DEFERRED, err, ok
+from agent_runtime.serve_rpc.protocol import defer_or_refuse, err, ok
 from agent_runtime.work_store.reasons import Reason, WorkRefused
 
 __layer__ = "lanes"
@@ -103,10 +103,8 @@ def _batch_reply(rid: Any, operation: str, params: Mapping[str, Any], caller: An
 
 def _batch_method(operation: str) -> Callable[[Any, dict, Any], dict]:
     def handle(rid: Any, params: dict, context: Any) -> dict:
-        reply = lambda: _batch_reply(rid, operation, dict(params or {}), context.caller)
-        if context.spawn_reply is None or not context.spawn_reply(reply):
-            return err(rid, 4090, "The runtime is unavailable.", {"reason": "runtime_stopping"})
-        return DEFERRED
+        return defer_or_refuse(rid, "runtime.batch." + operation, context,
+                               lambda: _batch_reply(rid, operation, dict(params or {}), context.caller))
     return handle
 
 
