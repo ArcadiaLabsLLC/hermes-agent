@@ -41,6 +41,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .sync_take import SyncTake
+
 __layer__ = "stores"
 
 #: The baseline/selector key prefix for this family. A skill's key is
@@ -361,8 +363,10 @@ def resolve_held_skill(
         skill_package_sync_hash,
     )
 
-    if take not in ("local", "remote"):
-        raise SkillResolveError("invalid_request", "take must be 'local' or 'remote'")
+    try:
+        take = SyncTake(take)
+    except ValueError:
+        raise SkillResolveError("invalid_request", "take must be 'local' or 'remote'") from None
     slug = split_skill_baseline_key(key)
     if slug is None:
         raise SkillResolveError("invalid_request", f"not a skill entity key: {key}")
@@ -383,7 +387,7 @@ def resolve_held_skill(
 
     archived_previous_to: str | None = None
     if not dry_run:
-        if take == "remote" and plan.action != "noop_identical":
+        if take is SyncTake.REMOTE and plan.action != "noop_identical":
             result = execute_promotion(
                 plan,
                 source={"kind": "realm", "realm_id": realm_id},
@@ -408,8 +412,8 @@ def resolve_held_skill(
     return {
         "id": skill_baseline_key(slug),
         "skill": slug,
-        "take": take,
-        "changed": take == "remote" and local_hash != remote_hash,
+        "take": take.value,
+        "changed": take is SyncTake.REMOTE and local_hash != remote_hash,
         "local_hash": local_hash,
         "remote_hash": remote_hash,
         "archived_previous_to": archived_previous_to,

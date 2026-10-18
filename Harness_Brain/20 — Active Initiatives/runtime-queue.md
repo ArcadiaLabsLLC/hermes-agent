@@ -864,5 +864,4 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-18 (land w3)
 
-- **`RT-SYNC-TAKE-RESPELLED` — six resolve verbs re-spell `take not in {"local","remote"}` (`board_store/adopt.py`, `office_store/conflicts.py`, `profile_artifact_sync.py`, `skill_sync.py`, `serve_rpc/board.py`, `serve_rpc/office_surface_writes.py`); `agent_runtime/sync_take.py::SyncTake` is the one vocabulary since w3-misc `3b0f33fe25`** · fork / runtime · evidence: the ladder-gate NEW on `serve_rpc/realm.py` (the 7th site) · READY 2026-10-18: parse `take` through `SyncTake` at each site · **TAKEN 2026-10-18 w4-misc**
 - **`RT-WORK-START-CONVERSATION-LINK` — `runtime.work.start` from an operator conversation neither defaults `assignee` to the context's persona instance nor marks the row in that conversation, so a chat-started row is never `in_conversation`** · fork / Work · `agent_runtime/work/store.py::start`; launcher half landed with `MC-WORK-W4-BOARD` (the launcher sends the assignee itself) · READY 2026-10-18 · **TAKEN 2026-10-18 w4-misc**
