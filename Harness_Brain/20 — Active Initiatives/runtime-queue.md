@@ -514,7 +514,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-10-17 (q-version)
 
-- [ ] **`test_embedded_phone_session::test_sign_in_and_one_chat_turn...[phone]` red on `8a648c203e`: the phone closure imports `tools.connectors.gateway.wire` from `tools/connectors/gateway/files.py:25`** · fork-owned / phone closure · q-version report · READY **TAKEN 2026-10-17 claude (r-drift)**
 
 ### Filed on arrival — 2026-10-17 (harvest of rows committed on branches, never landed)
 

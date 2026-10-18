@@ -428,9 +428,9 @@ durable record through this key — by construction, not by scrubbing.
 Persisted at `<store>/mission_chat_turns/<safe_session_key>.json`
 (`mission_chat_turns/storage.py:33-48`) with `sort_keys=True` (`mission_chat_turns/storage.py:352`), so the on-disk order is
 alphabetical and **nothing may depend on ordering** — the join contract is the
-key names and their meaning (`mission_chat_phases.py:126-142`). A "phase" more
+key names and their meaning (`mission_chat_phases.py:147-153`). A "phase" more
 than 24 h after the anchor is rejected on READ as corrupt; the writer cannot
-produce one (`:128-132`). The emitter's own `ttft_ms` keeps its meaning: it is
+produce one (`:208-213`). The emitter's own `ttft_ms` keeps its meaning: it is
 constructed only after replay checks, native history load, turn-context build
 and the prompt-observability row build, so its clock cannot see the profile
 bootstrap before it. `phases` is a SUPERSET, not a replacement (`:41-46`).

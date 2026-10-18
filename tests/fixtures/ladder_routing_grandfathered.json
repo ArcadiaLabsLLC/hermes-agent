@@ -114,10 +114,6 @@
    "site": "agent_runtime/profile_artifact_sync.py|apply_profile_artifact_pull|ladder|decision.action"
   },
   {
-   "arms": 3,
-   "site": "agent_runtime/progress.py|ChatProgressSink.emit|ladder|event_type"
-  },
-  {
    "arms": 5,
    "site": "agent_runtime/progress.py|_observe_value|isinstance|value"
   },

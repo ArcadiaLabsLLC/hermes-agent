@@ -46,7 +46,7 @@ MAXIMUM_RANGE_ROWS = 10_000
 SERIES_SCHEMA = "lens-range-v1"
 
 
-def _guarded(rid: Any, body: Callable[[], dict]) -> dict:
+def _lens_call(rid: Any, body: Callable[[], dict]) -> dict:
     """Run ``body``; turn a Lens refusal into its typed frame."""
 
     from agent_runtime.lens.store import LensStoreError, StoreRefusal
@@ -88,24 +88,24 @@ def _runtime_lens_list(rid: Any, params: dict, context: RpcContext | None = None
                     for row in _store().monitors()]
         return {"monitors": monitors, "feed_kinds": _feed_kinds()}
 
-    return _guarded(rid, body)
+    return _lens_call(rid, body)
 
 
 @method("runtime.lens.create", tier=TIER_CONSOLE)
 def _runtime_lens_create(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
-    return _guarded(rid, lambda: _store().create((params or {}).get("manifest")))
+    return _lens_call(rid, lambda: _store().create((params or {}).get("manifest")))
 
 
 @method("runtime.lens.seal", tier=TIER_CONSOLE)
 def _runtime_lens_seal(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
-    return _guarded(rid, lambda: _store().seal(_monitor_id(params)))
+    return _lens_call(rid, lambda: _store().seal(_monitor_id(params)))
 
 
 def _state_verb(state_name: str) -> Callable[..., dict]:
     def handler(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
         from agent_runtime.lens.store import MonitorState
 
-        return _guarded(rid, lambda: _store().set_state(_monitor_id(params), MonitorState(state_name)))
+        return _lens_call(rid, lambda: _store().set_state(_monitor_id(params), MonitorState(state_name)))
 
     return handler
 
@@ -129,7 +129,7 @@ def _runtime_lens_get(rid: Any, params: dict, context: RpcContext | None = None)
         monitor = _store().get(_monitor_id(params))
         return {**monitor, "credentials": _credentials_of(monitor)}
 
-    return _guarded(rid, body)
+    return _lens_call(rid, body)
 
 
 @method("runtime.lens.preview", tier=TIER_CONSOLE)
@@ -142,7 +142,7 @@ def _runtime_lens_preview(rid: Any, params: dict, context: RpcContext | None = N
         return {"monitor_id": manifest["monitor_id"],
                 "feeds": [{"feed_id": feed["id"], **read_feed_source(feed).to_json()} for feed in manifest["feeds"]]}
 
-    return _guarded(rid, body)
+    return _lens_call(rid, body)
 
 
 @method("runtime.lens.latest", tier=TIER_CONSOLE)
@@ -154,7 +154,7 @@ def _runtime_lens_latest(rid: Any, params: dict, context: RpcContext | None = No
         return {"monitor_id": monitor["monitor_id"],
                 "latest": [store.latest(monitor["monitor_id"], feed["id"]) for feed in manifest["feeds"]]}
 
-    return _guarded(rid, body)
+    return _lens_call(rid, body)
 
 
 @method("runtime.lens.range", tier=TIER_CONSOLE)
@@ -179,7 +179,7 @@ def _runtime_lens_range(rid: Any, params: dict, context: RpcContext | None = Non
                 "end_ms": end, "observations": rows[:MAXIMUM_RANGE_ROWS],
                 "truncated": len(rows) > MAXIMUM_RANGE_ROWS, "rollups": rollups}
 
-    return _guarded(rid, body)
+    return _lens_call(rid, body)
 
 
 @method("runtime.lens.episodes", tier=TIER_CONSOLE)
@@ -193,14 +193,14 @@ def _runtime_lens_episodes(rid: Any, params: dict, context: RpcContext | None = 
         states = None if params_.get("state") is None else (enum_value(params_["state"], EpisodeState).value,)
         return {"episodes": _store().episodes(monitor_id=monitor_id, states=states)}
 
-    return _guarded(rid, body)
+    return _lens_call(rid, body)
 
 
 @method("runtime.lens.fold", tier=TIER_CONSOLE)
 def _runtime_lens_fold(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     from agent_runtime.lens.snapshot_fold import lens_fold
 
-    return _guarded(rid, lens_fold)
+    return _lens_call(rid, lens_fold)
 
 
 @method("runtime.lens.credential.set", tier=TIER_CONSOLE)
@@ -213,4 +213,4 @@ def _runtime_lens_credential_set(rid: Any, params: dict, context: RpcContext | N
         return set_credential(m["ref"], scheme=enum_value(m["scheme"], CredentialScheme).value,
                               secret=m["secret"], username=m.get("username"))
 
-    return _guarded(rid, body)
+    return _lens_call(rid, body)

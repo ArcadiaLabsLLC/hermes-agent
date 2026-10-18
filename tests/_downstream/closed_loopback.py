@@ -26,7 +26,7 @@ import socket
 _LOOPBACK_NAMES = frozenset({"localhost", "localhost.", "::1", "0:0:0:0:0:0:0:1"})
 
 
-def _is_loopback(host: object) -> bool:
+def _host_is_loopback(host: object) -> bool:
     if isinstance(host, bytes):
         host = host.decode("ascii", "replace")
     if not isinstance(host, str):
@@ -40,7 +40,7 @@ def _target_port(sock: socket.socket, address: object) -> int | None:
 
     if sock.family not in (socket.AF_INET, socket.AF_INET6) or sock.type != socket.SOCK_STREAM:
         return None
-    if not isinstance(address, tuple) or len(address) < 2 or not _is_loopback(address[0]):
+    if not isinstance(address, tuple) or len(address) < 2 or not _host_is_loopback(address[0]):
         return None
     port = address[1]
     return port if isinstance(port, int) and 0 < port < 65536 else None

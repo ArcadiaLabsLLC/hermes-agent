@@ -1124,7 +1124,7 @@ an instant rather than work. That silently unmeasured `request_assembled` on eve
 ahead of the filter) now forwards the marker to `on_trace` ONLY: no EventLog row, no
 `before_first_trace` latch, no chat-log mirror, and only a `step` matched against the closed set of
 marker steps plus a bare `status` token — so the noise rule and the redaction boundary both stay
-intact. `phase_timing_marker_step` (`mission_chat_phases.py:400-431`) is the single authority both
+intact. `phase_timing_marker_step` (`mission_chat_phases.py:488-518`) is the single authority both
 sides read, so producer and consumer cannot drift apart again.
 
 The live measurement that motivated the split (turn `c59ab99e`, 2026-08-22): **1,762 ms of a 13,532

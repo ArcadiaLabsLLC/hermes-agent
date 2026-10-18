@@ -172,7 +172,7 @@ class _Entry:
 _entries: dict[Path, _Entry] = {}
 
 
-def _entry(head: _Head) -> _Entry:
+def _head_entry(head: _Head) -> _Entry:
     """The cache entry for HEAD's current key; a stale, missing or corrupt file starts empty."""
     tags = _tags_state(head.common_dir)
     path = head.git_dir / CACHE_NAME
@@ -208,7 +208,7 @@ def memoize_run_git(run_git: Callable[..., str | None]) -> Callable[..., str | N
                 return head.branch
             if not _memoizable(args):
                 return run_git(repo_dir, *args)
-            entry = _entry(head)
+            entry = _head_entry(head)
         except (OSError, UnicodeDecodeError, ValueError):
             return run_git(repo_dir, *args)
         key = "\x1f".join(args)
@@ -231,7 +231,7 @@ def record_release(git_version_info: Callable[..., Any]) -> Callable[..., Any]:
         try:
             head = read_head(Path(repo_dir))
             if head is not None and head.commit == info.commit and info.base_version != "unknown":
-                entry = _entry(head)
+                entry = _head_entry(head)
                 if entry.fields.get("base_version") != info.base_version:
                     entry.fields["base_version"] = info.base_version
                     entry.save()
@@ -247,7 +247,7 @@ def cached_base_version(repo_dir: Path) -> str | None:
         head = read_head(Path(repo_dir))
         if head is None:
             return None
-        value = _entry(head).fields.get("base_version")
+        value = _head_entry(head).fields.get("base_version")
     except (OSError, UnicodeDecodeError, ValueError):
         return None
     return value if isinstance(value, str) and value else None
