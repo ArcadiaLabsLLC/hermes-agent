@@ -163,3 +163,18 @@ def test_a_qa_build_binds_its_wake_but_writes_no_mcp_job_row(registry, head):
     [(evt, text)] = registry.drain_notifications(session_key=SESSION)
     assert (evt["job_id"], evt["job_kind"]) == (JOB, "qa_build") and text.startswith("[IMPORTANT: QA build ready")
     assert _rows("mcp_job") == []
+
+
+def test_a_cli_or_tui_drain_retires_the_entry_on_its_delivery_ack(registry, head):
+    """CLI, TUI and quiet mode drain through upstream ``drain_notifications`` and acknowledge with
+    ``complete_event_delivery``; that ack retires the row (a released claim keeps it)."""
+    from tools.async_delegation import claim_event_delivery, complete_event_delivery, release_event_delivery
+
+    _call_qa_tool(MagicMock(), _job_envelope())
+    _notify(_job_finished())
+    [(evt, _text)] = registry.drain_notifications(session_key=SESSION)
+    claim = claim_event_delivery(evt, "cli")
+    release_event_delivery(evt, claim)
+    assert len(_rows("mcp_job")) == 1
+    complete_event_delivery(evt, claim)
+    assert _rows("mcp_job") == []

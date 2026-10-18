@@ -19,8 +19,10 @@ The join, end to end:
 4. Background work: every bound job is a row in ``<background-work home>/mcp_jobs.json`` — the
    checkpoint the ``running_work`` projection's ``mcp_job`` lane reads, beside ``processes.json``
    (``agent_runtime/running_work/lanes_process.py``). ``running`` on bind; ``ready``/``failed``
-   (with elapsed and the redacted tail) on the finish notification; gone once the serve drain
-   settles the wake (:func:`note_wake_settled`), or past the row's own ``expires_at``.
+   (with elapsed and the redacted tail) on the finish notification; gone once a drain settles the
+   wake (:func:`note_wake_settled` — the serve drain directly, CLI / TUI / quiet mode through their
+   ``complete_event_delivery`` ack, ``tools/fork_completion_events.py``), or past the row's own
+   ``expires_at``.
    **Except a QA build** (``job_kind == qa_build``, build plan §8 step 3, row H9): its writer
    announces it into the build registry, so it is a ``build`` row and no ``mcp_job`` row is
    written for it. Its route — and so its wake — is bound exactly as before.
@@ -58,8 +60,8 @@ _SEARCH_DEPTH = 4
 _MAX_ROUTES = 128
 _ROUTE_TTL_S = 6 * 3600.0
 _TAIL_CHARS = 4000
-#: How long a FINISHED row stays in background work when no drain settles its wake (a CLI/TUI
-#: drain has no settle hook) — long enough to be seen, short enough not to become an archive.
+#: How long a FINISHED row stays in background work when no drain settles its wake (the gateway's
+#: watch drain acknowledges nothing) — long enough to be seen, short enough not to become an archive.
 _FINISHED_TTL_S = 30 * 60.0
 CHECKPOINT_FILENAME = "mcp_jobs.json"
 ROW_RUNNING, ROW_READY, ROW_FAILED = "running", "ready", "failed"
