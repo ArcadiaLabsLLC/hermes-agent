@@ -94,10 +94,6 @@
    "site": "agent_runtime/persona_chat_history/text.py|_curate_chat_message_text|vocab|operator"
   },
   {
-   "arms": 3,
-   "site": "agent_runtime/persona_config_sync.py|_plain|isinstance|value"
-  },
-  {
    "arms": 5,
    "site": "agent_runtime/persona_config_sync.py|apply_persona_config_pull|ladder|decision.action"
   },
@@ -188,10 +184,6 @@
   {
    "arms": 4,
    "site": "scripts/doc_cite_adjacency.py|_judge_one|ladder|outcome"
-  },
-  {
-   "arms": 1,
-   "site": "scripts/generate_agent_runtime_stream_fixtures.py|_build_stale_first_convergence_pair|vocab|stale"
   },
   {
    "arms": 4,
