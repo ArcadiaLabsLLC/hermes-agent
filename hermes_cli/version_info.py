@@ -330,3 +330,14 @@ def get_code_identity(refresh: bool = False) -> dict:
         "source": info.source,
         "commit_date": info.commit_date,
     }
+
+
+# fork seam: q-version (owner ruling 2026-10-17, route 1) — git answers fixed by HEAD's commit and
+# the tag refs are read from a per-commit cache in the git dir; HEAD and branch from the git files.
+from hermes_cli.version_info_cache import make_release_version, memoize_run_git, record_release  # noqa: E402
+
+_run_git = memoize_run_git(_run_git)
+_git_version_info = record_release(_git_version_info)
+release_version = make_release_version(
+    lambda: _cached_version_info, lambda: _stamp_version_info(), lambda: _resolve_repo_dir(), lambda: get_version_info()
+)
