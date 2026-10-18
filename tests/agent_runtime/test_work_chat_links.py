@@ -62,12 +62,14 @@ def test_operator_reference_names_its_instance_as_the_assignee(work, monkeypatch
     assert context["scopes"] == ["conversation", "all"] and context["agent_profile"] is None
     assert context["assignee"] == f"persona:{alice.id}"
     assert calls == [{**reference, "install_id": work.scope["install_id"]}]
-    mine = start(work, "q1", conversation=reference)["task"]["id"]
-    start(work, "q2", title="Someone else's")
-    claimed = call(work, "claim", request_id="c1", slot="brain", task_id=mine, conversation=reference)["task"]
+    started = start(work, "q1", conversation=reference)["task"]  # started here: taken here
+    assert started["taken"]["who"] == f"persona:{alice.id}" and started["in_conversation"] is True
+    later = start(work, "q2", title="Picked up later")["task"]["id"]
+    start(work, "q3", title="Someone else's")
+    claimed = call(work, "claim", request_id="c1", slot="brain", task_id=later, conversation=reference)["task"]
     assert claimed["taken"]["who"] == f"persona:{alice.id}" and claimed["in_conversation"] is True
     rows = rows_of(call(work, "list", view="conversation", conversation=reference))
-    assert [row["id"] for row in rows] == [mine]
+    assert sorted(row["id"] for row in rows) == sorted([started["id"], later])
 
     def refuse(value):
         raise operator_conversation.OperatorConversationRefused("foreign_session")

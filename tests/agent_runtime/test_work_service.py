@@ -97,6 +97,26 @@ def test_operator_reference_is_the_assignee(work, monkeypatch):
     assert context["assignee"] == "persona:pi_alice_01" and context["can_start"] is True
 
 
+def test_start_from_an_operator_conversation_assigns_and_takes_the_row_there(work, monkeypatch):
+    """RT-WORK-START-CONVERSATION-LINK. Mutation: drop ``or here`` from ``start``'s assignee default
+    -> the row has no assignee, no TAKEN mark, and ``in_conversation`` is False."""
+    from agent_runtime import operator_conversation
+
+    alice, bob = mint_free_floating("alice"), mint_free_floating("bob")
+    monkeypatch.setattr(operator_conversation, "validate_operator_conversation", lambda reference: reference)
+    reference = {"kind": "operator", "workspace_id": work.ws, "persona_id": "alice",
+                 "persona_instance_id": alice.id, "session_id": "s1"}
+    task = start(work, "v1", conversation=reference)["task"]
+    assert task["assignee"] == f"persona:{alice.id}" and task["status"] == "TAKEN"
+    assert task["taken"]["persona_instance_id"] == alice.id and task["in_conversation"] is True
+    listed = rows_of(call(work, "list", view="conversation", conversation=reference))
+    assert [row["id"] for row in listed] == [task["id"]]
+    # Started here but handed to someone else: assigned, not taken in this conversation.
+    other = start(work, "v2", title="Hand off", conversation=reference, assignee=f"persona:{bob.id}")["task"]
+    assert other["assignee"] == f"persona:{bob.id}" and other["status"] == "READY"
+    assert other["taken"] is None and other["in_conversation"] is False
+
+
 def test_unknown_caller_and_wrong_install_refuse(work):
     for operation in rpc.OPERATIONS:
         with pytest.raises(WorkRefused) as denied:

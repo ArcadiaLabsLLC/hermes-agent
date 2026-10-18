@@ -864,4 +864,3 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-18 (land w3)
 
-- **`RT-WORK-START-CONVERSATION-LINK` — `runtime.work.start` from an operator conversation neither defaults `assignee` to the context's persona instance nor marks the row in that conversation, so a chat-started row is never `in_conversation`** · fork / Work · `agent_runtime/work/store.py::start`; launcher half landed with `MC-WORK-W4-BOARD` (the launcher sends the assignee itself) · READY 2026-10-18 · **TAKEN 2026-10-18 w4-misc**
