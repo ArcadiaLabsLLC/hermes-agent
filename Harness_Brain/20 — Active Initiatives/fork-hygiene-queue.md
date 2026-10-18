@@ -505,8 +505,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-18 (land h1018)
 
-- **`FORK-BUILD-DETECT-CLOCK-FLAKE` — `tests/agent_runtime/test_build_detect.py::test_eighty_bound_slots_are_still_correct_and_the_cost_is_reported` runs `detect.scan` on the real `time.perf_counter` against the 50 ms budget, so under load it returns `scan_budget` and `builds == []`** · suite · red 1 in 3 alone on origin/main's `detect.py` (lane w2-phone, 2026-10-18) · READY 2026-10-18 · **TAKEN 2026-10-18 w3-misc**
-
 ## Filed on arrival — 2026-10-18 (lane w2-reds)
 - **`FORK-RUN-AGENT-20-REDS` — `tests/agent/test_run_agent.py` is 20 red alone on the test venv: all 14 `TestAgentRuntimePostHookOwnershipSync::test_agent_runtime_tools_emit_once_per_executor_path` cases (the `_invoke_tool` concurrent path emits no `post_tool_call`; only the sequential id arrives), both `TestRuntimeToolTransformToolResult` paths (`handle_function_call` called 0 times), and four `TestRunConversation` tool-call retry cases** · fork / suite (upstream file; fork hunks in `agent/` may be the cause) · lane w2-reds 2026-10-18: `20 failed, 260 passed in 263 s` alone on branch w2/reds (no `agent/` change), log `test_run_agent_1.log` · first `scripts/run_tests_bundled.sh --confirm-red tests/agent/test_run_agent.py`, then fix the fork hunk or file the upstream red · READY 2026-10-18 · **TAKEN 2026-10-18 w3-misc**
 
