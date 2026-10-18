@@ -186,7 +186,7 @@ def _spawn(
     )
 
 
-def _ended(env: dict[str, str], child: "_Child") -> dict | None:
+def _ended(env: dict[str, str], child: _Child) -> dict | None:
     """The sidecar the EXITED child left, read once.
 
     The child is the record's only writer and writes it before it exits, so once
