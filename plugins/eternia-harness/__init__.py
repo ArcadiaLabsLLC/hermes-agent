@@ -351,6 +351,17 @@ def migrate_legacy_persona_toolsets() -> None:
         logging.getLogger(__name__).warning("persona toolsets legacy-key migration failed", exc_info=True)
 
 
+def migrate_legacy_office_schema() -> None:
+    """Owner rule 2026-09-18 (old schema: delete and report): the one-shot office
+    cleanups in ``agent_runtime.office_legacy_migration.STEPS``, once per store."""
+    try:
+        from agent_runtime.office_legacy_migration import run_office_legacy_migrations_once
+
+        run_office_legacy_migrations_once()
+    except Exception:  # a failed migration must not take plugin load down
+        logging.getLogger(__name__).warning("office legacy-schema migration failed", exc_info=True)
+
+
 def seed_persona_profile_defaults() -> None:
     """Owner ruling 2026-10-03: hermes fills the approved seed keys into every persona's
     bound profile ``config.yaml`` — absent keys only (``agent_runtime.persona_seed_defaults``)."""
@@ -371,6 +382,7 @@ def register(ctx) -> None:
     bind_mission_chat_door()  # ruling Q10: the runtime's door onto the CLI turn handler
     migrate_retired_local_llama_id()
     migrate_legacy_persona_toolsets()
+    migrate_legacy_office_schema()
     seed_persona_profile_defaults()
     from agent_runtime.harness_toolset import ensure_harness_core
 

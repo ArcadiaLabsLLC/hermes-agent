@@ -698,12 +698,13 @@ as a compatible change. Nothing in the launcher read the key (checked
 repo-wide), and `orphan_actors`, `unplaced_rows` and `duplicate_placements` are
 untouched: all three ask about ACTORS and item IDs, never about kinds.
 
-`OfficeItem.minted_kind` (H-H12) was stamped for that classifier and is now
-stamped with NO reader. It is deliberately left in place: it is persisted
-provenance on every item every store has written since 2026-08-30, it is
-excluded from `office_content_hash` (`office_models._ITEM_HASH_EXCLUDE`) and
-from the wire, and removing it is a stored-data change that belongs to whoever
-decides it is worth one. Recorded here rather than left to be rediscovered.
+`OfficeItem.minted_kind` (H-H12) was stamped for that classifier and outlived it
+with no reader. It was DELETED on 2026-10-18 (RT-OFFICEITEM-MINTED-KIND, the standing
+old-schema rule): the field, its stamp and its `office_content_hash` exclusion are gone,
+and `agent_runtime.office_legacy_migration` strips the stored key from every live and
+archived actor file once per store, reporting the count in
+`<store>/migrations/office_item_minted_kind.json`. Hashes do not move: the key was
+already excluded.
 
 **`duplicate_placements`** (H-H8) is the section's second sweep, and it
 OUTLIVED the residual it was written for: an instance-keyed write claiming an

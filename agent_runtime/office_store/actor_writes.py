@@ -24,7 +24,6 @@ from agent_runtime.office_store.normalize import (
     _normalize_actor_persona_ref,
     _normalize_item,
     _safe_actor_ref,
-    _stamp_minted_kinds,
 )
 from agent_runtime.serde import from_jsonable, read_json, safe_id
 from agent_runtime.store_conflicts import check_revision
@@ -309,7 +308,7 @@ def _next_actor(
         persona_id=request.persona_id,
         persona_instance_id=request.persona_instance_id,
         backing_profile=request.backing_profile,
-        items=_stamp_minted_kinds(items, existing or archived),
+        items=items,
         state="active",
         revision=base_revision + 1,
         created_at=existing.created_at if existing else ts,

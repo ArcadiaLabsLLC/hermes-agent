@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import tempfile
@@ -449,3 +450,20 @@ def is_hex(text: str, length: int) -> bool:
     accept an upper-case spelling of an id it will compare byte-for-byte).
     """
     return len(text) == length and all(ch in "0123456789abcdef" for ch in text)
+
+
+#: The fields a realm-sync content hash never sees: revision, timestamps and
+#: the writer. Timestamp-only differences are never sync conflicts.
+SYNC_HASH_EXCLUDE = frozenset({"revision", "created_at", "updated_at", "updated_by"})
+
+
+def sync_content_hash(entity: Any) -> str:
+    """Semantic content hash H(entity) over every field except
+    :data:`SYNC_HASH_EXCLUDE` — the one body behind ``board_content_hash`` and
+    ``office_content_hash``."""
+
+    payload = to_jsonable(entity)
+    if isinstance(payload, dict):
+        payload = {key: value for key, value in payload.items() if key not in SYNC_HASH_EXCLUDE}
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()

@@ -794,8 +794,7 @@ def _generic_desk(store, workspace_id: str, desk_id: str):
     Its ``persona_id`` is the desk's own id at both levels, which is what makes
     it its own actor file and what makes it join to no agent anywhere. Hand-
     written JSON is deliberately avoided for the reason ``_create`` gives: a
-    fixture's idea of a desk is not the store's, and ``minted_kind`` is stamped
-    only by the store.
+    fixture's idea of a desk is not the store's.
     """
 
     return store.upsert_actor(
@@ -1471,12 +1470,10 @@ def test_the_census_names_a_retire_that_left_its_desk_standing(
 # ``_orphan_actor_reason``) have always had and the loop around them never did.
 
 
-def _item(kind: str, item_id: str, *, persona_id=None, minted_kind=None):
+def _item(kind: str, item_id: str, *, persona_id=None):
     from types import SimpleNamespace
 
-    return SimpleNamespace(
-        kind=kind, item_id=item_id, persona_id=persona_id, minted_kind=minted_kind
-    )
+    return SimpleNamespace(kind=kind, item_id=item_id, persona_id=persona_id)
 
 
 def _actor(actor_key: str, *, persona_id, instance_id="", state="live", items=()):

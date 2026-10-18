@@ -6,11 +6,9 @@ realm-sync classifier can depend on it.
 
 from __future__ import annotations
 
-import hashlib
-import json
 
 from .models import Board, BoardCard, BoardColumn
-from .serde import to_jsonable
+from .serde import SYNC_HASH_EXCLUDE, sync_content_hash
 
 __layer__ = "policy"
 
@@ -34,7 +32,7 @@ DEFAULT_BOARD_TITLE = "Board"
 # Fields excluded from the semantic content hash: revision + timestamps +
 # updated_by. Timestamp-only differences are never sync conflicts, and the
 # excluded revision lets a converged card settle without a spurious diff.
-_HASH_EXCLUDE = frozenset({"revision", "created_at", "updated_at", "updated_by"})
+_HASH_EXCLUDE = SYNC_HASH_EXCLUDE
 
 
 def default_board_id(workspace_id: str) -> str:
@@ -113,8 +111,4 @@ def board_content_hash(entity: Board | BoardCard) -> str:
     that timestamp-only diffs are never conflicts and the deterministic default
     board converges."""
 
-    payload = to_jsonable(entity)
-    if isinstance(payload, dict):
-        payload = {key: value for key, value in payload.items() if key not in _HASH_EXCLUDE}
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    return sync_content_hash(entity)

@@ -1343,21 +1343,6 @@
       ]
     },
     {
-      "id": "hh12-the-minted-kind-echoes-the-write-instead-of-sticking",
-      "path": "agent_runtime/office_store/normalize.py",
-      "symbol": "_stamp_minted_kinds",
-      "operator": "echo-current-kind",
-      "find": "        replace(item, minted_kind=on_record.get(item.item_id) or item.kind)",
-      "replace": "        replace(item, minted_kind=item.kind)",
-      "test": [
-        "{python}",
-        "-m",
-        "pytest",
-        "-q",
-        "tests/agent_runtime/test_office_store.py::test_the_minted_kind_is_stamped_once_and_never_moves_again"
-      ]
-    },
-    {
       "id": "hh13-the-dispatcher-stops-handing-over-the-proven-caller",
       "path": "agent_runtime/serve_rpc/agent.py",
       "symbol": "_runtime_agent_retire",
