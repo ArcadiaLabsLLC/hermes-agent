@@ -675,7 +675,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-10-10 (fork-fixable sweep lane-1011, filed by the orchestrator)
 
-- **`RT-CONFTEST-DB-PATH-PIN` — `tests/conftest.py` step 3b pins `hermes_state.DEFAULT_DB_PATH` only when `hermes_state` is already imported, so an argless `SessionDB()` is import-order dependent; the fork unpins by node id (`tests/_downstream/state_db_scope.py`)** · upstream / suite · `ddf83ac62a` (M4.06) · lane: upstream issue (order-independent pin) · the fork side is done (`tests/_downstream/state_db_scope.py` unpins by node id) · RULED 2026-10-15 owner (decision sheet w1015i #2): yes — post them together in one sitting · BLOCKED 2026-10-16: owner sitting — post the upstream issue (order-independent pin) at the upstream posting sitting
 
 ### Filed on arrival — 2026-10-10 (queue sweep lane-1010, filed by the orchestrator)
 
