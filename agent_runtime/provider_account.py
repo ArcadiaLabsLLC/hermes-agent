@@ -67,7 +67,8 @@ def _usage_view(provider: str, snapshot: Any) -> dict:
         "plan": snapshot.plan,
         "fetched_at": _iso(snapshot.fetched_at),
         "windows": [
-            {"label": w.label, "used_percent": w.used_percent, "reset_at": _iso(w.reset_at), "detail": w.detail}
+            {"label": w.label, "used_percent": w.used_percent, "reset_at": _iso(w.reset_at), "detail": w.detail,
+             "scope": w.scope}
             for w in snapshot.windows
         ],
         "details": list(snapshot.details),

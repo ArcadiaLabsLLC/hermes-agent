@@ -236,7 +236,7 @@ def test_usage_projects_the_snapshot_and_drops_the_raw_body(monkeypatch):
     assert seen == ["anthropic"]
     assert result["available"] is True
     assert result["windows"] == [{"label": "Current session", "used_percent": 42.0,
-                                  "reset_at": "2026-09-28T05:00:00+00:00", "detail": None}]
+                                  "reset_at": "2026-09-28T05:00:00+00:00", "detail": None, "scope": "account"}]
     assert result["details"] == ["Extra usage: 1.00 / 5.00 USD"]
 
 

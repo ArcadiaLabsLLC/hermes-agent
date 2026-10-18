@@ -209,6 +209,19 @@ result; absent owners and disconnected reads remain unconfirmed. The
 [Stop audit](../downstream/operator-stop-audit-2026-10-06.md) records regression
 and baseline qualification; live cancellation latency remains unmeasured.
 
+`runtime.operator.conversation.memory` (console tier, `serve_rpc/operator_inspection.py`
+→ `operator_session_inspection.inspect_operator_memory`) is the read surface for what a
+persona remembers. It passes the same exact-target and owner checks as `.settings` and
+`.skills`, then reads inside `persona_profile_context`, so the stores are the persona's
+own profile home, never the serve's: `stores[]` (`memory` / `user`: `enabled`,
+`entries`, `char_count`, `char_limit`, upstream `load_on_disk_store`) and
+`write_approval` (`enabled` from upstream `write_approval_enabled`, `pending[]` as
+`id`/`action`/`target`/`summary`/`origin`/`created_at`, never the staged payload).
+`on_lane` is `include_profile_memory`: whether this persona's turns load the store at
+all. It applies and discards nothing; staging approval is a later write verb.
+`test_operator_session_inspection` proves profile isolation, the pending projection, no
+file created and the owner refusal.
+
 ## 1. Send admission — the turn's identity and its thread
 
 **Inline relay admission uses the runtime head, not the sender's profile.**
