@@ -38,6 +38,7 @@ from agent.conversation_loop import (
 )
 from agent_runtime.mission_chat_turns import safe_turn_profile_timing
 from agent_runtime.profile_runner import _profile_status_callback
+from agent_runtime.receipt_sink import ReceiptSink
 
 _RESTORE_KEY = "conversation_system_prompt_restore_ms"
 _BUILD_KEY = "conversation_system_prompt_build_ms"
@@ -57,7 +58,7 @@ def _collecting_agent(session_db=None, prebuilt_prompt: str = "BUILT_PROMPT"):
     agent._use_prompt_caching = False
     agent._build_system_prompt = MagicMock(return_value=prebuilt_prompt)
     payloads: list[dict] = []
-    agent.status_callback = payloads.append
+    agent.status_callback = ReceiptSink(payloads.append)
     return agent, payloads
 
 
@@ -264,13 +265,13 @@ class TestToolSchemaMemoReceipt:
     def test_a_miss_reports_a_build_and_a_hit_reports_a_cached_read(self):
         payloads: list[dict] = []
         agent_init_mod._emit_tool_defs_receipt(
-            payloads.append, started=time.perf_counter(), misses_before=4, misses_after=5
+            ReceiptSink(payloads.append), started=time.perf_counter(), misses_before=4, misses_after=5
         )
         assert _timing_keys(payloads) == ["agent_init_tool_defs_build_ms"]
 
         payloads.clear()
         agent_init_mod._emit_tool_defs_receipt(
-            payloads.append, started=time.perf_counter(), misses_before=5, misses_after=5
+            ReceiptSink(payloads.append), started=time.perf_counter(), misses_before=5, misses_after=5
         )
         assert _timing_keys(payloads) == ["agent_init_tool_defs_cached_ms"]
 
@@ -291,7 +292,7 @@ class TestToolSchemaMemoReceipt:
 
         payloads: list[dict] = []
         agent_init_mod._emit_tool_defs_receipt(
-            payloads.append, started=time.perf_counter(), misses_before=before, misses_after=after
+            ReceiptSink(payloads.append), started=time.perf_counter(), misses_before=before, misses_after=after
         )
         assert payloads == []
 
@@ -413,7 +414,7 @@ def test_run_conversation_times_build_turn_context_at_the_call_site(monkeypatch)
 
     payloads: list[dict] = []
     agent = MagicMock()
-    agent.status_callback = payloads.append
+    agent.status_callback = ReceiptSink(payloads.append)
 
     monkeypatch.setattr(
         loop_mod, "build_turn_context", lambda *a, **k: _TripwireContext()

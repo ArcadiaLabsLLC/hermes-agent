@@ -894,9 +894,12 @@ per lifecycle edge: `{"type": "context.compaction", "protocol_version": 2, "turn
 `compacted`. Like `reasoning.summary` it is presentation-only: no element `seq`, no segment end, no
 EventLog row, no text — the launcher writes its own copy, and that copy says the model's context
 was summarised, never that the visible transcript changed. The path: upstream's two-argument
-`status_callback(kind, text)` → `profile_runner.status.StatusEmitter.emit` (only the compaction
+`status_callback(kind, text)` → `profile_runner.status.StatusEmitter.status` (only the compaction
 kinds cross; `conversation_observability.compaction_progress_payload`) → `ChatProgressSink`
 (`_forward_compaction_state`, `step` alone) → `_ChatProtocolV2Emitter._compaction`.
+The agent's `status_callback` has that ONE convention: the fork's dict timing receipts go through
+`agent_runtime/receipt_sink.py::receipt_callback` to the profile runner's `ReceiptSink.receipt`
+only, so a CLI / gateway / TUI / api_server callback never receives one.
 
 ## 6. Terminal envelope grants
 

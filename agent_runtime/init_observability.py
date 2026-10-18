@@ -1,7 +1,9 @@
 """Fork construction timing and tool-schema cache receipts."""
 import logging
 import time
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Optional
+
+from agent_runtime.receipt_sink import receipt_callback
 
 __layer__ = "stores"
 
@@ -23,7 +25,7 @@ def _tool_defs_cache_misses() -> Optional[int]:
         return None
 
 def _emit_tool_defs_receipt(
-    status_callback: Optional[Callable[[Dict[str, Any]], None]],
+    status_callback: Any,
     *,
     started: float,
     misses_before: Optional[int],
@@ -49,6 +51,7 @@ def _emit_tool_defs_receipt(
     receipt must not move a measurement that already has readers.
     """
 
+    status_callback = receipt_callback(status_callback)
     if status_callback is None:
         return
     if misses_before is None or misses_after is None:
@@ -75,6 +78,7 @@ def _emit_tool_defs_receipt(
         logger.debug("tool-defs receipt callback failed", exc_info=True)
 
 def init_timing_callback(status_callback):
+    status_callback = receipt_callback(status_callback)
     _init_started = time.perf_counter()
     _init_last_checkpoint = _init_started
     def emit(step: str) -> None:

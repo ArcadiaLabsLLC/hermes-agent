@@ -8,6 +8,7 @@ import pytest
 
 from agent_runtime import codex_observability as receipt
 from agent_runtime.persona_turn_binding import bind_persona_turn_agent
+from agent_runtime.receipt_sink import ReceiptSink
 
 
 @pytest.fixture(autouse=True)
@@ -23,7 +24,7 @@ class _Agent(SimpleNamespace):
 
 def _agent(events, session_id="s1"):
     return _Agent(session_id=session_id, provider="openai-codex", model="gpt-test",
-                  api_mode="codex_responses", status_callback=events.append)
+                  api_mode="codex_responses", status_callback=ReceiptSink(events.append))
 
 
 def _by_step(events):
@@ -186,7 +187,7 @@ def test_the_codex_stream_writes_the_receipt_through_the_plugin_hooks(tmp_path, 
     shutdown_plugin_stream_hook_dispatcher()
     monkeypatch.setattr("hermes_cli.plugins.iter_hook_callbacks", lambda name: tuple(hooks.get(name, ())))
     events: list = []
-    agent.status_callback = events.append
+    agent.status_callback = ReceiptSink(events.append)
 
     def stream():
         yield SimpleNamespace(type="response.created")

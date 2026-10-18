@@ -566,6 +566,8 @@ def requeue_admitted_completion(delegation_id: str, target_queue) -> bool:
 
 def complete_event_delivery(evt: dict[str, Any], claim_id: str) -> None:
     _event_delivery(complete_completion_delivery, evt, claim_id)
+    from tools.fork_completion_events import settle_fork_completion_event  # fork: every drain's ack retires a fork wake
+    settle_fork_completion_event(evt)
 
 
 def release_event_delivery(evt: dict[str, Any], claim_id: str) -> None:

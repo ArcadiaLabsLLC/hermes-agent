@@ -6,6 +6,7 @@ cron jobs (live-only, with positive proof the scheduler runs here)."""
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -261,6 +262,9 @@ class McpJobLane(LanePass):
     An unprovable writer leaves a ``running`` entry ``unknown``, as rule 2 says. A ``ready`` /
     ``failed`` entry is the writer's record of a notification it already received, so it ships
     as written. Expiry is the writer's own ``expires_at`` — one authority for the TTL.
+    An entry whose ``checkpoint`` names another file was written for another home and reached
+    this one by a copy (a profile clone, a backup restore): it is dropped (by design), so no
+    upstream backup / clone / boot skip list has to know this file's name.
     """
 
     kind = KIND_MCP_JOB
@@ -273,6 +277,7 @@ class McpJobLane(LanePass):
         if refusal is not None:
             return [], refusal
         self.folded = _folded_mcp_jobs(head, self.now)
+        self.checkpoint = _same_file_key(head / _MCP_JOBS_FILENAME)
         rows = [row for row in map(self.durable_row, entries) if row is not None]
         return self.finish(rows), _source(SOURCE_OK, lane=LANE_DURABLE)
 
@@ -291,6 +296,11 @@ class McpJobLane(LanePass):
             self.drop("folded_into_build", entity_id=stable_id, detail="an announced build carries this job", by_design=True)
             return None
         if self.expired(entry, stable_id):
+            return None
+        written_for = entry.get("checkpoint")
+        if written_for and _same_file_key(written_for) != getattr(self, "checkpoint", None):
+            self.drop("mcp_job_foreign_home", entity_id=stable_id,
+                      detail="written for another home's checkpoint; copied here", by_design=True)
             return None
         _alive, verified, verdict = _pid_identity(entry.get("pid"), entry.get("host_start_time"))
         if verdict in (PID_DEAD, PID_RECYCLED):
@@ -327,6 +337,12 @@ class McpJobLane(LanePass):
             tail_preview=_preview(entry.get("failure_tail"), self.accountant), cancellable=False,
             extra=_mcp_job_extra(entry),
         )
+
+
+def _same_file_key(path: Any) -> str:
+    """One spelling per file, so the writer's recorded checkpoint and the reader's compare."""
+
+    return os.path.normcase(os.path.realpath(str(path)))
 
 
 def _mcp_job_extra(entry: dict[str, Any]) -> dict[str, Any]:
