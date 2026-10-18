@@ -1455,6 +1455,12 @@ envelope. A reply with exit 0 and no payload, or a null payload, is therefore ne
 success, and every reader of the verb treats it as a failure. Gate: a successful adopt
 of nothing still answers the list envelope.
 
+**11.3 An absent status word is `unknown` (RT-MISSIONAGENTLOGSTATUS).** Hermes writes
+a `state` on every persona-instance row (a `WorkerSessionState` value, `idle` by
+default) and does not emit agent-log rows at all (the launcher derives them). So no
+hermes row ever omits its status word, and a reader that finds none has no evidence of
+anything: it reads `unknown` on every door, never `idle`.
+
 ## Invariants
 
 1. **Parse per line, branch on `type`, ignore unknown fields.** Hub-vs-argv

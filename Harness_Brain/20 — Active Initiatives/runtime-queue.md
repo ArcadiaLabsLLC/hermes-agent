@@ -440,7 +440,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ### Contract questions the launcher is waiting on (filed 2026-09-20/21, routed by the 2026-09-22 verdict sheet)
 
 
-- **`RT-MISSIONAGENTLOGSTATUS` — `MissionAgentLogStatus.fromWire`'s `whenAbsent` divergence is a live wire-contract question for hermes** · `launcher / mission control` · after B28 one decoder reads eleven harness words for both doors, but an ABSENT value still reads `idle` on a persona-instance row and `unknown` on a snapshot log row. The fold made the divergence a named parameter rather than picking; whether hermes intends the two to differ is unanswered · `EterniaLauncher/lib/features/mission_control/data/snapshot/mission_snapshot_status_and_envelope.dart` · moved from the launcher queue 2026-09-22 (wave 8 sheet) · RULED 2026-10-15 owner: "unknown" everywhere; don't claim idle without evidence · READY 2026-10-16 · **TAKEN 2026-10-18 w2-office**
 
 ### Owner design changes — 2026-09-18 (the generic-desk landing, hermes `f1268bd017`)
 
