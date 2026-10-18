@@ -80,7 +80,13 @@ def read_pool_rotation_state(provider_id: str) -> Dict[str, Any]:
 
 
 def _write_rotation_state_file(store: Dict[str, Any]) -> Path:
-    """Atomic 0600 write of the whole sidecar, mirroring ``_save_auth_store``."""
+    """Atomic 0600 write of the whole sidecar, mirroring ``_save_auth_store`` minus its fsync.
+
+    No fsync: the sidecar is reconstructible (``_load_rotation_state``: a damaged file starts
+    empty and costs one selection slot), and the rename alone publishes the bytes to every other
+    process through the page cache. A pooled ``least_used``/``round_robin`` selection writes this
+    on every pick; the fsync was ~4 ms of each write on Windows (h4-hotpath, 2026-10-18).
+    """
     path = _rotation_state_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     secure_parent_dir(path)
@@ -94,8 +100,6 @@ def _write_rotation_state_file(store: Dict[str, Any]) -> Path:
         )
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
         atomic_replace(tmp_path, path)
     finally:
         try:
