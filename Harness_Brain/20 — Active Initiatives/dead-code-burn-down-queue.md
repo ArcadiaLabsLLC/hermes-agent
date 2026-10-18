@@ -61,4 +61,3 @@ Delete it. When the last row of an instalment closes, the program ledger (`god-f
 
 
 ## Filed on arrival — 2026-10-16 (lane h5-deadcode)
-
