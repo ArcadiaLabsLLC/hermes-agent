@@ -60,7 +60,7 @@ def workspace_ids():
     return sorted({*OfficeStore().list_workspaces(), DEFAULT_WORKSPACE_ID})
 
 
-def _label(workspace_id):
+def _workspace_label(workspace_id):
     from agent_runtime.store import WorkspaceStore
 
     try:
@@ -92,7 +92,7 @@ def _default_brain_state(workspace_id):
 def _work_capabilities(install):
     ids = workspace_ids()
     return {"version": VERSION, "install_id": install, "execution_identity_guard": True, "chat_scopes": True,
-            "owners": [WorkScope(install, ws).wire(_label(ws)) for ws in ids],
+            "owners": [WorkScope(install, ws).wire(_workspace_label(ws)) for ws in ids],
             "default_brain": {ws: _default_brain_state(ws) for ws in ids},
             "limitations": list(LIMITATIONS)}
 

@@ -126,7 +126,7 @@ def synced(workspace_id: str, *, stale_ok: bool = False, slot: str | None = None
                   any(writer.stale for writer in writers.values()))
 
 
-def _board(view: Synced, slot: Any) -> Board:
+def _view_board(view: Synced, slot: Any) -> Board:
     board = next((b for b in view.boards if b.slot == slot), None)
     if board is None or not board.bound_here:
         raise WorkRefused(Reason.SLOT_UNBOUND, str(slot))
@@ -158,7 +158,7 @@ def resolve_assignee(token: str) -> Assignee:
     raise WorkRefused(Reason.ASSIGNEE_UNKNOWN, token)
 
 
-def _token(value: Any) -> str:
+def _assignee_token(value: Any) -> str:
     match = ASSIGNEE.match(f"assignee: {text(value)}")
     if match is None:
         raise WorkRefused(Reason.INVALID, "an assignee is persona:<token>")
@@ -248,7 +248,7 @@ def _task(writer: Writer, ref: RowRef, context) -> dict[str, Any] | None:
 
 def _row_filter(params: Mapping[str, Any], context):
     status = params.get("status")
-    token = _token(params["assignee"]) if params.get("assignee") is not None else None
+    token = _assignee_token(params["assignee"]) if params.get("assignee") is not None else None
     in_view = params.get("view", "all") == "conversation"
     return lambda row: ((status is None or status_word(row) == status)
                         and (token is None or (row.assignee is not None and row.assignee.token == token))
@@ -287,7 +287,7 @@ def _queues(board: Board, writer: Writer | None, keep, context) -> list[dict[str
 def inspect(scope, params, *, context=None):
     task_id = text(params.get("task_id"))
     view = synced(scope.workspace_id, slot=params.get("slot"), stale_ok=params.get("stale_ok") is True)
-    board = _board(view, params.get("slot"))
+    board = _view_board(view, params.get("slot"))
     writer = view.writers[board.slot]
     row = find(boards_store.rows(scope.workspace_id, slot=board.slot, read_roots=view.read_roots), task_id)
     if row is not None:
@@ -298,9 +298,9 @@ def inspect(scope, params, *, context=None):
 # ── writes ─────────────────────────────────────────────────────────────────
 
 
-def _target(view: Synced, slot: Any) -> Board:
+def _create_target(view: Synced, slot: Any) -> Board:
     if slot is not None:
-        return _board(view, slot)
+        return _view_board(view, slot)
     readable = [b for b in view.boards if b.slot in view.writers]
     chosen = next((b for b in readable if not b.is_default), readable[0] if readable else None)
     if chosen is None:
@@ -333,9 +333,9 @@ def start(scope, params, actor, *, context=None):
     if body:
         body = text(body, maximum=BODY_LIMIT, multiline=True)
     request = text(params.get("request_id"))
-    token = resolve_assignee(_token(params["assignee"])).token if params.get("assignee") else None
+    token = resolve_assignee(_assignee_token(params["assignee"])).token if params.get("assignee") else None
     view = synced(scope.workspace_id)
-    board = _target(view, params.get("slot"))
+    board = _create_target(view, params.get("slot"))
     writer = view.writers[board.slot]
     row_id = mint_id()
     brief = f"{writer.brain_root}/{BRIEF_DIR}/{row_id}.md" if body else None
@@ -348,7 +348,7 @@ def start(scope, params, actor, *, context=None):
 
 def _row_write(scope, params, op: Op, who: str, payload: Mapping[str, Any], *, context, request: str | None = None):
     view = synced(scope.workspace_id, slot=params.get("slot"))
-    board = _board(view, params.get("slot"))
+    board = _view_board(view, params.get("slot"))
     writer = view.writers[board.slot]
     row = find(boards_store.rows(scope.workspace_id, slot=board.slot, read_roots=view.read_roots),
                text(params.get("task_id")))
@@ -359,7 +359,7 @@ def _row_write(scope, params, op: Op, who: str, payload: Mapping[str, Any], *, c
 
 
 def assign(scope, params, actor, *, context=None):
-    token = resolve_assignee(_token(params["assignee"])).token if params.get("assignee") is not None else None
+    token = resolve_assignee(_assignee_token(params["assignee"])).token if params.get("assignee") is not None else None
     writer, receipt = _row_write(scope, params, Op.ASSIGN, _writer_who(params, actor), {"assignee": token},
                                  context=context)
     return {"task": _task(writer, receipt.ref, context), "receipt": receipt.wire()}
@@ -367,7 +367,7 @@ def assign(scope, params, actor, *, context=None):
 
 def claim(scope, params, actor, *, context=None):
     who = params.get("who") or (context.assignee if context else None)
-    instance = _token(who) if who else None
+    instance = _assignee_token(who) if who else None
     if instance is None:
         raise WorkRefused(Reason.INVALID, "a claim names who: persona:<instance_id>")
     _instance_exists(instance)
