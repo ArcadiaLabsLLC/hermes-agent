@@ -486,7 +486,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 
 
-- **`FORK-TEST-OWNED-CHILD-READS` — `tests/agent_runtime/test_subagent_native_roundtrip.py::test_owned_child_reads_across_execution_hosts[*-isolated-compute]` reds `sqlite3.OperationalError: attempt to write a readonly database`: the reopened service's history read (`agent_runtime/conversations/subagent_history.inspect_stored_children` -> `SessionDB(read_only=True)`) opens state.db `mode=ro` right after the stopped compute child's writer exits, and the FTS probe needs WAL/-shm recovery a read-only connection cannot do; `hermes_state.SessionDB._open_read_only` retries only the disk-I/O marker, not this SQLITE_READONLY recovery case** · fork / subagent history (the retry is upstream's: a seam or an upstream PR) · r-quiet 2026-10-18: red 1 of 3 ALONE on a quiet box (load 7, `[stop-isolated-compute]`, 67 s), green the other two; earlier once at load 23 ([[r-perf-2026-10-17]]) · READY 2026-10-18 · **TAKEN 2026-10-18 w2-reds**
 ## Filed on arrival — 2026-10-18 (lane r-quiet)
 
 ## Filed on arrival — 2026-10-18 (lane q-gates)
