@@ -123,7 +123,12 @@ def _unknown_version(mod, *_a, **_k):
 
 #: The table: every function in a phone-kept module that starts a process (the profile gate's
 #: ``subprocess_call`` rows), grouped by module.
+def _extraction_failed(_mod, *_a, **_k) -> dict:
+    return {"error": "profile extraction failed: the phone cannot start a process"}
+
+
 SPAWN_STAND_INS: tuple[StandIn, ...] = (
+    StandIn("agent_runtime.workspace_slots_probe", "_run"),
     StandIn("agent.anthropic_adapter", "_detect_claude_code_version",
             answer=lambda mod, *_a, **_k: mod._CLAUDE_CODE_VERSION_FALLBACK),
     *_stand("agent.anthropic_credentials", "_find_claude_code_keychain_item", "_read_claude_code_keychain_payload",
@@ -147,18 +152,26 @@ SPAWN_STAND_INS: tuple[StandIn, ...] = (
     StandIn("gateway.status", "_read_process_cmdline", returns=None),
     *_stand("hermes_cli._early_recovery", "_paths_git_wrote", "relaunch_after_restore"),
     StandIn("hermes_cli._early_recovery", "_restore_holding_claim", returns=False),
+    StandIn("hermes_cli._early_recovery", "_is_git", returns=False),
+    *_stand("hermes_cli._early_recovery", "_process_state", "_held_open_lsof", "_lsof_cwds", "_ps_git_holder",
+            returns=None),
     StandIn("hermes_cli._subprocess_compat", "_user_safe_directories", answer=lambda _mod, *_a, **_k: []),
     StandIn("hermes_cli._subprocess_compat", "posix_is_zombie", returns=False),
     StandIn("hermes_cli._subprocess_compat", "_legacy_kill_process_tree", returns=None),
     StandIn("hermes_cli.config", "edit_config"),
     StandIn("hermes_cli.copilot_auth", "_probe_gh_cli_token", returns=None),
+    StandIn("hermes_cli.git_line_endings", "_read", answer=lambda _mod, *_a, **_k: []),
     StandIn("hermes_cli.gitlock", "_git_stdout_lines", answer=lambda _mod, *_a, **_k: []),
     StandIn("hermes_cli.gitlock", "_batch_missing_parents", answer=lambda _mod, *_a, **_k: set()),
     *_stand("hermes_cli.gitlock", "repair_broken_shallow_boundaries", "prune_stale_shallow_grafts", returns=0),
     StandIn("hermes_cli.gitlock", "_git_proc_running", returns=False),
     *_stand("hermes_cli.gitlock", "_partial_clone_filter", "fetch_full_commit_graph"),
+    *_stand("hermes_cli.gitlock", "convert_treeless_checkout", "_history_trees_complete", returns=False),
+    StandIn("hermes_cli.gitlock", "_git_version", returns=(0, 0)),
     StandIn("hermes_cli.goals", "run_gate",
             returns=(False, -1, "[gate could not run: SpawnNotAvailable: no process on the phone]")),
+    StandIn("hermes_cli.plugin_host", "PluginHost.ensure_started", error="PluginHostUnavailable"),
+    StandIn("hermes_cli.plugin_host_profiles", "_extract", answer=_extraction_failed),
     StandIn("hermes_cli.profiles", "check_alias_collision"),
     StandIn("hermes_cli.profiles", "seed_profile_skills", returns=None),
     StandIn("hermes_cli.profiles", "_cleanup_gateway_service", returns=False),
@@ -166,10 +179,14 @@ SPAWN_STAND_INS: tuple[StandIn, ...] = (
     StandIn("hermes_cli.source_releases", "source_repository", answer=lambda mod, *_a, **_k: mod.OFFICIAL_REPOSITORY),
     StandIn("hermes_cli.source_releases", "_refuse_retirement_downgrade", error=ValueError),
     StandIn("hermes_cli.source_releases", "resolve_source_release", returns=(None, None)),
+    StandIn("hermes_cli.source_releases", "_head_containing", returns=None),
+    StandIn("hermes_cli.source_releases", "_resolve_release", error=ValueError),
     StandIn("hermes_cli.sqlite_runtime", "probe_sqlite_runtime", returns=None),
     StandIn("hermes_cli.stderr_timestamp", "main"),
     StandIn("hermes_cli.tools_config_cua", "_run_text"),
     StandIn("hermes_cli.tools_config_cua", "_cua_driver_autostart_registered_windows", returns=False),
+    *_stand("hermes_cli.update_custody", "popen", "run", "popen_post_commit", "_run_owner_watched"),
+    StandIn("hermes_cli.update_custody", "_owner_watch", returns=None),
     StandIn("hermes_cli.version_info", "_git_version_info", answer=_unknown_version),
     StandIn("hermes_cli.version_info", "_run_git", returns=None),
     StandIn("hermes_constants", "_run_version_probe", returns=None),
@@ -181,6 +198,7 @@ SPAWN_STAND_INS: tuple[StandIn, ...] = (
             returns=(False, "", "git is not available on the phone: it cannot start a process")),
     StandIn("tools.checkpoint_manager", "_init_store",
             returns="Shadow store init failed: git is not available on the phone"),
+    StandIn("tools.mcp_tool_config", "_packaged_npx_entry", returns=None),
     StandIn("tools.tts_command_provider", "run_command_provider"),
     StandIn("tools.tts_command_provider", "terminate_command_process_tree", returns=None),
     StandIn("tools.tts_tool_delivery", "_ffmpeg_run"),
