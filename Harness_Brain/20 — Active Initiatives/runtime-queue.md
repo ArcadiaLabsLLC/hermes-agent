@@ -873,5 +873,4 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ### Filed on arrival — 2026-10-18 (lane w5-misc, branch `w5/misc`)
 
 ### Filed on arrival — 2026-10-18 (lane w5-sched, branch `w5/sched`)
-- **`RT-SCHEDULE-RUN-ASSIGNMENT-CLAIM` — a scheduled `RunAssignment` fire queues its brief through `PersonaTurnExecutor.start_from` but claims no row: the Work engine holds no `RunRecord` for it, so the settle writes nothing back (no delete, no BLOCKED, no release)** · fork / scheduling, Work · `agent_runtime/work_store/serve_scheduler.py::ServeTickScheduler._fire_assignment`, `engine.py::WorkEngine.on_settle` · READY 2026-10-18 · **TAKEN 2026-10-18 w6-misc**
 - **`RT-SCHEDULE-SYNC-AND-KNOB` — `store/schedules/` is not a realm-sync family (plan §2.3 says key-wise like `workspace_slots`) and `scheduler.max_parallel` is a constructor default (4), not a root-config knob** · fork / scheduling · `agent_runtime/work_store/serve_scheduler.py::DEFAULT_MAX_PARALLEL`, `agent_runtime/realm_sync/families.py`; plan `docs/agent-runtime-harness/planned/dispatcher-and-libraries-2026-10-18.md` §2.3 · READY 2026-10-18 · **TAKEN 2026-10-18 w6-misc**

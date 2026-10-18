@@ -13,7 +13,9 @@ Manual by default: nothing fires unless an operator armed it (``runtime.schedule
 * **A fire is a queued turn.** ``PersonaPrompt`` and ``RunAssignment`` enqueue on the instance's chat root
   through ``PersonaTurnExecutor.queue_prompt`` / ``start_from`` (``chat_root_send_queue``), so a busy root holds the fire until idle and
   never steers (RT-D3 by construction); the entry's origin names the schedule, which is what the
-  ``running_work`` ``scheduled_turn`` lane reads. ``StartBatch`` goes through the batch door the
+  ``running_work`` ``scheduled_turn`` lane reads. A ``RunAssignment`` goes through the Work engine's door
+  the serve binds (``WorkEngine.adopt``: claim, record, start; ``door_unbound`` until it does), so its
+  settle is written back to the row. ``StartBatch`` goes through the batch door the
   dispatcher binds (``door_unbound`` until it does) and is armed only when the workspace's
   ``batch_automation`` is ``start``. An Action is never a script (RT-D1).
 * **The cap.** At most ``max_parallel`` scheduled turns in flight (default 4, ``0`` unlimited); a due fire
@@ -115,6 +117,7 @@ class ServeTickScheduler:
         *,
         executor: Any = None,
         start_batch: Callable[[StartBatch], dict[str, Any]] | None = None,
+        start_assignment: Callable[[Any, dict[str, Any]], Any] | None = None,
         can_dispatch: Callable[[], bool] = lambda: True,
         root_idle: Callable[[str], bool] = _root_idle,
         in_flight: Callable[[], int] = _in_flight,
@@ -125,6 +128,7 @@ class ServeTickScheduler:
     ) -> None:
         self._executor = executor
         self._start_batch = start_batch
+        self._start_assignment = start_assignment
         self._can_dispatch = can_dispatch
         self._root_idle = root_idle
         self._in_flight = in_flight
@@ -272,7 +276,9 @@ class ServeTickScheduler:
         return {"run_id": run.run_id}
 
     def _fire_assignment(self, action: RunAssignment, fire_id: str, origin: dict[str, Any]) -> dict[str, Any]:
-        return {"run_id": self._turns().start_from(action.assignment, origin).run_id}
+        if self._start_assignment is None:
+            raise WorkRefused(Reason.DOOR_UNBOUND, "no Work engine is bound to this serve")
+        return {"run_id": self._start_assignment(action.assignment, origin).run_id}
 
     def _fire_batch(self, action: StartBatch, fire_id: str, origin: dict[str, Any]) -> dict[str, Any]:
         if self._start_batch is None:

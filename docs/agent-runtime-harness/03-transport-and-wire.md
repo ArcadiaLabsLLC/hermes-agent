@@ -1784,6 +1784,9 @@ during a drain, and only the owning machine fires a record. A fire is a QUEUED s
 chat root (`PersonaTurnExecutor.queue_prompt` / `start_from`), its origin naming `schedule: <key>`; at most
 4 scheduled turns are in flight (an over-cap fire stays due and logs `schedule.queued`, its fire carries
 `waited_s`); `when_idle` fires after `settle_ticks` consecutive idle ticks or gives up after 15 minutes.
+A `run_assignment` fire is the Work engine's (`WorkEngine.adopt`): its one row is claimed
+`persona:<instance_id>`, recorded and started, so its settle is written back like any engine run; a fire
+on a row another claimant holds is refused `already_taken`, a multi-row assignment `schedule_invalid`.
 The persona tool is `schedule_manage`, in the opt-in `schedule` toolset (never `harness_core`). Receipts:
 `schedule.arm | disarm | fire | queued | abandoned`.
 
