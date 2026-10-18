@@ -482,3 +482,35 @@ tests/plugins/test_telegram_polling_progress_ptb.py · unused: messaging platfor
 tests/tools/test_discord_send_message_caption.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
 tests/tools/test_send_message_slack.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
 tests/tools/test_whatsapp_send_message_media.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+
+# unused: upstream's Docker image (owner 2026-10-17, ADR 0015)
+tests/docker/test_config_migration.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_container_restart.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_dashboard.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_docker_exec_privilege_drop.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_dump_build_sha.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_gateway_bootstrap_state.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_gateway_run_supervised.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_home_override_scripts.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_image_payload.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_immutable_install.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_immutable_install_permissions.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_license_file_present.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_log_dir_seed.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_main_invocation.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_profile_gateway.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_puid_pgid_remap.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_s6_gateway_planned_stop.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_s6_profile_gateway_integration.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_smoke.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_sqlite_runtime.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_stage2_browser_discovery.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_tini_compat_shim.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_toplevel_chown.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_tui_passthrough.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_tui_prebuilt_bundle.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_user_flag_guard.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/docker/test_zombie_reaping.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/hermes_cli/test_cmd_update_docker.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/tools/test_docker_config_migrate.py · unused: upstream's Docker image (ADR 0015) · e6899c8090
+tests/tools/test_docker_rebootstrap_nous_session.py · unused: upstream's Docker image (ADR 0015) · e6899c8090

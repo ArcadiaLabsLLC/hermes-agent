@@ -40,12 +40,28 @@ _P0 = {
 
 
 def _skipped_by_the_runner(list_path: Path) -> tuple[set[str], set[str]]:
-    """(the files ``select_scope`` put in ``skipped_red``, the listed paths), over the real tree."""
+    """(the files ``select_scope`` put in ``skipped_red``, the listed paths discovery offers), over the real tree.
+
+    A listed file under one of discovery's ``_SKIP_PARTS`` folders (``tests/docker``) never reaches
+    ``select_scope``: it is not run either way, so it is not expected in ``skipped_red``.
+    """
 
     rows = plan.load_skip_list(list_path)
     files = bundled.rtp._discover_files([_REPO_ROOT / "tests"])
     sel = bundled.select_scope(files, _REPO_ROOT, bundled.load_manifest(MANIFEST), set(), skipped=rows)
-    return {bundled._rel(p, _REPO_ROOT) for p in sel.skipped_red}, {rel for rel, row in rows.items() if not row.node}
+    offered = {bundled._rel(p, _REPO_ROOT) for p in files}
+    return {bundled._rel(p, _REPO_ROOT) for p in sel.skipped_red}, {rel for rel, row in rows.items() if not row.node and rel in offered}
+
+
+def listed_files_discovery_drops_outside_its_skip_parts(list_path: Path) -> list[str]:
+    """Listed files discovery never offers that are NOT under a ``_SKIP_PARTS`` folder: a hole in the gate."""
+
+    offered = {bundled._rel(p, _REPO_ROOT) for p in bundled.rtp._discover_files([_REPO_ROOT / "tests"])}
+    return sorted(
+        rel
+        for rel, row in plan.load_skip_list(list_path).items()
+        if not row.node and rel not in offered and not set(Path(rel).parts) & bundled.rtp._SKIP_PARTS
+    )
 
 
 def file_rows_naming_a_node(list_path: Path) -> list[str]:
@@ -83,6 +99,11 @@ def test_no_fork_file_is_ever_skipped():
 def test_the_runner_skips_every_listed_file_and_nothing_else():
     skipped, listed = _skipped_by_the_runner(SKIP_LIST)
     assert skipped == listed, f"listed but run: {sorted(listed - skipped)}; skipped but unlisted: {sorted(skipped - listed)}"
+
+
+def test_a_listed_file_discovery_never_offers_sits_under_a_skip_part():
+    offenders = listed_files_discovery_drops_outside_its_skip_parts(SKIP_LIST)
+    assert not offenders, f"listed, never discovered, and not under {sorted(bundled.rtp._SKIP_PARTS)}: {offenders}"
 
 
 def test_every_row_is_an_existing_upstream_file_with_a_class_and_a_sha():
