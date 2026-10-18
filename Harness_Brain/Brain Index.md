@@ -44,7 +44,7 @@ X:/
 | Why we chose X | [[Decisions Index]] |
 | Cross-brain coordination | [[Launcher Brain Pointer]] · [[Parent Brain Pointer]] · [[Backend Brain Pointer]] · [[Open Questions for Launcher]] |
 | Pre-task primer | [[Handoffs Index]] |
-| Run / test / gates / gotchas | [[Build & Run]] · [[Testing & Gates]] · [[Known Pitfalls]] |
+| Run / test / gates / gotchas | [[Build & Run]] · [Gate directory](../docs/agent-runtime-harness/11-gate-directory.md) · [[Testing & Gates]] · [[Known Pitfalls]] |
 | Starting a new note | [[Templates/README\|Templates]] |
 
 ## Programs
