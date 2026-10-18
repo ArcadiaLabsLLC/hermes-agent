@@ -4371,7 +4371,7 @@
     {
       "id": "ph-payload-hides-the-fake-door",
       "path": "hermes_cli/harness_parts/characters/payloads.py",
-      "symbol": "_characters_emit",
+      "symbol": "_characters_print",
       "operator": "drop-the-draftsman-stamp",
       "find": "    print(emit_json({**data, **draftsman()}) if getattr(args, \"json\", False) else human)",
       "replace": "    print(emit_json(data) if getattr(args, \"json\", False) else human)",
