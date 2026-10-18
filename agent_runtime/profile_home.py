@@ -43,6 +43,19 @@ def configured_head_home() -> str:
     return os.environ.get("HERMES_HEAD_HOME", "").strip()
 
 
+def configured_hermes_home() -> str:
+    """The ``HERMES_HOME`` rung, raw: the process environment's home stripped, or ``""`` when
+    none was named (the platform default answers). Read at call time.
+
+    For a caller that reports WHICH rung named a home (``root_observability``'s
+    ``CharactersHomeSource``); a caller that wants the home itself asks
+    ``hermes_constants.get_hermes_home``. This module is the variable's one fork reader
+    (``tests/agent_runtime/test_hermes_home_env_gate.py``).
+    """
+
+    return os.environ.get("HERMES_HOME", "").strip()
+
+
 _UNSET = object()
 
 CANONICAL_SHARED_SKILL_IDS = frozenset(

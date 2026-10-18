@@ -97,11 +97,13 @@ class CharactersHomeSource(str, Enum):
 def _characters_home_source() -> CharactersHomeSource:
     from hermes_constants import get_hermes_home_override
 
+    from .profile_home import configured_hermes_home
+
     if os.getenv("HERMES_SHARED_CHARACTERS", "").strip():
         return CharactersHomeSource.SHARED_CHARACTERS_ENV
     if get_hermes_home_override():
         return CharactersHomeSource.HOME_OVERRIDE
-    if os.environ.get("HERMES_HOME", "").strip():
+    if configured_hermes_home():
         return CharactersHomeSource.HERMES_HOME_ENV
     return CharactersHomeSource.PLATFORM_DEFAULT
 

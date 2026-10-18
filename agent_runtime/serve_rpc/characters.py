@@ -76,9 +76,11 @@ def _expected() -> tuple[type[BaseException], ...]:
 
 
 def _payload(data: dict) -> dict:
+    """The argv ``_characters_emit`` envelope: stamped with the ``home`` it read, plus the draftsman."""
     from agent.charsheet.draft.payloads import draftsman
+    from agent_runtime.root_observability import attach_characters_home
 
-    return {**data, **draftsman()}
+    return {**attach_characters_home(dict(data)), **draftsman()}
 
 
 def _invalid_param(key: str, sentence: str) -> _Invalid:

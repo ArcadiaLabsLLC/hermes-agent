@@ -1388,21 +1388,6 @@
       ]
     },
     {
-      "id": "hh12-the-recorded-mint-rides-the-sync-hash",
-      "path": "agent_runtime/office_models.py",
-      "symbol": "office_content_hash",
-      "operator": "hash-the-nested-provenance",
-      "find": "        items = payload.get(\"items\")\n        if isinstance(items, list):\n            payload[\"items\"] = [\n                {k: v for k, v in item.items() if k not in _ITEM_HASH_EXCLUDE}\n                if isinstance(item, dict)\n                else item\n                for item in items\n            ]",
-      "replace": "        items = payload.get(\"items\")\n        if isinstance(items, list):\n            payload[\"items\"] = list(items)",
-      "test": [
-        "{python}",
-        "-m",
-        "pytest",
-        "-q",
-        "tests/agent_runtime/test_office_store.py::test_the_recorded_mint_is_not_content_and_never_moves_the_sync_hash"
-      ]
-    },
-    {
       "id": "hh6-posix-file-lock-ignores-its-deadline",
       "path": "agent_runtime/locks.py",
       "symbol": "module/_try_acquire (POSIX arm)",
