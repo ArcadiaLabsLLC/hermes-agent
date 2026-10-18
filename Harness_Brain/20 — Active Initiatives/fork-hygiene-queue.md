@@ -263,7 +263,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-24 (program-end gate on `c7652475cd`)
 
-- [ ] **`tests/hermes_cli/test_minimax_oauth.py::test_refresh_error_body_bounded_and_readable_with_real_client` is red in its bundle and green on the rerun alone** · `fork / suite` · a co-member leaves a client or transport patched; bisect the bundle pairwise (REDS2 method, `016a6cd71e`) and fix the leak or add the observed pair to `scripts/test_bundles_unbundled.txt` · evidence: `X:/wt/_holds/gate-final-2026-09-24.log` ("red in bundle" line) · not a co-member leak: the gate's exact bundle passed as one process (236 passed); the test streams a 64 KB body over a real loopback socket (upstream bytes `d10bb2ab6f`), so the fix is upstream (read to EOF / body under one socket buffer) or a load-timing id-mark · DEFERRED 2026-10-16: owner 2026-10-15 "hold until it fails a second time" **TAKEN 2026-10-18 q-reds**
 
 ## Filed on arrival — 2026-09-24 (lane LEDGER-DOCS)
 
