@@ -10,8 +10,8 @@ fixture.
 What is kept, per process:
 
 * the manifests a top-level ``scan_directory`` of the real bundled root returns, re-used while the
-  tree's signature is unchanged — every entry's name, mtime and size down to the plugin directories'
-  own listings, read with ``os.scandir`` (its stat is free on Windows), so an added, removed or edited
+  tree's signature is unchanged — every file's name, mtime and size and every directory's listing
+  down to the plugin directories' own listings (a directory's mtime is not part of it), read with ``os.scandir`` (its stat is free on Windows), so an added, removed or edited
   plugin is a miss and a fresh scan;
 * ``plugins.discover_entrypoint_manifests()``, re-used while ``importlib.metadata.entry_points`` is the original
   function and ``sys.path`` is unchanged (a test that patches either gets the real scan).
@@ -72,7 +72,7 @@ def _bypassed() -> bool:
 
 
 def _tree_signature(root: str, depth: int = 0) -> tuple:
-    """Name, mtime and size of every entry down to the plugin directories' own listings."""
+    """Every file's name, mtime and size, and every directory's listing, down to the plugin directories' own listings."""
 
     entries = []
     try:
@@ -86,8 +86,13 @@ def _tree_signature(root: str, depth: int = 0) -> tuple:
                 except OSError:
                     entries.append((entry.name, None))
                     continue
-                child = _tree_signature(entry.path, depth + 1) if is_dir and depth < 2 else ()
-                entries.append((entry.name, st.st_mtime_ns, st.st_size, child))
+                if is_dir:
+                    # A directory is its listing, not its mtime: an import writing __pycache__ moves
+                    # the mtime (NTFS shows it ~1 s later), and a concurrent worker's first import
+                    # made the second discovery of a test a miss on a fresh worktree.
+                    entries.append((entry.name, "dir", _tree_signature(entry.path, depth + 1) if depth < 2 else ()))
+                else:
+                    entries.append((entry.name, st.st_mtime_ns, st.st_size, ()))
     except OSError:
         return (None,)
     return tuple(entries)
