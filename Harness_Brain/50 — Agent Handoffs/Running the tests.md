@@ -16,7 +16,7 @@ opens a page (never bare `pytest` over a directory). The fork's gate definition 
 $HERMES_PYTHON -m pytest -q -p no:cacheprovider <file>          # ONE file, debugging only (the test venv's python; see below)
 scripts/run_tests_bundled.sh tests                              # THE LANDING GATE: --scope fork over the whole tree
 scripts/run_tests_bundled.sh --confirm-red <file>               # one named red: alone on HEAD and on origin/main → caused / pre-existing / load
-scripts/run_tests_bundled.sh --scope full tests                 # a release merge only (skip list applies; P0 row)
+# --scope full / the whole tree: RETIRED (owner ruling 2026-10-17, ADR 0016) — nothing runs it
 scripts/run_tests_bundled.sh --since-merge <merge-sha> tests   # a release merge's landing gate (Merging upstream.md step 7)
 scripts/run_tests.sh <file>                                     # the per-file authority: one file, a leak, a disagreement
 scripts/run_tests_idle.sh                                       # the timing files, ONLY on an idle box (refuses otherwise)
@@ -57,8 +57,8 @@ whole tree 908 — 176 more fork files and the 42 `tests/agent/` files that test
 whole tree on that day: 865 fork files (~9,400 test functions), 5,201 upstream (~43,200); the gate
 ran 908 files / 13,621 tests in minutes.
 
-**A session-chain edit runs the chain's contract plus a sample; the whole tree runs at the release
-merge** (owner ruling 2026-10-16, replacing fast-gate §5's whole-tree reach for ordinary landings). The
+**A session-chain edit runs the chain's contract plus a sample, at every landing and at the release
+merge** (owner rulings 2026-10-16 and 2026-10-17 / [[0016 — No whole-tree run, ever]]). The
 fork's root `conftest.py`, `tests/conftest.py`, anything under `tests/_downstream/`, `tests/_fixtures/` or
 `scripts/_bundle_plugin/` (docs excepted), `pyproject.toml` and `requirements-fork-dev.txt` are loaded by
 every test process. On an ordinary landing such a change reaches no file by itself: the gate runs
@@ -68,21 +68,16 @@ conftest's git lock), the files fork-owned or inherited that the rest of the cha
 source, conftest, importer), and the smallest file of every test folder nothing else reached, and prints
 `chain: contract + sample — N contract file(s) + M sample(s)`. On land/q2 (9 chain paths) that is 333 files
 where the whole tree was 6,675. A new promise the chain makes
-gets its test there, with its killing mutation. The release merge (`--since-merge`) still reaches every
-file on a chain edit: it is the backstop for an interaction no promise names, and a release merge whose only
-touch on a chain path is re-applying the standing fork hunk (`pyproject.toml`, `tests/conftest.py`) does
-not count it.
+gets its test there, with its killing mutation. The release merge (`--since-merge`) treats a chain path
+the same way: contract + sample, never every file; an interaction no promise names is caught by a promise
+added when it is found, not by a whole-tree backstop.
 
-**`--scope full` (every file, upstream's included) runs at a release merge only** (owner ruling
-2026-10-16), **and is
-not run on a workstation** until the fork-hygiene P0 row closes: on 2026-10-05 the full scope
-hard-froze the operator's PC twice with the same four upstream files in flight
-(`tests/hermes_cli/test_source_check.py`, `test_source_launcher_publication.py`,
-`test_source_release_channels.py`, `test_source_release_probe.py`), the second time at 4 workers
-with nothing else running. If a scope is in doubt, list what it will run before running it
-(`select_scope` in `scripts/run_tests_bundled.py`). After a freeze or a killed run, read the
-interrupted log's last lines before re-running; re-running the remainder without excluding what was
-in flight is how the second freeze happened.
+**No whole-tree run, ever** ([[0016 — No whole-tree run, ever]], owner 2026-10-17). `--scope full` and
+every-file runs are retired: a landing runs `--scope fork`, a release merge runs `--since-merge`, and
+both run fork files plus the upstream files the change reaches, minus the skip list (P0 freeze
+files, proven reds, and the features ADR 0015 marks unused). If a scope is in doubt, list what it will
+run before running it (`select_scope` in `scripts/run_tests_bundled.py`). After a freeze or a killed
+run, read the interrupted log's last lines before re-running.
 
 **The upstream skip list.** `tests/fixtures/upstream_skip_list.txt` names upstream-owned test files
 the bundled runner does NOT run, in either scope: the four P0 freeze files today, and upstream reds
@@ -91,8 +86,7 @@ as they are proven (one row per file: `path · why · upstream SHA`, `why` start
 or conftest does not (owner ruling O1); the run prints every file it skipped and why. A fork file is
 never listed (fork reds are fixed): `tests/scripts/test_upstream_skip_list.py` refuses one. A row is
 added only after the file was run once, bare, and seen red on `origin/main`; the weekly merge lane
-re-checks the `env`/`upstream` rows (`Merging upstream.md` step 5b). The P0 four on the list do not
-lift the workstation ban on `--scope full` above; that waits on the P0 row.
+re-checks the `env`/`upstream` rows (`Merging upstream.md` step 5b). The P0 four run only under the watchdog/VM the P0 row names.
 
 **What a run prints about itself.** After the Summary line, `=== Run cost (Stage 0) ===`: processes
 by kind (bundles, solos, known reds run once, shards and whole checks, re-runs, straggler retries), worker-seconds and utilization, Σ per-file seconds and the floor at that worker count,

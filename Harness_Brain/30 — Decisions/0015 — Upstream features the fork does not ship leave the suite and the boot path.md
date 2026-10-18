@@ -13,7 +13,7 @@ tags: [adr, tests, boot, upstream]
 > installers**, **upstream updater and release tooling** (the launcher owns updates), **kanban**, and
 > the **messaging platform adapters** (Telegram, Discord, Slack, Matrix, Signal, WhatsApp, Feishu,
 > WeCom, DingTalk). Their upstream test files leave the regular suite (an `unused` reason on the
-> upstream skip list, still run at each release merge), and the fork's serve and CLI stop importing
+> upstream skip list; they run only when named), and the fork's serve and CLI stop importing
 > or discovering them (bundle profiles; an import-graph check first). **Cron stays**: standard cron is
 > used on desktop today; a launcher-clock cron that also works on mobile may replace it later.
 
@@ -29,8 +29,9 @@ kanban ~1,300 s, messaging adapters ~610 s. Evidence for the wider suite timing:
 ## Rules
 
 - A feature on this list is "unused". Its upstream test files go on
-  `tests/fixtures/upstream_skip_list.txt` with `why` starting `unused` and this ADR cited; the
-  release-merge lane runs them by name so upstream drift is still seen.
+  `tests/fixtures/upstream_skip_list.txt` with `why` starting `unused` and this ADR cited; nothing
+  runs them unless named ([[0016 — No whole-tree run, ever]]); a release merge lists the unused files
+  upstream added or removed.
 - Code the fork ships that imports an unused feature keeps it importable; a test of that import
   stays in the suite. The production cut is decided by the resolved import graph, never by a name
   match.

@@ -10,7 +10,7 @@ follow it (owner ruling 2026-10-16). Every rule for running tests here is
 - The landing gate is `scripts/run_tests_bundled.sh tests` (`--scope fork`). The fork's own bundled
   runner exists because upstream's `scripts/run_tests.sh` is slow on Windows.
 - One file: `scripts/run_tests.sh <file>`. Never bare `pytest` over a directory.
-- `--scope full` runs only in an upstream release-merge landing.
+- Nothing runs the whole tree (ADR 0016): a landing is `--scope fork`, a release merge `--since-merge`.
 - A lane runs only the test files that import a module it touched.
 
 ## Writing
