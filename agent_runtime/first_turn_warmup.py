@@ -94,6 +94,9 @@ FIRST_TURN_MODULES = (
     "hermes_cli.local_runtime.capabilities", "netrc",
     # ... and the effort receipt every provider dispatch logs (M2.05; the idle-box guard saw it, 2026-10-11).
     "agent_runtime.request_effort",
+    # ... and upstream's credential service-tier negotiation every request's fast-mode overrides
+    # import (`agent/fast_mode.py`; the idle-box guard saw it 10/10, 2026-10-18).
+    "agent.codex_service_tiers",
 )
 
 
