@@ -298,7 +298,7 @@ RUNTIME_STOPPING = "runtime_stopping"
 
 
 def defer_or_refuse(
-    rid: Any, context: RpcContext, build: Callable[[], dict], *,
+    rid: Any, method_name: str, context: RpcContext, build: Callable[[], dict], *,
     message: str = "The runtime is unavailable.",
 ) -> dict:
     """Hand ``build`` to the worker lane and answer :data:`DEFERRED`, else refuse ``runtime_stopping``.
@@ -306,10 +306,12 @@ def defer_or_refuse(
     The one door for a method that must never run on the reader lane (a board read, a git write, a
     native conversation turn): where :func:`deferred_reply`'s other callers fall back to answering
     inline, these refuse, because their work is unbounded at its source. ``message`` is the caller's
-    own sentence; the code (4090) and the reason are the door's.
+    own sentence; the code (4090) and the reason are the door's. ``build`` runs inside
+    :func:`deferred_reply`'s fault boundary, so a raise on the worker is a ``-32000`` frame on the same
+    ``id``, never a client waiting for a reply nobody writes.
     """
 
-    if context.spawn_reply is None or not context.spawn_reply(build):
+    if context.spawn_reply is None or not context.spawn_reply(deferred_reply(rid, method_name, build)):
         return err(rid, ERR_CONFLICT, message, {"reason": RUNTIME_STOPPING})
     return DEFERRED
 

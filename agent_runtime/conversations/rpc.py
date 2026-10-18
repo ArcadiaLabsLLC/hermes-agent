@@ -113,7 +113,8 @@ def register(method, ok, err) -> None:
                                {"reason": Refusal.UNKNOWN})
             if operation == "capabilities":
                 return run()
-            return defer_or_refuse(rid, context, run, message="The runtime cannot accept this request.")
+            return defer_or_refuse(rid, PREFIX + operation, context, run,
+                                   message="The runtime cannot accept this request.")
         # Transcripts, tool arguments and server questions are console-private,
         # not a read-tier monitoring projection. Execution also requires console.
         method(PREFIX + operation, tier=TIER_CONSOLE)(handler)

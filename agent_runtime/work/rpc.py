@@ -20,7 +20,8 @@ def _work_reply(rid, operation, params, caller):
 
 def _work_method(operation):
     def handle(rid, params, context):
-        return defer_or_refuse(rid, context, lambda: _work_reply(rid, operation, params, context.caller))
+        return defer_or_refuse(rid, "runtime.work." + operation, context,
+                               lambda: _work_reply(rid, operation, params, context.caller))
     return handle
 
 

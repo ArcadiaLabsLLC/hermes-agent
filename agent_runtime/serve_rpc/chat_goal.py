@@ -39,7 +39,8 @@ def _goal_reply(rid: Any, op: str, params: dict) -> dict:
 
 def _goal_method(op: str):
     def handle(rid, params, context):
-        return defer_or_refuse(rid, context, lambda: _goal_reply(rid, op, dict(params or {})))
+        return defer_or_refuse(rid, GOAL_METHOD_PREFIX + op, context,
+                               lambda: _goal_reply(rid, op, dict(params or {})))
     return handle
 
 

@@ -45,3 +45,23 @@ def test_an_accepted_deferral_answers_deferred_and_hands_the_lane_a_build(name, 
 
     assert handle_request(_request(name, params), context) is DEFERRED
     assert len(builds) == 1 and callable(builds[0])
+
+
+def test_a_build_that_raises_on_the_worker_still_answers_its_id(monkeypatch):
+    """A fault outside a family's own try (here, the whole reply builder) is a -32000 on the same id."""
+
+    from agent_runtime.serve_rpc import chat_goal
+
+    def explode(*_args):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(chat_goal, "_goal_reply", explode)
+    builds = []
+    context = RpcContext(caller=STDIO_OWNER, spawn_reply=lambda build: builds.append(build) or True)
+
+    assert handle_request(_request("runtime.chat.goal.status", {"session_id": "s1"}), context) is DEFERRED
+    frame = builds.pop()()
+
+    assert frame["id"] == "r1"
+    assert frame["error"]["code"] == -32000
+    assert frame["error"]["data"] == {"reason": "handler_failed", "method": "runtime.chat.goal.status"}
