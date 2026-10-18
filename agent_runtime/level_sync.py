@@ -41,6 +41,7 @@ from __future__ import annotations
 from typing import Any
 
 from . import paths
+from .realm_sync.families import SyncFamily
 from .realm_sync.document_family import (
     REFUSAL_MISSING_VERSION,
     REFUSAL_NOT_AN_OBJECT,
@@ -148,6 +149,9 @@ LEVEL_FAMILY = DocumentFamily(
     store_root=lambda: paths.levels_root(),
     baseline_path=lambda realm_id: paths.level_baseline_path(realm_id),
     conflict_path=lambda realm_id, token: paths.level_conflict_path(realm_id, token),
+    conflict_dir=lambda realm_id: paths.realm_sync_root() / paths.safe_path_token(realm_id) / "level_conflicts",
+    sync_kind=SyncFamily.LEVEL,
+    unreadable_reason="level_unreadable",
     summary_type=LevelPullSummary,
 )
 

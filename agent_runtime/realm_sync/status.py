@@ -283,23 +283,10 @@ def _map_status_row(realm_id: str) -> dict[str, Any]:
     follow-up with its own row, exactly as the level family's is.
     """
 
-    from ..map_sync import map_baseline_key, read_map_baseline
+    from ..map_sync import MAP_FAMILY
+    from .document_family import document_status_row
 
-    scan = _map_publish_scan()
-    baseline = read_map_baseline(realm_id)
-    unpublished = sum(
-        1
-        for token, body_hash in scan.hashes.items()
-        if baseline.get(map_baseline_key(token)) != body_hash
-    )
-    conflicts = paths.realm_sync_root() / paths.safe_path_token(realm_id) / "map_conflicts"
-    held = sorted(path.stem for path in conflicts.glob("*.json")) if conflicts.is_dir() else []
-    return {
-        "publishable": len(scan.artifacts),
-        "unpublished": unpublished,
-        "held": held,
-        "refused": list(scan.refused),
-    }
+    return document_status_row(MAP_FAMILY, realm_id, _map_publish_scan())
 
 
 def _level_status_row(realm_id: str, workspaces: list[Workspace]) -> dict[str, Any]:
@@ -318,23 +305,10 @@ def _level_status_row(realm_id: str, workspaces: list[Workspace]) -> dict[str, A
     two walks.
     """
 
-    from ..level_sync import level_baseline_key, read_level_baseline
+    from ..level_sync import LEVEL_FAMILY
+    from .document_family import document_status_row
 
-    scan = _level_publish_scan(workspaces)
-    baseline = read_level_baseline(realm_id)
-    unpublished = sum(
-        1
-        for token, body_hash in scan.hashes.items()
-        if baseline.get(level_baseline_key(token)) != body_hash
-    )
-    conflicts = paths.realm_sync_root() / paths.safe_path_token(realm_id) / "level_conflicts"
-    held = sorted(path.stem for path in conflicts.glob("*.json")) if conflicts.is_dir() else []
-    return {
-        "publishable": len(scan.artifacts),
-        "unpublished": unpublished,
-        "held": held,
-        "refused": list(scan.refused),
-    }
+    return document_status_row(LEVEL_FAMILY, realm_id, _level_publish_scan(workspaces))
 
 
 def _flow_graph_status_row(realm_id: str, workspaces: list[Workspace]) -> dict[str, Any]:

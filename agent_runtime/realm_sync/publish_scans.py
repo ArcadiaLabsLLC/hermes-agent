@@ -13,6 +13,7 @@ from .. import paths
 from ..models import Workspace
 from .models import RealmSyncArtifact
 from .families import SyncFamily
+from .document_family import DocumentPublishScan, document_publish_scan
 
 __layer__ = "stores"
 __all__ = [
@@ -229,21 +230,12 @@ def _office_publish_scan(workspaces: list[Workspace]) -> OfficePublishScan:
     )
 
 
-class LevelPublishScan(NamedTuple):
-    """What ONE pass over the level store says this realm publishes.
-
-    THREE facts from one walk, for the reason ``OfficePublishScan`` states one
-    class up: the artifacts, the content hashes the publish records as its new
-    baseline, and the levels that would not travel. Deriving the hashes from a
-    second walk is the specific mistake available here — the publish writes the
-    bytes THIS scan read, and a baseline computed from a re-read is free to
-    disagree with them, which the publisher then meets as a HOLD on their own
-    environment at the next pull.
-    """
-
-    artifacts: list[RealmSyncArtifact]
-    hashes: dict[str, str]
-    refused: list[dict[str, Any]]
+#: The level and map scans are one class (``document_family.DocumentPublishScan``):
+#: the artifacts, the content hashes the publish records as its new baseline,
+#: and the documents that would not travel — three facts from one walk, so the
+#: published bytes and the recorded baseline cannot disagree.
+LevelPublishScan = DocumentPublishScan
+MapPublishScan = DocumentPublishScan
 
 
 def _level_publish_scan(workspaces: list[Workspace]) -> LevelPublishScan:
@@ -264,57 +256,9 @@ def _level_publish_scan(workspaces: list[Workspace]) -> LevelPublishScan:
     person the silence would keep it from.
     """
 
-    from ..level_sync import (
-        LevelDocumentError,
-        LevelStore,
-        level_document_hash,
-        published_relative_path,
-    )
+    from ..level_sync import LEVEL_FAMILY
 
-    wanted = {paths.safe_path_token(ws.id) for ws in workspaces}
-    store = LevelStore()
-    artifacts: list[RealmSyncArtifact] = []
-    hashes: dict[str, str] = {}
-    refused: list[dict[str, Any]] = []
-    for token in store.list_workspace_tokens():
-        if token not in wanted:
-            continue
-        raw = store.read(token)
-        if raw is None:
-            # Listed by the directory walk and unreadable by the store's own
-            # read (an OSError it swallows). Not silence: the same typed row an
-            # undecodable document gets, because from the publish's side the two
-            # are one fact — this realm has a level here that cannot travel.
-            refused.append({"workspace_token": token, "reason": "level_unreadable", "error": "OSError"})
-            continue
-        try:
-            hashes[token] = level_document_hash(raw)
-        except LevelDocumentError as exc:
-            refused.append({"workspace_token": token, "reason": exc.code, "error": type(exc).__name__})
-            continue
-        source = paths.level_path(token)
-        artifacts.append(
-            RealmSyncArtifact(
-                kind=SyncFamily.LEVEL,
-                source=source,
-                relative_path=published_relative_path(token),
-                destination=source,
-            )
-        )
-    return LevelPublishScan(artifacts=artifacts, hashes=hashes, refused=refused)
-
-
-class MapPublishScan(NamedTuple):
-    """What ONE pass over the map catalogue says this realm publishes.
-
-    Three facts from one walk, for ``LevelPublishScan``'s reason: the artifacts,
-    the content hashes the publish records as its new baseline, and the maps that
-    would not travel.
-    """
-
-    artifacts: list[RealmSyncArtifact]
-    hashes: dict[str, str]
-    refused: list[dict[str, Any]]
+    return document_publish_scan(LEVEL_FAMILY, {paths.safe_path_token(ws.id) for ws in workspaces})
 
 
 def _map_publish_scan() -> MapPublishScan:
@@ -336,38 +280,7 @@ def _map_publish_scan() -> MapPublishScan:
     disk holds the broken file.
     """
 
-    from ..map_sync import (
-        MapDocumentError,
-        MapStore,
-        map_document_hash,
-        published_relative_path,
-    )
+    from ..map_sync import MAP_FAMILY
 
-    store = MapStore()
-    artifacts: list[RealmSyncArtifact] = []
-    hashes: dict[str, str] = {}
-    refused: list[dict[str, Any]] = []
-    for token in store.list_map_tokens():
-        raw = store.read(token)
-        if raw is None:
-            # Listed by the directory walk and unreadable by the store's own
-            # read (an OSError it swallows). The same typed row an undecodable
-            # document gets, because from the publish's side the two are one
-            # fact — this install has a map here that cannot travel.
-            refused.append({"map_token": token, "reason": "map_unreadable", "error": "OSError"})
-            continue
-        try:
-            hashes[token] = map_document_hash(raw)
-        except MapDocumentError as exc:
-            refused.append({"map_token": token, "reason": exc.code, "error": type(exc).__name__})
-            continue
-        source = paths.map_path(token)
-        artifacts.append(
-            RealmSyncArtifact(
-                kind=SyncFamily.MAP,
-                source=source,
-                relative_path=published_relative_path(token),
-                destination=source,
-            )
-        )
-    return MapPublishScan(artifacts=artifacts, hashes=hashes, refused=refused)
+    return document_publish_scan(MAP_FAMILY)
+

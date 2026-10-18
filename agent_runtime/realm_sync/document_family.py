@@ -30,7 +30,9 @@ import json
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
+
+from .models import RealmSyncArtifact
 
 __layer__ = "stores"
 
@@ -41,10 +43,13 @@ __all__ = [
     "REFUSAL_UNREADABLE_DOCUMENT",
     "DocumentError",
     "DocumentFamily",
+    "DocumentPublishScan",
     "DocumentPullSummary",
     "DocumentStore",
     "apply_document_pull",
     "document_hash",
+    "document_publish_scan",
+    "document_status_row",
     "expectation_matches",
     "read_document_baseline",
     "read_remote_documents",
@@ -96,16 +101,29 @@ class DocumentFamily:
     refusal_unreadable_remote: str
     #: The conflict sidecar's token key (``workspace_token`` / ``map_token``).
     token_field: str
-    #: Call-time path resolvers.
+    #: Call-time path resolvers. A TOKEN is the document's path relative to
+    #: ``store_root`` (and to the published prefix) without ``.json``, ``/``-joined:
+    #: ``<workspace>`` for a level, ``<profile>/<prefab>`` for a prefab.
     document_path: Callable[[str], Path]
     store_root: Callable[[], Path]
     baseline_path: Callable[[str], Path]
     conflict_path: Callable[[str, str], Path]
+    #: The directory the held (parked) documents live in, per realm.
+    conflict_dir: Callable[[str], Path]
     #: The family's pull summary type (wire name kept per family).
     summary_type: type["DocumentPullSummary"]
+    #: The publish artifact kind (``SyncFamily`` value) and the scan's refusal
+    #: reason for a listed document the store cannot read.
+    sync_kind: str
+    unreadable_reason: str
     #: A family's extra facts over the parsed object (the map's ``name``);
     #: raises the family's error.
     extra_check: Callable[[dict[str, Any]], None] | None = None
+    #: Whether a numeric ``version`` is required (levels, maps: yes; the
+    #: launcher's prefab wire carries ``v``, and hermes does not read it).
+    require_version: bool = True
+    #: Glob for the documents under a root: ``*.json`` (flat) or ``*/*.json``.
+    glob: str = "*.json"
 
     def baseline_key(self, token: str) -> str:
         return f"{self.noun}:{token}"
@@ -115,6 +133,20 @@ class DocumentFamily:
 
     def published_root(self, subtree) -> Path:
         return Path(subtree).joinpath(*self.published_prefix.strip("/").split("/"))
+
+    def published_relative_path(self, token: str) -> str:
+        return f"{self.published_prefix}{token}.json"
+
+    def tokens_under(self, root: Path) -> list[Path]:
+        """The document files under ``root`` (sorted), by the family's glob."""
+
+        if not root.is_dir():
+            return []
+        return sorted(path for path in root.glob(self.glob) if path.is_file())
+
+    @staticmethod
+    def token_of(path: Path, root: Path) -> str:
+        return path.relative_to(root).with_suffix("").as_posix()
 
 
 # --- the facts hermes reads ---------------------------------------------------
@@ -137,7 +169,7 @@ def validate_document(family: DocumentFamily, raw: bytes) -> dict[str, Any]:
     if not isinstance(parsed, dict):
         raise family.error(REFUSAL_NOT_AN_OBJECT)
     version = parsed.get("version")
-    if not isinstance(version, (int, float)) or isinstance(version, bool):
+    if family.require_version and (not isinstance(version, (int, float)) or isinstance(version, bool)):
         raise family.error(REFUSAL_MISSING_VERSION)
     if family.extra_check is not None:
         family.extra_check(parsed)
@@ -236,9 +268,7 @@ class DocumentStore:
         """Every token this store holds, sorted."""
 
         root = self.family.store_root()
-        if not root.is_dir():
-            return []
-        return sorted(path.stem for path in root.glob("*.json") if path.is_file())
+        return [self.family.token_of(path, root) for path in self.family.tokens_under(root)]
 
 
 # --- baseline sidecar (never synced, never published) ------------------------
@@ -278,6 +308,77 @@ def update_document_baseline_after_publish(family: DocumentFamily, realm_id: str
     write_document_baseline(family, realm_id, baseline)
 
 
+# --- publish: one scan, and the status row it counts --------------------------
+
+
+class DocumentPublishScan(NamedTuple):
+    """What ONE pass over a family's store says this realm publishes: the
+    artifacts, the content hashes the publish records as its new baseline, and
+    the documents that would not travel (typed rows, never a silent omission —
+    a peer would read the absence as a removal)."""
+
+    artifacts: list[RealmSyncArtifact]
+    hashes: dict[str, str]
+    refused: list[dict[str, Any]]
+
+
+def document_publish_scan(family: DocumentFamily, wanted: set[str] | None = None) -> DocumentPublishScan:
+    """Every stored document (``wanted``: only those tokens) as a verbatim
+    artifact. A document that will not read publishes NOTHING and is refused
+    typed: publish copies verbatim, so it would travel and every peer's pull
+    would refuse it, keeping the failure from the one operator whose disk holds
+    the broken file."""
+
+    store = DocumentStore(family)
+    artifacts: list[RealmSyncArtifact] = []
+    hashes: dict[str, str] = {}
+    refused: list[dict[str, Any]] = []
+    for token in store.list_tokens():
+        if wanted is not None and token not in wanted:
+            continue
+        raw = store.read(token)
+        if raw is None:
+            # Listed by the walk and unreadable by the store's own read (an
+            # OSError it swallows): the same typed row an undecodable document
+            # gets — from the publish's side the two are one fact.
+            refused.append({family.token_field: token, "reason": family.unreadable_reason, "error": "OSError"})
+            continue
+        try:
+            hashes[token] = document_hash(family, raw)
+        except family.error as exc:
+            refused.append({family.token_field: token, "reason": exc.code, "error": type(exc).__name__})
+            continue
+        source = family.document_path(token)
+        artifacts.append(
+            RealmSyncArtifact(
+                kind=family.sync_kind,
+                source=source,
+                relative_path=family.published_relative_path(token),
+                destination=source,
+            )
+        )
+    return DocumentPublishScan(artifacts=artifacts, hashes=hashes, refused=refused)
+
+
+def document_status_row(family: DocumentFamily, realm_id: str, scan: DocumentPublishScan) -> dict[str, Any]:
+    """``{publishable, unpublished, held, refused}`` — ``unpublished`` is the
+    publish scan's own hash-vs-baseline compare spent as a count (one walk's
+    arithmetic in two shapes, never two walks); ``held`` is the parked tokens."""
+
+    baseline = read_document_baseline(family, realm_id)
+    unpublished = sum(
+        1 for token, body_hash in scan.hashes.items() if baseline.get(family.baseline_key(token)) != body_hash
+    )
+    conflicts = family.conflict_dir(realm_id)
+    held = [family.token_of(path, conflicts) for path in family.tokens_under(conflicts)]
+    return {
+        "publishable": len(scan.artifacts),
+        "unpublished": unpublished,
+        "held": sorted(held),
+        "refused": list(scan.refused),
+    }
+
+
 # --- pull: adopt, keep or HOLD — whole document, never merged ----------------
 
 
@@ -292,12 +393,8 @@ def read_remote_documents(family: DocumentFamily, subtree) -> tuple[dict[str, by
     root = family.published_root(subtree)
     documents: dict[str, bytes] = {}
     refused: list[dict[str, str]] = []
-    if not root.is_dir():
-        return documents, refused
-    for path in sorted(root.glob("*.json")):
-        if not path.is_file():
-            continue
-        token = path.stem
+    for path in family.tokens_under(root):
+        token = family.token_of(path, root)
         try:
             raw = path.read_bytes()
             validate_document(family, raw)

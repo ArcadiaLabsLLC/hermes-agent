@@ -53,6 +53,7 @@ from __future__ import annotations
 from typing import Any
 
 from . import paths
+from .realm_sync.families import SyncFamily
 from .realm_sync.document_family import (
     REFUSAL_MISSING_VERSION,
     REFUSAL_NOT_AN_OBJECT,
@@ -189,6 +190,9 @@ MAP_FAMILY = DocumentFamily(
     store_root=lambda: paths.maps_root(),
     baseline_path=lambda realm_id: paths.map_baseline_path(realm_id),
     conflict_path=lambda realm_id, token: paths.map_conflict_path(realm_id, token),
+    conflict_dir=lambda realm_id: paths.realm_sync_root() / paths.safe_path_token(realm_id) / "map_conflicts",
+    sync_kind=SyncFamily.MAP,
+    unreadable_reason="map_unreadable",
     summary_type=MapPullSummary,
     extra_check=_require_name,
 )
