@@ -87,7 +87,7 @@ def credentials_path() -> Path:
     return _home() / "lens" / "credentials.json"
 
 
-def _read_file() -> dict[str, dict[str, Any]]:
+def _read_credentials_file() -> dict[str, dict[str, Any]]:
     try:
         document = json.loads(credentials_path().read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -126,7 +126,7 @@ def migrate_pool_slice() -> int:
         legacy = [row for row in read_credential_pool(LEGACY_POOL_PROVIDER)
                   if isinstance(row, dict) and row.get("lens_home") == stamp and isinstance(row.get("id"), str)]
         if legacy:
-            rows = _read_file()
+            rows = _read_credentials_file()
             for row in legacy:
                 secret = row.get("access_token")
                 if row["id"] in rows or not isinstance(secret, str) or not secret:
@@ -143,7 +143,7 @@ def migrate_pool_slice() -> int:
 
 def _own_row(ref: str) -> dict[str, Any] | None:
     migrate_pool_slice()
-    return _read_file().get(ref)
+    return _read_credentials_file().get(ref)
 
 
 def set_credential(ref: str, *, scheme: str, secret: str, username: str | None = None,
@@ -162,7 +162,7 @@ def set_credential(ref: str, *, scheme: str, secret: str, username: str | None =
     if username is not None:
         row["username"] = username
     with _LOCK:
-        rows = _read_file()
+        rows = _read_credentials_file()
         rows[ref] = row
         _write_file(rows)
     return credential_status(ref)

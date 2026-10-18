@@ -318,7 +318,7 @@ def mint_id(rand: bytes | None = None) -> str:
     return "WORK-" + base64.b32encode(rand or os.urandom(5)).decode()[:6]
 
 
-def _claim(line: str, *, who: str, date: str, payload: dict) -> str:
+def _claim_line(line: str, *, who: str, date: str, payload: dict) -> str:
     held = TAKEN.search(line)
     if held:
         raise WorkRefused(Reason.ALREADY_TAKEN, held.group(2))
@@ -359,7 +359,7 @@ def _append(line: str, *, who: str, date: str, payload: dict) -> str:
 
 
 _EDITS: dict[Op, Callable[..., str | None]] = {
-    Op.CLAIM: _claim,
+    Op.CLAIM: _claim_line,
     Op.RELEASE: _release,
     Op.SET_STATUS: _set_status,
     Op.DELETE: _delete,

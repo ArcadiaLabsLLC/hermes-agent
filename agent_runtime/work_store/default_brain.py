@@ -84,7 +84,7 @@ def skeleton(root: Path) -> list[Path]:
     return [path for path, _ in notes]
 
 
-def _git(args: list[str], *, root: Path, machine: str, reason: Reason) -> str:
+def _brain_git(args: list[str], *, root: Path, machine: str, reason: Reason) -> str:
     from ..git_cmd import run_git
 
     done = run_git(args, repo=root, config=IDENTITY_PAIRS(machine), timeout=60, stdin=subprocess.DEVNULL)
@@ -97,10 +97,10 @@ def _commit_skeleton(root: Path, workspace_id: str, machine: str) -> None:
     """``init`` (once) → ``add -A`` → ``commit`` when anything is staged; no remote, ever."""
 
     if not (root / ".git").exists():
-        _git(["init", "-q", "-b", "main"], root=root, machine=machine, reason=Reason.COMMIT_FAILED)
-    _git(["add", "-A"], root=root, machine=machine, reason=Reason.COMMIT_FAILED)
-    if _git(["status", "--porcelain"], root=root, machine=machine, reason=Reason.COMMIT_FAILED).strip():
-        _git(["commit", "-q", "-m", f"work: default brain for {workspace_id}"], root=root, machine=machine,
+        _brain_git(["init", "-q", "-b", "main"], root=root, machine=machine, reason=Reason.COMMIT_FAILED)
+    _brain_git(["add", "-A"], root=root, machine=machine, reason=Reason.COMMIT_FAILED)
+    if _brain_git(["status", "--porcelain"], root=root, machine=machine, reason=Reason.COMMIT_FAILED).strip():
+        _brain_git(["commit", "-q", "-m", f"work: default brain for {workspace_id}"], root=root, machine=machine,
              reason=Reason.COMMIT_FAILED)
 
 

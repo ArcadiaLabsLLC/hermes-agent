@@ -60,7 +60,7 @@ def brain_dir_of(root: Path | None, slot: dict[str, Any]) -> str | None:
     return found[0].relative_to(root).as_posix() if found else None
 
 
-def _board(workspace_id: str, name: str, slot: dict[str, Any], read_roots: Mapping[str, Path]) -> Board:
+def _slot_board(workspace_id: str, name: str, slot: dict[str, Any], read_roots: Mapping[str, Path]) -> Board:
     repo = slot.get("repo") or {}
     path = bound_path(name)
     bound_here = bool(path and path.is_dir())
@@ -83,7 +83,7 @@ def boards(workspace_id: str, *, read_roots: Mapping[str, Path] | None = None) -
     """One board per live slot of the workspace, bound here or not (an unbound one is listed, never read)."""
 
     slots = live_slots(load_document(workspace_id))
-    return [_board(workspace_id, name, slots[name], read_roots or {}) for name in sorted(slots)]
+    return [_slot_board(workspace_id, name, slots[name], read_roots or {}) for name in sorted(slots)]
 
 
 def notes(board: Board) -> list[Path]:

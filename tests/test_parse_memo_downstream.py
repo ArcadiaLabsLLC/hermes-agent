@@ -17,7 +17,7 @@ def _counting():
         document = stream if isinstance(stream, str) else stream.read()
         return {"doc": document[:16], "nested": {"list": [1, 2]}}
 
-    return calls, memo._memoized(real)
+    return calls, memo._memoized_safe_load(real)
 
 
 def test_a_checkout_file_parses_once_and_each_caller_gets_its_own_copy(monkeypatch):

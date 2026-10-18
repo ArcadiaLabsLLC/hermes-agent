@@ -55,7 +55,7 @@ def _bundled_key(stream) -> tuple | None:
     return (path, st.st_mtime_ns, st.st_size, getattr(stream, "encoding", None))
 
 
-def _memoized(real):
+def _memoized_safe_load(real):
     def safe_load(stream):
         key = _bundled_key(stream)
         if key is None:
@@ -81,7 +81,7 @@ def install_if_imported() -> bool:
     if module is None:
         return False
     if not getattr(module.safe_load, _MARK, False):
-        module.safe_load = _memoized(module.safe_load)
+        module.safe_load = _memoized_safe_load(module.safe_load)
     return True
 
 

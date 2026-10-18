@@ -261,11 +261,11 @@ def imported_modules(path: Path, rel: str) -> frozenset[str]:
     key = (os.fspath(path), rel, st.st_mtime_ns, st.st_size)
     kept = _IMPORTS.get(key)
     if kept is None:
-        kept = _IMPORTS[key] = frozenset(_parse_imports(path, rel))
+        kept = _IMPORTS[key] = frozenset(_parse_file_imports(path, rel))
     return kept
 
 
-def _parse_imports(path: Path, rel: str) -> set[str]:
+def _parse_file_imports(path: Path, rel: str) -> set[str]:
     import ast
     import warnings
 
