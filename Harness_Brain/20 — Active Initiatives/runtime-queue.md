@@ -514,7 +514,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-10-17 (q-version)
 
-- [ ] **`test_embedded_phone_session::test_sign_in_and_one_chat_turn...[phone]` red on `8a648c203e`: the phone closure imports `tools.connectors.gateway.wire` from `tools/connectors/gateway/files.py:25`** · fork-owned / phone closure · q-version report · READY
+- [ ] **`test_embedded_phone_session::test_sign_in_and_one_chat_turn...[phone]` red on `8a648c203e`: the phone closure imports `tools.connectors.gateway.wire` from `tools/connectors/gateway/files.py:25`** · fork-owned / phone closure · q-version report · READY **TAKEN 2026-10-17 claude (r-drift)**
 
 ### Filed on arrival — 2026-10-17 (harvest of rows committed on branches, never landed)
 
@@ -677,7 +677,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-10-10 (fast gate FG1, filed by the orchestrator)
 
-- [ ] **`tests/verify/test_environment_and_runner.py::test_readiness_timeout_when_nothing_listens` hits the 30 s pytest-timeout on Windows under plain `scripts/run_tests.sh`** · upstream / suite · build-fastgate-FG1 verify-plain run · lane: `scripts/classify_reds_on_tag.py`, then skip-list row or upstream issue · diagnosed 2026-10-15: not a tag red but a 30 s race — `agent/verify/runner.py::_run_start_phase` terminates the shell only; on Windows the start command's own child keeps the stdout pipe, so `proc.stdout.read()` blocks until it exits; the product defect (verify's start phase hangs on Windows) is upstream's · RULED 2026-10-15 owner (decision sheet w1015i #2): yes — post them together in one sitting · BLOCKED 2026-10-16: owner sitting — post the upstream issue at the upstream posting sitting
+- [ ] **`tests/verify/test_environment_and_runner.py::test_readiness_timeout_when_nothing_listens` hits the 30 s pytest-timeout on Windows under plain `scripts/run_tests.sh`** · upstream / suite · build-fastgate-FG1 verify-plain run · lane: `scripts/classify_reds_on_tag.py`, then skip-list row or upstream issue · diagnosed 2026-10-15: not a tag red but a 30 s race — `agent/verify/runner.py::_run_start_phase` terminates the shell only; on Windows the start command's own child keeps the stdout pipe, so `proc.stdout.read()` blocks until it exits; the product defect (verify's start phase hangs on Windows) is upstream's · RULED 2026-10-15 owner (decision sheet w1015i #2): yes — post them together in one sitting · BLOCKED 2026-10-16: owner sitting — post the upstream issue at the upstream posting sitting **TAKEN 2026-10-17 claude (r-runner)**
 
 ### Filed on arrival — 2026-10-10 (guard fix, build batch 2 C1–C4, filed by the orchestrator)
 
