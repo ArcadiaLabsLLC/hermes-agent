@@ -1,7 +1,7 @@
 """The Work engine — hands each persona-claimed row to its executor, writes the ending back (W3).
 
 Work plan ``work-on-markdown-2026-10-18.md`` §6.3 and §8. The engine runs in the serve only (one writer
-per machine) and NEVER claims: a row ``**TAKEN <date> persona:<instance_id>**`` (claimed through
+per machine) and never claims on its own: a row ``**TAKEN <date> persona:<instance_id>**`` (claimed through
 ``runtime.work.claim`` or ``start`` with an assignee) becomes ONE ``Assignment`` of that row; a row
 taken by a session lane (``<who>`` not ``persona:…``) is never touched.
 
@@ -10,6 +10,9 @@ rebuilt from those files, so a restart loses nothing. A record moves
 ``starting → running → settled → closed``: ``starting`` is written BEFORE the executor's ``start``
 (whose ``request_id`` makes it idempotent), so a crash between them retries the same run instead of
 starting a second one; ``settled`` holds the outcome until the write-back lands; ``closed`` is reaped.
+
+A scheduled ``RunAssignment`` fire comes in through ``WorkEngine.adopt``: the one place the engine
+claims, for the row an operator armed, so that run is recorded and written back like any other.
 
 ``tick`` runs three phases, in order: (1) settle what ended without reporting — a run that ended while
 the serve was down (seen at construction, before the runner's first pass) or whose settle never
@@ -32,7 +35,7 @@ import os
 import re
 import threading
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -337,6 +340,53 @@ class WorkEngine:
             _save(record)
         return self._start(record, self._assignment(row, writer, record.request_id))
 
+    def adopt(self, assignment: Assignment, origin: Mapping[str, Any]) -> Run:
+        """A run started outside the claim scan -- a scheduled ``RunAssignment`` fire -- made an engine run.
+
+        The row is claimed for the assignee (``persona:<instance_id>``, replayed by request id) unless the
+        assignee already holds it, recorded, and started with ``origin`` through ``executor.start_from``,
+        so its settle is written back like any engine run. One row per run (a run record is one row's).
+        Refusals: ``schedule_invalid`` (not one row), ``row_gone``, ``already_taken`` (another claimant, or
+        a live run of the row), and the executor's own.
+        """
+
+        if len(assignment.rows) != 1:
+            raise WorkRefused(Reason.SCHEDULE_INVALID, "a scheduled assignment runs one row; schedule a batch for more")
+        who = f"persona:{assignment.persona_instance_id}"
+        with self._lock:
+            workspace_id, row, writer = self._locate(assignment.rows[0])
+            if row.taken is not None and row.taken.who != who:
+                raise WorkRefused(Reason.ALREADY_TAKEN, row.taken.who)
+            live = next((r.request_id for r in records() if r.ref == row.ref and r.state is not RecordState.CLOSED),
+                        None)
+            if live is not None:
+                raise WorkRefused(Reason.ALREADY_TAKEN, f"run {live}")
+            refusal = self.executor.can_start(assignment)
+            if refusal is not None:
+                raise WorkRefused(refusal, assignment.persona_instance_id)
+            if row.taken is None:
+                from .writer import RowOp
+
+                writer.apply(RowOp(row.ref, Op.CLAIM, who, f"{assignment.request_id}:claim", {}))
+            record = RunRecord(assignment.request_id, row.ref, workspace_id, assignment.persona_instance_id, "", "",
+                               self._stamp(), RecordState.STARTING, who=who)
+            _save(record)
+            return self._begin(record, lambda: self.executor.start_from(assignment, origin))
+
+    def _locate(self, ref: RowRef) -> tuple[str, Row, Any]:
+        """The workspace, the row and the writer of the row ``ref`` names (by slot and ID)."""
+
+        for workspace_id in self._workspaces():
+            view = self._sync(workspace_id)
+            for board in view.boards:
+                writer = view.writers.get(board.slot)
+                if board.slot != ref.slot or writer is None or board.read_root is None:
+                    continue
+                row = next((r for r in board_rows(board) if r.ref.id == ref.id), None)
+                if row is not None:
+                    return workspace_id, row, writer
+        raise WorkRefused(Reason.ROW_GONE, f"{ref.slot}/{ref.id}")
+
     def _assignment(self, row: Row, writer: Any, request_id: str) -> Assignment:
         body = self._brief_of(row, writer)
         brief = Brief(title=row.title, objective=body or row.title,
@@ -345,10 +395,19 @@ class WorkEngine:
 
     def _start(self, record: RunRecord, assignment: Assignment) -> str:
         try:
-            run = self.executor.start(assignment)
+            self._begin(record, lambda: self.executor.start(assignment))
         except WorkRefused as refused:
-            _drop(record)
             return self._refuse(record.ref, refused.reason, refused.detail)
+        return "started"
+
+    def _begin(self, record: RunRecord, start: Callable[[], Run]) -> Run:
+        """Start the recorded run; a refused start drops the record (the row stays as it is) and re-raises."""
+
+        try:
+            run = start()
+        except WorkRefused:
+            _drop(record)
+            raise
         record.run_id, record.root_session_id, record.client_message_id = (
             run.run_id, run.root_session_id, run.client_message_id)
         record.state = RecordState.RUNNING
@@ -357,7 +416,7 @@ class WorkEngine:
         receipts.emit("work.run_start", ref=asdict(record.ref), request_id=record.request_id,
                       workspace_id=record.workspace_id, persona_instance_id=record.persona_instance_id,
                       run_id=run.run_id)
-        return "started"
+        return run
 
     def _refuse(self, ref: RowRef, reason: Reason, detail: str = "") -> str:
         """A refused start leaves the row as is; the receipt is logged once per (row, reason)."""

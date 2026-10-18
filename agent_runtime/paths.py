@@ -124,6 +124,18 @@ def chat_goal_binding_path(root_session_id: str) -> Path:
     return chat_goal_bindings_dir() / f"{safe_path_token(root_session_id)}.json"
 
 
+def chat_goal_parks_dir() -> Path:
+    """The chat goals no Work run owns that the judge parked on ``wait`` (``chat_goal.ChatGoalPark``).
+
+    One JSON file per root: the settled turn's arguments the serve's waker forges the continuation from.
+    """
+    return store_root() / "chat_goal_parks"
+
+
+def chat_goal_park_path(root_session_id: str) -> Path:
+    return chat_goal_parks_dir() / f"{safe_path_token(root_session_id)}.json"
+
+
 def runtime_instances_dir() -> Path:
     return store_root() / "runtime_instances"
 

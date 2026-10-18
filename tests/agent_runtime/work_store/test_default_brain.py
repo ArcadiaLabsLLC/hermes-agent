@@ -111,3 +111,19 @@ def test_a_server_less_realm_gets_its_brain(monkeypatch):
 
 def test_identity_pairs_are_hermes_own():
     assert default_brain.IDENTITY_PAIRS("m-1") == ("user.name=Eternia Harness", "user.email=harness+m-1@eternia.local")
+
+
+def test_every_writer_refuses_an_unidentified_machine_through_this_machine(monkeypatch):
+    """RT-MACHINE-ID-REFUSAL-WRAPPER: ``work.store.writer_for`` reads ``this_machine``, the one owner of the
+    machine-id → ``WorkRefused(MACHINE_UNIDENTIFIED)`` wrapper. Killing mutation: re-inline the wrapper in
+    ``writer_for`` over ``workspace_slots.machine_id`` — this test goes red (the patched door is bypassed)."""
+
+    from agent_runtime.work import store as work_store
+
+    def unidentified():
+        raise workspace_slots.SlotRefused(workspace_slots.REASON_MACHINE_UNIDENTIFIED, "")
+
+    monkeypatch.setattr(default_brain, "machine_id", unidentified)
+    with pytest.raises(WorkRefused) as refused:
+        work_store.writer_for(None)  # refused before the board is read
+    assert refused.value.reason is Reason.MACHINE_UNIDENTIFIED

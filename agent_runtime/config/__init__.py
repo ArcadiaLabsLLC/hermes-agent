@@ -98,6 +98,7 @@ from agent_runtime.config.knobs import (  # noqa: F401
     mission_chat_workdir,
     resolve_mission_chat_dispatch_max_seconds,
     resolve_mission_chat_max_seconds,
+    scheduler_max_parallel,
 )
 
 __layer__ = "stores"

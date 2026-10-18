@@ -37,13 +37,12 @@ from agent_runtime.call_authorization import TIER_CONSOLE
 from agent_runtime.param_readers import read_flag, read_strings, read_text
 
 from agent_runtime.serve_rpc.protocol import (
-    DEFERRED,
     ERR_CONFLICT,
     ERR_HANDLER_FAILED,
     ERR_INVALID_PARAMS,
     ERR_NOT_FOUND,
     RpcContext,
-    deferred_reply,
+    defer_or_inline,
     err,
     ok,
 )
@@ -283,10 +282,7 @@ def _register(name: str, body: Callable[[dict], dict]) -> None:
             with _REALM_VERB_LOCK:
                 return _run_verb(rid, lambda: body(_params(params)))
 
-        build = deferred_reply(rid, name, _answer)
-        if context is not None and context.spawn_reply is not None and context.spawn_reply(build):
-            return DEFERRED
-        return build()
+        return defer_or_inline(rid, name, context, _answer)
 
     _handler.__name__ = "_runtime_" + name.removeprefix("runtime.").replace(".", "_")
     _handler.__doc__ = f"``{name}`` — the argv verb's envelope; see :mod:`agent_runtime.realm_verbs`."

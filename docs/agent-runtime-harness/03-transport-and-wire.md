@@ -1728,7 +1728,9 @@ on a bound root reaches the after-turn hook (the queued-send runner's `on_settle
 in the persona's workdir; a continuation is forged as the run's next queued send, never a direct turn; an
 operator send already waiting wins the slot (the run holds and is judged again after it). A `work_report`
 of `blocked`/`stopped`, a failed turn, or a judge decision other than continue ends the run; the goal is
-paused and the root unbound. Receipts: `work.goal_arm | goal_continue | goal_hold | goal_end`.
+paused and the root unbound. Receipts: `work.goal_arm | goal_continue | goal_hold | goal_end`. A judge `wait` parks the goal on upstream's barrier; the Work engine's tick
+(`goal_turns.wake_parked`) continues it when the barrier lifts — a bound run from its binding, a chat goal
+no run owns from the settled turn's arguments its `wait` recorded (`<store_root>/chat_goal_parks/<root>.json`).
 
 ### Batch methods
 
@@ -1780,8 +1782,11 @@ not `start`) and `machine_identity_unavailable` (4090).
 The serve ticks it every 60 s beside the Work engine (`queued_turns.start_serve_scheduler`); nothing fires
 during a drain, and only the owning machine fires a record. A fire is a QUEUED send on the instance's
 chat root (`PersonaTurnExecutor.queue_prompt` / `start_from`), its origin naming `schedule: <key>`; at most
-4 scheduled turns are in flight (an over-cap fire stays due and logs `schedule.queued`, its fire carries
+`agent_runtime.scheduler.max_parallel` (root config, read each tick; default 4, `0` unlimited) scheduled turns are in flight (an over-cap fire stays due and logs `schedule.queued`, its fire carries
 `waited_s`); `when_idle` fires after `settle_ticks` consecutive idle ticks or gives up after 15 minutes.
+A `run_assignment` fire is the Work engine's (`WorkEngine.adopt`): its one row is claimed
+`persona:<instance_id>`, recorded and started, so its settle is written back like any engine run; a fire
+on a row another claimant holds is refused `already_taken`, a multi-row assignment `schedule_invalid`.
 The persona tool is `schedule_manage`, in the opt-in `schedule` toolset (never `harness_core`). Receipts:
 `schedule.arm | disarm | fire | queued | abandoned`.
 

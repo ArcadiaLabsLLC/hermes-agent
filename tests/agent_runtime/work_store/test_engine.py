@@ -338,3 +338,58 @@ def test_a_run_failed_on_boot_frees_its_lane_in_the_same_tick(board):
     counts = second.tick()
     assert counts.get("started") == 1 and "refused" not in counts, counts
     assert [a.rows[0].id for a in executor.started] == ["RT-A", "RT-B"]
+
+
+# ── RT-SCHEDULE-RUN-ASSIGNMENT-CLAIM: a scheduled RunAssignment is an engine run ──
+
+
+class _OriginExecutor(FakeExecutor):
+    """The serve's executor also takes ``start_from`` (a scheduled fire names itself in the origin)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.origins = []
+
+    def start_from(self, a, origin):
+        self.origins.append(dict(origin))
+        return self.start(a)
+
+
+def _scheduled(board, *rows):
+    from datetime import UTC, datetime
+
+    from agent_runtime.work_store.executor import Assignment, Brief
+    from agent_runtime.work_store.grammar import RowRef
+    from agent_runtime.work_store.scheduler import RunAssignment, Trigger
+    from agent_runtime.work_store.serve_scheduler import ServeTickScheduler
+
+    writer, b = board(*rows)
+    engine, executor = _engine(writer, b, executor=_OriginExecutor())
+    at = datetime(2026, 10, 18, 12, 0, tzinfo=UTC)
+    scheduler = ServeTickScheduler(executor=executor, machine=lambda: "machine-a", clock=lambda: at,
+                                   start_assignment=engine.adopt)
+    assignment = Assignment((RowRef("repo", "q.md", "RT-S"),), "inst-1",
+                            Brief(title="nightly", objective="Run the nightly row."), "ws:repo:RT-S:x")
+    scheduler.arm("nightly", Trigger.at_utc(at), RunAssignment(assignment))
+    [fire] = scheduler.tick(at)
+    return writer, engine, executor, assignment, fire
+
+
+def test_a_scheduled_assignment_claims_its_row_and_its_settle_is_written_back(board):
+    """Killing mutation: ``_fire_assignment`` starts the run on the executor without ``adopt`` → red
+    (the row is never TAKEN and the DONE settle deletes nothing)."""
+
+    writer, engine, executor, assignment, fire = _scheduled(board, _row("RT-S"))
+
+    assert fire["refused"] is None and executor.origins[0]["schedule"] == "nightly"
+    assert _rows(writer)["RT-S"].taken.who == "persona:inst-1"
+    assert engine.tick().get("started") is None  # the engine does not start a second run for the claim
+    executor.settle(assignment, RowEnding(Verdict.DONE, result="ran"))
+    assert "RT-S" not in _rows(writer)
+
+
+def test_a_scheduled_assignment_on_a_row_another_claimant_holds_is_refused(board):
+    writer, engine, executor, assignment, fire = _scheduled(board, _row("RT-S", taken="lane-x"))
+
+    assert fire["refused"] == Reason.ALREADY_TAKEN.value and executor.started == []
+    assert records() == []

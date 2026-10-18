@@ -19,13 +19,12 @@ from typing import Any, Callable
 from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
 
 from agent_runtime.serve_rpc.protocol import (
-    DEFERRED,
     ERR_CONFLICT,
     ERR_HANDLER_FAILED,
     ERR_INVALID_PARAMS,
     ERR_NOT_FOUND,
     RpcContext,
-    deferred_reply,
+    defer_or_inline,
     err,
     ok,
 )
@@ -87,10 +86,7 @@ def _speech_answer(rid: Any, method_name: str, work: Callable[[], Any]) -> dict:
 
 def _deferred(rid: Any, method_name: str, context: RpcContext, future: Future) -> dict:
     """Answer a worker-run result on the same ``id``: on the transport's pool when it has one."""
-    build = lambda: _speech_answer(rid, method_name, lambda: future)  # noqa: E731
-    if context.spawn_reply is not None and context.spawn_reply(deferred_reply(rid, method_name, build)):
-        return DEFERRED
-    return build()
+    return defer_or_inline(rid, method_name, context, lambda: _speech_answer(rid, method_name, lambda: future))
 
 
 def _emitter(context: RpcContext) -> Callable[[str, dict], bool] | None:
@@ -110,10 +106,7 @@ def _runtime_speech_load(rid: Any, params: dict, context: RpcContext | None = No
     context = context or RpcContext()
     service = _service()
     work = lambda: service.load(_params(params))  # noqa: E731
-    build = lambda: _speech_answer(rid, "runtime.speech.load", work)  # noqa: E731
-    if context.spawn_reply is not None and context.spawn_reply(deferred_reply(rid, "runtime.speech.load", build)):
-        return DEFERRED
-    return build()
+    return defer_or_inline(rid, "runtime.speech.load", context, lambda: _speech_answer(rid, "runtime.speech.load", work))
 
 
 @method("runtime.speech.unload", tier=TIER_CONSOLE)

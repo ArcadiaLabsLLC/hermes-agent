@@ -24,9 +24,10 @@ runner's ``on_settle``, so no turn is evaluated twice. A root with an active goa
 queued from the settled turn's own arguments (origin ``chat_goal``), never a Work report.
 A judge ``wait`` parks the run on upstream's barrier (a pid, a process session, a deadline). Upstream's
 CLI polls that barrier when idle; the serve's poll is :func:`wake_parked`, run on the Work engine's
-tick, which continues a parked run whose barrier lifted and whose root has nothing queued.
+tick, which continues a parked run whose barrier lifted and whose root has nothing queued — and a parked
+chat goal no run owns, forged from the settled turn's arguments its ``wait`` recorded.
 Receipts: ``work.goal_arm | goal_continue | goal_hold | goal_wake | goal_end | chat_goal_continue |
-chat_goal_hold | chat_goal_settle``.
+chat_goal_hold | chat_goal_settle | chat_goal_wake``.
 """
 
 from __future__ import annotations
@@ -218,11 +219,31 @@ def _chat_goal_cmid(after_cmid: str) -> str:
     return "goal-" + hashlib.sha256(after_cmid.encode("utf-8")).hexdigest()[:16]
 
 
+def _chat_goal_template(entry: send_queue.QueuedSend) -> dict[str, Any]:
+    """The settled turn's arguments a chat goal's continuation inherits, its origin marked ``chat_goal``."""
+
+    origin = entry.args.get(send_queue.ORIGIN_ARG)
+    base = {key: value for key, value in entry.args.items() if key not in _NOT_CARRIED}
+    carried = dict(origin) if isinstance(origin, dict) else {"owner": None, "gateway": False}
+    return {**base, send_queue.ORIGIN_ARG: {**carried, CHAT_GOAL_ORIGIN: True}}
+
+
+def _queue_chat_goal(root: str, after_cmid: str, template: Mapping[str, Any], prompt: str, *,
+                     enqueue: Callable[..., Any], wake: Callable[[], None]) -> str:
+    cmid = _chat_goal_cmid(after_cmid)
+    enqueue(root, cmid, {**template, "message": prompt, "client_message_id": cmid})
+    chat_goal.unpark(root)
+    wake()
+    return cmid
+
+
 def after_chat_goal_turn(entry: send_queue.QueuedSend, payload: dict | None, *, goals: Callable[[str], Any],
                          enqueue: Callable[..., Any], wake: Callable[[], None]) -> bool:
     """A terminal turn on a root with an active goal and no Work run bound: judge it, maybe go on.
 
     True when the root's goal was evaluated. A failed turn is not judged (there is no reply to judge).
+    A judge ``wait`` parks the goal with this turn's arguments (:class:`chat_goal.ChatGoalPark`) for
+    :func:`wake_parked`; any other decision clears the park.
     """
 
     root = entry.root_session_id
@@ -235,19 +256,19 @@ def after_chat_goal_turn(entry: send_queue.QueuedSend, payload: dict | None, *, 
     own = isinstance(origin, dict) and origin.get(CHAT_GOAL_ORIGIN) is True
     decision = goal.evaluate_after_turn(str((payload or {}).get("reply") or ""), user_initiated=not own)
     if not decision.get("should_continue"):
+        if _parked(goal):
+            chat_goal.park(chat_goal.ChatGoalPark(root, _chat_goal_template(entry), entry.client_message_id))
+        else:
+            chat_goal.unpark(root)
         receipts.emit("work.chat_goal_settle", root=root, verdict=str(decision.get("verdict")))
         return True
     waiting = [e for e in send_queue.entries(root) if e.client_message_id != entry.client_message_id]
     if waiting:
         receipts.emit("work.chat_goal_hold", root=root, waiting=len(waiting))
         return True
-    cmid = _chat_goal_cmid(entry.client_message_id)
-    base = {key: value for key, value in entry.args.items() if key not in _NOT_CARRIED}
-    carried = dict(origin) if isinstance(origin, dict) else {"owner": None, "gateway": False}
     prompt = str(decision.get("continuation_prompt") or goal.next_continuation_prompt())
-    enqueue(root, cmid, {**base, "message": prompt, "client_message_id": cmid,
-                         send_queue.ORIGIN_ARG: {**carried, CHAT_GOAL_ORIGIN: True}})
-    wake()
+    cmid = _queue_chat_goal(root, entry.client_message_id, _chat_goal_template(entry), prompt,
+                            enqueue=enqueue, wake=wake)
     receipts.emit("work.chat_goal_continue", root=root, cmid=cmid)
     return True
 
@@ -262,27 +283,59 @@ def _parked(goal: Any) -> bool:
             or getattr(state, "waiting_on_session", None) is not None or bool(getattr(state, "waiting_until", 0)))
 
 
-def wake_parked(*, goals: Callable[[str], Any], enqueue: Callable[..., Any], wake: Callable[[], None]) -> int:
-    """``RT-GOAL-WAIT-WAKER``: continue every bound run whose judge ``wait`` barrier has lifted.
+def _lifted_prompt(goal: Any) -> str | None:
+    """The continuation prompt of a parked goal whose barrier has lifted, else None (still held, or gone)."""
 
-    A run is parked when it is held, not stopping, its root has no send queued or running (that send's
-    settle evaluates on its own), and its goal carries a barrier. ``is_waiting()`` is upstream's own test
-    (pid alive, session still running, deadline ahead, the age cap) and clears a lifted barrier. Returns
-    how many runs were continued.
-    """
+    if not _parked(goal) or goal.is_waiting():
+        return None
+    return str(goal.next_continuation_prompt() or "") or None
 
+
+def _wake_bound(*, goals: Callable[[str], Any], enqueue: Callable[..., Any], wake: Callable[[], None]) -> int:
     woken = 0
     for bound in chat_goal.bindings():
         root = bound.root_session_id
         if not bound.held or bound.stopping or send_queue.entries(root):
             continue
-        goal = goals(root)
-        if not _parked(goal) or goal.is_waiting():
+        prompt = _lifted_prompt(goals(root))
+        if prompt is None:
             continue
-        prompt = goal.next_continuation_prompt()
-        if not prompt:
-            continue
-        _forge(bound, direct_entry(root, bound.cmid), str(prompt), enqueue=enqueue, wake=wake)
+        _forge(bound, direct_entry(root, bound.cmid), prompt, enqueue=enqueue, wake=wake)
         receipts.emit("work.goal_wake", root=root, request_id=bound.request_id)
         woken += 1
     return woken
+
+
+def _wake_chat_goals(*, goals: Callable[[str], Any], enqueue: Callable[..., Any], wake: Callable[[], None]) -> int:
+    """``RT-CHAT-GOAL-WAIT-NO-WAKER``: the same poll for a parked chat goal no Work run owns."""
+
+    woken = 0
+    for held in chat_goal.parked():
+        root = held.root_session_id
+        goal = goals(root)
+        if chat_goal.binding(root) is not None or not goal.is_active():
+            chat_goal.unpark(root)
+            continue
+        if send_queue.entries(root):
+            continue
+        prompt = _lifted_prompt(goal)
+        if prompt is None:
+            continue
+        cmid = _queue_chat_goal(root, held.after_cmid, held.turn_args, prompt, enqueue=enqueue, wake=wake)
+        receipts.emit("work.chat_goal_wake", root=root, cmid=cmid)
+        woken += 1
+    return woken
+
+
+def wake_parked(*, goals: Callable[[str], Any], enqueue: Callable[..., Any], wake: Callable[[], None]) -> int:
+    """``RT-GOAL-WAIT-WAKER``: continue every parked goal whose judge ``wait`` barrier has lifted.
+
+    A bound run is parked when it is held, not stopping, its root has no send queued or running (that
+    send's settle evaluates on its own), and its goal carries a barrier; a chat goal no run owns is parked
+    when :func:`after_chat_goal_turn` recorded a :class:`chat_goal.ChatGoalPark`. ``is_waiting()`` is
+    upstream's own test (pid alive, session still running, deadline ahead, the age cap) and clears a lifted
+    barrier. Returns how many goals were continued.
+    """
+
+    return (_wake_bound(goals=goals, enqueue=enqueue, wake=wake)
+            + _wake_chat_goals(goals=goals, enqueue=enqueue, wake=wake))

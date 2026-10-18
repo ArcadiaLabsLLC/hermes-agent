@@ -193,7 +193,7 @@ def test_start_batch_fire_without_a_bound_door_is_refused_and_advanced():
 def test_run_assignment_fire_queues_the_brief_naming_the_schedule():
     brief = Brief(title="nightly", objective="Run the nightly row.")
     action = RunAssignment(Assignment((RowRef("repo", "q.md", "RT-N"),), "inst-1", brief, "ws:repo:RT-N:x"))
-    scheduler, _ = _scheduler()
+    scheduler, _ = _scheduler(start_assignment=lambda a, origin: scheduler._turns().start_from(a, origin))
     scheduler.arm("nightly", Trigger.at_utc(T0), action)
     assert schedule_store.load_one("nightly").action == action  # the wire round-trips
     scheduler.tick(T0)
@@ -265,3 +265,53 @@ def test_the_serve_binds_start_batch_to_its_dispatcher_as_a_scheduled_start(monk
     [receipt] = scheduler.tick(T0)
     assert receipt["refused"] is None and receipt["batch"]["id"] == "BATCH-ABCDEF"
     assert started == [("ws-1", "BATCH-ABCDEF", True)]
+
+
+def test_run_assignment_fire_without_a_bound_engine_is_refused_and_advanced():
+    """A RunAssignment is the Work engine's (``WorkEngine.adopt``); with no engine bound it never queues an
+    orphan run whose settle nobody writes back (RT-SCHEDULE-RUN-ASSIGNMENT-CLAIM)."""
+
+    action = RunAssignment(Assignment((RowRef("repo", "q.md", "RT-N"),), "inst-1", Brief(title="n", objective="n"),
+                                      "ws:repo:RT-N:y"))
+    scheduler, _ = _scheduler()
+    scheduler.arm("orphan", Trigger.at_utc(T0), action)
+    [fire] = scheduler.tick(T0)
+    assert fire["refused"] == Reason.DOOR_UNBOUND.value and _scheduled_entries() == []
+
+
+def test_the_serve_binds_run_assignment_to_its_work_engine():
+    import threading
+
+    from hermes_cli.harness_parts.serve.queued_turns import start_serve_scheduler
+
+    stop = threading.Event()
+    stop.set()
+    adopted = []
+    engine = SimpleNamespace(adopt=lambda a, origin: adopted.append((a, origin)) or SimpleNamespace(run_id="r/1"))
+    session = SimpleNamespace(work_executor=None, work_engine=engine, liveness_stop=stop, drain_state=None,
+                              serve_request_home=None)
+    scheduler = start_serve_scheduler(session)
+    scheduler._machine = lambda: "machine-a"
+    action = RunAssignment(Assignment((RowRef("repo", "q.md", "RT-N"),), "inst-1", Brief(title="n", objective="n"),
+                                      "ws:repo:RT-N:z"))
+    scheduler.arm("adopted", Trigger.at_utc(T0), action)
+    [receipt] = scheduler.tick(T0)
+    assert receipt["refused"] is None and receipt["run_id"] == "r/1"
+    assert adopted[0][0] == action.assignment and adopted[0][1][ORIGIN_KEY] == "adopted"
+
+
+@pytest.mark.parametrize(("raw", "cap"), [(None, 4), ("1", 1), ("0", 0), ("-2", 4), ("true", 4), ("'3'", 4)])
+def test_max_parallel_is_the_root_config_knob_read_each_tick(raw, cap):
+    """RT-SCHEDULE-SYNC-AND-KNOB: ``agent_runtime.scheduler.max_parallel`` in the ROOT config, read at call time.
+    Killing mutation: ``_cap`` returns ``DEFAULT_MAX_PARALLEL`` without reading the knob → the ``1``/``0`` rows red."""
+
+    from agent_runtime.config import harness_root_config_path
+
+    path = harness_root_config_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = "" if raw is None else f"agent_runtime:\n  scheduler:\n    max_parallel: {raw}\n"
+    path.write_text(body, encoding="utf-8")
+    scheduler, _ = _scheduler()
+    assert scheduler._cap() == cap
+    path.write_text("agent_runtime:\n  scheduler:\n    max_parallel: 2\n", encoding="utf-8")
+    assert scheduler._cap() == 2  # call time: the next tick reads the edit
