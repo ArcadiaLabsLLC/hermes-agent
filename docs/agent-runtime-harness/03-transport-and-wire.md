@@ -1433,6 +1433,21 @@ chat-lane doc. Relay hops are gated by `agent_runtime/relay_policy.py` — one
 authority, so in-process tool relay, CLI and serve transport get the same depth
 / cycle / budget answer from explicit envelope data rather than inference.
 
+## 11. Wire value contracts — what a value MEANS (owner rulings 2026-10-15)
+
+The launcher decodes one wire fact in several files; where those readers disagreed the
+disagreement was a per-file policy with no hermes contract behind it. These rules are that
+contract. Producer halves are pinned in `tests/agent_runtime/test_wire_value_contracts.py`.
+
+**11.1 Integers are strict (RT-WIRE-FACT-DECODES-DIFFERENT).** Every integer hermes puts
+on the wire is a JSON integer: never a numeric string, never a float, never a bool. A
+reader may refuse anything else and must not round or truncate a number into one. A value
+hermes does not know is ABSENT (or `null`), never a sentinel it invents; a value a tool
+reported is passed through as reported, so a tool's `exit_code` of `-1` (upstream's
+terminal and code-kernel spelling of "no process exit") is `-1` on every lane, not absent
+on one and `-1` on another. Gate: every integer-named key in a built hydrate frame and in
+every committed stream golden is a JSON integer.
+
 ## Invariants
 
 1. **Parse per line, branch on `type`, ignore unknown fields.** Hub-vs-argv
