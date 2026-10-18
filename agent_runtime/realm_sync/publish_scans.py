@@ -284,3 +284,13 @@ def _map_publish_scan() -> MapPublishScan:
 
     return document_publish_scan(MAP_FAMILY)
 
+
+def _prefab_publish_scan() -> DocumentPublishScan:
+    """USER PREFABS: every profile's shelf on this install. No realm filter, for
+    the map catalogue's reason — a shelf belongs to a profile NAME, which nothing
+    smaller than the install scopes (owner ruling 2026-10-10, D2.12)."""
+
+    from ..prefab_store import PREFAB_FAMILY
+
+    return document_publish_scan(PREFAB_FAMILY)
+

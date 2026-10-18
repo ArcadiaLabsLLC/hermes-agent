@@ -404,8 +404,15 @@ def map_path(map_id: str) -> Path:
 PREFABS_DIRNAME = "prefabs"
 
 
+def prefab_shelves_root() -> Path:
+    """Every profile's shelf: ``store/prefabs/<profile>/`` — the prefab realm-sync
+    family's store root (its token is ``<profile>/<prefab>``)."""
+
+    return store_root() / PREFABS_DIRNAME
+
+
 def prefabs_root(profile: str) -> Path:
-    return store_root() / PREFABS_DIRNAME / safe_path_token(profile)
+    return prefab_shelves_root() / safe_path_token(profile)
 
 
 def prefab_path(profile: str, prefab_id: str) -> Path:
@@ -433,6 +440,23 @@ def map_conflict_path(realm_id: str, map_token: str) -> Path:
         / "map_conflicts"
         / f"{safe_path_token(map_token)}.json"
     )
+
+
+def prefab_baseline_path(realm_id: str) -> Path:
+    # realm-sync baseline sidecar for the USER PREFAB family; NEVER synced, NEVER
+    # published — under the realm-sync root so the walk that ships
+    # ``store/prefabs/`` cannot pick it up (``map_baseline_path``'s reason).
+    return realm_sync_root() / safe_path_token(realm_id) / "prefab_baseline.json"
+
+
+def prefab_conflicts_root(realm_id: str) -> Path:
+    return realm_sync_root() / safe_path_token(realm_id) / "prefab_conflicts"
+
+
+def prefab_conflict_path(realm_id: str, profile: str, prefab_id: str) -> Path:
+    # Where a HELD prefab's remote bytes are parked (``map_conflict_path``'s
+    # reason), nested by profile like the shelf it belongs to.
+    return prefab_conflicts_root(realm_id) / safe_path_token(profile) / f"{safe_path_token(prefab_id)}.json"
 
 
 def flow_graph_baseline_path(realm_id: str) -> Path:

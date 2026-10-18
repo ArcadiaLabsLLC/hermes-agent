@@ -22,7 +22,7 @@ from .git import (
     _sync_repo_path,
     _sync_state,
 )
-from .publish_scans import _level_publish_scan, _map_publish_scan, _office_publish_scan
+from .publish_scans import _level_publish_scan, _map_publish_scan, _office_publish_scan, _prefab_publish_scan
 from .artifacts import (
     _distinct_skill_package_count,
     _flow_graph_projection,
@@ -55,6 +55,7 @@ __all__ = [
     "_flow_graph_status_row",
     "_level_status_row",
     "_map_status_row",
+    "_prefab_status_row",
     "_status_repo",
     "_status_store_drift",
     "realm_sync_status",
@@ -91,6 +92,7 @@ def realm_sync_status(
     profile_artifacts_held = _held_profile_artifacts(realm, repo)
     level_row = _level_status_row(realm.id, workspaces)
     map_row = _map_status_row(realm.id)
+    prefab_row = _prefab_status_row(realm.id)
     _write_sync_sidecar(
         realm,
         repo=repo,
@@ -145,7 +147,10 @@ def realm_sync_status(
         # launcher's sheet, its chip, its auto-publish gate — then said there
         # was nothing to publish.
         "unpublished_changes": bool(
-            _any_store_drift(store_drift) or level_row["unpublished"] or map_row["unpublished"]
+            _any_store_drift(store_drift)
+            or level_row["unpublished"]
+            or map_row["unpublished"]
+            or prefab_row["unpublished"]
         ),
         # Held profile FILES (MEMORY.md / core context / persona prompts whose
         # member copy diverged from the realm's). A hold the operator cannot see
@@ -165,6 +170,8 @@ def realm_sync_status(
         # argument: a map id is not addressed by a workspace, so the scan has no
         # realm filter to take.
         "maps": map_row,
+        # USER PREFABS: the same row, the same absent-tolerant contract.
+        "prefabs": prefab_row,
     }
 
 
@@ -287,6 +294,16 @@ def _map_status_row(realm_id: str) -> dict[str, Any]:
     from .document_family import document_status_row
 
     return document_status_row(MAP_FAMILY, realm_id, _map_publish_scan())
+
+
+def _prefab_status_row(realm_id: str) -> dict[str, Any]:
+    """``{publishable, unpublished, held, refused}`` for the USER PREFAB family.
+    A top-level key, not a ``store_drift`` family: no revert arm (D2.12)."""
+
+    from ..prefab_store import PREFAB_FAMILY
+    from .document_family import document_status_row
+
+    return document_status_row(PREFAB_FAMILY, realm_id, _prefab_publish_scan())
 
 
 def _level_status_row(realm_id: str, workspaces: list[Workspace]) -> dict[str, Any]:
