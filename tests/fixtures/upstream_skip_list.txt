@@ -26,3 +26,459 @@ tests/hermes_cli/test_source_release_channels.py · P0: same freeze set · ee5f4
 tests/hermes_cli/test_source_release_probe.py · P0: same freeze set · ee5f49b943
 tests/hermes_cli/test_update_completion_process.py · upstream: nondeterministic on Windows - 8-9 of its update-completion tests red on the pure tag v0.21.6 and on main, a different set each run (lock and child-process timing), so per-test strict marks XPASS; re-run bare at each release (2026-10-10) · d923a5eb48
 tests/hermes_cli/test_old_updater_takeover.py::test_serve_resume_child_reuses_respawn_without_updater_or_supervisors · upstream: nondeterministic on the pure tag v0.22.2 - all four params red on tag run 1, [True-False] alone on tag run 2; on the merge candidate the set moved again ([True-False] XPASS against a strict mark) (2026-10-15) · d923a5eb48
+
+# unused (ADR 0015) - features the fork does not ship; one row per upstream file, listed 2026-10-17
+# unused: desktop/Electron app and installers
+tests/desktop/test_appinstaller_check_script.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/hermes_cli/test_desktop_build_git_windows.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/hermes_cli/test_desktop_build_lock.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/hermes_cli/test_desktop_console.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/hermes_cli/test_desktop_esbuild_ignore_scripts.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/hermes_cli/test_desktop_native_deps_stale.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/hermes_cli/test_desktop_socket_tmpdir.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/hermes_cli/test_desktop_swap_crash_recovery.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/hermes_cli/test_desktop_swap_file_lock_retry.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/hermes_cli/test_desktop_update_verify.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/hermes_cli/test_desktop_wsl_gpu.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/hermes_cli/test_linux_desktop_entry.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/installation/test_installer_common.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/desktop_update/test_desktop_update_gateway_flag.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/desktop_update/test_desktop_update_linux_gate.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/desktop_update/test_desktop_update_linux_gate_arm.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/desktop_update/test_desktop_update_mac_swap_interrupt.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/desktop_update/test_desktop_update_macos_no_browser.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/desktop_update/test_desktop_update_posix_handoff_protocol.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/desktop_update/test_desktop_update_posix_marker.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/desktop_update/test_desktop_update_posix_marker_corpus.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/desktop_update/test_desktop_update_runtime_unicode.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/desktop_update/test_desktop_update_shim_profile_cleanup.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/desktop_update/test_desktop_update_shim_progress.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/desktop_update/test_desktop_update_tcc_heal.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/desktop_update/test_desktop_update_windows_commit_outcome.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/desktop_update/test_desktop_update_windows_cwd.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/desktop_update/test_desktop_update_windows_marker.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/desktop_update/test_desktop_update_windows_marker_corpus.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/desktop_update/test_desktop_update_windows_pipe_drain.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/desktop_update/test_desktop_update_windows_progress.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/desktop_update/test_desktop_update_windows_python_handoff.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/desktop_update/test_desktop_update_windows_timestamp.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/desktop_update/test_desktop_update_windows_ui_delivery.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/desktop_update/test_handoff_delegate_publication.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/desktop_update/test_handoff_result_identity.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/install/test_dmg_install_driver.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/install/test_install_clone_throttle_fallback.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/install/test_install_desktop_product_present.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/install/test_install_diverged_rescue_ref.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/install/test_install_ps1_execution_policy.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/install/test_install_ps1_iex_failure.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/install/test_install_ps1_json_failure_frame.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/install/test_install_ps1_managed_python_provenance.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/install/test_install_ps1_native_calls.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/install/test_install_ps1_pinned_git_extract.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/install/test_install_ps1_script_suites.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/install/test_install_ps1_skipsetup_alias.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/install/test_install_ps1_staged_git.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/install/test_install_sh_existing_destination.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/install/test_install_sh_musl_uv_bootstrap.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/install/test_install_sh_output.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/install/test_install_sh_repository_stage.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/install/test_install_sh_reuse_supported_python.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/install/test_install_sh_shell_path.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/install/test_install_sh_termux_refusal.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/install/test_pm_desktop_launch_capture.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/test_desktop_build_cache.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/test_desktop_preparation.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+tests/scripts/test_desktop_toolchain.py · unused: desktop/Electron app and installers (ADR 0015) · e6899c8090
+# unused: upstream updater and release tooling
+tests/ci/test_desktop_release_commit_admission.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/ci/test_stable_release_graph.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/ci/test_windows_update_crash_oracles.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_cmd_update.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_commit_build_updates.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_post_update.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_post_update_adoption.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_post_update_expose_cli.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_release_channels.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_autostash_orphan_warning.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_channel_stable.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_completion_lease.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_config_migration_on_current.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_contract.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_detached_rescue_ref.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_diverged_rescue_ref.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_eol_churn.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_existing_branch_baseline.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_external_checkout.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_external_profile_reconciliation.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_fetch_failure_classifier.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_fetch_timeout.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_finish.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_finish_stamp.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_flat_install_state_gitignore.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_fleet_checkout_build_stamp.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_fleet_completion.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_fleet_home_scope.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_fleet_incomplete_warning.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_fleet_restart_timeout.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_fleet_snapshot_settle.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_fork_sync_identity.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_gateway_restart_aborted.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_hangup_protection.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_host_obligation.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_import_guard.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_interrupted_pull.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_inventory.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_launch_completion.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_launchd_fleet_restart.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_launchd_restart_verification.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_launchd_unloaded_gateway.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_live_output.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_lock.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_lock_fd_provenance.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_lock_protocol.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_lock_windows_live.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_marker_corpus.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_messages.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_missing_configured_deps.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_narrow_clone_compare_ref.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_narrow_clone_refspec.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_no_gateway_restart.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_obligation_identity.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_owning_install.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_pause_checkout_moves.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_pause_debt_windows_live.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_pause_moved_head_gate.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_pause_record.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_pause_recover_backoff.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_pause_step_interruptions.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_pause_stop_evidence.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_pause_unmapped_identity.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_posix_pause.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_receipt_endpoint.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_receipt_owe_followup.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_receipt_pm_embed.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_receipt_run_record.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_receipt_scope.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_receipt_truthfulness.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_recovery_closure.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_restart_recovery.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_scoped_reconciliation.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_serve_generation_recovery.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_sqlite_remediation.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_ssl_cert_file.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_stage.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_stale_dashboard.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_state_autorestore.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_unit_client_budget.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_upstream_prompt_noninteractive.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_version_report.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_zip_release_preserve.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/hermes_cli/test_update_zip_two_phase.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/scripts/test_release_artifacts.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/scripts/test_release_canary_git.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/scripts/test_release_changelog.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/scripts/test_release_channel_build.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/scripts/test_release_channels.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/scripts/test_release_darwin.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/scripts/test_release_docker_cli.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/scripts/test_release_entrypoint.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/scripts/test_release_handoff.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/scripts/test_release_lanes.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/scripts/test_release_progress.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/scripts/test_release_r2.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/scripts/test_release_revision_anchor.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/scripts/test_release_sequencer.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/scripts/test_release_store.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/scripts/test_release_tag_sampling.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/scripts/test_release_tags.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/scripts/test_release_version_from_ref.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+tests/scripts/test_stable_release.py · unused: upstream updater and release tooling (ADR 0015) · e6899c8090
+# unused: kanban
+tests/agent/test_kanban_turn_recovery.py · unused: kanban (ADR 0015) · e6899c8090
+tests/gateway/test_kanban_auto_decompose_live.py · unused: kanban (ADR 0015) · e6899c8090
+tests/gateway/test_kanban_changes_requested_notifier.py · unused: kanban (ADR 0015) · e6899c8090
+tests/gateway/test_kanban_notifier.py · unused: kanban (ADR 0015) · e6899c8090
+tests/gateway/test_kanban_notifier_apiserver_wake.py · unused: kanban (ADR 0015) · e6899c8090
+tests/gateway/test_kanban_notifier_served_apiserver_wake.py · unused: kanban (ADR 0015) · e6899c8090
+tests/gateway/test_kanban_notifier_wake_only_ordering.py · unused: kanban (ADR 0015) · e6899c8090
+tests/gateway/test_kanban_notifier_watcher_dispatch_gate.py · unused: kanban (ADR 0015) · e6899c8090
+tests/gateway/test_kanban_notifier_zero_sub_gate.py · unused: kanban (ADR 0015) · e6899c8090
+tests/gateway/test_kanban_reconcile_orphans.py · unused: kanban (ADR 0015) · e6899c8090
+tests/gateway/test_kanban_route_anchor_capture.py · unused: kanban (ADR 0015) · e6899c8090
+tests/gateway/test_kanban_wake_acceptance.py · unused: kanban (ADR 0015) · e6899c8090
+tests/gateway/test_kanban_wake_scope.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_block_classify.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_block_kinds.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_blocked_sticky.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_board_project.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_cli.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_cli_dispatch_passthrough.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_comment_queries.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_complete_live_claim_guard.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_core_functionality.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_count_notify_subs.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_create_body_file.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_creator_origin.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_db_init.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_db_repair.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_decompose_db.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_default_assignee.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_diagnostics.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_dispatch_claim_allowlist.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_dispatch_lock.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_dispatch_tick_hook.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_dispatch_unknown_assignee_event.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_empty_completion.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_gc_retention.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_goal_mode.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_goal_mode_worker_log.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_graph_identity.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_host_cap.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_init_lock_bounded.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_lifecycle_hooks.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_list_undecodable_text.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_memory_guard.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_notify.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_parent_reopen_invalidation.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_per_profile_cap.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_pr_acceptance.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_project_link.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_promote.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_reclaim_claim_lock_guard.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_resume_guard.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_review_lifecycle.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_review_lifecycle_complete.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_specify_db.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_swarm.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_task_updated_hook.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_terminal_worker_reaper.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_transfer.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_watch_banner.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_worker_exit_decode.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_worker_exit_trailer.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_worker_lifecycle_hooks.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_worker_pid_fingerprint.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_worker_session_source.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_worker_terminal_cwd.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_workflow.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_worktree_isolation.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_worktree_teardown.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_worktree_unicode_path.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_write_guard.py · unused: kanban (ADR 0015) · e6899c8090
+tests/hermes_cli/test_kanban_write_txn_busy_retry.py · unused: kanban (ADR 0015) · e6899c8090
+tests/plugins/test_kanban_attachments.py · unused: kanban (ADR 0015) · e6899c8090
+tests/plugins/test_kanban_board_done_order.py · unused: kanban (ADR 0015) · e6899c8090
+tests/plugins/test_kanban_board_lifecycle_api.py · unused: kanban (ADR 0015) · e6899c8090
+tests/plugins/test_kanban_board_project_api.py · unused: kanban (ADR 0015) · e6899c8090
+tests/plugins/test_kanban_dashboard_task_updated_hook.py · unused: kanban (ADR 0015) · e6899c8090
+tests/plugins/test_kanban_link_tasks.py · unused: kanban (ADR 0015) · e6899c8090
+tests/plugins/test_kanban_model_override.py · unused: kanban (ADR 0015) · e6899c8090
+tests/plugins/test_kanban_read_admission.py · unused: kanban (ADR 0015) · e6899c8090
+tests/plugins/test_kanban_workflow_matrix.py · unused: kanban (ADR 0015) · e6899c8090
+tests/tools/test_kanban_complete_parents_tool.py · unused: kanban (ADR 0015) · e6899c8090
+tests/tools/test_kanban_persisted_identity.py · unused: kanban (ADR 0015) · e6899c8090
+tests/tools/test_kanban_redaction.py · unused: kanban (ADR 0015) · e6899c8090
+# unused: messaging platform adapters
+tests/gateway/platforms/test_yuanbao_state_cleanup.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_bluebubbles.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_dingtalk.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_dingtalk_reconnect_circuit_breaker.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_admission_thread_exemption.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_allow_bots_yaml_config.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_allowed_mentions.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_approval_mentions.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_attachment_download.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_attachment_receipts.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_auto_thread_prompt_parity.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_auto_thread_rename_pin.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_bot_inline_mentions.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_channel_controls.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_channel_prompts.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_channel_skills.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_component_auth.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_connect.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_document_handling.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_double_dispatch.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_edit_message_overflow.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_exec_approval_content.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_free_response.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_home_link.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_imports.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_liveness.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_missed_message_backfill.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_model_picker.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_model_picker_partition.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_pending_text_batch_shutdown.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_platform_events.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_plugin_setup.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_prompt_content_siblings.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_prompt_timeout_config.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_race_polish.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_reactions.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_reply_mode.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_roles_dm_scope.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_send.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_slash_auth.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_slash_commands.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_split_cap.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_sync_limit.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_thread_persistence.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_thread_slash_expired_defer.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_turn_prompt_parity.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_username_allowlist_env_reload.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_view_base_parity.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_voice_mixer.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_voice_rekey.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_discord_voice_role_grant.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_feishu_channel_prompts.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_feishu_comment.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_feishu_comment_rules.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_feishu_group_policy_surfacing.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_feishu_lazy_import.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_feishu_meeting_invite.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_feishu_onboard.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_feishu_sdk_executor.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_feishu_voice_message_type.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_feishu_ws_multiplex_isolation.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_matrix_approval_reaction_fail_closed.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_matrix_crypto_store_per_profile.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_matrix_deps_rebind.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_matrix_dm_invite_recording.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_matrix_encrypted_drop_warning.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_matrix_handoff_thread.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_matrix_latex_maths.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_matrix_media_filename.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_matrix_media_gate_before_download.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_matrix_message_event_metadata.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_matrix_message_length.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_matrix_pending_invite_auth.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_matrix_plugin_setup.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_matrix_project_context_isolation.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_matrix_send_voice_dispatch.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_matrix_voice.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_qqbot_update_prompt_key.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_setup_feishu.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_signal_format.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_signal_rate_limit.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_api_human_senders.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_block_kit.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_block_kit_adapter.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_channel_session_scope.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_channel_skills.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_dedup_ttl.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_download_redirects.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_ignore_other_user_mentions.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_mention.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_mention_humanization.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_model_picker.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_native_streaming.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_pasted_tables.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_peer_agent_smoke.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_plugin_action_handlers.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_plugin_setup.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_require_mention_channels.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_sdk_response.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_send_retry.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_socket_reconnect_heal.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_status_update.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_thread_require_mention.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_unfurl_duplicate_turn.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_slack_wake_external_bot_messages.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_auth_check.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_bot_auth_bypass.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_callback_auth_fail_closed.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_caption_merge.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_closewait_limits.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_closewait_windows_live.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_cold_boot_queue.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_conflict.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_connect.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_documents.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_error_redaction.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_fallback_pool_release.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_final_delivery.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_format.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_forum_commands.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_group_gating.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_image_precompress.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_inbound_warning_owner.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_ingress_delivery_gap.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_lazy_install_typehandler.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_long_command_batching.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_max_doc_bytes.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_mention_boundaries.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_model_picker.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_network.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_network_reconnect.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_overflow_partial.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_pending_update_probe.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_polling_health_confirmation.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_polling_progress.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_polling_stall_watchdog.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_prune_stale_topic_binding.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_reply_mode.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_reply_quote.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_rich_newlines.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_send_draft_format.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_send_path_health.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_send_reconnect_wait.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_shared_outbound_budget.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_slash_confirm.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_split_send_flood.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_start_polling_timeout.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_status_indicator.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_status_update.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_text_batch_perf.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_text_batching.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_text_link_expansion.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_topic_profile_routing.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_typing_backoff.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_typing_retrigger.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_username_chat_id.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_video_metadata.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_voice_caption_markdown.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_voice_duration.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_telegram_webhook_secret.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_wecom_callback.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_wecom_double_send.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_wecom_per_turn.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_wecom_stream_dup_fix.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_weixin_typing.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_weixin_voice_warning_policy.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_whatsapp_allowlist_lid_resolution.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_whatsapp_bridge_dir_resolution.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_whatsapp_bridge_pidfile.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_whatsapp_cloud_allowed_users.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_whatsapp_connect.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_whatsapp_formatting.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_whatsapp_from_owner.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_whatsapp_group_gating.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_whatsapp_identity.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_whatsapp_media_path_profile.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_whatsapp_multiplex.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_whatsapp_native_delivery.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_whatsapp_reply_prefix.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_whatsapp_stale_bridge.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_whatsapp_text_batching.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_whatsapp_to_jid.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_yuanbao_forwarded_heartbeat.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_yuanbao_integration.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_yuanbao_markdown.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_yuanbao_media_ssrf.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_yuanbao_pipeline.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_yuanbao_proto.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_yuanbao_reconnect_set_active.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/gateway/test_yuanbao_shutdown.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/hermes_cli/test_dingtalk_auth.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/hermes_cli/test_telegram_managed_bot.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/hermes_cli/test_whatsapp_cloud_setup.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/plugins/platforms/matrix/test_blank_config_env_fallback.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/plugins/platforms/matrix/test_event_size.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/plugins/platforms/telegram/test_allowlist_json_adapter.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/plugins/platforms/telegram/test_inline_picker_offset.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/plugins/platforms/telegram/test_notification_kwargs.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/plugins/test_discord_runtime_failure.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/plugins/test_telegram_polling_progress_ptb.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/tools/test_discord_send_message_caption.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/tools/test_send_message_slack.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
+tests/tools/test_whatsapp_send_message_media.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
