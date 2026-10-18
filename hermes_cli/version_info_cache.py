@@ -14,7 +14,8 @@ Mechanism, installed by two rebinding lines at the bottom of ``version_info``:
   else run once and recorded. Anything else passes straight through. ``dirty`` is not a
   ``_run_git`` call and stays live.
 * ``record_release`` wraps ``_git_version_info`` to record the derived ``base_version`` under
-  the same key, which ``release_version`` reads for a User-Agent without spawning git.
+  the same key, which ``release_version`` (built here, bound in ``version_info`` with the
+  resolvers it owns) reads for a User-Agent without spawning git.
 
 The key is HEAD's commit plus the tag refs' state (packed-refs mtime/size and every loose
 ``refs/tags`` entry's name/mtime/size). The cache lives in the checkout's own git dir (a
@@ -252,37 +253,46 @@ def cached_base_version(repo_dir: Path) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
-def release_version() -> str:
-    """``base_version`` for a User-Agent; no git process once the commit is cached.
+def make_release_version(
+    process_info: Callable[[], Any],
+    stamp_info: Callable[[], Any],
+    repo_dir: Callable[[], Path | None],
+    resolve: Callable[[], Any],
+) -> Callable[[], str]:
+    """Build ``version_info.release_version`` from the resolvers ``version_info`` hands over."""
 
-    The process's resolved identity, then the install stamp, then this checkout's per-commit
-    cache; only on a miss of all three the full resolution, then the package metadata.
-    """
-    from hermes_cli import version_info
+    def release_version() -> str:
+        """``base_version`` for a User-Agent; no git process once the commit is cached.
 
-    if version_info._cached_version_info is not None:
-        return version_info._cached_version_info.base_version
-    try:
-        stamped = version_info._stamp_version_info()
-    except RuntimeError:
-        stamped = None
-    if stamped is not None:
-        return stamped.base_version
-    repo_dir = version_info._resolve_repo_dir()
-    cached = cached_base_version(repo_dir) if repo_dir is not None else None
-    if cached:
-        return cached
-    # First process on this commit: resolve once (which fills the cache for the next one). The
-    # package metadata is a last resort only: a source checkout's pyproject says 0.0.0.
-    resolved = version_info.get_version_info().base_version
-    if resolved != "unknown":
-        return resolved
-    from importlib.metadata import PackageNotFoundError, version
+        The process's resolved identity, then the install stamp, then this checkout's per-commit
+        cache; only on a miss of all three the full resolution, then the package metadata.
+        """
+        info = process_info()
+        if info is not None:
+            return info.base_version
+        try:
+            stamped = stamp_info()
+        except RuntimeError:
+            stamped = None
+        if stamped is not None:
+            return stamped.base_version
+        root = repo_dir()
+        cached = cached_base_version(root) if root is not None else None
+        if cached:
+            return cached
+        # First process on this commit: resolve once (which fills the cache for the next one).
+        # The package metadata is a last resort only: a source checkout's pyproject says 0.0.0.
+        resolved = resolve().base_version
+        if resolved != "unknown":
+            return resolved
+        from importlib.metadata import PackageNotFoundError, version
 
-    try:
-        return version("hermes-agent")
-    except PackageNotFoundError:
-        return resolved
+        try:
+            return version("hermes-agent")
+        except PackageNotFoundError:
+            return resolved
+
+    return release_version
 
 
 def _reset_for_tests() -> None:
