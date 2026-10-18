@@ -1,7 +1,7 @@
 # Planned — The batch dispatcher and its three libraries: SOURCE, EXECUTOR, SCHEDULER (q/dispatch-design, 2026-10-18)
 
 **Owner domain:** transport and wire ([03-transport-and-wire.md](../03-transport-and-wire.md) § Native
-Work methods), the chat lane ([05](../05-chat-lane.md)), the office and board
+Work methods), the chat lane ([05](../05-chat-turn-lane.md)), the office and board
 ([06-office-and-board.md](../06-office-and-board.md)), multi-device ([09](../09-multi-device-runtime.md)).
 **Builds on:** [work-on-markdown-2026-10-18.md](work-on-markdown-2026-10-18.md) (W1–W5; the board, the
 writer, the engine). **Status:** scoped, nothing built. One doc, no code.
