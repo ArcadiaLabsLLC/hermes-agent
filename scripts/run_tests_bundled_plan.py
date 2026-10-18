@@ -250,6 +250,8 @@ class RunLedger:
     known_red: List[str] = field(default_factory=list)
     #: Only abnormal bundle attempts; retained before retry scheduling and scratch cleanup.
     bundle_diagnostics: List[BundleDiagnostic] = field(default_factory=list)
+    #: per-file diagnosis (``run_tests_bundled_diag.Diagnosis``), set by the runner
+    diagnosis: Optional[object] = None
 
     def record_bundle_diagnostic(
         self, index: int, members: Sequence[str], rc: int, events: "BundleEvents", output: str,

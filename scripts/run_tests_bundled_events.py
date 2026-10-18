@@ -75,7 +75,7 @@ def _record_test(events: BundleEvents, record: dict[str, Any]) -> None:
         category = "errors"
     if category in _CATEGORIES:
         tally.counts[category] = tally.counts.get(category, 0) + 1
-    if record.get("n"):
+    if record.get("n") and category in ("failed", "errors"):  # a slow phase names itself too (diag)
         tally.failed_nodeids.append(record["n"])
 
 
