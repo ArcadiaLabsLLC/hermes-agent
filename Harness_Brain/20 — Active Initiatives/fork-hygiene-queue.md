@@ -458,7 +458,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-15 (lane w1015j-hermes)
 
-- **`FORK-SHARED-HERMES-CLONE-PACK` — The shared hermes clone's pack directory holds about 40 `.idx` files with no `.pack` and 8 `tmp_pack_*` leftovers from interrupted fetches (`git count-objects -v` warns on each); the likely source of the 2026-10-15 "fetch-pack: invalid index-pack output"** · fork / clone health · measured 2026-10-15 18:45 · lane: an owner/landing step with no lane open — `git -C <clone> fsck --connectivity-only`, then delete the orphan `.idx`/`tmp_pack_*` files (or `git gc --prune=now`); never a lane's repair of a shared object store · BLOCKED 2026-10-16: owner sitting — the shared clone on the workstation with no lane open: `git fsck --connectivity-only`, then remove the orphan `.idx` / `tmp_pack_*` files
 
 ## Filed on arrival — 2026-10-16 (h2-redact)
 

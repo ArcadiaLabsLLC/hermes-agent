@@ -55,7 +55,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-16 (release merge v0.22.2, daily branch at upstream acc3cada0da)
 
-- **`RT-LIVE-PROFILE-VAULT-ALIASES` — Owner, optional: the live profile `config.yaml` still lists the five pre-fold `browser_vault_*` tool names in its chat-lane defer list; they work only through the `_FOLDED_TOOL_NAMES` alias in `agent_runtime/config/knobs.py::chat_lane_defer_tools`** · fork-owned · q/vault lane `f522492a3b3` · replace them with `browser_vault`, then the alias can be dropped at a later release · BLOCKED 2026-10-16: owner sitting — edit the live profile `config.yaml` chat-lane defer list on the Windows box
 
 
 
