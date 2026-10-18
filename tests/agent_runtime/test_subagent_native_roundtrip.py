@@ -9,9 +9,14 @@ from tests.agent_runtime.subagent_read_provider import SubagentProvider
 pytestmark = pytest.mark.timeout(120)
 
 
-@pytest.mark.parametrize("mode", ["native-worker", "isolated-compute", "in-process"])
+@pytest.mark.parametrize("mode", ["native-worker", "in-process"])
 @pytest.mark.parametrize("action", ["steer", "stop"])
 def test_owned_child_reads_across_execution_hosts(tmp_path, mode, action):
+    """The isolated-compute host runs from ``test_subagent_compute_roundtrip.py``."""
+    run_owned_child_reads(tmp_path, mode, action)
+
+
+def run_owned_child_reads(tmp_path, mode, action):
     from hermes_cli.profiles import get_profile_dir
     from agent_runtime.conversations.in_process_peer import start_in_process_worker
 
