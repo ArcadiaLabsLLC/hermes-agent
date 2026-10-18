@@ -128,6 +128,12 @@ def has_entries(root_session_id: str) -> bool:
     return directory.is_dir() and any(directory.glob("*.json"))
 
 
+def entries(root_session_id: str) -> list[QueuedSend]:
+    """Every entry waiting for (or running on) this root, in the order they run."""
+
+    return _entries(str(root_session_id or "").strip())
+
+
 def head(root_session_id: str) -> QueuedSend | None:
     """The entry that runs next on this root (the lowest ``seq``)."""
 

@@ -1709,6 +1709,27 @@ is the receipt log.
 A session that races the writer on the same queue note re-applies its op by ID with
 `scripts/work_row.py` in its own checkout (never a text merge).
 
+### Chat goal methods and `UNTIL_DONE` Work runs
+
+`runtime.chat.goal.set | status | pause | resume | clear` (`agent_runtime/serve_rpc/chat_goal.py` over
+`agent_runtime/chat_goal.py::OPS`) drive upstream's goal engine, `hermes_cli/goals.py::GoalManager`, on a
+chat root named by `session_id` (dispatcher plan
+[dispatcher-and-libraries-2026-10-18.md](planned/dispatcher-and-libraries-2026-10-18.md) §5). `set` takes
+`goal`, `max_turns?`, `contract?` (`outcome`, `verification`, `constraints`, `boundaries`, `stop_when`) and
+`gates?` (shell commands); every verb answers `{"goal": {status, goal, turns_used, max_turns, contract,
+gates[], paused_reason, last_verdict, last_reason, status_line, run}}` (`status: none` when the root holds
+none; `run` the Work request that owns it). Console tier, deferred through `spawn_reply`. Refusals:
+`invalid_request` (-32602), `no_goal` (4001).
+
+A Work assignment with `goal_mode: until_done` (`work_store/goal_turns.py`) sets the root's goal from the
+brief (objective; acceptance as the contract's outcome; one gate per `Brief.tests` command, on by default)
+and binds the root to the run (`<store_root>/chat_goal_bindings/<root>.json`). Every terminal QUEUED turn
+on a bound root reaches the after-turn hook (the queued-send runner's `on_settle`): gates then judge run
+in the persona's workdir; a continuation is forged as the run's next queued send, never a direct turn; an
+operator send already waiting wins the slot (the run holds and is judged again after it). A `work_report`
+of `blocked`/`stopped`, a failed turn, or a judge decision other than continue ends the run; the goal is
+paused and the root unbound. Receipts: `work.goal_arm | goal_continue | goal_hold | goal_end`.
+
 ### Conversation-scoped Work
 
 `agent_runtime/work/context.py` resolves optional `conversation` references through existing

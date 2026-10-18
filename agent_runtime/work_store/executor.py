@@ -1,7 +1,8 @@
 """The EXECUTOR contract — who runs a claimed row (dispatcher plan §2.2; work plan §6.3, W3).
 
-W3 creates this file with one production implementation, ``persona_turn.PersonaTurnExecutor``;
-the dispatcher's B3 extends it (``goal_mode=UNTIL_DONE``) and B5 adds ``BATCH_LANE``. Every method
+W3 created this file with one production implementation, ``persona_turn.PersonaTurnExecutor``;
+the dispatcher's B3 extended it (``goal_mode=UNTIL_DONE`` runs, ``Brief.tests`` become goal gates)
+and B5 adds ``BATCH_LANE``. Every method
 returns a value or raises ``WorkRefused(reason)``; ``can_start`` answers the refusal instead of
 raising, because it is the cheap probe the engine asks before it writes a run record.
 
@@ -22,6 +23,7 @@ from .reasons import Reason
 
 __layer__ = "lanes"
 __all__ = [
+    "REFUSALS",
     "Assignment",
     "Brief",
     "Executor",
@@ -34,6 +36,13 @@ __all__ = [
     "StopReason",
     "Verdict",
 ]
+
+
+#: Every refusal an EXECUTOR may answer or raise (plan §2.2; B1 named the set).
+REFUSALS: frozenset[Reason] = frozenset({
+    Reason.EXECUTOR_BUSY, Reason.PERSONA_UNAVAILABLE, Reason.CAP_REACHED, Reason.DRAIN_BEGUN,
+    Reason.DOOR_UNBOUND, Reason.WORKTREE_FAILED,
+})
 
 
 class ExecutorKind(StrEnum):
@@ -73,6 +82,8 @@ class Brief:
     inputs: tuple[str, ...] = ()
     constraints: tuple[str, ...] = ()
     acceptance: str = ""
+    #: The test commands the brief names; with ``goal_mode=UNTIL_DONE`` each becomes a goal gate.
+    tests: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -83,6 +94,8 @@ class Assignment:
     request_id: str
     heavy: bool = False
     goal_mode: GoalMode = GoalMode.NONE
+    #: Gates from ``brief.tests`` for an ``UNTIL_DONE`` goal — on by default (owner ruling 2026-10-18).
+    goal_gates: bool = True
 
 
 @dataclass(frozen=True)
