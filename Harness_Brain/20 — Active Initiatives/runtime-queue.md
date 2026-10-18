@@ -842,7 +842,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-10-18 (lane q-stale, branch `q/q-stale`)
 ### Filed on arrival — 2026-10-18 (lane q-stale, branch `q/q-stale`)
-- **`RT-15-FORK-HUNKS-SIT` — 15 fork hunks sit inside upstream functions v0.22.2 rewrote since v0.21.7 (`agent/agent_init.py::init_agent`, `tools/tool_search.py` ×3, `tools/connectors/search.py` ×3, `tui_gateway/*` ×5, `runtime_provider_custom`, `pm/environment`, `tools/environments/local`): re-read each against the new body — still needed, still placed right, or now a hook** · seam / upstream-merge · `Harness_Brain/20 — Active Initiatives/stale-fork-test-sweep-2026-10-18.md`; `python scripts/upstream_retirement_scan.py --arm hunks` · READY 2026-10-18 · **TAKEN 2026-10-18 w2-seams**
 
 - **`RT-LENS-W5-TOTAL-COST` — Lens W5 total-cost value (price + shipping + estimated tax, dated exchange-rate feed), the W2(c) median/deviation outlier guard for fast feeds, and W7 adaptive cadence (tighten as a deadline nears, a confirming read before the turn) are not built; L0 remainder shipped money-with-currency, instants, plausible range, confirm_reads and the four §6a rules** · fork / lens · plan `eternia-lens-in-hermes.md` §6b W2 W5 W7; `agent_runtime/lens/feed.py`, `rules.py`, `poller.py` · READY 2026-10-18 · **TAKEN 2026-10-18 w2-lens**
 

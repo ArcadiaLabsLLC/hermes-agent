@@ -55,7 +55,7 @@ was green alone (box under five test processes); not filed.
 | arm | findings | outcome |
 |---|---|---|
 | imports (gated, `tests/tooling/test_upstream_retirement_scan.py`) | 3 at the base: `auth_noninteractive` imported upstream's inlined `_api_key_default_label` (custom-pool `set-key` raised ImportError); `windows_env` imported a `hermes_logging.log_warn` that never existed (PATH-write failures silent); one dead test patch | fixed `fb01a81fca`; gate green |
-| hunks | 15 fork hunks inside upstream functions v0.22.2 rewrote (`agent/agent_init.py::init_agent`, `tools/tool_search.py` ×3, `tools/connectors/search.py` ×3, `tui_gateway/*` ×5, `hermes_cli/runtime_provider_custom.py`, `pm/environment.py`, `tools/environments/local.py`) | row, runtime-queue § Seams |
+| hunks | 15 fork hunks inside upstream functions v0.22.2 rewrote (`agent/agent_init.py::init_agent`, `tools/tool_search.py` ×3, `tools/connectors/search.py` ×3, `tui_gateway/*` ×5, `hermes_cli/runtime_provider_custom.py`, `pm/environment.py`, `tools/environments/local.py`) | re-read by lane w2-seams: 15 still correct, 0 re-seat, 0 delete (below) |
 | twins | 2 identical bodies: `agent_runtime/file_locks.py::unlock_fd` = upstream `hermes_cli/local_runtime/bootstrap.py::_unlock_boot_fd`; `agent_runtime/skill_resolution.py::_is_package_owned_markdown` = `tools/skills_tool.py::_is_package_owned_markdown` | kept: both upstream twins are `_private` (the layers gate bans the import); adopt only through a widening |
 | carried | 0: no carried-PR hunk is contained in the tag | — |
 | (g) test-only production functions | not re-censused here: the deletions above freed no production symbol (the stubs asserted absences), and the reach census (`dead-code-burn-down-queue.md`) owns the population | — |
@@ -64,3 +64,25 @@ Found by a `git log -G` variant of arm imports and dropped by the shipped one: `
 re-exports `_detect_venv_dir` from `hermes_cli/gateway_downstream.py`, a name upstream retired
 before the fork point; `tests/hermes_cli/test_gateway_launcher_managed_python.py` patches it there.
 The gateway-as-a-service is ADR 0015 unused; no row (the seam goes when that service code does).
+
+## Hunks arm re-read (lane w2-seams, 2026-10-18)
+
+Each hunk read against its v0.22.2 body (`d923a5eb48`, the release `main` carries) and against
+`upstream/main` `9e01b44dd2`. Verdict: all 15 still correct and still placed right; no re-seat,
+no delete, no hook upstream offers yet.
+
+| hunk | v0.22.2 body | upstream/main `9e01b44dd2` |
+|---|---|---|
+| `agent/agent_init.py::init_agent` (init-timing marks) | marks sit after the phase they name | a `safe_worker_enabled()` prelude lands above `_install_safe_stdio`; the first mark stays first |
+| `hermes_cli/runtime_provider_custom.py::_match_new_style_provider` (`_key_env_secret` → `provider_secret`) | still after identity/endpoint validation | returns `(result, ep_name)`; the key line is unchanged |
+| `pm/environment.py::PythonEnvironment.sync` (uv sharing-violation retry) | before the bytecode-compile retry | unchanged |
+| `tools/connectors/search.py` ×3 (lazy bridge imports) | every `NOT_SET_UP`/`SIGN_IN_EXPIRED`/`UNREACHABLE` use is covered | unchanged |
+| `tools/environments/local.py::_make_run_env` (Windows system PATH) | wraps the PATH fixer | the env tuple gains `toolchain_environ(...)` on the line above: a textual neighbour, no semantic clash |
+| `tools/tool_search.py` ×3 (`_search_description` text, hit parameters, direct describe) | the text describes the fork's `attach_hit_parameters` | unchanged |
+| `tui_gateway/compute_host.py::_handle_respond` (pre-registration answers) | `resolve_response(..., session_id=sid)` still verifies the owner | unchanged |
+| `tui_gateway/methods_session_interrupt.py`, `session_auto_continue.py` | guards precede upstream's first effect | unchanged |
+| `tui_gateway/prompt_turn.py::_prepare_turn_input` (app-function scope) | bound and released in `_release_turn_scopes` | `_persisted_turn_receipt` moved to `agent.persisted_turn_receipt`; no fork hunk there |
+| `tui_gateway/server.py::_make_agent` (`create_agent`) | wraps the one `AIAgent(` call | **moves**: `_make_agent`, `_resolve_session_source`, `_TOOL_LIFECYCLE_UI_TOOLS` to `tui_gateway/agent_factory.py`; `_start_agent_build`, `_init_session`, `_deferred_session_record`, `_schedule_agent_build`, `_fallback_session_info` to `tui_gateway/session_registry.py`. upstream still never defines `_sanitize_client_source` and `_fallback_session_info` still drops its session; both fork hunks stay needed |
+
+The next release merge re-seats the `server.py` hunks into those two modules
+(`FORK-SUPERSESSION-PASS-V0216` owns the pass).
