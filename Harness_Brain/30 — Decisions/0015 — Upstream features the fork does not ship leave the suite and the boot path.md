@@ -13,8 +13,14 @@ tags: [adr, tests, boot, upstream]
 > installers**, **upstream updater and release tooling** (the launcher owns updates), **kanban**, and
 > the **messaging platform adapters** (Telegram, Discord, Slack, Matrix, Signal, WhatsApp, Feishu,
 > WeCom, DingTalk), and **upstream's Docker image** (owner, 2026-10-17; the Docker *terminal backend* of the
-> agent's terminal tool is a separate feature and stays). Their upstream test files leave the regular suite (an `unused` reason on the
-> upstream skip list; they run only when named), and the fork's serve and CLI stop importing
+> agent's terminal tool is a separate feature and stays).
+> Also unused for TESTS only: the **gateway relay** (its code stays: cron imports it). Also unused:
+> **upstream's gateway as a system service** (systemd/launchd/s6): it only works as upstream's product,
+> without Mission Control; the owner's headless gateway for the persona system will be the fork's own.
+> Platform adapters not named above (webhook, A2A, IRC, Buzz, Photon, Teams, ntfy, SimpleX…) count as
+> messaging adapters; `bundled-phone.yaml` lists the ones the fork's phone build leaves out.
+> Their upstream test files leave the regular suite (an `unused` reason on the upstream skip list;
+> they run only when named), and, except for the relay, the fork's serve and CLI stop importing
 > or discovering them (bundle profiles; an import-graph check first). **Cron stays**: standard cron is
 > used on desktop today; a launcher-clock cron that also works on mobile may replace it later.
 

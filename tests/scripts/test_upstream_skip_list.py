@@ -154,11 +154,19 @@ def test_a_file_row_naming_a_node_on_a_copy_of_the_list_is_refused(tmp_path):
     assert file_rows_naming_a_node(planted) == ["tests/agent/test_skill_commands.py"]
 
 
-def test_a_node_row_runs_its_file_and_deselects_only_the_node():
-    rows = plan.load_skip_list(SKIP_LIST)
+def test_a_node_row_runs_its_file_and_deselects_only_the_node(tmp_path):
+    # A planted copy, so the contract holds whether or not the live list carries a node row today
+    # (land/q4-b retired the last one when its whole file became `unused`).
+    planted = tmp_path / "upstream_skip_list.txt"
+    planted.write_text(
+        SKIP_LIST.read_text(encoding="utf-8")
+        + "tests/agent/test_skill_commands.py::test_planted_node · upstream: planted node row · e6899c8090\n",
+        encoding="utf-8",
+    )
+    rows = plan.load_skip_list(planted)
     nodes = {key for key, row in rows.items() if row.node}
-    assert nodes, "the list carries at least one node row"
-    skipped, _listed = _skipped_by_the_runner(SKIP_LIST)
+    assert nodes, "the planted list carries a node row"
+    skipped, _listed = _skipped_by_the_runner(planted)
     assert not {rows[key].file for key in nodes} & skipped, "a node row's file must still run"
     args = plan.deselect_args(rows)
     assert args[1::2] == sorted(nodes, key=list(rows).index) and set(args[0::2]) == {"--deselect"}
