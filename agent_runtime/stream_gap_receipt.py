@@ -53,6 +53,7 @@ point is fail-open: an instrument is never the reason a request fails.
 
 from __future__ import annotations
 
+import functools
 import logging
 import threading
 import time
@@ -60,8 +61,6 @@ from collections import Counter
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterator
-
-import httpx
 
 from agent_runtime.send_window_receipt import SendWindow
 
@@ -342,23 +341,33 @@ def bind_turn_reasoning(agent: Any) -> Iterator[TurnReasoning]:
                 pass
 
 
-class _TimedByteStream(httpx.SyncByteStream):
-    """The response's own byte stream, with each read stamped on the receipt."""
+@functools.cache
+def _timed_byte_stream_class() -> type:
+    """``_TimedByteStream``, built on first use: the receipt's readers (``progress``,
+    ``persona_chat_history.trace_rows``) take ``REASONING_USAGE_STEP`` from this module and
+    must not pay the httpx import (~120 ms) for it (lane h5-boot)."""
 
-    def __init__(self, inner: httpx.SyncByteStream, receipt: StreamGapReceipt) -> None:
-        self._inner = inner
-        self._receipt = receipt
+    import httpx
 
-    def __iter__(self) -> Iterator[bytes]:
-        for chunk in self._inner:
-            try:
-                self._receipt.on_chunk(len(chunk))
-            except Exception:
-                logger.debug("stream gap chunk stamp failed", exc_info=True)
-            yield chunk
+    class _TimedByteStream(httpx.SyncByteStream):
+        """The response's own byte stream, with each read stamped on the receipt."""
 
-    def close(self) -> None:
-        self._inner.close()
+        def __init__(self, inner: httpx.SyncByteStream, receipt: StreamGapReceipt) -> None:
+            self._inner = inner
+            self._receipt = receipt
+
+        def __iter__(self) -> Iterator[bytes]:
+            for chunk in self._inner:
+                try:
+                    self._receipt.on_chunk(len(chunk))
+                except Exception:
+                    logger.debug("stream gap chunk stamp failed", exc_info=True)
+                yield chunk
+
+        def close(self) -> None:
+            self._inner.close()
+
+    return _TimedByteStream
 
 
 def _finish_agent_receipt(agent: Any, end: str) -> None:
@@ -417,9 +426,11 @@ def begin_stream_gap_receipt(agent: Any, client: Any) -> None:
                 receipt.wrap_armed = False
                 if receipt.send is not None:
                     receipt.send.content_type = str(response.headers.get("content-type", "")) or None
-                stream = response.stream
-                if isinstance(stream, httpx.SyncByteStream) and not isinstance(stream, _TimedByteStream):
-                    response.stream = _TimedByteStream(stream, receipt)
+                import httpx
+
+                stream, timed = response.stream, _timed_byte_stream_class()
+                if isinstance(stream, httpx.SyncByteStream) and not isinstance(stream, timed):
+                    response.stream = timed(stream, receipt)
             except Exception:
                 logger.debug("stream gap byte stamps not attached", exc_info=True)
 
