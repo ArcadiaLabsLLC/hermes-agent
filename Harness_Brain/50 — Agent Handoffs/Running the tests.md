@@ -37,10 +37,10 @@ python scripts/changed_line_mutation_check.py --list --base origin/main         
 against HEAD plus untracked files (`--since REF` adds `REF...HEAD`). It runs: each edited test file; each
 file whose latest record names a changed path — a module its process imported AND its own static imports
 reach within two hops (a recorded module set is the whole process's: 4,847 of 6,733 records named
-`agent_runtime/locks.py`), a file or module it opened itself, a non-session directory it listed that a path
+`agent_runtime/locks.py`), a non-`.py` file it opened itself, a non-session directory it listed that a path
 joined or left; for a changed path no record names, the `--scope fork` reach rules; the chain's contract
 when a chain path changed. An ALL-sentinel file (it spawned an unrecorded program) runs only when a code
-path changed and its imports reach it. The skip and idle-box lists win; nothing is cached, sampled or
+path changed and its imports reach it. A file tied only by a `.py` it opened (a whole-tree source walker) is counted in the header, never run. The skip and idle-box lists win; nothing is cached, sampled or
 audited; `--cache-dry-run` lists without running; `--fail-fast` runs edited → direct importers → the rest
 as waves. A session-chain or dynamic-import reach is not selected: the landing gate is the backstop. The
 import memo lives beside the store (`.pytest_cache/hermes_affected_imports.json`; cold build ~8 s).
