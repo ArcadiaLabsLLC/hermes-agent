@@ -84,7 +84,7 @@ inherits its parent directory's ACL, so on a default install it is readable by
 any process running as this user. ``serve_auth.py`` recorded this gap for the
 root token and declined to fix it there; the gap is unchanged, and the exposure
 is larger, because the file now gates a listener that is reachable from another
-machine. A best-effort ``icacls`` narrowing is applied on Windows and its
+machine. A best-effort DACL narrowing is applied on Windows and its
 outcome is REPORTED rather than assumed — a permission posture this module
 cannot enforce is never claimed as enforced.
 

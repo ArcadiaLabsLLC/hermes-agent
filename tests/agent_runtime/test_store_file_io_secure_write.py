@@ -2,8 +2,9 @@
 
 This file exists because ``store_file_io`` had no test of its own and the one
 defect it shipped could only be seen from a directory nobody's test suite ever
-used. ``write_secure_json`` narrows each store file with ``icacls
-/inheritance:r /grant:r <user>:(R,W)``. On Windows the rename inside
+used. ``write_secure_json`` narrowed each store file with ``icacls
+/inheritance:r /grant:r <user>:(R,W)`` (since q-boot the same DACL is written
+in-process, with DELETE). On Windows the rename inside
 ``os.replace`` needs DELETE on the name it removes — or FILE_DELETE_CHILD on the
 directory, which only Full control carries. A directory under ``C:/Users/<user>``
 grants that user Full control, so every test, on every developer machine, wrote
@@ -35,7 +36,6 @@ import subprocess
 import tempfile
 import threading
 import time
-import types
 from pathlib import Path
 
 import pytest
@@ -56,81 +56,44 @@ windows_only = pytest.mark.skipif(
     os.name != "nt",
     reason=(
         "R-D9 is a Windows DACL rule: os.replace needs DELETE on the name it "
-        "removes, and icacls is the only tool that grants it. There is no "
+        "removes, and only a Windows DACL grants it. There is no "
         "POSIX analogue to assert — the 0600 path is exercised everywhere else "
         "in this suite."
     ),
 )
 
 
-# ── the argv, everywhere ─────────────────────────────────────────────────────
+# ── the grant, everywhere ────────────────────────────────────────────────────
 
 
-class _Recorder:
-    """A ``subprocess`` stand-in that answers success and remembers the argv."""
-
-    SubprocessError = subprocess.SubprocessError
-
-    def __init__(self, returncode: int = 0) -> None:
-        self.calls: list[list[str]] = []
-        self._returncode = returncode
-
-    def run(self, argv, **kwargs):
-        self.calls.append(list(argv))
-        return subprocess.CompletedProcess(argv, self._returncode, b"", b"")
-
-
-def test_the_narrowing_grants_read_write_and_delete(monkeypatch, tmp_path):
-    """R-D9's argv, pinned where every platform can read it.
+def test_the_narrowing_grants_read_write_and_delete():
+    """R-D9's grant, pinned where every platform can read it.
 
     The Windows cases below cannot run on the CI machines that would notice a
-    silent revert of this string, so the string itself is asserted here."""
+    silent revert, so the mask the in-process writer puts in its one ACE is
+    asserted here: icacls' ``R`` (FILE_GENERIC_READ), ``W``
+    (FILE_GENERIC_WRITE) and ``D`` (DELETE)."""
 
-    recorder = _Recorder()
-    monkeypatch.setenv("USERNAME", "someone")
-    monkeypatch.setattr(
-        store_file_io_windows,
-        "subprocess",
-        types.SimpleNamespace(
-            run=recorder.run, SubprocessError=subprocess.SubprocessError
-        ),
+    assert store_file_io_windows.WINDOWS_STORE_ACCESS_MASK == (
+        0x00120089 | 0x00120116 | 0x00010000
+    ), (
+        "the grant is R-D9. Dropping DELETE re-wedges every store on a volume "
+        "whose directory ACE is Modify rather than Full control."
     )
-
-    outcome = narrow_windows_acl(tmp_path / "peers.json")
-
-    assert outcome == "narrowed"
-    assert recorder.calls == [
-        [
-            "icacls",
-            str(tmp_path / "peers.json"),
-            "/inheritance:r",
-            "/grant:r",
-            "someone:(R,W,D)",
-        ]
-    ]
-    assert WINDOWS_STORE_GRANT == "(R,W,D)", (
-        "the grant is R-D9. Dropping D re-wedges every store on a volume whose "
-        "directory ACE is Modify rather than Full control."
-    )
+    assert WINDOWS_STORE_GRANT == "(R,W,D)"
 
 
-def test_a_narrowing_that_fails_is_an_outcome_string_and_never_a_raise(
-    monkeypatch, tmp_path
-):
-    """The file's standing rule, restated for the new argv: a store that could
-    not be narrowed is still a store, and refusing to write one would take the
-    pairing lane down over a hardening."""
+@windows_only
+def test_a_narrowing_that_fails_is_an_outcome_string_and_never_a_raise(tmp_path):
+    """The file's standing rule: a store that could not be narrowed is still a
+    store, and refusing to write one would take the pairing lane down over a
+    hardening. A name that does not exist is the cheapest real Win32 failure
+    (ERROR_FILE_NOT_FOUND)."""
 
-    monkeypatch.setenv("USERNAME", "someone")
-    monkeypatch.setattr(
-        store_file_io_windows,
-        "subprocess",
-        types.SimpleNamespace(
-            run=_Recorder(returncode=5).run, SubprocessError=subprocess.SubprocessError
-        ),
-    )
-
-    assert narrow_windows_acl(tmp_path / "peers.json") == "error:rc5"
+    assert narrow_windows_acl(tmp_path / "absent" / "peers.json") in {
+        "error:win2",
+        "error:win3",
+    }
 
 
 @pytest.mark.skipif(os.name == "nt", reason="the no-op half is what POSIX sees")
@@ -194,15 +157,12 @@ def hostile_directory(monkeypatch):
     ``(RX,W)`` only — no DELETE and no FILE_DELETE_CHILD, the state the
     operator's store was in.
 
-    **USERNAME is re-established here, and that is the second reason this
-    defect had no test.** ``scripts/run_tests.sh`` runs every file under
-    ``env -i`` and forwards only location variables; USERNAME is not among them.
-    ``narrow_windows_acl`` reads USERNAME and returns ``skipped:no_username``
-    without it — so under the canonical runner the narrowing never happens, and
-    a test written against it would be green because the code under test did
-    nothing. The principal is recovered from USERPROFILE (which IS forwarded)
-    and put back, so the production writer narrows exactly as it does for an
-    operator.
+    **USERNAME is re-established here** because the fixture's own ``icacls``
+    calls name the principal and ``scripts/run_tests.sh`` runs every file under
+    ``env -i``, which does not forward it. (Until q-boot the WRITER read it too
+    and answered ``skipped:no_username`` without it; it now takes the SID from
+    the process token.) The principal is recovered from USERPROFILE (which IS
+    forwarded) and put back.
 
     Torn down through a Full-control re-grant, because a directory that cannot
     delete its own children cannot be removed by the suite that made it.
@@ -305,6 +265,87 @@ def test_the_narrowing_still_names_exactly_one_principal(hostile_directory):
     ]
     assert len(principals) == 1, _file_acl(target)
     assert (os.environ.get("USERNAME") or "").lower() in principals[0].lower()
+
+
+# ── the in-process DACL is the one icacls wrote (q-boot) ────────────────────
+
+
+def _read_dacl(path: Path) -> tuple[bool, list[tuple[int, int, int, str]]]:
+    """``(protected, [(ace type, ace flags, mask, SID string), ...])``, read in-process."""
+
+    import ctypes
+    from ctypes import wintypes
+
+    advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    advapi32.GetNamedSecurityInfoW.argtypes = [
+        wintypes.LPWSTR, ctypes.c_int, wintypes.DWORD,
+        ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p),
+        ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p),
+    ]
+    advapi32.GetNamedSecurityInfoW.restype = wintypes.DWORD
+    advapi32.GetSecurityDescriptorControl.argtypes = [
+        ctypes.c_void_p, ctypes.POINTER(wintypes.WORD), ctypes.POINTER(wintypes.DWORD)
+    ]
+    advapi32.GetAce.argtypes = [ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(ctypes.c_void_p)]
+    advapi32.ConvertSidToStringSidW.argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.LPWSTR)]
+    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+
+    dacl = ctypes.c_void_p()
+    descriptor = ctypes.c_void_p()
+    status = advapi32.GetNamedSecurityInfoW(
+        str(path), 1, 0x4, None, None, ctypes.byref(dacl), None, ctypes.byref(descriptor)
+    )
+    assert status == 0, f"GetNamedSecurityInfoW({path}) -> {status}"
+    try:
+        control, revision = wintypes.WORD(), wintypes.DWORD()
+        assert advapi32.GetSecurityDescriptorControl(
+            descriptor, ctypes.byref(control), ctypes.byref(revision)
+        )
+        protected = bool(control.value & 0x1000)  # SE_DACL_PROTECTED
+        ace_count = ctypes.c_ushort.from_address(dacl.value + 4).value  # ACL.AceCount
+        aces = []
+        for index in range(ace_count):
+            ace = ctypes.c_void_p()
+            assert advapi32.GetAce(dacl, index, ctypes.byref(ace))
+            ace_type = ctypes.c_ubyte.from_address(ace.value).value
+            ace_flags = ctypes.c_ubyte.from_address(ace.value + 1).value
+            mask = ctypes.c_uint32.from_address(ace.value + 4).value
+            text = wintypes.LPWSTR()
+            assert advapi32.ConvertSidToStringSidW(ace.value + 8, ctypes.byref(text))
+            aces.append((ace_type, ace_flags, mask, text.value))
+            kernel32.LocalFree(text)
+        return protected, aces
+    finally:
+        kernel32.LocalFree(descriptor)
+
+
+@windows_only
+def test_the_in_process_dacl_is_the_dacl_icacls_wrote(hostile_directory):
+    """The positive control for dropping the spawn: write one file the old way
+    (the exact icacls argv the writer used to run) and one the new way, and read
+    both DACLs back in-process. Same protection, same single ACE, same mask,
+    same principal — and that principal holds DELETE, so the next replace works."""
+
+    user = os.environ.get("USERNAME") or ""
+    by_icacls = hostile_directory / "by_icacls.json"
+    in_process = hostile_directory / "in_process.json"
+    for path in (by_icacls, in_process):
+        path.write_text("{}\n", encoding="utf-8")
+
+    old = _icacls(str(by_icacls), "/inheritance:r", "/grant:r", f"{user}:{WINDOWS_STORE_GRANT}")
+    assert old.returncode == 0, old.stdout
+    assert narrow_windows_acl(in_process) == "narrowed"
+
+    expected = _read_dacl(by_icacls)
+    actual = _read_dacl(in_process)
+    assert actual == expected, f"icacls wrote {expected!r}, in-process wrote {actual!r}"
+    protected, aces = actual
+    assert protected, "inheritance must be removed (a protected DACL)"
+    assert len(aces) == 1, aces
+    ace_type, ace_flags, mask, _sid = aces[0]
+    assert (ace_type, ace_flags) == (0, 0), "one non-inheritable ACCESS_ALLOWED ACE"
+    assert mask == store_file_io_windows.WINDOWS_STORE_ACCESS_MASK
 
 
 # ── the lock, on both platforms (R-D27) ──────────────────────────────────────
