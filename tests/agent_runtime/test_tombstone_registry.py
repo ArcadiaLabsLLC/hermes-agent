@@ -4180,6 +4180,17 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "deleted; no production code may pass or read the flag (lane r-deadcode)",
         "export_env",
     ),
+    *rows(
+        "s-w2-agent",
+        "HEAD",
+        Form.CLASS_ATTR,
+        "runtime-queue RT-AUTONOMY-APPLY-WITH-REVIEW (owner ruling 2026-10-18): a "
+        "label no workflow read — scope_for_persona gave it the autonomous grant — "
+        "deleted; a stored apply_with_review reads as autonomous",
+        "personas.AutonomyLevel.APPLY_WITH_REVIEW",
+        "models.AutonomyLevel.APPLY_WITH_REVIEW",
+        scope=_AR,
+    ),
 )
 
 

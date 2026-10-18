@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from enum import StrEnum
 
-from .models import AgentPersona
+from .models import AgentPersona, AutonomyLevel  # AutonomyLevel lives beside its field
 
 __layer__ = "models"
 
@@ -24,12 +24,6 @@ class AgentRole(StrEnum):
     """
 
     PM = "pm"
-
-
-class AutonomyLevel(StrEnum):
-    PROPOSE_ONLY = "propose_only"
-    APPLY_WITH_REVIEW = "apply_with_review"
-    AUTONOMOUS = "autonomous"
 
 
 # Retired roles/personas are single-sourced in ``persona_lifecycle`` as

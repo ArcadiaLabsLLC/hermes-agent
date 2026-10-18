@@ -73,6 +73,7 @@ def list_context_file_sources(
     sources: list[dict[str, Any]] = []
     winner: Optional[str] = None
     for kind, label, path, content in _pb.discover_context_files(cwd_path):
+        winner = None  # fork: the fork's build_context_files_prompt loads every kind, so none is shadowed.
         if not content:
             status = _empty_status(path)
         elif suppressed:

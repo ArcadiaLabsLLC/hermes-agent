@@ -12,6 +12,13 @@ and parses them through its real decode + read-model pipeline
 split is structural, not an oversight, and the script names both halves
 (`GENERATED_FRAME_FILES` / `PINNED_ONLY_FILES`).
 
+> **CROSS-STACK COPY STATUS (w2-agent, 2026-10-18) — launcher copy OWED.**
+> One generated golden moved: the persona row's `autonomy` default reads
+> `propose_only` where it read `review` (RT-AUTONOMY-APPLY-WITH-REVIEW — the field is
+> typed by `AutonomyLevel`, `review` an alias of `propose_only`). Copy
+> `delta_agent_create_narrow_profile.json` and `MANIFEST.sha256` into
+> `test/fixtures/harness_stream/`.
+
 > **CROSS-STACK COPY STATUS (opus-toolvis-decl, 2026-10-08) — mirrored at launcher `9292e9971c` (287 passed over the 24 test files reading `test/fixtures/harness_stream`).**
 > Two generated goldens moved for one reason: every persona-instance row's
 > `toolset_declaration` lost `persona_list` and gained `issues` / `unknown`

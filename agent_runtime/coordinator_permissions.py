@@ -41,7 +41,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
-from .models import AgentPersona, PersonaInstance
+from .models import AgentPersona, AutonomyLevel, PersonaInstance
 from .runtime_config import CoordinatorPermissionConfig
 
 __layer__ = "stores"
@@ -92,8 +92,8 @@ def scope_for_persona(
     spawns_used: int = 0,
 ) -> CoordinatorPermissionScope:
     grant = config or CoordinatorPermissionConfig()
-    autonomy = str(getattr(persona, "autonomy", "review") or "review").strip().lower()
-    if autonomy in {"review", "propose_only"}:
+    autonomy = AutonomyLevel(getattr(persona, "autonomy", None) or AutonomyLevel.PROPOSE_ONLY)
+    if autonomy is AutonomyLevel.PROPOSE_ONLY:
         return CoordinatorPermissionScope(
             max_spawns=0,
             spawns_used=max(0, int(spawns_used)),

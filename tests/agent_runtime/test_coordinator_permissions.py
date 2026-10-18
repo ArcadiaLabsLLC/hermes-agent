@@ -102,6 +102,13 @@ def test_review_autonomy_defaults_to_confirm_each_create_and_kill():
     assert scope.may_kill_others is False
 
 
+def test_a_stored_apply_with_review_keeps_the_autonomous_grant_it_always_had():
+    """The member is deleted (RT-AUTONOMY-APPLY-WITH-REVIEW); a row that still says it
+    reads as ``autonomous`` — the scope this reader always gave it."""
+    assert scope_for_persona(_persona("apply_with_review")) == scope_for_persona(_persona("autonomous"))
+    assert scope_for_persona(_persona("apply_with_review")).max_spawns >= 1
+
+
 # ── the renamed vocabulary (chokepoint plan A4-i) ────────────────────────────
 
 

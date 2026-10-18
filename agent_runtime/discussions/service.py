@@ -78,6 +78,10 @@ class DiscussionService:
         with self._lock:
             if self._closed:
                 raise DiscussionError("runtime_stopping")
+            try:
+                self.state.sweep()  # Before the room worker can bind a room.
+            except Exception:
+                logger.warning("Discussion start-up clean-up failed", exc_info=True)
             self.runtime.start()
             self._started = True
 

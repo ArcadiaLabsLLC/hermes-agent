@@ -114,7 +114,7 @@ def _resolved(**body) -> dict:
         "model": "realm-model",
         "provider": "realm-provider",
         "api_mode": "chat_completions",
-        "autonomy": "review",
+        "autonomy": "propose_only",  # the resolved default (`review` is its alias)
         "include_core_context_files": False,
         "include_profile_memory": False,
         "system_prompt_path": "",
