@@ -143,7 +143,7 @@ below on their structure, not on their cost.
    process-global and not profile-scoped). Small in milliseconds after the memo
    above; structurally a per-persona loop around a process-global fact.
 
-5. **`sections_top=` prints three sections.** Every remedy plan that reads a
+5. **`sections_top=` prints three sections.** FIXED 2026-10-18: `sections=` now carries every section beside it. Every remedy plan that reads a
    build's attribution off `agent.log` is reading a truncated list, which is how
    `prompt_observability` — the section that ties `agents_readiness` for the top
    slot — went unnamed by the boot-window work. The full `sections_ms` map exists;
