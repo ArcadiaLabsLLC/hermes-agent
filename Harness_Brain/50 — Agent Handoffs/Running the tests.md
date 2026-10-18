@@ -267,7 +267,10 @@ five habits cost about 390 minutes a day.
 - **At the end of the lane, before the report:** ONLY the test files that import a module you
   touched — `grep -l` the module paths under `tests/` — as one
   `python -m pytest -q -p no:cacheprovider <files>` run, in the background, with a log and the exit
-  code captured unpiped, timeout at least 600000. A lane never runs the landing gate, the tooling
+  code captured unpiped, timeout at least 600000. That run is serial: the test venv carries no
+  pytest-xdist (not a declared dependency), so `-n` errors `unrecognized arguments: -n`; a lane that
+  wants parallelism names `scripts/run_tests.sh -j N <files>` (file paths only — a node id among
+  its arguments runs nothing for the other files). A lane never runs the landing gate, the tooling
   gates, the docs gates or the contract dumps; those are the landing's job, once.
 - **Launcher lanes and landings run `*_test.dart` files only.** A `grep -l` under `test/` also
   matches fixtures and helpers; on 2026-10-05 it handed `flutter test` the helper

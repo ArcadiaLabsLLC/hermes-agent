@@ -38,7 +38,8 @@ Every lane, every peer session (`ListAgents`), the live serve and the gate share
 - **Quiet-box lanes**: a lane that JUDGES a timeout or a flake runs only when nothing heavy is running —
   under load anything times out, and the lane "fixes" the machine. Check first:
   `wmic cpu get loadpercentage` and the python process count.
-- A lane runs its tests with `-j 4` at most while other lanes are live.
+- A lane runs its tests with `-j 4` at most while other lanes are live. `-j` is `scripts/run_tests.sh`'s
+  flag; never write `-n` in a brief (the test venv has no pytest-xdist).
 
 ## 3. Shared state a lane can break
 
@@ -116,7 +117,7 @@ Setup (cwd X:/Eternia): fetch; worktree add X:/Eternia/worktrees/hermes-<lane> -
 Scratch X:/Eternia/worktrees/<lane>-scratch/, own UV_CACHE_DIR there.
 Read: <one page> + <plan section / queue row>.
 Steps: 1. … 2. … (decision rules inline: "if the tree differs from the plan, follow the tree and say so in the commit")
-Run: per `Running the tests.md` § "What a lane runs" (name it; do not restate it). -j 4 while other lanes are live.
+Run: per `Running the tests.md` § "What a lane runs" (name it; do not restate it). `scripts/run_tests.sh -j 4` while other lanes are live; never `-n`.
 Host: shell scripts run with Git Bash's absolute path (`C:/Program Files/Git/bin/bash.exe`) — a bare `bash` from Python is WSL; never start a real serve or gateway; a test whose red writes real machine state runs once by hand.
 Upstream files / fixtures: § 4 of this page (the brief names which apply).
 Commits: one MOVE, one CHANGE; push per commit; never main; never amend/force/stash; leave the worktree.
