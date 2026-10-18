@@ -209,11 +209,7 @@ class ChatProgressSink:
             if event_type not in _CHAT_TRACE_EVENT_TYPES:
                 return None
             payload = payload or {}
-            if event_type == "run.progress" and self._forward_phase_timing_marker(payload):
-                return None
-            if event_type == "run.progress" and self._forward_compaction_state(payload):
-                return None
-            if event_type == "run.progress" and not _chat_progress_has_signal(payload):
+            if event_type == "run.progress" and self._progress_consumed(payload):
                 return None
             safe_payload = _safe_progress_payload(event_type, payload)
             self._stamp_reasoning_id(safe_payload)
@@ -263,6 +259,20 @@ class ChatProgressSink:
                 )
         except Exception:
             return None
+
+    def _progress_consumed(self, payload: dict[str, Any]) -> bool:
+        """True when a ``run.progress`` payload ends here: forwarded by a bypass, or dropped.
+
+        The consumers run in table order and the first that takes the payload
+        stops the walk; a payload none of them takes is an ordinary trace row.
+        """
+
+        consumers: tuple[Callable[[dict[str, Any]], bool], ...] = (
+            self._forward_phase_timing_marker,
+            self._forward_compaction_state,
+            lambda raw: not _chat_progress_has_signal(raw),  # nothing worth a trace row: drop
+        )
+        return any(consume(payload) for consume in consumers)
 
     def _stamp_reasoning_id(self, safe_payload: dict[str, Any]) -> None:
         """Mint the stable id one reasoning summary carries live AND stored.
