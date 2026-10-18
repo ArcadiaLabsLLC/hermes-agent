@@ -460,6 +460,37 @@ class _AdmitPhases:
         _mission_chat_emit(self.args, data)
         return 2
 
+    def _admit_run_workdir(self) -> int | None:
+        """A run's own ``run_workdir`` (a batch lane's worktree) that this machine cannot use REFUSES the turn.
+
+        Never degraded to the persona's ladder: that answer can be the operator's checkout
+        (RT-BATCH-RUN-WORKDIR-FAILS-OPEN). Checked before the write-ahead, so nothing was run or journaled.
+        """
+
+        from agent_runtime.mission_chat_workdir import RUN_WORKDIR_ARG, run_override_refusal
+
+        refused = run_override_refusal(getattr(self.args, RUN_WORKDIR_ARG, None))
+        if refused is None:
+            return None
+        data = {
+            "ok": False,
+            "capability_id": "mission.chat.message",
+            "execution_state": ExecutionState.REJECTED,
+            "error_kind": ChatErrorKind.INVALID_REQUEST,
+            "reason": "run_workdir_unavailable",
+            "run_workdir": safe_assignment_text(refused.requested, limit=240),
+            "run_workdir_reason": refused.reason,
+            "persona_instance_id": self.instance.id,
+            "persona_id": self.normalized_persona,
+            "session_id": self.session_id,
+            "root_chat_session_id": self.session_id,
+            "client_message_id": self.client_message_id,
+            "error": f"the run's workdir {refused.reason.replace('_', ' ')}; the turn was not run",
+            "next_expected": "re-cut the lane's worktree and send again; nothing was run",
+        }
+        _mission_chat_emit(self.args, data)
+        return 2
+
     def _answer_prior_attempt(self) -> int | None:
         """Answer from the prior attempt when it already speaks for this id; ``None`` to run the turn."""
 

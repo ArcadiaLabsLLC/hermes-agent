@@ -1769,7 +1769,8 @@ executor, `lane_git.py` for the git). A work lane of slot `S` works in `<clone's
 name>-<batch>-<lane>` on `q/<batch>/<lane>`, cut from the fetched tip (or from the branch of the same-slot
 lane it is sequenced after); its brief (the playbook's skeleton, ≤ 40 lines with the `work_report` ask) is
 written to the `-scratch` directory beside it and sent as the persona's turn, which runs there
-(`run_workdir`, on top of the workdir ladder). The settle reads the lane's commits from git (`base..branch`).
+(`run_workdir`, on top of the workdir ladder; a `run_workdir` this machine cannot use refuses the turn —
+`invalid_request`, `reason: run_workdir_unavailable` — never falls back to the ladder). The settle reads the lane's commits from git (`base..branch`).
 `land` cuts `land/<batch>` per slot the batch touched and merges each `REPORTED` lane `--no-ff` in order (a
 conflict is aborted and named in the landing brief); `approve` (`lander.py::GitLander`) checks every slot
 (clean, the fetched tip an ancestor) before it pushes each landing HEAD fast-forward. `land` and `approve`

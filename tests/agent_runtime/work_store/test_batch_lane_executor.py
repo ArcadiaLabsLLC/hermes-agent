@@ -29,7 +29,7 @@ from agent_runtime.batch.machine import BatchState, LaneState
 from agent_runtime.batch.planner import Member
 from agent_runtime.locks import batch_landing_lock
 from agent_runtime.mission_chat_workdir import (
-    RUN_WORKDIR_ARG, WORKDIR_SOURCE_RUN_OVERRIDE, MissionChatWorkdir, with_run_override,
+    RUN_WORKDIR_ARG, WORKDIR_SOURCE_RUN_OVERRIDE, MissionChatWorkdir, RunWorkdirRefused, with_run_override,
 )
 from agent_runtime.work_store.executor import Assignment, Outcome, Verdict
 from agent_runtime.work_store.grammar import RowRef
@@ -216,15 +216,37 @@ def test_one_landing_at_a_time_holds_the_machine(repo):
     assert d.load(WS, batch.id).state is BatchState.READY_TO_LAND
 
 
-def test_the_run_workdir_outranks_the_ladder_and_a_missing_one_is_a_typed_row(tmp_path):
+def test_the_run_workdir_outranks_the_ladder_and_a_missing_one_refuses(tmp_path):
     ladder = MissionChatWorkdir(path=str(tmp_path), source="user_home")
     there = tmp_path / "lane"
     there.mkdir()
     assert with_run_override(ladder, None) is ladder
     won = with_run_override(ladder, str(there))
     assert won.path == str(there.resolve()) and won.source == WORKDIR_SOURCE_RUN_OVERRIDE
-    kept = with_run_override(ladder, str(tmp_path / "gone"))
-    assert kept.path == ladder.path and [i.reason for i in kept.issues] == ["missing"]
+    with pytest.raises(RunWorkdirRefused) as refused:
+        with_run_override(ladder, str(tmp_path / "gone"))
+    assert refused.value.reason == "missing"
+
+
+def test_a_lane_turn_whose_worktree_is_gone_is_refused_not_grounded_on_the_ladder(tmp_path, monkeypatch):
+    """RT-BATCH-RUN-WORKDIR-FAILS-OPEN: the admit phase refuses with a typed reason before anything runs."""
+
+    from hermes_cli.harness_parts.persona.chat_turn_commit import admit
+
+    emitted = []
+    monkeypatch.setattr(admit, "_mission_chat_emit", lambda _args, data: emitted.append(data))
+    turn = SimpleNamespace(
+        args=SimpleNamespace(**{RUN_WORKDIR_ARG: str(tmp_path / "gone")}), instance=SimpleNamespace(id="inst-a"),
+        normalized_persona="neko", session_id="root-lane", client_message_id="cm-1",
+    )
+    assert admit._AdmitPhases._admit_run_workdir(turn) == 2
+    assert emitted[0]["ok"] is False and emitted[0]["reason"] == "run_workdir_unavailable"
+    assert emitted[0]["run_workdir_reason"] == "missing"
+    (tmp_path / "here").mkdir()
+    turn.args = SimpleNamespace(**{RUN_WORKDIR_ARG: str(tmp_path / "here")})
+    assert admit._AdmitPhases._admit_run_workdir(turn) is None
+    turn.args = SimpleNamespace()
+    assert admit._AdmitPhases._admit_run_workdir(turn) is None and len(emitted) == 1
 
 
 def test_the_persona_turn_carries_the_lane_brief_and_workdir(tmp_path):
