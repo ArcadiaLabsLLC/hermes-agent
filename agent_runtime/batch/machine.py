@@ -22,7 +22,7 @@ from ..work_store.models import Verdict
 from ..work_store.reasons import Reason, WorkRefused
 from .planner import Budget, Lane, LaneKind
 
-__layer__ = "lanes"  # imports work_store.executor.Verdict (a lanes module); RT-BATCH-LAYER-TYPES
+__layer__ = "policy"
 __all__ = [
     "AUTOMATABLE",
     "BATCH_MOVES",

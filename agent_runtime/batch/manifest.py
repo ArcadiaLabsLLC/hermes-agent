@@ -34,7 +34,7 @@ from ..work_store.models import Verdict
 from .machine import LIVE, Automation, Batch, BatchState, LaneRecord, LaneState
 from .planner import Plan
 
-__layer__ = "lanes"  # imports work_store.executor.Verdict (a lanes module); RT-BATCH-LAYER-TYPES
+__layer__ = "stores"
 __all__ = [
     "BATCHES_DIR",
     "DISPATCHER",
