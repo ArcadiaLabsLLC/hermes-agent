@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import socket
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -21,6 +22,8 @@ import pytest
 
 from hermes_cli import plugins  # imported here so the chain installs the discovery cache
 import hermes_constants
+import hermes_state  # imported here so the chain's state-db fixture finds it at setup
+import pm.shell  # imported here so the chain's bash-probe memo finds it at setup
 
 #: the platform-native Hermes home, read at import — before any autouse fixture patches it
 _NATIVE_HOME = hermes_constants._get_platform_default_hermes_home()
@@ -190,3 +193,39 @@ def test_bundled_plugin_discovery_is_kept_between_tests():
     plugins._reset_plugin_managers_for_tests()
     plugins.discover_plugins()
     assert cache.stats()["hits"] > hits
+
+
+@pytest.mark.skipif(sys.platform == "darwin", reason="macOS keeps synchronous=FULL (its btree floor is a subject)")
+def test_a_session_db_commits_without_fsync(tmp_path):
+    """``tests/_downstream/state_db_no_fsync.py``: a ``SessionDB`` the test opens runs ``PRAGMA synchronous=OFF``
+    (the test venv's SQLite forces journal_mode=DELETE, where every autocommitted statement is an fsync).
+    Mutation: drop the ``_state_db_no_fsync`` re-export from ``conftest_plugin``."""
+
+    db = hermes_state.SessionDB(db_path=tmp_path / "state.db")
+    try:
+        assert db._conn.execute("PRAGMA synchronous").fetchone()[0] == 0
+    finally:
+        db.close()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="the bash.exe probe runs on Windows only")
+def test_a_bash_that_started_is_not_probed_again():
+    """``tests/_downstream/bash_probe_memo.py``: once ``pm.shell.bash()`` proved a bash.exe starts, the next call
+    spawns no ``bash -c "exit 0"`` probe for it (upstream probes on every call, so every local-backend command
+    cost two spawns). Mutation: drop the ``_bash_probe_memo`` re-export from ``conftest_plugin``."""
+
+    first = pm.shell.bash()
+    assert first is not None
+    spawns: list = []
+    watching = [True]
+
+    def count(event, args):
+        if watching and event == "subprocess.Popen":
+            spawns.append(args)
+
+    sys.addaudithook(count)  # an audit hook cannot be removed: it goes quiet once the call returns
+    try:
+        assert pm.shell.bash() == first
+    finally:
+        watching.clear()
+    assert spawns == []

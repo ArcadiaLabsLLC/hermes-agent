@@ -2,10 +2,13 @@
 
 Killing mutation: make ``restore_tool_registry`` skip ``restore_registration``
 -> ``test_z2_a_registration_by_the_previous_test_is_gone`` and the two direct
-cases red.
+cases red. Killing mutation for the ordering: restore in the fixture's teardown
+again -> ``test_the_restore_runs_after_monkeypatch_is_undone`` errors in teardown.
 """
 
 from __future__ import annotations
+
+import os
 
 from tests._downstream.tool_registry_scope import mark_tool_registry, restore_tool_registry
 from tools.registry import registry
@@ -63,3 +66,14 @@ def test_restore_survives_a_str_returning_home_stub(monkeypatch, tmp_path):
 
     assert restore_tool_registry(mark) == [_THROWAWAY]
     assert hermes_constants.get_hermes_home() == str(tmp_path)
+
+
+def test_the_restore_runs_after_monkeypatch_is_undone(monkeypatch, tmp_path):
+    # The restore resolves the Hermes home; a home not on disk yet takes the lenient
+    # Path.resolve, which reaches os.getcwd. A test's process-wide patch of it must be
+    # undone before the restore reads.
+    def _boom():
+        raise FileNotFoundError
+
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path / "not-created"))
+    monkeypatch.setattr(os, "getcwd", _boom)

@@ -261,3 +261,37 @@ def test_a_record_names_the_fixtures_set_up_and_the_paths_the_file_opened_itself
     assert {"auto", "used", "dyn", "request"} <= set(deps.fx), "autouse, requested and getfixturevalue all count"
     assert "unused" not in deps.fx
     assert "conftest.py" in deps.own, "a data read of the conftest must keep its whole-blob key"
+
+
+_FILE_PATCHES_ABSPATH = '''
+import os
+
+def test_patches_abspath_process_wide(monkeypatch):
+    def refuse(path):
+        raise AssertionError("abspath used")
+
+    monkeypatch.setattr(os.path, "abspath", refuse)
+    with open(__file__, encoding="utf-8") as fh:
+        fh.read(1)
+
+def test_after():
+    assert os.path.abspath(".")
+'''
+
+
+@pytest.mark.timeout(150)
+def test_a_test_that_patches_abspath_process_wide_cannot_break_the_recorder(tmp_path):
+    # The recorder resolves a path in its own pytest hooks (``pytest_runtest_teardown``), while the
+    # test's patch still stands; it binds ``os.path.abspath`` at import (lane r-state 2026-10-18).
+    # Killing mutation: call ``os.path.abspath`` in ``PathFilter.rel`` again -> this run exits 1.
+    root = tmp_path / "proj"
+    root.mkdir()
+    (root / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+    (root / "test_patch.py").write_text(_FILE_PATCHES_ABSPATH, encoding="utf-8")
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join([str(_PLUGIN_DIR), str(root)])}
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_dep_record",
+         f"--hermes-gate-deps={tmp_path / 'deps'}", "test_patch.py"],
+        cwd=root, env=env, capture_output=True, text=True, timeout=120,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr

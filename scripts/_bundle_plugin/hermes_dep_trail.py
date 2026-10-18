@@ -21,6 +21,11 @@ _PATH_EVENTS = frozenset({"open"})
 _DIR_EVENTS = frozenset({"os.listdir", "os.scandir"})
 _SPAWN_EVENTS = frozenset({"subprocess.Popen", "os.system", "os.exec", "os.posix_spawn", "os.spawn", "os.startfile"})
 _SESSION = ""
+#: Bound at import: a test that patches ``os.path.abspath`` process-wide (``ntpath`` is one module)
+#: must never reach the recorder, whose ``rel`` runs inside pytest's own hooks, not only the audit
+#: hook (``tests/tools/test_search_files_cpu_windows.py``, lane r-state 2026-10-18).
+_abspath = os.path.abspath
+_normcase = os.path.normcase
 #: the import system's directory scan: ``FileFinder._fill_cache`` in ``importlib._bootstrap_external``
 _IMPORT_LISTER = "_fill_cache"
 
@@ -47,7 +52,7 @@ class PathFilter:
     """Absolute path → repo-relative POSIX path, or None when it is not the repo's."""
 
     def __init__(self, root: str) -> None:
-        self._root = os.path.normcase(os.path.abspath(root))
+        self._root = _normcase(_abspath(root))
         self._prefix = self._root.rstrip("\\/") + os.sep
 
     def rel(self, raw) -> str | None:
@@ -56,8 +61,8 @@ class PathFilter:
         if not isinstance(raw, (str, os.PathLike)):
             return None
         try:
-            full = os.path.normcase(os.path.abspath(os.fspath(raw)))
-        except (OSError, ValueError):
+            full = _normcase(_abspath(os.fspath(raw)))
+        except Exception:  # noqa: BLE001 — the recorder observes; it never fails the code it watches
             return None
         if not full.startswith(self._prefix):
             return None
@@ -113,7 +118,7 @@ def is_python(program: str) -> bool:
     if base.startswith("python"):
         return True
     try:
-        return os.path.normcase(os.path.abspath(program)) == os.path.normcase(os.path.abspath(sys.executable))
+        return _normcase(_abspath(program)) == _normcase(_abspath(sys.executable))
     except (OSError, ValueError):
         return False
 
@@ -159,7 +164,7 @@ class AuditTrail:
             elif event in _DIR_EVENTS:
                 target = args[0] if args and args[0] not in (None, "") else "."
                 rel = self.filter.rel(target)
-                if rel is None and os.path.normcase(os.path.abspath(os.fspath(target))) == self.filter._root:
+                if rel is None and _normcase(_abspath(os.fspath(target))) == self.filter._root:
                     rel = "."
                 if rel is not None:
                     bucket = self.bucket(self.current)
