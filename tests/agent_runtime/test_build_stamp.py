@@ -366,3 +366,36 @@ def test_the_code_tree_is_measured_once_per_process_like_the_commit(
         build_stamp()
 
     assert len(calls) == 1
+
+
+def test_the_code_tree_probe_runs_beside_the_status_probe(real_repo, monkeypatch):
+    """Lane h5-boot: the boot pays the slower of ``ls-tree`` and ``status``, not their sum.
+
+    The code-tree stand-in waits for the status probe to START; run serially (tree first), it
+    times out with the flag unset. Killing mutation: call ``code_tree_for(root)`` inline before
+    the status ``_git`` again.
+    """
+
+    import threading
+
+    monkeypatch.setattr(build_stamp_module, "repo_root_for", lambda *a, **k: real_repo)
+    status_started = threading.Event()
+    overlapped: list[bool] = []
+    real_git = build_stamp_module._git
+
+    def tree(root, head="HEAD"):
+        overlapped.append(status_started.wait(timeout=5))
+        return CodeTree(code_tree="c" * 40, reason="", entry_count=1)
+
+    def git(root, args, **kwargs):
+        if "status" in args:
+            status_started.set()
+        return real_git(root, args, **kwargs)
+
+    monkeypatch.setattr(build_stamp_module, "code_tree_for", tree)
+    monkeypatch.setattr(build_stamp_module, "_git", git)
+
+    stamp = build_stamp(refresh=True)
+
+    assert overlapped == [True]
+    assert stamp.code_tree == "c" * 40 and stamp.dirty is False
