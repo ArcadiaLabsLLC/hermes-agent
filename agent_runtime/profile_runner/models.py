@@ -53,6 +53,9 @@ class AgentRunRequest:
     tool_execution_scope_id: str | None = None
     conversation_history: list[dict[str, Any]] | None = None
     reuse_current_user_message: bool = False
+    #: Pasted images (``agent_runtime.operator_images``): the provider sees them as image
+    #: parts of this turn's user message; the transcript keeps ``MEDIA:`` lines.
+    user_image_paths: tuple[str, ...] = ()
     # Typed presentation marker stamped on the NATIVE user row this turn
     # persists (the row's ``finish_reason`` column; see
     # ``hermes_state._rows_to_conversation`` and ``agent_runtime.relay_policy``).

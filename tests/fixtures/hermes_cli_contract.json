@@ -5674,6 +5674,14 @@
           "required": false,
           "type": null
         },
+        "--image": {
+          "action": "append",
+          "canonical": "--image",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
         "--in-process": {
           "action": "store_true",
           "canonical": "--in-process",

@@ -333,6 +333,7 @@
       "clarify_token",
       "client_scope",
       "correlation_id",
+      "images",
       "intent_hint",
       "max_seconds",
       "message",

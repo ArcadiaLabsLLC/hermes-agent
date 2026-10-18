@@ -12,6 +12,7 @@ import logging
 import time
 from typing import Any
 
+from agent_runtime.operator_images import with_media_lines
 from agent_runtime import paths, relay_policy
 from agent_runtime.auxiliary_chat import is_auxiliary_chat
 from agent_runtime.cli_format import emit_json
@@ -450,6 +451,8 @@ class _RunPhases:
                 "active_session_id": self.active_session_id,
                 "persona_instance_id": self.instance.id,
                 "pending_user_message": self.message,
+                # The pasted images' stored files: a retry or replay of this record names the same bytes.
+                **({"pending_user_images": list(self.user_image_paths)} if getattr(self, "user_image_paths", ()) else {}),
                 "provider_submitted": False,
                 # Rides the persist that already happens — no new write. On a
                 # turn that dies before the provider this is the ONLY phase
@@ -501,7 +504,7 @@ class _RunPhases:
             session_id=session_id,
             role="user",
             text=_redact_persona_chat_text(
-                self.message
+                with_media_lines(self.message, getattr(self, "user_image_paths", ()))
             ),
             client_message_id=client_message_id,
             turn_id=stream_emitter.turn_id,
@@ -600,6 +603,7 @@ class _RunPhases:
                 reuse_current_user_message=(
                     self.journal_state == TURN_STATE_PENDING and bool(self.replay.get("operator"))
                 ),
+                user_image_paths=getattr(self, "user_image_paths", ()),
                 relay_sender_marker=self.relay_sender_marker,
                 root_chat_session_id=self.session_id,
                 client_message_id=self.client_message_id,
