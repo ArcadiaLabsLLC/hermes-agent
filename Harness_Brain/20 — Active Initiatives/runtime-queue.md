@@ -32,8 +32,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-18 (landing land-w2)
 
-- **`RT-SHIPPED-PROBE-IN-LANES` — `loop_tool_lifecycles.shipped` (a pure presence probe: `sys.modules` + `find_spec`) lives in a `lanes` module, so no `stores`/`policy` module may ask whether a feature ships; W1's `work_store/default_brain.py` had to re-layer `stores` -> `lanes` at landing to call it** · fork / runtime · land-w2 `fix(land w2): work_store.default_brain is a lane` · READY 2026-10-18: move `shipped` + `is_lifecycle_placeholder` to a `policy` module (one owner), re-export from `loop_tool_lifecycles`, and put `default_brain` back on `stores` if W2 keeps it a store · **TAKEN 2026-10-18 w3-misc**
-
 ### Filed on arrival — 2026-10-16 (lane r-realm-lens, branch `q/r-realm-lens`)
 
 - **`RT-LENS-L1-LIVE-PROOF` — Lens L1 has no live proof: a real HTTP feed polled by a running serve, an Episode raised, and the stored evidence row read back redacted** · fork / runtime · r-realm-lens `13cf04f76fa` (no serve started) · BLOCKED 2026-10-16: owner sitting — live: needs an operator serve with `plugins/eternia-lens` shipped
