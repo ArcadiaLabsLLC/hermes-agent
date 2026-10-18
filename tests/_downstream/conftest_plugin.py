@@ -57,7 +57,7 @@ from tests._downstream.idle_box import (  # noqa: F401 — hook re-exports (owne
     pytest_configure_idle_box,
     pytest_runtest_setup_idle_box,
 )
-from tests._downstream import registry_write_fence
+from tests._downstream import child_startup, registry_write_fence
 from tests._downstream.fork_readonly_readers import file_reads_through
 from tests._downstream.id_markers.reasons import (
     ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK as _ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK,
@@ -71,6 +71,8 @@ from tests._downstream.id_markers.reasons import (
 
 # Process-wide, at import: no test in this process writes the real Windows registry.
 registry_write_fence.install()
+# Process-wide, at import: every child a test spawns inherits the start-up shortcut (q-chain).
+child_startup.install()
 
 
 # ── Opt-in test-temp root (suite-perf Stage 7, ruled 2026-09-01) ─────────────

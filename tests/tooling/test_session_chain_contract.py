@@ -229,3 +229,22 @@ def test_a_bash_that_started_is_not_probed_again():
     finally:
         watching.clear()
     assert spawns == []
+
+
+def test_a_spawned_child_gets_the_start_up_shortcut():
+    """``tests/_downstream/child_startup.py``: the environment every test child inherits carries the
+    child-side shortcut (``child_site/sitecustomize``: no git version lookup, no bundled-manifest
+    re-parse, no background update check; ``tests/test_child_startup_downstream.py`` proves those).
+    Mutation: drop ``child_startup.install()`` from ``conftest_plugin``."""
+
+    import subprocess
+
+    from tests._downstream import child_startup
+
+    done = subprocess.run(
+        [sys.executable, "-c", "import os, sitecustomize; print(sitecustomize.__file__); print(os.environ['HERMES_TEST_CHILD_STARTUP'])"],
+        capture_output=True, text=True, timeout=60, check=False)
+    assert done.returncode == 0, done.stderr[-2000:]
+    site_file, snapshot = done.stdout.split()
+    assert Path(site_file).parent == child_startup.CHILD_SITE
+    assert snapshot == os.environ[child_startup.ENV]
