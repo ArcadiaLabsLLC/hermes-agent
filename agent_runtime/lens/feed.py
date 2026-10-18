@@ -10,8 +10,8 @@ they land a manifest naming one is REFUSED with ``feed_kind_unavailable`` — a
 missing capability is reported, never faked.
 
 A feed's URL never carries a credential: userinfo in the URL is refused at the
-reader, because the only place a source secret may live is the hermes credential
-pool, addressed by the feed's opaque ``credential_ref`` (L1, ``lens.credentials``).
+reader, because the only place a source secret may live is the home's Lens
+credential file, addressed by the feed's opaque ``credential_ref`` (L1, ``lens.credentials``).
 
 A feed may declare what its number IS (``value_type``: count, money with its
 currency, an instant in epoch milliseconds) and the range a read must fall in
@@ -122,7 +122,7 @@ _SOURCE_READERS = {
 }
 
 FEED_KEYS_REQUIRED = frozenset({"version", "id", "kind", "interval_ms", "source"})
-#: ``credential_ref`` (L1): an opaque reference into the hermes credential pool
+#: ``credential_ref`` (L1): an opaque reference into the home's Lens credential file
 #: (``lens.credentials``), never the bytes. ``allow_private_network`` (L1, W10):
 #: the explicit opt-in a loopback / private / link-local source needs.
 #: ``value_type`` and ``plausible`` (W2): what the number IS, and the range a read

@@ -1,7 +1,7 @@
 """Lens poll sources: feed kind -> its reader (the table, not a ladder).
 
 :func:`read_feed_source` is the one door a poll or a preview reads through. It
-resolves the feed's ``credential_ref`` from the hermes credential pool FOR THIS
+resolves the feed's ``credential_ref`` from the home's Lens credential file FOR THIS
 READ (``lens.credentials``) and hands the source only the request headers; a
 reference this home does not hold is a ``credential_missing`` read, never an
 unauthenticated one.

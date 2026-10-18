@@ -516,9 +516,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams
 
-### Filed on arrival — 2026-10-16 (lane r-realm-lens, branch `q/r-realm-lens`)
-
-- **`RT-LENS-CREDENTIAL-PREVIEW` — Lens source credentials live in the credential pool's `lens` slice, and upstream's dashboard `GET /api/credentials/pool` (`hermes_cli/web_routers/ops.py::list_credential_pool`) lists that slice with a `redact_key` token preview — the Lens ruling is write-only (set / not set / rotated, never any part of the value); wants a caller-side door (hide a slice by source `manual:lens`) or an upstream issue, never an edit** · seam / credential pool · `agent_runtime/lens/credentials.py` · READY 2026-10-18 · RULED 2026-10-18: a fork-owned 0600 file under `HERMES_HOME/lens/` behind the unchanged `lens.credentials` API (amends launcher plan S2), plus an upstream issue for a listing-hidden pool flag (owner) · **TAKEN 2026-10-18 w2-lens**
 ### Filed on arrival — 2026-10-16 (lane r-turnrec)
 
 
