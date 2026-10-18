@@ -105,6 +105,9 @@ def test_all_resolution_failures_still_return_expanded_home(tmp_path, monkeypatc
     def broken(*_args, **_kwargs):
         raise OSError("resolution unavailable")
 
-    monkeypatch.setattr(plugin_manager_home, "hermes_home_key", broken)
-    monkeypatch.setattr(Path, "resolve", broken)
-    assert plugins._plugin_home_key() == tmp_path.expanduser()
+    # Scoped to the call: a ``Path.resolve`` that raises must not outlive it into fixture teardown.
+    with monkeypatch.context() as patch:
+        patch.setattr(plugin_manager_home, "hermes_home_key", broken)
+        patch.setattr(Path, "resolve", broken)
+        key = plugins._plugin_home_key()
+    assert key == tmp_path.expanduser()

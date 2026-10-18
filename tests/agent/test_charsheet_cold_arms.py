@@ -264,7 +264,9 @@ def test_the_scratch_directory_falls_back_to_a_process_temp_when_the_home_cannot
         raise OSError("no home")
 
     monkeypatch.setattr(fake_draftsman, "_OUT_DIR", None)
-    monkeypatch.setattr(hermes_constants, "get_hermes_home", unreadable_home)
     monkeypatch.setattr(fake_draftsman.tempfile, "tempdir", str(tmp_path))
-    out = fake_draftsman._out_dir()
+    # Scoped to the call: a ``get_hermes_home`` that raises must not outlive it into fixture teardown.
+    with monkeypatch.context() as patch:
+        patch.setattr(hermes_constants, "get_hermes_home", unreadable_home)
+        out = fake_draftsman._out_dir()
     assert out.parent == tmp_path and out.name.startswith("hermes-fake-draftsman-")
