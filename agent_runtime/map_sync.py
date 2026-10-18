@@ -50,15 +50,61 @@ stay the ones their author wrote.
 
 from __future__ import annotations
 
-import hashlib
-import json
-from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
 from . import paths
+from .realm_sync.families import SyncFamily
+from .realm_sync.document_family import (
+    REFUSAL_MISSING_VERSION,
+    REFUSAL_NOT_AN_OBJECT,
+    REFUSAL_TOO_LARGE,
+    REFUSAL_UNREADABLE_DOCUMENT,
+    DocumentError,
+    DocumentFamily,
+    DocumentPullSummary,
+    DocumentStore,
+    apply_document_pull,
+    document_hash,
+    expectation_matches,
+    read_document_baseline,
+    read_remote_documents,
+    stored_sha256,
+    update_document_baseline_after_publish,
+    validate_document,
+    write_document_baseline,
+)
 
 __layer__ = "stores"
+
+__all__ = [
+    "MAP_FAMILY",
+    "MAP_PUBLISHED_PREFIX",
+    "MAX_MAP_DOCUMENT_BYTES",
+    "REFUSAL_MISSING_VERSION",
+    "REFUSAL_NAME_INVALID",
+    "REFUSAL_NAME_TAKEN",
+    "REFUSAL_NOT_AN_OBJECT",
+    "REFUSAL_TOO_LARGE",
+    "REFUSAL_UNREADABLE_DOCUMENT",
+    "REFUSAL_UNREADABLE_LOCAL",
+    "REFUSAL_UNREADABLE_REMOTE",
+    "MapDocumentError",
+    "MapPullSummary",
+    "MapStore",
+    "apply_map_pull",
+    "map_baseline_key",
+    "map_document_hash",
+    "map_document_row",
+    "map_expectation_matches",
+    "map_name_holder",
+    "published_relative_path",
+    "read_map_baseline",
+    "read_remote_maps",
+    "stored_map_sha256",
+    "update_map_baseline_after_publish",
+    "validate_map_document",
+    "write_map_baseline",
+]
 
 #: Published subtree prefix for this family. Unknown to every older hermes:
 #: ``_destination_for_sync_path`` answers ``None`` for it through the final
@@ -72,12 +118,6 @@ MAP_PUBLISHED_PREFIX = "store/maps/"
 #: refuses anything larger on the receiving end.
 MAX_MAP_DOCUMENT_BYTES = 1024 * 1024
 
-#: The bytes are not UTF-8, or not JSON at all.
-REFUSAL_UNREADABLE_DOCUMENT = "unreadable_document"
-#: Valid JSON, but not an object.
-REFUSAL_NOT_AN_OBJECT = "not_an_object"
-#: No numeric ``version`` — the fact every store on the other end gates on.
-REFUSAL_MISSING_VERSION = "missing_version"
 #: No non-empty string ``name``. THIS family's extra arm, and the reason it
 #: exists is the report: a catalogue entry whose name is absent resolves to
 #: ``unnamed`` on arrival exactly as a missing entry does, so storing one would
@@ -93,8 +133,6 @@ REFUSAL_NAME_INVALID = "name_invalid"
 #: raised by :func:`validate_map_document`. See :func:`map_name_holder` for where
 #: it IS asked and, more importantly, where it is not.
 REFUSAL_NAME_TAKEN = "name_taken"
-#: Over :data:`MAX_MAP_DOCUMENT_BYTES`.
-REFUSAL_TOO_LARGE = "document_too_large"
 #: The LOCAL stored map exists and will not read. Refused rather than reported
 #: absent: absent drives the ADOPT arm, and adopting over a file this machine
 #: could not read would overwrite a catalogue entry nobody has seen.
@@ -114,97 +152,80 @@ _REFUSAL_MESSAGES = {
 }
 
 
-def _refusal(key: str, code: str, *, message: str | None = None) -> dict[str, str]:
-    return {"key": key, "code": code, "message": message or _REFUSAL_MESSAGES.get(code, code)}
+class MapDocumentError(DocumentError):
+    """A map document this runtime refuses to store or publish (typed ``code``,
+    for ``LevelDocumentError``'s reason)."""
+
+    messages = _REFUSAL_MESSAGES
 
 
-class MapDocumentError(ValueError):
-    """A map document this runtime refuses to store or publish.
+class MapPullSummary(DocumentPullSummary):
+    """The map pull's accounting, carried on a pull ack as ``result["map_sync"]``
+    — :class:`DocumentPullSummary`'s arms. ``upstream_absent`` is never a delete,
+    and here that ruling is the FIX: a catalogue entry silently removed on pull
+    is the ``unnamed`` caption the owner reported."""
 
-    Carries the typed ``code`` for ``LevelDocumentError``'s reason: the CLI's
-    exit taxonomy, the publish scan's refusal list and the pull's per-entity
-    isolation all spend the code, and none of them should be re-deriving it from
-    a sentence.
-    """
-
-    def __init__(self, code: str, message: str | None = None):
-        super().__init__(message or _REFUSAL_MESSAGES.get(code, code))
-        self.code = code
+    __slots__ = ()
 
 
-# --- the three facts hermes reads -------------------------------------------
+def _require_name(parsed: dict[str, Any]) -> None:
+    """THIS family's extra fact: a non-empty string ``name``."""
+
+    name = parsed.get("name")
+    if not isinstance(name, str) or not name.strip():
+        raise MapDocumentError(REFUSAL_NAME_INVALID)
+
+
+#: The map family: one document per MAP ID (the launcher's ``SavedMapId``).
+MAP_FAMILY = DocumentFamily(
+    noun="map",
+    published_prefix=MAP_PUBLISHED_PREFIX,
+    max_bytes=MAX_MAP_DOCUMENT_BYTES,
+    error=MapDocumentError,
+    messages=_REFUSAL_MESSAGES,
+    refusal_unreadable_local=REFUSAL_UNREADABLE_LOCAL,
+    refusal_unreadable_remote=REFUSAL_UNREADABLE_REMOTE,
+    token_field="map_token",
+    document_path=lambda token: paths.map_path(token),
+    store_root=lambda: paths.maps_root(),
+    baseline_path=lambda realm_id: paths.map_baseline_path(realm_id),
+    conflict_path=lambda realm_id, token: paths.map_conflict_path(realm_id, token),
+    conflict_dir=lambda realm_id: paths.realm_sync_root() / paths.safe_path_token(realm_id) / "map_conflicts",
+    sync_kind=SyncFamily.MAP,
+    unreadable_reason="map_unreadable",
+    summary_type=MapPullSummary,
+    extra_check=_require_name,
+)
+
+
+# --- the three facts hermes reads (``document_family``) -----------------------
 
 
 def validate_map_document(raw: bytes) -> dict[str, Any]:
     """Refuse anything that is not a size-bounded JSON object with ``version``
-    and a non-empty ``name``.
+    and a non-empty ``name``. Returns the parsed object for the caller's
+    accounting; never what is stored."""
 
-    Returns the parsed object for the CALLER's accounting (the CLI prints the
-    name it accepted). **It is never what gets stored** — every writer in this
-    module writes ``raw``.
-    """
-
-    if len(raw) > MAX_MAP_DOCUMENT_BYTES:
-        raise MapDocumentError(REFUSAL_TOO_LARGE)
-    try:
-        parsed = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, ValueError) as exc:
-        raise MapDocumentError(REFUSAL_UNREADABLE_DOCUMENT) from exc
-    if not isinstance(parsed, dict):
-        raise MapDocumentError(REFUSAL_NOT_AN_OBJECT)
-    version = parsed.get("version")
-    if not isinstance(version, (int, float)) or isinstance(version, bool):
-        raise MapDocumentError(REFUSAL_MISSING_VERSION)
-    name = parsed.get("name")
-    if not isinstance(name, str) or not name.strip():
-        raise MapDocumentError(REFUSAL_NAME_INVALID)
-    return parsed
+    return validate_document(MAP_FAMILY, raw)
 
 
 def map_document_hash(raw: bytes) -> str:
-    """Semantic content hash of one map document — the MERGE key.
+    """Semantic content hash of one map document — the MERGE key."""
 
-    Parses and re-serialises canonically (sorted keys, no whitespace) so the
-    merge keys on the JSON VALUE. The stored bytes are untouched by this;
-    nothing here is ever written back.
-    """
-
-    parsed = validate_map_document(raw)
-    canonical = json.dumps(parsed, sort_keys=True, separators=(",", ":"), default=str)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return document_hash(MAP_FAMILY, raw)
 
 
 def stored_map_sha256(raw: bytes) -> str:
-    """Hash of the STORED BYTES — the compare-and-set token, not the merge key.
+    """Hash of the STORED BYTES — the compare-and-set token, not the merge key."""
 
-    Named apart from :func:`map_document_hash` for the reason
-    ``stored_level_sha256`` states: a re-indentation changes THIS one, which is
-    what a compare-and-set caller needs, while the semantic hash would call that
-    write a no-op and let a lost update through.
-    """
-
-    return hashlib.sha256(raw).hexdigest()
+    return stored_sha256(raw)
 
 
-def map_expectation_matches(
-    stored: bytes | None, expect_sha256: str | None, *, provided: bool
-) -> bool:
-    """Does the store still hold what a compare-and-set caller last read?
+def map_expectation_matches(stored: bytes | None, expect_sha256: str | None, *, provided: bool) -> bool:
+    """Compare-and-set check (``document_family.expectation_matches``); the
+    ``None`` arm catches two machines minting the same map id at once."""
 
-    The level family's three states, unchanged:
-
-    - ``provided=False`` — UNCONDITIONAL.
-    - ``expect_sha256 is None`` — "there must be nothing stored", the arm that
-      catches two machines minting the same map id at once.
-    - a hex string — it must equal the sha256 of the STORED BYTES.
-    """
-
-    if not provided:
-        return True
-    current = stored_map_sha256(stored) if stored is not None else None
-    if expect_sha256 is None:
-        return current is None
-    return current is not None and current.lower() == str(expect_sha256).lower()
+    return expectation_matches(stored, expect_sha256, provided=provided)
 
 
 def map_document_row(map_id: str, raw: bytes | None, *, full: bool = False) -> dict[str, Any]:
@@ -300,7 +321,7 @@ def map_name_holder(map_id: str, raw: bytes) -> str | None:
 def map_baseline_key(map_token: str) -> str:
     """This family's baseline key, namespaced like every sibling family's."""
 
-    return f"map:{map_token}"
+    return MAP_FAMILY.baseline_key(map_token)
 
 
 def published_relative_path(map_id: str) -> str:
@@ -312,199 +333,49 @@ def published_relative_path(map_id: str) -> str:
     return f"{MAP_PUBLISHED_PREFIX}{paths.safe_path_token(map_id)}.json"
 
 
-# --- the store door ---------------------------------------------------------
+# --- the store door -----------------------------------------------------------
 
 
-class MapStore:
-    """Read, write, clear and list the map catalogue.
+class MapStore(DocumentStore):
+    """Read, write, clear and list the map catalogue — THE door
+    (``document_family.DocumentStore``). **A clear is local**: a cleared map the
+    realm still publishes comes back on the next pull, and that matters MORE
+    here — a catalogue entry deleted on one machine is the reported defect."""
 
-    THE door. Both the CLI verbs and the realm-sync pull applier write through
-    it, so "hermes accepted this map" means one thing on this machine.
-    """
-
-    def read(self, map_id: str) -> bytes | None:
-        """The stored bytes, or ``None`` when the catalogue holds no such map."""
-
-        path = paths.map_path(map_id)
-        try:
-            return path.read_bytes() if path.is_file() else None
-        except OSError:
-            return None
-
-    def write(self, map_id: str, raw: bytes) -> dict[str, Any]:
-        """Store ``raw`` VERBATIM after validating it, and report what happened.
-
-        Writing BYTES is load-bearing rather than tidy, for the reason
-        ``LevelStore.write`` states: a text-mode write translates ``\\n`` to the host's
-        line ending, which on Windows would make hermes rewrite every line of a
-        document it promised not to touch, and the publish lane's own EOL
-        canonicalisation would then report a change on a no-op set.
-        """
-
-        from utils import atomic_write_bytes
-
-        validate_map_document(raw)
-        path = paths.map_path(map_id)
-        before = self.read(map_id)
-        if before == raw:
-            return {"path": path, "changed": False}
-        atomic_write_bytes(path, raw)
-        return {"path": path, "changed": True}
-
-    def clear(self, map_id: str) -> dict[str, Any]:
-        """Delete one catalogue entry, and say whether one was there.
-
-        ``changed: False`` for a map nothing held is an honest answer, not an
-        error — the reading that makes a clear IDEMPOTENT for a launcher that
-        retries.
-
-        **A clear is local.** It removes nothing from a realm and writes no
-        baseline: the pull's ``upstream_absent`` arm is deliberately never a
-        delete, so a cleared map that the realm still publishes comes back on the
-        next pull. That is the family's ruling, inherited whole from the level
-        family, and it matters MORE here — a catalogue entry deleted on one
-        machine is the reported defect reproduced on purpose.
-        """
-
-        path = paths.map_path(map_id)
-        existed = path.is_file()
-        try:
-            path.unlink(missing_ok=True)
-        except OSError:
-            if path.is_file():
-                raise
-            existed = False
-        return {"path": path, "changed": existed}
+    family = MAP_FAMILY
 
     def list_map_tokens(self) -> list[str]:
         """Every map token this store holds, sorted."""
 
-        root = paths.maps_root()
-        if not root.is_dir():
-            return []
-        return sorted(path.stem for path in root.glob("*.json") if path.is_file())
+        return self.list_tokens()
 
 
 # --- baseline sidecar (never synced, never published) ------------------------
 
 
 def read_map_baseline(realm_id: str) -> dict[str, str]:
-    path = paths.map_baseline_path(realm_id)
-    if not path.exists():
-        return {}
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    entries = raw.get("entries") if isinstance(raw, dict) else None
-    return {str(k): str(v) for k, v in entries.items()} if isinstance(entries, dict) else {}
+    return read_document_baseline(MAP_FAMILY, realm_id)
 
 
 def write_map_baseline(realm_id: str, entries: dict[str, str]) -> None:
-    from utils import atomic_json_write
-
-    atomic_json_write(
-        paths.map_baseline_path(realm_id),
-        {"schema_version": 1, "entries": entries},
-        indent=2,
-        sort_keys=True,
-    )
+    write_document_baseline(MAP_FAMILY, realm_id, entries)
 
 
 def update_map_baseline_after_publish(realm_id: str, hashes: dict[str, str]) -> None:
-    """Record the published maps' hashes as the new baseline.
+    """Record the published maps' hashes as the new baseline, so a publisher's
+    next pull is not handed a held catalogue."""
 
-    Without it a member who publishes and then pulls reads the catalogue they
-    just shipped as locally-edited-and-remotely-changed, and this family answers
-    a two-sided divergence with a HOLD — so the publisher would be handed a held
-    catalogue over content nobody disagreed about.
-    """
-
-    baseline = read_map_baseline(realm_id)
-    for token, body_hash in hashes.items():
-        baseline[map_baseline_key(token)] = body_hash
-    write_map_baseline(realm_id, baseline)
+    update_document_baseline_after_publish(MAP_FAMILY, realm_id, hashes)
 
 
 # --- pull: adopt, keep or HOLD — whole document, never merged ----------------
 
 
 def read_remote_maps(subtree) -> tuple[dict[str, bytes], list[dict[str, str]]]:
-    """Map bytes carried by a pulled realm subtree, keyed by map token.
+    """Map bytes carried by a pulled realm subtree, keyed by map token;
+    ``(maps, refused)`` — an unreadable file is refused by name, never omitted."""
 
-    ``(maps, refused)``. A file under the prefix that will not read is REFUSED
-    by name rather than omitted: an omission is indistinguishable from "the realm
-    stopped publishing this map", which drives the ``upstream_absent`` arm, and
-    answering a read failure with a removal-shaped decision is the mistake this
-    family cannot afford to make about a catalogue.
-    """
-
-    root = Path(subtree).joinpath(*MAP_PUBLISHED_PREFIX.strip("/").split("/"))
-    maps: dict[str, bytes] = {}
-    refused: list[dict[str, str]] = []
-    if not root.is_dir():
-        return maps, refused
-    for path in sorted(root.glob("*.json")):
-        if not path.is_file():
-            continue
-        token = path.stem
-        try:
-            raw = path.read_bytes()
-            validate_map_document(raw)
-        except (OSError, MapDocumentError) as exc:
-            code = getattr(exc, "code", REFUSAL_UNREADABLE_REMOTE)
-            refused.append(
-                _refusal(token, REFUSAL_UNREADABLE_REMOTE, message=_REFUSAL_MESSAGES.get(code, code))
-            )
-            continue
-        maps[token] = raw
-    return maps, refused
-
-
-@dataclass(slots=True)
-class MapPullSummary:
-    """Typed accounting for the map pull, carried on a pull ack as
-    ``result["map_sync"]``.
-
-    The level family's arms, meaning the same things:
-
-    - ``adopted`` — the realm's map was written whole, through the store door.
-    - ``converged`` — local already equals remote; nothing written.
-    - ``kept_local`` — this machine changed the map and the realm did not.
-    - ``held`` — BOTH sides changed it; local untouched, remote parked.
-    - ``upstream_absent`` — the realm no longer carries a map this baseline says
-      it published. **Never a delete**, and here that ruling is the FIX: a
-      catalogue entry silently removed on pull is the ``unnamed`` caption the
-      owner reported, produced by hermes instead of by SharedPreferences.
-    - ``refused`` — a published map that will not read, or a local one that will.
-
-    ``source`` is ``None`` when the subtree carries no map directory at all — an
-    older publisher, or a realm whose install never saved a named map. Absence is
-    never a removal, which is why the key is emitted unconditionally.
-    """
-
-    adopted: list[str] = field(default_factory=list)
-    converged: list[str] = field(default_factory=list)
-    kept_local: list[str] = field(default_factory=list)
-    held: list[str] = field(default_factory=list)
-    upstream_absent: list[str] = field(default_factory=list)
-    refused: list[dict[str, str]] = field(default_factory=list)
-    source: str | None = None
-
-    @property
-    def changed(self) -> bool:
-        return bool(self.adopted)
-
-    def as_dict(self) -> dict[str, Any]:
-        return {
-            "adopted": sorted(set(self.adopted)),
-            "converged": sorted(set(self.converged)),
-            "kept_local": sorted(set(self.kept_local)),
-            "held": sorted(set(self.held)),
-            "upstream_absent": sorted(set(self.upstream_absent)),
-            "refused": list(self.refused),
-            "source": self.source,
-        }
+    return read_remote_documents(MAP_FAMILY, subtree)
 
 
 def apply_map_pull(realm_id: str, subtree) -> MapPullSummary:
@@ -519,98 +390,4 @@ def apply_map_pull(realm_id: str, subtree) -> MapPullSummary:
     module's.
     """
 
-    from .sync_merge import PullAction, classify_three_way_pull
-
-    summary = MapPullSummary()
-    root = Path(subtree).joinpath(*MAP_PUBLISHED_PREFIX.strip("/").split("/"))
-    if not root.is_dir():
-        # Not published. Never a removal — no baselined map is touched, so an
-        # older peer in the rotation cannot strand this machine's catalogue.
-        return summary
-    summary.source = "subtree"
-    remote, refused = read_remote_maps(subtree)
-    summary.refused.extend(refused)
-
-    store = MapStore()
-    baseline = read_map_baseline(realm_id)
-    prefix = map_baseline_key("")
-    baselined = {key[len(prefix) :] for key in baseline if key.startswith(prefix)}
-    for token in sorted(set(remote) | baselined):
-        remote_raw = remote.get(token)
-        # A token that refused above is neither adopted nor treated as absent:
-        # it is already named on ``refused`` and must not fall into the
-        # upstream_absent arm, which is delete-SHAPED reporting about a file that
-        # is right there and merely would not open.
-        if remote_raw is None and any(row["key"] == token for row in refused):
-            continue
-        try:
-            local_raw = store.read(token)
-            local_hash = map_document_hash(local_raw) if local_raw is not None else None
-        except MapDocumentError:
-            summary.refused.append(_refusal(token, REFUSAL_UNREADABLE_LOCAL))
-            continue
-        if remote_raw is None:
-            summary.upstream_absent.append(token)
-            continue
-        remote_hash = map_document_hash(remote_raw)
-        decision = classify_three_way_pull(
-            local_hash, remote_hash, baseline.get(map_baseline_key(token))
-        )
-        if decision.action is PullAction.NOOP:
-            summary.converged.append(token)
-            continue
-        if decision.action is PullAction.KEEP_LOCAL:
-            summary.kept_local.append(token)
-            continue
-        if decision.action is PullAction.CONFLICT:
-            summary.held.append(token)
-            _write_conflict_sidecar(realm_id, token, remote_raw, local_hash, remote_hash)
-            continue
-        if decision.action is PullAction.ARCHIVE_LOCAL:
-            # Unreachable with ``remote_raw`` in hand — the classifier only
-            # answers ARCHIVE_LOCAL for an absent remote, which the arm above
-            # already took. Named rather than folded into the adopt arm so a
-            # future classifier change cannot silently start overwriting a
-            # catalogue entry on a removal decision.
-            summary.upstream_absent.append(token)
-            continue
-        store.write(token, remote_raw)
-        baseline[map_baseline_key(token)] = remote_hash
-        summary.adopted.append(token)
-    if summary.adopted:
-        write_map_baseline(realm_id, baseline)
-    return summary
-
-
-def _write_conflict_sidecar(
-    realm_id: str,
-    map_token: str,
-    remote_raw: bytes,
-    local_hash: str | None,
-    remote_hash: str | None,
-) -> None:
-    """Park the catalogue entry a HOLD refused to adopt.
-
-    Best-effort: a sidecar this machine cannot write is not a reason to clobber
-    the map the hold exists to protect. The remote bytes are carried as TEXT
-    rather than re-parsed JSON so the parked copy is the one the publisher wrote.
-    """
-
-    from utils import atomic_json_write
-
-    try:
-        atomic_json_write(
-            paths.map_conflict_path(realm_id, map_token),
-            {
-                "schema_version": 1,
-                "realm_id": realm_id,
-                "map_token": map_token,
-                "local_hash": local_hash,
-                "remote_hash": remote_hash,
-                "remote_document": remote_raw.decode("utf-8", errors="replace"),
-            },
-            indent=2,
-            sort_keys=True,
-        )
-    except Exception:  # noqa: BLE001 — the HOLD stands with or without its receipt
-        pass
+    return apply_document_pull(MAP_FAMILY, realm_id, subtree)  # type: ignore[return-value]

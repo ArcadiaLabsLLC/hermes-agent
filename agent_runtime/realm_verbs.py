@@ -33,6 +33,7 @@ __all__ = [
     "realm_agent_selection_envelope",
     "realm_agents_set",
     "realm_agents_show",
+    "realm_mark_revoked",
     "realm_skill_selection_envelope",
     "realm_skills_set",
     "realm_skills_show",
@@ -252,3 +253,16 @@ def realm_adopt(
         )
     adopted = adopt_realms(credential, server_id=server_id, dry_run=dry_run)
     return attach_root_observability(list_envelope("realm", sort_rows([realm_row(item) for item in adopted], sort)))
+
+
+def realm_mark_revoked(realm_id: str, *, reason: Any) -> dict:
+    """Record backend ``realm.revoked`` for this install (``realm_sync.revocation``):
+    the realm and its local data stay, its credentialed sync verbs refuse
+    ``realm_revoked`` until a re-adopt. ``reason`` is a ``RealmRevokedReason``.
+    Method lane only (no argv twin)."""
+    from .realm_sync.revocation import mark_realm_revoked
+    from .store import RealmStore
+
+    realm = RealmStore().get(realm_id)
+    mark = mark_realm_revoked(realm, reason)
+    return attach_root_observability(object_envelope("realm_revocation", {"realm_id": realm.id, **mark}))

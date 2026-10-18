@@ -181,6 +181,7 @@ ERROR_EXIT_CODES = {
     "role_insufficient": 5,
     "provider_auth_expired": 5,
     "sync_auth_failed": 5,
+    "realm_revoked": 5,
     # State / precondition (6)
     "proof_missing": 6,
     "needs_operator_confirm": 6,

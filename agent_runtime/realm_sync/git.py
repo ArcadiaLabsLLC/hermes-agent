@@ -62,6 +62,13 @@ def _authorize(realm: Realm, action: str, membership: RealmMembershipProvider | 
     error's code. See that function for the floor — no local repo, no degrade.
     """
 
+    from .revocation import refuse_if_revoked
+
+    if credential is not None:
+        from ..realm_membership import require_credential_admits
+
+        require_credential_admits(realm, credential)
+    refuse_if_revoked(realm, credential_admitted=credential is not None)
     if membership is None:
         if not _looks_like_remote(str(realm.sync_manifest_ref or "")):
             membership = RealmMembershipProvider()

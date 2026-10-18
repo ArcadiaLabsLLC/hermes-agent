@@ -1,4 +1,4 @@
-"""``runtime.realm.*`` — the ten realm verbs the launcher runs, on the method lane.
+"""``runtime.realm.*`` — the ten realm verbs the launcher runs, on the method lane (plus ``revoked``, lane-only).
 
 Each handler validates its params, calls :mod:`agent_runtime.realm_verbs` (the
 one implementation the argv verbs also call) and returns the argv verb's
@@ -51,7 +51,7 @@ from agent_runtime.serve_rpc.registry import method
 
 __layer__ = "lanes"
 
-__all__ = ["REASON_CODES", "REALM_METHODS"]
+__all__ = ["REALM_LANE_ONLY_METHODS", "REASON_CODES", "REALM_METHODS"]
 
 #: ``data.reason`` -> JSON-RPC code.
 REASON_CODES: dict[str, int] = {
@@ -66,6 +66,7 @@ REASON_CODES: dict[str, int] = {
     "sync_behind": ERR_CONFLICT,
     "sync_secret_excluded": ERR_CONFLICT,
     "sync_remote_unreachable": ERR_HANDLER_FAILED,
+    "realm_revoked": ERR_CONFLICT,
 }
 
 
@@ -222,6 +223,23 @@ def _adopt(p: dict) -> dict:
                        sort=_param_text(p, "sort"))
 
 
+def _revoked(p: dict) -> dict:
+    """Params: ``realm_id``, ``reason`` — a ``RealmRevokedReason`` (the
+    ``realm.revoked`` event's) or a credential-mint refusal ``error.code``
+    (``realms.git_host_unbound`` / ``realms.git_host_binding_lost``)."""
+    from agent_runtime.realm_sync.revocation import BACKEND_REFUSAL_REASONS, RealmRevokedReason
+    from agent_runtime.realm_verbs import realm_mark_revoked
+
+    realm_id, reason = _realm(p), _param_text(p, "reason", required=True)
+    try:
+        typed = BACKEND_REFUSAL_REASONS.get(reason) or RealmRevokedReason(reason)
+    except ValueError:
+        raise _Refused(
+            "invalid_request", "reason must be one of " + ", ".join(item.value for item in RealmRevokedReason)
+        ) from None
+    return realm_mark_revoked(realm_id, reason=typed)
+
+
 #: method name -> verb body. One table, so a test can iterate it and a verb is
 #: registered by adding a row. The params each honours are on its body above.
 REALM_METHODS: dict[str, Callable[[dict], dict]] = {
@@ -235,6 +253,13 @@ REALM_METHODS: dict[str, Callable[[dict], dict]] = {
     "runtime.realm.agents.show": _agents_show,
     "runtime.realm.agents.set": _agents_set,
     "runtime.realm.adopt": _adopt,
+}
+
+#: Method-lane-only realm verbs (no argv twin): ``runtime.realm.revoked`` is the
+#: launcher recording backend ``realm.revoked`` — hermes holds no realtime
+#: subscription of its own.
+REALM_LANE_ONLY_METHODS: dict[str, Callable[[dict], dict]] = {
+    "runtime.realm.revoked": _revoked,
 }
 
 
@@ -264,5 +289,5 @@ def _register(name: str, body: Callable[[dict], dict]) -> None:
     _handler.__doc__ = f"``{name}`` — the argv verb's envelope; see :mod:`agent_runtime.realm_verbs`."
 
 
-for _name, _body in REALM_METHODS.items():
+for _name, _body in (*REALM_METHODS.items(), *REALM_LANE_ONLY_METHODS.items()):
     _register(_name, _body)

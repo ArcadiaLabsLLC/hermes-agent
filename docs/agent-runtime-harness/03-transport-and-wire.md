@@ -1089,6 +1089,20 @@ chat send of a new chat was accepted only after it (`send_to_admit_ms=2564`, tur
 runs them one at a time among themselves (`_REALM_VERB_LOCK`), which is the serialization the
 inline lane used to give them for free.
 
+**`runtime.realm.revoked` records backend `realm.revoked` (2026-10-18, lane w2-realm).** Hermes
+holds no realtime subscription and no credential between calls, so the launcher, which receives
+the durable `personal:` event, forwards `{realm_id, reason}` (the backend's `RealmRevokedReason`).
+`agent_runtime/realm_sync/revocation.py` writes `realm_sync_state/<realm>.revoked.json`: the realm
+and its local data stay, the snapshot's realm `sync.revoked` carries `{reason, revoked_at,
+host_state}` (`host_state` true for `git_host_unbound`), and every credentialed sync verb refuses
+`realm_revoked` (not retryable) before any network call — `status` degrades to its local half. A
+re-adopt lifts the mark. Method lane only; it rides `_REALM_VERB_LOCK` with the ten. The credential
+mint's permanent `409 realms.git_host_unbound` / `409 realms.git_host_binding_lost` are forwarded
+through the same verb (`reason` may be either `error.code`, `BACKEND_REFUSAL_REASONS`) and become
+host-state marks — never `sync_remote_unreachable`, the retryable 503's word. No `realm.granted`
+follows a reconnect, so a host-state mark is lifted by the next call carrying an admitted credential
+(the mint re-verified the binding); a membership mark is lifted only by a re-adopt.
+
 ## 3. The mission-control stream
 
 `agent_runtime/stream/session.py::stream_frames` (the whole function at `:1221`) is the single producer body.
