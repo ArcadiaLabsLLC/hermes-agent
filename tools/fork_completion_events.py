@@ -1,7 +1,8 @@
 """Fork-owned ``completion_queue`` event types: one table row per type, read by every upstream drain.
 
 ``process_registry.completion_queue`` is upstream's; the fork puts its own event types on it (an MCP
-server's job wake, ``tools/mcp_job_wake.py``). Each upstream consumer that must treat a fork type
+server's job wake, ``tools/mcp_job_wake.py``; a promoted long tool call's finish,
+``tools/long_tool_calls.py``). Each upstream consumer that must treat a fork type
 differently from a process completion reads THIS table through one additive seam, so a new fork
 type is a new row here and never another upstream hunk:
 
@@ -20,7 +21,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Optional
 
-from tools import mcp_job_wake
+from tools import long_tool_calls, mcp_job_wake
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,9 @@ class ForkCompletionEvent:
 FORK_COMPLETION_EVENTS: Mapping[str, ForkCompletionEvent] = {
     mcp_job_wake.EVENT_TYPE: ForkCompletionEvent(
         format=mcp_job_wake.format_job_finished, settle=mcp_job_wake.note_wake_settled,
+    ),
+    long_tool_calls.EVENT_TYPE: ForkCompletionEvent(
+        format=long_tool_calls.format_tool_call_finished, settle=long_tool_calls.note_wake_settled,
     ),
 }
 

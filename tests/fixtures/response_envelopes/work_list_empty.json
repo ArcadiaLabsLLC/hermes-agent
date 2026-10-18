@@ -77,6 +77,10 @@
       "terminal": {
         "lane": "durable",
         "status": "ok"
+      },
+      "tool_call": {
+        "lane": "durable",
+        "status": "ok"
       }
     },
     "truncated": false

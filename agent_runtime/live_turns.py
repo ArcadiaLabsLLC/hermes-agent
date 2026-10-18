@@ -39,9 +39,11 @@ __layer__ = "stores"
 __all__ = [
     "LiveToolCall",
     "LiveTurn",
+    "call_on_thread",
     "interrupt_turn",
     "live_turn",
     "live_turn_view",
+    "set_call_worker",
     "tool_finished",
     "tool_started",
 ]
@@ -92,6 +94,9 @@ class _Call:
     tid: int
     started_at: float = field(default_factory=time.time)
     started_mono: float = field(default_factory=time.monotonic)
+    #: The thread actually executing the call when a long-call bracket moved it onto a worker
+    #: (``tools/long_tool_calls.py``); the foreground / MCP-progress joins key on this one.
+    exec_tid: int | None = None
 
 
 @dataclass
@@ -166,6 +171,29 @@ def tool_finished(turn_id: str | None, call_id: Any) -> None:
         turn = _turns.get(key)
         if turn is not None:
             turn.calls.pop(call, None)
+
+
+def call_on_thread(tid: int) -> tuple[str, str, str] | None:
+    """``(turn_id, call_id, tool_name)`` of the live call that STARTED on thread *tid*, else None.
+
+    The long-call bracket's arming test: only a serve turn's own tool thread answers."""
+
+    with _lock:
+        for turn in _turns.values():
+            for call in turn.calls.values():
+                if call.tid == tid:
+                    return turn.turn_id, call.call_id, call.tool_name
+    return None
+
+
+def set_call_worker(turn_id: str | None, call_id: Any, tid: int) -> None:
+    """The long-call bracket moved this call onto worker thread *tid*. Unknown call: no-op."""
+
+    with _lock:
+        turn = _turns.get(str(turn_id or "").strip())
+        call = turn.calls.get(str(call_id or "").strip()) if turn is not None else None
+        if call is not None:
+            call.exec_tid = tid
 
 
 def conversation_agents(session_id: str, persona_instance_id: str) -> tuple[Any, ...]:
@@ -249,8 +277,8 @@ def live_turn_view(turn_id: str | None) -> LiveTurn | None:
                 started_at=call.started_at,
                 elapsed_seconds=round(max(0.0, now - call.started_mono), 1),
                 timeout_seconds=call.timeout_seconds,
-                foreground=foreground.get(call.tid),
-                mcp_progress=mcp_progress.get(call.tid),
+                foreground=foreground.get(call.exec_tid or call.tid),
+                mcp_progress=mcp_progress.get(call.exec_tid or call.tid),
             )
             for call in calls
         ),

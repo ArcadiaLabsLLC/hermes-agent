@@ -20,6 +20,7 @@ from typing import Callable, Dict, List, Optional, Set
 
 from hermes_constants import hermes_home_key, normalize_scope
 from tools import mcp_progress_relay as _mcp_progress_relay  # fork: stdlib-only, cycle-safe
+from tools import long_tool_calls as _long_tool_calls  # fork: RT-LONG-TOOL-CALLS-BACKGROUND, stdlib-only
 from tools.registry_probe_accounting import _note_check_fn_probe, _probe_round, bump_check_fn_epoch, check_fn_epoch, probe_rounds_this_thread  # fork: probe accounting; the last two re-exported
 
 logger = logging.getLogger(__name__)
@@ -920,6 +921,8 @@ class ToolRegistry:
         entry = self.get_entry(name, scope=scope)
         if not entry:
             return tool_error(f"Unknown tool: {name}")
+        if _long_tool_calls.armed(name, entry):  # fork: a serve turn's call moves to the background past its threshold
+            return _long_tool_calls.bracket(name, args, kwargs, lambda: self.dispatch(name, args, scope=scope, **kwargs), entry=entry)
         _mcp_progress = _mcp_progress_relay.enter_dispatch(args, entry.toolset)  # fork: MCP progress joins this thread
         try:
             # Plugin contract (plugins/AGENTS.md): optional context kwargs (task_id, session_id, user_task,

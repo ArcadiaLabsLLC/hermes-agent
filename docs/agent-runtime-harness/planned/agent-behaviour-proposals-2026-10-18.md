@@ -65,6 +65,16 @@ it), and the serve drain forges a continuation turn through the mission-chat doo
 (proposed: `clarify`, approval-bearing terminal calls, anything mutating the conversation), and
 whether the agent may itself request promotion.
 
+**Built, runtime half (lane w2-turn, 2026-10-18; owner approved the design the same day).**
+`tools/long_tool_calls.py` (the bracket, the `tool_call_finished` row in
+`tools/fork_completion_events.py`, `tool_calls.json`); `running_work`'s `BackgroundToolCallLane`
+(kind `tool_call`, `background: true`, source `tool_call`); the chat-turn row's
+`current_tool.promotable`; `runtime.work.background.promote` (Send to background) and the existing
+`runtime.work.cancel` (Cancel; a promoted row cancels through the worker's interrupt bit). Armed
+only on a live serve turn's tool thread; `NEVER_PROMOTE` = `clarify`, `terminal` (its own
+`background=true` door), `process`, `delegate_task`, `execute_code`, `todo`, `memory`; the agent
+cannot request promotion itself (not ruled). The launcher card is the launcher's row.
+
 ## 3. `AutonomyLevel.APPLY_WITH_REVIEW`
 
 **What is true.** `agent_runtime/personas.py::AutonomyLevel` has three members; the stored field
