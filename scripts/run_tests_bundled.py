@@ -46,9 +46,9 @@ The runner's core (``assign_bundles``, ``tally_events``, ``effective_bundle_rc``
 ``run_tests_parallel.py`` as a ``--bundle-size`` flag.
 
 Usage:
-    python scripts/run_tests_bundled.py [--scope fork|full] [--since REF | --since-merge SHA] [--bundle-size N] [-j N] [PATH ...] [pytest args]
-    scripts/run_tests_bundled.sh tests/agent_runtime tests/hermes_cli tests/hermes_state  # landing gate (fork scope)
-    scripts/run_tests_bundled.sh --scope full tests/agent_runtime tests/hermes_cli tests/hermes_state  # weekly merge lane
+    python scripts/run_tests_bundled.py [--since REF | --since-merge SHA] [--bundle-size N] [-j N] [PATH ...] [pytest args]
+    scripts/run_tests_bundled.sh tests  # landing gate (fork scope)
+    scripts/run_tests_bundled.sh --since-merge <merge> tests  # release merge
 
 Exit code: 0 if every file passed (alone or in its bundle); 1 otherwise.
 """
@@ -178,6 +178,7 @@ def bundle_timeout(
 
 scope = _load_sibling("run_tests_bundled_scope")
 SCOPE_FORK, SCOPE_FULL, _DEFAULT_SINCE = scope.SCOPE_FORK, scope.SCOPE_FULL, scope._DEFAULT_SINCE
+SCOPE_FEATURES = scope.SCOPE_FEATURES
 ScopeSelection, select_scope, load_manifest, changed_paths = (
     scope.ScopeSelection, scope.select_scope, scope.load_manifest, scope.changed_paths
 )
@@ -188,6 +189,7 @@ module_of, convention_sources, imported_modules = scope.module_of, scope.convent
 # The plugin's events folded into per-file tallies: scripts/run_tests_bundled_events.py.
 
 _events = _load_sibling("run_tests_bundled_events")
+diag = _load_sibling("run_tests_bundled_diag")  # per-file diagnosis: phases, spawns, plugin discovery, sleeps
 FileTally, BundleEvents, _CATEGORIES = _events.FileTally, _events.BundleEvents, _events._CATEGORIES
 tally_events, effective_bundle_rc, members_to_rerun = (
     _events.tally_events, _events.effective_bundle_rc, _events.members_to_rerun
@@ -331,7 +333,7 @@ class _Run:
         self.bundles, self.durations, self.flat_timeout = bundles, durations, flat_timeout
         self.known_reds, self.bundle_runner, self.solo_runner = known_reds, bundle_runner, solo_runner
         self.on_outcome = on_outcome
-        self.ledger = plan.RunLedger()
+        self.ledger = plan.RunLedger(diagnosis=diag.Diagnosis())
         self.solo_seq = iter(range(1 << 30))
         self.lock = threading.Lock()
         self.outcomes: list[FileOutcome] = []
@@ -353,10 +355,12 @@ class _Run:
         policy, repo_root = self.policy, self.repo_root
         timeout, tries, extra = policy.budget(path, via)
         events_path = self.scratch / f"solo-{next(self.solo_seq):05d}.jsonl"
-        args = list(self.pytest_args) + extra + ["-p", _PLUGIN_NAME, f"--hermes-bundle-events={events_path}"]
+        args = list(self.pytest_args) + extra + ["-p", _PLUGIN_NAME, f"--hermes-bundle-events={events_path}",
+                                                 *diag.PLUGIN_ARGS]
         t0 = time.time()
         fpath, rc, output, summary, wall = self.solo_runner(path, args, repo_root, timeout, tries)
         lines, rel = _read_lines(events_path), _rel(path, repo_root)
+        self.ledger.diagnosis.add(lines)
         first, tally = tally_events(lines), tally_events(plan.last_session(lines)).files.get(rel)
         with self.lock:
             self.ledger.record_solo(via, rel, t0, first.session_start, tally, add=policy.is_shard(path, via))
@@ -373,11 +377,14 @@ class _Run:
             "-p",
             _PLUGIN_NAME,
             f"--hermes-bundle-events={events_path}",
+            *diag.PLUGIN_ARGS,
         ]
         timeout = bundle_timeout(members, repo_root, self.flat_timeout, self.durations)
         started = time.time()
         _first, rc, output, _summary, wall = self.bundle_runner(members[0], args, repo_root, timeout)
-        events = tally_events(_read_lines(events_path))
+        lines = _read_lines(events_path)
+        events = tally_events(lines)
+        self.ledger.diagnosis.add(lines)
         rels = [_rel(m, repo_root) for m in members]
         startup = None if events.session_start is None else max(0.0, events.session_start - started)
         stopped_in, unreached = _where_it_died(members, rels, events, rc)
@@ -648,6 +655,8 @@ def _print_summary(
     if cost:
         print()
         print("\n".join(plan.render(cost)))
+        for line in diag.render(result.ledger.diagnosis if result.ledger is not None else None):
+            print(line)
     if result.ledger is not None:
         for line in plan.render_bundle_diagnostics(result.ledger.bundle_diagnostics):
             print(line)
@@ -713,16 +722,13 @@ def _print_summary(
     return 1 if failures else 0
 
 
-def _print_expected_wall(to_run, repo_root: Path, durations: dict[str, float], jobs: int, sel) -> None:
-    """The plan line that says how long the run will take, and why when a chain edit made it long."""
-    wall, line = plan.expected_wall(
+def _print_expected_wall(to_run, repo_root: Path, durations: dict[str, float], jobs: int) -> None:
+    """The plan line that says how long the run will take."""
+    _wall, line = plan.expected_wall(
         {_rel(f, repo_root): durations.get(rtp._format_file(f, repo_root)) for f in to_run},
         jobs, _UNCACHED_ESTIMATE_SECONDS,
     )
     print(line, flush=True)
-    hint = plan.chain_split_hint(wall, sel.chain_paths) if sel.chain and not sel.chain_sampled else None
-    if hint:
-        print(hint, flush=True)
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -753,9 +759,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     parser.add_argument("--unbundled-list", type=Path, default=_DEFAULT_UNBUNDLED)
     parser.add_argument(
-        "--scope", choices=(SCOPE_FORK, SCOPE_FULL), default=SCOPE_FORK,
+        "--scope", choices=(SCOPE_FORK, SCOPE_FEATURES, SCOPE_FULL), default=SCOPE_FORK,
         help="fork (default, the landing gate): files absent from the upstream manifest plus the "
-        "inherited files the change reaches; full: every discovered file (the weekly merge lane)",
+        "inherited files the change reaches; features: every file not on the skip list, a quiet-box "
+        "measurement, never a gate; full: RETIRED (ADR 0016) — exit 2 unless every PATH is a file",
     )
     change = parser.add_mutually_exclusive_group()
     change.add_argument(
@@ -832,7 +839,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         f"(run once, alone, capped), {policy.shards.line()}, -j {args.jobs}",
         flush=True,
     )
-    _print_expected_wall(gate.to_run, repo_root, durations, args.jobs, sel)
+    _print_expected_wall(gate.to_run, repo_root, durations, args.jobs)
 
     done = 0
     counter_lock = threading.Lock()
@@ -872,8 +879,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     cost = result.ledger.summary(args.jobs)
     gate.record(  # the audit, then the run record + durations into the gate store
         result, cost, timed_out=_timed_out(result.outcomes, repo_root),
-        extra=policy.shards.record(_ran(result.outcomes, repo_root)),
+        extra={**policy.shards.record(_ran(result.outcomes, repo_root)), **diag.run_record(result.ledger.diagnosis)},
     )
+    diag.append(gate.store.root, gate.run_id, result.ledger.diagnosis)  # diagnosis.jsonl beside runs.jsonl
     for line in policy.closing_lines():  # unsharded-list candidates (fast-gate §3)
         print(line)
     for line in _leftovers.lines(_leftovers.scan(run_wall)):  # a detached hermes update, named

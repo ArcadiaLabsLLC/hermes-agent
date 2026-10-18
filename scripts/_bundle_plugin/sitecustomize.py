@@ -43,7 +43,7 @@ def _install() -> None:
         try:
             bucket = trail.bucket(_SESSION)
             record = {"k": "child", "f": current,
-                      "paths": sorted(bucket.paths), "dirs": sorted(bucket.dirs),
+                      "paths": sorted(bucket.paths), "dirs": sorted(bucket.dirs | bucket.idirs),
                       "spawn_py": bucket.spawn_py, "spawn_other": bucket.spawn_other,
                       "mods": sorted(trail.filter.modules())}
             path = os.path.join(directory, f"child-{os.getpid()}-{time.time_ns()}.jsonl")

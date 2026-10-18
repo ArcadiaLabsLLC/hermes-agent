@@ -86,16 +86,16 @@ def _fake_tree(root: Path) -> list[Path]:
     return paths
 
 
-def test_the_runner_leaves_a_listed_file_to_the_idle_box_in_both_scopes(tmp_path):
+def test_the_runner_leaves_a_listed_file_to_the_idle_box(tmp_path):
     from scripts import run_tests_bundled as bundled
 
     files = _fake_tree(tmp_path)
     listed = {"tests/pkg/test_timing.py"}
     inherited = {"tests/pkg/test_upstream.py"}
     fork = bundled.select_scope(files, tmp_path, inherited, set(), idle_box=listed)
-    full = bundled.select_scope(files, tmp_path, set(), set(), full=True, idle_box=listed)
+    every_fork = bundled.select_scope(files, tmp_path, set(), set(), idle_box=listed)
 
-    for sel in (fork, full):
+    for sel in (fork, every_fork):
         assert [p.name for p in sel.idle_box] == ["test_timing.py"]
         assert "test_timing.py" not in [p.name for p in sel.selected]
     assert [p.name for p in fork.fork_only] == ["test_plain.py"]

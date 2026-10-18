@@ -110,7 +110,7 @@ def test_a_non_merge_or_a_merge_head_does_not_descend_from_is_refused(tmp_path):
 def _reach(repo: Path, change: set[str]) -> dict[str, list[str]]:
     files = [repo / "tests/pkg/test_a.py"]
     sel = bundled.select_scope(files, repo, {"tests/pkg/test_a.py"}, change)
-    return {"conftest": _rels(repo, sel.conftest), "excluded": _rels(repo, sel.excluded)}
+    return {"conftest": _rels(repo, sel.conftest), "chain": _rels(repo, sel.chain), "excluded": _rels(repo, sel.excluded)}
 
 
 def _rels(repo: Path, paths) -> list[str]:
@@ -123,7 +123,7 @@ def test_a_conftest_whose_fork_hunk_the_merge_left_unchanged_does_not_reach(tmp_
 
     change = scope.merge_change(repo, merge)
 
-    assert _reach(repo, change.paths) == {"conftest": [], "excluded": ["tests/pkg/test_a.py"]}
+    assert _reach(repo, change.paths) == {"conftest": [], "chain": [], "excluded": ["tests/pkg/test_a.py"]}
     # A fork-edited upstream MODULE whose hunk the merge left unchanged stands too
     # (owner ruling 2026-10-15): pkg/both.py's `b3 = 'fork'` is byte-identical across it.
     assert change.standing == ["pkg/both.py", "tests/conftest.py"]
@@ -143,7 +143,8 @@ def test_a_conftest_whose_fork_hunk_the_merge_rewrote_still_reaches(tmp_path):
 
     assert change.standing == ["pkg/both.py"]
     assert "tests/conftest.py" in change.paths
-    assert _reach(repo, change.paths) == {"conftest": ["tests/pkg/test_a.py"], "excluded": []}
+    # tests/conftest.py is on the session chain: the contract + one sample per folder (ADR 0016)
+    assert _reach(repo, change.paths) == {"conftest": [], "chain": ["tests/pkg/test_a.py"], "excluded": []}
 
 
 def test_a_conftest_edited_after_the_merge_still_reaches(tmp_path):
@@ -155,7 +156,7 @@ def test_a_conftest_edited_after_the_merge_still_reaches(tmp_path):
     change = scope.merge_change(repo, merge)
 
     assert change.standing == ["pkg/both.py"]
-    assert _reach(repo, change.paths)["conftest"] == ["tests/pkg/test_a.py"]
+    assert _reach(repo, change.paths)["chain"] == ["tests/pkg/test_a.py"]
 
 
 def test_a_module_whose_fork_hunk_the_merge_rewrote_still_reaches(tmp_path):

@@ -10,7 +10,7 @@ spawning pytest — the bundle and solo launchers are injected:
   a bundle whose process DIED runs the file it died in alone and re-bundles
   the members that never started;
 * ``--scope fork`` runs the fork-only files plus the inherited files the
-  change reaches, and leaves an untouched inherited file to ``--scope full``;
+  change reaches, and leaves an untouched inherited file out (ADR 0016);
 * a file named in ``scripts/test_bundles_unbundled.txt`` never enters a bundle.
 """
 

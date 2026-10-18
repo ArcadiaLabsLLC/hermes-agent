@@ -1,10 +1,11 @@
-"""Fast-gate §5 — a change to the session chain reaches every inherited test file.
+"""Fast-gate §5 — a change to the session chain runs the chain's contract plus a sample.
 
-Plan: ``docs/agent-runtime-harness/planned/fast-gate-2026-10-10.md`` §5 (owner
-ruling Q3: a plugin-chain edit reaches the whole tree). The old rule read only
-``rel.endswith("/conftest.py")``: the fork's root ``conftest.py``, the conftest
-plugin under ``tests/_downstream/`` and ``pyproject.toml`` reached no upstream
-file although every test process loads them.
+Plan: ``docs/agent-runtime-harness/planned/fast-gate-2026-10-10.md`` §5. Every
+test process loads the chain (the fork's root ``conftest.py``, the conftest
+plugin under ``tests/_downstream/``, ``pyproject.toml``), so a chain edit is
+proved by the chain's contract and one file per folder nothing else reached —
+at an ordinary landing (owner ruling 2026-10-16) and at a release merge
+(``--since-merge``) alike: ADR 0016, no whole-tree run, ever.
 """
 
 from __future__ import annotations
@@ -45,15 +46,14 @@ def _rels(root: Path, paths) -> list[str]:
         "requirements-fork-dev.txt",
     ],
 )
-def test_a_session_chain_change_reaches_every_inherited_file(tmp_path, changed):
+def test_a_session_chain_change_runs_a_sample_never_every_file(tmp_path, changed):
     files = _tree(tmp_path)
 
     sel = bundled.select_scope(files, tmp_path, set(_INHERITED), {changed})
 
-    assert _rels(tmp_path, sel.chain) == sorted(_INHERITED)
-    assert not sel.chain_sampled
-    assert _rels(tmp_path, sel.selected) == sorted(["tests/pkg/test_fork.py", *_INHERITED])
-    assert sel.excluded == []
+    assert _rels(tmp_path, sel.chain) == ["tests/other/deep/test_up2.py", "tests/pkg/test_fork.py"], (
+        "one file per folder (the smallest, ties by path), not the whole tree")
+    assert _rels(tmp_path, sel.excluded) == ["tests/pkg/test_up.py"]
 
 
 def test_a_doc_under_a_chain_prefix_reaches_nothing(tmp_path):
@@ -79,7 +79,7 @@ def test_the_skip_list_still_wins_over_the_chain(tmp_path):
     sel = bundled.select_scope(files, tmp_path, set(_INHERITED), {"conftest.py"}, skipped={"tests/pkg/test_up.py"})
 
     assert _rels(tmp_path, sel.skipped_red) == ["tests/pkg/test_up.py"]
-    assert _rels(tmp_path, sel.chain) == ["tests/other/deep/test_up2.py"]
+    assert _rels(tmp_path, sel.chain) == ["tests/other/deep/test_up2.py", "tests/pkg/test_fork.py"]
 
 
 def test_the_printed_reason_names_the_chain_paths():
@@ -129,7 +129,7 @@ def test_a_chain_path_whose_fork_hunk_the_merge_left_unchanged_does_not_reach(tm
     assert sel.chain == [] and len(sel.excluded) == 1
 
 
-def test_a_chain_path_edited_after_the_merge_still_reaches(tmp_path):
+def test_a_chain_path_edited_after_the_merge_runs_the_sample(tmp_path):
     repo = tmp_path / "repo"
     merge = _merged_pyproject(repo, after_edit=True)
 
@@ -170,11 +170,10 @@ _SAMPLE_INHERITED = {
 def test_an_ordinary_landing_runs_the_contract_and_one_sample_per_empty_folder(tmp_path, changed):
     files = _sample_tree(tmp_path)
 
-    sel = bundled.select_scope(files, tmp_path, _SAMPLE_INHERITED, {changed, "pkg/mod.py"}, chain_sample=True)
+    sel = bundled.select_scope(files, tmp_path, _SAMPLE_INHERITED, {changed, "pkg/mod.py"})
 
     assert _rels(tmp_path, sel.chain) == ["tests/other/deep/test_a_small.py", "tests/pkg/test_fork.py"], (
         "the smallest of every empty folder, fork files included")
-    assert sel.chain_sampled, "the run must not call itself a whole-tree run"
     assert _rels(tmp_path, sel.importer) == ["tests/third/test_reached.py"]
     assert _rels(tmp_path, sel.fork_only) == ["tests/tooling/test_session_chain_contract.py"], "never every fork file"
     assert _rels(tmp_path, sel.excluded) == ["tests/other/deep/test_up2.py", "tests/pkg/test_up.py",
@@ -184,7 +183,7 @@ def test_an_ordinary_landing_runs_the_contract_and_one_sample_per_empty_folder(t
 def test_without_a_chain_change_nothing_is_sampled(tmp_path):
     files = _sample_tree(tmp_path)
 
-    sel = bundled.select_scope(files, tmp_path, _SAMPLE_INHERITED, {"pkg/mod.py"}, chain_sample=True)
+    sel = bundled.select_scope(files, tmp_path, _SAMPLE_INHERITED, {"pkg/mod.py"})
 
     assert sel.chain == [] and len(sel.excluded) == 4
     assert len(sel.fork_only) == 3, "no chain edit: every fork-owned file runs, as --scope fork always did"
@@ -193,8 +192,70 @@ def test_without_a_chain_change_nothing_is_sampled(tmp_path):
 def test_the_skip_list_wins_over_the_sample(tmp_path):
     files = _sample_tree(tmp_path)
 
-    sel = bundled.select_scope(files, tmp_path, _SAMPLE_INHERITED, {"conftest.py"}, chain_sample=True,
+    sel = bundled.select_scope(files, tmp_path, _SAMPLE_INHERITED, {"conftest.py"},
                                skipped={"tests/other/deep/test_a_small.py"})
 
     assert _rels(tmp_path, sel.chain) == ["tests/other/deep/test_up2.py", "tests/pkg/test_fork.py",
                                           "tests/third/test_fork_unreached.py"]
+
+
+# ── ADR 0016: --scope full and --since-merge never run the whole tree ──
+
+
+def _args(**kw):
+    import argparse
+
+    base = dict(scope=bundled.SCOPE_FORK, since=None, since_merge=None, manifest=None)
+    return argparse.Namespace(**{**base, **kw})
+
+
+def test_scope_full_over_a_directory_refuses_with_the_adr_pointer(tmp_path, capsys):
+    files = _tree(tmp_path)
+
+    sel = scope.select_for_run(_args(scope=bundled.SCOPE_FULL), files, tmp_path, [tmp_path / "tests"], {})
+
+    assert sel is None, "main exits 2 on None"
+    assert "0016 — No whole-tree run, ever" in capsys.readouterr().err
+
+
+def test_scope_full_over_named_files_runs_exactly_those_files(tmp_path, capsys):
+    files = _tree(tmp_path)
+    named = [tmp_path / "tests/pkg/test_up.py", tmp_path / "tests/pkg/test_fork.py"]
+
+    sel = scope.select_for_run(_args(scope=bundled.SCOPE_FULL), named, tmp_path, named, {})
+
+    assert _rels(tmp_path, sel.selected) == ["tests/pkg/test_fork.py", "tests/pkg/test_up.py"]
+    assert capsys.readouterr().err == ""
+
+
+def test_since_merge_treats_a_chain_path_as_contract_plus_sample(tmp_path, capsys):
+    repo = tmp_path / "repo"
+    merge = _merged_pyproject(repo, after_edit=True)
+    for rel in ("tests/pkg/test_b.py", "tests/tooling/test_session_chain_contract.py", "tests/tooling/test_other.py"):
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_text("x = 1\n" * (40 if rel.endswith("test_b.py") else 1), encoding="utf-8")
+    manifest = tmp_path / "manifest.txt"
+    manifest.write_text("tests/pkg/test_a.py\ntests/pkg/test_b.py\n", encoding="utf-8")
+    files = sorted((repo / "tests").rglob("test_*.py"))
+
+    sel = scope.select_for_run(_args(since_merge=merge, manifest=manifest), files, repo, [repo / "tests"], {})
+
+    assert _rels(repo, sel.fork_only) == ["tests/tooling/test_session_chain_contract.py"], "never every fork file"
+    assert _rels(repo, sel.chain) == ["tests/pkg/test_a.py"], "one sample for the folder nothing else reached"
+    assert _rels(repo, sel.excluded) == ["tests/pkg/test_b.py", "tests/tooling/test_other.py"]
+    assert "contract + sample" in capsys.readouterr().out
+
+
+def test_scope_features_runs_every_file_but_the_skip_list_and_full_still_refuses(tmp_path, capsys):
+    files = _tree(tmp_path)
+    import types
+
+    skip = {"tests/pkg/test_up.py": types.SimpleNamespace(why="upstream red")}
+
+    sel = scope.select_for_run(_args(scope=scope.SCOPE_FEATURES), files, tmp_path, [tmp_path / "tests"], skip)
+
+    assert _rels(tmp_path, sel.selected) == ["tests/other/deep/test_up2.py", "tests/pkg/test_fork.py"], (
+        "every fork and upstream file, no reach rule, the skip list still out")
+    assert _rels(tmp_path, sel.skipped_red) == ["tests/pkg/test_up.py"]
+    assert "never a gate" in capsys.readouterr().out
+    assert scope.select_for_run(_args(scope=bundled.SCOPE_FULL), files, tmp_path, [tmp_path / "tests"], {}) is None
