@@ -77,13 +77,21 @@ def read_realm_sync_sidecar(realm_id: str) -> dict[str, Any] | None:
     touch (Decision 7: zero git calls / artifact resolution in the snapshot).
     Returns ``None`` when no sidecar exists (launcher renders "not checked").
     """
+    from .revocation import read_realm_revocation
+
+    revoked = read_realm_revocation(realm_id)
     try:
         raw = json.loads(realm_sync_sidecar_path(realm_id).read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return None
+        raw = None
     if not isinstance(raw, dict):
-        return None
+        if revoked is None:
+            return None
+        raw = {}  # never checked, but revoked: the mark still reaches the snapshot
     return {
+        # ``realm_revoked`` mark (``revocation.py``): {reason, revoked_at,
+        # host_state} or None. Install-local; the launcher stops the realm's poll.
+        "revoked": revoked,
         "state": raw.get("state"),
         "ahead": raw.get("ahead"),
         "behind": raw.get("behind"),

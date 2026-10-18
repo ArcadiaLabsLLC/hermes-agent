@@ -286,8 +286,11 @@ def adopt_realms(credential: RealmSyncCredential, *, server_id: str | None = Non
             )
         )
     if not dry_run:
+        from .realm_sync.revocation import clear_realm_revocation
+
         for realm in adopted:
             _append_realm_adopted_event(realm)
+            clear_realm_revocation(realm)  # a re-grant lifts a realm.revoked mark
     return adopted
 
 
