@@ -443,7 +443,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Owner asks — 2026-09-22, filed on arrival
 
-- [ ] **`test_serve_rpc_office_subscribe_live_hub` waits 5 s with no `@pytest.mark.timeout`, so it flakes under a full-suite batch and passes alone** · `fork / suite` · a wait bound over 30 s must declare the marker and this one is under it, so the marker is not the fix — the fix is a wait that observes the hub rather than sleeping toward it. Seen once in lane HM's 221-file touched run, green when run alone · filed by lane HM at its landing 2026-09-22 · every wait in the file is already `_wait_for` under `_DEADLINE_SECONDS`; the failing case is `::test_a_real_office_write_reaches_a_subscriber_as_an_office_patch`, a leak through the process-global `OFFICE_SUBSCRIPTIONS` in combined runs (lane H4 2026-09-24) · DEFERRED 2026-10-16: owner 2026-10-10 "parked until the failing case's `what=` string is captured" **TAKEN 2026-10-18 q-reds**
 
 ### Contract questions the launcher is waiting on (filed 2026-09-20/21, routed by the 2026-09-22 verdict sheet)
 
@@ -663,6 +662,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 
 ## Upstream-owned
+
+### Filed on arrival — 2026-10-18 (lane q-reds, branch `q/q-reds`)
+
+- [ ] **On Windows a source `hermes update`'s `--prepared` completion child refuses its own bootstrap's checkout lease ("its owner exited but a process it started still holds the checkout"), so the tail is always owed** · upstream-owned (`hermes_cli/update_completion.py::_prepare`, `hermes_cli/source_completion.py::complete_source_checkout`) · red on pure tag v0.22.2 `d923a5eb48`: 5 of the 9 `tests/hermes_cli/test_update_completion_process.py` reds now xfailed in `tests/_downstream/id_markers/upstream_reds_v0222.py` (`_COMPLETION_ROWS`) · upstream issue; the strict xfail retires on its fix · READY
 
 ### Filed on arrival — 2026-10-18 (lane r-state, branch `q/r-state`)
 

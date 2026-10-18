@@ -132,7 +132,7 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 **Provider-boundary qualification, October 1:** the existing TLS setup stall and duplicate-name/routing-ladder gate failures were reproduced, not waived; [evidence](../../docs/downstream/provider-access-boundary-2026-10-01.md#qualification). Native provider, plugin and execution checks pass; this does not certify a whole-repository green run.
 
 
-- [ ] **Diagnose the local CLI startup stall opening the inherited TLS key-log device target.** · The bounded inspector trace stops at `ssl.create_default_context` assigning `keylog_filename`, reached while `pm/downloader.py` constructs its opener during startup; no chat journal was created. Preserve certificate validation and logging oversight; classify host configuration versus startup handling before changing code. [Preflight evidence](../../docs/downstream/launcher-qa-preflight-2026-09-30.md#local-startup-stall). Filed 2026-09-30 Projects QA. · classified 2026-10-02 (w5-fh): HOST trigger (an inherited `SSLKEYLOGFILE`), UPSTREAM amplifier — `pm/downloader.py` builds `_OPENER` at module scope, so a bad key-log target breaks every CLI start that imports it · RULED 2026-10-15 (owner): open the upstream PR (lazy opener) from branch `upstream-pr/lazy-https-opener` (`95b3221fbec`) under the owner's name, posted together with the others · DEFERRED 2026-10-16: owner "pr branches should remain idle" — until upstream accepts the owner's PRs again **TAKEN 2026-10-18 q-reds**
+- [ ] **Diagnose the local CLI startup stall opening the inherited TLS key-log device target.** · The bounded inspector trace stops at `ssl.create_default_context` assigning `keylog_filename`, reached while `pm/downloader.py` constructs its opener during startup; no chat journal was created. Preserve certificate validation and logging oversight; classify host configuration versus startup handling before changing code. [Preflight evidence](../../docs/downstream/launcher-qa-preflight-2026-09-30.md#local-startup-stall). Filed 2026-09-30 Projects QA. · classified 2026-10-02 (w5-fh): HOST trigger (an inherited `SSLKEYLOGFILE`), UPSTREAM amplifier — `pm/downloader.py` builds `_OPENER` at module scope, so a bad key-log target breaks every CLI start that imports it · RULED 2026-10-15 (owner): open the upstream PR (lazy opener) from branch `upstream-pr/lazy-https-opener` (`95b3221fbec`) under the owner's name, posted together with the others · BLOCKED 2026-10-18: owner decision · Recommend: drop the lazy-opener PR as the fix (it only moves the failure to the first HTTPS call) and keep `SSLKEYLOGFILE` out of the launcher-spawned runtime's env, or report it to CPython — any `SSLKEYLOGFILE` aborts stdlib `ssl.create_default_context()` on the test venv's CPython 3.14.5 / OpenSSL 3.5.6 (`OPENSSL_Uplink … no OPENSSL_Applink`, rc 1; 3.12.5 / OpenSSL 3.0.13 is fine); no stall without it — [q-reds receipt](../../docs/downstream/launcher-qa-preflight-2026-09-30.md#q-reds-recheck-2026-10-18)
 
 
 **Additional evidence for the claimed validated-suite residuals:** 68 gateway/TLS failures reproduce on clean primary with Python 3.13.15; this does not supersede the separate Python 3.12 green receipt. [Comparison](../../docs/downstream/chat-first-group-qualification-2026-09-29.md#baseline-comparison). Filed 2026-09-29 chat-first-groups.
@@ -258,7 +258,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-24 (program-end gate on `c7652475cd`)
 
-- [ ] **`tests/hermes_cli/test_minimax_oauth.py::test_refresh_error_body_bounded_and_readable_with_real_client` is red in its bundle and green on the rerun alone** · `fork / suite` · a co-member leaves a client or transport patched; bisect the bundle pairwise (REDS2 method, `016a6cd71e`) and fix the leak or add the observed pair to `scripts/test_bundles_unbundled.txt` · evidence: `X:/wt/_holds/gate-final-2026-09-24.log` ("red in bundle" line) · not a co-member leak: the gate's exact bundle passed as one process (236 passed); the test streams a 64 KB body over a real loopback socket (upstream bytes `d10bb2ab6f`), so the fix is upstream (read to EOF / body under one socket buffer) or a load-timing id-mark · DEFERRED 2026-10-16: owner 2026-10-15 "hold until it fails a second time" **TAKEN 2026-10-18 q-reds**
 
 ## Filed on arrival — 2026-09-24 (lane LEDGER-DOCS)
 
@@ -427,7 +426,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 
 
-- [ ] **Give the ACP stdio-registration test a real temporary workspace.** `tests/acp_adapter/test_server.py::TestRegisterSessionMcpServers.test_registers_stdio_servers` declares `/tmp` and asserts it is a resolved local directory. On hosted Windows, `resolve_context_cwd` correctly returns `None` when that directory does not exist. The exact assertion fails on both `3c2ba45c4b` and untouched `958e574c2e` in runs 38427670480 / 38439426620. Use the existing `tmp_path` fixture and keep the working-directory propagation assertion; no production resolver change. · fork / inherited-test qualification · upstream main still declares `/tmp`: an upstream PR, or a skip-list row once it is red bare on origin/main here · RULED 2026-10-15 (owner, decision sheet w1015i #2): post the upstream ones together in one sitting · DEFERRED 2026-10-16: owner "pr branches should remain idle" — until upstream accepts the owner's PRs again **TAKEN 2026-10-18 q-reds**
 
 ## Filed on arrival — 2026-10-13 shutdown-test repair
 
@@ -514,7 +512,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-17 (lane r-plugins)
 
-- [ ] **`tests/hermes_cli/test_update_completion_process.py` 9 red alone on origin/main `8c5e95d7e9` (first: `test_old_process_new_git_tree_completes_in_fresh_python[None]`: `completion-pending` still exists after the fresh-python completion); not in the features-run rows** · fork / suite · lane r-plugins: same 9 nodes alone on the branch and on origin/main · READY **TAKEN 2026-10-18 q-reds**
 
 ## Filed on arrival — 2026-10-18 land/q6
 
