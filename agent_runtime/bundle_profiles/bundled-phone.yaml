@@ -430,10 +430,7 @@ packaging:
     # hermes_cli.goals (the turn path asks it: tui_gateway/prompt_turn.py, hermes_cli/loops.py).
     - tools.kanban_tools
     - hermes_cli.kanban
-    - hermes_cli.kanban_blocked_pm
-    - hermes_cli.kanban_blocked_pm_tick
     - hermes_cli.kanban_boards
-    - hermes_cli.kanban_crash_evidence
     - hermes_cli.kanban_db
     - hermes_cli.kanban_db_connect
     - hermes_cli.kanban_db_dispatch

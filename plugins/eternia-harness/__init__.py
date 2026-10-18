@@ -304,20 +304,6 @@ async def answer_queue_status(**kwargs):
     return await _answer(**kwargs)
 
 
-def route_blocked_kanban_cards(**kwargs):
-    """``on_kanban_dispatch_tick`` hook: route the ticking board's new ``blocked`` cards to PM."""
-    from hermes_cli.kanban_blocked_pm_tick import on_kanban_dispatch_tick
-
-    on_kanban_dispatch_tick(**kwargs)
-
-
-def record_kanban_crash_evidence(**kwargs):
-    """``on_kanban_worker_exited`` hook: a redacted crash artifact for the reclaimed run."""
-    from hermes_cli.kanban_crash_evidence import on_kanban_worker_exited
-
-    on_kanban_worker_exited(**kwargs)
-
-
 # Process-env defaults (kanban claim TTL, lazy installs) are NOT written here: plugin code
 # writes no process env, because discovery runs at unpredictable points in any process.
 # The serve and the conversation-worker composer apply
@@ -395,8 +381,6 @@ def register(ctx) -> None:
 
     install_stream_observers(ctx.register_hook)
     ctx.register_hook("transform_tool_result", skill_view_result)
-    ctx.register_hook("on_kanban_dispatch_tick", route_blocked_kanban_cards)
-    ctx.register_hook("on_kanban_worker_exited", record_kanban_crash_evidence)
     ctx.register_hook("pre_gateway_dispatch", answer_queue_status)
     # Joins the built-in `skills` toolset by registry membership: a platform bundle reaches it through
     # `skills` (hermes_cli.tools_config._get_platform_tools maps a bundle onto its member toolsets), and

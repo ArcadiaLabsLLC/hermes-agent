@@ -132,7 +132,6 @@
   "hermes_cli/harness_parts/persona/chat_target.py|_AUTO_TITLE_ATTEMPTED": "seeded 2026-10-16 from the census; reason owed",
   "hermes_cli/harness_parts/serve/argv_lane.py|_harness_parser_builder": "seeded 2026-10-16 from the census; reason owed",
   "hermes_cli/harness_parts/serve/end_reason.py|_CONSOLE_CTRL_HANDLER_KEEPALIVE": "seeded 2026-10-16 from the census; reason owed",
-  "hermes_cli/kanban_blocked_pm_tick.py|_cursors": "seeded 2026-10-16 from the census; reason owed",
   "hermes_cli/provider_browser_login.py|_QUIET_THREADS": "seeded 2026-10-16 from the census; reason owed",
   "scripts/god_file_scope.py|_READING": "seeded 2026-10-16 from the census; reason owed",
   "scripts/migrate_codex_scope_ids.py|leftovers": "seeded 2026-10-16 from the census; reason owed",
