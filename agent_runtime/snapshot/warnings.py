@@ -33,8 +33,13 @@ __all__ = [
 ]
 
 
-def _parity_warnings(data) -> list[dict]:
-    """Snapshot-level self-checks that flag likely UI/harness divergence."""
+def _parity_warnings(data, *, office_evidence=None) -> list[dict]:
+    """Snapshot-level self-checks that flag likely UI/harness divergence.
+
+    ``office_evidence`` is the build-only archived-placement evidence
+    (``OfficesProjection.archived_placement_instance_ids``); ``None`` (a caller
+    that has none) silences the checks that need it, never guesses.
+    """
 
     # Board/office warnings do not depend on the persona-instance runtime, so
     # they are computed before the runtime-disabled early return below.
@@ -50,7 +55,7 @@ def _parity_warnings(data) -> list[dict]:
         )
         return warnings
 
-    frame = _WarningFrame(data)
+    frame = _WarningFrame(data, office_evidence=office_evidence)
     for _name, check in PARITY_WARNINGS:
         warnings.extend(check(frame))
     return warnings
@@ -60,8 +65,9 @@ class _WarningFrame:
     """What every parity check reads, derived once: the frame, its
     persona-instance rows, and its chat-history rows."""
 
-    def __init__(self, data: dict) -> None:
+    def __init__(self, data: dict, *, office_evidence=None) -> None:
         self.data = data
+        self.office_evidence = office_evidence
         self.instances = section_rows(data.get("persona_instances"))
         self.chat_rows = [
             row for row in data.get("persona_chat_history") or [] if isinstance(row, dict)
@@ -380,28 +386,27 @@ def _unplaced_instance_warnings(frame: _WarningFrame) -> list[dict]:
     own office was bound to them and no live actor anywhere is
     (RT-SNAPSHOT-UNPLACED-INSTANCE; the classifier the reconcile lane prunes by).
 
-    Reads only the office rows this frame already carries. Says nothing when any
-    office row cannot vouch for its evidence: an archive it could not read
-    (``archived_placement_instance_ids`` is ``None`` or absent, an older core),
-    or a live list that is short (truncated or unreadable) and so could hide the
-    live placement that makes a row NOT a ghost.
+    Live placements come off the frame's office rows; archived ones off the
+    build-only ``office_evidence`` (never on the wire). Says nothing when there is
+    no evidence, when any workspace's archive could not be read (``None``), or
+    when any office row's live list is short (truncated or unreadable) and so
+    could hide the live placement that makes a row NOT a ghost.
     """
 
     from agent_runtime.persona_assignments import canonical_persona_instance_id
 
+    evidence = frame.office_evidence
+    if not evidence or any(value is None for value in evidence.values()):
+        return []
+    archived_by_ws = {str(wsid): list(values) for wsid, values in evidence.items()}
     live: set[str] = set()
-    archived_by_ws: dict[str, list[str]] = {}
     for office in section_rows(frame.data.get("offices")):
-        evidence = office.get("archived_placement_instance_ids")
-        if evidence is None or office.get("actors_truncated") or office.get("actors_unreadable"):
+        if office.get("actors_truncated") or office.get("actors_unreadable"):
             return []
-        archived_by_ws[str(office.get("workspace_id") or "")] = list(evidence)
         for actor in office.get("actors") or []:
             raw = str((actor or {}).get("persona_instance_id") or "").strip()
             if raw:
                 live.add(canonical_persona_instance_id(raw, persona_id=actor.get("persona_id")) or raw)
-    if not archived_by_ws:
-        return []
     classes = classify_unplaced_persona_instances(
         frame.instances,
         live_placement_instance_ids=live,

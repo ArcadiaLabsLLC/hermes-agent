@@ -1132,15 +1132,17 @@ hands over a count and no tokens. Both keys are additive — a row from an older
 core has no such list, which reads as exactly the claim the bare list used to
 make silently.
 
-**`archived_placement_instance_ids` rides the row too (2026-10-18,
-RT-SNAPSHOT-UNPLACED-INSTANCE)**: the instances an ARCHIVED actor of that office was bound
-to and no live actor there still is, read through `scan_actors(include_archived=True)`
-and bounded by the archive retention above; `None` when either directory had an unreadable
-file. The parity check `unplaced_persona_instance` (and `held_unplaced_persona_instance`)
-runs `classify_unplaced_persona_instances` — the classifier the reconcile lane prunes by —
-over those rows, and says nothing when any office row is `None`, truncated or unreadable,
-because a short live list could hide the placement that makes a row NOT a ghost. The
-launcher shows it through its generic `warningCodes`; no launcher change is needed.
+**The `unplaced_persona_instance` warning (2026-10-18, RT-SNAPSHOT-UNPLACED-INSTANCE).**
+`_offices_summary` also gathers, per workspace, the instances an ARCHIVED actor of that
+office was bound to and no live actor there still is (`scan_actors(include_archived=True)`,
+bounded by the archive retention above; `None` when either directory had an unreadable
+file). That evidence is BUILD-ONLY: `OfficesProjection.archived_placement_instance_ids`
+reaches `parity_envelope(office_evidence=)` as an argument and never rides the frame, so
+the byte-pinned stream goldens do not move. The parity check runs
+`classify_unplaced_persona_instances` (the classifier the reconcile lane prunes by) and
+emits `unplaced_persona_instance` / `held_unplaced_persona_instance`; it says nothing when
+the evidence is absent or `None`, or any office row's live list is truncated or unreadable.
+The launcher shows it through its generic `warningCodes`; no launcher change is needed.
 
 **`office_actors_unreadable` out of `copy_workspace_content`**, same commit and
 same shape: it skipped an undecodable source actor and emitted NOTHING, while

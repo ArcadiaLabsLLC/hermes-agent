@@ -66,7 +66,6 @@ def office_summary_row(
     actor_unpublished=None,
     orphaned: bool = False,
     orphan_reason: str | None = None,
-    archived_placement_instance_ids: list[str] | None = None,
 ) -> dict:
     """ONE Mission Office surface projection row — the single authority for the
     actor projection bound and its truncation accounting.
@@ -144,14 +143,6 @@ def office_summary_row(
         # second derivation with its own inputs — free to drift from the flag it
         # is supposed to be explaining. Additive: an old launcher ignores the key.
         "orphan_reason": orphan_reason,
-        # The instances an ARCHIVED actor of this office was bound to (and no
-        # live actor here still is): the evidence the ``unplaced_persona_instance``
-        # warning needs (RT-SNAPSHOT-UNPLACED-INSTANCE). Bounded by the archive
-        # retention (``ARCHIVED_ACTOR_FILES_RETAIN``). ``None`` means "could not
-        # read the archive completely", never "none". Additive.
-        "archived_placement_instance_ids": (
-            None if archived_placement_instance_ids is None else list(archived_placement_instance_ids)
-        ),
     }
 
 
@@ -173,6 +164,13 @@ class OfficesProjection(NamedTuple):
     #: Workspaces whose office surface would not decode. Additive on the wire as
     #: ``offices_unreadable`` — an old launcher ignores the key.
     unreadable: int
+    #: Per workspace, the instances an ARCHIVED actor of that office was bound to
+    #: and no live actor there still is: the ``unplaced_persona_instance``
+    #: warning's evidence (RT-SNAPSHOT-UNPLACED-INSTANCE). BUILD-ONLY: it reaches
+    #: ``parity_envelope`` as an argument and never rides the frame, so the
+    #: byte-pinned stream goldens do not move. ``None`` for a workspace means its
+    #: directories did not fully decode ("cannot say", never "none").
+    archived_placement_instance_ids: dict[str, list[str] | None] | None = None
 
 
 def _offices_summary(office_store, workspaces, realms=()) -> OfficesProjection:
@@ -202,6 +200,7 @@ def _offices_summary(office_store, workspaces, realms=()) -> OfficesProjection:
     realm_by_workspace = {getattr(w, "id", None): getattr(w, "realm_id", None) for w in workspaces}
     baselines: dict[str, dict[str, str]] = {}
     offices: list[dict] = []
+    archived_evidence: dict[str, list[str] | None] = {}
     unreadable = 0
     for workspace_token in office_store.list_workspaces():
         try:
@@ -264,12 +263,14 @@ def _offices_summary(office_store, workspaces, realms=()) -> OfficesProjection:
                     if orphaned
                     else None
                 ),
-                archived_placement_instance_ids=_archived_placement_instance_ids(
-                    office_store, workspace_token, actors
-                ),
             )
         )
-    return OfficesProjection(offices=offices, unreadable=unreadable)
+        archived_evidence[surface.workspace_id] = _archived_placement_instance_ids(
+            office_store, workspace_token, actors
+        )
+    return OfficesProjection(
+        offices=offices, unreadable=unreadable, archived_placement_instance_ids=archived_evidence
+    )
 
 
 def _archived_placement_instance_ids(office_store, workspace_token, live_actors) -> list[str] | None:

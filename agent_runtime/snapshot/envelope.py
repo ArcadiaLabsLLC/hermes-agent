@@ -39,7 +39,7 @@ __all__ = [
 ]
 
 
-def parity_envelope(data, *, build_started, last_event, completeness, drop_samples, recent_events=None, sections_ms=None, build_start_position=None):
+def parity_envelope(data, *, build_started, last_event, completeness, drop_samples, recent_events=None, sections_ms=None, build_start_position=None, office_evidence=None):
     """The S0 observability envelope: provenance + completeness + parity warnings.
 
     Additive and self-describing — turns the snapshot's silent drops into reported
@@ -51,7 +51,7 @@ def parity_envelope(data, *, build_started, last_event, completeness, drop_sampl
     watermark = events_watermark(last_event_ts=last_ts, position=build_start_position)
     resolution = resolve_runtime()
     cfg = load_agent_runtime_config()
-    warnings = _parity_warnings(data)
+    warnings = _parity_warnings(data, office_evidence=office_evidence)
     warnings.extend(_event_summary_warnings(recent_events or []))
     if watermark.get("event_offset") is None:
         # The frame cannot date itself against the log. Riders must resync

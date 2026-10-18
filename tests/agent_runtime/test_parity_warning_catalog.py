@@ -146,39 +146,39 @@ def test_orphan_persona_instance_codes_are_producible(monkeypatch):
     assert "held_orphan_persona_instance" in produced
 
 
+_UNPLACED_ID = "personainst_alice_agent_0001abcd"
+
+
 def _unplaced_frame(*, updated_at: datetime) -> dict:
     """A workspace row whose only placement is ARCHIVED in its own office."""
 
-    instance_id = "personainst_alice_agent_0001abcd"
     return _runtime_on(
         persona_instances={
-            "a": _instance(instance_id, workspace_id="w1", updated_at=updated_at.isoformat()),
+            "a": _instance(_UNPLACED_ID, workspace_id="w1", updated_at=updated_at.isoformat()),
         },
-        offices={
-            "w1": {
-                "workspace_id": "w1",
-                "actors": [],
-                "actors_truncated": 0,
-                "actors_unreadable": 0,
-                "archived_placement_instance_ids": [instance_id],
-            }
-        },
+        offices={"w1": {"workspace_id": "w1", "actors": [], "actors_truncated": 0, "actors_unreadable": 0}},
     )
+
+
+def _unplaced_codes(data: dict, evidence) -> set[str]:
+    return {
+        str(warning.get("code") or "")
+        for warning in _parity_warnings(data, office_evidence=evidence)
+    }
 
 
 def test_unplaced_persona_instance_codes_are_producible(monkeypatch):
     """RT-SNAPSHOT-UNPLACED-INSTANCE: produced through the REAL classifier from
-    the office row's archived evidence; a row whose evidence is ``None`` (an
-    archive that would not read, or an older core) produces nothing."""
+    the build-only archived evidence; evidence that could not be read (``None``)
+    or was never supplied produces nothing."""
 
     monkeypatch.setattr(snapshot_mod.envelope, "suspect_default_root", lambda *_a, **_k: False)
-    old = _codes(_unplaced_frame(updated_at=_NOW - timedelta(days=5)))
-    assert "unplaced_persona_instance" in old
-    recent = _codes(_unplaced_frame(updated_at=_NOW))
-    assert "held_unplaced_persona_instance" in recent
-    blind = _unplaced_frame(updated_at=_NOW - timedelta(days=5))
-    blind["offices"]["w1"]["archived_placement_instance_ids"] = None
-    assert "unplaced_persona_instance" not in _codes(blind)
+    old = _unplaced_frame(updated_at=_NOW - timedelta(days=5))
+    assert "unplaced_persona_instance" in _unplaced_codes(old, {"w1": [_UNPLACED_ID]})
+    recent = _unplaced_frame(updated_at=_NOW)
+    assert "held_unplaced_persona_instance" in _unplaced_codes(recent, {"w1": [_UNPLACED_ID]})
+    assert "unplaced_persona_instance" not in _unplaced_codes(old, {"w1": None})
+    assert "unplaced_persona_instance" not in _codes(old)
 
 
 COVERED = set(PRODUCIBLE) | {

@@ -467,6 +467,9 @@ class SnapshotFrameBuild:
             completeness=self.completeness,
             drop_samples=self.drop_samples,
             sections_ms=self.sections_ms,
+            office_evidence=getattr(
+                getattr(self, "offices_projection", None), "archived_placement_instance_ids", None
+            ),
         )
         # ``sections_ms`` is stored by reference in the envelope, so recording the
         # parity section's own duration after the call is reflected in the frame.
