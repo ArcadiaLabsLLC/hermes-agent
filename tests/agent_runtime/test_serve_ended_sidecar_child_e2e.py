@@ -186,17 +186,17 @@ def _spawn(
     )
 
 
-def _ended(env: dict[str, str], pid: int) -> dict | None:
+def _ended(env: dict[str, str], child: "_Child") -> dict | None:
+    """The sidecar the EXITED child left, read once.
+
+    The child is the record's only writer and writes it before it exits, so once
+    ``wait_gone`` has returned the file is final: a poll here could only wait out
+    its deadline on the absence the hard-exit test asserts (15 s, lane h2-sleep).
+    """
     from agent_runtime.serve_registry import read_serve_ended
 
-    root = Path(env["HERMES_AGENT_RUNTIME_ROOT"])
-    deadline = time.monotonic() + 15.0
-    while time.monotonic() < deadline:
-        record = read_serve_ended(root, pid)
-        if record is not None:
-            return record
-        time.sleep(0.05)
-    return None
+    assert child.process.poll() is not None, "read the sidecar only after wait_gone()"
+    return read_serve_ended(Path(env["HERMES_AGENT_RUNTIME_ROOT"]), child.pid)
 
 
 def _connect(env: dict[str, str], *args: str) -> int:
@@ -233,7 +233,7 @@ def test_a_drain_says_drained(tmp_path: Path) -> None:
     child.boot()
     assert _connect(env, "--drain") == 0
     child.wait_gone()
-    _assert_reason(_ended(env, child.pid), "drained", child.pid)
+    _assert_reason(_ended(env, child), "drained", child.pid)
 
 
 def test_a_stdio_shutdown_order_says_shutdown_op(tmp_path: Path) -> None:
@@ -246,7 +246,7 @@ def test_a_stdio_shutdown_order_says_shutdown_op(tmp_path: Path) -> None:
     child.process.stdin.write(json.dumps({"op": "shutdown"}) + "\n")
     child.process.stdin.flush()
     child.wait_gone()
-    _assert_reason(_ended(env, child.pid), "shutdown_op", child.pid)
+    _assert_reason(_ended(env, child), "shutdown_op", child.pid)
 
 
 def test_a_non_service_serve_that_reaches_eof_says_stdin_eof(tmp_path: Path) -> None:
@@ -258,7 +258,7 @@ def test_a_non_service_serve_that_reaches_eof_says_stdin_eof(tmp_path: Path) -> 
     child = _spawn(env)
     child.boot()
     child.wait_gone()
-    _assert_reason(_ended(env, child.pid), "stdin_eof", child.pid)
+    _assert_reason(_ended(env, child), "stdin_eof", child.pid)
 
 
 # ── the console control handler ─────────────────────────────────────────────
@@ -309,7 +309,7 @@ def test_a_console_control_event_says_ctrl_c(tmp_path: Path) -> None:
         signal.CTRL_BREAK_EVENT, child.process.pid
     ), "GenerateConsoleCtrlEvent failed"
     child.wait_gone()
-    _assert_reason(_ended(env, child.pid), "ctrl_c", child.pid)
+    _assert_reason(_ended(env, child), "ctrl_c", child.pid)
 
 
 @pytest.mark.skipif(
@@ -327,7 +327,7 @@ def test_sigterm_says_sigterm(tmp_path: Path) -> None:
     child.boot()
     child.process.terminate()
     child.wait_gone()
-    _assert_reason(_ended(env, child.pid), "sigterm", child.pid)
+    _assert_reason(_ended(env, child), "sigterm", child.pid)
 
 
 @pytest.mark.skipif(
@@ -349,7 +349,7 @@ def test_the_handler_installs_on_a_runtime_with_no_console_at_all(
     child.boot()
     assert _connect(env, "--drain") == 0
     child.wait_gone()
-    _assert_reason(_ended(env, child.pid), "drained", child.pid)
+    _assert_reason(_ended(env, child), "drained", child.pid)
 
 
 # ── the fault seam: uncaught, plain exit, and absence ───────────────────────
@@ -362,7 +362,7 @@ def test_an_uncaught_exception_names_its_type(tmp_path: Path) -> None:
     child.boot()
     child.wait_gone()
     _assert_reason(
-        _ended(env, child.pid), "uncaught:RuntimeError", child.pid
+        _ended(env, child), "uncaught:RuntimeError", child.pid
     )
 
 
@@ -376,7 +376,7 @@ def test_a_plain_exit_that_set_no_reason_says_unknown_exit(tmp_path: Path) -> No
     child = _spawn(env, "--service")
     child.boot()
     child.wait_gone()
-    _assert_reason(_ended(env, child.pid), "unknown_exit", child.pid)
+    _assert_reason(_ended(env, child), "unknown_exit", child.pid)
 
 
 def test_a_hard_exit_writes_nothing_and_the_absence_is_the_reading(
@@ -400,7 +400,7 @@ def test_a_hard_exit_writes_nothing_and_the_absence_is_the_reading(
     child.boot()
     child.wait_gone()
     root = Path(env["HERMES_AGENT_RUNTIME_ROOT"])
-    assert _ended(env, child.pid) is None
+    assert _ended(env, child) is None
     assert serve_instance_path(root, child.pid).exists()
 
 
