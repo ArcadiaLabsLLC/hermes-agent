@@ -1687,7 +1687,7 @@ omit the module and never advertise the methods.
 | `runtime.work.context` | `client_scope`, `conversation` | `scopes`, `agent_profile`, `assignee`, `can_start` | `invalid_request`, `work_owner_changed` |
 | `runtime.work.list` | `slot?`, `status?` (`READY` / `BLOCKED` / `DEFERRED` / `NEEDS PLAN` / `TAKEN`), `assignee?` (`persona:<token>`), `view?` (`all` / `conversation`), `stale_ok?` | `boards[] {slot, label, brain_dir, bound_here, local, is_default, default_branch, committed_at, queues[] {note, program, title, rows[]}}` — grouped per brain, then per domain (one queue note each; `program` from its frontmatter; every row carries `slot` and `program`), `cursor: null`, `read_at`, `stale` | `work_owner_changed`, `fetch_failed` (unless `stale_ok`) |
 | `runtime.work.inspect` | `slot`, `task_id` | `task` or null; `ending {commit, at, subject, body}` (the deleting commit) when null | `work_owner_changed`, `slot_unbound` |
-| `runtime.work.start` | `request_id`, `title` (≤160), `body?` (≤50,000), `slot?`, `note?`, `assignee?` | `task`, `disposition: accepted`, `receipt` — a minted `WORK-<6>` row; a non-empty body is its brief note | `invalid_request`, `no_brain`, `slot_unbound`, `assignee_unknown`, `push_contended`, the git reasons |
+| `runtime.work.start` | `request_id`, `title` (≤160), `body?` (≤50,000), `slot?`, `note?`, `assignee?`, `conversation?` | `task`, `disposition: accepted`, `receipt` — a minted `WORK-<6>` row; a non-empty body is its brief note | `invalid_request`, `no_brain`, `slot_unbound`, `assignee_unknown`, `push_contended`, the git reasons |
 | `runtime.work.assign` | `request_id`, `slot`, `task_id`, `assignee` (or null to clear) | `task`, `receipt` | `row_gone`, `assignee_unknown`, git reasons |
 | `runtime.work.claim` | `request_id`, `slot`, `task_id`, `who?` (`persona:<instance_id>`, default the context's assignee) | `task`, `receipt` | `row_gone`, `already_taken`, `assignee_unknown`, git reasons |
 | `runtime.work.release` | `request_id`, `slot`, `task_id`, `status?` | `task`, `receipt` | `row_gone`, `not_claimant`, git reasons |
@@ -1715,5 +1715,6 @@ A session that races the writer on the same queue note re-applies its op by ID w
 conversation authorities. A native reference is `{kind: native, profile, profile_home, session_id}`
 (browse only; it names no assignee). An operator reference is `{kind: operator, workspace_id, persona_id,
 persona_instance_id, session_id}`; it passes `validate_operator_conversation`, and its persona instance
-IS the assignee: `context.assignee = persona:<persona_instance_id>`, the default `who` of a claim, and the
+IS the assignee: `context.assignee = persona:<persona_instance_id>`, the default `who` of a claim, the
+default `assignee` of a `start` (a row started there for that instance is written `TAKEN` by it), and the
 `conversation` view lists the rows that instance holds (`in_conversation`).

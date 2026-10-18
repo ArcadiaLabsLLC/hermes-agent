@@ -27,6 +27,7 @@ from agent_runtime.serve_rpc.protocol import (
     ok,
 )
 from agent_runtime.serve_rpc.registry import method
+from agent_runtime.sync_take import SyncTake
 from agent_runtime.serve_rpc.params import (
     workspace_id_required,
     unknown_workspace,
@@ -202,8 +203,9 @@ def _runtime_office_resolve_conflict(
     # Normalized the way the store normalizes it, so the handler and the store
     # cannot disagree about which spellings are legal — and echoed from this
     # value, so the ack names the side that won.
-    take = raw_take.strip().lower() if isinstance(raw_take, str) else ""
-    if take not in {"local", "remote"}:
+    try:
+        take = SyncTake(raw_take.strip().lower() if isinstance(raw_take, str) else "").value
+    except ValueError:
         return err(
             rid,
             ERR_INVALID_PARAMS,

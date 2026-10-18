@@ -16,6 +16,7 @@ from ..models import Board, BoardCard
 from ..serde import from_jsonable, read_json, safe_id
 from ..store_conflicts import archive_conflict_sidecar
 from ..sync_merge import merge_archived_ledgers
+from ..sync_take import SyncTake
 from .files import (
     _write_board,
     _write_card,
@@ -187,9 +188,10 @@ def resolve_conflict(store: BoardStore, card_id: str, *, take: str, board_id: st
     archives the local card for an edit-vs-remove tombstone). Always archives
     the sidecar and emits ``board.card.conflict_resolved``."""
 
-    take = str(take or "").strip().lower()
-    if take not in {"local", "remote"}:
-        raise ValueError("invalid_request")
+    try:
+        take = SyncTake(str(take or "").strip().lower())
+    except ValueError:
+        raise ValueError("invalid_request") from None
     board_id, _ = locate_card(card_id, board_id=board_id, allow_missing=True)
     if not board_id:
         board_id = board_id_of_conflict(card_id)
@@ -201,7 +203,7 @@ def resolve_conflict(store: BoardStore, card_id: str, *, take: str, board_id: st
             raise SyncConflict(f"no_conflict:{card_id}")
         sidecar = read_json(sidecar_path)
         result_card: BoardCard | None = None
-        if take == "local":
+        if take is SyncTake.LOCAL:
             # Keep the local card as-is; simply clear the conflict.
             if card_path_active(board_id, card_id):
                 result_card = store.get_card(card_id, board_id=board_id)
@@ -231,7 +233,7 @@ def resolve_conflict(store: BoardStore, card_id: str, *, take: str, board_id: st
             "board.card.conflict_resolved",
             board_id=board_id,
             card_id=card_id,
-            take=take,
+            take=take.value,
             revision=getattr(result_card, "revision", None),
         )
     return result_card

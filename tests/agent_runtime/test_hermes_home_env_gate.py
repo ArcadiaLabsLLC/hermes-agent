@@ -89,7 +89,9 @@ ALLOWED: dict[str, str] = {
     "agent_runtime/profile_home.py": (
         "THE authority's one reader. ``configured_head_home`` IS the "
         "ENV_HEAD_HOME rung; ``chat_session_scope``'s resolution ladder takes "
-        "it from here (moved down a layer, lane LAYERS L4)."
+        "it from here (moved down a layer, lane LAYERS L4). "
+        "``configured_hermes_home`` is the HERMES_HOME rung a rung-reporting "
+        "diagnostic (``root_observability``) asks for instead of the environment."
     ),
     "agent_runtime/profile_context.py": (
         "The profile-binding chokepoint, and the only sanctioned WRITER: it "

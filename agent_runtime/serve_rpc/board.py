@@ -57,6 +57,7 @@ from agent_runtime.serve_rpc.protocol import (
 )
 from agent_runtime.serve_rpc.reasons import RpcRefusal
 from agent_runtime.serve_rpc.registry import method
+from agent_runtime.sync_take import SyncTake
 
 __layer__ = "lanes"
 
@@ -186,10 +187,10 @@ def _expect_revision_param(params: dict) -> int | None:
 
 
 def _take_param(params: dict) -> str:
-    take = (_str_param(params, "take") or "").strip().lower()
-    if take not in {"local", "remote"}:
-        raise ParamRefused('invalid params: take must be "local" or "remote"', RpcRefusal.TAKE_INVALID)
-    return take
+    try:
+        return SyncTake((_str_param(params, "take") or "").strip().lower()).value
+    except ValueError:
+        raise ParamRefused('invalid params: take must be "local" or "remote"', RpcRefusal.TAKE_INVALID) from None
 
 
 # ── the one write path every verb runs ───────────────────────────────────────

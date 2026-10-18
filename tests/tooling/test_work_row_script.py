@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.gate
+
 ROOT = Path(__file__).resolve().parents[2]
 NOTE = "Harness_Brain/20 — Active Initiatives/q.md"
 HEAD = "---\ntype: queue\nprogram: test\n---\n\n## Open\n\n"
