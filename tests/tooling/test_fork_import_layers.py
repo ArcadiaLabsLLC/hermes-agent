@@ -31,20 +31,26 @@ from scripts import god_file_probe as probe
 pytestmark = pytest.mark.gate
 
 
-def _arm(key: str) -> probe.Drift:
-    live = set(probe.layer_census()[key])
-    return probe.compare_sets(f"W0-G6 {key}", live, probe.layer_fixture().get(key, set()))
+@pytest.fixture(scope="module")
+def census() -> dict[str, list]:
+    """One census of the live tree behind all eight arm cases (fork-hygiene
+    FORK-TEST-FORK-IMPORT-LAYERS: each case re-built it, ~4.6 s apiece)."""
+    return probe.layer_census()
+
+
+def _arm(census: dict[str, list], key: str) -> probe.Drift:
+    return probe.compare_sets(f"W0-G6 {key}", set(census[key]), probe.layer_fixture().get(key, set()))
 
 
 @pytest.mark.parametrize("key", probe.LAYER_ARMS)
-def test_no_new_site(key):
-    drift = _arm(key)
+def test_no_new_site(census, key):
+    drift = _arm(census, key)
     assert not drift.new, f"new {key} sites — declare the layer / use the public door:\n" + drift.render()
 
 
 @pytest.mark.parametrize("key", probe.LAYER_ARMS)
-def test_a_fixed_site_loses_its_row(key):
-    drift = _arm(key)
+def test_a_fixed_site_loses_its_row(census, key):
+    drift = _arm(census, key)
     assert not drift.stale, "delete these rows — the site is gone:\n" + drift.render()
 
 
