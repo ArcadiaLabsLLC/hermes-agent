@@ -135,6 +135,15 @@ below on their structure, not on their cost.
    in `_resolved_path` and `is_skill_support_path`, both reached from
    `resolve_skills`. Upstream-owned file; not touched here, per the fork's
    leave-upstream-alone rule.
+   **Re-measured 2026-10-18 (RT-SKILL-UTILS-STAT-CALLS), and closed without a memo.**
+   Same method (isolated copy of the live store, `HERMES_REQUIRE_ISOLATED_ROOT=1`,
+   `ntpath._getfinalpathname` and `os.stat` counted by originating frame), three
+   uncoalesced builds: `is_skill_support_path` made **0** `os.stat` calls on every build
+   (cold included; h-chatperf/CP-5's registry cache answers it), and the fork-owned
+   `skill_resolution._resolved_path` made **234 `realpath` calls / ~20 ms on a ~2.3 s warm
+   build** (1,930 / 154 ms on the cold first build). Under 1% of a warm build is below what
+   the gate below can see on a live boot, so nothing was memoised; the cold-build term
+   belongs to the core-cache lane.
 
 4. **`venv_integrity_issues` re-enumerates site-packages once per persona per
    build** — 243 `os.stat` calls answering a question about the interpreter's
