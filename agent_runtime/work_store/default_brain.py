@@ -120,8 +120,8 @@ def _commit_skeleton(root: Path, workspace_id: str, machine: str) -> None:
 
 def this_machine() -> str:
     """This machine's id (the commit identity), refused ``machine_identity_unavailable`` as a Work refusal;
-    the one owner of that wrapper (the batch dispatcher and the serve scheduler read it). Whether git is
-    shipped is the lanes caller's check."""
+    the one owner of that wrapper (the batch dispatcher, the serve scheduler and ``work.store.writer_for``
+    read it). Whether git is shipped is the lanes caller's check."""
 
     try:
         return machine_id()

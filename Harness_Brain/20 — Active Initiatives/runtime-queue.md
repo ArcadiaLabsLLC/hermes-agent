@@ -33,7 +33,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 ### Filed on arrival — 2026-10-18 (land w5)
 
 - **`RT-BATCH-LAYER-TYPES` — `agent_runtime/batch/{planner,machine,manifest,board_source}` declared policy/stores but import value types from lanes modules (`work_store.executor.Verdict`/`Brief`, `work_store.source.Domain`/`Claimant`); land w5 re-declared all four `lanes` to green W0-G6** · fork / batch · `tests/tooling/test_fork_import_layers.py::test_declared_layers_are_bound_at_runtime_and_point_down`; move the value types to a `models` module of `work_store` and restore the four layers · READY 2026-10-18 · **TAKEN 2026-10-18 w6-lane**
-- **`RT-MACHINE-ID-REFUSAL-WRAPPER` — the machine-id-to-`WorkRefused(MACHINE_UNIDENTIFIED)` wrapper was hand-written at four sites (third instance files the class); land w5 folded batch.dispatcher and serve_scheduler onto `work_store/default_brain.py::this_machine`, `agent_runtime/work/store.py::writer_for` still inlines it** · fork / work · W0-G3 helper-names red at land w5 (`_this_machine` in two modules) · READY 2026-10-18 · **TAKEN 2026-10-18 w6-misc**
 
 ### Filed on arrival — 2026-10-18 (land w4)
 

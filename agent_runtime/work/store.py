@@ -23,7 +23,7 @@ from agent_runtime.work_store import board as boards_store
 from agent_runtime.work_store import receipts
 from agent_runtime.work_store.board import Board
 from agent_runtime.work_store.default_brain import (
-    QUEUE_DIR, QUEUE_NOTE, QUEUE_TEMPLATE, TODO_TEMPLATE, retire_binding,
+    QUEUE_DIR, QUEUE_NOTE, QUEUE_TEMPLATE, TODO_TEMPLATE, retire_binding, this_machine,
 )
 from agent_runtime.work_store.grammar import (
     ASSIGNEE, STATUS, Assignee, Op, Row, RowRef, find, mint_id, parse_note,
@@ -56,13 +56,7 @@ class Synced:
 
 
 def writer_for(board: Board) -> Writer:
-    from agent_runtime.workspace_slots import SlotRefused, machine_id
-
-    try:
-        machine = machine_id()
-    except SlotRefused as exc:
-        raise WorkRefused(Reason.MACHINE_UNIDENTIFIED, exc.detail) from exc
-    return Writer(board, machine_id=machine)
+    return Writer(board, machine_id=this_machine())
 
 
 def _token_of(workspace_id: str) -> str:
