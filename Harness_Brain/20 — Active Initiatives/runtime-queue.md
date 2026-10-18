@@ -649,6 +649,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Upstream-owned
 
+### Filed on arrival — 2026-10-18 (lane h3-plugins, branch `q/h3-plugins`)
+
+- **`RT-BASIC-AUTH-IMPORT-SCRYPT` — `plugins/dashboard_auth/basic/__init__.py` runs scrypt (n=2^14) at import for `_DUMMY_HASH`: ~0.25 s CPU each time the bundled plugin is imported, at every boot that loads plugins and at every test discovery (252 s of the 478 s plugin-phase CPU over the top 15 suite files)** · upstream / dashboard auth · evidence: lane h3-plugins report, commit `0c4104f40a` body (bucket profile: 1,002 imports, 252.1 s in `hashlib.scrypt`) · fix: an upstream PR computing the dummy hash lazily on the first unknown-username login (the fork may not edit the file) · READY 2026-10-18
+
 ### Filed on arrival — 2026-10-18 (lane r-state, branch `q/r-state`)
 
 
