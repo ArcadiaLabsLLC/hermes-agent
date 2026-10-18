@@ -224,3 +224,44 @@ def test_a_colon_key_is_a_safe_file_name():
     scheduler.arm("work:nightly", Trigger.every(5), PROMPT)
     assert [r.key for r in schedule_store.load_all()] == ["work:nightly"]
     assert all(":" not in p.name for p in paths.schedules_dir().iterdir())
+
+
+# ── the serve's StartBatch door (land w5: B4's scheduler bound to B2's dispatcher) ─────────────────
+
+_SETTINGS_START = "---\ntype: batch_settings\nbatch_automation: start\n---\n"
+
+
+def test_the_default_automation_reads_the_batch_settings_note(monkeypatch):
+    from agent_runtime.batch.manifest import BrainManifestStore
+
+    monkeypatch.setattr(BrainManifestStore, "settings", lambda self, workspace_id: _SETTINGS_START)
+    scheduler, _ = _scheduler()
+    armed = scheduler.arm("batch", Trigger.at_utc(T0), StartBatch("ws-1", "BATCH-ABCDEF"))
+    assert armed.key == "batch"
+
+
+def test_the_serve_binds_start_batch_to_its_dispatcher_as_a_scheduled_start(monkeypatch):
+    import threading
+
+    from agent_runtime.batch.manifest import BrainManifestStore
+    from hermes_cli.harness_parts.serve.queued_turns import start_serve_scheduler
+
+    monkeypatch.setattr(BrainManifestStore, "settings", lambda self, workspace_id: _SETTINGS_START)
+    started = []
+
+    class _Dispatcher:
+        def start(self, workspace_id, plan_id, *, personas=None, scheduled=False):
+            started.append((workspace_id, plan_id, scheduled))
+            return SimpleNamespace(wire=lambda: {"id": plan_id, "state": "RUNNING"})
+
+    stop = threading.Event()
+    stop.set()
+    session = SimpleNamespace(work_executor=None, batch_dispatcher=_Dispatcher(), liveness_stop=stop,
+                              drain_state=None, serve_request_home=None)
+    scheduler = start_serve_scheduler(session)
+    scheduler._machine = lambda: "machine-a"
+    scheduler._clock = lambda: T0
+    scheduler.arm("batch", Trigger.at_utc(T0), StartBatch("ws-1", "BATCH-ABCDEF"))
+    [receipt] = scheduler.tick(T0)
+    assert receipt["refused"] is None and receipt["batch"]["id"] == "BATCH-ABCDEF"
+    assert started == [("ws-1", "BATCH-ABCDEF", True)]

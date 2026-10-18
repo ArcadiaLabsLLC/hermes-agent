@@ -103,16 +103,28 @@ def queued_turn_runner_policy(session: Any) -> Any:
     )
 
 
-def _batch_hooks(executor: Any) -> dict[str, Any]:
+def _batch_hooks(session: Any) -> dict[str, Any]:
     """The batch dispatcher on the serve's executor (dispatcher plan §3, B2): it hears every settle,
-    the engine skips the rows a batch lane holds, and the engine's tick advances owned batches."""
+    the engine skips the rows a batch lane holds, and the engine's tick advances owned batches. Kept on
+    ``session.batch_dispatcher`` for the scheduler's ``StartBatch`` door (:func:`_start_batch_door`)."""
 
     from agent_runtime.batch.dispatcher import default_dispatcher
     from agent_runtime.batch.manifest import held_refs
 
-    dispatcher = default_dispatcher(executor=executor)
+    executor = session.work_executor
+    dispatcher = session.batch_dispatcher = default_dispatcher(executor=executor)
     executor.on_settle(dispatcher.settled)
     return {"held": held_refs, "after_tick": dispatcher.tick}
+
+
+def _start_batch_door(session: Any) -> Any:
+    """A ``StartBatch`` fire starts the plan through the serve's dispatcher as a SCHEDULED start (the
+    dispatcher refuses ``automation_off`` below ``start``); None — ``door_unbound`` — without one."""
+
+    dispatcher = getattr(session, "batch_dispatcher", None)
+    if dispatcher is None:
+        return None
+    return lambda action: {"batch": dispatcher.start(action.workspace_id, action.plan_id, scheduled=True).wire()}
 
 
 def start_serve_work_engine(session: Any) -> Any:
@@ -133,7 +145,7 @@ def start_serve_work_engine(session: Any) -> Any:
     home = getattr(session, "serve_request_home", None)
     with home_scope(home):
         session.work_executor = PersonaTurnExecutor(draining=lambda: session.drain_state is not None)
-        hooks = _batch_hooks(session.work_executor) if shipped("agent_runtime.batch") else {}
+        hooks = _batch_hooks(session) if shipped("agent_runtime.batch") else {}
         session.work_engine = WorkEngine(executor=session.work_executor, **hooks)
     start_work_engine(stop_event=session.liveness_stop, engine=session.work_engine, home=home,
                       on_tick=session.work_executor.wake_parked)
@@ -154,6 +166,7 @@ def start_serve_scheduler(session: Any) -> Any:
     home = getattr(session, "serve_request_home", None)
     with home_scope(home):
         session.scheduler = ServeTickScheduler(executor=session.work_executor,
+                                               start_batch=_start_batch_door(session),
                                                can_dispatch=lambda: session.drain_state is None)
     start_schedule_ticker(stop_event=session.liveness_stop, scheduler=session.scheduler, home=home)
     return session.scheduler

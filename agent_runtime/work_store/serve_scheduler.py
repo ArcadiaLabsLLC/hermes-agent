@@ -91,12 +91,13 @@ def _in_flight() -> int:
 
 
 def _workspace_automation(workspace_id: str) -> str:
-    """The workspace's ``batch_automation`` (B2 owns the field); ``off`` when it has none."""
+    """The workspace's ``batch_automation``: the frontmatter of the default brain's ``batches/settings.md``
+    (B2 owns the field, ``batch.manifest.automation_of`` reads it); ``off`` when it has none."""
 
     try:
-        from ..store import WorkspaceStore
+        from ..batch.manifest import BrainManifestStore, automation_of
 
-        return str(getattr(WorkspaceStore().get(workspace_id), "batch_automation", "off") or "off")
+        return automation_of(BrainManifestStore().settings(workspace_id)).value
     except Exception:
         return "off"
 
