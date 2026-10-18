@@ -665,6 +665,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Upstream-owned
 
+### Filed on arrival — 2026-10-18 (lane r-state, branch `q/r-state`)
+
+- [ ] **`pm.shell.bash()` spawns a `bash -c "exit 0"` probe on every call, and `tools/environments/local.py::_find_bash` calls it for every local-backend command, so each Windows command costs two bash spawns (~0.3 s each)** · upstream-owned (`pm/shell.py`) · evidence: lane r-state 2026-10-18, `test_known_file_write_baseline.py::test_own_patch_after_own_write_keeps_the_baseline` ran 35 spawns, half of them the probe; the test chain now memoizes a started candidate (`tests/_downstream/bash_probe_memo.py`), production does not · lane: an upstream PR memoizing a started candidate in `pm.shell` (or a caller-side memo in a fork seam), then drop the test-chain memo · READY 2026-10-18
+
 ### Filed on arrival — 2026-10-17 (harvest)
 
 - [ ] **Repair the upstream onboarding import that blocks native gateway startup.** Clean `b9e7e77cc7` reproduces `NameError: Path` at `tui_gateway/methods_onboarding.py:71` before handler binding; existing worker/compute tests and all six subagent process round trips fail before routing. Evidence: `docs/downstream/agent-console-subagents-settings-2026-10-16.md` § Qualification. Keep the native footprint ruling explicit; Step 6 does not silently absorb a fifth seam. · upstream / gateway · UNCLAIMED · carried from origin/codex/subagent-settings-hermes 698e0da (2026-10-17 harvest)
