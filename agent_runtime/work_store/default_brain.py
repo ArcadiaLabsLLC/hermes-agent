@@ -31,7 +31,7 @@ from ..workspace_slots import (
 from .board import DEFAULT_BRAIN_SLOT, Board, boards, has_brain_here, needs_default_brain
 from .reasons import Reason, WorkRefused
 
-__layer__ = "stores"
+__layer__ = "lanes"
 __all__ = ["IDENTITY_PAIRS", "QUEUE_TEMPLATE", "TODO_TEMPLATE", "ensure_default_brain", "skeleton"]
 
 BRAIN_FOLDER = "Work_Brain"
