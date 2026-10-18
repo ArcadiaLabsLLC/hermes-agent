@@ -535,6 +535,23 @@ def _profile_template_names() -> list[str]:
         return []
 
 
+def actor_bound_instance_id(actor) -> str | None:
+    """The canonical persona-instance id an office actor is bound to, or ``None``.
+
+    The one derivation both evidence readers spend: the reconcile lane's
+    :func:`office_placement_evidence` and the snapshot's office rows
+    (``archived_placement_instance_ids``), so the parity warning and the prune it
+    names cannot disagree about which instance a desk belonged to.
+    """
+
+    from .persona_assignments import canonical_persona_instance_id
+
+    raw = str(getattr(actor, "persona_instance_id", "") or "").strip()
+    if not raw:
+        return None
+    return canonical_persona_instance_id(raw, persona_id=actor.persona_id) or raw
+
+
 def office_placement_evidence(office_store) -> tuple[set[str] | None, dict[str, set[str]] | None]:
     """Which instances hold a LIVE office placement anywhere, and which hold an
     ARCHIVED one in each workspace.
@@ -556,16 +573,9 @@ def office_placement_evidence(office_store) -> tuple[set[str] | None, dict[str, 
     with the fail direction chosen the same way.
     """
 
-    from .persona_assignments import canonical_persona_instance_id
-
     live: set[str] = set()
     archived_by_ws: dict[str, set[str]] = {}
-
-    def _bound(actor) -> str | None:
-        raw = str(getattr(actor, "persona_instance_id", "") or "").strip()
-        if not raw:
-            return None
-        return canonical_persona_instance_id(raw, persona_id=actor.persona_id) or raw
+    _bound = actor_bound_instance_id
 
     for wsid in office_store.list_workspaces():
         try:

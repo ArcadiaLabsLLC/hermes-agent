@@ -469,3 +469,33 @@ def test_reconcile_is_idempotent_on_the_unplaced_lane(seeded_workspaces):
     second = reconcile_persona_instances(apply=True)
     assert second["unplaced_pruned"] == []
     assert second["unplaced_held"] == []
+
+
+# ── the snapshot's warning (RT-SNAPSHOT-UNPLACED-INSTANCE) ──────────────────
+
+
+def _snapshot_warnings(monkeypatch) -> list[dict]:
+    from agent_runtime.config import AgentRuntimeConfig
+    from agent_runtime.snapshot import build_snapshot
+
+    cfg = AgentRuntimeConfig()
+    monkeypatch.setattr("agent_runtime.snapshot.envelope.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.sections.load_agent_runtime_config", lambda: cfg)
+    return list(build_snapshot()["parity"]["warnings"])
+
+
+def test_the_snapshot_names_the_ghost_the_reconcile_lane_would_prune(seeded_workspaces, monkeypatch):
+    """The launcher learns of a ghost from the snapshot, not only from
+    ``reconcile --dry-run``: same classifier, evidence carried on the office row."""
+
+    placed = _place()
+    instance_id = placed["persona_instance_id"]
+    before = {w.get("entity_id") for w in _snapshot_warnings(monkeypatch) if w.get("code") == "unplaced_persona_instance"}
+    assert instance_id not in before, "a placed instance must not warn (the control)"
+
+    seeded_workspaces.remove_actor(WORKSPACE, placed["actor_key"])
+    _age_row(instance_id, days=5)
+
+    after = [w for w in _snapshot_warnings(monkeypatch) if w.get("code") == "unplaced_persona_instance"]
+    assert [w["entity_id"] for w in after] == [instance_id]
+    assert {w["entity_id"] for w in after} == _ids(_classify(seeded_workspaces)["prunable"])

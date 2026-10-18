@@ -1123,6 +1123,16 @@ hands over a count and no tokens. Both keys are additive — a row from an older
 core has no such list, which reads as exactly the claim the bare list used to
 make silently.
 
+**`archived_placement_instance_ids` rides the row too (2026-10-18,
+RT-SNAPSHOT-UNPLACED-INSTANCE)**: the instances an ARCHIVED actor of that office was bound
+to and no live actor there still is, read through `scan_actors(include_archived=True)`
+and bounded by the archive retention above; `None` when either directory had an unreadable
+file. The parity check `unplaced_persona_instance` (and `held_unplaced_persona_instance`)
+runs `classify_unplaced_persona_instances` — the classifier the reconcile lane prunes by —
+over those rows, and says nothing when any office row is `None`, truncated or unreadable,
+because a short live list could hide the placement that makes a row NOT a ghost. The
+launcher shows it through its generic `warningCodes`; no launcher change is needed.
+
 **`office_actors_unreadable` out of `copy_workspace_content`**, same commit and
 same shape: it skipped an undecodable source actor and emitted NOTHING, while
 every other fault in that module (a broken surface, a folder write, a refused

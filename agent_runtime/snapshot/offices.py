@@ -66,6 +66,7 @@ def office_summary_row(
     actor_unpublished=None,
     orphaned: bool = False,
     orphan_reason: str | None = None,
+    archived_placement_instance_ids: list[str] | None = None,
 ) -> dict:
     """ONE Mission Office surface projection row — the single authority for the
     actor projection bound and its truncation accounting.
@@ -143,6 +144,14 @@ def office_summary_row(
         # second derivation with its own inputs — free to drift from the flag it
         # is supposed to be explaining. Additive: an old launcher ignores the key.
         "orphan_reason": orphan_reason,
+        # The instances an ARCHIVED actor of this office was bound to (and no
+        # live actor here still is): the evidence the ``unplaced_persona_instance``
+        # warning needs (RT-SNAPSHOT-UNPLACED-INSTANCE). Bounded by the archive
+        # retention (``ARCHIVED_ACTOR_FILES_RETAIN``). ``None`` means "could not
+        # read the archive completely", never "none". Additive.
+        "archived_placement_instance_ids": (
+            None if archived_placement_instance_ids is None else list(archived_placement_instance_ids)
+        ),
     }
 
 
@@ -255,9 +264,42 @@ def _offices_summary(office_store, workspaces, realms=()) -> OfficesProjection:
                     if orphaned
                     else None
                 ),
+                archived_placement_instance_ids=_archived_placement_instance_ids(
+                    office_store, workspace_token, actors
+                ),
             )
         )
     return OfficesProjection(offices=offices, unreadable=unreadable)
+
+
+def _archived_placement_instance_ids(office_store, workspace_token, live_actors) -> list[str] | None:
+    """Instances an archived actor of this workspace was bound to, minus any a
+    live actor here is still bound to; ``None`` when either directory had a file
+    that would not decode (a short read must not mint a ghost).
+
+    Read through the ``scan_actors`` chokepoint; the archive side is bounded by
+    the office archive retention, which is what made this read affordable
+    (owner ruling 2026-10-15).
+    """
+
+    from ..persona_instance_identity import actor_bound_instance_id
+
+    try:
+        scan = office_store.scan_actors(workspace_token, include_archived=True)
+    except Exception:  # noqa: BLE001 - an unreadable office says "cannot say"
+        return None
+    if scan.unreadable:
+        return None
+    live_keys = {actor.actor_key for actor in live_actors}
+    live_bound = {actor_bound_instance_id(actor) for actor in live_actors}
+    archived: set[str] = set()
+    for actor in scan.actors:
+        if actor.actor_key in live_keys:
+            continue
+        bound = actor_bound_instance_id(actor)
+        if bound and bound not in live_bound:
+            archived.add(bound)
+    return sorted(archived)
 
 
 #: Detail wording per orphan reason. One sentence each, and each says something

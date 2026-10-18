@@ -13,6 +13,7 @@ from agent_runtime.persona_chat_history.vocabulary import canonical_chat_persona
 from agent_runtime.persona_instance_identity import (
     backed_persona_identity,
     classify_orphan_persona_instances,
+    classify_unplaced_persona_instances,
     duplicate_persona_instance_groups,
 )
 from agent_runtime.serde import section_rows
@@ -374,9 +375,71 @@ def _operator_channel_warnings(frame: _WarningFrame) -> list[dict]:
 #: unconditionally in :func:`_parity_warnings`; these run only when the persona
 #: instance runtime is enabled. ``tests/agent_runtime/test_parity_warning_catalog.py``
 #: reds when a warning code leaves.
+def _unplaced_instance_warnings(frame: _WarningFrame) -> list[dict]:
+    """Workspace rows whose placement left the floor: an archived actor of their
+    own office was bound to them and no live actor anywhere is
+    (RT-SNAPSHOT-UNPLACED-INSTANCE; the classifier the reconcile lane prunes by).
+
+    Reads only the office rows this frame already carries. Says nothing when any
+    office row cannot vouch for its evidence: an archive it could not read
+    (``archived_placement_instance_ids`` is ``None`` or absent, an older core),
+    or a live list that is short (truncated or unreadable) and so could hide the
+    live placement that makes a row NOT a ghost.
+    """
+
+    from agent_runtime.persona_assignments import canonical_persona_instance_id
+
+    live: set[str] = set()
+    archived_by_ws: dict[str, list[str]] = {}
+    for office in section_rows(frame.data.get("offices")):
+        evidence = office.get("archived_placement_instance_ids")
+        if evidence is None or office.get("actors_truncated") or office.get("actors_unreadable"):
+            return []
+        archived_by_ws[str(office.get("workspace_id") or "")] = list(evidence)
+        for actor in office.get("actors") or []:
+            raw = str((actor or {}).get("persona_instance_id") or "").strip()
+            if raw:
+                live.add(canonical_persona_instance_id(raw, persona_id=actor.get("persona_id")) or raw)
+    if not archived_by_ws:
+        return []
+    classes = classify_unplaced_persona_instances(
+        frame.instances,
+        live_placement_instance_ids=live,
+        archived_placement_instance_ids_by_workspace=archived_by_ws,
+    )
+    warnings: list[dict] = []
+    for entry in classes["prunable"]:
+        warnings.append(
+            {
+                "code": "unplaced_persona_instance",
+                "entity_id": entry["persona_instance_id"],
+                "reason": entry["reason"],
+                "detail": (
+                    f"persona instance '{entry['persona_instance_id']}' lost its office placement in "
+                    f"'{entry['workspace_id']}' and is on no floor; "
+                    "run `harness persona-instance reconcile [--dry-run]`"
+                ),
+            }
+        )
+    for entry in classes["held"]:
+        warnings.append(
+            {
+                "code": "held_unplaced_persona_instance",
+                "entity_id": entry["persona_instance_id"],
+                "reason": entry["reason"],
+                "detail": (
+                    f"persona instance '{entry['persona_instance_id']}' is on no floor but protected "
+                    f"from prune ({entry['reason']})"
+                ),
+            }
+        )
+    return warnings
+
+
 PARITY_WARNINGS: tuple[tuple[str, Callable[[_WarningFrame], list[dict]]], ...] = (
     ("duplicate_instances", _duplicate_instance_warnings),
     ("orphan_instances", _orphan_instance_warnings),
+    ("unplaced_instances", _unplaced_instance_warnings),
     ("referential", _referential_warnings),
     ("chat_timestamps", _chat_timestamp_warnings),
     ("live_mission_shadow", _live_mission_shadow_warnings),
