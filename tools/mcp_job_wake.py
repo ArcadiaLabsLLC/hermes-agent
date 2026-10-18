@@ -374,6 +374,13 @@ def note_wake_settled(evt: Mapping[str, Any]) -> bool:
     return row is not None
 
 
+def writer_identity() -> tuple[int, Any]:
+    """This process's pid and spawn ticks — the reader's proof a checkpoint row's owner still lives.
+
+    Public because ``tools/long_tool_calls.py`` stamps its rows with the same identity (one owner)."""
+    return _writer()
+
+
 def _writer() -> tuple[int, Any]:
     """This process's pid and spawn ticks — the reader's proof the rows' owner still lives."""
     global _writer_identity

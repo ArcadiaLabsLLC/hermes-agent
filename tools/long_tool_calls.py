@@ -40,7 +40,6 @@ from __future__ import annotations
 import contextvars
 import json
 import logging
-import os
 import sys
 import threading
 import time
@@ -113,7 +112,6 @@ _lock = threading.Lock()
 _calls: dict[str, _Call] = {}
 #: Rows of promoted calls this process wrote, keyed by handle; outlive the call until settled.
 _rows: dict[str, dict] = {}
-_writer_identity: Optional[tuple[int, Any]] = None
 
 
 # ── arming ────────────────────────────────────────────────────────────────────
@@ -151,7 +149,7 @@ def bracket(name: str, args: Any, call_kwargs: Mapping[str, Any], run: Callable[
         _receipt("deduplicated", existing, reason="same_tool_same_args")
         return running_in_background(existing, reused=True)
     call = _Call(handle=f"bg:{uuid.uuid4().hex[:12]}", tool_name=name, args_key=args_key, routing=routing,
-                 turn_id=turn_id, call_id=call_id, label=_label(name, args))
+                 turn_id=turn_id, call_id=call_id, label=_call_label(name, args))
     with _lock:
         _calls[call.handle] = call
     ctx = contextvars.copy_context()
@@ -315,7 +313,7 @@ def _result_text(result: Any) -> str:
     return str(result)
 
 
-def _redacted(text: str) -> str:
+def _bounded_redacted(text: str) -> str:
     if len(text) > _RESULT_CHARS:
         text = text[:_RESULT_CHARS] + "… [truncated]"
     try:
@@ -333,7 +331,7 @@ def _wake_event(call: _Call, result: Any) -> dict:
         "session_key": route.get("session_key", ""), "task_id": route.get("task_id", ""),
         "owner_task_id": route.get("owner_task_id", ""), "parent_session_id": route.get("parent_session_id", ""),
         "handle": call.handle, "tool": call.tool_name, "outcome": _outcome(call, result),
-        "elapsed_ms": _elapsed_ms(call), "result": _redacted(_result_text(result)),
+        "elapsed_ms": _elapsed_ms(call), "result": _bounded_redacted(_result_text(result)),
     }
 
 
@@ -399,16 +397,8 @@ def _write_checkpoint_locked(path: str) -> None:
 
 
 def _writer() -> tuple[int, Any]:
-    global _writer_identity
-    if _writer_identity is None:
-        pid, start = os.getpid(), None
-        try:
-            from gateway.status import get_process_start_time
-            start = get_process_start_time(pid)
-        except Exception:
-            start = None
-        _writer_identity = (pid, start)
-    return _writer_identity
+    from tools.mcp_job_wake import writer_identity
+    return writer_identity()
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -453,7 +443,7 @@ def _running_twin(name: str, args_key: str, session_key: str) -> Optional[_Call]
                      and c.args_key == args_key and c.routing.get("session_key", "") == session_key), None)
 
 
-def _label(name: str, args: Any) -> str:
+def _call_label(name: str, args: Any) -> str:
     detail = ""
     if isinstance(args, dict):
         for value in args.values():
@@ -486,8 +476,6 @@ def _receipt(event: str, call: _Call, *, reason: str) -> None:
 
 
 def reset_for_tests() -> None:
-    global _writer_identity
     with _lock:
         _calls.clear()
         _rows.clear()
-        _writer_identity = None
