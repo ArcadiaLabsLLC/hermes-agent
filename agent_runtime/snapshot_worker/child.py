@@ -156,6 +156,7 @@ class SnapshotBuildFailed(RuntimeError):
 def handle_build(params: dict) -> dict:
     """One build, its receipts, and this process's pid."""
 
+    from agent_runtime.lens.snapshot_fold import recorded_watcher
     from agent_runtime.persona_chat_continuity.runtime_registry import recorded_runtime_registry
     from agent_runtime.serde import to_jsonable
     from agent_runtime.snapshot.build import _build_snapshot_uncoalesced
@@ -168,7 +169,7 @@ def handle_build(params: dict) -> dict:
         _serve_pid(params)
         root.addHandler(capture)
         try:
-            with _resolution_scope(params.get("resolution")), snapshot_build_context_scope(_build_context()),                     precomputed_running_work(params.get("running_work")),                     recorded_runtime_registry(params.get("runtime")):
+            with _resolution_scope(params.get("resolution")), snapshot_build_context_scope(_build_context()),                     precomputed_running_work(params.get("running_work")),                     recorded_runtime_registry(params.get("runtime")),                     recorded_watcher(params.get("lens_watcher")):
                 core = _build_snapshot_uncoalesced()
         except BaseException as exc:
             raise SnapshotBuildFailed(exc, _captured(capture)) from exc

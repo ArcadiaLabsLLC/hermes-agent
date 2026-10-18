@@ -30,13 +30,15 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-18 (lane w4-fold, branch `w4/fold`)
+
+- **`RT-LENS-WATCHER-ON-CACHED-CORE` — The snapshot's `lens.watcher` is process memory (`poller.WATCHER`), not a core-cache input: a core served from the cache (boot, stale-first hydrate) carries the watcher state of the build that persisted it, so a stopped or restarted poller reads as it was until a Lens store write or another input moves the key** · fork / lens + core_cache · `agent_runtime/lens/snapshot_fold.py::watcher_state`; `agent_runtime/core_cache/fingerprint.py::INPUT_CLASSES` · overlay the live watcher on the served core in the serve (as `running_work` is overlaid), or drop `watcher` from the pushed section and keep it method-lane only · READY 2026-10-18
+
 ### Filed on arrival — 2026-10-18 (landing land-w2)
 
 ### Filed on arrival — 2026-10-16 (lane r-realm-lens, branch `q/r-realm-lens`)
 
 - **`RT-LENS-L1-LIVE-PROOF` — Lens L1 has no live proof: a real HTTP feed polled by a running serve, an Episode raised, and the stored evidence row read back redacted** · fork / runtime · r-realm-lens `13cf04f76fa` (no serve started) · BLOCKED 2026-10-16: owner sitting — live: needs an operator serve with `plugins/eternia-lens` shipped
-
-- **`RT-LENS-FOLD-RIDES-METHOD` — The Lens fold rides the method lane only (`runtime.lens.fold`); carrying it on the push-lane snapshot is a new top-level key in `agent_runtime/snapshot/sections.py` plus a regen of the cross-stack `tests/fixtures/stream_frames/` — do it in the same sitting as the launcher's fold painter** · fork / lens + snapshot · `agent_runtime/lens/snapshot_fold.py` docstring; launcher `mission-control-queue.md` L1 fold row · hermes moves first, launcher consumes · READY 2026-10-18 · RULED 2026-10-18: one top-level `lens` snapshot section, landed in the same sitting as the launcher's fold painter (owner) · **TAKEN 2026-10-18 w4-fold**
 
 ### Filed on arrival — 2026-10-16 (build lane h-bundle-speed, branch `build/h-bundle-speed`)
 
