@@ -504,7 +504,7 @@ results attached at `:649`, persisted through **one** chokepoint —
 skills catalogs, writes compactly, updates the latest-pointer index and applies
 retention. Layout: `<store>/prompt_observability/<context_id>.json`,
 `prompt_observability_catalogs/<hash>.json`, `prompt_observability_archive/`,
-`prompt_observability_index.json` (`agent_runtime/paths.py:512-534`). Retention
+`prompt_observability_index.json` (`agent_runtime/paths.py::prompt_observability_dir` and its three siblings). Retention
 keeps the newest 2 rows per `(persona_instance_id, session_id)` lane and ARCHIVES
 the rest, never deletes (`PROMPT_OBSERVABILITY_RETAIN_PER_LANE`, `:1314-1316`);
 an absent catalog is honest absence, never a fake empty list (`:1346-1348`).

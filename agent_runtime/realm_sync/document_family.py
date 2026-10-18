@@ -495,7 +495,7 @@ def apply_document_pull(family: DocumentFamily, realm_id: str, subtree) -> Docum
             continue
         if decision.action is PullAction.CONFLICT:
             summary.held.append(token)
-            _write_conflict_sidecar(family, realm_id, token, remote_raw, local_hash, remote_hash)
+            _park_held_document(family, realm_id, token, remote_raw, local_hash, remote_hash)
             continue
         if decision.action is PullAction.ARCHIVE_LOCAL:
             # Unreachable with ``remote_raw`` in hand — the classifier only
@@ -513,7 +513,7 @@ def apply_document_pull(family: DocumentFamily, realm_id: str, subtree) -> Docum
     return summary
 
 
-def _write_conflict_sidecar(
+def _park_held_document(
     family: DocumentFamily,
     realm_id: str,
     token: str,

@@ -38,6 +38,12 @@
       "refused": [],
       "unpublished": 0
     },
+    "prefabs": {
+      "held": [],
+      "publishable": 0,
+      "refused": [],
+      "unpublished": 0
+    },
     "profile_artifacts_held": [],
     "remote_check_error": "sync_remote_unreachable",
     "remote_checked": false,
