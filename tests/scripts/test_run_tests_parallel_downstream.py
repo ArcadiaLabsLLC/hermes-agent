@@ -426,3 +426,22 @@ def test_multiple_absolute_paths_split_on_pathsep(tmp_path: Path) -> None:
     )
     assert proc.returncode == 0, proc.stdout
     assert "Discovered 2 test files" in proc.stdout, proc.stdout
+
+
+def test_a_file_named_beside_a_node_id_runs_whole_and_the_node_runs_alone(tmp_path, monkeypatch) -> None:
+    """q-runner 2026-10-18: upstream's node-id translation hands EVERY file ``-k <leaf>``, so
+    ``run_tests.sh tests/a.py::test_x tests/b.py`` ran b.py's 0 tests and summed 1 as green.
+    The fork door drops that injected ``-k`` and names the node id on its own file only."""
+    from scripts import _fork_runner
+
+    monkeypatch.delenv(_fork_runner.COVERAGE_RC_ENV, raising=False)
+    monkeypatch.chdir(tmp_path)
+    argv = ["-j", "2", "tests/a.py::TestA::test_x[case]", "tests/b.py", "-q"]
+    injected = ["-q", "-k", "test_x"]
+    a, b = (tmp_path / "tests" / "a.py"), (tmp_path / "tests" / "b.py")
+    tail = len(_job_prefix()) + 3  # job prefix, python, -m, pytest
+    assert _fork_runner.pytest_argv(a, injected, argv)[tail:] == [f"{a}::TestA::test_x[case]", "-q"]
+    assert _fork_runner.pytest_argv(b, injected, argv)[tail:] == [str(b), "-q"]
+    # the caller's own -k (upstream injects nothing then) is never touched
+    assert _fork_runner.pytest_argv(b, ["-k", "other"], argv)[tail:] == [str(b), "-k", "other"]
+    assert _fork_runner.pytest_argv(b, injected, ["tests/b.py"])[tail:] == [str(b), *injected]
