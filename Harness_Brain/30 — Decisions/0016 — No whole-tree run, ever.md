@@ -11,8 +11,9 @@ tags: [adr, tests, gate]
 > [!summary]
 > Owner ruling 2026-10-17: "we don't need the full runner at all". **Nothing runs the whole tree** —
 > not a landing, not a release merge, not a weekly lane. A landing runs `--scope fork`; a release merge
-> runs `--since-merge`; both run every fork file plus the upstream files the change reaches, minus the
-> skip list. A session-chain edit runs the chain contract + one sample per folder at a release merge
+> runs `--since-merge`; both run every fork file plus the upstream files the change reaches, never the
+> features ADR 0015 marks unused (their files are on the skip list, and reaching a listed file by import,
+> source or conftest never selects it). A session-chain edit runs the chain contract + one sample per folder at a release merge
 > too. `--scope full` is retired.
 
 ## Context
