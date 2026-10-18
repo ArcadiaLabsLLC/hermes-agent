@@ -162,6 +162,16 @@ def test_census_report():
         assert not new and not stale and not unreasoned, report
 
 
+def test_no_allowlist_row_outlives_its_global():
+    """Enforced now, whatever ``ENFORCE`` says: a stale row is never reasoned debt, only a row
+    to delete (W5 deleted a module and its row stayed green — FORK-PROCESS-GLOBALS-STALE-ROW)."""
+
+    stale = sorted(set(_allowlist()) - census())
+    assert not stale, "delete these allowlist rows — the global is gone or declared:\n" + "\n".join(
+        f"  STALE {row}" for row in stale
+    )
+
+
 def test_the_walk_sees_a_global_rebind_and_a_mutated_container_but_not_a_constant_table():
     source = (
         "import collections\n"

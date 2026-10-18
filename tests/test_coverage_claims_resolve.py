@@ -239,7 +239,7 @@ def _local_context(window: str, offset: int) -> str:
 #: has not landed, and its Files/Tests lists are proposals.
 _PLAN_DOC = re.compile(
     r"^\s*>?\s*\*{0,2}(?:status|state)\*{0,2}\s*[:=]\s*\**\s*"
-    r"(planned|proposed|proposal|draft|plan\b|active|wip|in progress|todo)",
+    r"(planned|proposed|proposal|draft|plan\b|active|wip|in progress|todo|implementation[- ]ready)",
     re.IGNORECASE | re.MULTILINE,
 )
 
@@ -892,6 +892,17 @@ def test_the_reader_finds_a_planted_claim_and_clears_a_real_one(tmp_path) -> Non
     assert [c.target for c in far] == [
         "test_coverage_claims_resolve.py::test_the_gate_scanned_a_real_corpus"
     ]
+
+
+def test_a_status_stamp_decides_plan_or_landed() -> None:
+    """The plan vocabulary, both ways: an IMPLEMENTATION-READY plan's tables are proposals
+    (FORK-COVERAGE-CLAIMS-PLAN-STATUS); a landed stamp still un-exempts the doc."""
+
+    doc = Path("docs/some-design.md")
+    assert _is_plan_doc(doc, "# X\n\n**Status:** IMPLEMENTATION-READY (third cut)\n")
+    assert _is_plan_doc(doc, "# X\n\n**Status:** implementation ready\n")
+    assert not _is_plan_doc(doc, "# X\n\n**Status:** LANDED 2026-10-18\n")
+    assert not _is_plan_doc(doc, "# X\n\nThe implementation is ready to read.\n")
 
 
 def test_the_python_prefilter_keeps_every_text_that_carries_a_claim() -> None:

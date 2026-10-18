@@ -177,12 +177,15 @@ def _revert(p: dict) -> dict:
 def _sync_resolve(p: dict) -> dict:
     """Params: ``realm_id``, ``key``, ``take`` (local|remote), ``dry_run``, ``yes``."""
     from agent_runtime.realm_verbs import realm_sync_resolve
+    from agent_runtime.sync_take import SyncTake
 
-    realm_id, key, take = _realm(p), _param_text(p, "key", required=True), _param_text(p, "take", required=True)
-    if take not in {"local", "remote"}:
-        raise _Refused("invalid_request", "take must be 'local' or 'remote'")
+    realm_id, key = _realm(p), _param_text(p, "key", required=True)
+    try:
+        take = SyncTake(_param_text(p, "take", required=True))
+    except ValueError:
+        raise _Refused("invalid_request", "take must be 'local' or 'remote'") from None
     _confirmed(p)
-    return realm_sync_resolve(realm_id, key=key, take=take, dry_run=_param_flag(p, "dry_run"))
+    return realm_sync_resolve(realm_id, key=key, take=take.value, dry_run=_param_flag(p, "dry_run"))
 
 
 def _skills_show(p: dict) -> dict:

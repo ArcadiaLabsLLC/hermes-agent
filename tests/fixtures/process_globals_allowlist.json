@@ -58,7 +58,6 @@
   "agent_runtime/local_llama_adapter/binding.py|_bindings": "seeded 2026-10-16 from the census; reason owed",
   "agent_runtime/machine_roots.py|_roots_cache": "seeded 2026-10-16 from the census; reason owed",
   "agent_runtime/mcp_admission/resident.py|_RESIDENT_SCOPES": "seeded 2026-10-16 from the census; reason owed",
-  "agent_runtime/mcp_lane.py|_lane_override": "seeded 2026-10-16 from the census; reason owed",
   "agent_runtime/media_handles.py|_digest_memo": "seeded 2026-10-16 from the census; reason owed",
   "agent_runtime/mission_chat_door.py|_open_chat": "seeded 2026-10-16 from the census; reason owed",
   "agent_runtime/mission_chat_door.py|_turn": "seeded 2026-10-16 from the census; reason owed",

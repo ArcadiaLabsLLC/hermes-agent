@@ -87,7 +87,9 @@ def test_a_budget_breach_is_typed_and_carries_the_measured_ms(tmp_path):
 def test_eighty_bound_slots_are_still_correct_and_the_cost_is_reported(tmp_path):
     census = _census(tmp_path, *[f"s{i}" for i in range(80)])
     table = [_build(100 + i, tmp_path / f"s{i}" / "app") for i in range(0, 80, 8)]
-    result = detect.scan(now=1.0, census=census, owned=set(), table=table)
+    # A frozen clock: correctness at 80 slots is not a wall-clock race (under suite load the real
+    # perf_counter crossed the 50 ms budget and returned scan_budget, FORK-BUILD-DETECT-CLOCK-FLAKE).
+    result = detect.scan(now=1.0, census=census, owned=set(), table=table, clock=lambda: 0.0)
     assert sorted(b.slot.slot for b in result.builds) == sorted(f"s{i}" for i in range(0, 80, 8))
     sub = result.sub()
     assert sub["status"] == "ok" and sub["candidates"] == 10 and isinstance(sub["scan_ms"], int)
