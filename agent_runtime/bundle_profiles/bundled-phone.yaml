@@ -302,6 +302,11 @@ packaging:
     - tools.connectors.portal
     - tools.connectors.gateway.client
     - tools.connectors.gateway.wire
+    # The connector tool bridge and its file staging (files imports the wire at module level). Kept code
+    # reaches them only lazily, behind connections_in_scope (tools/connectors/search.py), which a phone
+    # never satisfies: tools.connectors.enabled false keeps manage_connections out of the schema.
+    - tools.connectors.gateway.bridge
+    - tools.connectors.gateway.files
     # MCP OAuth: its provider and manager import the `mcp` SDK (a provider SDK the phone never ships).
     - tools.mcp_oauth_device
     - tools.mcp_oauth_manager
