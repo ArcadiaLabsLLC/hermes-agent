@@ -346,12 +346,16 @@ def test_a_spawned_child_gets_the_start_up_shortcut():
     from tests._downstream import child_startup
 
     done = subprocess.run(
-        [sys.executable, "-c", "import os, sitecustomize; print(sitecustomize.__file__); print(os.environ['HERMES_TEST_CHILD_STARTUP'])"],
+        [sys.executable, "-c", "import os, sys, sitecustomize; print(sitecustomize.__file__); "
+         "print(os.environ['HERMES_TEST_CHILD_STARTUP']); print(sys.dont_write_bytecode)"],
         capture_output=True, text=True, timeout=60, check=False)
     assert done.returncode == 0, done.stderr[-2000:]
-    site_file, snapshot = done.stdout.split()
+    site_file, snapshot, no_bytecode = done.stdout.split()
     assert Path(site_file).parent == child_startup.CHILD_SITE
     assert snapshot == os.environ[child_startup.ENV]
+    # The child writes the bytecode it compiles (w2-speed-b). Mutation: drop the
+    # ``PYTHONDONTWRITEBYTECODE`` pop from ``child_startup.install``, run from a shell that exports it.
+    assert no_bytecode == "False"
 
 
 def test_the_version_identity_is_put_back_after_every_test(request):
