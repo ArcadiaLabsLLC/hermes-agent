@@ -42,22 +42,24 @@ logger = logging.getLogger(__name__)
 _background_attempts: dict[str, int] = {}
 
 #: Event types delivered the way a finished background ``terminal`` is: steered into a busy turn,
-#: dropped loudly when their persona instance is gone. ``mcp_job_finished`` is an MCP server's
-#: job-finished wake (``tools/mcp_job_wake.py``; owner ruling 2026-10-03: a QA build is a background task).
-_PROCESS_LIKE_EVENTS = frozenset({"completion", "mcp_job_finished"})
+#: dropped loudly when their persona instance is gone. Every fork event type joins by its row in
+#: ``tools/fork_completion_events.py`` (an MCP server's job wake, a promoted long tool call's finish),
+#: so a new fork type is a row there and never another literal here.
+def _process_like_events() -> frozenset[str]:
+    from tools.fork_completion_events import FORK_COMPLETION_EVENTS
+
+    return frozenset({"completion", *FORK_COMPLETION_EVENTS})
+
+
+_PROCESS_LIKE_EVENTS = _process_like_events()
 
 
 def _settled(evt: dict[str, Any]) -> None:
-    """The drain is done with *evt* for good; an MCP job's wake retires its background-work row."""
+    """The drain is done with *evt* for good: a fork event's row retires its background-work state."""
 
-    if str(evt.get("type") or "") != "mcp_job_finished":
-        return
-    try:
-        from tools.mcp_job_wake import note_wake_settled
+    from tools.fork_completion_events import settle_fork_completion_event
 
-        note_wake_settled(evt)
-    except Exception:  # pragma: no cover - defensive; the row then leaves by its own expiry
-        logger.debug("MCP job row could not be retired", exc_info=True)
+    settle_fork_completion_event(evt)  # never raises; any other type is a no-op
 
 
 def _owns_event_with_accounting(evt: dict[str, Any], policy: DrainPolicy = DEFAULT_DRAIN_POLICY) -> bool:

@@ -63,6 +63,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
+
+from .operator_images import IMAGE_FLAG, OperatorImagesInvalid, normalize_images, store_images
 from typing import Any, Callable
 
 from .chat_turn_reservations import (
@@ -171,6 +173,7 @@ CHAT_MESSAGE_PARAMS: tuple[str, ...] = (
     "clarify_token",
     "client_scope",
     "correlation_id",
+    "images",
     "intent_hint",
     "max_seconds",
     "message",
@@ -481,6 +484,9 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
         argv += ["--intent-hint", intent_hint]
     if retry_of:
         argv += ["--retry-of", retry_of]
+    # RT-OPERATOR-CHAT-SEND-PERSONA: pasted images ride as stored references, never bytes or paths.
+    for ref in _image_refs(params):
+        argv += [IMAGE_FLAG, ref]
 
     return ChatTurnRequest(
         verb=CHAT_MESSAGE_METHOD,
@@ -491,6 +497,16 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
         delivery_flags=("--stream",) if stream else (),
         client_scope=request_client_scope(params),
     )
+
+
+def _image_refs(params: dict) -> list[str]:
+    """Validate and store the send's ``images`` (``agent_runtime.operator_images``); their references."""
+
+    try:
+        images = normalize_images(params.get("images"))
+        return store_images(images) if images else []
+    except OperatorImagesInvalid as exc:
+        raise ChatTurnInvalid(exc.reason, exc.message) from exc
 
 
 def normalize_peer_chat_execute(

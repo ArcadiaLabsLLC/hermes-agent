@@ -888,6 +888,19 @@ shape moved, so the integer holds, and a manifest with NO `params` block reads
 as "a runtime that predates R-C8" — the launcher falls back to the eleven keys
 it knew — rather than as "no params".
 
+**`images` on `runtime.chat.message` (RT-OPERATOR-CHAT-SEND-PERSONA, 2026-10-18).**
+`[{media_type: image/png|image/jpeg, data_b64}]`, at most 4, each at most 5 MiB
+decoded, magic bytes matching the declared type; refusals `image_invalid` /
+`image_too_large` at the door. The bytes are stored content-addressed under
+`<store root>/operator_images/` and the argv names each as `--image
+sha256:<hex>.png|.jpg` (never a path, never bytes), so the accept fingerprint
+covers them. The turn refuses `vision_unsupported` (admission family) when
+upstream's `agent.image_routing.decide_image_input_mode` answers `text` for the
+model it runs on; otherwise the provider gets upstream's
+`build_native_content_parts` and the transcript row carries one `MEDIA:<path>`
+line per image (the bubble, and `runtime.media.get`'s derived scope). Module:
+`agent_runtime/operator_images.py`.
+
 **The tier is now a refusal, and what it refuses is a paired device** (Stage A5,
 landed with the gateway's Stage 1). `authorize_call` compares the tier a
 device's record HOLDS — read off `gateway/devices.json` by the transport, fixed

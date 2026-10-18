@@ -179,7 +179,8 @@ Modules, lowest layer first; no module imports one above it (W0-G6)::
                                 per-lane cap, and LanePass (consider / drop / finish)
       ownership.py      stores  the head home, running_work_store_paths (the ONE authority), PID
                                 identity (rule 2), the session owner (rule 5), the ambient block
-      lanes_process.py  lanes   liveness is a PROCESS this runtime owns: TerminalLane, McpJobLane, cron
+      lanes_process.py  lanes   liveness is a PROCESS this runtime owns: TerminalLane, McpJobLane,
+                                BackgroundToolCallLane (promoted long tool calls), cron
       lanes_chat.py     lanes   keyed on a chat session's durable store: DelegationLane
                                 (DELEGATION_STATUS_BY_RECORD), chat turns, DispatchLane
       build_rows.py     policy  the ``build`` row: BuildFacts -> work_row + every build key (§1 of

@@ -511,6 +511,8 @@ class ChatTurnLane(LanePass):
                 "preview": bounded_operator_text(current.preview, limit=240),
                 "elapsed_seconds": int(current.elapsed_seconds),
                 "timeout_seconds": current.timeout_seconds,
+                # The running card's "Send to background" (``runtime.work.background.promote``).
+                "promotable": _promotable(turn_id, current.call_id),
             }
         for call in live.tools:
             if call.foreground is not None:
@@ -578,6 +580,18 @@ class ChatTurnLane(LanePass):
         titles = _chat_titles(sessions - {""})
         for row in turns:
             row["title"] = titles.get((row.get("owner") or {}).get("session_id") or "", "")
+
+
+def _promotable(turn_id: str, call_id: str) -> bool:
+    """A long-call bracket holds this call and has not promoted it yet (``tools/long_tool_calls.py``)."""
+
+    lane = _module("tools.long_tool_calls")
+    if lane is None:
+        return False
+    try:
+        return lane.promotable_handle(turn_id, call_id) is not None
+    except Exception:  # a cosmetic affordance never breaks the row
+        return False
 
 
 def _turn_quiet(live: Any, current: Any) -> tuple[float | None, str | None]:

@@ -315,6 +315,38 @@ class _AdmitPhases:
             _mission_chat_emit(args, data)
             return 2
         self.message = message
+        return self._admit_images()
+
+    def _admit_images(self) -> int | None:
+        """Pasted images: resolve the references, and refuse a model without vision before any token."""
+
+        from agent_runtime.operator_images import OperatorImagesInvalid, resolve_refs, vision_supported
+        from agent_runtime.persona_runtime import turn_provider_model
+
+        self.user_image_paths = ()
+        refs = getattr(self.args, "images", None) or ()
+        if not refs:
+            return None
+        base = {"ok": False, "capability_id": "mission.chat.message", "execution_state": ExecutionState.REJECTED,
+                "persona_id": self.normalized_persona, "persona_instance_id": self.instance.id,
+                "session_id": self.session_id}
+        try:
+            paths = resolve_refs(refs)
+        except OperatorImagesInvalid as exc:
+            _mission_chat_emit(self.args, {**base, "error_kind": ChatErrorKind.IMAGE_INVALID, "error": exc.message,
+                                           "next_expected": "re-send the images with the message"})
+            return 2
+        provider, model = turn_provider_model(
+            self.persona, provider_override=self.model_selection.get("effective_provider"),
+            model_override=self.model_selection.get("effective_model"),
+            default_provider=self.cfg.default_provider, default_model=self.cfg.default_model)
+        if not vision_supported(provider, model):
+            _mission_chat_emit(self.args, {
+                **base, "error_kind": ChatErrorKind.VISION_UNSUPPORTED, "provider": provider, "model": model,
+                "error": f"model {model or '(default)'} on {provider or '(default)'} does not accept images",
+                "next_expected": "switch this chat to a vision-capable model, or send the message without images"})
+            return 2
+        self.user_image_paths = tuple(str(path) for path in paths)
         return None
 
     def _read_prior_attempt(self) -> None:

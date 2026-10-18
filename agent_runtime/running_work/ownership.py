@@ -11,7 +11,7 @@ from .._upstream_doors import pid_exists
 from ..builds.vocabulary import BUILD_REGISTRY_DIRNAME
 
 from .rows import bounded_operator_text
-from .vocabulary import PID_DEAD, PID_NO_BASELINE, PID_RECYCLED, PID_START_TIME_UNREADABLE, PID_VERIFIED, _CHECKPOINT_FILENAME, _MCP_JOBS_FILENAME, _STATE_DB_FILENAME
+from .vocabulary import PID_DEAD, PID_NO_BASELINE, PID_RECYCLED, PID_START_TIME_UNREADABLE, PID_VERIFIED, _CHECKPOINT_FILENAME, _MCP_JOBS_FILENAME, _STATE_DB_FILENAME, _TOOL_CALLS_FILENAME
 
 __layer__ = "stores"
 
@@ -60,8 +60,8 @@ def running_work_store_paths() -> tuple[Path, ...]:
     """The durable stores this projection reads — the ONE authority for them.
 
     Exported because the serve read-model cache must fingerprint exactly these
-    files: all four mutate with NO EventLog event (an MCP job binding or finishing
-    rewrites ``mcp_jobs.json``; a background process starting or
+    files: all of them mutate with NO EventLog event (an MCP job binding or finishing
+    rewrites ``mcp_jobs.json``; a long tool call's promotion or finish rewrites ``tool_calls.json``; a background process starting or
     exiting rewrites the checkpoint; a writer announcing a build rewrites its record
     under the ``builds/`` registry directory; a delegation dispatch/finalize writes
     ``async_delegations``), so without a stat the 20s cache would keep serving a
@@ -82,6 +82,7 @@ def running_work_store_paths() -> tuple[Path, ...]:
     return (
         head / _CHECKPOINT_FILENAME,
         head / _MCP_JOBS_FILENAME,
+        head / _TOOL_CALLS_FILENAME,
         head / BUILD_REGISTRY_DIRNAME,
         head / _STATE_DB_FILENAME,
     )

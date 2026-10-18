@@ -27,11 +27,14 @@ KIND_CRON_JOB = "cron_job"
 #: BEFORE its producer existed, so the wire vocabulary was complete from the
 #: first landing and no consumer had to re-derive it when the lane arrived.
 KIND_DISPATCH = "dispatch"
-#: A tool call in flight INSIDE a live chat turn — today the foreground
-#: ``terminal`` command the turn is blocked on (RW2). A child row: it carries
-#: ``parent_work_id`` (``chat_turn:<turn_id>``) and is produced by the chat-turn
-#: lane from the executing process's live-turn registry, so it has no
-#: ``sources`` entry of its own and exists only where that process answers.
+#: A tool call, in one of two shapes. In flight INSIDE a live chat turn — the
+#: foreground ``terminal`` command the turn is blocked on (RW2): a child row
+#: carrying ``parent_work_id`` (``chat_turn:<turn_id>``), produced by the
+#: chat-turn lane from the executing process's live-turn registry, existing only
+#: where that process answers. Or PROMOTED to the background past its threshold
+#: (``tools/long_tool_calls.py``, RT-LONG-TOOL-CALLS-BACKGROUND): ``background:
+#: true``, ``handle``, no parent, read durably from :data:`_TOOL_CALLS_FILENAME`
+#: by the ``tool_call`` source.
 KIND_TOOL_CALL = "tool_call"
 #: A job an MCP server runs in the background on an agent's behalf (a QA build), from the moment
 #: a tool result names it until its finish wake is settled. Written by ``tools/mcp_job_wake.py``
@@ -78,6 +81,7 @@ RUNNING_WORK_SOURCES = (
     KIND_CRON_JOB,
     KIND_DISPATCH,
     KIND_MCP_JOB,
+    KIND_TOOL_CALL,
     KIND_BUILD,
 )
 
@@ -128,6 +132,8 @@ _MAX_ROWS_PER_SOURCE = 200
 
 _CHECKPOINT_FILENAME = "processes.json"
 _MCP_JOBS_FILENAME = "mcp_jobs.json"
+#: Promoted long tool calls, written by ``tools/long_tool_calls.py`` (its ``CHECKPOINT_FILENAME``).
+_TOOL_CALLS_FILENAME = "tool_calls.json"
 _STATE_DB_FILENAME = "state.db"
 
 

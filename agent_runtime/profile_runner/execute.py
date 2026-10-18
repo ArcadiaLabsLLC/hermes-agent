@@ -911,6 +911,11 @@ class AgentRunExecution:
             conversation_kwargs["conversation_history"] = request.conversation_history
         if request.reuse_current_user_message:
             conversation_kwargs["reuse_current_user_message"] = True
+        if request.user_image_paths and isinstance(request.user_message, str):
+            from ..operator_images import native_user_message
+
+            conversation_kwargs["user_message"], conversation_kwargs["persist_user_message"] = native_user_message(
+                request.user_message, request.user_image_paths)
         if request.stream_callback is not None:
             conversation_kwargs["stream_callback"] = request.stream_callback
         return conversation_kwargs

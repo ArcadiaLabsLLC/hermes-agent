@@ -741,6 +741,17 @@ additive key on a row the launcher parses as a map. One golden moved
 workspace row) and the launcher mirror is owed
 (``tests/fixtures/stream_frames/README.md``).
 
+54 KEPT (w2-turn, 2026-10-18) — ``running_work`` gained a ``tool_call`` SOURCE:
+long tool calls promoted to the background (RT-LONG-TOOL-CALLS-BACKGROUND,
+``tools/long_tool_calls.py``), read durably from ``tool_calls.json`` beside
+``mcp_jobs.json``. The kind was already on the wire (the foreground child rows,
+RW2); a promoted row adds ``background: true``, ``handle``, ``tool_name``,
+``tool_call_id``, ``outcome``, ``cancel_requested``, ``finished_at`` and no
+``parent_work_id``. A chat turn's ``current_tool`` gained ``promotable``. Same
+ruling as ``mcp_job``: nothing left the wire, ``sources`` is a map, ``kind`` an
+open string. The goldens and ``work_list_empty.json`` moved; the launcher mirror
+is owed (``tests/fixtures/stream_frames/README.md``).
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.

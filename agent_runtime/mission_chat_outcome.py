@@ -167,6 +167,11 @@ class ChatErrorKind(StrEnum):
     #: root (absent, another state, or the send itself). A retry of a completed
     #: turn is "regenerate", out of scope; the client falls back to a plain send.
     CHAT_TURN_RETRY_TARGET_INVALID = "chat_turn_retry_target_invalid"
+    #: A pasted image reference names no stored PNG/JPEG (``agent_runtime.operator_images``).
+    IMAGE_INVALID = "image_invalid"
+    #: The send carries images and the model this turn runs on takes none
+    #: (upstream ``decide_image_input_mode`` answered ``text``). Refused before any token.
+    VISION_UNSUPPORTED = "vision_unsupported"
 
     # -- chat-root ownership / concurrency -----------------------------------
     UNKNOWN_CHAT_SESSION = "unknown_chat_session"
@@ -224,6 +229,8 @@ ADMISSION_ERROR_KINDS = frozenset(
         ChatErrorKind.RETIRED_PERSONA_INSTANCE,
         ChatErrorKind.INVALID_CHAT_MODEL_OVERRIDE,
         ChatErrorKind.CHAT_TURN_RETRY_TARGET_INVALID,
+        ChatErrorKind.IMAGE_INVALID,
+        ChatErrorKind.VISION_UNSUPPORTED,
     }
 )
 CHAT_ROOT_ERROR_KINDS = frozenset(

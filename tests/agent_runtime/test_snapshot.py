@@ -105,6 +105,7 @@ def test_snapshot_carries_the_running_work_section(isolate_agent_runtime_root) -
         "mcp_job",
         "cron_job",
         "build",  # row H4 (c2fe7ad3fd): the build lane
+        "tool_call",  # RT-LONG-TOOL-CALLS-BACKGROUND: promoted long tool calls
     }
     for name, entry in section["sources"].items():
         assert entry["status"] in {"ok", "unavailable"}, name
