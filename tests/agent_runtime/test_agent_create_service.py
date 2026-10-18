@@ -285,13 +285,14 @@ def test_verb_authors_no_desk(qa_persona):
     """
 
     store = _seed_workspace()
-    # A desk for ``qa``, held by somebody else entirely.
+    # A desk held by somebody else entirely, beside ``qa``. It is a generic (self-addressed)
+    # desk: a desk filed under a persona is legacy and the office migration sweeps it.
     store.upsert_actor(
         WORKSPACE,
         {
             "persona_id": "qa",
             "items": [
-                {"item_id": "qa_desk", "persona_id": "qa", "kind": "desk", "position": [0.0, 0.0]}
+                {"item_id": "qa_desk", "persona_id": "qa_desk", "kind": "desk", "position": [0.0, 0.0]}
             ],
         },
     )
