@@ -535,3 +535,14 @@ def test_bundle_children_write_bytecode_and_load_the_plugin_by_name():
     bundled.prepare_child_environ(environ)
     assert "PYTHONDONTWRITEBYTECODE" not in environ
     assert environ["PYTHONPATH"].split(bundled.os.pathsep) == [str(bundled._PLUGIN_DIR), "elsewhere"]
+
+
+def test_landing_gate_defaults_to_twelve_workers(monkeypatch) -> None:
+    """FORK-SUITE-SPEED-J-REMEASURE (2026-10-18): the gate's cap is 12, bounded by the box."""
+    monkeypatch.delenv("HERMES_TEST_WORKERS", raising=False)
+    monkeypatch.setattr(bundled.os, "cpu_count", lambda: 16)
+    assert bundled._build_parser().parse_args([]).jobs == 12
+    monkeypatch.setattr(bundled.os, "cpu_count", lambda: 6)
+    assert bundled._build_parser().parse_args([]).jobs == 6
+    monkeypatch.setenv("HERMES_TEST_WORKERS", "8")
+    assert bundled._build_parser().parse_args([]).jobs == 8

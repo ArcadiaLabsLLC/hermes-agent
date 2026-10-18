@@ -202,8 +202,9 @@ unchanged since its red is not run at all: it prints `known-red, skipped` and st
 **Bare `pytest` over a directory is forbidden.** It runs the updater tests in-process, and those run
 `git branch -f main origin/main`: it detached 11 unpushed commits from the primary checkout on
 2026-08-01. The runners isolate files in hermetic subprocesses, find the shared test venv, and run
-8 workers — the ruled default (12 measured slower and load-flaked; do not raise
-`HERMES_TEST_WORKERS`).
+8 workers per file run; the bundled landing gate defaults to 12 (`DEFAULT_JOBS` in
+`scripts/run_tests_bundled.py`: quiet 16-thread box 2026-10-18, --scope fork, 0 reds at 8/10/12/16,
+646.7 / 585.2 / 539.2 / 512.1 s, CPU avg 64 / 71 / 78 / 88 %; do not raise it further).
 
 A test whose wait bound exceeds 30 seconds declares `@pytest.mark.timeout(N)`: `addopts` carry
 `--timeout=30`, and pytest-timeout kills a longer test before it can say what went wrong.

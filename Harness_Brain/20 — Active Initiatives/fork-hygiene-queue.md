@@ -429,7 +429,7 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-15 (owner: "testing commands should be optimised")
 
-- **`FORK-SUITE-SPEED-J-REMEASURE` — The rest of the 2026-10-15 suite-speed ask: re-measure `-j` against cores−2 on the idle 16-thread box (CPU 24 % at -j 8 during land-w1015b; the ruled default 8 is the owner's), and speed or split the slow fork files (`tests/agent_runtime/test_gateway_peer_two_roots_e2e.py` 280–587 s, `test_persona_assignments.py` 345 s, `test_serve_socket_child_e2e.py` 315 s)** · fork / suite speed · `X:/Eternia/worktrees/land-w1015b/_land_logs/bundled.log` header; the gate store's `durations.json` · lane: idle-box measurement, then one slow file per lane · RULED 2026-10-15 (owner, decision sheet w1015i #3): measure once on the idle box, then set the default to what the measurement supports · BLOCKED 2026-10-16: owner sitting — the idle 16-thread workstation for the -j measurement
+- **`FORK-SUITE-SPEED-SLOW-FILES` — The rest of the 2026-10-15 suite-speed ask: speed or split the slow fork files that set the landing gate's critical path — at -j 12 (2026-10-18) `tests/agent_runtime/test_native_conversation_roundtrip.py` 252 s (198 s at -j 8, 330 s at -j 16; the critical path at every -j), `test_operator_redo.py` 281 s, `test_gateway_peer_two_roots_e2e.py` 251 s, `tests/agent/test_charsheet_pipeline.py` 220 s, `test_subagent_native_roundtrip.py` 186 s** · fork / suite speed · the gate store's `runs.jsonl` (2026-10-18 -j 16 line, `slowest`); the -j half closed in the commit that set the bundled default to 12 · lane: one slow file per lane, measured before and after alone · READY 2026-10-18
 
 ## Filed on arrival — 2026-10-15 (lane w1015h-fh-h)
 

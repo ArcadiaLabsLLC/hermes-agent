@@ -75,6 +75,12 @@ _PLUGIN_DIR = _SCRIPTS_DIR / "_bundle_plugin"
 _PLUGIN_NAME = "hermes_bundle_report"
 _DEFAULT_UNBUNDLED = _SCRIPTS_DIR / "test_bundles_unbundled.txt"
 DEFAULT_BUNDLE_SIZE = 20
+#: The landing gate's worker cap (FORK-SUITE-SPEED-J-REMEASURE, quiet 16-thread box
+#: 2026-10-18, --scope fork --no-cache, 1,173 files, 0 failed at every -j): -j 8 646.7 s
+#: (CPU avg 64 %), 10 585.2 s (71 %), 12 539.2 s (78 %), 16 512.1 s (88 %, peaks 100 %).
+#: 12 keeps headroom; 16 buys 5 % more at a saturated box. Per-file runs keep
+#: run_tests_parallel's cap of 8.
+DEFAULT_JOBS = 12
 #: Estimated seconds for a member with no cached duration, for the bundle
 #: timeout and the submission order only.
 _UNCACHED_ESTIMATE_SECONDS = 30.0
@@ -785,7 +791,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
         "-j", "--jobs", type=int,
-        default=int(os.environ.get("HERMES_TEST_WORKERS") or rtp._adaptive_default_jobs(os.cpu_count())),
+        default=int(os.environ.get("HERMES_TEST_WORKERS") or min(os.cpu_count() or 4, DEFAULT_JOBS)),
     )
     parser.add_argument("--bundle-size", type=int, default=DEFAULT_BUNDLE_SIZE, help="most files per bundle")
     parser.add_argument(
