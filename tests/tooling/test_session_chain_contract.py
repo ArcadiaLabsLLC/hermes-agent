@@ -12,7 +12,9 @@ mutation is named in its docstring and recorded in the commit that landed it.
 from __future__ import annotations
 
 import os
+import socket
 import tempfile
+import time
 from pathlib import Path
 
 import pytest
@@ -112,3 +114,39 @@ def test_the_dependency_recorder_is_live_when_the_gate_asks(request):
         pytest.skip("not under the bundled runner's green-result cache")
     assert request.config.pluginmanager.get_plugin("hermes_dep_recorder") is not None
     assert os.environ.get("HERMES_GATE_CHILD_EVENTS") == os.fspath(directory)
+
+
+def _a_port_nothing_listens_on() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as held:
+        held.bind(("127.0.0.1", 0))
+        return held.getsockname()[1]
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1", "localhost"])
+def test_a_closed_loopback_port_refuses_at_once(host):
+    """``tests/_downstream/closed_loopback.py``: a connect to a loopback port nothing listens on raises
+    ConnectionRefusedError in well under Windows' 2.3 s SYN-retry wait. Mutation: drop
+    ``closed_loopback.install()`` from ``conftest_plugin.pytest_configure``."""
+
+    port = _a_port_nothing_listens_on()
+    started = time.perf_counter()
+    with pytest.raises(ConnectionRefusedError):
+        socket.create_connection((host, port), timeout=10).close()
+    assert time.perf_counter() - started < 0.5
+
+
+@pytest.mark.parametrize("family, host", [(socket.AF_INET, "127.0.0.1"), (socket.AF_INET, "0.0.0.0"), (socket.AF_INET6, "::")])
+def test_a_real_loopback_listener_still_connects(family, host):
+    """``closed_loopback.py``: the "nothing listens" probe sees a listener on loopback or either wildcard,
+    and the connect reaches it. Mutation: make ``port_is_unbound`` return True."""
+
+    with socket.socket(family, socket.SOCK_STREAM) as server:
+        if family == socket.AF_INET6:
+            server.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        server.bind((host, 0))
+        server.listen()
+        port = server.getsockname()[1]
+        with socket.create_connection(("127.0.0.1", port), timeout=10) as client:
+            accepted, _ = server.accept()
+            accepted.close()
+            assert client.getpeername()[1] == port

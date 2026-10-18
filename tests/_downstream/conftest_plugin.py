@@ -934,9 +934,10 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
     pytest-timeout installed (``requirements-fork-dev.txt``) the options do not
     exist and nothing is set.
     """
-    from tests._downstream import reserved_dns
+    from tests._downstream import closed_loopback, reserved_dns
 
     reserved_dns.install()  # a fixture host fails fast, not after the 12 s resolver wait
+    closed_loopback.install()  # a closed loopback port refuses at once, not after Windows' SYN retries
     if config.pluginmanager.hasplugin("timeout"):
         if getattr(config.option, "timeout", None) is None:
             config.option.timeout = FORK_TEST_TIMEOUT_SECONDS
