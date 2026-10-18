@@ -10,11 +10,18 @@ Gates:
 * ``confirm_reads: 2`` keeps a one-read spike from opening an Episode (W2(b)).
 * A read the feed's value type or plausible range refuses is a GAP with its
   reason, and no rule sees it (W2(a)(c)) — "price read as 0" never alerts.
+* RT-LENS-W5-TOTAL-COST: a money feed's ``total_cost`` stores price + shipping +
+  tax, converted by a dated rate feed (a stale rate is a gap ``fx_stale``), and
+  ``best_of`` compares totals across listings in different currencies (W5); the
+  median/deviation outlier guard refuses a spike but admits a level shift (W2(c));
+  the cadence tightens as a deadline nears, and a clock-fired deadline gets a
+  confirming read first (W7).
 """
 
 from __future__ import annotations
 
 import copy
+import itertools
 from datetime import datetime, timedelta, UTC
 
 import httpx
@@ -181,8 +188,8 @@ def test_the_clock_fires_a_deadline_with_no_new_read():
     poller = LensPoller(clock=clock, client=_client(lambda: {"ends_ms": deadline}), resolver=lambda host: PUBLIC)
     assert poller.tick() == 1
     assert store.latest_episode("auction", "ending") is None
-    clock.at = T0 + timedelta(seconds=30)  # inside the lead time; the feed is not due for 4.5 min
-    assert poller.tick() == 0
+    clock.at = T0 + timedelta(seconds=30)  # inside the lead time; no feed is due — the clock decides
+    assert poller.tick() == 1  # ... and the clock's verdict is given ONE confirming read first (W7)
     episode = store.latest_episode("auction", "ending")
     assert episode is not None and episode.state.value == "active"
 
@@ -254,3 +261,158 @@ def test_defaults_have_one_canonical_form():
                       "source": {"url": "https://shop.example.invalid/p", "selector": "$.price"},
                       "value_type": {"kind": "number"}})
     assert "value_type" not in feed
+
+
+# --- RT-LENS-W5-TOTAL-COST: total cost (W5), the outlier guard (W2(c)), adaptive cadence (W7) ---
+
+
+def _auction(deadline_ms: list[float], *, interval_ms: int = 300000, lead_ms: int = 600000) -> dict:
+    return {
+        "version": 1, "monitor_id": "auction",
+        "feeds": [{"version": 1, "id": "ends", "kind": "http_json", "interval_ms": interval_ms,
+                   "source": {"url": "https://shop.example.invalid/lot", "selector": "$.ends_ms"},
+                   "value_type": {"kind": "instant"}}],
+        "rules": [{"version": 1, "id": "ending", "feed_id": "ends", "form": "ends_within", "severity": "urgent",
+                   "direction": "below", "threshold": 0, "recovery_threshold": 0, "window_ms": lead_ms,
+                   "samples": 1}],
+        "automation": {"level": "notify", "when": "urgent", "daily_turn_cap": 4}, "persona_id": None,
+    }
+
+
+def test_a_clock_fired_deadline_that_was_extended_opens_no_episode():
+    first = (T0 + timedelta(minutes=10, seconds=20)).timestamp() * 1000
+    extended = (T0 + timedelta(hours=1)).timestamp() * 1000  # the anti-snipe extension
+    answers = iter([first, extended])
+    store = _enabled(_auction([first]))
+    clock = _Clock(T0)
+    poller = LensPoller(clock=clock, client=_client(lambda: {"ends_ms": next(answers)}), resolver=lambda host: PUBLIC)
+    poller.tick()
+    clock.at = T0 + timedelta(seconds=30)
+    assert poller.tick() == 1  # the confirming read
+    assert store.latest_episode("auction", "ending") is None or store.latest_episode(
+        "auction", "ending").state.value != "active"
+
+
+def test_cadence_tightens_as_the_deadline_nears():
+    deadline = (T0 + timedelta(minutes=12)).timestamp() * 1000
+    reads = []
+    store = _enabled(_auction([deadline], lead_ms=5000))
+    clock = _Clock(T0)
+    poller = LensPoller(clock=clock, client=_client(lambda: reads.append(clock.at) or {"ends_ms": deadline}),
+                        resolver=lambda host: PUBLIC)
+    for second in range(0, 12 * 60, 5):
+        clock.at = T0 + timedelta(seconds=second)
+        poller.tick()
+    gaps = [(b - a).total_seconds() for a, b in itertools.pairwise(reads)]
+    # 12 min out: 180 s (remaining / 4, under the 300 s interval); then ever tighter, floored at 5 s.
+    assert gaps[0] == 180 and gaps == sorted(gaps, reverse=True) and min(gaps) == 5
+    assert store.latest_episode("auction", "ending") is not None
+
+
+def test_a_far_deadline_keeps_the_feed_interval():
+    deadline = (T0 + timedelta(hours=5)).timestamp() * 1000
+    reads = []
+    _enabled(_auction([deadline]))
+    clock = _Clock(T0)
+    poller = LensPoller(clock=clock, client=_client(lambda: reads.append(clock.at) or {"ends_ms": deadline}),
+                        resolver=lambda host: PUBLIC)
+    for second in range(0, 601, 5):
+        clock.at = T0 + timedelta(seconds=second)
+        poller.tick()
+    assert [(r - T0).total_seconds() for r in reads] == [0, 300, 600]
+
+
+def _guarded(values: list[float]) -> list[tuple[float | None, str]]:
+    feed = {"version": 1, "id": "cpu", "kind": "http_json", "interval_ms": 1000,
+            "source": {"url": "https://status.example.invalid/m", "selector": "$.v"},
+            "outlier_guard": {"window": 5, "deviations": 3}}
+    manifest = {"version": 1, "monitor_id": "fast", "feeds": [feed], "rules": [],
+                "automation": {"level": "notify", "when": "urgent", "daily_turn_cap": 0}, "persona_id": None}
+    store = _enabled(manifest)
+    answers = iter(values)
+    clock = _Clock(T0)
+    poller = LensPoller(clock=clock, client=_client(lambda: {"v": next(answers)}), resolver=lambda host: PUBLIC)
+    for i in range(len(values)):
+        clock.at = T0 + timedelta(seconds=i)
+        poller.tick()
+    rows = store.observations("fast", "cpu", start=T0, end=T0 + timedelta(minutes=5))
+    return [(row["value"], row["reason"]) for row in rows]
+
+
+def test_the_outlier_guard_refuses_a_spike_and_admits_a_level_shift():
+    rows = _guarded([100, 101, 99, 100, 102, 500, 101, 500, 500, 500])
+    assert rows[5] == (None, "outlier") and rows[6] == (101, "ok")
+    # The window holds refused reads too: once the new level is the median it is admitted.
+    assert rows[-1] == (500, "ok")
+    assert [reason for _, reason in rows[:5]] == ["ok"] * 5  # abstains until the window is full
+
+
+def test_the_outlier_guard_abstains_over_a_flat_window():
+    assert _guarded([389, 389, 389, 389, 389, 349])[-1] == (349, "ok")  # a price step is a change
+
+
+def _listing(feed_id: str, value_type: dict) -> dict:
+    return {"version": 1, "id": feed_id, "kind": "http_json", "interval_ms": 60000,
+            "source": {"url": f"https://shop.example.invalid/{feed_id}", "selector": "$.price"},
+            "value_type": value_type}
+
+
+def _total_cost_manifest(fx_max_age_ms: int = 3600000) -> dict:
+    rate = {"version": 1, "id": "gbpusd", "kind": "http_json", "interval_ms": 60000,
+            "source": {"url": "https://fx.example.invalid/gbpusd", "selector": "$.rate"}}
+    us = _listing("us", {"kind": "money", "currency": "USD", "total_cost": {"shipping": 20, "tax_rate": 0.1}})
+    uk = _listing("uk", {"kind": "money", "currency": "USD", "total_cost": {
+        "fx": {"feed_id": "gbpusd", "from": "GBP", "max_age_ms": fx_max_age_ms}}})
+    rule = {"version": 1, "id": "best", "feed_id": "us", "form": "best_of", "severity": "attention",
+            "direction": "below", "threshold": 0, "recovery_threshold": 0, "window_ms": 0, "samples": 1,
+            "feed_ids": ["us", "uk"]}
+    return {"version": 1, "monitor_id": "deal", "feeds": [us, uk, rate], "rules": [rule],
+            "automation": {"level": "notify", "when": "always", "daily_turn_cap": 4}, "persona_id": None}
+
+
+def _shop(rate: float | None):
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/gbpusd":
+            return httpx.Response(503) if rate is None else httpx.Response(200, json={"rate": rate})
+        return httpx.Response(200, json={"price": {"/us": 380, "/uk": 300}[path]})
+    return httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=False)
+
+
+def test_total_cost_stores_price_shipping_tax_and_converts_by_the_dated_rate():
+    store = _enabled(_total_cost_manifest())
+    LensPoller(clock=_Clock(T0), client=_shop(1.25), resolver=lambda host: PUBLIC).tick()
+    latest = {feed: store.latest("deal", feed)["value"] for feed in ("us", "uk", "gbpusd")}
+    assert latest == {"us": 440.0, "uk": 375.0, "gbpusd": 1.25}  # (380 + 20) x 1.1; 300 GBP x 1.25
+
+
+def test_a_conversion_with_no_current_rate_is_a_gap_fx_stale():
+    store = _enabled(_total_cost_manifest(fx_max_age_ms=60000))
+    store.record("deal", "gbpusd", observed_at=T0 - timedelta(hours=2), received_at=T0 - timedelta(hours=2),
+                 value=1.3, reason="ok")  # a rate, but older than max_age
+    LensPoller(clock=_Clock(T0), client=_shop(None), resolver=lambda host: PUBLIC).tick()
+    row = store.latest("deal", "uk")
+    assert (row["value"], row["reason"]) == (None, "fx_stale")
+
+
+def test_preview_shows_the_total_with_its_own_rate_read():
+    from agent_runtime.lens.sources import preview_reads
+
+    reads = preview_reads(read_manifest(_total_cost_manifest()), client=_shop(1.25), resolver=lambda host: PUBLIC)
+    assert {feed: result.value for feed, result in reads.items()} == {"us": 440.0, "uk": 375.0, "gbpusd": 1.25}
+
+
+def test_a_group_of_totals_in_one_currency_is_comparable_and_a_bad_fx_feed_is_refused():
+    read_manifest(_total_cost_manifest())  # different shipping / source currency, one stored currency
+    for bad in ({"feed_id": "nope", "from": "GBP", "max_age_ms": 60000},   # not a feed of this monitor
+                {"feed_id": "us", "from": "GBP", "max_age_ms": 60000},     # not a plain-number rate
+                {"feed_id": "gbpusd", "from": "USD", "max_age_ms": 60000}):  # no conversion at all
+        manifest = _total_cost_manifest()
+        manifest["feeds"][1]["value_type"]["total_cost"]["fx"] = bad
+        with pytest.raises(WireError):
+            read_manifest(manifest)
+    mixed = _total_cost_manifest()
+    mixed["feeds"][1]["value_type"]["currency"] = "EUR"  # stored totals in two currencies
+    mixed["feeds"][1]["value_type"]["total_cost"]["fx"]["from"] = "GBP"
+    with pytest.raises(WireError):
+        read_manifest(mixed)

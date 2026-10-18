@@ -53,6 +53,10 @@ class ReadReason(str, Enum):
     #: The source answered, but the feed's value type or plausible range refused it (W2).
     TYPE_MISMATCH = "type_mismatch"
     IMPLAUSIBLE = "implausible"
+    #: The feed's outlier guard refused the read (W2(c)).
+    OUTLIER = "outlier"
+    #: A total cost needed an exchange rate and held no current dated one (W5).
+    FX_STALE = "fx_stale"
     SOURCE_FAILED = "source_failed"
 
 

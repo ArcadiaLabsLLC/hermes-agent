@@ -20,7 +20,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from .feed import ValueKind, read_feed, value_type_of
+from .feed import ValueKind, comparable_type, fx_feed_id, read_feed, value_type_of
 from .rules import RuleForm, read_rule, rule_feed_ids
 from .wire_value import (
     MAXIMUM_MANIFEST_BYTES,
@@ -99,10 +99,17 @@ def _check_typed_rules(manifest: dict[str, Any]) -> None:
     """A comparison is only between like values; a deadline rule only reads an instant (W5, W7)."""
 
     types = {feed["id"]: value_type_of(feed) for feed in manifest["feeds"]}
+    for feed in manifest["feeds"]:
+        rate = fx_feed_id(feed)
+        # The dated exchange rate is a plain-number feed of this same monitor (W5).
+        require(rate is None or (rate in types and rate != feed["id"]
+                                 and types[rate]["kind"] == ValueKind.NUMBER.value), "fx feed")
+    comparable = {feed["id"]: comparable_type(feed) for feed in manifest["feeds"]}
     for rule in manifest["rules"]:
         form = RuleForm(rule["form"])
         if form is RuleForm.BEST_OF:
-            group = [types[feed] for feed in rule_feed_ids(rule)]
+            # Totals in one currency compare; shipping, tax and source currency may differ (W5).
+            group = [comparable[feed] for feed in rule_feed_ids(rule)]
             require(all(t == group[0] for t in group), "best_of group mixes value types")
             require(group[0]["kind"] != ValueKind.INSTANT.value, "best_of over instants")
         instant = types[rule["feed_id"]]["kind"] == ValueKind.INSTANT.value

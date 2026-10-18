@@ -322,6 +322,25 @@ def test_preview_reads_and_writes_nothing():
     assert not LensStore().exists()
 
 
+@pytest.mark.parametrize("extra, number, reason", [
+    ({"value_type": {"kind": "count"}}, 2.5, "type_mismatch"),
+    ({"plausible": {"minimum": 1, "maximum": 100}}, 0.0, "implausible"),
+    ({"plausible": {"minimum": 1, "maximum": 100}}, 42.0, "ok"),
+])
+def test_preview_shows_the_value_the_poller_would_store(monkeypatch, extra, number, reason):
+    from agent_runtime.lens import sources
+    from agent_runtime.lens.feed import FeedKind
+    from agent_runtime.lens.sources.transport import ReadReason, ReadResult
+
+    monkeypatch.setitem(sources.SOURCE_READERS, FeedKind.HTTP_JSON,
+                        lambda feed, **kw: ReadResult(value=number, reason=ReadReason.OK, http_status=200))
+    [feed] = _call("runtime.lens.preview", {"manifest": _manifest(_feed(**extra))})["result"]["feeds"]
+    stored = None if reason != "ok" else number
+    assert (feed["number"], feed["reason"], feed["status"]) == (
+        stored, reason, "available" if stored is not None else "unavailable")
+    assert not LensStore().exists()
+
+
 def test_the_fold_of_a_home_without_lens_is_empty_and_creates_no_store():
     fold = _call("runtime.lens.fold", {})["result"]
     assert (fold["monitors_enabled"], fold["open_episodes"], fold["latest"], fold["last_receipt"]) == (0, [], [], None)
