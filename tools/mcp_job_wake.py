@@ -389,11 +389,14 @@ def _writer() -> tuple[int, Any]:
 
 
 def _write_checkpoints_locked(path: str) -> None:
-    """Rewrite *path*: this process's rows for it, plus other writers' unexpired entries."""
+    """Rewrite *path*: this process's rows for it, plus other writers' unexpired entries.
+
+    Each row keeps its ``checkpoint``: the reader drops a row that names another file, so a copy of
+    this file in another home (a profile clone, a backup restore) shows nothing."""
     if not path:
         return
     pid, wall = _writer()[0], time.time()
-    mine = [{k: v for k, v in row.items() if k != "checkpoint"} for row in _rows.values() if row["checkpoint"] == path]
+    mine = [dict(row) for row in _rows.values() if row["checkpoint"] == path]
     try:
         from utils import atomic_json_write
         foreign = [e for e in _checkpoint_dicts(path) if e.get("pid") != pid and _expires_after(e, wall)]

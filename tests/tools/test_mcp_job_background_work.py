@@ -178,3 +178,19 @@ def test_a_cli_or_tui_drain_retires_the_entry_on_its_delivery_ack(registry, head
     assert len(_rows("mcp_job")) == 1
     complete_event_delivery(evt, claim)
     assert _rows("mcp_job") == []
+
+
+def test_a_copied_checkpoint_shows_nothing_in_the_home_it_was_copied_to(registry, head, tmp_path, monkeypatch):
+    """A profile clone or a backup restore carries ``mcp_jobs.json`` into another home; the rows
+    name the file they were written for, so the copy is inert there and the source still shows."""
+    import shutil
+
+    _call_qa_tool(MagicMock(), _job_envelope())
+    assert len(_rows("mcp_job")) == 1
+    clone = tmp_path / "profiles" / "clone"
+    clone.mkdir(parents=True)
+    shutil.copy2(head / mcp_job_wake.CHECKPOINT_FILENAME, clone / mcp_job_wake.CHECKPOINT_FILENAME)
+    monkeypatch.setenv("HERMES_HEAD_HOME", str(clone))
+    assert _rows("mcp_job") == []
+    monkeypatch.setenv("HERMES_HEAD_HOME", str(head))
+    assert len(_rows("mcp_job")) == 1
