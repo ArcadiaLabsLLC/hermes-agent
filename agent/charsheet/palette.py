@@ -190,3 +190,46 @@ def lock_to_palette(frame_rgba, palette):
     locked.putalpha(alpha)
     opaque = alpha.point(lambda value: 255 if value else 0)
     return Image.composite(locked, Image.new("RGBA", locked.size, (0, 0, 0, 0)), opaque)
+
+
+def opaque_hex(text: str) -> str:
+    """*text* as ``#rrggbb``; ``#RRGGBB`` or a palette-table ``#RRGGBBff`` entry.
+
+    The swatch strip hands back the ``#RRGGBBAA`` spelling :func:`palette_table`
+    published, so the ``ff`` alpha is accepted; any other alpha is refused, because
+    the locked palette is an opaque RGB table and a recolour never touches alpha.
+    """
+    raw = str(text or "").strip().lower()
+    digits = raw.removeprefix("#")
+    if len(digits) == 8 and digits.endswith("ff"):
+        digits = digits[:6]
+    if len(digits) != 6 or any(char not in "0123456789abcdef" for char in digits):
+        raise ValueError(f"colour {text!r} is not '#RRGGBB' (or an opaque '#RRGGBBff' palette entry)")
+    return f"#{digits}"
+
+
+def recolour(image, source: str, target: str):
+    """Every pixel of *image* whose RGB is *source* turned *target*; alpha unchanged.
+
+    Returns ``(image, pixels)``. An EXACT lookup-table edit, which is why it cannot
+    band: a palette-locked sheet carries each swatch as one RGB value at many
+    alphas, so the match is equality and needs no tolerance. Fully-transparent
+    pixels are never matched — they are ``(0, 0, 0, 0)`` by
+    :func:`lock_to_palette`'s rule, and recolouring black must not paint the
+    backdrop.
+    """
+    from PIL import Image, ImageChops
+
+    rgba = as_rgba(image)
+    want = tuple(int(opaque_hex(source)[i:i + 2], 16) for i in (1, 3, 5))
+    paint = tuple(int(opaque_hex(target)[i:i + 2], 16) for i in (1, 3, 5))
+    red, green, blue, alpha = rgba.split()
+    mask = alpha.point(lambda value: 255 if value else 0)
+    for channel, value in zip((red, green, blue), want):
+        mask = ImageChops.multiply(mask, channel.point(lambda v, value=value: 255 if v == value else 0))
+    pixels = mask.histogram()[255]
+    if not pixels:
+        return rgba, 0
+    layer = Image.new("RGB", rgba.size, paint).convert("RGBA")
+    layer.putalpha(alpha)
+    return Image.composite(layer, rgba, mask), pixels

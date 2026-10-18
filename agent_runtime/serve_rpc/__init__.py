@@ -53,8 +53,8 @@ chat_verbs               lanes   the chat-family argv twins (history, instance
                                  create, turn resolve, queue skill, delete)
 realm                    lanes   ``runtime.realm.sync.*`` / ``.skills.*`` /
                                  ``.agents.*`` / ``.adopt`` (the realm argv twins)
-characters               lanes   ``runtime.characters.list/status/thumb/sprite``
-                                 (the character-sheet read twins)
+characters               lanes   ``runtime.characters.list/status/thumb/sprite/recolour``
+                                 (the character-sheet read twins; recolour writes)
 settles                  lanes   ``runtime.settles.list/rearm`` (the settle-push
                                  outbox's operator verbs)
 lens                     lanes   ``runtime.lens.*`` (Eternia Lens; code under

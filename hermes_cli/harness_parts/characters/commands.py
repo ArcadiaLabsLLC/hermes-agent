@@ -1,6 +1,6 @@
 """``characters`` verbs outside the pipeline steps.
 
-Start, list, status, thumb, sprite, base, reopen, add-state, the home
+Start, list, status, thumb, sprite, base, reopen, recolour, add-state, the home
 backfill/migrate pair, and payload-contract.
 """
 
@@ -25,6 +25,7 @@ __all__ = [
     "_cmd_characters_list",
     "_cmd_characters_migrate_home",
     "_cmd_characters_payload_contract",
+    "_cmd_characters_recolour",
     "_cmd_characters_reopen",
     "_cmd_characters_sprite",
     "_cmd_characters_start",
@@ -294,6 +295,17 @@ def _cmd_characters_reopen(args) -> int:
         return result, (
             f"Draft {draft.id} reopened at stage {result['stage']} "
             "(installed sheet unchanged until the next compose)"
+        )
+
+    return _characters_verb(args, call)
+
+
+def _cmd_characters_recolour(args) -> int:
+    def call(draft):
+        result = draft.recolour(str(getattr(args, "source", "") or ""), str(getattr(args, "target", "") or ""))
+        return result, (
+            f"Draft {draft.id}: {result['op']['from']} -> {result['op']['to']} on {result['pixels']} px "
+            f"(palette op {len(result['paletteOps'])}; replayed by every later compose)"
         )
 
     return _characters_verb(args, call)

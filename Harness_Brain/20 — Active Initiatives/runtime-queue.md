@@ -79,7 +79,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-15 (launcher lane w1015h-misc-l)
 
-- [ ] **Studio palette: a 'recolour one swatch' character-draft op recorded as a hermes draft step (op-log schema + replay) — the launcher studio-queue 'Palette operations' row waits on it** · owner ruling 2026-10-15 · filed by launcher lane w1015h-misc-l · NEEDS PLAN 2026-10-16: where a draft's palette lives (no palette field or op log exists in `agent/charsheet/draft/` `draft.json` schema 1 — only stages and the `ImageRevisionStore`), whether an op log is a schema-2 field or a sidecar beside `draft.json`, the recolour op's shape (swatch index or source colour → target, tolerance), replay order against re-rolled rows and the install (`installed.py`), the verb (CLI + `serve_rpc`, MCP admission) and its lock class **TAKEN 2026-10-18 r-product**
 
 ### Filed on arrival — 2026-10-15 (launcher lane w1015h-mc-l)
 

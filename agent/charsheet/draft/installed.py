@@ -27,6 +27,15 @@ def _row_json(row) -> dict:
 # ──────────────────────────── installed sheets ────────────────────────────
 
 
+def read_installed_manifest(directory: Path) -> dict:
+    """The ``character.json`` installed in *directory*, or ``{}`` when there is none or it is unreadable."""
+    try:
+        manifest = json.loads((directory / MANIFEST_FILENAME).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return manifest if isinstance(manifest, dict) else {}
+
+
 def sheet_revision(path: Path) -> str:
     """``mtime_ns:size`` — the pet payload's cache key, same meaning."""
     try:
