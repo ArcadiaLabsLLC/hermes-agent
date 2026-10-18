@@ -434,7 +434,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 - [ ] **Qualify the two inherited first-attempt timing failures retained by hosted triage.** `test_run_agent.py::TestRunConversation.test_redirect_from_input_thread_cancels_live_model_request` misses its two-second entry event during plugin discovery; `test_stream_consumer_wecom_native.py::TestClarifyEagerReseed.test_double_clarify_boundary_reseed_chain` reads the seed count after a fixed 50 ms drain. Both pass isolated recovery in [candidate run 38427670480](https://github.com/ArcadiaLabsLLC/hermes-agent/actions/runs/38427670480), and neither assertion reproduced in [baseline run 38439426620](https://github.com/ArcadiaLabsLLC/hermes-agent/actions/runs/38439426620). Production, these tests and their fixture owners are byte-identical between `958e574c2e` and `3c2ba45c4b`; collected fixture bindings exclude the backup fixture in both and include it in the backup control (`triage-fixture-exposure.jsonl`, SHA-256 `42bd97d5eea58c2ac864ede993c3146c388e2b4eb044245b19b4c891f30d3f6f`). Preserve these as unresolved intermittents, not a clean first-attempt result. Investigate completion-based synchronization and cleanup on early assertion failure through existing test owners; do not widen deadlines or modify runtime behavior without reproduction. · fork / inherited-test qualification · READY 2026-10-16 · BLOCKED quiet box: a timeout/flake judgment, run as lane r-reds-b once the box is idle (owner 2026-10-16) **TAKEN 2026-10-18 r-quiet**
 
-- [ ] **Give the ACP stdio-registration test a real temporary workspace.** `tests/acp_adapter/test_server.py::TestRegisterSessionMcpServers.test_registers_stdio_servers` declares `/tmp` and asserts it is a resolved local directory. On hosted Windows, `resolve_context_cwd` correctly returns `None` when that directory does not exist. The exact assertion fails on both `3c2ba45c4b` and untouched `958e574c2e` in runs 38427670480 / 38439426620. Use the existing `tmp_path` fixture and keep the working-directory propagation assertion; no production resolver change. · fork / inherited-test qualification · upstream main still declares `/tmp`: an upstream PR, or a skip-list row once it is red bare on origin/main here · RULED 2026-10-15 (owner, decision sheet w1015i #2): post the upstream ones together in one sitting · DEFERRED 2026-10-16: owner "pr branches should remain idle" — until upstream accepts the owner's PRs again **TAKEN 2026-10-18 q-reds**
 
 ## Filed on arrival — 2026-10-13 shutdown-test repair
 
@@ -516,7 +515,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-17 (lane r-plugins)
 
-- [ ] **`tests/hermes_cli/test_update_completion_process.py` 9 red alone on origin/main `8c5e95d7e9` (first: `test_old_process_new_git_tree_completes_in_fresh_python[None]`: `completion-pending` still exists after the fresh-python completion); not in the features-run rows** · fork / suite · lane r-plugins: same 9 nodes alone on the branch and on origin/main · READY **TAKEN 2026-10-18 q-reds**
 
 ## Filed on arrival — 2026-10-18 land/q6
 

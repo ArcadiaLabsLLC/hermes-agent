@@ -664,6 +664,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Upstream-owned
 
+### Filed on arrival — 2026-10-18 (lane q-reds, branch `q/q-reds`)
+
+- [ ] **On Windows a source `hermes update`'s `--prepared` completion child refuses its own bootstrap's checkout lease ("its owner exited but a process it started still holds the checkout"), so the tail is always owed** · upstream-owned (`hermes_cli/update_completion.py::_prepare`, `hermes_cli/source_completion.py::complete_source_checkout`) · red on pure tag v0.22.2 `d923a5eb48`: 5 of the 9 `tests/hermes_cli/test_update_completion_process.py` reds now xfailed in `tests/_downstream/id_markers/upstream_reds_v0222.py` (`_COMPLETION_ROWS`) · upstream issue; the strict xfail retires on its fix · READY
+
 ### Filed on arrival — 2026-10-18 (lane r-state, branch `q/r-state`)
 
 - [ ] **`pm.shell.bash()` spawns a `bash -c "exit 0"` probe on every call, and `tools/environments/local.py::_find_bash` calls it for every local-backend command, so each Windows command costs two bash spawns (~0.3 s each)** · upstream-owned (`pm/shell.py`) · evidence: lane r-state 2026-10-18, `test_known_file_write_baseline.py::test_own_patch_after_own_write_keeps_the_baseline` ran 35 spawns, half of them the probe; the test chain now memoizes a started candidate (`tests/_downstream/bash_probe_memo.py`), production does not · lane: an upstream PR memoizing a started candidate in `pm.shell` (or a caller-side memo in a fork seam), then drop the test-chain memo · READY 2026-10-18 **TAKEN 2026-10-18 q-pm**
