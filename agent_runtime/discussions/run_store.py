@@ -199,6 +199,21 @@ class RunStore:
                 conn.execute("UPDATE mc_discussion_runs SET error=? WHERE run_id=?", (reason, run_id))
                 _advance(conn, run)
 
+    def with_error(self, phase: str, reason: str) -> list[dict[str, Any]]:
+        """Runs in ``phase`` whose error is ``reason`` (a start-up sweep's mark)."""
+        with closing(self.connect()) as conn:
+            ids = conn.execute("SELECT run_id FROM mc_discussion_runs WHERE phase=? AND error=? ORDER BY created_at",
+                               (phase, reason)).fetchall()
+            return [read_run_record(conn, row[0]) for row in ids]
+
+    def replace_error(self, run_id: str, old: str, new: str | None) -> None:
+        """Swap the error ``old`` for ``new`` (``None`` clears it); any other error stays."""
+        with transaction(self.connect(), immediate=True) as conn:
+            run = read_run_record(conn, run_id)
+            if run.get("error") == old and old != new:
+                conn.execute("UPDATE mc_discussion_runs SET error=? WHERE run_id=?", (new, run_id))
+                _advance(conn, run)
+
     def commands(self, run_id: str) -> list[dict[str, Any]]:
         with closing(self.connect()) as conn:
             return [dict(row) for row in conn.execute("""SELECT command_key,operation,state,created_at
