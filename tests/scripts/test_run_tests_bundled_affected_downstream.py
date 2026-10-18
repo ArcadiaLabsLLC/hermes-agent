@@ -233,3 +233,14 @@ def test_fail_fast_runs_edited_and_direct_importers_first_and_the_slowest_last()
     assert [[p.rel for p in w] for w in waves] == [["e", "d"], ["r"]]
     assert affected.wave_name(waves[0]) == "edited + direct importers"
     assert affected.fail_fast_waves(picks[2:]) == [[picks[2]]]
+
+
+def test_the_runner_reads_the_affected_durations_in_its_own_spelling(tmp_path):
+    """q-runner 2026-10-18: the store keys durations POSIX, the runner's estimate reads the OS
+    spelling; --affected passed them raw, so on Windows every file estimated 30 s."""
+    from scripts import run_tests_bundled as bundled
+
+    rel = "tests/agent_runtime/test_operator_redo.py"
+    keyed = affected.os_keyed({rel: 190.0})
+    assert bundled._estimate(tmp_path / rel, tmp_path, keyed) == 190.0
+    assert affected.Pick(rel, "x").rel in keyed, "the selection's POSIX order keys stay"

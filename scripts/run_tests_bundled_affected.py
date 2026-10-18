@@ -451,12 +451,21 @@ def main(args, repo_root: Path, runner, pytest_args: List[str]) -> int:
     rc = 0
     first_red: List[str] = []
     for number, wave in enumerate(waves, 1):
-        rc = _run_wave(args, repo_root, runner, pytest_args, [by_rel[p.rel] for p in wave], durations,
+        rc = _run_wave(args, repo_root, runner, pytest_args, [by_rel[p.rel] for p in wave], os_keyed(durations),
                        first_red, started, store.runs)
         if rc and args.fail_fast:
             print(f"--fail-fast: stopped after wave {number} of {len(waves)} ({wave_name(wave)})")
             return rc
     return rc
+
+
+def os_keyed(durations: Mapping[str, float]) -> Dict[str, float]:
+    """The store's POSIX-keyed durations in the runner's spelling too (``run_tests_parallel._format_file``:
+    OS separators), as the gate hands them over (``GateRun.durations``). Without it every
+    estimate on Windows was the 30 s default: no file ran solo, none sharded, and the
+    100-190 s files sat in path-ordered bundles in series (q-runner 2026-10-18)."""
+
+    return {**durations, **{str(Path(rel)): s for rel, s in durations.items()}}
 
 
 def fail_fast_waves(picks: Sequence[Pick]) -> List[List[Pick]]:
