@@ -29,8 +29,8 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Protocol
 
 from ..work_store.board import Board, has_brain_here
-from ..work_store.executor import Verdict
 from ..work_store.grammar import Op, RowRef
+from ..work_store.models import Verdict
 from .machine import LIVE, Automation, Batch, BatchState, LaneRecord, LaneState
 from .planner import Plan
 

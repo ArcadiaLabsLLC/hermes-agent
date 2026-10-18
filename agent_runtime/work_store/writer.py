@@ -39,14 +39,13 @@ from . import receipts
 from .board import Board, ids_in_brain
 from .default_brain import IDENTITY_PAIRS
 from .grammar import Op, Row, RowRef, apply as apply_line, find, parse_note, row_defects
+from .models import OPERATOR
 from .reasons import Reason, WorkRefused
 
 __layer__ = "stores"
 __all__ = ["REPLAY_BUDGET", "Receipt", "RowOp", "Writer", "OPERATOR"]
 
 REPLAY_BUDGET = 8
-#: The ``who`` the operator's console overrides a claim with (§8: release / re-status another's row).
-OPERATOR = "operator"
 REQUEST_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,200}$")
 _NON_FAST_FORWARD = ("! [rejected]", "fetch first", "non-fast-forward", "[remote rejected] (cannot lock ref")
 _CREDENTIAL = re.compile(r"://[^/@\s]+@")
