@@ -268,3 +268,12 @@ def test_the_version_identity_is_put_back_after_every_test(request):
     version_info._cached_version_info = version_info.VersionInfo("9.9.9", "9.9.9", 0, None, None, "git")
     next(steps, None)
     assert version_info._cached_version_info is before
+
+
+def test_every_test_starts_with_an_empty_bash_memo(request):
+    """``tests/_downstream/bash_resolution_reset.py``: the production bash memo
+    (``agent_runtime/bash_resolution_memo.py``) is emptied before every test, so a test that fakes a
+    candidate is never handed an earlier test's bash. Mutation: drop the ``_bash_resolution_reset``
+    re-export from ``conftest_plugin``."""
+
+    assert "_bash_resolution_reset" in request.fixturenames

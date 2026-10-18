@@ -547,7 +547,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 
 
-- [ ] **`pm/_fork_extend_environment.py` reaches three private `pm` names (`pm.operations._require_install_allowed`, `pm.operations._requirements`, and the fork's own additive `pm.environment._retry_sync_on_sharing_violation`, which the gate reads as upstream because `pm/environment.py` is) to run the in-place provider-SDK install; grandfathered at land-w1015b so the owner-ruled feature lands — open a public door (or route through an `_upstream_doors.py`) and drop the three fixture rows** · seams / private upstream import · `tests/fixtures/import_layers_grandfathered.json`, `tests/tooling/test_fork_import_layers.py::test_no_new_site[private_upstream_imports]`, 8f2d79a87ba · found 2026-10-15 land-w1015b · needs a public upstream door for `pm.operations._require_install_allowed` / `_requirements`; the fork's additive `pm.environment._retry_sync_on_sharing_violation` goes public in the same move; an `_upstream_doors.py` relay would only move the rows · DEFERRED 2026-10-16: owner — prepared PR branches stay idle while upstream is not taking the owner's PRs **TAKEN 2026-10-18 q-pm**
 - [ ] **Qualify the held checkpoint upstream candidates against native user value and maintainer demand.** Native write extraction and reviewed consumers are complete in Console history PR #7, with separate behavior-preserving extraction `71ba58a781`. Before any submission, check open issues/discussions and overlapping PRs and apply the evidence/value bar in the footprint ledger; product neutrality alone is insufficient. Busy/wait is a separate candidate. Retention pins accompany qualified resumable restore or remain held. No upstream submission is authorized by this row. · seam / checkpoints · `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md`, `docs/agent-runtime-harness/planned/console-history-followup-verification-2026-10-11.md` · RULED 2026-10-15 owner: no, not yet; there is no sign upstream wants them · DEFERRED 2026-10-16: owner "no, not yet. There is no sign upstream wants them." **TAKEN 2026-10-18 q-sync**
 
 
@@ -669,7 +668,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-10-18 (lane r-state, branch `q/r-state`)
 
-- [ ] **`pm.shell.bash()` spawns a `bash -c "exit 0"` probe on every call, and `tools/environments/local.py::_find_bash` calls it for every local-backend command, so each Windows command costs two bash spawns (~0.3 s each)** · upstream-owned (`pm/shell.py`) · evidence: lane r-state 2026-10-18, `test_known_file_write_baseline.py::test_own_patch_after_own_write_keeps_the_baseline` ran 35 spawns, half of them the probe; the test chain now memoizes a started candidate (`tests/_downstream/bash_probe_memo.py`), production does not · lane: an upstream PR memoizing a started candidate in `pm.shell` (or a caller-side memo in a fork seam), then drop the test-chain memo · READY 2026-10-18 **TAKEN 2026-10-18 q-pm**
 
 ### Filed on arrival — 2026-10-17 (harvest)
 
@@ -677,7 +675,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-10-17 (lane r-perf)
 
-- [ ] **`tools/checkpoint_manager._run_git` calls `pm.client.ensure` per git call (a store-root walk each time): ~20% of `test_operator_redo` profiled** · upstream / checkpoints · [[r-perf-2026-10-17]] · upstream issue or a caller-side memo · READY **TAKEN 2026-10-18 q-pm**
+- [ ] **`tools/checkpoint_manager._run_git` calls `pm.client.ensure` per git call (a store-root walk each time): ~20% of `test_operator_redo` profiled** · upstream / checkpoints · [[r-perf-2026-10-17]] · upstream issue or a caller-side memo · BLOCKED 2026-10-18: upstream — issue text: "`pm.client.ensure('git')` costs ~31 ms a call on Windows, and `tools/checkpoint_manager._git_env` (via `hermes_cli._subprocess_compat.selected_git_env`) pays it once per git spawn (1,954 calls = 31.9 s of `test_operator_redo`'s 150 s alone). cProfile: 82% is `pm.environments.store_root` <- `pm.paths.store_root` / `install_stamp_path` / `repo_root`, ~118 `Path.resolve` per call. `repo_root()` and `lockfile_path()` resolve `__file__` on every call: caching those two takes a call to 18 ms; caching `store_root(root)` per (root, `HERMES_RUNTIME_DIR`) to 3.7 ms." A memo above `pm.ensure` is ruled out by upstream's own contract (`tests/tools/test_git_consumer_environment.py`: "A changed PM selection must affect this same process"), and `pm/paths.py` is not in the footprint — q-pm 2026-10-18
 - [ ] **Every SQLite open re-resolves the journal mode (config read + header probe + the 3.50.4 DELETE path in `hermes_state_wal.apply_wal_with_fallback`): ~10k opens in `test_discussion_runtime`, whose driver `stop` then waits ~12 s per test** · upstream / state · [[r-perf-2026-10-17]] · upstream issue (resolve once per process per path) · READY **TAKEN 2026-10-18 r-turn**
 
 
@@ -824,7 +822,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-15 (lane w1015b-con-x)
 
-- [ ] **An in-place provider-SDK install is not entered in pm's feature ledger: `runtime.provider.dependency.install` (`agent_runtime/provider_dependencies.py`, `pm/_fork_extend_environment.py`, wave w1015b-con-x) puts the extra into the running environment with `uv pip install`, so the next generation pm builds for any other reason starts without it and the Connections warning returns** · fork / pm seam · record the extra in the install's selection (the `pm install --extra` ledger) when the in-place install succeeds, or have the generation build carry `extend_environment`'s extras · found 2026-10-15 lane w1015b-con-x · NEEDS PLAN 2026-10-16: how the in-place install is recorded honestly — the venv fact is {extras, stamp} with stamp = expected_stamp(extras) of a LOCK-pinned build (`pm/install.py` `_target_selection`/`_commit_selection`) while `extend_environment` installs pyproject specifiers: (a) extras only, so the next launch builds a generation carrying it; (b) extras+stamp over an unpinned env; (c) install the lock's pins for the extra and write both — recommended (c), else (a) **TAKEN 2026-10-18 q-pm**
 
 ## Filed on arrival — 2026-10-15 (owner: provider SDKs on first setup)
 

@@ -152,8 +152,7 @@ def _refused(reason: str, **data: Any) -> Exception:
 def _extend(requirements: list[str]) -> bool:
     from pm._fork_extend_environment import extend_environment
 
-    return extend_environment(requirements, environment=Path(sys.prefix), explicit=True,
-                              timeout=INSTALL_TIMEOUT_SECONDS)
+    return extend_environment(requirements, environment=Path(sys.prefix), timeout=INSTALL_TIMEOUT_SECONDS)
 
 
 def _new_generation(extra: str) -> None:

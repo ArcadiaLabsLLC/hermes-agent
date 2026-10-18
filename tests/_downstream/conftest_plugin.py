@@ -40,6 +40,7 @@ from tests._downstream.host_disk_room import (  # noqa: F401 — id-marked fixtu
 from tests._downstream.state_db_scope import _state_db_resolves_through_scope  # noqa: F401 — id-marked
 from tests._downstream.state_db_no_fsync import _state_db_no_fsync  # noqa: F401 — autouse (suite speed, r-state)
 from tests._downstream.bash_probe_memo import _bash_probe_memo  # noqa: F401 — autouse (suite speed, r-state)
+from tests._downstream.bash_resolution_reset import _bash_resolution_reset  # noqa: F401 — autouse (q-pm)
 from tests._downstream.tool_registry_scope import (  # noqa: F401 — autouse mark + teardown restore (plan S3)
     _tool_registry_scope,
     pytest_runtest_teardown_tool_registry,
