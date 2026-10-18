@@ -44,7 +44,7 @@ from ..serde import write_json_atomic
 from . import receipts
 from .board import board_rows
 from .executor import Assignment, Brief, Executor, Outcome, RowEnding, Run, RunStatus, StopReason, Verdict
-from .grammar import Op, Row, RowRef, Status, render_status
+from .grammar import Op, Row, RowRef, Status, render_status, segment_text
 from .reasons import Reason, WorkRefused
 
 __layer__ = "lanes"
@@ -68,7 +68,6 @@ DEFAULT_CAP = 4
 _ABANDON = frozenset({Reason.ROW_GONE, Reason.NOT_CLAIMANT, Reason.ALREADY_TAKEN})
 _ENDED = frozenset({RunStatus.SETTLED, RunStatus.STOPPED})
 _TOKEN = re.compile(r"[^A-Za-z0-9_.-]")
-_SEGMENT_FORBIDDEN = re.compile(r"[`*·]")
 _CONSTRAINT = "Work only this row; the engine writes its ending to the queue — do not edit the row yourself."
 
 
@@ -107,30 +106,24 @@ class RunRecord:
 Step = tuple[str, Op, dict[str, Any]]
 
 
-def _clean(value: str, limit: int = 300) -> str:
-    """One grammar-safe segment text: no code span, bold or separator can leak into the row."""
-
-    return " ".join(_SEGMENT_FORBIDDEN.sub("-", str(value or "")).split())[:limit]
-
-
 def _done(record: RunRecord, ending: RowEnding, date: str) -> list[Step]:
     return [("done", Op.DELETE, {"result": " ".join(str(ending.result or "done").split())[:4000]})]
 
 
 def _blocked(record: RunRecord, ending: RowEnding, date: str) -> list[Step]:
-    status = render_status(Status.BLOCKED, date, f"owner decision — {_clean(ending.question)}")
-    status += f" · Recommend: {_clean(ending.recommend) or 'none offered'}"
+    status = render_status(Status.BLOCKED, date, f"owner decision — {segment_text(ending.question)}")
+    status += f" · Recommend: {segment_text(ending.recommend) or 'none offered'}"
     return [("blocked:status", Op.SET_STATUS, {"status": status}), ("blocked:release", Op.RELEASE, {})]
 
 
 def _stopped(record: RunRecord, ending: RowEnding, date: str) -> list[Step]:
-    status = render_status(Status.DEFERRED, date, f"stopped — {_clean(ending.reason) or 'no reason given'}")
+    status = render_status(Status.DEFERRED, date, f"stopped — {segment_text(ending.reason) or 'no reason given'}")
     return [("stopped:release", Op.RELEASE, {}), ("stopped:status", Op.SET_STATUS, {"status": status})]
 
 
 def _failed(record: RunRecord, ending: RowEnding, date: str) -> list[Step]:
     body = (f"work run {record.request_id} ended without a readable work_report "
-            f"({_clean(ending.reason, 200) or 'no detail'}); re-claim to retry")
+            f"({segment_text(ending.reason, 200) or 'no detail'}); re-claim to retry")
     return [("failed:release", Op.RELEASE, {}),
             ("failed:status", Op.SET_STATUS, {"status": render_status(Status.NEEDS_PLAN, date, body)})]
 
