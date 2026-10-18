@@ -43,10 +43,10 @@ def _registry():
 def _home_resolves_to_a_path():
     """Coerce a str-returning ``get_hermes_home`` stub to a Path while the registry lists.
 
-    The listing resolves the current profile scope through ``hermes_constants.get_hermes_home``,
-    and this fixture tears down while the test's ``monkeypatch`` is still active (it is set up
-    first). An upstream test that stubs that function with ``lambda: str(tmp_path)``
-    (``tests/gateway/test_routing_save_fast_path.py``) then reds every teardown with
+    The listing resolves the current profile scope through ``hermes_constants.get_hermes_home``.
+    The teardown restore now runs after ``monkeypatch`` is undone, but a restore that runs while a
+    test's stub is live (a direct ``restore_tool_registry`` call) still meets an upstream stub like
+    ``lambda: str(tmp_path)`` (``tests/gateway/test_routing_save_fast_path.py``), which reds with
     ``'str' object has no attribute 'expanduser'``. The stub's home is kept; only its type is.
     """
     module = sys.modules.get("hermes_constants")
