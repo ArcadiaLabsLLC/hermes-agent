@@ -429,7 +429,7 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-15 (owner: "testing commands should be optimised")
 
-- **`FORK-SUITE-SPEED-SLOW-FILES` — The rest of the 2026-10-15 suite-speed ask: speed or split the slow fork files that set the landing gate's critical path — at -j 12 (2026-10-18) `tests/agent_runtime/test_native_conversation_roundtrip.py` 252 s (198 s at -j 8, 330 s at -j 16; the critical path at every -j), `test_operator_redo.py` 281 s, `test_gateway_peer_two_roots_e2e.py` 251 s, `tests/agent/test_charsheet_pipeline.py` 220 s, `test_subagent_native_roundtrip.py` 186 s** · fork / suite speed · the gate store's `runs.jsonl` (2026-10-18 -j 16 line, `slowest`); the -j half closed in the commit that set the bundled default to 12 · lane: one slow file per lane, measured before and after alone · READY 2026-10-18
+- **`FORK-SUITE-SPEED-SLOW-FILES` — The rest of the 2026-10-15 suite-speed ask: speed or split the slow fork files that set the landing gate's critical path — at -j 12 (2026-10-18) `tests/agent_runtime/test_native_conversation_roundtrip.py` 252 s (198 s at -j 8, 330 s at -j 16; the critical path at every -j), `test_operator_redo.py` 281 s, `test_gateway_peer_two_roots_e2e.py` 251 s, `tests/agent/test_charsheet_pipeline.py` 220 s, `test_subagent_native_roundtrip.py` 186 s** · fork / suite speed · the gate store's `runs.jsonl` (2026-10-18 -j 16 line, `slowest`); the -j half closed in the commit that set the bundled default to 12 · lane: one slow file per lane, measured before and after alone · READY 2026-10-18 · **TAKEN 2026-10-18 w8-slow**
 
 ## Filed on arrival — 2026-10-15 (lane w1015h-fh-h)
 
