@@ -7,6 +7,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 from agent.conversation_loop import _restore_or_build_system_prompt
+from agent_runtime.receipt_sink import ReceiptSink
 from tests.agent.test_system_prompt_restore import _make_agent
 
 
@@ -26,12 +27,14 @@ class TestPrewarmedPromptSeam:
         db = MagicMock()
         agent = _make_agent(session_db=db)
         vars(agent)["_prewarmed_system_prompt"] = (built_with, prompt or self.PREWARMED)
+        # Fork receipts reach only a ReceiptSink's receipt door (agent_runtime/receipt_sink.py).
+        agent._receipts = []
+        agent.status_callback = ReceiptSink(agent._receipts.append)
         return agent, db
 
     @staticmethod
     def _steps(agent):
-        return [c.args[0].get("step") for c in agent.status_callback.call_args_list
-                if c.args and isinstance(c.args[0], dict)]
+        return [receipt.get("step") for receipt in agent._receipts]
 
     def test_a_matching_stash_is_adopted(self):
         agent, db = self._agent()
