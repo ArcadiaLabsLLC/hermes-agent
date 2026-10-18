@@ -277,6 +277,12 @@ Launcher UI spans (`send_to_admit`, `ui_build_max`, `ui_build_sum`, `ui_apply_to
 its scope: the launcher's budget registry `EterniaLauncher/tool/perf_budgets/budgets.json` owns them (owner D2).
 Run it after any rebuild that touches the chat path.
 
+`context_build_receipt turn=<client message id> source=read|resident total_us=…` splits a turn's
+`context_built` span into exclusive microsecond laps (`registry`, `history_read`, `abandoned_filter`,
+`revision`, `relay_marker`, `model_config`, `builder`), logged under the persona's profile; a part the
+build never reached is absent, never zero (`agent_runtime/context_build_receipt.py`). It is a log line
+only: the durable `profile_timing` keeps `context_native_history_ms` and the builder's own sub-stamps.
+
 ### The core-cache family and its census
 
 `agent_runtime/core_cache/__init__.py:42-85` is **the authority** — a per-receipt
