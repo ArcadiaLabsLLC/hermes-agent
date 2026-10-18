@@ -30,7 +30,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
+from agent_runtime import yaml_io
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -45,8 +45,7 @@ CAP = re.compile(r"--wall-budget-seconds[=\s]+(\d+)")
 def workflow_cap() -> int:
     """The `--wall-budget-seconds` CI actually passes, read from the job that runs."""
 
-    yaml = pytest.importorskip("yaml")
-    document = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    document = yaml_io.load(WORKFLOW.read_text(encoding="utf-8"))
     job = document["jobs"][JOB_ID]
     # The job has more than one step touching the gate (a `--list` selection step
     # that takes no cap, then the enforcing run), so the cap is looked for across
@@ -89,8 +88,7 @@ def test_the_workflow_job_this_pin_reads_still_exists():
     it is trusted — the same reason the adjacency probe is FATAL on a zero-cite
     walk."""
 
-    yaml = pytest.importorskip("yaml")
-    document = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    document = yaml_io.load(WORKFLOW.read_text(encoding="utf-8"))
 
     assert JOB_ID in document["jobs"], f"{JOB_ID} job is gone; re-point this pin"
     assert any(
