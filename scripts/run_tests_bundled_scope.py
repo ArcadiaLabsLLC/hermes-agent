@@ -43,11 +43,16 @@ except ImportError:  # loaded by the runner: ``scripts/`` is sys.path[0]
     import run_tests_bundled_chain as chain
 
 
-def _rel_posix(path: Path, repo_root: Path) -> str:
-    """Repo-relative POSIX spelling (``run_tests_parallel._format_file``'s answer)."""
+def _rel_posix(path: Path, repo_root: Path, *, real: Optional[Path] = None, real_root: Optional[Path] = None) -> str:
+    """Repo-relative POSIX spelling (``run_tests_parallel._format_file``'s answer).
+
+    ``real`` / ``real_root`` are ``path.resolve()`` / ``repo_root.resolve()`` when the caller
+    already holds them: on Windows a ``resolve`` is two ``_getfinalpathname`` calls, and a
+    whole-tree selection used to pay three per file (fork-hygiene FORK-TEST-UPSTREAM-SKIP-LIST).
+    """
 
     try:
-        return path.resolve().relative_to(repo_root.resolve()).as_posix()
+        return (real or path.resolve()).relative_to(real_root or repo_root.resolve()).as_posix()
     except ValueError:
         return path.as_posix()
 
@@ -238,11 +243,29 @@ def convention_sources(test_rel: str) -> List[str]:
     return [f"{base}.py", f"{base}/__init__.py"] if base else []
 
 
-def imported_modules(path: Path, rel: str) -> set[str]:
+#: ``imported_modules`` answers, keyed on (path, rel, mtime_ns, size): a process that selects
+#: twice (the skip-list gate's cases) parses each inherited file once, and an edited file is re-read.
+_IMPORTS: dict[tuple[str, str, int, int], frozenset[str]] = {}
+
+
+def imported_modules(path: Path, rel: str) -> frozenset[str]:
     """Every module name ``path`` imports, relative imports resolved against
     its package. ``from a import b`` yields both ``a`` and ``a.b``. A file that
-    does not parse yields nothing (its own run will say why)."""
+    does not parse yields nothing (its own run will say why). Kept per file
+    version for the process (``_IMPORTS``)."""
 
+    try:
+        st = os.stat(path)
+    except OSError:
+        return frozenset()
+    key = (os.fspath(path), rel, st.st_mtime_ns, st.st_size)
+    kept = _IMPORTS.get(key)
+    if kept is None:
+        kept = _IMPORTS[key] = frozenset(_parse_imports(path, rel))
+    return kept
+
+
+def _parse_imports(path: Path, rel: str) -> set[str]:
     import ast
     import warnings
 
@@ -333,15 +356,17 @@ def select_scope(
     sampling = bool(chain.chain_changed(changed))  # fork files reached, not all of them
     skipped, idle_box = set(skipped), set(idle_box)
     sel = ScopeSelection(chain_paths=chain.chain_changed(changed))
+    real_root = Path(repo_root).resolve()
     for path in files:
-        rel = _rel_posix(path, repo_root)
-        if rel in skipped and path.resolve() not in named_real:
+        real = path.resolve()  # once per file: _rel_posix and the named test share it
+        rel = _rel_posix(path, repo_root, real=real, real_root=real_root)
+        if rel in skipped and real not in named_real:
             sel.skipped_red.append(path)
         elif rel in idle_box:
-            (sel.named if path.resolve() in named_real else sel.idle_box).append(path)
+            (sel.named if real in named_real else sel.idle_box).append(path)
         elif rel not in inherited and (not sampling or fnmatch.fnmatchcase(rel, CHAIN_CONTRACT_GLOB)):
             sel.fork_only.append(path)
-        elif path.resolve() in named_real:
+        elif real in named_real:
             sel.named.append(path)
         elif rel in changed:
             sel.touched.append(path)

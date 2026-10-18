@@ -20,6 +20,7 @@ upstream file out, and must cite "ADR 0015"; a fork file is refused under
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 from pathlib import Path
 
 import pytest
@@ -42,6 +43,21 @@ _P0 = {
 }
 
 
+@lru_cache(maxsize=None)
+def _discovered(sub: str = "tests") -> tuple[Path, ...]:
+    """The runner's discovery under ``sub``, once per process: every case reads the same tree
+    (fork-hygiene FORK-TEST-UPSTREAM-SKIP-LIST — each case re-walked it)."""
+
+    return tuple(bundled.rtp._discover_files([_REPO_ROOT / sub]))
+
+
+@lru_cache(maxsize=None)
+def _offered() -> frozenset[str]:
+    """The repo-relative paths discovery offers under ``tests``."""
+
+    return frozenset(bundled._rel(p, _REPO_ROOT) for p in _discovered())
+
+
 def _skipped_by_the_runner(list_path: Path) -> tuple[set[str], set[str]]:
     """(the files ``select_scope`` put in ``skipped_red``, the listed paths discovery offers), over the real tree.
 
@@ -50,16 +66,15 @@ def _skipped_by_the_runner(list_path: Path) -> tuple[set[str], set[str]]:
     """
 
     rows = plan.load_skip_list(list_path)
-    files = bundled.rtp._discover_files([_REPO_ROOT / "tests"])
-    sel = bundled.select_scope(files, _REPO_ROOT, bundled.load_manifest(MANIFEST), set(), skipped=rows)
-    offered = {bundled._rel(p, _REPO_ROOT) for p in files}
+    sel = bundled.select_scope(_discovered(), _REPO_ROOT, bundled.load_manifest(MANIFEST), set(), skipped=rows)
+    offered = _offered()
     return {bundled._rel(p, _REPO_ROOT) for p in sel.skipped_red}, {rel for rel, row in rows.items() if not row.node and rel in offered}
 
 
 def listed_files_discovery_drops_outside_its_skip_parts(list_path: Path) -> list[str]:
     """Listed files discovery never offers that are NOT under a ``_SKIP_PARTS`` folder: a hole in the gate."""
 
-    offered = {bundled._rel(p, _REPO_ROOT) for p in bundled.rtp._discover_files([_REPO_ROOT / "tests"])}
+    offered = _offered()
     return sorted(
         rel
         for rel, row in plan.load_skip_list(list_path).items()
@@ -214,7 +229,7 @@ _REACHES_IT = {
 
 
 def _select(rows, changed, *, since_merge, named=()):
-    files = bundled.rtp._discover_files([_REPO_ROOT / "tests" / "hermes_cli"])
+    files = _discovered("tests/hermes_cli")
     sel = bundled.select_scope(
         files, _REPO_ROOT, bundled.load_manifest(MANIFEST), changed, named=named, skipped=rows,
     )  # since ADR 0016 --scope fork and --since-merge select alike; both ids stay so either reach is pinned
