@@ -210,6 +210,16 @@ def test_a_discovery_sweep_reads_the_load_deadline_once():
     assert getattr(plugins.PluginManager._discover_and_load_inner, "_fork_sweep_timeout_memo", False)
 
 
+def test_a_bundled_yaml_file_parses_once_per_process():
+    """``tests/_downstream/parse_memo.py``: once ``hermes_yaml`` is imported, a checkout file's parse is kept
+    for the process (lane w2-speed-b). Mutation: drop the ``_bundled_parse_memo`` re-export from
+    ``conftest_plugin``."""
+
+    import hermes_yaml
+
+    assert getattr(hermes_yaml.safe_load, "_fork_bundled_parse_memo", False)
+
+
 def test_bundled_plugin_modules_are_not_kept_without_the_opt_in(monkeypatch):
     """``tests/_downstream/plugin_module_keep.py`` is OFF unless ``HERMES_TEST_KEEP_PLUGIN_MODULES`` is set
     (owner ruling pending): two discoveries import each bundled plugin twice. Mutation: make
