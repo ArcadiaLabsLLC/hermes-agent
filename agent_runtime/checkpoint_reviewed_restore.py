@@ -36,11 +36,56 @@ def _history_safe_path(workdir, rel):
         for item in (path, *path.parents) if item != Path(workdir))
 
 
+# Paths per batched git call: far under the Windows command-line limit.
+_PATH_BATCH = 200
+
+
 def _history_current_blob(workdir, rel):
-    if not (Path(workdir) / rel).exists():
-        return None
-    ok, blob, _ = _cm._run_git(["hash-object", "--", rel], _cm._store_path(), workdir)
-    return blob.strip() if ok else "unreadable"
+    return _history_current_blobs(workdir, [rel])[rel]
+
+
+def _history_current_blobs(workdir, rels):
+    """rel -> its worktree blob id, None when absent, "unreadable" when git failed.
+
+    One ``hash-object`` per batch: every git child is a process start, and on
+    Windows that start is most of a reviewed restore's wall time.
+    """
+    blobs = {rel: None for rel in rels if not (Path(workdir) / rel).exists()}
+    present = list(dict.fromkeys(rel for rel in rels if rel not in blobs))
+    for start in range(0, len(present), _PATH_BATCH):
+        chunk = present[start:start + _PATH_BATCH]
+        ok, out, _ = _cm._run_git(["hash-object", "--", *chunk], _cm._store_path(), workdir)
+        lines = out.split("\n") if ok else []
+        if len(lines) != len(chunk):
+            blobs.update(dict.fromkeys(chunk, "unreadable"))
+        else:
+            blobs.update(zip(chunk, (line.strip() for line in lines)))
+    return blobs
+
+
+def _tree_entries(workdir, commit, rels):
+    """rel -> its ``ls-tree`` entry ``[mode, type, object]`` in ``commit``; None when unreadable.
+
+    A path absent from the commit has no key. A path that is also a parent
+    directory of another selected path is asked alone: in one call git lists
+    the deeper path and drops the directory's own entry.
+    """
+    unique = list(dict.fromkeys(rels))
+    ancestors = {parent.as_posix() for rel in unique for parent in Path(rel).parents}
+    batched = [rel for rel in unique if rel not in ancestors]
+    calls = [batched[i:i + _PATH_BATCH] for i in range(0, len(batched), _PATH_BATCH)]
+    calls += [[rel] for rel in unique if rel in ancestors]
+    entries = {}
+    for chunk in calls:
+        ok, out, _ = _cm._run_git(["--literal-pathspecs", "ls-tree", "-z", commit, "--", *chunk],
+                                  _cm._store_path(), workdir)
+        if not ok:
+            return None
+        for record in filter(None, out.split("\x00")):
+            meta, _, path = record.partition("\t")
+            if path in chunk:
+                entries[path] = meta.split()
+    return entries
 
 
 def _agent_write_evidence(previous: dict, *, sha256: str | None, deleted: bool) -> dict:
@@ -78,9 +123,16 @@ def _release_restore_checkpoints_locked(operation_id: str, base: Path | None = N
     base = base or _cm._resolve_checkpoint_base()
     if not _cm._store_path(base).exists():
         return
+    # Release is idempotent and status polls repeat it: list the lease's refs
+    # in one call and delete only those still held.
+    prefix = f"refs/operator-restore/{operation_id}/"
+    ok, held, _ = _cm._run_git(["for-each-ref", "--format=%(refname)", prefix], _cm._store_path(base), str(base))
+    if not ok:
+        raise OSError("checkpoint recovery reference could not be released")
     for name in ("target", "backup"):
-        ok, _, _ = _cm._run_git(["update-ref", "-d", f"refs/operator-restore/{operation_id}/{name}"],
-                           _cm._store_path(base), str(base))
+        if prefix + name not in held.split():
+            continue
+        ok, _, _ = _cm._run_git(["update-ref", "-d", prefix + name], _cm._store_path(base), str(base))
         if not ok:
             raise OSError("checkpoint recovery reference could not be released")
 
@@ -109,6 +161,28 @@ def release_expired_restore_checkpoints(base: Path) -> None:
 
 class ReviewedRestoreMixin:
     """Reviewed-restore methods for ``tools.checkpoint_manager.CheckpointManager``."""
+
+    def checkpoint_trees(self, working_dir: str) -> list[tuple[str, str]]:
+        """``(commit, tree)`` for :meth:`list_checkpoints`' rows, newest first, in ONE git call.
+
+        ``list_checkpoints`` runs a ``diff --shortstat`` per row for its
+        counts (up to ``max_snapshots`` git children); reviewed restore reads
+        only identities, so it reads the same ``log`` window without them.
+        """
+        abs_dir = str(_cm._normalize_path(working_dir))
+        store = _cm._store_path()
+        if not (store / "HEAD").exists():
+            return []
+        ok, stdout, _ = _cm._run_git(
+            ["log", _cm._ref_name(_cm._project_hash(abs_dir)), "--format=%H %T", "-n", str(self.max_snapshots)],
+            store, abs_dir, allowed_returncodes={128, 129})
+        if not ok:
+            return []
+        return [(row[0], row[1]) for row in map(str.split, stdout.splitlines()) if len(row) == 2]
+
+    def checkpoint_hashes(self, working_dir: str) -> list[str]:
+        """The commit ids :meth:`list_checkpoints` lists, newest first."""
+        return [commit for commit, _ in self.checkpoint_trees(working_dir)]
 
     def checkpoint_tree(self, working_dir: str, commit: str) -> Optional[str]:
         """Stable tree identity for an already admitted checkpoint observer."""
@@ -158,7 +232,7 @@ class ReviewedRestoreMixin:
             reversal = self._restore_reversal_source(working_dir, recovery_operation_id)
             if not reversal or reversal["result"]["recovery_checkpoint"] != commit_hash:
                 return {"success": False, "reason": "redo_unavailable"}
-        if reversal is None and not any(row["hash"] == commit_hash for row in self.list_checkpoints(working_dir)):
+        if reversal is None and commit_hash not in self.checkpoint_hashes(working_dir):
             return {"success": False, "reason": "checkpoint_unavailable"}
         if _cm._dir_file_count(working_dir) > _cm._MAX_FILES:
             return {"success": False, "reason": "workspace_too_large"}
@@ -173,16 +247,18 @@ class ReviewedRestoreMixin:
             if not ok:
                 return {"success": False, "reason": "checkpoint_read_failed"}
             ledger = _cm._load_ledger(store, self._ledger_key(working_dir))
-            files = [self._restore_file_preview(working_dir, commit_hash, rel, ledger)
-                     for rel in filter(None, names.split("\x00"))]
+            rels = list(filter(None, names.split("\x00")))
+            entries = _tree_entries(working_dir, commit_hash, rels)
+            files = [self._restore_file_preview(working_dir, commit_hash, rel, ledger, entries=entries)
+                     for rel in rels]
             if reversal is not None:
                 selected = reversal["request"]["plan"]
                 files = [row for row in files if row["path"] in selected]
                 # Even another agent's authored edit is not the state reversed
                 # by this request. Check the exact previous restore targets.
-                for rel, original in selected.items():
-                    if _history_current_blob(working_dir, rel) != original["target_blob"]:
-                        return {"success": False, "reason": "workspace_changed"}
+                current = _history_current_blobs(working_dir, list(selected))
+                if any(current[rel] != original["target_blob"] for rel, original in selected.items()):
+                    return {"success": False, "reason": "workspace_changed"}
             ok, diff, _ = _cm._run_git(["diff", "--cached", "--no-ext-diff", "--no-textconv", "--no-renames",
                                     "-R", commit_hash], store, working_dir, index_file=index)
             if not ok:
@@ -195,7 +271,9 @@ class ReviewedRestoreMixin:
         finally:
             _cm._run_git(["read-tree", _cm._ref_name(_cm._project_hash(working_dir))], store, working_dir, index_file=index)
 
-    def _restore_file_preview(self, working_dir: str, commit_hash: str, rel: str, ledger: dict) -> dict:
+    def _restore_file_preview(self, working_dir: str, commit_hash: str, rel: str, ledger: dict,
+                              *, entries=False) -> dict:
+        """One file's plan row; ``entries`` is :func:`_tree_entries` over a batch holding ``rel``."""
         path = Path(working_dir) / rel
         reason = None
         if _cm._validate_file_path(rel, working_dir) or path.is_symlink() or any(
@@ -212,12 +290,13 @@ class ReviewedRestoreMixin:
             reason = "no_write_evidence" if not recorded else "changed_externally"
         if reason is None and record.get("deleted") and path.exists():
             reason = "changed_externally"
-        ok, tree, _ = _cm._run_git(["--literal-pathspecs", "ls-tree", "-z", commit_hash, "--", rel], _cm._store_path(), working_dir)
-        if not ok:
+        if entries is False:
+            entries = _tree_entries(working_dir, commit_hash, [rel])
+        if entries is None:
             reason = "checkpoint_read_failed"
         # Only ordinary files are eligible. Never install a symlink or gitlink
         # from an old snapshot into a directory another tool may write through.
-        target = tree.split("\t", 1)[0].split() if tree else []
+        target = (entries or {}).get(rel, [])
         if target and (len(target) != 3 or target[0] not in ("100644", "100755")):
             reason = "unsupported_file_type"
         return {"path": rel, "current_sha256": current, "target_blob": target[2] if len(target) == 3 else None,
@@ -257,16 +336,16 @@ class ReviewedRestoreMixin:
             if any(path not in by_path or not by_path[path]["eligible"] for path in selected_paths):
                 return {"success": False, "reason": "restore_conflict"}
             self._take(working_dir, f"before reviewed restore {operation_id[:12]}", prune=False)
-            backup = self.list_checkpoints(working_dir)
-            if not backup or not self._restore_backup_matches(working_dir, backup[0]["hash"], selected_paths):
+            backup = self.checkpoint_hashes(working_dir)
+            if not backup or not self._restore_backup_matches(working_dir, backup[0], selected_paths):
                 return {"success": False, "reason": "recovery_checkpoint_failed"}
             # Independent refs keep both trees alive if normal retention rewrites
             # the workspace snapshot chain while this command needs recovery.
-            if not pin_restore_checkpoints(working_dir, operation_id, commit_hash, backup[0]["hash"]):
+            if not pin_restore_checkpoints(working_dir, operation_id, commit_hash, backup[0]):
                 return {"success": False, "reason": "recovery_checkpoint_failed"}
             result = {"success": False, "reason": "restore_outcome_unknown", "restored_files": [],
                       "failed_files": [], "review_paths": selected_paths,
-                      "recovery_checkpoint": backup[0]["hash"], "replayed": False}
+                      "recovery_checkpoint": backup[0], "replayed": False}
             try:
                 self._write_restore_receipt(receipt_path, digest, result, request={
                     "working_dir": working_dir, "checkpoint": commit_hash, "revision": revision,
@@ -274,10 +353,11 @@ class ReviewedRestoreMixin:
             except OSError:
                 _release_restore_checkpoints_locked(operation_id)
                 raise
+            entries = _tree_entries(working_dir, commit_hash, selected_paths)
             for rel in selected_paths:
                 row = by_path[rel]
                 checked = self._restore_file_preview(working_dir, commit_hash, rel,
-                    _cm._load_ledger(_cm._store_path(), self._ledger_key(working_dir)))
+                    _cm._load_ledger(_cm._store_path(), self._ledger_key(working_dir)), entries=entries)
                 if not checked["eligible"] or checked["current_sha256"] != row["current_sha256"]:
                     result["failed_files"].append({"path": rel, "reason": "workspace_changed"})
                     self._write_restore_receipt(receipt_path, digest, result)
@@ -294,17 +374,18 @@ class ReviewedRestoreMixin:
             return result
 
     def _restore_backup_matches(self, working_dir: str, commit_hash: str, selected_paths: list[str]) -> bool:
-        store = _cm._store_path()
+        # The backup holds each selected path exactly as the worktree does now:
+        # the same blob where the file exists, no entry where it does not.
+        saved = _tree_entries(working_dir, commit_hash, selected_paths)
+        if saved is None:
+            return False
+        current = _history_current_blobs(working_dir, selected_paths)
         for rel in selected_paths:
-            if not (Path(working_dir) / rel).exists():
-                found, _, _ = _cm._run_git(["cat-file", "-e", f"{commit_hash}:{rel}"], store, working_dir,
-                                       allowed_returncodes={1, 128})
-                if found:
+            entry = saved.get(rel)
+            if current[rel] is None:
+                if entry is not None:
                     return False
-                continue
-            ok, current, _ = _cm._run_git(["hash-object", "--", rel], store, working_dir)
-            found, saved, _ = _cm._run_git(["rev-parse", f"{commit_hash}:{rel}"], store, working_dir)
-            if not ok or not found or current != saved:
+            elif current[rel] == "unreadable" or entry is None or entry[2:] != [current[rel]]:
                 return False
         return True
 
