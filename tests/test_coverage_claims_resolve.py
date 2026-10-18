@@ -94,7 +94,11 @@ TESTS_ROOT = REPO_ROOT / "tests"
 #: so the cap is DECLARED here instead of typed at a console. It stays well
 #: under ``run_tests_parallel``'s 300 s per-FILE wall, which is still the real
 #: bound on a hang: this marker buys headroom for a slow corpus walk, not for a
-#: loop.
+#: loop. Re-measured 2026-10-18 (FORK-COVERAGE-CLAIMS-WALL): the corpus grew to
+#: 448 md + 10,113 py (the upstream merges), and the AST parse of every file
+#: holding a bare ``test_`` made the walk 87.5 s on a loaded box; parsing only
+#: the files that name a test FILE (``_CITES_A_TEST_FILE``) made it 14.2 s on
+#: the same box at the same time, with the identical claim set.
 pytestmark = [pytest.mark.timeout(180), pytest.mark.gate]
 
 #: Markdown roots. Root-level ``*.md`` is included: AGENTS.md and the READMEs
@@ -304,13 +308,20 @@ def _md_files() -> list[Path]:
 #: discover -- a stated absence beats an implied presence.
 _SELF = Path(__file__).resolve()
 
+#: The pre-filter's literal: the filename half of every arm (``_NAMED`` /
+#: ``_ANY_QUALIFIED``'s ``test_`` names, ``_PATH``, ``_BARE``), widened to the
+#: ``.``/``-`` that ``_ANY_QUALIFIED`` admits so it can only over-select.
+_CITES_A_TEST_FILE = re.compile(r"test_[A-Za-z0-9_.-]*\.py")
+
 
 def _py_files() -> list[Path]:
     out: list[Path] = []
     for name in _PY_DIRS:
         root = REPO_ROOT / name
         if root.is_dir():
-            out.extend(p for p in sorted(root.rglob("*.py")) if p.resolve() != _SELF)
+            # ``rglob`` under the resolved ``REPO_ROOT`` yields resolved paths: compare
+            # them directly (a ``resolve()`` per file was 3.4 s of 10,113 stat walks).
+            out.extend(p for p in sorted(root.rglob("*.py")) if p != _SELF)
     return out
 
 
@@ -615,11 +626,15 @@ def collect_claims() -> tuple[list[Claim], dict[str, int]]:
     for path in _py_files():
         census["py_files"] += 1
         text = source_cache.source(path)
-        # Cheap pre-filter. A file with no ``test_`` substring anywhere cannot
-        # carry a claim under any arm, and AST-parsing ~3.9k files to learn
-        # that costs more than the whole rest of the gate. Counted in the
-        # census either way, so the floor still proves the walk happened.
-        if "test_" not in text:
+        # Cheap pre-filter. Every arm needs a test FILENAME somewhere in the
+        # file: NAMED and its continuation inherit a ``test_*.py`` anchor, PATH
+        # and BARE are one, and MEMBER resolves only against a PATH in its
+        # window. A file naming none cannot carry a claim, and AST-parsing it to
+        # learn that was the gate's cost: 7,315 of 10,113 files hold a bare
+        # ``test_`` (the old filter), 907 hold a filename (FORK-COVERAGE-CLAIMS-
+        # WALL, 2026-10-18). Counted in the census either way, so the floor
+        # still proves the walk happened.
+        if not _CITES_A_TEST_FILE.search(text):
             continue
         rel = path.relative_to(REPO_ROOT).as_posix()
         claims.extend(
@@ -877,6 +892,24 @@ def test_the_reader_finds_a_planted_claim_and_clears_a_real_one(tmp_path) -> Non
     assert [c.target for c in far] == [
         "test_coverage_claims_resolve.py::test_the_gate_scanned_a_real_corpus"
     ]
+
+
+def test_the_python_prefilter_keeps_every_text_that_carries_a_claim() -> None:
+    """``collect_claims`` AST-parses only a ``.py`` file ``_CITES_A_TEST_FILE`` selects; a file it drops
+    must carry no claim under any arm. One source per arm (and the ``-`` a qualified name admits): each
+    yields a claim and each is selected. Killing mutation: end the pre-filter's pattern in ``pyz`` instead of ``py``
+    (the floors stay green on the markdown claims alone)."""
+
+    sources = {
+        "NAMED": "pinned by `test_coverage_claims_resolve.py::test_x`",
+        "NAMED-": "pinned by `tests/x/test_a-b.py::test_x`",
+        "PATH": "covered by `tests/test_coverage_claims_resolve.py`",
+        "BARE": "covered by `test_coverage_claims_resolve.py`",
+        "MEMBER": "covered by `test_planted_member` in `tests/test_coverage_claims_resolve.py`",
+    }
+    for arm, text in sources.items():
+        assert _scan_lines("<synthetic>", [(1, text)], is_plan_doc=False), arm
+        assert _CITES_A_TEST_FILE.search(text), arm
 
 
 def test_ast_resolution_is_not_substring_resolution() -> None:
