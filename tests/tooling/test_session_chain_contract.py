@@ -21,8 +21,10 @@ from pathlib import Path
 import pytest
 
 from hermes_cli import plugins  # imported here so the chain installs the discovery cache
+import hermes_cli.config  # imported here so the chain's home-config fixture finds it at setup
 import hermes_constants
 import hermes_state  # imported here so the chain's state-db fixture finds it at setup
+import hermes_state_wal
 import pm.shell  # imported here so the chain's bash-probe memo finds it at setup
 
 pytestmark = pytest.mark.gate
@@ -208,6 +210,44 @@ def test_a_session_db_commits_without_fsync(tmp_path):
         assert db._conn.execute("PRAGMA synchronous").fetchone()[0] == 0
     finally:
         db.close()
+
+
+@pytest.mark.skipif(sys.platform == "darwin", reason="macOS keeps synchronous=FULL (its btree floor is a subject)")
+def test_a_store_through_the_wal_door_commits_without_fsync(tmp_path):
+    """``tests/_downstream/state_db_no_fsync.py``: a raw ``sqlite3`` store passed through
+    ``hermes_state_wal.apply_wal_with_fallback`` (run idempotency, response store, kanban) runs
+    ``PRAGMA synchronous=OFF``. Mutation: drop the door ``monkeypatch.setattr`` in ``_state_db_no_fsync``."""
+    import sqlite3
+
+    conn = sqlite3.connect(str(tmp_path / "store.db"))
+    try:
+        hermes_state_wal.apply_wal_with_fallback(conn, db_label="store.db")
+        assert conn.execute("PRAGMA synchronous").fetchone()[0] == 0
+    finally:
+        conn.close()
+
+
+def test_a_fresh_session_db_is_seeded_from_the_template(tmp_path):
+    """``tests/_downstream/session_db_template.py``: a writer open of an absent ``state.db`` is
+    seeded from the stripped template (its pins: ``tests/agent_runtime/test_session_db_template.py``).
+    Mutation: drop the ``session_db_from_template`` re-export from ``conftest_plugin``."""
+    from tests._downstream import session_db_template
+
+    assert hermes_state.SessionDB._open_writer.__name__ == "seeded_open_writer"
+    hermes_state.SessionDB(db_path=tmp_path / "state.db").close()
+    hermes_state.SessionDB(db_path=tmp_path / "other" / "state.db").close()
+    assert session_db_template.BUILDS["count"] >= 1
+
+
+def test_the_test_home_carries_a_version_stamped_config(tmp_path):
+    """``tests/_downstream/home_config.py``: the per-test home holds ``config.yaml`` with only the
+    current ``_config_version``, so ``load_config_readonly`` is a cache hit after its first build.
+    Mutation: drop the ``_home_carries_a_config`` re-export from ``conftest_plugin``."""
+
+    path = tmp_path / "hermes_test" / "config.yaml"
+    version = hermes_cli.config.DEFAULT_CONFIG["_config_version"]
+    assert path.read_text(encoding="utf-8") == f"_config_version: {version}\n"
+    assert hermes_cli.config.load_config_readonly() is hermes_cli.config.load_config_readonly()
 
 
 @pytest.mark.skipif(os.name != "nt", reason="the bash.exe probe runs on Windows only")
