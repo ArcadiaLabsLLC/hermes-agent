@@ -48,6 +48,7 @@ from tests._downstream.plugin_discovery_cache import (  # noqa: F401 — autouse
     _plugin_discovery_cache,
     cold_plugin_discovery,
 )
+from tests._downstream.version_info_scope import _version_info_scope  # noqa: F401 — autouse (q-chain)
 from tests._downstream.git_audit import (  # noqa: F401 — hook re-exports (opt-in, design sweep D3.16)
     pytest_configure_git_audit,
     pytest_runtest_protocol_git_audit,

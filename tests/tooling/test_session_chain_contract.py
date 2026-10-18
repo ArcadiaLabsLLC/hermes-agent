@@ -248,3 +248,21 @@ def test_a_spawned_child_gets_the_start_up_shortcut():
     site_file, snapshot = done.stdout.split()
     assert Path(site_file).parent == child_startup.CHILD_SITE
     assert snapshot == os.environ[child_startup.ENV]
+
+
+def test_the_version_identity_is_put_back_after_every_test(request):
+    """``tests/_downstream/version_info_scope.py``: a test that resolves or replaces the process version
+    identity hands the next test the identity it found. Mutation: drop the ``_version_info_scope``
+    re-export from ``conftest_plugin``."""
+
+    from hermes_cli import version_info
+
+    assert "_version_info_scope" in request.fixturenames
+    from tests._downstream.version_info_scope import _version_info_scope
+
+    before = version_info._cached_version_info
+    steps = _version_info_scope.__wrapped__()
+    next(steps)
+    version_info._cached_version_info = version_info.VersionInfo("9.9.9", "9.9.9", 0, None, None, "git")
+    next(steps, None)
+    assert version_info._cached_version_info is before
