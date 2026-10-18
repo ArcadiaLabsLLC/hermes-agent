@@ -12,7 +12,11 @@ What is kept, per process:
 * the manifests a top-level ``scan_directory`` of the real bundled root returns, re-used while the
   tree's signature is unchanged — every file's name, mtime and size and every directory's listing
   down to the plugin directories' own listings (a directory's mtime is not part of it), read with ``os.scandir`` (its stat is free on Windows), so an added, removed or edited
-  plugin is a miss and a fresh scan;
+  plugin is a miss and a fresh scan. For the checkout's own ``plugins/`` the signature is walked at
+  the first discovery of each TEST, not at every discovery (fork-hygiene
+  FORK-DISCOVERY-CACHE-TREE-WALK: the walk was ~12 ms of a ~16 ms hit, 13.3 s over 1,002
+  discoveries): no test edits the checkout's tree, and a test that builds its own bundled tree
+  (``HERMES_BUNDLED_PLUGINS`` -> a tmp dir) keeps the per-discovery check;
 * ``plugins.discover_entrypoint_manifests()``, re-used while ``importlib.metadata.entry_points`` is the original
   function and ``sys.path`` is unchanged (a test that patches either gets the real scan).
 
@@ -41,9 +45,9 @@ from typing import Any
 import pytest
 
 _LOCK = threading.Lock()
-_SCANS: dict[tuple[Any, ...], tuple[Any, list]] = {}
+_SCANS: dict[tuple[Any, ...], tuple[Any, list, int]] = {}  # key -> (signature, manifests, test it was checked in)
 _ENTRY_POINTS: dict[tuple[Any, ...], list] = {}
-_STATE = {"bypass": 0, "hits": 0, "misses": 0}
+_STATE = {"bypass": 0, "hits": 0, "misses": 0, "test": 0}
 _REAL_ENTRY_POINTS = importlib.metadata.entry_points
 
 
@@ -60,6 +64,19 @@ def clear() -> None:
     with _LOCK:
         _SCANS.clear()
         _ENTRY_POINTS.clear()
+
+
+def next_test() -> None:
+    """A test boundary: the next discovery of the checkout's bundled root re-checks the tree signature."""
+
+    with _LOCK:
+        _STATE["test"] += 1
+
+
+def _checkout_bundled_root() -> str:
+    """The checkout's own ``plugins/`` directory (``get_bundled_plugins_dir`` with no override)."""
+
+    return os.path.normcase(os.path.abspath(Path(__file__).resolve().parents[2] / "plugins"))
 
 
 def set_bypass(on: bool) -> None:
@@ -98,24 +115,35 @@ def _tree_signature(root: str, depth: int = 0) -> tuple:
     return tuple(entries)
 
 
-def _caching_scan(real, bundled_root: Path):
+def _caching_scan(real, bundled_root: Path, *, once_per_test: bool | None = None):
+    """Wrap ``scan_directory`` for ``bundled_root``. ``once_per_test`` (default: the root is the checkout's
+    ``plugins/``) walks the tree signature at a test's first discovery only; otherwise at every discovery."""
+
     root_key = os.path.normcase(os.path.abspath(bundled_root))
+    if once_per_test is None:
+        once_per_test = root_key == _checkout_bundled_root()
 
     def scan_directory(path, source, *, skip_names=None, prefix="", depth=0):
         if depth != 0 or prefix or _bypassed() or os.path.normcase(os.path.abspath(path)) != root_key:
             return real(path, source, skip_names=skip_names, prefix=prefix, depth=depth)
         key = (root_key, source, frozenset(skip_names or ()))
-        signature = _tree_signature(root_key)
         with _LOCK:
             kept = _SCANS.get(key)
+            test = _STATE["test"]
+        if kept is not None and once_per_test and kept[2] == test:
+            with _LOCK:
+                _STATE["hits"] += 1
+            return copy.deepcopy(kept[1])
+        signature = _tree_signature(root_key)
         if kept is not None and kept[0] == signature:
             with _LOCK:
                 _STATE["hits"] += 1
+                _SCANS[key] = (signature, kept[1], test)
             return copy.deepcopy(kept[1])
         found = real(path, source, skip_names=skip_names, prefix=prefix, depth=depth)
         with _LOCK:
             _STATE["misses"] += 1
-            _SCANS[key] = (signature, copy.deepcopy(found))
+            _SCANS[key] = (signature, copy.deepcopy(found), test)
         return found
 
     scan_directory.__wrapped__ = real
@@ -166,6 +194,7 @@ def install_if_imported() -> bool:
 def _plugin_discovery_cache():
     """Autouse: keep bundled discovery between tests once the plugin stack is imported."""
 
+    next_test()
     install_if_imported()
     yield
 
