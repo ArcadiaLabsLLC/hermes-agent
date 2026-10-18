@@ -487,8 +487,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 ## Filed on arrival — 2026-10-18 (lane r-quiet)
 
 ## Filed on arrival — 2026-10-18 (lane q-gates)
-- **`FORK-TEST-UPSTREAM-SKIP-LIST` — `test_upstream_skip_list` costs 64 s alone and parses nothing: its parametrized `test_a_change_that_reaches_an_unused_file_does_not_select_it` cases each re-run the runner's discovery and `select_scope` (19-20 s per case under load; one hit the 30 s cap in a combined run, `run_tests_bundled_scope._rel_posix` -> `Path.resolve`); compute discovery once per session and hand each case the result** · fork / suite · `docs/agent-runtime-harness/11-gate-directory.md` § Cost (lane q-gates measurement) · READY 2026-10-18 · **TAKEN 2026-10-18 w2-speed-a**
-- **`FORK-TEST-FORK-IMPORT-LAYERS` — `test_fork_import_layers` re-builds the layer census in every parametrized case (~4.6 s each, 8 cases; parses are already shared, 17,983 cache hits): one census per session behind the cases** · fork / suite · same page § Cost · READY 2026-10-18 · **TAKEN 2026-10-18 w2-speed-a**
 
 ## Filed on arrival — 2026-10-18 (lane q-stale)
 
@@ -502,7 +500,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 - **`FORK-TEST-UPSTREAM-FIXED-WAITS` — The largest suite sleeps left are upstream constants a test cannot shorten: `tools/terminal_tool.py::_run_foreground` retries any backend exception at 2+4+8 s (the five `_LIFECYCLE_SCAN` strict-xfail rows in `test_gateway_restart_loop.py` reach the test double's `execute` on Windows, so each pays 14 s: 70 s per run), `hermes_cli/local_runtime/supervisor.py::unload_model`'s 15 s / 0.3 s poll (44 s in `test_local_runtime.py`), `cron/scheduler.py::_launch_external_cron_worker` (18 s in `test_restart_safe_worker_death_evidence.py`) and `hermes_state._sleep_before_write_retry` (15 s in `test_compression_watermark_commit.py`)** · fork / suite (upstream code) · probe 2026-10-18 lane h2-sleep (main-thread sleep per call site, top 44 files) · BLOCKED 2026-10-18: upstream — issue text: "retry backoffs and poll deadlines in `terminal_tool._run_foreground`, `LocalRuntimeSupervisor.unload_model`, `_launch_external_cron_worker` and `SessionDB` write retry are module literals; make each an injectable interval (constructor or module attribute) so tests set it once, and do not retry an `AssertionError` from a test double as a transient backend error"
 
 ## Filed on arrival — 2026-10-18 (lane h3-plugins)
-- **`FORK-DISCOVERY-CACHE-TREE-WALK` — `tests/_downstream/plugin_discovery_cache.py` re-walks the bundled tree signature (3 directory levels) and deep-copies the kept manifests on every discovery, ~13 ms each (13.3 s over 1,002 discoveries in the top 15 files): with plugin modules kept it is the largest fork-owned piece of a ~76 ms discovery; check the signature once per test, not per discovery** · fork / suite · evidence: lane h3-plugins bucket profile (`discovery(manifest scan)` row) · READY 2026-10-18 · **TAKEN 2026-10-18 w2-speed-a**
 
 ## Filed on arrival — 2026-10-18 (lane h6-collect)
 
