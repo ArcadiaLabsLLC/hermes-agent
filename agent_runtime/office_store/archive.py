@@ -17,6 +17,7 @@ from agent_runtime.locks import office_lock
 from agent_runtime.models import OfficeActor, OfficeSurface
 from agent_runtime.office_store.files import (
     _free_surface_archive_dir,
+    _prune_archived_actor_files,
     _write_archived_actor,
     _write_surface,
 )
@@ -355,6 +356,10 @@ def _archive_actor_locked(
     actor.updated_by = _safe_actor_ref(updated_by)
     _write_archived_actor(actor)
     paths.office_actor_path(actor.workspace_id, actor.actor_key).unlink(missing_ok=True)
+    # Retention (owner ruling 2026-10-15): the newest twenty archive copies stay.
+    # The tombstone below is the ledger, not the file, so pruning a copy never
+    # opens a resurrection.
+    _prune_archived_actor_files(actor.workspace_id)
     # The ONE line the diagnostic mode skips. The archive copy above is
     # written unconditionally — archive-never-delete is not the thing being
     # traded — and only the realm-visible ledger entry is withheld, because

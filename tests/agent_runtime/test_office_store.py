@@ -2097,3 +2097,40 @@ def test_the_archived_directorys_shortfall_is_distinguishable_from_the_live_ones
     scan = store.scan_actors(ws, include_archived=True)
     assert scan.unreadable == 2
     assert set(scan.unreadable_files.names) == {"actors/broken.json", "archive/broken.json"}
+
+
+# ── archive retention (RT-OFFICE-ARCHIVE-DIRECTORY, owner ruling 2026-10-15) ──
+
+
+def test_the_office_archive_keeps_the_newest_twenty_and_the_ledger_still_fences():
+    """Every removal used to add an archive file forever (82 on the live store).
+
+    The newest ``ARCHIVED_ACTOR_FILES_RETAIN`` copies stay; the oldest go. The
+    tombstone is the surface ledger, so a pruned key still refuses a plain
+    re-add.
+    """
+
+    import os
+
+    from agent_runtime.errors import ActorArchived
+    from agent_runtime.office_store.models import ARCHIVED_ACTOR_FILES_RETAIN
+
+    ws = _make_workspace()
+    store = OfficeStore()
+    total = ARCHIVED_ACTOR_FILES_RETAIN + 2
+    keys = [f"p{i:02d}" for i in range(total)]
+    for index, key in enumerate(keys):
+        store.upsert_actor(ws, _actor_payload(key))
+        store.remove_actor(ws, key)
+        # Deterministic age: the i-th removal is the i-th oldest.
+        stamp = 1_700_000_000 + index
+        os.utime(paths.office_archived_actor_path(ws, key), (stamp, stamp))
+
+    remaining = sorted(p.stem for p in paths.office_archive_dir(ws).glob("*.json"))
+    assert len(remaining) == ARCHIVED_ACTOR_FILES_RETAIN
+    assert not paths.office_archived_actor_path(ws, keys[0]).exists()
+    assert not paths.office_archived_actor_path(ws, keys[1]).exists()
+    assert paths.office_archived_actor_path(ws, keys[-1]).exists()
+    assert set(keys) <= set(store.get_surface(ws).archived_actor_keys)
+    with pytest.raises(ActorArchived):
+        store.upsert_actor(ws, _actor_payload(keys[0]), allow_class_key=True)

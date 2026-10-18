@@ -113,6 +113,13 @@ eviction — a doctor remediation, a dispatch step, a census cleanup aimed only 
 local projection; that lane gets its own local-only mode rather than borrowing
 this one.
 
+**Archive retention (ruled 2026-10-15).** `office/<ws>/archive/` keeps the newest
+`ARCHIVED_ACTOR_FILES_RETAIN` (20) actor copies per workspace; every archive write prunes
+the older ones (`_prune_archived_actor_files`, logged as `office archive retention`). The
+tombstone is the `archived_actor_keys` ledger, not the file, so a pruned key still refuses a
+plain re-add; what the 21st-oldest removal loses is `actor-restore`. A `--local-only` removal
+has no ledger entry, so once its copy is pruned nothing fences it.
+
 **What that local-only mode withholds, and what it does not (AX7).**
 `remove_actor` writes two things: the archive copy, and the
 `archived_actor_keys` ledger entry. Only the ledger crosses machines —
