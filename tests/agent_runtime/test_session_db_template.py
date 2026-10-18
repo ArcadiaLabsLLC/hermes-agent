@@ -110,7 +110,10 @@ def test_a_patched_state_module_gets_its_own_template(tmp_path, monkeypatch):
 
     hermes_state.SessionDB(db_path=tmp_path / "a" / "state.db").close()
     before = template.BUILDS["count"]
-    monkeypatch.setattr(hermes_state_schema, "_h1_setup_probe", object(), raising=False)
+    # A new code object for a name the merged tag has (the retirement scan judges patch targets
+    # against it); same behaviour, new identity — the patch the key must see.
+    holder = hermes_state_schema._holder_cmdline
+    monkeypatch.setattr(hermes_state_schema, "_holder_cmdline", lambda pid: holder(pid))
     hermes_state.SessionDB(db_path=tmp_path / "b" / "state.db").close()
     assert template.BUILDS["count"] == before + 1
 

@@ -516,5 +516,4 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-18 (land w6)
 
-- **`FORK-RETIREMENT-SCAN-RED` — `tests/tooling/test_upstream_retirement_scan.py::test_no_fork_file_references_an_upstream_name_the_merged_tag_lacks` is red on main (red on e94a337a62 too); the gate store skips it as an unchanged known red, so every landing carries it** · fork / gates · land-w5 and land-w6 gate reports · READY 2026-10-18 · **TAKEN 2026-10-18 w7**
 - **`FORK-FRESH-DB-CENSUS-INTERNALERROR` — the `fresh_db_census` test-chain wrapper raises pytest INTERNALERROR (`hermes_state` has no `SessionDB`) — 152 times in the land-w5 gate log; a census that crashes the session hides real reds** · fork / suite · land-w6 gate report (`test_serve_rpc_chat_turn.py` neighbour) · READY 2026-10-18 · **TAKEN 2026-10-18 w7**
