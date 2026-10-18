@@ -97,7 +97,7 @@ class Change:
     churned: set = field(default_factory=set)
 
 
-def _git(repo_root: Path, *args: str) -> List[str]:
+def _git_lines(repo_root: Path, *args: str) -> List[str]:
     proc = subprocess.run(
         ["git", "-C", str(repo_root), *args], env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"},
         capture_output=True, text=True, encoding="utf-8", errors="replace",
@@ -113,13 +113,13 @@ def change_set(repo_root: Path, since: Optional[str] = None) -> Change:
     out = Change()
     specs = [["HEAD"]] + ([[f"{since}...HEAD"]] if since else [])
     for spec in specs:
-        for line in _git(repo_root, "diff", "--name-status", "--no-renames", *spec):
+        for line in _git_lines(repo_root, "diff", "--name-status", "--no-renames", *spec):
             status, _, rel = line.partition("\t")
             rel = Path(rel.strip()).as_posix()
             out.paths.add(rel)
             if status[:1] in ("A", "D"):
                 out.churned.add(rel)
-    for rel in _git(repo_root, "ls-files", "--others", "--exclude-standard"):
+    for rel in _git_lines(repo_root, "ls-files", "--others", "--exclude-standard"):
         rel = Path(rel.strip()).as_posix()
         out.paths.add(rel)
         out.churned.add(rel)
@@ -178,7 +178,7 @@ def load_graph(repo_root: Path, change: Change, memo_path: Path) -> ImportGraph:
     in ``memo_path`` (outside the gate store); a changed file is always parsed afresh."""
 
     keys: Dict[str, Optional[str]] = {}
-    for line in _git(repo_root, "ls-files", "-s", "--", "*.py"):
+    for line in _git_lines(repo_root, "ls-files", "-s", "--", "*.py"):
         meta, _, rel = line.partition("\t")
         rel = Path(rel).as_posix()
         keys[rel] = None if rel in change.paths else f"{meta.split()[1]} {rel}"
