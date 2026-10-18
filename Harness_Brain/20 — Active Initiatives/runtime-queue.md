@@ -32,6 +32,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-18 (land w4)
 
+- **`RT-RPC-DEFER-OR-STOPPING-HANDWRITTEN` — three lanes hand-write the same deferred-method factory (spawn the reply on the reader lane, else refuse `runtime_stopping`) instead of one door beside `serve_rpc/protocol.py::deferred_reply`, and none routes its build through `deferred_reply`'s fault boundary; the third copy reached the W0-G3 helper-name gate at land w4 as a second `_handler`** · fork / serve RPC · `agent_runtime/serve_rpc/chat_goal.py::_goal_method`, `agent_runtime/work/rpc.py::_handler`, `agent_runtime/conversations/rpc.py` · READY 2026-10-18
 - **`RT-GOAL-DIRECT-SEND-HOOK` — a goal advances only on QUEUED turns: the after-turn hook rides the queued-send runner's `on_settle`, so a direct operator send on an idle bound root, and a chat goal set by `runtime.chat.goal.set` with no Work run, never reach `evaluate_after_turn`** · fork / chat RPC · `agent_runtime/work_store/goal_turns.py` docstring; `hermes_cli/harness_parts/serve/settle_push.py::_record_turn_settle` is the direct-turn settle · READY 2026-10-18
 - **`RT-GOAL-WAIT-WAKER` — a judge `wait` decision parks a bound Work run with no waker (upstream's gateway polls the barrier; the serve does not), so the run holds until another turn settles on its root** · fork / Work · `agent_runtime/work_store/goal_turns.py::DECISION_ENDINGS` · READY 2026-10-18
 

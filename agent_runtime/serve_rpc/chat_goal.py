@@ -37,7 +37,7 @@ def _goal_reply(rid: Any, op: str, params: dict) -> dict:
         return err(rid, ERR_HANDLER_FAILED, "The goal could not be read or written.", {"reason": "goal_unavailable"})
 
 
-def _handler(op: str):
+def _goal_method(op: str):
     def handle(rid, params, context):
         reply = lambda: _goal_reply(rid, op, dict(params or {}))
         if context.spawn_reply is None or not context.spawn_reply(reply):
@@ -48,7 +48,7 @@ def _handler(op: str):
 
 def _register() -> None:
     for op in GoalOp:
-        method(GOAL_METHOD_PREFIX + op.value, tier=TIER_CONSOLE)(_handler(op.value))
+        method(GOAL_METHOD_PREFIX + op.value, tier=TIER_CONSOLE)(_goal_method(op.value))
 
 
 _register()
