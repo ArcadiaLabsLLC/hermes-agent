@@ -163,10 +163,14 @@ def test_reasoning_deltas_are_counted_with_no_lag(fake_sse, caplog):
 def test_starved_reader_shows_lag_and_late_wakeups(fake_sse, caplog):
     """The hog runs only inside the window: it starts on the first event and stops on the first text."""
     base_url = fake_sse("hog")
-    big = 3 ** 700_000
+    # One multiply must hold the GIL well past the 150 ms floor: a reader wake lands at a
+    # uniform point inside a hold, so the max over ~10 events reaches the floor only when
+    # the hold is ~2x it. 3**700_000 held ~65 ms and missed the floor 7/20 idle-box runs
+    # (FORK-STREAM-GAP-STARVED-READER, 2026-10-18); 3**1_400_000 holds ~195 ms.
+    big = 3 ** 1_400_000
     stop = threading.Event()
 
-    def hog() -> None:  # each multiply holds the GIL ~70 ms in one C call
+    def hog() -> None:  # each multiply holds the GIL ~195 ms in one C call
         while not stop.is_set():
             _ = big * big
 
