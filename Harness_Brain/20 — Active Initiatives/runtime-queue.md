@@ -30,6 +30,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-18 (lane w5-misc, branch `w5/misc`)
+
+- **`RT-RPC-DEFER-OR-INLINE-HANDWRITTEN` — nine method handlers hand-write the defer-else-answer-inline shape (`context is not None and context.spawn_reply is not None and context.spawn_reply(deferred_reply(...))`, else build on the reader lane): the sibling of the defer-or-refuse class `defer_or_refuse` closed** · fork / serve RPC · `agent_runtime/serve_rpc/console_operations.py`, `instance_history.py`, `operator_conversation.py`, `operator_history.py`, `operator_inspection.py`, `operator_subagents.py`, `realm.py`, `speech.py` (two) · one `defer_or_inline(rid, method_name, context, build)` door beside `serve_rpc/protocol.py::defer_or_refuse`, MOVE the nine onto it, wire byte-identical · READY 2026-10-18
+- **`RT-CHAT-GOAL-WAIT-NO-WAKER` — a chat goal set by `runtime.chat.goal.set` (no Work run bound) that the judge parks on `wait` has no waker: `goal_turns.wake_parked` scans only `chat_goal.bindings()`, and an unbound goal persists no turn template to forge its continuation from, so it resumes only when another turn settles on the root** · fork / Work + chat goal · `agent_runtime/work_store/goal_turns.py::wake_parked`, `::after_chat_goal_turn` · persist the settled turn's args per chat-goal root when the judge parks it, and let the waker forge from them (origin `chat_goal`) · READY 2026-10-18
+
 ### Filed on arrival — 2026-10-18 (land w4)
 
 
