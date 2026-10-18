@@ -382,6 +382,10 @@ packaging:
     - hermes_cli.setup_tts
     - hermes_cli.memory_setup
     - hermes_cli.model_setup_flows
+    # `hermes model` → Local models (it drives the dashboard's FastAPI route handlers, and fastapi
+    # requires pydantic): reached only from the desktop picker (hermes_cli.main), and
+    # hermes_cli.local_runtime is off already.
+    - hermes_cli.model_setup_flows_local
     - hermes_cli.plugin_validate
     - hermes_cli.plugins_provenance
     - hermes_cli.plugins_updates
