@@ -10,6 +10,7 @@ from pathlib import Path
 
 from agent_runtime import _upstream_doors as upstream
 from agent_runtime.redaction import scrub_secret_values
+from agent_runtime.skill_lends import child_target, lent_to
 from .model import VERSION, TAIL_BYTES, LIVE_OPERATIONS, MUTATIONS, Refusal, SubagentError, validate_request
 from .output import read_public_tail
 from .references import references
@@ -39,6 +40,13 @@ def registry_snapshot() -> list[dict]:
     records, lock = upstream.subagent_registry()
     with lock:
         return [dict(record) for record in records.values()]
+
+
+def child_registered(subagent_id: str) -> bool:
+    """Is a child with ``subagent_id`` registered in THIS process now (the ``skill_lends`` sweep's test)?"""
+    records, lock = upstream.subagent_registry()
+    with lock:
+        return subagent_id in records
 
 
 def still_registered(record: dict) -> bool:
@@ -71,6 +79,7 @@ def _child_roster(*, owner, records, exact, controllable, **_):
                 row[key] = scrub_secret_values(value[:4096])
         row["child_ref"] = references.child(owner, record) if exact(record) else None
         row["controllable"] = controllable(record)
+        row["skills_lent"] = list(lent_to(child_target(str(record.get("subagent_id")))))
         budget += len(json.dumps(row, ensure_ascii=True))
         if budget > 800 * 1024:
             break
@@ -78,11 +87,17 @@ def _child_roster(*, owner, records, exact, controllable, **_):
     return {"children": children, "truncated": len(records) > len(children)}
 
 
-def _child_tail(*, owner, records, exact, revalidate, params, **_):
-    record = next((r for r in records if exact(r) and hmac.compare_digest(
-        references.child(owner, r), params["child_ref"])), None)
+def _named_child(owner, records, exact, child_ref):
+    """The one record ``child_ref`` names among ``records``; STALE when none (replaced, other generation)."""
+
+    record = next((r for r in records if exact(r) and hmac.compare_digest(references.child(owner, r), child_ref)), None)
     if record is None:
         raise SubagentError(Refusal.STALE)
+    return record
+
+
+def _child_tail(*, owner, records, exact, revalidate, params, **_):
+    record = _named_child(owner, records, exact, params["child_ref"])
     # Pin the authorized object through IO; never resolve a recyclable id again.
     tail = read_public_tail(record["agent"])
     revalidate()
@@ -110,10 +125,10 @@ def inspect_records(operation, params, *, owner, visible, exact, revalidate, con
     return {**result, **data}
 
 
-def inspect_native(operation: str, params: dict) -> dict:
+def _native_owner(params: dict):
+    """(owner, session, transport, exact, revalidate) for the native session ``params`` names."""
     from hermes_constants import get_hermes_home
 
-    validate_request(operation, params)
     session_id = params["session_id"]
     transport, session = upstream.subagent_session_authority(session_id)
     if session is None or transport is None:
@@ -131,6 +146,52 @@ def inspect_native(operation: str, params: dict) -> dict:
         if current_transport is not transport or current_session is not session:
             raise SubagentError(Refusal.WRONG_OWNER)
 
+    return owner, session, transport, exact, revalidate
+
+
+def _visible_children(session_id, session, transport, exact):
+    from hermes_constants import get_hermes_home
+
+    return [record for record in upstream.subagent_visible_records(session_id, transport, session)
+            if exact(record) or same_native_profile(record, session.get("agent"), get_hermes_home().resolve())]
+
+
+def child_record(params: dict) -> dict:
+    """The LIVE record ``params["child_ref"]`` names under ``owner_scope`` + ``worker_generation`` on the
+    native session ``params["session_id"]`` (``eternia.skills.*``'s child address, p10-work S2).
+
+    STALE when the reference names no registered child of this owner (a replaced worker, another
+    generation); UNAVAILABLE for a compute-hosted session, whose children are not in this process.
+    """
+
+    child_ref = params.get("child_ref")
+    if not isinstance(child_ref, str) or not child_ref or len(child_ref) > 512:
+        raise SubagentError(Refusal.INVALID)
+    owner, session, transport, exact, revalidate = _native_owner(params)
+    if session.get("_compute_host_active") or upstream.subagent_uses_compute(session):
+        raise SubagentError(Refusal.UNAVAILABLE)
+    records = [r for r in _visible_children(params["session_id"], session, transport, exact) if still_registered(r)]
+    record = _named_child(owner, records, exact, child_ref)
+    revalidate()
+    return record
+
+
+def steer_child(params: dict, text: str, request_id: str) -> str:
+    """Steer the child ``params`` addresses (``eternia.skills.lend``'s announce); the command's status."""
+    from .commands import control_records
+
+    owner, session, transport, exact, revalidate = _native_owner(params)
+    records = [r for r in _visible_children(params["session_id"], session, transport, exact) if still_registered(r)]
+    data = control_records("steer", {"child_ref": params["child_ref"], "request_id": request_id, "text": text},
+                           owner=owner, records=records, exact=exact, revalidate=revalidate)
+    return str(data.get("status") or "unknown")
+
+
+def inspect_native(operation: str, params: dict) -> dict:
+    validate_request(operation, params)
+    session_id = params["session_id"]
+    owner, session, transport, exact, revalidate = _native_owner(params)
+
     if session.get("_compute_host_active") or upstream.subagent_uses_compute(session):
         from .compute import observe
 
@@ -138,7 +199,5 @@ def inspect_native(operation: str, params: dict) -> dict:
         revalidate_reply(operation, revalidate)
         return data
 
-    visible = [record for record in upstream.subagent_visible_records(session_id, transport, session)
-               if exact(record) or same_native_profile(record, session.get("agent"), get_hermes_home().resolve())]
     return inspect_records(operation, params, owner=owner,
-        visible=visible, exact=exact, revalidate=revalidate)
+        visible=_visible_children(session_id, session, transport, exact), exact=exact, revalidate=revalidate)

@@ -1837,3 +1837,22 @@ persona_instance_id, session_id}`; it passes `validate_operator_conversation`, a
 IS the assignee: `context.assignee = persona:<persona_instance_id>`, the default `who` of a claim, the
 default `assignee` of a `start` (a row started there for that instance is written `TAKEN` by it), and the
 `conversation` view lists the rows that instance holds (`in_conversation`).
+
+**Lending skills to a worker (p10-work S2).** The gateway worker's `eternia.skills.{list,detail,history}`
+(`conversations/worker_skills.py`) take the `eternia.subagents.*` child address — `owner_scope`,
+`worker_generation`, `child_ref`, all three or none (a partial address is 4090 `invalid_request`). With it,
+the read is the CHILD's (`subagents/native.py::child_record`: its agent's cwd, its own `valid_tool_names` for
+`can_load`, its own `session_id` for history) and `list` adds `lent: [..]`; a stale generation or a replaced
+worker is the subagent refusal (4602 `subagent_reference_stale`), never a parent read.
+`eternia.skills.lend` `{session_id, owner_scope, worker_generation, child_ref, skills, mode: lend | revoke,
+request_id}` is the worker half of lending (a write verb, RULED 2026-10-18; a task's half is
+`runtime.work.lend_skills`, and `lend` without a child says so): every lent skill is resolved first
+(`skills_not_loadable` + `rejected_skills`, nothing written), then the record
+`<store_root>/skill_lends/child_<subagent_id>.json` `{target, owner_session, skills, lent_at, lent_by, pid}`
+(`agent_runtime/skill_lends.py`), then the child's `_chat_lane_compact_skill_categories` = the parent's
+compact set ∩ compact(lent) (an unscoped parent stays unscoped; nothing lent restores the unscoped child),
+then a steer (`Skills lent: …` / `Skills no longer lent: …`). Reply `{target, skills_lent, effective:
+"next_turn", steered}` — a body already loaded is not unloaded mid-turn. The `eternia.subagents.list` roster
+row carries `skills_lent`. The record lives as long as its child: the dispatch drain's orphan cadence
+(`dispatch_delivery/drain.py::sweep_skill_lends`) and every lend drop a record whose child this process no
+longer registers, and another process's record once that process is dead.

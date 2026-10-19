@@ -27,6 +27,7 @@ def declare_contracts():
     class OwnedSubagentSnapshot(SubagentSnapshot):
         child_ref: str | None
         controllable: bool
+        skills_lent: list[str] = []
 
     class ChildObservation(Result):
         version: int
