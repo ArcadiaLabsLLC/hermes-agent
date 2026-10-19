@@ -33,6 +33,10 @@ Gates and their killing mutations (each red was recorded in the stage's commit):
   a turn — killed by inverting the level check; ``when: urgent`` forges an
   ``attention`` rule — killed by dropping the severity check; a paused monitor's
   Episode stays owed (positive control: enable it and it forges).
+* fold + serve: the push-lane ``lens`` section carries the newest receipt —
+  killed by restoring ``"last_receipt": None``; the forge thread stops with the
+  serve's liveness event — killed by making ``run`` loop ``while True`` (the
+  thread is still alive after the join).
 * ``runtime.lens.artifact`` reads ``../`` or a symlink out of the folder —
   killed by dropping the ``is_relative_to`` check in ``resolve_inside``.
 """
@@ -404,3 +408,34 @@ def test_the_artifact_verb_reads_only_inside_the_episode_folder(tmp_path):
         return  # no symlink privilege on this host: the ``..`` cases above carry the gate
     refused = _rpc("runtime.lens.artifact", {"episode_id": EPISODE_A, "name": "link.txt"})
     assert refused["error"]["data"]["reason"] == "outside_episode_folder"
+
+
+# --- L2.5 fold + serve ------------------------------------------------------------
+
+
+def test_the_lens_section_carries_the_newest_receipt(door):
+    from agent_runtime.lens.snapshot_fold import lens_fold
+
+    assert lens_fold()["last_receipt"] is None
+    store = _armed(_monitor())
+    _forge().tick()
+
+    assert lens_fold()["last_receipt"] == store.receipt(_episode(1).id)
+
+
+def test_the_forge_thread_starts_only_where_lens_ships_and_stops_with_the_serve(monkeypatch):
+    import threading
+
+    from agent_runtime.lens import poller, trigger
+
+    stop = threading.Event()
+    monkeypatch.setattr(poller, "lens_shipped", lambda: False)
+    assert trigger.start_lens_forge(stop_event=stop) is None
+
+    monkeypatch.setattr(poller, "lens_shipped", lambda: True)
+    monkeypatch.setattr(trigger, "TICK_SECONDS", 0.01)
+    thread = trigger.start_lens_forge(stop_event=stop)
+    assert thread is not None and thread.daemon and thread.name == "harness-serve-lens-forge"
+    stop.set()
+    thread.join(timeout=5)
+    assert not thread.is_alive()
