@@ -20,6 +20,9 @@ class Reason(StrEnum):
     UNKNOWN_INSTANCE = "unknown_instance"
     TOKEN_INVALID = "token_invalid"
     UNAVAILABLE = "messaging_unavailable"
+    #: The bridge's drops (M3/M4): a platform user with no operator row; a ``/persona`` naming no instance.
+    UNKNOWN_OPERATOR = "unknown_operator"
+    UNKNOWN_PERSONA = "unknown_persona"
 
 
 class MessagingRefused(Exception):

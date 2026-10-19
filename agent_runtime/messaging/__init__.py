@@ -12,7 +12,8 @@ credentials (stores): ``bot_token`` / ``set_token`` / ``clear_token`` — the bo
 rpc (lanes): ``runtime.messaging.status|binding.*|operator.*|credential.*``;
 chunks (models): ``chunk(text, limit)`` — a reply split at a platform's message limit;
 transport (models): ``Transport`` — the protocol every platform transport implements, and its values;
-telegram_api (lanes): ``TelegramTransport`` — Bot API long polling over ``httpx``, backoff as a table.
+telegram_api (lanes): ``TelegramTransport`` — Bot API long polling over ``httpx``, backoff as a table;
+bridge (lanes): ``MessagingBridge`` — inbound → a queued turn of the bound instance → the settle's reply.
 """
 
 __layer__ = "models"
