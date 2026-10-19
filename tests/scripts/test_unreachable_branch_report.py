@@ -138,7 +138,7 @@ def _captured_run(monkeypatch):
     class _Result:
         returncode = 0
 
-    def fake_run(argv, cwd=None, env=None):
+    def fake_run(argv, cwd=None, env=None, check=False):
         seen["argv"] = argv
         seen["env"] = env
         return _Result()
