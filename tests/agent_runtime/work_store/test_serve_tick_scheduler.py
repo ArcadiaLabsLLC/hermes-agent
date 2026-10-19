@@ -73,6 +73,19 @@ def test_nothing_fires_unless_armed():
     assert scheduler.tick() == [] and _scheduled_entries() == []
 
 
+def test_a_schedule_due_while_no_serve_ran_fires_once_at_the_next_boot():
+    """RT-NAMESPACE-STAMP (namespace plan §2.2, G7): a namespace with no serve fires nothing; when its
+    serve next boots, a record that missed twenty periods fires exactly ONCE, never once per period."""
+    scheduler, clock = _scheduler()
+    scheduler.arm("morning", Trigger.every(30), PROMPT)
+    clock.now = T0 + timedelta(hours=10)
+    booted, _ = _scheduler(clock=clock)  # the next boot: a fresh ticker over the same schedule files
+    assert [receipt["kind"] for receipt in booted.tick()] == ["schedule.fire"]
+    assert booted.tick() == []
+    assert len(_scheduled_entries()) == 1
+    assert booted.armed()[0].next_fire > clock.now
+
+
 def test_every_fires_queues_a_turn_and_advances_next_fire():
     scheduler, clock = _scheduler()
     armed = scheduler.arm("morning", Trigger.every(30), PROMPT)

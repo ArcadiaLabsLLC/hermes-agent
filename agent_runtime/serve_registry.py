@@ -178,6 +178,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
+from .namespace import namespace_stamp
 from .paths import SERVE_INSTANCES_DIRNAME
 from .serde import write_json_atomic
 
@@ -342,8 +343,12 @@ def register_serve_instance(
     hermes_home: str | None = None,
     service: bool = False,
     starter_pid: int | None = None,
+    namespace: str | None = None,
 ) -> ServeInstanceRegistration:
     """Announce this serve under *store_root*. Best effort, always reported.
+
+    ``namespace`` (RT-NAMESPACE-STAMP) is ALWAYS written: the id, ``""`` for the base root;
+    ``None`` reads this process's ``HERMES_NAMESPACE``.
 
     ``port`` / ``socket_started_at`` are the socket lane's additive fields
     (slice 3), and they are ALWAYS written — ``null`` on a stdio-only serve. A
@@ -387,6 +392,7 @@ def register_serve_instance(
         "port": None if port is None else int(port),
         "socket_started_at": socket_started_at,
         "store_root": str(store_root),
+        "namespace": namespace_stamp() if namespace is None else str(namespace),
         # The home THIS process resolved AT BOOT — an observability fact, not
         # per-turn authority: the runtime may rebind a home for a turn, and
         # this key will not have moved. Null says "resolution failed"; an

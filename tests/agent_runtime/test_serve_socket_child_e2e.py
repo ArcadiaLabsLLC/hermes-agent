@@ -837,6 +837,7 @@ def test_a_service_boots_and_writes_what_its_prune_removed_into_its_own_log(
             "row_boot_id": events[0]["row_boot_id"],
             # Joins this line to this boot's own ``ready`` frame.
             "boot_id": ready["boot_id"],
+            "namespace": "",  # RT-NAMESPACE-STAMP: every service-log line names its store; "" is the base root
         }
         assert isinstance(events[0]["row_boot_id"], str)
     finally:

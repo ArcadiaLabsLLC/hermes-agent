@@ -318,6 +318,7 @@ def test_the_detached_service_writes_nothing_more_to_the_starters_pipe():
                 "pid": handle.ready["pid"],
                 "boot_id": handle.ready["boot_id"],
                 "starter_pid": os.getppid(),
+                "namespace": "",  # RT-NAMESPACE-STAMP: every service-log line names its store; "" is the base root
             }
 
             # Work that WOULD have produced stdio frames on an attached serve.

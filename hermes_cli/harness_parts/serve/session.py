@@ -61,6 +61,7 @@ from hermes_cli.harness_parts.serve.request_pool import RequestPool, TurnClaims
 from hermes_cli.harness_parts.serve.settle_push import SettlePush
 from hermes_cli.harness_parts.serve.shell import ServeShell, default_shell
 from hermes_cli.harness_parts.serve.subscriptions import SubscriptionLanes
+from agent_runtime.namespace import namespace_stamp
 
 __layer__ = "lanes"
 
@@ -1143,11 +1144,12 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         ``{"id":null,"event":"stderr","line":…}`` frame — the lane serve already
         uses for everything a handler writes to stderr. No new frame type, no
         new sink, and correlatable by ``boot_id`` against the ready frame.
+        Every line names its store (``namespace``, RT-NAMESPACE-STAMP).
         """
 
         try:
             sys.stderr.write(
-                json.dumps(payload, ensure_ascii=False, default=str) + "\n"
+                json.dumps({"namespace": namespace_stamp(), **payload}, ensure_ascii=False, default=str) + "\n"
             )
         except Exception:
             pass

@@ -17,6 +17,7 @@ from typing import Any, Callable
 
 from agent_runtime.file_locks import LockUnavailable, try_lock_exclusive, unlock
 from agent_runtime.clock import now_iso
+from agent_runtime.namespace import namespace_stamp
 from agent_runtime.serde import safe_int, write_json_atomic
 from agent_runtime.store_file_io import os_error_reason
 
@@ -471,12 +472,16 @@ class SocketOwnerLock:
             pass
 
     def publish_owner(self, record: dict[str, Any]) -> None:
-        """Write the identity sidecar. Best effort; the LOCK is the authority."""
+        """Write the identity sidecar. Best effort; the LOCK is the authority.
+
+        Every record carries ``namespace`` (RT-NAMESPACE-STAMP): the id, ``""`` for the base root —
+        the store identity a sweep judges a serve by, since install anchors are identical for all.
+        """
 
         if not self._acquired:
             return
         try:
-            write_json_atomic(self._owner_path, dict(record))
+            write_json_atomic(self._owner_path, {"namespace": namespace_stamp(), **record})
         except Exception:
             pass
 
@@ -568,7 +573,10 @@ def read_socket_owner(store_root: Path | str) -> dict[str, Any]:
         record, _state = _read_owner_record(socket_owner_path(store_root))
     except Exception:  # noqa: BLE001 — advisory data, never a raise
         return {}
-    return record or {}
+    if not record:
+        return {}
+    # A record that predates the stamp is the base root's (plan §2.5: naming no namespace = base).
+    return {**record, "namespace": str(record.get("namespace") or "")}
 
 
 def _read_owner_record(path: Path) -> tuple[dict[str, Any] | None, str | None]:
