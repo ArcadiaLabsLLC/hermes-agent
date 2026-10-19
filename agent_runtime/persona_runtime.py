@@ -8,6 +8,7 @@ from .chat_lane_bundle import chat_lane_bundle
 from .cache_routing import persona_cache_scope_id
 from .chat_lane_skill_index import chat_lane_index_skills
 from .mcp_admission import LANE_MISSION_CHAT
+from .model_api_mode import turn_api_mode
 from .launcher_invocation import launcher_invocation
 from .models import AgentPersona
 from .mission_chat_clarify import MissionChatClarifyCapture
@@ -137,8 +138,6 @@ class GPTPersonaRuntime:
         binding = resolve_persona_profile(persona)
         if binding.readiness == "missing_profile":
             raise ValueError(binding.summary)
-        from .model_api_mode import turn_api_mode
-
         runtime_provider, runtime_model = turn_provider_model(persona, provider_override, model_override, self._default_provider, self._default_model)
         _assert_turn_provider_health(persona, runtime_provider, runtime_model)
         # Non-blocking clarify bridge for this lane: a clarify call records the
@@ -224,8 +223,7 @@ class GPTPersonaRuntime:
                     profile=binding.hermes_profile,
                     provider=runtime_provider,
                     model=runtime_model,
-                    api_mode=turn_api_mode(persona.provider or self._default_provider, persona.api_mode,
-                                           runtime_provider, runtime_model),
+                    api_mode=turn_api_mode(persona.provider or self._default_provider, persona.api_mode, runtime_provider, runtime_model),
                     reasoning_effort=reasoning_effort,
                     terminal_envelope_scope=envelope_scope,
                     mcp_admission=admission,

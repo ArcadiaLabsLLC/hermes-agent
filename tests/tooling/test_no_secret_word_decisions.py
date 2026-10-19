@@ -36,6 +36,10 @@ ALLOWED = {
         "classifies git's own refusal text (\"could not read password\") into an end "
         "reason; nothing is hidden or shown by it"
     ),
+    "agent_runtime/provider_challenge.py|challenge_refusal": (
+        "recognises Cloudflare's challenge page by its own text (\"enable javascript and "
+        "cookies to continue\"); it types a 403, nothing is hidden or shown by it"
+    ),
 }
 
 _EXEMPT_PATHS = {"agent_runtime/redaction.py"}
