@@ -173,6 +173,10 @@ class IngressListener:
             daemon_threads = True
             allow_reuse_address = False  # on Windows SO_REUSEADDR lets a second process take the port
 
+            def handle_error(self, request: Any, client_address: Any) -> None:
+                # A sender that stalls past the socket timeout is a log receipt, never a stderr traceback.
+                logger.info("lens ingress request failed from %s", client_address[0], exc_info=True)
+
         class _Handler(BaseHTTPRequestHandler):
             server_version, sys_version, timeout = "lens", "", SOCKET_TIMEOUT_SECONDS
 
