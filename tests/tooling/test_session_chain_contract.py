@@ -522,6 +522,15 @@ def test_a_body_patch_under_a_late_fixtures_patch_restores_the_original(request,
     _BODY_PATCH_RAN["overlap"] = True
 
 
+def test_body_patch_undo_is_on_by_default(request, monkeypatch):
+    """``body_patch_scope._mode``: with no knob and no mark, a body's patches are undone at call end (p10 S-A3,
+    flipped after a clean ON/OFF features diff). Mutation: ``BODY_PATCH_DEFAULT`` flipped back to ``"off"``."""
+    from tests._downstream.body_patch_scope import BODY_PATCH_KNOB, _mode
+
+    monkeypatch.delenv(BODY_PATCH_KNOB, raising=False)
+    assert _mode(request.node) == "on"
+
+
 def test_a_body_patch_under_a_late_fixtures_patch_restores_the_original_afterwards():
     """The check for the test above, after its ``monkeypatch`` unwound."""
     if not _BODY_PATCH_RAN.get("overlap"):

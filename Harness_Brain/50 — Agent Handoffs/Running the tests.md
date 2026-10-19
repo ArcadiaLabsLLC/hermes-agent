@@ -151,8 +151,10 @@ timings from the log.
 `late_fixture_patches` is the tests where a fixture the body requested late (`request.getfixturevalue`)
 pushed one; `teardown_errors` is the teardown-phase errors, with up to 20 node ids. They ride
 `diagnosis.jsonl`, the `counts` block of the `runs.jsonl` line and the `=== Diagnosis ===` block. The knob
-`HERMES_TEST_BODY_PATCH_UNDO=on` (default off; `pytest.mark.body_patch_undo("on"|"off")` wins) undoes a
-body's own entries at call end, before any fixture tears down (`tests/_downstream/body_patch_scope.py`).
+`HERMES_TEST_BODY_PATCH_UNDO` (default `on` since p10 S-A3, after a clean ON/OFF features diff;
+`pytest.mark.body_patch_undo("on"|"off")` wins) undoes a body's own entries at call end, before any fixture
+tears down (`tests/_downstream/body_patch_scope.py`). `=off` is the way back, kept one release; a file that
+needs it is marked `body_patch_undo("off")` through `id_markers` with a dated row, never allowlisted in the hook.
 
 An abnormal bundle also records `bundle_diagnostics` in that same line: original process/session
 statuses, ordered members, last observed member, failing IDs and bounded, redacted output. The
