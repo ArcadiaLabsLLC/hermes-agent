@@ -100,10 +100,11 @@ only fires after a turn that edited files, so on a turn with no edits it costs n
 on a dev persona's editing turns is unmeasured, and measuring it needs live turns on the owner's
 QA serve.
 
-**Decision owed.** Recommend: set `agent.verify_on_stop: true` only in the profiles of
-personas bound to a repo slot (dev personas); leave every other profile OFF. Before ruling,
-measure five editing turns on one dev persona with it ON and OFF: extra provider calls, tokens,
-and wall time from the turn records.
+**RULED 2026-10-18 (owner): OFF everywhere.** Measured on the QA serve, an editing turn cost
+11.8 calls / 234k input tokens / 77 s ON against 2.6 / 44k / 28 s OFF, and outside a repo the
+nudge never fired. No dev-persona opt-in is shipped; the upstream default (`False`) stands and an
+operator's explicit `agent.verify_on_stop` key or `HERMES_VERIFY_ON_STOP` still works.
+`tests/agent_runtime/test_verify_on_stop_off_downstream.py` pins it.
 
 ## 5. When to delegate, send or submit Work
 
