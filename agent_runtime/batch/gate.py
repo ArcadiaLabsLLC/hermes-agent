@@ -1,14 +1,19 @@
 """The landing gate, run by code (row RT-BATCH-GATE-RECEIPT, owner ruling 2026-10-18).
 
 The landing lane's persona merges the batch and reports; its ``work_report`` verdict is ADVISORY. What
-decides ``AWAITING_APPROVAL`` is this module: ``GateRunner.run`` executes the landing brief's commands
-(``planner``'s ``LANDING_GATE``, carried as ``Brief.tests``) in each slot's landing worktree and returns a
+decides ``AWAITING_APPROVAL`` is this module: ``GateRunner.run`` executes a slot's gate commands
+(``slot_gate``, carried as the landing lane's ``Lane.gates``) in each slot's landing worktree and returns a
 ``GateReceipt`` — command, exit code, summary line, the HEAD it ran on. ``BatchLaneExecutor`` runs it
 off-thread when the landing turn settles; ``require_green`` is ``approve``'s check: every slot's landing HEAD
 named by a green receipt, else ``gate_not_green``.
 
 The gate's output goes to ``gate-<slot>.log`` in the landing worktree's scratch directory; the receipt keeps
 only the summary line (the last line naming ``Summary``, else the last non-empty line).
+
+WHICH commands run in a slot (row RT-BATCH-GATE-PER-SLOT-COMMAND, p10-work §3, owner ruling 2026-10-19):
+``slot_gate`` reads the slot's declared ``context.gate`` first, then ``GATES_BY_TOOLCHAIN_KIND`` for its
+``toolchain.kind``, then the default brain's ``GATE_NONE`` (green, no subprocess); anything else is None —
+the lane executor's red "no gate declared" receipt, never a skip.
 """
 
 from __future__ import annotations
@@ -20,19 +25,59 @@ import sys
 import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 from ..work_store.models import GateReceipt
 from ..work_store.reasons import Reason, WorkRefused
 from .lane_git import LaneGit, Site
+from .planner import LANDING_GATE
 
 __layer__ = "stores"
-__all__ = ["GATE_TIMEOUT_S", "GateRunner", "gate_argv", "is_green", "require_green", "summary_line"]
+__all__ = [
+    "GATES_BY_TOOLCHAIN_KIND", "GATE_NONE", "GATE_NONE_SUMMARY", "GATE_TIMEOUT_S", "GateRunner", "gate_argv",
+    "is_green", "no_gate_summary", "require_green", "slot_gate", "summary_line",
+]
 
 #: The longest a landing gate may run (a hub-file batch selects ~2,600 files: over an hour).
 GATE_TIMEOUT_S = 3 * 3600
 _SUMMARY_MAX = 300
 #: Git Bash, never ``C:\Windows\System32\bash.exe`` (WSL), which ``CreateProcess`` finds first.
 _GIT_BASH = Path(r"C:\Program Files\Git\bin\bash.exe")
+
+#: The shell no-op: a brain-only slot's gate. ``GateRunner`` answers it green WITHOUT a subprocess
+#: (``:`` through ``gate_argv`` is ``FileNotFoundError`` on Windows).
+GATE_NONE = ":"
+GATE_NONE_SUMMARY = "no code to test: brain-only slot"
+#: The fallback by the slot's declared ``toolchain.kind`` (a table, never a ladder; lower-cased key).
+GATES_BY_TOOLCHAIN_KIND: dict[str, tuple[str, ...]] = {
+    "python": (LANDING_GATE,),
+    "hermes": (LANDING_GATE,),
+    "flutter": ("dart tool/heavy_run/run.dart -- dart tool/run_tier.dart",),
+    "django": ("bash scripts/test.sh",),
+    "backend": ("bash scripts/test.sh",),
+    "brain": (GATE_NONE,),
+}
+
+
+def slot_gate(slot: Mapping[str, Any] | None, *, is_default: bool) -> tuple[str, ...] | None:
+    """The landing gate's commands for one slot declaration; None = no gate declared (a RED receipt).
+
+    Order: (1) the declared ``context.gate`` (``[]`` is "declared none" and stays empty — red too),
+    (2) ``GATES_BY_TOOLCHAIN_KIND[toolchain.kind]``, (3) the default brain: ``(GATE_NONE,)``, (4) None.
+    """
+
+    context = (slot or {}).get("context") or {}
+    if isinstance(context, Mapping) and context.get("gate") is not None:
+        return tuple(str(command) for command in context["gate"])
+    toolchain = (slot or {}).get("toolchain") or {}
+    kind = str(toolchain.get("kind") or "").strip().lower() if isinstance(toolchain, Mapping) else ""
+    if kind in GATES_BY_TOOLCHAIN_KIND:
+        return GATES_BY_TOOLCHAIN_KIND[kind]
+    return (GATE_NONE,) if is_default else None
+
+
+def no_gate_summary(slot: str) -> str:
+    return f"no gate declared for slot {slot}; set context.gate"
 
 
 def gate_argv(command: str) -> list[str]:
@@ -65,6 +110,8 @@ class GateRunner:
         head = self._git.head(site.worktree)
         if not commands:
             return GateReceipt(site.slot, command, -1, "the landing brief names no gate command", head)
+        if tuple(commands) == (GATE_NONE,):
+            return GateReceipt(site.slot, GATE_NONE, 0, GATE_NONE_SUMMARY, head)
         if self._git.dirty(site.worktree):
             return GateReceipt(site.slot, command, -1, "the landing worktree is dirty; commit or merge first", head)
         log = site.scratch / f"gate-{site.slot}.log"
