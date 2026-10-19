@@ -46,6 +46,7 @@ def _run_without_runtime() -> subprocess.CompletedProcess:
         text=True,
         encoding="utf-8",
         timeout=120,
+        check=False,
     )
 
 

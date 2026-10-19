@@ -106,7 +106,7 @@ def test_the_runtime_drains_itself_when_its_owner_dies(no_console_handler, monke
     monkeypatch.setattr(parent_watch, "PARENT_POLL_SECONDS", 0.1)
     owner = _owner()
     try:
-        pipe, sink, thread, result = _serve(owner.pid)
+        _pipe, sink, thread, result = _serve(owner.pid)
         ready = sink.wait_for("ready")
         assert ready["parent_pid"] == owner.pid
         # Positive control for the kill below: an owner that is alive is not "gone".
@@ -129,7 +129,7 @@ def test_the_runtime_drains_itself_when_its_owner_dies(no_console_handler, monke
 
 
 def test_without_the_flag_nothing_is_watched(no_console_handler):
-    pipe, sink, thread, result = _serve(None)
+    pipe, sink, thread, _result = _serve(None)
     try:
         ready = sink.wait_for("ready")
         assert ready["parent_pid"] is None

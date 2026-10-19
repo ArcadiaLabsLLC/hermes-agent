@@ -497,7 +497,7 @@ def _duration_ms(value: Any) -> int | None:
         return None
     if number < 0 or number != number or number == float("inf"):
         return None
-    return int(round(number * 1000))
+    return round(number * 1000)
 
 
 def _safe_label(value: Any) -> str | None:

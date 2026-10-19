@@ -466,7 +466,7 @@ def _reset_delta_seconds(value: object, *, now: float | None = None) -> float | 
             from datetime import datetime
 
             try:
-                parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+                parsed = datetime.fromisoformat(text)
             except ValueError:
                 return None
             return parsed.timestamp() - moment

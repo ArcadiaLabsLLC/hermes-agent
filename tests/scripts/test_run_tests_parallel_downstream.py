@@ -43,6 +43,7 @@ def test_a_probe_dir_roots_the_inner_pytest_on_itself(tmp_path: Path) -> None:
         encoding="utf-8",
         errors="replace",
         timeout=60,
+        check=False,
     )
 
     rootdir = [
@@ -397,6 +398,7 @@ def test_windows_worker_does_not_inherit_runner_console(tmp_path):
          "--paths", str(probe), "-j", "1", "--file-timeout", "30", "--file-retries", "0"],
         cwd=repo_root, capture_output=True, text=True, encoding="utf-8",
         timeout=60, creationflags=subprocess.CREATE_NEW_CONSOLE, startupinfo=startup,
+        check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
 
@@ -423,6 +425,7 @@ def test_multiple_absolute_paths_split_on_pathsep(tmp_path: Path) -> None:
          "-j", "1", "--file-timeout", "30", "-q"],
         cwd=repo_root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         encoding="utf-8", errors="replace", timeout=60,
+        check=False,
     )
     assert proc.returncode == 0, proc.stdout
     assert "Discovered 2 test files" in proc.stdout, proc.stdout

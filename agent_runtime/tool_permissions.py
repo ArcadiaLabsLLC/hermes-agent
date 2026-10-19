@@ -424,7 +424,7 @@ def _permission_expired(record: ChatToolPermission) -> bool:
         return False
     raw = record.expires_at.strip()
     try:
-        expires_at = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        expires_at = datetime.fromisoformat(raw)
     except ValueError:
         return False
     if expires_at.tzinfo is None:

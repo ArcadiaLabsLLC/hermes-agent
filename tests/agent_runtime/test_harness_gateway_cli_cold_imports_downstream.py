@@ -51,6 +51,6 @@ def test_gateway_peers_list_loads_no_persona_chat_or_provider_stack(tmp_path):
         PYTHONPATH=str(REPO_ROOT) + os.pathsep + (env.get("PYTHONPATH") or ""),
     )
     completed = subprocess.run([sys.executable, "-c", _PROBE], cwd=str(REPO_ROOT), env=env,
-                               capture_output=True, text=True, timeout=120)
+                               capture_output=True, text=True, timeout=120, check=False)
     assert '"items": []' in completed.stdout, completed.stdout + completed.stderr
     assert "LOADED=\n" in completed.stderr, completed.stderr

@@ -48,6 +48,7 @@ def _run_marked_test(tmp_path: Path, idle: bool) -> subprocess.CompletedProcess:
         [sys.executable, "-m", "pytest", "-p", "tests._downstream.idle_box", "-p", "no:cacheprovider",
          "-o", "addopts=", "--rootdir", str(tmp_path), "-rs", "-q", str(test)],
         cwd=tmp_path, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
+        check=False,
     )
 
 

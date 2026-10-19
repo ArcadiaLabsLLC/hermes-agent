@@ -514,4 +514,4 @@ def _timestamp() -> str:
 
 
 def _parse(stamp: str) -> datetime:
-    return datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+    return datetime.fromisoformat(str(stamp))

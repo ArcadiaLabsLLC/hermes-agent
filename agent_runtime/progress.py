@@ -101,7 +101,7 @@ _OPERATOR_PATCH_ARTIFACT_MAX = 500
 # yield a WRONG id rather than a short one, so an over-long value is dropped.
 _OPERATOR_DISPATCH_ID_MAX = 240
 _DISPATCH_ID_KEYS = ("dispatch_target_session_id",)
-_DISPATCH_ID_RE = re.compile(r"[A-Za-z0-9_.:-]{1,%d}" % _OPERATOR_DISPATCH_ID_MAX)
+_DISPATCH_ID_RE = re.compile(rf"[A-Za-z0-9_.:-]{{1,{_OPERATOR_DISPATCH_ID_MAX}}}")
 # Producer bounds are 1000/1600 (profile_runner) plus a one-line truncation
 # marker; these re-scrub bounds sit just above so the marker itself is never
 # re-truncated into garbage.

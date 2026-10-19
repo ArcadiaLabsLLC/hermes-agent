@@ -41,7 +41,7 @@ def _binding(tmp_path: Path, name: str) -> PersonaProfileBinding:
 def _child_view(env: dict[str, str]) -> dict[str, str]:
     """What a real child process sees: spawn it with *env* and let it print."""
 
-    script = "import json, os; print(json.dumps({k: os.environ.get(k, '') for k in %r}))" % (_KEYS,)
+    script = f"import json, os; print(json.dumps({{k: os.environ.get(k, '') for k in {_KEYS!r}}}))"
     out = subprocess.run([sys.executable, "-c", script], env=env, capture_output=True,
                          text=True, timeout=60, check=True)
     return json.loads(out.stdout)

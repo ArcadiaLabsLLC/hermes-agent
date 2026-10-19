@@ -47,7 +47,7 @@ def _snapshot(provider="openai-codex"):
 def _wire_instant(stamp):
     """A wire stamp as an aware instant, after proving it is a UTC ``Z`` stamp."""
     assert isinstance(stamp, str) and stamp.endswith("Z"), stamp
-    return datetime.fromisoformat(stamp[:-1] + "+00:00")
+    return datetime.fromisoformat(stamp)
 
 
 def test_usage_codex_logged_in_active(monkeypatch):

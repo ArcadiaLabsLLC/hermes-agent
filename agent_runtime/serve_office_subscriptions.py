@@ -222,7 +222,7 @@ SUBSCRIBE_REASON_ABSENT = "-"
 #: ``push:full_core``, ``reconnect``, ``deferred:*``, ``fold_threw``), so the
 #: charset is the one those causes live in and nothing more.
 SUBSCRIBE_REASON_MAX_CHARS = 64
-_SUBSCRIBE_REASON_RE = re.compile(r"^[a-z0-9_:.-]{1,%d}$" % SUBSCRIBE_REASON_MAX_CHARS)
+_SUBSCRIBE_REASON_RE = re.compile(rf"^[a-z0-9_:.-]{{1,{SUBSCRIBE_REASON_MAX_CHARS}}}$")
 
 
 def normalize_office_subscribe_reason(declared: Any) -> str | None:

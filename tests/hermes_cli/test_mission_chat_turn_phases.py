@@ -250,7 +250,7 @@ def _record_on_disk(root: Path, client_message_id: str) -> dict:
 
 
 def _drive(monkeypatch, capsys, provider, *, turn_id, stream=True):
-    harness = _seed(monkeypatch, provider)
+    _seed(monkeypatch, provider)
     code = chat_turn_message._cmd_mission_chat_message(_args(turn_id, stream=stream))
     capsys.readouterr()  # stream frames + terminal envelope; the record is the subject
     return code

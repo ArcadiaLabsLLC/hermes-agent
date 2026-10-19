@@ -33,6 +33,7 @@ def _run_hook(cwd: Path) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["sh", str(cwd / ".githooks" / "post-merge")],
         cwd=cwd, capture_output=True, text=True, timeout=60,
+        check=False,
     )
 
 

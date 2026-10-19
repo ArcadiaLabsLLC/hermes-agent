@@ -85,8 +85,7 @@ DUPLICATE_FIXTURE = FIXTURES / "duplicate_bodies_grandfathered.json"
 LAYER_FIXTURE = FIXTURES / "import_layers_grandfathered.json"
 
 _CONTROL = (ast.If, ast.For, ast.AsyncFor, ast.While, ast.With, ast.AsyncWith, ast.Try, ast.Match)
-if sys.version_info >= (3, 11):
-    _CONTROL = (*_CONTROL, ast.TryStar)
+_CONTROL = (*_CONTROL, ast.TryStar)
 _FUNCS = (ast.FunctionDef, ast.AsyncFunctionDef)
 
 

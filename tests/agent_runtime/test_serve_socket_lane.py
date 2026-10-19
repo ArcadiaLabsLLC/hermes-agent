@@ -1126,7 +1126,7 @@ def test_the_accept_loop_reports_how_it_ended_instead_of_dying_quietly():
     """F4's other half. A loop that stopped without a word leaves a service
     that answers its discovery record and then never answers anything."""
 
-    with bare_server() as (server, port, logs):
+    with bare_server() as (server, _port, logs):
         payload = server.connections_payload()
         # Both facts are stated while healthy, so an operator reading them
         # after a failure is reading the same two fields, not a new one.
@@ -1181,7 +1181,7 @@ def test_the_accept_loop_ends_on_a_host_where_close_does_not_wake_accept():
     and if that way is missing the field stays ``None`` until the process dies.
     """
 
-    with bare_server(start_accepting=False) as (server, port, logs):
+    with bare_server(start_accepting=False) as (server, _port, logs):
         inner = server._listener
         listener = _CloseDoesNotWakeAccept(inner)
         server._listener = listener

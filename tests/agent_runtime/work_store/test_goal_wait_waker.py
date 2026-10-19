@@ -69,7 +69,7 @@ def _parked_run():
 
 
 def test_a_held_barrier_parks_the_run():
-    executor, goals, _ = _parked_run()
+    executor, _goals, _ = _parked_run()
 
     assert executor.wake_parked() == 0
     assert send_queue.entries(ROOT) == []

@@ -574,7 +574,7 @@ def _estimate_model_tool_tokens(tool_names: list[str]) -> int:
         else:
             unmeasured += max(8, (len(name) + 96) // 4)
     measured = sum(wire_tool_chars(defs).values())
-    return int(math.ceil(measured / CHARS_PER_TOKEN)) + unmeasured
+    return math.ceil(measured / CHARS_PER_TOKEN) + unmeasured
 
 
 def _profile_readiness_for_visibility(persona: AgentPersona) -> dict[str, Any]:

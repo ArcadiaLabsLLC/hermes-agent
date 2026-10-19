@@ -1278,7 +1278,7 @@ def test_a_mismatch_serves_labeled_stale_first_then_authoritative(
 
     def drive() -> None:
         try:
-            for frame in stream_frames(
+            frames.extend(stream_frames(
                 max_frames=2,
                 poll_interval_seconds=0.01,
                 # MC-4 / P6: the stale paint goes to a room that PAINTS, and
@@ -1287,8 +1287,7 @@ def test_a_mismatch_serves_labeled_stale_first_then_authoritative(
                 # whole point of the parameter, and is asserted directly by
                 # ``test_stream_stale_first_routing``.
                 wants_stale_first=True,
-            ):
-                frames.append(frame)
+            ))
         except BaseException as exc:  # pragma: no cover - surfaced below
             failure.append(exc)
 

@@ -377,7 +377,7 @@ class SocketOwnerLock:
         while True:
             self._sleep(SOCKET_LOCK_DRAIN_POLL_SECONDS)
             handle, failure = self._try_lock()
-            waited_ms = int(round((self._clock() - started) * 1000.0))
+            waited_ms = round((self._clock() - started) * 1000.0)
             if handle is not None or failure is not None:
                 return handle, failure, waited_ms
             if (self._clock() - started) >= SOCKET_LOCK_DRAIN_WAIT_SECONDS:

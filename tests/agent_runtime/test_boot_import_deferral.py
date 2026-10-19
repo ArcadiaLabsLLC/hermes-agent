@@ -37,7 +37,7 @@ def _imported(modules: list[str], probe: list[str], tmp_path: Path) -> dict[str,
     env = {**os.environ, "HERMES_HOME": str(home), "HERMES_AGENT_RUNTIME_ROOT": str(home / "runtime")}
     env.pop("HERMES_HEAD_HOME", None)
     proc = subprocess.run([sys.executable, "-c", script], cwd=str(PROJECT_ROOT), env=env,
-                          capture_output=True, text=True, timeout=120)
+                          capture_output=True, text=True, timeout=120, check=False)
     assert proc.returncode == 0, proc.stderr
     return json.loads(proc.stdout.strip().splitlines()[-1])
 

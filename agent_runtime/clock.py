@@ -190,7 +190,7 @@ def parse_iso(value: object) -> datetime | None:
     if not text:
         return None
     try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+        return datetime.fromisoformat(text)
     except ValueError:
         return None
 

@@ -389,7 +389,7 @@ def test_a_scheduled_assignment_claims_its_row_and_its_settle_is_written_back(bo
 
 
 def test_a_scheduled_assignment_on_a_row_another_claimant_holds_is_refused(board):
-    writer, engine, executor, assignment, fire = _scheduled(board, _row("RT-S", taken="lane-x"))
+    _writer, _engine, executor, _assignment, fire = _scheduled(board, _row("RT-S", taken="lane-x"))
 
     assert fire["refused"] == Reason.ALREADY_TAKEN.value and executor.started == []
     assert records() == []

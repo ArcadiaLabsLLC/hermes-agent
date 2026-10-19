@@ -256,12 +256,12 @@ def _git(args: Sequence[str], cwd: Path) -> subprocess.CompletedProcess:
     """Every git call that touches the clone; ``cwd`` is the neutral directory."""
 
     return subprocess.run(["git", *args], cwd=str(cwd), capture_output=True, text=True, encoding="utf-8",
-                          errors="replace", stdin=subprocess.DEVNULL, timeout=600)
+                          errors="replace", stdin=subprocess.DEVNULL, timeout=600, check=False)
 
 
 def _rev_parse(path: Path, *flags: str) -> Optional[str]:
     probe = subprocess.run(["git", "-C", str(path), "rev-parse", *flags], capture_output=True, text=True,
-                           stdin=subprocess.DEVNULL, timeout=30)
+                           stdin=subprocess.DEVNULL, timeout=30, check=False)
     return probe.stdout.strip() if probe.returncode == 0 and probe.stdout.strip() else None
 
 
@@ -318,7 +318,7 @@ def run_files(worktree: Path, files: Sequence[str], repeat: int, log_dir: Path, 
         with log.open("w", encoding="utf-8") as handle:
             done = subprocess.run([str(bash), str(worktree / "scripts" / "run_tests.sh"), "--file-retries", "0",
                                    *files], cwd=str(worktree), env=hermetic_env(python, workers), stdout=handle,
-                                  stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
+                                  stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, check=False)
         (log_dir / f"tag-run-{attempt}.rc").write_text(f"{done.returncode}\n", encoding="utf-8")
         print(f"tag run {attempt}/{repeat}: exit {done.returncode}, log {log}")
         runs.append(parse_run_output(log.read_text(encoding="utf-8", errors="replace")))
@@ -335,7 +335,7 @@ def collect_present(worktree: Path, files: Iterable[str], *, python: Path) -> Pr
             continue
         done = subprocess.run([str(python), "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider", rel],
                               cwd=str(worktree), env=hermetic_env(python, 1), capture_output=True, text=True,
-                              encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL, timeout=600)
+                              encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL, timeout=600, check=False)
         if done.returncode not in (0, 5):
             errors.add(rel)
         nodes.update(line.strip().replace("\\", "/") for line in done.stdout.splitlines()

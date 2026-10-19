@@ -225,7 +225,7 @@ def _scan() -> tuple[dict[str, list[str]], dict[str, list[str]]]:
     )
     text = installer.read_text(encoding="utf-8", errors="replace")
     for code in table:
-        if re.search(r'["\']%s["\']' % re.escape(code), text):
+        if re.search(rf'["\']{re.escape(code)}["\']', text):
             literals[code].append("scripts/install-mission-control-hermes.ps1")
     return literals, raises
 

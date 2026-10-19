@@ -25,7 +25,7 @@ def test_lend_union_revoke_difference_and_sweep_of_dead_children():
     skill_lends.lend("child:elsewhere", ["git"], owner_session="s1", by="s1")
     assert skill_lends.sweep(lambda subagent_id: False, pid=os.getpid() + 1_000_000) == 0
     dead = int(subprocess.run([sys.executable, "-c", "import os; print(os.getpid())"], capture_output=True,
-                              text=True).stdout)
+                              text=True, check=False).stdout)
     skill_lends._write_lend(skill_lends.LendRecord("child:orphan", "s1", ("git",), "now", "s1", dead))
     assert skill_lends.sweep(lambda subagent_id: subagent_id in ("live", "elsewhere")) == 1
     assert skill_lends.lent_to("child:orphan") == () and skill_lends.lent_to("child:elsewhere") == ("git",)

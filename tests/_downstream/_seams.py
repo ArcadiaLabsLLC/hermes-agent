@@ -270,8 +270,7 @@ def _ensure_isolated_worktree(source_root: Path, base: Path) -> Path:
             text=True,
             encoding="utf-8",
             errors="replace",
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=HARNESS_WORKTREE_ADD_TIMEOUT_SECONDS,
             check=False,
         )
@@ -503,8 +502,7 @@ def _link_local_support_dir(source: Path, target: Path) -> bool:
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 timeout=30,
                 check=False,
             )

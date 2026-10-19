@@ -44,8 +44,7 @@ class TestDoctorResolvesTheHomeAtCallTime:
         hub = home / "skills" / ".hub"
         hub.mkdir(parents=True)
         (hub / "lock.json").write_text(
-            '{"installed": {%s}}'
-            % ", ".join(f'"skill{i}": {{}}' for i in range(installed)),
+            '{{"installed": {{{}}}}}'.format(", ".join(f'"skill{i}": {{}}' for i in range(installed))),
             encoding="utf-8",
         )
 

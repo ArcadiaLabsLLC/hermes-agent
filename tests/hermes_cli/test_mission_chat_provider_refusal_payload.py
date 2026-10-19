@@ -79,7 +79,7 @@ def _quota_error(**overrides):
 def refusal_envelope(monkeypatch, capsys, isolate_agent_runtime_root):
     """Drive one real provider refusal and hand back its emitted envelope."""
 
-    harness = _seed(monkeypatch, _refusing_provider(**_quota_error()))
+    _seed(monkeypatch, _refusing_provider(**_quota_error()))
     code = chat_turn_message._cmd_mission_chat_message(_args("refused_turn"))
     return code, json.loads(capsys.readouterr().out)
 
@@ -88,7 +88,7 @@ def refusal_envelope(monkeypatch, capsys, isolate_agent_runtime_root):
 def refused_spent_envelope(monkeypatch, capsys, isolate_agent_runtime_root):
     """...then RESEND that same id, which finds the settled record."""
 
-    harness = _seed(monkeypatch, _refusing_provider(**_quota_error()))
+    _seed(monkeypatch, _refusing_provider(**_quota_error()))
     assert chat_turn_message._cmd_mission_chat_message(_args("refused_turn")) == 2
     capsys.readouterr()
     code = chat_turn_message._cmd_mission_chat_message(_args("refused_turn"))
@@ -204,7 +204,7 @@ def test_a_server_error_after_the_boundary_stays_genuinely_ambiguous(
 
     from agent_runtime.mission_chat_turns import mission_chat_turn_record
 
-    harness = _seed(
+    _seed(
         monkeypatch, _refusing_provider(status_code=503, reason="overloaded")
     )
     code = chat_turn_message._cmd_mission_chat_message(_args("overloaded_turn"))
@@ -230,7 +230,7 @@ def test_a_failure_carrying_no_typed_block_stays_ambiguous(
 
     from agent_runtime.mission_chat_turns import mission_chat_turn_record
 
-    harness = _seed(monkeypatch, _refusing_provider())
+    _seed(monkeypatch, _refusing_provider())
     code = chat_turn_message._cmd_mission_chat_message(_args("untyped_turn"))
     payload = json.loads(capsys.readouterr().out)
 

@@ -263,7 +263,7 @@ def placeholder_seams(manifest, walk, index: dict[str, Path]) -> dict[str, list[
     done = subprocess.run(
         [sys.executable, "-c", _PLACEHOLDER_PROBE, str(ROOT), json.dumps(list(manifest.switched_off_modules)),
          json.dumps(wanted)],
-        capture_output=True, text=True, timeout=300, cwd=ROOT)
+        capture_output=True, text=True, timeout=300, cwd=ROOT, check=False)
     if done.returncode != 0:
         raise RuntimeError(f"placeholder probe failed: {done.stderr[-2000:]}")
     answered = json.loads(done.stdout.strip().splitlines()[-1])
@@ -367,7 +367,7 @@ def spawn_seams(manifest, findings: list[dict], index: dict[str, Path], *,
         done = subprocess.run(
             [sys.executable, "-c", _SPAWN_PROBE, str(ROOT), json.dumps(list(manifest.switched_off_modules)),
              json.dumps(apply_to_config(manifest, {})), json.dumps(sites), table, str(out)],
-            capture_output=True, text=True, timeout=600, cwd=ROOT)
+            capture_output=True, text=True, timeout=600, cwd=ROOT, check=False)
         if done.returncode != 0 or not out.is_file():
             raise RuntimeError(f"spawn stand-in probe failed ({done.returncode}): "
                                f"{(done.stderr or done.stdout)[-2000:]}")

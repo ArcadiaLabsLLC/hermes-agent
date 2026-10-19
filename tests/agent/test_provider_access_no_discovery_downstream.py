@@ -81,6 +81,6 @@ def test_a_fresh_process_first_credential_read_loads_no_plugins(tmp_path):
     env = {**os.environ, "HERMES_HOME": str(home), "PYTHONPATH": str(REPO_ROOT)}
     env.pop("HERMES_AUTH_HOME", None)
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
-                         timeout=100, cwd=REPO_ROOT, env=env)
+                         timeout=100, cwd=REPO_ROOT, env=env, check=False)
     assert out.returncode == 0, out.stderr[-2000:]
     assert out.stdout.strip().splitlines()[-1] == "CLEAN"

@@ -127,7 +127,7 @@ def test_checkpoint_watermark_is_consistent_with_event_log():
 
 
 def test_class_manifest_counts_without_reading_rows():
-    lead, dev, _graph_id = _seed_actors()
+    _lead, _dev, _graph_id = _seed_actors()
 
     manifest = class_manifest()
 

@@ -345,7 +345,7 @@ def _probe_frames(tmp_path, *, preimport: bool) -> list[dict]:
     if preimport:
         argv.append("--preimport")
     result = subprocess.run(
-        argv, cwd=root, env=env, capture_output=True, text=True, timeout=600
+        argv, cwd=root, env=env, capture_output=True, text=True, timeout=600, check=False
     )
     assert result.returncode == 0, result.stderr[-4000:]
     payload = [line for line in result.stdout.splitlines() if line.startswith("@@")]
@@ -902,6 +902,7 @@ def _cold_build_subprocess(cold_home):
         text=True,
         timeout=25,
         cwd=str(repo_root),
+        check=False,
     )
 
 

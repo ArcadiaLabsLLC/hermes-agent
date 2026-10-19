@@ -219,7 +219,7 @@ def test_scope_full_over_a_directory_refuses_with_the_adr_pointer(tmp_path, caps
 
 
 def test_scope_full_over_named_files_runs_exactly_those_files(tmp_path, capsys):
-    files = _tree(tmp_path)
+    _tree(tmp_path)
     named = [tmp_path / "tests/pkg/test_up.py", tmp_path / "tests/pkg/test_fork.py"]
 
     sel = scope.select_for_run(_args(scope=bundled.SCOPE_FULL), named, tmp_path, named, {})

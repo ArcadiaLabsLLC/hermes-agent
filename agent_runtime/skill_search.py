@@ -78,7 +78,7 @@ def skill_search(
     source: str = "all",
     limit: int = 10,
     include_installed: bool = True,
-    task_id: str = None,
+    task_id: str | None = None,
 ) -> str:
     """Search installed skills and the Hermes Skills Hub without loading bodies."""
     try:

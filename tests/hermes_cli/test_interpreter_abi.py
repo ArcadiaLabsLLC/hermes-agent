@@ -104,9 +104,9 @@ import hermes_bootstrap
 """
     env = {**os.environ, "PYTHONPATH": str(root)}
     foreign = subprocess.run([sys.executable, "-S", "-c", code, "foreign"],
-                             env=env, capture_output=True, text=True, timeout=60)
+                             env=env, capture_output=True, text=True, timeout=60, check=False)
     control = subprocess.run([sys.executable, "-S", "-c", code, "matching"],
-                             env=env, capture_output=True, text=True, timeout=60)
+                             env=env, capture_output=True, text=True, timeout=60, check=False)
     if os.name == "nt":
         assert foreign.returncode == 7, foreign.stderr
         assert "RELAUNCH gen-python" in foreign.stdout

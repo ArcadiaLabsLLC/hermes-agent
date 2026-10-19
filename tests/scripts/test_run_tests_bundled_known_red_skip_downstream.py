@@ -193,6 +193,7 @@ def test_a_process_killed_mid_file_leaves_a_partial_record_the_red_key_uses(repo
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_dep_record",
          f"--hermes-gate-deps={tmp_path / 'deps'}", "test_k.py"],
         cwd=proj, env=env, capture_output=True, text=True, timeout=120,
+        check=False,
     )
     assert proc.returncode == 3, proc.stdout + proc.stderr
     collector = cache.DepsCollector(tmp_path / "deps")

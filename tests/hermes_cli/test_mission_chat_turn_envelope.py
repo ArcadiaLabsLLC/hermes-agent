@@ -187,7 +187,7 @@ def test_the_writes_that_can_be_leased_are(lease_witness, capsys):
     happen INSIDE the lease now. Before the split all three ran outside it —
     and then again inside it, after the re-entry."""
 
-    harness, seen = lease_witness
+    _harness, seen = lease_witness
     assert chat_turn_message._cmd_mission_chat_message(_args("lease_turn")) == 0
     capsys.readouterr()
 
@@ -210,7 +210,7 @@ def test_the_two_writes_that_cannot_be_leased_are_named_not_hidden(
     changes in either direction.
     """
 
-    harness, seen = lease_witness
+    _harness, seen = lease_witness
     assert chat_turn_message._cmd_mission_chat_message(_args("lease_turn")) == 0
     capsys.readouterr()
 
@@ -224,7 +224,7 @@ def test_each_leasable_write_happens_exactly_once_per_turn(
 
     from agent_runtime.persona_assignments import PersonaInstanceStore
 
-    harness_module = _seed(monkeypatch, _ReplyProvider)
+    _seed(monkeypatch, _ReplyProvider)
     calls: dict[str, int] = {}
 
     def _count(name, target, attr):
@@ -255,7 +255,7 @@ def test_a_clean_turn_carries_no_finalization_warnings(
     """The key is ABSENT when nothing went wrong — its presence is the signal,
     and its absence keeps the wire byte-identical for every healthy send."""
 
-    harness = _seed(monkeypatch, _ReplyProvider)
+    _seed(monkeypatch, _ReplyProvider)
     assert chat_turn_message._cmd_mission_chat_message(_args("clean_turn")) == 0
     payload = json.loads(capsys.readouterr().out)
     assert "finalization_warnings" not in payload
@@ -286,7 +286,7 @@ def test_a_failed_instance_state_commit_is_reported_not_swallowed(
             state["armed"] = True
             return result
 
-    harness = _seed(monkeypatch, _ArmingProvider)
+    _seed(monkeypatch, _ArmingProvider)
     real_update = PersonaInstanceStore.update
 
     def _update(self, instance, *args, **kwargs):
@@ -319,7 +319,7 @@ def test_a_non_clean_turn_journal_write_is_accounted_for(
 
     from agent_runtime.mission_chat_turns import MissionChatTurnPersistOutcome
 
-    harness = _seed(monkeypatch, _ReplyProvider)
+    _seed(monkeypatch, _ReplyProvider)
     real = chat_events.transition_mission_chat_turn
 
     def _flaky(*args, **kwargs):

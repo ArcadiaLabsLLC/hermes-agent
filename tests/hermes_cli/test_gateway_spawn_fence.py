@@ -301,7 +301,7 @@ def test_popen_refuses_the_measured_argv():
 @pytest.mark.live_system_guard_bypass
 def test_subprocess_run_refuses_the_measured_argv():
     with pytest.raises(GatewayFenceViolation):
-        subprocess.run([sys.executable, "-m", "hermes_cli.main", "gateway", "run"])
+        subprocess.run([sys.executable, "-m", "hermes_cli.main", "gateway", "run"], check=False)
 
 
 @pytest.mark.live_system_guard_bypass

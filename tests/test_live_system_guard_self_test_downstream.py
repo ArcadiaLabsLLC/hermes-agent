@@ -31,17 +31,17 @@ def _absent(tmp_path, name: str) -> str:
 
 def test_subprocess_run_hermes_gateway_run_blocked(tmp_path):
     with pytest.raises(RuntimeError, match="live-system guard"):
-        subprocess.run([_absent(tmp_path, "hermes"), "gateway", "run", "--profile", "x"])
+        subprocess.run([_absent(tmp_path, "hermes"), "gateway", "run", "--profile", "x"], check=False)
 
 def test_subprocess_run_hermes_serve_blocked(tmp_path):
     with pytest.raises(RuntimeError, match="live-system guard"):
-        subprocess.run([_absent(tmp_path, "hermes"), "serve", "--port", "8090"])
+        subprocess.run([_absent(tmp_path, "hermes"), "serve", "--port", "8090"], check=False)
 
 def test_subprocess_run_python_m_hermes_cli_dashboard_blocked(tmp_path):
     """The argv an old desktop app shell sends."""
     with pytest.raises(RuntimeError, match="live-system guard"):
         subprocess.run(
-            [_absent(tmp_path, "python"), "-m", "hermes_cli.main", "dashboard", "--no-open"]
+            [_absent(tmp_path, "python"), "-m", "hermes_cli.main", "dashboard", "--no-open"], check=False
         )
 
 def test_subprocess_popen_harness_serve_blocked(tmp_path):
@@ -54,18 +54,18 @@ def test_subprocess_popen_harness_serve_blocked(tmp_path):
 def test_subprocess_run_flag_before_subcommand_blocked(tmp_path):
     """``hermes --profile work gateway run`` — a flag and its value first."""
     with pytest.raises(RuntimeError, match="live-system guard"):
-        subprocess.run([_absent(tmp_path, "hermes"), "--profile", "work", "gateway", "run"])
+        subprocess.run([_absent(tmp_path, "hermes"), "--profile", "work", "gateway", "run"], check=False)
 
 def test_subprocess_run_absolute_path_hermes_serve_blocked(tmp_path):
     """A venv's ``bin/hermes`` is the same entry point under another spelling."""
     with pytest.raises(RuntimeError, match="live-system guard"):
-        subprocess.run([_absent(tmp_path, ".venv/bin/hermes"), "serve"])
+        subprocess.run([_absent(tmp_path, ".venv/bin/hermes"), "serve"], check=False)
 
 def test_subprocess_run_bash_c_hermes_gateway_blocked(tmp_path):
     """The wrapper shape: argv[0] is bash, the backend is in its argument."""
     with pytest.raises(RuntimeError, match="live-system guard"):
         subprocess.run(
-            [_absent(tmp_path, "bash"), "-c", f"{_absent(tmp_path, 'hermes')} gateway run"]
+            [_absent(tmp_path, "bash"), "-c", f"{_absent(tmp_path, 'hermes')} gateway run"], check=False
         )
 
 def test_os_system_hermes_dashboard_blocked(tmp_path):
@@ -86,22 +86,22 @@ def _absent_hermes(tmp_path) -> str:
 def test_non_backend_hermes_subcommand_passes_through(tmp_path):
     """``hermes status``-shaped argv is not a backend spawn and must run."""
     with pytest.raises(FileNotFoundError):
-        subprocess.run([_absent_hermes(tmp_path), "status"])
+        subprocess.run([_absent_hermes(tmp_path), "status"], check=False)
     with pytest.raises(RuntimeError, match="live-system guard"):  # control: same entry point, a backend verb
-        subprocess.run([_absent_hermes(tmp_path), "serve"])
+        subprocess.run([_absent_hermes(tmp_path), "serve"], check=False)
 
 def test_hermes_profile_verb_passes_through(tmp_path):
     """Nor is ``hermes profile list`` — the arm is keyed to the subcommand."""
     with pytest.raises(FileNotFoundError):
-        subprocess.run([_absent_hermes(tmp_path), "profile", "list"])
+        subprocess.run([_absent_hermes(tmp_path), "profile", "list"], check=False)
 
 @pytest.mark.spawns_gateway_lookalike
 def test_gateway_lookalike_marker_allows_only_gateway_shape(tmp_path):
     with pytest.raises(FileNotFoundError):  # the marker lets the gateway shape through to the OS
-        subprocess.run([_absent_hermes(tmp_path), "gateway", "run"])
+        subprocess.run([_absent_hermes(tmp_path), "gateway", "run"], check=False)
     for subcommand in ("serve", "dashboard"):
         with pytest.raises(RuntimeError, match="live-system guard"):
-            subprocess.run([_absent_hermes(tmp_path), subcommand])
+            subprocess.run([_absent_hermes(tmp_path), subcommand], check=False)
 
 
 @pytest.mark.live_system_guard_bypass

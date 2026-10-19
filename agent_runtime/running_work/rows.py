@@ -73,7 +73,7 @@ def _iso_from_naive_local(text: Any) -> str:
     if not raw:
         return ""
     try:
-        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(raw)
     except ValueError:
         return ""
     if parsed.tzinfo is None:

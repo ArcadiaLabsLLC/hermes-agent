@@ -74,6 +74,7 @@ def _record(root: Path, deps_dir: Path) -> dict:
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_dep_record",
          f"--hermes-gate-deps={deps_dir}", "test_a.py", "test_b.py", "test_c.py"],
         cwd=root, env=env, capture_output=True, text=True, timeout=120,
+        check=False,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
     return cache.DepsCollector(deps_dir).poll()
@@ -169,6 +170,7 @@ def test_an_import_system_listing_is_recorded_apart_from_a_plain_listing_with_th
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_dep_record",
          f"--hermes-gate-deps={tmp_path / 'deps'}", "test_i.py"],
         cwd=root, env=env, capture_output=True, text=True, timeout=120,
+        check=False,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
@@ -203,6 +205,7 @@ def test_pytest_collection_walk_is_no_listing_but_a_tests_own_listing_is(tmp_pat
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_dep_record",
          f"--hermes-gate-deps={tmp_path / 'deps'}", "tests/sub/test_w.py"],
         cwd=root, env=env, capture_output=True, text=True, timeout=120,
+        check=False,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
@@ -304,6 +307,7 @@ def test_a_record_names_the_fixtures_set_up_and_the_paths_the_file_opened_itself
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_dep_record",
          f"--hermes-gate-deps={deps_dir}", "test_fx.py"],
         cwd=root, env=env, capture_output=True, text=True, timeout=120,
+        check=False,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
     deps = cache.DepsCollector(deps_dir).poll()["test_fx.py"]
@@ -343,5 +347,6 @@ def test_a_test_that_patches_abspath_process_wide_cannot_break_the_recorder(tmp_
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_dep_record",
          f"--hermes-gate-deps={tmp_path / 'deps'}", "test_patch.py"],
         cwd=root, env=env, capture_output=True, text=True, timeout=120,
+        check=False,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr

@@ -316,7 +316,7 @@ def test_resolver_sees_single_candidate_after_divergent_pull(tmp_path):
 
 
 def test_publish_excludes_inbox_and_provenance(tmp_path):
-    realm, repo = _local_realm(tmp_path)
+    realm, _repo = _local_realm(tmp_path)
     _seed_canonical("keeper", body="# Keeper\n")
     # Quarantine + provenance debris under the shared root must be publish-invisible.
     _write_package(realm_inbox_dir("other_realm"), "ghost", body="# Ghost\n")
@@ -334,7 +334,7 @@ def test_publish_excludes_inbox_and_provenance(tmp_path):
 
 
 def test_publish_categorized_package_and_selected_matching(tmp_path):
-    realm, repo = _local_realm(tmp_path)
+    realm, _repo = _local_realm(tmp_path)
     root = get_shared_skills_dir()
     # A categorized package: the category dir has NO SKILL.md; the child does.
     _write_package(root, "software-development/hermes-agent", body="# Agent\n")
@@ -614,7 +614,7 @@ def test_pull_adopts_an_arriving_ledger_on_a_local_realm(tmp_path):
 
 
 def test_publish_excludes_a_tombstoned_skill(tmp_path):
-    realm, repo = _local_realm(tmp_path)
+    realm, _repo = _local_realm(tmp_path)
     _seed_canonical("doomed", body="# Doomed\n")
     _seed_canonical("keeper", body="# Keeper\n")
 
@@ -641,7 +641,7 @@ def test_pull_skips_an_installer_owned_tombstone_with_a_warning(tmp_path):
     from hermes_time import now
 
     slug = sorted(CANONICAL_SHARED_SKILL_IDS)[0]
-    realm, repo = _local_realm(tmp_path)
+    realm, _repo = _local_realm(tmp_path)
     _seed_canonical(slug, body="# Installer owned\n")
     item = RealmStore().get(realm.id)
     item.skill_tombstones = [SkillTombstone(slug=slug, deleted_at=now())]

@@ -47,6 +47,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
+import itertools
 
 __layer__ = "stores"
 
@@ -252,7 +253,7 @@ class ChunkedRunner:
         samples = np.frombuffer(pcm, dtype=np.int16)
         bounds = [0, *chunk_cuts(samples), len(samples)]
         texts = [self._chunk_text(samples[a:b], cached=b != len(samples))
-                 for a, b in zip(bounds, bounds[1:]) if b > a]
+                 for a, b in itertools.pairwise(bounds) if b > a]
         return " ".join(t for t in texts if t)
 
     def _chunk_text(self, samples: Any, *, cached: bool) -> str:

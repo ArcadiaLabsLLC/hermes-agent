@@ -216,7 +216,7 @@ def bare_bash_is_not_posix() -> bool:
     probe = "a$HOME b"
     try:
         done = subprocess.run(["bash", "-c", 'printf %s "$1"', "_", probe], capture_output=True,
-                              timeout=30, stdin=subprocess.DEVNULL)
+                              timeout=30, stdin=subprocess.DEVNULL, check=False)
     except (OSError, subprocess.SubprocessError):
         return False
     return done.stdout != probe.encode()
@@ -231,7 +231,7 @@ def shell_true_is_not_posix() -> bool:
 
     try:
         done = subprocess.run("echo $((1+1))", shell=True, capture_output=True, text=True,
-                              timeout=30, stdin=subprocess.DEVNULL)
+                              timeout=30, stdin=subprocess.DEVNULL, check=False)
     except (OSError, subprocess.SubprocessError):
         return False
     return done.stdout.strip() != "2"
@@ -258,7 +258,7 @@ def resolved_bash_spells_posix_mount_paths() -> bool:
     with tempfile.TemporaryDirectory() as tmp:
         try:
             done = subprocess.run([bash, "-c", "pwd -P"], cwd=tmp, capture_output=True, text=True,
-                                  timeout=30, stdin=subprocess.DEVNULL)
+                                  timeout=30, stdin=subprocess.DEVNULL, check=False)
         except (OSError, subprocess.SubprocessError):
             return False
         native = os.path.normcase(os.path.realpath(tmp))

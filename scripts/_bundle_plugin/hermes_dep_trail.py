@@ -117,8 +117,8 @@ def first_program(argv) -> str:
             return text[1:].partition('"')[0]
         return text.split()[0] if text.split() else ""
     try:
-        first = list(argv)[0]
-    except (TypeError, IndexError):
+        first = next(iter(argv))
+    except (TypeError, StopIteration):
         return ""
     return os.fsdecode(first) if isinstance(first, bytes) else str(first)
 

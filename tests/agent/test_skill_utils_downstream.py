@@ -42,7 +42,7 @@ def test_canonical_resolver_reports_collision_and_exact_hash(tmp_path):
     local.mkdir()
     shared.mkdir()
     _write_skill(local, "same")
-    shared_skill = _write_skill(shared, "shared-only")
+    _write_skill(shared, "shared-only")
 
     resolved = resolve_skill("shared-only", roots=[local, shared])
     assert resolved.status == "resolved"

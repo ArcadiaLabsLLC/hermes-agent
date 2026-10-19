@@ -31,6 +31,7 @@ def _node_version() -> str | None:
             capture_output=True,
             text=True,
             timeout=15,
+            check=False,
         )
     except Exception:
         return None
@@ -167,7 +168,7 @@ def _no_shebang_script_execution() -> bool:
             _fh.write("#!/bin/sh\nexit 0\n")
         os.chmod(_script, 0o755)
         try:
-            _sp.run([_script], capture_output=True, timeout=15)
+            _sp.run([_script], capture_output=True, timeout=15, check=False)
         except OSError:
             return True
         return False

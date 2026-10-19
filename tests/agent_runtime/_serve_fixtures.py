@@ -149,6 +149,7 @@ class _Install:
             capture_output=True,
             text=True,
             timeout=CLI_TIMEOUT_SECONDS,
+            check=False,
         )
         payload = None
         stdout = completed.stdout or ""
@@ -182,6 +183,7 @@ class _Install:
             capture_output=True,
             text=True,
             timeout=CLI_TIMEOUT_SECONDS,
+            check=False,
         )
         return completed.returncode, (completed.stdout or "") + (completed.stderr or "")
 

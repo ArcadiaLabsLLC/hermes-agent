@@ -90,6 +90,7 @@ def test_a_child_session_counts_the_writer_open_and_not_the_read(tmp_path):
         capture_output=True,
         text=True,
         timeout=110,
+        check=False,
     )
     assert done.returncode == 0, done.stdout[-2000:] + done.stderr[-2000:]
     receipt = tmp_path / fresh_db_census.RECEIPT

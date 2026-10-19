@@ -69,7 +69,7 @@ def _int(value: Any) -> int | None:
 
 def _utc(text: str) -> datetime | None:
     try:
-        stamp = datetime.fromisoformat(str(text).replace("Z", "+00:00"))
+        stamp = datetime.fromisoformat(str(text))
     except ValueError:
         return None
     return stamp if stamp.tzinfo else stamp.replace(tzinfo=UTC)

@@ -8,6 +8,7 @@ from agent.charsheet.spec import RowSpec, SheetSpec, row_key
 from .findings import Attribution, MirrorBasis, Severity
 from .geometry import turnaround_order
 from .registration import MIRROR_GAIN_THRESHOLD, _gain, _row_cells, _run_findings, _seam_distance, _seam_evidence, _seam_record, registration_window
+import itertools
 
 __layer__ = "lanes"
 
@@ -380,7 +381,7 @@ class HandednessDetector:
                 for direction in turnaround_order(self.spec.scheme.authored)
             ]
             seams: dict[tuple[str, str], dict] = {}
-            for left, right in zip(chain, chain[1:]):
+            for left, right in itertools.pairwise(chain):
                 if self.blank(left) or self.blank(right):
                     continue
                 direct, flipped = _seam_distance(

@@ -135,7 +135,7 @@ def measure(command: Sequence[str], workers: int, repo: Path, *, interval: float
     before = len(_ledger_lines(repo))
     started = time.time()
     with SaturationSampler(interval) as sampler:
-        rc = subprocess.run(list(command), cwd=str(repo), stdin=subprocess.DEVNULL).returncode
+        rc = subprocess.run(list(command), cwd=str(repo), stdin=subprocess.DEVNULL, check=False).returncode
     elapsed = time.time() - started
     added = _ledger_lines(repo)[before:]
     ledger: Optional[dict] = json.loads(added[-1]) if added else None

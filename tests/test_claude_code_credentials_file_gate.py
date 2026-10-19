@@ -353,6 +353,7 @@ def _token_candidates() -> set[Path] | None:
             proc = subprocess.run(
                 [*argv, "--", "."], cwd=tests_root, capture_output=True,
                 text=True, encoding="utf-8", timeout=60,
+                check=False,
             )
         except (OSError, subprocess.TimeoutExpired):
             proc = None

@@ -482,7 +482,7 @@ def test_every_greeting_frame_and_the_registry_row_state_the_service_fields(serv
         # The contract integer is untouched: this is an added key.
         assert ready["ops"]["contract"] == serve_module.OPS_CONTRACT_VERSION
 
-        row = [r for r in _instances() if r.get("boot_id") == ready["boot_id"]][0]
+        row = next(r for r in _instances() if r.get("boot_id") == ready["boot_id"])
         assert row["service"] is service
         assert row["starter_pid"] == os.getppid()
 

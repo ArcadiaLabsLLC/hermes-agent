@@ -76,7 +76,7 @@ def test_flow_set_invalid_doc_is_typed_rejection(tmp_path, monkeypatch, capsys):
 
 
 def test_flow_set_reads_graph_file_and_show_lists_round_trip(tmp_path, monkeypatch, capsys):
-    store, lead, dev = _instances(monkeypatch, tmp_path)
+    _store, lead, dev = _instances(monkeypatch, tmp_path)
     graph_file = tmp_path / "chart.json"
     graph_file.write_text(
         json.dumps(

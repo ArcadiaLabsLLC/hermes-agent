@@ -46,7 +46,7 @@ def messages(tmp_path, target):
 def test_checkpoint_contention_before_first_write_settles_without_a_send_fence(tmp_path, monkeypatch):
     from tools.checkpoint_manager import _resolve_checkpoint_base
     from tools.checkpoint_pruning import store_lock
-    target, work, manager, _, request = setup_turn(tmp_path, monkeypatch)
+    target, work, _manager, _, request = setup_turn(tmp_path, monkeypatch)
     original = CheckpointManager.restore_preview
 
     def contend(self, *args, **kwargs):
@@ -67,7 +67,7 @@ def test_checkpoint_contention_before_first_write_settles_without_a_send_fence(t
 
 @pytest.mark.parametrize("mode, retained, content", [("both", 0, "before one\n"), ("chat", 0, "after one\n"), ("files", 4, "before one\n")])
 def test_reviewed_scope_applies_once_with_durable_receipt(tmp_path, monkeypatch, mode, retained, content):
-    target, work, manager, plan, request = setup_turn(tmp_path, monkeypatch)
+    target, work, _manager, plan, request = setup_turn(tmp_path, monkeypatch)
     assert {row["path"] for row in plan["files"]} == {"one.txt", "two.txt"}
     result = call("undo.apply", {**request, "mode": mode})
     assert "result" in result, result
@@ -79,7 +79,7 @@ def test_reviewed_scope_applies_once_with_durable_receipt(tmp_path, monkeypatch,
 
 
 def test_branch_here_includes_selected_reply_and_links_origin(tmp_path, monkeypatch):
-    target, work, manager, _, _ = setup_turn(tmp_path, monkeypatch)
+    target, _work, _manager, _, _ = setup_turn(tmp_path, monkeypatch)
     params = {**target, "action": "branch", "boundary": "after_reply", "client_message_id": "first"}
     preview = call("history.preview", params)["result"]
     result = call("history.apply", {**params, "preview_token": preview["preview_token"], "operation_id": "branch-after-reply"})
@@ -100,7 +100,7 @@ def test_branch_here_includes_selected_reply_and_links_origin(tmp_path, monkeypa
 
 def test_partial_restore_survives_status_and_can_rollback(tmp_path, monkeypatch):
     import tools.checkpoint_manager as checkpoints
-    target, work, manager, _, request = setup_turn(tmp_path, monkeypatch)
+    target, work, _manager, _, request = setup_turn(tmp_path, monkeypatch)
     original = checkpoints.CheckpointManager._checkout_restore_paths
     def fail_one(self, working_dir, commit, paths, **kwargs):
         if paths == ["two.txt"]:

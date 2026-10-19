@@ -105,7 +105,7 @@ def test_main_installs_the_memo_before_it_builds_the_parser(monkeypatch):
 def _probe(code: str) -> list:
     env = {**os.environ, "PYTHONPATH": os.pathsep.join(p for p in (str(REPO_ROOT), os.environ.get("PYTHONPATH")) if p)}
     result = subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True, cwd=str(REPO_ROOT), env=env, timeout=240
+        [sys.executable, "-c", code], capture_output=True, text=True, cwd=str(REPO_ROOT), env=env, timeout=240, check=False
     )
     assert result.returncode == 0, result.stderr[-2000:]
     return json.loads(result.stdout.strip().splitlines()[-1])

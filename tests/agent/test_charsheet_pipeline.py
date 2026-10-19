@@ -39,6 +39,7 @@ from agent.charsheet.spec import (
 pytest.importorskip("PIL")
 
 from PIL import Image, ImageDraw
+import itertools
 
 SPEC = SheetSpec(
     states=(StateSpec("idle", 2, True), StateSpec("walk", 3, True)),
@@ -871,9 +872,7 @@ def pose_columns(cell, *, field):
         sum(
             1
             for y in range(cell.height)
-            if (lambda p: p[3] > 16 and abs(p[0] - fr) + abs(p[1] - fg) + abs(p[2] - fb) > 90)(
-                px[x, y]
-            )
+            if (p := px[x, y])[3] > 16 and abs(p[0] - fr) + abs(p[1] - fg) + abs(p[2] - fb) > 90
         )
         for x in range(cell.width)
     ]
@@ -1271,7 +1270,7 @@ def test_a_sheet_mirrored_on_EVERY_row_passes_and_that_is_the_blind_spot():
     # distance(flip(flip a), flip b) == distance(flip a, b).
     window = pipeline.registration_window(EIGHT.frame_w)
     chain = [EIGHT.row_by_key(f"idle-{d}") for d in ("s", "se", "e", "ne", "n")]
-    for left, right in zip(chain, chain[1:]):
+    for left, right in itertools.pairwise(chain):
         before = pipeline._seam_distance(
             pipeline._row_cells(upright, EIGHT, left),
             pipeline._row_cells(upright, EIGHT, right),
@@ -2599,7 +2598,7 @@ def worst_registered_shift(spec, sheet):
             rows[pipeline.row_key(state.name, direction)]
             for direction in pipeline.turnaround_order(spec.scheme.authored)
         ]
-        for left, right in zip(chain, chain[1:]):
+        for left, right in itertools.pairwise(chain):
             left_cells = pipeline._row_cells(sheet, spec, left)
             right_cells = pipeline._row_cells(sheet, spec, right)
             for index in range(min(len(left_cells), len(right_cells))):

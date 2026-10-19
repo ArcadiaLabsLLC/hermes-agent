@@ -632,7 +632,7 @@ def _events_from_demoted_golden() -> list:
     return [
         Event(
             ts=datetime.fromisoformat(
-                str(row["event"]["ts"]).replace("Z", "+00:00")
+                str(row["event"]["ts"])
             ),
             type=row["event"]["type"],
             task_id=row["event"].get("task_id"),

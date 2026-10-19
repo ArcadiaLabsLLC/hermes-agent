@@ -1080,7 +1080,7 @@ def test_mission_chat_reply_runs_for_profile_persona(tmp_path, monkeypatch):
     # toolkit applies only to a restricted session now.
     # (``search`` is service-gated and simply not registered without a web API
     # key, which is a capability fact rather than a permission one.)
-    assert set(["session_search", "todo", "skills", "file", "terminal"]).issubset(
+    assert {"session_search", "todo", "skills", "file", "terminal"}.issubset(
         set(request.enabled_toolsets)
     )
     # The mode reaches the EXECUTION plane too: the envelope scope this turn

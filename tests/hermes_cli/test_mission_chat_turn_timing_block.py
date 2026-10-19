@@ -87,7 +87,7 @@ def _drive_capturing(monkeypatch, capsys, provider, *, turn_id, stream=True):
     bytes a serve child turns into ``line`` frames under the request id.
     """
 
-    harness = _seed(monkeypatch, provider)
+    _seed(monkeypatch, provider)
     code = chat_turn_message._cmd_mission_chat_message(_args(turn_id, stream=stream))
     captured = capsys.readouterr().out
     payload = None

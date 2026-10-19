@@ -80,7 +80,7 @@ def test_shared_catalog_walks_only_manifest_dirs(tmp_path, monkeypatch):
 
 def test_shared_catalog_missing_root_is_not_an_error(tmp_path, monkeypatch):
     _patch_root(monkeypatch, tmp_path / "does-not-exist")
-    root, exists, catalog = si.build_shared_catalog()
+    _root, exists, catalog = si.build_shared_catalog()
     assert exists is False
     assert catalog == []
 

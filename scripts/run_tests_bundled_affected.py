@@ -112,6 +112,7 @@ def _git_lines(repo_root: Path, *args: str) -> list[str]:
     proc = subprocess.run(
         ["git", "-C", str(repo_root), *args], env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"},
         capture_output=True, text=True, encoding="utf-8", errors="replace",
+        check=False,
     )
     if proc.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)} failed: {proc.stderr.strip()}")

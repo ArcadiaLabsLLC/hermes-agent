@@ -173,7 +173,7 @@ def test_a_reported_zero_reaches_the_row_as_zero(isolate_agent_runtime_root):
 
 
 def test_absent_usage_leaves_the_fields_absent(isolate_agent_runtime_root):
-    trace, stored, replay = _run_persona_turn({})
+    _trace, stored, replay = _run_persona_turn({})
     assert len(stored) == 2 and len(replay) == 2
     for row in stored + replay:
         assert not set(_COUNTS) & set(row)

@@ -85,6 +85,7 @@ import pytest
 
 from agent_runtime import snapshot
 from agent_runtime.snapshot import SNAPSHOT_CONTRACT_VERSION
+import itertools
 
 pytestmark = pytest.mark.gate
 
@@ -282,7 +283,7 @@ def restatements(tree: ast.Module, *, filename: str) -> list[tuple[int, str]]:
         # that then has to be policed, for a literal that was never a hazard.
         if isinstance(node, ast.Compare):
             operands = [node.left, *node.comparators]
-            for op, (left, right) in zip(node.ops, zip(operands, operands[1:])):
+            for op, (left, right) in zip(node.ops, itertools.pairwise(operands)):
                 if not isinstance(op, (ast.Eq, ast.NotEq)):
                     continue
                 for a, b in ((left, right), (right, left)):

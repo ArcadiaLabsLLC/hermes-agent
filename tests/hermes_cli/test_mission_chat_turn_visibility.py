@@ -63,7 +63,7 @@ def _provider(final_response: str, messages=None, raw=None):
 
 
 def _drive(monkeypatch, capsys, *, final_response, messages=None, raw=None, cmid="vis_turn"):
-    harness = _seed(monkeypatch, _provider(final_response, messages, raw))
+    _seed(monkeypatch, _provider(final_response, messages, raw))
     code = chat_turn_message._cmd_mission_chat_message(_args(cmid))
     return code, json.loads(capsys.readouterr().out)
 
@@ -129,7 +129,7 @@ def test_an_idempotent_replay_carries_the_block_too(
     missing on exactly the path built for retries.
     """
 
-    harness = _seed(monkeypatch, _provider(""))
+    _seed(monkeypatch, _provider(""))
     assert chat_turn_message._cmd_mission_chat_message(_args("replayed_turn")) == 0
     capsys.readouterr()
 
@@ -158,7 +158,7 @@ def test_a_failing_provider_still_emits_a_payload_this_does_not_break(
         def mission_chat_reply(self, *args, **kwargs):
             raise RuntimeError("provider exploded")
 
-    harness = _seed(monkeypatch, _Boom)
+    _seed(monkeypatch, _Boom)
     code = chat_turn_message._cmd_mission_chat_message(_args("boom_turn"))
     payload = json.loads(capsys.readouterr().out)
 

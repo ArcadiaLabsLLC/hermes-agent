@@ -319,7 +319,7 @@ class TurnReasoning:
         """``reasoning_tokens`` / ``reasoning_ms``, or ``{}`` when no request reported a count."""
         if self.tokens is None:
             return {}
-        return {"reasoning_tokens": self.tokens, "reasoning_ms": int(round(self.ms))}
+        return {"reasoning_tokens": self.tokens, "reasoning_ms": round(self.ms)}
 
 
 @contextmanager

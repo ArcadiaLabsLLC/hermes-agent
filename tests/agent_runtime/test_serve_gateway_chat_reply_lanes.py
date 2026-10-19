@@ -467,7 +467,7 @@ def test_a_device_tier_turn_reports_which_lane_carries_its_start_and_reply(
                         },
                     }
                 )
-                ack_at, ack = recorder.wait_for(
+                _ack_at, ack = recorder.wait_for(
                     lambda frame: frame.get("id") == "turn-req-1",
                     what="the chat turn ack",
                 )
@@ -786,7 +786,7 @@ def test_a_running_turn_publishes_its_own_start_and_end_on_the_stream_lane(
     credential = pair_device(tier=TIER_CONSOLE, name="the mac")
 
     with running_serve(dispatch=dispatch_argv) as handle:
-        with device_client(handle, credential) as (connection, hello):
+        with device_client(handle, credential) as (connection, _hello):
             recorder = _Recorder(connection)
             recorder.start()
             try:

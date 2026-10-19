@@ -31,6 +31,7 @@ def _collect(root: Path, *extra: str) -> tuple[int, list[str]]:
         [sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider",
          "-p", "hermes_shard", *extra, "test_twelve.py"],
         cwd=root, env=env, capture_output=True, text=True, encoding="utf-8", timeout=120,
+        check=False,
     )
     return proc.returncode, [line.strip() for line in proc.stdout.splitlines() if "::" in line]
 

@@ -229,7 +229,7 @@ def scan(*, now: float, census: Any, owned: set[int], table: Iterable[Any] | Non
     except Exception as exc:  # "I could not look" is a typed sub-health
         result.status, result.reason, result.builds = "unavailable", SUB_REASON_SCAN_FAILED, []
         result.unknowns.add(UNKNOWN_PROCESS_UNIDENTIFIED, f"process table: {type(exc).__name__}", now)
-    result.scan_ms = int(round((clock() - scanner.started) * 1000.0))
+    result.scan_ms = round((clock() - scanner.started) * 1000.0)
     return result
 
 

@@ -203,7 +203,7 @@ def test_start_replay_and_busy_edit_are_transactional(engine):
 
 
 def test_two_tables_cannot_claim_one_embodied_instance(engine):
-    service, ctx = engine
+    service, _ctx = engine
     for name in ("left", "right"):
         service.definitions.save_table("ws", name, table_value(), expect_revision=0)
     def submit(name):

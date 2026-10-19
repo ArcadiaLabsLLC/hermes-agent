@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.pm._fixtures import client as client, isolated_python as isolated_python
+from tests.pm._fixtures import client, isolated_python
 
 # Spawns children with a home it builds itself; the parent's must stay real.
 pytestmark = pytest.mark.real_machine_home

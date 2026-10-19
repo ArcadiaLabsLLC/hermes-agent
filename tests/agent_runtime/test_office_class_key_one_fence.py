@@ -132,6 +132,7 @@ def _run_harness_utf8(*args: str):
         encoding="utf-8",
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         timeout=90,
+        check=False,
     )
 
 

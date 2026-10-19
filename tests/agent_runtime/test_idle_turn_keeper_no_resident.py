@@ -89,7 +89,7 @@ def test_the_tick_keeps_the_last_chats_pool_warm_after_its_actor_is_gone(server)
     del actor
     gc.collect()
 
-    refreshed, socket = idle_turn_keeper.tick_once(1)
+    _refreshed, socket = idle_turn_keeper.tick_once(1)
     assert socket == "404"
     assert _Head.seen == ["hermes-test/1"], "one HEAD, identity headers only"
 

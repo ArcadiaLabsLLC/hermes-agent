@@ -37,6 +37,7 @@ def test_the_idle_lane_refuses_and_names_a_running_pytest():
             [bash, str(_REPO_ROOT / "scripts" / "run_tests_idle.sh"), "--check"],
             cwd=_REPO_ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace",
             timeout=120, env=dict(os.environ),
+            check=False,
         )
     finally:
         sentinel.kill()

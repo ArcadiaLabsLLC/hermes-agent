@@ -82,6 +82,7 @@ from hermes_cli.flag_binding import (
     list_flag_or_empty,
 )
 from tests._fork_scope import is_fork_authored, is_fork_touched, upstream_blobs
+import itertools
 
 pytestmark = pytest.mark.gate
 
@@ -250,7 +251,7 @@ def _collapse_sites(path: Path) -> list[tuple[str, int]]:
         if not isinstance(node, ast.BoolOp) or not isinstance(node.op, ast.Or):
             continue
         values = node.values
-        for left, right in zip(values, values[1:]):
+        for left, right in itertools.pairwise(values):
             if _is_args_read(left) and _is_empty_collection(right):
                 found.append(
                     (path.relative_to(REPO_ROOT).as_posix(), node.lineno)
@@ -321,7 +322,7 @@ def test_the_ban_actually_recognises_the_shape_it_bans():
     for node in ast.walk(module):
         if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.Or):
             values = node.values
-            for left, right in zip(values, values[1:]):
+            for left, right in itertools.pairwise(values):
                 if _is_args_read(left) and _is_empty_collection(right):
                     hits.append(node.lineno)
 

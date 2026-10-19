@@ -27,7 +27,7 @@ MANIFEST = 'tests/fixtures/carried_prs.json'
 
 def git(repo, *args, env=None, input=None, encoding="utf-8"):
     result = subprocess.run(['git', '-C', str(repo), *args], input=input,
-                            capture_output=True, text=encoding is not None, encoding=encoding, env=env, timeout=30)
+                            capture_output=True, text=encoding is not None, encoding=encoding, env=env, timeout=30, check=False)
     if result.returncode:
         raise ValueError(result.stderr.strip() or result.stdout.strip() or 'git command failed')
     return result.stdout
@@ -229,7 +229,7 @@ def _check_hunks(repo, rule, path, pr_path, base, head, fork_ref, mismatches):
             git(repo, 'add', '-A', '--', path, env=env)
         result = subprocess.run(['git', '-C', str(repo), 'apply', '--cached',
                                  '--reverse', '--check', '-'], input=patch,
-                                capture_output=True, env=env, timeout=30)
+                                capture_output=True, env=env, timeout=30, check=False)
         matches = result.returncode == 0
     return matches, '', False
 

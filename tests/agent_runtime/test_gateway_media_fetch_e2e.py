@@ -101,7 +101,7 @@ def test_a_paired_device_fetches_a_real_artifact_and_the_bytes_are_the_file(
     can cache the handle forever with no invalidation protocol at all.
     """
 
-    shot, oversize = seeded_media
+    shot, _oversize = seeded_media
     credential = pair_device(tier=TIER_CONSOLE, name="the phone")
 
     with running_serve() as handle:
@@ -136,7 +136,7 @@ def test_a_paired_device_fetches_a_real_artifact_and_the_bytes_are_the_file(
 def test_the_oversize_artifact_is_indexed_unfetchable_and_refused_with_the_cap(
     gateway_on, seeded_media
 ):
-    shot, oversize = seeded_media
+    _shot, oversize = seeded_media
     credential = pair_device(tier=TIER_CONSOLE)
 
     with running_serve() as handle:
@@ -193,7 +193,7 @@ def test_a_device_paired_at_read_is_refused_the_whole_family_on_the_real_lane(
     credential = pair_device(tier=TIER_READ, name="the viewer")
 
     with running_serve() as handle:
-        with device_client(handle, credential) as (connection, hello_ok):
+        with device_client(handle, credential) as (connection, _hello_ok):
             index = _rpc(connection, "runtime.media.index")
             fetch = _rpc(
                 connection, "runtime.media.get", {"handle": "sha256:" + "0" * 64}

@@ -208,7 +208,7 @@ def test_the_bound_pairing_store_lists_platforms_held_in_slots(app):
     listing was empty while the codes and approvals were there."""
     from gateway.pairing import PairingStore
 
-    root, home = app
+    root, _home = app
     FakeHostSecureStore().bind(profile="p1", store_root=root)
     store = PairingStore()
     assert store.generate_code("telegram", "u-1", "Ada")

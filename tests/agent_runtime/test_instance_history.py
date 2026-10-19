@@ -5,9 +5,9 @@ from agent_runtime import paths, serve_rpc
 from agent_runtime.call_authorization import LOCAL_CONSOLE
 from agent_runtime.gateway_identity import ensure_install_identity
 from agent_runtime.persona_chat_durability import default_persona_session_db
-from tests.agent_runtime.test_instance_conversation_owner import chat_head as chat_head
+from tests.agent_runtime.test_instance_conversation_owner import chat_head
 from tests.agent_runtime.test_serve_rpc_open_chat import (
-    PERSONA, _call, _device, qa_persona as qa_persona, placed_agent as placed_agent,
+    PERSONA, _call, _device, qa_persona, placed_agent,
 )
 
 OWNER, OTHER = "a" * 64, "b" * 64

@@ -78,6 +78,7 @@ def test_the_plugin_records_phases_spawns_the_wrapped_callable_and_sleeps(tmp_pa
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_bundle_report",
          f"--hermes-bundle-events={events}", "--hermes-diag-wrap=probe_target:Manager.discover", "test_d.py"],
         cwd=root, env=env, capture_output=True, text=True, timeout=120,
+        check=False,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
 

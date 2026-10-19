@@ -122,6 +122,7 @@ def _connect(env: dict[str, str], *args: str) -> tuple[int, dict | None, str]:
         capture_output=True,
         text=True,
         timeout=CLI_TIMEOUT_SECONDS,
+        check=False,
     )
     payload = None
     stdout = completed.stdout or ""

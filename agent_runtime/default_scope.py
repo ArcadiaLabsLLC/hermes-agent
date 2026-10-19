@@ -625,19 +625,19 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-_Scoped = TypeVar("_Scoped", Realm, Workspace, covariant=True)
+_Scoped_co = TypeVar("_Scoped_co", Realm, Workspace, covariant=True)
 
 
-class _ScopedStore(Protocol[_Scoped]):
-    def get(self, item_id: str) -> _Scoped: ...
+class _ScopedStore(Protocol[_Scoped_co]):
+    def get(self, item_id: str) -> _Scoped_co: ...
 
 
 def _get_scoped(
-    store: _ScopedStore[_Scoped],
+    store: _ScopedStore[_Scoped_co],
     item_id: str,
     *,
     include_archived: bool = False,
-) -> _Scoped | None:
+) -> _Scoped_co | None:
     """The realm or workspace ``item_id`` names in ``store``, or None when it is
     missing — or archived, unless ``include_archived``.
 

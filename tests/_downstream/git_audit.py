@@ -25,6 +25,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import itertools
 
 GIT_AUDIT_ENV = "HERMES_TEST_GIT_AUDIT"
 RECEIPT = Path(".pytest_cache") / "hermes_git_in_checkout.jsonl"
@@ -48,7 +49,7 @@ def git_directory(argv: list[str], cwd) -> Path | None:
     if not argv or Path(argv[0]).name.lower() not in ("git", "git.exe"):
         return None
     where = Path(os.fsdecode(cwd)) if cwd is not None else Path.cwd()
-    for flag, value in zip(argv[1:], argv[2:]):
+    for flag, value in itertools.pairwise(argv[1:]):
         if flag == "-C":
             where = where / value
     return where

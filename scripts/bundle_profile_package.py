@@ -119,8 +119,8 @@ BUILD_SHA_FILE = ".hermes_build_sha"
 ENGINE_PACKS_ENV = "HERMES_ENGINE_PACKS"
 ENGINE_PACKS_PTH = "hermes-engine-packs.pth"
 ENGINE_PACKS_PTH_LINE = (
-    "import os, site; [site.addsitedir(p) for p in os.environ.get(%r, '').split(os.pathsep) "
-    "if p and os.path.isdir(p)]\n" % ENGINE_PACKS_ENV)
+    f"import os, site; [site.addsitedir(p) for p in os.environ.get({ENGINE_PACKS_ENV!r}, '').split(os.pathsep) "
+    "if p and os.path.isdir(p)]\n")
 #: Files the packaging step itself writes into a site-packages (owned by no distribution).
 PACKAGER_FILES = {ENGINE_PACKS_PTH}
 PACK_MANIFEST = "engine-pack.json"

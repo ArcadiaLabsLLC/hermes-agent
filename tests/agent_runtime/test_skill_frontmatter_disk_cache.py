@@ -86,6 +86,7 @@ def _child_parses(root: Path) -> int:
     done = subprocess.run(
         [sys.executable, "-c", _CHILD, str(root)],
         cwd=str(_REPO), env=env, capture_output=True, text=True, timeout=110,
+        check=False,
     )
     assert done.returncode == 0, done.stderr[-2000:]
     return int(done.stdout.strip().splitlines()[-1])

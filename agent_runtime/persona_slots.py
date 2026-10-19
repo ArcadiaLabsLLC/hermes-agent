@@ -112,7 +112,7 @@ def set_instance_slots(instance_id: str, slots: Any, primary: Any = None, *, iss
         raise SlotAssignmentRefused(REASON_STALE_REVISION, "a newer assignment already landed")
     instance.assigned_slots = list(dict.fromkeys(slots))
     instance.primary_slot = primary or None
-    instance.slots_issued_at = datetime.fromisoformat(issued_at.replace("Z", "+00:00"))
+    instance.slots_issued_at = datetime.fromisoformat(issued_at)
     _store().update(instance)
     return show_instance_slots(instance_id)
 

@@ -588,7 +588,7 @@ def test_a_paired_device_completes_the_handshake_over_tls_with_a_pinned_cert(
     credential = pair_device(tier=TIER_CONSOLE, name="the phone")
 
     with running_serve() as handle:
-        with device_client(handle, credential) as (connection, reply):
+        with device_client(handle, credential) as (_connection, reply):
             assert reply["event"] == "hello_ok"
             assert reply["hello_contract"] == HELLO_CONTRACT_VERSION
             # The door it came through, stated — a device reading "socket" here

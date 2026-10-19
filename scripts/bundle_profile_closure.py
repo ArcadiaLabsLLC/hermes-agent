@@ -658,7 +658,7 @@ def dropped_extra_failures(manifest, graph: Graph, shipped: set[str]) -> list[st
             out.append(f"{label}: not installed, so its import without the extra is unproven")
             continue
         done = subprocess.run([sys.executable, "-c", _DROPPED_EXTRA_PROBE, json.dumps(blocked), json.dumps(tops)],
-                              capture_output=True, text=True, timeout=300, cwd=ROOT)
+                              capture_output=True, text=True, timeout=300, cwd=ROOT, check=False)
         if done.returncode != 0:
             raise RuntimeError(f"dropped-extra probe failed for {label}: {done.stderr[-2000:]}")
         failed = json.loads(done.stdout.strip().splitlines()[-1])

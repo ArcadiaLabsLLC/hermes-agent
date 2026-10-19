@@ -219,7 +219,7 @@ def attributed_turn(request, monkeypatch, capsys, isolate_agent_runtime_root, em
         bundle_module, "bundle_builds_this_thread", lambda: next(bundle_builds, 4)
     )
 
-    harness = _seed(
+    _seed(
         monkeypatch,
         _streaming_provider(profile_timing={"resident_actor_reused": 0}),
     )
@@ -315,7 +315,7 @@ def warm_turn(monkeypatch, capsys, isolate_agent_runtime_root, empty_ledger):
         "TurnPhaseMarks",
         lambda: TurnPhaseMarks(monotonic=_TickClock(), wall_now=lambda: "stamp"),
     )
-    harness = _seed(
+    _seed(
         monkeypatch,
         _streaming_provider(profile_timing={"resident_actor_reused": 1}),
     )
@@ -337,7 +337,7 @@ def unattributable_turn(monkeypatch, capsys, isolate_agent_runtime_root, empty_l
         "TurnPhaseMarks",
         lambda: TurnPhaseMarks(monotonic=_TickClock(), wall_now=lambda: "stamp"),
     )
-    harness = _seed(monkeypatch, _streaming_provider(profile_timing={}))
+    _seed(monkeypatch, _streaming_provider(profile_timing={}))
     chat_turn_message._cmd_mission_chat_message(_args("stage4_blind", stream=True))
     capsys.readouterr()
     return _record_on_disk(isolate_agent_runtime_root, "stage4_blind")[TURN_PHASES_KEY]

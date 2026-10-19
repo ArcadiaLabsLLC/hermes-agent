@@ -326,7 +326,19 @@ class StreamSession:
         # resumes from exactly that offset). A job without it would make every boot
         # wait for the prewarm and THEN pay a second full build.
         boot_job = _SnapshotBuildJob(caller=self.caller, accept_inflight=True, reason="hydrate")
-        for liveness in _build_with_liveness(
+        # These liveness frames are NOT counted toward ``emitted``, and this is the
+        # deliberate half of the ``max_frames`` decision. They are emitted while the
+        # FIRST content frame is still being built, so counting them would let a
+        # budget be spent before any core existed — a ``--max-frames 1`` request
+        # returning a heartbeat and no core. That is not hypothetical for the
+        # consumer: the launcher's forced-refresh lane
+        # (``mission_control_bridge.dart::_loadSnapshotFromStreamHydrate``, read
+        # 2026-08-18) scans stdout for a ``type == "hydrate"`` line and silently
+        # returns null when it finds none, so the refresh would no-op with no
+        # receipt. The budget counts CONTENT; the tail loop's own heartbeats
+        # below still count, because by then a core has been delivered and the
+        # consumer is being kept alive rather than kept waiting.
+        yield from _build_with_liveness(
             boot_job,
             # No applied core exists yet, so there is no position to advertise. See
             # ``heartbeat_frame``: liveness without a position must not be stamped 0.
@@ -336,20 +348,7 @@ class StreamSession:
             # ``_is_one_shot``. Suppressed rather than merely uncounted so the
             # frames a one-shot consumer sees stay exactly what it asked for.
             emit_liveness=not _is_one_shot(self.max_frames),
-        ):
-            # NOT counted toward ``emitted``, and this is the deliberate half of the
-            # ``max_frames`` decision. These frames are emitted while the FIRST
-            # content frame is still being built, so counting them would let a
-            # budget be spent before any core existed — a ``--max-frames 1`` request
-            # returning a heartbeat and no core. That is not hypothetical for the
-            # consumer: the launcher's forced-refresh lane
-            # (``mission_control_bridge.dart::_loadSnapshotFromStreamHydrate``, read
-            # 2026-08-18) scans stdout for a ``type == "hydrate"`` line and silently
-            # returns null when it finds none, so the refresh would no-op with no
-            # receipt. The budget counts CONTENT; the tail loop's own heartbeats
-            # below still count, because by then a core has been delivered and the
-            # consumer is being kept alive rather than kept waiting.
-            yield liveness
+        )
         if request_cancelled():
             return True
         return (yield from self.boot_hydrate(boot_job))

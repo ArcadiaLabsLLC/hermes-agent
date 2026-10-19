@@ -133,6 +133,7 @@ def _run_verify_command(label: str, command: list[str], *, cwd: Path) -> dict:
             encoding="utf-8",
             errors="replace",
             timeout=120,
+            check=False,
         )
         stdout = completed.stdout or ""
         stderr = completed.stderr or ""
@@ -167,6 +168,7 @@ def _git_summary(root: Path) -> dict:
                 encoding="utf-8",
                 errors="replace",
                 timeout=10,
+                check=False,
             )
         except Exception:
             return None

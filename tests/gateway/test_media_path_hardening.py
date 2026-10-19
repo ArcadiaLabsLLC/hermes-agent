@@ -36,7 +36,7 @@ def test_backslash_terminates_a_media_tag_path():
 
 
 def test_nul_path_is_dropped():
-    media, cleaned = BasePlatformAdapter.extract_media("MEDIA:/tmp/x" + chr(0) + "y.png ok")
+    media, _cleaned = BasePlatformAdapter.extract_media("MEDIA:/tmp/x" + chr(0) + "y.png ok")
     assert media == []
 
 

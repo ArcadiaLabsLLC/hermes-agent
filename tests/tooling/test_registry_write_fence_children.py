@@ -85,7 +85,7 @@ def _key_exists(path: str) -> bool:
 def _run_child(path: str, *, isolated: bool, env: dict | None, absent: bool = False) -> str:
     code = f"import sys\nsys.path.insert(0, {str(ROOT)!r})\n" + (_ABSENT if absent else "") + _CHILD
     argv = [sys.executable, *(["-I"] if isolated else []), "-c", code, path]
-    done = subprocess.run(argv, cwd=ROOT, env=env, capture_output=True, text=True, timeout=120)
+    done = subprocess.run(argv, cwd=ROOT, env=env, capture_output=True, text=True, timeout=120, check=False)
     assert done.returncode == 0, done.stderr
     return done.stdout
 

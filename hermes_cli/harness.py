@@ -35,7 +35,7 @@ from hermes_cli.harness_parts import parser as harness_tree
 from hermes_cli.harness_parts.parser import build_parser
 from hermes_cli.harness_parts.parser import lazy as harness_lazy
 
-__all__ = ["build_cli_parser", "build_parser", "emit_harness_error"]
+__all__ = ["build_cli_parser", "build_parser", "emit_harness_error"]  # noqa: F822 - emit_harness_error resolves through the module __getattr__ below
 
 
 # --- The CLI entry: what `hermes harness …` runs through (seam Stage 1) ---------

@@ -18,7 +18,7 @@ groups = [
     ('31bf01536a', 'feat(local-llama): implement owned runtime, guarded RPC and isolated inference'),
     ('34ad8ba33f', 'docs(local-llama): propose installer contracts and crash recovery'),
 ]
-if subprocess.run(['git','-C',str(ROOT),'show-ref','--verify','--quiet',BRANCH]).returncode == 0:
+if subprocess.run(['git','-C',str(ROOT),'show-ref','--verify','--quiet',BRANCH], check=False).returncode == 0:
     raise SystemExit('Review ref already exists; refuse to replace it')
 mapping=[]
 original_parent=parent

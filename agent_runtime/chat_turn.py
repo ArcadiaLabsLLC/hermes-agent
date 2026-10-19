@@ -77,7 +77,7 @@ from .chat_turn_reservations import (
 
 from agent_runtime.chat_observation_policy import chat_observation_guidance
 from agent_runtime.param_readers import read_flag, read_text
-from .operator_message import MAX_MESSAGE_LENGTH as MAX_MESSAGE_LENGTH
+from .operator_message import MAX_MESSAGE_LENGTH
 from .operator_message import OperatorMessageInvalid, normalize_operator_message
 
 __layer__ = "lanes"

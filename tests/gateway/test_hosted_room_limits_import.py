@@ -26,5 +26,5 @@ assert (l.DEFAULT_LIMITS.max_members, l.DEFAULT_LIMITS.max_rounds, l.DEFAULT_LIM
 ])
 def test_fresh_interpreter_import_order(order):
     result = subprocess.run([sys.executable, "-c", _CHECK.format(order=order)], cwd=_REPO,
-                            capture_output=True, text=True, timeout=120)
+                            capture_output=True, text=True, timeout=120, check=False)
     assert result.returncode == 0, result.stderr[-2000:]

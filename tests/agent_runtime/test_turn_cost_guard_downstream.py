@@ -84,6 +84,7 @@ from tests.agent_runtime.test_stream_turn_section import (  # (``home`` is a fix
 )
 from tests.fakes.providers import openai_responses
 from tests.fakes.providers.openai_responses import FakeResponsesServer
+import itertools
 
 MODEL = "gpt-5.6-luna"
 TURNS = 3
@@ -448,7 +449,7 @@ def _prefix_breaks(bodies: list[dict]) -> list[str]:
     and turn N's input as its own first items."""
 
     breaks = []
-    for n, (before, after) in enumerate(zip(bodies, bodies[1:])):
+    for n, (before, after) in enumerate(itertools.pairwise(bodies)):
         for key in ("tools", "instructions", "prompt_cache_key", "model", "reasoning", "include"):
             if json.dumps(before.get(key), sort_keys=True) != json.dumps(after.get(key), sort_keys=True):
                 breaks.append(f"turn {n}->{n + 1}: request {key} moved")

@@ -127,7 +127,7 @@ def _projection_age_ms(last_event_ts) -> int | None:
             ts = last_event_ts
         else:
             text = str(last_event_ts)
-            ts = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            ts = datetime.fromisoformat(text)
         current = now()
         if ts.tzinfo is None:
             ts = ts.replace(tzinfo=current.tzinfo)

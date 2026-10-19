@@ -60,7 +60,7 @@ def _num(value: Any) -> float | None:
 
 def _parse_local_stamp(text: str) -> datetime | None:
     try:
-        stamp = datetime.fromisoformat(str(text).replace("Z", "+00:00"))
+        stamp = datetime.fromisoformat(str(text))
     except ValueError:
         return None
     return stamp if stamp.tzinfo else stamp.astimezone()
@@ -335,5 +335,5 @@ def agent_logs(home: Path) -> list[Path]:
 def parse_local(text: str) -> datetime:
     """``YYYY-MM-DD HH:MM[:SS]`` in local time (or ISO with an offset), as aware UTC."""
 
-    stamp = datetime.fromisoformat(text.strip().replace("Z", "+00:00"))
+    stamp = datetime.fromisoformat(text.strip())
     return (stamp if stamp.tzinfo else stamp.astimezone()).astimezone(UTC)

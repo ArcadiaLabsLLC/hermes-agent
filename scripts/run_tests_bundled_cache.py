@@ -489,7 +489,7 @@ class TreeSnapshot:
 
 def _tool_version(argv: Sequence[str]) -> str:
     try:
-        proc = subprocess.run(list(argv), capture_output=True, text=True, timeout=20)
+        proc = subprocess.run(list(argv), capture_output=True, text=True, timeout=20, check=False)
     except (OSError, subprocess.SubprocessError):
         return "none"
     text = (proc.stdout or proc.stderr or "").strip()

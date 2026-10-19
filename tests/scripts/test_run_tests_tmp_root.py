@@ -58,6 +58,7 @@ def test_the_runner_scratch_and_the_child_temp_land_under_the_named_root(tmp_pat
         [real_bash, str(_REPO / "scripts" / "run_tests.sh"), "-j", "1", str(case)],
         cwd=str(tmp_path), capture_output=True, text=True, encoding="utf-8", errors="replace",
         env=env, timeout=280,
+        check=False,
     )
 
     assert result.returncode == 0, result.stdout[-3000:] + result.stderr[-3000:]

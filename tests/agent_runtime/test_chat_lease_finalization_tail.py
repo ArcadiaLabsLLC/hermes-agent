@@ -156,7 +156,7 @@ def test_the_root_lease_is_released_before_the_auto_title_runs(
     raises ``PersonaChatBusyError`` here exactly as it did for the operator.
     """
 
-    harness = _install_chat_lane(monkeypatch)
+    _install_chat_lane(monkeypatch)
     observed = {}
 
     def _titling_probe(**kwargs):
@@ -193,7 +193,7 @@ def test_a_second_send_on_the_same_root_succeeds_while_the_title_is_in_flight(
     at exactly the moment that failed live — no threads, no timing.
     """
 
-    harness = _install_chat_lane(monkeypatch)
+    _install_chat_lane(monkeypatch)
     follow_up = {}
 
     def _titling_sends_a_follow_up(**kwargs):
@@ -227,7 +227,7 @@ def test_a_failing_title_no_longer_marks_the_turn(
     before the title was ever attempted.
     """
 
-    harness = _install_chat_lane(monkeypatch)
+    _install_chat_lane(monkeypatch)
 
     def _boom(**kwargs):
         raise RuntimeError("title provider exhausted the fallback chain")
@@ -250,7 +250,7 @@ def test_a_failing_title_no_longer_marks_the_turn(
 def test_a_send_refused_by_a_busy_root_records_a_durable_event(
     monkeypatch, capsys, isolate_agent_runtime_root
 ):
-    harness = _install_chat_lane(monkeypatch)
+    _install_chat_lane(monkeypatch)
 
     with persona_chat_root_lease(ROOT, owner_id="held-by-the-test", observer_kind="cli"):
         assert chat_turn_message._cmd_mission_chat_message(_relay_args("cm-refused-1")) == 2
@@ -286,7 +286,7 @@ def test_the_refusal_record_never_carries_the_operator_message_text(
     pipeline, so text written here is text shipped to every consumer of it.
     """
 
-    harness = _install_chat_lane(monkeypatch)
+    _install_chat_lane(monkeypatch)
 
     with persona_chat_root_lease(ROOT, observer_kind="cli"):
         chat_turn_message._cmd_mission_chat_message(_relay_args("cm-refused-2"))
@@ -313,7 +313,7 @@ def test_the_refusal_record_satisfies_its_registered_contract(
     assert "persona_chat.send_refused" in ALLOWED_EVENT_TYPES
     assert "persona_chat.send_refused" in event_catalog()
 
-    harness = _install_chat_lane(monkeypatch)
+    _install_chat_lane(monkeypatch)
     with persona_chat_root_lease(ROOT, observer_kind="cli"):
         chat_turn_message._cmd_mission_chat_message(_relay_args("cm-refused-3"))
     capsys.readouterr()
@@ -398,7 +398,7 @@ def test_a_duplicate_of_the_running_turn_is_not_chat_busy(
     — do not resend a new id, do not resolve, re-present THIS id later.
     """
 
-    harness = _install_chat_lane(monkeypatch)
+    _install_chat_lane(monkeypatch)
     _seed_journal("cm-inflight", state)
     before = _journal_bytes()
 
@@ -429,7 +429,7 @@ def test_a_duplicate_of_the_running_turn_is_not_chat_busy(
 def test_the_duplicate_in_flight_refusal_leaves_its_own_forensics_row(
     monkeypatch, capsys, isolate_agent_runtime_root
 ):
-    harness = _install_chat_lane(monkeypatch)
+    _install_chat_lane(monkeypatch)
     _seed_journal("cm-inflight-evidence", "executing")
 
     with persona_chat_root_lease(ROOT, observer_kind="cli"):
@@ -454,7 +454,7 @@ def test_a_busy_root_running_a_DIFFERENT_message_is_still_chat_busy(
     (An operator send is queued instead: ``test_busy_root_send_queue``.)
     """
 
-    harness = _install_chat_lane(monkeypatch)
+    _install_chat_lane(monkeypatch)
     _seed_journal("cm-somebody-elses-turn", "executing")
 
     with persona_chat_root_lease(ROOT, observer_kind="cli"):
@@ -481,7 +481,7 @@ def test_a_duplicate_of_an_ANSWERED_turn_replays_read_only(
     writes a ``projection_event_emitted`` marker through the journal).
     """
 
-    harness = _install_chat_lane(monkeypatch)
+    _install_chat_lane(monkeypatch)
     _seed_journal("cm-answered", state, stored_reply="the recorded reply")
     before = _journal_bytes()
 
@@ -502,7 +502,7 @@ def test_a_duplicate_of_an_ANSWERED_turn_replays_read_only(
 def test_a_duplicate_of_an_unprovable_turn_still_routes_to_turn_resolve(
     monkeypatch, capsys, isolate_agent_runtime_root
 ):
-    harness = _install_chat_lane(monkeypatch)
+    _install_chat_lane(monkeypatch)
     _seed_journal("cm-unknown", "executing")
     from agent_runtime.mission_chat_turns import transition_mission_chat_turn
 
@@ -533,7 +533,7 @@ def test_an_UNLEASED_resend_of_an_executing_turn_keeps_todays_path(
     demand a resolve — nothing about this change relaxes it.
     """
 
-    harness = _install_chat_lane(monkeypatch)
+    _install_chat_lane(monkeypatch)
     _seed_journal("cm-orphan", "executing")
 
     assert chat_turn_message._cmd_mission_chat_message(_args("cm-orphan")) == 2

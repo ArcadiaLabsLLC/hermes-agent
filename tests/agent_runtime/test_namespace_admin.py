@@ -166,7 +166,7 @@ def test_the_cli_prints_json_and_exits_2_on_a_refusal(base: Path):
 
     def run(*args):
         return subprocess.run([sys.executable, "-m", "hermes_cli.main", "namespace", *args], cwd=REPO, env=env,
-                              capture_output=True, text=True, timeout=180)
+                              capture_output=True, text=True, timeout=180, check=False)
 
     seeded = run("seed", QA, "--from", "base")
     assert seeded.returncode == 0, seeded.stderr[-2000:]

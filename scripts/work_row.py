@@ -42,7 +42,7 @@ Git = Callable[[list[str], Path], subprocess.CompletedProcess]
 
 def run_git(args: list[str], repo: Path) -> subprocess.CompletedProcess:
     return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, encoding="utf-8",
-                          errors="replace", stdin=subprocess.DEVNULL)
+                          errors="replace", stdin=subprocess.DEVNULL, check=False)
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
