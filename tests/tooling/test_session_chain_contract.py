@@ -462,3 +462,68 @@ def test_a_run_naming_files_builds_no_node_for_a_sibling(request, tmp_path):
     assert files == {norm(named)} and norm(tmp_path / "pkg") in ancestors and norm(tmp_path) in ancestors
     assert norm(tmp_path / "pkg" / "test_sibling.py") not in files | ancestors
     assert named_scope(["pkg"], tmp_path) is None  # a directory argument: pytest's own walk
+
+
+class _BodyPatchSentinel:
+    """``tests/_downstream/body_patch_scope.py``'s subject: module state a body and a late fixture both patch."""
+
+    value = "orig"
+    late = "orig"
+    x = "orig"
+
+
+_BODY_PATCH_RAN: dict = {}
+
+
+@pytest.fixture
+def _sees_the_unpatched_value_after_yield():
+    yield
+    assert _BodyPatchSentinel.value == "orig", "a fixture's post-yield code saw the body's patch"
+
+
+@pytest.fixture
+def _late_patcher(monkeypatch):
+    monkeypatch.setattr(_BodyPatchSentinel, "late", "late")
+    yield
+    assert _BodyPatchSentinel.late == "late", "the call-end undo dropped a late fixture's own patch"
+
+
+@pytest.fixture
+def _late_x_patcher(monkeypatch):
+    monkeypatch.setattr(_BodyPatchSentinel, "x", "late")
+    yield
+
+
+@pytest.mark.body_patch_undo("on")
+def test_a_bodys_patches_are_undone_before_fixture_teardown(_sees_the_unpatched_value_after_yield, monkeypatch):
+    """``body_patch_scope._undo_body``: a body's own ``monkeypatch`` entries are undone at call end, so no
+    fixture's post-yield code runs under them (row FORK-PATCH-IN-TEARDOWN; the two instances fixed in
+    ``82e028ecdc``). Mutation: ``_undo_body`` returns before undoing (step 2) -> the fixture sees ``"stub"``."""
+    monkeypatch.setattr(_BodyPatchSentinel, "value", "stub")
+
+
+@pytest.mark.body_patch_undo("on")
+def test_a_late_fixtures_patches_survive_the_call_end_undo(request):
+    """``body_patch_scope.pytest_fixture_setup``: a fixture the body requests late pushes a range the call-end
+    undo leaves alone, so its own teardown still sees its patch. Mutation: the late-range exclusion dropped
+    (body indices = the bare tail above the base) -> red at ``_late_patcher``'s teardown."""
+    request.getfixturevalue("_late_patcher")
+    assert _BodyPatchSentinel.late == "late"
+
+
+@pytest.mark.body_patch_undo("on")
+def test_a_body_patch_under_a_late_fixtures_patch_restores_the_original(request, monkeypatch):
+    """``body_patch_scope._undo_stack``: a body patch a late fixture re-patched is not undone at call end; the
+    late entry is handed the body's old value, so the full unwind lands on the original (checked by the next
+    test). Mutation: the overlap rule removed (the body entry restored anyway) -> ``x`` ends as ``"body"``."""
+    monkeypatch.setattr(_BodyPatchSentinel, "x", "body")
+    request.getfixturevalue("_late_x_patcher")
+    assert _BodyPatchSentinel.x == "late"
+    _BODY_PATCH_RAN["overlap"] = True
+
+
+def test_a_body_patch_under_a_late_fixtures_patch_restores_the_original_afterwards():
+    """The check for the test above, after its ``monkeypatch`` unwound."""
+    if not _BODY_PATCH_RAN.get("overlap"):
+        pytest.skip("the overlap test did not run in this process")
+    assert _BodyPatchSentinel.x == "orig"

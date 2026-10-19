@@ -141,6 +141,14 @@ files whose last attempt timed out (`timed_out`) and the test count of every fil
 by reason, audit defects and flakes). Quote that line in a landing report instead of reconstructing
 timings from the log.
 
+**The diagnosis also counts tests, per file** (p10 S-A1, row `FORK-PATCH-IN-TEARDOWN`):
+`body_patches` is the tests whose body left a `monkeypatch` entry live into fixture teardown;
+`late_fixture_patches` is the tests where a fixture the body requested late (`request.getfixturevalue`)
+pushed one; `teardown_errors` is the teardown-phase errors, with up to 20 node ids. They ride
+`diagnosis.jsonl`, the `counts` block of the `runs.jsonl` line and the `=== Diagnosis ===` block. The knob
+`HERMES_TEST_BODY_PATCH_UNDO=on` (default off; `pytest.mark.body_patch_undo("on"|"off")` wins) undoes a
+body's own entries at call end, before any fixture tears down (`tests/_downstream/body_patch_scope.py`).
+
 An abnormal bundle also records `bundle_diagnostics` in that same line: original process/session
 statuses, ordered members, last observed member, failing IDs and bounded, redacted output. The
 terminal prints it even when isolated retries pass. Summary counts describe final attempts;
