@@ -257,7 +257,8 @@ know (`serve.py:1419-1632`):
    restart asks `drain_if_idle`; a refusal names its hold in `held_by`
    (`hermes_cli/harness_parts/serve/idle_drain.py::IdleDrainHold`), and a cron job running in this
    process (`cron.scheduler.get_running_job_ids()`, the set upstream's gateway drain reads) holds
-   it as `cron_job`. All
+   it as `cron_job`; a send-queue entry a scheduler fire or a platform message queued holds it as
+   `scheduled_turn` / `messaging_turn` (`idle_drain._QUEUED_TURN_HOLDS`, one row per origin). All
    of it is `agent_runtime/build_identity.py`, and the two implementations — this one and the
    launcher's Dart — are held to one answer by a byte-equal fixture hashed on both sides:
    `tests/fixtures/build_identity/code_tree_parity_tree.txt` and
@@ -717,6 +718,15 @@ child writes `booting`, `root_anchor`, `ready` and exits 1 having said nothing a
 Restoring `sys.stderr` therefore restores a channel nobody was going to print to; the uncaught arm
 writes the traceback into the service stderr log itself. A NON-service child still says nothing —
 that is unchanged behaviour, not a regression, and its parent still has the exit code and the pipe.
+
+**The messaging lane on the way down (p10-messaging M5).** The bridge
+(`agent_runtime/messaging/serve_lane.py::MessagingLane`) watches the drain between ticks: the moment
+`drain_state` is set it stops POLLING — an update its long poll still holds is dropped unhandled and
+unacknowledged, so the next serve receives it — while the settle listener stays registered, so a turn
+already queued still sends its reply. `liveness_stop` closes the bridge (listener and approval notifiers
+unregistered). It starts with the Work engine, after the scheduler, and never on the boot path: its first
+tick runs on its own thread one interval (5 s) after the boot. Absent from both bundle closures (`switched_off_modules`), off by default
+everywhere (`messaging_enabled` false). Pinned by `tests/agent_runtime/messaging/test_serve_lane.py`.
 
 ---
 

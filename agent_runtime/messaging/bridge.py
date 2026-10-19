@@ -13,7 +13,7 @@ Plan ``docs/agent-runtime-harness/planned/p10-messaging-2026-10-19.md`` §2.3. T
   one-line notice when the turn ended without one. Nothing is read from history.
 * **presses** go to the approval cards (``approvals.ApprovalCards``, M4) when the bridge has them, and are
   otherwise answered and dropped; the cards' watched roots are refreshed at start, after a bind and on
-  every inbound message (a root the launcher moved is picked up by the next message).
+  every inbound message, and on every serve-lane tick (a root the launcher moved is picked up within one tick).
 
 Receipts (``work_store.receipts.emit``): ``messaging.inbound | queued | replied | refused | bound`` — ids
 and reasons only, never message text. Pinned by ``tests/agent_runtime/messaging/test_bridge_inbound.py``.
@@ -100,11 +100,13 @@ class MessagingBridge:
 
     # ── lifecycle (the serve lane, M5, calls these) ──
 
-    def start(self) -> None:
+    def start(self, on_update: Callable[[Update], None] | None = None) -> None:
+        """Register the reply listener, watch the bound roots, start polling. ``on_update`` replaces
+        :meth:`inbound` as the transport's callback (the serve lane wraps it in its home and its drain gate)."""
         self.turns.register_origin_listener(OriginKind.MESSAGING, self.settled)
         if self.approvals is not None:
             self.approvals.refresh()
-        self.transport.start(self.inbound)
+        self.transport.start(on_update or self.inbound)
 
     def stop(self) -> None:
         self.transport.stop()

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Hermes runtime as a service (Windows Task Scheduler) — p10-messaging M5, owner RULED 2026-10-19.
+  A TEMPLATE: the operator edits the REPLACE values, then registers it once (PowerShell):
+      Register-ScheduledTask -TaskPath "\Eternia\" -TaskName "Hermes serve" -Xml (Get-Content windows-task.xml -Raw)
+  Stop it with a drain (Task Scheduler's "End" is TerminateProcess, which runs no drain):
+      hermes harness serve connect, with its drain flag (see 10-command-directory.md)
+  The serve starts with no stdin (EOF at once), detaches, and parks serving both socket lanes; there is no
+  parent pid. A second start while one runs loses the owner lock and exits 0 (serve_owner_exists).
+  Messaging runs only when plugins.entries.eternia-harness.settings.messaging_enabled is true and the bot
+  token is set (runtime.messaging.credential.set). See 09-multi-device-runtime.md § The runtime outlives the
+  launcher and 10-command-directory.md § Run the runtime as a service.
+-->
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>Hermes harness serve (Eternia runtime) as a durable service: socket lanes, Work engine, scheduler, messaging bridge.</Description>
+  </RegistrationInfo>
+  <Triggers>
+    <LogonTrigger>
+      <Enabled>true</Enabled>
+      <Delay>PT30S</Delay>
+    </LogonTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+    <RestartOnFailure>
+      <Interval>PT1M</Interval>
+      <Count>3</Count>
+    </RestartOnFailure>
+    <Hidden>false</Hidden>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <!-- REPLACE: the checkout's hermes.exe, and HERMES_HOME = the runtime's head home (profiles\base). -->
+      <Command>C:\Windows\System32\cmd.exe</Command>
+      <Arguments>/d /c set "HERMES_HOME=REPLACE-WITH-HERMES-HOME" &amp;&amp; "REPLACE-WITH-CHECKOUT\.venv\Scripts\hermes.exe" harness serve --ndjson --service &lt;NUL</Arguments>
+      <!-- REPLACE: the checkout directory. -->
+      <WorkingDirectory>REPLACE-WITH-CHECKOUT</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>

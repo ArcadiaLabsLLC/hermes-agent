@@ -15,6 +15,7 @@ transport (models): ``Transport`` — the protocol every platform transport impl
 telegram_api (lanes): ``TelegramTransport`` — Bot API long polling over ``httpx``, backoff as a table;
 bridge (lanes): ``MessagingBridge`` — inbound → a queued turn of the bound instance → the settle's reply;
 approvals (lanes): ``ApprovalCards`` — an approval on a bound root as a platform card, answered via ``respond_operator_approval``.
+serve_lane (lanes): ``start_messaging_bridge`` — the bridge as a serve lane: setting + token + drain, reconciled per tick.
 """
 
 __layer__ = "models"

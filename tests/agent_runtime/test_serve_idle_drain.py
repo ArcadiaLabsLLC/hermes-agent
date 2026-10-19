@@ -163,7 +163,7 @@ def test_unreadable_cron_registry_is_not_idle(rig, monkeypatch):
 def test_a_scheduled_turn_on_the_send_queue_holds_the_idle_drain(rig):
     # RT-SCHEDULE-TURN-RUNNING-WORK: a scheduler fire runs on the queued-send runner, outside every
     # turn table, so only its send-queue entry says it exists.
-    # MUTATION: drop `_scheduled_turn_hold()` from `claim_idle_drain` and the first request drains.
+    # MUTATION: drop `_queued_turn_hold()` from `claim_idle_drain` and the first request drains.
     from agent_runtime import chat_root_send_queue as send_queue
 
     session, owner, *_ = rig
@@ -173,4 +173,20 @@ def test_a_scheduled_turn_on_the_send_queue_holds_the_idle_drain(rig):
     assert (refusal["reason"], refusal["held_by"]) == ("busy", "scheduled_turn")
     assert session.drain_state is None and owner.capabilities()["accepting"]
     send_queue.remove("root-sched", "schedule-standup")
+    assert request(rig)["event"] == "draining"
+
+
+def test_a_messaging_turn_on_the_send_queue_holds_the_idle_drain(rig):
+    # p10-messaging: a platform message is a queued send on the bound instance's root, run by the
+    # queued-send runner outside every turn table; a stale-code restart must not drain under it.
+    # MUTATION: drop the MESSAGING_ORIGIN_KEY row from `_QUEUED_TURN_HOLDS` and the first request drains.
+    from agent_runtime import chat_root_send_queue as send_queue
+
+    session, owner, *_ = rig
+    origin = {"kind": "messaging", send_queue.MESSAGING_ORIGIN_KEY: {"platform": "telegram", "chat_id": "-1001"}}
+    send_queue.enqueue("root-tg", "msg-telegram-1000", {send_queue.ORIGIN_ARG: origin, "message": "hi"})
+    refusal = request(rig)
+    assert (refusal["reason"], refusal["held_by"]) == ("busy", "messaging_turn")
+    assert session.drain_state is None and owner.capabilities()["accepting"]
+    send_queue.remove("root-tg", "msg-telegram-1000")
     assert request(rig)["event"] == "draining"

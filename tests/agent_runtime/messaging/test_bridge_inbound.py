@@ -176,7 +176,7 @@ def test_a_settle_of_another_platform_or_no_platform_sends_nothing(rig):
 
 def test_an_unbound_chat_gets_the_roster_and_persona_binds_it(rig, monkeypatch, caplog):
     caplog.set_level("INFO")
-    monkeypatch.setattr(rpc, "_persona_instance_exists", lambda instance_id: instance_id in {"inst-alice", "inst-bob"})
+    monkeypatch.setattr(rpc, "_instance_known", lambda instance_id: instance_id in {"inst-alice", "inst-bob"})
     rig.api.push_message("hello?")
     _poll(rig)
     [roster] = rig.api.sent

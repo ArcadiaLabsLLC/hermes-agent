@@ -22,8 +22,8 @@ from .vocabulary import KIND_MESSAGING_TURN, LANE_DURABLE, SOURCE_OK, SOURCE_UNA
 __layer__ = "lanes"
 __all__ = ["MESSAGING_ORIGIN_KEY", "MessagingTurnLane", "_collect_messaging_turns"]
 
-#: The origin block the bridge writes (``work_store.persona_turn.OriginKind.MESSAGING``).
-MESSAGING_ORIGIN_KEY = "messaging"
+#: The origin block the bridge writes (``work_store.persona_turn.OriginKind.MESSAGING``); owned by the send queue.
+MESSAGING_ORIGIN_KEY = send_queue.MESSAGING_ORIGIN_KEY
 
 
 class MessagingTurnLane(LanePass):

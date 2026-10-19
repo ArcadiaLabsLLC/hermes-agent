@@ -1,6 +1,8 @@
 """``runtime.messaging.*`` — the messaging stores' verbs (p10-messaging §3 M1).
 
-``status`` is ``read``; every write is ``console``; ``credential.set|clear`` are also in
+``status`` is ``read``; every write is ``console`` — ``platform.enable|disable`` (M5) write the harness
+setting ``messaging_enabled`` and wake the running serve's lane (``serve_lane.poke``), which starts or
+stops polling within one tick; ``status`` reports each platform's ``lane`` state; ``credential.set|clear`` are also in
 ``call_authorization.LOCAL_CONSOLE_METHODS`` — a bot token is written only from this machine's own
 console, never by a paired device. Each verb is one row of :data:`OPS`; the bridge (M3) calls the same
 service functions through :func:`execute`, so a platform-side ``/persona`` writes the binding the
@@ -19,7 +21,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from ..call_authorization import TIER_CONSOLE, TIER_READ
-from ..harness_settings import harness_setting
+from ..harness_settings import PLUGIN_ID, harness_setting
 from ..serve_rpc.protocol import ERR_HANDLER_FAILED, ERR_INVALID_PARAMS, ERR_NOT_FOUND, err, ok
 from ..work_store.receipts import emit
 from . import credentials
@@ -44,7 +46,7 @@ def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
 
-def _persona_instance_exists(instance_id: str) -> bool:
+def _instance_known(instance_id: str) -> bool:
     try:
         from ..persona_assignments.store import PersonaInstanceStore
 
@@ -65,6 +67,7 @@ def status(_params: Mapping[str, Any], _by: str) -> dict[str, Any]:
         "platforms": {
             platform.value: {
                 "credential": credentials.credential_state(platform),
+                "lane": _lane(platform),
                 "bindings": sum(1 for b in bindings if b.platform is platform),
                 "operators": sum(1 for o in operators if o.platform is platform),
             }
@@ -73,11 +76,44 @@ def status(_params: Mapping[str, Any], _by: str) -> dict[str, Any]:
     }
 
 
+def _lane(platform: Platform) -> dict[str, Any]:
+    from .serve_lane import lane_state
+
+    return lane_state(platform)
+
+
+def _write_enabled(enabled: bool) -> None:
+    """``plugins.entries.eternia-harness.settings.messaging_enabled`` through hermes's own config writer."""
+    from hermes_cli.config import load_config, save_config
+
+    config = load_config()
+    node: dict[str, Any] = config
+    for segment in ("plugins", "entries", PLUGIN_ID, "settings"):
+        child = node.get(segment)
+        if not isinstance(child, dict):
+            child = node[segment] = {}
+        node = child
+    node["messaging_enabled"] = enabled
+    save_config(config)
+
+
+def _platform_switch(enabled: bool) -> Callable[[Mapping[str, Any], str], dict[str, Any]]:
+    def switch(params: Mapping[str, Any], by: str) -> dict[str, Any]:
+        platform = platform_of(params.get("platform") or Platform.TELEGRAM.value)
+        _write_enabled(enabled)
+        from .serve_lane import poke
+
+        poke()
+        emit("messaging.platform.enabled" if enabled else "messaging.platform.disabled", platform=platform.value, by=by)
+        return {"platform": platform.value, "enabled": enabled, "lane": _lane(platform)}
+    return switch
+
+
 def _binding_set(params: Mapping[str, Any], by: str) -> dict[str, Any]:
     platform = platform_of(params.get("platform"))
     chat_id, thread_id = chat_key(params.get("chat_id"), params.get("thread_id"))
     instance_id = field_text(params.get("persona_instance_id"), "persona_instance_id")
-    if not _persona_instance_exists(instance_id):
+    if not _instance_known(instance_id):
         raise MessagingRefused(Reason.UNKNOWN_INSTANCE, "persona_instance_id")
     binding = BindingStore().set(Binding(platform, chat_id, thread_id, instance_id, by, _now()))
     emit("messaging.binding.set", platform=platform.value, chat_id=chat_id, thread_id=thread_id,
@@ -144,6 +180,8 @@ OPS: dict[str, tuple[str, Callable[[Mapping[str, Any], str], dict[str, Any]]]] =
     "operator.list": (TIER_CONSOLE, _operator_list),
     "credential.set": (TIER_CONSOLE, _credential_set),
     "credential.clear": (TIER_CONSOLE, _credential_clear),
+    "platform.enable": (TIER_CONSOLE, _platform_switch(True)),
+    "platform.disable": (TIER_CONSOLE, _platform_switch(False)),
 }
 
 TIERS: dict[str, str] = {METHOD_PREFIX + op: tier for op, (tier, _fn) in OPS.items()}
@@ -157,7 +195,7 @@ def execute(op: str, params: Mapping[str, Any] | None, *, by: str) -> dict[str, 
     return row[1](dict(params or {}), by)
 
 
-def _messaging_reply(rid: Any, op: str, params: Any, by: str) -> dict:
+def _rpc_reply(rid: Any, op: str, params: Any, by: str) -> dict:
     try:
         return ok(rid, execute(op, params if isinstance(params, Mapping) else {}, by=by))
     except MessagingRefused as refusal:
@@ -171,7 +209,7 @@ def _messaging_reply(rid: Any, op: str, params: Any, by: str) -> dict:
 def _handler(op: str):
     def handle(rid, params, context=None):
         caller = getattr(context, "caller", None)
-        return _messaging_reply(rid, op, params, f"rpc:{getattr(caller, 'kind', 'unknown')}")
+        return _rpc_reply(rid, op, params, f"rpc:{getattr(caller, 'kind', 'unknown')}")
     return handle
 
 

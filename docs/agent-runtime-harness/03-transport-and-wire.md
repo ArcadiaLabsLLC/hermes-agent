@@ -1879,6 +1879,32 @@ on a row another claimant holds is refused `already_taken`, a multi-row assignme
 The persona tool is `schedule_manage`, in the opt-in `schedule` toolset (never `harness_core`). Receipts:
 `schedule.arm | disarm | fire | queued | abandoned`.
 
+### Messaging methods — the headless persona gateway (p10-messaging)
+
+`runtime.messaging.*` (`agent_runtime/messaging/rpc.py::OPS`, one row per op, registered lazily by
+`serve_rpc/registry.py::_ensure_messaging_methods` only where `agent_runtime.messaging` ships — both bundle
+manifests switch it off). `status` (read) answers `{enabled, default_persona, platforms: {telegram:
+{credential: present|absent, bindings, operators, lane: {state: running|off|draining, reason}}}}`; the token
+itself is never on a reply, a receipt or a log. Console: `binding.set|clear|list` (a platform chat POINTS AT a
+persona instance; the session is always the instance's current chat root), `operator.allow|revoke|list`
+(unknown platform users are dropped fail-closed), `credential.set|clear` (also `LOCAL_CONSOLE_METHODS`: a
+paired device never writes the bot token), and `platform.enable|disable` (`{platform?}` → `{platform,
+enabled, lane}`), which write `plugins.entries.eternia-harness.settings.messaging_enabled` through
+`hermes_cli.config.save_config` and wake the running serve's lane, which converges within one tick — read
+`status` for the result. Refusals: `invalid_request` / `unknown_platform` / `token_invalid` (-32602),
+`unknown_instance` (4001), else `messaging_unavailable` (-32000), each with `data.reason`.
+
+The bridge is a serve lane (`agent_runtime/messaging/serve_lane.py::start_messaging_bridge`, started by
+`queued_turns.start_serve_work_engine` after the scheduler, on the same executor): a platform runs while the
+setting is true, its token is present and no drain has begun, else it is `off` with a typed `LaneReason`
+(`disabled`, `credential_absent`, `start_failed`, `not_serving`) — a missing token is reported, never raised.
+An inbound message is a QUEUED send (`PersonaTurnExecutor.queue_inbound`, cmid `msg-<platform>-<update_id>`,
+origin kind `messaging`), so it shows as a `running_work` row of kind `messaging_turn` and its settle carries
+the reply; an exec approval on any bound root becomes a platform card answered through
+`respond_operator_approval`, the launcher's own resolve. Receipts: `messaging.inbound | queued | replied |
+refused | bound | lane | approval_card | approval_answered`. Plan and remaining stages:
+[p10-messaging](planned/p10-messaging-2026-10-19.md).
+
 ### Conversation-scoped Work
 
 `agent_runtime/work/context.py` resolves optional `conversation` references through existing

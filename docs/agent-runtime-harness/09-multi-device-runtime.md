@@ -234,6 +234,17 @@ argv exits are three frames so only a true parse failure is ever replayed
 (RL-24; 03 §1). Acceptance: `tests/agent_runtime/test_serve_service_mode.py`,
 `test_serve_socket_child_e2e.py`, `test_serve_request_silence.py`.
 
+**Started by the OS instead of a launcher (p10-messaging M5, owner RULED 2026-10-19).** v1's service is a
+documented template, not an installer: [Task Scheduler](reference/service/windows-task.xml),
+[`systemd --user`](reference/service/hermes-serve.service) and [launchd](reference/service/com.eternia.hermes-serve.plist)
+each start `hermes harness serve --ndjson --service` with stdin closed and NO `--parent-pid` (nothing owns a
+service), and stop it with `serve connect --drain` where the OS cannot signal one (pinned by
+`tests/agent_runtime/messaging/test_service_templates.py`). Such a runtime is what the messaging bridge is
+for: with `messaging_enabled` and a bot token it answers Telegram while no launcher runs, and a launcher that
+later attaches sees those turns as `messaging_turn` rows and in the same chat history, because they ran on
+the same chat roots. The installer (`hermes harness service install`) and a `headless-service` bundle
+profile are M7, after one live week.
+
 ### A local realm's personal repo
 
 A server-less realm syncs through the player's ONE personal repo, a subtree per
