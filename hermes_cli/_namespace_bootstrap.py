@@ -1,4 +1,4 @@
-"""Fork-owned, stdlib only: ``HERMES_NAMESPACE`` -> a namespace root, resolved before any hermes module imports.
+"""Fork-owned, stdlib + ``hermes_constants``: ``HERMES_NAMESPACE`` -> a namespace root, resolved early.
 
 Plan: ``EterniaLauncher/docs/embedded_hermes/planned/ONE_HERMES_INSTALL_PROFILE_NAMESPACE_2026-10-19.md``
 §2.1-2.2, §2.8, §4 H1/H1c, §6 Q9 (rows ``RT-NAMESPACE-ROOT``, ``-ID-CHARSET``, ``-PATH-BUDGET``,
@@ -8,8 +8,9 @@ complete Hermes data root (profiles, agent-runtime, shared DBs, auth, pairing, s
 never inside it — that borrows the base install read-only.
 
 It lives here, beside ``_profile_bootstrap``, and not under ``agent_runtime``: ``main.py`` runs it
-before any hermes module is importable (modules cache ``HERMES_HOME`` at import), and importing
-``agent_runtime`` costs ~0.4 s of models. ``agent_runtime.namespace`` holds the runtime half
+before the app's modules import (they cache ``HERMES_HOME`` at import), and importing
+``agent_runtime`` costs ~0.4 s of models. Its one non-stdlib import is ``hermes_constants``' root
+authority, which ``_apply_profile_override`` already imports at the same moment. ``agent_runtime.namespace`` holds the runtime half
 (the store-root isolation assertion, the admin verbs) and imports this module.
 
 The rules, each pinned by ``tests/hermes_cli/test_namespace_bootstrap.py``:
@@ -132,13 +133,6 @@ def namespace_stamp(env: Mapping[str, str] | None = None) -> str:
     return "" if raw in ("", BASE_ID) else raw
 
 
-def platform_default_home(env: Mapping[str, str]) -> Path:
-    if sys.platform == "win32":
-        local = str(env.get("LOCALAPPDATA") or "").strip()
-        return (Path(local).expanduser() if local else Path.home() / "AppData" / "Local") / "hermes"
-    return Path.home() / ".hermes"
-
-
 def _norm(path: Path | str) -> str:
     return os.path.normcase(os.path.realpath(os.fspath(path)))
 
@@ -157,14 +151,11 @@ def base_root(env: Mapping[str, str]) -> Path:
         if not path.is_absolute():
             raise NamespaceRefused(Reason.BASE_UNKNOWN, f"{DEPENDENCY_ENV} must be absolute, got {lender!r}")
         return path
-    native = platform_default_home(env)
-    home = str(env.get("HERMES_HOME") or "").strip()
-    if not home:
-        return native
-    path = Path(home).expanduser()
-    if is_inside(path, native):
-        return native
-    return path.parent.parent if path.parent.name == "profiles" else path
+    # The one root authority (``_apply_profile_override`` imports it for ``active_profile`` too):
+    # <root>/profiles/<p> -> <root>, a home under the platform home -> the platform home.
+    from hermes_constants import get_default_hermes_root
+
+    return Path(get_default_hermes_root(home=str(env.get("HERMES_HOME") or "").strip()))
 
 
 def namespaces_dir(env: Mapping[str, str], base: Path) -> Path:
