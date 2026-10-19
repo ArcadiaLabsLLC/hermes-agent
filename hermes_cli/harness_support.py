@@ -97,6 +97,11 @@ ERROR_EXIT_CODES = {
     "invalid_request": 2,
     "invalid_payload": 2,
     "invalid_isolation": 2,
+    # A namespaced process resolved a store/home path outside its own namespace
+    # (``agent_runtime.namespace.NamespaceIsolationViolation``). Family 2 beside
+    # invalid_isolation: the fault is the environment the caller handed over, and
+    # the identical command refuses identically until that changes.
+    "namespace_isolation": 2,
     # `harness skills delete` refusals (SkillTombstoneRefused). Family 2 because
     # the fault is in the REQUEST and the operator's next move is to change what
     # they typed: a malformed slug is retyped, and an installer-owned id is

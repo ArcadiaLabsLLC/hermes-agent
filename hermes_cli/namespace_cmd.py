@@ -49,7 +49,7 @@ _RUNNERS = {
 }
 
 
-def _parser() -> argparse.ArgumentParser:
+def _namespace_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="hermes namespace", description="Hermes data namespaces.")
     verbs = parser.add_subparsers(dest="verb", required=True)
     probe = verbs.add_parser("probe", help="capability check: exit 0 + JSON (namespaces dir, root, budget)")
@@ -64,7 +64,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = _parser().parse_args(list(sys.argv[2:] if argv is None else argv))
+    args = _namespace_parser().parse_args(list(sys.argv[2:] if argv is None else argv))
     try:
         _emit(_RUNNERS[args.verb](args))
     except ns.NamespaceRefused as exc:

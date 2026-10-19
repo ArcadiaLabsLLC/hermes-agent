@@ -84,7 +84,7 @@ def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
 
-def _manifest(item: Layout) -> dict[str, Any] | None:
+def _namespace_manifest(item: Layout) -> dict[str, Any] | None:
     try:
         record = json.loads(item.manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -101,7 +101,7 @@ def _write_manifest(item: Layout, record: dict[str, Any]) -> None:
 def _existing(ns_id: str, env: Mapping[str, str]) -> Layout:
     """A namespace that provably exists (its manifest names it) — never an arbitrary directory."""
     item = layout(ns_id, env)
-    if _manifest(item) is None:
+    if _namespace_manifest(item) is None:
         raise NamespaceRefused(Reason.NOT_FOUND, f"no namespace {ns_id!r} at {item.root} (no {MANIFEST_NAME})")
     return item
 
@@ -240,7 +240,7 @@ def seed(target_id: str, source: str, env: Mapping[str, str]) -> dict[str, Any]:
     if bad:
         raise NamespaceRefused(Reason.SEED_SOURCE, f"the seed allowlist names never-seed entries {bad}; nothing copied")
     ensure_manifest(item)
-    manifest = _manifest(item) or {}
+    manifest = _namespace_manifest(item) or {}
     if manifest.get("seeded_at"):
         raise NamespaceRefused(Reason.ALREADY_SEEDED,
                                f"{item.id!r} was seeded from {manifest.get('seeded_from')!r} at {manifest['seeded_at']}; "
@@ -265,7 +265,7 @@ def seed(target_id: str, source: str, env: Mapping[str, str]) -> dict[str, Any]:
     return {"ok": True, "verb": "seed", "id": item.id, "from": source, "copied": copied, "skipped": skipped}
 
 
-def _size(root: Path) -> int:
+def _namespace_bytes(root: Path) -> int:
     total = 0
     for folder, dirs, files in os.walk(root):
         dirs[:] = [d for d in dirs if not os.path.islink(os.path.join(folder, d))]
@@ -296,12 +296,12 @@ def list_namespaces(env: Mapping[str, str]) -> dict[str, Any]:
             item = layout(validate_id(entry.name), env, long_paths=True)
         except NamespaceRefused:
             continue
-        manifest = _manifest(item)
+        manifest = _namespace_manifest(item)
         if manifest is None:
             continue
         rows.append({
             "id": item.id, "kind": "account" if ACCOUNT_ID.fullmatch(item.id) else "profile", "root": str(item.root),
-            "size_bytes": _size(item.root), "last_serve_at": _last_serve(item), "busy": busy_reason(item),
+            "size_bytes": _namespace_bytes(item.root), "last_serve_at": _last_serve(item), "busy": busy_reason(item),
             "created_at": manifest.get("created_at"), "seeded_from": manifest.get("seeded_from"),
         })
     return {"ok": True, "verb": "list", "base_root": str(base), "namespaces_dir": str(folder), "namespaces": rows}
