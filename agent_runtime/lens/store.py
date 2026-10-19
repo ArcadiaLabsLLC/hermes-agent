@@ -7,7 +7,8 @@ that same process.
 Tables: ``monitors`` (state, the sealed body + digest + revision, the open draft),
 ``observations`` (raw; a recorded gap is a row with ``value`` NULL and a typed
 ``reason``), ``rollups`` (one row per feed-minute, written by retention),
-``episodes`` (the Episode JSON by id).
+``episodes`` (the Episode JSON by id), ``receipts`` (one per Episode the exit
+door admitted: the forged turn's identity, outcome and artifacts; stage L2).
 
 Monitor lifecycle: ``create`` writes a DRAFT (a validated manifest, not yet
 running); ``seal`` freezes the draft as the next revision; ``enable`` / ``pause``
@@ -24,7 +25,7 @@ import json
 import sqlite3
 import threading
 from contextlib import contextmanager
-from datetime import datetime, timezone, UTC
+from datetime import datetime, timedelta, timezone, UTC
 from enum import Enum
 from pathlib import Path
 from typing import Any, Iterator
@@ -38,6 +39,8 @@ from .wire_value import canonical_bytes
 __layer__ = "stores"
 
 MAXIMUM_MONITORS = 64
+#: Receipts are refused past this many, never made room for by eviction (W13).
+MAXIMUM_RECEIPTS = 50_000
 _LOCK = threading.RLock()
 
 _SCHEMA = """
@@ -59,6 +62,11 @@ CREATE TABLE IF NOT EXISTS episodes (
   id TEXT PRIMARY KEY, monitor_id TEXT NOT NULL, rule_id TEXT NOT NULL, ordinal INTEGER NOT NULL,
   state TEXT NOT NULL, body TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS episodes_by_rule ON episodes (monitor_id, rule_id, ordinal);
+CREATE TABLE IF NOT EXISTS receipts (
+  episode_id TEXT PRIMARY KEY, monitor_id TEXT NOT NULL, turn_id TEXT NOT NULL, session_id TEXT,
+  started_ms INTEGER NOT NULL, finished_ms INTEGER, outcome TEXT NOT NULL,
+  artifact_handles TEXT NOT NULL DEFAULT '[]', files TEXT NOT NULL DEFAULT '[]', tool_admission TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS receipts_by_monitor ON receipts (monitor_id, started_ms);
 """
 
 
@@ -75,6 +83,32 @@ class StoreRefusal(str, Enum):
     NO_DRAFT = "no_draft"
     NOT_SEALED = "not_sealed"
     RETIRED = "monitor_retired"
+    RECEIPT_NOT_FOUND = "receipt_not_found"
+    RECEIPTS_FULL = "receipts_full"
+
+
+#: The refusals a reader answers as "not found" (the rest are conflicts).
+NOT_FOUND_REFUSALS = frozenset({StoreRefusal.NOT_FOUND, StoreRefusal.RECEIPT_NOT_FOUND})
+
+
+class ReceiptOutcome(str, Enum):
+    """How the exit door settled one Episode (plan p10-agent §5.2 decision 6).
+
+    ``forging`` is the receipt written BEFORE the turn runs; the turn's end moves it
+    to ``forged`` or ``forge_failed:<reason>`` (:data:`FORGE_FAILED_PREFIX`)."""
+
+    FORGING = "forging"
+    FORGED = "forged"
+    NOTIFIED = "notified"
+    SKIPPED_SEVERITY = "skipped_severity"
+    CAPPED = "capped"
+
+
+FORGE_FAILED_PREFIX = "forge_failed:"
+#: The outcomes ``daily_turn_cap`` counts: a turn run, running, or a notification sent.
+CAPPED_OUTCOMES = (ReceiptOutcome.FORGING.value, ReceiptOutcome.FORGED.value, ReceiptOutcome.NOTIFIED.value)
+_RECEIPT_COLUMNS = ("episode_id", "monitor_id", "turn_id", "session_id", "started_ms", "finished_ms", "outcome",
+                    "artifact_handles", "files", "tool_admission")
 
 
 class LensStoreError(ValueError):
@@ -305,3 +339,92 @@ class LensStore:
         with self._db() as conn:
             rows = conn.execute(sql, args).fetchall()
         return [json.loads(row[0]) for row in rows]
+
+    # --- receipts -------------------------------------------------------------
+
+    def save_receipt(self, receipt: dict[str, Any], *, episode: Episode | None = None) -> bool:
+        """Insert ``receipt`` (and ``episode``, in the SAME transaction). False when the
+        Episode already has one: a receipt is written once, so a turn is forged once."""
+
+        row = _receipt_row(receipt)
+        with self._db() as conn:
+            if conn.execute("SELECT 1 FROM receipts WHERE episode_id = ?", (row[0],)).fetchone() is not None:
+                return False
+            if conn.execute("SELECT COUNT(*) FROM receipts").fetchone()[0] >= MAXIMUM_RECEIPTS:
+                raise LensStoreError(StoreRefusal.RECEIPTS_FULL)
+            conn.execute(f"INSERT INTO receipts ({', '.join(_RECEIPT_COLUMNS)}) VALUES "
+                         f"({', '.join('?' * len(_RECEIPT_COLUMNS))})", row)
+            if episode is not None:
+                conn.execute("INSERT OR REPLACE INTO episodes VALUES (?, ?, ?, ?, ?, ?)",
+                             (episode.id, episode.monitor_id, episode.rule_id, episode.ordinal, episode.state.value,
+                              json.dumps(episode.to_json(), sort_keys=True)))
+        return True
+
+    def finish_receipt(self, episode_id: str, *, outcome: str, finished_ms: int, session_id: str | None = None,
+                       artifact_handles: list[dict[str, Any]] = (), files: list[dict[str, Any]] = ()) -> dict[str, Any]:
+        """Settle a ``forging`` receipt with what the turn left."""
+
+        with self._db() as conn:
+            updated = conn.execute(
+                "UPDATE receipts SET outcome = ?, finished_ms = ?, session_id = ?, artifact_handles = ?, files = ? "
+                "WHERE episode_id = ?",
+                (str(outcome), int(finished_ms), session_id, json.dumps(list(artifact_handles), sort_keys=True),
+                 json.dumps(list(files), sort_keys=True), episode_id)).rowcount
+        if not updated:
+            raise LensStoreError(StoreRefusal.RECEIPT_NOT_FOUND)
+        return self.receipt(episode_id)
+
+    def receipt(self, episode_id: str) -> dict[str, Any]:
+        with self._db() as conn:
+            row = conn.execute(f"SELECT {', '.join(_RECEIPT_COLUMNS)} FROM receipts WHERE episode_id = ?",
+                               (episode_id,)).fetchone()
+        if row is None:
+            raise LensStoreError(StoreRefusal.RECEIPT_NOT_FOUND)
+        return _receipt_json(row)
+
+    def has_receipt(self, episode_id: str) -> bool:
+        if not self.exists():
+            return False
+        with self._db() as conn:
+            return conn.execute("SELECT 1 FROM receipts WHERE episode_id = ?", (episode_id,)).fetchone() is not None
+
+    def receipts(self, *, monitor_id: str | None = None, limit: int = 32) -> list[dict[str, Any]]:
+        """Newest first."""
+
+        if not self.exists():
+            return []
+        sql, args = f"SELECT {', '.join(_RECEIPT_COLUMNS)} FROM receipts", []
+        if monitor_id is not None:
+            sql, args = sql + " WHERE monitor_id = ?", [monitor_id]
+        with self._db() as conn:
+            rows = conn.execute(sql + " ORDER BY started_ms DESC, episode_id LIMIT ?", [*args, int(limit)]).fetchall()
+        return [_receipt_json(row) for row in rows]
+
+    def receipts_today(self, monitor_id: str, now: datetime) -> int:
+        """Receipts that spent this monitor's ``daily_turn_cap`` on ``now``'s UTC day."""
+
+        if not self.exists():
+            return 0
+        day = now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        start, end = to_ms(day), to_ms(day + timedelta(days=1))
+        with self._db() as conn:
+            return int(conn.execute(
+                f"SELECT COUNT(*) FROM receipts WHERE monitor_id = ? AND started_ms >= ? AND started_ms < ? "
+                f"AND outcome IN ({', '.join('?' * len(CAPPED_OUTCOMES))})",
+                (monitor_id, start, end, *CAPPED_OUTCOMES)).fetchone()[0])
+
+
+def _receipt_row(receipt: dict[str, Any]) -> tuple[Any, ...]:
+    values = dict(receipt)
+    values["artifact_handles"] = json.dumps(list(values.get("artifact_handles") or []), sort_keys=True)
+    values["files"] = json.dumps(list(values.get("files") or []), sort_keys=True)
+    values.setdefault("session_id", None)
+    values.setdefault("finished_ms", None)
+    return tuple(values[column] for column in _RECEIPT_COLUMNS)
+
+
+def _receipt_json(row: tuple[Any, ...]) -> dict[str, Any]:
+    out = dict(zip(_RECEIPT_COLUMNS, row))
+    out["artifact_handles"] = json.loads(out["artifact_handles"])
+    out["files"] = json.loads(out["files"])
+    return {"version": 1, **out}

@@ -1,6 +1,6 @@
 """The Lens FOLD: what Mission Control paints — open Episodes, latest value per
-enabled feed, the watcher's state, and the last turn receipt (stage L2; ``None``
-until the exit door lands).
+enabled feed, the watcher's state, and the exit door's newest receipt
+(``last_receipt``, stage L2; ``None`` until the first Episode is admitted).
 
 Plan ``eternia-lens-in-hermes.md`` §3 (``snapshot_fold.py``). Read-only and
 bounded; it never creates the store (a home with no Lens answers the empty fold).
@@ -68,6 +68,6 @@ def lens_fold(store: LensStore | None = None) -> dict[str, Any]:
         "monitors_enabled": len(enabled),
         "open_episodes": store.episodes(states=_OPEN, limit=MAXIMUM_OPEN_EPISODES),
         "latest": latest,
-        "last_receipt": None,
+        "last_receipt": next(iter(store.receipts(limit=1)), None),
         "watcher": watcher_state(),
     }

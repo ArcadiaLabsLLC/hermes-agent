@@ -22,7 +22,7 @@ from ..mission_chat_turns.reads import (
 )
 from ..mission_chat_turns.states import TERMINAL_TURN_STATES
 from ..serde import safe_assignment_text, safe_assignment_token
-from ..relay_policy import parse_harness_delivery_marker, parse_relay_sender_marker
+from ..relay_policy import parse_harness_delivery_marker, parse_lens_episode_marker, parse_relay_sender_marker
 from ..runtime_hud.envelopes import (
     extract_runtime_context_envelope,
     extract_skill_preload_envelope,
@@ -45,6 +45,7 @@ from .vocabulary import (
     CHAT_REDACTION_UNKNOWN,
     PERSONA_CHAT_MESSAGE_TEXT_LIMIT,
     PERSONA_HARNESS_DELIVERY_KIND,
+    PERSONA_LENS_EPISODE_KIND,
     PERSONA_PRE_TRACE_ACK_FINISH_REASON,
     PERSONA_PRE_TRACE_ACK_KIND,
     PERSONA_RELAYED_MESSAGE_KIND,
@@ -213,12 +214,18 @@ class _OperatorCurator:
         # already left every live projection.
         raw = ctx.raw
         delivery = parse_harness_delivery_marker(raw.get("finish_reason"))
+        lens = None if delivery is not None else parse_lens_episode_marker(raw.get("finish_reason"))
         relay_sender = (
             None
-            if delivery is not None
+            if delivery is not None or lens is not None
             else parse_relay_sender_marker(raw.get("finish_reason"))
         )
-        if delivery is not None:
+        if lens is not None:
+            # LENS ATTRIBUTION: the opening row of an Episode's forged chat; the
+            # watcher sent it (plan p10-agent §5.2 decision 3).
+            row["kind"] = PERSONA_LENS_EPISODE_KIND
+            row["lens_episode_id"] = lens.episode_id
+        elif delivery is not None:
             row["kind"] = PERSONA_HARNESS_DELIVERY_KIND
             row["delivery_dispatch_id"] = delivery.dispatch_id
             row["delivery_notify_operator"] = delivery.notify_operator

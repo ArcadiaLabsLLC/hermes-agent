@@ -36,7 +36,7 @@ def _manifest() -> dict:
             "direction": "above", "threshold": 90, "recovery_threshold": 80, "window_ms": 300000, "samples": 1,
         }],
         "automation": {"level": "investigate", "when": "urgent", "daily_turn_cap": 4},
-        "persona_id": None,
+        "persona_id": "analyst",
     }
 
 
