@@ -251,7 +251,7 @@ def _cmd_gateway_rename(args) -> int:
             announce_in_background(
                 root, {"display_name": identity.display_name}
             )
-        except Exception:  # noqa: BLE001 — courtesy channel, never the write
+        except Exception:  # courtesy channel, never the write
             pass
 
     envelope = attach_root_observability(_object_envelope("gateway_install", row))

@@ -101,7 +101,7 @@ def persona_session_db_scope():
         if session_db is not None:
             try:
                 session_db.close()
-            except Exception:  # noqa: BLE001 — a build must not fail on release
+            except Exception:  # a build must not fail on release
                 logger.debug("closing the projection chat SessionDB failed", exc_info=True)
 
 

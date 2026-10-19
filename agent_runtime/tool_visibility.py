@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from functools import lru_cache
 import hashlib
 import json
@@ -336,7 +336,7 @@ def resolve_tool_visibility(
         role=str(role.value if hasattr(role, "value") else role),
         declaration=declaration,
     )
-    resolved_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    resolved_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     resolution_id = _tool_resolution_id(
         persona_id=persona.id,
         permission_mode=opts.permission_mode,

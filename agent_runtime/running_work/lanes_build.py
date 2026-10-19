@@ -95,7 +95,7 @@ def _census() -> Any:
 
     try:
         return slot_census()
-    except Exception:  # noqa: BLE001 — no slot store is "no slot", typed per row as slot_unresolved
+    except Exception:  # no slot store is "no slot", typed per row as slot_unresolved
         return SlotCensus(0, ())
 
 
@@ -212,7 +212,7 @@ class BuildLane(LanePass):
         if session is None:
             facts.liveness, facts.progress_signal = LIVENESS_LIVE, PROGRESS_SIGNAL_NONE
             return
-        with session._lock:  # noqa: SLF001 — the buffer's only guard, read-only
+        with session._lock:  # the buffer's only guard, read-only
             buffered, total = session.output_buffer or "", int(getattr(session, "total_output_chars", 0) or 0)
         recognizer = FlutterRecognizer(cwd=facts.project_root)
         recognizer.feed(buffered, seen_at=self.now)
@@ -235,7 +235,7 @@ class BuildLane(LanePass):
             return [], _sub(SOURCE_UNAVAILABLE, SUB_REASON_REGISTRY_UNREADABLE, detail="home_unresolved")
         try:
             files, error = build_registry.read_records(head / BUILD_REGISTRY_DIRNAME)
-        except Exception as exc:  # noqa: BLE001 — "I could not look" is a typed sub-health
+        except Exception as exc:  # "I could not look" is a typed sub-health
             files, error = [], type(exc).__name__
         if error:
             return [], _sub(SOURCE_UNAVAILABLE, SUB_REASON_REGISTRY_UNREADABLE, detail=error)
@@ -357,7 +357,7 @@ def _registry_session(registry: Any, session_id: str) -> Any:
         return None
     try:
         return registry.process_registry.get(session_id)
-    except Exception:  # noqa: BLE001 — a registry that cannot answer owns nothing here
+    except Exception:  # a registry that cannot answer owns nothing here
         return None
 
 

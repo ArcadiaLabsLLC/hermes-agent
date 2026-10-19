@@ -208,7 +208,7 @@ class RunBudgetLedger:
     Never raises. Accounting that can fail a turn is worse than no accounting.
     """
 
-    __slots__ = ("_lock", "_entries", "_order", "_trips")
+    __slots__ = ("_entries", "_lock", "_order", "_trips")
 
     def __init__(self) -> None:
         self._lock = threading.RLock()

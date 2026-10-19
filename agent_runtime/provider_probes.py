@@ -39,7 +39,7 @@ def probe_runtime_provider(
     *,
     requested: Optional[str] = None,
     target_model: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Resolve credentials to LEARN whether they resolve — never to spend them.
 
     Identical resolution to :func:`resolve_runtime_provider` (same providers,

@@ -8,7 +8,7 @@ calls; this module holds no rule of its own. ``bind`` writes ``roots.<slot>`` th
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 
 from hermes_cli.flag_binding import list_flag_or_empty
@@ -26,7 +26,7 @@ __all__ = [
 
 
 def _issued_at(args) -> str:
-    return str(getattr(args, "issued_at", None) or datetime.now(timezone.utc).isoformat())
+    return str(getattr(args, "issued_at", None) or datetime.now(UTC).isoformat())
 
 
 def _pairs(values, name: str) -> dict[str, str]:

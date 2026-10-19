@@ -174,7 +174,7 @@ def plugin_roots(manifest) -> tuple[str, ...]:
 
 
 def profile_walk(manifest, index: dict[str, Path] | None = None, *,
-                 parents: bool = False) -> tuple["Walk", dict[str, Path]]:
+                 parents: bool = False) -> tuple[Walk, dict[str, Path]]:
     """The profile's one walk: its roots plus its bundled plugins, never into switched-off modules."""
     index = index if index is not None else module_index(plugins=getattr(manifest, "packaging_plugins", ()))
     first_party = {m.split(".")[0] for m in index}
@@ -635,7 +635,7 @@ print(json.dumps(failed))
 """
 
 
-def dropped_extra_failures(manifest, graph: "Graph", shipped: set[str]) -> list[str]:
+def dropped_extra_failures(manifest, graph: Graph, shipped: set[str]) -> list[str]:
     """``dist[extra] -> reason`` for each dropped extra whose shipped distribution does NOT import with
     the omitted distributions absent (an import error there is a phone that cannot start)."""
     import subprocess

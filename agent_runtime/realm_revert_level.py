@@ -18,7 +18,7 @@ UNREADABLE from the upstream reader, never absent, so it is refused before any a
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -39,11 +39,11 @@ def read_level_upstream(subtree: Path) -> tuple[dict[str, bytes], set[str]]:
 def refuse_level_door(_item_key: str, _entity: Any) -> None:
     """No second door: the pull's (``validate_level_document``) ran in the reader."""
 
-    return None
+    return
 
 
 def level_archive_path(realm_id: str, workspace_token: str) -> Path:
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
     return (
         paths.realm_sync_root()
         / paths.safe_path_token(realm_id)

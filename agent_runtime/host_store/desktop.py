@@ -41,7 +41,7 @@ _CRYPTPROTECT_UI_FORBIDDEN = 0x1
 KEYRING_SERVICE = "hermes-agent"
 
 
-def keyring_service(env: "Optional[Mapping[str, str]]" = None) -> str:
+def keyring_service(env: Optional[Mapping[str, str]] = None) -> str:
     """``hermes-agent/<namespace id>`` in a namespace, ``hermes-agent`` for the base root.
 
     The keyring slot (``binding.slot``) carries no root, so without the id two namespaces of one
@@ -99,7 +99,7 @@ class DpapiHostSecureStore(_SecureStoreBase):
     ``CryptUnprotectData`` refuse).
     """
 
-    def __init__(self, blob_dir: "os.PathLike[str] | str", *, scope: bytes = DEFAULT_SCOPE,
+    def __init__(self, blob_dir: os.PathLike[str] | str, *, scope: bytes = DEFAULT_SCOPE,
                  crypt: Any = None) -> None:
         self.blob_dir = Path(os.path.abspath(os.fspath(blob_dir)))
         self.scope = bytes(scope)
@@ -198,19 +198,19 @@ def admitted_keyring_backend(load_keyring: Callable[[], Any] | None = None) -> A
     return backend
 
 
-def _keyring_store(_blob_dir: "os.PathLike[str] | str") -> _SecureStoreBase:
+def _keyring_store(_blob_dir: os.PathLike[str] | str) -> _SecureStoreBase:
     return KeyringHostSecureStore(admitted_keyring_backend(), service=keyring_service())
 
 
 #: ``sys.platform`` family -> its OS secure store (Linux platforms are ``linux*``).
-_PLATFORM_STORES: dict[str, Callable[["os.PathLike[str] | str"], _SecureStoreBase]] = {
+_PLATFORM_STORES: dict[str, Callable[[os.PathLike[str] | str], _SecureStoreBase]] = {
     "win32": DpapiHostSecureStore,
     "darwin": _keyring_store,
     "linux": _keyring_store,
 }
 
 
-def os_secure_store(blob_dir: "os.PathLike[str] | str", *, platform: str | None = None) -> _SecureStoreBase:
+def os_secure_store(blob_dir: os.PathLike[str] | str, *, platform: str | None = None) -> _SecureStoreBase:
     """This platform's OS secure store; :class:`SecureStoreUnavailable` when it has none usable."""
     platform = platform or sys.platform
     factory = _PLATFORM_STORES.get("linux" if platform.startswith("linux") else platform)

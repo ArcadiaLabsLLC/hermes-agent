@@ -31,11 +31,11 @@ from agent_runtime.snapshot.summaries import _safe_model_label, _safe_repo_scope
 __layer__ = "stores"
 
 __all__ = [
-    "parity_envelope",
     "_projection_age_ms",
     "_runtime_profile_identity",
     "_runtime_root_identity",
     "_snapshot_payload_size",
+    "parity_envelope",
 ]
 
 

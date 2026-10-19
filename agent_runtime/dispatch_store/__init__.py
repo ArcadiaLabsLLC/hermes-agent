@@ -88,7 +88,7 @@ cap — summaries, never transcripts.
 
 from __future__ import annotations
 
-from agent_runtime.dispatch_store.models import (  # noqa: F401 — the package's export floor
+from agent_runtime.dispatch_store.models import (  # the package's export floor
     ASK_LIMIT,
     CLAIM_EXPIRY_SECONDS,
     DELIVERY_DELIVERED,
@@ -123,7 +123,7 @@ from agent_runtime.dispatch_store.models import (  # noqa: F401 — the package'
     _SELECT,
     _TABLE,
 )
-from agent_runtime.dispatch_store.db import (  # noqa: F401 — the package's export floor
+from agent_runtime.dispatch_store.db import (  # the package's export floor
     cancel_requested_dispatches,
     dispatch_db_path,
     get_dispatch,
@@ -143,7 +143,7 @@ from agent_runtime.dispatch_store.db import (  # noqa: F401 — the package's ex
     _supervised_here,
     _transaction,
 )
-from agent_runtime.dispatch_store.writes import (  # noqa: F401 — the package's export floor
+from agent_runtime.dispatch_store.writes import (  # the package's export floor
     record_completion,
     record_dispatch,
     _backlog_report_due,
@@ -154,7 +154,7 @@ from agent_runtime.dispatch_store.writes import (  # noqa: F401 — the package'
     _completion_update,
     _prune,
 )
-from agent_runtime.dispatch_store.delivery import (  # noqa: F401 — the package's export floor
+from agent_runtime.dispatch_store.delivery import (  # the package's export floor
     claim_delivery,
     drop_delivery,
     mark_delivered,
@@ -172,11 +172,11 @@ __all__ = [
     "DROP_REASON_ATTEMPT_CAP",
     "DROP_REASON_FORGE_REJECTED",
     "MAX_DELIVERY_ATTEMPTS",
-    "REMOTE_UNREACHABLE_REASON",
     "REARM_ALREADY_DELIVERED",
     "REARM_NOT_DROPPED",
     "REARM_NOT_FOUND",
     "REARM_REARMED",
+    "REMOTE_UNREACHABLE_REASON",
     "STATE_CANCELLED",
     "STATE_ERROR",
     "STATE_RUNNING",
@@ -192,14 +192,14 @@ __all__ = [
     "rearm_delivery",
     "record_completion",
     "record_dispatch",
-    "remote_media_completions",
     "release_delivery_claim",
+    "remote_media_completions",
     "request_dispatch_cancel",
     "restore_undelivered_dispatches",
     "running_dispatches",
     "running_dispatches_owned_by_turn",
-    "undeliverable_dispatches",
     "set_dispatch_owner",
+    "undeliverable_dispatches",
 ]
 
 __layer__ = "lanes"

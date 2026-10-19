@@ -192,7 +192,7 @@ def _process_fact(reader: Callable[[], Any]) -> Any:
 
     try:
         return reader()
-    except Exception as exc:  # noqa: BLE001 — the CLASS is the evidence the index records
+    except Exception as exc:  # the CLASS is the evidence the index records
         return exc
 
 
@@ -226,7 +226,7 @@ def scan(*, now: float, census: Any, owned: set[int], table: Iterable[Any] | Non
             if scanner.over_budget():
                 result.status, result.reason, result.builds = "unavailable", SUB_REASON_SCAN_BUDGET, []
                 break
-    except Exception as exc:  # noqa: BLE001 — "I could not look" is a typed sub-health
+    except Exception as exc:  # "I could not look" is a typed sub-health
         result.status, result.reason, result.builds = "unavailable", SUB_REASON_SCAN_FAILED, []
         result.unknowns.add(UNKNOWN_PROCESS_UNIDENTIFIED, f"process table: {type(exc).__name__}", now)
     result.scan_ms = int(round((clock() - scanner.started) * 1000.0))

@@ -26,8 +26,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from agent_runtime.work_store.grammar import Op, apply, find, is_queue, parse_note, row_defects  # noqa: E402
-from agent_runtime.work_store.reasons import Reason, WorkRefused  # noqa: E402
+from agent_runtime.work_store.grammar import Op, apply, find, is_queue, parse_note, row_defects
+from agent_runtime.work_store.reasons import Reason, WorkRefused
 
 COMMANDS = {"claim": Op.CLAIM, "release": Op.RELEASE, "set-status": Op.SET_STATUS, "delete": Op.DELETE,
             "append": Op.APPEND}

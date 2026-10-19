@@ -196,8 +196,8 @@ re-exported below, so no importer changes with the package.
 
 from __future__ import annotations
 
-from ..serve_gateway_auth import store_lock  # noqa: F401
-from .cache import (  # noqa: F401
+from ..serve_gateway_auth import store_lock
+from .cache import (
     _CACHE_WRITE_LOCK,
     _touch_cache,
     apply_peer_announce,
@@ -208,15 +208,15 @@ from .cache import (  # noqa: F401
     unusable_reason,
     usable_peers,
 )
-from .ceremony import (  # noqa: F401
+from .ceremony import (
     mint_peer_code,
     redeem_peer_code,
 )
-from .dial import (  # noqa: F401
+from .dial import (
     LOCAL_POLICY,
     dial_peer,
 )
-from .models import (  # noqa: F401
+from .models import (
     MAX_ENDPOINTS,
     PEER_AUTH_BAD_PROOF,
     PEER_AUTH_EXPIRED,
@@ -257,7 +257,7 @@ from .models import (  # noqa: F401
     peer_cache_path,
     peer_store_path,
 )
-from .trust_store import (  # noqa: F401
+from .trust_store import (
     _LAST_SEEN_REVISION,
     _decode_peer,
     _emit_peer_event,
@@ -279,39 +279,24 @@ from .trust_store import (  # noqa: F401
 __layer__ = "lanes"
 
 __all__ = [
+    "LOCAL_POLICY",
     "MAX_ENDPOINTS",
+    "PEER_AUTH_BAD_PROOF",
+    "PEER_AUTH_EXPIRED",
+    "PEER_AUTH_MALFORMED",
+    "PEER_AUTH_OK",
+    "PEER_AUTH_REASONS",
+    "PEER_AUTH_REVOKED",
+    "PEER_AUTH_UNKNOWN",
     "PEER_CACHE_CONTRACT",
     "PEER_CACHE_FILENAME",
     "PEER_CACHE_ROW_FIELDS",
     "PEER_EVENT_REACHABILITY",
-    "PEER_EVENT_TYPES",
     "PEER_EVENT_RECORDED",
     "PEER_EVENT_REVOKED",
     "PEER_EVENT_ROSTER",
+    "PEER_EVENT_TYPES",
     "PEER_EVENT_UPDATED",
-    "REACHABILITY_REACHABLE",
-    "REACHABILITY_UNKNOWN",
-    "REACHABILITY_STATES",
-    "REACHABILITY_UNREACHABLE",
-    "PeerCacheRow",
-    "UsablePeer",
-    "apply_peer_announce",
-    "cache_peer_hello",
-    "cache_peer_roster",
-    "note_dial_result",
-    "note_peer_store_read",
-    "peer_cache_path",
-    "peer_store_revision",
-    "read_peer_cache",
-    "unusable_reason",
-    "usable_peers",
-    "PEER_AUTH_BAD_PROOF",
-    "PEER_AUTH_EXPIRED",
-    "PEER_AUTH_REASONS",
-    "PEER_AUTH_MALFORMED",
-    "PEER_AUTH_OK",
-    "PEER_AUTH_REVOKED",
-    "PEER_AUTH_UNKNOWN",
     "PEER_PROOF_ALGORITHM",
     "PEER_PROOF_CONTRACT",
     "PEER_ROW_CACHE_FIELDS",
@@ -319,21 +304,36 @@ __all__ = [
     "PEER_SECRET_BYTES",
     "PEER_STORE_CONTRACT",
     "PEER_STORE_FILENAME",
+    "REACHABILITY_REACHABLE",
+    "REACHABILITY_STATES",
+    "REACHABILITY_UNKNOWN",
+    "REACHABILITY_UNREACHABLE",
     "PeerAuth",
+    "PeerCacheRow",
     "PeerCredential",
     "PeerPairingCode",
     "PeerRecord",
-    "LOCAL_POLICY",
+    "UsablePeer",
+    "apply_peer_announce",
+    "cache_peer_hello",
+    "cache_peer_roster",
     "clean_endpoints",
     "dial_peer",
     "list_peers",
     "lookup_peer",
     "mint_peer_code",
+    "note_dial_result",
     "note_peer_seen",
+    "note_peer_store_read",
+    "peer_cache_path",
     "peer_proof",
     "peer_secret_verifier",
     "peer_store_path",
+    "peer_store_revision",
+    "read_peer_cache",
     "record_peer",
     "redeem_peer_code",
     "revoke_peer",
+    "unusable_reason",
+    "usable_peers",
 ]

@@ -54,7 +54,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from scripts.bundle_profile_closure import (  # noqa: E402 — after the path insert, like the closure's own callers
+from scripts.bundle_profile_closure import (  # after the path insert, like the closure's own callers
     TARGETS,
     _guarded_ids,
     _lock,

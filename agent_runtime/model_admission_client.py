@@ -32,7 +32,7 @@ class BundledAdmissionClient:
         self._call = call
 
     @classmethod
-    def over_socket(cls, connection: Any) -> "BundledAdmissionClient":
+    def over_socket(cls, connection: Any) -> BundledAdmissionClient:
         """``connection``: a greeted ``ServeSocketClient``. Notifications are skipped until the reply."""
         ids = itertools.count(1)
         lock = threading.Lock()
@@ -72,7 +72,7 @@ class BundledAdmissionClient:
         return bool(self._result("runtime.admission.release", {"holder": holder})["released"])
 
     def lease(self, holder: str, *, bytes: int, resource: str, kind: str = "llm",
-              lease_seconds: float = DEFAULT_LEASE_SECONDS) -> "AdmissionLease":
+              lease_seconds: float = DEFAULT_LEASE_SECONDS) -> AdmissionLease:
         """Reserve now and keep renewing until :meth:`AdmissionLease.release` (or ``with`` exit)."""
         self.reserve(holder, bytes=bytes, resource=resource, kind=kind, lease_seconds=lease_seconds)
         return AdmissionLease(self, holder, bytes=bytes, resource=resource, kind=kind, lease_seconds=lease_seconds)
@@ -97,7 +97,7 @@ class AdmissionLease:
             try:
                 self.client.reserve(self.holder, **self._args)
                 self.renew_error = None
-            except Exception as exc:  # noqa: BLE001 - recorded for the owner
+            except Exception as exc:  # recorded for the owner
                 self.renew_error = exc
 
     def release(self) -> bool:
@@ -105,8 +105,8 @@ class AdmissionLease:
         self._thread.join(timeout=5)
         return self.client.release(self.holder)
 
-    def __enter__(self) -> "AdmissionLease":
+    def __enter__(self) -> AdmissionLease:
         return self
 
-    def __exit__(self, *_exc: Any) -> None:
+    def __exit__(self, *_exc: object) -> None:
         self.release()

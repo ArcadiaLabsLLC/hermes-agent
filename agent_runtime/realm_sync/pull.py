@@ -66,10 +66,10 @@ __all__ = [
     "_pull_flow_graphs",
     "_pull_level",
     "_pull_map",
-    "_pull_prefab",
     "_pull_office",
     "_pull_persona_config",
     "_pull_persona_instances",
+    "_pull_prefab",
     "_pull_profile_files",
     "_pull_skill_inbox",
     "_pull_skill_tombstones",
@@ -84,7 +84,7 @@ def pull_realm_sync(
     *,
     dry_run: bool = False,
     membership: RealmMembershipProvider | None = None,
-    credential: "RealmSyncCredential | None" = None,
+    credential: RealmSyncCredential | None = None,
 ) -> dict[str, Any]:
     """Pull this realm: the generic overwrite loop, then every applier in
     ``PULL_APPLIERS`` order, then the skill reconcile and the report."""
@@ -450,7 +450,7 @@ def _apply_workspace_tombstones(realm_id: str) -> dict[str, list]:
     summary: dict[str, list] = {"deleted": [], "archived": [], "warnings": []}
     try:
         realm = RealmStore().get(realm_id)  # re-read: the pull may have rewritten it
-    except Exception:  # noqa: BLE001 — no realm, nothing to reconcile
+    except Exception:  # no realm, nothing to reconcile
         return summary
     ledger = list(getattr(realm, "deleted_workspace_ids", None) or [])
     if not ledger:
@@ -478,11 +478,11 @@ def _apply_workspace_tombstones(realm_id: str) -> dict[str, list]:
                         "message": f"Deleted in realm but kept archived here: {exc}",
                     }
                 )
-            except Exception as inner:  # noqa: BLE001 — accounted, never silent
+            except Exception as inner:  # accounted, never silent
                 summary["warnings"].append(
                     {"code": "workspace_tombstone_failed", "workspace_id": workspace_id, "message": str(inner)}
                 )
-        except Exception as exc:  # noqa: BLE001 — accounted, never silent
+        except Exception as exc:  # accounted, never silent
             summary["warnings"].append(
                 {"code": "workspace_tombstone_failed", "workspace_id": workspace_id, "message": str(exc)}
             )
@@ -546,7 +546,7 @@ def _apply_skill_tombstones(realm: Realm) -> dict[str, list]:
         try:
             _archive_package(package_dir, slug)
             summary["archived"].append(slug)
-        except Exception as exc:  # noqa: BLE001 — accounted, never silent
+        except Exception as exc:  # accounted, never silent
             summary["warnings"].append(
                 {"code": "skill_tombstone_failed", "skill": slug, "message": str(exc)}
             )

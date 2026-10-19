@@ -79,7 +79,7 @@ def _fetch_usage_lanes(
                 lanes_by_provider[provider_id] = _unavailable_usage_lane(
                     provider_id, "usage fetch failed (TimeoutError)", active=active
                 )
-            except Exception as exc:  # noqa: BLE001 — class/status only, fail-open
+            except Exception as exc:  # class/status only, fail-open
                 lanes_by_provider[provider_id] = _unavailable_usage_lane(
                     provider_id,
                     _usage_failure_reason(exc),

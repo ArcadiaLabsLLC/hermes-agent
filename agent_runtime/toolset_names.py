@@ -18,7 +18,7 @@ __layer__ = "models"
 ensure_harness_core()  # the fork's composite is expanded here without the plugin loaded
 
 
-def expand_toolset_names(names) -> List[str]:
+def expand_toolset_names(names) -> list[str]:
     """Replace a composite toolset with its member toolset NAMES, recursively.
 
     A composite here is a ``TOOLSETS`` entry that has ``includes`` and no direct
@@ -41,10 +41,10 @@ def expand_toolset_names(names) -> List[str]:
     a policy that removes ``browser``.
     """
 
-    out: List[str] = []
-    seen: Set[str] = set()
+    out: list[str] = []
+    seen: set[str] = set()
 
-    def _walk(name: str, visiting: Set[str]) -> None:
+    def _walk(name: str, visiting: set[str]) -> None:
         text = str(name or "").strip()
         if not text or text in seen:
             return
@@ -68,7 +68,7 @@ def expand_toolset_names(names) -> List[str]:
 MCP_TOOLSET_PREFIX = "mcp-"
 
 
-def unknown_toolset_names(names: Iterable[str]) -> Tuple[str, ...]:
+def unknown_toolset_names(names: Iterable[str]) -> tuple[str, ...]:
     """The names in ``names`` no toolset authority knows, in order, deduped.
 
     Known means: a ``toolsets.TOOLSETS`` key, a builtin toolset in the committed
@@ -83,7 +83,7 @@ def unknown_toolset_names(names: Iterable[str]) -> Tuple[str, ...]:
     the declaration read stays registrar-free (S0a A6a).
     """
 
-    pending: List[str] = []
+    pending: list[str] = []
     for name in names or ():
         text = str(name or "").strip()
         if text and text not in pending and text not in TOOLSETS and not text.startswith(MCP_TOOLSET_PREFIX):

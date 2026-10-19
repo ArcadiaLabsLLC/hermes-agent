@@ -109,7 +109,7 @@ class PersonaScanRefusal(NamedTuple):
     reason: str = PERSONA_ROWS_UNREADABLE
 
     @classmethod
-    def for_scan(cls, scope: str, unreadable: int) -> "PersonaScanRefusal | None":
+    def for_scan(cls, scope: str, unreadable: int) -> PersonaScanRefusal | None:
         """THE mint. ``None`` means the world was fully readable — so an arm can
         neither report a refusal it did not earn nor default-construct one that
         swallows the count."""

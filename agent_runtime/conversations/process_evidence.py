@@ -17,7 +17,7 @@ from enum import Enum
 __layer__ = "lanes"
 
 #: identity -> the live in-process worker holding it (dropped when it is collected).
-_IN_PROCESS: "weakref.WeakValueDictionary[tuple[int, float], object]" = weakref.WeakValueDictionary()
+_IN_PROCESS: weakref.WeakValueDictionary[tuple[int, float], object] = weakref.WeakValueDictionary()
 _GENERATION_LOCK = threading.Lock()
 _last_generation = 0.0
 

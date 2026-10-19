@@ -268,7 +268,7 @@ def archive_actors_for_instance(
                     updated_by="harness",
                     correlation_id=correlation_id,
                 )
-            except Exception as exc:  # noqa: BLE001 — the loop survives one bad file
+            except Exception as exc:  # the loop survives one bad file
                 outcomes.append(
                     OfficeActorOutcome.archive_failed(wsid, actor.actor_key, exc)
                 )

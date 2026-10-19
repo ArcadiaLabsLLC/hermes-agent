@@ -51,8 +51,6 @@ from agent_runtime.realm_sync import RealmSyncError
 __all__ = [
     "ERROR_EXIT_CODES",
     "STAGE42_SCHEMA_VERSION",
-    "emit_harness_error",
-    "harness_repo_root",
     "_apply_fields",
     "_error_code_for_exception",
     "_error_envelope",
@@ -67,6 +65,8 @@ __all__ = [
     "_safe_error_message",
     "_sort_rows",
     "_table_output",
+    "emit_harness_error",
+    "harness_repo_root",
 ]
 
 
@@ -499,7 +499,7 @@ def _redact_paths(text: str) -> str:
     runtime root). A bare `realm_nope.json` is enough for the operator.
     """
 
-    def _basename(match: "re.Match[str]") -> str:
+    def _basename(match: re.Match[str]) -> str:
         token = match.group(0)
         return re.split(r"[\\/]", token)[-1] or token
 

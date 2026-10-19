@@ -283,7 +283,7 @@ def deferred_reply(
     def _run() -> dict:
         try:
             return build()
-        except Exception as exc:  # noqa: BLE001 - the boundary is the point
+        except Exception as exc:  # the boundary is the point
             return err(
                 rid,
                 ERR_HANDLER_FAILED,

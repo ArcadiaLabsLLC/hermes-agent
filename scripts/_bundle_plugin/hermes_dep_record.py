@@ -78,7 +78,7 @@ class _DepRecorder:
     def __init__(self, directory: str, root: str) -> None:
         os.makedirs(directory, exist_ok=True)
         path = os.path.join(directory, f"deps-{os.getpid()}-{time.time_ns()}.jsonl")
-        self._handle = open(path, "a", encoding="utf-8")  # noqa: SIM115 — closed at unconfigure
+        self._handle = open(path, "a", encoding="utf-8")  # closed at unconfigure
         self._trail = AuditTrail(root)
         self._written_mods: set[str] = set()
         self._written_names: set[str] = set()

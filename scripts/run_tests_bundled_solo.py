@@ -98,14 +98,14 @@ class SoloPolicy:
 
         return self.known | frozenset(self.shards.counts if self.shards is not None else ())
 
-    def _shard_vias(self, path: Path) -> List[Tuple[str, List[str]]]:
+    def _shard_vias(self, path: Path) -> list[tuple[str, list[str]]]:
         return self.shards.vias(self.rel_of(path)) if self.shards is not None else []
 
-    def jobs(self, solo_order: Sequence[Path]) -> List[Tuple[Path, vias.Via]]:
+    def jobs(self, solo_order: Sequence[Path]) -> list[tuple[Path, vias.Via]]:
         """``(path, via)`` for each first-pass process, in the given order: one per
         shard of a sharded file, one for any other solo."""
 
-        out: List[Tuple[Path, vias.Via]] = []
+        out: list[tuple[Path, vias.Via]] = []
         for path in solo_order:
             whole = KNOWN_RED_VIA if self.rel_of(path) in self.known else SOLO_VIA
             out += [(path, via) for via, _args in self._shard_vias(path)] or [(path, whole)]
@@ -122,7 +122,7 @@ class SoloPolicy:
             return self.flat_timeout
         return known_red_timeout(rel, self.durations, self.flat_timeout)
 
-    def budget(self, path: Path, via: vias.Via) -> Tuple[float, int, List[str]]:
+    def budget(self, path: Path, via: vias.Via) -> tuple[float, int, list[str]]:
         """``(timeout, flake retries, extra pytest args)`` for one process."""
 
         if vias.kind_of(via) is vias.ViaKind.KNOWN_RED:
@@ -137,7 +137,7 @@ class SoloPolicy:
 
         return [outcome] if self.joiner is None else self.joiner.feed(outcome, run_solo)
 
-    def closing_lines(self) -> List[str]:
+    def closing_lines(self) -> list[str]:
         return [] if self.joiner is None else self.joiner.closing_lines()
 
     def note(self, rel: str, via: vias.Via, rc: int, output: str, tally) -> str:

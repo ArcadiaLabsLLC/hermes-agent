@@ -60,8 +60,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from scripts import god_file_probe as probe  # noqa: E402
-from scripts.unreachable_branch_report import (  # noqa: E402
+from scripts import god_file_probe as probe
+from scripts.unreachable_branch_report import (
     DEFAULT_FILE_TIMEOUT,
     DEFAULT_TEST_TIMEOUT,
     _combine_and_dump,

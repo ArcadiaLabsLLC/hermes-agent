@@ -15,7 +15,7 @@ folded ``persona_chat_continuity``'s resident registry).
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from functools import singledispatch
 from typing import Any
 
@@ -41,7 +41,7 @@ def elapsed_ms(started: object) -> int | None:
 
     try:
         began = float(started)  # type: ignore[arg-type]
-    except Exception:  # noqa: BLE001 — an unreadable stamp has no duration
+    except Exception:  # an unreadable stamp has no duration
         return None
     return max(0, int((time.monotonic() - began) * 1000))
 
@@ -68,21 +68,21 @@ def iso_timestamp(value: object) -> str | None:
 
 
 def _iso_z(moment: datetime) -> str:
-    return moment.astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    return moment.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 def _iso_from_epoch(epoch: float) -> str | None:
     if epoch > 1e12:  # tolerate millisecond clocks
         epoch /= 1000.0
     try:
-        return _iso_z(datetime.fromtimestamp(epoch, tz=timezone.utc))
+        return _iso_z(datetime.fromtimestamp(epoch, tz=UTC))
     except (OverflowError, OSError, ValueError):
         return None
 
 
 @iso_timestamp.register(datetime)
 def _iso_from_datetime(value: datetime) -> str | None:
-    return _iso_z(value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc))
+    return _iso_z(value if value.tzinfo is not None else value.replace(tzinfo=UTC))
 
 
 @iso_timestamp.register(bool)
@@ -112,14 +112,14 @@ def _iso_from_text(value: str) -> str | None:
         parsed = datetime.fromisoformat(parse_text)
     except ValueError:
         return None
-    return _iso_z(parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc))
+    return _iso_z(parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC))
 
 
 def now_iso() -> str:
     """Now, UTC, as ``YYYY-MM-DDTHH:MM:SS.mmmZ`` — the serve lane's stamp."""
 
     return (
-        datetime.now(tz=timezone.utc)
+        datetime.now(tz=UTC)
         .isoformat(timespec="milliseconds")
         .replace("+00:00", "Z")
     )
@@ -133,7 +133,7 @@ def now_iso_micro() -> str:
     one key, handing their order to the client-id tie-break (C8).
     """
 
-    return _iso_z(datetime.now(timezone.utc))
+    return _iso_z(datetime.now(UTC))
 
 
 @singledispatch
@@ -164,7 +164,7 @@ def _parse_iso_utc_datetime(value: datetime) -> datetime:
 
 
 def _as_aware(moment: datetime) -> datetime:
-    return moment if moment.tzinfo is not None else moment.replace(tzinfo=timezone.utc)
+    return moment if moment.tzinfo is not None else moment.replace(tzinfo=UTC)
 
 
 def parse_iso(value: object) -> datetime | None:
@@ -196,8 +196,8 @@ def parse_iso(value: object) -> datetime | None:
 
 
 def iso_stamp(now: float | None) -> str:
-    when = datetime.now(timezone.utc) if now is None else datetime.fromtimestamp(
-        float(now), tz=timezone.utc
+    when = datetime.now(UTC) if now is None else datetime.fromtimestamp(
+        float(now), tz=UTC
     )
     return when.isoformat()
 
@@ -234,10 +234,10 @@ def stamp_passed(value: Any, *, now: float | None = None) -> bool:
     except (TypeError, ValueError):
         return False
     if when.tzinfo is None:
-        when = when.replace(tzinfo=timezone.utc)
+        when = when.replace(tzinfo=UTC)
     reference = (
-        datetime.now(timezone.utc)
+        datetime.now(UTC)
         if now is None
-        else datetime.fromtimestamp(float(now), tz=timezone.utc)
+        else datetime.fromtimestamp(float(now), tz=UTC)
     )
     return when <= reference

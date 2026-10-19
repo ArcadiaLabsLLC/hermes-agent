@@ -80,11 +80,11 @@ def _locally_archived_actor_keys() -> set[str]:
         for workspace_token in store.list_workspaces():
             try:
                 surface = store.get_surface(workspace_token)
-            except Exception:  # noqa: BLE001 — one unreadable surface is not the others'
+            except Exception:  # one unreadable surface is not the others'
                 continue
             keys.update(str(key) for key in (surface.archived_actor_keys or []))
         return keys
-    except Exception:  # noqa: BLE001 — see the docstring: permissive on a fault
+    except Exception:  # see the docstring: permissive on a fault
         return set()
 
 
@@ -118,7 +118,7 @@ def _retire_replicas_for_removed_desks(
             continue
         try:
             store.retire_replica(actor_key, reason="remote_removed", realm_id=realm_id)
-        except Exception as exc:  # noqa: BLE001 — accounted, never silent
+        except Exception as exc:  # accounted, never silent
             code = getattr(exc, "code", None) or type(exc).__name__
             summary.retire_held.append({"key": actor_key, "code": str(code)})
             # The baseline entry STAYS. Dropping it would tell the next pull
@@ -357,7 +357,7 @@ class PullPass:
             return
         try:
             self.store.replicate_instance(row.remote_body, realm_id=self.realm_id, adopt_existing=row.local_record)
-        except Exception as exc:  # noqa: BLE001 — accounted; the pull continues
+        except Exception as exc:  # accounted; the pull continues
             self.summary.refused.append(Refusal(row.instance_id, "mint_failed", type(exc).__name__).as_dict())
             return
         if row.local_record is None:
@@ -389,7 +389,7 @@ class PullPass:
                 applied, dropped = self.store.apply_replicated_steering(
                     instance_id, parents, realm_id=self.realm_id
                 )
-            except Exception as exc:  # noqa: BLE001 — accounted; a bad edge never fails a pull
+            except Exception as exc:  # accounted; a bad edge never fails a pull
                 self.summary.steering_dropped.append(
                     {"key": instance_id, "parent": "", "reason": type(exc).__name__}
                 )

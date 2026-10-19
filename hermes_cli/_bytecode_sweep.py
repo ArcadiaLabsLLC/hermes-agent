@@ -111,7 +111,7 @@ def _claim_bytecode_sweep_lock(lock_path: Path) -> str:
     except OSError:
         return _SWEEP_CLAIM_UNAVAILABLE
     try:
-        os.write(fd, f"{os.getpid()}\n".encode("utf-8"))
+        os.write(fd, f"{os.getpid()}\n".encode())
     except OSError:
         pass
     finally:

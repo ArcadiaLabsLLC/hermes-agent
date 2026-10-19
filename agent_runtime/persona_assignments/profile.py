@@ -5,7 +5,7 @@ and ``_as_utc``. Pure; the write side is ``profile_writes``.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 
 from agent_runtime.serde import safe_assignment_token
 
@@ -20,7 +20,7 @@ __all__ = [
 
 
 def _as_utc(value: datetime) -> datetime:
-    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
 def _safe_model_override_text(value: str, *, field_name: str) -> str:

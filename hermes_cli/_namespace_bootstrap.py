@@ -307,7 +307,7 @@ def first_verb(argv: Sequence[str]) -> str | None:
         from hermes_cli._parser import top_level_value_flag_sets
 
         required, optional = top_level_value_flag_sets()
-    except Exception:  # noqa: BLE001 — a broken parser import must not decide a namespace
+    except Exception:  # a broken parser import must not decide a namespace
         required, optional = frozenset({"-p", "--profile"}), frozenset()
     i = 1
     while i < len(argv):

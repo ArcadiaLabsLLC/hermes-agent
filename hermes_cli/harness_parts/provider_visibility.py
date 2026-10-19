@@ -138,7 +138,7 @@ def _record_visibility_block(payload: dict, name: str, builder) -> None:
     """
     try:
         value = builder()
-    except Exception as exc:  # noqa: BLE001 — class name only, block isolated
+    except Exception as exc:  # class name only, block isolated
         payload.setdefault("block_errors", {})[name] = type(exc).__name__
         return
     payload[name] = value

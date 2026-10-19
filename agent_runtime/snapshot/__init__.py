@@ -41,7 +41,7 @@ from agent_runtime.persona_instance_identity import classify_orphan_persona_inst
 from agent_runtime.resolution import suspect_default_root
 from agent_runtime.store import AgentStore
 from agent_runtime.tool_visibility import _profile_readiness_for_visibility
-from agent_runtime.snapshot import (  # noqa: F401 — every family, in the original definition order
+from agent_runtime.snapshot import (  # every family, in the original definition order
     context,
     receipts,
     build_log,
@@ -111,7 +111,6 @@ from agent_runtime.snapshot.summaries import (
 __layer__ = "lanes"
 
 __all__ = [
-    "AgentStore",
     "BOARD_CARD_DESC_LIMIT",
     "BUILD_CALLER_UNKNOWN",
     "BUILD_ROLE_CACHE",
@@ -122,14 +121,14 @@ __all__ = [
     "BUILD_SECTIONS_WAIT_THRESHOLD_MS",
     "MAX_BOARD_CARDS_PROJECTED",
     "MAX_OFFICE_ACTORS_PROJECTED",
-    "OfficeStore",
     "SNAPSHOT_CONTRACT_VERSION",
+    "_BUILD_COALESCE",
+    "AgentStore",
+    "OfficeStore",
     "SnapshotBuildContext",
     "SnapshotSummary",
-    "_BUILD_COALESCE",
     "_agent_summary",
     "_available_persona_summary",
-    "board_card_row",
     "_board_parity_warnings",
     "_boards_summary",
     "_build_coalesce_state",
@@ -137,28 +136,29 @@ __all__ = [
     "_build_snapshot_uncoalesced",
     "_default_persona_session_db",
     "_keyed",
-    "office_actor_summary_row",
     "_office_parity_warnings",
     "_offices_summary",
-    "parity_envelope",
     "_parity_warnings",
     "_persona_chat_history_frame",
     "_profile_persona_reconcile_tick",
     "_profile_readiness_for_visibility",
     "_profile_templates_cached",
-    "realm_summary",
     "_snapshot_payload_size",
-    "workspace_summary",
     "available_profile_templates",
+    "board_card_row",
     "board_summary_row",
     "build_receipt_facts",
     "build_snapshot",
     "classify_orphan_persona_instances",
     "load_agent_runtime_config",
+    "office_actor_summary_row",
     "office_summary_row",
+    "parity_envelope",
     "persona_instance_detail_for_id",
     "persona_session_db_scope",
+    "realm_summary",
     "snapshot_build_context_scope",
     "suspect_default_root",
     "time",
+    "workspace_summary",
 ]

@@ -82,7 +82,7 @@ def _answer(rid: Any, method_name: str, work: Callable[[], dict]) -> dict:
     except ProviderRefused as refusal:
         code = ERR_INVALID_PARAMS if refusal.reason == "provider_unknown" else ERR_HANDLER_FAILED
         return _refused(rid, method_name, refusal.reason, code, refusal.message, **refusal.data)
-    except Exception as exc:  # noqa: BLE001 - class name only, never the message
+    except Exception as exc:  # class name only, never the message
         return _failed(rid, method_name, exc)
 
 

@@ -162,7 +162,7 @@ def _office_publish_scan(workspaces: list[Workspace]) -> OfficePublishScan:
     for workspace_token in store.list_workspaces():
         try:
             surface = store.get_surface(workspace_token)
-        except Exception as exc:  # noqa: BLE001 — accounted, never silent
+        except Exception as exc:  # accounted, never silent
             # Cannot be realm-filtered: the workspace id lives INSIDE the file
             # that would not parse, so this row names the store token and is
             # reported to whoever publishes. Silence here published an empty

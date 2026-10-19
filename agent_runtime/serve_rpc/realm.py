@@ -50,7 +50,7 @@ from agent_runtime.serve_rpc.registry import method
 
 __layer__ = "lanes"
 
-__all__ = ["REALM_LANE_ONLY_METHODS", "REASON_CODES", "REALM_METHODS"]
+__all__ = ["REALM_LANE_ONLY_METHODS", "REALM_METHODS", "REASON_CODES"]
 
 #: ``data.reason`` -> JSON-RPC code.
 REASON_CODES: dict[str, int] = {

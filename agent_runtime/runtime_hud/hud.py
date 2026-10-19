@@ -9,7 +9,7 @@ install / age phrasings.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from typing import Any, Iterable
 
 from agent_runtime.clock import parse_iso_utc
@@ -482,7 +482,7 @@ def _age_phrase(stamp: Any) -> str:
     when = parse_iso_utc(stamp)
     if when is None:
         return ""
-    seconds = int((datetime.now(timezone.utc) - when).total_seconds())
+    seconds = int((datetime.now(UTC) - when).total_seconds())
     if seconds < 60:
         return "just now"
     if seconds < 3600:

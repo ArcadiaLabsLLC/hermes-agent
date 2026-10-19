@@ -86,7 +86,7 @@ def publish_realm_sync(
     *,
     dry_run: bool = False,
     membership: RealmMembershipProvider | None = None,
-    credential: "RealmSyncCredential | None" = None,
+    credential: RealmSyncCredential | None = None,
 ) -> dict[str, Any]:
     """Publish this realm: stage the subtree, commit and push, record every
     family's baseline, account. Each phase is its own function below."""
@@ -166,7 +166,7 @@ def _stage_commit_and_push(
     repo: Path,
     subtree: Path,
     artifacts: list[RealmSyncArtifact],
-    credential: "RealmSyncCredential | None",
+    credential: RealmSyncCredential | None,
 ) -> tuple[bool, list[str]]:
     """Rewrite the realm subtree when its canonical bytes changed, then commit and
     push. Returns whether a commit was made, and the subtree-relative paths whose
@@ -388,12 +388,12 @@ def _record_publish_baselines(realm: Realm, resolved: _ResolvedPublish) -> dict[
     for family, record in BASELINE_FAMILIES:
         try:
             receipts[family] = record(realm, resolved)
-        except Exception:  # noqa: BLE001 — baseline is best-effort; never fail publish
+        except Exception:  # baseline is best-effort; never fail publish
             receipts[family] = None
     return receipts
 
 
-def _notify_publish(realm: Realm, *, repo: Path, artifacts: list[RealmSyncArtifact], credential: "RealmSyncCredential | None") -> list[dict[str, Any]]:
+def _notify_publish(realm: Realm, *, repo: Path, artifacts: list[RealmSyncArtifact], credential: RealmSyncCredential | None) -> list[dict[str, Any]]:
     """Best-effort counts-only publish notification (Stage 43 C4).
 
     A notify failure is downgraded to a ``warnings[]`` entry on the success
@@ -455,7 +455,7 @@ def _record_skill_publish_baseline(realm: Realm, *, subtree: Path) -> None:
                 for slug, package_dir in publishable_skill_packages(realm)
             },
         )
-    except Exception:  # noqa: BLE001 — baseline is best-effort; never fail publish
+    except Exception:  # baseline is best-effort; never fail publish
         logger.exception("skill baseline write failed after publish for realm %s", realm.id)
     try:
         _mirror_realm_skill_inbox(
@@ -463,7 +463,7 @@ def _record_skill_publish_baseline(realm: Realm, *, subtree: Path) -> None:
             realm_inbox_dir(realm.id),
             tombstoned=lambda slug: skill_tombstoned(realm, slug) is not None,
         )
-    except Exception:  # noqa: BLE001 — the mirror is a cache the next pull rebuilds
+    except Exception:  # the mirror is a cache the next pull rebuilds
         logger.exception("skill inbox re-mirror failed after publish for realm %s", realm.id)
 
 
@@ -517,7 +517,7 @@ def _residual_drift(realm: Realm, resolved: _ResolvedPublish, receipts: dict[Syn
     }
     try:
         items = store_drift_items(realm.id, _workspaces_for_realm(realm))
-    except Exception:  # noqa: BLE001 — accounting never fails a landed publish
+    except Exception:  # accounting never fails a landed publish
         logger.exception("residual drift walk failed after publish for realm %s", realm.id)
         return []
     rows = []

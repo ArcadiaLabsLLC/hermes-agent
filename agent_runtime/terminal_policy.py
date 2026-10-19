@@ -77,7 +77,7 @@ def _harness_network_block_reason(command: str) -> str | None:
 
 def _harness_envelope_gate(
     command: str,
-) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+) -> tuple[Optional[dict[str, Any]], Optional[dict[str, Any]]]:
     """The single envelope decision for this command, as ``(block, provenance)``.
 
     ``block`` is the refusal payload, or ``None`` to proceed — the historical
@@ -160,7 +160,7 @@ def _harness_envelope_gate(
     }, None
 
 
-def _harness_envelope_block(command: str) -> Optional[Dict[str, Any]]:
+def _harness_envelope_block(command: str) -> Optional[dict[str, Any]]:
     """The refusal half of :func:`_harness_envelope_gate`, unchanged.
 
     Kept as the narrow "may this run?" question for callers that do not compose
@@ -172,7 +172,7 @@ def _harness_envelope_block(command: str) -> Optional[Dict[str, Any]]:
 
 def _with_envelope_provenance(
     result: str,
-    provenance: Optional[Dict[str, Any]],
+    provenance: Optional[dict[str, Any]],
 ) -> str:
     """Merge a grant's provenance into the tool's JSON result string.
 

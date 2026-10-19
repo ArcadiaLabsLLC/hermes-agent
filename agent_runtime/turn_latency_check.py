@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -72,7 +72,7 @@ def _log_stamp(line: str) -> datetime | None:
         return None
     local = datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S") + timedelta(
         milliseconds=int(match.group(2) or 0))
-    return local.astimezone(timezone.utc)
+    return local.astimezone(UTC)
 
 
 def parse_receipt(line: str) -> dict[str, Any] | None:
@@ -336,4 +336,4 @@ def parse_local(text: str) -> datetime:
     """``YYYY-MM-DD HH:MM[:SS]`` in local time (or ISO with an offset), as aware UTC."""
 
     stamp = datetime.fromisoformat(text.strip().replace("Z", "+00:00"))
-    return (stamp if stamp.tzinfo else stamp.astimezone()).astimezone(timezone.utc)
+    return (stamp if stamp.tzinfo else stamp.astimezone()).astimezone(UTC)

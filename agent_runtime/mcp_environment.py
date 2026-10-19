@@ -50,7 +50,7 @@ def _get_process_mcp_env_overrides(server_name: str) -> dict:
     return overrides
 
 
-def _resolve_machine_root_tokens(servers: Dict[str, dict]) -> Dict[str, dict]:
+def _resolve_machine_root_tokens(servers: dict[str, dict]) -> dict[str, dict]:
     """Apply the machine-root / platform-gate chokepoint to an mcp_servers map.
 
     Fails OPEN on import error only (a checkout without ``agent_runtime``

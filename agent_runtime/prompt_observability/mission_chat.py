@@ -183,7 +183,7 @@ class MissionChatObservability:
     preloaded_skills_loaded: Iterable[str] | None = None
     preloaded_skills_missing: Iterable[str] | None = None
     instance_skill_overrides: Iterable[str] | None = None
-    skill_resolver: "_SkillObservabilityResolver | None" = None
+    skill_resolver: _SkillObservabilityResolver | None = None
 
     # bind()
     persona_id: str = field(init=False)

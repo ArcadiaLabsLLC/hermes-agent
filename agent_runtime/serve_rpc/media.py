@@ -28,10 +28,10 @@ __layer__ = "lanes"
 
 __all__ = [
     "MEDIA_CONTRACT",
-    "media_block",
     "_media_get_frame",
     "_runtime_media_get",
     "_runtime_media_index",
+    "media_block",
 ]
 
 

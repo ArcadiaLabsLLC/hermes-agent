@@ -80,7 +80,7 @@ def _speech_answer(rid: Any, method_name: str, work: Callable[[], Any]) -> dict:
         return ok(rid, result)
     except SpeechRefused as refusal:
         return _refused(rid, method_name, refusal)
-    except Exception as exc:  # noqa: BLE001 - class name only
+    except Exception as exc:  # class name only
         return _failed(rid, method_name, exc)
 
 
@@ -105,7 +105,7 @@ def _runtime_speech_load(rid: Any, params: dict, context: RpcContext | None = No
     """Load from explicit local paths. Params: ``models_dir``, ``stt_model``, ``tts_voice``, ``tts_preset``, ``which``."""
     context = context or RpcContext()
     service = _service()
-    work = lambda: service.load(_params(params))  # noqa: E731
+    work = lambda: service.load(_params(params))
     return defer_or_inline(rid, "runtime.speech.load", context, lambda: _speech_answer(rid, "runtime.speech.load", work))
 
 

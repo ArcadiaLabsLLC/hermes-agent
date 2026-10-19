@@ -49,7 +49,7 @@ def _install() -> None:
             path = os.path.join(directory, f"child-{os.getpid()}-{time.time_ns()}.jsonl")
             with open(path, "w", encoding="utf-8") as handle:
                 handle.write(json.dumps(record) + "\n")
-        except Exception:  # noqa: BLE001 — never fail the child's exit
+        except Exception:  # never fail the child's exit
             return
 
     atexit.register(_write)
@@ -57,5 +57,5 @@ def _install() -> None:
 
 try:
     _install()
-except Exception:  # noqa: BLE001 — never fail the child's start-up
+except Exception:  # never fail the child's start-up
     pass

@@ -21,12 +21,12 @@ from agent_runtime.serde import from_jsonable, read_json, to_jsonable
 __layer__ = "stores"
 
 __all__ = [
-    "read_actor_dir",
     "_free_surface_archive_dir",
     "_prune_archived_actor_files",
     "_write_actor",
     "_write_archived_actor",
     "_write_surface",
+    "read_actor_dir",
 ]
 
 
@@ -70,7 +70,7 @@ def read_actor_dir(directory) -> ActorScan:
     for path in sorted(directory.glob("*.json")):
         try:
             actors.append(from_jsonable(OfficeActor, read_json(path)))
-        except Exception as exc:  # noqa: BLE001 — the scan survives one bad file
+        except Exception as exc:  # the scan survives one bad file
             unreadable_names.append(f"{directory.name}/{path.name}")
             name = type(exc).__name__
             classes[name] = classes.get(name, 0) + 1

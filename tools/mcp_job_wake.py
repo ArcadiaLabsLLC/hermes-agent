@@ -73,10 +73,10 @@ JOB_WAKE_CAPABILITY = "eternia.job_wake"
 JOB_WAKE_VERSION = 1
 
 _lock = threading.Lock()
-_routes: "OrderedDict[tuple[str, str], dict]" = OrderedDict()
+_routes: OrderedDict[tuple[str, str], dict] = OrderedDict()
 #: The background-work rows, keyed like ``_routes``. A route is popped when its wake is queued
 #: (wake at most once); its row outlives it until the wake is settled or the row expires.
-_rows: "OrderedDict[tuple[str, str], dict]" = OrderedDict()
+_rows: OrderedDict[tuple[str, str], dict] = OrderedDict()
 _writer_identity: Optional[tuple[int, Any]] = None
 
 

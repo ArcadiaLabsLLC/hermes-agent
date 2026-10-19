@@ -38,7 +38,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from agent_runtime import yaml_io  # noqa: E402 — the fork's one YAML door, after the path
+from agent_runtime import yaml_io  # the fork's one YAML door, after the path
 
 #: A key TOKEN (split on punctuation and camelCase) that marks its string value private.
 SENSITIVE_KEY_TOKENS = frozenset({

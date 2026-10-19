@@ -86,7 +86,7 @@ on both sides and lives in ``capability_account`` only — no policy module name
 
 from __future__ import annotations
 
-from agent_runtime.runtime_hud import (  # noqa: F401 — every family, lowest layer first
+from agent_runtime.runtime_hud import (  # every family, lowest layer first
     fields,
     envelopes,
     hud,
@@ -140,10 +140,7 @@ __layer__ = "lanes"
 
 __all__ = [
     "CAPABILITY_HUD_KEY",
-    "ComposedUserRow",
-    "EnvelopeCodec",
     "HUD_FIELDS",
-    "HudField",
     "RUNTIME_CONTEXT_CODEC",
     "RUNTIME_CONTEXT_DELIVERY_SNAPSHOT",
     "RUNTIME_CONTEXT_DELIVERY_UNAVAILABLE",
@@ -153,11 +150,15 @@ __all__ = [
     "SKILL_PRELOAD_CODEC",
     "SKILL_PRELOAD_DELIVERY_SNAPSHOT",
     "SKILL_PRELOAD_DELIVERY_UNCHANGED",
+    "ComposedUserRow",
+    "EnvelopeCodec",
+    "HudField",
     "capability_block_for_persona",
     "extract_runtime_context_envelope",
     "extract_skill_preload_envelope",
     "installs_block",
     "is_volatile_hud_key",
+    "lane_workspace_for_instance",
     "render_capability_block",
     "render_runtime_context_envelope",
     "render_situational_hud_block",
@@ -165,7 +166,6 @@ __all__ = [
     "resolve_capability_block",
     "resolve_situational_hud",
     "runtime_context_delivery",
-    "lane_workspace_for_instance",
     "situational_hud_for_instance",
     "situational_hud_revision",
     "skill_preload_delivery",

@@ -28,14 +28,10 @@ from agent_runtime.persona_chat_continuity import PERSONA_CHAT_SESSION_SOURCE
 __layer__ = "stores"
 __all__ = [
     "MODEL_SELECTION_RECEIPT",
+    "TURN_EFFORT_RECEIPT",
     "TURN_MODEL_RECEIPT",
     "_chat_effective_model_payload",
     "_chat_model_override_from_config",
-    "_resolve_turn_model_selection",
-    "chat_model_source",
-    "TURN_EFFORT_RECEIPT",
-    "log_model_selection",
-    "reasoning_effort_label",
     "_persona_chat_bound_owner",
     "_persona_chat_native_history",
     "_persona_chat_native_read",
@@ -44,8 +40,12 @@ __all__ = [
     "_persona_chat_native_tip",
     "_persona_chat_session_owner",
     "_resolve_chat_model_override",
+    "_resolve_turn_model_selection",
     "_safe_chat_model_override_value",
     "_session_model_config",
+    "chat_model_source",
+    "log_model_selection",
+    "reasoning_effort_label",
 ]
 
 
@@ -460,7 +460,7 @@ def _persona_chat_native_read(session_db, root_session_id: str):
 
     try:
         stamp = lineage_stamp(session_db, root_session_id)
-    except Exception:  # noqa: BLE001 — a stamp is an optimisation; the read stays the authority
+    except Exception:  # a stamp is an optimisation; the read stays the authority
         _logger.debug("lineage stamp unavailable for %s", root_session_id, exc_info=True)
         stamp = None
     tip = _persona_chat_native_tip(session_db, root_session_id)

@@ -91,13 +91,13 @@ _CLASSIFIER_SPDX = {
 }
 
 _REVIEW_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
-    (re.compile(r"\bAGPL|Affero", re.I), "AGPL-family licence"),
-    (re.compile(r"\bLGPL|Lesser General Public", re.I), "LGPL-family licence"),
-    (re.compile(r"(?<![AL])\bGPL|(?<!Lesser )General Public License", re.I), "GPL-family licence"),
-    (re.compile(r"non-?commercial|\bNC\b|-NC-|-NC$", re.I), "non-commercial licence"),
-    (re.compile(r"proprietary|LicenseRef-", re.I), "proprietary or non-SPDX licence"),
+    (re.compile(r"\bAGPL|Affero", re.IGNORECASE), "AGPL-family licence"),
+    (re.compile(r"\bLGPL|Lesser General Public", re.IGNORECASE), "LGPL-family licence"),
+    (re.compile(r"(?<![AL])\bGPL|(?<!Lesser )General Public License", re.IGNORECASE), "GPL-family licence"),
+    (re.compile(r"non-?commercial|\bNC\b|-NC-|-NC$", re.IGNORECASE), "non-commercial licence"),
+    (re.compile(r"proprietary|LicenseRef-", re.IGNORECASE), "proprietary or non-SPDX licence"),
 )
-_LICENCE_NAME = re.compile(r"^(LICEN[CS]E|COPYING|NOTICE|COPYRIGHT|THIRD[-_]?PARTY)", re.I)
+_LICENCE_NAME = re.compile(r"^(LICEN[CS]E|COPYING|NOTICE|COPYRIGHT|THIRD[-_]?PARTY)", re.IGNORECASE)
 
 
 def review_reasons(expression: str, components: list[dict[str, str]] = ()) -> list[str]:

@@ -30,7 +30,7 @@ class _ControlSink:
     """A request sink whose frames go out on the serve's control channel, and to the
     paired device that sent the send (``queued_turn_origin.queued_turn_peer``)."""
 
-    __slots__ = ("_session", "_peer")
+    __slots__ = ("_peer", "_session")
 
     def __init__(self, session: Any, peer: Any = None) -> None:
         self._session = session

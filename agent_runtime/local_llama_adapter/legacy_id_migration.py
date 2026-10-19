@@ -26,7 +26,7 @@ import logging
 import re
 import shutil
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -71,7 +71,7 @@ def migrate_retired_provider_id_once() -> dict[str, Any] | None:
 
 
 def rewrite_retired_provider_id(*, home: Path, store_root: Path) -> dict[str, Any]:
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     run = _Run(home=Path(home), backup_dir=Path(home) / "backups" / f"local-llama-legacy-id-{stamp}")
     for directory in (store_root / "agents", store_root / "persona_instances",
                       store_root / "persona_instances_archive"):

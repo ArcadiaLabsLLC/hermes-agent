@@ -96,7 +96,7 @@ def resolve_instance(token: str | None) -> Any | None:
     instance_id = value if value.startswith("personainst_") else persona_instance_id_for(normalize_persona_id(value))
     try:
         return PersonaInstanceStore().get(instance_id)
-    except Exception:  # noqa: BLE001 - a miss is an answer, not a crash
+    except Exception:  # a miss is an answer, not a crash
         return None
 
 

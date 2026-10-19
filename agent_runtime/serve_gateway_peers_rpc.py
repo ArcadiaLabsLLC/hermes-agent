@@ -58,10 +58,10 @@ from .gateway_peers.trust_store import add_peer_event_listener
 __layer__ = "lanes"
 
 __all__ = [
-    "PEER_DIRECTORY_CONTRACT",
     "PEER_DIRECTORY_CHANGED_METHOD",
-    "PeerDirectorySubscriptions",
+    "PEER_DIRECTORY_CONTRACT",
     "PEER_DIRECTORY_SUBSCRIPTIONS",
+    "PeerDirectorySubscriptions",
     "peer_directory_row",
     "peer_directory_rows",
 ]
@@ -290,7 +290,7 @@ def publish_peer_event(
                     read_peer_cache(root).get(peer_install_id),
                     usable_ref=refs.get(peer_install_id),
                 )
-    except Exception:  # noqa: BLE001 — a notification is never the mutation
+    except Exception:  # a notification is never the mutation
         row = None
 
     params: dict[str, Any] = {

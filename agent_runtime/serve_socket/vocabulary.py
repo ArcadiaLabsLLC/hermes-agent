@@ -17,8 +17,6 @@ from agent_runtime.paths import SOCKET_LOCK_FILENAME, SOCKET_OWNER_FILENAME
 __layer__ = "models"
 
 __all__ = [
-    "LockOutcome",
-    "RejectReason",
     "AUTH_FAILURE_REJECT_REASONS",
     "BROADCAST_BUDGET_SECONDS",
     "DEFAULT_MAX_CONNECTIONS",
@@ -61,6 +59,8 @@ __all__ = [
     "SOCKET_OWNER_DRAINING_KEY",
     "SOCKET_OWNER_FILENAME",
     "_REJECT_LINGER_SECONDS",
+    "LockOutcome",
+    "RejectReason",
 ]
 
 

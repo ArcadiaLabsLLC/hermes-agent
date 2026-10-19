@@ -413,8 +413,8 @@ def _mirror_persona_chat_message(
             session_db=session_db,
         )
     except Exception:
-        return None
-    return None
+        return
+    return
 
 
 def _update_persona_chat_token_counts(*, session_db, session_id: str, result) -> None:

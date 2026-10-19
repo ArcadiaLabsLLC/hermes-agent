@@ -147,7 +147,7 @@ class ScopeReading:
     digests, read between two identical stats of the chat database so no commit
     can fall between the digests and the fingerprint they ride with."""
 
-    __slots__ = ("fingerprint", "families", "chat_sessions")
+    __slots__ = ("chat_sessions", "families", "fingerprint")
 
     def __init__(self, fingerprint: str, families: dict[str, str], chat_sessions: dict[str, tuple[tuple, tuple, bool]] | None) -> None:
         self.fingerprint = fingerprint
@@ -232,7 +232,7 @@ def _chat_session_digests() -> dict[str, tuple[tuple, tuple, bool]] | None:
             rows = connection.execute(f"SELECT {selected} FROM sessions").fetchall()
         finally:
             connection.close()
-    except Exception:  # noqa: BLE001 — unknown is the safe answer: nothing is attributed
+    except Exception:  # unknown is the safe answer: nothing is attributed
         return None
     index = {name: position for position, name in enumerate(columns)}
     membership_at = [position for name, position in sorted(index.items()) if name in _MEMBERSHIP_COLUMNS]
@@ -259,7 +259,7 @@ def _is_chat_root(session_id: str, row: tuple, index: dict[str, int]) -> bool:
             import json
 
             root = (json.loads(raw) or {}).get("mission_chat_root_id")
-        except Exception:  # noqa: BLE001 — an unparseable config is not provably a root
+        except Exception:  # an unparseable config is not provably a root
             return False
         if root and root != session_id:
             return False
@@ -306,7 +306,7 @@ def _chat_db_parts() -> list[str]:
             f"{db_path.name}{suffix}:{mtime_ns}:{size}"
             for suffix, mtime_ns, size in sqlite_fingerprint_triples(db_path)
         ]
-    except Exception:  # noqa: BLE001 — chat persistence absence is itself stable
+    except Exception:  # chat persistence absence is itself stable
         return ["session_db:unresolved"]
 
 
@@ -345,7 +345,7 @@ def _running_work_parts() -> list[str]:
                 )
             except OSError:
                 parts.append(f"bgwork:{store_path.name}:absent")
-    except Exception:  # noqa: BLE001 — same posture as the chat DB above
+    except Exception:  # same posture as the chat DB above
         parts.append("running_work_stores:unresolved")
     return parts
 

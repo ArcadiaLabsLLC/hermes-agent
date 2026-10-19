@@ -120,7 +120,7 @@ def _turns_admitted() -> int:
 class BuildYield:
     """One build's standing-aside budget and its accounting."""
 
-    __slots__ = ("budget_s", "waited_s", "pauses", "exhausted", "_sleep", "_clock", "_admitted")
+    __slots__ = ("_admitted", "_clock", "_sleep", "budget_s", "exhausted", "pauses", "waited_s")
 
     def __init__(
         self,
@@ -210,8 +210,8 @@ def log_build_yield(state: BuildYield | None, *, caller: str, generation: object
 
 
 __all__ = [
-    "BuildYield",
     "SNAPSHOT_TURN_YIELD_MAX_MS",
+    "BuildYield",
     "bind_turn_overlay_room",
     "build_yield_scope",
     "log_build_yield",

@@ -4,7 +4,7 @@ import os
 import shutil
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 
 from agent_runtime.profile_home import CANONICAL_SHARED_SKILL_IDS, get_shared_skills_dir
@@ -155,7 +155,7 @@ def _archive_replaced_package(skill: str, package: Path, shared_root: Path) -> P
     resolution collision on the very id just installed.
     """
 
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     archive_root = shared_root / REPLACED_ARCHIVE_DIR_NAME
     destination = archive_root / f"{skill}-{stamp}"
     try:

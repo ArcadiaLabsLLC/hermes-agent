@@ -218,7 +218,7 @@ def _acquired_persona_session_db() -> Iterator[Any]:
         if callable(close):
             try:
                 close()
-            except Exception:  # noqa: BLE001 — a create must not fail on release
+            except Exception:  # a create must not fail on release
                 pass
 
 

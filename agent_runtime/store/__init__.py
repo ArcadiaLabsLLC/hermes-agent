@@ -37,7 +37,7 @@ workspaces, realms, the two active pointers) — ``base._write_model`` only.
 
 from __future__ import annotations
 
-from agent_runtime.store.ledgers import (  # noqa: F401 — the package's export floor
+from agent_runtime.store.ledgers import (  # the package's export floor
     active_skill_tombstones,
     DELETED_WORKSPACE_LEDGER_CAP,
     ledger_time,
@@ -52,7 +52,7 @@ from agent_runtime.store.ledgers import (  # noqa: F401 — the package's export
     _prune_skill_tombstones,
     _prune_workspace_lifts,
 )
-from agent_runtime.store.base import (  # noqa: F401 — the package's export floor
+from agent_runtime.store.base import (  # the package's export floor
     ACTIVATION_APPLY,
     ACTIVATION_DUPLICATE,
     ACTIVATION_SUPERSEDED,
@@ -73,12 +73,12 @@ from agent_runtime.store.base import (  # noqa: F401 — the package's export fl
     _slugify,
     _write_model,
 )
-from agent_runtime.store.realms import (  # noqa: F401 — the package's export floor
+from agent_runtime.store.realms import (  # the package's export floor
     RealmStore,
 )
-from agent_runtime.store.workspaces import (  # noqa: F401 — the package's export floor
+from agent_runtime.store.workspaces import (  # the package's export floor
     WorkspaceStore,
 )
-from agent_runtime.task_store_stub import TaskStoreStub as TaskStore  # noqa: F401 — ruling R-3
+from agent_runtime.task_store_stub import TaskStoreStub as TaskStore  # ruling R-3
 
 __layer__ = "stores"

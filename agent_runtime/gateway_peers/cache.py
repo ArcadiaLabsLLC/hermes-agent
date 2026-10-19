@@ -592,7 +592,7 @@ def unusable_reason(record: Any, cache: Any) -> str:
 
 # The cycle break (sheet §1.1): imported last, after every name above is bound,
 # because the sibling imports this module at its top.
-from .trust_store import (  # noqa: E402
+from .trust_store import (
     _emit_peer_event,
     _note_write,
     list_peers,

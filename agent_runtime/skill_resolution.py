@@ -183,12 +183,12 @@ def _note_skill_root_rebuild() -> None:
 #: h-chatperf: a turn-scoped ``_root_registries`` map for callers that cannot be
 #: handed one. Upstream's ``skill_view`` resolves through ``resolve_skill`` with
 #: no map, so a preload paid a second walk per root on top of the policy's own.
-_SCOPED_ROOT_REGISTRIES: ContextVar[Optional[Dict[str, Any]]] = ContextVar(
+_SCOPED_ROOT_REGISTRIES: ContextVar[Optional[dict[str, Any]]] = ContextVar(
     "hermes_scoped_skill_root_registries", default=None
 )
 
 @contextmanager
-def skill_root_registry_scope(registries: Optional[Dict[str, Any]]) -> Iterator[None]:
+def skill_root_registry_scope(registries: Optional[dict[str, Any]]) -> Iterator[None]:
     """Let every resolve in this context share *registries* (no-op for ``None``).
 
     Bound only around a turn's pre-admit assembly, never around the model run,
@@ -204,7 +204,7 @@ def skill_root_registry_scope(registries: Optional[Dict[str, Any]]) -> Iterator[
     finally:
         _SCOPED_ROOT_REGISTRIES.reset(token)
 
-def _registries_for_call(explicit: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def _registries_for_call(explicit: Optional[dict[str, Any]]) -> dict[str, Any]:
     if explicit is not None:
         return explicit
     scoped = _SCOPED_ROOT_REGISTRIES.get()
@@ -385,7 +385,7 @@ def _resolved_path(path: Path) -> Path:
         return path.expanduser().absolute()
 
 #: ``skill_search_roots`` memo: key -> (roots, create_dir, create_dir existed).
-_SEARCH_ROOTS_CACHE: Dict[Tuple[Any, ...], Tuple[Tuple[Path, ...], Optional[Path], bool]] = {}
+_SEARCH_ROOTS_CACHE: dict[tuple[Any, ...], tuple[tuple[Path, ...], Optional[Path], bool]] = {}
 
 _SEARCH_ROOTS_CACHE_MAX = 64
 
@@ -396,7 +396,7 @@ def _search_roots_cache_clear() -> None:
     _SEARCH_ROOTS_CACHE.clear()
 
 
-def skill_search_roots() -> List[Path]:
+def skill_search_roots() -> list[Path]:
     """``agent.skill_utils.get_all_skills_dirs()`` for the active profile, memoized per profile.
 
     h-readiness: upstream parses ``config.yaml`` behind a ONE-entry cache that
@@ -420,7 +420,7 @@ def skill_search_roots() -> List[Path]:
 
     home = get_hermes_home()
     try:
-        config_sig: Optional[Tuple[int, ...]] = file_signature((home / "config.yaml").stat())
+        config_sig: Optional[tuple[int, ...]] = file_signature((home / "config.yaml").stat())
     except OSError:
         config_sig = None
     key = (
@@ -456,9 +456,9 @@ def skill_source_kind(root: Path) -> str:
 def resolve_skill(
     identifier: str,
     *,
-    roots: List[Path] | None = None,
+    roots: list[Path] | None = None,
     categorized_identifier: str | None = None,
-    _root_registries: Dict[str, _SkillRootRegistry] | None = None,
+    _root_registries: dict[str, _SkillRootRegistry] | None = None,
 ) -> SkillResolution:
     """Resolve a filesystem skill through the one ordered runtime registry.
 
@@ -526,7 +526,7 @@ def resolve_skill(
                              _root_registries=root_registries)
     return resolution
 
-def _registry_in(root_registries: Dict[str, Any], root: Path, root_key: str) -> _SkillRootRegistry:
+def _registry_in(root_registries: dict[str, Any], root: Path, root_key: str) -> _SkillRootRegistry:
     """``root``'s registry from the caller's map, else read once and kept there.
 
     h-warm-phases: a turn's pre-admit map (``TurnRootRegistries``) reads the process cache and
@@ -543,19 +543,19 @@ def _registry_in(root_registries: Dict[str, Any], root: Path, root_key: str) -> 
     return registry
 
 def resolve_skills(
-    identifiers: List[str],
+    identifiers: list[str],
     *,
-    roots: List[Path] | None = None,
-    _root_registries: Dict[str, _SkillRootRegistry] | None = None,
-) -> Dict[str, SkillResolution]:
+    roots: list[Path] | None = None,
+    _root_registries: dict[str, _SkillRootRegistry] | None = None,
+) -> dict[str, SkillResolution]:
     """Resolve many bare/path identifiers with one registry walk."""
     from agent import skill_utils as _skills
 
     names = list(dict.fromkeys(str(item or "").strip() for item in identifiers))
     names = [name for name in names if name]
     search_roots = list(roots) if roots is not None else skill_search_roots()
-    found: Dict[str, list[SkillResolutionCandidate]] = {name: [] for name in names}
-    seen: Dict[str, set[Path]] = {name: set() for name in names}
+    found: dict[str, list[SkillResolutionCandidate]] = {name: [] for name in names}
+    seen: dict[str, set[Path]] = {name: set() for name in names}
     root_registries = _registries_for_call(_root_registries)
     # h-readiness: ``record`` paid a ``realpath`` per candidate (a syscall pair
     # on Windows) and re-classified the root per candidate. The realpath now
@@ -565,7 +565,7 @@ def resolve_skills(
         name: str,
         root: Path,
         kind: str,
-        resolved_files: Dict[Path, Path],
+        resolved_files: dict[Path, Path],
         skill_dir: Path | None,
         skill_md: Path,
     ) -> None:
@@ -599,7 +599,7 @@ def resolve_skills(
             for skill_dir, legacy in registry.legacy_by_alias.get(name, ()):
                 record(name, root, kind, hit, skill_dir, legacy)
 
-    result: Dict[str, SkillResolution] = {}
+    result: dict[str, SkillResolution] = {}
     for name, candidates in found.items():
         status = _skill_resolution_status(name, candidates)
         result[name] = SkillResolution(name, status, tuple(candidates))
@@ -622,7 +622,7 @@ def _skill_resolution_status(
         return "invalid_source"
     return "resolved"
 
-_CONTENT_HASH_CACHE: Dict[Tuple[Any, ...], str] = {}
+_CONTENT_HASH_CACHE: dict[tuple[Any, ...], str] = {}
 
 _CONTENT_HASH_CACHE_MAX = 4096
 
@@ -775,7 +775,7 @@ def skill_frontmatter_runtime_compatibility(
         "load_policy": load_policy,
     }
 
-def _cached_skill_frontmatter(skill_md: Path) -> Dict[str, Any]:
+def _cached_skill_frontmatter(skill_md: Path) -> dict[str, Any]:
     """mtime-cached frontmatter parse for a SKILL.md manifest.
 
     ``skill_runtime_compatibility`` is evaluated per skill, per surface, per
@@ -790,7 +790,7 @@ def _cached_skill_frontmatter(skill_md: Path) -> Dict[str, Any]:
     from agent import skill_utils as _skills
     from agent_runtime.parse_cache import cached_by_mtime
 
-    def _load(path: Path) -> Dict[str, Any]:
+    def _load(path: Path) -> dict[str, Any]:
         frontmatter, _ = _skills.parse_frontmatter(path.read_text(encoding="utf-8"))
         return frontmatter if isinstance(frontmatter, dict) else {}
 
@@ -833,12 +833,12 @@ def skill_runtime_compatibility(
     )
 
 def required_preload_skill_ids(
-    identifiers: List[str],
+    identifiers: list[str],
     *,
     surface: str,
     root_node_mode: bool = False,
-    _root_registries: Dict[str, _SkillRootRegistry] | None = None,
-) -> List[str]:
+    _root_registries: dict[str, _SkillRootRegistry] | None = None,
+) -> list[str]:
     """Return assigned skills whose resolved policy requires model loading.
 
     ``_root_registries`` is chat-turn-prep CP-5's shared walk: the mission-chat
@@ -850,7 +850,7 @@ def required_preload_skill_ids(
     names = list(dict.fromkeys(str(item or "").strip() for item in identifiers))
     names = [name for name in names if name]
     resolutions = resolve_skills(names, _root_registries=_root_registries)
-    required: List[str] = []
+    required: list[str] = []
     for name in names:
         resolution = resolutions[name]
         compatibility = skill_runtime_compatibility(

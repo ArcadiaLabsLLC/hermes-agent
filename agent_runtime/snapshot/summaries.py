@@ -39,12 +39,12 @@ __all__ = [
     "_profile_persona_reconcile_tick",
     "_profile_template_memo",
     "_profile_templates_cached",
-    "realm_summary",
     "_repo_scope_entry",
     "_repo_scopes_summary",
     "_safe_model_label",
     "_safe_repo_scope_label",
     "_safe_text",
+    "realm_summary",
     "workspace_summary",
 ]
 

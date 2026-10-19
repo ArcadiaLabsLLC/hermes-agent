@@ -371,7 +371,7 @@ def _folded_mcp_jobs(head: Path, now: float) -> set[tuple[str, str]]:
         from ..builds.vocabulary import BUILD_REGISTRY_DIRNAME
 
         return mcp_job_keys(head / BUILD_REGISTRY_DIRNAME, now=now)
-    except Exception:  # noqa: BLE001 — an unreadable registry folds nothing; the build lane says why
+    except Exception:  # an unreadable registry folds nothing; the build lane says why
         return set()
 
 

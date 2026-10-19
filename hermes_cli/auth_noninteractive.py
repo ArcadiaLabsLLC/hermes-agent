@@ -245,7 +245,7 @@ def auth_set_key_command(args) -> int:
     except NonInteractiveAuthError as exc:
         print(json.dumps({"ok": False, "error": exc.reason, "code": exc.code}))
         return 1
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         # CLASS NAME ONLY. An exception raised anywhere on this path has had a
         # credential value in scope; its message is not safe to print.
         print(
@@ -263,7 +263,7 @@ def auth_set_key_command(args) -> int:
         # CPython gives no way to wipe a str's backing buffer — and the real
         # protection is that the value was never written anywhere but the
         # store.
-        secret = None  # noqa: F841
+        secret = None
 
     print(json.dumps(ack))
     return 0

@@ -17,8 +17,8 @@ __layer__ = "stores"
 
 class FakeHostSecureStore:
     def __init__(self) -> None:
-        self.slots: Dict[str, bytes] = {}
-        self.protected: List[str] = []
+        self.slots: dict[str, bytes] = {}
+        self.protected: list[str] = []
         self._lock = threading.Lock()
 
     def read(self, slot: str) -> Optional[bytes]:

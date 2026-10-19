@@ -184,7 +184,6 @@ class Send:
         self.parent_turn_id = relay_policy.RELAY_PARENT_TURN.get()
         self.detached, self.notify, self.sender_session = detached, notify, sender_session
         self.auto_detached = auto_detached
-        return None
 
     def remote(self):
         """A cross-install target: detached only, no clarify token, and it must resolve."""

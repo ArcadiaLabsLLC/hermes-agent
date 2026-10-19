@@ -240,7 +240,7 @@ def _run_dispatch(dispatch_id: str, spec: dict[str, Any]) -> None:
 
     try:
         _run_dispatch_guarded(dispatch_id, spec)
-    except BaseException as exc:  # noqa: BLE001 - a detached turn must never vanish
+    except BaseException as exc:  # a detached turn must never vanish
         logger.exception("detached dispatch %s failed unrecoverably", dispatch_id)
         try:
             from agent_runtime import dispatch_store

@@ -410,7 +410,7 @@ class AgentCreate:
             self.instance = PersonaInstanceStore().get(
                 record.persona_instance_id or self.request.persona_instance_id
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             # THE arm whose honest answer is the opposite of its siblings', and
             # the reason this lane is a sweep rather than a one-line copy.
             #
@@ -578,7 +578,7 @@ class AgentCreate:
                 correlation_id=request.correlation_id,
                 position_policy=position_policy,
             )
-        except Exception as exc:  # noqa: BLE001 - every store fault is a placement that did not land
+        except Exception as exc:  # every store fault is a placement that did not land
             return refuse_placement(
                 exc,
                 self.reservation,

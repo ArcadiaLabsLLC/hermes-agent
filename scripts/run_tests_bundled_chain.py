@@ -45,7 +45,7 @@ def in_chain(rel: str) -> bool:
     return False
 
 
-def chain_changed(changed: Iterable[str]) -> List[str]:
+def chain_changed(changed: Iterable[str]) -> list[str]:
     """The changed paths that are in the session chain, sorted (the printed reason)."""
 
     return sorted(rel for rel in changed if in_chain(rel))

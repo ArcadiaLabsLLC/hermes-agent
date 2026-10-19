@@ -112,14 +112,14 @@ __all__ = [
     "build_peer_execute_params",
     "child_environment",
     "dispatch_detached_turn",
-    "supervised_dispatch_ids",
     "parse_child_payload",
     "request_cancel",
     "request_remote_cancel",
     "summarize_for_caller",
+    "supervised_dispatch_ids",
 ]
 
-from tools.agent_chat_dispatch.child import (  # noqa: F401 — __all__ + the test-pinned privates
+from tools.agent_chat_dispatch.child import (  # __all__ + the test-pinned privates
     _MAX_STREAM_CHARS,
     KILL_GRACE_SECONDS,
     SERVE_STDOUT_EVENT,
@@ -131,7 +131,7 @@ from tools.agent_chat_dispatch.child import (  # noqa: F401 — __all__ + the te
     child_environment,
     parse_child_payload,
 )
-from tools.agent_chat_dispatch.remote import (  # noqa: F401
+from tools.agent_chat_dispatch.remote import (
     RemoteDispatch,
     PEER_DIAL_TIMEOUT_SECONDS,
     PEER_RETRY_BACKOFF_SECONDS,
@@ -140,7 +140,7 @@ from tools.agent_chat_dispatch.remote import (  # noqa: F401
     build_peer_execute_params,
     request_remote_cancel,
 )
-from tools.agent_chat_dispatch.local import (  # noqa: F401
+from tools.agent_chat_dispatch.local import (
     _forget_supervised,
     _get_executor,
     _mark_supervised,

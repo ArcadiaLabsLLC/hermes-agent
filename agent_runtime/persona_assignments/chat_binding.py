@@ -400,7 +400,7 @@ def _load_or_mint_chat_instance(
         id=instance_id,
         persona_id=normalized_persona,
         role=role,
-        display_name=display_name or _display_name_for_template(normalized_persona[len("profile_"):] if normalized_persona.startswith("profile_") else normalized_persona),
+        display_name=display_name or _display_name_for_template(normalized_persona.removeprefix("profile_")),
         profile_id=profile_id or (normalized_persona[len("profile_"):] if normalized_persona.startswith("profile_") else None),
         runtime_root=str(paths.store_root()),
         state=WorkerSessionState.IDLE,

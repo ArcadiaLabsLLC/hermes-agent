@@ -108,7 +108,7 @@ class Change:
     churned: set = field(default_factory=set)
 
 
-def _git_lines(repo_root: Path, *args: str) -> List[str]:
+def _git_lines(repo_root: Path, *args: str) -> list[str]:
     proc = subprocess.run(
         ["git", "-C", str(repo_root), *args], env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"},
         capture_output=True, text=True, encoding="utf-8", errors="replace",
@@ -151,7 +151,7 @@ class ImportGraph:
 
     def __init__(self, imports: Mapping[str, Iterable[str]]) -> None:
         self.imports = {rel: set(names) for rel, names in imports.items()}
-        self._rev: Optional[Dict[str, set]] = None
+        self._rev: Optional[dict[str, set]] = None
 
     def importers(self, module: str) -> set:
         if self._rev is None:
@@ -163,12 +163,12 @@ class ImportGraph:
                         self._rev.setdefault(".".join(parts[:i]), set()).add(rel)
         return self._rev.get(module, set())
 
-    def reach(self, modules: Mapping[str, str], depth: int = REACH_DEPTH) -> Dict[str, Tuple[str, bool]]:
+    def reach(self, modules: Mapping[str, str], depth: int = REACH_DEPTH) -> dict[str, tuple[str, bool]]:
         """``rel → (the changed path it reaches, directly?)`` for every file whose import
         chain reaches a changed module (``modules``: name → changed path) in at most
         ``depth`` hops, breadth-first (a file keeps its shortest hop)."""
 
-        out: Dict[str, Tuple[str, bool]] = {}
+        out: dict[str, tuple[str, bool]] = {}
         seen = set(modules)
         frontier = [(mod, rel) for mod, rel in sorted(modules.items())]
         for hop in range(1, depth + 1):
@@ -188,7 +188,7 @@ def load_graph(repo_root: Path, change: Change, memo_path: Path) -> ImportGraph:
     """Every ``.py`` git tracks or the change adds, its imports memoised by blob and path
     in ``memo_path`` (outside the gate store); a changed file is always parsed afresh."""
 
-    keys: Dict[str, Optional[str]] = {}
+    keys: dict[str, Optional[str]] = {}
     for line in _git_lines(repo_root, "ls-files", "-s", "--", "*.py"):
         meta, _, rel = line.partition("\t")
         rel = Path(rel).as_posix()
@@ -214,11 +214,11 @@ def load_graph(repo_root: Path, change: Change, memo_path: Path) -> ImportGraph:
     return ImportGraph(found)
 
 
-def _parse_chunk(root: str, rels: List[str]) -> Dict[str, List[str]]:
+def _parse_chunk(root: str, rels: list[str]) -> dict[str, list[str]]:
     return {rel: sorted(scope.imported_modules(Path(root) / rel, rel)) for rel in rels}
 
 
-def _parse_all(repo_root: Path, rels: List[str]) -> Dict[str, List[str]]:
+def _parse_all(repo_root: Path, rels: list[str]) -> dict[str, list[str]]:
     """Parse ``rels``: in worker processes when there are many (a cold memo is ~32 s serial)."""
 
     if len(rels) < 400:
@@ -227,12 +227,12 @@ def _parse_all(repo_root: Path, rels: List[str]) -> Dict[str, List[str]]:
     try:
         from concurrent.futures import ProcessPoolExecutor
 
-        out: Dict[str, List[str]] = {}
+        out: dict[str, list[str]] = {}
         with ProcessPoolExecutor(max_workers=8) as pool:
             for part in pool.map(_parse_chunk, [str(repo_root)] * len(chunks), chunks):
                 out.update(part)
         return out
-    except Exception:  # noqa: BLE001 — a pool that cannot start parses serially
+    except Exception:  # a pool that cannot start parses serially
         return _parse_chunk(str(repo_root), rels)
 
 
@@ -248,14 +248,14 @@ class Pick:
 
 @dataclass
 class AffectedSelection:
-    picks: Dict[str, Pick] = field(default_factory=dict)
-    skipped: List[str] = field(default_factory=list)  # selected, but on the skip or idle-box list
-    uncovered: List[str] = field(default_factory=list)  # changed paths no record names
+    picks: dict[str, Pick] = field(default_factory=dict)
+    skipped: list[str] = field(default_factory=list)  # selected, but on the skip or idle-box list
+    uncovered: list[str] = field(default_factory=list)  # changed paths no record names
     #: files whose only tie is a changed .py they opened: source walkers (whole-tree AST gates, 100-240 s
     #: each) and deeper first loads — not run; the landing gate's
-    walkers: List[str] = field(default_factory=list)
+    walkers: list[str] = field(default_factory=list)
 
-    def ordered(self, durations: Mapping[str, float]) -> List[Pick]:
+    def ordered(self, durations: Mapping[str, float]) -> list[Pick]:
         return sorted(
             self.picks.values(), key=lambda p: (p.group, durations.get(p.rel, float("inf")), p.rel),
         )
@@ -265,7 +265,7 @@ def _outside_docs(rel: str) -> bool:
     return not rel.startswith(cache.ALL_EXCLUDED_PREFIXES)
 
 
-def _reach_rule(rel: str, changed: set, reached: Mapping[str, Tuple[str, bool]]) -> Optional[str]:
+def _reach_rule(rel: str, changed: set, reached: Mapping[str, tuple[str, bool]]) -> Optional[str]:
     """``--scope fork``'s reach rules for one test file against ``changed``."""
 
     for src in scope.convention_sources(rel):
@@ -278,15 +278,15 @@ def _reach_rule(rel: str, changed: set, reached: Mapping[str, Tuple[str, bool]])
     return f"reach rule: imports {hit[0]}" if hit and hit[1] else None
 
 
-def _reach_why(hit: Tuple[str, bool]) -> str:
+def _reach_why(hit: tuple[str, bool]) -> str:
     return f"imports {hit[0]}" if hit[1] else f"reaches {hit[0]} (import chain)"
 
 
 def select_affected(
     tests: Sequence[str],
     change: Change,
-    deps: Mapping[str, "cache.StoredDeps"],
-    modsets: Mapping[str, List[str]],
+    deps: Mapping[str, cache.StoredDeps],
+    modsets: Mapping[str, list[str]],
     graph: ImportGraph,
     skipped: Iterable[str] = (),
 ) -> AffectedSelection:
@@ -298,7 +298,7 @@ def select_affected(
     reached = graph.reach(modules)
     sel = AffectedSelection()
     covered: set = set()
-    digest_hits: Dict[str, set] = {}
+    digest_hits: dict[str, set] = {}
     for digest, paths in modsets.items():
         found = changed.intersection(paths)
         if found:
@@ -310,7 +310,7 @@ def select_affected(
 
     for rel in sorted(changed & test_set):
         sel.picks[rel] = Pick(rel, "edited", EDITED)
-    sentinel: List[str] = []
+    sentinel: list[str] = []
     direct: set = set()  # named a changed module in its own namespace
     for rel in sorted(test_set & set(deps)):
         record = deps[rel]
@@ -371,7 +371,7 @@ def select_affected(
     return sel
 
 
-def _via_recorded(record, modsets, reached: Mapping[str, Tuple[str, bool]], changed: set) -> Optional[str]:
+def _via_recorded(record, modsets, reached: Mapping[str, tuple[str, bool]], changed: set) -> Optional[str]:
     """A module the file loaded or named itself whose import chain reaches a changed module
     within ``REACH_DEPTH`` hops: CPython fires ``import`` once per process, so when an earlier
     bundle member already loaded the changed module, the file's own set names only the
@@ -382,8 +382,8 @@ def _via_recorded(record, modsets, reached: Mapping[str, Tuple[str, bool]], chan
     return via and f"loaded {via} (recorded), which reaches {reached[via][0]}"
 
 
-def _listing_counts(records: Iterable["cache.StoredDeps"], dirs: Mapping[str, str]) -> Dict[str, int]:
-    counts: Dict[str, int] = {}
+def _listing_counts(records: Iterable[cache.StoredDeps], dirs: Mapping[str, str]) -> dict[str, int]:
+    counts: dict[str, int] = {}
     for record in records:
         for d in dirs:
             if d in record.dirs and not (d != "." and record.rel.startswith(d + "/")):
@@ -408,7 +408,7 @@ def _listed(record, churn_dirs: Mapping[str, str], churn_names: Mapping[str, str
     return None
 
 
-def rel_direct(reached: Mapping[str, Tuple[str, bool]], rel: str) -> bool:
+def rel_direct(reached: Mapping[str, tuple[str, bool]], rel: str) -> bool:
     return rel in reached and reached[rel][1]
 
 
@@ -456,7 +456,7 @@ def bar_verdict(wall: float, bar: Bar) -> list[str]:
 # ── The run ─────────────────────────────────────────────────────────────────
 
 
-def main(args, repo_root: Path, runner, pytest_args: List[str]) -> int:
+def main(args, repo_root: Path, runner, pytest_args: list[str]) -> int:
     """Select, print why, run. ``runner`` is ``run_tests_bundled`` (its ``run`` and summary)."""
 
     started = time.monotonic()
@@ -499,7 +499,7 @@ def main(args, repo_root: Path, runner, pytest_args: List[str]) -> int:
     pytest_args = pytest_args + runner.plan.deselect_args(skip_rows, set())
     waves = fail_fast_waves(picks) if args.fail_fast else [picks]
     rc = 0
-    first_red: List[str] = []
+    first_red: list[str] = []
     for number, wave in enumerate(waves, 1):
         rc = _run_wave(args, repo_root, runner, pytest_args, [by_rel[p.rel] for p in wave], os_keyed(durations),
                        first_red, started, store.runs)
@@ -511,7 +511,7 @@ def main(args, repo_root: Path, runner, pytest_args: List[str]) -> int:
     return rc
 
 
-def os_keyed(durations: Mapping[str, float]) -> Dict[str, float]:
+def os_keyed(durations: Mapping[str, float]) -> dict[str, float]:
     """The store's POSIX-keyed durations in the runner's spelling too (``run_tests_parallel._format_file``:
     OS separators), as the gate hands them over (``GateRun.durations``). Without it every
     estimate on Windows was the 30 s default: no file ran solo, none sharded, and the
@@ -520,7 +520,7 @@ def os_keyed(durations: Mapping[str, float]) -> Dict[str, float]:
     return {**durations, **{str(Path(rel)): s for rel, s in durations.items()}}
 
 
-def fail_fast_waves(picks: Sequence[Pick]) -> List[List[Pick]]:
+def fail_fast_waves(picks: Sequence[Pick]) -> list[list[Pick]]:
     """``--fail-fast``: the edited files and direct importers first, the rest second; each
     keeps ``ordered``'s fastest-first order, so the slowest files run last."""
 
@@ -533,8 +533,8 @@ def wave_name(wave: Sequence[Pick]) -> str:
     return " + ".join(GROUP_NAMES[g] for g in sorted({p.group for p in wave}))
 
 
-def _run_wave(args, repo_root: Path, runner, pytest_args: List[str], files: List[Path], durations,
-              first_red: List[str], run_started: float, runs: Path) -> int:
+def _run_wave(args, repo_root: Path, runner, pytest_args: list[str], files: list[Path], durations,
+              first_red: list[str], run_started: float, runs: Path) -> int:
     done = [0]
     # the gate's solo policy and shard plan (known reds once, alone; a slow file split by node id
     # when the wave is tail-bound): a hub-module edit selects a few 100-190 s files (q-runner)

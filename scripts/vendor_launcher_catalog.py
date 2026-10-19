@@ -25,7 +25,7 @@ import argparse
 import json
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -89,7 +89,7 @@ def launcher_head(checkout: Path) -> str:
 def build_fixture(raw: object, source_commit: str) -> dict:
     exported_at = raw.get("exported_at") if isinstance(raw, dict) else None
     if not isinstance(exported_at, str) or not exported_at:
-        exported_at = datetime.now(timezone.utc).date().isoformat()
+        exported_at = datetime.now(UTC).date().isoformat()
     return {"source_commit": source_commit, "exported_at": exported_at,
             "entries": normalize_entries(raw)}
 

@@ -98,7 +98,7 @@ def _picker_cache_path() -> Path:
     return get_hermes_home() / "cache" / "codex-model-picker.json"
 
 
-def get_verified_codex_model_ids(access_token: str) -> Optional[List[str]]:
+def get_verified_codex_model_ids(access_token: str) -> Optional[list[str]]:
     """Visible live base IDs plus Hermes-local 900K context aliases.
 
     None means unverified; an empty list is a valid live empty account catalog.
@@ -141,7 +141,7 @@ def get_verified_codex_model_ids(access_token: str) -> Optional[List[str]]:
         return models
 
 
-def _fetch_verified_models_from_api(access_token: str) -> Optional[List[str]]:
+def _fetch_verified_models_from_api(access_token: str) -> Optional[list[str]]:
     """The account's live catalog through upstream's reader, or None when unverified.
 
     Upstream owns the request: ``codex_account_headers`` (account + residency

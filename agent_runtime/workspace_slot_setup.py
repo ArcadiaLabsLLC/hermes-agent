@@ -31,7 +31,7 @@ import os
 import re
 import shlex
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any, Callable
 
@@ -110,7 +110,7 @@ _NOT_FOUND_MARKERS = ("repository not found", "does not appear to be a git repos
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def spawning_registry() -> Any:

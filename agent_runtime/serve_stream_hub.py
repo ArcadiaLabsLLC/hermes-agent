@@ -194,24 +194,24 @@ class StreamSubscription:
     """One client's slot on the shared stream: a bounded buffer and a pump."""
 
     __slots__ = (
-        "key",
-        "declared",
-        "_sink",
+        "_buffer_limit",
+        "_buffered_bytes",
+        "_byte_limit",
+        "_closed",
+        "_drop_bound",
+        "_drop_reason",
+        "_drop_refusal",
+        "_lock",
         "_on_drop",
         "_queue",
+        "_sink",
         "_thread",
-        "_lock",
-        "_drop_reason",
-        "_drop_bound",
-        "_drop_refusal",
-        "_closed",
-        "_buffer_limit",
-        "_byte_limit",
-        "_buffered_bytes",
-        "frames_offered",
+        "bytes_discarded",
+        "declared",
         "frames_delivered",
         "frames_discarded",
-        "bytes_discarded",
+        "frames_offered",
+        "key",
     )
 
     def __init__(
@@ -462,15 +462,15 @@ class _ProducerHandle:
     """
 
     __slots__ = (
-        "generation",
-        "stop",
-        "finished",
-        "thread",
-        "started_monotonic",
-        "last_frame_monotonic",
-        "frames",
-        "state",
         "_lock",
+        "finished",
+        "frames",
+        "generation",
+        "last_frame_monotonic",
+        "started_monotonic",
+        "state",
+        "stop",
+        "thread",
     )
 
     def __init__(self, generation: int) -> None:
@@ -802,7 +802,7 @@ class StreamHub:
                     self._frames_produced += 1
                     for subscription in subscriptions:
                         subscription.offer(frame, size)
-        except BaseException as exc:  # noqa: BLE001 - reported, never raised out
+        except BaseException as exc:  # reported, never raised out
             reason = f"{DROP_REASON_PRODUCER_ERROR}:{type(exc).__name__}"
             with self._lock:
                 self._producer_error = reason

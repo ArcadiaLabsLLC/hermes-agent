@@ -32,14 +32,14 @@ __layer__ = "stores"
 PersonaRoster = Callable[[], Iterable[AgentPersona]]
 
 __all__ = [
+    "PERSONA_INSTANCE_VISIBILITY_FIELDS",
+    "_persona_instance_is_active_lane",
+    "_profile_visibility_persona",
     "active_persona_instance_agent_summaries",
     "persona_assignment_summary",
     "persona_instance_summary",
     "persona_instance_tool_detail",
-    "PERSONA_INSTANCE_VISIBILITY_FIELDS",
     "persona_instance_visibility_ref",
-    "_persona_instance_is_active_lane",
-    "_profile_visibility_persona",
 ]
 
 

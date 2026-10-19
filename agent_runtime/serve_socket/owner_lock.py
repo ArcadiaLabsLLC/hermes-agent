@@ -356,7 +356,7 @@ class SocketOwnerLock:
             from ..serve_registry import serve_instance_path
 
             return serve_instance_path(self._store_root, owner_pid).exists()
-        except Exception:  # noqa: BLE001 — a probe never fails a boot
+        except Exception:  # a probe never fails a boot
             return True
 
     def _wait_for_drain(self) -> tuple[Any, str | None, int]:
@@ -468,7 +468,7 @@ class SocketOwnerLock:
                     "path": result.path,
                 }
             )
-        except Exception:  # noqa: BLE001 — an instrument never fails a boot
+        except Exception:  # an instrument never fails a boot
             pass
 
     def publish_owner(self, record: dict[str, Any]) -> None:
@@ -513,7 +513,7 @@ class SocketOwnerLock:
             row[SOCKET_OWNER_DRAINING_KEY] = when or now_iso()
             write_json_atomic(self._owner_path, row)
             return True
-        except Exception:  # noqa: BLE001 — the drain outranks its own receipt
+        except Exception:  # the drain outranks its own receipt
             return False
 
     def release(self) -> None:
@@ -571,7 +571,7 @@ def read_socket_owner(store_root: Path | str) -> dict[str, Any]:
 
     try:
         record, _state = _read_owner_record(socket_owner_path(store_root))
-    except Exception:  # noqa: BLE001 — advisory data, never a raise
+    except Exception:  # advisory data, never a raise
         return {}
     if not record:
         return {}
@@ -621,7 +621,7 @@ def _owner_pid_alive(pid: int) -> bool | None:
         from ..serve_registry import pid_alive
 
         return pid_alive(int(pid))
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None
 
 

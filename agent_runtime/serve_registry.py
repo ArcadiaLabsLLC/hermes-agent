@@ -174,7 +174,7 @@ import sys
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any, Callable
 
@@ -1097,7 +1097,7 @@ def _argv_hint(argv: list[str]) -> str:
 
 def _now_iso() -> str:
     return (
-        datetime.now(tz=timezone.utc)
+        datetime.now(tz=UTC)
         .isoformat(timespec="milliseconds")
         .replace("+00:00", "Z")
     )

@@ -7,7 +7,7 @@ import json
 import logging
 import uuid
 from collections.abc import Iterator, Sequence
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 
 from agent.charsheet._support import safe_segment, slugify, utc_now, write_json_atomic
@@ -108,7 +108,7 @@ class CharacterDraft:
             raise ValueError(f"base image {Path(base_image)} is not an existing file")
         display = str(display_name or "").strip() or concept
         chosen_slug = slugify(slug or display)
-        draft_id = f"{datetime.now(timezone.utc):%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}"
+        draft_id = f"{datetime.now(UTC):%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}"
         directory = drafts_dir() / draft_id
         directory.mkdir(parents=True, exist_ok=False)
 

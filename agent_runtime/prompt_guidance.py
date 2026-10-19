@@ -130,7 +130,7 @@ def _rewrite_content(content: Any) -> Any:
     return rewrite_safety_sentence(content) if isinstance(content, str) else _rewrite_blocks(content)
 
 
-def rewrite_request_safety_sentence(request: Any) -> Optional[Dict[str, Any]]:
+def rewrite_request_safety_sentence(request: Any) -> Optional[dict[str, Any]]:
     """The provider kwargs with the Safety bullet rewritten in the system text, or None.
 
     Covers the three api modes' system slots: chat ``messages`` / Responses ``input`` (system and
@@ -140,7 +140,7 @@ def rewrite_request_safety_sentence(request: Any) -> Optional[Dict[str, Any]]:
     """
     if not isinstance(request, dict):
         return None
-    updates: Dict[str, Any] = {}
+    updates: dict[str, Any] = {}
     for key in ("system", "instructions"):
         new = _rewrite_content(request.get(key))
         if new is not None:

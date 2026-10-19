@@ -348,7 +348,7 @@ class shadow_build_scope:
     def __enter__(self) -> None:
         _LANE.shadow = True
 
-    def __exit__(self, *exc: Any) -> None:
+    def __exit__(self, *exc: object) -> None:
         _LANE.shadow = False
 
 

@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -72,7 +72,7 @@ def _utc(text: str) -> datetime | None:
         stamp = datetime.fromisoformat(str(text).replace("Z", "+00:00"))
     except ValueError:
         return None
-    return stamp if stamp.tzinfo else stamp.replace(tzinfo=timezone.utc)
+    return stamp if stamp.tzinfo else stamp.replace(tzinfo=UTC)
 
 
 def read_turn_records(store_root: Path, *, since: datetime) -> list[dict[str, Any]]:
@@ -106,7 +106,7 @@ def parse_accept_line(line: str) -> dict[str, Any] | None:
     local = datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S") + timedelta(
         milliseconds=int(match.group(2) or 0))
     fields = dict(_PAIR.findall(line.split(_ACCEPT_ANCHOR, 1)[1]))
-    return {"at": local.astimezone(timezone.utc), "turn": fields.get("turn"),
+    return {"at": local.astimezone(UTC), "turn": fields.get("turn"),
             "accept_queue": _int(fields.get("queue_ms")), "accept_to_anchor": _int(fields.get("total_ms"))}
 
 

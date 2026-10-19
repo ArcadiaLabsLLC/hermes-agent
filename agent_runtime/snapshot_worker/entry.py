@@ -1,7 +1,7 @@
 """``python -m agent_runtime.snapshot_worker.entry``: the resident snapshot worker's main."""
 from __future__ import annotations
 
-import hermes_bootstrap  # noqa: F401  Activate the selected installation's dependency owner first.
+import hermes_bootstrap  # Activate the selected installation's dependency owner first.
 
 __layer__ = "wiring"
 

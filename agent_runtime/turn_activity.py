@@ -103,7 +103,7 @@ def inside_admitted_turn() -> bool:
 # must not share; :func:`hot_turn_windows` counts the open ones.
 
 _HOT = 0
-_HOT_WINDOW: ContextVar["HotWindow | None"] = ContextVar("hermes_turn_hot_window", default=None)
+_HOT_WINDOW: ContextVar[HotWindow | None] = ContextVar("hermes_turn_hot_window", default=None)
 
 
 class HotWindow:
@@ -146,7 +146,7 @@ def hot_turn_windows() -> int:
         return _HOT
 
 
-def current_hot_window() -> "HotWindow | None":
+def current_hot_window() -> HotWindow | None:
     """The admitted turn's window, on its handler's own thread; else ``None``."""
 
     return _HOT_WINDOW.get()
@@ -180,8 +180,8 @@ def chat_turns_admitted() -> int:
 
 #: Live holds. Weak, so a request that never reached a worker (a cancelled
 #: future, a test's fake pool) stops counting once it is collected.
-_ACCEPTED: "weakref.WeakSet[AcceptedTurn]" = weakref.WeakSet()
-_CURRENT_ACCEPT: ContextVar["AcceptedTurn | None"] = ContextVar("hermes_accepted_turn", default=None)
+_ACCEPTED: weakref.WeakSet[AcceptedTurn] = weakref.WeakSet()
+_CURRENT_ACCEPT: ContextVar[AcceptedTurn | None] = ContextVar("hermes_accepted_turn", default=None)
 
 #: One INFO line per anchored turn that came through the serve's pool: where the
 #: span between the accept and the handler's ``TurnPhaseMarks()`` went.
@@ -198,7 +198,7 @@ ACCEPT_TO_ANCHOR_RECEIPT = (
 class AcceptedTurn:
     """One chat turn from its pool submit to its anchor. ``release`` is idempotent."""
 
-    __slots__ = ("request_id", "submitted", "started", "link_bound", "_held", "__weakref__")
+    __slots__ = ("__weakref__", "_held", "link_bound", "request_id", "started", "submitted")
 
     def __init__(self, request_id: str = "") -> None:
         self.request_id = request_id
@@ -249,7 +249,7 @@ def chat_turns_accepted() -> int:
 
 
 @contextmanager
-def accepted_turn_scope(accepted: "AcceptedTurn | None") -> Iterator[None]:
+def accepted_turn_scope(accepted: AcceptedTurn | None) -> Iterator[None]:
     """Bind *accepted* for the worker's run; release it on the way out, whatever the path."""
 
     token = _CURRENT_ACCEPT.set(accepted)
@@ -272,8 +272,8 @@ def accepted_turn_scope(accepted: "AcceptedTurn | None") -> Iterator[None]:
 # ``client_message_id`` a few statements after the anchor, and the receipt is
 # rendered after the build, when the minted id exists.
 
-_ENTRIES: dict[int, "str | Callable[[], object] | None"] = {}
-_WATCHES: list["TurnOverlapWatch"] = []
+_ENTRIES: dict[int, str | Callable[[], object] | None] = {}
+_WATCHES: list[TurnOverlapWatch] = []
 _ENTRY_TOKENS = itertools.count(1)
 #: The most ids one receipt names; the rest are counted, never dropped silently.
 TURN_IDS_SHOWN = 8
@@ -395,6 +395,7 @@ __all__ = [
     "ACCEPT_TO_ANCHOR_RECEIPT",
     "AcceptedTurn",
     "HotWindow",
+    "TurnOverlapWatch",
     "accepted_turn_scope",
     "admitted_turn",
     "chat_turns_accepted",
@@ -402,6 +403,5 @@ __all__ = [
     "current_hot_window",
     "hot_turn_windows",
     "inside_admitted_turn",
-    "TurnOverlapWatch",
     "turn_overlap_watch",
 ]

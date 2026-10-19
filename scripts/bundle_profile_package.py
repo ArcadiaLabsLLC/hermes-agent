@@ -76,9 +76,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.bundle_licenses import copy_first_party_licence, licence_problems, write_licence_records  # noqa: E402
-from scripts.bundle_profile_closure import _imports, _norm, _owner, module_index, profile_walk  # noqa: E402
-from agent_runtime.bundle_profiles.forced_tree import FORCED_TREE_DIR, sibling_modules  # noqa: E402
+from scripts.bundle_licenses import copy_first_party_licence, licence_problems, write_licence_records
+from scripts.bundle_profile_closure import _imports, _norm, _owner, module_index, profile_walk
+from agent_runtime.bundle_profiles.forced_tree import FORCED_TREE_DIR, sibling_modules
 from scripts.bundles.serve_probe import (
     named_timezone_problems, serve_import_problems, serve_import_table)
 from scripts.bundles.pool_install import install_pool as install_pool_into, remove_tree

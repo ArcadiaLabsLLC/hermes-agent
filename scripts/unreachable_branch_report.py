@@ -321,7 +321,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        import coverage  # noqa: F401
+        import coverage
     except ImportError:
         print(
             "unreachable_branch_report: coverage is not installed in this "

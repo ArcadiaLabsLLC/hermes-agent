@@ -31,7 +31,7 @@ __all__ = [
 
 
 class _PollResponseCacheEntry:
-    __slots__ = ("fingerprint", "lines", "code", "built_monotonic")
+    __slots__ = ("built_monotonic", "code", "fingerprint", "lines")
 
     def __init__(
         self, fingerprint: tuple, lines: list[str], code: int, built_monotonic: float

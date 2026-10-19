@@ -4,7 +4,7 @@ stamps, progress, the row, the preview, the source entry and the per-lane cap.""
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from typing import Any
 
 from ..projection_accountant import ProjectionAccountant
@@ -44,7 +44,7 @@ def _iso(epoch: Any) -> str:
     if seconds <= 0:
         return ""
     try:
-        return datetime.fromtimestamp(seconds, timezone.utc).isoformat()
+        return datetime.fromtimestamp(seconds, UTC).isoformat()
     except (OverflowError, OSError, ValueError):
         return ""
 
@@ -80,7 +80,7 @@ def _iso_from_naive_local(text: Any) -> str:
         # `astimezone()` on a naive datetime interprets it as local time, which
         # is exactly what `time.localtime` produced.
         parsed = parsed.astimezone()
-    return parsed.astimezone(timezone.utc).isoformat()
+    return parsed.astimezone(UTC).isoformat()
 
 
 def elapsed_seconds(started_epoch: float | None, *, now: float) -> int:

@@ -440,7 +440,7 @@ class BootPhases:
                         "display_name": self.install_block.get("display_name"),
                     },
                 )
-            except Exception:  # noqa: BLE001 — courtesy channel, never the boot
+            except Exception:  # courtesy channel, never the boot
                 pass
 
     def _boot_register_instance(self) -> None:

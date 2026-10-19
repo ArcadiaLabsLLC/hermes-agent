@@ -48,7 +48,7 @@ __all__ = [
 ]
 
 
-def _authorize(realm: Realm, action: str, membership: RealmMembershipProvider | None, credential: "RealmSyncCredential | None" = None) -> None:
+def _authorize(realm: Realm, action: str, membership: RealmMembershipProvider | None, credential: RealmSyncCredential | None = None) -> None:
     """Raise the typed refusal when this realm+action is not permitted.
 
     Unchanged for the two WRITE verbs: ``publish_realm_sync`` and
@@ -85,7 +85,7 @@ def _authorize(realm: Realm, action: str, membership: RealmMembershipProvider | 
         raise RealmSyncError(decision.code or "membership_denied", decision.message or "Realm membership does not allow this sync action.")
 
 
-def _ensure_sync_repo(realm: Realm, *, credential: "RealmSyncCredential | None" = None) -> Path:
+def _ensure_sync_repo(realm: Realm, *, credential: RealmSyncCredential | None = None) -> Path:
     repo = _sync_repo_path(realm)
     if not (repo.exists() and (repo / ".git").exists()):
         if _looks_like_remote(str(realm.sync_manifest_ref or "")):
@@ -112,7 +112,7 @@ _ADOPT_REFUSAL_CODES = {
 }
 
 
-def _adopt_credential_remote(realm: Realm, repo: Path, credential: "RealmSyncCredential | None") -> None:
+def _adopt_credential_remote(realm: Realm, repo: Path, credential: RealmSyncCredential | None) -> None:
     """A ``local:`` credential's ``git_url`` becomes the realm's ``sync_manifest_ref``
     and the shared local repo's ``origin`` (p10-work §2.6, ``REALM-LOCAL-REMOTE-FROM-CREDENTIAL``).
 
@@ -195,7 +195,7 @@ def _ensure_repo_gitattributes(repo: Path) -> None:
         return
 
 
-def _credential_git_config(credential: "RealmSyncCredential | None") -> list[str] | None:
+def _credential_git_config(credential: RealmSyncCredential | None) -> list[str] | None:
     """Per-invocation git auth config (Decision 4): rendered as ``git -c`` args,
     never written to ``.git/config`` and never surfaced in safe_details/logs."""
     if credential is None:
@@ -241,7 +241,7 @@ def _has_remote(repo: Path) -> bool:
     return bool(_git(repo, "remote", check=False).strip())
 
 
-def _refresh_remote_tracking(repo: Path, *, credential: "RealmSyncCredential | None" = None) -> dict[str, Any]:
+def _refresh_remote_tracking(repo: Path, *, credential: RealmSyncCredential | None = None) -> dict[str, Any]:
     """Best-effort ``git fetch`` so ``_git_state``'s ahead/behind answer against
     the remote AS IT IS, not as the last pull/publish left it cached.
 

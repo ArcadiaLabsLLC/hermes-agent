@@ -62,15 +62,15 @@ class PoolRotationCursor:
     #: processes incrementing concurrently must never let the slower writer
     #: erase the faster one's usage, which would re-pin the strategy on the
     #: busiest key.
-    request_counts: Dict[str, int] = field(default_factory=dict)
+    request_counts: dict[str, int] = field(default_factory=dict)
 
     @classmethod
-    def from_state(cls, state: Any) -> "PoolRotationCursor":
+    def from_state(cls, state: Any) -> PoolRotationCursor:
         if not isinstance(state, dict):
             return cls()
         raw = state.get("last_selected_id")
         raw_counts = state.get("request_counts")
-        counts: Dict[str, int] = {}
+        counts: dict[str, int] = {}
         if isinstance(raw_counts, dict):
             for key, value in raw_counts.items():
                 # A hand-edited or partially-written sidecar must degrade to
@@ -82,8 +82,8 @@ class PoolRotationCursor:
             request_counts=counts,
         )
 
-    def to_state(self) -> Dict[str, Any]:
-        state: Dict[str, Any] = {}
+    def to_state(self) -> dict[str, Any]:
+        state: dict[str, Any] = {}
         if self.last_selected_id:
             state["last_selected_id"] = self.last_selected_id
         if self.request_counts:
@@ -124,7 +124,7 @@ def write_pool_rotation_cursor(provider: str, cursor: PoolRotationCursor) -> Non
             )
 
 class PoolRotationMixin:
-    def _usage_counts(self) -> Dict[str, int]:
+    def _usage_counts(self) -> dict[str, int]:
         """The usage vector as it stands in memory, pruned to live entries.
 
         Built from ``self._entries`` rather than accumulated separately, so an
@@ -165,7 +165,7 @@ class PoolRotationMixin:
             self._rotation_cursor = read_pool_rotation_cursor(self.provider)
         return self._rotation_cursor
 
-    def _next_after_cursor(self, available: List[PooledCredential]) -> PooledCredential:
+    def _next_after_cursor(self, available: list[PooledCredential]) -> PooledCredential:
         """The available entry that FOLLOWS the cursor in priority order.
 
         Order comes from ``self._entries`` (operator priority); position comes

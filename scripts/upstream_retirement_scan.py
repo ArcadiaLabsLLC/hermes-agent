@@ -39,7 +39,7 @@ import subprocess
 import sys
 import warnings
 from dataclasses import asdict, dataclass, field
-from functools import lru_cache
+from functools import lru_cache, cache
 from pathlib import Path
 from typing import Callable, Iterable, Iterator
 
@@ -162,7 +162,7 @@ class _BlobReader:
 _READER = _BlobReader()
 
 
-@lru_cache(maxsize=None)
+@cache
 def _blob(ref: str, path: str) -> str:
     return _READER(ref, path)
 
@@ -496,7 +496,7 @@ def enclosing(funcs: dict[str, ast.AST], line: int) -> str | None:
 def changed_lines(base: str, path: str) -> list[int]:
     diff = _run_git("diff", "-U0", "--no-color", base, "--", path)
     lines = []
-    for match in re.finditer(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", diff, re.M):
+    for match in re.finditer(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", diff, re.MULTILINE):
         start, count = int(match[1]), int(match[2] or 1)
         lines.extend(range(start, start + max(count, 1)))
     return lines

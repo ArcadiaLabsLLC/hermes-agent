@@ -256,7 +256,7 @@ def main(argv=None) -> int:
     try:
         pins = pins_from_bundles(args.bundle) if args.bundle else exported_pins(args.profile, args.target, args.uv)
         findings = scan_offline(pins, args.osv_db) if args.osv_db else scan_online(pins)
-    except Exception as exc:  # noqa: BLE001 — a scan that cannot run must fail, loudly
+    except Exception as exc:  # a scan that cannot run must fail, loudly
         print(f"SCAN FAILED ({type(exc).__name__}): {exc}", file=sys.stderr)
         return 2
     unwaived, waived = judge(findings, load_waivers(args.waivers), dt.date.today())

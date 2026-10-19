@@ -44,13 +44,13 @@ from agent_runtime.core_cache.read import _runtime_root_for_sidecar
 __layer__ = "stores"
 
 __all__ = [
-    "_sidecar_for",
-    "_stage_and_land",
     "GENERATION_RESIDUE_BOUND",
     "_GENERATION_RESIDUE_NAMES",
     "_entries_payload",
     "_reap_superseded_generations",
     "_receipt_generation_residue",
+    "_sidecar_for",
+    "_stage_and_land",
     "write_back",
 ]
 

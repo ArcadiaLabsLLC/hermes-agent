@@ -509,7 +509,7 @@ _PRECOMPUTED_RUNNING_WORK: ContextVar[dict | None] = ContextVar(
 class _RecordedAccountant:
     """The serve's running-work accountant, as the two reads ``parity`` makes of it."""
 
-    __slots__ = ("_summary", "_drop_samples")
+    __slots__ = ("_drop_samples", "_summary")
 
     def __init__(self, recorded: dict) -> None:
         self._summary = dict(recorded["summary"])

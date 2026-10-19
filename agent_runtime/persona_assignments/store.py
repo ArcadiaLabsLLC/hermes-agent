@@ -311,7 +311,7 @@ class PersonaInstanceStore:
             stored = from_jsonable(
                 PersonaInstance, json.loads(paths.persona_instance_path(instance.id).read_text(encoding="utf-8"))
             )
-        except Exception:  # noqa: BLE001 — absent/unreadable: no baseline to defend
+        except Exception:  # absent/unreadable: no baseline to defend
             return
         stored_clock, copy_clock = stored.slots_issued_at, instance.slots_issued_at
         if stored_clock is not None and (copy_clock is None or _as_utc(copy_clock) < _as_utc(stored_clock)):
@@ -333,7 +333,7 @@ class PersonaInstanceStore:
                 PersonaInstance,
                 json.loads(paths.persona_instance_path(instance.id).read_text(encoding="utf-8")),
             )
-        except Exception:  # noqa: BLE001 — absent/unreadable: no baseline to defend
+        except Exception:  # absent/unreadable: no baseline to defend
             return []
         stored_clock = stored.model_override_issued_at
         copy_clock = instance.model_override_issued_at

@@ -167,7 +167,7 @@ class _ThreadChild:
             finally:
                 if token is not None:
                     reset_hermes_home_override(token)
-        except Exception:  # noqa: BLE001 - a runner that cannot start is a silent exit: login_failed
+        except Exception:  # a runner that cannot start is a silent exit: login_failed
             pass
         finally:
             self._events.put(self._END)
@@ -308,7 +308,7 @@ class ProviderSignIns:
         try:
             for line in session.child.lines():
                 self._apply(session, line)
-        except Exception:  # noqa: BLE001 - a broken pipe is an ended login, never a crash
+        except Exception:  # a broken pipe is an ended login, never a crash
             pass
         with session.lock:
             if session.state in ACTIVE_STATES:

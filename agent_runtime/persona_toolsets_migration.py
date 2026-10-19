@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -86,7 +86,7 @@ def strip_legacy_persona_toolsets(store_root: Path) -> dict[str, Any]:
         logger.warning("persona_toolsets_stripped path=%s persona=%s toolsets=%s", path, row.get("id"), carried)
     return {
         "schema": "hermes.agent_runtime.persona_toolsets_migration/v1",
-        "ran_at": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
+        "ran_at": datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ"),
         "stripped": stripped,
         "errors": errors,
     }

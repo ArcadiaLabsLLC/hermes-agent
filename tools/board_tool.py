@@ -71,7 +71,7 @@ def _persona_for_session(session_id):
         for instance in PersonaInstanceStore().list_all():
             if getattr(instance, "session_id", None) == session_id:
                 return getattr(instance, "persona_id", None) or "agent"
-    except Exception:  # noqa: BLE001 — attribution is best-effort
+    except Exception:  # attribution is best-effort
         logger.debug("board tool: could not resolve persona for session", exc_info=True)
     return "agent"
 
@@ -123,7 +123,7 @@ def board_card_add(args, **kwargs):
             priority=str(args.get("priority") or "") or None,
             created_by=created_by,
         )
-    except Exception as exc:  # noqa: BLE001 — surfaced to the model
+    except Exception as exc:  # surfaced to the model
         logger.exception("board_card_add failed")
         return json.dumps({"ok": False, "error": f"{type(exc).__name__}: {exc}"})
     return json.dumps(
@@ -164,7 +164,7 @@ def board_cards(args, **kwargs):
             }
             for card in store.list_cards(board_id)
         ]
-    except Exception as exc:  # noqa: BLE001 — surfaced to the model
+    except Exception as exc:  # surfaced to the model
         logger.exception("board_cards failed")
         return json.dumps({"ok": False, "error": f"{type(exc).__name__}: {exc}"})
     return json.dumps({"ok": True, "board_id": board_id, "cards": rows}, indent=2, default=str)

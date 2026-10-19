@@ -131,15 +131,15 @@ class DepsCollector:
 
     def __init__(self, directory: Path) -> None:
         self.directory = Path(directory)
-        self.files: Dict[str, FileDeps] = {}
+        self.files: dict[str, FileDeps] = {}
         #: what each file reached by the end of its collection (``partial`` lines): the
         #: record of a file whose process was killed before its ``deps`` line
-        self.partial: Dict[str, FileDeps] = {}
-        self._offsets: Dict[str, int] = {}
-        self._mods: Dict[str, set] = {}
-        self._names: Dict[str, set] = {}
+        self.partial: dict[str, FileDeps] = {}
+        self._offsets: dict[str, int] = {}
+        self._mods: dict[str, set] = {}
+        self._names: dict[str, set] = {}
 
-    def poll(self) -> Dict[str, FileDeps]:
+    def poll(self) -> dict[str, FileDeps]:
         try:
             names = sorted(os.listdir(self.directory))
         except OSError:

@@ -71,7 +71,7 @@ class OfficeSyncRefusal:
     reason: str = SYNC_UNKNOWABLE
 
     @classmethod
-    def for_scan(cls, workspace_id: str, scan: ActorScan) -> "OfficeSyncRefusal | None":
+    def for_scan(cls, workspace_id: str, scan: ActorScan) -> OfficeSyncRefusal | None:
         """THE mint. ``None`` means the world was fully readable — so an arm can
         neither report a refusal it did not earn nor default-construct one that
         swallows the count."""
@@ -120,11 +120,11 @@ class OfficeArchiveOutcome:
     outcome: str
 
     @classmethod
-    def archived(cls, workspace_id: str, actor_key: str) -> "OfficeArchiveOutcome":
+    def archived(cls, workspace_id: str, actor_key: str) -> OfficeArchiveOutcome:
         return cls(workspace_id=workspace_id, actor_key=actor_key, outcome=ARCHIVE_OUTCOME_ARCHIVED)
 
     @classmethod
-    def failed(cls, workspace_id: str, actor_key: str, exc: BaseException) -> "OfficeArchiveOutcome":
+    def failed(cls, workspace_id: str, actor_key: str, exc: BaseException) -> OfficeArchiveOutcome:
         return cls(
             workspace_id=workspace_id,
             actor_key=actor_key,
@@ -491,7 +491,7 @@ def _reconcile_actors(
                 continue
             try:
                 store.remove_actor(workspace_id, actor_key, reason="remote_removed", updated_by="realm_sync")
-            except Exception as exc:  # noqa: BLE001 — accounted, never silent
+            except Exception as exc:  # accounted, never silent
                 # The loop SURVIVES one bad file — a whole realm must not stop
                 # converging because one actor would not archive — but the
                 # outcome leaves with the summary, and the baseline entry STAYS.

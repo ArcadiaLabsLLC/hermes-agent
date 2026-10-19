@@ -124,7 +124,7 @@ def _declared_members() -> list[str]:
 def collect(root: Path) -> dict[str, Any]:
     """The inventory, read off the live registry. Imports ``model_tools``."""
 
-    import model_tools  # noqa: F401 - importing IS what populates the registry
+    import model_tools  # importing IS what populates the registry
     from agent_runtime.personas import REGISTRY_HYGIENE_BLOCKED_TOOLS
     from agent_runtime.tool_visibility import _estimate_model_tool_tokens, _mutating_tools
     from hermes_cli.plugins import discover_plugins

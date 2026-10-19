@@ -18,11 +18,11 @@ __all__ = [
     "_SPAN_CATALOG_WALK",
     "_SPAN_SHARED_CATALOG",
     "_accumulate_span",
-    "_reset_observability_spans",
-    "_observability_span_ms",
+    "_mission_chat_memory_loaded",
     "_note_catalog_walk",
     "_observability_catalog_walks",
-    "_mission_chat_memory_loaded",
+    "_observability_span_ms",
+    "_reset_observability_spans",
 ]
 
 

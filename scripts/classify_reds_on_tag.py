@@ -123,8 +123,8 @@ def outcome(node: str, run: TagRun) -> Outcome:
     return Outcome.PASS
 
 
-def classify(nodes: Iterable[str], runs: Sequence[TagRun], presence: Presence) -> Dict[str, Verdict]:
-    verdicts: Dict[str, Verdict] = {}
+def classify(nodes: Iterable[str], runs: Sequence[TagRun], presence: Presence) -> dict[str, Verdict]:
+    verdicts: dict[str, Verdict] = {}
     for node in sorted(set(nodes)):
         path = file_of(node)
         if path in presence.missing_files:
@@ -141,7 +141,7 @@ def classify(nodes: Iterable[str], runs: Sequence[TagRun], presence: Presence) -
 
 #: The set of outcomes a node showed across the tag runs -> its verdict; any mix is
 #: nondeterministic on the tag.
-_VERDICT_BY_OUTCOMES: Dict[frozenset, Verdict] = {
+_VERDICT_BY_OUTCOMES: dict[frozenset, Verdict] = {
     frozenset({Outcome.RED}): Verdict.UPSTREAM_RED,
     frozenset({Outcome.FILE_RED}): Verdict.UPSTREAM_COLLECT_ERROR,
     frozenset({Outcome.PASS}): Verdict.FORK_CAUSED_OR_FLAKY,
@@ -199,10 +199,10 @@ _SKIP_WHY = {
 }
 
 
-def emit_skip_rows(verdicts: Mapping[str, Verdict], tag: str, sha: str) -> List[str]:
+def emit_skip_rows(verdicts: Mapping[str, Verdict], tag: str, sha: str) -> list[str]:
     """``path · upstream: <why> · <sha>`` rows for whole-file and nondeterministic files."""
 
-    by_file: Dict[str, Dict[Verdict, int]] = {}
+    by_file: dict[str, dict[Verdict, int]] = {}
     for node, verdict in verdicts.items():
         if verdict in _SKIP_WHY:
             counts = by_file.setdefault(file_of(node), {})
@@ -215,13 +215,13 @@ def emit_skip_rows(verdicts: Mapping[str, Verdict], tag: str, sha: str) -> List[
     return rows
 
 
-def emit_report(verdicts: Mapping[str, Verdict], runs: Sequence[TagRun]) -> List[str]:
+def emit_report(verdicts: Mapping[str, Verdict], runs: Sequence[TagRun]) -> list[str]:
     lines = []
     for node, verdict in sorted(verdicts.items()):
         absent = verdict is Verdict.ABSENT_ON_TAG
         trail = "-" if absent else ",".join(outcome(node, run).value for run in runs)
         lines.append(f"{verdict.value:<24} {node}  [{trail}]")
-    counts: Dict[str, int] = {}
+    counts: dict[str, int] = {}
     for verdict in verdicts.values():
         counts[verdict.value] = counts.get(verdict.value, 0) + 1
     lines.append("verdicts: " + ", ".join(f"{k} {v}" for k, v in sorted(counts.items())))
@@ -249,7 +249,7 @@ def default_python(env: Optional[Mapping[str, str]] = None, home: Optional[Path]
     return Path(sys.executable)
 
 
-_SCRUB = re.compile(r"^(HERMES_|__HERMES|PYTEST_)|KEY|TOKEN|SECRET|PASSWORD", re.I)
+_SCRUB = re.compile(r"^(HERMES_|__HERMES|PYTEST_)|KEY|TOKEN|SECRET|PASSWORD", re.IGNORECASE)
 
 
 def _git(args: Sequence[str], cwd: Path) -> subprocess.CompletedProcess:
@@ -275,7 +275,7 @@ def _within(child: Path, parent: Path) -> bool:
     return child == parent or parent in child.parents
 
 
-def hermetic_env(python: Path, workers: int) -> Dict[str, str]:
+def hermetic_env(python: Path, workers: int) -> dict[str, str]:
     env = {k: v for k, v in os.environ.items() if not _SCRUB.search(k)}
     env.update(HERMES_PYTHON=str(python), HERMES_TEST_WORKERS=str(workers), PYTHONHASHSEED="0",
                PYTHONUTF8="1", TZ="UTC", GIT_OPTIONAL_LOCKS="0")
@@ -291,7 +291,7 @@ class TagWorktree:
         self.repo, self.tag, self.neutral, self.keep = repo, tag, neutral, keep
         self.path = neutral / f"hermes-tag-{slug(tag)}-{os.getpid()}"
 
-    def __enter__(self) -> "TagWorktree":
+    def __enter__(self) -> TagWorktree:
         made = _git(["-C", str(self.repo), "worktree", "add", "--detach", str(self.path), self.tag], self.neutral)
         if made.returncode != 0:
             raise SystemExit(f"error: git worktree add failed: {made.stderr.strip()}")
@@ -308,7 +308,7 @@ class TagWorktree:
 
 
 def run_files(worktree: Path, files: Sequence[str], repeat: int, log_dir: Path, *, bash: Path,
-              python: Path, workers: int = 2) -> List[TagRun]:
+              python: Path, workers: int = 2) -> list[TagRun]:
     """The tag's own ``scripts/run_tests.sh`` over ``files``, ``repeat`` times; each run's log
     and exit code land side by side in ``log_dir``."""
 
@@ -346,7 +346,7 @@ def collect_present(worktree: Path, files: Iterable[str], *, python: Path) -> Pr
 def lock_drift(repo: Path, tag: str) -> int:
     """Packages ``uv.lock`` pins differently at ``tag`` and HEAD (the tag ran on main's venv)."""
 
-    def pins(rev: str) -> Dict[str, str]:
+    def pins(rev: str) -> dict[str, str]:
         shown = _git(["-C", str(repo), "show", f"{rev}:uv.lock"], repo.parent)
         if shown.returncode != 0:
             return {}
@@ -356,7 +356,7 @@ def lock_drift(repo: Path, tag: str) -> int:
     return sum(1 for name in old.keys() | new.keys() if old.get(name) != new.get(name))
 
 
-def _load_known_reds(repo: Path) -> Dict[str, frozenset]:
+def _load_known_reds(repo: Path) -> dict[str, frozenset]:
     """The last recorded gate run's red map (``run_tests_bundled_plan.load_known_reds``)."""
 
     spec = importlib.util.spec_from_file_location("_rtb_plan", Path(__file__).with_name("run_tests_bundled_plan.py"))
@@ -382,7 +382,7 @@ def _classify_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _red_nodes(args: argparse.Namespace, repo: Path) -> List[str]:
+def _red_nodes(args: argparse.Namespace, repo: Path) -> list[str]:
     nodes = list(args.nodeid)
     if args.from_log:
         nodes += parse_run_output(args.from_log.read_text(encoding="utf-8", errors="replace")).red_nodes

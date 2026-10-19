@@ -282,9 +282,7 @@ class ImageRevisionStore:
             record for record in loaded.get("attempts") or [] if isinstance(record, dict)
         ]
         approved = loaded.get("approved")
-        if isinstance(approved, bool) or not isinstance(approved, int):
-            approved = None
-        elif not 0 <= approved < len(attempts):
+        if isinstance(approved, bool) or not isinstance(approved, int) or not 0 <= approved < len(attempts):
             approved = None
         return {
             "schema": loaded.get("schema", SCHEMA),

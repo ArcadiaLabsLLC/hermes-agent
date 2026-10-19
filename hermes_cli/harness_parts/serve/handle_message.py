@@ -329,7 +329,7 @@ class MessageHandling:
             return resolve_stream_resume(
                 options.resume_offset, fold_entities=options.declared
             )
-        except Exception as exc:  # noqa: BLE001 - never fatal
+        except Exception as exc:  # never fatal
             # A resume that cannot be COMPUTED must still leave the
             # client subscribed. The hydrate is the answer to every
             # question this path could have answered more cheaply, so

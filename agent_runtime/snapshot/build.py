@@ -39,12 +39,12 @@ __layer__ = "lanes"
 
 __all__ = [
     "_build_injected",
+    "_build_snapshot_uncoalesced",
     "_join_or_lead",
     "_lead_build",
     "_release_coalescer",
     "_serve_cached",
     "_shadow_build",
-    "_build_snapshot_uncoalesced",
     "build_snapshot",
 ]
 

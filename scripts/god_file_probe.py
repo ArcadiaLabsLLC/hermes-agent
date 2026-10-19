@@ -48,7 +48,7 @@ import subprocess
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import lru_cache, cache
 from pathlib import Path
 from typing import Callable, Iterable, Iterator
 
@@ -99,7 +99,7 @@ def _git(root: Path, *args: str) -> str:
     ).stdout
 
 
-@lru_cache(maxsize=None)
+@cache
 def upstream_paths(manifest: Path = MANIFEST) -> frozenset[str]:
     """Every path upstream owns (the manifest, minus its ``# base`` header)."""
     lines = manifest.read_text(encoding="utf-8").splitlines()
@@ -112,7 +112,7 @@ def is_fork_production(path: str) -> bool:
     return not path.startswith("tests/") or path.startswith("tests/_downstream/")
 
 
-@lru_cache(maxsize=None)
+@cache
 def fork_production_files(root: Path = ROOT, manifest: Path = MANIFEST) -> tuple[str, ...]:
     """The population, from ``git ls-files`` minus the upstream manifest."""
     upstream = upstream_paths(manifest)
@@ -729,7 +729,7 @@ def package_roots(root: Path = ROOT, manifest: Path = MANIFEST) -> tuple[str, ..
     return tuple(sorted(found - set(PACKAGE_PARENTS)))
 
 
-@lru_cache(maxsize=None)
+@cache
 def layered_roots(root: Path = ROOT, manifest: Path = MANIFEST) -> tuple[str, ...]:
     """``LAYERED_ROOTS``, every fork-only tree under ``FORK_ONLY_PARENTS`` and every package
     under ``PACKAGE_PARENTS``, enumerated from the tree."""

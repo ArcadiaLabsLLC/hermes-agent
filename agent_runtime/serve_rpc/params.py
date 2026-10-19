@@ -18,11 +18,6 @@ __layer__ = "policy"
 __all__ = [
     "CORRELATION_ID_INVALID_REASON",
     "ParamRefused",
-    "expect_revision_invalid",
-    "unknown_workspace",
-    "updated_by_invalid",
-    "workspace_id_required",
-    "_text_param",
     "_correlation_id_param",
     "_level_expect_param",
     "_level_workspace_id_or_error",
@@ -30,7 +25,12 @@ __all__ = [
     "_map_expect_param",
     "_map_id_or_error",
     "_map_id_param",
+    "_text_param",
     "_workspace_id_param",
+    "expect_revision_invalid",
+    "unknown_workspace",
+    "updated_by_invalid",
+    "workspace_id_required",
 ]
 
 

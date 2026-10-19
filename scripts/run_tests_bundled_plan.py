@@ -82,11 +82,11 @@ def parse_skip_line(line: str) -> Optional[SkipRow]:
     return SkipRow(Path(head).as_posix() + sep + node, fields[1], fields[2])
 
 
-def load_skip_list(path: Path) -> Dict[str, SkipRow]:
+def load_skip_list(path: Path) -> dict[str, SkipRow]:
     """Repo-relative POSIX path → row. A missing list RAISES, like the
     manifest: without it the P0 files would silently be back in every run."""
 
-    rows: Dict[str, SkipRow] = {}
+    rows: dict[str, SkipRow] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         row = parse_skip_line(line)
         if row is not None:
@@ -109,15 +109,15 @@ DEFAULT_BUNDLE_SECONDS = 120.0
 DEFAULT_SOLO_SECONDS = 60.0
 
 
-def cut_by_budget(members: Sequence[Tuple[Path, float]], budget: float, cap: int) -> List[List[Path]]:
+def cut_by_budget(members: Sequence[tuple[Path, float]], budget: float, cap: int) -> list[list[Path]]:
     """Consecutive bundles of ``(path, estimated seconds)``, in the given order.
 
     A bundle closes before the member that would take its Σ estimate past
     ``budget`` or its size past ``cap``; a member alone over the budget is a
     bundle of its own. ``budget <= 0`` cuts by ``cap`` only (the count rule)."""
 
-    bundles: List[List[Path]] = []
-    current: List[Path] = []
+    bundles: list[list[Path]] = []
+    current: list[Path] = []
     total = 0.0
     for path, estimate in members:
         over_budget = budget > 0 and total + estimate > budget
@@ -170,20 +170,20 @@ class BundleDiagnostic:
     """One original abnormal attempt, independent of its members' later verdicts."""
 
     bundle_index: int
-    members: List[str]
+    members: list[str]
     process_rc: int
     session_rc: Optional[int]
     session_ended: bool
     stopped_in: Optional[str]
-    failed: Dict[str, List[str]]
+    failed: dict[str, list[str]]
     output: str
     omitted_chars: int
 
     @classmethod
     def capture(
-        cls, index: int, members: Sequence[str], rc: int, events: "BundleEvents", output: str,
+        cls, index: int, members: Sequence[str], rc: int, events: BundleEvents, output: str,
         stopped_in: Optional[str],
-    ) -> "BundleDiagnostic":
+    ) -> BundleDiagnostic:
         from agent_runtime.redaction import scrub_secret_values
 
         safe = scrub_secret_values(output)
@@ -199,7 +199,7 @@ class BundleDiagnostic:
         )
 
 
-def render_bundle_diagnostics(diagnostics: Sequence[BundleDiagnostic]) -> List[str]:
+def render_bundle_diagnostics(diagnostics: Sequence[BundleDiagnostic]) -> list[str]:
     """Print each first-attempt output once, even if several members needed a retry."""
     if not diagnostics:
         return []
@@ -224,7 +224,7 @@ class Process:
     """One pytest process the run spawned."""
 
     kind: vias.Via
-    members: List[str]
+    members: list[str]
     started: float
     ended: float
     startup: Optional[float] = None  # session start − spawn, when the recorder saw it
@@ -241,21 +241,21 @@ class RunLedger:
 
     started: float = field(default_factory=time.time)
     ended: Optional[float] = None
-    processes: List[Process] = field(default_factory=list)
+    processes: list[Process] = field(default_factory=list)
     #: rel → collect + test seconds of the file's LAST attempt
-    file_seconds: Dict[str, float] = field(default_factory=dict)
+    file_seconds: dict[str, float] = field(default_factory=dict)
     #: rel → failing node ids of the file's last attempt (empty when clean)
-    failed: Dict[str, List[str]] = field(default_factory=dict)
+    failed: dict[str, list[str]] = field(default_factory=dict)
     #: collect + test seconds the bundle attempt of a re-run member cost
     first_attempt_seconds: float = 0.0
-    known_red: List[str] = field(default_factory=list)
+    known_red: list[str] = field(default_factory=list)
     #: Only abnormal bundle attempts; retained before retry scheduling and scratch cleanup.
-    bundle_diagnostics: List[BundleDiagnostic] = field(default_factory=list)
+    bundle_diagnostics: list[BundleDiagnostic] = field(default_factory=list)
     #: per-file diagnosis (``run_tests_bundled_diag.Diagnosis``), set by the runner
     diagnosis: Optional[object] = None
 
     def record_bundle_diagnostic(
-        self, index: int, members: Sequence[str], rc: int, events: "BundleEvents", output: str,
+        self, index: int, members: Sequence[str], rc: int, events: BundleEvents, output: str,
         stopped_in: Optional[str] = None,
     ) -> None:
         confirmed = rc == 0 and events.session_end is not None and events.exit_status == 0
@@ -263,7 +263,7 @@ class RunLedger:
         if not (confirmed and clean):
             self.bundle_diagnostics.append(BundleDiagnostic.capture(index, members, rc, events, output, stopped_in))
 
-    def diagnostic_record(self) -> Dict[str, object]:
+    def diagnostic_record(self) -> dict[str, object]:
         """The existing runs.jsonl owns durability; final-red caching remains separate."""
         return {"bundle_diagnostics": [asdict(item) for item in sorted(
             self.bundle_diagnostics, key=lambda entry: entry.bundle_index,
@@ -283,7 +283,7 @@ class RunLedger:
         failed = list(tally.failed_nodeids) if tally is not None else []
         self.failed[rel] = (self.failed.get(rel, []) if add else []) + failed
 
-    def summary(self, jobs: int, *, slowest: int = 20) -> Dict[str, object]:
+    def summary(self, jobs: int, *, slowest: int = 20) -> dict[str, object]:
         ended = self.ended or time.time()
         elapsed = max(1e-9, ended - self.started)
         worker_seconds = jobs * elapsed
@@ -335,7 +335,7 @@ def idle_tail(processes: Iterable[Process], jobs: int, started: float, ended: fl
     return ended - (last_full if last_full is not None else started)
 
 
-def render(summary: Mapping[str, object]) -> List[str]:
+def render(summary: Mapping[str, object]) -> list[str]:
     """The ``=== Run cost ===`` block printed after the Summary line."""
 
     procs = summary["processes"]
@@ -391,14 +391,14 @@ def primary_checkout(repo_root: Path) -> Optional[Path]:
     return None if not common or primary.resolve() == Path(repo_root).resolve() else primary
 
 
-def load_durations_with_primary(repo_root: Path, load) -> Dict[str, float]:
+def load_durations_with_primary(repo_root: Path, load) -> dict[str, float]:
     """``load(repo_root)`` over the primary checkout's cache: a local entry wins."""
 
     primary = primary_checkout(repo_root)
     return {**(load(primary) if primary is not None else {}), **load(repo_root)}
 
 
-def last_record(repo_root: Path, record_path: Optional[Path] = None) -> Dict[str, object]:
+def last_record(repo_root: Path, record_path: Optional[Path] = None) -> dict[str, object]:
     """The LAST gate line of the run record; ``{}`` when it is missing or torn.
     A worktree with no record of its own reads the primary checkout's.
     ``record_path`` names the file outright (the gate store's ``runs.jsonl``)."""
@@ -423,7 +423,7 @@ def last_record(repo_root: Path, record_path: Optional[Path] = None) -> Dict[str
     return {}
 
 
-def load_known_reds(repo_root: Path, record_path: Optional[Path] = None) -> Dict[str, frozenset]:
+def load_known_reds(repo_root: Path, record_path: Optional[Path] = None) -> dict[str, frozenset]:
     """rel → the failing node ids the LAST recorded run carried for it. A
     missing or torn record is empty: every red is then re-run alone."""
 
@@ -457,7 +457,7 @@ def record_run(
     previous_timed_out: Iterable[str] = (),
     extra: Optional[Mapping[str, object]] = None,
     record_path: Optional[Path] = None,
-) -> Dict[str, List[str]]:
+) -> dict[str, list[str]]:
     """Append one JSON line: the run's summary plus the red map — the previous
     map with every file this run ran replaced by what it showed (red with its
     failing ids, or dropped when green). Files not run carry forward, so a
@@ -483,7 +483,7 @@ def record_run(
     return red
 
 
-def last_session(lines: Sequence[str]) -> List[str]:
+def last_session(lines: Sequence[str]) -> list[str]:
     """The event lines of the LAST pytest session in a file several attempts
     appended to (the per-file runner's flake retry re-uses the path)."""
 

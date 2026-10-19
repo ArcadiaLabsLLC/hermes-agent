@@ -20,7 +20,7 @@ import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -88,7 +88,7 @@ def _visit_actor_rows(
         try:
             with office_lock(workspace):
                 _visit_workspace(workspace, paths, visit)
-        except Exception as exc:  # noqa: BLE001 - reported, retried next start
+        except Exception as exc:  # reported, retried next start
             errors.append({"workspace": workspace, "error": type(exc).__name__})
             logger.warning("%s workspace=%s error=%s", failure_event, workspace, type(exc).__name__)
     return errors
@@ -196,7 +196,7 @@ def sweep_legacy_desks(store_root: Path) -> dict[str, Any]:
                 workspace_id, actor_key, reason="legacy_desk_sweep", updated_by="legacy_desk_sweep"
             )
             archived.append(f"{workspace_id}/{actor_key}")
-        except Exception as exc:  # noqa: BLE001 - reported, retried next start
+        except Exception as exc:  # reported, retried next start
             errors.append({"workspace": workspace_id, "actor_key": actor_key, "error": type(exc).__name__})
     if sweep.dropped:
         logger.warning(
@@ -235,7 +235,7 @@ def run_office_legacy_migrations_once() -> dict[str, dict[str, Any]]:
             continue
         report = {
             "schema": "hermes.agent_runtime.office_legacy_migration/v1",
-            "ran_at": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
+            "ran_at": datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ"),
             **step(store_root),
         }
         ran[marker_name] = report

@@ -130,7 +130,7 @@ Stores written: ``<head_home>/chat_live_logs/<session>.jsonl`` (+ ``.1``,
 
 from __future__ import annotations
 
-from agent_runtime.chat_live_log import (  # noqa: F401 — every family, lowest layer first
+from agent_runtime.chat_live_log import (  # every family, lowest layer first
     lines,
     files,
     backfill,

@@ -243,7 +243,7 @@ def run(root: str, base: str, exclude: list[str]) -> int:
     print(f"  sha cites checked        : {checked_shas} ({len(distinct_shas)} distinct)")
     print(f"  bare names left ambiguous: {ambiguous}")
     print(f"  cross-repo/elided, skipped: {cross_repo}")
-    print("")
+    print()
     for title, rows in (
         ("PATH DOES NOT RESOLVE", dead_path),
         ("LINE IS PAST THE END OF THE FILE", dead_line),
@@ -253,7 +253,7 @@ def run(root: str, base: str, exclude: list[str]) -> int:
         print(f"{title}: {len(rows)}")
         for row in rows:
             print(f"  {row}")
-        print("")
+        print()
     # Always 0. See the module docstring: a report that can fail a lane is a
     # gate, and this one is born red.
     return 0

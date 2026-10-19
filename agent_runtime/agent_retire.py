@@ -211,7 +211,7 @@ def _sweep_live_placements(
             reason=reason,
             correlation_id=correlation_id,
         )
-    except Exception as exc:  # noqa: BLE001 - the retirement is authoritative regardless
+    except Exception as exc:  # the retirement is authoritative regardless
         return {
             "archived": 0,
             "failed": 1,
@@ -283,7 +283,7 @@ def _already_retired_ack(
         row = from_jsonable(
             PersonaInstance, json.loads(tombstone.read_text(encoding="utf-8"))
         )
-    except Exception:  # noqa: BLE001 - an unreadable tombstone is still a tombstone
+    except Exception:  # an unreadable tombstone is still a tombstone
         pass
     else:
         persona_id = row.persona_id
@@ -298,7 +298,7 @@ def _already_retired_ack(
     office_archive_failures = list(sweep["failures"])
     try:
         archived_actor_keys = OfficeStore().archived_actor_keys_for_instance(instance_id)
-    except Exception as exc:  # noqa: BLE001 - the office projection is never authoritative here
+    except Exception as exc:  # the office projection is never authoritative here
         # It is not authoritative, so the replay still answers — but the empty
         # list it answers with is no longer allowed to look like the positive
         # claim. The fault rides the SAME list the sweep's per-actor failures

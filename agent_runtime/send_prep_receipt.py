@@ -120,7 +120,7 @@ def thread_cpu_seconds() -> dict[int, tuple[str, float]] | None:
 class CpuAnchor:
     """The near end of the receipt's CPU fields: process CPU, per-thread CPU, the anchoring thread."""
 
-    __slots__ = ("process", "threads", "owner")
+    __slots__ = ("owner", "process", "threads")
 
     def __init__(self) -> None:
         self.process = time.process_time()

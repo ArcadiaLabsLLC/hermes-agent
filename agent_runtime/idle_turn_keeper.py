@@ -64,7 +64,7 @@ KEEPER_MAX_TICKS = 20
 WINDOW_MAX_SECONDS = 240.0
 
 _LOCK = threading.Lock()
-_WINDOWS: "weakref.WeakKeyDictionary[Any, float]" = weakref.WeakKeyDictionary()
+_WINDOWS: weakref.WeakKeyDictionary[Any, float] = weakref.WeakKeyDictionary()
 _REFRESHES: dict[str, Callable[[], Any]] = {}
 _STATE: dict[str, Any] = {"thread": None, "ticks": 0, "agent": None, "stop": threading.Event()}
 

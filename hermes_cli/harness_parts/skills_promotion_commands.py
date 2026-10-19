@@ -29,8 +29,8 @@ __all__ = [
     "_ARCHIVE_STAMP_SUFFIX_RE",
     "_PROFILE_SOURCE_PROBES",
     "_PROMOTION_SOURCES",
-    "_PromotionSourceError",
     "_REFUSED_ACTION",
+    "_PromotionSourceError",
     "_archive_content_hint",
     "_canonical_packages_covered",
     "_cmd_skills_delete",
@@ -552,7 +552,7 @@ def _skill_package_hashes(covered) -> dict[str, str | None]:
     for pkg_slug, pkg_dir in covered:
         try:
             hashes[pkg_slug] = skill_package_content_hash(pkg_dir, pkg_dir / "SKILL.md")
-        except Exception:  # noqa: BLE001 — evidence, never a reason to refuse
+        except Exception:  # evidence, never a reason to refuse
             hashes[pkg_slug] = None
     return hashes
 
@@ -615,7 +615,7 @@ def _skill_delete_archive(covered, hashes: dict, dry_run: bool, warnings: list[d
             continue
         try:
             dest = _archive_package(pkg_dir, pkg_slug)
-        except Exception as exc:  # noqa: BLE001 — accounted, never silent
+        except Exception as exc:  # accounted, never silent
             warnings.append(
                 {"code": "skill_archive_failed", "skill": pkg_slug, "message": str(exc)}
             )

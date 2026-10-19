@@ -61,7 +61,7 @@ def _process_start_monotonic() -> float | None:
 class BootTimeline:
     """Ordered, append-only wall-time attribution of ONE process boot."""
 
-    __slots__ = ("_started", "_last", "_phases", "_process_start", "_annotations")
+    __slots__ = ("_annotations", "_last", "_phases", "_process_start", "_started")
 
     def __init__(self, *, process_start_monotonic: float | None = None) -> None:
         self._started = time.monotonic()

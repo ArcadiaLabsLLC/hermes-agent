@@ -111,7 +111,7 @@ class DocumentFamily:
     #: The directory the held (parked) documents live in, per realm.
     conflict_dir: Callable[[str], Path]
     #: The family's pull summary type (wire name kept per family).
-    summary_type: type["DocumentPullSummary"]
+    summary_type: type[DocumentPullSummary]
     #: The publish artifact kind (``SyncFamily`` value) and the scan's refusal
     #: reason for a listed document the store cannot read.
     sync_kind: str
@@ -542,5 +542,5 @@ def _park_held_document(
             indent=2,
             sort_keys=True,
         )
-    except Exception:  # noqa: BLE001 — the HOLD stands with or without its receipt
+    except Exception:  # the HOLD stands with or without its receipt
         pass

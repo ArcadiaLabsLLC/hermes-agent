@@ -175,7 +175,7 @@ def handle_request(req: Any, context: RpcContext | None = None) -> dict:
             return err(rid, 4090, "The connected service belongs to another Hermes installation.",
                        {"reason": "execution_identity_mismatch"})
         return fn(rid, params, context)
-    except Exception as exc:  # noqa: BLE001 - the boundary is the point
+    except Exception as exc:  # the boundary is the point
         return err(
             rid,
             ERR_HANDLER_FAILED,

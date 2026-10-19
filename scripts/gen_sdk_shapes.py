@@ -55,13 +55,13 @@ def _strip(annotation):
         annotation = typing.get_args(annotation)[0]
     args = [a for a in typing.get_args(annotation) if a is not type(None)]
     if typing.get_origin(annotation) in (typing.Union, types.UnionType):
-        lists = [a for a in args if typing.get_origin(a) in (list, typing.List)]
+        lists = [a for a in args if typing.get_origin(a) in (list, list)]
         if lists and len(lists) == 1:
             return _strip(typing.get_args(lists[0])[0])[0], True
         if len(args) == 1:
             return _strip(args[0])
         return annotation, False
-    if typing.get_origin(annotation) in (list, typing.List):
+    if typing.get_origin(annotation) in (list, list):
         return _strip(typing.get_args(annotation)[0])[0], True
     return annotation, False
 

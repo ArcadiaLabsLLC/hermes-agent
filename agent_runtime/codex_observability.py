@@ -64,8 +64,8 @@ logger = logging.getLogger(__name__)
 _MAX_OPEN_STREAMS = 256
 
 _LOCK = threading.Lock()
-_AGENTS: "weakref.WeakValueDictionary[str, Any]" = weakref.WeakValueDictionary()
-_STREAMS: "OrderedDict[tuple, _OpenStream]" = OrderedDict()
+_AGENTS: weakref.WeakValueDictionary[str, Any] = weakref.WeakValueDictionary()
+_STREAMS: OrderedDict[tuple, _OpenStream] = OrderedDict()
 
 
 @dataclass
@@ -78,10 +78,10 @@ class _OpenStream:
 
 
 #: Keys whose receipt was written, kept so a late delta does not reopen the stream.
-_CLOSED: "OrderedDict[tuple, None]" = OrderedDict()
+_CLOSED: OrderedDict[tuple, None] = OrderedDict()
 
 
-def _open(key: tuple) -> "_OpenStream":
+def _open(key: tuple) -> _OpenStream:
     """The stream's record, opened by whichever of its events is delivered first. Under _LOCK."""
     stream = _STREAMS.get(key)
     if stream is None:
@@ -91,7 +91,7 @@ def _open(key: tuple) -> "_OpenStream":
     return stream
 
 
-def _take_if_complete(key: tuple) -> "_OpenStream | None":
+def _take_if_complete(key: tuple) -> _OpenStream | None:
     """Pop the record once both its start and end are in, and remember the key closed. Under _LOCK."""
     stream = _STREAMS.get(key)
     if stream is None or stream.started is None or stream.ended is None:
@@ -109,7 +109,7 @@ def _emit_provider_timing(
     duration_ms: int,
     *,
     status: str = "completed",
-    timing_values: Dict[str, int] | None = None,
+    timing_values: dict[str, int] | None = None,
     **extra: Any,
 ) -> None:
     callback = agent_receipt_callback(agent)
@@ -212,7 +212,7 @@ def on_stream_end(
         _write_receipt(agent, stream)
 
 
-def _write_receipt(agent: Any, stream: "_OpenStream") -> None:
+def _write_receipt(agent: Any, stream: _OpenStream) -> None:
     """The two receipts of one complete stream; instants delivered out of order clamp at 0."""
     values = {"provider_stream_text_delta_count": stream.text_deltas}
     if stream.first_delta is not None:
@@ -223,7 +223,7 @@ def _write_receipt(agent: Any, stream: "_OpenStream") -> None:
 
 
 _ARM_LOCK = threading.Lock()
-_ARM: Dict[str, Any] = {"register_hook": None, "turns": 0, "leases": []}
+_ARM: dict[str, Any] = {"register_hook": None, "turns": 0, "leases": []}
 
 
 def install_stream_observers(register_hook: Callable[[str, Callable[..., Any]], Any]) -> None:

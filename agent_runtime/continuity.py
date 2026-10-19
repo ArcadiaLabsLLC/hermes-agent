@@ -173,5 +173,5 @@ def _format_parent_message(child_id: str, summary: str, *, proof_ids: list[str],
 
 
 def _client_message_id(child_id: str, session_id: str, summary: str) -> str:
-    digest = hashlib.sha256(f"{child_id}\0{session_id}\0{summary}".encode("utf-8")).hexdigest()[:16]
+    digest = hashlib.sha256(f"{child_id}\0{session_id}\0{summary}".encode()).hexdigest()[:16]
     return f"continuity_return_{digest}"

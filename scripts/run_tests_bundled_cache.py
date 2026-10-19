@@ -32,9 +32,9 @@ from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 try:  # imported as ``scripts.run_tests_bundled_cache`` (the tests, and the runner once run_tests_parallel set sys.path)
-    from scripts.run_tests_bundled_deps import _RECORD_HANDLERS, DepsCollector, FileDeps, uncovered_spawn  # noqa: F401
+    from scripts.run_tests_bundled_deps import _RECORD_HANDLERS, DepsCollector, FileDeps, uncovered_spawn
 except ImportError:  # ``scripts/`` is sys.path[0]
-    from run_tests_bundled_deps import _RECORD_HANDLERS, DepsCollector, FileDeps, uncovered_spawn  # noqa: F401
+    from run_tests_bundled_deps import _RECORD_HANDLERS, DepsCollector, FileDeps, uncovered_spawn
 
 #: bumped when the key's shape changes; part of every key
 CACHE_SCHEMA = 3
@@ -96,12 +96,12 @@ def _pack(paths: Iterable[str]) -> str:
     return base64.b64encode(zlib.compress("\n".join(sorted(paths)).encode("utf-8"), 9)).decode("ascii")
 
 
-def _unpack(blob: str) -> List[str]:
+def _unpack(blob: str) -> list[str]:
     text = zlib.decompress(base64.b64decode(blob)).decode("utf-8")
     return text.split("\n") if text else []
 
 
-def _read_jsonl(path: Path) -> List[dict]:
+def _read_jsonl(path: Path) -> list[dict]:
     try:
         raw = path.read_bytes()
     except OSError:
@@ -134,9 +134,9 @@ class StoredDeps:
     """A file's newest dependency line, its module sets resolved."""
 
     rel: str
-    paths: List[str]
-    dirs: List[str]
-    mods: List[str]  # modset digests
+    paths: list[str]
+    dirs: list[str]
+    mods: list[str]  # modset digests
     spawn_py: int
     spawn_other: int
     child_records: int
@@ -185,7 +185,7 @@ class GateStore:
             self._known_modsets = {r.get("id") for r in _read_jsonl(self.modsets)}
         return self._known_modsets
 
-    def write_deps(self, entries: Dict[str, FileDeps], run_id: str) -> None:
+    def write_deps(self, entries: dict[str, FileDeps], run_id: str) -> None:
         """One ``deps.jsonl`` line per file; its module set stored once by digest."""
 
         known = self._modset_ids()
@@ -222,8 +222,8 @@ class GateStore:
         _append_lines(self.modsets, modsets)
         _append_lines(self.deps, lines)
 
-    def load_deps(self) -> Dict[str, StoredDeps]:
-        out: Dict[str, StoredDeps] = {}
+    def load_deps(self) -> dict[str, StoredDeps]:
+        out: dict[str, StoredDeps] = {}
         for r in _read_jsonl(self.deps):
             rel = r.get("f")
             if not rel:
@@ -264,14 +264,14 @@ class GateStore:
     def append_green(self, lines: Iterable[dict]) -> None:
         _append_lines(self.green, lines)
 
-    def load_green(self) -> Dict[str, dict]:
+    def load_green(self) -> dict[str, dict]:
         """rel → its newest ``green.jsonl`` line (a later line supersedes)."""
 
         return {r["f"]: r for r in _read_jsonl(self.green) if r.get("f")}
 
     # ── durations ──
 
-    def load_durations(self) -> Dict[str, float]:
+    def load_durations(self) -> dict[str, float]:
         try:
             data = json.loads(self.durations.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
@@ -294,9 +294,9 @@ class GateStore:
         tmp.write_text(json.dumps(data, indent=1, sort_keys=True) + "\n", encoding="utf-8")
         os.replace(tmp, self.durations)
 
-    def load_modsets(self, wanted: Optional[Iterable[str]] = None) -> Dict[str, List[str]]:
+    def load_modsets(self, wanted: Optional[Iterable[str]] = None) -> dict[str, list[str]]:
         want = None if wanted is None else set(wanted)
-        out: Dict[str, List[str]] = {}
+        out: dict[str, list[str]] = {}
         for r in _read_jsonl(self.modsets):
             digest = r.get("id")
             if digest and (want is None or digest in want) and digest not in out:
@@ -309,7 +309,7 @@ class GateStore:
     # ── compaction ──
 
     def compact(self, limit: int = COMPACT_BYTES, modsets_limit: int = MODSETS_COMPACT_BYTES,
-                runs_limit: int = RUNS_COMPACT_BYTES, runs_keep: int = RUNS_KEEP) -> List[str]:
+                runs_limit: int = RUNS_COMPACT_BYTES, runs_keep: int = RUNS_KEEP) -> list[str]:
         """Rewrite ``green.jsonl`` and ``deps.jsonl`` to the NEWEST line per file
         once one passes ``limit`` bytes, and ``modsets.jsonl`` to the sets the
         kept deps lines name once it passes ``modsets_limit``. A line another
@@ -363,7 +363,7 @@ def _rewrite(path: Path, records: Iterable[dict]) -> None:
     os.replace(tmp, path)
 
 
-def census(entries: Dict[str, FileDeps], seconds: Dict[str, float]) -> str:
+def census(entries: dict[str, FileDeps], seconds: dict[str, float]) -> str:
     """Stage 1's line: how many files carry a record, how many spawned a process
     and what those cost — the number that decides whether stage 1b is next."""
 
@@ -395,25 +395,25 @@ class TreeSnapshot:
     path neither tracked nor listed (git-ignored) is hashed from disk when
     asked; a path that does not exist is ``MISSING``."""
 
-    def __init__(self, root: Path, index: Dict[str, str], changed: Iterable[str], head: str = "") -> None:
+    def __init__(self, root: Path, index: dict[str, str], changed: Iterable[str], head: str = "") -> None:
         self.root = Path(root)
         self.head = head
-        self.blobs: Dict[str, str] = dict(index)
+        self.blobs: dict[str, str] = dict(index)
         for rel in changed:
             self.blobs[rel] = self._disk(rel)
         self.visible = {rel for rel, blob in self.blobs.items() if blob != MISSING}
-        self._children: Optional[Dict[str, set]] = None
+        self._children: Optional[dict[str, set]] = None
         self._all: Optional[str] = None
-        self._dirs: Dict[str, str] = {}
+        self._dirs: dict[str, str] = {}
 
     @classmethod
-    def take(cls, root: Path, git: GitCall) -> "TreeSnapshot":
-        index: Dict[str, str] = {}
+    def take(cls, root: Path, git: GitCall) -> TreeSnapshot:
+        index: dict[str, str] = {}
         for entry in git(root, "ls-files", "-s", "-z").split("\0"):
             meta, _tab, rel = entry.partition("\t")
             if rel:
                 index[rel] = meta.split()[1]
-        changed: List[str] = []
+        changed: list[str] = []
         parts = git(root, "status", "--porcelain=v1", "-z", "--untracked-files=all").split("\0")
         i = 0
         while i < len(parts):
@@ -482,7 +482,7 @@ class TreeSnapshot:
             h = hashlib.sha256()
             for rel in sorted(self.visible):
                 if not rel.startswith(ALL_EXCLUDED_PREFIXES):
-                    h.update(f"{rel}\t{self.blobs[rel]}\n".encode("utf-8"))
+                    h.update(f"{rel}\t{self.blobs[rel]}\n".encode())
             self._all = h.hexdigest()
         return self._all
 
@@ -496,10 +496,10 @@ def _tool_version(argv: Sequence[str]) -> str:
     return text.splitlines()[0] if text else "none"
 
 
-def interpreter_lines() -> List[str]:
+def interpreter_lines() -> list[str]:
     """The interpreter, its installed distributions, and the system tools a test may run."""
 
-    import importlib.metadata as metadata
+    from importlib import metadata
 
     dists = sorted({f"{d.metadata['Name']}=={d.version}" for d in metadata.distributions() if d.metadata["Name"]})
     return [
@@ -511,7 +511,7 @@ def interpreter_lines() -> List[str]:
     ]
 
 
-def env_lines(environ: Mapping[str, str], strip_paths: Iterable[str] = ()) -> List[str]:
+def env_lines(environ: Mapping[str, str], strip_paths: Iterable[str] = ()) -> list[str]:
     """The environment a test process inherits from the runner, minus runner-only
     knobs and the per-checkout plugin directory on ``PYTHONPATH``."""
 
@@ -532,7 +532,7 @@ def env_lines(environ: Mapping[str, str], strip_paths: Iterable[str] = ()) -> Li
 class FixedInputs:
     """The inputs every key of the run shares, and why the cache is off, if it is."""
 
-    lines: List[str]
+    lines: list[str]
     disabled: str = ""
 
     @property
@@ -542,8 +542,8 @@ class FixedInputs:
     @classmethod
     def collect(
         cls, snapshot: TreeSnapshot, pytest_args: Sequence[str], environ: Mapping[str, str], *,
-        strip_paths: Iterable[str] = (), interp: Optional[List[str]] = None, keyed_args: Sequence[str] = (),
-    ) -> "FixedInputs":
+        strip_paths: Iterable[str] = (), interp: Optional[list[str]] = None, keyed_args: Sequence[str] = (),
+    ) -> FixedInputs:
         """``keyed_args`` — the TAIL of ``pytest_args`` the runner itself appended from a
         keyed input (the skip list's ``--deselect`` node rows): in the key, never a
         reason to turn the cache off. Any other passthrough arg turns it off."""
@@ -576,18 +576,18 @@ class Keyer:
     file used instead of its blob; without either, every path keys by blob."""
 
     def __init__(
-        self, snapshot: TreeSnapshot, fixed: FixedInputs, modsets: Dict[str, List[str]], shapes=None,
+        self, snapshot: TreeSnapshot, fixed: FixedInputs, modsets: dict[str, list[str]], shapes=None,
     ) -> None:
         self.snapshot = snapshot
         self.fixed = fixed
         self.modsets = modsets
         self.shapes = shapes
-        self._modset_hash: Dict[str, str] = {}
+        self._modset_hash: dict[str, str] = {}
         self._modset_rest: dict[str, tuple[str, list[str]]] = {}
-        self._names: Dict[tuple, Optional[frozenset]] = {}
-        self._idir: Dict[tuple, str] = {}
+        self._names: dict[tuple, Optional[frozenset]] = {}
+        self._idir: dict[tuple, str] = {}
 
-    def _idir_lines(self, idirs: Iterable[str], inames: Sequence[str]) -> List[str]:
+    def _idir_lines(self, idirs: Iterable[str], inames: Sequence[str]) -> list[str]:
         """``idir`` lines: each import-listed directory keyed on the entries a tried name matches."""
 
         digests = tuple(sorted(set(inames)))
@@ -615,7 +615,7 @@ class Keyer:
                 return MISSING
             h = hashlib.sha256()
             for rel in paths:
-                h.update(f"{rel}\t{self.snapshot.blob(rel)}\n".encode("utf-8"))
+                h.update(f"{rel}\t{self.snapshot.blob(rel)}\n".encode())
             found = self._modset_hash[digest] = h.hexdigest()
         return found
 
@@ -670,7 +670,7 @@ class Keyer:
         lines.append(f"fixed\t{self.fixed.digest}")
         return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()
 
-    def key_stored(self, deps: "StoredDeps") -> str:
+    def key_stored(self, deps: StoredDeps) -> str:
         return self.key(
             deps.rel, deps.paths, deps.dirs, deps.mods,
             uncovered_spawn(deps.spawn_py, deps.spawn_other, deps.child_records), deps.fx, deps.keep,
@@ -716,7 +716,7 @@ class GreenEntry:
                 "needs": self.needs}
 
     @classmethod
-    def from_line(cls, r: Mapping) -> Optional["GreenEntry"]:
+    def from_line(cls, r: Mapping) -> Optional[GreenEntry]:
         if not r.get("f") or not r.get("key"):
             return None
         return cls(r["f"], r["key"], str(r.get("run") or ""), str(r.get("t") or ""), float(r.get("epoch") or 0.0),
@@ -728,10 +728,10 @@ class GreenEntry:
 class CacheDecision:
     """Per selected file: run it (and why) or skip it as cached green."""
 
-    run: List[Path] = field(default_factory=list)
-    cached: List[Tuple[Path, GreenEntry]] = field(default_factory=list)
-    sampled: List[Path] = field(default_factory=list)
-    reasons: Dict[str, str] = field(default_factory=dict)
+    run: list[Path] = field(default_factory=list)
+    cached: list[tuple[Path, GreenEntry]] = field(default_factory=list)
+    sampled: list[Path] = field(default_factory=list)
+    reasons: dict[str, str] = field(default_factory=dict)
     seconds: float = 0.0
 
     def misses_by_reason(self) -> Counter:
@@ -745,7 +745,7 @@ def rel_of(path: Path, repo_root: Path) -> str:
         return Path(path).as_posix()
 
 
-def streak_after(previous: Optional[Mapping]) -> Tuple[int, int]:
+def streak_after(previous: Optional[Mapping]) -> tuple[int, int]:
     """``(streak, needs)`` for a new green line given the file's previous line:
     after a flaky / leak / unreached drop the file needs two greens in a row."""
 
@@ -822,7 +822,7 @@ def sample_fraction(prior_skip_runs: int) -> float:
     return SAMPLE_FRACTION_EARLY if prior_skip_runs < SAMPLE_EARLY_RUNS else SAMPLE_FRACTION
 
 
-def audit_sample(hits: Sequence[str], seed: int, fraction: float = SAMPLE_FRACTION, minimum: int = SAMPLE_MINIMUM) -> List[str]:
+def audit_sample(hits: Sequence[str], seed: int, fraction: float = SAMPLE_FRACTION, minimum: int = SAMPLE_MINIMUM) -> list[str]:
     """The hits this run re-executes anyway: ``max(minimum, ceil(fraction × hits))``
     of them (all of them when there are fewer), drawn by ``random.Random(seed)``
     over the sorted hits, so a printed seed reproduces the sample."""
@@ -835,9 +835,9 @@ def audit_sample(hits: Sequence[str], seed: int, fraction: float = SAMPLE_FRACTI
 @dataclass
 class AuditVerdict:
     #: cached-green files red in the run AND red again alone: the key missed a dependency
-    defects: List[str] = field(default_factory=list)
+    defects: list[str] = field(default_factory=list)
     #: red in the run, green alone: a flake, never a cache defect
-    flakes: List[str] = field(default_factory=list)
+    flakes: list[str] = field(default_factory=list)
 
 
 def audit_verdict(sampled: Iterable[str], final_rc: Mapping[str, int], rerun: Callable[[str], int]) -> AuditVerdict:

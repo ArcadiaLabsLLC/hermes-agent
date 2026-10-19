@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional, List
 
 __layer__ = "stores"
 
-def persona_content_cache_key(instructions: str, tools: Optional[List[Dict[str, Any]]]) -> Optional[str]:
+def persona_content_cache_key(instructions: str, tools: Optional[list[dict[str, Any]]]) -> Optional[str]:
     """Content-address the prompt cache key from the static request prefix.
 
     Returns ``pck_<sha256[:24]>`` of (instructions + sorted tool schemas), or
@@ -72,7 +72,7 @@ def _cache_routing_fingerprint(value: Any) -> str | None:
     return f"sha256:{digest}"
 
 def _cache_routing_observability(
-    kwargs: Dict[str, Any],
+    kwargs: dict[str, Any],
     *,
     computed_cache_key: str | None,
     computed_cache_key_source: str,
@@ -81,7 +81,7 @@ def _cache_routing_observability(
     is_codex_backend: bool,
     is_github_responses: bool,
     is_xai_responses: bool,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Redaction-safe facts from the FINAL request kwargs.
 
     This is captured after request overrides and provider-specific routing have
@@ -146,14 +146,14 @@ def _cache_routing_observability(
 
 
 def apply_persona_cache_routing(
-    request: Dict[str, Any],
+    request: dict[str, Any],
     *,
     cache_scope_id: Any,
     session_id: Any,
     is_codex_backend: bool,
     is_github_responses: bool,
     is_xai_responses: bool,
-) -> tuple[Dict[str, Any], Dict[str, Any]]:
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """``(request, observability)`` for one FINAL Responses request (lane DOORS-A 2026-09-24).
 
     Runs as ``llm_request`` middleware on the kwargs upstream's
@@ -206,7 +206,7 @@ def apply_persona_cache_routing(
     return req, observability
 
 
-def route_persona_cache(request: Any, *, api_mode: Any = None, **_context: Any) -> Optional[Dict[str, Any]]:
+def route_persona_cache(request: Any, *, api_mode: Any = None, **_context: Any) -> Optional[dict[str, Any]]:
     """The eternia-harness ``llm_request`` half for cache routing; None when not a persona
     Codex/Responses turn. Records the observability block on the bound agent."""
 

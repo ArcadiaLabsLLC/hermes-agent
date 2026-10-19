@@ -123,7 +123,7 @@ def changed_paths(repo_root: Path, since: str) -> set[str]:
     return out
 
 
-def merge_parents(repo_root: Path, merge_sha: str) -> List[str]:
+def merge_parents(repo_root: Path, merge_sha: str) -> list[str]:
     """``merge_sha``'s parents; ``RuntimeError`` unless it is a merge HEAD descends from."""
 
     parents = _scope_git(repo_root, "rev-list", "--parents", "-n", "1", merge_sha).split()[1:]
@@ -148,7 +148,7 @@ def changed_paths_for_merge(repo_root: Path, merge_sha: str) -> set[str]:
     return merged | after
 
 
-def _merge_parts(repo_root: Path, merge_sha: str) -> Tuple[List[str], set[str], set[str]]:
+def _merge_parts(repo_root: Path, merge_sha: str) -> tuple[list[str], set[str], set[str]]:
     """``(parents, combined-diff paths, paths changed after the merge)``."""
 
     parents = merge_parents(repo_root, merge_sha)
@@ -156,7 +156,7 @@ def _merge_parts(repo_root: Path, merge_sha: str) -> Tuple[List[str], set[str], 
     return parents, merged, changed_paths(repo_root, merge_sha)
 
 
-def _delta_lines(diff: str) -> List[str]:
+def _delta_lines(diff: str) -> list[str]:
     """The ``+``/``-`` lines of a one-file ``git diff -U0``: what it changes, not where."""
 
     lines = diff.splitlines()
@@ -174,7 +174,7 @@ def conftest_hunk_unchanged(repo_root: Path, path: str, merge_sha: str) -> bool:
     parents = merge_parents(repo_root, merge_sha)
     base = _scope_git(repo_root, "merge-base", parents[0], parents[1]).strip()
 
-    def delta(old: str, new: str) -> List[str]:
+    def delta(old: str, new: str) -> list[str]:
         return _delta_lines(_scope_git(repo_root, "diff", "-U0", "--no-color", "--no-ext-diff", old, new, "--", path))
 
     return delta(base, parents[0]) == delta(parents[1], merge_sha)
@@ -188,7 +188,7 @@ class MergeChange:
     merged: set[str]  # its combined diff: paths whose blob differs from BOTH parents
     after: set[str]  # ``<merge>..HEAD`` and working-tree edits
     first_parent: int  # paths of ``git diff <parent1> <merge>``, the spelling this replaces
-    standing: List[str]  # paths in ``merged`` whose fork hunk the merge left unchanged
+    standing: list[str]  # paths in ``merged`` whose fork hunk the merge left unchanged
 
     @property
     def paths(self) -> set[str]:
@@ -231,7 +231,7 @@ def module_of(rel: str) -> Optional[str]:
     return ".".join(parts) if parts and all(p.isidentifier() for p in parts) else None
 
 
-def convention_sources(test_rel: str) -> List[str]:
+def convention_sources(test_rel: str) -> list[str]:
     """Upstream's layout: ``tests/<pkg…>/test_<mod>.py`` tests ``<pkg…>/<mod>.py``
     (or the package ``<pkg…>/<mod>/__init__.py``)."""
 
@@ -296,21 +296,21 @@ def _parse_file_imports(path: Path, rel: str) -> set[str]:
 class ScopeSelection:
     """Why each selected file is in scope, and what was left out."""
 
-    fork_only: List[Path] = field(default_factory=list)
+    fork_only: list[Path] = field(default_factory=list)
     #: inherited files, by the reason that selected them
-    touched: List[Path] = field(default_factory=list)  # the test file itself changed
-    source: List[Path] = field(default_factory=list)  # its convention-mapped source changed
-    importer: List[Path] = field(default_factory=list)  # it imports a changed module
-    conftest: List[Path] = field(default_factory=list)  # a conftest.py above it changed
-    chain: List[Path] = field(default_factory=list)  # a session-chain path changed (fast-gate §5): the sample
-    named: List[Path] = field(default_factory=list)  # named explicitly on the command line
-    excluded: List[Path] = field(default_factory=list)
-    skipped_red: List[Path] = field(default_factory=list)  # on the upstream skip list, not named
-    idle_box: List[Path] = field(default_factory=list)  # on the idle-box list, not named
+    touched: list[Path] = field(default_factory=list)  # the test file itself changed
+    source: list[Path] = field(default_factory=list)  # its convention-mapped source changed
+    importer: list[Path] = field(default_factory=list)  # it imports a changed module
+    conftest: list[Path] = field(default_factory=list)  # a conftest.py above it changed
+    chain: list[Path] = field(default_factory=list)  # a session-chain path changed (fast-gate §5): the sample
+    named: list[Path] = field(default_factory=list)  # named explicitly on the command line
+    excluded: list[Path] = field(default_factory=list)
+    skipped_red: list[Path] = field(default_factory=list)  # on the upstream skip list, not named
+    idle_box: list[Path] = field(default_factory=list)  # on the idle-box list, not named
     chain_paths: list[str] = field(default_factory=list)  # the changed session-chain paths (the printed reason)
 
     @property
-    def selected(self) -> List[Path]:
+    def selected(self) -> list[Path]:
         return sorted(
             self.fork_only + self.touched + self.source + self.importer + self.conftest + self.chain + self.named,
             key=lambda p: str(p),
@@ -416,7 +416,7 @@ FULL_RETIRED = (
 )
 
 
-def select_for_run(args, files: List[Path], repo_root: Path, roots: List[Path], skip_rows) -> Optional[ScopeSelection]:
+def select_for_run(args, files: list[Path], repo_root: Path, roots: list[Path], skip_rows) -> Optional[ScopeSelection]:
     """``main``'s scope step: the selection for ``args.scope``, its one-line
     account printed, and every skip-listed file named. ``None`` (``main`` exits
     2) when the fork scope cannot tell fork from inherited files, or when

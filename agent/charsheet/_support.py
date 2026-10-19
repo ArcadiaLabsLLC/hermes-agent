@@ -11,7 +11,7 @@ import json
 import os
 import re
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 
 __layer__ = "models"
@@ -32,7 +32,7 @@ def safe_segment(value: str) -> str:
 
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def write_json_atomic(path: Path, payload: dict | list) -> None:

@@ -223,7 +223,7 @@ def _cmd_office_actor_upsert(args) -> int:
         return emit_harness_error(ValueError("no workspace selected; pass --workspace"), args=args, code="invalid_request")
     try:
         payload = _load_request_json(args.actor_json)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         return emit_harness_error(exc, args=args, code="invalid_payload")
     if not isinstance(payload, dict):
         return emit_harness_error(ValueError("--actor-json must be an actor object"), args=args, code="invalid_request")

@@ -108,7 +108,7 @@ def page_chat_trace_by_turn(
 
     try:
         records = mission_chat_turn_records(session_id=session_id)
-    except Exception:  # noqa: BLE001 — an unreadable journal leaves the trace as it was
+    except Exception:  # an unreadable journal leaves the trace as it was
         return entries
     settled = [
         record
@@ -153,5 +153,5 @@ def _entry_sort_key(entry: dict[str, Any]) -> tuple[int, float, str]:
         ts = parse_iso(ts)
     try:
         return (1, ts.timestamp(), "")
-    except Exception:  # noqa: BLE001 — unparseable stamps sink to the front, stably
+    except Exception:  # unparseable stamps sink to the front, stably
         return (0, 0.0, str(entry.get("ts") or ""))

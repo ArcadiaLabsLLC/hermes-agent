@@ -19,7 +19,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -49,7 +49,7 @@ def _user_agent() -> str:
     403s that used to masquerade as ``membership_denied``."""
     try:
         from hermes_cli import __version__ as version
-    except Exception:  # noqa: BLE001 — UA must never break a sync call
+    except Exception:  # UA must never break a sync call
         version = "unknown"
     return f"Hermes-Agent/{version} (realm-sync)"
 
@@ -88,7 +88,7 @@ class RealmSyncCredential:
     expires_at: datetime
 
     @classmethod
-    def parse(cls, raw: Any) -> "RealmSyncCredential":
+    def parse(cls, raw: Any) -> RealmSyncCredential:
         if not isinstance(raw, dict):
             raise RealmSyncError("sync_auth_failed", "Realm sync credential must be a JSON object.")
         if raw.get("schema_version") != CREDENTIAL_SCHEMA_VERSION:
@@ -110,7 +110,7 @@ class RealmSyncCredential:
         return credential
 
     @classmethod
-    def load(cls, path: Path | str) -> "RealmSyncCredential":
+    def load(cls, path: Path | str) -> RealmSyncCredential:
         try:
             text = Path(path).read_text(encoding="utf-8")
         except OSError as exc:
@@ -122,7 +122,7 @@ class RealmSyncCredential:
         return cls.parse(raw)
 
     def is_expired(self) -> bool:
-        return now().astimezone(timezone.utc) >= self.expires_at
+        return now().astimezone(UTC) >= self.expires_at
 
     @property
     def subject(self) -> CredentialSubject:
@@ -315,7 +315,7 @@ def _append_realm_adopted_event(realm: Realm) -> None:
                 },
             )
         )
-    except Exception:  # noqa: BLE001 — evidence channel, not the mutation
+    except Exception:  # evidence channel, not the mutation
         pass
 
 
@@ -479,8 +479,8 @@ def _parse_expiry(raw: Any) -> datetime:
     except ValueError as exc:
         raise RealmSyncError("sync_auth_failed", "Realm sync credential has an invalid expires_at timestamp.") from exc
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def _request_json(
@@ -504,7 +504,7 @@ def _request_json(
         request_headers["Content-Type"] = "application/json"
     request = urllib.request.Request(url, data=data, headers=request_headers, method=method)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - api_base comes from the brokered credential
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # api_base comes from the brokered credential
             return int(getattr(response, "status", 0) or 0), _parse_json_bytes(response.read())
     except urllib.error.HTTPError as exc:
         try:

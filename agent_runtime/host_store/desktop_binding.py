@@ -63,7 +63,7 @@ def shared_auth_dir(root: Path) -> Path:
     return Path(override).expanduser() if override else root / "shared"
 
 
-def plaintext_secret_paths(home: Path, root: Path, shared_dir: Path) -> List[Path]:
+def plaintext_secret_paths(home: Path, root: Path, shared_dir: Path) -> list[Path]:
     """Every plaintext credential file a bound process would otherwise leave on disk."""
     paths = [home / name for name in HOME_SECRET_FILES]
     for name in HOME_SECRET_DIRS:
@@ -76,9 +76,9 @@ def plaintext_secret_paths(home: Path, root: Path, shared_dir: Path) -> List[Pat
     return paths
 
 
-def migrate_plaintext_secrets(current: _binding.HostStoreBinding, paths: Iterable[Path]) -> List[Path]:
+def migrate_plaintext_secrets(current: _binding.HostStoreBinding, paths: Iterable[Path]) -> list[Path]:
     """Move each existing plaintext file into its slot: write, verify, then unlink. Returns the moved paths."""
-    moved: List[Path] = []
+    moved: list[Path] = []
     for path in paths:
         try:
             data = path.read_bytes()
@@ -109,7 +109,7 @@ def _reload_dotenv(home: Path) -> None:
 
 
 def bind_desktop_host_store(
-    *, store_factory: Optional[Callable[[Path], "_desktop._SecureStoreBase"]] = None,
+    *, store_factory: Optional[Callable[[Path], _desktop._SecureStoreBase]] = None,
 ) -> Optional[_binding.HostStoreBinding]:
     """Switched on: bind the OS secure store over the install's root and migrate. Else None.
 

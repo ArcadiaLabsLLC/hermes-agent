@@ -32,13 +32,13 @@ import time
 from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Optional, Sequence
 
-import run_tests_bundled_cache as cache  # noqa: E402 — registered by run_tests_bundled._load_sibling
+import run_tests_bundled_cache as cache  # registered by run_tests_bundled._load_sibling
 import run_tests_bundled_fixtures as fixtures
-import run_tests_bundled_plan as plan  # noqa: E402
-import run_tests_bundled_reds as reds  # noqa: E402
-import run_tests_bundled_scope as scope  # noqa: E402
+import run_tests_bundled_plan as plan
+import run_tests_bundled_reds as reds
+import run_tests_bundled_scope as scope
 import run_tests_bundled_via as vias
-import run_tests_parallel as rtp  # noqa: E402
+import run_tests_parallel as rtp
 
 FLAGS = frozenset({
     "--no-cache", "--cache-dir", "--cache-dry-run", "--cache-reset", "--cache-seed", "--cache-max-age", "--rerun-known-reds",
@@ -81,35 +81,35 @@ def add_arguments(parser) -> None:
 class GateRun:
     """One run's side of the cache."""
 
-    def __init__(self, repo_root: Path, store: "cache.GateStore", deps_dir: Optional[Path]) -> None:
+    def __init__(self, repo_root: Path, store: cache.GateStore, deps_dir: Optional[Path]) -> None:
         self.repo_root = Path(repo_root)
         self.store = store
         self.enabled = deps_dir is not None
         self.deps_dir = deps_dir
         self.run_id = f"{time.strftime('%Y%m%dT%H%M%S')}-{os.getpid()}"
         self.collector = cache.DepsCollector(deps_dir) if deps_dir is not None else None
-        self.keyer: Optional["cache.Keyer"] = None
+        self.keyer: Optional[cache.Keyer] = None
         self.disabled = "" if self.enabled else "--no-cache"
-        self.decision: Optional["cache.CacheDecision"] = None
-        self.known_reds: Dict[str, frozenset] = {}
+        self.decision: Optional[cache.CacheDecision] = None
+        self.known_reds: dict[str, frozenset] = {}
         self.timed_out: frozenset = frozenset()
         self.to_run: list = []
         self.cached: list = []  # (path, GreenEntry) skipped this run
-        self.sampled: List[str] = []
+        self.sampled: list[str] = []
         self.seed: Optional[int] = None
         self.fraction = cache.SAMPLE_FRACTION
         self.verdict = cache.AuditVerdict()
         self.generation = 0
         self.greens_written = 0
-        self.pytest_args: List[str] = []
+        self.pytest_args: list[str] = []
         self.file_timeout = float(rtp._DEFAULT_FILE_TIMEOUT_SECONDS)
         #: rel → rc of one more run alone (the audit's second run); tests inject a fake
         self.rerun_alone: Optional[Callable[[str], int]] = None
         self.max_age_days = cache.DEFAULT_MAX_AGE_DAYS
-        self.greens: Dict[str, dict] = {}  # each file's newest green.jsonl line, as the run read it
-        self.deps: Dict[str, "cache.StoredDeps"] = {}
-        self.reds: Dict[str, dict] = {}  # each file's newest red.jsonl line, as the run read it
-        self.red_decision: Optional["reds.RedDecision"] = None
+        self.greens: dict[str, dict] = {}  # each file's newest green.jsonl line, as the run read it
+        self.deps: dict[str, cache.StoredDeps] = {}
+        self.reds: dict[str, dict] = {}  # each file's newest red.jsonl line, as the run read it
+        self.red_decision: Optional[reds.RedDecision] = None
         self.red_outcomes: list = []  # known reds skipped this run, reported red without a process
         self._deps_written: set = set()
         self._lock = threading.Lock()
@@ -118,7 +118,7 @@ class GateRun:
     def start(
         cls, args, repo_root: Path, files: Sequence[Path], roots: Sequence[Path], pytest_args: Sequence[str],
         environ: Mapping[str, str] = os.environ, keyed_args: Sequence[str] = (),
-    ) -> "GateRun":
+    ) -> GateRun:
         enabled = not getattr(args, "no_cache", False) and environ.get(CACHE_ENV, "1") != "0"
         override = getattr(args, "cache_dir", None) or environ.get(cache.STORE_ENV)
         store = cache.GateStore(cache.gate_store_dir(repo_root, plan.primary_checkout(repo_root), override))
@@ -227,7 +227,7 @@ class GateRun:
     def writes(self) -> bool:
         return self.enabled and self.keyer is not None and not self.disabled
 
-    def durations(self, legacy_load) -> Dict[str, float]:
+    def durations(self, legacy_load) -> dict[str, float]:
         """The planner's durations: the store's, over the legacy per-checkout files."""
 
         legacy = plan.load_durations_with_primary(self.repo_root, legacy_load)
@@ -349,7 +349,7 @@ class GateRun:
             self.generation = self.store.bump_generation()
 
     def record(
-        self, result, cost: Dict[str, object], *, timed_out=(), extra: Optional[Mapping[str, object]] = None
+        self, result, cost: dict[str, object], *, timed_out=(), extra: Optional[Mapping[str, object]] = None
     ) -> None:
         """The audit, then the run record and the clean-pass durations, into the store."""
 

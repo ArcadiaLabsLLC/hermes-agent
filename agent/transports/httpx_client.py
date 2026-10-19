@@ -45,11 +45,11 @@ import httpx
 from agent.transports import sdk_shapes
 
 __all__ = [
+    "CHAT_COMPLETIONS_WIRE",
+    "CODEX_RESPONSES_WIRE",
     "APIConnectionError",
     "APIError",
     "APITimeoutError",
-    "CHAT_COMPLETIONS_WIRE",
-    "CODEX_RESPONSES_WIRE",
     "AsyncSdkFreeClient",
     "MalformedSSE",
     "ProviderHTTPError",
@@ -57,15 +57,15 @@ __all__ = [
     "SdkFreeClient",
     "SdkFreeWireUnavailable",
     "SdkRecord",
+    "chat_tool_call_factories",
     "completion_record",
     "iter_sse_data",
     "iter_sse_events",
     "missing_sdk",
     "provider_sdks_enabled",
-    "sdk_import_failure",
-    "chat_tool_call_factories",
     "sdk_free_async_client",
     "sdk_free_client",
+    "sdk_import_failure",
     "sdk_record",
 ]
 
@@ -201,7 +201,7 @@ def chat_tool_call_factories() -> tuple[Callable[..., Any], Callable[..., Any]]:
     return (lambda **fields: sdk_record(tool_call, fields)), (lambda **fields: sdk_record(function, fields))
 
 
-def sdk_free_async_client(sync_client: Any) -> "AsyncSdkFreeClient | None":
+def sdk_free_async_client(sync_client: Any) -> AsyncSdkFreeClient | None:
     """The auxiliary client's async twin of an SDK-free client, else ``None``."""
     return AsyncSdkFreeClient(sync_client) if isinstance(sync_client, SdkFreeClient) else None
 
@@ -213,7 +213,7 @@ def provider_sdks_enabled() -> bool:
     return config_switch("agent", "provider_sdks", default=True)
 
 
-def sdk_free_client(client_kwargs: Mapping[str, Any], *, api_mode: str | None) -> "SdkFreeClient | None":
+def sdk_free_client(client_kwargs: Mapping[str, Any], *, api_mode: str | None) -> SdkFreeClient | None:
     """The SDK-free client when the profile switches the SDKs off, else ``None``.
 
     ``client_kwargs`` are the SDK constructor's (``api_key``, ``base_url``,
@@ -254,7 +254,7 @@ def iter_sse_events(lines: Iterator[str]) -> Iterator[tuple[str | None, str | No
         if line.startswith(":"):
             continue
         field, _, value = line.partition(":")
-        value = value[1:] if value.startswith(" ") else value
+        value = value.removeprefix(" ")
         if field not in _SSE_FIELDS:
             raise MalformedSSE(f"invalid SSE field: {line[:40]}")
         if field == "data":
@@ -446,7 +446,7 @@ class HttpCore:
     def __enter__(self):
         return self
 
-    def __exit__(self, *_exc: Any) -> None:
+    def __exit__(self, *_exc: object) -> None:
         self.close()
 
     def _secret(self) -> str:
@@ -523,10 +523,10 @@ class SdkStream:
     def close(self) -> None:
         self.response.close()
 
-    def __enter__(self) -> "SdkStream":
+    def __enter__(self) -> SdkStream:
         return self
 
-    def __exit__(self, *_exc: Any) -> None:
+    def __exit__(self, *_exc: object) -> None:
         self.close()
 
 

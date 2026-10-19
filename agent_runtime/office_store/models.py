@@ -16,20 +16,20 @@ from agent_runtime.models import OfficeActor
 __layer__ = "models"
 
 __all__ = [
-    "ActorKind",
-    "ActorKindInvalid",
-    "ActorKindMismatch",
-    "ActorScan",
     "ARCHIVED_ACTOR_FILES_RETAIN",
     "ARCHIVED_LEDGER_CAP",
-    "ConflictScan",
     "MAX_FOLDERS",
     "MAX_ITEMS_PER_ACTOR",
     "MAX_UNREADABLE_ACTOR_FILE_NAMES",
     "NO_UNREADABLE_ACTOR_FILES",
+    "OUTCOME_OK",
+    "ActorKind",
+    "ActorKindInvalid",
+    "ActorKindMismatch",
+    "ActorScan",
+    "ConflictScan",
     "OfficeActorOutcome",
     "OfficePositionPolicy",
-    "OUTCOME_OK",
     "UnreadableActorFiles",
 ]
 
@@ -153,13 +153,13 @@ class UnreadableActorFiles:
     total: int = 0
 
     @classmethod
-    def of(cls, names: Sequence[str]) -> "UnreadableActorFiles":
+    def of(cls, names: Sequence[str]) -> UnreadableActorFiles:
         """THE mint. Caps the names, keeps the count exact."""
 
         ordered = tuple(str(name) for name in names)
         return cls(names=ordered[:MAX_UNREADABLE_ACTOR_FILE_NAMES], total=len(ordered))
 
-    def merge(self, other: "UnreadableActorFiles") -> "UnreadableActorFiles":
+    def merge(self, other: UnreadableActorFiles) -> UnreadableActorFiles:
         """Two directories' shortfalls as one. Re-caps rather than concatenating
         two already-capped lists, so a merge of two full lists is still bounded
         and the count is still the sum of the two totals."""
@@ -277,13 +277,13 @@ class OfficeActorOutcome:
     error: str | None = None
 
     @classmethod
-    def archived(cls, workspace_id: str, actor_key: str) -> "OfficeActorOutcome":
+    def archived(cls, workspace_id: str, actor_key: str) -> OfficeActorOutcome:
         return cls(workspace_id=workspace_id, actor_key=actor_key, outcome=OUTCOME_OK)
 
     @classmethod
     def archive_failed(
         cls, workspace_id: str, actor_key: str, exc: BaseException
-    ) -> "OfficeActorOutcome":
+    ) -> OfficeActorOutcome:
         return cls(
             workspace_id=workspace_id,
             actor_key=actor_key,
@@ -292,7 +292,7 @@ class OfficeActorOutcome:
         )
 
     @classmethod
-    def scan_unreadable(cls, workspace_id: str, scan: ActorScan) -> "OfficeActorOutcome":
+    def scan_unreadable(cls, workspace_id: str, scan: ActorScan) -> OfficeActorOutcome:
         """The shortfall row for a workspace whose actor directory read short.
 
         NAMES the files, and not only how many there were. The row's job is to
@@ -316,13 +316,13 @@ class OfficeActorOutcome:
         )
 
     @classmethod
-    def conflict_read(cls, workspace_id: str, actor_key: str) -> "OfficeActorOutcome":
+    def conflict_read(cls, workspace_id: str, actor_key: str) -> OfficeActorOutcome:
         return cls(workspace_id=workspace_id, actor_key=actor_key, outcome=OUTCOME_OK)
 
     @classmethod
     def conflict_key_from_filename(
         cls, workspace_id: str, token: str, exc: BaseException
-    ) -> "OfficeActorOutcome":
+    ) -> OfficeActorOutcome:
         """A conflict sidecar that would not decode, named by its FILENAME.
 
         The substitution stays — a conflict the operator can half-name beats a

@@ -71,7 +71,7 @@ MANIFEST_PATH = Path(__file__).resolve().parent / "toolset_manifest.json"
 
 
 @lru_cache(maxsize=1)
-def _manifest() -> Dict[str, Dict]:
+def _manifest() -> dict[str, dict]:
     """The parsed artifact.
 
     A MISSING or unreadable artifact is an empty manifest rather than an
@@ -98,7 +98,7 @@ def _manifest() -> Dict[str, Dict]:
 
 
 @lru_cache(maxsize=1)
-def _tools() -> Dict[str, str]:
+def _tools() -> dict[str, str]:
     return dict(_manifest()["tools"])
 
 
@@ -113,13 +113,13 @@ def builtin_toolset_for_tool(name: str) -> Optional[str]:
     return _tools().get(name)
 
 
-def builtin_tool_names() -> List[str]:
+def builtin_tool_names() -> list[str]:
     """Every builtin tool name, sorted."""
 
     return sorted(_tools())
 
 
-def builtin_tool_names_for_toolsets(toolsets: Sequence[str]) -> List[str]:
+def builtin_tool_names_for_toolsets(toolsets: Sequence[str]) -> list[str]:
     """The builtin tools belonging to any of ``toolsets``, sorted.
 
     Membership, not prefix or family matching: ``browser`` and ``browser-cdp``
@@ -130,7 +130,7 @@ def builtin_tool_names_for_toolsets(toolsets: Sequence[str]) -> List[str]:
     return sorted(name for name, toolset in _tools().items() if toolset in wanted)
 
 
-def builtin_toolset_names() -> List[str]:
+def builtin_toolset_names() -> list[str]:
     """Every toolset a builtin registers into, sorted."""
 
     return sorted(set(_tools().values()))

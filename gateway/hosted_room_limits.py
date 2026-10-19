@@ -120,4 +120,4 @@ def task_round_index(identity: driver.TaskIdentity, *, limits: DiscussionLimits 
 
 
 # Last, so a first import of this module has defined every name the upstream seam line imports.
-from gateway import hosted_room_discussion as _discussion  # noqa: E402
+from gateway import hosted_room_discussion as _discussion
