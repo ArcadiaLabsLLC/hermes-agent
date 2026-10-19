@@ -153,7 +153,7 @@ class LensPoller:
     def _read(self, store: LensStore, monitor_id: str, manifest: dict[str, Any], feed: dict[str, Any],
               now: datetime) -> None:
         clock = self._clocks.setdefault((monitor_id, feed["id"]), _FeedClock())
-        result = read_feed_source(feed, client=self.client, resolver=self.resolver)
+        result = read_feed_source(feed, client=self.client, resolver=self.resolver, sealed=True)
         received = self.clock()
         self._record(store, monitor_id, manifest, feed, result, observed=now, received=received,
                      history=list(clock.recent))

@@ -20,6 +20,18 @@ Gates and their killing mutations (each red was recorded in the stage's commit):
   — killed by dropping the ``monitor_exists`` check; a proposal's preview reads a
   private address it did not opt into — killed by passing ``allow_private=True``
   in ``http_json.read`` (the request is made).
+* L4.3 sources: a ``DELETE`` reaches ``sql_readonly`` — killed by dropping the
+  ``READ_ONLY_STATEMENT`` check in ``sql_readonly.read`` (``query_failed`` from
+  SQLite, not ``statement_refused``), or in ``feed.read_only_statement`` (the
+  manifest reads); a ``WITH … DELETE`` writes — killed only by dropping BOTH the
+  ``mode=ro`` open and ``PRAGMA query_only`` (either alone holds); a command
+  outside the allow list runs — killed by dropping the ``allowed`` check in
+  ``command.read`` (the marker file is written) or the ``argv in allow`` require in
+  ``feed._command_source``; a command runs through a shell — killed by
+  ``shell=True`` (cmd runs the ``&`` tail and writes the marker; on POSIX the argv
+  tail is dropped and no 7 is read); a preview runs a command — killed by
+  dropping the ``SEALED_ONLY_FEED_KINDS`` check; a ``via: kube_proxy`` read is
+  refused as private — killed by dropping ``proxied or`` in ``prometheus.read``.
 """
 
 from __future__ import annotations
@@ -204,3 +216,103 @@ def test_lens_propose_previews_through_the_private_address_classifier():
     opted = propose_monitor({**_proposal(allow_private_network=True), "monitor_id": "proposed-lan"}, store=store,
                             client=_client(handler), resolver=lambda host: ["10.0.0.5"])
     assert opted["preview"][0]["number"] == 7.0 and len(requests) == 1
+
+
+# --- L4.3 sources ------------------------------------------------------------------
+
+
+def _feed(kind: str, source: dict, **extra) -> dict:
+    from agent_runtime.lens.feed import read_feed
+
+    return read_feed({"version": 1, "id": "local", "kind": kind, "interval_ms": 60_000, "source": source, **extra})
+
+
+@pytest.fixture
+def database(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "app.sqlite3"
+    connection = sqlite3.connect(path)
+    with connection:
+        connection.execute("CREATE TABLE jobs (state TEXT)")
+        connection.executemany("INSERT INTO jobs VALUES (?)", [("failed",), ("failed",), ("ok",)])
+    connection.close()
+    return path
+
+
+def _rows(path) -> int:
+    import sqlite3
+
+    connection = sqlite3.connect(path)
+    try:
+        return connection.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+    finally:
+        connection.close()
+
+
+def test_sql_readonly_reads_one_value_and_a_delete_never_reaches_sqlite(database):
+    from agent_runtime.lens.sources import sql_readonly
+    from agent_runtime.lens.wire_value import WireError, WireRefusal
+
+    feed = _feed("sql_readonly", {"database": str(database),
+                                  "query": "SELECT COUNT(*) FROM jobs WHERE state = 'failed'"})
+    assert sql_readonly.read(feed, headers={}).value == 2.0
+    many = {**feed, "source": {**feed["source"], "query": "SELECT state FROM jobs"}}
+    assert sql_readonly.read(many, headers={}).reason.value == "ambiguous_series"
+
+    with pytest.raises(WireError) as refused:
+        _feed("sql_readonly", {"database": str(database), "query": "DELETE FROM jobs"})
+    assert refused.value.code is WireRefusal.INVALID_STRING
+
+    planted = {**feed, "source": {**feed["source"], "query": "DELETE FROM jobs"}}
+    assert sql_readonly.read(planted, headers={}).reason.value == "statement_refused"
+    hidden = {**feed, "source": {**feed["source"],
+                                 "query": "WITH doomed AS (SELECT 1) DELETE FROM jobs RETURNING 1"}}
+    assert sql_readonly.read(hidden, headers={}).value is None
+    assert _rows(database) == 3
+
+
+def test_a_command_outside_the_allow_list_never_runs_and_no_shell_reads_its_argv(tmp_path, monkeypatch):
+    import sys
+
+    from agent_runtime.lens.sources import command, read_feed_source
+    from agent_runtime.lens.wire_value import WireError
+
+    monkeypatch.chdir(tmp_path)
+    allowed = [sys.executable, "-c", "print(7)", "x&echo>lens_marker"]
+    feed = _feed("command_allowlisted", {"argv": allowed, "allow": [allowed], "extract": "$"})
+    assert read_feed_source(feed, sealed=True).value == 7.0
+    assert not (tmp_path / "lens_marker").exists(), "a shell ran the argv's tail"
+
+    writer = [sys.executable, "-c", "open('lens_marker','w').write('1');print(1)"]
+    with pytest.raises(WireError):
+        _feed("command_allowlisted", {"argv": writer, "allow": [allowed], "extract": "$"})
+    planted = {**feed, "source": {**feed["source"], "argv": writer}}
+    assert command.read(planted, headers={}).reason.value == "command_refused"
+    assert not (tmp_path / "lens_marker").exists()
+
+    assert read_feed_source(feed).reason.value == "not_sealed", "a preview never runs a command"
+    json_out = [sys.executable, "-c", "print('{\"queue\":{\"depth\":12}}')"]
+    selected = _feed("command_allowlisted", {"argv": json_out, "allow": [json_out], "extract": "$.queue.depth"})
+    assert read_feed_source(selected, sealed=True).value == 12.0
+
+
+def test_prometheus_through_kube_proxy_reads_the_service_proxy_on_loopback():
+    import httpx
+
+    from agent_runtime.lens.sources import read_feed_source
+
+    seen = []
+
+    def handler(request):
+        seen.append(str(request.url))
+        return httpx.Response(200, json={"status": "success",
+                                         "data": {"resultType": "scalar", "result": [1.0, "3"]}})
+
+    feed = _feed("prometheus", {"via": "kube_proxy", "namespace": "monitoring", "service": "prometheus-k8s",
+                                "port": 9090, "query": "up"})
+    assert read_feed_source(feed, client=_client(handler)).value == 3.0
+    assert seen == ["http://127.0.0.1:8001/api/v1/namespaces/monitoring/services/prometheus-k8s:9090/proxy"
+                    "/api/v1/query?query=up"]
+    loopback = _feed("prometheus", {"base_url": "http://127.0.0.1:9090", "query": "up"})
+    assert read_feed_source(loopback, client=_client(handler)).reason.value == "private_address_refused"
