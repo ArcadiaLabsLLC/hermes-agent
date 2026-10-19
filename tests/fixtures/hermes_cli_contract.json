@@ -5658,6 +5658,14 @@
           "required": false,
           "type": null
         },
+        "--file": {
+          "action": "append",
+          "canonical": "--file",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
         "--help": {
           "action": "help",
           "canonical": "--help",
