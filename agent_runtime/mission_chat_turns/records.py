@@ -26,6 +26,18 @@ from agent_runtime.serde import (
 
 from agent_runtime.mission_chat_turns.states import TURN_STATE_COMPLETED, _record_state
 from agent_runtime.redaction import has_secret_value, mask_local_paths
+from agent_runtime.running_work.rows import bounded_operator_text
+from agent_runtime.turn_outcome import (
+    FILE_OPS as _TURN_OUTCOME_FILE_OPS,
+    SHA_RE as _TURN_OUTCOME_SHA_RE,
+    TEST_VERDICTS as _TURN_OUTCOME_VERDICTS,
+    TURN_OUTCOME_KEY,
+    TURN_OUTCOME_MAX_COMMITS,
+    TURN_OUTCOME_MAX_FILES,
+    TURN_OUTCOME_MAX_TESTS,
+    TURN_OUTCOME_SCHEMA,
+    TURN_OUTCOME_TEXT_LIMIT,
+)
 
 __layer__ = "policy"
 
@@ -263,6 +275,73 @@ def safe_provider_refusal(value: Any) -> dict[str, Any] | None:
     return block
 
 
+#: ``TURN_OUTCOME_KEY`` (``turn_outcome``): what the turn left behind, folded by
+#: ``agent_runtime.turn_outcome`` and persisted on the terminal record. No
+#: ``TURN_RECORD_SCHEMA_VERSION`` bump: the phases block bumped to v3 because it
+#: changed what a v2 reader could assume; an optional block whose absence means
+#: "not recorded" changes nothing a reader assumes.
+def _turn_outcome_text(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    return bounded_operator_text(value, limit=TURN_OUTCOME_TEXT_LIMIT) or None
+
+
+def _turn_outcome_test(row: dict[str, Any]) -> dict[str, Any] | None:
+    command, exit_code, verdict = _turn_outcome_text(row.get("command")), row.get("exit_code"), row.get("verdict")
+    if command is None or verdict not in _TURN_OUTCOME_VERDICTS:
+        return None
+    if exit_code is not None and not (type(exit_code) is int and -256 <= exit_code <= 256):
+        return None
+    return {"command": command, "exit_code": exit_code, "verdict": verdict}
+
+
+def _turn_outcome_commit(row: dict[str, Any]) -> dict[str, Any] | None:
+    command, sha, pushed = _turn_outcome_text(row.get("command")), row.get("sha"), row.get("pushed")
+    if command is None or not (pushed is True or pushed is None):
+        return None
+    if sha is not None and not (isinstance(sha, str) and _TURN_OUTCOME_SHA_RE.fullmatch(sha)):
+        return None
+    return {"command": command, "sha": sha, "pushed": pushed}
+
+
+def _turn_outcome_file(row: dict[str, Any]) -> dict[str, Any] | None:
+    path, op = _turn_outcome_text(row.get("path")), row.get("op")
+    if path is None or op not in _TURN_OUTCOME_FILE_OPS:
+        return None
+    return {"path": path, "op": op}
+
+
+#: Each list of the block: its row reader and its cap.
+_TURN_OUTCOME_LISTS: dict[str, tuple[Callable[[dict[str, Any]], dict[str, Any] | None], int]] = {
+    "tests": (_turn_outcome_test, TURN_OUTCOME_MAX_TESTS),
+    "commits": (_turn_outcome_commit, TURN_OUTCOME_MAX_COMMITS),
+    "files": (_turn_outcome_file, TURN_OUTCOME_MAX_FILES),
+}
+
+
+def safe_turn_outcome(value: Any) -> dict[str, Any] | None:
+    """The bounded ``turn_outcome`` block, or ``None`` when nothing is readable.
+
+    Drops what it cannot read (a row with a non-int exit code, an unknown verdict
+    or op, a ``pushed`` that is not true/null), re-applies the caps, never defaults.
+    """
+
+    if not isinstance(value, dict) or value.get("schema") != TURN_OUTCOME_SCHEMA:
+        return None
+    block: dict[str, Any] = {"schema": TURN_OUTCOME_SCHEMA}
+    truncated = value.get("truncated") is True
+    for key, (reader, cap) in _TURN_OUTCOME_LISTS.items():
+        raw_rows = value.get(key)
+        read = (reader(raw) for raw in (raw_rows if isinstance(raw_rows, list) else ()) if isinstance(raw, dict))
+        rows = [row for row in read if row is not None]
+        truncated = truncated or len(rows) > cap
+        block[key] = rows[:cap]
+    if not (block["tests"] or block["commits"] or block["files"] or truncated):
+        return None
+    block["truncated"] = truncated
+    return block
+
+
 def _safe_journal_metadata(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         return {}
@@ -302,6 +381,9 @@ def _safe_journal_metadata(value: Any) -> dict[str, Any]:
     profile_timing = safe_turn_profile_timing(value.get(TURN_PROFILE_TIMING_KEY))
     if profile_timing is not None:
         result[TURN_PROFILE_TIMING_KEY] = profile_timing
+    turn_outcome = safe_turn_outcome(value.get(TURN_OUTCOME_KEY))
+    if turn_outcome is not None:
+        result[TURN_OUTCOME_KEY] = turn_outcome
     for key in (
         "provider_submitted",
         "native_committed",

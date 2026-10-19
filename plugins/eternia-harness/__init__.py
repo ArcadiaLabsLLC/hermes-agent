@@ -324,6 +324,13 @@ def record_usage_ledger_row(**kwargs):
     on_post_api_request(**kwargs)
 
 
+def record_turn_outcome(**kwargs):
+    """``post_tool_call`` hook: a terminal call or file write folds into a bound persona turn's outcome."""
+    from agent_runtime.turn_outcome import on_post_tool_call
+
+    on_post_tool_call(**kwargs)
+
+
 async def answer_queue_status(**kwargs):
     """``pre_gateway_dispatch`` hook: answer ``/queue-status`` (``/qstatus``), busy path included."""
     from agent_runtime.gateway_queue_status import answer_queue_status as _answer
@@ -414,6 +421,7 @@ def register(ctx) -> None:
     ctx.register_hook("pre_llm_call", settle_turn_tools)
     ctx.register_hook("pre_tool_call", refuse_tool_call)
     ctx.register_hook("post_api_request", record_usage_ledger_row)
+    ctx.register_hook("post_tool_call", record_turn_outcome)
     # The on_stream_* receipt observers register only while a persona turn runs: any
     # registered one makes upstream treat EVERY agent in the process as a stream consumer.
     from agent_runtime.codex_observability import install_stream_observers

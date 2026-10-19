@@ -30,6 +30,7 @@ from ..runtime_hud.envelopes import (
 from ..transcript_order import TURN_SEQ_OPERATOR, TURN_SEQ_TERMINAL
 from .markers import (
     _carry_run_budget,
+    _carry_turn_outcome,
     _ordered_message_rows,
     _silent_turn_marker_row,
     _terminal_turn_marker_rows,
@@ -315,9 +316,10 @@ class _AgentCurator:
         # through on its own; this is the additive extension that lets the
         # cockpit read the block the settle point persisted. Read-only: the
         # projection reads the journal, it never writes it.
-        _carry_run_budget(
-            row, state.turn_records_by_message.get(str(ctx.logical_client_message_id or ""))
-        )
+        turn_record = state.turn_records_by_message.get(str(ctx.logical_client_message_id or ""))
+        _carry_run_budget(row, turn_record)
+        # What the turn left behind, copied off the same record (agent_runtime.turn_outcome).
+        _carry_turn_outcome(row, turn_record)
 
 
 #: The transcript roles that render, each with its curator. ``MessageRole.SYSTEM``

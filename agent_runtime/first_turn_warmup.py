@@ -77,7 +77,7 @@ FIRST_TURN_MODULES = (
     "agent.aux_accounting", "agent.relay_cwd", "agent.review_idle_queue", "agent.subagent_lifecycle",
     "nemo_relay", "hermes_cli.observability.relay_shared_metrics",
     "hermes_cli.observability.shared_metrics_send_config", "hermes_cli.moa_config",
-    "agent_runtime.persona_turn_binding", "agent_runtime.usage_ledger",
+    "agent_runtime.persona_turn_binding", "agent_runtime.usage_ledger", "agent_runtime.turn_outcome",
     "agent.title_generator", "agent_runtime.native_persistence", "tools.bot_mode_dm", "tools.mcp_tool_agent",
     "hermes_cli.build_info", "hermes_cli.lifecycle",
     "agent.opencode_affinity", "agent.plugin_stream_hooks", "agent.replay_cleanup",
