@@ -14,7 +14,9 @@ same executor. The lane is one daemon thread that RECONCILES each tick (and at o
   dropped unhandled and unacknowledged, so the next serve receives it — while the settle listener stays
   registered, so a turn already queued still sends its reply; ``liveness_stop`` stops the bridge;
 * ``runtime.messaging.platform.enable|disable`` write the setting and :func:`poke` the lane, which
-  converges within one tick.
+  converges within one tick;
+* a running platform's approval cards are refreshed every tick (``ApprovalCards.refresh``), so a root the
+  launcher moved (``/new``) is watched without waiting for a platform message.
 
 The transport is built from :data:`TRANSPORTS` (tests swap the row for a fake; never the network). One
 serve runs one lane: :func:`current` is how the verbs and ``status`` reach it. Receipts
@@ -143,6 +145,10 @@ class MessagingLane:
             self._set(platform, LaneState.OFF, why_not)
         elif running is None:
             self._start(platform)
+        elif running.bridge.approvals is not None:
+            # A launcher ``/new`` moves an instance's chat root without a platform message; the next tick
+            # re-points the approval notifiers at the CURRENT roots.
+            running.bridge.approvals.refresh()
 
     def _start(self, platform: Platform) -> None:
         from .approvals import ApprovalCards

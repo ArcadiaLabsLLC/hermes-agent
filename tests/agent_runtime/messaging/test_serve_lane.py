@@ -210,3 +210,28 @@ def test_a_service_serve_runs_the_lane_and_a_socket_drain_stops_it(built):
         handle.thread.join(20)
         assert not handle.thread.is_alive()
     wait_until(lambda: not built[0].polling, timeout=5, what="polling stopped by the drain")
+
+
+def test_the_tick_follows_a_root_the_launcher_moved(built):
+    """A launcher ``/new`` re-points the instance's chat root; no platform message arrives. Killing mutation:
+    drop the ``approvals.refresh()`` arm from ``_reconcile`` → the notifier stays on the old root → red."""
+    from agent_runtime.messaging.bindings import Binding, BindingStore
+    from agent_runtime.session_controls import approval_notifiers
+
+    credentials.set_token(TG, TOKEN)
+    _enable()
+    roots = {"current": "persona_chat_root_before"}
+    session = _session()
+    session.work_executor = PersonaTurnExecutor(instances=_Instances(), root_of=lambda store, **_: roots["current"],
+                                                wake=lambda: None)
+    BindingStore().set(Binding(TG, "-1001", None, "inst-alice", "test", "2026-10-19T00:00:00+00:00"))
+    lane = MessagingLane(session)
+    try:
+        lane.tick()
+        assert "persona_chat_root_before" in approval_notifiers
+        roots["current"] = "persona_chat_root_after"  # the launcher's /new
+        lane.tick()
+        assert "persona_chat_root_after" in approval_notifiers
+        assert "persona_chat_root_before" not in approval_notifiers
+    finally:
+        lane.close()

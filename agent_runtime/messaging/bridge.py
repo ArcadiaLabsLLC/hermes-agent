@@ -13,7 +13,7 @@ Plan ``docs/agent-runtime-harness/planned/p10-messaging-2026-10-19.md`` §2.3. T
   one-line notice when the turn ended without one. Nothing is read from history.
 * **presses** go to the approval cards (``approvals.ApprovalCards``, M4) when the bridge has them, and are
   otherwise answered and dropped; the cards' watched roots are refreshed at start, after a bind and on
-  every inbound message (a root the launcher moved is picked up by the next message).
+  every inbound message, and on every serve-lane tick (a root the launcher moved is picked up within one tick).
 
 Receipts (``work_store.receipts.emit``): ``messaging.inbound | queued | replied | refused | bound`` — ids
 and reasons only, never message text. Pinned by ``tests/agent_runtime/messaging/test_bridge_inbound.py``.
