@@ -113,3 +113,40 @@ def test_the_persona_runner_binds_the_fold_around_the_turn_and_carries_the_block
     quiet = _run_conversation_with_usage_ledger(_Quiet(), {})
     assert quiet["turn_outcome"] is None
     assert _normalize_result(quiet, agent=_Quiet()).turn_outcome is None
+
+
+# 5. Mutation: coerce instead of drop -> "0" becomes a passed test.
+def test_safe_turn_outcome_drops_what_it_cannot_read():
+    from agent_runtime.mission_chat_turns.records import safe_turn_outcome
+
+    assert safe_turn_outcome(None) is None
+    assert safe_turn_outcome(["schema", 1]) is None
+    assert safe_turn_outcome({"schema": 2, "tests": [{"command": "pytest", "exit_code": 0, "verdict": "passed"}]}) is None
+    block = safe_turn_outcome({
+        "schema": 1,
+        "tests": [
+            {"command": "pytest a", "exit_code": "0", "verdict": "passed"},
+            {"command": "pytest b", "exit_code": 1, "verdict": "flaky"},
+            {"command": "pytest c", "exit_code": True, "verdict": "passed"},
+            {"command": "pytest d", "exit_code": None, "verdict": "unknown"},
+            "not a row",
+        ],
+        "commits": [
+            {"command": "git commit", "sha": "abc1234", "pushed": False},
+            {"command": "git commit", "sha": "nothex!", "pushed": None},
+            {"command": "git commit -m ok", "sha": None, "pushed": True},
+        ],
+        "files": [{"path": "a.py", "op": "delete"}, {"path": "b.py", "op": "write"}],
+        "truncated": "yes",
+    })
+    assert block == {
+        "schema": 1,
+        "tests": [{"command": "pytest d", "exit_code": None, "verdict": "unknown"}],
+        "commits": [{"command": "git commit -m ok", "sha": None, "pushed": True}],
+        "files": [{"path": "b.py", "op": "write"}],
+        "truncated": False,
+    }
+    # Nothing readable is no block at all; a cap re-applied marks truncated.
+    assert safe_turn_outcome({"schema": 1, "tests": [{"command": "", "exit_code": 0, "verdict": "passed"}]}) is None
+    many = safe_turn_outcome({"schema": 1, "files": [{"path": f"f{i}", "op": "patch"} for i in range(70)]})
+    assert len(many["files"]) == 64 and many["truncated"] is True
