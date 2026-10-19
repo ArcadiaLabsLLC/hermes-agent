@@ -462,3 +462,26 @@ def test_a_run_naming_files_builds_no_node_for_a_sibling(request, tmp_path):
     assert files == {norm(named)} and norm(tmp_path / "pkg") in ancestors and norm(tmp_path) in ancestors
     assert norm(tmp_path / "pkg" / "test_sibling.py") not in files | ancestors
     assert named_scope(["pkg"], tmp_path) is None  # a directory argument: pytest's own walk
+
+
+def test_a_git_spawn_resolves_pms_git_once_per_process(monkeypatch, tmp_path):
+    """``tests/_downstream/git_env_memo.py``: ``selected_git_env`` asks ``pm.ensure("git")`` once per process
+    and base context, not once per spawn (16.6 ms a call; 2,067 calls in redo + turn_undo). Three bases that
+    differ only off the delta cost ONE resolve, and each answer is the one ``ensure`` gives that base.
+    Mutation: the memo calls ``real(base)`` every time → 3 resolves, not 1."""
+
+    import pm.client  # the memo serves only PM's own ensure
+    from hermes_cli import _subprocess_compat as compat
+    from tests._downstream.git_env_memo import _MARK
+
+    wrapper = compat.selected_git_env
+    assert getattr(wrapper, _MARK, False), "the chain installed the memo at setup"
+    real, resolves = wrapper.__wrapped__, []
+    monkeypatch.setattr(wrapper, "__wrapped__", lambda base=None: resolves.append(base) or real(base))
+    path = os.pathsep.join([str(tmp_path), os.environ.get("PATH", "")])  # a PATH no earlier test used
+    bases = [{"PATH": path, "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""), "P10_BASE": str(i)} for i in range(3)]
+    answers = [compat.selected_git_env(dict(b)) for b in bases]
+
+    assert len(resolves) == 1, resolves
+    for base, answer in zip(bases, answers):
+        assert answer == real(dict(base))

@@ -74,6 +74,7 @@ from tests._downstream.child_job import (  # noqa: F401 — hook and fixture re-
     _children_die_with_the_test,
     pytest_configure_child_job,
 )
+from tests._downstream.git_env_memo import _git_env_memo  # noqa: F401 — autouse (suite speed, p10-bar)
 from tests._downstream import child_startup, registry_write_fence, server_shutdown_poll
 from tests._downstream.fork_readonly_readers import file_reads_through
 from tests._downstream.id_markers.reasons import (
