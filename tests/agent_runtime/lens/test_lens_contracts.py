@@ -129,6 +129,6 @@ def test_runtime_lens_list_is_on_the_method_lane():
     reply = serve_rpc.handle_request({"jsonrpc": "2.0", "id": 1, "method": "runtime.lens.list", "params": {}})
     assert reply["result"]["feed_kinds"] == {
         "http_json": "available", "prometheus": "available",
-        "sql_readonly": "unavailable", "command_allowlisted": "unavailable",
+        "sql_readonly": "unavailable", "command_allowlisted": "unavailable", "push": "available",
     }
     assert serve_rpc.method_tier("runtime.lens.list") == TIER_CONSOLE
