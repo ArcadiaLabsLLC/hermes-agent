@@ -17,6 +17,10 @@ Gates and their killing mutations (each red was recorded in the stage's commit):
   bound (3 == 2 either way);
   ``runtime.lens.receipt`` on an unknown Episode is NOT_FOUND — killed by
   dropping ``RECEIPT_NOT_FOUND`` from ``NOT_FOUND_REFUSALS`` (a conflict frame).
+* provenance: the persisted user row types as ``lens_episode:`` — killed by
+  removing the Lens branch in ``_resolve_relay_sender_marker`` (marker None);
+  the history row reads as Lens, never as the operator — killed by dropping the
+  ``_lens_episode_shape`` rule (kind ``operator_message``).
 """
 
 from __future__ import annotations
@@ -112,3 +116,58 @@ def test_receipts_past_the_budget_are_refused(monkeypatch):
     with pytest.raises(LensStoreError) as caught:
         store.save_receipt(_receipt(EPISODE_B))
     assert caught.value.code is StoreRefusal.RECEIPTS_FULL
+
+
+# --- L2.2 provenance --------------------------------------------------------------
+
+
+def _marker_for(requested_by):
+    from hermes_cli.harness_parts.persona import chat_history_writes
+
+    class _Store:
+        def list_all(self):
+            return []
+
+    return chat_history_writes._resolve_relay_sender_marker(requested_by, instance_store=_Store(), relay_chain_in=())
+
+
+def test_the_persisted_user_row_types_as_a_lens_episode():
+    from agent_runtime.lens.provenance import lens_requested_by, parse_lens_requested_by
+    from agent_runtime.relay_policy import parse_harness_delivery_marker, parse_lens_episode_marker,         parse_relay_sender_marker
+
+    requested_by = lens_requested_by(EPISODE_A, "status")
+    assert parse_lens_requested_by(requested_by).monitor_id == "status"
+
+    marker = _marker_for(requested_by)
+
+    assert marker == f"lens_episode:{EPISODE_A}"
+    assert parse_lens_episode_marker(marker).episode_id == EPISODE_A
+    # The vocabularies never answer for each other.
+    assert parse_harness_delivery_marker(marker) is None and parse_relay_sender_marker(marker) is None
+    assert parse_lens_episode_marker("harness_delivery:d:0:completed") is None
+    for value in (None, "", "operator", "lens-episode", "lens-episode:", "agent:"):
+        assert _marker_for(value) is None
+
+
+def test_the_history_row_reads_as_lens_not_as_the_operator():
+    from agent_runtime.operator_channels import _conversation_history_message
+    from agent_runtime.persona_chat_history import PERSONA_LENS_EPISODE_KIND
+    from agent_runtime.persona_chat_history.history_rows import _safe_recent_messages
+    from agent_runtime.relay_policy import build_lens_episode_marker
+    from tests.agent_runtime.test_persona_chat_history_curation import FakeSessionDB
+
+    db = FakeSessionDB([{"id": "m1", "role": "user", "content": "Lens: status · cpu_hot · #1",
+                         "finish_reason": build_lens_episode_marker(EPISODE_A),
+                         "platform_message_id": f"lens-episode-{EPISODE_A}", "created_at": "2026-10-19T12:00:00Z"}])
+    rows, status, _unread = _safe_recent_messages(db, session_id="persona_chat_personainst_qa_abc123def456")
+    [row] = [row for row in rows if row.get("kind") == PERSONA_LENS_EPISODE_KIND]
+    assert (status, row["lens_episode_id"]) == ("safe", EPISODE_A)
+    assert "relay_sender_persona_id" not in row and "delivery_dispatch_id" not in row
+
+    message = _conversation_history_message(row, channel_id="chan-1", index=0, persona_id="qa",
+                                            persona_instance_id="personainst_qa", display_names={})
+    assert (message["kind"], message["actor_persona_id"], message["actor_instance_id"]) == (
+        PERSONA_LENS_EPISODE_KIND, "lens", None)
+    assert message["role"] == "operator"
+    assert message["lens"] == {"episode_id": EPISODE_A}
+
