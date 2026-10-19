@@ -40,6 +40,26 @@ BROWSER_PRECONDITION_GUIDANCE = (
 
 SKILL_MANAGE_CONFIRM_GUIDANCE = "Confirm with the user before creating or deleting a skill."
 
+#: Which hand-off to pick, rendered only when both hand-off tools are present
+#: (RT-DELEGATE-VS-CHAT-VS-WORK, plan p10-agent §4).
+DELEGATION_HANDOFF_GUIDANCE = (
+    "Pick the hand-off by its lifetime: `delegate_task` for a bounded side job whose "
+    "result you need back in this turn; `agent_chat_send` to ask a persistent teammate "
+    "who keeps their own context and answers later."
+)
+
+#: The Work verbs whose presence opens the Work clause. Inert today: the kanban toolset
+#: is blocked on every persona lane (``personas.REGISTRY_HYGIENE_BLOCKED_TOOLSETS``), so
+#: the clause renders the day a lane admits one, by admission alone.
+WORK_SUBMIT_TOOLS = frozenset({"kanban_create"})
+
+#: Joined onto ``DELEGATION_HANDOFF_GUIDANCE`` (in place of its final period) when a
+#: ``WORK_SUBMIT_TOOLS`` verb is also present.
+DELEGATION_HANDOFF_WORK_CLAUSE = (
+    "; submit Work for a durable task another agent owns, that must survive a restart "
+    "or a hand-off."
+)
+
 WINDOWS_NATIVE_TOOLING_HINT = (
     "Windows-native tooling: your terminal is bash, but when a task genuinely "
     "needs PowerShell or cmd (a cmdlet, a `.ps1` script, a Windows-only CLI), "

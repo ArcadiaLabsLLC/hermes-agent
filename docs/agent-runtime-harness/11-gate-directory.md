@@ -51,6 +51,8 @@ or registry entry names something real).
 | `tests/tooling/test_fork_modules_do_not_import_pyyaml.py` | fence | YAML goes through `agent_runtime.yaml_io`, never `yaml` |
 | `tests/tooling/test_no_secret_word_decisions.py` | fence | no "is this a secret?" decision by looking for a word |
 | `tests/tooling/test_no_launcher_entry_id_literals.py` | fence | no hermes code names a Launcher entry id |
+| `tests/tooling/test_no_launcher_tool_name_literals.py` | fence | no hermes code names a Launcher tool (the underscore spelling), by the vendored catalog |
+| `tests/agent_runtime/test_launcher_catalog_fixture_parses.py` | runtime | every vendored Launcher catalog entry parses as the wire does; names follow the id rule |
 | `tests/tooling/test_no_silent_package_patches.py` | fence | a monkeypatch on a package attribute reaches a reader |
 | `tests/agent_runtime/test_duplicate_helper_bodies.py` | ratchet | one authority per helper body |
 | `tests/agent_runtime/test_tombstone_registry.py` | fence | deleted symbols stay deleted (census ≥ 703; never grep-count) |

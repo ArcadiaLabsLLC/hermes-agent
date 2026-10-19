@@ -1,0 +1,1134 @@
+{
+  "source_commit": "65cad4a996e234e1e35933a075f801929c3c707d",
+  "exported_at": "2026-10-19",
+  "entries": [
+    {
+      "id": "launcher.account.open_section",
+      "name": "launcher_account_open_section",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.account.status",
+      "name": "launcher_account_status",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.agent.model.list",
+      "name": "launcher_agent_model_list",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.agent.model.set",
+      "name": "launcher_agent_model_set",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.agent.reasoning.set",
+      "name": "launcher_agent_reasoning_set",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.agent.skills.list",
+      "name": "launcher_agent_skills_list",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.agent.skills.set",
+      "name": "launcher_agent_skills_set",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.agent.speed.set",
+      "name": "launcher_agent_speed_set",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.agent.usage.read",
+      "name": "launcher_agent_usage_read",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.agent_chat.attachment.close",
+      "name": "launcher_agent_chat_attachment_close",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.agent_chat.attachment.copy_path",
+      "name": "launcher_agent_chat_attachment_copy_path",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.agent_chat.attachment.open",
+      "name": "launcher_agent_chat_attachment_open",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.agent_chat.attachment.open_in_studio",
+      "name": "launcher_agent_chat_attachment_open_in_studio",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.agent_chat.attachment.reveal",
+      "name": "launcher_agent_chat_attachment_reveal",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.agent_chat.close_tools",
+      "name": "launcher_agent_chat_close_tools",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.agent_chat.delete",
+      "name": "launcher_agent_chat_delete",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.agent_chat.list",
+      "name": "launcher_agent_chat_list",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.agent_chat.new",
+      "name": "launcher_agent_chat_new",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.agent_chat.open",
+      "name": "launcher_agent_chat_open",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.agent_chat.open_tools",
+      "name": "launcher_agent_chat_open_tools",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.agent_chat.send",
+      "name": "launcher_agent_chat_send",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.agents.list",
+      "name": "launcher_agents_list",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.app.about",
+      "name": "launcher_app_about",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.app.restart",
+      "name": "launcher_app_restart",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.audio.preview_cue",
+      "name": "launcher_audio_preview_cue",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.communities.create",
+      "name": "launcher_communities_create",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.communities.join",
+      "name": "launcher_communities_join",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.communities.leave",
+      "name": "launcher_communities_leave",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.communities.list",
+      "name": "launcher_communities_list",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.communities.moderate",
+      "name": "launcher_communities_moderate",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.communities.open",
+      "name": "launcher_communities_open",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.communities.settings.set",
+      "name": "launcher_communities_settings_set",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.connections.download_pack",
+      "name": "launcher_connections_download_pack",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.connections.install_sdk",
+      "name": "launcher_connections_install_sdk",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.connections.list",
+      "name": "launcher_connections_list",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.connections.open",
+      "name": "launcher_connections_open",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.education.course.enroll",
+      "name": "launcher_education_course_enroll",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.education.course.install",
+      "name": "launcher_education_course_install",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.education.course.open",
+      "name": "launcher_education_course_open",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.education.course.open_section",
+      "name": "launcher_education_course_open_section",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.education.course.open_source",
+      "name": "launcher_education_course_open_source",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.education.course.remove",
+      "name": "launcher_education_course_remove",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.education.course.remove_with_lectures",
+      "name": "launcher_education_course_remove_with_lectures",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.education.course.resume",
+      "name": "launcher_education_course_resume",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.education.course.start",
+      "name": "launcher_education_course_start",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.education.course.update.apply",
+      "name": "launcher_education_course_update_apply",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.education.course.update.dismiss",
+      "name": "launcher_education_course_update_dismiss",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.education.explore.list",
+      "name": "launcher_education_explore_list",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.education.lesson.open",
+      "name": "launcher_education_lesson_open",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.education.lesson.play_pause",
+      "name": "launcher_education_lesson_play_pause",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.education.lesson.seek_cue",
+      "name": "launcher_education_lesson_seek_cue",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.education.lesson.source_toggle",
+      "name": "launcher_education_lesson_source_toggle",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.education.library.list",
+      "name": "launcher_education_library_list",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.education.open_section",
+      "name": "launcher_education_open_section",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.emulators.add",
+      "name": "launcher_emulators_add",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.emulators.edit",
+      "name": "launcher_emulators_edit",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.emulators.list",
+      "name": "launcher_emulators_list",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.emulators.remove",
+      "name": "launcher_emulators_remove",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.emulators.remove_with_files",
+      "name": "launcher_emulators_remove_with_files",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.emulators.rescan",
+      "name": "launcher_emulators_rescan",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.generated.create",
+      "name": "launcher_generated_create",
+      "read_only": false,
+      "always_loaded": true,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.generated.duplicate",
+      "name": "launcher_generated_duplicate",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.generated.edit",
+      "name": "launcher_generated_edit",
+      "read_only": false,
+      "always_loaded": true,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.generated.inspect",
+      "name": "launcher_generated_inspect",
+      "read_only": true,
+      "always_loaded": true,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.generated.list",
+      "name": "launcher_generated_list",
+      "read_only": true,
+      "always_loaded": true,
+      "reach": "localOnly",
+      "guidance_sha256": "6e0db1e0afa42e08f32515d0362cce82b4e6421273bce53a48aea5e1380b40c9"
+    },
+    {
+      "id": "launcher.generated.update",
+      "name": "launcher_generated_update",
+      "read_only": false,
+      "always_loaded": true,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.harness.installs.forget",
+      "name": "launcher_harness_installs_forget",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.harness.installs.list",
+      "name": "launcher_harness_installs_list",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.harness.installs.pair",
+      "name": "launcher_harness_installs_pair",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.harness.installs.reachable",
+      "name": "launcher_harness_installs_reachable",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.harness.installs.select",
+      "name": "launcher_harness_installs_select",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.harness.installs.select_edition",
+      "name": "launcher_harness_installs_select_edition",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.harness.installs.unpair",
+      "name": "launcher_harness_installs_unpair",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.harness.restart",
+      "name": "launcher_harness_restart",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.library.cancel",
+      "name": "launcher_library_cancel",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.library.close_details",
+      "name": "launcher_library_close_details",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.library.install",
+      "name": "launcher_library_install",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.library.list",
+      "name": "launcher_library_list",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.library.open_details",
+      "name": "launcher_library_open_details",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.library.play",
+      "name": "launcher_library_play",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.library.select",
+      "name": "launcher_library_select",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.library.uninstall",
+      "name": "launcher_library_uninstall",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.library.update",
+      "name": "launcher_library_update",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.library.view_mode.set",
+      "name": "launcher_library_view_mode_set",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.media.playback.state",
+      "name": "launcher_media_playback_state",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.messaging.channel.open",
+      "name": "launcher_messaging_channel_open",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.messaging.composer.send",
+      "name": "launcher_messaging_composer_send",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.mission_control.agent.select",
+      "name": "launcher_mission_control_agent_select",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.mission_control.command_bar.pin",
+      "name": "launcher_mission_control_command_bar_pin",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.mission_control.panel.close",
+      "name": "launcher_mission_control_panel_close",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.mission_control.panel.open",
+      "name": "launcher_mission_control_panel_open",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.navigation.open",
+      "name": "launcher_navigation_open",
+      "read_only": false,
+      "always_loaded": true,
+      "reach": "localOnly",
+      "guidance_sha256": "54841e113b0ed1213890d4094660c54da9ef1cb1328f788461a82986a98a105e"
+    },
+    {
+      "id": "launcher.navigation.open_overlay",
+      "name": "launcher_navigation_open_overlay",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.navigation.state",
+      "name": "launcher_navigation_state",
+      "read_only": true,
+      "always_loaded": true,
+      "reach": "pairedDevice",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.news.lane.select",
+      "name": "launcher_news_lane_select",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.posts.feed.select",
+      "name": "launcher_posts_feed_select",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.posts.feed.show_new",
+      "name": "launcher_posts_feed_show_new",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.posts.interests.set",
+      "name": "launcher_posts_interests_set",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.realm_sync.open",
+      "name": "launcher_realm_sync_open",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.realm_sync.revert",
+      "name": "launcher_realm_sync_revert",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.realm_sync.status",
+      "name": "launcher_realm_sync_status",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.settings.get",
+      "name": "launcher_settings_get",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.settings.open_section",
+      "name": "launcher_settings_open_section",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.settings.set",
+      "name": "launcher_settings_set",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.studio.character.open",
+      "name": "launcher_studio_character_open",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.studio.edit.redo",
+      "name": "launcher_studio_edit_redo",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.studio.edit.undo",
+      "name": "launcher_studio_edit_undo",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.studio.layer.list",
+      "name": "launcher_studio_layer_list",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.studio.layer.select",
+      "name": "launcher_studio_layer_select",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.studio.media.import",
+      "name": "launcher_studio_media_import",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.studio.playback.toggle",
+      "name": "launcher_studio_playback_toggle",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.studio.project.create",
+      "name": "launcher_studio_project_create",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.studio.project.list",
+      "name": "launcher_studio_project_list",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.studio.project.open",
+      "name": "launcher_studio_project_open",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.studio.project.save",
+      "name": "launcher_studio_project_save",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.studio.state",
+      "name": "launcher_studio_state",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.studio.view.fit",
+      "name": "launcher_studio_view_fit",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.view.capture",
+      "name": "launcher_view_capture",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.view.content_state",
+      "name": "launcher_view_content_state",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.view.frame_capture",
+      "name": "launcher_view_frame_capture",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.view.render_profile",
+      "name": "launcher_view_render_profile",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.view.scroll",
+      "name": "launcher_view_scroll",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.voice.invite.accept",
+      "name": "launcher_voice_invite_accept",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.voice.invite.decline",
+      "name": "launcher_voice_invite_decline",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.voice.leave",
+      "name": "launcher_voice_leave",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.voice.share.sources",
+      "name": "launcher_voice_share_sources",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.voice.share.start",
+      "name": "launcher_voice_share_start",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.voice.share.stop",
+      "name": "launcher_voice_share_stop",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.voice.state",
+      "name": "launcher_voice_state",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.window.display_scale.set",
+      "name": "launcher_window_display_scale_set",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.window.metrics",
+      "name": "launcher_window_metrics",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.window.resize",
+      "name": "launcher_window_resize",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.windows.bring_back",
+      "name": "launcher_windows_bring_back",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.windows.list",
+      "name": "launcher_windows_list",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.windows.pop_out",
+      "name": "launcher_windows_pop_out",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.world.contact_shading.set",
+      "name": "launcher_world_contact_shading_set",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.world.level.rename",
+      "name": "launcher_world_level_rename",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.world.level.reset_unreadable",
+      "name": "launcher_world_level_reset_unreadable",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.world.level.retry_load",
+      "name": "launcher_world_level_retry_load",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.world.level.save_as",
+      "name": "launcher_world_level_save_as",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    },
+    {
+      "id": "launcher.world.time_of_day.set",
+      "name": "launcher_world_time_of_day_set",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": ""
+    }
+  ]
+}
