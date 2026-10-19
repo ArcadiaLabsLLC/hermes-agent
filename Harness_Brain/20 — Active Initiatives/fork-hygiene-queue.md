@@ -520,3 +520,12 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 ## Filed on arrival — 2026-10-19 (land w10, b05ccafe29)
 
 - **`FORK-STREAM-PARITY-WATCHER-RACE` — `test_the_hub_lane_delivers_the_argv_streams_frames_byte_for_byte` compares the process-global lens `WATCHER` (`running`/`since_ms`/`last_tick_ms`) across two lanes built at different instants; any boot-time thread that shifts the poller's first tick reds it (msg-C measured it)** · fork / suite · `tests/agent_runtime/test_serve_stream_lane_parity.py`, `agent_runtime/lens/poller.py::WATCHER` · READY 2026-10-19
+
+## Filed on arrival — 2026-10-19 (ns + rt-model landing ab8578f8f5: reds on main after land w10)
+
+- **`FH-W10-SESSION-PY-OVER-CEILING` — `hermes_cli/harness_parts/serve/session.py` is 802 code lines on main after land w10 (lens forge), so `test_downstream_size_ceiling` is red; the namespace stamp makes it 804** · split it to a layout · READY 2026-10-19
+- **`FH-W10-SETTLE-OUTCOME-LADDER` — `chat_turn_commit/settle.py::_log_turn_outcome` is a NEW ladder (`vocab|failed`) on main after land w10, so `test_no_ladder_routing` is red** · make it a table · READY 2026-10-19
+- **`FH-W10-OFFICE-UPSERT-GREW` — `hermes_cli/harness_parts/office.py::_cmd_office_actor_upsert` grew 181→187 lines on main after land w10, so `test_function_legibility_floor` is red** · shed the growth · READY 2026-10-19
+- **`FH-W10-OFFICE-ACTOR-CITES` — `harness-runtime-model/references/debugging.md:94` and `operations.md:213` cite `office_actor_writes.py:341`, moved by `69b827d87a`; `doc_cite_adjacency` has 2 unwaived failures** · re-cite by symbol · READY 2026-10-19
+- **`FH-UPSTREAM-RETIREMENT-SCAN-TIMEOUT` — `tests/.../test_upstream_retirement_scan.py` times out with nothing collected, alone, on both the landing HEAD and origin/main 086be3bfb0 (`--confirm-red`)** · find the hang (collection-time I/O?) · READY 2026-10-19
+- **`FH-STREAM-RELAY-COLD-BUDGET-RED` — `test_stream_relay::test_a_new_process_pays_the_boot_sections_inside_their_cold_budget` is red on origin/main (`--confirm-red`), pre-existing to the ns landing** · measure the boot sections against the budget, then fix the import or move the budget with evidence · READY 2026-10-19
