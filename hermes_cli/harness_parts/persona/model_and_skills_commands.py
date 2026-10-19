@@ -81,12 +81,11 @@ def _model_api_mode(provider: str | None, model: str | None, profile_api_mode: s
     """The ``api_mode`` persisted beside *model*. An OpenCode family routes PER MODEL
     (``opencode_model_api_mode``: Claude on ``anthropic_messages``, GPT on ``codex_responses``), so
     its provider profile's single ``api_mode`` is right for one model at most; every other
-    provider keeps the profile's."""
-    from hermes_cli.models import opencode_model_api_mode, opencode_provider_family
+    provider keeps the profile's. The rule's one home is ``agent_runtime.model_api_mode``, which a
+    chat override's turn derives its api_mode by too."""
+    from agent_runtime.model_api_mode import model_api_mode
 
-    if provider and model and opencode_provider_family(provider):
-        return opencode_model_api_mode(provider, model)
-    return profile_api_mode
+    return model_api_mode(provider, model, profile_api_mode)
 
 
 def _validated_set_model_request(args) -> dict:

@@ -1,6 +1,8 @@
 """Serving metadata crosses the snapshot, patch and next-turn model owners."""
 from dataclasses import replace
 
+import pytest
+
 from agent.reasoning_effort import route_supported_efforts
 from agent_runtime.reasoning_capabilities import reasoning_capabilities
 from agent_runtime.persona_assignments import PersonaInstanceStore, persona_instance_summary
@@ -155,3 +157,31 @@ def test_router_disk_cache_is_readable_and_inspection_does_not_warm(monkeypatch)
     monkeypatch.setattr(module, "_disk_checked", False)
     assert get_provider_profile("router").supported_reasoning_efforts("cached") == ("low", "high")
     assert warmed == [True]
+
+
+# RT-REASONING-LEVELS-CLAUDE-OPUS-5-5: the Anthropic report reads the adapter's own tables.
+_CLAUDE_FAMILY = ("claude-opus-5-5", "claude-fable-5", "claude-sonnet-5-5", "claude-haiku-5-5",
+                  "claude-opus-4-7", "claude-sonnet-4-6", "claude-3-7-sonnet-20250219")
+
+
+def test_claude_opus_5_5_reports_its_effort_levels_and_no_off():
+    report = reasoning_capabilities("anthropic", "claude-opus-5-5", api_mode="anthropic_messages",
+                                    default_effort="medium").wire()
+    assert (report["state"], report["levels"]) == ("supported", ["low", "medium", "high", "xhigh", "max"])
+    assert report["default_effort"] == "medium"
+
+
+@pytest.mark.parametrize("model", _CLAUDE_FAMILY)
+def test_every_reported_claude_level_is_sent_as_itself(model):
+    from agent.anthropic_adapter import THINKING_BUDGET, _supports_adaptive_thinking, _thinking_kwargs
+
+    levels = reasoning_capabilities("anthropic", model, api_mode="anthropic_messages").levels
+    assert levels, f"{model}: no levels reported"
+    adaptive = _supports_adaptive_thinking(model)
+    for level in levels:
+        if level == "none":
+            continue
+        sent = _thinking_kwargs({"enabled": True, "effort": level}, model, 4096)
+        wire = sent["output_config"]["effort"] if adaptive else sent["thinking"]["budget_tokens"]
+        expected = level if adaptive else THINKING_BUDGET[level]
+        assert wire == expected, f"{model}: reports {level!r}, the adapter sends {wire!r}"
