@@ -123,6 +123,13 @@ packaging:
     - hermes_cli.local_runtime
     - tools.tts_tool_local
     - tools.transcription_local
+    # Profile namespaces (RT-NAMESPACE-IN-BUNDLE-CLOSURE): a player's bundled Hermes must honour
+    # HERMES_NAMESPACE and answer `hermes namespace probe` (the launcher's pre-spawn check), so the
+    # resolver and the CLI are roots, not only whatever hermes_cli.main happens to import today.
+    - hermes_cli._namespace_bootstrap
+    - hermes_cli.namespace_cmd
+    - agent_runtime.namespace
+    - agent_runtime.namespace_admin
   # Optional extras (pyproject [project.optional-dependencies]) the bundle ships.
   # Every other extra is absent: full Hermes installs extras lazily and their
   # import sites tolerate absence; this profile turns lazy installs off, so an
