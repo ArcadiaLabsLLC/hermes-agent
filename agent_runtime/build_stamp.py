@@ -43,6 +43,13 @@ Contract
   a DOCS-ONLY landing (2026-09-07 16:25:09Z; the replacement lost the socket
   lock and the session finished on the argv lane). The commit stays: it is
   what a human reads and what the receipts join on.
+* **The build triple** (plan
+  ``EterniaLauncher/docs/embedded_hermes/planned/ONE_HERMES_INSTALL_PROFILE_NAMESPACE_2026-10-19.md``
+  §0, row ``RT-BUILD-TRIPLE-READY``): "the same debug build" is ``code_tree``
+  + ``commit`` + ``dirty`` + ``uv_lock_sha256``, so a QA run label and a
+  running serve compare on all four. The lock hash is measured in EVERY arm,
+  git or not — it is a file read, not a git question — and a bundle that
+  ships no ``uv.lock`` says ``lock_missing`` in ``uv_lock_reason``.
 
 The process facts (``pid``, ``boot_at``, ``uptime_ms``) are deliberately NOT
 cached: uptime is computed from a monotonic baseline captured at import, so a
@@ -61,7 +68,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from agent_runtime.build_identity import CodeTree, code_tree_for, code_tree_rule
+from agent_runtime.build_identity import (
+    CodeTree,
+    UvLockDigest,
+    code_tree_for,
+    code_tree_rule,
+    uv_lock_digest_for,
+)
 from agent_runtime.git_cmd import run_git
 
 __layer__ = "stores"
@@ -136,6 +149,13 @@ class BuildStamp:
     #: ``not_git:<source>`` when there was no tree to read at all, or the
     #: ``git_*`` token ``code_tree_for`` returned.
     code_tree_reason: str
+    #: sha256 of the checkout's ``uv.lock`` — the triple's lock term — or None
+    #: when it could not be read. Defaulted so a stamp built without it reads
+    #: as NOT MEASURED, never as a hash.
+    uv_lock_sha256: str | None = None
+    #: Empty when the lock hash resolved; otherwise ``no_root``,
+    #: ``lock_missing`` or ``lock_unreadable`` (``not_measured`` by default).
+    uv_lock_reason: str = "not_measured"
 
     @property
     def resolved(self) -> bool:
@@ -167,6 +187,8 @@ class BuildStamp:
             "code_tree": self.code_tree,
             "code_tree_rule": code_tree_rule(),
             "code_tree_reason": self.code_tree_reason,
+            "uv_lock_sha256": self.uv_lock_sha256,
+            "uv_lock_reason": self.uv_lock_reason,
         }
 
     def payload(self) -> dict[str, Any]:
@@ -255,6 +277,7 @@ def baked_build_stamp() -> BuildStamp:
     baked_root = _fallback_repo_root()
     commit = _baked_sha(baked_root)
     source = SOURCE_BUILD_SHA_FILE if commit else SOURCE_UNKNOWN
+    lock = uv_lock_digest_for(baked_root)
     return BuildStamp(
         commit=commit,
         dirty=None,
@@ -264,6 +287,8 @@ def baked_build_stamp() -> BuildStamp:
         resolved_at=_iso(time.time()),
         code_tree=None,
         code_tree_reason=f"not_git:{source}",
+        uv_lock_sha256=lock.sha256,
+        uv_lock_reason=lock.reason,
     )
 
 
@@ -275,6 +300,8 @@ def _resolve() -> BuildStamp:
         root = repo_root_for()
     except Exception:  # pragma: no cover - defensive; must never raise
         root = None
+    # The triple's lock term: a file read, so every arm below carries it.
+    lock: UvLockDigest = uv_lock_digest_for(root if root is not None else _fallback_repo_root())
 
     if root is None:
         # No checkout above this module. A Docker image is the expected case
@@ -291,6 +318,8 @@ def _resolve() -> BuildStamp:
                 resolved_at=resolved_at,
                 code_tree=None,
                 code_tree_reason=f"not_git:{SOURCE_BUILD_SHA_FILE}",
+                uv_lock_sha256=lock.sha256,
+                uv_lock_reason=lock.reason,
             )
         return BuildStamp(
             commit=None,
@@ -301,6 +330,8 @@ def _resolve() -> BuildStamp:
             resolved_at=resolved_at,
             code_tree=None,
             code_tree_reason=f"not_git:{SOURCE_UNKNOWN}",
+            uv_lock_sha256=lock.sha256,
+            uv_lock_reason=lock.reason,
         )
 
     commit, commit_reason = _git(root, ["rev-parse", "HEAD"])
@@ -316,6 +347,8 @@ def _resolve() -> BuildStamp:
                 resolved_at=resolved_at,
                 code_tree=None,
                 code_tree_reason=f"not_git:{SOURCE_BUILD_SHA_FILE}",
+                uv_lock_sha256=lock.sha256,
+                uv_lock_reason=lock.reason,
             )
         return BuildStamp(
             commit=None,
@@ -326,6 +359,8 @@ def _resolve() -> BuildStamp:
             resolved_at=resolved_at,
             code_tree=None,
             code_tree_reason=f"not_git:{SOURCE_UNKNOWN}",
+            uv_lock_sha256=lock.sha256,
+            uv_lock_reason=lock.reason,
         )
 
     # **RS-6.** One more subprocess, once per process, on the same cached
@@ -362,6 +397,8 @@ def _resolve() -> BuildStamp:
             resolved_at=resolved_at,
             code_tree=tree.code_tree,
             code_tree_reason=tree.reason,
+            uv_lock_sha256=lock.sha256,
+            uv_lock_reason=lock.reason,
         )
     return BuildStamp(
         commit=commit,
@@ -372,6 +409,8 @@ def _resolve() -> BuildStamp:
         resolved_at=resolved_at,
         code_tree=tree.code_tree,
         code_tree_reason=tree.reason,
+        uv_lock_sha256=lock.sha256,
+        uv_lock_reason=lock.reason,
     )
 
 

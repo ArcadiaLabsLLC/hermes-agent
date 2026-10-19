@@ -253,9 +253,19 @@ know (`serve.py:1419-1632`):
 
 1. **Which code** — `build_stamp().frame_payload()`. A durable service that silently pins last
    week's code is the shape of the dispatch dead-flag-proxy incident. The block is
-   `commit` / `dirty` / `source` / `resolved_at` plus RS-6's three, and it rides the register
-   row (`serve_instances/<pid>.json`'s `build`) and the socket greeting unchanged, because a
-   reader that has to ask a second question is the window this stage exists to close.
+   `commit` / `dirty` / `source` / `resolved_at` plus RS-6's three plus `uv_lock_sha256` /
+   `uv_lock_reason`, and it rides the register row (`serve_instances/<pid>.json`'s `build`) and
+   the socket greeting unchanged, because a reader that has to ask a second question is the
+   window this stage exists to close.
+
+   **The build triple.** "The same debug build" is `(code_tree, commit, dirty, uv_lock_sha256)`
+   (`EterniaLauncher/docs/embedded_hermes/planned/ONE_HERMES_INSTALL_PROFILE_NAMESPACE_2026-10-19.md`
+   §0): a QA run label and a serve's ready frame compare on all four. `uv_lock_sha256` is sha256
+   over the checkout's working-tree `uv.lock` bytes — the digest `pm` keys its venv sync on — and
+   is measured in every arm, git or not. The bundled edition reports what the bundle stamps: the
+   commit from `.hermes_build_sha`, `dirty: null`, and `uv_lock_reason: lock_missing` when the
+   bundle ships no lock (`no_root` / `lock_unreadable` are the other tokens). Pinned by
+   `tests/agent_runtime/test_build_stamp.py::test_the_frame_carries_the_build_triple_with_the_checkouts_uv_lock_hash`.
 
    **RS-6: a commit is not a build.** `code_tree` is a sha1 over the tracked files a runtime can
    actually load — `git ls-tree -r HEAD` minus `docs/`, `tests/`, `.github/` and the repo-root

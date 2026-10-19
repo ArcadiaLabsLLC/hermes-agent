@@ -188,6 +188,8 @@ class MessageHandling:
                 "code_tree": None,
                 "code_tree_rule": None,
                 "code_tree_reason": f"stamp_failed:{type(exc).__name__}",
+                "uv_lock_sha256": None,
+                "uv_lock_reason": f"stamp_failed:{type(exc).__name__}",
             }
         sink.emit(
             {

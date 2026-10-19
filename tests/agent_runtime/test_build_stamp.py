@@ -253,6 +253,8 @@ def test_the_frame_block_is_the_keys_the_ready_frame_and_the_register_row_carry(
         "code_tree",
         "code_tree_rule",
         "code_tree_reason",
+        "uv_lock_sha256",
+        "uv_lock_reason",
     }
 
 
@@ -399,3 +401,89 @@ def test_the_code_tree_probe_runs_beside_the_status_probe(real_repo, monkeypatch
 
     assert overlapped == [True]
     assert stamp.code_tree == "c" * 40 and stamp.dirty is False
+
+
+# -- RT-BUILD-TRIPLE-READY: the lock term of "the same debug build" ------------
+
+
+def test_the_frame_carries_the_build_triple_with_the_checkouts_uv_lock_hash(
+    real_repo, monkeypatch
+):
+    """The ready frame / register row carry ``(code_tree, commit, dirty,
+    uv_lock_sha256)``: a lock change on one commit is a different build, and the
+    hash is the same sha256 ``pm`` keys its venv sync on."""
+
+    import hashlib
+
+    from pm.packages import _uv_lock_digest
+
+    lock = real_repo / "uv.lock"
+    lock.write_bytes(b"version = 1\n[[package]]\nname = \"a\"\n")
+    _git(real_repo, "add", "uv.lock")
+    _git(real_repo, "commit", "-qm", "lock")
+    monkeypatch.setattr(build_stamp_module, "repo_root_for", lambda *a, **k: real_repo)
+
+    block = build_stamp(refresh=True).frame_payload()
+
+    assert block["commit"] == _git(real_repo, "rev-parse", "HEAD")
+    assert block["dirty"] is False
+    assert block["code_tree"]
+    assert block["uv_lock_sha256"] == hashlib.sha256(lock.read_bytes()).hexdigest()
+    assert block["uv_lock_sha256"] == _uv_lock_digest(lock).hex()
+    assert block["uv_lock_reason"] == ""
+
+    lock.write_bytes(b"version = 1\n[[package]]\nname = \"b\"\n")
+    moved = build_stamp(refresh=True).frame_payload()
+
+    assert moved["commit"] == block["commit"]
+    assert moved["dirty"] is True  # an uncommitted lock edit is a tracked modification
+    assert moved["uv_lock_sha256"] == hashlib.sha256(lock.read_bytes()).hexdigest()
+    assert moved["uv_lock_sha256"] != block["uv_lock_sha256"]
+
+
+def test_a_bundle_reports_its_baked_commit_and_nulls_what_it_does_not_stamp(
+    tmp_path, monkeypatch
+):
+    """The bundled edition has no git: commit from ``.hermes_build_sha``,
+    ``dirty: null``, and a lock hash only if the bundle ships a ``uv.lock`` —
+    otherwise null with ``lock_missing``, never a hash of something else."""
+
+    import hashlib
+
+    from agent_runtime.build_stamp import baked_build_stamp
+
+    (tmp_path / ".hermes_build_sha").write_bytes(b"b" * 40 + b"\n")
+    monkeypatch.setattr(build_stamp_module, "_fallback_repo_root", lambda: tmp_path)
+
+    bare = baked_build_stamp().frame_payload()
+
+    assert bare["commit"] == "b" * 40
+    assert bare["dirty"] is None
+    assert bare["code_tree"] is None
+    assert bare["uv_lock_sha256"] is None
+    assert bare["uv_lock_reason"] == "lock_missing"
+
+    (tmp_path / "uv.lock").write_bytes(b"version = 1\n")
+    shipped = baked_build_stamp().frame_payload()
+
+    assert shipped["dirty"] is None
+    assert shipped["uv_lock_sha256"] == hashlib.sha256(b"version = 1\n").hexdigest()
+    assert shipped["uv_lock_reason"] == ""
+
+
+def test_an_unreadable_lock_is_typed_and_never_raises(tmp_path, monkeypatch):
+    from agent_runtime.build_identity import uv_lock_digest_for
+
+    assert uv_lock_digest_for(None).sha256 is None
+    assert uv_lock_digest_for(None).reason == "no_root"
+    (tmp_path / "uv.lock").mkdir()  # a directory where the file should be
+    assert uv_lock_digest_for(tmp_path).reason == "lock_missing"
+
+    def boom(self):
+        raise PermissionError("locked")
+
+    (tmp_path / "uv.lock").rmdir()
+    (tmp_path / "uv.lock").write_bytes(b"x")
+    monkeypatch.setattr(type(tmp_path), "read_bytes", boom)
+    result = uv_lock_digest_for(tmp_path)
+    assert (result.sha256, result.reason) == (None, "lock_unreadable")
