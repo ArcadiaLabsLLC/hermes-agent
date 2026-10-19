@@ -17,6 +17,7 @@ from agent_runtime.errors import (
     SyncConflict,
 )
 from agent_runtime.office_class_key_guard import ClassKeyedPlacementRefused
+from agent_runtime.office_store.models import ActorKindInvalid, ActorKindMismatch
 
 from agent_runtime.serve_rpc.protocol import (
     ERR_CONFLICT,
@@ -64,7 +65,11 @@ def _runtime_office_upsert(
     identity-triple-plus-items payload ``harness office actor-upsert`` takes on
     ``--actor-json``, deliberately not a second schema), ``expect_revision``
     (optional int) and ``updated_by`` (optional string, defaults to the argv
-    lane's own ``operator``).
+    lane's own ``operator``). ``actor.actor_kind`` (optional, additive,
+    ``RT-GENERIC-DESK-WRITE-PAYS``): ``"persona"`` (default) or ``"furniture"`` —
+    a furniture actor (a generic desk) pays no class-key scan and may carry desk
+    items only (4090 ``actor_kind_mismatch``; an unknown word is -32602
+    ``actor_kind_invalid``).
 
     Result: ``{"actor_key", "revision"}``, plus ``correlation_id`` echoed back
     when the caller sent one. See the module docstring for why the ack is those
@@ -351,6 +356,13 @@ def _upsert_actor_archived(exc: ActorArchived, scope: OfficeWriteScope) -> dict:
 UPSERT_ERRORS: Mapping[type[BaseException], Translation] = {
     ClassKeyedPlacementRefused: _upsert_class_keyed_refusal,
     ActorArchived: _upsert_actor_archived,
+    # ``actor_kind: "furniture"`` with a non-desk item. A 4090 beside the
+    # class-key refusal because it is that fence's door being refused: the
+    # word that skips the fence may not carry an agent placement.
+    ActorKindMismatch: refusal(ERR_CONFLICT, "actor_kind_mismatch"),
+    # An unknown ``actor_kind`` word: a payload bug, its own reason so a client
+    # can tell it from the generic shape refusal below.
+    ActorKindInvalid: refusal(ERR_INVALID_PARAMS, "actor_kind_invalid"),
     # The prediction is behind. ``data`` deliberately does NOT carry the
     # current revision: the prescribed cure is to refetch and rebase onto
     # server truth, and handing back a bare integer invites a retry with it

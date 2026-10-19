@@ -153,6 +153,21 @@ processes booting against one checkout is a REAL concurrency, so the sweep is cl
 by `tests/agent_runtime/test_tool_visibility_import_deferral.py`, which drives the real chain
 through subprocesses after recording that the originally specified assertion was vacuous.
 
+**The declared-command scan** (`RT-HARNESS-ARGV-MANIFEST-SCAN`, 2026-10-19). Every `hermes harness …`
+process — each CLI call, each serve boot, each test child — runs
+`hermes_cli/plugins_manifest_cli_commands.py::discover_declared_cli_commands` to find the manifest that
+declares `harness`. It no longer parses every `plugin.yaml` to do so: a fingerprint cache at
+`<HERMES_HOME>/cache/declared_cli_commands.json` (`hermes_cli/plugins_declared_cli_cache.py`, the home
+resolved at call time) keys the declaring winners on an over-approximating stat enumeration of every
+manifest-named file the upstream walk could read (the bundled, user and opt-in project roots, depth two,
+no skip list) plus `HERMES_ENABLE_PROJECT_PLUGINS`. A hit re-parses only the declaring manifest(s); a miss
+runs the full walk and rewrites the file; an unwritable or corrupt file is a miss, never an error. The
+enable gate is never cached — it runs on the re-parsed manifest against the live config on every call —
+so **a hit never changes which plugin wins or whether it is enabled**. Measured in-process 2026-10-19,
+n = 20 each, box at 100 % load (upper bounds): miss median 134 ms, hit median 18.5 ms (102 files
+stat'ed). Receipt at debug: `declared_cli_scan cache=hit|miss|unwritable files=N ms=N`. The superset is
+pinned by the gate `tests/hermes_cli/test_declared_cli_cache_superset.py`.
+
 ## Stages 2-3 — `booting`, then registry, head pointer, root anchor
 
 The `booting` frame is emitted before ANY heavy boot work, carrying `boot: timeline.stamps()`

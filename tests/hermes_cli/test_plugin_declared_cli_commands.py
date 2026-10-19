@@ -197,3 +197,136 @@ def test_a_built_in_verb_skips_the_declared_scan(monkeypatch):
     # Positive control: the same build for a declared verb does scan and attach it.
     _calls, _parser, subparsers = _parse_under(["harness", "doctor"], monkeypatch)
     assert scans == [1] and "harness" in subparsers.choices
+
+
+# ── RT-HARNESS-ARGV-MANIFEST-SCAN: the fingerprint cache (T2-T8; T1 is
+# tests/hermes_cli/test_declared_cli_cache_superset.py, a gate) ──────────────────────────────
+
+from hermes_cli import plugins_declared_cli_cache as cache_mod  # noqa: E402
+from hermes_cli import plugins_discovery as discovery_mod  # noqa: E402
+from hermes_cli import plugins_manifest as manifest_mod  # noqa: E402
+
+
+def _home():
+    from hermes_constants import get_hermes_home
+    return get_hermes_home()
+
+
+@pytest.fixture
+def counting_parses(monkeypatch):
+    """Every ``parse_manifest_file`` call, from the upstream walk or the cache-hit re-parse."""
+    calls = []
+    real = manifest_mod.parse_manifest_file
+
+    def counting(manifest_file, *a, **k):
+        calls.append(str(manifest_file))
+        return real(manifest_file, *a, **k)
+
+    monkeypatch.setattr(manifest_mod, "parse_manifest_file", counting)
+    monkeypatch.setattr(discovery_mod, "parse_manifest_file", counting)
+    return calls
+
+
+@pytest.fixture
+def three_bundled_plugins(two_bundled_plugins):
+    """alpha + beta declare a command; gamma declares none (a manifest only the miss parses)."""
+    gamma = plugins_mod.get_bundled_plugins_dir() / "gamma"
+    gamma.mkdir()
+    (gamma / "plugin.yaml").write_text("name: gamma\nkind: backend\n", encoding="utf-8")
+    return plugins_mod.get_bundled_plugins_dir()
+
+
+def _shape(commands):
+    return [(c["name"], c["parent"], c["plugin_key"], c["help"]) for c in commands]
+
+
+def test_a_cache_hit_reparses_only_the_declaring_manifests(three_bundled_plugins, counting_parses):
+    """T2: the miss parses all three; the hit parses the two declaring ones and answers the same."""
+    first = declared_mod.discover_declared_cli_commands()
+    assert len(counting_parses) == 3 and cache_mod.cache_path(_home()).is_file()
+
+    counting_parses.clear()
+    second = declared_mod.discover_declared_cli_commands()
+
+    assert sorted(counting_parses) == sorted(str(three_bundled_plugins / n / "plugin.yaml") for n in ("alpha", "beta"))
+    assert _shape(second) == _shape(first) == [("alpha", None, "alpha", "the alpha command"),
+                                                ("beta", None, "beta", "the beta command")]
+
+
+def test_a_touched_manifest_is_a_miss_that_rewrites_the_cache(three_bundled_plugins, counting_parses):
+    """T3: same bytes, new mtime → the full walk runs again and the cache digest moves."""
+    import os
+
+    declared_mod.discover_declared_cli_commands()
+    before = cache_mod.read_cache(_home()).digest
+    gamma = three_bundled_plugins / "gamma" / "plugin.yaml"
+    st = gamma.stat()
+    os.utime(gamma, ns=(st.st_atime_ns, st.st_mtime_ns + 7_000_000_000))
+
+    counting_parses.clear()
+    declared_mod.discover_declared_cli_commands()
+
+    assert len(counting_parses) == 3
+    assert cache_mod.read_cache(_home()).digest != before
+
+
+def test_a_user_override_without_cli_commands_hides_the_bundled_command(three_bundled_plugins):
+    """T4: precedence after a hit — a user copy of alpha that declares nothing shadows bundled alpha."""
+    assert {c["name"] for c in declared_mod.discover_declared_cli_commands()} == {"alpha", "beta"}
+    assert {c["name"] for c in declared_mod.discover_declared_cli_commands()} == {"alpha", "beta"}  # the hit
+
+    override = _home() / "plugins" / "alpha"
+    override.mkdir(parents=True)
+    (override / "plugin.yaml").write_text("name: alpha\nkind: backend\n", encoding="utf-8")
+
+    assert {c["name"] for c in declared_mod.discover_declared_cli_commands()} == {"beta"}
+
+
+def test_the_enable_gate_is_live_on_a_cache_hit(three_bundled_plugins, monkeypatch):
+    """T5: the cache holds winners, never a gate verdict; disabling after a hit removes the command."""
+    import hermes_cli.config as config_mod
+
+    declared_mod.discover_declared_cli_commands()  # miss, cache written
+    assert cache_mod.read_cache(_home()) is not None
+
+    def _disabled():
+        return {"plugins": {"disabled": ["alpha"]}}
+
+    monkeypatch.setattr(config_mod, "load_config_readonly", _disabled)
+    monkeypatch.setattr(plugins_mod, "load_config_readonly", _disabled)
+
+    assert [c["name"] for c in declared_mod.discover_declared_cli_commands()] == ["beta"]
+
+
+def test_a_corrupt_cache_is_a_miss_that_rewrites_it(three_bundled_plugins, counting_parses):
+    """T6: garbage in the cache file never reaches the parser build."""
+    path = cache_mod.cache_path(_home())
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{not json", encoding="utf-8")
+
+    assert {c["name"] for c in declared_mod.discover_declared_cli_commands()} == {"alpha", "beta"}
+    assert len(counting_parses) == 3
+    assert cache_mod.read_cache(_home()) is not None
+
+
+def test_safe_mode_reads_and_writes_no_cache(three_bundled_plugins, monkeypatch):
+    """T7: ``HERMES_SAFE_MODE`` answers nothing before any I/O; positive control writes the file."""
+    path = cache_mod.cache_path(_home())
+    monkeypatch.setenv("HERMES_SAFE_MODE", "1")
+    assert declared_mod.discover_declared_cli_commands() == []
+    assert not path.exists()
+
+    monkeypatch.delenv("HERMES_SAFE_MODE")
+    assert declared_mod.discover_declared_cli_commands()
+    assert path.is_file()
+
+
+def test_an_unwritable_cache_still_answers_the_rows(three_bundled_plugins, monkeypatch):
+    """T8: fail-open on write — the cache's parent is a FILE, so its directory cannot be made."""
+    blocker = _home() / "cache-blocker"
+    blocker.write_text("not a directory", encoding="utf-8")
+    monkeypatch.setattr(cache_mod, "CACHE_RELPATH", "cache-blocker/declared_cli_commands.json")
+
+    for _ in range(2):
+        assert {c["name"] for c in declared_mod.discover_declared_cli_commands()} == {"alpha", "beta"}
+    assert blocker.is_file()

@@ -216,6 +216,35 @@ def _desk_payload(item_id: str, *, instance: str | None = None) -> dict:
     return payload
 
 
+def test_furniture_with_an_agent_item_is_a_4090_actor_kind_mismatch():
+    """T6 (RT-GENERIC-DESK-WRITE-PAYS): the store's refusal, as a whole frame.
+
+    KILLING MUTATION: delete the ``ActorKindMismatch`` row from ``UPSERT_ERRORS``
+    -> the ``ValueError`` row answers -32602 ``actor_invalid`` -> red.
+    """
+
+    _seed()
+    payload = _desk_payload("desk_eeeeeeee")
+    payload["actor_kind"] = "furniture"
+    payload["items"][0]["kind"] = "agent"
+
+    reply = _upsert("kind", {"workspace_id": WORKSPACE, "actor": payload})
+
+    assert reply == {
+        "jsonrpc": "2.0",
+        "id": "kind",
+        "error": {
+            "code": 4090,
+            "message": "actor_kind_mismatch: an actor_kind 'furniture' payload may carry desk items only",
+            "data": {"reason": "actor_kind_mismatch", "workspace_id": WORKSPACE},
+        },
+    }
+    assert "desk_eeeeeeee" not in _positions()
+    # Positive control: the same payload with a desk item lands.
+    payload["items"][0]["kind"] = "desk"
+    assert _upsert("ok", {"workspace_id": WORKSPACE, "actor": payload})["result"]["actor_key"] == "desk_eeeeeeee"
+
+
 def test_two_generic_desks_land_over_this_lane_and_the_ack_is_still_light():
     """The ruling, on the METHOD lane, with the ack asserted as a whole frame.
 

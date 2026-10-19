@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any, Callable, NamedTuple
 
 from agent_runtime.models import OfficeActor
@@ -15,6 +16,9 @@ from agent_runtime.models import OfficeActor
 __layer__ = "models"
 
 __all__ = [
+    "ActorKind",
+    "ActorKindInvalid",
+    "ActorKindMismatch",
     "ActorScan",
     "ARCHIVED_ACTOR_FILES_RETAIN",
     "ARCHIVED_LEDGER_CAP",
@@ -28,6 +32,33 @@ __all__ = [
     "OUTCOME_OK",
     "UnreadableActorFiles",
 ]
+
+
+class ActorKind(StrEnum):
+    """What an upsert payload's actor IS (``RT-GENERIC-DESK-WRITE-PAYS``, additive wire field
+    ``actor_kind``, default ``persona``).
+
+    ``FURNITURE`` is an actor whose ``persona_id`` is an ADDRESS (a generic desk's
+    ``desk_<8 base36>``, CONTRACT 43), never a persona class: it has no class to re-key, so the
+    class-key fence does not apply to it and its write pays no actor scan. The store refuses a
+    furniture payload whose items are not all desks (:class:`ActorKindMismatch`).
+    """
+
+    PERSONA = "persona"
+    FURNITURE = "furniture"
+
+
+class ActorKindInvalid(ValueError):
+    """``actor_kind`` is neither ``persona`` nor ``furniture``."""
+
+    reason = "actor_kind_invalid"
+
+
+class ActorKindMismatch(ValueError):
+    """A ``furniture`` payload carries an item that is not a desk: the word cannot carry an agent
+    placement past the class-key fence."""
+
+    reason = "actor_kind_mismatch"
 
 
 ARCHIVED_LEDGER_CAP = 5000

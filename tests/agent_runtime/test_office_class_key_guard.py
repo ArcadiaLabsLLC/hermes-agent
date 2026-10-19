@@ -909,3 +909,23 @@ def test_resolve_conflict_take_remote_fences_the_key_that_gets_WRITTEN_not_the_s
 
     assert _keys(workspace) == {INSTANCE}
     assert not paths.office_actor_path(workspace, "backend_dev").exists()
+
+
+def test_furniture_is_not_class_keyed_and_an_unknown_kind_is_refused():
+    """T5 (RT-GENERIC-DESK-WRITE-PAYS): the predicate reads the typed kind, not a ``desk_`` spelling.
+
+    KILLING MUTATION: drop the furniture arm in ``is_class_keyed_payload`` -> the
+    first assertion reds; make ``normalize_actor_kind`` default unknown words to
+    PERSONA -> the ``chair`` raise reds.
+    """
+
+    import pytest
+
+    from agent_runtime.office_class_key_guard import is_class_keyed_payload
+    from agent_runtime.office_store.models import ActorKindInvalid
+
+    assert is_class_keyed_payload({"persona_id": "desk_abc", "actor_kind": "furniture"}) is False
+    assert is_class_keyed_payload({"persona_id": "desk_abc"}) is True
+    assert is_class_keyed_payload({"persona_id": "desk_abc", "actor_kind": "persona"}) is True
+    with pytest.raises(ActorKindInvalid, match="actor_kind_invalid"):
+        is_class_keyed_payload({"persona_id": "desk_abc", "actor_kind": "chair"})

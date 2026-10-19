@@ -15,7 +15,7 @@ from agent_runtime.models import OfficeItem
 # home for a constant four other modules needed.
 from agent_runtime.redaction import SECRET_ASSIGNMENT_RE
 from agent_runtime.serde import safe_id
-from agent_runtime.office_store.models import MAX_FOLDERS
+from agent_runtime.office_store.models import MAX_FOLDERS, ActorKind, ActorKindInvalid
 
 __layer__ = "policy"
 
@@ -29,7 +29,23 @@ __all__ = [
     "_safe_actor_ref",
     "_safe_display_name",
     "_safe_folder",
+    "normalize_actor_kind",
 ]
+
+#: The payload word → its kind. Absent/blank is the default; anything else is refused, never guessed.
+_ACTOR_KINDS = {kind.value: kind for kind in ActorKind}
+
+
+def normalize_actor_kind(value: Any) -> ActorKind:
+    """``actor_kind`` off an upsert payload: absent → ``PERSONA``; an unknown word →
+    :class:`ActorKindInvalid` (``actor_kind_invalid``)."""
+    text = str(value or "").strip().lower()
+    if not text:
+        return ActorKind.PERSONA
+    kind = _ACTOR_KINDS.get(text)
+    if kind is None:
+        raise ActorKindInvalid(f"actor_kind_invalid: {text[:40]!r} is not one of {sorted(_ACTOR_KINDS)}")
+    return kind
 
 
 def _safe_actor_ref(value: Any, *, fallback: str = "operator") -> str:

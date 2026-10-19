@@ -57,6 +57,7 @@ or registry entry names something real).
 | `tests/agent_runtime/test_duplicate_helper_bodies.py` | ratchet | one authority per helper body |
 | `tests/agent_runtime/test_tombstone_registry.py` | fence | deleted symbols stay deleted (census ≥ 703; never grep-count) |
 | `tests/agent_runtime/test_s41_dead_import_bindings.py` | fence | no import binding nothing reads |
+| `tests/hermes_cli/test_declared_cli_cache_superset.py` | runtime | the declared-command cache's fingerprint stats every manifest the upstream plugin walk parses |
 
 ## One authority per value
 
