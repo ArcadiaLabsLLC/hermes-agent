@@ -10,6 +10,12 @@ through ``harness_core``.
   ``runtime.lens.latest`` / ``runtime.lens.range``, bounded for a model's context
   (:data:`TOOL_SERIES_ROWS` rows; ``truncated`` says when the range held more), every
   gap explicit with its typed reason.
+* ``lens_propose {feeds, rule, automation, persona_id?, monitor_id?}``
+  (:func:`propose_monitor`) — one real preview read per feed (``sources.preview_reads``:
+  the transport classifier refuses a private address unless the feed opts in), then
+  the manifest is stored as a DRAFT of a NEW monitor (``store.create``). It never
+  seals and never enables: the operator's confirm in Mission Control
+  (``runtime.lens.seal``) is the only way a proposal starts polling.
 
 The block is the forged user message. It stands on its own (the persona has no
 memory of the monitor), and it keeps two kinds of content apart (W9):
@@ -30,13 +36,15 @@ per image (the only declaration ``media_handles.mint_reply_media`` mints).
 from __future__ import annotations
 
 import json
+import secrets
 from datetime import datetime, UTC
 from pathlib import Path
 from typing import Any
 
 from .episode import Episode
 from .evidence import EvidenceWindow
-from .store import LensStore, LensStoreError, to_ms
+from .manifest import read_manifest
+from .store import LensStore, LensStoreError, StoreRefusal, to_ms
 from .wire_value import WireError, bounded_int, canonical_json, checked_object, opaque_id, require
 
 __layer__ = "lanes"
@@ -167,3 +175,64 @@ def _tool_answer(body: Any) -> str:
 
 def handle_lens_read(args: dict[str, Any], **kwargs: Any) -> str:
     return _tool_answer(lambda: read_lens(args))
+
+
+LENS_PROPOSE_SCHEMA: dict[str, Any] = {
+    "name": "lens_propose",
+    "description": (
+        "Propose an Eternia Lens monitor for the operator to confirm. Lens reads each feed once now and "
+        "returns that preview with the id of a new DRAFT monitor; nothing polls until the operator seals the "
+        "draft in Mission Control. Each feed is {id, kind, interval_ms, source, ...} and the rule is "
+        "{id, feed_id, form, severity, ...} in the Lens manifest schema (version 1 is filled in)."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "feeds": {"type": "array", "items": {"type": "object"}, "description": "One to four feeds."},
+            "rule": {"type": "object", "description": "The rule that opens an Episode."},
+            "automation": {"type": "object", "description": "{level: notify|investigate, when: urgent|always, "
+                                                            "daily_turn_cap}."},
+            "persona_id": {"type": "string", "description": "The persona an investigate Episode's turn goes to."},
+            "monitor_id": {"type": "string", "description": "A new monitor id (default: proposed-<hex>)."},
+        },
+        "required": ["feeds", "rule", "automation"],
+    },
+}
+
+
+def _versioned(value: Any) -> Any:
+    return {"version": 1, **value} if isinstance(value, dict) else value
+
+
+def propose_monitor(args: Any, *, store: LensStore | None = None, client: Any = None,
+                    resolver: Any = None) -> dict[str, Any]:
+    """``lens_propose``'s answer: the preview and the new DRAFT's id. Never seals (see the module)."""
+
+    from .sources import preview_reads
+
+    m = checked_object(args if args is not None else {}, {"feeds", "rule", "automation"},
+                       {"persona_id", "monitor_id"})
+    monitor_id = opaque_id(m["monitor_id"]) if m.get("monitor_id") is not None else f"proposed-{secrets.token_hex(4)}"
+    feeds = m["feeds"]
+    manifest = read_manifest({"version": 1, "monitor_id": monitor_id,
+                              "feeds": [_versioned(feed) for feed in feeds] if isinstance(feeds, list) else feeds,
+                              "rules": [_versioned(m["rule"])], "automation": m["automation"],
+                              "persona_id": m.get("persona_id")})
+    store = store or LensStore()
+    try:
+        store.get(monitor_id)
+    except LensStoreError as exc:
+        if exc.code is not StoreRefusal.NOT_FOUND:
+            raise
+    else:
+        raise LensStoreError(StoreRefusal.EXISTS)
+    preview = preview_reads(manifest, client=client, resolver=resolver)
+    monitor = store.create(manifest)
+    return {"monitor_id": monitor_id, "state": monitor["state"], "sealed": False,
+            "preview": [{"feed_id": feed_id, **result.to_json()} for feed_id, result in preview.items()],
+            "confirm": "The operator seals this draft in Mission Control (runtime.lens.seal); nothing polls "
+                       "until then."}
+
+
+def handle_lens_propose(args: dict[str, Any], **kwargs: Any) -> str:
+    return _tool_answer(lambda: propose_monitor(args))

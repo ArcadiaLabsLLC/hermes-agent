@@ -15,6 +15,11 @@ Gates and their killing mutations (each red was recorded in the stage's commit):
   killed by registering ``lens_read`` into ``agent_chat`` (a ``harness_core``
   member) instead of ``lens``; a range read answers more than its bound — killed
   by dropping ``limit=TOOL_SERIES_ROWS`` from ``read_lens`` (300 rows answered).
+* L4.2 ``lens_propose``: a proposal seals (or polls) — killed by calling
+  ``store.seal`` in ``propose_monitor``; a proposal writes over an existing monitor
+  — killed by dropping the ``monitor_exists`` check; a proposal's preview reads a
+  private address it did not opt into — killed by passing ``allow_private=True``
+  in ``http_json.read`` (the request is made).
 """
 
 from __future__ import annotations
@@ -94,11 +99,11 @@ def test_a_profile_that_does_not_declare_lens_never_reaches_lens_read(bundled_pe
 
     undeclared = admitted("toolsets:\n  - harness_core\n")
     declared = admitted("toolsets:\n  - harness_core\n  - lens\n")
-    assert "lens_read" in declared, "positive control: a profile that declares lens reaches the tool"
-    assert "lens_read" not in undeclared
+    assert {"lens_read", "lens_propose"} <= declared, "positive control: a profile that declares lens reaches them"
+    assert not {"lens_read", "lens_propose"} & undeclared
     assert "terminal" in undeclared, "positive control: the undeclared profile resolved harness_core"
     tools = _plugin_tools()
-    assert tools.get("lens_read") == LENS_TOOLSET == "lens"
+    assert tools == {"lens_read": "lens", "lens_propose": "lens"} and LENS_TOOLSET == "lens"
     assert LENS_TOOLSET not in HARNESS_CORE_INCLUDES
 
 
@@ -132,3 +137,70 @@ def test_lens_read_answers_latest_and_a_bounded_range_with_explicit_gaps():
     assert json.loads(handle_lens_read({"monitor": "nobody"})) == {"error": "monitor_not_found"}
     assert json.loads(handle_lens_read({"monitor": "status", "feed": "latency", "range": {"minutes": 99_999}}))[
         "error"] == "invalid_integer"
+
+
+# --- L4.2 lens_propose ------------------------------------------------------------
+
+PUBLIC = ["93.184.216.34"]
+
+
+def _client(handler):
+    import httpx
+
+    return httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=False)
+
+
+def _proposal(**feed_overrides) -> dict:
+    feed = {"id": "latency", "kind": "http_json", "interval_ms": 60_000,
+            "source": {"url": "https://status.example.invalid/api", "selector": "$.latency"}, **feed_overrides}
+    return {"monitor_id": "proposed-status", "feeds": [feed],
+            "rule": {"id": "slow", "feed_id": "latency", "form": "threshold", "severity": "attention",
+                     "direction": "above", "threshold": 500, "recovery_threshold": 400, "window_ms": 0, "samples": 1},
+            "automation": {"level": "notify", "when": "always", "daily_turn_cap": 4}}
+
+
+def test_lens_propose_previews_for_real_and_stores_a_draft_it_never_seals():
+    import httpx
+
+    from agent_runtime.lens.poller import LensPoller
+    from agent_runtime.lens.tool import handle_lens_propose, propose_monitor
+
+    store, requests = LensStore(), []
+
+    def handler(request):
+        requests.append(str(request.url))
+        return httpx.Response(200, json={"latency": 42})
+
+    answer = propose_monitor(_proposal(), store=store, client=_client(handler), resolver=lambda host: PUBLIC)
+    assert answer["preview"] == [{"feed_id": "latency", "status": "available", "number": 42.0, "reason": "ok",
+                                  "http_status": 200}]
+    assert requests == ["https://status.example.invalid/api"]
+    monitor = store.get("proposed-status")
+    assert (monitor["state"], monitor["sealed"], answer["sealed"]) == ("draft", None, False)
+    assert monitor["draft"]["rules"][0]["id"] == "slow" and monitor["draft"]["version"] == 1
+    assert LensPoller(store_factory=lambda: store, client=_client(handler), resolver=lambda host: PUBLIC).tick() == 0
+    assert len(requests) == 1, "nothing polls a proposal"
+
+    store.seal("proposed-status")
+    again = json.loads(handle_lens_propose(_proposal()))
+    assert again == {"error": "monitor_exists"}
+    assert store.get("proposed-status")["draft"] is None, "a proposal never writes over a monitor"
+
+
+def test_lens_propose_previews_through_the_private_address_classifier():
+    import httpx
+
+    from agent_runtime.lens.tool import propose_monitor
+
+    store, requests = LensStore(), []
+
+    def handler(request):
+        requests.append(str(request.url))
+        return httpx.Response(200, json={"latency": 7})
+
+    refused = propose_monitor(_proposal(), store=store, client=_client(handler), resolver=lambda host: ["10.0.0.5"])
+    assert refused["preview"][0]["reason"] == "private_address_refused" and requests == []
+
+    opted = propose_monitor({**_proposal(allow_private_network=True), "monitor_id": "proposed-lan"}, store=store,
+                            client=_client(handler), resolver=lambda host: ["10.0.0.5"])
+    assert opted["preview"][0]["number"] == 7.0 and len(requests) == 1

@@ -16,6 +16,9 @@ __layer__ = "wiring"
 def register(ctx) -> None:
     """The pull-door tools, in the opt-in ``lens`` toolset (never ``harness_core``)."""
 
-    from agent_runtime.lens.tool import LENS_READ_SCHEMA, LENS_TOOLSET, handle_lens_read
+    from agent_runtime.lens.tool import (
+        LENS_PROPOSE_SCHEMA, LENS_READ_SCHEMA, LENS_TOOLSET, handle_lens_propose, handle_lens_read,
+    )
 
     ctx.register_tool("lens_read", toolset=LENS_TOOLSET, schema=LENS_READ_SCHEMA, handler=handle_lens_read)
+    ctx.register_tool("lens_propose", toolset=LENS_TOOLSET, schema=LENS_PROPOSE_SCHEMA, handler=handle_lens_propose)

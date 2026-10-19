@@ -99,6 +99,8 @@ class StoreRefusal(str, Enum):
     RECEIPTS_FULL = "receipts_full"
     ROUTE_NOT_FOUND = "route_not_found"
     ROUTES_FULL = "routes_full"
+    #: ``lens_propose`` never writes over a monitor that already exists (L4.2).
+    EXISTS = "monitor_exists"
 
 
 #: The refusals a reader answers as "not found" (the rest are conflicts).
