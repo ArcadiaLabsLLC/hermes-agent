@@ -156,3 +156,17 @@ clicks): about 30; CLI turns: about 6.
 - **L-1** `launcher.realm_sync.revert` — the realm sync panel's Revert as an app function
   (`confirm`, `localOnly`), over `runtime.realm.sync.revert`, so a revert is drivable and timed
   in-serve. Unblocks `RT-REALM-SYNC-REVERT-TAKES` and `RT-REALM-SYNCED-LEVEL-REVERT`.
+
+## Wave 10 (landed 2026-10-19)
+
+Added by the w10 landing. Each run needs a serve built from main at or after the landing and restarted.
+The full step lists live in the lane commit bodies cited; this is the order and the pass line.
+
+| # | row | how | pass line |
+|---|---|---|---|
+| W10-1 | `RT-ETERNIA-LENS-L2-L4` L2 | MCP / console: serve `{"cpu": 97}` from `python -m http.server 8765`; `runtime.lens.create` an `http_json` feed on it with an `urgent` threshold rule (`above 90`, `samples 1`), `automation.level: investigate`, `daily_turn_cap: 2`, a real `persona_id`; `seal`, `enable` | within ~10 s an active Episode; a new chat "proof · cpu_hot · #1" whose first row is `lens_episode` (actor lens); `runtime.lens.receipt` says `forged` with a `session_id`; then `runtime.lens.pause` |
+| W10-2 | `RT-ETERNIA-LENS-L2-L4` L3 | MCP + Git Bash: a `push` feed monitor (`level: notify`), `runtime.lens.ingress.register {kind: alertmanager}` (note `url`, `secret`); POST a firing alert signed `sha256=HMAC(secret, "<ts>:<body>")` with `X-Lens-Timestamp` | `202`, an active Episode, a `notified` receipt; the same POST again answers `409` |
+| W10-3 | `RT-ETERNIA-LENS-L2-L4` L4 | in person: the persona's profile `toolsets: [harness_core, lens]`; `hermes harness persona tool-diff <id>` lists `lens_read` + `lens_propose`; ask the persona to `lens_read` the W10-1 monitor over 60 minutes | a `lens_read` tool row whose values match `runtime.lens.range` for the window |
+| W10-4 | `RT-DELEGATE-VS-CHAT-VS-WORK` (landed) | MCP: one turn on a persona holding `tool_describe`, `delegate_task` and `agent_chat_send`; read the turn's model-input receipt block "## Plugin Context: eternia-harness.tool-guidance" `chars`; repeat without `agent_chat_send` | the delta is 209 chars |
+| W10-5 | `RT-VERIFY-IMPROVE-FIRST-RESPONSE` | MCP, after `MC-GENUI-COMPARISON-WHEN-LINE` lands: `python evals/genui_first_response_ab.py plan --arm A …`, run the steps over `launcher.agent_chat.new/send`, `collect`; rebuild QA with arm B, repeat; `report --results B --baseline A` | the report's verdict column per agent × provider (bar ≥ 10/12 first-tool hits, 3/3 controls prose, ≤ +80 tokens/turn); confirm the create reply's document-id key on the first read |
+| W10-6 | `RT-MESSAGING-PLATFORMS-TELEGRAM` | in person, a BotFather token: `runtime.messaging.credential.set` (local console), `operator.allow` your Telegram id, `platform.enable`; `status` shows the lane `running`; `/persona <name>`; one turn; kill the serve before the offset confirms and restart (re-delivery); one guarded command with approval once from the phone; one left to time out; register `docs/agent-runtime-harness/reference/service/windows-task.xml`, start it from Task Scheduler; one Telegram turn to the service; attach the Launcher; `hermes harness serve connect --drain` | one turn per update (re-delivery replays, no second turn); the approval card turns "Approved (…) by <you>" and the command runs; the timeout card shows upstream's notice and the command does not run; the service turn shows as a `messaging_turn` row in the same chat; drain stops polling and the serve exits |
