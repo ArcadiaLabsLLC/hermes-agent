@@ -1038,6 +1038,21 @@
       },
       "reason": "_user_image_display_text's three function-local imports (fastapi, hermes_cli.web_routers.files, hermes_cli.web_server) sit in one try/except ImportError: return None, marked '# fork:', so a native-image history row loads on the phone profile without fastapi and shows its stored text; the three deleted lines are the re-indented imports. Ledger row HELD PR in docs/agent-runtime-harness/planned/upstream-footprint-ledger.md. Control: tests/tui_gateway/test_image_history_display_downstream.py.",
       "owner_ruling": "2026-10-18, owner: an ImportError guard in upstream tui_gateway/session_history.py::_user_image_display_text"
+    },
+    {
+      "change": "lane w9-rulings: RT-TEST-VENV-PURE-YAML (pyproject.toml, uv.lock)",
+      "before": {
+        "files": 230,
+        "deleted_lines": 1035,
+        "heavy": 1
+      },
+      "after": {
+        "files": 230,
+        "deleted_lines": 1035,
+        "heavy": 1
+      },
+      "reason": "One dependency marker line, `ruamel.yaml.clib==0.2.15; sys_platform == 'win32' and platform_machine == 'AMD64' and platform_python_implementation == 'CPython' and python_version >= '3.14'`, plus its comment: the ruamel.yaml 0.18.16 pin skips the clib on 3.14 (no ARM64 wheel), so every YAML load ran ruamel's pure-Python parser (57 manifest loads 270-290 ms vs 92-130 ms). pyproject.toml is already in the footprint (carry-permanent row), so the edit is +2 added, 0 deleted: files, deleted lines and heavy are unchanged. `uv lock` adds the package to uv.lock (+14 added, 0 deleted; also already in the footprint, so `uv sync --locked` keeps working). Ledger rows in docs/agent-runtime-harness/planned/upstream-footprint-ledger.md.",
+      "owner_ruling": "2026-10-18, owner: add the ruamel.yaml.clib marker line to pyproject.toml (upstream file, footprint +1 with a reasons entry); runtime-queue RT-TEST-VENV-PURE-YAML"
     }
   ]
 }
