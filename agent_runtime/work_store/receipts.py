@@ -21,5 +21,7 @@ def emit(kind: str, **fields: Any) -> dict[str, Any]:
     """Log ``{"kind": kind, "at": <utc>, **fields}`` as one sorted JSON line; return the record."""
 
     record = {"kind": kind, "at": datetime.now(UTC).isoformat(timespec="seconds"), **fields}
-    logger.info("%s", json.dumps(record, sort_keys=True, default=str))
+    from ..namespace import namespace_stamp  # the store this receipt was written in (RT-NAMESPACE-STAMP)
+
+    logger.info("%s", json.dumps({"namespace": namespace_stamp(), **record}, sort_keys=True, default=str))
     return record

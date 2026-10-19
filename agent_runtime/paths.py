@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .namespace import assert_namespace_isolation
 from .resolution import assert_probe_isolation, resolve_runtime
 
 __layer__ = "models"
@@ -12,6 +13,9 @@ def store_root() -> Path:
     # Probe-isolation gate: a no-op unless HERMES_REQUIRE_ISOLATED_ROOT is set, in which
     # case a run that would resolve the live/default root fails fast before any store I/O.
     assert_probe_isolation(resolution)
+    # Namespace gate (RT-NAMESPACE-ROOT): a no-op unless HERMES_NAMESPACE names a namespace, in which
+    # case a store/home outside that namespace (the base root, another namespace) fails fast.
+    assert_namespace_isolation(resolution)
     return resolution.store_root
 
 

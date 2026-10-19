@@ -28,6 +28,7 @@ from hermes_cli.harness_parts.serve.gateway_listener import (
     start_gateway_listener,
 )
 from hermes_cli.harness_parts.serve.manifest import ops_manifest
+from agent_runtime.namespace import namespace_stamp
 
 __layer__ = "lanes"
 
@@ -710,6 +711,8 @@ class BootPhases:
             "pid": os.getpid(),
             "schema_version": SERVE_SCHEMA_VERSION,
             "runtime_root": self.runtime_root,
+            # RT-NAMESPACE-STAMP: the store's namespace id, "" for the base root (never the subject).
+            "namespace": namespace_stamp(),
             # Additive, always present (never conditional on success): a
             # missing block would read as "old runtime", while a block whose
             # own fields say `unknown`/`error:…` reads as what it is — the

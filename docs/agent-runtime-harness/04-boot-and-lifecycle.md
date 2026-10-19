@@ -32,6 +32,35 @@ These records are routing evidence, never a second transcript store.
 
 ---
 
+## Before Stage 1 — the profile namespace (`HERMES_NAMESPACE`)
+
+One code install per machine; N data namespaces inside it (plan
+`EterniaLauncher/docs/embedded_hermes/planned/ONE_HERMES_INSTALL_PROFILE_NAMESPACE_2026-10-19.md`).
+`hermes_cli._namespace_bootstrap.apply_cli_namespace` is the first act of `_apply_profile_override`,
+before any hermes module imports:
+
+- **Contract.** `HERMES_NAMESPACE=<id>` or `--namespace <id>` anywhere before `--` (both must agree)
+  resolves to `<HERMES_NAMESPACES_DIR or <base parent>/hermes-namespaces>/<id>`, a sibling of the
+  base root (`HERMES_DEPENDENCY_ROOT`, else `HERMES_HOME`'s root, else the platform home). Ids are
+  `[a-z0-9][a-z0-9-]{0,47}`; `base` names the base root. The process gets `HERMES_HOME=<ns>/profiles/base`,
+  `HERMES_HEAD_HOME`, `HERMES_AGENT_RUNTIME_ROOT=<ns>/agent-runtime` when unset, and `setdefault`s
+  `HERMES_DEPENDENCY_ROOT=<base>`, `HERMES_REGISTRY_WRITE_FENCE=1`, `HERMES_DISABLE_LAZY_INSTALLS=1`;
+  `namespace.json` is written on first resolve. Any refusal is one JSON line on stderr and exit 2.
+- **Isolation.** An explicit home outside the namespace refuses at resolution;
+  `agent_runtime.namespace.assert_namespace_isolation` (in `paths.store_root`) raises for any store,
+  home or head home in the base root, another namespace or elsewhere; `root_anchor` refuses
+  (`RootAnchorOutcome.NAMESPACED`).
+- **Outside the launcher** (`HERMES_LAUNCHER_SPAWNED` unset) only the id in `<base>/namespace-active.json`
+  (`{"schema": 1, "namespace": "<id>"}`) is reachable; unset with a record follows it; unset with no
+  record, `base`, `pm` and `update` stay on the base root.
+- **Stamp.** The owner record, the `serve_instances` row, the `ready` frame, every service-log line and
+  receipt line carry `namespace` (`""` for the base root).
+- **`hermes namespace probe | list | seed | reset | delete`** (`hermes_cli.namespace_cmd`,
+  `agent_runtime.namespace_admin`): `probe` is the launcher's pre-spawn capability check (exit 0 +
+  JSON); `seed` copies the allowlist once, at creation; `reset`/`delete` refuse a busy namespace.
+
+---
+
 ## Before Stage 1 — the bundled-desktop build: what the interpreter is given
 
 The Eternia Harness (bundled Hermes inside the Launcher) runs from a build, not a checkout. The

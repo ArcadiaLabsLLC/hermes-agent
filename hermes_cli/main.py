@@ -603,6 +603,9 @@ def _apply_profile_override() -> None:
     """Pre-parse --profile/-p and set HERMES_HOME before imports."""
     global _explicit_cli_profile
     _explicit_cli_profile = None
+    from hermes_cli._namespace_bootstrap import apply_cli_namespace  # fork: RT-NAMESPACE-ROOT (exits 2 on a refusal)
+
+    _namespace = apply_cli_namespace().layout  # strips --namespace; homes the process inside the namespace
     argv = sys.argv[1:]
     profile_name, consume, profile_index = _scan_profile_flag(argv)
     from_sticky_profile = False
@@ -615,7 +618,7 @@ def _apply_profile_override() -> None:
     # `hermes profile use` and the gateway should honour it (#22502).
     hermes_home_env = os.environ.get("HERMES_HOME", "")
     if profile_name is None and hermes_home_env and Path(hermes_home_env).parent.name == "profiles":
-        os.environ["HERMES_PROFILE_RESOLUTION"] = "env_profile_dir"  # fork: receipt
+        os.environ["HERMES_PROFILE_RESOLUTION"] = "namespace" if _namespace else "env_profile_dir"  # fork: receipt
         return
 
     if (profile_name is None and not _under_gateway_supervisor(argv)
@@ -693,6 +696,12 @@ if sys.argv[1:2] == ["pm"]:
     from pm.cli import main as _pm_main
 
     raise SystemExit(_pm_main(sys.argv[2:]))
+
+# fork: RT-NAMESPACE-ROOT — `hermes namespace …` (probe is the launcher's pre-spawn check), stdlib-fast.
+if sys.argv[1:2] == ["namespace"]:
+    from hermes_cli.namespace_cmd import main as _namespace_main
+
+    raise SystemExit(_namespace_main(sys.argv[2:]))
 
 # Windows launcher self-heal — the ``hermes`` command is a COPY of the venv
 # console script staged into the managed bin dir (outside the checkout, since
