@@ -27,7 +27,10 @@ The join, end to end:
    ``BackgroundToolCallLane`` as a ``tool_call`` row (``work_id = tool_call:bg:<id>``), gone once
    a drain settles the wake or past its own ``expires_at``. Cancel (``runtime.work.cancel``) sets
    the worker thread's interrupt bit; the wake then carries ``cancelled``.
-5. **Await semantics.** No turn blocks on a promoted call. The same tool with the same arguments in
+5. **Lost on restart.** A ``running`` row whose writer died never finishes; the serve boot's
+   :func:`sweep_orphaned_rows` re-owns it as ``lost`` and queues a ``tool_call_finished`` wake with
+   ``outcome = "lost"``, settled like any finish.
+6. **Await semantics.** No turn blocks on a promoted call. The same tool with the same arguments in
    the same session while one runs returns the existing handle (:func:`bracket`'s dedupe).
 
 Receipts are log lines (``long_tool_call_receipt {json}``), never keys on a wire envelope.
@@ -46,7 +49,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Mapping, Optional
+from typing import Any, Callable, Iterable, Mapping, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +71,11 @@ NEVER_PROMOTE = frozenset({
 })
 CHECKPOINT_FILENAME = "tool_calls.json"
 ROW_RUNNING, ROW_READY, ROW_FAILED, ROW_CANCELLED = "running", "ready", "failed", "cancelled"
+#: A promoted call whose writer died before it finished (RT-LONG-CALL-WAKE-LOST-ON-RESTART): the
+#: boot sweep re-owns the row and wakes the session with this outcome.
+ROW_LOST = "lost"
+LOST_RESULT = ("The runtime restarted while this call ran; its result was never produced. "
+               "Re-issue the call if you still need it.")
 _RESULT_CHARS = 12000
 _LABEL_CHARS = 160
 #: How long a running row is trusted with no finish (the worker thread is in this process; the
@@ -335,6 +343,80 @@ def _wake_event(call: _Call, result: Any) -> dict:
     }
 
 
+def _wake_event_from_row(row: Mapping[str, Any], outcome: str, result: str) -> dict:
+    """The row-shaped twin of :func:`_wake_event`: a wake for a call this process never ran."""
+    return {
+        "type": EVENT_TYPE,
+        "session_id": f"tool_call:{row.get('handle')}",
+        "session_key": str(row.get("session_key") or ""), "task_id": str(row.get("task_id") or ""),
+        "owner_task_id": str(row.get("owner_task_id") or ""),
+        "parent_session_id": str(row.get("parent_session_id") or ""),
+        "handle": str(row.get("handle") or ""), "tool": str(row.get("tool_name") or "?"), "outcome": outcome,
+        "elapsed_ms": int(row.get("elapsed_ms") or 0), "result": result,
+    }
+
+
+def sweep_orphaned_rows(homes: Iterable[Path], *, now: Callable[[], float] = time.time,
+                        identity: Optional[Callable[[Any, Any], tuple]] = None) -> list[str]:
+    """Serve boot: re-own every promoted call whose writer is provably gone, and wake its session.
+
+    For each ``tool_calls.json`` under *homes*: a ``running`` row whose ``(pid, host_start_time)``
+    is dead or recycled becomes a :data:`ROW_LOST` row owned by THIS process (so the reader keeps it
+    and :func:`note_wake_settled` retires it), and a ``tool_call_finished`` wake with
+    ``outcome = "lost"`` is queued. A ``lost`` row of a dead writer (a second restart before its wake
+    settled) is re-owned and re-woken — the drains key the event by ``tool_call:<handle>``. An
+    unprovable pid (no baseline, unreadable start time) is left alone. A ``running`` row past its own
+    ``expires_at`` is left to expire (the reader already shows nothing). Returns the swept handles.
+    Never raises per file: an unreadable checkpoint is skipped.
+    """
+    from agent_runtime.running_work.vocabulary import PID_DEAD, PID_RECYCLED
+    if identity is None:
+        from agent_runtime.running_work.ownership import _pid_identity as identity
+    wall = float(now())
+    pid, start = _writer()
+    swept: list[tuple[dict, bool]] = []
+    for home in homes:
+        path = Path(home) / CHECKPOINT_FILENAME
+        try:
+            stored = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(stored, list):
+            continue
+        adopted: list[tuple[dict, bool]] = []
+        for entry in stored:
+            if not isinstance(entry, dict) or not entry.get("handle"):
+                continue
+            status = entry.get("status")
+            if status not in (ROW_RUNNING, ROW_LOST) or entry.get("pid") == pid:
+                continue
+            expires = entry.get("expires_at")
+            if status == ROW_RUNNING and isinstance(expires, (int, float)) and expires <= wall:
+                continue
+            if identity(entry.get("pid"), entry.get("host_start_time"))[2] not in (PID_DEAD, PID_RECYCLED):
+                continue
+            row = dict(entry)
+            if status == ROW_RUNNING:
+                started = row.get("started_at")
+                elapsed = int(max(0.0, wall - float(started)) * 1000) if isinstance(started, (int, float)) else 0
+                row.update(status=ROW_LOST, finished_at=wall, elapsed_ms=elapsed)
+            row.update(pid=pid, host_start_time=start, checkpoint=str(path), expires_at=wall + _FINISHED_TTL_S)
+            adopted.append((row, status == ROW_LOST))
+        if not adopted:
+            continue
+        with _lock:
+            for row, _again in adopted:
+                _rows.setdefault(str(row["handle"]), row)
+            _write_checkpoint_locked(str(path))
+        swept.extend(adopted)
+    for row, again in swept:
+        logger.info("long_tool_call_receipt %s", json.dumps({
+            "event": "lost", "handle": row["handle"], "tool": row.get("tool_name"),
+            "session_key": row.get("session_key", ""), "rewoken": again}))
+        _queue_wake(_wake_event_from_row(row, ROW_LOST, LOST_RESULT))
+    return [str(row["handle"]) for row, _again in swept]
+
+
 def _queue_wake(event: dict) -> None:
     from tools.process_registry import process_registry
     process_registry.completion_queue.put(event)
@@ -369,7 +451,10 @@ def _running_row(call: _Call) -> dict:
     return {
         "handle": call.handle, "tool_name": call.tool_name, "label": call.label, "status": ROW_RUNNING,
         "started_at": call.started_wall, "finished_at": None, "elapsed_ms": None, "cancel_requested": False,
-        "session_key": str(call.routing.get("session_key") or ""), "turn_id": call.turn_id,
+        "session_key": str(call.routing.get("session_key") or ""),
+        "task_id": str(call.routing.get("task_id") or ""),
+        "owner_task_id": str(call.routing.get("owner_task_id") or ""),
+        "parent_session_id": str(call.routing.get("parent_session_id") or ""), "turn_id": call.turn_id,
         "tool_call_id": call.call_id, "expires_at": time.time() + _RUNNING_TTL_S,
         "pid": pid, "host_start_time": start, "checkpoint": str(call.routing.get("checkpoint") or ""),
     }
@@ -381,13 +466,14 @@ def _write_checkpoint_locked(path: str) -> None:
         return
     pid, wall = _writer()[0], time.time()
     mine = [dict(row) for row in _rows.values() if row["checkpoint"] == path]
+    owned = {row["handle"] for row in mine}  # a row this process re-owned replaces the dead writer's copy
     try:
         from utils import atomic_json_write
         try:
             stored = json.loads(Path(path).read_text(encoding="utf-8"))
         except (OSError, ValueError):
             stored = []
-        others = [e for e in stored if isinstance(e, dict) and e.get("pid") != pid
+        others = [e for e in stored if isinstance(e, dict) and e.get("pid") != pid and e.get("handle") not in owned
                   and isinstance(e.get("expires_at"), (int, float)) and e["expires_at"] > wall] \
             if isinstance(stored, list) else []
         Path(path).parent.mkdir(parents=True, exist_ok=True)

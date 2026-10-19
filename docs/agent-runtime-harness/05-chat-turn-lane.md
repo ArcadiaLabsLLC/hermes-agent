@@ -969,6 +969,22 @@ long capability account cannot squeeze out the countdown. Over-budget content st
 twice: in band, so the agent reads it was not told everything, and as a typed accounting row, so no
 operator has to grep prose to learn a fact was clipped.
 
+### 7a. A long tool call lost to a restart (RT-LONG-CALL-WAKE-LOST-ON-RESTART, 2026-10-19)
+
+A call promoted to the background (`tools/long_tool_calls.py`) runs on a worker thread of the
+serve that promoted it, so a restart kills it with no finish and no wake. The serve boot closes
+that gap before the drain starts: `boot_phases._boot_sweeps_and_ready_frame` runs
+`long_tool_calls.sweep_orphaned_rows(running_work.background_work_homes())` (the head home and
+every profile home), which re-owns each `running` row whose writer pid is dead or recycled as a
+`lost` row stamped with THIS process's identity, and queues one `tool_call_finished` wake with
+`outcome = "lost"` routed by the row's own `session_key` / `task_id` / `owner_task_id` /
+`parent_session_id`. The drain delivers it like any finish (the agent reads that the result was
+never produced and may re-issue the call) and settling it retires the row; until then the Activity
+row reads `error` with `outcome: lost`. A `lost` row whose wake had not settled before a second
+restart is re-woken once by the next boot. An unprovable pid (no baseline, unreadable start time)
+is left alone and reads `unknown`. The ready frame carries `long_calls_lost` only when the sweep
+found any; the receipt is `long_tool_call_receipt {event: "lost", …}`.
+
 ## 8. Session scope and continuity
 
 `agent_runtime/chat_session_scope.py` is the ONE authority for *which* chat `SessionDB` is

@@ -104,6 +104,42 @@ def build_registry_record_paths(directory: Path) -> list[Path]:
         return []
 
 
+def background_work_homes() -> list[Path]:
+    """Every background-work home of this store root: the head home, then each profile's home.
+
+    The ONE authority the serve boot's long-call sweep walks
+    (``tools/long_tool_calls.py::sweep_orphaned_rows``): a promoted call writes under the home its
+    turn resolved, and a turn may run under any profile. De-duplicated by resolved path; a profile
+    root that cannot be listed contributes nothing.
+    """
+
+    homes: list[Path] = []
+    head, _ = _head_home()
+    if head is not None:
+        homes.append(head)
+    try:
+        from hermes_cli.profiles import get_profile_dir, list_profile_names
+
+        for name in list_profile_names():
+            try:
+                homes.append(Path(get_profile_dir(name)))
+            except Exception:
+                continue
+    except Exception:
+        pass
+    seen: set[str] = set()
+    unique: list[Path] = []
+    for home in homes:
+        try:
+            key = str(home.resolve())
+        except OSError:
+            key = str(home)
+        if key not in seen:
+            seen.add(key)
+            unique.append(home)
+    return unique
+
+
 def _pid_identity(pid: Any, expected_start: Any) -> tuple[bool, bool, str]:
     """``(alive, verified, verdict)`` for a host PID against its spawn ticks.
 
