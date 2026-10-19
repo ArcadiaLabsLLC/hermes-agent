@@ -57,7 +57,7 @@ CROSS_REPO = re.compile(r"^\s*\(?(launcher|backend|EterniaLauncher|eternia-backe
 
 #: Lane-blocked rows with no blocker ID when the rule landed (2026-10-18). Shrink-only:
 #: lower it in the commit that fills an ID; never raise it.
-BLOCKER_ID_CEILING = 4
+BLOCKER_ID_CEILING = 0
 
 
 def split_segments(line: str) -> list[str]:
