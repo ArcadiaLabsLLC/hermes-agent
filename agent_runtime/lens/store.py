@@ -36,7 +36,7 @@ from .episode import Episode
 from .feed import Observation
 from .manifest import read_manifest
 from .seal import SealedManifest, seal_manifest
-from .wire_value import canonical_bytes
+from .wire_value import WireError, WireRefusal, canonical_bytes
 
 __layer__ = "stores"
 
@@ -45,6 +45,11 @@ MAXIMUM_MONITORS = 64
 MAXIMUM_RECEIPTS = 50_000
 #: Push-door routes are refused past this many (W13).
 MAXIMUM_ROUTES = 64
+#: The longest range one series read may span (the raw window is 24 h; rollups cover 7 d).
+MAXIMUM_RANGE_MS = 7 * 24 * 60 * 60 * 1000
+#: The most raw rows one series read answers (``runtime.lens.range``; ``lens_read`` asks fewer).
+MAXIMUM_RANGE_ROWS = 10_000
+SERIES_SCHEMA = "lens-range-v1"
 _LOCK = threading.RLock()
 
 _SCHEMA = """
@@ -310,6 +315,31 @@ class LensStore:
                                 (monitor_id, feed_id)).fetchall()
         return [{"minute_ms": m, "samples": s, "gaps": g, "min": lo, "max": hi, "sum": t}
                 for m, s, g, lo, hi, t in rows]
+
+    def latest_reads(self, monitor_id: str) -> dict[str, Any]:
+        """The newest row of each feed of the monitor's SEALED manifest (``runtime.lens.latest``,
+        ``lens_read``); a feed never read is None."""
+
+        monitor = self.get(monitor_id)
+        manifest = (monitor["sealed"] or {}).get("manifest") or {"feeds": []}
+        return {"monitor_id": monitor_id, "latest": [self.latest(monitor_id, feed["id"]) for feed in manifest["feeds"]]}
+
+    def series(self, monitor_id: str, feed_id: str, *, start_ms: int, end_ms: int,
+               limit: int = MAXIMUM_RANGE_ROWS, rollup_limit: int | None = None) -> dict[str, Any]:
+        """A bounded series over ``[start_ms, end_ms)`` with EXPLICIT gaps (``runtime.lens.range``,
+        ``lens_read``): raw rows oldest first, at most ``limit`` (``truncated`` says so), and the
+        feed-minute rollups in range — at most ``rollup_limit`` when one is given."""
+
+        if not start_ms < end_ms or end_ms - start_ms > MAXIMUM_RANGE_MS:
+            raise WireError(WireRefusal.INVALID_VALUE, "range_bound")
+        self.get(monitor_id)
+        rows = self.observations(monitor_id, feed_id, start=from_ms(start_ms), end=from_ms(end_ms), limit=limit + 1)
+        rollups = [r for r in self.rollups(monitor_id, feed_id) if start_ms <= r["minute_ms"] < end_ms]
+        out = {"series": SERIES_SCHEMA, "monitor_id": monitor_id, "feed_id": feed_id, "start_ms": start_ms,
+               "end_ms": end_ms, "observations": rows[:limit], "truncated": len(rows) > limit, "rollups": rollups}
+        if rollup_limit is not None:
+            out["rollups"], out["rollups_truncated"] = rollups[-rollup_limit:], len(rollups) > rollup_limit
+        return out
 
     def connection(self):
         """The guarded connection, for retention (the one other writer of these tables)."""
