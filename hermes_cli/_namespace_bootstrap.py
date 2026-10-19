@@ -1,7 +1,8 @@
 """Fork-owned, stdlib only: ``HERMES_NAMESPACE`` -> a namespace root, resolved before any hermes module imports.
 
 Plan: ``EterniaLauncher/docs/embedded_hermes/planned/ONE_HERMES_INSTALL_PROFILE_NAMESPACE_2026-10-19.md``
-§2.1-2.2, §2.8, §4 H1/H1c (rows ``RT-NAMESPACE-ROOT``, ``-ID-CHARSET``, ``-PATH-BUDGET``). One code install per machine; N data namespaces inside it. A namespace is a
+§2.1-2.2, §2.8, §4 H1/H1c, §6 Q9 (rows ``RT-NAMESPACE-ROOT``, ``-ID-CHARSET``, ``-PATH-BUDGET``,
+``-EXTERNAL-ACCESS``). One code install per machine; N data namespaces inside it. A namespace is a
 complete Hermes data root (profiles, agent-runtime, shared DBs, auth, pairing, serve lock) at
 ``<HERMES_NAMESPACES_DIR or <base parent>/hermes-namespaces>/<id>`` — a SIBLING of the base root,
 never inside it — that borrows the base install read-only.
@@ -19,6 +20,12 @@ The rules, each pinned by ``tests/hermes_cli/test_namespace_bootstrap.py``:
 * An explicit ``HERMES_HOME`` / ``HERMES_HEAD_HOME`` / ``HERMES_AGENT_RUNTIME_ROOT`` must lie
   inside the namespace or resolution refuses. The one exception is a ``HERMES_HOME`` that IS
   the base root (an installer-persisted home): it names the install, and is replaced.
+* Outside the launcher (``HERMES_LAUNCHER_SPAWNED`` != ``1``) only the namespace named by
+  ``<base>/namespace-active.json`` is reachable (owner ruling Q9, 2026-10-19): no record and a
+  named namespace -> ``namespace_external_disabled``; another id -> ``namespace_not_active``;
+  no namespace named and a record -> the record's namespace. With no namespace named and no
+  record the process keeps the base root exactly as before; install verbs (``pm``, ``update``)
+  never follow the record; ``hermes namespace …`` resolves its targets explicitly.
 * Fences: ``HERMES_DEPENDENCY_ROOT=<base>``, ``HERMES_REGISTRY_WRITE_FENCE=1`` and
   ``HERMES_DISABLE_LAZY_INSTALLS=1`` are ``setdefault``ed, so a namespace never syncs its own venv
   nor writes the user's registry.
@@ -42,12 +49,14 @@ from pathlib import Path
 
 ENV = "HERMES_NAMESPACE"
 DIR_ENV = "HERMES_NAMESPACES_DIR"
+LAUNCHER_ENV = "HERMES_LAUNCHER_SPAWNED"
 SOURCE_ENV = "HERMES_NAMESPACE_SOURCE"
 DEPENDENCY_ENV = "HERMES_DEPENDENCY_ROOT"
 FLAG = "--namespace"
 BASE_ID = "base"
 DIRNAME = "hermes-namespaces"
 MANIFEST_NAME = "namespace.json"
+ACTIVE_RECORD_NAME = "namespace-active.json"
 SCHEMA = 1
 BASE_PROFILE = "base"
 STORE_DIRNAME = "agent-runtime"
@@ -55,6 +64,8 @@ STORE_DIRNAME = "agent-runtime"
 PINNED_PATH_ENVS = ("HERMES_HOME", "HERMES_HEAD_HOME", "HERMES_AGENT_RUNTIME_ROOT")
 #: ``setdefault`` in every namespaced process (the base key is added at resolution).
 FENCE_DEFAULTS = {"HERMES_REGISTRY_WRITE_FENCE": "1", "HERMES_DISABLE_LAZY_INSTALLS": "1"}
+#: Verbs that act on the INSTALL, never on data: no active-record redirect.
+INSTALL_VERBS = frozenset({"pm", "update"})
 #: ``hermes namespace …`` resolves its targets explicitly, never through this process's namespace.
 ADMIN_VERB = "namespace"
 
@@ -79,6 +90,9 @@ class Reason(StrEnum):
     HOME_ESCAPE = "namespace_home_escape"
     ISOLATION = "namespace_isolation"
     ROOT_TOO_LONG = "namespace_root_too_long"
+    EXTERNAL_DISABLED = "namespace_external_disabled"
+    NOT_ACTIVE = "namespace_not_active"
+    ACTIVE_RECORD_INVALID = "namespace_active_record_invalid"
     RESERVED = "namespace_reserved"
     NOT_FOUND = "namespace_not_found"
     BUSY = "namespace_busy"
@@ -241,6 +255,34 @@ def layout(ns_id: str, env: Mapping[str, str], *, long_paths: bool | None = None
     return item
 
 
+def read_active_record(base: Path) -> str | None:
+    """The id ``<base>/namespace-active.json`` names, ``None`` when there is no record; malformed refuses."""
+    path = base / ACTIVE_RECORD_NAME
+    try:
+        raw = path.read_text(encoding="utf-8-sig")
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise NamespaceRefused(Reason.ACTIVE_RECORD_INVALID, f"{path}: {exc}") from exc
+    try:
+        record = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise NamespaceRefused(Reason.ACTIVE_RECORD_INVALID, f"{path}: not JSON") from exc
+    if not isinstance(record, dict) or record.get("schema") != SCHEMA or not isinstance(record.get("namespace"), str):
+        raise NamespaceRefused(Reason.ACTIVE_RECORD_INVALID, f"{path}: want {{\"schema\": 1, \"namespace\": <id>}}")
+    try:
+        ns_id = validate_id(record["namespace"])
+    except NamespaceRefused as exc:
+        raise NamespaceRefused(Reason.ACTIVE_RECORD_INVALID, f"{path}: {exc.detail}") from exc
+    if ns_id == BASE_ID:
+        raise NamespaceRefused(Reason.ACTIVE_RECORD_INVALID, f"{path}: the active record cannot name 'base'")
+    return ns_id
+
+
+def launcher_spawned(env: Mapping[str, str]) -> bool:
+    return str(env.get(LAUNCHER_ENV) or "") == "1"
+
+
 def strip_namespace_flag(argv: Sequence[str]) -> tuple[str | None, list[str]]:
     """``(value, argv without the flag)``; ``--namespace X`` / ``--namespace=X`` anywhere before ``--``."""
     out = [argv[0]] if argv else []
@@ -292,7 +334,7 @@ def first_verb(argv: Sequence[str]) -> str | None:
 @dataclass(frozen=True, slots=True)
 class CliResolution:
     layout: Layout | None
-    #: ``env`` | ``argv`` | ``none`` | ``admin``
+    #: ``env`` | ``argv`` | ``active-file`` | ``none`` | ``admin``
     source: str
     argv: list[str]
     #: ``""`` for the base root.
@@ -300,7 +342,7 @@ class CliResolution:
 
 
 def resolve_cli(argv: Sequence[str], env: Mapping[str, str]) -> CliResolution:
-    """Pure: what this CLI process's namespace is, or a typed refusal. Reads no file."""
+    """Pure: what this CLI process's namespace is, or a typed refusal. Reads at most the active record."""
     flag, rest = strip_namespace_flag(argv)
     verb = first_verb(rest)
     if verb == ADMIN_VERB:
@@ -313,8 +355,23 @@ def resolve_cli(argv: Sequence[str], env: Mapping[str, str]) -> CliResolution:
         validate_id(requested)
     if requested == BASE_ID:
         return CliResolution(None, source, rest, "")
+    external = not launcher_spawned(env)
     if requested is None:
-        return CliResolution(None, "none", rest, "")
+        if not external or verb in INSTALL_VERBS:
+            return CliResolution(None, "none", rest, "")
+        requested, source = read_active_record(base_root(env)), "active-file"
+        if requested is None:
+            return CliResolution(None, "none", rest, "")
+    elif external:
+        active = read_active_record(base_root(env))
+        if active is None:
+            raise NamespaceRefused(
+                Reason.EXTERNAL_DISABLED,
+                f"outside the launcher only the signed-in account's namespace is reachable, and only while "
+                f"'Allow agent use outside the launcher' is on; there is no {ACTIVE_RECORD_NAME}")
+        if active != requested:
+            raise NamespaceRefused(
+                Reason.NOT_ACTIVE, f"outside the launcher only the active namespace is reachable; asked for {requested!r}")
     item = layout(requested, env)
     for key in PINNED_PATH_ENVS:
         value = str(env.get(key) or "").strip()
@@ -391,12 +448,13 @@ def probe(env: Mapping[str, str], ns_id: str | None = None) -> dict[str, object]
     """``hermes namespace probe``: the launcher's pre-spawn capability check. Reads only; writes nothing."""
     out: dict[str, object] = {
         "schema": SCHEMA, "namespaces_dir": None, "base_root": None, "root_budget": ROOT_BUDGET,
-        "max_path": MAX_PATH_CHARS, "long_paths": long_paths_enabled(),
-        "namespace": None, "root": None, "root_length": None, "refusal": None,
+        "max_path": MAX_PATH_CHARS, "long_paths": long_paths_enabled(), "launcher_spawned": launcher_spawned(env),
+        "namespace": None, "root": None, "root_length": None, "active": None, "refusal": None,
     }
     try:
         base = base_root(env)
         out["base_root"], out["namespaces_dir"] = str(base), str(namespaces_dir(env, base))
+        out["active"] = read_active_record(base)
         requested = ns_id if ns_id is not None else (str(env.get(ENV) or "") or None)
         if requested is not None:
             out["namespace"] = validate_id(requested)
