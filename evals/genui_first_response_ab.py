@@ -15,7 +15,8 @@ reads two receipts a QA serve already writes under its ``HERMES_HOME``:
   (``agent_runtime.prompt_observability``): ``final_model_input.system_prompt_sections``
   blocks and ``final_model_input.tool_schema.per_tool_chars``.
 
-Stages: G1 reader (``read_turn``, ``read_cost``, ``score``).
+Stages: G1 reader (``read_turn``, ``read_cost``, ``score``); G2 driver (``drive`` writes the
+MCP step list the orchestrating session runs; ``collect`` reads each sent turn back).
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ import hashlib
 import json
 import os
 import re
+import time
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -355,3 +357,108 @@ def score(results: Iterable[PromptResult]) -> list[ArmScore]:
             )
         )
     return scores
+
+
+# ── G2 the driver: the MCP step list, then the read-back ────────────────────
+
+#: The launcher_qa MCP's agent-chat verbs the orchestrating session issues (plan §3.3).
+OP_NEW = "launcher.agent_chat.new"
+OP_SEND = "launcher.agent_chat.send"
+OP_WAIT = "wait_turn_settled"
+
+
+def load_prompts(path: str | os.PathLike[str]) -> list[tuple[str, str, str]]:
+    """``(prompt_id, kind, text)`` for the comparisons, then the controls."""
+
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    return [(item["id"], COMPARISON, item["text"]) for item in data["comparisons"]] + [
+        (item["id"], CONTROL, item["text"]) for item in data["controls"]
+    ]
+
+
+def session_ref(agent: str, provider: str | None, prompt_id: str) -> str:
+    """One chat per (agent, provider, prompt): no prompt rides another's cached prefix."""
+
+    return f"{agent}/{provider or 'default'}/{prompt_id}"
+
+
+def drive(
+    arm: str,
+    prompts: list[tuple[str, str, str]],
+    agents: Iterable[str],
+    providers: Iterable[str | None] = (None,),
+) -> dict[str, Any]:
+    """The step list the orchestrator runs over the launcher_qa MCP, visible before approval.
+
+    Per (agent, provider, prompt): ``agent_chat.new`` (opens ``session_ref``), ``agent_chat.send``
+    of the prompt into that chat, then a wait on the turn's settle. This function sends nothing;
+    the orchestrator records each new chat's ``session_id`` and each send's
+    ``client_message_id`` under its ``session_ref`` in the sends file ``collect`` reads.
+    """
+
+    steps: list[dict[str, Any]] = []
+    for agent in agents:
+        for provider in providers:
+            for prompt_id, kind, text in prompts:
+                ref = session_ref(agent, provider, prompt_id)
+                new_args: dict[str, Any] = {"agent": agent}
+                if provider:
+                    new_args["provider"] = provider
+                common = {"session_ref": ref, "agent": agent, "provider": provider, "prompt_id": prompt_id}
+                steps.append({"op": OP_NEW, "args": new_args, **common})
+                steps.append({"op": OP_SEND, "args": {"text": text, "confirm": True}, "kind": kind, **common})
+                steps.append({"op": OP_WAIT, **common})
+    for index, step in enumerate(steps, 1):
+        step["step"] = f"s{index:03d}"
+    return {
+        "schema_version": 1,
+        "arm": arm,
+        "sends_file_shape": {"<session_ref>": {"session_id": "<from agent_chat.new>",
+                                               "client_message_id": "<from agent_chat.send>"}},
+        "steps": steps,
+    }
+
+
+def _settled_turn(
+    home: str | os.PathLike[str],
+    session_id: str,
+    client_message_id: str,
+    *,
+    runtime_root: str | os.PathLike[str] | None,
+    wait_seconds: float,
+    poll_seconds: float = 2.0,
+) -> TurnOutcome | None:
+    deadline = time.monotonic() + wait_seconds
+    while True:
+        outcome = read_turn(home, session_id, client_message_id, runtime_root=runtime_root)
+        if (outcome is not None and outcome.settled) or time.monotonic() >= deadline:
+            return outcome
+        time.sleep(poll_seconds)
+
+
+def collect(
+    home: str | os.PathLike[str],
+    plan: Mapping[str, Any],
+    sends: Mapping[str, Mapping[str, str]],
+    *,
+    runtime_root: str | os.PathLike[str] | None = None,
+    wait_seconds: float = 0.0,
+) -> list[PromptResult]:
+    """Read every sent turn of *plan* back from the QA home (a missing send reads as unread)."""
+
+    results: list[PromptResult] = []
+    for step in plan["steps"]:
+        if step["op"] != OP_SEND:
+            continue
+        sent = sends.get(step["session_ref"]) or {}
+        session_id, message_id = sent.get("session_id"), sent.get("client_message_id")
+        outcome = cost = None
+        if session_id and message_id:
+            outcome = _settled_turn(home, session_id, message_id, runtime_root=runtime_root,
+                                    wait_seconds=wait_seconds)
+            context_id = find_context_id(home, session_id=session_id,
+                                         turn_id=outcome.turn_id if outcome else None, runtime_root=runtime_root)
+            cost = read_cost(home, context_id, runtime_root=runtime_root) if context_id else None
+        results.append(PromptResult(prompt_id=step["prompt_id"], kind=step["kind"], agent=step["agent"],
+                                    outcome=outcome, cost=cost, provider=step.get("provider")))
+    return results

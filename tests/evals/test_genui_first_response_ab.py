@@ -162,3 +162,47 @@ def test_prompt_set_is_the_plans_fixed_set() -> None:
     assert [item["id"] for item in data["controls"]] == ["C1", "C2", "C3"]
     texts = " ".join(item["text"] for item in data["comparisons"] + data["controls"]).lower()
     assert "launcher_generated" not in texts and "generated." not in texts, "no prompt names a tool"
+
+
+# ── G2 driver ───────────────────────────────────────────────────────────────
+
+PROMPTS_PATH = Path(ab.__file__).parent / "genui_first_response_prompts.json"
+
+
+def test_drive_opens_one_chat_per_prompt_per_agent() -> None:
+    plan = ab.drive("A", ab.load_prompts(PROMPTS_PATH), ["Amelia", "Base"])
+    news = [step for step in plan["steps"] if step["op"] == ab.OP_NEW]
+    sends = [step for step in plan["steps"] if step["op"] == ab.OP_SEND]
+    assert len(news) == 30 and len(sends) == 30
+    assert len({step["session_ref"] for step in news}) == 30, "each prompt opens its own chat"
+    opened: set[str] = set()
+    sent: set[str] = set()
+    for step in plan["steps"]:
+        if step["op"] == ab.OP_NEW:
+            opened.add(step["session_ref"])
+        elif step["op"] == ab.OP_SEND:
+            assert step["session_ref"] in opened, "a send goes into a chat opened before it"
+            assert step["session_ref"] not in sent, "no chat carries a second prompt"
+            sent.add(step["session_ref"])
+    assert [step["step"] for step in plan["steps"]] == [f"s{n:03d}" for n in range(1, 91)]
+
+
+def test_drive_multiplies_providers() -> None:
+    plan = ab.drive("B", ab.load_prompts(PROMPTS_PATH), ["Base"], providers=["p1", "p2"])
+    news = [step for step in plan["steps"] if step["op"] == ab.OP_NEW]
+    assert len(news) == 30 and {step["args"]["provider"] for step in news} == {"p1", "p2"}
+
+
+def test_collect_reads_sent_turns_back(home: Path) -> None:
+    prompts = [("P01", ab.COMPARISON, "x"), ("P02", ab.COMPARISON, "y"), ("C1", ab.CONTROL, "z")]
+    plan = ab.drive("A", prompts, ["Amelia"])
+    _write_turn(home, "sid-1", HIT)
+    _write_turn(home, "sid-3", MISS)
+    _write_ctx(home, "ctx_bbbb", session_id="sid-1", guidance="g", per_tool=PER_TOOL, provider="p9")
+    sends = {"Amelia/default/P01": {"session_id": "sid-1", "client_message_id": "cm1"},
+             "Amelia/default/C1": {"session_id": "sid-3", "client_message_id": "cm1"}}
+    results = ab.collect(home, plan, sends)
+    assert [(r.prompt_id, r.kind) for r in results] == [("P01", "comparison"), ("P02", "comparison"), ("C1", "control")]
+    assert results[0].outcome.is_hit and results[0].cost.context_id == "ctx_bbbb"
+    assert results[0].provider_key == "p9" and results[1].outcome is None
+    assert results[2].outcome.prose_only and results[2].cost is None
