@@ -202,6 +202,13 @@ class LensPoller:
                 # Evaluated at the RECEIVE time: an observation is never later than its verdict.
                 self._evaluate(store, monitor_id, manifest, rule, received)
 
+    def record_pushed(self, store: LensStore, monitor_id: str, manifest: dict[str, Any], feed: dict[str, Any], *,
+                      value: float | None, reason: ReadReason, observed: datetime, received: datetime) -> None:
+        """Record one push-door reading through the same typing, store and rule step as a poll (L3)."""
+
+        self._record(store, monitor_id, manifest, feed, ReadResult(value=value, reason=reason),
+                     observed=observed, received=received)
+
     def _fx_rate(self, store: LensStore, monitor_id: str, feed: dict[str, Any], at: datetime) -> float | None:
         """The newest exchange rate read no longer than ``fx.max_age_ms`` before ``at`` (W5)."""
 
