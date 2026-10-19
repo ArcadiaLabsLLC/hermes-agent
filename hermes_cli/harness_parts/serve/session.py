@@ -1,11 +1,12 @@
 """``ServeSession`` — one serve process's state and its boot order.
 
 The fields are what ``serve_loop``'s closures used to capture; the methods are
-those closures, on six modules by what they do: this one (boot order, the end
-reason, liveness, the registry row, the stdio owner), ``boot_phases`` (the boot
-steps between the stdio swap and ``ready``), ``handle_message`` (the op table
-and the dispatcher), ``lanes`` (the pool), ``subscriptions`` (the stream hub and
-the socket lanes' plumbing) and ``drain``. ``serve_loop`` builds one and
+those closures, on modules by what they do: this one (boot order, the end
+reason, the registry row, the stdio owner), ``boot_phases`` (the boot steps
+between the stdio swap and ``ready``), ``handle_message`` (the op table and the
+dispatcher), ``lanes`` (the pool), ``subscriptions`` (the stream hub and the
+socket lanes' plumbing), ``drain``, ``settle_push`` and ``liveness`` (the
+``busy`` frame, the pump, the per-request silence report). ``serve_loop`` builds one and
 runs it; nothing else constructs one.
 
 ``serve_loop`` — the entry point every caller and test drives — lives here,
