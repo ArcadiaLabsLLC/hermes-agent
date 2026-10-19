@@ -33,6 +33,11 @@ SPAWN_KINDS = ("python", "git", "other")
 SLOWEST = 5
 TOP = 20
 DIAGNOSIS_FILE = "diagnosis.jsonl"
+#: per-file test COUNTS (not seconds): a body that left monkeypatch entries, a late fixture that pushed
+#: some (``bp`` on the call line, ``tests/_downstream/body_patch_scope.py``), a teardown that errored
+COUNTS = ("body_patches", "late_fixture_patches", "teardown_errors")
+#: node ids kept per file for ``teardown_errors``
+ERROR_IDS = 20
 #: past this, ``diagnosis.jsonl`` moves to ``diagnosis.prev.jsonl`` before the next run appends
 ROTATE_BYTES = 32 << 20
 
@@ -46,6 +51,10 @@ class FileDiag:
     spawn: Dict[str, List[float]] = field(default_factory=dict)  # kind -> [count, wait seconds]
     plugins: float = 0.0
     sleep: float = 0.0
+    body_patches: int = 0
+    late_fixture_patches: int = 0
+    teardown_errors: int = 0
+    teardown_error_ids: List[str] = field(default_factory=list)
 
     def columns(self) -> Dict[str, float]:
         out = {"collect": self.collect, **self.phases}
@@ -61,6 +70,7 @@ class FileDiag:
             "slowest": [[node, phase, r3(s)] for s, node, phase in self.slowest],
             "spawn": {k: [int(v[0]), r3(v[1])] for k, v in sorted(self.spawn.items())},
             "plugins": r3(self.plugins), "sleep": r3(self.sleep),
+            **{c: getattr(self, c) for c in COUNTS}, "teardown_error_ids": list(self.teardown_error_ids),
         }
 
 
@@ -74,6 +84,13 @@ def _on_test(rows: Dict[str, FileDiag], record: dict) -> None:
     row.phases[phase] = row.phases.get(phase, 0.0) + seconds
     if record.get("n"):
         row.slowest = sorted(row.slowest + [(seconds, record["n"], phase)], key=lambda e: (-e[0], e[1]))[:SLOWEST]
+    bp = record.get("bp") or (0, 0, 0)
+    row.body_patches += int(bool(bp[0] or bp[1]))
+    row.late_fixture_patches += int(bool(bp[2]))
+    if phase == "teardown" and record.get("c") == "error":
+        row.teardown_errors += 1
+        if record.get("n") and len(row.teardown_error_ids) < ERROR_IDS:
+            row.teardown_error_ids.append(record["n"])
 
 
 def _on_diag(rows: Dict[str, FileDiag], record: dict) -> None:
@@ -126,8 +143,9 @@ def run_record(diagnosis: Optional[Diagnosis]) -> dict:
         for column, seconds in row.columns().items():
             totals[column] = totals.get(column, 0.0) + seconds
     spawns = {k: sum(int(r.spawn.get(k, [0])[0]) for r in diagnosis.rows.values()) for k in SPAWN_KINDS}
+    counts = {c: sum(getattr(r, c) for r in diagnosis.rows.values()) for c in COUNTS}
     return {"diagnosis": {"files": len(diagnosis.rows), "seconds": {k: round(v, 1) for k, v in totals.items()},
-                          "spawns": spawns, "file": DIAGNOSIS_FILE}}
+                          "spawns": spawns, "counts": counts, "file": DIAGNOSIS_FILE}}
 
 
 def append(store_root: Path, run_id: str, diagnosis: Optional[Diagnosis]) -> Optional[Path]:
@@ -165,4 +183,10 @@ def render(diagnosis: Optional[Diagnosis], top: int = TOP) -> List[str]:
                 s, node, phase = diagnosis.rows[rel].slowest[0]
                 extra = f"  (slowest {node.split('::', 1)[-1]} {phase} {s:.1f}s)"
             lines.append(f"    {seconds:8.1f}s  {rel}{extra}")
+    for column in COUNTS:
+        ranked = sorted(((getattr(r, column), rel) for rel, r in diagnosis.rows.items() if getattr(r, column)),
+                        reverse=True)[:top]
+        if ranked:
+            lines.append(f"  {column} (tests):")
+            lines.extend(f"    {n:8d}   {rel}" for n, rel in ranked)
     return lines

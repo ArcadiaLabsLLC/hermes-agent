@@ -239,6 +239,12 @@ class _Recorder:
         }
         if category in ("failed", "error") or record["d"] >= _NAMED_SECONDS:
             record["n"] = report.nodeid
+        if report.when == "call":
+            # tests/_downstream/body_patch_scope.py: (attrs, items, late_attrs, late_items, cwd, syspath)
+            counts = dict(report.user_properties or ()).get("hermes_body_patches")
+            bp = [int(counts[0]), int(counts[1]), int(counts[2]) + int(counts[3])] if counts else []
+            if any(bp):
+                record["bp"] = bp
         self._write(record)
 
     def pytest_sessionfinish(self, session, exitstatus):
