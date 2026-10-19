@@ -700,6 +700,8 @@ def test_a_good_token_gets_the_build_handshake():
                 "code_tree",
                 "code_tree_rule",
                 "code_tree_reason",
+                "uv_lock_sha256",
+                "uv_lock_reason",
             }
             assert reply["transport"] == "socket"
             assert reply["draining"] is False

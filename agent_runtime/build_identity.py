@@ -62,6 +62,23 @@ What the digest deliberately does NOT cover
   fabricated digest is a well-formed wrong answer, which is the class
   ``build_stamp``'s whole contract exists to refuse.
 
+The lock half of the build triple
+---------------------------------
+
+A code tree names the first-party code; it says nothing about the third-party
+environment that code runs on. Plan
+``EterniaLauncher/docs/embedded_hermes/planned/ONE_HERMES_INSTALL_PROFILE_NAMESPACE_2026-10-19.md``
+§0 defines "the same debug build" as ``(code_tree, HEAD commit, dirty flag,
+uv.lock hash)``: a Developer Edition is an editable install whose venv ``pm``
+syncs to ``uv.lock``, so two serves on one commit but different locks are two
+builds. :func:`uv_lock_digest_for` is that fourth term — sha256 over the
+lock's bytes, the same digest ``pm/packages.py::_uv_lock_digest`` keys its
+sync on (``uv.lock`` is ``eol=lf`` in ``.gitattributes``, so the bytes agree
+across machines). It reads the WORKING-TREE file, not HEAD's blob: the venv is
+synced to what is on disk, and an uncommitted lock edit is exactly what the
+``dirty`` flag beside it reports. A bundled edition that ships no ``uv.lock``
+answers ``None`` with ``lock_missing`` — never a hash of something else.
+
 Contract
 --------
 
@@ -87,13 +104,16 @@ __all__ = [
     "CODE_TREE_TIMEOUT_SECONDS",
     "NON_RUNTIME_PREFIXES",
     "NON_RUNTIME_ROOT_SUFFIXES",
+    "UV_LOCK_FILENAME",
     "CodeTree",
+    "UvLockDigest",
     "code_tree_digest",
     "code_tree_for",
     "code_tree_rule",
     "is_runtime_path",
     "parse_ls_tree_z",
     "parse_tree_list",
+    "uv_lock_digest_for",
 ]
 
 #: Path prefixes whose contents no running hermes loads. Literal prefixes, each
@@ -129,6 +149,35 @@ class CodeTree:
     #: zero would read as "this checkout has no code", which is a different
     #: (and alarming) fact.
     entry_count: int | None
+
+
+#: The lock file whose bytes are the fourth term of the build triple.
+UV_LOCK_FILENAME = "uv.lock"
+
+
+@dataclass(frozen=True, slots=True)
+class UvLockDigest:
+    """sha256 of the checkout's ``uv.lock``, and why it is null when it is."""
+
+    #: 64-char sha256 hex, or None when it could not be measured.
+    sha256: str | None
+    #: Empty when resolved; otherwise ``no_root``, ``lock_missing`` or
+    #: ``lock_unreadable``.
+    reason: str
+
+
+def uv_lock_digest_for(root: Path | str | None) -> UvLockDigest:
+    """sha256 of ``<root>/uv.lock``'s bytes. Never raises; see the module doc."""
+
+    if root is None:
+        return UvLockDigest(sha256=None, reason="no_root")
+    try:
+        path = Path(root) / UV_LOCK_FILENAME
+        if not path.is_file():
+            return UvLockDigest(sha256=None, reason="lock_missing")
+        return UvLockDigest(sha256=hashlib.sha256(path.read_bytes()).hexdigest(), reason="")
+    except Exception:
+        return UvLockDigest(sha256=None, reason="lock_unreadable")
 
 
 def code_tree_rule() -> dict[str, Any]:

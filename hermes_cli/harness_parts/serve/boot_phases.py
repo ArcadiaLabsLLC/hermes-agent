@@ -79,6 +79,8 @@ class BootPhases:
                 "code_tree": None,
                 "code_tree_rule": None,
                 "code_tree_reason": f"stamp_failed:{type(exc).__name__}",
+                "uv_lock_sha256": None,
+                "uv_lock_reason": f"stamp_failed:{type(exc).__name__}",
             }
         # 2. THE SECRET. Unwired to any transport (stdio needs none), minted
         #    now so the socket slice starts with a lock already on the door
