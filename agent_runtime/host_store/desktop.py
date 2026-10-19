@@ -25,9 +25,11 @@ import sys
 import tempfile
 import threading
 from pathlib import Path
+from collections.abc import Mapping
 from typing import Any, Callable, Optional
 
 from agent_runtime.host_store import binding as _binding
+from agent_runtime.namespace import namespace_stamp
 from agent_runtime.host_store.binding import HostStoreError
 
 __layer__ = "stores"
@@ -37,6 +39,17 @@ BLOB_SUFFIX = ".dpapi"
 _TMP_SUFFIX = ".dpapi-tmp"
 _CRYPTPROTECT_UI_FORBIDDEN = 0x1
 KEYRING_SERVICE = "hermes-agent"
+
+
+def keyring_service(env: "Optional[Mapping[str, str]]" = None) -> str:
+    """``hermes-agent/<namespace id>`` in a namespace, ``hermes-agent`` for the base root.
+
+    The keyring slot (``binding.slot``) carries no root, so without the id two namespaces of one
+    OS user would read each other's sign-ins (RT-NAMESPACE-KEYRING-SERVICE). DPAPI needs no such
+    key: its blob dir is already under each root.
+    """
+    ns_id = namespace_stamp(env)
+    return f"{KEYRING_SERVICE}/{ns_id}" if ns_id else KEYRING_SERVICE
 #: ``keyring`` backend modules that ARE an OS secure store. Everything else is refused.
 KEYRING_BACKENDS = frozenset({
     "keyring.backends.macOS",
@@ -186,7 +199,7 @@ def admitted_keyring_backend(load_keyring: Callable[[], Any] | None = None) -> A
 
 
 def _keyring_store(_blob_dir: "os.PathLike[str] | str") -> _SecureStoreBase:
-    return KeyringHostSecureStore(admitted_keyring_backend())
+    return KeyringHostSecureStore(admitted_keyring_backend(), service=keyring_service())
 
 
 #: ``sys.platform`` family -> its OS secure store (Linux platforms are ``linux*``).
