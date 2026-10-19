@@ -1129,7 +1129,7 @@ Every `state.reconciled` names a producer bug to fix at source.
 | `delta` | `delta_frame` (`:376`) / `delta_batch_frame` (`:393`) | 1 | yes — ONE core per batch |
 | `patch` | `patch_batch_frame` (`:456`) | 2 | **no** |
 | `heartbeat` | `heartbeat_frame` (`:328`) | 1 | no |
-| `running_work` | `running_work_frame` (`stream/frames.py`) | 1 | **no** — the `running_work` section alone |
+| `running_work` | `running_work_frame` / `running_work_section_frame` (`stream/frames.py`) | 1 | **no** — the `running_work` section alone (un-sequenced overlay, or sequenced for a `running_work_section` room) |
 | `persona_chat_turn` | `persona_chat_turn_frames` (`stream/frames.py`) | 2 | **no** — one chat root's turn sections |
 
 The chat lane's per-request protocol-v2 frames (`turn.start`, `segment.*`, `tool.*`,
@@ -1217,6 +1217,24 @@ is uncovered), so the finished turn left `running_work` only with the next
 full core — 16.6 s after `turn_ended` measured live, a 10.2 s build queued
 behind another. The office sink skips it (`_NON_OFFICE_STATE_FRAME_TYPES`).
 
+Since 2026-10-19 (row `RT-EMIT-RUNNING-WORK-CHAT`, plan `planned/p10-turn-2026-10-19.md` §2) the
+overlay also ships for a batch carrying a terminal process's `running_work.process_started` /
+`running_work.process_ended` (`stream/frames.py::batch_changes_running_work_presence`; the old
+`batch_changes_chat_turn_presence` name is an alias for one release). The pair is appended by
+`agent_runtime/running_work/process_presence.py` from the additive upstream seam
+`tools/process_registry.py::ProcessRegistry.add_lifecycle_listener` (spawn and FIRST finish, after the
+checkpoint write; a held PR row in `planned/upstream-footprint-ledger.md`), installed by the plugin's
+`register(ctx)` in every hermes process. A batch made ONLY of those events (and watchdog reconciles
+whose `families == ["running_work"]`, `stream/frames.py::batch_is_running_work_only`) is expressed
+whole by the section, so a room where EVERY subscriber declared the sixth token
+`running_work_section` (`patch_coverage.RUNNING_WORK_SECTION_CAPABILITY`) is handed ONE
+`running_work` frame carrying `base_offset` / `watermark` exactly as `patch` does (and
+`coalesced_count`, no `as_of_offset`) instead of the demote core
+(`stream/build.py::_turn_batch_frames`); the client folds the section whole and advances its sequence
+on it. Some or none declared, or the read failed → today's demote core; there is no split. The
+un-sequenced overlay still ships first from `StreamSession.flush` either way. Announced builds stay on
+the full-core lane (RULED 2026-10-16: their writer is not hermes).
+
 `_delta_op` (`:1375`) is a four-arm table — `run.tool.*` / `run.progress` →
 `chat.trace.appended`, `incident.*` → the source type verbatim,
 `persona_assignment.*` → `instance.upserted`, everything else →
@@ -1275,6 +1293,13 @@ Rules, all in `agent_runtime/patch_coverage.py`:
 
 Negotiation makes a new entity POSSIBLE; it does not enable one. The producer
 still emits `state.patched` only for entities its chokepoints cover.
+
+**Frame-gating tokens** ride the same declaration channel and are intersected the same way, but gate
+a FRAME rather than a patch row: `persona_chat_turn` (the fourth), `persona_chat_open` (the fifth,
+a widening of the fourth) and `running_work_section` (the sixth, 2026-10-19, §3 above: a
+running-work-only batch rides a sequenced `running_work` section frame). Every mixed pair degrades to
+today's wire: an old client never declares a token and keeps its core; an old runtime ignores the
+string.
 
 **The `scope` entity, and the demote a pointer flip no longer buys
 (2026-09-01, instant-workspace-switching WS1/WS4 — hermes `ffd540bf73`).**
