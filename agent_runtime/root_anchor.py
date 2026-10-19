@@ -90,6 +90,7 @@ from .resolution import (
     probe_isolation_required,
     resolve_runtime,
 )
+from .namespace import namespace_named
 
 __layer__ = "stores"
 
@@ -123,6 +124,9 @@ class RootAnchorOutcome(str, Enum):
     ROOT_NOT_STORELIKE = "root_not_storelike"
     #: Probe isolation is demanded, or the root is a probe temp dir.
     PROBE_ISOLATED = "probe_isolated"
+    #: The process runs in a namespace (``HERMES_NAMESPACE``): its root is that
+    #: namespace's fact, never the machine's — refused like a probe root.
+    NAMESPACED = "namespaced"
     #: The existing config could not be extended without risking the rest of
     #: its content (re-parse verification failed, ambiguous structure, ...).
     DECLINED_UNSAFE_MERGE = "declined_unsafe_merge"
@@ -349,6 +353,8 @@ def _store_plan(
 ) -> _LanePlan:
     if probe_isolation_required(source) or root.name.startswith(PROBE_ROOT_PREFIX):
         return _LanePlan(RootAnchorOutcome.PROBE_ISOLATED)
+    if namespace_named(source):
+        return _LanePlan(RootAnchorOutcome.NAMESPACED)
 
     ambient_default = config_path.parent / "agent-runtime"
     if _same_path(root, ambient_default):
@@ -399,6 +405,8 @@ def _head_plan(
     # above is what actually excludes QA and worktree roots.
     if probe_isolation_required(source) or root.name.startswith(PROBE_ROOT_PREFIX):
         return _LanePlan(RootAnchorOutcome.PROBE_ISOLATED)
+    if namespace_named(source):
+        return _LanePlan(RootAnchorOutcome.NAMESPACED)
 
     scope = chat_scope if chat_scope is not None else _resolved_chat_scope()
     if scope is None:
