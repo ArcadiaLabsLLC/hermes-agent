@@ -33,6 +33,22 @@ def _emit(payload: object) -> None:
     sys.stdout.flush()
 
 
+def _admin():
+    from agent_runtime import namespace_admin  # the runtime half; probe stays stdlib-fast
+
+    return namespace_admin
+
+
+#: verb -> its runner (argparse's ``set_defaults(run=…)``: a table, not a ladder).
+_RUNNERS = {
+    "probe": lambda args: ns.probe(os.environ, args.id),
+    "list": lambda args: _admin().list_namespaces(os.environ),
+    "seed": lambda args: _admin().seed(args.id, args.source, os.environ),
+    "reset": lambda args: _admin().reset(args.id, os.environ),
+    "delete": lambda args: _admin().delete(args.id, os.environ),
+}
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="hermes namespace", description="Hermes data namespaces.")
     verbs = parser.add_subparsers(dest="verb", required=True)
@@ -47,22 +63,10 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _run(args: argparse.Namespace) -> object:
-    if args.verb == "probe":
-        return ns.probe(os.environ, args.id)
-    from agent_runtime import namespace_admin as admin  # the runtime half; probe stays stdlib-fast
-
-    if args.verb == "list":
-        return admin.list_namespaces(os.environ)
-    if args.verb == "seed":
-        return admin.seed(args.id, args.source, os.environ)
-    return {"reset": admin.reset, "delete": admin.delete}[args.verb](args.id, os.environ)  # argparse admits only the verbs above
-
-
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(list(sys.argv[2:] if argv is None else argv))
     try:
-        _emit(_run(args))
+        _emit(_RUNNERS[args.verb](args))
     except ns.NamespaceRefused as exc:
         _emit(exc.payload())
         return 2
