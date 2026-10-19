@@ -636,7 +636,7 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
         profile=binding.hermes_profile,
         provider=runtime_provider,
         model=runtime_model,
-        api_mode=getattr(persona, "api_mode", None),
+        api_mode=model_selection.get("effective_api_mode"),
         reasoning_effort=(model_selection.get("chat_reasoning_effort")
                           or getattr(instance, "reasoning_effort", None)),
         terminal_envelope_scope=envelope_scope,

@@ -536,7 +536,12 @@ not per-instance. Values validate against
 `^[A-Za-z0-9_.:/@+-]{1,200}$` (`:6582`); a violation is a typed refusal, a persist failure is
 `CHAT_MODEL_OVERRIDE_PERSIST_FAILED` (`:3552-3558`). The payload reports every tier separately
 rather than folding them, so `model_is_default` and `model_is_instance_override` are answerable from
-one record. Chat-lane compaction has its own cap:
+one record. `api_mode` is not a tier of its own: it belongs to the provider it was chosen with, so
+`effective_api_mode` is the agent tier's while the effective provider is the agent tier's, and a chat
+override onto another provider derives it from the selected provider by the `persona set-model` rule
+(`agent_runtime/model_api_mode.py::turn_api_mode`). The run, the prewarm and the runtime signature all
+read that one answer; an Anthropic `api_mode` carried onto `openai-codex` POSTed to
+`…/codex/v1/messages` and met a Cloudflare 403 (2026-10-19). Chat-lane compaction has its own cap:
 `agent_runtime.mission_chat.compaction_threshold_tokens`, default **150,000**
 (`agent_runtime/runtime_config.py::MissionChatConfig.compaction_threshold_tokens`), applied so it can only make compaction fire *earlier* than
 the compressor's own `ratio × window` derivation.

@@ -304,8 +304,14 @@ def _chat_effective_model_payload(
     agent_model = instance_model or default_model
     provider = (override or {}).get("provider") or agent_provider
     model = (override or {}).get("model") or agent_model
+    from agent_runtime.model_api_mode import turn_api_mode
     from agent_runtime.reasoning_capabilities import ReasoningCapabilities, reasoning_capabilities
 
+    # The agent tier's api_mode belongs to the agent tier's provider: a chat override onto
+    # another provider derives its own (RT-CONV-MODEL-SELECT-STALE-API-MODE). The run
+    # (``persona_runtime``), the prewarm and the runtime signature read this one answer.
+    tier_api_mode = getattr(instance, "api_mode", None) or getattr(persona, "api_mode", None)
+    effective_api_mode = turn_api_mode(agent_provider, tier_api_mode, provider, model)
     capabilities = ReasoningCapabilities(provider, model)
     if binding is not None and binding.readiness == "ready":
         with persona_profile_context(binding):
@@ -313,8 +319,8 @@ def _chat_effective_model_payload(
 
             profile_config = load_config() or {}
             model_config = profile_config.get("model") or {}
-            api_mode = getattr(instance, "api_mode", None) or (
-                model_config.get("api_mode") if isinstance(model_config, dict) else None)
+            api_mode = turn_api_mode(agent_provider, getattr(instance, "api_mode", None) or (
+                model_config.get("api_mode") if isinstance(model_config, dict) else None), provider, model)
             capabilities = reasoning_capabilities(
                 provider, model, api_mode=api_mode,
                 default_effort=reasoning_effort_label(reasoning_config_for(None, model)),
@@ -323,7 +329,8 @@ def _chat_effective_model_payload(
                     model_config.get("base_url") if isinstance(model_config, dict) else None),
             )
     elif binding is None:
-        capabilities = reasoning_capabilities(provider, model, api_mode=getattr(instance, "api_mode", None))
+        capabilities = reasoning_capabilities(provider, model, api_mode=turn_api_mode(
+            agent_provider, getattr(instance, "api_mode", None), provider, model))
     return {
         "default_provider": default_provider,
         "default_model": default_model,
@@ -335,6 +342,7 @@ def _chat_effective_model_payload(
         "chat_model": (override or {}).get("model"),
         "effective_provider": provider,
         "effective_model": model,
+        "effective_api_mode": effective_api_mode,
         "effective_reasoning_effort": reasoning_effort_label(reasoning),
         "chat_reasoning_effort": chat_effort,
         "reasoning_effort_source": ("conversation" if chat_effort else "instance" if effort

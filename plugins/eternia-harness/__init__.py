@@ -387,6 +387,10 @@ def register(ctx) -> None:
     ctx.register_hook("pre_llm_call", settle_turn_tools)
     ctx.register_hook("pre_tool_call", refuse_tool_call)
     ctx.register_hook("post_api_request", record_usage_ledger_row)
+    from agent_runtime.provider_challenge import classify_challenge_refusal
+
+    # A 403 challenge page, typed (transport_mismatch / upstream_blocked) and named by its path.
+    ctx.register_hook("transform_api_error_classification", classify_challenge_refusal)
     # The on_stream_* receipt observers register only while a persona turn runs: any
     # registered one makes upstream treat EVERY agent in the process as a stream consumer.
     from agent_runtime.codex_observability import install_stream_observers
