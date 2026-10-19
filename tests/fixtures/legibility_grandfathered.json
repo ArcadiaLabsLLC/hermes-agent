@@ -81,11 +81,6 @@
    "unit": "agent_runtime/skill_promotion.py|execute_promotion"
   },
   {
-   "depth": 2,
-   "lines": 181,
-   "unit": "hermes_cli/harness_parts/office.py|_cmd_office_actor_upsert"
-  },
-  {
    "depth": 4,
    "lines": 241,
    "unit": "hermes_cli/harness_parts/persona/chat_delete.py|_cmd_persona_chat_delete"

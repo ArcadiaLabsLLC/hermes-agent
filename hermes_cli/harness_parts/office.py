@@ -172,6 +172,86 @@ def _cmd_office_show(args) -> int:
     return 0
 
 
+def _office_actor_upsert_request(args) -> tuple[str, dict] | int:
+    """``actor-upsert``'s ``(workspace, payload)``, or the exit code of the refusal it emitted."""
+
+    workspace = _office_workspace_for(args)
+    if not workspace:
+        return emit_harness_error(ValueError("no workspace selected; pass --workspace"), args=args, code="invalid_request")
+    try:
+        payload = _load_request_json(args.actor_json)
+    except Exception as exc:
+        return emit_harness_error(exc, args=args, code="invalid_payload")
+    if not isinstance(payload, dict):
+        return emit_harness_error(ValueError("--actor-json must be an actor object"), args=args, code="invalid_request")
+    instance_id = str(getattr(args, "persona_instance_id", None) or "").strip()
+    if instance_id:
+        # The flag wins over the JSON: an operator who typed it is being more
+        # specific than the file they piped in. The store still mints the key.
+        payload = {**payload, "persona_instance_id": instance_id}
+    return workspace, payload
+
+
+def _office_actor_upsert_class_key_consent(args, exc, write, resurrect: bool, warnings: list[dict]):
+    """The ``ClassKeyedPlacementRefused`` arm of ``actor-upsert``: the replayed actor, or an exit code.
+
+    Without ``--allow-class-key`` the store's refusal is the answer. With it, the
+    consent is recorded in ``warnings`` and ``write`` is replayed with the store's
+    own override parameter.
+    """
+
+    from agent_runtime.errors import ActorArchived
+    from agent_runtime.office_class_key_guard import CLASS_KEY_REFUSAL_CODE
+
+    collision = exc.safe_details
+    if not bool(getattr(args, "allow_class_key", False)):
+        return emit_harness_error(exc, args=args, code=CLASS_KEY_REFUSAL_CODE, message=str(exc))
+    # Consent, on the record and derived from the refusal itself: the warning
+    # names the collision the STORE found rather than one this verb went and
+    # computed, so the two can never describe different faults.
+    warnings.append(
+        {
+            "code": "office_actor_class_key_forced",
+            "actor_key": collision["class_actor_key"],
+            "message": str(exc),
+            "reasons": collision["reasons"],
+            "conflicting_actor_keys": collision["conflicting_actor_keys"],
+        }
+    )
+    # The replay runs the REST of the store's fences, and the class-key
+    # fence is the first of them — so the tombstone fence is reached here
+    # and nowhere else on this path. Its arm has to be repeated inside this
+    # handler because an exception raised while handling another one is not
+    # caught by that other one's siblings, and the class→instance migration
+    # makes "class-keyed AND archived" the ordinary case rather than a
+    # corner: without this, the commonest --allow-class-key run in the
+    # program reported ``internal_error``.
+    try:
+        return write(allow_class_key=True, resurrect=resurrect)
+    except ActorArchived as archived_exc:
+        return emit_harness_error(archived_exc, args=args, code=archived_exc.code, message=str(archived_exc))
+
+
+def _office_actor_resurrect_warning(actor_key: str) -> dict:
+    """The ``--resurrect`` consent receipt of ``actor-upsert``.
+
+    Consent, on the record, the same way the class-key override is — and
+    emitted whether or not the key was in fact archived. A warning that only
+    appeared on the raising write would make the flag's presence invisible in
+    the receipt of every run that turned out not to need it, which is exactly
+    when an operator most wants to see that they left it on.
+    """
+
+    return {
+        "code": "office_actor_resurrect_forced",
+        "actor_key": actor_key,
+        "message": (
+            "--resurrect was passed: an archived actor key may have been "
+            "re-added and its tombstone cleared"
+        ),
+    }
+
+
 def _cmd_office_actor_upsert(args) -> int:
     """`harness office actor-upsert` — the operator's raw placement writer.
 
@@ -212,26 +292,13 @@ def _cmd_office_actor_upsert(args) -> int:
     """
 
     from agent_runtime.errors import ActorArchived, ActorsUnreadable
-    from agent_runtime.office_class_key_guard import (
-        CLASS_KEY_REFUSAL_CODE,
-        ClassKeyedPlacementRefused,
-    )
+    from agent_runtime.office_class_key_guard import ClassKeyedPlacementRefused
     from agent_runtime.office_store.models import ActorKindInvalid, ActorKindMismatch
     store = _office_store()
-    workspace = _office_workspace_for(args)
-    if not workspace:
-        return emit_harness_error(ValueError("no workspace selected; pass --workspace"), args=args, code="invalid_request")
-    try:
-        payload = _load_request_json(args.actor_json)
-    except Exception as exc:
-        return emit_harness_error(exc, args=args, code="invalid_payload")
-    if not isinstance(payload, dict):
-        return emit_harness_error(ValueError("--actor-json must be an actor object"), args=args, code="invalid_request")
-    instance_id = str(getattr(args, "persona_instance_id", None) or "").strip()
-    if instance_id:
-        # The flag wins over the JSON: an operator who typed it is being more
-        # specific than the file they piped in. The store still mints the key.
-        payload = {**payload, "persona_instance_id": instance_id}
+    request = _office_actor_upsert_request(args)
+    if isinstance(request, int):
+        return request
+    workspace, payload = request
 
     warnings: list[dict] = []
     dry_run = bool(getattr(args, "dry_run", False))
@@ -300,60 +367,11 @@ def _cmd_office_actor_upsert(args) -> int:
     # workspace) — so this verb now writes a second desk exactly the way it
     # writes a second chair would be, and no consent flag was needed to say so.
     except ClassKeyedPlacementRefused as exc:
-        collision = exc.safe_details
-        if not bool(getattr(args, "allow_class_key", False)):
-            return emit_harness_error(
-                exc,
-                args=args,
-                code=CLASS_KEY_REFUSAL_CODE,
-                message=str(exc),
-            )
-        # Consent, on the record and derived from the refusal itself: the warning
-        # names the collision the STORE found rather than one this verb went and
-        # computed, so the two can never describe different faults.
-        warnings.append(
-            {
-                "code": "office_actor_class_key_forced",
-                "actor_key": collision["class_actor_key"],
-                "message": str(exc),
-                "reasons": collision["reasons"],
-                "conflicting_actor_keys": collision["conflicting_actor_keys"],
-            }
-        )
-        # The replay runs the REST of the store's fences, and the class-key
-        # fence is the first of them — so the tombstone fence is reached here
-        # and nowhere else on this path. Its arm has to be repeated inside this
-        # handler because an exception raised while handling another one is not
-        # caught by that other one's siblings, and the class→instance migration
-        # makes "class-keyed AND archived" the ordinary case rather than a
-        # corner: without this, the commonest --allow-class-key run in the
-        # program reported ``internal_error``.
-        try:
-            actor = _write(allow_class_key=True, resurrect=resurrect)
-        except ActorArchived as archived_exc:
-            return emit_harness_error(
-                archived_exc,
-                args=args,
-                code=archived_exc.code,
-                message=str(archived_exc),
-            )
+        actor = _office_actor_upsert_class_key_consent(args, exc, _write, resurrect, warnings)
+        if isinstance(actor, int):
+            return actor
     if resurrect:
-        # Consent, on the record, the same way the class-key override is — and
-        # emitted whether or not the key was in fact archived. A warning that
-        # only appeared on the raising write would make the flag's presence
-        # invisible in the receipt of every run that turned out not to need it,
-        # which is exactly when an operator most wants to see that they left it
-        # on.
-        warnings.append(
-            {
-                "code": "office_actor_resurrect_forced",
-                "actor_key": actor.actor_key,
-                "message": (
-                    "--resurrect was passed: an archived actor key may have been "
-                    "re-added and its tombstone cleared"
-                ),
-            }
-        )
+        warnings.append(_office_actor_resurrect_warning(actor.actor_key))
     envelope = _object_envelope("office_actor", _office_actor_row(actor, full=True), warnings=warnings or None)
     if dry_run:
         envelope["dry_run"] = True
