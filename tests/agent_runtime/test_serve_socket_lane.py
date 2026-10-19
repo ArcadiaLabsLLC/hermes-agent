@@ -3398,3 +3398,36 @@ def test_set_timeout_rearms_the_read_budget_on_a_live_connection():
             silent.close()
     finally:
         listener.close()
+
+
+def test_every_accepted_connection_has_nagle_disabled():
+    """RT-SERVE-SOCKET-NODELAY: per-token frames are not held behind a delayed ACK."""
+
+    with bare_server() as (server, port, _logs):
+        connection = ServeSocketClient("127.0.0.1", port, timeout_seconds=WAIT)
+        connection.connect()
+        try:
+            greeting = connection.read_frame()
+            connection.send(
+                {
+                    "op": "hello",
+                    "client": "peer",
+                    "proof": hello_proof("the-shared-secret", greeting.get("nonce") or "", port=port),
+                }
+            )
+            assert connection.read_frame()["event"] == "hello_ok"
+            accepted = server.connections()
+            assert len(accepted) == 1
+            assert accepted[0].sock.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) != 0
+        finally:
+            connection.close()
+
+
+def test_a_transport_that_refuses_nodelay_is_tolerated():
+    from agent_runtime.serve_socket.server import _disable_nagle
+
+    class _NotTcp:
+        def setsockopt(self, *_args):
+            raise OSError("not a TCP socket")
+
+    _disable_nagle(_NotTcp())
