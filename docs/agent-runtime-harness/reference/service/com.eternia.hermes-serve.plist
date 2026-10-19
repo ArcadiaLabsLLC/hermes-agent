@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Hermes runtime as a service (launchd agent) — p10-messaging M5, owner RULED 2026-10-19.
+  A TEMPLATE: edit the REPLACE paths (absolute; launchd expands no ~), then
+      cp com.eternia.hermes-serve.plist ~/Library/LaunchAgents/
+      launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.eternia.hermes-serve.plist
+  Stop with a drain, then boot it out (bootout sends SIGTERM, which a POSIX serve also honours):
+      hermes harness serve connect, with its drain flag (see 10-command-directory.md)
+      launchctl bootout gui/$(id -u)/com.eternia.hermes-serve
+  No parent pid: stdin is /dev/null, so the serve detaches at once and parks serving both socket lanes. A second
+  start while one runs loses the owner lock and exits 0 (serve_owner_exists), which KeepAlive does not restart.
+  Messaging runs only when plugins.entries.eternia-harness.settings.messaging_enabled is true and the bot token
+  is set. See 09-multi-device-runtime.md § The runtime outlives the launcher, 10-command-directory.md.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.eternia.hermes-serve</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/REPLACE-WITH-USER/REPLACE-WITH-CHECKOUT/.venv/bin/hermes</string>
+    <string>harness</string>
+    <string>serve</string>
+    <string>--ndjson</string>
+    <string>--service</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HERMES_HOME</key>
+    <string>/Users/REPLACE-WITH-USER/REPLACE-WITH-HERMES-HOME</string>
+  </dict>
+  <key>WorkingDirectory</key>
+  <string>/Users/REPLACE-WITH-USER/REPLACE-WITH-CHECKOUT</string>
+  <key>StandardInPath</key>
+  <string>/dev/null</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/com.eternia.hermes-serve.err.log</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+</dict>
+</plist>

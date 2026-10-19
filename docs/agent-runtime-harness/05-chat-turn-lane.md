@@ -317,6 +317,14 @@ bind-landed/transcript-didn't case, which retracts the bind rather than returnin
 dereferences nowhere). An ambiguous BARE persona target — more than one live instance, no pin, no
 session — is refused before all of this with the candidate `@handles` (`:2210-2234`).
 
+**A platform message is a queued send (p10-messaging).** The messaging bridge never runs a turn: a
+message from an allowed operator in a bound chat is `PersonaTurnExecutor.queue_inbound` on the bound
+instance's CURRENT chat root (minted through `open_chat` with mint receipts when there is none), idempotent
+by the platform's update id (cmid `msg-<platform>-<update_id>`), held behind a busy root like any queued
+send; the queued-send runner runs it through `run_mission_chat_turn` and the executor's `messaging` origin
+listener sends the settle's reply back to the chat it came from. There is no second session store
+([03 § Messaging methods](03-transport-and-wire.md)).
+
 ## 2. The turn phases contract
 
 `agent_runtime/mission_chat_phases.py` is the turn's monotonic timeline; records carry it under

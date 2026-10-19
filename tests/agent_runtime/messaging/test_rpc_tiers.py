@@ -44,7 +44,7 @@ def test_binding_set_refuses_an_unknown_instance_and_writes_a_known_one(monkeypa
     params = {"platform": "telegram", "chat_id": -1001, "persona_instance_id": "inst-ghost"}
     reply = _call("runtime.messaging.binding.set", params)
     assert reply["error"]["code"] == 4001 and reply["error"]["data"]["reason"] == "unknown_instance"
-    monkeypatch.setattr(rpc, "_instance_exists", lambda instance_id: instance_id == "inst-alice")
+    monkeypatch.setattr(rpc, "_instance_known", lambda instance_id: instance_id == "inst-alice")
     reply = _call("runtime.messaging.binding.set", params | {"persona_instance_id": "inst-alice"})
     assert reply["result"]["binding"]["chat_id"] == "-1001"
     assert reply["result"]["binding"]["bound_by"] == "rpc:stdio_owner"
@@ -69,7 +69,8 @@ def test_status_reports_off_by_default(monkeypatch):
     monkeypatch.setattr(config_module, "load_config_readonly", dict)
     result = _call("runtime.messaging.status")["result"]
     assert result == {"enabled": False, "default_persona": None,
-                      "platforms": {"telegram": {"credential": "absent", "bindings": 0, "operators": 0}}}
+                      "platforms": {"telegram": {"credential": "absent", "bindings": 0, "operators": 0,
+                                                 "lane": {"state": "off", "reason": "not_serving"}}}}
 
 
 def test_the_settings_are_declared_off_and_no_bundle_turns_them_on():

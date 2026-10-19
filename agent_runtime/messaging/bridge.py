@@ -100,11 +100,13 @@ class MessagingBridge:
 
     # ── lifecycle (the serve lane, M5, calls these) ──
 
-    def start(self) -> None:
+    def start(self, on_update: Callable[[Update], None] | None = None) -> None:
+        """Register the reply listener, watch the bound roots, start polling. ``on_update`` replaces
+        :meth:`inbound` as the transport's callback (the serve lane wraps it in its home and its drain gate)."""
         self.turns.register_origin_listener(OriginKind.MESSAGING, self.settled)
         if self.approvals is not None:
             self.approvals.refresh()
-        self.transport.start(self.inbound)
+        self.transport.start(on_update or self.inbound)
 
     def stop(self) -> None:
         self.transport.stop()

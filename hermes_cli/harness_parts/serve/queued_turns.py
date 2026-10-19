@@ -130,8 +130,9 @@ def start_serve_work_engine(session: Any) -> Any:
     """Build the serve's Work executor and engine and tick it beside the lens poller (work plan §6.3).
 
     Called BEFORE the queued-send runner starts, so the engine's boot read of its run records sees
-    every run that ended while the serve was down before the runner can settle a resumed one. A
-    bundle that does not ship Work or git (the phone) builds nothing. Returns the engine or None.
+    every run that ended while the serve was down before the runner can settle a resumed one. The
+    messaging lane (``messaging.serve_lane``) starts last, on the same executor, where the package ships.
+    A bundle that does not ship Work or git (the phone) builds nothing. Returns the engine or None.
     """
 
     from agent_runtime.loop_tool_lifecycles import shipped
@@ -149,6 +150,10 @@ def start_serve_work_engine(session: Any) -> Any:
     start_work_engine(stop_event=session.liveness_stop, engine=session.work_engine, home=home,
                       on_tick=session.work_executor.wake_parked)
     start_serve_scheduler(session)
+    if shipped("agent_runtime.messaging"):  # both bundle manifests switch it off (p10-messaging §2.6)
+        from agent_runtime.messaging.serve_lane import start_messaging_bridge
+
+        start_messaging_bridge(session)
     return session.work_engine
 
 

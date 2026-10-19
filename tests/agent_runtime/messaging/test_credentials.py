@@ -44,7 +44,7 @@ def test_unbound_the_token_is_one_file_in_the_head_home():
 
 
 def test_bound_store_leaves_no_plaintext():
-    """Killing mutation: ``credentials._write`` drops its ``secret_files.bound()`` arm (always the disk) → red."""
+    """Killing mutation: ``credentials._store_token_file`` drops its ``secret_files.bound()`` arm (always the disk) → red."""
     head = get_hermes_head_home()
     path = credentials.credentials_path(head)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -100,5 +100,5 @@ def test_a_crash_answers_a_fixed_sentence(monkeypatch):
     def boom(*_a, **_k):
         raise RuntimeError(f"disk said {TOKEN}")
     monkeypatch.setattr(credentials, "set_token", boom)
-    reply = rpc._reply("r", "credential.set", {"platform": "telegram", "token": TOKEN}, "rpc:test")
+    reply = rpc._rpc_reply("r", "credential.set", {"platform": "telegram", "token": TOKEN}, "rpc:test")
     assert reply["error"]["data"] == {"reason": "messaging_unavailable"} and TOKEN not in json.dumps(reply)
