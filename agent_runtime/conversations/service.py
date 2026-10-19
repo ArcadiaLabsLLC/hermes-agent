@@ -118,9 +118,11 @@ class ConversationService:
         return route
 
     def subagents(self, scope: ConversationScope, session_id: str, operation: str, params: dict) -> dict:
-        from .subagents import inspect_children
-        from agent_runtime.subagents.model import HISTORY_OPERATIONS, include_history_capabilities
+        from .subagents import inspect_children, inspect_settings_route
+        from agent_runtime.subagents.model import HISTORY_OPERATIONS, SETTINGS_OPERATIONS, include_history_capabilities
 
+        if operation in SETTINGS_OPERATIONS:
+            return inspect_settings_route(self.install_id, scope, self._owned_route(scope, session_id), operation, params)
         if operation in HISTORY_OPERATIONS:
             from .subagent_history import inspect_stored_children
             return inspect_stored_children(self, scope, self._owned_route(scope, session_id), operation, params)
