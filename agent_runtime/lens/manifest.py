@@ -7,8 +7,11 @@ Ported from Companion's ``monitor_manifest.dart`` (``MonitorManifest``,
 * ``automation`` is ``{level: notify|investigate, when: urgent|always,
   daily_turn_cap}``. The ``act`` level is out (ruling 3), so it is an unknown
   enum here, not a disabled option. The Work owner/scope/budget fields are cut.
-* ``persona_id`` targets the forged turn; ``null`` means "the persona Mission
-  Control has selected" (ruling 2), resolved at forge time, never stored.
+* ``persona_id`` targets the forged turn. A DRAFT may leave it ``null``; a SEAL
+  of an ``investigate`` monitor refuses ``null`` as ``persona_required``
+  (:func:`check_sealable`; owner ruling 2026-10-19, plan p10-agent §5.2
+  decision 1: hermes holds no Mission Control selection to default to).
+  ``notify`` forges no turn and may keep ``null``.
 
 The schema is CLOSED at every level: a manifest with one unknown key is refused,
 as is a missing key, a duplicate feed or rule id, a rule naming a feed the
@@ -115,6 +118,13 @@ def _check_typed_rules(manifest: dict[str, Any]) -> None:
         instant = types[rule["feed_id"]]["kind"] == ValueKind.INSTANT.value
         require(instant or form is not RuleForm.ENDS_WITHIN, "ends_within reads an instant feed")
         require(not instant or form in _INSTANT_FORMS, "an instant is compared by deadline or by change")
+
+
+def check_sealable(manifest: dict[str, Any]) -> None:
+    """What a seal adds to :func:`read_manifest`: an ``investigate`` monitor names its persona."""
+
+    if manifest["automation"]["level"] == AutomationLevel.INVESTIGATE.value and manifest["persona_id"] is None:
+        raise WireError(WireRefusal.PERSONA_REQUIRED, "persona_id")
 
 
 def decode_manifest(source: str | bytes) -> dict[str, Any]:

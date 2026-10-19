@@ -37,6 +37,8 @@ Gates and their killing mutations (each red was recorded in the stage's commit):
   killed by restoring ``"last_receipt": None``; the forge thread stops with the
   serve's liveness event — killed by making ``run`` loop ``while True`` (the
   thread is still alive after the join).
+* manifest guard: an ``investigate`` manifest with ``persona_id: null`` seals —
+  killed by dropping ``check_sealable`` from ``seal_manifest``.
 * ``runtime.lens.artifact`` reads ``../`` or a symlink out of the folder —
   killed by dropping the ``is_relative_to`` check in ``resolve_inside``.
 """
@@ -439,3 +441,44 @@ def test_the_forge_thread_starts_only_where_lens_ships_and_stops_with_the_serve(
     stop.set()
     thread.join(timeout=5)
     assert not thread.is_alive()
+
+
+# --- L2.6 manifest guard ----------------------------------------------------------
+
+
+def test_an_investigate_manifest_without_a_persona_refuses_at_seal():
+    from agent_runtime.lens.manifest import read_manifest
+    from agent_runtime.lens.seal import seal_manifest
+    from agent_runtime.lens.wire_value import WireError, WireRefusal
+    from agent_runtime.serve_rpc.protocol import ERR_INVALID_PARAMS
+
+    orphan = _monitor(persona_id=None)
+    assert read_manifest(orphan)["persona_id"] is None  # a draft may still say nothing
+    with pytest.raises(WireError) as caught:
+        seal_manifest(orphan, revision=1)
+    assert (caught.value.code, caught.value.detail) == (WireRefusal.PERSONA_REQUIRED, "persona_id")
+
+    assert _rpc("runtime.lens.create", {"manifest": orphan})["result"]["draft"]["persona_id"] is None
+    refused = _rpc("runtime.lens.seal", {"monitor_id": "status"})["error"]
+    assert (refused["code"], refused["data"]["reason"]) == (ERR_INVALID_PARAMS, "persona_required")
+    assert LensStore().get("status")["sealed"] is None
+
+    seal_manifest(_monitor(level="notify", persona_id=None), revision=1)  # notify forges nothing
+    seal_manifest(_monitor(), revision=1)
+
+
+def test_a_revision_sealed_before_the_guard_still_reads_and_its_turn_refuses(door, monkeypatch):
+    from agent_runtime.lens import seal as seal_module
+    from agent_runtime.lens.store import MonitorState
+
+    store = LensStore()
+    store.create(_monitor(persona_id=None))
+    with monkeypatch.context() as pre_guard_build:
+        pre_guard_build.setattr(seal_module, "check_sealable", lambda manifest: None)
+        store.seal("status")
+    store.set_state("status", MonitorState.ENABLED)
+    store.save_episode(_episode(1))
+
+    assert store.get("status")["sealed"]["manifest"]["persona_id"] is None
+    assert _forge().tick() == ["forge_failed:persona_required"]
+    assert door.calls == []

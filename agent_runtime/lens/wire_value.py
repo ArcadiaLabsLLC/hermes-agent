@@ -59,6 +59,8 @@ class WireRefusal(str, Enum):
     INVALID_TIME = "invalid_time"
     INVALID_DIGEST = "invalid_digest"
     INVALID_VALUE = "invalid_value"
+    #: An ``investigate`` monitor sealed with no ``persona_id`` (p10-agent §5.2 decision 1).
+    PERSONA_REQUIRED = "persona_required"
 
 
 class WireError(ValueError):
