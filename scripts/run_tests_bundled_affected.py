@@ -78,6 +78,14 @@ MEMO_NAME = "hermes_affected_imports.json"
 REACH_DEPTH = 2
 #: a directory more than this share of the records listed is the session's listing, not the file's
 SESSION_DIR_SHARE = 0.5
+#: a selection whose quiet seconds exceed this many per job is a HUB edit: its floor (Σ / -j) is over a
+#: minute, so its bar is the floor's, not the minute's (p10-suite B.1; pending the owner's ruling, so the
+#: verdict is printed, never a failure)
+HUB_SECONDS_PER_JOB = 60
+#: the under-a-minute bar; a hub edit's bar is HUB_PACKING × floor + HUB_STARTUP_SECONDS
+MINUTE_BAR_SECONDS = 60.0
+HUB_PACKING = 1.25
+HUB_STARTUP_SECONDS = 20.0
 
 
 def add_arguments(parser) -> None:
@@ -404,6 +412,47 @@ def rel_direct(reached: Mapping[str, Tuple[str, bool]], rel: str) -> bool:
     return rel in reached and reached[rel][1]
 
 
+# ── The bar ─────────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class Bar:
+    """The runner's own judgment of a selection: ``floor = Σ quiet estimates / -j``; a hub edit is
+    DEFINED by ``Σ > -j × HUB_SECONDS_PER_JOB``, not by a module list."""
+
+    sigma: float
+    jobs: int
+    floor: float
+    hub: bool
+    seconds: float  # the wall the run is judged against
+
+    @property
+    def verdict(self) -> str:
+        return "hub edit" if self.hub else "under-a-minute edit"
+
+    def line(self) -> str:
+        return f"Σ {self.sigma:.0f} s, floor {self.floor:.1f} s at -j {self.jobs} — {self.verdict}"
+
+
+def bar_for(rels: Iterable[str], durations: Mapping[str, float], jobs: int, default: float) -> Bar:
+    """``default`` is the runner's estimate for a file no record times (``_UNCACHED_ESTIMATE_SECONDS``)."""
+
+    jobs = max(1, int(jobs))
+    sigma = sum(float(durations.get(rel) or default) for rel in rels)
+    floor = sigma / jobs
+    hub = sigma > jobs * HUB_SECONDS_PER_JOB
+    return Bar(sigma, jobs, floor, hub, HUB_PACKING * floor + HUB_STARTUP_SECONDS if hub else MINUTE_BAR_SECONDS)
+
+
+def bar_verdict(wall: float, bar: Bar) -> list[str]:
+    """The closing lines: the wall against its bar, and the banner when it is over (no exit-code change)."""
+
+    lines = [f"affected: wall {wall:.1f} s vs bar {bar.seconds:.1f} s ({bar.verdict})"]
+    if wall > bar.seconds:
+        lines.append("=== affected wall over its bar ===")
+    return lines
+
+
 # ── The run ─────────────────────────────────────────────────────────────────
 
 
@@ -430,9 +479,10 @@ def main(args, repo_root: Path, runner, pytest_args: List[str]) -> int:
     sel = select_affected(sorted(by_rel), change, deps, modsets, graph, skipped)
     durations = store.load_durations()
     picks = sel.ordered(durations)
+    bar = bar_for([p.rel for p in picks], durations, args.jobs, runner._UNCACHED_ESTIMATE_SECONDS)
     print(
-        f"Affected: {len(change.paths)} changed path(s) → {len(picks)} of {len(by_rel)} test file(s) "
-        f"({time.monotonic() - started:.1f}s to select; {len(sel.uncovered)} changed path(s) no record names, "
+        f"Affected: {len(change.paths)} changed path(s) → {len(picks)} of {len(by_rel)} test file(s), "
+        f"{bar.line()} ({time.monotonic() - started:.1f}s to select; {len(sel.uncovered)} changed path(s) no record names, "
         f"reach rules for those; {len(sel.walkers)} source walker(s) left out); never a gate — the landing "
         "gate is the backstop",
         flush=True,
@@ -456,6 +506,8 @@ def main(args, repo_root: Path, runner, pytest_args: List[str]) -> int:
         if rc and args.fail_fast:
             print(f"--fail-fast: stopped after wave {number} of {len(waves)} ({wave_name(wave)})")
             return rc
+    for line in bar_verdict(time.monotonic() - started, bar):
+        print(line)
     return rc
 
 

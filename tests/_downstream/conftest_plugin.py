@@ -79,6 +79,7 @@ from tests._downstream.body_patch_scope import (  # noqa: F401 — hook re-expor
     pytest_fixture_setup,
     pytest_pyfunc_call,
 )
+from tests._downstream.git_env_memo import _git_env_memo  # noqa: F401 — autouse (suite speed, p10-bar)
 from tests._downstream import child_startup, registry_write_fence, server_shutdown_poll
 from tests._downstream.fork_readonly_readers import file_reads_through
 from tests._downstream.id_markers.reasons import (
