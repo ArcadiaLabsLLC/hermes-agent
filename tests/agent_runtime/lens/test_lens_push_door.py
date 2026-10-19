@@ -35,6 +35,11 @@ Gates and their killing mutations (each red was recorded in the stage's commit):
   body never sent: the client times out); a public bind is accepted — killed by
   dropping the loopback/private test in ``read_bind_host``; the serve's listener
   outlives the liveness event — killed by dropping ``stop`` in the stop thread.
+* lazy bind (L4 follow-up): a serve with no route holds the port — killed by
+  making ``sync_ingress`` bind whether or not a route exists; the first register
+  leaves the door closed — killed by dropping ``_sync_listener`` from
+  ``register_route``; the last revoke leaves it bound — killed by dropping it from
+  ``revoke_route``.
 """
 
 from __future__ import annotations
@@ -367,12 +372,13 @@ def test_the_listener_binds_loopback_and_a_bind_refuses_a_public_address():
     assert _rpc("runtime.lens.ingress.list", {})["result"]["listener"]["port"] == 47653
 
 
-def test_the_serve_listener_stops_with_the_liveness_event(monkeypatch):
+def _armed_door(monkeypatch):
+    """The serve's door armed on a free loopback port; returns (stop event, port)."""
+
+    import socket
     import threading
 
     from agent_runtime.lens import ingress, poller
-
-    import socket
 
     probe = socket.socket()
     probe.bind(("127.0.0.1", 0))
@@ -381,14 +387,51 @@ def test_the_serve_listener_stops_with_the_liveness_event(monkeypatch):
     monkeypatch.setattr(poller, "lens_shipped", lambda: True)
     _rpc("runtime.lens.ingress.bind", {"host": "127.0.0.1", "port": free})
     stop = threading.Event()
-    listener = ingress.start_lens_ingress(stop_event=stop)
+    return stop, free, ingress.start_lens_ingress(stop_event=stop)
+
+
+def _stopped(stop) -> None:
+    import threading
+
+    from agent_runtime.lens import ingress
+
+    stop.set()
+    for _ in range(100):
+        if not ingress._ACTIVE["armed"]:
+            break
+        threading.Event().wait(0.05)
+
+
+def test_the_serve_listener_stops_with_the_liveness_event(monkeypatch):
+    from agent_runtime.lens import ingress
+
+    _enabled()
+    _registered()
+    stop, free, listener = _armed_door(monkeypatch)
     try:
+        assert listener is not None, "a home that already holds a route binds at boot"
         assert ingress.active_listener() is listener and listener.address == ("127.0.0.1", free)
     finally:
-        stop.set()
-        for _ in range(100):
-            if ingress.active_listener() is None:
-                break
-            threading.Event().wait(0.05)
+        _stopped(stop)
     assert ingress.active_listener() is None
     assert listener._server is None
+
+
+def test_the_serve_door_binds_only_while_a_route_exists(monkeypatch):
+    from agent_runtime.lens import ingress
+    from agent_runtime.lens.ingress_routes import revoke_route
+
+    _enabled()
+    stop, free, at_boot = _armed_door(monkeypatch)
+    try:
+        assert at_boot is None and ingress.active_listener() is None, "no route: the port is never held"
+        path, _ = _registered()
+        listener = ingress.active_listener()
+        assert listener is not None and listener.address == ("127.0.0.1", free)
+        assert _post(listener, "/lens/" + "0" * 24, b"{}", {}) == 404, "positive control: the door answers"
+        assert _rpc("runtime.lens.ingress.list", {})["result"]["listener"]["listening"] is True
+        revoke_route(path.rsplit("/", 1)[1])
+        assert ingress.active_listener() is None and listener._server is None
+        assert _rpc("runtime.lens.ingress.list", {})["result"]["listener"]["listening"] is False
+    finally:
+        _stopped(stop)
