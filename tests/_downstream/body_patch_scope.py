@@ -29,7 +29,8 @@ from _pytest.monkeypatch import NOTSET
 
 from tests._downstream.id_markers.reasons import SCOPED_MONKEYPATCH_UNDO_MARK
 
-BODY_PATCH_KNOB = "HERMES_TEST_BODY_PATCH_UNDO"  # "off" (default until S-A3) | "on"
+BODY_PATCH_KNOB = "HERMES_TEST_BODY_PATCH_UNDO"  # "on" | "off" (the way back, kept one release)
+BODY_PATCH_DEFAULT = "on"  # p10 S-A3: flipped after a clean ON/OFF features diff (owner ruling 2026-10-19)
 BODY_PATCH_MARK = "body_patch_undo"  # pytest.mark.body_patch_undo("on"|"off"); wins over the env
 USER_PROPERTY = "hermes_body_patches"
 
@@ -55,7 +56,7 @@ def _mode(item) -> str:
     marker = item.get_closest_marker(BODY_PATCH_MARK)
     if marker is not None and marker.args:
         return str(marker.args[0]).strip().lower()
-    return os.environ.get(BODY_PATCH_KNOB, "off").strip().lower() or "off"
+    return os.environ.get(BODY_PATCH_KNOB, BODY_PATCH_DEFAULT).strip().lower() or BODY_PATCH_DEFAULT
 
 
 def _narrow_undo(item, mp, record: CallRecord) -> bool:
