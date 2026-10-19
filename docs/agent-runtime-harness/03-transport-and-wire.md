@@ -1136,7 +1136,9 @@ The chat lane's per-request protocol-v2 frames (`turn.start`, `segment.*`, `tool
 `reasoning.summary`, `turn.end`, then `chat.final`) are not stream frames and have no row here;
 their one additive turn-end pair — `reasoning_tokens` / `reasoning_ms` on `turn.end` and
 `chat.final`, and on each history-replay `thinking_summary` message carried in the core's
-operator-channel conversation — is doc 05 §2b.
+operator-channel conversation — is doc 05 §2b. Every `segment.delta` carries `t_ms`: an int,
+milliseconds since that turn's emitter started (`_ChatProtocolV2Emitter._started_at`, monotonic),
+stamped at emit, so a consumer can tell which hop bunches streamed text (launcher `MC-STREAM-CHOPPY`).
 
 `persona_chat_turn` (plan h-turn1 §2 C1/C2) replaces the demote core of a batch
 made ONLY of chat-turn events (`batch_turn_roots`: the three `persona_chat.*`
