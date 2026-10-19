@@ -21,7 +21,7 @@ non-persistent override surfaces. Neither writes back to `config.yaml`.
 
 ```bash
 ## Inject RUNTIME_FILE just for this probe; it never lands on disk.
-hermes mcp test launcher-qa --env RUNTIME_FILE=/tmp/qa-runtime.json
+hermes mcp test launcher-qa --env RUNTIME_FILE=${TMPDIR:-/tmp}/qa-runtime.json
 ```
 
 The CLI prints `Applied 1 one-shot env override(s): RUNTIME_FILE` so you
@@ -30,7 +30,7 @@ can confirm what was injected. Values are never printed.
 **Automation / wrappers: `HERMES_MCP_ENV_<SERVER>_<KEY>`**
 
 ```bash
-HERMES_MCP_ENV_LAUNCHER_QA_RUNTIME_FILE=/tmp/qa-runtime.json \
+HERMES_MCP_ENV_LAUNCHER_QA_RUNTIME_FILE=${TMPDIR:-/tmp}/qa-runtime.json \
   hermes mcp test launcher-qa
 ```
 
