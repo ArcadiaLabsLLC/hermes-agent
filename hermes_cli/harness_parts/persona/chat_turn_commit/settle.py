@@ -8,6 +8,7 @@ run to settle as a typed terminal state. Nothing here calls the provider.
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from typing import Any
 
 from agent_runtime import turn_budget as _turn_budget
@@ -41,6 +42,7 @@ from agent_runtime.persona_chat_durability import PersonaChatPersistenceError
 from agent_runtime.prompt_observability import slim_chat_final_observability
 from agent_runtime.run_budget import turn_run_budget_metadata
 from agent_runtime.states import WorkerSessionState
+from agent_runtime.turn_outcome import VERDICT_FAILED
 from ..chat_events import (
     _mission_chat_emit,
     _publish_persona_chat_metadata_event,
@@ -67,9 +69,10 @@ def _log_turn_outcome(turn_id: str, block: dict[str, Any]) -> None:
     """The turn-outcome receipt: a grep-able log line, never a key on the terminal frame."""
 
     tests, commits = block.get("tests") or [], block.get("commits") or []
+    verdicts = Counter(row.get("verdict") for row in tests)
     logger.info(
         "turn_outcome turn=%s tests=%d failed=%d commits=%d pushed=%d files=%d truncated=%s",
-        turn_id, len(tests), sum(row.get("verdict") == "failed" for row in tests), len(commits),
+        turn_id, len(tests), verdicts[VERDICT_FAILED], len(commits),
         sum(row.get("pushed") is True for row in commits), len(block.get("files") or []),
         bool(block.get("truncated")),
     )
