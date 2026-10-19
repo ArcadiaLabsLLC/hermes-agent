@@ -131,7 +131,7 @@ def main() -> int:
         )
         return 1
 
-    with open(artifact, "r", encoding="utf-8", newline="") as handle:
+    with open(artifact, "r", encoding="utf-8", newline="") as handle:  # windows-footgun: ok — byte-exact staleness check: a BOM is drift, not a tolerated read
         committed = handle.read()
 
     if committed == rendered:

@@ -252,7 +252,7 @@ def render_inventory_json(inventory: dict[str, Any]) -> str:
 
 
 def _skill_text(root: Path) -> str:
-    return (root / SKILL_MD).read_text(encoding="utf-8")
+    return (root / SKILL_MD).read_text(encoding="utf-8-sig")
 
 
 def splice_skill(root: Path, block: str) -> str:
@@ -356,7 +356,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             failed = True
             continue
-        with open(path, "r", encoding="utf-8", newline="") as handle:
+        with open(path, "r", encoding="utf-8", newline="") as handle:  # windows-footgun: ok — byte-exact staleness check: a BOM is drift, not a tolerated read
             committed = handle.read()
         if committed == rendered:
             continue

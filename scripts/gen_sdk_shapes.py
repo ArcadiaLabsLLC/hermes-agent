@@ -197,7 +197,7 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     text = render()
     if args.check:
-        current = TARGET.read_text(encoding="utf-8") if TARGET.exists() else ""
+        current = TARGET.read_text(encoding="utf-8") if TARGET.exists() else ""  # windows-footgun: ok — byte-exact staleness check: a BOM is drift, not a tolerated read
         if current != text:
             print(f"{TARGET.relative_to(ROOT)} is stale; run scripts/gen_sdk_shapes.py", file=sys.stderr)
             return 1

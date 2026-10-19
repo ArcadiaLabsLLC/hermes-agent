@@ -55,7 +55,7 @@ targets += [p for p in (root / "boards" / f"board_default_{OLD_W}").rglob("*") i
 changed = 0
 for p in targets:
     try:
-        s = open(p, encoding="utf-8").read()
+        s = open(p, encoding="utf-8-sig").read()
     except Exception as e:  # binary/locked file — report, never guess
         print("SKIP unreadable", p, e)
         continue
@@ -70,7 +70,7 @@ for f, fixes in (
     (root / "realms" / f"{OLD_R}.json", {"name": "Default", "default_workspace_name": "Default"}),
     (root / "workspaces" / f"{OLD_W}.json", {"name": "Default"}),
 ):
-    d = json.load(open(f, encoding="utf-8"))
+    d = json.load(open(f, encoding="utf-8-sig"))
     d.update(fixes)
     open(f, "w", encoding="utf-8", newline="").write(json.dumps(d, indent=2, sort_keys=True))
     print("named:", f.name, fixes)
@@ -86,9 +86,9 @@ print("renamed rows, office dir, board dir")
 leftovers = []
 for d in ("realms", "workspaces", "persona_instances", "office", "boards", "serve_read_model"):
     for p in (root / d).rglob("*"):
-        if p.is_file() and "codex-test" in p.read_text(encoding="utf-8", errors="ignore"):
+        if p.is_file() and "codex-test" in p.read_text(encoding="utf-8-sig", errors="ignore"):
             leftovers.append(str(p))
 for p in (root / "active_realm.json", root / "active_workspace.json"):
-    if "codex-test" in p.read_text(encoding="utf-8"):
+    if "codex-test" in p.read_text(encoding="utf-8-sig"):
         leftovers.append(str(p))
 print("VERIFY leftovers:", leftovers or "none — migration clean")

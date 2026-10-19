@@ -101,7 +101,7 @@ def _git(root: Path, *args: str) -> str:
 @cache
 def upstream_paths(manifest: Path = MANIFEST) -> frozenset[str]:
     """Every path upstream owns (the manifest, minus its ``# base`` header)."""
-    lines = manifest.read_text(encoding="utf-8").splitlines()
+    lines = manifest.read_text(encoding="utf-8-sig").splitlines()
     return frozenset(line for line in lines if line and not line.startswith("#"))
 
 
@@ -846,7 +846,7 @@ class Drift:
 
 
 def _read(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
 def _write(path: Path, payload: dict) -> None:

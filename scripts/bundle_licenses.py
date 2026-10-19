@@ -120,7 +120,7 @@ def review_reasons(expression: str, components: list[dict[str, str]] = ()) -> li
 
 
 def _metadata(info_dir: Path):
-    return HeaderParser().parsestr((info_dir / "METADATA").read_text(encoding="utf-8", errors="replace"))
+    return HeaderParser().parsestr((info_dir / "METADATA").read_text(encoding="utf-8-sig", errors="replace"))
 
 
 def licence_expression(meta) -> str:
@@ -156,7 +156,7 @@ def licence_files(info_dir: Path, meta) -> list[Path]:
     record = info_dir / "RECORD"
     if not found and record.is_file():
         site = info_dir.parent
-        for line in record.read_text(encoding="utf-8", errors="replace").splitlines():
+        for line in record.read_text(encoding="utf-8-sig", errors="replace").splitlines():
             rel = line.split(",", 1)[0].replace("\\", "/")
             parts = rel.split("/")
             if len(parts) <= 2 and _LICENCE_NAME.match(parts[-1]) and (site / rel).is_file():
@@ -184,7 +184,7 @@ def licence_overrides(root: Path = LICENCE_TEXTS) -> dict[str, dict]:
     index = root / "index.json"
     if not index.is_file():
         return {}
-    return json.loads(index.read_text(encoding="utf-8"))["overrides"]
+    return json.loads(index.read_text(encoding="utf-8-sig"))["overrides"]
 
 
 def _same_licence(a: str, b: str) -> bool:
@@ -213,7 +213,7 @@ def place_override(out: Path, name: str, override: dict, root: Path = LICENCE_TE
 
 def lock_wheels(lock: Path = ROOT / "uv.lock") -> dict[tuple[str, str], list[dict]]:
     """(normalized name, version) -> the lock's wheel entries (url, hash, size)."""
-    data = tomllib.loads(lock.read_text(encoding="utf-8"))
+    data = tomllib.loads(lock.read_text(encoding="utf-8-sig"))
     out: dict[tuple[str, str], list[dict]] = {}
     for package in data.get("package", []):
         name = re.sub(r"[-_.]+", "-", package["name"]).lower()
@@ -230,7 +230,7 @@ def installed_wheel(info_dir: Path, name: str, version: str, wheels: dict) -> di
     if not wheel_file.is_file():
         return None
     tags = set()
-    for tag in HeaderParser().parsestr(wheel_file.read_text(encoding="utf-8")).get_all("Tag") or []:
+    for tag in HeaderParser().parsestr(wheel_file.read_text(encoding="utf-8-sig")).get_all("Tag") or []:
         tags |= set(parse_tag(tag.strip()))
     for entry in wheels.get((name, version), []):
         filename = entry["url"].rsplit("/", 1)[-1]
@@ -292,7 +292,7 @@ def distribution_rows(out: Path, names, wheels: dict | None = None, overrides: d
 
 
 def interpreter_row(target: str, lock: Path = INTERPRETER_LOCK) -> dict:
-    data = json.loads(lock.read_text(encoding="utf-8"))
+    data = json.loads(lock.read_text(encoding="utf-8-sig"))
     artifact = data["artifacts"][target]
     components = [c for c in INTERPRETER_COMPONENTS
                   if target.startswith("win32") or c["name"] != "vcruntime140"]
@@ -303,7 +303,7 @@ def interpreter_row(target: str, lock: Path = INTERPRETER_LOCK) -> dict:
 
 
 def first_party_row(out: Path, commit: str) -> dict:
-    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8-sig"))["project"]
     files = sorted(p.relative_to(out).as_posix() for p in (out / "app").glob("*.dist-info/licenses/*")
                    if p.is_file())
     return _component(project["name"], f"{project['version']}+g{commit[:12]}", project.get("license", "UNKNOWN"),
@@ -313,7 +313,7 @@ def first_party_row(out: Path, commit: str) -> dict:
 
 def copy_first_party_licence(app: Path) -> None:
     """``pyproject``'s ``license-files`` into the app's dist-info (PEP 639 layout)."""
-    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8-sig"))["project"]
     for info in app.glob("*.dist-info"):
         for rel in project.get("license-files", []):
             source = ROOT / rel
@@ -384,7 +384,7 @@ def licence_problems(out: Path, names, overrides: dict | None = None) -> list[st
     path = out / LICENSES_JSON
     if not path.is_file():
         return [f"no {LICENSES_JSON} in {out.name}"]
-    record = json.loads(path.read_text(encoding="utf-8"))
+    record = json.loads(path.read_text(encoding="utf-8-sig"))
     rows = [r for r in record["components"] if r.get("kind") not in {"interpreter", "first-party"}]
     listed = {r["distribution"] for r in rows}
     problems = [f"{LICENSES_JSON} lists a distribution the output does not ship: {n}"
@@ -405,7 +405,7 @@ def licence_problems(out: Path, names, overrides: dict | None = None) -> list[st
     if not sbom.is_file():
         problems.append(f"no {SBOM_JSON} in {out.name}")
     else:
-        bom = {c["name"] for c in json.loads(sbom.read_text(encoding="utf-8"))["components"]}
+        bom = {c["name"] for c in json.loads(sbom.read_text(encoding="utf-8-sig"))["components"]}
         if bom != {r["distribution"] for r in record["components"]}:
             problems.append(f"{SBOM_JSON} and {LICENSES_JSON} list different components")
     return problems

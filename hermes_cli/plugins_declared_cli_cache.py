@@ -111,7 +111,7 @@ def read_cache(home: Path) -> Optional[CachedRows]:
     """The cached declaring winners, or None for a missing, malformed or other-schema file."""
     path = cache_path(home)
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
         if not isinstance(data, dict) or data.get("schema") != SCHEMA or not isinstance(data.get("digest"), str):
             raise ValueError("schema mismatch")
         rows = data.get("rows")

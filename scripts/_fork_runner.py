@@ -30,7 +30,7 @@ def run_once_list(path: Path = RUN_ONCE_LIST) -> frozenset[str]:
     """The listed files (repo-relative POSIX); a missing list is empty."""
 
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
+        lines = path.read_text(encoding="utf-8-sig").splitlines()
     except OSError:
         return frozenset()
     return frozenset(entry for line in lines if (entry := line.split("#", 1)[0].strip()))

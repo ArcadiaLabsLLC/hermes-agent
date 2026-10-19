@@ -57,9 +57,9 @@ def _sidecar(model, data_dir: Path, kokoro_config: Path) -> dict:
         "eos_id": config.eos_token_id,
         "unknown_id": 3,
         "max_steps": min(MAX_STEPS, config.max_position_embeddings),
-        "gold": json.loads((data_dir / "us_gold.json").read_text(encoding="utf-8")),
-        "silver": json.loads((data_dir / "us_silver.json").read_text(encoding="utf-8")),
-        "kokoro_vocab": json.loads(kokoro_config.read_text(encoding="utf-8"))["vocab"],
+        "gold": json.loads((data_dir / "us_gold.json").read_text(encoding="utf-8-sig")),
+        "silver": json.loads((data_dir / "us_silver.json").read_text(encoding="utf-8-sig")),
+        "kokoro_vocab": json.loads(kokoro_config.read_text(encoding="utf-8-sig"))["vocab"],
     }
 
 
@@ -103,7 +103,7 @@ def check(out: Path, count: int) -> dict:
     import torch
 
     model = _load_g2p_model()
-    meta = json.loads((out / f"{ARTIFACT}.json").read_text(encoding="utf-8"))
+    meta = json.loads((out / f"{ARTIFACT}.json").read_text(encoding="utf-8-sig"))
     session = ort.InferenceSession(str(out / f"{ARTIFACT}.onnx"), providers=["CPUExecutionProvider"])
     index = {g: i for i, g in enumerate(meta["graphemes"])}
     words = random.Random(7).sample(sorted(w for w in meta["gold"] if w.isalpha()), count)

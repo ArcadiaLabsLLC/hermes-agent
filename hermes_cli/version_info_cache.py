@@ -53,7 +53,7 @@ def _git_dirs(repo_dir: Path) -> tuple[Path, Path] | None:
     if dot_git.is_dir():
         git_dir = dot_git
     elif dot_git.is_file():
-        text = dot_git.read_text(encoding="utf-8").strip()
+        text = dot_git.read_text(encoding="utf-8-sig").strip()
         if not text.startswith("gitdir:"):
             return None
         git_dir = Path(text[len("gitdir:"):].strip())
@@ -63,7 +63,7 @@ def _git_dirs(repo_dir: Path) -> tuple[Path, Path] | None:
         return None
     common_file = git_dir / "commondir"
     if common_file.is_file():
-        common_dir = Path(common_file.read_text(encoding="utf-8").strip())
+        common_dir = Path(common_file.read_text(encoding="utf-8-sig").strip())
         if not common_dir.is_absolute():
             common_dir = git_dir / common_dir
     else:
@@ -75,7 +75,7 @@ def _resolve_ref(git_dir: Path, common_dir: Path, ref: str) -> str | None:
     for base in (git_dir, common_dir):
         loose = base / ref
         if loose.is_file():
-            value = loose.read_text(encoding="utf-8").strip()
+            value = loose.read_text(encoding="utf-8-sig").strip()
             return value if _SHA_RE.match(value) else None
     packed = common_dir / "packed-refs"
     if packed.is_file():
@@ -96,7 +96,7 @@ def read_head(repo_dir: Path) -> _Head | None:
         if dirs is None:
             return None
         git_dir, common_dir = dirs
-        head = (git_dir / "HEAD").read_text(encoding="utf-8").strip()
+        head = (git_dir / "HEAD").read_text(encoding="utf-8-sig").strip()
         if head.startswith("ref:"):
             ref = head[len("ref:"):].strip()
             commit = _resolve_ref(git_dir, common_dir, ref)
@@ -182,7 +182,7 @@ def _head_entry(head: _Head) -> _Entry:
     answers: dict = {}
     fields: dict = {}
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
         if (isinstance(data, dict) and data.get("schema") == _SCHEMA
                 and data.get("commit") == head.commit and data.get("tags") == tags
                 and isinstance(data.get("answers"), dict) and isinstance(data.get("fields"), dict)

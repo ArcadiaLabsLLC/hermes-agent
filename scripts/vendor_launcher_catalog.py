@@ -102,11 +102,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=FIXTURE)
     args = parser.parse_args(argv)
 
-    raw = json.loads(args.export.read_text(encoding="utf-8"))
+    raw = json.loads(args.export.read_text(encoding="utf-8-sig"))
     fixture = build_fixture(raw, launcher_head(args.launcher or args.export.resolve().parent))
     old = []
     if args.out.is_file():
-        old = json.loads(args.out.read_text(encoding="utf-8")).get("entries", [])
+        old = json.loads(args.out.read_text(encoding="utf-8-sig")).get("entries", [])
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(fixture, indent=2) + "\n", encoding="utf-8", newline="\n")
     delta = entry_delta(old, fixture["entries"])

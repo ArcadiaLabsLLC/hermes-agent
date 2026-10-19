@@ -98,7 +98,7 @@ def recorded_tests(runs: Path) -> dict[str, int]:
 
     out: dict[str, int] = {}
     try:
-        lines = runs.read_text(encoding="utf-8").splitlines()
+        lines = runs.read_text(encoding="utf-8-sig").splitlines()
     except OSError:
         return out
     for line in lines:

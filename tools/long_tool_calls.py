@@ -378,7 +378,7 @@ def sweep_orphaned_rows(homes: Iterable[Path], *, now: Callable[[], float] = tim
     for home in homes:
         path = Path(home) / CHECKPOINT_FILENAME
         try:
-            stored = json.loads(path.read_text(encoding="utf-8"))
+            stored = json.loads(path.read_text(encoding="utf-8-sig"))
         except (OSError, ValueError):
             continue
         if not isinstance(stored, list):
@@ -470,7 +470,7 @@ def _write_checkpoint_locked(path: str) -> None:
     try:
         from utils import atomic_json_write
         try:
-            stored = json.loads(Path(path).read_text(encoding="utf-8"))
+            stored = json.loads(Path(path).read_text(encoding="utf-8-sig"))
         except (OSError, ValueError):
             stored = []
         others = [e for e in stored if isinstance(e, dict) and e.get("pid") != pid and e.get("handle") not in owned

@@ -394,7 +394,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    with open(fixture, "r", encoding="utf-8", newline="") as handle:
+    with open(fixture, "r", encoding="utf-8", newline="") as handle:  # windows-footgun: ok — byte-exact staleness check: a BOM is drift, not a tolerated read
         committed = handle.read()
 
     if committed == rendered:

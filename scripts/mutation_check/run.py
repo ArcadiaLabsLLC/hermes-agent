@@ -141,7 +141,7 @@ def _refuse_because_locked() -> int:
     """Print who holds the lock, in a block that pastes cleanly, and exit 2."""
 
     try:
-        held = LOCK_PATH.read_text(encoding="utf-8").strip()
+        held = LOCK_PATH.read_text(encoding="utf-8-sig").strip()
     except Exception:  # the lock existing is the fact; its text is a courtesy
         held = "(the lock file exists but its contents could not be read)"
     print(

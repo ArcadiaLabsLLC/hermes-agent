@@ -260,7 +260,7 @@ def _git(args: Sequence[str], cwd: Path) -> subprocess.CompletedProcess:
 
 
 def _rev_parse(path: Path, *flags: str) -> Optional[str]:
-    probe = subprocess.run(["git", "-C", str(path), "rev-parse", *flags], capture_output=True, text=True,
+    probe = subprocess.run(["git", "-C", str(path), "rev-parse", *flags], capture_output=True, text=True, encoding="utf-8", errors="replace",
                            stdin=subprocess.DEVNULL, timeout=30, check=False)
     return probe.stdout.strip() if probe.returncode == 0 and probe.stdout.strip() else None
 
@@ -321,7 +321,7 @@ def run_files(worktree: Path, files: Sequence[str], repeat: int, log_dir: Path, 
                                   stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, check=False)
         (log_dir / f"tag-run-{attempt}.rc").write_text(f"{done.returncode}\n", encoding="utf-8")
         print(f"tag run {attempt}/{repeat}: exit {done.returncode}, log {log}")
-        runs.append(parse_run_output(log.read_text(encoding="utf-8", errors="replace")))
+        runs.append(parse_run_output(log.read_text(encoding="utf-8-sig", errors="replace")))
     return runs
 
 
@@ -385,7 +385,7 @@ def _classify_parser() -> argparse.ArgumentParser:
 def _red_nodes(args: argparse.Namespace, repo: Path) -> list[str]:
     nodes = list(args.nodeid)
     if args.from_log:
-        nodes += parse_run_output(args.from_log.read_text(encoding="utf-8", errors="replace")).red_nodes
+        nodes += parse_run_output(args.from_log.read_text(encoding="utf-8-sig", errors="replace")).red_nodes
     if args.from_record or not (args.nodeid or args.from_log):
         nodes += [n for ids in _load_known_reds(repo).values() for n in ids]
     return sorted({n.replace("\\", "/") for n in nodes if "::" in n})

@@ -72,7 +72,7 @@ def load_path_list(path: Path) -> frozenset[str]:
     missing file names nothing."""
 
     try:
-        text = path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8-sig")
     except FileNotFoundError:
         return frozenset()
     entries = (line.split("#", 1)[0].strip() for line in text.splitlines())
@@ -85,7 +85,7 @@ def load_manifest(path: Path) -> set[str]:
     would read as fork-only and the scope would silently be the full set."""
 
     out: set[str] = set()
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
         entry = line.strip()
         if entry and not entry.startswith("#"):
             out.add(Path(entry).as_posix())
@@ -273,7 +273,7 @@ def _parse_file_imports(path: Path, rel: str) -> set[str]:
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")  # a test's own SyntaxWarning is its run's to report
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel)
+            tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=rel)
     except (OSError, SyntaxError, UnicodeDecodeError, ValueError):
         return set()
     package = rel.split("/")[:-1]

@@ -74,7 +74,7 @@ def render(parser: argparse.ArgumentParser) -> str:
 
 
 def check_reference(path: Path, expected: str) -> bool:
-    actual = path.read_text(encoding="utf-8") if path.exists() else ""
+    actual = path.read_text(encoding="utf-8") if path.exists() else ""  # windows-footgun: ok — byte-exact staleness check: a BOM is drift, not a tolerated read
     if actual == expected:
         return True
     diff = difflib.unified_diff(actual.splitlines(), expected.splitlines(),

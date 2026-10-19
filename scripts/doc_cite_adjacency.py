@@ -812,7 +812,7 @@ def walk(
 def load_baseline(path: Path) -> dict[str, str]:
     if not path.exists():
         return {}
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = json.loads(path.read_text(encoding="utf-8-sig"))
     return dict(payload.get("waived", {}))
 
 

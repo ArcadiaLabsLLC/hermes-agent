@@ -87,7 +87,7 @@ def env_key_names(env_path: Path) -> list[str]:
     that cannot be produced must not take the gateway down with it.
     """
     try:
-        text = env_path.read_text(encoding="utf-8", errors="replace")
+        text = env_path.read_text(encoding="utf-8-sig", errors="replace")
     except OSError:
         return []
     names: list[str] = []

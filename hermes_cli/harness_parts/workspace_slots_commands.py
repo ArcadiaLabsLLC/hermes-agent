@@ -60,7 +60,7 @@ def _cmd_workspace_slots_declare(args) -> int:
     from agent_runtime.workspace_slots import declare, machine_id, require_publish_right
 
     def action():
-        slots = json.loads(Path(str(args.slots_file)).read_text(encoding="utf-8"))
+        slots = json.loads(Path(str(args.slots_file)).read_text(encoding="utf-8-sig"))
         require_publish_right(str(args.workspace_id))
         return declare(str(args.workspace_id), slots, issued_at=_issued_at(args), machine=machine_id())
 

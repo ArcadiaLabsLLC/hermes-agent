@@ -125,7 +125,7 @@ def _sanitized_string(node: str, key: str, counter: list[int]) -> str:
 
 def cut_profile(root: Path, profile: str, out: Path) -> Path:
     source = root / "profiles" / profile / "config.yaml"
-    loaded = yaml_io.load(source.read_text(encoding="utf-8")) or {}
+    loaded = yaml_io.load(source.read_text(encoding="utf-8-sig")) or {}
     target_dir = out / profile
     target_dir.mkdir(parents=True, exist_ok=True)
     target = target_dir / "config.yaml"

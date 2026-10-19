@@ -526,7 +526,7 @@ def _load_request_json(raw: str) -> dict:
         try:
             path = Path(candidate)
             if path.is_file():
-                candidate = path.read_text(encoding="utf-8")
+                candidate = path.read_text(encoding="utf-8-sig")
         except OSError:
             # Not a usable path — fall through and parse the literal as JSON.
             pass

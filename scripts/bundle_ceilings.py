@@ -210,13 +210,13 @@ def stt_latency(python: Path, core: Path, packs: list[Path], model: Path | None,
 
 def measure(core: Path, python: Path, packs: list[Path], interpreter_dir: Path | None, warm_runs: int,
             model: Path | None, audio: Path, first_chunk: float, log: Path | None) -> dict:
-    record = json.loads((core / "bundle-manifest.json").read_text(encoding="utf-8"))
+    record = json.loads((core / "bundle-manifest.json").read_text(encoding="utf-8-sig"))
     size = {"core": lzma_size([("app", core / "app"), ("site-packages", core / "site-packages")])}
     if interpreter_dir:
         size["core_with_interpreter"] = lzma_size([("python", interpreter_dir), ("app", core / "app"),
                                                    ("site-packages", core / "site-packages")])
     for pack in packs:
-        size[f"pack:{json.loads((pack / 'engine-pack.json').read_text(encoding='utf-8'))['pack']}"] = \
+        size[f"pack:{json.loads((pack / 'engine-pack.json').read_text(encoding='utf-8-sig'))['pack']}"] = \
             lzma_size([("site-packages", pack / "site-packages")])
     with tempfile.TemporaryDirectory(prefix="hermes-ceilings-") as tmp:
         home = Path(tmp) / "home"

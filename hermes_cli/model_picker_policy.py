@@ -114,7 +114,7 @@ def get_verified_codex_model_ids(access_token: str) -> Optional[list[str]]:
     with _picker_lock:
         path = _picker_cache_path()
         try:
-            cached = json.loads(path.read_text(encoding="utf-8"))
+            cached = json.loads(path.read_text(encoding="utf-8-sig"))
             if (cached.get("key") == key and cached.get("expires", 0) > now
                     and isinstance(cached.get("models"), list)
                     and all(isinstance(mid, str) for mid in cached["models"])):

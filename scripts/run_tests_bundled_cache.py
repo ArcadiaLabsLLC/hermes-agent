@@ -241,7 +241,7 @@ class GateStore:
 
     def generation(self) -> int:
         try:
-            return int(self.generation_file.read_text(encoding="utf-8").strip() or 0)
+            return int(self.generation_file.read_text(encoding="utf-8-sig").strip() or 0)
         except (OSError, ValueError):
             return 0
 
@@ -273,7 +273,7 @@ class GateStore:
 
     def load_durations(self) -> dict[str, float]:
         try:
-            data = json.loads(self.durations.read_text(encoding="utf-8"))
+            data = json.loads(self.durations.read_text(encoding="utf-8-sig"))
         except (OSError, json.JSONDecodeError):
             return {}
         if not isinstance(data, dict):
@@ -489,7 +489,7 @@ class TreeSnapshot:
 
 def _tool_version(argv: Sequence[str]) -> str:
     try:
-        proc = subprocess.run(list(argv), capture_output=True, text=True, timeout=20, check=False)
+        proc = subprocess.run(list(argv), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20, check=False)
     except (OSError, subprocess.SubprocessError):
         return "none"
     text = (proc.stdout or proc.stderr or "").strip()

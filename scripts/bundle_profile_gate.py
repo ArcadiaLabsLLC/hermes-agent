@@ -103,7 +103,7 @@ def _parse(path: Path) -> ast.AST | None:
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", SyntaxWarning)
-            return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            return ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
     except (SyntaxError, UnicodeDecodeError):
         return None
 
@@ -371,7 +371,7 @@ def spawn_seams(manifest, findings: list[dict], index: dict[str, Path], *,
         if done.returncode != 0 or not out.is_file():
             raise RuntimeError(f"spawn stand-in probe failed ({done.returncode}): "
                                f"{(done.stderr or done.stdout)[-2000:]}")
-        rows = json.loads(out.read_text(encoding="utf-8"))
+        rows = json.loads(out.read_text(encoding="utf-8-sig"))
     answered: dict[str, list[str]] = {}
     hit = set()
     for module, line, function in rows:
@@ -487,7 +487,7 @@ INTERPRETER_LOCK = ROOT / "agent_runtime" / "bundle_profiles" / "interpreters.lo
 
 def pinned_interpreter() -> tuple[str, tuple[int, int]]:
     """``(full pin, (major, minor))`` from :data:`INTERPRETER_LOCK`, e.g. ``("3.14.7+20260901", (3, 14))``."""
-    version = json.loads(INTERPRETER_LOCK.read_text(encoding="utf-8"))["version"]
+    version = json.loads(INTERPRETER_LOCK.read_text(encoding="utf-8-sig"))["version"]
     major, minor = version.split("+")[0].split(".")[:2]
     return version, (int(major), int(minor))
 

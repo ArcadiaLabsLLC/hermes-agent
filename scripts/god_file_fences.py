@@ -68,7 +68,7 @@ FENCE_ADMITTED = FIXTURES / "refactor_fence_admitted.json"
 
 def admitted_crossings(path: Path = FENCE_ADMITTED) -> dict[tuple[str, str], str]:
     """``{(sha, path): reason}`` from the admitted-crossings ledger."""
-    rows = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else []
+    rows = json.loads(path.read_text(encoding="utf-8-sig")) if path.is_file() else []
     return {(row["commit"], row["path"]): row["reason"] for row in rows}
 
 

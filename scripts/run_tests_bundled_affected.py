@@ -196,7 +196,7 @@ def load_graph(repo_root: Path, change: Change, memo_path: Path) -> ImportGraph:
         keys[rel] = None if rel in change.paths else f"{meta.split()[1]} {rel}"
     keys.update({rel: None for rel in change.paths if rel.endswith(".py") and rel not in keys})
     try:
-        memo = json.loads(memo_path.read_text(encoding="utf-8"))
+        memo = json.loads(memo_path.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         memo = {}
     if not isinstance(memo, dict):

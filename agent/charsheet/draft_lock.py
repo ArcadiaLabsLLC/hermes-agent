@@ -109,7 +109,7 @@ def _read_holder(path: Path) -> dict:
 
     holder: dict = {}
     try:
-        text = path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8-sig")
     except OSError:
         return {"lock": str(path)}
     try:

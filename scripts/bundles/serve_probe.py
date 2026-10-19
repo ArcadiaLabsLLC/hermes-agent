@@ -87,7 +87,7 @@ def _spawned_modules(path: Path) -> list[str]:
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", SyntaxWarning)
-            tree = ast.parse(path.read_text(encoding="utf-8"))
+            tree = ast.parse(path.read_text(encoding="utf-8-sig"))
     except (SyntaxError, UnicodeDecodeError):
         return []
     found = []

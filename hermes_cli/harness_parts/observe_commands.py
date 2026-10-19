@@ -74,7 +74,7 @@ def _cmd_observe_turn_timing(args) -> int:
         return 2
     baseline_path = Path(args.baseline) if getattr(args, "baseline", None) else default_baseline_path()
     try:
-        baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+        baseline = json.loads(baseline_path.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError) as exc:
         print(f"baseline unreadable: {baseline_path}: {exc}", file=sys.stderr)
         return 2

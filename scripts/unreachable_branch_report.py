@@ -182,7 +182,7 @@ def _combine_and_dump(rcfile: Path, data_file: Path, out: Path) -> dict:
     )
     if dump.returncode != 0:
         raise RuntimeError(f"coverage json failed:\n{dump.stdout}\n{dump.stderr}")
-    return json.loads(out.read_text(encoding="utf-8"))
+    return json.loads(out.read_text(encoding="utf-8-sig"))
 
 
 def _ranges(numbers: list[int]) -> str:

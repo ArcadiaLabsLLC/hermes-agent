@@ -87,7 +87,7 @@ def load_skip_list(path: Path) -> dict[str, SkipRow]:
     manifest: without it the P0 files would silently be back in every run."""
 
     rows: dict[str, SkipRow] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
         row = parse_skip_line(line)
         if row is not None:
             rows[row.path] = row
@@ -408,7 +408,7 @@ def last_record(repo_root: Path, record_path: Optional[Path] = None) -> dict[str
         primary = primary_checkout(repo_root)
         record = primary / RUNS_FILE if primary is not None else record
     try:
-        lines = record.read_text(encoding="utf-8").splitlines()
+        lines = record.read_text(encoding="utf-8-sig").splitlines()
     except OSError:
         return {}
     for line in reversed(lines):

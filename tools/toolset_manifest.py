@@ -83,7 +83,7 @@ def _manifest() -> dict[str, dict]:
     """
 
     try:
-        with open(MANIFEST_PATH, "r", encoding="utf-8") as handle:
+        with open(MANIFEST_PATH, "r", encoding="utf-8-sig") as handle:
             data = json.load(handle)
     except (OSError, ValueError):
         return {"tools": {}, "modules": {}}

@@ -86,14 +86,14 @@ def install_lock(path: Path | None = None, *, wait: float = LOCK_WAIT_SECONDS):
 def main(requirements: Path = REQUIREMENTS) -> int:
     if not requirements.is_file():
         return 0
-    if not unmet(pins(requirements.read_text(encoding="utf-8"))):
+    if not unmet(pins(requirements.read_text(encoding="utf-8-sig"))):
         return 0
     with install_lock():
         return _pip_install_requirements(requirements)
 
 
 def _pip_install_requirements(requirements: Path) -> int:
-    missing = unmet(pins(requirements.read_text(encoding="utf-8")))
+    missing = unmet(pins(requirements.read_text(encoding="utf-8-sig")))
     if not missing:
         return 0
     print(f"> installing fork dev deps {sorted(missing)} from {requirements}", file=sys.stderr)

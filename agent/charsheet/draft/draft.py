@@ -153,7 +153,7 @@ class CharacterDraft:
         if not path.is_file():
             raise FileNotFoundError(f"no draft {draft_id!r}: {path} does not exist")
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
+            data = json.loads(path.read_text(encoding="utf-8-sig"))
         except ValueError as exc:
             raise ValueError(f"corrupt draft file {path}: {exc}") from exc
         if not isinstance(data, dict):

@@ -120,13 +120,13 @@ def build_sample(seconds: dict[str, float], *, exclude: Iterable[str] = (), seed
 
 def skip_listed(repo: Path) -> list[str]:
     path = repo / SKIP_LIST
-    rows = path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
+    rows = path.read_text(encoding="utf-8-sig").splitlines() if path.is_file() else []
     return [row.split(" · ", 1)[0].strip() for row in rows if row.strip() and not row.startswith("#")]
 
 
 def _ledger_lines(repo: Path) -> list[str]:
     path = repo / RUNS_FILE
-    return path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
+    return path.read_text(encoding="utf-8-sig").splitlines() if path.is_file() else []
 
 
 def measure(command: Sequence[str], workers: int, repo: Path, *, interval: float = 5.0) -> dict[str, object]:
@@ -160,7 +160,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parser.parse_args(argv)
     repo = Path.cwd()
     if args.verb == "sample":
-        seconds = last_attempt_seconds(args.log.read_text(encoding="utf-8", errors="replace"))
+        seconds = last_attempt_seconds(args.log.read_text(encoding="utf-8-sig", errors="replace"))
         gone = [rel for rel in seconds if not (repo / rel).is_file()]
         files = build_sample(seconds, exclude=[*skip_listed(repo), *gone])
         args.out.write_text("\n".join(files) + "\n", encoding="utf-8", newline="\n")

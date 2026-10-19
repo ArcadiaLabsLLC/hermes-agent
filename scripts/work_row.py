@@ -62,7 +62,7 @@ def queue_notes(repo: Path, note: str | None) -> list[Path]:
     if note:
         return [repo / note]
     found = [path for pattern in BRAIN_GLOBS for path in sorted(repo.glob(pattern))]
-    return [path for path in found if is_queue(path.read_text(encoding="utf-8"))]
+    return [path for path in found if is_queue(path.read_text(encoding="utf-8-sig"))]
 
 
 def _note_and_text(repo: Path, args: argparse.Namespace) -> tuple[Path, str]:
