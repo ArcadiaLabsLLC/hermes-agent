@@ -15,6 +15,12 @@ not begun and waits on a running turn (RULED on ``RT-DISPATCH-B2-BATCH``).
 ``goal_mode=UNTIL_DONE`` (dispatcher B3): ``start`` sets a goal on the root and binds the root to the
 run (``goal_turns.arm_run``); every terminal settle on a bound root goes to ``goal_turns.after_turn``,
 which continues the run as further queued sends until upstream's gates and judge end it.
+
+A settle is routed by its origin's KIND through one table (:class:`OriginKind`, RT-SEND-ORIGIN-KIND-TABLE,
+p10-messaging §3 M3): ``work`` reports the run, ``goal`` is the root's chat goal, and a lane registers its
+own kind (:meth:`PersonaTurnExecutor.register_origin_listener`; the messaging bridge's ``messaging``).
+Pinned by ``tests/agent_runtime/work_store/test_origin_listener_table.py`` and
+``tests/agent_runtime/messaging/test_bridge_inbound.py``.
 """
 
 from __future__ import annotations
@@ -23,8 +29,9 @@ import logging
 import os
 import re
 from collections.abc import Callable, Mapping
+from enum import StrEnum
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, NamedTuple
 
 from .. import chat_goal
 from .. import chat_root_send_queue as send_queue
@@ -40,7 +47,8 @@ from .reasons import Reason, WorkRefused
 
 __layer__ = "lanes"
 logger = logging.getLogger(__name__)
-__all__ = ["BRIEF_MAX_LINES", "REPORT_CLOSING", "REPORT_INFO", "PersonaTurnExecutor", "parse_work_report", "render_brief"]
+__all__ = ["BRIEF_MAX_LINES", "ORIGIN_KIND_KEY", "REPORT_CLOSING", "REPORT_INFO", "OriginKind", "OriginListener",
+           "PersonaTurnExecutor", "Queued", "origin_kind", "parse_work_report", "render_brief", "runs_here"]
 
 REPORT_INFO = "work_report"
 BRIEF_MAX_LINES = 40
@@ -101,11 +109,49 @@ def render_brief(a: Assignment) -> str:
     return "\n".join([*head, *body][:BRIEF_MAX_LINES - len(REPORT_CLOSING)] + list(REPORT_CLOSING))
 
 
+class OriginKind(StrEnum):
+    """Who a queued send's settle is reported to — the key of :class:`PersonaTurnExecutor`'s listener table."""
+
+    WORK = "work"
+    GOAL = "goal"
+    MESSAGING = "messaging"
+
+
+#: The origin field naming its kind. An entry queued before the field existed is read by its legacy shape.
+ORIGIN_KIND_KEY = "kind"
+#: The root's own arms: on a root bound to an ``UNTIL_DONE`` run the goal hook replaces them; a registered
+#: kind (a platform reply) is still told.
+_ROOT_ARMS = frozenset({OriginKind.WORK, OriginKind.GOAL})
+
+OriginListener = Callable[[send_queue.QueuedSend, int, "dict | None"], None]
+
+
+def origin_kind(origin: Any) -> OriginKind:
+    """The settle's kind: the origin's own ``kind``, else (an entry queued before it) ``work`` when a Work
+    request names it and ``goal`` for any other origin — an operator send, a scheduled prompt."""
+
+    if not isinstance(origin, Mapping):
+        return OriginKind.GOAL
+    try:
+        return OriginKind(origin.get(ORIGIN_KIND_KEY))
+    except ValueError:
+        return OriginKind.WORK if origin.get("work") else OriginKind.GOAL
+
+
+class Queued(NamedTuple):
+    """What :meth:`PersonaTurnExecutor.queue_inbound` did: the run, its 1-based place on the root (0 once
+    settled), and whether it converged on an entry or a settle that already existed."""
+
+    run: Run
+    position: int
+    replay: bool
+
+
 def _norm(value: Any) -> str:
     return os.path.normcase(os.path.abspath(str(value)))
 
 
-def _same_root(runtime_root: str) -> bool:
+def runs_here(runtime_root: str) -> bool:
     """The instance lives in THIS runtime's store (an instance of another machine is not runnable here)."""
 
     return bool(str(runtime_root or "").strip()) and _norm(runtime_root) == _norm(paths.store_root())
@@ -141,6 +187,8 @@ class PersonaTurnExecutor:
         self._goals = goals
         self._workdir_of = workdir_of or _persona_workdir
         self._callbacks: list[Callable[[Run, Outcome], None]] = []
+        self._origin_listeners: dict[OriginKind, OriginListener] = {
+            OriginKind.WORK: self._work_settled, OriginKind.GOAL: self._goal_settled}
 
     # ── the seams, resolved on first use (the serve builds this before the door is bound) ──
 
@@ -163,6 +211,12 @@ class PersonaTurnExecutor:
 
             self._root_of = resolve_default_chat_session_id_for_instance
         return self._root_of(self._store(), persona_id=instance.persona_id, persona_instance_id=instance.id)
+
+    def current_root(self, instance_id: str) -> str | None:
+        """The instance's current chat root, or None (no such instance, or no chat yet); never mints."""
+
+        instance = self._instance(instance_id)
+        return None if instance is None else self._root(instance)
 
     def _open(self, instance: Any, request_id: str) -> str:
         from ..mission_chat_door import MissionChatDoorUnbound, run_open_chat
@@ -190,7 +244,7 @@ class PersonaTurnExecutor:
         if self._draining():
             return Reason.DRAIN_BEGUN
         instance = self._instance(a.persona_instance_id)
-        if instance is None or not _same_root(getattr(instance, "runtime_root", "")):
+        if instance is None or not runs_here(getattr(instance, "runtime_root", "")):
             return Reason.PERSONA_UNAVAILABLE
         return None
 
@@ -212,7 +266,8 @@ class PersonaTurnExecutor:
         root = self._root(instance) or self._open(instance, a.request_id)
         cmid = goal_turns.first_cmid(a.request_id)
         until_done = a.goal_mode is GoalMode.UNTIL_DONE
-        origin = {**dict(origin), "owner": None, "gateway": False, "work": a.request_id,
+        origin = {**dict(origin), "owner": None, "gateway": False, ORIGIN_KIND_KEY: OriginKind.WORK.value,
+                  "work": a.request_id,
                   "rows": [[ref.slot, ref.note, ref.id] for ref in a.rows], "goal": until_done}
         turn = _turn_args(instance, root, cmid, message or render_brief(a), f"work:{a.request_id}")
         if workdir:
@@ -231,9 +286,21 @@ class PersonaTurnExecutor:
                      origin: Mapping[str, Any]) -> Run:
         """Queue ``message`` as one turn of the instance's chat root — a scheduled ``PersonaPrompt`` (B4).
 
-        The same hold-until-idle path as :meth:`start` (the root's send queue, never the door), but the
-        message is the prompt verbatim and the entry is no Work run: its settle reports to nobody.
-        Idempotent by ``request_id``: a re-fired prompt converges on the one queued entry.
+        :meth:`queue_inbound` with the scheduler's cmid (``schedule-<request_id>``) and requester; its settle
+        is the root's chat goal's, reporting to no Work run.
+        """
+
+        return self.queue_inbound(persona_instance_id, message, request_id=request_id, origin=origin,
+                                  cmid_prefix="schedule-", requested_by=f"schedule:{request_id}").run
+
+    def queue_inbound(self, persona_instance_id: str, message: str, *, request_id: str, origin: Mapping[str, Any],
+                      cmid_prefix: str, requested_by: str) -> Queued:
+        """Queue ``message`` verbatim as one turn of the instance's chat root (p10-messaging §3 M3).
+
+        The same hold-until-idle path as :meth:`start` (the root's send queue, never the door): a busy root
+        holds the entry until idle. Idempotent by ``cmid_prefix + request_id``: a re-presented request
+        converges on the one queued entry, or on the turn's settle once it ran (``replay`` True, nothing
+        queued). The root is the instance's current one, or minted (``open_chat``), at queue time.
         """
 
         probe = Assignment((), persona_instance_id, Brief(title="", objective=""), request_id)
@@ -242,11 +309,14 @@ class PersonaTurnExecutor:
             raise WorkRefused(refusal, persona_instance_id)
         instance = self._instance(persona_instance_id)
         root = self._root(instance) or self._open(instance, request_id)
-        cmid = f"schedule-{request_id}"
-        turn = _turn_args(instance, root, cmid, message, f"schedule:{request_id}")
-        entry, _position, _replay = self._enqueue(root, cmid, send_queue.persistable_args(turn, origin=origin))
+        cmid = f"{cmid_prefix}{request_id}"
+        if send_queue.find(root, cmid) is None and read_settle(settle_id_for(root, cmid)) is not None:
+            return Queued(Run(_run_id(root, cmid), request_id, None, root, cmid, "", RunStatus.SETTLED), 0, True)
+        turn = _turn_args(instance, root, cmid, message, requested_by)
+        entry, position, replay = self._enqueue(root, cmid, send_queue.persistable_args(turn, origin=origin))
         (self._wake or _wake_runner)()
-        return Run(_run_id(root, cmid), request_id, None, root, cmid, entry.queued_at, RunStatus.QUEUED)
+        return Queued(Run(_run_id(root, cmid), request_id, None, root, cmid, entry.queued_at, RunStatus.QUEUED),
+                      int(position), bool(replay))
 
     def status(self, run_id: str) -> RunStatus:
         root, _sep, cmid = run_id.partition("/")
@@ -279,36 +349,65 @@ class PersonaTurnExecutor:
         if cb not in self._callbacks:
             self._callbacks.append(cb)
 
+    def register_origin_listener(self, kind: OriginKind, cb: OriginListener) -> None:
+        """Route the settles whose origin is ``kind`` to ``cb(entry, exit_code, payload)`` (one per kind)."""
+
+        kind = OriginKind(kind)
+        if kind in _ROOT_ARMS:
+            raise ValueError(f"the {kind.value} arm is the executor's own")
+        self._origin_listeners[kind] = cb
+
+    def unregister_origin_listener(self, kind: OriginKind) -> None:
+        if OriginKind(kind) not in _ROOT_ARMS:
+            self._origin_listeners.pop(OriginKind(kind), None)
+
     # ── the runner's hook ────────────────────────────────────────────────
 
     def settled(self, entry: send_queue.QueuedSend, exit_code: int, payload: dict | None) -> None:
-        """``RunnerPolicy.on_settle``: a queued send ended; report it when it ended a Work run.
+        """``RunnerPolicy.on_settle``: a queued send ended; route it by its origin's kind.
 
         On a root bound to an ``UNTIL_DONE`` run every settle — the run's own or an operator's, queued or
         direct (:func:`goal_turns.direct_entry`) — is the goal's after-turn hook; the run is reported only
-        when the hook ends it. A turn no Work run owns goes to the root's chat goal, if it has one.
+        when the hook ends it, and a registered kind (a platform reply) is told as well. On any other root
+        the kind's listener alone hears it; a kind nobody registered falls to the root's chat goal.
         """
 
+        kind = origin_kind(entry.args.get(send_queue.ORIGIN_ARG))
         bound = chat_goal.binding(entry.root_session_id)
         if bound is not None:
-            ending = goal_turns.after_turn(bound, entry, payload, goals=self._goals, enqueue=self._enqueue,
-                                           wake=self._wake or _wake_runner, parse_report=parse_work_report)
-            if ending is not None:
-                rows = tuple(RowRef(*row) for row in bound.rows)
-                outcome = Outcome(ending.verdict, {ref: ending for ref in rows},
-                                  report=str((payload or {}).get("reply") or "")[-_REPORT_TAIL:])
-                self._report(bound.request_id, bound.root_session_id, goal_turns.first_cmid(bound.request_id),
-                             entry.queued_at, rows, outcome)
+            self._bound_settled(bound, entry, payload)
+            listener = None if kind in _ROOT_ARMS else self._origin_listeners.get(kind)
+        else:
+            listener = self._origin_listeners.get(kind) or self._origin_listeners[OriginKind.GOAL]
+        if listener is None:
             return
-        origin = entry.args.get(send_queue.ORIGIN_ARG)
-        request_id = origin.get("work") if isinstance(origin, dict) else None
-        if not request_id:
-            goal_turns.after_chat_goal_turn(entry, payload, goals=self._goals, enqueue=self._enqueue,
-                                            wake=self._wake or _wake_runner)
+        if kind in _ROOT_ARMS:
+            listener(entry, exit_code, payload)
             return
+        try:
+            listener(entry, exit_code, payload)
+        except Exception:
+            logger.warning("the %s settle listener failed on %s", kind.value, entry.client_message_id, exc_info=True)
+
+    def _bound_settled(self, bound: Any, entry: send_queue.QueuedSend, payload: dict | None) -> None:
+        ending = goal_turns.after_turn(bound, entry, payload, goals=self._goals, enqueue=self._enqueue,
+                                       wake=self._wake or _wake_runner, parse_report=parse_work_report)
+        if ending is not None:
+            rows = tuple(RowRef(*row) for row in bound.rows)
+            outcome = Outcome(ending.verdict, {ref: ending for ref in rows},
+                              report=str((payload or {}).get("reply") or "")[-_REPORT_TAIL:])
+            self._report(bound.request_id, bound.root_session_id, goal_turns.first_cmid(bound.request_id),
+                         entry.queued_at, rows, outcome)
+
+    def _work_settled(self, entry: send_queue.QueuedSend, exit_code: int, payload: dict | None) -> None:
+        origin = entry.args.get(send_queue.ORIGIN_ARG) or {}
         rows = tuple(RowRef(*map(str, item)) for item in origin.get("rows") or [] if len(item) == 3)
-        self._report(str(request_id), entry.root_session_id, entry.client_message_id, entry.queued_at, rows,
+        self._report(str(origin.get("work")), entry.root_session_id, entry.client_message_id, entry.queued_at, rows,
                      outcome_of(exit_code, payload, rows))
+
+    def _goal_settled(self, entry: send_queue.QueuedSend, _exit_code: int, payload: dict | None) -> None:
+        goal_turns.after_chat_goal_turn(entry, payload, goals=self._goals, enqueue=self._enqueue,
+                                        wake=self._wake or _wake_runner)
 
     def direct_settled(self, root: str, cmid: str, exit_code: int, payload: dict | None,
                        args_of: Callable[[], Mapping[str, Any]]) -> None:

@@ -24,6 +24,7 @@ __all__ = [
     "_ensure_conversation_methods",
     "_ensure_discussion_methods",
     "_ensure_local_llama_methods",
+    "_ensure_messaging_methods",
     "_ensure_work_methods",
     "manifest",
     "method",
@@ -131,6 +132,15 @@ def _ensure_batch_methods():
         register(method)
 
 
+def _ensure_messaging_methods():
+    from ..loop_tool_lifecycles import shipped
+
+    # p10-messaging: both bundle manifests switch the package off, so a bundled build has no such methods.
+    if "runtime.messaging.status" not in _METHODS and shipped("agent_runtime.messaging"):
+        from ..messaging.rpc import register
+        register(method)
+
+
 def method_names() -> list[str]:
     # Registration is lazy to keep imports one-directional and avoid eager
     # filesystem/process work on every client of the method manifest.
@@ -139,6 +149,7 @@ def method_names() -> list[str]:
     _ensure_conversation_methods()
     _ensure_work_methods()
     _ensure_batch_methods()
+    _ensure_messaging_methods()
     return sorted(_METHODS)
 
 

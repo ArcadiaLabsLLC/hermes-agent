@@ -12,6 +12,12 @@ and parses them through its real decode + read-model pipeline
 split is structural, not an oversight, and the script names both halves
 (`GENERATED_FRAME_FILES` / `PINNED_ONLY_FILES`).
 
+> **CROSS-STACK COPY STATUS (msg-b, 2026-10-19) — launcher copy OWED.**
+> Every core-carrying golden moved for one reason: `running_work.sources` gained
+> `messaging_turn` (p10-messaging M4). Copy the nine moved frames and
+> `MANIFEST.sha256` into `test/fixtures/harness_stream/`, and `work_list_empty.json`
+> with the response-envelope manifest.
+
 > **CROSS-STACK COPY STATUS (w5-sched, 2026-10-18) — launcher copy OWED.**
 > Every core-carrying golden moved for one reason: `running_work.sources` gained
 > `scheduled_turn` (RT-SCHEDULE-TURN-RUNNING-WORK). Copy the nine moved frames and

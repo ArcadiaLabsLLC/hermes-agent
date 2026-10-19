@@ -770,6 +770,15 @@ send-queue entries whose origin names a schedule
 ``tool_call``: nothing left the wire. The goldens and ``work_list_empty.json``
 moved; the launcher mirror is owed (``tests/fixtures/stream_frames/README.md``).
 
+54 KEPT (msg-b, 2026-10-19) — ``running_work`` gained a ``messaging_turn`` kind and
+SOURCE (p10-messaging M4, the ``scheduled_turn`` precedent): a platform message the
+messaging bridge queued on a bound instance's chat root, from the queue until the
+runner removes the entry, read durably from the send-queue entries whose origin
+carries a ``messaging`` block (``running_work/lanes_messaging.py``). A row adds
+``platform``, ``chat_id``, ``thread_id`` and ``phase``; never the message text. Same
+ruling: nothing left the wire. The goldens and ``work_list_empty.json`` moved; the
+launcher mirror is owed (``tests/fixtures/stream_frames/README.md``).
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.
