@@ -215,7 +215,10 @@ def _stage_commit_and_push(
         _ensure_git_identity(repo)
         _git(repo, "commit", "-m", f"Publish realm sync {realm.id}")
         try:
-            _git(repo, "push", extra_config=_credential_git_config(credential))
+            # No upstream yet (a personal repo adopted empty, p10-work §2.6): set it.
+            upstream = _git(repo, "rev-parse", "--abbrev-ref", "@{u}", check=False).strip()
+            push = ("push",) if upstream else ("push", "-u", "origin", "HEAD")
+            _git(repo, *push, extra_config=_credential_git_config(credential))
         except RealmSyncError as exc:
             raise RealmSyncError("sync_remote_unreachable", "Realm sync publish committed locally but could not push upstream.", retryable=True, safe_details=exc.safe_details) from exc
     return changed, changed_paths if changed else []
