@@ -8,7 +8,10 @@ hermes's own worktree of the slot (§5 steps 1–3) instead of the operator's ch
 The default brain is NOT a declared slot (owner ruling 2026-10-18, ``RT-WORK-DEFAULT-BRAIN-REALM``):
 it is a machine-local binding, ``<work_workspace_dir(ws)>/default_brain.json``, listed as slot
 ``brain`` until the move into a repo brain retires it (``agent_runtime/work/store.py::
-normalize_default_brain``). The record carries ``remote_url`` (null) for the later promotion lane.
+normalize_default_brain``). Promotion (``default_brain.promote_default_brain``, p10-work §2.5) writes
+``remote_url`` and a ``declaration``: while it is ``pending`` (a server-bound realm; the Launcher's next
+credentialed ``slots.declare`` carries the entry) the default board is listed with its remote
+(``local=False``: the writer fetches and pushes); once ``declared`` the declared slot ``brain`` lists it.
 """
 
 from __future__ import annotations
@@ -33,14 +36,15 @@ __all__ = [
     "board_rows",
     "boards",
     "brain_dir_of",
+    "declaration_state",
     "declared_boards",
     "default_board",
     "first_repo_brain",
-    "read_binding",
     "has_brain_here",
     "ids_in_brain",
     "needs_default_brain",
     "notes",
+    "read_binding",
     "ready",
     "rows",
 ]
@@ -132,10 +136,10 @@ def read_binding(workspace_id: str) -> dict[str, Any] | None:
 
 
 def default_board(workspace_id: str, *, read_roots: Mapping[str, Path] | None = None) -> Board | None:
-    """The default brain's board while its binding is live (not retired into a repo brain)."""
+    """The default brain's board while its binding is live (not retired into a repo brain, not declared)."""
 
     record = read_binding(workspace_id)
-    if record is None or record.get("retired_into"):
+    if record is None or record.get("retired_into") or declaration_state(record) == "declared":
         return None
     root = Path(str(record["path"]))
     if not (root / ".git").exists():
@@ -147,11 +151,18 @@ def default_board(workspace_id: str, *, read_roots: Mapping[str, Path] | None = 
         brain_dir=str(record.get("brain_dir") or DEFAULT_BRAIN_QUEUE_DIR),
         default_branch=str(record.get("default_branch") or "main"),
         clone_url=record.get("remote_url") or None,
-        local=True,
+        local=not record.get("remote_url"),
         bound_here=True,
         is_default=True,
         checkout=root,
     )
+
+
+def declaration_state(record: Mapping[str, Any] | None) -> str | None:
+    """The promoted default brain's slot declaration: ``declared`` / ``pending``, or None before promotion."""
+
+    declaration = (record or {}).get("declaration")
+    return str(declaration.get("state")) if isinstance(declaration, Mapping) and declaration.get("state") else None
 
 
 def boards(workspace_id: str, *, read_roots: Mapping[str, Path] | None = None) -> list[Board]:

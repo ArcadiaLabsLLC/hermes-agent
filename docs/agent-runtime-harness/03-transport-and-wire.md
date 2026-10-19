@@ -1683,7 +1683,7 @@ omit the module and never advertise the methods.
 
 | Method | Input beyond scope | Result | Typed refusals |
 |---|---|---|---|
-| `runtime.work.capabilities` | none | `owners[] {owner, workspace_id, label, operations}`, `default_brain {ws: {state: present \| created \| moved (+ `into`) \| absent \| unavailable (+ `reason`)}}`, `limitations[]`, `chat_scopes`, `execution_identity_guard` | `scope_denied`, `work_unavailable` |
+| `runtime.work.capabilities` | none | `owners[] {owner, workspace_id, label, operations}`, `default_brain {ws: {state: present \| created \| moved (+ `into`) \| absent \| unavailable (+ `reason`) \| remote (+ `clone_url`) \| remote_pending_declare (+ `clone_url`, `slot`) \| remote_refused (+ `reason`, `retry_after`)}}` (`present`/`created` carry `reason: needs_git_account` while no GitHub credential answers), `limitations[]`, `chat_scopes`, `execution_identity_guard` | `scope_denied`, `work_unavailable` |
 | `runtime.work.context` | `client_scope`, `conversation` | `scopes`, `agent_profile`, `assignee`, `can_start` | `invalid_request`, `work_owner_changed` |
 | `runtime.work.list` | `slot?`, `status?` (`READY` / `BLOCKED` / `DEFERRED` / `NEEDS PLAN` / `TAKEN`), `assignee?` (`persona:<token>`), `view?` (`all` / `conversation`), `stale_ok?` | `boards[] {slot, label, brain_dir, bound_here, local, is_default, default_branch, committed_at, queues[] {note, program, title, rows[]}}` — grouped per brain, then per domain (one queue note each; `program` from its frontmatter; every row carries `slot` and `program`), `cursor: null`, `read_at`, `stale` | `work_owner_changed`, `fetch_failed` (unless `stale_ok`) |
 | `runtime.work.inspect` | `slot`, `task_id` | `task` or null; `ending {commit, at, subject, body}` (the deleting commit) when null | `work_owner_changed`, `slot_unbound` |
@@ -1693,7 +1693,7 @@ omit the module and never advertise the methods.
 | `runtime.work.release` | `request_id`, `slot`, `task_id`, `status?` | `task`, `receipt` | `row_gone`, `not_claimant`, git reasons |
 | `runtime.work.set_status` | `request_id`, `slot`, `task_id`, `status` (a full status segment) | `task`, `receipt` | `row_gone`, `grammar_invalid`, `not_claimant`, git reasons |
 | `runtime.work.done` | `request_id`, `slot`, `task_id`, `result` (≤4,000, one paragraph) | `ending`, `receipt` — the row is deleted; the commit body carries the result | `row_gone`, `not_claimant`, git reasons |
-| `runtime.work.create_brain` | `request_id`, `slot?` (omitted: the default brain) | `board`, `receipt` | `slot_unbound`, git reasons |
+| `runtime.work.create_brain` | `request_id`, `slot?` (omitted: the default brain), `promote?` (`true`: promote the default brain to a private GitHub remote now, ignoring the automatic path's back-off — doc 06 § The todo board) | `board`, `receipt`, `promotion?` (`{outcome: promoted \| already, url, declaration}`) | `slot_unbound`, git reasons; with `promote`: `needs_git_account`, `remote_exists`, `git_host_unsupported`, `token_scope`, `host_unreachable`, `remote_diverged`, `url_mismatch` |
 
 Scope is `install_id` plus the opaque `owner` = `fingerprint([install, workspace_id])`; every call
 re-derives the owner set and a missing or changed owner refuses. The idempotency key is `request_id`

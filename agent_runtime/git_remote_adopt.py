@@ -7,7 +7,7 @@ commits). Every step is one ``git_cmd.run_git`` call with ``config`` rendered as
 credential (``http.extraHeader=Authorization: …``) never touches ``.git/config``; stderr is scrubbed
 with ``realm_sync.git._scrub_config_values`` before it reaches a refusal.
 
-The step table, after ``remote get-url origin`` (equal → kept; different → ``url_mismatch``; absent
+The step table, after ``config --get remote.origin.url`` (the raw value; equal → kept; different → ``url_mismatch``; absent
 → ``remote add``) and ``fetch origin <branch>`` (a missing branch is an EMPTY remote):
 
 | local has commits | remote has commits | outcome |
@@ -116,7 +116,7 @@ def adopt_remote(
     door = _Door(Path(repo), tuple(str(pair) for pair in config), run)
     if not door.ok("rev-parse", "--git-dir"):
         raise AdoptRefused("not_a_repo", str(Path(repo).name))
-    current = door.git("remote", "get-url", "origin")
+    current = door.git("config", "--get", "remote.origin.url")  # raw: get-url applies insteadOf
     if current.returncode == 0:
         if str(current.stdout or "").strip() != url:
             raise AdoptRefused("url_mismatch", "origin names another remote")

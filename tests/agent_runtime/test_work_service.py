@@ -54,10 +54,10 @@ def test_capabilities_lists_one_owner_per_workspace_and_creates_the_default_brai
                      "operations": ["inspect", "start", "assign", "claim", "release", "set_status", "done",
                                     "create_brain"]}
     assert len({row["owner"] for row in caps["owners"]}) == len(caps["owners"])
-    assert caps["default_brain"][work.ws] == {"state": "created"}
+    assert caps["default_brain"][work.ws] == {"state": "created", "reason": "needs_git_account"}
     assert (paths.default_brain_dir(work.ws) / ".git").is_dir()
     again = service.execute("capabilities", {}, STDIO_OWNER)
-    assert again["default_brain"][work.ws] == {"state": "present"}
+    assert again["default_brain"][work.ws] == {"state": "present", "reason": "needs_git_account"}
 
 
 def test_start_mints_a_work_id_and_replays_by_request_id(work):

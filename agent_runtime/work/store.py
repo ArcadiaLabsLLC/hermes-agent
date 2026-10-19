@@ -427,9 +427,26 @@ def _create_default(scope, params, actor):
     return {"board": board_wire(made, None), "receipt": record}
 
 
+def _promote_default(scope, params, actor):
+    """``promote: true`` — the manual door to the default brain's remote (p10-work §2.5); it ignores the back-off."""
+    from agent_runtime.work_store.default_brain import ensure_default_brain, promote_default_brain
+
+    issued = _now().isoformat(timespec="seconds")
+    record = boards_store.read_binding(scope.workspace_id)
+    if record is None or record.get("retired_into"):
+        ensure_default_brain(scope.workspace_id, issued_at=issued)
+    promotion = promote_default_brain(scope.workspace_id, issued_at=issued)
+    made = ensure_default_brain(scope.workspace_id, issued_at=issued)
+    record = receipts.emit("work.brain_create", workspace_id=scope.workspace_id, slot=made.slot, who=actor,
+                           request_id=params.get("request_id"), promote=True)
+    return {"board": board_wire(made, None), "receipt": record, "promotion": promotion}
+
+
 def create_brain(scope, params, actor, *, context=None):
     request = text(params.get("request_id"))
     if params.get("slot") is None:
+        if params.get("promote") is True:
+            return _promote_default(scope, params, actor)
         return _create_default(scope, params, actor)
     found = next((b for b in boards_store.boards(scope.workspace_id) if b.slot == params["slot"]), None)
     if found is None or not found.bound_here:

@@ -137,3 +137,18 @@ def test_not_a_repo_refuses(tmp_path):
         adopt_remote(tmp_path / "plain", "https://example.invalid/x.git",
                      run=lambda args, **kw: subprocess.CompletedProcess(args, 128, "", "not a git repository"))
     assert refused.value.reason == "not_a_repo"
+
+
+def test_an_insteadof_rewrite_is_still_the_same_url(tmp_path, monkeypatch):
+    """``remote get-url`` answers the REWRITTEN url; the adopter compares the raw configured one."""
+
+    host = tmp_path / "host"
+    host.mkdir()
+    _bare(host, "brain.git")
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", f"url.{host.as_posix()}/.insteadOf")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_0", "https://github.example/octo/")
+    repo = _repo(tmp_path / "local", {"a.md": "a"})
+    url = "https://github.example/octo/brain.git"
+    assert adopt_remote(repo, url).outcome is Adoption.ADDED_PUSHED
+    assert adopt_remote(repo, url).outcome is Adoption.ALREADY

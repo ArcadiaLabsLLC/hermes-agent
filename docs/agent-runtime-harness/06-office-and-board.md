@@ -1213,13 +1213,28 @@ binds — `<bound path>/<brain dir>/*.md`, the brain dir pinned in the slot's `c
 discovered as `*_Brain/20 — Active Initiatives` — plus, when no bound slot carries a brain, the
 auto-created local default brain (listed as slot `brain`, `Work_Brain/`, no remote). The default brain is a
 machine-local binding (`<store_root>/work/<ws>/default_brain.json`, which also carries `remote_url` for the
-later promotion lane `RT-WORK-DEFAULT-BRAIN-REMOTE`), never a declared slot, so it works the same in
+promotion below), never a declared slot until promoted, so it works the same in
 every realm (owner ruling 2026-10-18). When a repo slot with a brain is bound (the first by slot name — the
 slot document records no declaration order), the default board's rows move into that brain's `work-queue.md` in one commit with their IDs
 kept, the default board drops from the list, and new rows land in the repo brain. A row in the ADR 0011 grammar
 IS a task; nothing is copied, and tasks are keyed `(slot, ID)` (plan
 [work-on-markdown-2026-10-18.md](planned/work-on-markdown-2026-10-18.md) §2, §4; the wire is doc 03 §
 Native Work methods).
+
+The default brain has four states, and promotion is the one door from binding to slot
+(`RT-WORK-DEFAULT-BRAIN-REMOTE`, plan [p10-work-2026-10-19.md](planned/p10-work-2026-10-19.md) §2.5; owner ruling
+2026-10-18: a connected git account means the remote is created automatically). **Local**: no remote. When the
+machine's own GitHub chain (`GITHUB_TOKEN`/`GH_TOKEN`, `gh auth token`, the git credential helper) answers
+`GET /user`, `default_brain.promote_default_brain` creates a PRIVATE `eternia-work-<workspace slug>` repo (a name
+that exists is refused `remote_exists`, never adopted), pushes the brain with upstream through
+`agent_runtime/git_remote_adopt.py::adopt_remote`, and records `remote_url`. **Remote**: where this machine may
+publish (no realm, a server-less realm) slot `brain` is declared with `workspace_slots.declare_one_slot` (nothing
+else is touched) and bound here, and the declared slot lists the board. **Remote, pending declare**: in a
+server-bound realm the entry is staged in the binding and the Launcher's next credentialed `slots.declare` carries
+it; meanwhile the default board is listed with its remote and the writer pushes. **Refused**: a refusal backs the
+automatic path off for a day; `runtime.work.create_brain` with `promote: true` retries at once. A second machine
+that finds a declared `brain` slot it has not bound clones it instead of creating a brain; a local default brain
+it already had moves its rows in through the normal move.
 
 The write path (plan §5), in six lines:
 

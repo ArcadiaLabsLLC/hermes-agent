@@ -69,20 +69,38 @@ def _workspace_label(workspace_id):
         return workspace_id
 
 
-def _default_brain_state(workspace_id):
-    from agent_runtime.work_store.board import declared_boards, default_board, needs_default_brain
-    from agent_runtime.work_store.default_brain import ensure_default_brain
+def _worded(remote, word):
+    """A remote word replaces the tree's word; a local brain keeps its word and carries the remote's ``reason``."""
+    if remote is None:
+        return {"state": word}
+    if remote["state"] == "present":
+        return {**remote, "state": word}
+    return remote
 
+
+def _default_brain_state(workspace_id):
+    """``capabilities.default_brain.<ws>``: ``{state, clone_url?, slot?, reason?, retry_after?}``.
+
+    The tree's words stay (``absent``: a repo brain carries the board; ``present``: a live local default
+    brain; ``created``; ``moved``; ``unavailable``) and promotion adds ``remote``,
+    ``remote_pending_declare`` and ``remote_refused`` (``default_brain.remote_state``, p10-work §2.5).
+    """
+    from agent_runtime.work_store.board import declared_boards, default_board, needs_default_brain
+    from agent_runtime.work_store.default_brain import ensure_default_brain, remote_state
+
+    issued = store._now().isoformat(timespec="seconds")
     try:
         if not needs_default_brain(declared_boards(workspace_id)):
             _require_git()
             moved = store.normalize_default_brain(workspace_id)
-            return {"state": "moved", "into": moved["into"]} if moved else {"state": "absent"}
+            return {"state": "moved", "into": moved["into"]} if moved else _worded(remote_state(workspace_id), "absent")
         if default_board(workspace_id) is not None:
-            return {"state": "present"}
+            if git_shipped():
+                ensure_default_brain(workspace_id, issued_at=issued)  # the automatic promotion
+            return _worded(remote_state(workspace_id), "present")
         _require_git()
-        ensure_default_brain(workspace_id, issued_at=store._now().isoformat(timespec="seconds"))
-        return {"state": "created"}
+        ensure_default_brain(workspace_id, issued_at=issued)
+        return _worded(remote_state(workspace_id), "created")
     except WorkRefused as refusal:
         return {"state": "unavailable", "reason": refusal.reason.value}
     except (NotFound, FileNotFoundError, KeyError, ValueError, OSError):
