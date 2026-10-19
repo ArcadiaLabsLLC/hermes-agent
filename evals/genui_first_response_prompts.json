@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "source": "docs/agent-runtime-harness/planned/p10-agent-2026-10-19.md section 3.2 (fixed; no prompt names a tool)",
+  "comparisons": [
+    {"id": "P01", "text": "Compare Python and Rust for a small command-line tool."},
+    {"id": "P02", "text": "Which is better for a beginner, Godot or Unity? Lay out the trade-offs."},
+    {"id": "P03", "text": "Rank these three laptops for video editing: MacBook Pro M4, Dell XPS 16, ThinkPad P1."},
+    {"id": "P04", "text": "Put PostgreSQL, MySQL and SQLite side by side for a desktop app."},
+    {"id": "P05", "text": "Pros and cons of React versus Flutter for our launcher."},
+    {"id": "P06", "text": "Contrast Stoicism and Epicureanism on their key points."},
+    {"id": "P07", "text": "Give me a comparison of the main cloud storage options for a small team."},
+    {"id": "P08", "text": "Electric versus hybrid for a 40 km daily commute — which wins on what?"},
+    {"id": "P09", "text": "How do the agents in this workspace differ in strengths and weaknesses?"},
+    {"id": "P10", "text": "Weigh up tabs versus spaces, seriously."},
+    {"id": "P11", "text": "Compare the last three Unreal Engine releases for shipping an indie game."},
+    {"id": "P12", "text": "SQLite WAL or rollback journal for us? Show the trade-offs."}
+  ],
+  "controls": [
+    {"id": "C1", "text": "What time zone is Berlin in?"},
+    {"id": "C2", "text": "Explain a thread versus a process in two sentences, plain text please."},
+    {"id": "C3", "text": "Summarise what a Lens Episode is."}
+  ]
+}
