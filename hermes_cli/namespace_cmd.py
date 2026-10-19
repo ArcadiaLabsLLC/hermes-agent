@@ -7,6 +7,14 @@ when it ran — a refusal of the asked id rides its ``refusal`` field); exit 2: 
 
 * ``probe [<id>]`` — the launcher's pre-spawn capability check (an older Hermes exits non-zero on
   the unknown subcommand, so "exit 0 + JSON" is the capability). Reads only; writes nothing.
+* ``list`` — every namespace: id, kind (``account`` for ``acct-<16 hex>``, else ``profile``), size,
+  last serve, busy, created / seeded-from.
+* ``seed <id> --from <base|ns-id>`` — once, at creation (owner ruling Q11).
+* ``reset <id>`` / ``delete <id>`` — refused while a serve holds the namespace, for ``base`` and for
+  this process's own namespace.
+
+The verbs live in ``agent_runtime/namespace_admin.py``; they are not gated by the external-access
+rule (they name every namespace explicitly and run no agent in one).
 """
 
 from __future__ import annotations
@@ -30,13 +38,25 @@ def _parser() -> argparse.ArgumentParser:
     verbs = parser.add_subparsers(dest="verb", required=True)
     probe = verbs.add_parser("probe", help="capability check: exit 0 + JSON (namespaces dir, root, budget)")
     probe.add_argument("id", nargs="?", default=None)
+    verbs.add_parser("list", help="every namespace of this install")
+    seed = verbs.add_parser("seed", help="copy the seed allowlist into a NEW namespace, once")
+    seed.add_argument("id")
+    seed.add_argument("--from", dest="source", required=True, help="'base' or a namespace id, named explicitly")
+    for verb in ("reset", "delete"):
+        verbs.add_parser(verb, help=f"{verb} a namespace (refused while a serve holds it)").add_argument("id")
     return parser
 
 
 def _run(args: argparse.Namespace) -> object:
     if args.verb == "probe":
         return ns.probe(os.environ, args.id)
-    raise AssertionError(args.verb)  # argparse admits only the verbs above
+    from agent_runtime import namespace_admin as admin  # the runtime half; probe stays stdlib-fast
+
+    if args.verb == "list":
+        return admin.list_namespaces(os.environ)
+    if args.verb == "seed":
+        return admin.seed(args.id, args.source, os.environ)
+    return {"reset": admin.reset, "delete": admin.delete}[args.verb](args.id, os.environ)  # argparse admits only the verbs above
 
 
 def main(argv: Sequence[str] | None = None) -> int:
