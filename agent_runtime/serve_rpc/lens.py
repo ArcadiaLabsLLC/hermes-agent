@@ -22,6 +22,8 @@ episodes               {monitor_id?, state?} -> {episodes}
 fold                   {} -> the Mission Control fold (``lens.snapshot_fold``)
 credential.set         {ref, scheme, secret, username?} -> {ref, set, rotated_at}
                        (write-only: no verb returns a credential value)
+receipt                {episode_id} -> the exit door's receipt for that Episode (stage L2)
+receipts               {monitor_id?, limit?} -> {receipts} (newest first; limit <= 256)
 =====================  ================================================================
 
 Every refusal carries ``data.reason`` (a ``WireRefusal`` or ``StoreRefusal`` value)
@@ -50,7 +52,7 @@ SERIES_SCHEMA = "lens-range-v1"
 def _lens_call(rid: Any, body: Callable[[], dict]) -> dict:
     """Run ``body``; turn a Lens refusal into its typed frame."""
 
-    from agent_runtime.lens.store import LensStoreError, StoreRefusal
+    from agent_runtime.lens.store import NOT_FOUND_REFUSALS, LensStoreError
     from agent_runtime.lens.wire_value import WireError
 
     try:
@@ -59,7 +61,7 @@ def _lens_call(rid: Any, body: Callable[[], dict]) -> dict:
         return err(rid, ERR_INVALID_PARAMS, "The Lens request was refused.",
                    {"reason": exc.code.value, "detail": exc.detail})
     except LensStoreError as exc:
-        code = ERR_NOT_FOUND if exc.code is StoreRefusal.NOT_FOUND else ERR_CONFLICT
+        code = ERR_NOT_FOUND if exc.code in NOT_FOUND_REFUSALS else ERR_CONFLICT
         return err(rid, code, "The Lens store refused the request.", {"reason": exc.code.value})
 
 
@@ -215,5 +217,31 @@ def _runtime_lens_credential_set(rid: Any, params: dict, context: RpcContext | N
         m = checked_object(params or {}, {"ref", "scheme", "secret"}, {"username"})
         return set_credential(m["ref"], scheme=enum_value(m["scheme"], CredentialScheme).value,
                               secret=m["secret"], username=m.get("username"))
+
+    return _lens_call(rid, body)
+
+
+MAXIMUM_RECEIPTS_PAGE = 256
+
+
+@method("runtime.lens.receipt", tier=TIER_CONSOLE)
+def _runtime_lens_receipt(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    def body() -> dict:
+        from agent_runtime.lens.wire_value import digest_value
+
+        return _store().receipt(digest_value((params or {}).get("episode_id")))
+
+    return _lens_call(rid, body)
+
+
+@method("runtime.lens.receipts", tier=TIER_CONSOLE)
+def _runtime_lens_receipts(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    def body() -> dict:
+        from agent_runtime.lens.wire_value import bounded_int
+
+        params_ = params or {}
+        monitor_id = None if params_.get("monitor_id") is None else _monitor_id(params_)
+        limit = bounded_int(params_.get("limit", 32), minimum=1, maximum=MAXIMUM_RECEIPTS_PAGE)
+        return {"receipts": _store().receipts(monitor_id=monitor_id, limit=limit)}
 
     return _lens_call(rid, body)
