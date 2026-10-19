@@ -224,6 +224,17 @@ def reset_core_cache_fingerprint_home():
 
 
 @pytest.fixture(autouse=True)
+def no_test_reaches_a_git_host(monkeypatch):
+    """The default brain's automatic promotion asks the machine's GitHub chain (``gh auth token``, the git
+    credential helper, ``api.github.com``) whether it is connected (p10-work §2.5). No test does: the
+    door's memo answers "not connected" unless a test fakes ``git_host_account`` itself."""
+
+    from agent_runtime import git_host_account
+
+    monkeypatch.setattr(git_host_account, "_cache", (float("inf"), None))
+
+
+@pytest.fixture(autouse=True)
 def isolate_agent_runtime_root(tmp_path, monkeypatch):
     """Pin this package's runtime root into ``tmp_path``.
 

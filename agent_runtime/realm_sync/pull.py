@@ -95,7 +95,9 @@ def pull_realm_sync(
     git = _git_state(repo)
     if git["conflicts"]:
         raise RealmSyncError("sync_conflict", "Realm sync repo has unresolved git conflicts.", safe_details={"conflicts": git["conflicts"]})
-    if _has_remote(repo):
+    # An adopted personal repo that is still EMPTY (no remote-tracking ref after the
+    # adopter's fetch, p10-work §2.6) has nothing to pull and no upstream to pull from.
+    if _has_remote(repo) and _git(repo, "for-each-ref", "--count=1", "refs/remotes", check=False).strip():
         _git(repo, "pull", "--ff-only", extra_config=_credential_git_config(credential))
     subtree = _realm_subtree(repo, realm.id)
     artifacts = _artifacts_from_subtree(subtree)

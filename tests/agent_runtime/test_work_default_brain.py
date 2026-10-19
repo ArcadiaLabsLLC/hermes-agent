@@ -60,8 +60,8 @@ def test_every_workspace_without_a_repo_brain_gets_one_automatically(work):
     surface.parent.mkdir(parents=True, exist_ok=True)
     surface.write_text("{}", encoding="utf-8")
     caps = service.execute("capabilities", {}, STDIO_OWNER)
-    assert caps["default_brain"][other] == {"state": "created"}
-    assert caps["default_brain"][work.ws] == {"state": "present"}
+    assert caps["default_brain"][other] == {"state": "created", "reason": "needs_git_account"}
+    assert caps["default_brain"][work.ws] == {"state": "present", "reason": "needs_git_account"}
     assert [b.slot for b in board.boards(other)] == ["brain"]
 
 

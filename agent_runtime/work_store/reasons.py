@@ -63,6 +63,14 @@ class Reason(StrEnum):
     BATCH_MISSING = "batch_missing"
     # ``approve`` with no green code-run gate receipt for the landing HEAD (RT-BATCH-GATE-RECEIPT).
     GATE_NOT_GREEN = "gate_not_green"
+    # The default brain's promotion to a remote (p10-work §2.4, RT-WORK-DEFAULT-BRAIN-REMOTE).
+    NEEDS_GIT_ACCOUNT = "needs_git_account"
+    REMOTE_EXISTS = "remote_exists"
+    GIT_HOST_UNSUPPORTED = "git_host_unsupported"
+    TOKEN_SCOPE = "token_scope"
+    HOST_UNREACHABLE = "host_unreachable"
+    REMOTE_DIVERGED = "remote_diverged"
+    URL_MISMATCH = "url_mismatch"
 
 
 class WorkRefused(ValueError):

@@ -78,6 +78,24 @@ def test_declare_replaces_the_declared_set_and_tombstones_what_left(workspace):
     assert stale["error"]["data"]["reason"] == "stale_revision"
 
 
+def test_declare_one_slot_keeps_the_other_slots(workspace):
+    """The second write site (p10-work §2.5): one name in, nothing tombstoned — the positive control
+    against ``declare``'s REPLACE. Killing mutation: ``declare_one_slot`` delegating to ``declare([entry])``
+    tombstones ``backend`` and this goes red."""
+
+    from agent_runtime.workspace_slots import declare_one_slot
+
+    _declare(workspace, [_slot("launcher"), _slot("backend")])
+    reply = declare_one_slot(workspace, _slot("brain"), issued_at=LATER, machine="m-1")
+    assert reply["declared"] == ["brain"] and reply["tombstoned"] == []
+    slots = load_document(workspace)["slots"]
+    assert {name for name, slot in slots.items() if not slot.get("removed_at")} == {"launcher", "backend", "brain"}
+    assert slots["brain"]["declared_by_machine"] == "m-1" and load_document(workspace)["issued_at"] == LATER
+    with pytest.raises(Exception) as stale:
+        declare_one_slot(workspace, _slot("brain"), issued_at=ISSUED, machine="m-1")
+    assert getattr(stale.value, "reason", None) == "stale_revision"
+
+
 @pytest.mark.parametrize(
     ("slot", "reason"),
     [(_slot("bad-name"), "invalid_slot_name"), (_slot(repo={"clone_url": "file:///x"}), "invalid_clone_url")],
