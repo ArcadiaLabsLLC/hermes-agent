@@ -26,11 +26,20 @@ Gates and their killing mutations (each red was recorded in the stage's commit):
   killed by dropping the bound in ``_not_after``; a Grafana alert ignores its
   name's feed — killed by always writing the default feed; a paused monitor takes
   a push — killed by dropping the ENABLED check in ``ingest``.
+* listener: a POST with a wrong signature creates an observation — killed by
+  skipping ``hmac.compare_digest`` (202 == 401); a refusal leaves no gap — killed
+  by dropping ``_refusal_gap``; a replayed ``svix-id`` within the window is
+  accepted — killed by dropping the nonce ring check (202 == 409); a stale
+  timestamp is accepted — killed by dropping ``_in_window``; a body over the cap is
+  read — killed by dropping the ``Content-Length`` cap (the listener waits on a
+  body never sent: the client times out); a public bind is accepted — killed by
+  dropping the loopback/private test in ``read_bind_host``; the serve's listener
+  outlives the liveness event — killed by dropping ``stop`` in the stop thread.
 """
 
 from __future__ import annotations
 
-from datetime import datetime, UTC
+from datetime import datetime, timedelta, UTC
 
 import pytest
 
@@ -234,3 +243,152 @@ def test_a_paused_monitor_or_a_bad_body_writes_nothing():
         ingest(route, _alertmanager(("HighCpu", "firing")), received=T0, store=store)
     assert paused.value.code is IngressRefusal.NOT_ENABLED
     assert store.latest("pager", "alert") is None
+
+
+# --- L3.3 listener ----------------------------------------------------------------
+
+
+@pytest.fixture
+def door():
+    """A listener on an ephemeral loopback port with a fixed clock; stopped after the test."""
+
+    from agent_runtime.lens.ingress import IngressListener
+
+    store = _enabled()
+    listener = IngressListener("127.0.0.1", 0, store_factory=lambda: store, clock=lambda: T0).start()
+    try:
+        yield listener, store
+    finally:
+        listener.stop()
+
+
+def _post(listener, path: str, body: bytes, headers: dict) -> int:
+    import http.client
+
+    host, port = listener.address
+    connection = http.client.HTTPConnection(host, port, timeout=10)
+    try:
+        connection.request("POST", path, body=body, headers=headers)
+        response = connection.getresponse()
+        assert response.read() == b""
+        return response.status
+    finally:
+        connection.close()
+
+
+def _lens_signed(secret: str, body: bytes, *, at=T0) -> dict:
+    import hashlib
+    import hmac
+
+    stamp = str(int(at.timestamp()))
+    digest = hmac.new(secret.encode(), f"{stamp}:".encode() + body, hashlib.sha256).hexdigest()
+    return {"X-Lens-Timestamp": stamp, "X-Lens-Signature": f"sha256={digest}", "Content-Type": "application/json"}
+
+
+def _svix_signed(secret: str, body: bytes, msg_id: str, *, at=T0) -> dict:
+    import base64
+    import hashlib
+    import hmac
+
+    stamp = str(int(at.timestamp()))
+    key = base64.b64decode(secret.removeprefix("whsec_"))
+    mac = base64.b64encode(hmac.new(key, f"{msg_id}.{stamp}.".encode() + body, hashlib.sha256).digest()).decode()
+    return {"svix-id": msg_id, "svix-timestamp": stamp, "svix-signature": f"v1,{mac}"}
+
+
+def _registered(kind: str = "alertmanager") -> tuple[str, str]:
+    from agent_runtime.lens.ingress_routes import register_route
+
+    route = register_route("pager", kind)
+    return f"/lens/{route['route_id']}", route["secret"]
+
+
+def test_a_wrong_signature_creates_no_observation_and_a_right_one_opens_an_episode(door):
+    listener, store = door
+    path, secret = _registered()
+    body = _alertmanager(("HighCpu", "firing"))
+
+    assert _post(listener, path, body, _lens_signed("whsec_not-the-secret", body)) == 401
+    assert store.latest_episode("pager", "firing") is None
+    refused = store.latest("pager", "alert")
+    assert (refused["gap"], refused["reason"]) == (True, "ingress_refused")
+
+    assert _post(listener, path, body, _lens_signed(secret, body)) == 202
+    assert store.latest("pager", "alert")["value"] == 1.0
+    assert store.latest_episode("pager", "firing") is not None
+
+
+def test_a_replayed_svix_id_within_the_window_is_refused(door):
+    listener, _ = door
+    path, secret = _registered()
+    body = _alertmanager(("HighCpu", "resolved"))
+
+    assert _post(listener, path, body, _svix_signed(secret, body, "msg_1")) == 202
+    assert _post(listener, path, body, _svix_signed(secret, body, "msg_1")) == 409
+    stale = _svix_signed(secret, body, "msg_2", at=T0 - timedelta(minutes=6))
+    assert _post(listener, path, body, stale) == 409
+    assert _post(listener, path, body, _svix_signed(secret, body, "msg_3")) == 202
+
+
+def test_a_body_over_the_cap_is_refused_before_the_signature_is_read(door):
+    import http.client
+
+    from agent_runtime.lens.ingress import MAXIMUM_BODY_BYTES
+
+    listener, _ = door
+    path, _ = _registered()
+    host, port = listener.address
+    connection = http.client.HTTPConnection(host, port, timeout=10)
+    try:
+        connection.putrequest("POST", path)
+        connection.putheader("Content-Length", str(MAXIMUM_BODY_BYTES + 1))
+        connection.endheaders()
+        assert connection.getresponse().status == 413
+    finally:
+        connection.close()
+
+
+def test_an_unknown_route_or_verb_is_refused_without_detail(door):
+    listener, _ = door
+    assert _post(listener, "/lens/" + "0" * 24, b"{}", {"X-Lens-Signature": "x"}) == 404
+    assert _post(listener, "/elsewhere", b"{}", {}) == 404
+
+
+def test_the_listener_binds_loopback_and_a_bind_refuses_a_public_address():
+    from agent_runtime.lens.ingress import ingress_state
+
+    state = ingress_state()
+    assert (state["host"], state["port"], state["listening"]) == ("127.0.0.1", 47652, False)
+    for host in ("0.0.0.0", "8.8.8.8", "::"):
+        refused = _rpc("runtime.lens.ingress.bind", {"host": host, "port": 47652})
+        assert refused["error"]["data"]["reason"] == "invalid_value"
+    bound = _rpc("runtime.lens.ingress.bind", {"host": "192.168.1.20", "port": 47653})["result"]
+    assert (bound["host"], bound["port"]) == ("192.168.1.20", 47653)
+    assert _rpc("runtime.lens.ingress.list", {})["result"]["listener"]["port"] == 47653
+
+
+def test_the_serve_listener_stops_with_the_liveness_event(monkeypatch):
+    import threading
+
+    from agent_runtime.lens import ingress, poller
+
+    import socket
+
+    probe = socket.socket()
+    probe.bind(("127.0.0.1", 0))
+    free = probe.getsockname()[1]
+    probe.close()
+    monkeypatch.setattr(poller, "lens_shipped", lambda: True)
+    _rpc("runtime.lens.ingress.bind", {"host": "127.0.0.1", "port": free})
+    stop = threading.Event()
+    listener = ingress.start_lens_ingress(stop_event=stop)
+    try:
+        assert ingress.active_listener() is listener and listener.address == ("127.0.0.1", free)
+    finally:
+        stop.set()
+        for _ in range(100):
+            if ingress.active_listener() is None:
+                break
+            threading.Event().wait(0.05)
+    assert ingress.active_listener() is None
+    assert listener._server is None

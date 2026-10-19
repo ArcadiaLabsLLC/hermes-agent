@@ -53,6 +53,11 @@ class IngressRefusal(str, Enum):
 
     BAD_BODY = "bad_body"
     NOT_ENABLED = "monitor_not_enabled"
+    #: The listener's own (L3.3).
+    UNKNOWN_ROUTE = "unknown_route"
+    OVERSIZE = "oversize"
+    BAD_SIGNATURE = "bad_signature"
+    REPLAY = "replay"
 
 
 class IngressError(ValueError):

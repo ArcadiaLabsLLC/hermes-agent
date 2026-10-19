@@ -59,6 +59,8 @@ class ReadReason(str, Enum):
     FX_STALE = "fx_stale"
     #: A ``push`` feed is written by its ingress route only; nothing reads it (L3).
     PUSH_ONLY = "push_only"
+    #: A POST to the feed's ingress route was refused (signature, replay, size, body; L3).
+    INGRESS_REFUSED = "ingress_refused"
     SOURCE_FAILED = "source_failed"
 
 

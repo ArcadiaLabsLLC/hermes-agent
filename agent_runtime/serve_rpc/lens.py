@@ -29,8 +29,11 @@ artifact               {episode_id, name} -> {name, media_type, size_bytes, sha2
 ingress.register       {monitor_id, kind, mapping?} -> {route_id, url, secret, kind, mapping, ...}
                        (stage L3; the secret is in this answer ONCE, then only in the
                        home's credential file as ``ingress:<route_id>``)
-ingress.list           {monitor_id?} -> {routes} (never a secret)
+ingress.list           {monitor_id?} -> {routes, listener} (never a secret; listener =
+                       {host, port, listening, url_base, maximum_body_bytes})
 ingress.revoke         {route_id} -> the route + revoked (its secret is forgotten)
+ingress.bind           {host, port} -> listener (loopback or a private address only; the
+                       running listener moves; written to ``lens/ingress.json``)
 =====================  ================================================================
 
 Every refusal carries ``data.reason`` (a ``WireRefusal`` or ``StoreRefusal`` value)
@@ -287,7 +290,9 @@ def _runtime_lens_ingress_list(rid: Any, params: dict, context: RpcContext | Non
     def body() -> dict:
         from agent_runtime.lens.ingress_routes import list_routes
 
-        return {"routes": list_routes((params or {}).get("monitor_id"))}
+        from agent_runtime.lens.ingress import ingress_state
+
+        return {"routes": list_routes((params or {}).get("monitor_id")), "listener": ingress_state()}
 
     return _lens_call(rid, body)
 
@@ -299,5 +304,17 @@ def _runtime_lens_ingress_revoke(rid: Any, params: dict, context: RpcContext | N
         from agent_runtime.lens.wire_value import checked_object
 
         return revoke_route(checked_object(params or {}, {"route_id"})["route_id"])
+
+    return _lens_call(rid, body)
+
+
+@method("runtime.lens.ingress.bind", tier=TIER_CONSOLE)
+def _runtime_lens_ingress_bind(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    def body() -> dict:
+        from agent_runtime.lens.ingress import bind_ingress
+        from agent_runtime.lens.wire_value import checked_object
+
+        m = checked_object(params or {}, {"host", "port"})
+        return bind_ingress(m["host"], m["port"])
 
     return _lens_call(rid, body)
