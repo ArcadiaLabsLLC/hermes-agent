@@ -16,7 +16,8 @@ reads two receipts a QA serve already writes under its ``HERMES_HOME``:
   blocks and ``final_model_input.tool_schema.per_tool_chars``.
 
 Stages: G1 reader (``read_turn``, ``read_cost``, ``score``); G2 driver (``drive`` writes the
-MCP step list the orchestrating session runs; ``collect`` reads each sent turn back).
+MCP step list the orchestrating session runs; ``collect`` reads each sent turn back); G3 report
+(``report`` applies the pass bar). The owner-sitting run is ``main``'s three subcommands.
 """
 
 from __future__ import annotations
@@ -311,6 +312,8 @@ class ArmScore:
     unread: tuple[str, ...]
     cost_chars: int | None
     guidance_sha256: str | None = None
+    comparison_in_guidance: bool | None = None
+    create_wire_chars: int | None = None
 
     @property
     def cost_tokens(self) -> float | None:
@@ -354,6 +357,12 @@ def score(results: Iterable[PromptResult]) -> list[ArmScore]:
                 unread=unread,
                 cost_chars=max((cost.total_chars for cost in costs), default=None),
                 guidance_sha256=",".join(shas) or None,
+                comparison_in_guidance=all(flags) if (flags := [
+                    c.comparison_in_guidance for c in costs if c.comparison_in_guidance is not None
+                ]) else None,
+                create_wire_chars=max(
+                    (c.per_tool_chars[CREATE_TOOL] for c in costs if CREATE_TOOL in c.per_tool_chars), default=None
+                ),
             )
         )
     return scores
@@ -462,3 +471,137 @@ def collect(
         results.append(PromptResult(prompt_id=step["prompt_id"], kind=step["kind"], agent=step["agent"],
                                     outcome=outcome, cost=cost, provider=step.get("provider")))
     return results
+
+
+# ── G3 the report: the pass bar applied ─────────────────────────────────────
+
+#: Pass bar per (agent, provider) cell (plan §3.2): ≥ 10/12 first-tool hits, every control
+#: prose, and the guidance's per-turn cost ≤ +80 tokens (chars/4) over the baseline arm.
+HIT_BAR = (10, 12)
+COST_CEILING_TOKENS = 80
+
+
+def cell_verdict(cell: ArmScore, baseline: ArmScore | None = None) -> tuple[str, float | None]:
+    """``("PASS" | "FAIL" | "OVER COST", cost delta in tokens)``; a selection pass over the
+    cost ceiling is reported, not adopted."""
+
+    selection = (
+        cell.comparisons > 0
+        and cell.hits * HIT_BAR[1] >= HIT_BAR[0] * cell.comparisons
+        and cell.controls > 0
+        and cell.controls_prose == cell.controls
+    )
+    delta = None
+    if baseline is not None and cell.cost_tokens is not None and baseline.cost_tokens is not None:
+        delta = cell.cost_tokens - baseline.cost_tokens
+    if not selection:
+        return "FAIL", delta
+    if baseline is not None and (delta is None or delta > COST_CEILING_TOKENS):
+        return "OVER COST", delta
+    return "PASS", delta
+
+
+def report(
+    scores: list[ArmScore],
+    *,
+    arm: str,
+    baseline: list[ArmScore] | None = None,
+    baseline_arm: str | None = None,
+    build: str | None = None,
+) -> str:
+    """The arm's table (agent × provider: hits, misses, controls, cost, verdict) as Markdown."""
+
+    base = {(cell.agent, cell.provider): cell for cell in baseline or []}
+    lines = [f"## Arm {arm}" + (f" vs baseline {baseline_arm}" if baseline_arm else ""), ""]
+    if build:
+        lines += [f"Launcher QA build: `{build}`", ""]
+    without = sorted({f"{c.agent}/{c.provider}" for c in scores if c.comparison_in_guidance is False})
+    if without:
+        wire = max((c.create_wire_chars for c in scores if c.create_wire_chars is not None), default=None)
+        lines += [
+            f"**First:** the tool-guidance section carries no comparison trigger ({', '.join(without)}); the "
+            f"create entry reaches the model only as its one-line wire brief ({wire} chars). The Launcher "
+            "wording moves the trigger into `guidance` before any further variant.",
+            "",
+        ]
+    lines += [
+        "| agent | provider | hits | misses | controls prose | cost chars | tokens | Δ tokens | guidance sha | verdict |",
+        "|---|---|---|---|---|---|---|---|---|---|",
+    ]
+    for cell in scores:
+        verdict, delta = cell_verdict(cell, base.get((cell.agent, cell.provider)) if baseline is not None else None)
+        tokens = "—" if cell.cost_tokens is None else f"{cell.cost_tokens:.0f}"
+        failed = f" (failed {', '.join(cell.control_failures)})" if cell.control_failures else ""
+        lines.append(
+            f"| {cell.agent} | {cell.provider} | {cell.hits}/{cell.comparisons} | {', '.join(cell.misses) or '—'} "
+            f"| {cell.controls_prose}/{cell.controls}{failed} "
+            f"| {cell.cost_chars if cell.cost_chars is not None else '—'} | {tokens} "
+            f"| {'—' if delta is None else f'{delta:+.0f}'} | {(cell.guidance_sha256 or '—')[:12]} | {verdict} |"
+        )
+    unread = [f"{c.agent}/{c.provider}: {', '.join(c.unread)}" for c in scores if c.unread]
+    if unread:
+        lines += ["", "Unread or unsettled turns (scored as misses): " + "; ".join(unread)]
+    lines += ["", f"Bar: ≥ {HIT_BAR[0]}/{HIT_BAR[1]} first-tool hits, every control prose, "
+              f"≤ +{COST_CEILING_TOKENS} tokens/turn over the baseline arm."]
+    return "\n".join(lines) + "\n"
+
+
+# ── the owner-sitting command line ──────────────────────────────────────────
+
+
+def _scores_from(path: str | os.PathLike[str]) -> tuple[str, list[ArmScore], str | None]:
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    cells = [
+        ArmScore(**{**cell, **{key: tuple(cell[key]) for key in ("misses", "control_failures", "unread")}})
+        for cell in data["scores"]
+    ]
+    return data["arm"], cells, data.get("build")
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+    from dataclasses import asdict
+
+    parser = argparse.ArgumentParser(description="GenUI first-response A/B eval (receipt reader)")
+    sub = parser.add_subparsers(dest="command", required=True)
+    plan_cmd = sub.add_parser("plan", help="write the MCP step list (sends nothing)")
+    plan_cmd.add_argument("--arm", required=True)
+    plan_cmd.add_argument("--agent", action="append", required=True)
+    plan_cmd.add_argument("--provider", action="append")
+    plan_cmd.add_argument("--prompts", default=str(Path(__file__).with_name("genui_first_response_prompts.json")))
+    plan_cmd.add_argument("--out", required=True)
+    collect_cmd = sub.add_parser("collect", help="read the sent turns back from the QA home")
+    collect_cmd.add_argument("--home", required=True)
+    collect_cmd.add_argument("--runtime-root")
+    collect_cmd.add_argument("--plan", required=True)
+    collect_cmd.add_argument("--sends", required=True)
+    collect_cmd.add_argument("--build", help="the Launcher QA build stamp of this arm")
+    collect_cmd.add_argument("--wait-seconds", type=float, default=600.0)
+    collect_cmd.add_argument("--out", required=True)
+    report_cmd = sub.add_parser("report", help="apply the pass bar and write the Markdown table")
+    report_cmd.add_argument("--results", required=True)
+    report_cmd.add_argument("--baseline")
+    report_cmd.add_argument("--out", required=True)
+    args = parser.parse_args(argv)
+
+    if args.command == "plan":
+        plan = drive(args.arm, load_prompts(args.prompts), args.agent, args.provider or [None])
+        Path(args.out).write_text(json.dumps(plan, indent=2), encoding="utf-8")
+        return 0
+    if args.command == "collect":
+        plan = json.loads(Path(args.plan).read_text(encoding="utf-8"))
+        sends = json.loads(Path(args.sends).read_text(encoding="utf-8"))
+        results = collect(args.home, plan, sends, runtime_root=args.runtime_root, wait_seconds=args.wait_seconds)
+        payload = {"arm": plan["arm"], "build": args.build, "results": [asdict(item) for item in results],
+                   "scores": [asdict(cell) for cell in score(results)]}
+        Path(args.out).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        return 0
+    arm, scores, build = _scores_from(args.results)
+    baseline_arm, baseline, _ = _scores_from(args.baseline) if args.baseline else (None, None, None)
+    text = report(scores, arm=arm, baseline=baseline, baseline_arm=baseline_arm, build=build)
+    Path(args.out).write_text(text, encoding="utf-8")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

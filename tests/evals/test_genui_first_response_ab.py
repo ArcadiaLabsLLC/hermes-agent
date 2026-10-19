@@ -206,3 +206,52 @@ def test_collect_reads_sent_turns_back(home: Path) -> None:
     assert results[0].outcome.is_hit and results[0].cost.context_id == "ctx_bbbb"
     assert results[0].provider_key == "p9" and results[1].outcome is None
     assert results[2].outcome.prose_only and results[2].cost is None
+
+
+# ── G3 report ───────────────────────────────────────────────────────────────
+
+
+def _cell(hits: int, controls_prose: int = 3, *, cost_chars: int | None = 4000,
+          comparison_in_guidance: bool | None = True) -> ab.ArmScore:
+    return ab.ArmScore(agent="Base", provider="p1", hits=hits, comparisons=12, misses=(), controls_prose=controls_prose,
+                       controls=3, control_failures=() if controls_prose == 3 else ("C1",), unread=(),
+                       cost_chars=cost_chars, comparison_in_guidance=comparison_in_guidance, create_wire_chars=180)
+
+
+def test_bar_arithmetic() -> None:
+    assert ab.cell_verdict(_cell(9))[0] == "FAIL"
+    assert ab.cell_verdict(_cell(10))[0] == "PASS"
+    assert ab.cell_verdict(_cell(12, controls_prose=2))[0] == "FAIL", "a control hit fails the arm"
+    base = _cell(4, cost_chars=4000)
+    assert ab.cell_verdict(_cell(10, cost_chars=4000 + 320), base) == ("PASS", 80.0)
+    assert ab.cell_verdict(_cell(10, cost_chars=4000 + 324), base) == ("OVER COST", 81.0)
+    assert ab.cell_verdict(_cell(10, cost_chars=None), base)[0] == "OVER COST", "an unread cost is never adopted"
+
+
+def test_report_table_and_first_line() -> None:
+    text = ab.report([_cell(10)], arm="B", baseline=[_cell(4)], baseline_arm="A", build="qa-123")
+    assert "## Arm B vs baseline A" in text and "`qa-123`" in text
+    assert "| Base | p1 | 10/12 |" in text and "| +0 |" in text and text.rstrip().splitlines()[-1].startswith("Bar:")
+    assert "| PASS |" in text and "**First:**" not in text
+    first = ab.report([_cell(3, comparison_in_guidance=False)], arm="A")
+    assert "**First:**" in first and "(180 chars)" in first and "| FAIL |" in first
+
+
+def test_cli_plan_collect_report_round_trip(home: Path, tmp_path: Path) -> None:
+    plan_path, sends_path = tmp_path / "plan.json", tmp_path / "sends.json"
+    results_path, report_path = tmp_path / "results.json", tmp_path / "report.md"
+    assert ab.main(["plan", "--arm", "A", "--agent", "Base", "--prompts", str(PROMPTS_PATH), "--out", str(plan_path)]) == 0
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    sends = {}
+    for index, step in enumerate(s for s in plan["steps"] if s["op"] == ab.OP_SEND):
+        sid = f"sid-{index}"
+        _write_turn(home, sid, HIT if step["kind"] == ab.COMPARISON else MISS)
+        _write_ctx(home, f"ctx_{index:04d}", session_id=sid, guidance="compare", per_tool=PER_TOOL, provider="p1")
+        sends[step["session_ref"]] = {"session_id": sid, "client_message_id": "cm1"}
+    sends_path.write_text(json.dumps(sends), encoding="utf-8")
+    assert ab.main(["collect", "--home", str(home), "--plan", str(plan_path), "--sends", str(sends_path),
+                    "--wait-seconds", "0", "--build", "qa-1", "--out", str(results_path)]) == 0
+    assert ab.main(["report", "--results", str(results_path), "--baseline", str(results_path),
+                    "--out", str(report_path)]) == 0
+    text = report_path.read_text(encoding="utf-8")
+    assert "| Base | p1 | 12/12 | — | 3/3 |" in text and "| +0 |" in text and "| PASS |" in text
