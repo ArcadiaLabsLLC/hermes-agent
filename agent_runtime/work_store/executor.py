@@ -19,7 +19,7 @@ from enum import StrEnum
 from typing import Any, Protocol
 
 from .grammar import RowRef
-from .models import Brief, Verdict
+from .models import Brief, GateReceipt, Verdict
 from .reasons import Reason
 
 __layer__ = "lanes"
@@ -97,6 +97,8 @@ class Outcome:
     report: str = ""
     tool_calls: int | None = None
     commits: tuple[str, ...] = ()
+    #: The landing lane's code-run gate, one receipt per slot (``batch.gate.GateRunner``); empty for a work lane.
+    gates: tuple[GateReceipt, ...] = ()
 
 
 @dataclass(frozen=True)

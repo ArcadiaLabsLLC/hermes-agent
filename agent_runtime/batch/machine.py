@@ -18,7 +18,7 @@ from enum import StrEnum
 from typing import Any, TypeVar
 
 from ..work_store.grammar import RowRef
-from ..work_store.models import Verdict
+from ..work_store.models import GateReceipt, Verdict
 from ..work_store.reasons import Reason, WorkRefused
 from .planner import Budget, Lane, LaneKind
 
@@ -194,6 +194,8 @@ class Batch:
     landing_attempt: int = 0
     gate: str = ""
     landing_sha: str = ""
+    #: The current landing attempt's code-run gate, one receipt per slot (``gate.GateRunner``).
+    gate_receipts: tuple[GateReceipt, ...] = ()
 
     def lane(self, lane_id: str) -> LaneRecord:
         found = next((lane for lane in (*self.lanes, self.landing) if lane.id == lane_id), None)
@@ -210,7 +212,8 @@ class Batch:
         return {"id": self.id, "workspace_id": self.workspace_id, "owner_machine": self.owner_machine,
                 "state": self.state.value, "lanes": [lane.wire() for lane in self.lanes],
                 "landing": self.landing.wire(), "budget": self.budget.wire(),
-                "landing_attempt": self.landing_attempt, "gate": self.gate, "landing_sha": self.landing_sha or None}
+                "landing_attempt": self.landing_attempt, "gate": self.gate, "landing_sha": self.landing_sha or None,
+                "gate_receipts": [g.wire() for g in self.gate_receipts]}
 
 
 # ── the rules ──────────────────────────────────────────────────────────────

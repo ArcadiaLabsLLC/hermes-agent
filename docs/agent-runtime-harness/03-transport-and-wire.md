@@ -1751,7 +1751,7 @@ refusal shape are Work's; replies carry `version: 1`, `install_id`, `owner`.
 | `runtime.batch.status` | `batch_id?` | `batches[] {…, lanes[], landing, marks {slot/ID: who \| status \| gone}}`, `automation`, `machine` | `batch_missing` |
 | `runtime.batch.stop` | `batch_id`, `lane?` (omitted: abort the batch) | `batch` | `state_transition_invalid`, `batch_missing` |
 | `runtime.batch.land` | `batch_id`, `persona?` | `batch` | `state_transition_invalid`, `landing_in_progress`, `not_owner_machine` |
-| `runtime.batch.approve` | `batch_id` | `batch` (`LANDED`, `landing_sha`) | `state_transition_invalid`, `not_owner_machine`, `landing_in_progress`, `push_contended` (the tip moved since the merge: land again), `worktree_dirty`, `push_refused` |
+| `runtime.batch.approve` | `batch_id` | `batch` (`LANDED`, `landing_sha`) | `state_transition_invalid`, `not_owner_machine`, `landing_in_progress`, `gate_not_green` (no green code-run gate receipt for the landing HEAD), `push_contended` (the tip moved since the merge: land again), `worktree_dirty`, `push_refused` |
 
 A batch is its manifest note, `<default brain>/50 — Agent Handoffs/batches/<BATCH-id>.md` (frontmatter
 `type: batch`, `owner_machine`; one appended line per lane per state), its lane briefs beside it, and its
@@ -1772,9 +1772,17 @@ written to the `-scratch` directory beside it and sent as the persona's turn, wh
 (`run_workdir`, on top of the workdir ladder; a `run_workdir` this machine cannot use refuses the turn —
 `invalid_request`, `reason: run_workdir_unavailable` — never falls back to the ladder). The settle reads the lane's commits from git (`base..branch`).
 `land` cuts `land/<batch>` per slot the batch touched and merges each `REPORTED` lane `--no-ff` in order (a
-conflict is aborted and named in the landing brief); `approve` (`lander.py::GitLander`) checks every slot
-(clean, the fetched tip an ancestor) before it pushes each landing HEAD fast-forward. `land` and `approve`
-hold `locks.batch_landing_lock` (one landing per machine). Receipt: `batch.lane_site`.
+conflict is aborted and named in the landing brief). When the landing turn settles, the executor runs the
+landing gate itself, off the settle's thread, in each slot's landing worktree (`gate.py::GateRunner`; the
+landing brief's `tests`, `planner.LANDING_GATE` = `bash scripts/run_tests_bundled.sh tests`) and records one
+code-run receipt per slot — `{slot, command, exit_code, summary, sha, seconds}`, `sha` the HEAD it ran on —
+in the manifest's batch line (`gate_receipts`; `Batch.gate_receipts`). Those receipts alone decide
+`AWAITING_APPROVAL`; the persona's `work_report` verdict is advisory (`advisory`; row RT-BATCH-GATE-RECEIPT,
+owner ruling 2026-10-18). `approve` refuses `gate_not_green` without a green receipt per slot, and
+`lander.py::GitLander` checks every slot (clean, the fetched tip an ancestor, a green receipt naming that
+HEAD) before it pushes each landing HEAD fast-forward. `land` and `approve` hold
+`locks.batch_landing_lock` (one landing per machine). Receipts: `batch.lane_site`, `batch.gate_started`,
+`batch.gate`.
 
 ### Schedule methods — the serve's scheduler
 

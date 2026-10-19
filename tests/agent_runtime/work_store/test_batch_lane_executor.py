@@ -10,11 +10,17 @@ Killing mutations (plan §6 B5), each red recorded in the B5 commit body:
 * the lane executor pushes ``land/<batch>`` to main when the landing starts →
   ``test_landing_never_pushes_before_approve`` red;
 * ``BatchDispatcher.land`` without ``_one_landing`` → ``test_one_landing_at_a_time_holds_the_machine`` red.
+
+RT-BATCH-GATE-RECEIPT (owner ruling 2026-10-18): the landing settle runs ``planner.LANDING_GATE`` — the tmp repo
+carries a ``scripts/run_tests_bundled.sh`` that prints a Summary line and exits ``$GATE_EXIT`` — off the settle's
+thread in the landing worktree. Killing mutation, red recorded in its commit body:
+* ``GitLander.push`` without its ``require_green`` HEAD check → ``test_a_commit_after_the_gate_is_not_approved`` red.
 """
 
 from __future__ import annotations
 
 import subprocess
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -22,11 +28,12 @@ import pytest
 
 from agent_runtime import chat_root_send_queue as send_queue
 from agent_runtime import paths
+from agent_runtime.batch.gate import GateRunner
 from agent_runtime.batch.lane_executor import BatchLaneExecutor, render_lane_brief
 from agent_runtime.batch.lane_git import Clone, LaneGit, Site
 from agent_runtime.batch.lander import GitLander
 from agent_runtime.batch.machine import BatchState, LaneState
-from agent_runtime.batch.planner import Member
+from agent_runtime.batch.planner import LANDING_GATE, Member
 from agent_runtime.locks import batch_landing_lock
 from agent_runtime.mission_chat_workdir import (
     RUN_WORKDIR_ARG, WORKDIR_SOURCE_RUN_OVERRIDE, MissionChatWorkdir, RunWorkdirRefused, with_run_override,
@@ -59,7 +66,12 @@ def repo(tmp_path, monkeypatch):
     subprocess.run(["git", "clone", "-q", str(origin), str(clone)], check=True, capture_output=True)
     git(clone, "checkout", "-q", "-b", "main")
     (clone / "README.md").write_text("base\n", encoding="utf-8")
-    git(clone, "add", "README.md")
+    (clone / "scripts").mkdir()
+    (clone / "scripts" / "run_tests_bundled.sh").write_text(
+        'echo "ran in $(pwd)"\necho "=== Summary: 3 files, 12 tests passed, 0 failed ==="\nexit "${GATE_EXIT:-0}"\n',
+        encoding="utf-8", newline="\n")
+    monkeypatch.setenv("GATE_EXIT", "0")
+    git(clone, "add", "README.md", "scripts/run_tests_bundled.sh")
     git(clone, "commit", "-q", "-m", "base")
     git(clone, "push", "-q", "origin", "main")
     return SimpleNamespace(origin=origin, clone=clone, tmp=tmp_path)
@@ -77,11 +89,23 @@ class FakeTurns(FakeExecutor):
         return self.start(a)
 
 
+class ThreadNotingGate(GateRunner):
+    """The real ``GateRunner``, noting which thread ran it."""
+
+    def __init__(self) -> None:
+        super().__init__(timeout=120)
+        self.threads: list[str] = []
+
+    def run(self, site, commands):
+        self.threads.append(threading.current_thread().name)
+        return super().run(site, commands)
+
+
 def lanes_over(repo, rows, **kw):
     manifests = FakeManifests()
     turns = FakeTurns()
     executor = BatchLaneExecutor(inner=turns, manifests=manifests, workspaces=lambda: [WS],
-                                 clone_of=lambda _ws, _slot: Clone(repo.clone))
+                                 clone_of=lambda _ws, _slot: Clone(repo.clone), gate=ThreadNotingGate())
     d = dispatcher(FakeSource(rows), manifests=manifests, executor=executor, roster=ROSTER,
                    lander=GitLander(clone_of=lambda _ws, _slot: Clone(repo.clone)), **kw)
     batch = d.start(WS, d.plan(WS).id)
@@ -170,9 +194,17 @@ def test_landing_never_pushes_before_approve(repo):
     assert "Merged --no-ff:" in turns.sent[f"{batch.id}:LAND:1"][0]
     assert git(repo.origin, "rev-parse", "main") == main_before
     turns.settle(f"{batch.id}:LAND:1", Outcome(Verdict.DONE, report="green: 4 passed"))
+    d.executor.wait_for_gates(120)
+    assert d.executor._gate.threads == [f"batch-gate-{batch.id}:LAND:1"], "the gate runs off the settle's thread"
     waiting = d.load(WS, batch.id)
     assert waiting.state is BatchState.AWAITING_APPROVAL
     assert waiting.landing.commits == (git(land, "rev-parse", "HEAD"),)
+    (receipt,) = waiting.gate_receipts
+    assert receipt.command == LANDING_GATE and receipt.exit_code == 0 and receipt.slot == "hermes"
+    assert receipt.summary == "=== Summary: 3 files, 12 tests passed, 0 failed ==="
+    assert receipt.sha == git(land, "rev-parse", "HEAD")
+    log = (land.with_name(land.name + "-scratch") / "gate-hermes.log").read_text(encoding="utf-8")
+    assert "ran in" in log and land.name in log.replace("\\", "/")
     assert git(repo.origin, "rev-parse", "main") == main_before
     landed = d.approve(WS, batch.id)
     assert landed.state is BatchState.LANDED and landed.landing_sha == git(land, "rev-parse", "HEAD")
@@ -183,6 +215,7 @@ def test_approve_refuses_a_moved_main_and_pushes_nothing(repo):
     d, turns, batch, _shas = _land(repo)
     d.land(WS, batch.id)
     turns.settle(f"{batch.id}:LAND:1", Outcome(Verdict.DONE, report="green"))
+    d.executor.wait_for_gates(120)
     other = repo.tmp / "other"
     subprocess.run(["git", "clone", "-q", str(repo.origin), str(other)], check=True, capture_output=True)
     moved = commit_in(other, "c.txt", "c\n")
@@ -192,6 +225,32 @@ def test_approve_refuses_a_moved_main_and_pushes_nothing(repo):
     assert refused.value.reason is Reason.PUSH_CONTENDED
     assert git(repo.origin, "rev-parse", "main") == moved
     assert d.load(WS, batch.id).state is BatchState.AWAITING_APPROVAL
+
+
+def test_a_red_gate_returns_the_batch_whatever_the_persona_said(repo, monkeypatch):
+    d, turns, batch, _shas = _land(repo)
+    monkeypatch.setenv("GATE_EXIT", "1")
+    d.land(WS, batch.id)
+    turns.settle(f"{batch.id}:LAND:1", Outcome(Verdict.DONE, report="all green"))
+    d.executor.wait_for_gates(120)
+    again = d.load(WS, batch.id)
+    assert again.state is BatchState.READY_TO_LAND
+    assert [g.exit_code for g in again.gate_receipts] == [1]
+
+
+def test_a_commit_after_the_gate_is_not_approved(repo):
+    d, turns, batch, _shas = _land(repo)
+    main_before = git(repo.origin, "rev-parse", "main")
+    d.land(WS, batch.id)
+    land = worktree_of(turns, f"{batch.id}:LAND:1")
+    turns.settle(f"{batch.id}:LAND:1", Outcome(Verdict.DONE, report="green"))
+    d.executor.wait_for_gates(120)
+    assert d.load(WS, batch.id).state is BatchState.AWAITING_APPROVAL
+    commit_in(land, "late.txt", "after the gate\n")
+    with pytest.raises(WorkRefused) as refused:
+        d.approve(WS, batch.id)
+    assert refused.value.reason is Reason.GATE_NOT_GREEN
+    assert git(repo.origin, "rev-parse", "main") == main_before
 
 
 def test_a_conflicting_lane_is_named_and_the_landing_tree_stays_clean(repo):

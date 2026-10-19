@@ -6,6 +6,9 @@ Killing mutations (plan §6 B2), each red recorded in the B2 commit body:
   ``test_approve_is_the_only_door_to_main`` red;
 * ``AUTOMATABLE[START]`` gains ``BatchAction.LAND`` → ``test_land_and_approve_are_never_automated`` red;
 * ``_stop_lane`` releases a RUNNING lane at once instead of waiting → ``test_stop_waits_for_the_running_turn`` red.
+
+RT-BATCH-GATE-RECEIPT (owner ruling 2026-10-18), red recorded in its commit body:
+* ``BatchDispatcher.approve`` without ``require_green`` → ``test_approve_refuses_without_a_green_gate_receipt`` red.
 """
 
 from __future__ import annotations
@@ -20,7 +23,7 @@ from agent_runtime.work_store.executor import Outcome, RowEnding, RunStatus, Ver
 from agent_runtime.work_store.grammar import Status
 from agent_runtime.work_store.reasons import Reason, WorkRefused
 
-from batch_support import WS, FakeLander, FakeManifests, dispatcher, qrow, settings
+from batch_support import WS, FakeLander, FakeManifests, dispatcher, gate, qrow, settings
 from contract_fakes import FakeExecutor, FakeSource
 
 ROSTER = [Member("inst-a", "alice", "engineer"), Member("inst-b", "bob", "engineer")]
@@ -63,9 +66,10 @@ def test_approve_is_the_only_door_to_main():
     landing = d.land(WS, batch.id)
     assert landing.state is BatchState.LANDING and landing.landing.state is LaneState.RUNNING
     assert refused(lambda: d.approve(WS, batch.id)) is Reason.STATE_TRANSITION_INVALID
-    d.executor.settle(f"{batch.id}:LAND:1", Outcome(Verdict.DONE, report="green: 12 passed"))
+    d.executor.settle(f"{batch.id}:LAND:1", Outcome(Verdict.DONE, report="green: 12 passed", gates=(gate(),)))
     waiting = d.load(WS, batch.id)
-    assert waiting.state is BatchState.AWAITING_APPROVAL and waiting.gate == "green: 12 passed"
+    assert waiting.state is BatchState.AWAITING_APPROVAL and waiting.gate_receipts == (gate(),)
+    assert waiting.gate == "hermes: exit 0 — === Summary: 3 files, 12 tests passed, 0 failed ==="
     assert lander.pushed == []
     landed = d.approve(WS, batch.id)
     assert landed.state is BatchState.LANDED and landed.landing_sha == "f00dfeed" and lander.pushed == [batch.id]
@@ -75,7 +79,7 @@ def test_approve_without_a_bound_lander_refuses_not_built_and_keeps_waiting():
     d, batch = started(FakeSource(rows("Fork-owned")))
     settle_all(d, batch)
     d.land(WS, batch.id)
-    d.executor.settle(f"{batch.id}:LAND:1", Outcome(Verdict.DONE))
+    d.executor.settle(f"{batch.id}:LAND:1", Outcome(Verdict.DONE, gates=(gate(),)))
     assert refused(lambda: d.approve(WS, batch.id)) is Reason.NOT_BUILT
     assert d.load(WS, batch.id).state is BatchState.AWAITING_APPROVAL
 
@@ -84,10 +88,37 @@ def test_a_red_landing_returns_to_ready_to_land_and_lands_again():
     d, batch = started(FakeSource(rows("Fork-owned")))
     settle_all(d, batch)
     d.land(WS, batch.id)
-    d.executor.settle(f"{batch.id}:LAND:1", Outcome(Verdict.BLOCKED, report="red: test_x"))
+    d.executor.settle(f"{batch.id}:LAND:1", Outcome(Verdict.DONE, report="green", gates=(gate(1, "red: test_x"),)))
     again = d.load(WS, batch.id)
-    assert again.state is BatchState.READY_TO_LAND and again.gate == "red: test_x"
-    assert d.land(WS, batch.id).landing_attempt == 2
+    assert again.state is BatchState.READY_TO_LAND and again.gate == "hermes: exit 1 — red: test_x"
+    relanded = d.land(WS, batch.id)
+    assert relanded.landing_attempt == 2 and relanded.gate_receipts == ()
+
+
+def test_the_gate_decides_and_the_persona_verdict_is_advisory():
+    d, batch = started(FakeSource(rows("Fork-owned")))
+    settle_all(d, batch)
+    d.land(WS, batch.id)
+    d.executor.settle(f"{batch.id}:LAND:1", Outcome(Verdict.DONE, report="all green, trust me"))
+    assert d.load(WS, batch.id).state is BatchState.READY_TO_LAND, "no code-run gate: never green"
+    d.land(WS, batch.id)
+    d.executor.settle(f"{batch.id}:LAND:2", Outcome(Verdict.BLOCKED, report="I think x is red", gates=(gate(),)))
+    assert d.load(WS, batch.id).state is BatchState.AWAITING_APPROVAL
+
+
+def test_approve_refuses_without_a_green_gate_receipt():
+    """A batch awaiting approval with no green receipt (a pre-ruling manifest) never reaches the lander."""
+
+    lander, manifests = FakeLander(), FakeManifests()
+    d, batch = started(FakeSource(rows("Fork-owned")), lander=lander, manifests=manifests)
+    settle_all(d, batch)
+    d.land(WS, batch.id)
+    d.executor.settle(f"{batch.id}:LAND:1", Outcome(Verdict.DONE, report="green: 12 passed"))
+    manifests.append(WS, batch.id, [d._batch_line(BatchState.AWAITING_APPROVAL, {"gate": "the persona said green"})],
+                     "pre-ruling")
+    assert d.load(WS, batch.id).state is BatchState.AWAITING_APPROVAL
+    assert refused(lambda: d.approve(WS, batch.id)) is Reason.GATE_NOT_GREEN
+    assert lander.pushed == [] and d.load(WS, batch.id).state is BatchState.AWAITING_APPROVAL
 
 
 def test_land_and_approve_are_never_automated():

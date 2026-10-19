@@ -31,7 +31,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 ## Fork-owned
 
 ### Filed on arrival — 2026-10-18 (land w6)
-- **`RT-BATCH-GATE-RECEIPT` — the landing's green is the persona's `work_report` verdict; no code-run gate result is recorded for `approve` to check** · fork / batch · `agent_runtime/batch/dispatcher.py::_landing_settled`, `lander.py::GitLander` · RULED 2026-10-18: owner — the executor runs the landing gate off-thread and records a code-run gate receipt; `approve` refuses without a green receipt; the persona's `work_report` verdict is advisory only · READY 2026-10-18 · **TAKEN 2026-10-18 w9-rulings**
 
 ### Filed on arrival — 2026-10-18 (lane w6-misc, branch `w6/misc`)
 

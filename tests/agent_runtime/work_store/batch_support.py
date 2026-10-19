@@ -11,6 +11,7 @@ from agent_runtime.batch.dispatcher import BatchDispatcher
 from agent_runtime.batch.manifest import SETTINGS_NOTE, manifest_path
 from agent_runtime.batch.planner import Budget, Member
 from agent_runtime.work_store.grammar import Row, parse_row
+from agent_runtime.work_store.models import GateReceipt
 
 from contract_fakes import FakeExecutor, FakeSource
 
@@ -28,6 +29,13 @@ def qrow(row_id: str, *, heading: str = "Fork-owned", files: Sequence[str] = (),
     row = parse_row(" · ".join(segments), slot=slot, note=note, line_no=1, heading=heading)
     assert row is not None and not row.defects, row
     return row
+
+
+def gate(exit_code: int = 0, summary: str = "=== Summary: 3 files, 12 tests passed, 0 failed ===", *,
+         slot: str = "hermes", sha: str = "f00dfeed") -> GateReceipt:
+    """A code-run gate receipt as the lane executor's ``GateRunner`` returns it."""
+
+    return GateReceipt(slot, "bash scripts/run_tests_bundled.sh tests", exit_code, summary, sha, 1.0)
 
 
 class FakeManifests:

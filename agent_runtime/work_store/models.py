@@ -7,11 +7,13 @@ live here, at the bottom layer, and the contracts re-export them so a caller's i
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Any
 
 __layer__ = "models"
-__all__ = ["OPERATOR", "PERSONA_PREFIX", "Brief", "Claimant", "Domain", "Verdict"]
+__all__ = ["OPERATOR", "PERSONA_PREFIX", "Brief", "Claimant", "Domain", "GateReceipt", "Verdict"]
 
 #: A persona's claim mark: ``persona:<instance_id>``.
 PERSONA_PREFIX = "persona:"
@@ -63,3 +65,33 @@ class Claimant:
     @property
     def persona_instance_id(self) -> str | None:
         return self.who[len(PERSONA_PREFIX):] if self.who.startswith(PERSONA_PREFIX) else None
+
+
+@dataclass(frozen=True)
+class GateReceipt:
+    """One code-run landing gate in one slot's landing worktree (row RT-BATCH-GATE-RECEIPT, owner 2026-10-18).
+
+    ``sha`` is the worktree HEAD the gate ran on, read before it started; ``approve`` pushes only a HEAD
+    some green receipt names. ``exit_code`` 0 is green; anything else (a test red, a missing command,
+    a timeout, a dirty tree) is red.
+    """
+
+    slot: str
+    command: str
+    exit_code: int
+    summary: str
+    sha: str
+    seconds: float = 0.0
+
+    @property
+    def green(self) -> bool:
+        return self.exit_code == 0
+
+    def wire(self) -> dict[str, Any]:
+        return {"slot": self.slot, "command": self.command, "exit_code": self.exit_code, "summary": self.summary,
+                "sha": self.sha, "seconds": round(self.seconds, 1)}
+
+    @classmethod
+    def from_wire(cls, raw: Mapping[str, Any]) -> GateReceipt:
+        return cls(str(raw.get("slot") or ""), str(raw.get("command") or ""), int(raw.get("exit_code", -1)),
+                   str(raw.get("summary") or ""), str(raw.get("sha") or ""), float(raw.get("seconds") or 0.0))

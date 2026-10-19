@@ -14,14 +14,20 @@ Behind the EXECUTOR contract (``work_store/executor.py``), over a ``PersonaTurnE
    it does the work, runs the lane's own tests, commits on the lane branch and pushes that branch.
 4. On settle the outcome carries the lane's commits read from git (``base..branch``; the landing's HEAD per
    slot) and goes to this executor's listeners (the dispatcher).
+5. The landing lane's settle first runs the landing gate OFF the settle's thread (``gate.GateRunner``, the
+   landing brief's ``tests``: ``planner.LANDING_GATE``) in each slot's landing worktree; the outcome then
+   carries one ``GateReceipt`` per slot, and that — not the persona's verdict — decides green
+   (row RT-BATCH-GATE-RECEIPT, owner ruling 2026-10-18).
 
 Pushing a default branch is NOT this module's: that is ``lander.GitLander`` behind ``runtime.batch.approve``.
-Receipts: ``batch.lane_site`` (where the lane works) beside the inner executor's ``work.exec_*``.
+Receipts: ``batch.lane_site`` (where the lane works), ``batch.gate_started`` / ``batch.gate`` (the code-run
+gate: command, exit code, summary line, SHA) beside the inner executor's ``work.exec_*``.
 """
 
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import replace
 from typing import Any
@@ -30,12 +36,13 @@ from ..work_store import receipts
 from ..work_store.executor import Assignment, ExecutorKind, Outcome, Run, RunStatus, StopReason
 from ..work_store.persona_turn import BRIEF_MAX_LINES, REPORT_CLOSING
 from ..work_store.reasons import Reason, WorkRefused
+from .gate import GateRunner
 from .lane_git import (
     Clone, LaneGit, Site, board_clone, landing_site, lane_branch, lane_site, lane_slot, slots_of,
 )
 from .machine import Batch, LaneRecord, LaneState
 from .manifest import ManifestStore, find_batch
-from .planner import LaneKind
+from .planner import LANDING_GATE, LaneKind
 
 __layer__ = "lanes"
 __all__ = ["BatchLaneExecutor", "render_lane_brief"]
@@ -43,7 +50,8 @@ __all__ = ["BatchLaneExecutor", "render_lane_brief"]
 logger = logging.getLogger(__name__)
 
 _RUN = "Run: the tests importing what you touched, `scripts/run_tests.sh -j 4`; never `-n`, never bare pytest over a directory."
-_LAND_RUN = "Gate: run it once, after the last merge; put its summary line in result. Fix a caused red as its own commit."
+_LAND_RUN = ("Gate: when you settle, the executor runs the landing gate here and records its receipt; "
+             "your verdict is advisory. Fix a caused red as its own commit.")
 
 
 def _clip(lines: Sequence[str], budget: int) -> list[str]:
@@ -93,12 +101,15 @@ class BatchLaneExecutor:
         workspaces: Callable[[], Iterable[str]],
         clone_of: Callable[[str, str], Clone] = board_clone,
         git: LaneGit | None = None,
+        gate: GateRunner | None = None,
     ) -> None:
         self._inner = inner
         self._manifests = manifests
         self._workspaces = workspaces
         self._clone_of = clone_of
         self._git = git or LaneGit()
+        self._gate = gate or GateRunner(git=self._git)
+        self._gate_threads: list[threading.Thread] = []
         self._callbacks: list[Callable[[Run, Outcome], None]] = []
         inner.on_settle(self._inner_settled)
 
@@ -187,7 +198,8 @@ class BatchLaneExecutor:
         return self._git.commits(self._work_site(batch, record))
 
     def _inner_settled(self, run: Run, outcome: Outcome) -> None:
-        """The persona turn settled: a batch run's outcome gains its commits, then goes to the listeners."""
+        """The persona turn settled: a batch run's outcome gains its commits (and, for the landing, its gate
+        receipts, run off this thread), then goes to the listeners."""
 
         if not run.request_id.startswith("BATCH-"):
             return
@@ -197,8 +209,44 @@ class BatchLaneExecutor:
             logger.warning("batch run %s: commits unread (%s)", run.request_id, refused.reason.value)
             commits = ()
         settled = replace(outcome, commits=commits or outcome.commits)
+        if self._is_landing(run.request_id):
+            thread = threading.Thread(target=self._gate_then_deliver, args=(run, settled),
+                                      name=f"batch-gate-{run.request_id}", daemon=True)
+            self._gate_threads = [t for t in self._gate_threads if t.is_alive()] + [thread]
+            thread.start()
+            return
+        self._deliver(run, settled)
+
+    def wait_for_gates(self, timeout: float | None = None) -> None:
+        """Join every landing gate still running (tests; a serve never waits on one)."""
+
+        for thread in list(self._gate_threads):
+            thread.join(timeout)
+
+    def _is_landing(self, request_id: str) -> bool:
+        try:
+            return self._lane(request_id)[1].lane.kind is LaneKind.LANDING
+        except WorkRefused:
+            return False
+
+    def _gate_then_deliver(self, run: Run, outcome: Outcome) -> None:
+        gates = []
+        try:
+            batch, record = self._lane(run.request_id)
+            commands = tuple(record.lane.brief.tests) or (LANDING_GATE,)
+            for site in self._landing_sites(batch):
+                receipts.emit("batch.gate_started", batch_id=batch.id, slot=site.slot, command=" && ".join(commands),
+                              worktree=str(site.worktree))
+                gate = self._gate.run(site, commands)
+                receipts.emit("batch.gate", batch_id=batch.id, **gate.wire())
+                gates.append(gate)
+        except Exception:
+            logger.warning("batch landing %s: the gate could not run", run.request_id, exc_info=True)
+        self._deliver(run, replace(outcome, gates=tuple(gates)))
+
+    def _deliver(self, run: Run, outcome: Outcome) -> None:
         for callback in list(self._callbacks):
             try:
-                callback(run, settled)
+                callback(run, outcome)
             except Exception:
                 logger.warning("a batch settle listener failed on %s", run.request_id, exc_info=True)

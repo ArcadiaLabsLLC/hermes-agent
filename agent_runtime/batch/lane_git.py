@@ -168,6 +168,9 @@ class LaneGit:
         return tuple(line.strip() for line in str(done.stdout or "").splitlines() if line.strip()) \
             if done.returncode == 0 else ()
 
+    def dirty(self, worktree: Path) -> bool:
+        return bool(self._must(["status", "--porcelain"], Reason.WORKTREE_DIRTY, worktree).strip())
+
     def head(self, worktree: Path) -> str:
         return self._must(["rev-parse", "HEAD"], Reason.BRANCH_MISSING, worktree).strip()
 
@@ -183,7 +186,7 @@ class LaneGit:
         """The landing HEAD, once the tree is clean and the fetched tip is its ancestor; else a refusal."""
 
         self.fetch(site.clone)
-        if self._must(["status", "--porcelain"], Reason.WORKTREE_DIRTY, site.worktree).strip():
+        if self.dirty(site.worktree):
             raise WorkRefused(Reason.WORKTREE_DIRTY, str(site.worktree))
         head = self.head(site.worktree)
         if self._git(["merge-base", "--is-ancestor", site.clone.tip, head], site.worktree).returncode != 0:

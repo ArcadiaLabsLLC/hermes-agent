@@ -37,6 +37,7 @@ from ..work_store.reasons import Reason, WorkRefused
 
 __layer__ = "policy"
 __all__ = [
+    "LANDING_GATE",
     "LANDING_ID",
     "Budget",
     "Lane",
@@ -50,6 +51,8 @@ __all__ = [
 ]
 
 LANDING_ID = "LAND"
+#: The landing gate the executor runs in each landing worktree (``gate.GateRunner``; `Running the tests.md`).
+LANDING_GATE = "bash scripts/run_tests_bundled.sh tests"
 #: The playbook's measured ceiling; a lane is sized by effort first (owner ruling 2026-10-18).
 MAX_ROWS_PER_LANE = 65
 #: Files touched per lane, summed over its rows (a row naming none counts 1, so 65 trivial rows fit).
@@ -289,10 +292,12 @@ def _landing_brief(lane_ids: Sequence[str]) -> Brief:
         title="the landing lane",
         objective="\n".join([
             f"Land the batch: merge the reported lanes in order with --no-ff ({', '.join(lane_ids)}).",
-            "Run the tests the merged lanes touched (scripts/run_tests.sh -j 4), triage every red.",
-            "Do NOT push main: the push is the owner's approve. Report done only when green."]),
+            "Resolve any conflict and commit; leave the landing worktree clean. Fix a caused red as its own commit.",
+            f"When you settle, the executor runs the gate (`{LANDING_GATE}`) here and records its receipt;",
+            "your verdict is advisory. Do NOT push main: the push is the owner's approve."]),
         constraints=("Never push main; never force-push; never amend.",),
-        acceptance="every lane merged, the affected tests green, the landing SHA in the result")
+        acceptance="every lane merged and committed, the worktree clean; the code-run gate decides green",
+        tests=(LANDING_GATE,))
 
 
 # ── the plan ───────────────────────────────────────────────────────────────

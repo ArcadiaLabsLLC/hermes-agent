@@ -16,9 +16,12 @@ through the W2 writer before or after the side effect it records:
 * ``stop`` releases a lane that has not begun and WAITS for a running turn (owner ruling 2026-10-18):
   the lane line records ``STOP_REQUESTED`` and the settle ends the lane ``STOPPED``; ``stop`` with no lane
   aborts the batch (every claim released ``DEFERRED``);
-* ``land`` (manual only) runs the landing lane; ``approve`` (manual only) is the ONLY door to
-  ``LANDED`` — the push is the ``Lander``'s (``lander.GitLander``, B5; a dispatcher built with none
-  refuses ``not_built``). Both hold ``locks.batch_landing_lock``: one landing per machine.
+* ``land`` (manual only) runs the landing lane; its settle carries the executor's code-run gate receipts
+  (``gate.py``), which alone decide ``AWAITING_APPROVAL`` — the persona's verdict is advisory
+  (RT-BATCH-GATE-RECEIPT, owner ruling 2026-10-18). ``approve`` (manual only) is the ONLY door to
+  ``LANDED``: it refuses ``gate_not_green`` without a green receipt per slot, and the push is the
+  ``Lander``'s (``lander.GitLander``, B5, which re-checks the receipt names the HEAD it pushes; a
+  dispatcher built with none refuses ``not_built``). Both hold ``locks.batch_landing_lock``.
 
 The serve's executor is ``lane_executor.BatchLaneExecutor`` (B5): every lane, the landing included, works
 in its own worktree beside the slot's clone, as one persona turn there.
@@ -44,6 +47,8 @@ from ..work_store.executor import Assignment, Executor, Outcome, RowEnding, Run,
 from ..work_store.grammar import RowRef, Status
 from ..work_store.reasons import Reason, WorkRefused
 from ..work_store.source import Claimant, WorkSource
+from .gate import is_green, require_green
+from .lane_git import slots_of
 from .machine import (
     BATCH_MOVES, LANE_MOVES, Automation, Batch, BatchAction, BatchEvent, BatchState, LaneEvent, LaneRecord,
     LaneState, automation_allows, move, ready_to_land, startable,
@@ -321,16 +326,21 @@ class BatchDispatcher:
                       state=state.value, verdict=outcome.verdict.value, done_rows=done, errors=errors)
 
     def _landing_settled(self, workspace_id: str, batch: Batch, record: LaneRecord, outcome: Outcome) -> None:
-        green = outcome.verdict is Verdict.DONE and batch.state is BatchState.LANDING
+        """The landing turn and its code-run gate ended: the GATE decides green; the persona's verdict is advisory."""
+
+        green = batch.state is BatchState.LANDING and is_green(outcome.gates, slots_of(batch))
         lane_state = move(LANE_MOVES, record.state, LaneEvent.REPORT if green else LaneEvent.STOP)
         lines = [self._lane_line(record.id, lane_state, {"verdict": outcome.verdict.value,
                                                          "tool_calls": outcome.tool_calls,
                                                          "commits": list(outcome.commits)})]
         if batch.state is BatchState.LANDING:
             state = move(BATCH_MOVES, batch.state, BatchEvent.LANDING_GREEN if green else BatchEvent.LANDING_RED)
-            lines.append(self._batch_line(state, {"gate": outcome.report[-_GATE_TAIL:]}))
+            gate = "; ".join(f"{g.slot}: exit {g.exit_code} — {g.summary}" for g in outcome.gates) or "no gate ran"
+            lines.append(self._batch_line(state, {"gate": gate, "gate_receipts": [g.wire() for g in outcome.gates],
+                                                  "advisory": outcome.report[-_GATE_TAIL:]}))
             receipts.emit("batch.awaiting_approval" if green else "batch.landing_red", workspace_id=workspace_id,
-                          batch_id=batch.id, attempt=batch.landing_attempt)
+                          batch_id=batch.id, attempt=batch.landing_attempt, advisory_verdict=outcome.verdict.value,
+                          gates=[g.wire() for g in outcome.gates])
         self.manifests.append(workspace_id, batch.id, lines, f"{batch.id}:{self._request(batch, record)}:settled")
 
     # ── stop ─────────────────────────────────────────────────────────────
@@ -402,6 +412,7 @@ class BatchDispatcher:
         batch = self.load(workspace_id, batch_id)
         self._own(batch)
         state = move(BATCH_MOVES, batch.state, BatchEvent.APPROVE)
+        require_green(batch.gate_receipts, slots_of(batch))
         with _one_landing(batch_id):
             sha = self._lander.push(batch)
         self.manifests.append(workspace_id, batch_id, [self._batch_line(state, {"landing_sha": sha})],

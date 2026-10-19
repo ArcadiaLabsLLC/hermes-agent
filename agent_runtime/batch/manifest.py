@@ -30,7 +30,7 @@ from typing import Any, Protocol
 
 from ..work_store.board import Board, has_brain_here
 from ..work_store.grammar import Op, RowRef
-from ..work_store.models import Verdict
+from ..work_store.models import GateReceipt, Verdict
 from ..work_store.reasons import Reason, WorkRefused
 from .machine import LIVE, Automation, Batch, BatchState, LaneRecord, LaneState
 from .planner import Plan
@@ -175,6 +175,7 @@ class _Fold:
         self.attempt = 0
         self.gate = ""
         self.sha = ""
+        self.receipts: tuple[GateReceipt, ...] = ()
 
     def batch_line(self, entry: Entry) -> None:
         if entry.word not in BatchState._value2member_map_:
@@ -187,8 +188,12 @@ class _Fold:
         if self.state is BatchState.LANDING and self.landing is not None:
             self.attempt += 1
             self.landing = LaneRecord(self.landing.lane, persona=entry.data.get("persona") or self.landing.persona)
+            self.receipts = ()
         self.gate = str(entry.data.get("gate", self.gate) or "")
         self.sha = str(entry.data.get("landing_sha", self.sha) or "")
+        if isinstance(entry.data.get("gate_receipts"), list):
+            self.receipts = tuple(GateReceipt.from_wire(raw) for raw in entry.data["gate_receipts"]
+                                  if isinstance(raw, dict))
 
     def lane_line(self, entry: Entry) -> None:
         lane_id = entry.subject[len(LANE_PREFIX):]
@@ -210,7 +215,7 @@ class _Fold:
             return None
         return Batch(self.plan.id, self.plan.workspace_id, self.front.get("owner_machine", ""), self.state,
                      tuple(self.lanes[lane.id] for lane in self.plan.lanes), self.landing, self.plan.budget,
-                     self.attempt, self.gate, self.sha)
+                     self.attempt, self.gate, self.sha, self.receipts)
 
 
 def fold(text: str) -> Batch | None:

@@ -61,6 +61,8 @@ class Reason(StrEnum):
     STATE_TRANSITION_INVALID = "state_transition_invalid"
     LANDING_IN_PROGRESS = "landing_in_progress"
     BATCH_MISSING = "batch_missing"
+    # ``approve`` with no green code-run gate receipt for the landing HEAD (RT-BATCH-GATE-RECEIPT).
+    GATE_NOT_GREEN = "gate_not_green"
 
 
 class WorkRefused(ValueError):
