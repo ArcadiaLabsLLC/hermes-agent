@@ -242,7 +242,8 @@ know (`serve.py:1419-1632`):
    restart asks `drain_if_idle`; a refusal names its hold in `held_by`
    (`hermes_cli/harness_parts/serve/idle_drain.py::IdleDrainHold`), and a cron job running in this
    process (`cron.scheduler.get_running_job_ids()`, the set upstream's gateway drain reads) holds
-   it as `cron_job`. All
+   it as `cron_job`; a send-queue entry a scheduler fire or a platform message queued holds it as
+   `scheduled_turn` / `messaging_turn` (`idle_drain._QUEUED_TURN_HOLDS`, one row per origin). All
    of it is `agent_runtime/build_identity.py`, and the two implementations — this one and the
    launcher's Dart — are held to one answer by a byte-equal fixture hashed on both sides:
    `tests/fixtures/build_identity/code_tree_parity_tree.txt` and

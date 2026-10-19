@@ -10,7 +10,8 @@ interval (2026-10-08: attach at 04:25:14, drain at 04:26:05). A cron job
 running in this process holds it too: it runs on the scheduler's own pool,
 outside every turn table, so only ``cron.scheduler.get_running_job_ids()``
 sees it (upstream's gateway drain reads the same set); a fire of the serve's own
-scheduler still on its root's send queue holds it the same way (``scheduled_turn``). The refusal
+scheduler still on its root's send queue holds it the same way (``scheduled_turn``), and so does a
+platform message the messaging bridge queued (``messaging_turn``). The refusal
 names WHICH hold answered, so the launcher reads the reason and never guesses
 at idleness from a ``work`` count.
 """
@@ -21,6 +22,7 @@ from contextlib import nullcontext
 from enum import Enum
 from typing import Any
 
+from agent_runtime import chat_root_send_queue as send_queue
 from agent_runtime.discussions.run_store import DiscussionError
 
 __layer__ = "lanes"
@@ -35,6 +37,7 @@ class IdleDrainHold(str, Enum):
     DISCUSSION = "discussion"
     CRON_JOB = "cron_job"
     SCHEDULED_TURN = "scheduled_turn"
+    MESSAGING_TURN = "messaging_turn"
     UNREADABLE = "unreadable"
 
     @property
@@ -54,7 +57,7 @@ def claim_idle_drain(session: Any) -> IdleDrainHold | None:
         return IdleDrainHold.CHAT_TURN
     if any(getattr(item, "is_long_run", False) for item in items):
         return IdleDrainHold.LONG_RUN
-    cron_hold = _cron_job_hold() or _scheduled_turn_hold()
+    cron_hold = _cron_job_hold() or _queued_turn_hold()
     if cron_hold is not None:
         return cron_hold
     try:
@@ -96,13 +99,22 @@ def native_pending_count(owner: Any) -> int:
         return 1  # Unreadable ownership cannot prove idle.
 
 
-def _scheduled_turn_hold() -> IdleDrainHold | None:
-    """A scheduler fire still on its chat root's send queue (queued or running) holds the drain: the
-    queued-send runner runs it outside every turn table (``running_work`` kind ``scheduled_turn``)."""
-    from agent_runtime import chat_root_send_queue as send_queue
+def _queued_turn_hold() -> IdleDrainHold | None:
+    """A send-queue entry (queued or running) whose origin names a row of :data:`_QUEUED_TURN_HOLDS` holds the
+    drain: the queued-send runner runs it outside every turn table (``running_work`` kinds ``scheduled_turn``,
+    ``messaging_turn``). Read in table order; the first origin with an entry answers."""
+    for origin_key, hold in _QUEUED_TURN_HOLDS.items():
+        try:
+            waiting = send_queue.entries_from(origin_key)
+        except OSError:
+            return IdleDrainHold.UNREADABLE
+        if waiting:
+            return hold
+    return None
 
-    try:
-        waiting = send_queue.entries_from(send_queue.SCHEDULE_ORIGIN_KEY)
-    except OSError:
-        return IdleDrainHold.UNREADABLE
-    return IdleDrainHold.SCHEDULED_TURN if waiting else None
+
+#: send-queue origin key -> the hold an entry carrying it is.
+_QUEUED_TURN_HOLDS: dict[str, IdleDrainHold] = {
+    send_queue.SCHEDULE_ORIGIN_KEY: IdleDrainHold.SCHEDULED_TURN,
+    send_queue.MESSAGING_ORIGIN_KEY: IdleDrainHold.MESSAGING_TURN,
+}
