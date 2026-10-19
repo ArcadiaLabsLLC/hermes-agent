@@ -3450,8 +3450,8 @@
     },
     {
       "id": "longrun-busy-frame-drops-the-long-run-count",
-      "path": "hermes_cli/harness_parts/serve/session.py",
-      "symbol": "ServeSession._busy_frame",
+      "path": "hermes_cli/harness_parts/serve/liveness.py",
+      "symbol": "LivenessPump._busy_frame",
       "operator": "zero-the-long-run-count",
       "find": "            long_runs = sum(1 for item in self.inflight.values() if item.is_long_run)",
       "replace": "            long_runs = 0",
