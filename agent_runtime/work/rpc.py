@@ -11,7 +11,8 @@ def _work_reply(rid, operation, params, caller):
     try:
         return ok(rid, execute(operation, params, caller))
     except WorkRefused as refusal:
-        return err(rid, 4090, "This work request could not be accepted.", {"reason": refusal.reason, "detail": refusal.detail})
+        return err(rid, 4090, "This work request could not be accepted.",
+                   {"reason": refusal.reason, "detail": refusal.detail, **refusal.data})
     except (KeyError, TypeError, ValueError):
         return err(rid, -32602, "Invalid work request.", {"reason": Reason.INVALID})
     except Exception:
@@ -26,7 +27,7 @@ def _work_method(operation):
 
 
 OPERATIONS = ("capabilities", "context", "list", "inspect", "start", "assign", "claim", "release", "set_status",
-              "done", "create_brain")
+              "done", "create_brain", "lend_skills")
 
 
 def register(method):

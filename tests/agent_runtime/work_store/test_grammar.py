@@ -129,3 +129,24 @@ def test_parse_note_tracks_headings_skips_frontmatter_fences_and_flags_wraps() -
     assert any("next line" in d for d in rows[1].defects)
     assert grammar.find(rows, "B") is rows[1] and grammar.find(rows, "F") is None
     assert grammar.is_queue(text) and not grammar.is_queue("---\ntype: moc\n---\n")
+
+
+def test_set_skills_inserts_replaces_and_removes_the_one_segment() -> None:
+    """p10-work S1: ``Op.SET_SKILLS`` keeps at most one ``skills:`` segment, after ``assignee:`` (else the title)."""
+
+    line = "- **`RT-S` — row** · `agent_runtime/x.py` · assignee: persona:alice · READY 2026-10-19"
+    lent = grammar.apply(line, Op.SET_SKILLS, who="operator", date=DATE, payload={"skills": ["git-workflow", "eternia/qa"]})
+    assert lent == ("- **`RT-S` — row** · `agent_runtime/x.py` · assignee: persona:alice · "
+                    "skills: `git-workflow`, `eternia/qa` · READY 2026-10-19")
+    row = grammar.parse_row(lent, slot="s", note="n", line_no=1)
+    assert row.skills == ("git-workflow", "eternia/qa") and row.defects == ()
+    assert row.pointers == ("agent_runtime/x.py",), "a lent skill is never a file pointer"
+    replaced = grammar.apply(lent, Op.SET_SKILLS, who="operator", date=DATE, payload={"skills": ["eternia/qa"]})
+    assert replaced.count("skills:") == 1 and grammar.parse_row(replaced, slot="s", note="n", line_no=1).skills == ("eternia/qa",)
+    assert grammar.apply(replaced, Op.SET_SKILLS, who="operator", date=DATE, payload={"skills": []}) == line
+    bare = "- **`RT-T` — row** · READY 2026-10-19"
+    assert grammar.apply(bare, Op.SET_SKILLS, who="operator", date=DATE, payload={"skills": ["a"]}) == (
+        "- **`RT-T` — row** · skills: `a` · READY 2026-10-19")
+    with pytest.raises(WorkRefused) as bad:
+        grammar.apply(bare, Op.SET_SKILLS, who="operator", date=DATE, payload={"skills": ["no spaces"]})
+    assert bad.value.reason is Reason.INVALID

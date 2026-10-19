@@ -268,7 +268,8 @@ class BatchDispatcher:
         return batch
 
     def _assignment(self, batch_id: str, rows: tuple[RowRef, ...], persona: str, lane: Any, request: str) -> Assignment:
-        return Assignment(rows, persona, lane.brief, f"{batch_id}:{request}", heavy=lane.heavy)
+        return Assignment(rows, persona, lane.brief, f"{batch_id}:{request}", heavy=lane.heavy,
+                          skills=lane.skills)
 
     def _request(self, batch: Batch, record: LaneRecord) -> str:
         return f"{LANDING_ID}:{batch.landing_attempt}" if record.lane.kind is LaneKind.LANDING else record.id

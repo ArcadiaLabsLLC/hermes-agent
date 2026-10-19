@@ -24,6 +24,8 @@ A row is ``- **`<ID>` — <title>** · <segment> · …``, on ONE physical line,
   opening a segment, and every ``RULED`` record dated;
 * at most one ``assignee: persona:<token>`` segment (token ``[A-Za-z0-9_.-]+``), and no
   ``assignee:`` segment in any other shape (amendment 2026-10-18, Work W1);
+* at most one ``skills: `<slug>`[, `<slug>`]`` segment (slug ``[A-Za-z0-9_./-]+``), and no ``skills:``
+  segment in any other shape (amendment 2026-10-19, p10-work S1);
 * an ID opening ``WORK-`` is an engine-minted ``WORK-<6>``: six base32 characters ``[A-Z2-7]``.
 
 Segments split on `` · `` outside code spans. ``**TAKEN <date> <who>**`` is a claim,
@@ -48,6 +50,7 @@ ID_SHAPE = re.compile(r"^[A-Z0-9][A-Z0-9._-]*$")
 STATUS = re.compile(r"^(READY|BLOCKED|DEFERRED|NEEDS PLAN) (\d{4}-\d{2}-\d{2})(?::\s*(.*))?$", re.S)
 RULED = re.compile(r"^RULED \d{4}-\d{2}-\d{2}\b")
 ASSIGNEE = re.compile(r"^assignee: persona:[A-Za-z0-9_.-]+$")
+SKILLS = re.compile(r"^skills: `[A-Za-z0-9_./-]+`(?:, `[A-Za-z0-9_./-]+`)*$")
 WORK_ID = re.compile(r"^WORK-[A-Z2-7]{6}$")
 RETIRED = re.compile(r"^(VERDICT|DESIGN|OWNER|PLAN|VERIFY)\b")
 BLOCKED_REASONS = ("owner decision", "owner sitting", "backend", "hermes", "launcher", "upstream", "another lane")
@@ -139,8 +142,12 @@ def row_defects(line: str) -> list[str]:
             defects.append(f"undated RULED record: {segment[:40]!r}")
         if segment.startswith("assignee:") and not ASSIGNEE.match(segment):
             defects.append(f"assignee shape: {segment[:40]!r}; the segment is `assignee: persona:<token>`")
+        if segment.startswith("skills:") and not SKILLS.match(segment):
+            defects.append(f"skills shape: {segment[:40]!r}; the segment is `skills: `<slug>`[, `<slug>`]`")
     if sum(1 for s in segments[1:] if ASSIGNEE.match(s)) > 1:
         defects.append("2 assignee segments; at most one")
+    if sum(1 for s in segments[1:] if SKILLS.match(s)) > 1:
+        defects.append("2 skills segments; at most one")
     return defects
 
 
@@ -203,6 +210,7 @@ VALID = [
     "- **`FORK-H` — launcher** · BLOCKED 2026-10-18: launcher — `MC-ROW` lands the painter first",
     "- **`RT-I` — assigned** · assignee: persona:pi_alice_01 · READY 2026-10-18",
     "- **`WORK-A2B3C4` — minted** · assignee: persona:alice · READY 2026-10-18 · **TAKEN 2026-10-18 persona:pi_alice_01**",
+    "- **`RT-J` — lent** · assignee: persona:alice · skills: `git-workflow`, `eternia/qa` · READY 2026-10-19",
 ]
 DEFECTS = {
     "- [ ] **`RT-A` — checkbox** · READY 2026-10-18": "checkbox",
@@ -220,6 +228,8 @@ DEFECTS = {
     "- **`RT-A` — open lead · READY 2026-10-18": "does not close",
     "- **`RT-A` — bad assignee** · assignee: bob · READY 2026-10-18": "assignee shape",
     "- **`RT-A` — two assignees** · assignee: persona:a · assignee: persona:b · READY 2026-10-18": "2 assignee",
+    "- **`RT-A` — bare skill** · skills: git-workflow · READY 2026-10-19": "skills shape",
+    "- **`RT-A` — two skills** · skills: `a` · skills: `b` · READY 2026-10-19": "2 skills",
     "- **`WORK-abc` — bad mint** · READY 2026-10-18": "is not",
     "- **`WORK-ABCDE` — short mint** · READY 2026-10-18": "WORK-<6>",
 }

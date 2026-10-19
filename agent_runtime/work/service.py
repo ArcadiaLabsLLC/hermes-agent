@@ -23,9 +23,18 @@ VERSION = 2
 LIMITATIONS = ["Claims and write-backs land as git commits in Eternia Harness's own worktree; "
                "the operator's checkout sees them after a pull."]
 
+
+def _lend_skills(scope, params, actor, *, context=None):
+    """``runtime.work.lend_skills``: the row half of lending (the worker half is ``eternia.skills.lend``)."""
+    from agent_runtime.chat_verbs.queue_skill import _rejected_skills
+
+    return store.lend_skills(scope, params, actor, context=context, rejected=_rejected_skills)
+
+
 #: The owner operations; each takes ``(scope, params, actor, *, context)``.
 _WRITES = {"start": store.start, "assign": store.assign, "claim": store.claim, "release": store.release,
-           "set_status": store.set_status, "done": store.done, "create_brain": store.create_brain}
+           "set_status": store.set_status, "done": store.done, "create_brain": store.create_brain,
+           "lend_skills": _lend_skills}
 _READS = {"list": store.list_work, "inspect": store.inspect}
 
 

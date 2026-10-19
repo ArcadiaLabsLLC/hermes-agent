@@ -1,7 +1,8 @@
 """The work-queue row grammar — the Python twin of the launcher's ``WorkQueueRowParser``.
 
 Grammar home: ``Harness_Brain/30 — Decisions/0011 — One brain per repo, one Mission Control queue
-in the launcher.md`` § Row grammar (with its 2026-10-18 Work W1 amendment). The regexes are the
+in the launcher.md`` § Row grammar (with its 2026-10-18 Work W1 and 2026-10-19 p10-work S1 ``skills:``
+amendments). The regexes are the
 vault lint's (``tests/tooling/test_work_queue_row_grammar.py``) and the two are proven to agree on
 the shared fixtures (``tests/fixtures/work_queue/``) by
 ``tests/agent_runtime/work_store/test_grammar.py::test_the_twin_agrees_with_the_lint_on_every_fixture_row``.
@@ -51,6 +52,8 @@ STATUS = re.compile(r"^(READY|BLOCKED|DEFERRED|NEEDS PLAN) (\d{4}-\d{2}-\d{2})(?
 RULED = re.compile(r"^RULED \d{4}-\d{2}-\d{2}\b")
 RETIRED = re.compile(r"^(VERDICT|DESIGN|OWNER|PLAN|VERIFY)\b")
 ASSIGNEE = re.compile(r"^assignee: persona:([A-Za-z0-9_.-]+)$")
+SKILLS = re.compile(r"^skills: `[A-Za-z0-9_./-]+`(?:, `[A-Za-z0-9_./-]+`)*$")
+SKILL_SLUG = re.compile(r"^[A-Za-z0-9_./-]+$")
 WORK_ID = re.compile(r"^WORK-[A-Z2-7]{6}$")
 TAKEN = re.compile(r"\*\*TAKEN (\d{4}-\d{2}-\d{2}) ([^*]+?)\*\*")
 RECOMMEND = re.compile(r"^Recommend:\s*(.*)$", re.DOTALL)
@@ -80,6 +83,7 @@ class Op(StrEnum):
     SET_STATUS = "set_status"
     DELETE = "delete"
     ASSIGN = "assign"
+    SET_SKILLS = "set_skills"
 
 
 @dataclass(frozen=True)
@@ -125,6 +129,8 @@ class Row:
     line_no: int
     raw: str
     defects: tuple[str, ...] = ()
+    #: The skills the row lends whoever works it (``skills:`` segment); never a pointer.
+    skills: tuple[str, ...] = ()
 
 
 def domain_of(row: Row) -> Domain:
@@ -205,8 +211,12 @@ def _segment_defects(segments: list[str]) -> list[str]:
             defects.append(f"undated RULED record: {segment[:40]!r}")
         if segment.startswith("assignee:") and not ASSIGNEE.match(segment):
             defects.append(f"assignee shape: {segment[:40]!r}; the segment is `assignee: persona:<token>`")
+        if segment.startswith("skills:") and not SKILLS.match(segment):
+            defects.append(f"skills shape: {segment[:40]!r}; the segment is `skills: `<slug>`[, `<slug>`]`")
     if sum(1 for s in segments[1:] if ASSIGNEE.match(s)) > 1:
         defects.append("2 assignee segments; at most one")
+    if sum(1 for s in segments[1:] if SKILLS.match(s)) > 1:
+        defects.append("2 skills segments; at most one")
     return defects
 
 
@@ -232,6 +242,7 @@ def parse_row(line: str, *, slot: str, note: str, line_no: int, heading: str = "
     status = statuses[0] if statuses else None
     recommend = next((m.group(1).strip() for m in map(RECOMMEND.match, segments[1:]) if m), None)
     assignee = next((Assignee(m.group(1)) for m in map(ASSIGNEE.match, segments[1:]) if m), None)
+    lent = next((s for s in segments[1:] if SKILLS.match(s)), None)
     taken = TAKEN.search(line)
     return Row(
         ref=RowRef(slot, note, id_match.group(1) if id_match else ""),
@@ -243,12 +254,13 @@ def parse_row(line: str, *, slot: str, note: str, line_no: int, heading: str = "
         assignee=assignee,
         taken=Claim(taken.group(1), taken.group(2).strip()) if taken else None,
         rulings=tuple(s for s in segments[1:] if s.startswith("RULED")),
-        pointers=tuple(span for s in segments[1:] for span in CODE_SPAN.findall(s)),
+        pointers=tuple(span for s in segments[1:] if not s.startswith("skills:") for span in CODE_SPAN.findall(s)),
         segments=segments,
         heading=heading,
         line_no=line_no,
         raw=line,
         defects=tuple(row_defects(line)),
+        skills=tuple(CODE_SPAN.findall(lent)) if lent else (),
     )
 
 
@@ -382,6 +394,20 @@ def _assign(line: str, *, who: str, date: str, payload: dict) -> str:
     return SEPARATOR.join(segments).rstrip()
 
 
+def _set_skills(line: str, *, who: str, date: str, payload: dict) -> str:
+    """Drop any ``skills:`` segment; with a non-empty ``payload["skills"]``, set one after ``assignee:``
+    (else right after the title)."""
+
+    skills = list(dict.fromkeys(str(s) for s in payload.get("skills") or ()))
+    if any(not SKILL_SLUG.match(skill) for skill in skills):
+        raise WorkRefused(Reason.INVALID, "payload.skills are slugs [A-Za-z0-9_./-]+")
+    segments = [s for s in split_segments(line) if not s.strip().startswith("skills:")]
+    if skills:
+        at = next((i + 1 for i, s in enumerate(segments) if i and ASSIGNEE.match(s.strip())), 1)
+        segments.insert(at, "skills: " + ", ".join(f"`{skill}`" for skill in skills))
+    return SEPARATOR.join(segments).rstrip()
+
+
 def _append(line: str, *, who: str, date: str, payload: dict) -> str:
     raise WorkRefused(Reason.INVALID, "APPEND is not a line edit; the caller appends payload.row under the note's last heading")
 
@@ -393,6 +419,7 @@ _EDITS: dict[Op, Callable[..., str | None]] = {
     Op.DELETE: _delete,
     Op.APPEND: _append,
     Op.ASSIGN: _assign,
+    Op.SET_SKILLS: _set_skills,
 }
 
 

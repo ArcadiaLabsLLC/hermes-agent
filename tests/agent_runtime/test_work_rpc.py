@@ -13,7 +13,7 @@ def test_work_family_private_deferred_and_execution_guarded(monkeypatch):
         return {"version": 1}
     monkeypatch.setattr(work, "execute", execute)
     assert work.OPERATIONS == ("capabilities", "context", "list", "inspect", "start", "assign", "claim",
-                               "release", "set_status", "done", "create_brain")
+                               "release", "set_status", "done", "create_brain", "lend_skills")
     for operation in work.OPERATIONS:
         name = "runtime.work." + operation
         request = {"jsonrpc": "2.0", "id": operation, "method": name, "params": {}}

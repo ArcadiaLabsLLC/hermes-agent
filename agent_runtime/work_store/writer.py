@@ -106,7 +106,7 @@ def _held(op: RowOp, row: Row | None) -> None:
 
 
 def _present(op: RowOp, row: Row | None) -> None:
-    """SET_STATUS / DELETE / ASSIGN: the row exists; a taken row answers only its holder or the operator."""
+    """SET_STATUS / DELETE / ASSIGN / SET_SKILLS: the row exists; a taken row answers only its holder or the operator."""
 
     if row is None:
         raise WorkRefused(Reason.ROW_GONE, op.ref.id)
@@ -119,6 +119,7 @@ _PRECONDITIONS: dict[Op, Callable[[RowOp, Row | None], None]] = {
     Op.SET_STATUS: _present,
     Op.DELETE: _present,
     Op.ASSIGN: _present,
+    Op.SET_SKILLS: _present,
 }
 
 

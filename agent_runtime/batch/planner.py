@@ -16,6 +16,8 @@
 6. The plan ends with ONE landing lane, after every lane. It carries ``Lane.gates``: the gate commands per
    slot the lanes touch (``gate.slot_gate``, handed in as ``slot_gates``); a slot with none is None there and
    the lane executor answers it with a RED receipt (row RT-BATCH-GATE-PER-SLOT-COMMAND, owner ruling 2026-10-19).
+7. ``Lane.skills``: the UNION of its rows' ``skills:`` segments (p10-work S1), listed in the lane brief and
+   queued for the lane's turn by the executor.
 
 The plan id is ``BATCH-<6 base32>`` of the lanes' rows, so planning the same board twice gives the same
 id and ``start`` can tell the board moved (``idempotency_conflict``).
@@ -117,6 +119,8 @@ class Lane:
     files: tuple[str, ...] = field(default=(), compare=False)
     #: The landing lane's gate commands per slot; None = no gate declared (a red receipt).
     gates: Mapping[str, tuple[str, ...] | None] = field(default_factory=dict, hash=False)
+    #: The skills the lane's rows lend (their union, in row order).
+    skills: tuple[str, ...] = ()
 
     def wire(self) -> dict[str, Any]:
         brief = self.brief
@@ -126,6 +130,7 @@ class Lane:
                 "heavy": self.heavy, "quiet_box": self.quiet_box, "after": list(self.after), "effort": self.effort,
                 "files": list(self.files),
                 "gates": {slot: None if cmds is None else list(cmds) for slot, cmds in self.gates.items()},
+                "skills": list(self.skills),
                 "brief": {"title": brief.title, "objective": brief.objective, "inputs": list(brief.inputs),
                           "constraints": list(brief.constraints), "acceptance": brief.acceptance,
                           "tests": list(brief.tests)}}
@@ -146,6 +151,7 @@ class Lane:
             files=tuple(raw.get("files") or ()),
             gates={str(slot): None if cmds is None else tuple(map(str, cmds))
                    for slot, cmds in (raw.get("gates") or {}).items()},
+            skills=tuple(map(str, raw.get("skills") or ())),
         )
 
 
@@ -283,10 +289,16 @@ def _persona(domain: Domain, rows: Sequence[Row], roster: Sequence[Member], slot
 # ── briefs ─────────────────────────────────────────────────────────────────
 
 
+def _lent(rows: Sequence[Row]) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(skill for row in rows for skill in row.skills))
+
+
 def _lane_brief(lane_id: str, domain: Domain, rows: Sequence[Row]) -> Brief:
     where = domain.heading or PurePosixPath(domain.note).stem
+    lent = _lent(rows)
     objective = "\n".join([f"Work these {len(rows)} row(s) of {domain.slot} · {where}:",
-                           *(f"- {row.ref.id}: {row.title}" for row in rows)])
+                           *(f"- {row.ref.id}: {row.title}" for row in rows),
+                           *([f"Skills lent for this lane (preloaded): {', '.join(lent)}"] if lent else [])])
     pointers = dict.fromkeys(p for row in rows for p in row.pointers)
     return Brief(title=f"lane {lane_id} — {domain.slot} · {where}", objective=objective,
                  inputs=(*(row.raw for row in rows), *(f"`{p}`" for p in pointers)),
@@ -357,7 +369,7 @@ def plan(
                 id=lane_id, kind=LaneKind.WORK, domain=domain, rows=tuple(row.ref for row in part), persona=persona,
                 brief=_lane_brief(lane_id, domain, part), heavy=any(HEAVY.search(row.raw) for row in part),
                 quiet_box=any(QUIET_BOX.search(row.raw) for row in part), effort=sum(map(row_effort, part)),
-                files=files))
+                files=files, skills=_lent(part)))
     lanes = _sequenced(lanes)
     slots = dict.fromkeys(lane.domain.slot for lane in lanes if lane.domain is not None)
     gates = {slot: (slot_gates or {}).get(slot) for slot in slots}

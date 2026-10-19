@@ -15,7 +15,7 @@ tags: [adr, brain, process]
 > The queue clause is superseded: the hermes half of Mission Control is now [[runtime-queue]] in this vault, split by ownership — [[0012 — The hermes half of Mission Control is queued here, split by ownership]]. The rest stands.
 
 > [!note] Amended 2026-10-18 — the row grammar is the launcher's, and lives here
-> Owner decisions 2026-10-18: the launcher's queue-row grammar is canonical across the three repos, every row carries an ID, and `VERDICT` is retired in favour of `BLOCKED … owner decision` / `RULED`. The launcher's Mission Control Queues tab reads this vault's `type: queue` notes straight from the checkout, so a row off the grammar is invisible or mis-filed on the owner's board. § Row grammar below is the grammar's one home in this repo; `tests/tooling/test_work_queue_row_grammar.py` enforces it on every `type: queue` note under `Harness_Brain/`. The reference is the launcher's parser, `EterniaLauncher/lib/features/mission_control/work_queue/policy/work_queue_row_parser.dart`. Amended 2026-10-18 (Work W1): the optional assignee segment and engine-minted WORK-<6> IDs; the launcher's twin amendment is ADR 0025 "Amendment 2026-10-18b".
+> Owner decisions 2026-10-18: the launcher's queue-row grammar is canonical across the three repos, every row carries an ID, and `VERDICT` is retired in favour of `BLOCKED … owner decision` / `RULED`. The launcher's Mission Control Queues tab reads this vault's `type: queue` notes straight from the checkout, so a row off the grammar is invisible or mis-filed on the owner's board. § Row grammar below is the grammar's one home in this repo; `tests/tooling/test_work_queue_row_grammar.py` enforces it on every `type: queue` note under `Harness_Brain/`. The reference is the launcher's parser, `EterniaLauncher/lib/features/mission_control/work_queue/policy/work_queue_row_parser.dart`. Amended 2026-10-18 (Work W1): the optional assignee segment and engine-minted WORK-<6> IDs; the launcher's twin amendment is ADR 0025 "Amendment 2026-10-18b". Amended 2026-10-19 (p10-work S1): the optional `skills:` segment; the launcher's twin is ADR 0025 "Amendment 2026-10-19".
 
 ## Row grammar
 
@@ -37,6 +37,10 @@ Identical in the launcher, this repo and the backend; do not diverge.
   persona); the token is `[A-Za-z0-9_.-]+`. At most one such segment; a segment opening `assignee:` in any
   other shape is a defect. A claim by the engine is `**TAKEN <date> persona:<instance_id>**`; a claim by a
   lane keeps its lane name. The assignee is not a status and does not change the status.
+- **Skills (amendment 2026-10-19, p10-work S1):** an optional segment `skills: `<slug>`, `<slug>`` lends
+  skills to whoever works the row; each slug is a code span of `[A-Za-z0-9_./-]+`; at most one such
+  segment; a segment opening `skills:` in any other shape is a defect. The launcher's twin is ADR 0025
+  "Amendment 2026-10-19".
 - **Engine-minted IDs (amendment 2026-10-18, Work W1):** a row the Work engine appends is `WORK-<6>` —
   `WORK-` plus six base32 characters (`[A-Z2-7]{6}`), minted by the engine, unique within the brain like
   any ID. Lane rows keep their domain prefixes; nothing existing is renumbered.
