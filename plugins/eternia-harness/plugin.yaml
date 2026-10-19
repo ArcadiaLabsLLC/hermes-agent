@@ -35,3 +35,11 @@ config_schema:
     type: number
     default: 300
     description: Ceiling on one charsheet image-provider call, in seconds; 0 or negative disables the bound
+  # p10-messaging (agent_runtime/messaging/): off by default everywhere; no bundle manifest sets it.
+  messaging_enabled:
+    type: bool
+    default: false
+    description: Run the messaging-platform bridge (Telegram) in this runtime's serve
+  messaging_default_persona:
+    type: str
+    description: Display name of the persona an unbound platform chat is offered first (optional)

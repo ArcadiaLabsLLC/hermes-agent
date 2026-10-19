@@ -182,6 +182,8 @@ packaging:
     - hermes_cli.voice
     - gateway.platforms
     - plugins.platforms
+    # The fork's messaging bridge (p10-messaging): off in every bundle, as the adapters are.
+    - agent_runtime.messaging
     # Checkout-bound (matrix: "—"): git revision skew, git update/repair, the
     # `hermes worktree` command, and the `hermes migrate` relay cut-over.
     # (hermes_cli.worktree_ops stays: kanban's worktree workspaces import it.)
