@@ -41,7 +41,8 @@ def run_owned_child_reads(tmp_path, mode, action):
                      lambda r: "Child public progress." in r["text"])
         assert len(tail["text"].encode()) <= 16384 and "PRIVATE_KICKOFF_CONTEXT" not in tail["text"]
         assert tail["subagent_id"] == child["subagent_id"]
-        assert service.subagents(scope, sid, "capabilities", {})["operations"] == ["list", "tail", "steer", "stop", "receipt", "history", "result", "tree"]
+        assert service.subagents(scope, sid, "capabilities", {})["operations"] == ["list", "tail", "steer", "stop", "receipt", "spawning", "spawning.set",
+            "settings", "settings.set", "history", "result", "tree"]
         if mode != "isolated-compute":
             assert service.subagents(scope, sibling, "list", {})["children"] == []
         else:

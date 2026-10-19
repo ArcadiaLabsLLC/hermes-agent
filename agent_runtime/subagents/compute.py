@@ -3,7 +3,7 @@ import queue
 import time
 
 from agent_runtime import _upstream_doors as upstream
-from .model import VERSION, ERROR_CODES, MUTATIONS, Refusal, SubagentError
+from .model import VERSION, ERROR_CODES, MUTATIONS, SPAWNING_OPERATIONS, Refusal, SubagentError
 from .references import references
 
 __layer__ = "lanes"
@@ -16,8 +16,11 @@ def observe(operation: str, params: dict, owner: tuple) -> dict:
     # Carry the outer session/transport generation into the child's own authority.
     # The compute host still verifies its attached transport and exact child object.
     forwarded = {**params, "owner_scope": references.generation(owner)}
+    if operation in SPAWNING_OPERATIONS:
+        # The pause answered is the compute host process's own, and the reply says so.
+        forwarded["host_kind"] = "isolated_compute"
     try:
-        if operation in MUTATIONS:
+        if operation in (*MUTATIONS, "spawning.set"):
             frame = supervisor.control(params["session_id"], route_name="eternia.subagents." + operation,
                 payload={"params": forwarded}, existing_only=True)
             reply = frame.get("response")
@@ -30,7 +33,7 @@ def observe(operation: str, params: dict, owner: tuple) -> dict:
             return {"version": VERSION, "generation": params["expected_generation"], "observed_at": time.time(),
                     "request_id": params["request_id"], "child_ref": params["child_ref"], "subagent_id": None,
                     "operation": operation, "status": "unknown", "missed_steer": None}
-        raise SubagentError(Refusal.UNAVAILABLE) from exc
+        raise SubagentError(Refusal.UNKNOWN if operation == "spawning.set" else Refusal.UNAVAILABLE) from exc
     if error := reply.get("error"):
         reason = next((reason for reason, code in ERROR_CODES.items() if code == error.get("code")), Refusal.UNAVAILABLE)
         raise SubagentError(reason)

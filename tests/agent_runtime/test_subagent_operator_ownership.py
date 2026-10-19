@@ -60,10 +60,13 @@ def test_operator_children_remain_private_to_exact_conversation(placed_agent, tm
 def test_manifest_discovers_only_implemented_console_private_operations():
     manifest = serve_rpc.manifest()
     for family in ("runtime.conversation", "runtime.operator.conversation"):
-        for operation in ("capabilities", "list", "tail", "steer", "stop", "receipt", "history", "result", "tree"):
+        for operation in ("capabilities", "list", "tail", "steer", "stop", "receipt", "history", "result", "tree",
+                          "settings", "settings.set", "spawning", "spawning.set"):
             name = f"{family}.subagents.{operation}"
             assert name in manifest["methods"]
             assert manifest["tiers"][name] == "console"
             assert "expected_generation" in manifest["params"][name]
         for operation in ("result", "tree"):
             assert "history_ref" in manifest["params"][f"{family}.subagents.{operation}"]
+        assert {"expected_revision", "changes"} <= set(manifest["params"][f"{family}.subagents.settings.set"])
+        assert {"host_ref", "paused"} <= set(manifest["params"][f"{family}.subagents.spawning.set"])

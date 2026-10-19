@@ -10,7 +10,8 @@ from pathlib import Path
 
 from agent_runtime import _upstream_doors as upstream
 from agent_runtime.redaction import scrub_secret_values
-from .model import VERSION, TAIL_BYTES, LIVE_OPERATIONS, MUTATIONS, Refusal, SubagentError, validate_request
+from .model import (VERSION, TAIL_BYTES, LIVE_OPERATIONS, SPAWNING_OPERATIONS, WRITES, Refusal, SubagentError,
+                    validate_request)
 from .output import read_public_tail
 from .references import references
 
@@ -52,7 +53,7 @@ def revalidate_reply(operation, revalidate):
     try:
         revalidate()
     except Exception as exc:
-        if operation in MUTATIONS:
+        if operation in WRITES:
             raise SubagentError(Refusal.UNKNOWN) from exc
         raise
 
@@ -135,6 +136,16 @@ def inspect_native(operation: str, params: dict) -> dict:
         from .compute import observe
 
         data = observe(operation, params, owner)
+        revalidate_reply(operation, revalidate)
+        return data
+
+    if operation in SPAWNING_OPERATIONS:
+        from .spawning import inspect_spawning
+
+        # Only the worker's own compute forwarder names the compute host as the answering process.
+        host_kind = "isolated_compute" if params.get("host_kind") == "isolated_compute" else "native_worker"
+        data = inspect_spawning(operation, params, host_kind=host_kind,
+            generation=references.require_generation(owner, params.get("expected_generation")))
         revalidate_reply(operation, revalidate)
         return data
 
