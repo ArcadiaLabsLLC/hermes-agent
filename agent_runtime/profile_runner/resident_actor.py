@@ -13,12 +13,12 @@ from agent_runtime.profile_runner.models import AgentRunRequest
 __layer__ = "lanes"
 
 __all__ = [
-    "log_turn_effort",
-    "turn_reasoning_config",
     "_finish_resident_persona_chat_agent",
     "_prepare_resident_persona_chat_agent",
     "_sanitized_user_message_text",
+    "log_turn_effort",
     "stage_persona_chat_user_row_marker",
+    "turn_reasoning_config",
 ]
 
 
@@ -95,7 +95,7 @@ def _sanitized_user_message_text(text: str) -> str:
 
 
 def stage_persona_chat_user_row_marker(
-    agent: Any, request: "AgentRunRequest"
+    agent: Any, request: AgentRunRequest
 ) -> dict[str, Any] | None:
     """Stage this turn's user-message dict so its NATIVE row carries a marker.
 

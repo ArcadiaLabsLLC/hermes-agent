@@ -43,7 +43,7 @@ from .models import OPERATOR
 from .reasons import Reason, WorkRefused
 
 __layer__ = "stores"
-__all__ = ["REPLAY_BUDGET", "Receipt", "RowOp", "Writer", "OPERATOR"]
+__all__ = ["OPERATOR", "REPLAY_BUDGET", "Receipt", "RowOp", "Writer"]
 
 REPLAY_BUDGET = 8
 REQUEST_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,200}$")

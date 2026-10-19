@@ -61,7 +61,7 @@ def _guard_archived_actor(
     archived_keys: list[str] = []
     try:
         archived_keys = list(store.get_surface(workspace_id).archived_actor_keys)
-    except Exception:  # noqa: BLE001 - no surface is no ledger to consult
+    except Exception:  # no surface is no ledger to consult
         archived_keys = []
     if not archived_path.exists() and actor_key not in archived_keys:
         return

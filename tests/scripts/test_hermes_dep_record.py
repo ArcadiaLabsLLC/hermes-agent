@@ -74,6 +74,7 @@ def _record(root: Path, deps_dir: Path) -> dict:
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_dep_record",
          f"--hermes-gate-deps={deps_dir}", "test_a.py", "test_b.py", "test_c.py"],
         cwd=root, env=env, capture_output=True, text=True, timeout=120,
+        check=False,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
     return cache.DepsCollector(deps_dir).poll()
@@ -169,6 +170,7 @@ def test_an_import_system_listing_is_recorded_apart_from_a_plain_listing_with_th
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_dep_record",
          f"--hermes-gate-deps={tmp_path / 'deps'}", "test_i.py"],
         cwd=root, env=env, capture_output=True, text=True, timeout=120,
+        check=False,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
@@ -203,6 +205,7 @@ def test_pytest_collection_walk_is_no_listing_but_a_tests_own_listing_is(tmp_pat
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_dep_record",
          f"--hermes-gate-deps={tmp_path / 'deps'}", "tests/sub/test_w.py"],
         cwd=root, env=env, capture_output=True, text=True, timeout=120,
+        check=False,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
@@ -240,8 +243,8 @@ def test_a_spawn_event_names_its_program_for_every_event_shape():
     assert trail.spawned_program("os.exec", ("/bin/sh", ["sh"], {})) == "/bin/sh"
     assert trail.spawned_program("os.spawn", (0, "node", ["node"], {})) == "node"
     assert trail.spawned_program("os.system", ("echo hi",)) == ""
-    spaced = '"C:\Program Files\Py\python.exe" -c pass'  # Windows audits a quoted command line
-    assert trail.spawned_program("subprocess.Popen", (None, spaced, None, None)) == "C:\Program Files\Py\python.exe"
+    spaced = r'"C:\Program Files\Py\python.exe" -c pass'  # Windows audits a quoted command line
+    assert trail.spawned_program("subprocess.Popen", (None, spaced, None, None)) == r"C:\Program Files\Py\python.exe"
     assert trail.is_python(trail.spawned_program("subprocess.Popen", (None, spaced, None, None)))
 
 
@@ -254,7 +257,7 @@ def test_the_run_report_classifies_a_program_through_the_recorder(monkeypatch):
     import hermes_dep_trail as trail
 
     assert report.first_program is trail.first_program and report.is_python is trail.is_python
-    spaced = '"C:\Program Files\Py\python.exe" -c pass'
+    spaced = r'"C:\Program Files\Py\python.exe" -c pass'
     assert report.program_kind(spaced) == "python"
     assert report.program_kind(["git", "status"]) == "git" and report.program_kind("node x.js") == "other"
 
@@ -304,6 +307,7 @@ def test_a_record_names_the_fixtures_set_up_and_the_paths_the_file_opened_itself
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_dep_record",
          f"--hermes-gate-deps={deps_dir}", "test_fx.py"],
         cwd=root, env=env, capture_output=True, text=True, timeout=120,
+        check=False,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
     deps = cache.DepsCollector(deps_dir).poll()["test_fx.py"]
@@ -343,5 +347,6 @@ def test_a_test_that_patches_abspath_process_wide_cannot_break_the_recorder(tmp_
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_dep_record",
          f"--hermes-gate-deps={tmp_path / 'deps'}", "test_patch.py"],
         cwd=root, env=env, capture_output=True, text=True, timeout=120,
+        check=False,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr

@@ -129,13 +129,13 @@ def test_an_image_copy_that_fails_leaves_no_temp_file(tmp_path, monkeypatch):
 
 # ── agent/charsheet/draft/ package (draft.py was split into it) ────────────
 
-from types import SimpleNamespace  # noqa: E402
+from types import SimpleNamespace
 
-from agent.charsheet import _support  # noqa: E402
-from agent.charsheet.draft import DRAFTS_DIRNAME, MANIFEST_FILENAME, SHEET_FILENAME, characters_dir, migrate_characters_home, sprite_payload  # noqa: E402
-from agent.charsheet.draft import migration as migration_module  # noqa: E402
-from agent.charsheet.draft.compose import Composer  # noqa: E402
-from agent.charsheet.draft.installed import sheet_revision  # noqa: E402
+from agent.charsheet import _support
+from agent.charsheet.draft import DRAFTS_DIRNAME, MANIFEST_FILENAME, SHEET_FILENAME, characters_dir, migrate_characters_home, sprite_payload
+from agent.charsheet.draft import migration as migration_module
+from agent.charsheet.draft.compose import Composer
+from agent.charsheet.draft.installed import sheet_revision
 
 
 def _old_store(tmp_path: Path) -> Path:
@@ -215,11 +215,11 @@ def test_an_atomic_write_that_fails_leaves_no_temp_file(tmp_path, monkeypatch, w
 
 # ── the charsheet's last unreached arms (unreachable_branch_report, 2026-10-02) ──
 
-from PIL import Image  # noqa: E402
+from PIL import Image
 
-from agent.charsheet import fake_draftsman, pipeline, prompts  # noqa: E402
-from agent.charsheet.fake_draftsman import DraftsmanCannotRead, slots_for  # noqa: E402
-from agent.charsheet.frame_bounds import frame_x_bounds  # noqa: E402
+from agent.charsheet import fake_draftsman, pipeline, prompts
+from agent.charsheet.fake_draftsman import DraftsmanCannotRead, slots_for
+from agent.charsheet.frame_bounds import frame_x_bounds
 
 
 @pytest.mark.parametrize("frame_count", [0, -1, True, 2.0, "3"])

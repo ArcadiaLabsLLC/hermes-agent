@@ -108,7 +108,7 @@ def _blind_one_actor(ws: str, actor_key: str):
 
 
 def test_the_publish_scan_yields_instance_ids_from_the_walk_it_already_takes():
-    realm_id, ws = _make_realm_workspace()
+    _realm_id, ws = _make_realm_workspace()
     OfficeStore().upsert_actor(ws, _payload("dev"))
     scan = _office_publish_scan([WorkspaceStore().get(ws)])
 

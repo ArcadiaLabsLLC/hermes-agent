@@ -19,8 +19,8 @@ __layer__ = "stores"
 __all__ = [
     "_INTERNAL_SCAFFOLDING_MARKERS",
     "_curate_chat_message_text",
-    "_safe_display_text",
     "_safe_display_body_text",
+    "_safe_display_text",
 ]
 
 

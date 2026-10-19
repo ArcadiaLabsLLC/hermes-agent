@@ -29,7 +29,7 @@ PERSONA_CHAT_SESSION_SOURCE = "agent_runtime_persona_chat"
 
 class PersonaChatMintReceiptStore:
     def _path(self, instance_id: str, key: str) -> Path:
-        digest = hashlib.sha256(f"{instance_id}\0{key}".encode("utf-8")).hexdigest()
+        digest = hashlib.sha256(f"{instance_id}\0{key}".encode()).hexdigest()
         return paths.store_root() / "persona_chat_mint_receipts" / f"{digest}.json"
 
     def mint(

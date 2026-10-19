@@ -67,6 +67,7 @@ from agent_runtime.serve_gateway_auth import (
     mint_pairing_code,
     redeem_pairing_code,
 )
+from datetime import UTC
 
 PEER_A = "inst_aaaaaaaaaaaa"
 PEER_B = "inst_bbbbbbbbbbbb"
@@ -853,7 +854,7 @@ def test_a_peer_code_minted_with_a_ttl_redeems_into_a_row_that_expires(tmp_path)
     from datetime import datetime, timezone
 
     delta = datetime.fromisoformat(record.expires_at) - datetime.fromtimestamp(
-        at, tz=timezone.utc
+        at, tz=UTC
     )
     assert abs(delta.total_seconds() - CREDENTIAL_TTL_SECONDS_INTRODUCED) < 5
 

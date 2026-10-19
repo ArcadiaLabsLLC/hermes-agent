@@ -33,7 +33,7 @@ from agent_runtime.dispatch_store import (
 )
 from agent_runtime.relay_policy import RELAY_CHAIN, RELAY_DEADLINE
 from tools import agent_chat_dispatch
-import tools.agent_chat_dispatch.local_child  # noqa: F401 - the spawn the tests patch
+import tools.agent_chat_dispatch.local_child  # the spawn the tests patch
 from tools.agent_chat_tool import (
     AGENT_CHAT_DISPATCHES_SCHEMA,
     AGENT_CHAT_SEND_SCHEMA,

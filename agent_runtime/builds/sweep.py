@@ -45,6 +45,7 @@ from agent_runtime.builds.vocabulary import (
     SOURCE_ANNOUNCED,
     SOURCE_DETECTED,
 )
+from datetime import UTC
 
 __layer__ = "lanes"
 
@@ -209,7 +210,7 @@ class BuildSweep:
                    "started_by_instance": row.get("started_by_instance"), "duration_ms": duration_ms,
                    "tail_preview": row.get("tail_preview") or ""}
         (self.event_log or EventLog()).append(Event(
-            ts=datetime.fromtimestamp(now, timezone.utc), type=EVENT_BUILD_ENDED, task_id=None, run_id=None,
+            ts=datetime.fromtimestamp(now, UTC), type=EVENT_BUILD_ENDED, task_id=None, run_id=None,
             persona_id=owner.get("persona_id"), payload=payload))
 
 
@@ -241,5 +242,5 @@ def _loop(sweep: BuildSweep) -> None:
     while not _STOP.wait(SWEEP_INTERVAL_SECONDS):
         try:
             sweep.tick()
-        except Exception:  # noqa: BLE001 — one bad tick must never take the serve process down
+        except Exception:  # one bad tick must never take the serve process down
             logger.warning("build_sweep_tick_failed", exc_info=True)

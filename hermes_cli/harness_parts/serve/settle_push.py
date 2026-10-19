@@ -19,7 +19,7 @@ from hermes_cli.harness_parts.serve.manifest import _is_gateway
 
 __layer__ = "lanes"
 
-__all__ = ["SettlePush", "SETTLE_PUSH_TICK_SECONDS"]
+__all__ = ["SETTLE_PUSH_TICK_SECONDS", "SettlePush"]
 
 logger = logging.getLogger(__name__)
 

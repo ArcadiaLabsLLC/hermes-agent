@@ -18,6 +18,7 @@ from pathlib import Path
 from tests._downstream._seams import RepoExecutionContext, isolated_repo_context_for_run
 
 import pytest
+from datetime import UTC
 
 
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
@@ -578,7 +579,7 @@ def test_reap_patch_capture_names_are_exclusive_across_sources_and_collisions(
     monkeypatch.setattr(
         directive,
         "now",
-        lambda: datetime(2026, 7, 28, 12, 0, tzinfo=timezone.utc),
+        lambda: datetime(2026, 7, 28, 12, 0, tzinfo=UTC),
     )
 
     current_capture = directive._write_reap_patch_exclusive(

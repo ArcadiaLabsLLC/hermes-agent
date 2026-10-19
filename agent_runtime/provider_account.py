@@ -89,7 +89,7 @@ def provider_usage(provider: str) -> dict:
     if provider == "nous":
         try:
             snapshot = _nous_snapshot()
-        except Exception as exc:  # noqa: BLE001 - fail open like upstream's /usage, class name only
+        except Exception as exc:  # fail open like upstream's /usage, class name only
             return _usage_view(provider, None) | {"unavailable_reason": type(exc).__name__}
     else:
         snapshot = fetch_account_usage(provider)
@@ -114,7 +114,7 @@ def provider_refresh(provider: str, credential: str | None = None) -> dict:
         auth_refresh_command(SimpleNamespace(provider=provider, target=credential))
     except SystemExit as exit_:
         raise ProviderRefused("refresh_refused", str(exit_.code or ""), provider=provider) from None
-    except Exception as exc:  # noqa: BLE001 - class name only, never the message
+    except Exception as exc:  # class name only, never the message
         raise ProviderRefused("refresh_failed", type(exc).__name__, provider=provider) from None
     return {"provider": provider, "credential": credential, "refreshed": True}
 
@@ -124,7 +124,7 @@ def _signed_in(provider: str) -> bool:
 
     try:
         return bool((get_auth_status(provider) or {}).get("logged_in"))
-    except Exception:  # noqa: BLE001 - an unreadable status reads as signed out
+    except Exception:  # an unreadable status reads as signed out
         return False
 
 
@@ -138,6 +138,6 @@ def provider_signout(provider: str) -> dict:
         auth_logout_command(SimpleNamespace(provider=provider))
     except SystemExit as exit_:
         raise ProviderRefused("signout_refused", str(exit_.code or ""), provider=provider) from None
-    except Exception as exc:  # noqa: BLE001 - class name only, never the message
+    except Exception as exc:  # class name only, never the message
         raise ProviderRefused("signout_failed", type(exc).__name__, provider=provider) from None
     return {"provider": provider, "was_signed_in": was, "signed_in": _signed_in(provider)}

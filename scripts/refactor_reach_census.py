@@ -60,8 +60,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from scripts import god_file_probe as probe  # noqa: E402
-from scripts.unreachable_branch_report import (  # noqa: E402
+from scripts import god_file_probe as probe
+from scripts.unreachable_branch_report import (
     DEFAULT_FILE_TIMEOUT,
     DEFAULT_TEST_TIMEOUT,
     _combine_and_dump,
@@ -124,7 +124,7 @@ def suite(root: Path, files: list[str]) -> list[str]:
     ).stdout.split("\0")
     chosen = []
     for test in sorted(p for p in listing if p):
-        text = (root / test).read_text(encoding="utf-8", errors="replace")
+        text = (root / test).read_text(encoding="utf-8-sig", errors="replace")
         if selects(text, tokens, modules):
             chosen.append(test)
     return chosen
@@ -425,7 +425,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     suite_code = 0
     if args.coverage_json:
-        document = json.loads(args.coverage_json.read_text(encoding="utf-8"))
+        document = json.loads(args.coverage_json.read_text(encoding="utf-8-sig"))
         suite_code = int(document.get("_suite_exit", 0))
     else:
         document, suite_code = trace(root, files, tests, args.jobs)

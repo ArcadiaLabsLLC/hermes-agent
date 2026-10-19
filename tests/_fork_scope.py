@@ -201,7 +201,7 @@ def upstream_blobs() -> dict[str, str] | None:
     return read_upstream_blobs(repo_root(), base) if base is not None else None
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def working_blob(relative: str) -> str | None:
     """The blob sha git would store for the WORKING file, or ``None``.
 
@@ -270,7 +270,7 @@ def _upstream_text(relative: str) -> list[str] | None:
     return out.decode("utf-8", errors="replace").splitlines()
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def fork_authored_lines(relative: str) -> frozenset[int] | None:
     """1-based WORKING line numbers the fork added, or ``None`` for "all of it".
 

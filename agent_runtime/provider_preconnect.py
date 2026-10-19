@@ -433,15 +433,15 @@ def refresh_idle_connection(agent: Any) -> str:
 
 
 __all__ = [
-    "IDLE_KEEPWARM_RECEIPT",
     "IDENTITY_HEADERS",
+    "IDLE_KEEPWARM_RECEIPT",
     "KEEPWARM_INTERVAL_SECONDS",
     "KEEPWARM_MAX_REFRESHES",
     "KEEPWARM_RECEIPT",
     "PRECONNECT_CONNECTIONS",
-    "REQUEST_CLIENT_API_MODES",
     "PRECONNECT_RECEIPT",
     "PREWARM_CONNECT_MS",
+    "REQUEST_CLIENT_API_MODES",
     "note_process_request_sent",
     "preopen_provider_connection",
     "refresh_idle_connection",

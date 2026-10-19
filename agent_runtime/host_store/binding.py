@@ -78,7 +78,7 @@ class HostStoreBinding:
     profile: str
     store_root: Path
 
-    def relative(self, path: "os.PathLike[str] | str") -> str:
+    def relative(self, path: os.PathLike[str] | str) -> str:
         """*path* relative to the store root, POSIX-spelled; raises :class:`OutsideStoreRoot`."""
         target = Path(os.path.abspath(os.fspath(path)))
         try:
@@ -90,10 +90,10 @@ class HostStoreBinding:
             raise OutsideStoreRoot(f"{target} is the store root itself, not a store path")
         return spelled.lower() if os.name == "nt" else spelled  # NTFS is case-insensitive: one slot per file
 
-    def slot(self, path: "os.PathLike[str] | str") -> str:
+    def slot(self, path: os.PathLike[str] | str) -> str:
         return f"{SLOT_PREFIX}/{self.profile}/{self.relative(path)}"
 
-    def protect_history_dir(self, path: "os.PathLike[str] | str") -> Path:
+    def protect_history_dir(self, path: os.PathLike[str] | str) -> Path:
         """Ask the host to protect *path* (see the module doc); refuse when it cannot.
 
         Raises :class:`HistoryProtectionMissing` when the host supplied no callback, and
@@ -115,7 +115,7 @@ _BINDING: Optional[HostStoreBinding] = None
 
 
 def bind_host_store(callbacks: HostStoreCallbacks, *, profile: str,
-                    store_root: "os.PathLike[str] | str") -> HostStoreBinding:
+                    store_root: os.PathLike[str] | str) -> HostStoreBinding:
     """Bind the process to a host store. One binding per process; rebinding raises."""
     global _BINDING
     if not isinstance(profile, str) or not _PROFILE_RE.match(profile):

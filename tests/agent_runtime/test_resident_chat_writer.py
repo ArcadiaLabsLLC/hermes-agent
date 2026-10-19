@@ -10,7 +10,7 @@ from agent_runtime.persona_chat_durability import default_persona_session_db
 from agent_runtime.persona_chat_continuity import runtime_registry as residents
 from agent_runtime.profile_runner.execute import AgentRunExecution
 from agent_runtime.profile_runner.models import AgentRunRequest
-from tests.agent_runtime.test_chat_session_writer import canonical_scope, assert_closed  # noqa: F401
+from tests.agent_runtime.test_chat_session_writer import canonical_scope, assert_closed
 
 
 def owned_execution(registry, db, factory=None, *, root="root", signature="context", revision="revision", tip="tip", prewarm=False):

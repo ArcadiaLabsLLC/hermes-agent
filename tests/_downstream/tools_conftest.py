@@ -421,30 +421,30 @@ _KNOWN_DEFECTS: dict[str, str] = {
 _KNOWN_DEFECT_TRACKER = KnownDefectTracker(_KNOWN_DEFECTS, "tests/tools/conftest.py")
 
 
-def pytest_collection_modifyitems(items):  # noqa: D401 — pytest hook
+def pytest_collection_modifyitems(items):  # pytest hook
     """Skip every registered node whose probe reports its gap on this host."""
     apply_skips(items, _ENV_GAP_SKIPS, owner_dir=_OWNER_DIR)
 
 
-def pytest_runtest_logreport(report):  # noqa: D401 — pytest hook
+def pytest_runtest_logreport(report):  # pytest hook
     """Record the known-defect tests' outcomes."""
     _KNOWN_DEFECT_TRACKER.record(report)
 
 
-def pytest_terminal_summary(terminalreporter):  # noqa: D401 — pytest hook
+def pytest_terminal_summary(terminalreporter):  # pytest hook
     """Explain the deliberate reds."""
     _KNOWN_DEFECT_TRACKER.report(terminalreporter, "KNOWN DEFECTS — deliberately not fenced")
 
 
 __all__ = [
-    "_cached",
-    "_no_posix_file_modes",
-    "_no_af_unix",
-    "_no_process_groups",
     "_ENV_GAP_SKIPS",
-    "_OWNER_DIR",
     "_KNOWN_DEFECTS",
     "_KNOWN_DEFECT_TRACKER",
+    "_OWNER_DIR",
+    "_cached",
+    "_no_af_unix",
+    "_no_posix_file_modes",
+    "_no_process_groups",
     "pytest_collection_modifyitems",
     "pytest_runtest_logreport",
     "pytest_terminal_summary",

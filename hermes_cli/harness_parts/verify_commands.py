@@ -12,7 +12,7 @@ import os
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 
 from agent_runtime import paths
@@ -35,7 +35,7 @@ __all__ = [
 
 def _cmd_verify(args) -> int:
     cfg = load_agent_runtime_config()
-    started = datetime.now(timezone.utc)
+    started = datetime.now(UTC)
     # Anchored to the support module rather than ``Path(__file__)`` (which,
     # before lane H1 exec'd this file into harness.py, read as harness.py's path).
     repo_root = harness_repo_root()
@@ -133,6 +133,7 @@ def _run_verify_command(label: str, command: list[str], *, cwd: Path) -> dict:
             encoding="utf-8",
             errors="replace",
             timeout=120,
+            check=False,
         )
         stdout = completed.stdout or ""
         stderr = completed.stderr or ""
@@ -167,6 +168,7 @@ def _git_summary(root: Path) -> dict:
                 encoding="utf-8",
                 errors="replace",
                 timeout=10,
+                check=False,
             )
         except Exception:
             return None

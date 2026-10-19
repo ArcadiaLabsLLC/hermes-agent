@@ -1048,7 +1048,7 @@ def test_the_provider_prewarm_does_not_begin_until_the_snapshot_prewarm_returns(
     exists here or anywhere in this stage.
     """
 
-    gate, provider_calls, out, loop, result = _gated_prewarm_run()
+    gate, provider_calls, _out, loop, result = _gated_prewarm_run()
     try:
         # The build is provably pending: the gate is unreleased and held by us.
         assert provider_calls == []
@@ -1076,7 +1076,7 @@ def test_ready_is_emitted_before_either_prewarm_completes():
     ready frame.
     """
 
-    gate, provider_calls, out, loop, result = _gated_prewarm_run()
+    gate, provider_calls, out, loop, _result = _gated_prewarm_run()
     try:
         # The loop ran to completion — booting, ready, shutdown — while the
         # read-model prewarm is still parked inside the test's gate.
@@ -1096,7 +1096,7 @@ def test_a_failed_build_still_warms_the_providers():
     independent threads had for free and a naive `then` would have silently
     dropped."""
 
-    gate, provider_calls, out, loop, result = _gated_prewarm_run(snapshot_raises=True)
+    gate, provider_calls, _out, loop, result = _gated_prewarm_run(snapshot_raises=True)
     gate.set()
     assert _wait_for(lambda: provider_calls == ["provider"])
     loop.join(10)

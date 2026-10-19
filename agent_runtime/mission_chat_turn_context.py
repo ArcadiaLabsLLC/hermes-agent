@@ -422,7 +422,7 @@ class MissionChatTurnContext:
     #: pointer (else the active workspace). The context record is stamped from
     #: THIS, never from what a client sent: a client can only say which
     #: workspace it was showing, which is not where the turn ran.
-    lane_workspace: LaneWorkspace = LaneWorkspace()
+    lane_workspace: LaneWorkspace = field(default_factory=LaneWorkspace)
     #: The turn's resolved workdir (``mission_chat_workdir.MissionChatWorkdir``): the ONE
     #: resolve, handed to ``mission_chat_reply(workdir=)``. None only on a hand-built context.
     workdir: Any = None

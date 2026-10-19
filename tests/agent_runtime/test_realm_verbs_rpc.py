@@ -8,7 +8,7 @@ envelope.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 from types import SimpleNamespace
 
 import pytest
@@ -32,7 +32,7 @@ def _credential(realm_id: str = "realm_x") -> dict:
     return {
         "schema_version": 1, "realm_id": realm_id, "api_base": "https://api.invalid", "api_token": SECRET,
         "git_url": "https://git.invalid/r.git", "git_authorization": "Bearer " + SECRET,
-        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+        "expires_at": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
     }
 
 

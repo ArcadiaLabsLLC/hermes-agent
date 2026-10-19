@@ -37,7 +37,7 @@ def _cmd_flow_set(args) -> int:
         return 2
     if file_path:
         try:
-            payload_text = Path(file_path).read_text(encoding="utf-8")
+            payload_text = Path(file_path).read_text(encoding="utf-8-sig")
         except OSError as exc:
             data = {"ok": False, "error": f"could not read --graph-file: {exc}"}
             print(emit_json(data) if args.json else data["error"])

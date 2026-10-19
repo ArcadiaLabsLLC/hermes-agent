@@ -266,10 +266,10 @@ class MessageStream:
     def __next__(self) -> Any:
         return next(self._iterator)
 
-    def __enter__(self) -> "MessageStream":
+    def __enter__(self) -> MessageStream:
         return self
 
-    def __exit__(self, *_exc: Any) -> None:
+    def __exit__(self, *_exc: object) -> None:
         self.close()
 
     def close(self) -> None:
@@ -323,7 +323,7 @@ class MessageStreamManager:
         self._stream = self._open()
         return self._stream
 
-    def __exit__(self, *_exc: Any) -> None:
+    def __exit__(self, *_exc: object) -> None:
         if self._stream is not None:
             self._stream.close()
 
@@ -334,7 +334,7 @@ class MessageStreamManager:
 class _Messages:
     """``anthropic.Anthropic().messages``."""
 
-    def __init__(self, client: "SdkFreeAnthropicClient") -> None:
+    def __init__(self, client: SdkFreeAnthropicClient) -> None:
         self._client = client
 
     def create(self, *, stream: bool = False, **params: Any) -> Any:
@@ -374,7 +374,7 @@ class SdkFreeAnthropicClient(HttpCore):
                              "default_query": default_query, "http_client": http_client}
         self.messages = _Messages(self)
 
-    def with_options(self, *, default_headers: Mapping[str, Any] | None = None, **overrides: Any) -> "SdkFreeAnthropicClient":
+    def with_options(self, *, default_headers: Mapping[str, Any] | None = None, **overrides: Any) -> SdkFreeAnthropicClient:
         """The SDK's copy: same client, ``default_headers`` merged over the current ones."""
         headers = {**self._default_headers, **(default_headers or {})}
         return SdkFreeAnthropicClient(**{**self._init_kwargs, **overrides}, default_headers=headers)

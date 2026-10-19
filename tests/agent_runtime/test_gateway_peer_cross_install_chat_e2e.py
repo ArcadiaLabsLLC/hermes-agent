@@ -51,7 +51,7 @@ import json
 
 import pytest
 
-from tests.agent_runtime._serve_fixtures import two_installs  # noqa: F401 — a fixture
+from tests.agent_runtime._serve_fixtures import two_installs  # a fixture
 from tests.agent_runtime.test_gateway_peer_two_roots_e2e import (
     E2E_TEST_TIMEOUT_SECONDS,
     _payload_of,

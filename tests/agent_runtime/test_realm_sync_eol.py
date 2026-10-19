@@ -134,7 +134,7 @@ def test_pull_writes_lf_artifact_destinations(isolate_agent_runtime_root, tmp_pa
 
 
 def test_workspace_status_published_after_publish_despite_crlf_store(isolate_agent_runtime_root, tmp_path):
-    realm, repo = _realm_with_remote(tmp_path)
+    realm, _repo = _realm_with_remote(tmp_path)
     realm = RealmStore().bind_server(realm.id, "srv_eol")
     ws = WorkspaceStore().create(name="Office", realm_id=realm.id)
 

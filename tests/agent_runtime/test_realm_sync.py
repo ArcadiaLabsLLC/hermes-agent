@@ -106,7 +106,7 @@ def test_publish_dry_run_is_allowlisted_and_excludes_state(isolate_agent_runtime
 
     assert result["state"] == "dry_run"
     assert result["secrets_excluded"] == []
-    assert f"skills/demo-skill/SKILL.md" in paths
+    assert "skills/demo-skill/SKILL.md" in paths
     assert any(path.startswith("store/workspaces/") for path in paths)
     assert f"store/realms/{realm.id}.json" in paths
     # ``dev``'s role prompt is REPOSITORY-bundled
@@ -130,7 +130,7 @@ def test_publish_dry_run_is_allowlisted_and_excludes_state(isolate_agent_runtime
 
 
 def test_publish_secret_candidate_hard_fails(isolate_agent_runtime_root, tmp_path):
-    home = get_hermes_home()
+    get_hermes_home()
     skill = get_shared_skills_dir() / "leaky-skill" / "SKILL.md"
     skill.parent.mkdir(parents=True)
     skill.write_text("---\nname: leaky-skill\n---\napi_key = \"sk-test-secret-value-123456\"\n", encoding="utf-8")
@@ -667,7 +667,7 @@ def test_pull_threads_credential_header_per_invocation_only(isolate_agent_runtim
 
 
 def test_sidecar_written_by_each_verb(isolate_agent_runtime_root, tmp_path):
-    home = get_hermes_home()
+    get_hermes_home()
     skill = get_shared_skills_dir() / "sidecar-skill" / "SKILL.md"
     skill.parent.mkdir(parents=True)
     skill.write_text("---\nname: sidecar-skill\n---\n# Sidecar\n", encoding="utf-8")
@@ -801,7 +801,7 @@ def test_workspace_agent_artifacts_prefer_explicit_attribution_over_the_path(
 def test_publish_notify_failure_is_warning_not_error(isolate_agent_runtime_root, tmp_path, monkeypatch):
     import agent_runtime.realm_membership as realm_membership_module
 
-    home = get_hermes_home()
+    get_hermes_home()
     skill = get_shared_skills_dir() / "notify-skill" / "SKILL.md"
     skill.parent.mkdir(parents=True)
     skill.write_text("---\nname: notify-skill\n---\n# Notify\n", encoding="utf-8")
@@ -824,7 +824,7 @@ def test_publish_notify_posts_counts_only(isolate_agent_runtime_root, tmp_path, 
 
     import agent_runtime.realm_membership as realm_membership_module
 
-    home = get_hermes_home()
+    get_hermes_home()
     skill = get_shared_skills_dir() / "counts-skill" / "SKILL.md"
     skill.parent.mkdir(parents=True)
     skill.write_text("---\nname: counts-skill\n---\n# Counts\n", encoding="utf-8")

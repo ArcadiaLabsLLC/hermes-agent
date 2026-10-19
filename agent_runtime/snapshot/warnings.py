@@ -5,7 +5,7 @@ redaction observation and the event-summary warnings.
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 
 from agent_runtime.events import event_summary_missing
 from agent_runtime.models import looks_like_persona_instance_id
@@ -462,11 +462,11 @@ def _parse_iso_timestamp(value) -> datetime | None:
     if not isinstance(value, str) or not value.strip():
         return None
     try:
-        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.strip())
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
     return parsed
 
 

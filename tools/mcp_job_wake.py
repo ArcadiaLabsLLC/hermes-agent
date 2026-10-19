@@ -73,10 +73,10 @@ JOB_WAKE_CAPABILITY = "eternia.job_wake"
 JOB_WAKE_VERSION = 1
 
 _lock = threading.Lock()
-_routes: "OrderedDict[tuple[str, str], dict]" = OrderedDict()
+_routes: OrderedDict[tuple[str, str], dict] = OrderedDict()
 #: The background-work rows, keyed like ``_routes``. A route is popped when its wake is queued
 #: (wake at most once); its row outlives it until the wake is settled or the row expires.
-_rows: "OrderedDict[tuple[str, str], dict]" = OrderedDict()
+_rows: OrderedDict[tuple[str, str], dict] = OrderedDict()
 _writer_identity: Optional[tuple[int, Any]] = None
 
 
@@ -415,7 +415,7 @@ def _write_checkpoints_locked(path: str) -> None:
 
 def _checkpoint_dicts(path: str) -> list[dict]:
     try:
-        entries = json.loads(Path(path).read_text(encoding="utf-8"))
+        entries = json.loads(Path(path).read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         return []
     return [e for e in entries if isinstance(e, dict)] if isinstance(entries, list) else []

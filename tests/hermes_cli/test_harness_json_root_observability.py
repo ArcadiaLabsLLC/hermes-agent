@@ -372,7 +372,7 @@ def test_every_attaching_delegate_attaches(monkeypatch, tmp_path):
     claims one. Positive by construction: the stubs below return NO resolution
     block, so the keys can only come from the delegate's own attach."""
 
-    import agent_runtime.realm_revert as realm_revert
+    from agent_runtime import realm_revert
     from agent_runtime import realm_sync, realm_verbs, store
     from tests._downstream.split_package_source import patch_where_bound
     from agent_runtime.chat_verbs.history import persona_chat_history_page

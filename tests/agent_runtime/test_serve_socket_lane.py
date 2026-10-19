@@ -189,7 +189,7 @@ class _StdioPipe:
     def __init__(self) -> None:
         self._queue: queue.Queue = queue.Queue()
 
-    def __iter__(self) -> "_StdioPipe":
+    def __iter__(self) -> _StdioPipe:
         return self
 
     def __next__(self) -> str:
@@ -1126,7 +1126,7 @@ def test_the_accept_loop_reports_how_it_ended_instead_of_dying_quietly():
     """F4's other half. A loop that stopped without a word leaves a service
     that answers its discovery record and then never answers anything."""
 
-    with bare_server() as (server, port, logs):
+    with bare_server() as (server, _port, logs):
         payload = server.connections_payload()
         # Both facts are stated while healthy, so an operator reading them
         # after a failure is reading the same two fields, not a new one.
@@ -1181,7 +1181,7 @@ def test_the_accept_loop_ends_on_a_host_where_close_does_not_wake_accept():
     and if that way is missing the field stays ``None`` until the process dies.
     """
 
-    with bare_server(start_accepting=False) as (server, port, logs):
+    with bare_server(start_accepting=False) as (server, _port, logs):
         inner = server._listener
         listener = _CloseDoesNotWakeAccept(inner)
         server._listener = listener
@@ -2947,7 +2947,7 @@ def test_two_connections_asking_to_drain_at_once_start_exactly_one_drain():
                         connection.send(
                             {"op": "drain", "force": True, "deadline_seconds": 30}
                         )
-                    except BaseException as exc:  # noqa: BLE001 - reported below
+                    except BaseException as exc:  # reported below
                         errors.append(exc)
 
                 askers = [
@@ -3143,7 +3143,7 @@ def test_a_non_ascii_proof_is_refused_like_any_other_wrong_one():
         port,
         _logs,
     ):
-        for proof in ("é" * 64, "☃" + "a" * 63, "prøøf", "​" * 64):
+        for proof in ("é" * 64, "☃" + "a" * 63, "prøøf", "\u200b" * 64):
             _g, reply = raw_handshake(port, token=None, proof=proof)
             assert reply == {
                 "event": "hello_rejected",
@@ -3393,7 +3393,7 @@ def test_set_timeout_rearms_the_read_budget_on_a_live_connection():
         try:
             silent.set_timeout(0.2)
             started = time.monotonic()
-            with pytest.raises(socket.timeout):  # noqa: UP041 - alias differs across versions
+            with pytest.raises(socket.timeout):  # alias differs across versions
                 silent.read_frame()
             assert time.monotonic() - started < 5.0
         finally:

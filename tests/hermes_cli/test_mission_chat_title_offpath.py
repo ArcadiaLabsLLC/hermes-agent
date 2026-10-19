@@ -55,7 +55,7 @@ EMIT_SEAM = "_mission_chat_emit"
 
 def _persona_commands_tree() -> ast.Module:
     # Structural ordering is asserted on the persona package's source.
-    import hermes_cli.harness as harness
+    from hermes_cli import harness
 
     return ast.parse(package_source())
 

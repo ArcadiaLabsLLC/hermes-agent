@@ -9,7 +9,7 @@ from agent.prompt_builder import (
 )
 
 from tests.agent import test_prompt_builder as _upstream
-from tests.agent.test_prompt_builder import (  # noqa: F401 — upstream names the moved tests use
+from tests.agent.test_prompt_builder import (  # upstream names the moved tests use
     _drain_truncation_warnings,
 )
 
@@ -123,7 +123,7 @@ class TestBuildSkillsSystemPromptConditional:
 
     def test_registered_plugin_skills_respect_runtime_surface_and_mode(self, monkeypatch, tmp_path):
         import agent.prompt_builder as pb
-        import hermes_cli.plugins as plugins
+        from hermes_cli import plugins
         from agent_runtime.skill_resolution import skill_runtime_scope
 
         manager = plugins.PluginManager()

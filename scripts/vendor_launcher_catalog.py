@@ -25,7 +25,7 @@ import argparse
 import json
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -89,7 +89,7 @@ def launcher_head(checkout: Path) -> str:
 def build_fixture(raw: object, source_commit: str) -> dict:
     exported_at = raw.get("exported_at") if isinstance(raw, dict) else None
     if not isinstance(exported_at, str) or not exported_at:
-        exported_at = datetime.now(timezone.utc).date().isoformat()
+        exported_at = datetime.now(UTC).date().isoformat()
     return {"source_commit": source_commit, "exported_at": exported_at,
             "entries": normalize_entries(raw)}
 
@@ -102,11 +102,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=FIXTURE)
     args = parser.parse_args(argv)
 
-    raw = json.loads(args.export.read_text(encoding="utf-8"))
+    raw = json.loads(args.export.read_text(encoding="utf-8-sig"))
     fixture = build_fixture(raw, launcher_head(args.launcher or args.export.resolve().parent))
     old = []
     if args.out.is_file():
-        old = json.loads(args.out.read_text(encoding="utf-8")).get("entries", [])
+        old = json.loads(args.out.read_text(encoding="utf-8-sig")).get("entries", [])
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(fixture, indent=2) + "\n", encoding="utf-8", newline="\n")
     delta = entry_delta(old, fixture["entries"])

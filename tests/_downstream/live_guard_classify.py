@@ -24,7 +24,7 @@ import shlex
 # tests red alone, green after any file that had imported gateway.status). The guard
 # fixture imports this module at its setup, under the real platform, so loading
 # gateway.status here makes the guard's lazy import a cache hit in every test.
-import gateway.status  # noqa: E402,F401
+import gateway.status
 
 
 def strip_shell_comments(script: str) -> str:

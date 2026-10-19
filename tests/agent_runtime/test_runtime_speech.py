@@ -449,7 +449,7 @@ def _pcm(ms):
 
 def test_recognize_streams_partials_and_a_final_over_the_method_lane(fakes):
     """Mutation: drop the partial scheduling in ``recognize_push`` -> no partial event."""
-    engines, root = fakes
+    _engines, root = fakes
     wire = Wire()
     _loaded(wire, root)
     begun = wire.result("runtime.speech.recognize.begin", {"sample_rate": 16000})
@@ -471,7 +471,7 @@ def test_recognize_streams_partials_and_a_final_over_the_method_lane(fakes):
 
 
 def test_a_stream_refuses_a_sequence_gap_another_connection_and_bad_audio(fakes):
-    engines, root = fakes
+    _engines, root = fakes
     wire, other = Wire("conn-a"), Wire("conn-b")
     _loaded(wire, root)
     sid = wire.result("runtime.speech.recognize.begin")["stream_id"]
@@ -488,7 +488,7 @@ def test_a_stream_refuses_a_sequence_gap_another_connection_and_bad_audio(fakes)
 
 
 def test_synthesize_pushes_base64_pcm_chunks_then_replies(fakes):
-    engines, root = fakes
+    _engines, root = fakes
     wire = Wire()
     _loaded(wire, root)
     reply = wire.result("runtime.speech.synthesize", {"text": "Hello there."})
@@ -510,7 +510,7 @@ def test_recognize_and_synthesize_refuse_before_a_model_is_loaded(fakes):
 
 
 def test_unload_releases_the_reservations(fakes, authority):
-    engines, root = fakes
+    _engines, root = fakes
     wire = Wire()
     _loaded(wire, root)
     assert {r["holder"] for r in authority.status()["reservations"]} == {"speech:stt", "speech:tts"}
@@ -520,7 +520,7 @@ def test_unload_releases_the_reservations(fakes, authority):
 
 def test_unloading_speech_to_text_ends_its_open_streams(fakes):
     """Mutation: ``_unload_slot`` stops clearing ``_streams`` -> the stream still answers after STT unload."""
-    engines, root = fakes
+    _engines, root = fakes
     wire = Wire()
     _loaded(wire, root)
     sid = wire.result("runtime.speech.recognize.begin")["stream_id"]
@@ -772,7 +772,7 @@ def test_the_model_folders_files_choose_the_engine_and_its_reservation(fakes, au
     """Mutation: ``engine_for`` always answers Whisper -> the Parakeet folder reads
     ``model_partial`` (no ``vocab.json``); Parakeet's estimate swapped for Whisper's -> the
     reservation is short."""
-    engines, root = fakes
+    _engines, root = fakes
     parakeet, whisper = _parakeet_dir(root), _whisper_dir(root)
     wire = Wire()
     status = wire.result("runtime.speech.status", {"stt_model": str(parakeet)})["stt"]
@@ -886,7 +886,7 @@ def _kokoro_folder(tmp_path):
 
 def test_status_lists_the_kokoro_presets_and_the_one_a_load_would_use(fakes):
     """Mutation: drop ``"presets": presets`` from ``inspect_tts``'s available view -> red here."""
-    engines, tmp_path = fakes
+    _engines, tmp_path = fakes
     model = _kokoro_folder(tmp_path)
     tts = Wire().result("runtime.speech.status", {"tts_voice": str(model)})["tts"]
     assert (tts["presets"], tts["preset"]) == (list(KOKORO_TEST_PRESETS), "af_heart")
@@ -933,7 +933,7 @@ def test_a_preset_on_a_piper_voice_is_unsupported(fakes):
 
 @pytest.mark.parametrize("bad", [5, "", "a\0b"])
 def test_a_malformed_tts_preset_is_invalid_params(fakes, bad):
-    engines, tmp_path = fakes
+    _engines, tmp_path = fakes
     frame = Wire().call("runtime.speech.load", {"which": "tts", "tts_voice": str(_kokoro_folder(tmp_path)),
                                                 "tts_preset": bad})
     assert frame["error"]["data"]["reason"] == "tts_preset_invalid"

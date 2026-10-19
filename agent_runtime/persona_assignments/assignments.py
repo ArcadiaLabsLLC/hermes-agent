@@ -28,8 +28,8 @@ from agent_runtime.states import ACTIVE_ASSIGNMENT_STATES, TERMINAL_ASSIGNMENT_S
 __layer__ = "stores"
 
 __all__ = [
-    "migrate_retired_persona_assignment_task_ids",
     "PersonaAssignmentStore",
+    "migrate_retired_persona_assignment_task_ids",
 ]
 
 

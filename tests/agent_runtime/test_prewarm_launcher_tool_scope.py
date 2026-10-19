@@ -18,7 +18,7 @@ from tests.agent_runtime.test_launcher_app_functions import _Launcher
 from tests.agent_runtime.test_persona_chat_actor_prewarm import (
     _Agent,
     _request,
-    stub_runtime,  # noqa: F401 - fixture
+    stub_runtime,  # fixture
 )
 
 from agent_runtime import launcher_app_functions as app

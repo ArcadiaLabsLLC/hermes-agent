@@ -45,6 +45,7 @@ from agent_runtime.runtime_hud import (
 )
 from agent_runtime.turn_budget import render_turn_budget_line
 from agent_runtime.volatile_tail import STATUS_EMITTED, STATUS_EMPTY, STATUS_TRUNCATED
+from datetime import UTC
 
 
 # ── fixtures ────────────────────────────────────────────────────────────────
@@ -499,7 +500,7 @@ def test_the_reuse_key_survives_a_turn_of_row_liveness():
 
     persona, instance = _live_records()
     instance.state = WorkerSessionState.RUNNING
-    instance.updated_at = datetime(2026, 8, 23, 14, 44, tzinfo=timezone.utc)
+    instance.updated_at = datetime(2026, 8, 23, 14, 44, tzinfo=UTC)
     instance.last_heartbeat_at = instance.updated_at
     instance.skill_manifest_hash = "manifest-turn-1"
     instance.active_run_id = "run_turn_1"
@@ -810,7 +811,7 @@ def test_two_consecutive_turn_builds_of_one_chat_move_no_component(tmp_path):
 
     persona, instance = _live_records()
     instance.state = WorkerSessionState.RUNNING
-    instance.updated_at = datetime(2026, 8, 23, 19, 3, 10, tzinfo=timezone.utc)
+    instance.updated_at = datetime(2026, 8, 23, 19, 3, 10, tzinfo=UTC)
     instance.last_heartbeat_at = instance.updated_at
     instance.skill_manifest_hash = "manifest-turn-1"
 
@@ -1294,10 +1295,10 @@ def _prompt_observability_walk_gate(monkeypatch, walked_home):
     monkeypatch.setattr(prompt_observability.skills_context, "_installed_skill_catalog", _gated)
     monkeypatch.setattr(prompt_observability.skills_resolver, "_installed_skill_catalog", _gated)
     monkeypatch.setattr(
-        prompt_observability.catalog_store, "load_latest_prompt_observability_contexts", lambda: []
+        prompt_observability.catalog_store, "load_latest_prompt_observability_contexts", list
     )
     monkeypatch.setattr(
-        prompt_observability.context_store, "load_latest_prompt_observability_contexts", lambda: []
+        prompt_observability.context_store, "load_latest_prompt_observability_contexts", list
     )
     monkeypatch.setattr(profile_context, "profile_exists", lambda name: name == "qa")
     monkeypatch.setattr(profile_context, "get_profile_dir", lambda name: walked_home)

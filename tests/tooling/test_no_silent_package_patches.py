@@ -246,7 +246,7 @@ def silent_readers(modules: ForkModules, package: str, name: str) -> list[str]:
 #: ``test_the_census_is_walked_once_per_tree``. The walk is budgeted by the
 #: ``_WALK_BUDGET`` mark below, never by the 30 s ``addopts`` default: under
 #: load the first caller overran that default in the round-2 tooling run.
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _census(root: Path) -> frozenset[str]:
     return frozenset(silent_package_patches(root))
 
@@ -408,8 +408,8 @@ def test_patch_where_bound_reaches_a_reader_outside_the_package(monkeypatch):
     """The helper's lane W3-D widening, proven at runtime: ``agent_runtime.migrations``
     binds ``load_agent_runtime_config`` from ``agent_runtime.config`` at module scope,
     outside the package, and a helper stub on the package must reach it."""
-    import agent_runtime.config as config
-    import agent_runtime.migrations as migrations
+    from agent_runtime import config
+    from agent_runtime import migrations
     from tests._downstream.split_package_source import patch_where_bound
 
     assert migrations.load_agent_runtime_config is config.load_agent_runtime_config

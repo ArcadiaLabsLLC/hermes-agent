@@ -34,6 +34,8 @@ from .chat_send_queue import _busy_root_queues, _mission_chat_enqueue_busy
 __layer__ = "lanes"
 __all__ = [
     "_bind_mission_chat_delivery_capability",
+    "_bundle_cursor_after_plugin_discovery",
+    "_discover_plugin_tools_before_the_bundle",
     "_mission_chat_busy_outcome",
     "_mission_chat_lease_provenance",
     "_normalize_deferred_thread_policy",
@@ -44,8 +46,6 @@ __all__ = [
     "_turn_skill_resolver",
     "_visibility_bundle_builds",
     "_visibility_bundle_diff_cursor",
-    "_discover_plugin_tools_before_the_bundle",
-    "_bundle_cursor_after_plugin_discovery",
     "_visibility_bundle_rebuild_components",
     "_within_admitted_turn",
 ]
@@ -558,7 +558,7 @@ def _discover_plugin_tools_before_the_bundle() -> None:
 
         _ensure_plugin_tools_registered()
     except Exception:
-        return None
+        return
 
 
 def _bundle_cursor_after_plugin_discovery():

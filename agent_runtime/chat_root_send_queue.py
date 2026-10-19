@@ -19,7 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict, dataclass, replace
-from datetime import timezone
+from datetime import timezone, UTC
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -296,4 +296,4 @@ def _write(entry: QueuedSend) -> None:
 
 
 def _timestamp() -> str:
-    return now().astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    return now().astimezone(UTC).isoformat().replace("+00:00", "Z")

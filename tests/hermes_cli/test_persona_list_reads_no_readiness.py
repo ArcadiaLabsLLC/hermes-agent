@@ -103,8 +103,8 @@ def test_persona_list_reply_is_byte_identical_to_before_the_cut(roster_home, cap
 
 
 def test_persona_list_computes_no_readiness(roster_home, capsys, monkeypatch):
-    import agent.credential_pool as credential_pool
-    import agent_runtime.tool_visibility as tool_visibility
+    from agent import credential_pool
+    from agent_runtime import tool_visibility
 
     calls: list[str] = []
     real_readiness = tool_visibility.profile_readiness_for_persona

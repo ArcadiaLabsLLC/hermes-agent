@@ -30,7 +30,7 @@ def _row_json(row) -> dict:
 def read_installed_manifest(directory: Path) -> dict:
     """The ``character.json`` installed in *directory*, or ``{}`` when there is none or it is unreadable."""
     try:
-        manifest = json.loads((directory / MANIFEST_FILENAME).read_text(encoding="utf-8"))
+        manifest = json.loads((directory / MANIFEST_FILENAME).read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         return {}
     return manifest if isinstance(manifest, dict) else {}
@@ -96,7 +96,7 @@ def sprite_payload(slug: str, *, include_sheet: bool = True) -> dict:
             f"character {slug!r} is installed but has no sheet at {sheet_path}"
         )
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
     except ValueError as exc:
         raise ValueError(f"corrupt manifest {manifest_path}: {exc}") from exc
 

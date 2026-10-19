@@ -41,7 +41,6 @@ __all__ = [
     "DRIFT_KIND_CHANGED",
     "DRIFT_KIND_REMOVED",
     "DRIFT_WALKS",
-    "StoreDriftItem",
     "_BASELINE_KEY_OF",
     "_BOARD_DRIFT_COUNTS",
     "_FLOW_GRAPH_DRIFT_COUNTS",
@@ -49,6 +48,7 @@ __all__ = [
     "_PERSONA_DEFINITION_DRIFT_COUNTS",
     "_PERSONA_INSTANCE_DRIFT_COUNTS",
     "_SKILL_DRIFT_COUNTS",
+    "StoreDriftItem",
     "_any_store_drift",
     "_board_baseline_key",
     "_board_card_baseline_key",
@@ -555,7 +555,7 @@ def _persona_instance_store_drift_items(
     baseline = read_persona_instance_baseline(realm_id)
     try:
         scan = PersonaInstanceStore().scan_all()
-    except Exception:  # noqa: BLE001 — an unreadable listing is not evidence of removal
+    except Exception:  # an unreadable listing is not evidence of removal
         return []
     if scan.unreadable:
         return []
@@ -710,7 +710,7 @@ def _office_store_drift_items(realm_id: str, workspaces: list[Workspace]) -> lis
             continue
         try:
             surface = store.get_surface(workspace_id)
-        except Exception:  # noqa: BLE001 — missing or unreadable: skip the row, never guess
+        except Exception:  # missing or unreadable: skip the row, never guess
             surface = None
         if surface is not None:
             surface_base = baseline.get(_surface_key(workspace_id))
@@ -725,7 +725,7 @@ def _office_store_drift_items(realm_id: str, workspaces: list[Workspace]) -> lis
                 )
         try:
             scan = store.scan_actors(workspace_id)
-        except Exception:  # noqa: BLE001 — unreadable listing is not evidence of removal
+        except Exception:  # unreadable listing is not evidence of removal
             continue
         if scan.unreadable:
             continue

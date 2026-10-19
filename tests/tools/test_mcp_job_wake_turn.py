@@ -20,18 +20,18 @@ import pytest
 
 pytest.importorskip("mcp")
 
-from unittest.mock import MagicMock  # noqa: E402
+from unittest.mock import MagicMock
 
-from mcp import ClientSession, types  # noqa: E402
-from mcp.shared.memory import create_client_server_memory_streams  # noqa: E402
-from mcp.shared.message import SessionMessage  # noqa: E402
+from mcp import ClientSession, types
+from mcp.shared.memory import create_client_server_memory_streams
+from mcp.shared.message import SessionMessage
 
-from agent_runtime import dispatch_delivery  # noqa: E402
-from agent_runtime.dispatch_delivery.completions import BackgroundDrain  # noqa: E402
-from tests.tools.test_mcp_job_wake import (  # noqa: E402,F401 — `registry` is the shared fixture
+from agent_runtime import dispatch_delivery
+from agent_runtime.dispatch_delivery.completions import BackgroundDrain
+from tests.tools.test_mcp_job_wake import (  # `registry` is the shared fixture
     JOB, READY_TEXT, SESSION, _Result, _call_qa_tool, _finished, _notify, _rebuilding_envelope, registry)
-from tools import mcp_job_wake, mcp_tool  # noqa: E402
-from tools.mcp_tool import MCPServerTask  # noqa: E402
+from tools import mcp_job_wake, mcp_tool
+from tools.mcp_tool import MCPServerTask
 
 OWNER = ("launcher_dev", "personainst_launcher_dev_1")
 WAKE_CAP = {"eternia.job_wake": {"version": 1}}

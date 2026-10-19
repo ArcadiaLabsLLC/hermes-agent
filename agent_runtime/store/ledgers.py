@@ -6,7 +6,7 @@ the two caps and the two selection normalizers. Pure over ``models``.
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from typing import Any, TypeVar
 
 from hermes_time import now
@@ -170,7 +170,7 @@ def workspace_lift_is_active(lift: Any) -> bool:
     return deleted_at is None or restored_at > deleted_at
 
 
-def ledger_time(value: Any) -> "datetime | None":
+def ledger_time(value: Any) -> datetime | None:
     """A ledger stamp as an aware datetime, or ``None`` when it will not parse.
 
     The ONE authority for reading a ledger stamp. ``realm_sync`` carried a
@@ -186,7 +186,7 @@ def ledger_time(value: Any) -> "datetime | None":
     """
 
     if isinstance(value, datetime):
-        return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+        return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
     text = str(value or "").strip()
     if not text:
         return None
@@ -196,7 +196,7 @@ def ledger_time(value: Any) -> "datetime | None":
         parsed = datetime.fromisoformat(text)
     except ValueError:
         return None
-    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
 
 
 def _prune_workspace_lifts(entries: list[WorkspaceLift]) -> list[WorkspaceLift]:

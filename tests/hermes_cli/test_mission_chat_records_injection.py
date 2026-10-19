@@ -16,7 +16,7 @@ from tests._downstream.persona_source import package_source, turn_body
 
 def _mission_chat_message_func():
     # Parsed over the persona package's source (tests/_downstream/persona_source.py).
-    import hermes_cli.harness as harness
+    from hermes_cli import harness
 
     # Split on 2026-07-31: record-at-injection happens on the write side, which
     # is now ``_mission_chat_commit_turn`` (the sole writer, under the lease).

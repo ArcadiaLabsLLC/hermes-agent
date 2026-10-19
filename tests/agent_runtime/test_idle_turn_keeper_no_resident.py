@@ -28,7 +28,7 @@ class _Head(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     seen: list[str] = []
 
-    def do_HEAD(self):  # noqa: N802
+    def do_HEAD(self):
         type(self).seen.append(self.headers.get("user-agent") or "")
         self.send_response(404)
         self.send_header("Content-Length", "0")
@@ -89,7 +89,7 @@ def test_the_tick_keeps_the_last_chats_pool_warm_after_its_actor_is_gone(server)
     del actor
     gc.collect()
 
-    refreshed, socket = idle_turn_keeper.tick_once(1)
+    _refreshed, socket = idle_turn_keeper.tick_once(1)
     assert socket == "404"
     assert _Head.seen == ["hermes-test/1"], "one HEAD, identity headers only"
 

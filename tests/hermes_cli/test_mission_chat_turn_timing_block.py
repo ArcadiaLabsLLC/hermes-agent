@@ -42,8 +42,8 @@ from tests.hermes_cli.test_mission_chat_turn_phases import (  # type: ignore
     _never_reaches_the_provider,
     _record_on_disk,
     _streaming_provider,
-    isolate_agent_runtime_root,  # noqa: F401  (re-exported fixture)
-    scripted_marks,  # noqa: F401  (re-exported fixture)
+    isolate_agent_runtime_root,  # (re-exported fixture)
+    scripted_marks,  # (re-exported fixture)
 )
 from tests.hermes_cli.test_mission_chat_budget_payload import (  # type: ignore
     _seed,
@@ -87,7 +87,7 @@ def _drive_capturing(monkeypatch, capsys, provider, *, turn_id, stream=True):
     bytes a serve child turns into ``line`` frames under the request id.
     """
 
-    harness = _seed(monkeypatch, provider)
+    _seed(monkeypatch, provider)
     code = chat_turn_message._cmd_mission_chat_message(_args(turn_id, stream=stream))
     captured = capsys.readouterr().out
     payload = None
@@ -118,7 +118,7 @@ def _drive_capturing(monkeypatch, capsys, provider, *, turn_id, stream=True):
 # 1. A live turn's terminal payload carries the block                          #
 # --------------------------------------------------------------------------- #
 @pytest.fixture
-def timed_payload(monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks):  # noqa: F811
+def timed_payload(monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks):
     # A snapshot build that OVERLAPS this turn, so ``builds_overlapped`` is a
     # measurement rather than the honest ``None`` a process which has never led
     # a build reports. The span is in the SCRIPTED clock's frame (the turn's
@@ -262,7 +262,7 @@ def test_no_existing_key_moved_to_make_room_for_it(timed_payload):
 
 
 def test_the_non_streamed_json_payload_carries_it_too(
-    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks
 ):
     """The argv lane's exit payload. ``harness mission-chat message --json``
     prints ONE object and exits; a launcher reading that object gets the same
@@ -284,7 +284,7 @@ def test_the_non_streamed_json_payload_carries_it_too(
 # 2. A phase that never happened has no key                                    #
 # --------------------------------------------------------------------------- #
 def test_a_turn_whose_runner_reported_nothing_carries_only_what_was_marked(
-    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks
 ):
     """No runner durations at all: the three profile-sourced keys are ABSENT.
 
@@ -316,7 +316,7 @@ def test_a_turn_whose_runner_reported_nothing_carries_only_what_was_marked(
 
 
 def test_a_turn_that_died_before_the_provider_carries_no_first_byte(
-    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks
 ):
     """The failure lane's payload is a different dict and carries no block at
     all — there is no reply, no commit, and nothing to copy. What must never

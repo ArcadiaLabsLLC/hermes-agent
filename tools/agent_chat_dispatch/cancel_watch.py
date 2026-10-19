@@ -62,7 +62,7 @@ def _watch() -> None:
                 return
         try:
             poll_cancel_requests()
-        except Exception:  # noqa: BLE001 - a watch pass must never end the watch
+        except Exception:  # a watch pass must never end the watch
             logger.debug("dispatch cancel watch pass failed", exc_info=True)
 
 

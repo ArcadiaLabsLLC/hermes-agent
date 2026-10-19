@@ -9,7 +9,7 @@ is ``scripts/mutation_check/__init__.py``.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 import os
 from pathlib import Path
 import subprocess
@@ -129,7 +129,7 @@ def _acquire_gate_lock() -> bool:
         with open(LOCK_PATH, "x", encoding="utf-8") as stream:
             stream.write(
                 f"pid: {os.getpid()}\n"
-                f"started: {datetime.now(timezone.utc).isoformat()}\n"
+                f"started: {datetime.now(UTC).isoformat()}\n"
                 f"argv: {' '.join(sys.argv)}\n"
             )
     except FileExistsError:
@@ -141,8 +141,8 @@ def _refuse_because_locked() -> int:
     """Print who holds the lock, in a block that pastes cleanly, and exit 2."""
 
     try:
-        held = LOCK_PATH.read_text(encoding="utf-8").strip()
-    except Exception:  # noqa: BLE001 — the lock existing is the fact; its text is a courtesy
+        held = LOCK_PATH.read_text(encoding="utf-8-sig").strip()
+    except Exception:  # the lock existing is the fact; its text is a courtesy
         held = "(the lock file exists but its contents could not be read)"
     print(
         "another mutation run appears active in this worktree; if none is "

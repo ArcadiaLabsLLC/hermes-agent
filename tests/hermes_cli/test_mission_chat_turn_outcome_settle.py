@@ -18,7 +18,7 @@ from tests.hermes_cli.test_mission_chat_turn_phases import (  # type: ignore
     _SESSION_ID,
     _args,
     _record_on_disk,
-    isolate_agent_runtime_root,  # noqa: F401  (re-exported fixture)
+    isolate_agent_runtime_root,  # (re-exported fixture)
 )
 from tests.hermes_cli.test_mission_chat_budget_payload import _seed  # type: ignore
 
@@ -54,7 +54,7 @@ def _settle(monkeypatch, capsys, root, turn_id, turn_outcome):
 
 
 def test_settle_persists_the_block_and_logs_the_receipt(
-    monkeypatch, capsys, caplog, isolate_agent_runtime_root,  # noqa: F811
+    monkeypatch, capsys, caplog, isolate_agent_runtime_root,
 ):
     caplog.set_level(logging.INFO)
     out, record = _settle(monkeypatch, capsys, isolate_agent_runtime_root, "outcome_ok", dict(_BLOCK))
@@ -68,7 +68,7 @@ def test_settle_persists_the_block_and_logs_the_receipt(
 
 
 def test_a_turn_that_folded_nothing_has_no_block(
-    monkeypatch, capsys, caplog, isolate_agent_runtime_root,  # noqa: F811
+    monkeypatch, capsys, caplog, isolate_agent_runtime_root,
 ):
     caplog.set_level(logging.INFO)
     _out, record = _settle(monkeypatch, capsys, isolate_agent_runtime_root, "outcome_none", None)

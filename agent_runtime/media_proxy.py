@@ -77,8 +77,8 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "PEER_DIAL_TIMEOUT_SECONDS",
-    "PEER_READ_TIMEOUT_SECONDS",
     "PEER_MEDIA_GET_METHOD",
+    "PEER_READ_TIMEOUT_SECONDS",
     "REASON_PEER_REFUSED",
     "REASON_PEER_UNREACHABLE",
     "fetch_remote_artifact",
@@ -147,7 +147,7 @@ def fetch_remote_artifact(
     dialler = dial if dial is not None else _dial_peer
     try:
         connection, _hello = dialler(artifact.peer_install_id)
-    except Exception as exc:  # noqa: BLE001 - every dial failure is transport
+    except Exception as exc:  # every dial failure is transport
         logger.info(
             "media proxy: %s is unreachable (%s)",
             artifact.peer_install_id,
@@ -160,7 +160,7 @@ def fetch_remote_artifact(
 
     try:
         answer = _ask(connection, artifact.handle)
-    except Exception as exc:  # noqa: BLE001 - a dead edge mid-request is transport
+    except Exception as exc:  # a dead edge mid-request is transport
         logger.info(
             "media proxy: the edge to %s died mid-fetch (%s)",
             artifact.peer_install_id,
@@ -275,7 +275,7 @@ def _decode(result: dict) -> bytes | media_handles.MediaRefusal:
         )
     try:
         return base64.b64decode(raw, validate=True)
-    except Exception:  # noqa: BLE001 - undecodable is refused, never partial
+    except Exception:  # undecodable is refused, never partial
         return media_handles.MediaRefusal(
             REASON_PEER_REFUSED, {"peer_reason": "undecodable_data"}
         )

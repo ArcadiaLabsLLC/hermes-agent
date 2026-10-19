@@ -132,41 +132,41 @@ from . import paths
 __layer__ = "stores"
 
 __all__ = [
+    "FILE_DECLARATION_PREFIX",
     "HANDLE_PREFIX",
     "HANDLE_RE",
+    "IMAGE_EXTENSIONS",
     "MAX_FETCH_BYTES",
-    "MAX_SCOPE_ARTIFACTS",
-    "MAX_SCOPE_LOGS",
-    "MAX_REPLY_ARTIFACTS",
     "MAX_REMOTE_ARTIFACTS",
     "MAX_REMOTE_COMPLETIONS",
-    "SCOPE_LOG_TAIL_BYTES",
-    "IMAGE_EXTENSIONS",
-    "MEDIA_TYPES",
+    "MAX_REPLY_ARTIFACTS",
+    "MAX_SCOPE_ARTIFACTS",
+    "MAX_SCOPE_LOGS",
     "MEDIA_DECLARATION_PREFIX",
-    "FILE_DECLARATION_PREFIX",
+    "MEDIA_TYPES",
     "OPERATOR_FILES_DIRNAME",
     "OPERATOR_FILE_EXTENSIONS",
-    "REASON_HANDLE_INVALID",
-    "REASON_UNKNOWN_HANDLE",
     "REASON_ARTIFACT_TOO_LARGE",
     "REASON_ARTIFACT_UNREADABLE",
+    "REASON_HANDLE_INVALID",
+    "REASON_UNKNOWN_HANDLE",
+    "SCOPE_LOG_TAIL_BYTES",
     "MediaArtifact",
-    "RemoteMediaArtifact",
-    "MediaScope",
     "MediaRefusal",
+    "MediaScope",
+    "RemoteMediaArtifact",
+    "build_media_scope",
     "handle_for_bytes",
     "media_declarations",
     "mint_reply_media",
     "parse_media_declaration",
-    "build_media_scope",
-    "remote_artifacts_from_completions",
-    "resolve_handle",
     "read_artifact_bytes",
-    "remote_cache_path",
     "read_cached_bytes",
-    "write_cached_bytes",
+    "remote_artifacts_from_completions",
+    "remote_cache_path",
     "reset_digest_memo",
+    "resolve_handle",
+    "write_cached_bytes",
 ]
 
 #: The one handle grammar. A namespace with a prefix rather than a bare digest,
@@ -1024,7 +1024,7 @@ def _digest_for(path: Path, size: int, mtime_ns: int) -> str | None:
         # the STAT TRIPLE instead — it is stable, it is not a content address,
         # and it is never served, which is why the prefix still says what it is.
         return HANDLE_PREFIX + hashlib.sha256(
-            f"oversize\x00{path}\x00{size}\x00{mtime_ns}".encode("utf-8")
+            f"oversize\x00{path}\x00{size}\x00{mtime_ns}".encode()
         ).hexdigest()
     digest = hashlib.sha256()
     try:

@@ -16,7 +16,7 @@ from agent_runtime import core_cache
 from agent_runtime.core_cache.lane import take_stale_first_core
 from agent_runtime.lens import poller
 from agent_runtime.snapshot import BUILD_ROLE_CACHE, build_snapshot
-from tests.agent_runtime.test_core_fingerprint_cache import (  # noqa: F401 - fixtures
+from tests.agent_runtime.test_core_fingerprint_cache import (  # fixtures
     _new_context,
     _rewrite_workspace_name,
     fresh_cache_lane,

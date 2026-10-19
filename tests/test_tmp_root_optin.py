@@ -132,6 +132,7 @@ def _pytest_child(tmp_root, *argv):
         capture_output=True,
         text=True,
         timeout=120,
+        check=False,
     )
 
 

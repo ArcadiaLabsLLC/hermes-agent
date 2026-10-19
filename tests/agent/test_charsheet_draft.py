@@ -55,7 +55,7 @@ from tests.agent.test_charsheet_pipeline import load_fixture_sheet
 
 pytest.importorskip("PIL")
 
-from PIL import Image, ImageDraw  # noqa: E402
+from PIL import Image, ImageDraw
 
 SPEC = SheetSpec(
     states=(StateSpec("idle", 2, True), StateSpec("walk", 3, True)),
@@ -415,7 +415,7 @@ def test_a_second_generation_on_one_draft_is_refused_rather_than_interleaved(
             def _second_writer() -> None:
                 try:
                     CharacterDraft.load(draft.id).run_rows()
-                except BaseException as exc:  # noqa: BLE001 - the type IS the assertion
+                except BaseException as exc:  # the type IS the assertion
                     refused.append(exc)
 
             worker = threading.Thread(target=_second_writer)
@@ -2619,9 +2619,7 @@ def test_the_sprite_payload_ships_the_installed_bytes(installed):
     assert base64.standard_b64decode(payload["spritesheetBase64"]) == sheet_path.read_bytes()
     assert payload["mime"] == "image/webp"
     assert re.fullmatch(r"\d+:\d+", payload["spritesheetRevision"])
-    assert payload["spritesheetRevision"] == "{}:{}".format(
-        sheet_path.stat().st_mtime_ns, sheet_path.stat().st_size
-    )
+    assert payload["spritesheetRevision"] == f"{sheet_path.stat().st_mtime_ns}:{sheet_path.stat().st_size}"
     assert json.dumps(payload)
 
 
@@ -2978,7 +2976,7 @@ def _sheet_counts(sheet):
     for count, (r, g, b, alpha) in sheet.getcolors(maxcolors=sheet.width * sheet.height) or []:
         if alpha <= palette_mod.ALPHA_FLOOR:
             continue
-        key = "#{:02x}{:02x}{:02x}ff".format(r, g, b)
+        key = f"#{r:02x}{g:02x}{b:02x}ff"
         counts[key] = counts.get(key, 0) + count
     return counts
 

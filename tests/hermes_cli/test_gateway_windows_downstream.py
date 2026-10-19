@@ -12,8 +12,8 @@ breakaway tests are strict xfails too: the fork's
 
 import pytest
 
-import hermes_cli.gateway as gateway
-import hermes_cli.gateway_windows as gateway_windows
+from hermes_cli import gateway
+from hermes_cli import gateway_windows
 
 
 @pytest.mark.platforms("windows")
@@ -48,7 +48,7 @@ def test_build_gateway_argv_keeps_venv_console_python_for_uv_venv(monkeypatch, t
         encoding="utf-8",
     )
 
-    import hermes_cli.gateway as gateway
+    from hermes_cli import gateway
 
     monkeypatch.setattr(gateway, "PROJECT_ROOT", project)
     monkeypatch.setattr(gateway, "resolve_managed_python", lambda: str(venv_python))

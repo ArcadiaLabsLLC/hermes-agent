@@ -279,7 +279,7 @@ def test_the_cli_entry_binds_and_migrates_in_a_real_process(app):
     (app / "auth.json").write_text(json.dumps({"providers": {"nous": {"access_token": ACCESS}}}), encoding="utf-8")
     env = {**os.environ, "HERMES_HOME": str(app), "HERMES_SHARED_AUTH_DIR": str(app / "shared")}
     done = subprocess.run([sys.executable, "-c", "import hermes_cli.main"], cwd=REPO_ROOT, env=env,
-                          capture_output=True, text=True, timeout=180)
+                          capture_output=True, text=True, timeout=180, check=False)
     assert done.returncode == 0, done.stderr[-2000:]
 
     assert not (app / "auth.json").exists()

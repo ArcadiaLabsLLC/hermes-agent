@@ -103,7 +103,7 @@ class _Probe:
             kind = program_kind(args[1] if event == "subprocess.Popen" and args[1] else args[0])
             entry = self.bucket()["spawn"].setdefault(kind, [0, 0.0])
             entry[0] += 1
-        except Exception:  # noqa: BLE001 — an audit hook must never raise into the code under test
+        except Exception:  # an audit hook must never raise into the code under test
             return
 
     def _timed_wait(self, method):

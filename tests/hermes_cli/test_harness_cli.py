@@ -1284,7 +1284,7 @@ def test_stage42_honored_gate_rejects_a_per_verb_destination_collision():
 
     old_unhonored = sorted(
         dest
-        for dest in {"output", "quiet", "cursor", "no_color"}
+        for dest in ("output", "quiet", "cursor", "no_color")
         if dest not in _STAGE42_SATISFIED_BY_CONSTRUCTION
         and not any(dest in function_reads for function_reads in reads.values())
     )
@@ -1432,8 +1432,6 @@ def handler_two(args):
             ("shared", "def consume(args):\n    return args.output\n"),
         ]
     )
-    handler_one = ("hermes_cli.harness", "handler_one")
-    handler_two = ("hermes_cli.harness", "handler_two")
     registrations = _stage42_parser_ownership(
         """
 def build_parser():

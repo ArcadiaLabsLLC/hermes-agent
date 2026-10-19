@@ -3,6 +3,7 @@
 the downstream size ceiling."""
 
 from __future__ import annotations
+from datetime import UTC
 
 
 def build_persona_chat_turn_frame(
@@ -31,7 +32,7 @@ def build_persona_chat_turn_frame(
 
     held = int(owner_hydrate["watermark"]["event_offset"])
     event = Event(
-        ts=datetime(2026, 7, 16, 12, 0, 2, tzinfo=timezone.utc),
+        ts=datetime(2026, 7, 16, 12, 0, 2, tzinfo=UTC),
         type="persona_chat.turn_started",
         task_id=None,
         run_id=None,

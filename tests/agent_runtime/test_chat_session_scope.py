@@ -217,7 +217,7 @@ def _declaring_lane(monkeypatch, runtime_root, head_home, *, home_key="other_hom
 
     config = runtime_root[home_key] / "config.yaml"
     config.write_bytes(
-        f"agent_runtime:\n  head_home: '{head_home}'\n".encode("utf-8")
+        f"agent_runtime:\n  head_home: '{head_home}'\n".encode()
     )
     monkeypatch.delenv("HERMES_AGENT_RUNTIME_ROOT", raising=False)
     monkeypatch.delenv("HERMES_HEAD_HOME", raising=False)

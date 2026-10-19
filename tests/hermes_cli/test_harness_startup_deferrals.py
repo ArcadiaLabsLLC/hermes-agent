@@ -32,7 +32,7 @@ def counting_find(monkeypatch):
 
     calls = []
 
-    def fake_find(domain, localedir=None, languages=None, all=False):  # noqa: A002
+    def fake_find(domain, localedir=None, languages=None, all=False):
         calls.append((domain, localedir, languages, all, os.environ.get("LANG")))
         return [f"/{domain}/{os.environ.get('LANG')}.mo"] if all else None
 
@@ -80,7 +80,7 @@ def test_installing_twice_wraps_once(counting_find):
 def test_main_installs_the_memo_before_it_builds_the_parser(monkeypatch):
     import hermes_cli.main as main_mod
 
-    def plain_find(domain, localedir=None, languages=None, all=False):  # noqa: A002
+    def plain_find(domain, localedir=None, languages=None, all=False):
         return [] if all else None
 
     monkeypatch.setattr(gettext, "find", plain_find)
@@ -105,7 +105,7 @@ def test_main_installs_the_memo_before_it_builds_the_parser(monkeypatch):
 def _probe(code: str) -> list:
     env = {**os.environ, "PYTHONPATH": os.pathsep.join(p for p in (str(REPO_ROOT), os.environ.get("PYTHONPATH")) if p)}
     result = subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True, cwd=str(REPO_ROOT), env=env, timeout=240
+        [sys.executable, "-c", code], capture_output=True, text=True, cwd=str(REPO_ROOT), env=env, timeout=240, check=False
     )
     assert result.returncode == 0, result.stderr[-2000:]
     return json.loads(result.stdout.strip().splitlines()[-1])

@@ -92,7 +92,7 @@ def _realm_with_remote(tmp_path: Path, name: str = "Level Realm"):
     return realm, repo
 
 
-def _realm_with_workspace_and_level(tmp_path, raw: bytes = None, *, remote: bool = False):
+def _realm_with_workspace_and_level(tmp_path, raw: bytes | None = None, *, remote: bool = False):
     realm, repo = (_realm_with_remote(tmp_path) if remote else _realm_with_repo(tmp_path))
     workspace = WorkspaceStore().create(name="Launcher", realm_id=realm.id)
     LevelStore().write(workspace.id, raw if raw is not None else _document())

@@ -11,7 +11,7 @@ import time
 import pytest
 
 from gateway import hosted_rooms
-from tests.agent_runtime.test_discussion_runtime import (  # noqa: F401 - pytest fixture
+from tests.agent_runtime.test_discussion_runtime import (  # pytest fixture
     begin,
     command,
     engine,

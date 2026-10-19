@@ -35,7 +35,7 @@ from agent_runtime.serve_socket.wire import _LineReader, _LineTooLong, _client_t
 
 __layer__ = "lanes"
 
-__all__ = ["handshake", "authenticate_hello", "wrap_tls", "read_loop", "reject"]
+__all__ = ["authenticate_hello", "handshake", "read_loop", "reject", "wrap_tls"]
 
 if TYPE_CHECKING:
     from agent_runtime.serve_socket.server import ServeSocketServer
@@ -43,7 +43,7 @@ if TYPE_CHECKING:
 
 def handshake(
     server: ServeSocketServer, connection: SocketConnection, sock: socket.socket, key: str
-) -> "_LineReader | None":
+) -> _LineReader | None:
     """Challenge, verify, admit. Returns the reader, or None on rejection.
 
     The SERVER speaks first — one ``server_hello`` carrying a nonce minted
@@ -229,7 +229,7 @@ server: ServeSocketServer, sock: socket.socket) -> Any | None:
 
 
 def read_loop(
-server: ServeSocketServer, connection: SocketConnection, reader: "_LineReader") -> None:
+server: ServeSocketServer, connection: SocketConnection, reader: _LineReader) -> None:
     reason = "client_disconnect"
     try:
         while not server._stop.is_set() and not connection.closed:

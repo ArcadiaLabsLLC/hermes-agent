@@ -64,21 +64,21 @@ def shard_count(seconds: Optional[float], tests: int) -> int:
 class ShardPlan:
     """rel → k (≥ 2) for the files this run splits, and the record's test counts."""
 
-    counts: Dict[str, int] = field(default_factory=dict)
+    counts: dict[str, int] = field(default_factory=dict)
     tail_bound: bool = False
-    tests: Dict[str, int] = field(default_factory=dict)
+    tests: dict[str, int] = field(default_factory=dict)
 
     def line(self) -> str:
         if not self.tail_bound:
             return "work-bound: no sharding"
         return f"tail-bound: sharding {len(self.counts)} files into {sum(self.counts.values())} shards"
 
-    def record(self, ran: Mapping[str, Tuple[float, int]]) -> Dict[str, object]:
+    def record(self, ran: Mapping[str, tuple[float, int]]) -> dict[str, object]:
         """The run record's ``tests`` key after this run (:func:`tests_after`)."""
 
         return {"tests": tests_after(self.tests, ran)}
 
-    def vias(self, rel: str) -> List[Tuple[typed_via.Via, List[str]]]:
+    def vias(self, rel: str) -> list[tuple[typed_via.Via, list[str]]]:
         """``(via, extra pytest args)`` per shard of ``rel``; ``[]`` when it runs whole."""
 
         k = self.counts.get(rel, 1)
@@ -87,7 +87,7 @@ class ShardPlan:
         return [(typed_via.Via.shard(i, k), ["-p", SHARD_PLUGIN, f"--hermes-shard={i}/{k}"]) for i in range(k)]
 
 
-def recorded_tests(runs: Path) -> Dict[str, int]:
+def recorded_tests(runs: Path) -> dict[str, int]:
     """rel → test count, folded over every line of the gate store's run record
     (``runs.jsonl``; the newest line wins per file). The planner read the retired
     ``.pytest_cache/hermes_bundled_runs.jsonl`` after the record moved into the store,
@@ -96,9 +96,9 @@ def recorded_tests(runs: Path) -> Dict[str, int]:
 
     import json
 
-    out: Dict[str, int] = {}
+    out: dict[str, int] = {}
     try:
-        lines = runs.read_text(encoding="utf-8").splitlines()
+        lines = runs.read_text(encoding="utf-8-sig").splitlines()
     except OSError:
         return out
     for line in lines:
@@ -129,7 +129,7 @@ def plan_shards(
     return ShardPlan(counts, bound, dict(tests))
 
 
-def tests_after(previous: Mapping[str, int], ran: Mapping[str, Tuple[float, int]]) -> Dict[str, int]:
+def tests_after(previous: Mapping[str, int], ran: Mapping[str, tuple[float, int]]) -> dict[str, int]:
     """The record's test counts after a run: every file the run ran is replaced
     by what it showed (kept when it took ≥ ``SHARD_MIN_SECONDS``, the only files
     the planner asks about), files it did not run carry forward."""
@@ -151,10 +151,10 @@ class ShardJoin:
         self._plan = plan
         self._rel_of = rel_of
         self._lock = threading.Lock()
-        self._pending: Dict[str, list] = {}
-        self._red_shards: Dict[str, str] = {}
+        self._pending: dict[str, list] = {}
+        self._red_shards: dict[str, str] = {}
         #: unsharded-list candidate lines: ``<rel>  # observed: …``
-        self.candidates: List[str] = []
+        self.candidates: list[str] = []
 
     def feed(self, outcome, run_solo: Callable[[Path, str, Optional[int]], None]) -> list:
         """``run_solo(path, via, bundle_index)`` is the runner's single-file
@@ -183,7 +183,7 @@ class ShardJoin:
 
     @staticmethod
     def _joined(shards: list, k: int):
-        summary: Dict[str, int] = {}
+        summary: dict[str, int] = {}
         for shard in shards:
             for key, value in shard.summary.items():
                 summary[key] = summary.get(key, 0) + value
@@ -202,7 +202,7 @@ class ShardJoin:
             self.candidates.append(line)
         return dataclasses.replace(outcome, output=f"{outcome.output}\nunsharded candidate: {line}".lstrip())
 
-    def closing_lines(self) -> List[str]:
+    def closing_lines(self) -> list[str]:
         if not self.candidates:
             return []
         return [

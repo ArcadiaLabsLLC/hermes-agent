@@ -89,7 +89,7 @@ def _copy_office(
         return
     try:
         surface = store.get_surface(source_workspace_id)
-    except Exception as exc:  # noqa: BLE001 — a broken source surface degrades to a warning
+    except Exception as exc:  # a broken source surface degrades to a warning
         warnings.append({"code": "office_surface_copy_failed", "message": str(exc)})
         return
     store.ensure_surface(dest_workspace_id, created_by=updated_by)
@@ -97,7 +97,7 @@ def _copy_office(
         try:
             store.update_surface(dest_workspace_id, folders=list(surface.folders), updated_by=updated_by)
             copied["office_folders"] = len(surface.folders)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             warnings.append({"code": "office_folders_copy_failed", "message": str(exc)})
     # Instance-BOUND actors copy first so the class-key guard below is
     # order-independent: a source that itself carries a bound and an unbound
@@ -177,7 +177,7 @@ def _copy_office(
                     "conflicting_actor_keys": exc.safe_details["conflicting_actor_keys"],
                 }
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             warnings.append(
                 {
                     "code": "office_actor_copy_failed",
@@ -202,7 +202,7 @@ def _copy_default_board(
     source_board_id = board_models.default_board_id(source_workspace_id)
     try:
         source_cards = store.list_cards(source_board_id)
-    except Exception:  # noqa: BLE001 — no source board = nothing to copy
+    except Exception:  # no source board = nothing to copy
         return
     # Materialize the destination default board even for an empty source, so
     # a "board" copy always yields the same deterministic board shape.
@@ -224,7 +224,7 @@ def _copy_default_board(
                 created_by=card.created_by,
             )
             copied["board_cards"] += 1
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             warnings.append(
                 {
                     "code": "board_card_copy_failed",

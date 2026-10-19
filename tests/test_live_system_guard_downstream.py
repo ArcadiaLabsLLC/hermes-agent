@@ -36,11 +36,12 @@ def test_gateway_looking_container_command_requires_explicit_test_ownership():
             [stub, "exec", "-u", "hermes", "ctr", "sh", "-c", "hermes -p prof gateway start"],
             capture_output=True,
             text=True,
+            check=False,
         )
 
 def test_gateway_start_on_the_host_is_blocked_by_the_backend_arm():
     with pytest.raises(RuntimeError, match="START a hermes backend"):
-        subprocess.run(["python", "-m", "hermes_cli.main", "gateway", "start"])
+        subprocess.run(["python", "-m", "hermes_cli.main", "gateway", "start"], check=False)
 
 
 _ABSENT_SHELL = "sh-absent-for-the-live-system-guard-test"
@@ -55,11 +56,11 @@ def test_a_script_comment_that_names_hermes_is_not_a_backend_start():
     """
     script = "# Hermes loads the env file, so\ntrue\necho gateway api_server\n"
     with pytest.raises(FileNotFoundError):
-        subprocess.run([_ABSENT_SHELL, "-c", script])
+        subprocess.run([_ABSENT_SHELL, "-c", script], check=False)
 
 
 def test_the_same_script_with_the_command_uncommented_is_refused():
     """Positive control for the test above: one line changed, and it must block."""
     script = "true\nhermes loads the env\necho gateway api_server\n"
     with pytest.raises(RuntimeError, match="START a hermes backend"):
-        subprocess.run([_ABSENT_SHELL, "-c", script])
+        subprocess.run([_ABSENT_SHELL, "-c", script], check=False)

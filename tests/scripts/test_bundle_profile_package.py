@@ -166,7 +166,7 @@ def test_the_serve_import_probe_names_a_module_the_bundle_cannot_import(tmp_path
 
     from scripts.bundle_profile_closure import module_index
 
-    version = "%d.%d.0" % sys.version_info[:2]
+    version = f"{sys.version_info.major}.{sys.version_info.minor}.0"
     good, bad = tmp_path / "good", tmp_path / "bad"
     _serve_tree(good, with_sibling=True)
     _serve_tree(bad, with_sibling=False)
@@ -229,7 +229,7 @@ def test_the_engine_pack_path_file_adds_only_installed_packs(tmp_path: Path, mon
     monkeypatch.setenv(ENGINE_PACKS_ENV, os.pathsep.join([str(pack), str(missing)]))
     monkeypatch.setattr(sys, "path", list(sys.path))
     assert ENGINE_PACKS_PTH_LINE.startswith("import ")  # site only executes .pth lines that do
-    exec(ENGINE_PACKS_PTH_LINE)  # noqa: S102 — exactly what site.addpackage runs
+    exec(ENGINE_PACKS_PTH_LINE)  # exactly what site.addpackage runs
     assert str(pack) in sys.path
     assert str(missing) not in sys.path
 
@@ -446,7 +446,7 @@ def test_the_mounted_forced_tree_resolves_imports_the_scanned_directory_does_not
         "                  'origin': tools.forced.__file__, 'plugin': plugins.off.__file__}))\n")
     def run(app):
         return subprocess.run([sys.executable, "-I", "-c", child, str(app), str(ROOT)],
-                              capture_output=True, text=True, timeout=120)
+                              capture_output=True, text=True, timeout=120, check=False)
 
     done = run(tmp_path / "app")
     assert done.returncode == 0, done.stderr[-2000:]
@@ -475,7 +475,7 @@ def test_the_serve_import_probe_mounts_the_forced_tree(tmp_path: Path):
 
     from scripts.bundle_profile_closure import module_index
 
-    version = "%d.%d.0" % sys.version_info[:2]
+    version = f"{sys.version_info.major}.{sys.version_info.minor}.0"
     _serve_tree(tmp_path, with_sibling=True)
     _write(tmp_path, "app/hermes_cli/harness_parts/serve/loop.py",
            "def rpc():\n    import rpc.registry\n    import tools.forced\n")

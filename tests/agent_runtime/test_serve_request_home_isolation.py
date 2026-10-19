@@ -163,7 +163,7 @@ def test_argv_request_answers_the_serve_home_while_a_persona_bind_holds_the_env(
                 assert os.environ["HERMES_HOME"] == str(persona_home)
                 bind_live.set()
                 assert probe_done.wait(_WAIT_SECONDS), "probe never finished"
-        except BaseException as exc:  # noqa: BLE001 - re-raised on the main thread
+        except BaseException as exc:  # re-raised on the main thread
             holder_failed.append(exc)
         finally:
             bind_live.set()

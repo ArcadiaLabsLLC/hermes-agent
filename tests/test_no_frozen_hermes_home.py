@@ -322,6 +322,7 @@ def probe_result(tmp_path_factory) -> dict:
         encoding="utf-8",
         errors="replace",
         timeout=600,
+        check=False,
     )
     assert result_path.is_file(), (
         "frozen-home probe produced no result\n"

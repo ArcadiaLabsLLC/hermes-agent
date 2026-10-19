@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import timezone
+from datetime import timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -62,7 +62,7 @@ def _append_realm_sync_event(event_type: str, realm: Realm, *, changed: bool, ar
                 },
             )
         )
-    except Exception:  # noqa: BLE001 — evidence channel, not the mutation
+    except Exception:  # evidence channel, not the mutation
         pass
 
 
@@ -128,7 +128,7 @@ def _held_profile_artifacts(realm: Realm, repo: Path) -> list[str]:
 
     try:
         summary = apply_profile_artifact_pull(realm.id, _realm_subtree(repo, realm.id), dry_run=True)
-    except Exception:  # noqa: BLE001 — status must never fail over an evidence field
+    except Exception:  # status must never fail over an evidence field
         logger.exception("held profile-artifact classification failed for realm %s", realm.id)
         return []
     return sorted(set(summary.held))
@@ -162,7 +162,7 @@ def _write_sync_sidecar(
         "last_pull": _timestamp_file(repo, "last_pull.txt"),
         "last_publish": _timestamp_file(repo, "last_publish.txt"),
         "artifacts": len(artifacts),
-        "checked_at": now().astimezone(timezone.utc).isoformat(),
+        "checked_at": now().astimezone(UTC).isoformat(),
         "workspace_statuses": _workspace_sync_statuses(realm, repo),
         "profile_artifacts_held": list(profile_artifacts_held or []),
     }

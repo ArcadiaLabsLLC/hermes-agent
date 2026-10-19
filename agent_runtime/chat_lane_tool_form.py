@@ -55,8 +55,8 @@ _SETTLED_ATTR = "_chat_lane_tool_form_settled"
 RECEIPT_ATTR = "_chat_lane_tool_form_receipt"
 
 _MEMO_LIMIT = 64
-_RAW_MEMO: "OrderedDict[tuple, list]" = OrderedDict()
-_FORM_MEMO: "OrderedDict[tuple, list]" = OrderedDict()
+_RAW_MEMO: OrderedDict[tuple, list] = OrderedDict()
+_FORM_MEMO: OrderedDict[tuple, list] = OrderedDict()
 
 
 @dataclass(frozen=True)
@@ -99,7 +99,7 @@ def _config_signature() -> Any:
         from utils import file_signature
 
         return file_signature(get_config_path().stat())
-    except Exception:  # noqa: BLE001 - no config file is a stable input too
+    except Exception:  # no config file is a stable input too
         return None
 
 
@@ -239,7 +239,7 @@ def _settle(agent: Any, names: frozenset[str], *, blocked: Iterable[str] | None,
         prune_agent_tools(agent, block)  # valid names and the kanban guidance; tools already pruned
     pin_written = False
     if published and pin:
-        import tools.mcp_tool_agent as mcp_tool_agent
+        from tools import mcp_tool_agent
 
         mcp_tool_agent.persist_agent_tool_names(agent)
         pin_written = True
@@ -265,7 +265,7 @@ def settle_turn_tool_form(
     names = frozenset(getattr(agent, AGENT_DEFER_ATTR) or ())
     try:
         receipt = _settle(agent, names, blocked=blocked, pin=pin)
-    except Exception as exc:  # noqa: BLE001 - a form settle is a cost cut; never fail a turn over it
+    except Exception as exc:  # a form settle is a cost cut; never fail a turn over it
         logger.warning("tool form settle skipped; the actor's form stands", exc_info=True)
         _record_degraded(agent, exc)
         return None
@@ -301,7 +301,7 @@ def settled_surface_receipt(root_session_id: str | None, *, signature: str | Non
             if registry is not None:
                 agent = registry.resident_agent(str(root_session_id), signature=str(signature))
         receipt = getattr(agent, AGENT_SURFACE_ATTR, None) if agent is not None else None
-    except Exception:  # noqa: BLE001 - a receipt read decorates a turn, it never blocks one
+    except Exception:  # a receipt read decorates a turn, it never blocks one
         logger.debug("tool surface: settled receipt unreadable", exc_info=True)
         return None
     if not isinstance(receipt, dict) or receipt.get("state") == "not_computed":
@@ -353,7 +353,7 @@ def _record_degraded(agent: Any, exc: BaseException) -> None:
             degraded=(f"assembly:{type(exc).__name__}",),
         )
         setattr(agent, AGENT_SURFACE_ATTR, surface.receipt())
-    except Exception:  # noqa: BLE001 - the WARNING above already stands
+    except Exception:  # the WARNING above already stands
         logger.debug("tool surface: degraded receipt not recorded", exc_info=True)
 
 
@@ -385,7 +385,7 @@ def apply_chat_lane_defer(
         key = _form_key(agent, names, base)
         setattr(agent, _SETTLED_ATTR, (key, _dump(agent.tools)))
         _account_constructor_form(agent, key, names, base, blocked)
-    except Exception:  # noqa: BLE001 - the first turn settles it instead
+    except Exception:  # the first turn settles it instead
         logger.debug("tool form: constructor form not recorded", exc_info=True)
     return False
 

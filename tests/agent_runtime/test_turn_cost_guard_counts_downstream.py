@@ -14,13 +14,13 @@ from __future__ import annotations
 
 import pytest
 
-from tests.agent_runtime.test_stream_turn_section import home  # noqa: F401  (a fixture)
+from tests.agent_runtime.test_stream_turn_section import home  # (a fixture)
 from tests.agent_runtime.test_turn_cost_guard_downstream import _run_guard
 
 
 @pytest.mark.timeout(240)
 def test_a_new_chat_and_three_turns_keep_the_turn_cost_guard_counts(
-    monkeypatch, capsys, isolate_agent_runtime_root, home  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root, home
 ):
     violations, _budgets, _spans = _run_guard(monkeypatch, capsys)
     assert not violations, "turn-cost guard (counts):\n  " + "\n  ".join(violations)

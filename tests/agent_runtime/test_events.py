@@ -308,7 +308,7 @@ def test_run_progress_receives_stable_event_id(isolate_agent_runtime_root):
         )
     )
 
-    event = list(log.iter_from_offset(0))[0][1]
+    event = next(iter(log.iter_from_offset(0)))[1]
     assert event.payload["event_id"] == "progress:run_1:proof:proof_command_running:1"
     assert event.payload["summary"] == "Progress: proof proof_command_running running."
 

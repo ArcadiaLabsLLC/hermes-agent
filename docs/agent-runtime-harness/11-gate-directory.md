@@ -156,7 +156,7 @@ lazy-deps, profile-archive and blob-size guards (`tests/scripts/test_code_health
 | `scripts/check-windows-footguns.py` | `tests/scripts/test_footgun_subprocess_encoding.py` | Windows footguns (subprocess encoding and others) |
 | `scripts/check_bash_shebangs.py` | `tests/scripts/test_bash_shebangs.py` | tracked scripts and embedded payloads carry a valid shebang |
 | `scripts/check_config_yaml_writers.py` | `tests/hermes_cli/test_config_yaml_comment_preservation.py` | `config.yaml` writers preserve comments |
-| `scripts/check_no_tmp_literals.py` | `tests/scripts/test_check_no_tmp_literals.py` | no literal `/tmp` paths |
+| `scripts/check_no_tmp_literals.py` | `tests/scripts/test_check_no_tmp_literals.py` | no literal `/tmp` paths <!-- no-tmp: ok — names what the check forbids --> |
 | `scripts/check_subprocess_stdin.py` | `tests/tools/test_subprocess_stdin_guard.py` | TUI-context subprocess calls pass `stdin=` |
 | `scripts/check_profile_scope_patterns.py` | `tests/scripts/test_check_profile_scope_patterns.py` | advisory: a child env built from `os.environ` |
 | — | `tests/scripts/test_no_machine_paths_in_fork_scripts.py` | fork scripts never hard-code one machine's paths |

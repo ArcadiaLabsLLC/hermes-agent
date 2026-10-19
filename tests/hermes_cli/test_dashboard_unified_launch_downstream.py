@@ -14,7 +14,7 @@ import sys
 import pytest
 from hermes_cli import main_dashboard
 
-from tests.hermes_cli.test_dashboard_unified_launch import (  # noqa: F401 — upstream fixture + helper
+from tests.hermes_cli.test_dashboard_unified_launch import (  # upstream fixture + helper
     _args,
     main_mod,
 )

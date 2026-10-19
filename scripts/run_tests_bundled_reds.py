@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
-import run_tests_bundled_cache as cache  # noqa: E402 — registered by run_tests_bundled._load_sibling
+import run_tests_bundled_cache as cache  # registered by run_tests_bundled._load_sibling
 import run_tests_bundled_via as vias
 
 RED_FILE = "red.jsonl"
@@ -30,17 +30,17 @@ RED_FILE = "red.jsonl"
 SKIPPED_VIA = vias.KNOWN_RED_SKIPPED
 
 
-def red_path(store: "cache.GateStore") -> Path:
+def red_path(store: cache.GateStore) -> Path:
     return store.root / RED_FILE
 
 
-def load(store: "cache.GateStore") -> Dict[str, dict]:
+def load(store: cache.GateStore) -> dict[str, dict]:
     """rel → its newest ``red.jsonl`` line (a later line supersedes)."""
 
     return {r["f"]: r for r in cache._read_jsonl(red_path(store)) if r.get("f")}
 
 
-def write_key(store: "cache.GateStore", rel: str, key: str, run_id: str, generation: int,
+def write_key(store: cache.GateStore, rel: str, key: str, run_id: str, generation: int,
               now: Optional[float] = None) -> None:
     now = time.time() if now is None else now
     cache._append_lines(red_path(store), [{
@@ -49,13 +49,13 @@ def write_key(store: "cache.GateStore", rel: str, key: str, run_id: str, generat
     }])
 
 
-def drop(store: "cache.GateStore", rel: str, why: str, run_id: str) -> None:
+def drop(store: cache.GateStore, rel: str, why: str, run_id: str) -> None:
     """Supersede a file's red key: it runs next time it is a known red."""
 
     cache._append_lines(red_path(store), [{"f": rel, "drop": why, "run": run_id}])
 
 
-def compact(store: "cache.GateStore", limit: int = cache.COMPACT_BYTES) -> bool:
+def compact(store: cache.GateStore, limit: int = cache.COMPACT_BYTES) -> bool:
     path = red_path(store)
     if cache._size(path) <= limit:
         return False
@@ -67,8 +67,8 @@ def compact(store: "cache.GateStore", limit: int = cache.COMPACT_BYTES) -> bool:
 class RedDecision:
     """Per known red in the selection: skipped (key unchanged since its red) or run, and why."""
 
-    skipped: List[Tuple[Path, dict]] = field(default_factory=list)
-    reasons: Dict[str, str] = field(default_factory=dict)
+    skipped: list[tuple[Path, dict]] = field(default_factory=list)
+    reasons: dict[str, str] = field(default_factory=dict)
 
     def line(self) -> str:
         runs = sorted({why for why in self.reasons.values() if why != "unchanged"})
@@ -79,8 +79,8 @@ class RedDecision:
 
 
 def decide(
-    files: Sequence[Path], repo_root: Path, *, keyer: Optional["cache.Keyer"], known: Iterable[str],
-    deps: Mapping[str, "cache.StoredDeps"], reds: Mapping[str, dict], generation: int,
+    files: Sequence[Path], repo_root: Path, *, keyer: Optional[cache.Keyer], known: Iterable[str],
+    deps: Mapping[str, cache.StoredDeps], reds: Mapping[str, dict], generation: int,
     named: Iterable[Path] = (), now: Optional[float] = None, max_age_days: float = cache.DEFAULT_MAX_AGE_DAYS,
 ) -> RedDecision:
     """A known red is skipped when it is not named and its newest red line carries

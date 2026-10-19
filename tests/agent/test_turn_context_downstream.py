@@ -8,7 +8,7 @@ are imported by name.
 
 from __future__ import annotations
 
-from tests.agent.test_turn_context import (  # noqa: F401 — upstream names the moved test uses
+from tests.agent.test_turn_context import (  # upstream names the moved test uses
     _FakeAgent,
     _build,
     _stub_runtime_main,

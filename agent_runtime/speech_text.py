@@ -23,7 +23,7 @@ _ORDINAL_ENDS = {"one": "first", "two": "second", "three": "third", "five": "fif
 
 #: ``3:45``, ``3:45 PM``, ``12:05am``.
 _CLOCK = re.compile(r"\b(\d{1,2}):(\d{2})(?:\s*([AaPp])\.?\s*[Mm]\.?\b)?")
-_ORDINAL = re.compile(r"\b(\d+)(st|nd|rd|th)\b", re.I)
+_ORDINAL = re.compile(r"\b(\d+)(st|nd|rd|th)\b", re.IGNORECASE)
 _DECIMAL = re.compile(r"(?<![\d.])(\d+)\.(\d+)\b")
 _INTEGER = re.compile(r"\d[\d,]*")
 _SENTENCE_END = re.compile(r"(?<=[.!?…])[\"”')\]]*\s+")

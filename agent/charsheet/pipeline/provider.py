@@ -54,7 +54,7 @@ def provider_timeout_seconds() -> float:
     try:
         value = charsheet_setting("provider_timeout_seconds", PROVIDER_TIMEOUT_SECONDS)
         return float(value)
-    except Exception:  # noqa: BLE001 - an unreadable config must not stop a draft
+    except Exception:  # an unreadable config must not stop a draft
         return PROVIDER_TIMEOUT_SECONDS
 
 
@@ -79,7 +79,7 @@ def _within_deadline(call, *, seconds: float, prefix: str):
     def _run() -> None:
         try:
             box["value"] = call()
-        except BaseException as exc:  # noqa: BLE001 - re-raised on the caller
+        except BaseException as exc:  # re-raised on the caller
             box["error"] = exc
 
     worker = threading.Thread(target=_run, name=f"charsheet-{prefix}", daemon=True)

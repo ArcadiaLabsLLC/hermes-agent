@@ -287,7 +287,7 @@ class ProfileTemplateInfo:
     description: str = ""
 
 
-def available_profile_template_summaries() -> List[ProfileTemplateInfo]:
+def available_profile_template_summaries() -> list[ProfileTemplateInfo]:
     """Return live, servable profile metadata without parsing runtime config.
 
     Mission Control's available-persona roster uses only the profile name,

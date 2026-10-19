@@ -141,7 +141,7 @@ def installed_rows() -> list[dict]:
         if not manifest_path.is_file():
             continue
         try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
         except (OSError, ValueError):
             manifest = {}
         if not isinstance(manifest, dict):

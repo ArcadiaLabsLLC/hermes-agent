@@ -89,7 +89,7 @@ payload literal's comment, 2026-09-25):
 
 from __future__ import annotations
 
-from agent_runtime.harness_doctor.model import (  # noqa: F401 — the vocabulary
+from agent_runtime.harness_doctor.model import (  # the vocabulary
     DEFAULT_WORKTREE_MIN_AGE_SECONDS,
     HEALTH_DEFECT,
     HEALTH_NOTICE,
@@ -97,7 +97,7 @@ from agent_runtime.harness_doctor.model import (  # noqa: F401 — the vocabular
     HEALTH_UNKNOWN,
     DoctorSection,
 )
-from agent_runtime.harness_doctor.probes import (  # noqa: F401 — bare seams tests call
+from agent_runtime.harness_doctor.probes import (  # bare seams tests call
     _event_log_report,
     _model_authority_report,
     _persona_binding_report,
@@ -105,7 +105,7 @@ from agent_runtime.harness_doctor.probes import (  # noqa: F401 — bare seams t
     _snapshot_null_id_report,
     _worktree_report,
 )
-from agent_runtime.harness_doctor.census import (  # noqa: F401 — the census tokens + its test-pinned sweeps
+from agent_runtime.harness_doctor.census import (  # the census tokens + its test-pinned sweeps
     DUPLICATE_PLACEMENT_CROSS_INSTANCE,
     DUPLICATE_PLACEMENT_SAME_INSTANCE,
     DUPLICATE_PLACEMENT_UNBOUND_HOLDER,
@@ -120,7 +120,7 @@ from agent_runtime.harness_doctor.census import (  # noqa: F401 — the census t
     _orphan_actor_reason,
     _placement_census_report,
 )
-from agent_runtime.harness_doctor.run import (  # noqa: F401
+from agent_runtime.harness_doctor.run import (
     DOCTOR_SECTIONS,
     doctor_detail_sources,
     run_harness_doctor,

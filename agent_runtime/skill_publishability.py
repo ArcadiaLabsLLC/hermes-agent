@@ -190,7 +190,7 @@ def _sync_primitives():
         from ._upstream_doors import skills_sync_primitives
 
         return skills_sync_primitives()
-    except Exception:  # noqa: BLE001 — any import failure means "unknown"
+    except Exception:  # any import failure means "unknown"
         logger.warning(
             "tools.skills_sync bundled-manifest primitives unavailable; "
             "installer-owned skill packages will classify as "
@@ -308,7 +308,7 @@ def package_manifest_name(package_dir: Path) -> str:
         return package_dir.name
     try:
         return read_name(package_dir / "SKILL.md", package_dir.name)
-    except Exception:  # noqa: BLE001 — a malformed manifest degrades to the slug
+    except Exception:  # a malformed manifest degrades to the slug
         return package_dir.name
 
 
@@ -340,11 +340,11 @@ def profile_skills_roots() -> list[Path]:
 
     try:
         add(get_skills_dir())
-    except Exception:  # noqa: BLE001 — a broken home must not break reporting
+    except Exception:  # a broken home must not break reporting
         pass
     try:
         root = get_default_hermes_root()
-    except Exception:  # noqa: BLE001
+    except Exception:
         return roots
     add(root / SKILLS_DIRNAME)
     profiles_root = root / "profiles"
@@ -383,7 +383,7 @@ def owning_profile_skills_root(path: Path) -> Path | None:
 
     try:
         shared = _resolved(get_shared_skills_dir())
-    except Exception:  # noqa: BLE001
+    except Exception:
         shared = None
     candidate = _resolved(Path(path))
     for parent in [candidate, *candidate.parents]:
@@ -596,7 +596,7 @@ def classify_publishability(
     if source_kind is None:
         try:
             source_kind = skill_source_kind(root)
-        except Exception:  # noqa: BLE001
+        except Exception:
             source_kind = "external"
     reason = _REASON_FOR_SOURCE_KIND.get(source_kind, REASON_UNKNOWN_ROOT)
     publishable = reason == REASON_SHARED_ROOT
@@ -655,14 +655,14 @@ def build_publishability_rows(roots: Iterable[Path] | None = None) -> list[dict[
             continue
         try:
             source_kind = skill_source_kind(root)
-        except Exception:  # noqa: BLE001
+        except Exception:
             source_kind = "external"
         for slug, package_dir in iter_skill_packages(Path(root)):
             try:
                 content_hash = skill_package_content_hash(
                     package_dir, package_dir / "SKILL.md"
                 )
-            except Exception:  # noqa: BLE001 — an unreadable package still reports
+            except Exception:  # an unreadable package still reports
                 content_hash = None
             rows.append(
                 classify_publishability(

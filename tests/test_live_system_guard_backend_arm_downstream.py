@@ -82,4 +82,4 @@ def test_python_c_code_that_only_builds_backend_words_for_a_detector_is_not_a_ba
 def test_python_c_code_that_could_spawn_keeps_the_conservative_scan(code):
     with pytest.raises(RuntimeError, match="live-system guard: blocked"):
         subprocess.run([sys.executable, "-c", code], timeout=30,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)

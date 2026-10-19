@@ -31,11 +31,11 @@ from agent_runtime.snapshot.summaries import _safe_model_label, _safe_repo_scope
 __layer__ = "stores"
 
 __all__ = [
-    "parity_envelope",
     "_projection_age_ms",
     "_runtime_profile_identity",
     "_runtime_root_identity",
     "_snapshot_payload_size",
+    "parity_envelope",
 ]
 
 
@@ -127,7 +127,7 @@ def _projection_age_ms(last_event_ts) -> int | None:
             ts = last_event_ts
         else:
             text = str(last_event_ts)
-            ts = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            ts = datetime.fromisoformat(text)
         current = now()
         if ts.tzinfo is None:
             ts = ts.replace(tzinfo=current.tzinfo)

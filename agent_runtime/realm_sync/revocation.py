@@ -21,7 +21,7 @@ whole. Install-local: nothing here is published.
 from __future__ import annotations
 
 import json
-from datetime import timezone
+from datetime import timezone, UTC
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -124,7 +124,7 @@ def mark_realm_revoked(realm: Realm, reason: RealmRevokedReason) -> dict[str, An
         "schema_version": 1,
         "realm_id": realm.id,
         "reason": reason.value,
-        "revoked_at": now().astimezone(timezone.utc).isoformat(),
+        "revoked_at": now().astimezone(UTC).isoformat(),
     }
     atomic_json_write(realm_revocation_path(realm.id), payload)
     _append_event(realm, "revoked")
@@ -166,5 +166,5 @@ def _append_event(realm: Realm, change: str) -> None:
     log never fails the mark."""
     try:
         EventLog().append(Event(now(), "realm.updated", None, None, None, {"realm_id": realm.id, "change": change}))
-    except Exception:  # noqa: BLE001 — evidence channel, not the mutation
+    except Exception:  # evidence channel, not the mutation
         pass

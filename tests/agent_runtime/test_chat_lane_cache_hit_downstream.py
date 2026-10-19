@@ -23,7 +23,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from tests.agent_runtime.test_chat_lane_defer import _names, lane  # noqa: F401 — the fixture
+from tests.agent_runtime.test_chat_lane_defer import _names, lane  # the fixture
 from tests.tools.test_tool_search import _td
 
 VAULT = ("browser_vault",)  # upstream v0.22.2 folded the five ``browser_vault_*`` verbs into one
@@ -81,15 +81,15 @@ def _register_late(raw: list) -> None:
 
 
 @pytest.fixture
-def chat(lane, monkeypatch):  # noqa: F811 — the imported fixture
+def chat(lane, monkeypatch):  # the imported fixture
     """``(new_actor, turn, raw, ledger)``: actors built by the runner's default factory as the
     chat lane builds them, one turn's wire -- ``(responses tools, persona cache routing
     observability)`` -- and the writer ledger (publishes of ``agent.tools``, session pin writes
     with the pinned names, ``get_tool_definitions`` reads)."""
     import model_tools
     import run_agent
-    import tools.mcp_tool  # noqa: F401 — upstream's refresh slot is import-gated on it
-    import tools.mcp_tool_agent as mcp_tool_agent
+    import tools.mcp_tool  # upstream's refresh slot is import-gated on it
+    from tools import mcp_tool_agent
     import tools.tool_search as ts
     from agent.codex_responses_adapter import _responses_tools
     from agent.turn_context import _refresh_mcp_tools_between_turns

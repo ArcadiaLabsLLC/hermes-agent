@@ -19,7 +19,7 @@ rule.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 
 import pytest
 
@@ -44,7 +44,7 @@ from agent_runtime.persona_instance_identity import reconcile_persona_instances
 from agent_runtime.serde import to_jsonable
 from agent_runtime.states import WorkerSessionState
 
-_STALE = datetime(2026, 6, 1, 0, 0, 0, tzinfo=timezone.utc)  # ~6 weeks old
+_STALE = datetime(2026, 6, 1, 0, 0, 0, tzinfo=UTC)  # ~6 weeks old
 
 
 def _templates(monkeypatch) -> None:

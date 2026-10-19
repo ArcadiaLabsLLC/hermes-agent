@@ -106,6 +106,7 @@ from __future__ import annotations
 import importlib
 
 import pytest
+from datetime import UTC
 
 
 #: module -> the names S54 removed from it. The ABSENCE assertion moved to
@@ -282,7 +283,7 @@ def test_the_kept_incident_constant_is_addressed_by_value_somewhere_live():
 
     assert incidents.MODEL_INVALID_OUTPUT == "model_invalid_output"
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     incident = Incident(
         id="inc_severity_pin",
         task_id="task_severity_pin",

@@ -5,7 +5,7 @@ from agent_runtime.conversations.model import ConversationError, Refusal
 from agent_runtime.discussions.definitions import DefinitionError
 from agent_runtime.discussions.profile_groups import ProfileGroupSpec
 from agent_runtime.discussions.service import DiscussionService
-from tests.agent_runtime.test_discussion_profile_groups import groups as groups, create, act, sends, complete, idle
+from tests.agent_runtime.test_discussion_profile_groups import groups, create, act, sends, complete, idle
 from tests.agent_runtime.test_discussion_runtime import room_timings, wait_until
 
 pytestmark = pytest.mark.timeout(90)
@@ -73,7 +73,7 @@ def test_crash_before_native_route_admission_is_not_a_permanent_unknown(groups):
 
 
 def test_duplicate_profile_cannot_manufacture_two_members_by_changing_home(groups):
-    service, _, _, root = groups
+    service, _, _, _root = groups
     run = create(groups)
     spec = service.runs.get(run["run_id"])["initial"]["group"]
     value = {k: spec[k] for k in ("name", "participants", "cwd")}

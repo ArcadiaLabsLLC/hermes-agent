@@ -8,7 +8,7 @@ invalidation. The autouse conftest fixtures isolate the runtime root per test.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 
 import pytest
 
@@ -63,12 +63,12 @@ def test_rebalance_is_strictly_increasing_and_unique():
 
 
 def test_default_board_content_hash_is_machine_independent():
-    a = board_models.default_board("ws_1", created_at=datetime(2020, 1, 1, tzinfo=timezone.utc), updated_by="alice")
-    b = board_models.default_board("ws_1", created_at=datetime(2024, 6, 6, tzinfo=timezone.utc), updated_by="bob")
+    a = board_models.default_board("ws_1", created_at=datetime(2020, 1, 1, tzinfo=UTC), updated_by="alice")
+    b = board_models.default_board("ws_1", created_at=datetime(2024, 6, 6, tzinfo=UTC), updated_by="bob")
     # Timestamps + updated_by differ, but semantic content hash is identical.
     assert board_models.board_content_hash(a) == board_models.board_content_hash(b)
     # Different workspace → different hash.
-    c = board_models.default_board("ws_2", created_at=datetime(2020, 1, 1, tzinfo=timezone.utc))
+    c = board_models.default_board("ws_2", created_at=datetime(2020, 1, 1, tzinfo=UTC))
     assert board_models.board_content_hash(a) != board_models.board_content_hash(c)
 
 
@@ -251,7 +251,7 @@ def test_resolve_conflict_take_local_clears_sidecar():
     board_id = board_models.default_board_id(ws)
     conflict = paths.board_conflict_path(board_id, card.card_id)
     conflict.parent.mkdir(parents=True, exist_ok=True)
-    conflict.write_text('{"card_id": "%s", "kind": "both_changed"}' % card.card_id, encoding="utf-8")
+    conflict.write_text(f'{{"card_id": "{card.card_id}", "kind": "both_changed"}}', encoding="utf-8")
     # a mutation is blocked while the conflict is open
     with pytest.raises(SyncConflict):
         store.edit_card(card.card_id, title="nope")
@@ -382,7 +382,7 @@ def _blind_card(board_id: str, card_id: str):
 def _seeded_board(n: int = 3):
     """A workspace + default board carrying ``n`` cards in one column."""
 
-    from agent_runtime.errors import CardsUnreadable  # noqa: F401 — import proof
+    from agent_runtime.errors import CardsUnreadable  # import proof
 
     ws = _make_workspace("Boards")
     store = BoardStore()
@@ -631,10 +631,10 @@ def test_a_key_reused_across_verbs_refuses_instead_of_silently_skipping_the_writ
 
     from agent_runtime.errors import IdempotencyKeyVerbMismatch
 
-    ws, store, card = _one_card_board(title="Cross", key="k-cross")
+    _ws, store, card = _one_card_board(title="Cross", key="k-cross")
     board_id = store.get_card(card.card_id).board_id
     board = store.get(board_id)
-    target = [col.column_id for col in board.columns if col.column_id != card.column_id][0]
+    target = next(col.column_id for col in board.columns if col.column_id != card.column_id)
     before_column = card.column_id
     before_revision = card.revision
 
@@ -671,7 +671,7 @@ def test_edit_cannot_borrow_adds_key_either():
 
     from agent_runtime.errors import IdempotencyKeyVerbMismatch
 
-    ws, store, card = _one_card_board(title="Borrow", key="k-borrow")
+    _ws, store, card = _one_card_board(title="Borrow", key="k-borrow")
     board_id = store.get_card(card.card_id).board_id
 
     with pytest.raises(IdempotencyKeyVerbMismatch):
@@ -689,7 +689,7 @@ def test_a_receipt_written_before_the_verb_field_is_still_honoured():
     to protect against a crossing that already happened.
     """
 
-    ws, store, card = _one_card_board(title="Legacy", key="k-legacy")
+    _ws, store, card = _one_card_board(title="Legacy", key="k-legacy")
     board_id = store.get_card(card.card_id).board_id
     receipt = paths.board_idempotency_path(board_id, "k-legacy")
     payload = json.loads(receipt.read_text(encoding="utf-8"))
@@ -709,7 +709,7 @@ def test_a_receipt_written_before_the_verb_field_is_still_honoured():
 def test_the_receipt_records_the_verb_that_wrote_it():
     """The field the fence reads — asserted directly, not only through it."""
 
-    ws, store, card = _one_card_board(title="Recorded", key="k-recorded")
+    _ws, store, card = _one_card_board(title="Recorded", key="k-recorded")
     board_id = store.get_card(card.card_id).board_id
     payload = json.loads(
         paths.board_idempotency_path(board_id, "k-recorded").read_text(encoding="utf-8")

@@ -462,7 +462,7 @@ class ServeSocketServer:
                 # rejection of one peer, and the lane keeps serving everybody
                 # else.
                 self._admit_socket(sock, peer)
-        except BaseException as exc:  # noqa: BLE001 - reported, never raised out
+        except BaseException as exc:  # reported, never raised out
             outcome = f"error:{type(exc).__name__}"
             with self._lock:
                 self._accept_errors += 1
@@ -492,7 +492,7 @@ class ServeSocketServer:
                 name="harness-serve-socket-conn",
                 daemon=True,
             ).start()
-        except BaseException as exc:  # noqa: BLE001 - reported, never raised out
+        except BaseException as exc:  # reported, never raised out
             with self._lock:
                 self._accept_errors += 1
             self._emit_log(
@@ -535,7 +535,7 @@ class ServeSocketServer:
             sock.settimeout(self._hello_deadline)
         except OSError:
             pass
-        reader: "_LineReader | None" = None
+        reader: _LineReader | None = None
         try:
             # TLS BEFORE the admission checks, not after, and the cost is
             # deliberate. Every one of those checks answers with a typed

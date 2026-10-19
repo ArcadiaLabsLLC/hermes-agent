@@ -58,7 +58,7 @@ def _resolve_delete_owner(owner_instance_id: str | None) -> tuple[PersonaInstanc
         archived = store.retired_instance_archive_path(owner_instance_id)
         if archived is None:
             return None, False
-        raw = json.loads(archived.read_text(encoding="utf-8"))
+        raw = json.loads(archived.read_text(encoding="utf-8-sig"))
         return from_jsonable(PersonaInstance, raw), True
     except Exception:
         return None, False

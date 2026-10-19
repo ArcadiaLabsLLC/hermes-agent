@@ -397,7 +397,7 @@ def all_registered_toolsets() -> list[str]:
     ``ToolRegistry.get_registered_toolset_names``.
     """
 
-    import model_tools  # noqa: F401 — populates the registry
+    import model_tools  # populates the registry
     from tools.registry import registry
 
     return [str(name) for name in registry.get_registered_toolset_names()]

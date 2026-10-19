@@ -9,7 +9,7 @@ not keeps the un-sequenced ``as_of_offset`` overlay and today's demote core.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 
 import pytest
 
@@ -114,7 +114,7 @@ def _patched(offset: int) -> tuple[int, Event]:
     return (
         offset,
         Event(
-            ts=datetime(2026, 10, 19, 12, 0, 0, tzinfo=timezone.utc),
+            ts=datetime(2026, 10, 19, 12, 0, 0, tzinfo=UTC),
             type=STATE_PATCHED_EVENT_TYPE,
             task_id=None,
             run_id=None,
@@ -228,7 +228,7 @@ def test_a_mixed_batch_is_not_running_work_only(isolate_agent_runtime_root, home
 def test_the_predicate_admits_a_running_work_only_reconcile_and_nothing_else():
     def reconcile(families):
         return Event(
-            ts=datetime(2026, 10, 19, 12, 0, 0, tzinfo=timezone.utc),
+            ts=datetime(2026, 10, 19, 12, 0, 0, tzinfo=UTC),
             type="state.reconciled",
             task_id=None,
             run_id=None,

@@ -101,7 +101,7 @@ def test_skill_observability_resolver_is_linear_across_production_shaped_roster(
 
     from types import SimpleNamespace
 
-    import agent.skill_utils as skill_utils
+    from agent import skill_utils
     from agent_runtime import skill_resolution
 
     root = tmp_path / "shared"

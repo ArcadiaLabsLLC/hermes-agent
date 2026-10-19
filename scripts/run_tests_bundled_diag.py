@@ -45,18 +45,18 @@ ROTATE_BYTES = 32 << 20
 @dataclass
 class FileDiag:
     collect: float = 0.0
-    phases: Dict[str, float] = field(default_factory=lambda: dict.fromkeys(PHASES, 0.0))
+    phases: dict[str, float] = field(default_factory=lambda: dict.fromkeys(PHASES, 0.0))
     #: (seconds, node id, phase), the slowest first, at most ``SLOWEST``
-    slowest: List[Tuple[float, str, str]] = field(default_factory=list)
-    spawn: Dict[str, List[float]] = field(default_factory=dict)  # kind -> [count, wait seconds]
+    slowest: list[tuple[float, str, str]] = field(default_factory=list)
+    spawn: dict[str, list[float]] = field(default_factory=dict)  # kind -> [count, wait seconds]
     plugins: float = 0.0
     sleep: float = 0.0
     body_patches: int = 0
     late_fixture_patches: int = 0
     teardown_errors: int = 0
-    teardown_error_ids: List[str] = field(default_factory=list)
+    teardown_error_ids: list[str] = field(default_factory=list)
 
-    def columns(self) -> Dict[str, float]:
+    def columns(self) -> dict[str, float]:
         out = {"collect": self.collect, **self.phases}
         for kind in SPAWN_KINDS:
             out[f"spawn_{kind}_s"] = self.spawn.get(kind, [0, 0.0])[1]
@@ -64,7 +64,7 @@ class FileDiag:
         return out
 
     def line(self, rel: str, run: str) -> dict:
-        r3 = lambda s: round(s, 3)  # noqa: E731
+        r3 = lambda s: round(s, 3)
         return {
             "run": run, "f": rel, "collect": r3(self.collect), **{p: r3(s) for p, s in self.phases.items()},
             "slowest": [[node, phase, r3(s)] for s, node, phase in self.slowest],
@@ -74,11 +74,11 @@ class FileDiag:
         }
 
 
-def _on_collect(rows: Dict[str, FileDiag], record: dict) -> None:
+def _on_collect(rows: dict[str, FileDiag], record: dict) -> None:
     rows.setdefault(record["f"], FileDiag()).collect += float(record.get("d") or 0.0)
 
 
-def _on_test(rows: Dict[str, FileDiag], record: dict) -> None:
+def _on_test(rows: dict[str, FileDiag], record: dict) -> None:
     row = rows.setdefault(record["f"], FileDiag())
     phase, seconds = record.get("w") or "call", float(record.get("d") or 0.0)
     row.phases[phase] = row.phases.get(phase, 0.0) + seconds
@@ -93,7 +93,7 @@ def _on_test(rows: Dict[str, FileDiag], record: dict) -> None:
             row.teardown_error_ids.append(record["n"])
 
 
-def _on_diag(rows: Dict[str, FileDiag], record: dict) -> None:
+def _on_diag(rows: dict[str, FileDiag], record: dict) -> None:
     row = rows.setdefault(record["f"], FileDiag())
     for kind, (count, wait) in (record.get("spawn") or {}).items():
         entry = row.spawn.setdefault(kind, [0, 0.0])
@@ -106,7 +106,7 @@ def _on_diag(rows: Dict[str, FileDiag], record: dict) -> None:
 _HANDLERS = {"collect": _on_collect, "test": _on_test, "diag": _on_diag}
 
 
-def fold(lines: Iterable[str], rows: Optional[Dict[str, FileDiag]] = None) -> Dict[str, FileDiag]:
+def fold(lines: Iterable[str], rows: Optional[dict[str, FileDiag]] = None) -> dict[str, FileDiag]:
     """Add one events file's lines to ``rows`` (a torn last line is skipped)."""
 
     rows = {} if rows is None else rows
@@ -125,7 +125,7 @@ class Diagnosis:
     """The run's rows, added to from every worker thread."""
 
     def __init__(self) -> None:
-        self.rows: Dict[str, FileDiag] = {}
+        self.rows: dict[str, FileDiag] = {}
         self._lock = threading.Lock()
 
     def add(self, lines: Iterable[str]) -> None:
@@ -138,7 +138,7 @@ def run_record(diagnosis: Optional[Diagnosis]) -> dict:
 
     if diagnosis is None or not diagnosis.rows:
         return {}
-    totals: Dict[str, float] = {}
+    totals: dict[str, float] = {}
     for row in diagnosis.rows.values():
         for column, seconds in row.columns().items():
             totals[column] = totals.get(column, 0.0) + seconds
@@ -163,7 +163,7 @@ def append(store_root: Path, run_id: str, diagnosis: Optional[Diagnosis]) -> Opt
     return path
 
 
-def render(diagnosis: Optional[Diagnosis], top: int = TOP) -> List[str]:
+def render(diagnosis: Optional[Diagnosis], top: int = TOP) -> list[str]:
     """The ``=== Diagnosis ===`` block: per column, the top files by its seconds."""
 
     if diagnosis is None or not diagnosis.rows:

@@ -27,7 +27,7 @@ MANIFEST = 'tests/fixtures/carried_prs.json'
 
 def git(repo, *args, env=None, input=None, encoding="utf-8"):
     result = subprocess.run(['git', '-C', str(repo), *args], input=input,
-                            capture_output=True, text=encoding is not None, encoding=encoding, env=env, timeout=30)
+                            capture_output=True, text=encoding is not None, encoding=encoding, env=env, timeout=30, check=False)
     if result.returncode:
         raise ValueError(result.stderr.strip() or result.stdout.strip() or 'git command failed')
     return result.stdout
@@ -168,7 +168,7 @@ def fork_source(repo, path, ref):
         present = git(repo, 'ls-tree', '--name-only', ref, '--', path).strip()
         return git(repo, 'show', f'{ref}:{path}') if present else ''
     file = repo / path
-    return file.read_text(encoding='utf-8') if file.exists() else ''
+    return file.read_text(encoding='utf-8-sig') if file.exists() else ''
 
 
 def _check_lines(repo, rule, path, pr_path, base, head, fork_ref, mismatches):
@@ -212,7 +212,7 @@ def _check_symbols(repo, rule, path, pr_path, base, head, fork_ref, mismatches):
         raise ValueError('empty symbol selection')
     theirs = git(repo, 'show', f'{head}:{pr_path}')
     ours = (git(repo, 'show', f'{fork_ref}:{path}') if fork_ref
-            else (repo / path).read_text(encoding='utf-8'))
+            else (repo / path).read_text(encoding='utf-8-sig'))
     matches = all(symbol_source(theirs, name) == symbol_source(ours, name)
                   for name in symbols)
     return matches, '', False
@@ -229,7 +229,7 @@ def _check_hunks(repo, rule, path, pr_path, base, head, fork_ref, mismatches):
             git(repo, 'add', '-A', '--', path, env=env)
         result = subprocess.run(['git', '-C', str(repo), 'apply', '--cached',
                                  '--reverse', '--check', '-'], input=patch,
-                                capture_output=True, env=env, timeout=30)
+                                capture_output=True, env=env, timeout=30, check=False)
         matches = result.returncode == 0
     return matches, '', False
 
@@ -281,10 +281,10 @@ def fetch_commands(manifest_data):
 
 def check(repo, ledger=LEDGER, manifest=MANIFEST, fork_ref=None):
     repo = Path(repo)
-    pairs = ledger_pairs((repo / ledger).read_text(encoding='utf-8'))
+    pairs = ledger_pairs((repo / ledger).read_text(encoding='utf-8-sig'))
     if not pairs:
         raise ValueError('ledger contains no open-PR file rows; refusing empty coverage')
-    data = json.loads((repo / manifest).read_text(encoding='utf-8'))
+    data = json.loads((repo / manifest).read_text(encoding='utf-8-sig'))
     if data.get('version') != 1:
         raise ValueError('unsupported manifest version')
     checked = deferred = drift = errors = partial = 0
@@ -356,7 +356,7 @@ def main(argv=None):
                         help='print the git fetch commands for every manifest head_ref, then exit')
     args = parser.parse_args(argv)
     if args.fetch_commands:
-        data = json.loads((args.repo / args.manifest).read_text(encoding='utf-8'))
+        data = json.loads((args.repo / args.manifest).read_text(encoding='utf-8-sig'))
         for command in fetch_commands(data):
             print(' '.join(command))
         return 0

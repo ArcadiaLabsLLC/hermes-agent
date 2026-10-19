@@ -110,7 +110,7 @@ _CHILD = (
 def _child(env: dict, entry: Path) -> str:
     code = _CHILD.format(root=str(ROOT))
     done = subprocess.run([sys.executable, "-c", code, str(entry)], cwd=ROOT, env=env,
-                          capture_output=True, text=True, timeout=120)
+                          capture_output=True, text=True, timeout=120, check=False)
     assert done.returncode == 0, done.stderr
     return done.stdout.strip()
 

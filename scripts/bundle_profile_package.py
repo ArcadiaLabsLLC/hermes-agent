@@ -76,9 +76,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.bundle_licenses import copy_first_party_licence, licence_problems, write_licence_records  # noqa: E402
-from scripts.bundle_profile_closure import _imports, _norm, _owner, module_index, profile_walk  # noqa: E402
-from agent_runtime.bundle_profiles.forced_tree import FORCED_TREE_DIR, sibling_modules  # noqa: E402
+from scripts.bundle_licenses import copy_first_party_licence, licence_problems, write_licence_records
+from scripts.bundle_profile_closure import _imports, _norm, _owner, module_index, profile_walk
+from agent_runtime.bundle_profiles.forced_tree import FORCED_TREE_DIR, sibling_modules
 from scripts.bundles.serve_probe import (
     named_timezone_problems, serve_import_problems, serve_import_table)
 from scripts.bundles.pool_install import install_pool as install_pool_into, remove_tree
@@ -119,8 +119,8 @@ BUILD_SHA_FILE = ".hermes_build_sha"
 ENGINE_PACKS_ENV = "HERMES_ENGINE_PACKS"
 ENGINE_PACKS_PTH = "hermes-engine-packs.pth"
 ENGINE_PACKS_PTH_LINE = (
-    "import os, site; [site.addsitedir(p) for p in os.environ.get(%r, '').split(os.pathsep) "
-    "if p and os.path.isdir(p)]\n" % ENGINE_PACKS_ENV)
+    f"import os, site; [site.addsitedir(p) for p in os.environ.get({ENGINE_PACKS_ENV!r}, '').split(os.pathsep) "
+    "if p and os.path.isdir(p)]\n")
 #: Files the packaging step itself writes into a site-packages (owned by no distribution).
 PACKAGER_FILES = {ENGINE_PACKS_PTH}
 PACK_MANIFEST = "engine-pack.json"
@@ -160,7 +160,7 @@ def export_requirements(extras: tuple[str, ...], uv: str = "uv") -> str:
            "--no-dev", "--no-header", "--no-annotate"]
     for extra in extras:
         cmd += ["--extra", extra]
-    done = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, check=True, timeout=300)
+    done = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True, timeout=300)
     return done.stdout
 
 
@@ -236,7 +236,7 @@ def read_site(site: Path) -> dict[str, Dist]:
 
     dists: dict[str, Dist] = {}
     for info in sorted(site.glob("*.dist-info")):
-        meta = HeaderParser().parsestr((info / "METADATA").read_text(encoding="utf-8", errors="replace"))
+        meta = HeaderParser().parsestr((info / "METADATA").read_text(encoding="utf-8-sig", errors="replace"))
         files: list[str] = []
         record = info / "RECORD"
         if record.is_file():
@@ -385,7 +385,7 @@ print(json.dumps({"jobs": out, "counts": closure_script.COUNTS}))
 def _run_planner(cmd: list[str], stall: float, cap: float) -> str:
     """Run the planning child; stdout on success. :class:`PlanStalled` when its progress report
     stops changing for ``stall`` seconds or it runs ``cap`` seconds; CalledProcessError on a crash."""
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
                             stdin=subprocess.DEVNULL)
     seen = {"token": None, "at": time.monotonic()}
     tail: deque[str] = deque(maxlen=40)
@@ -527,7 +527,7 @@ def skill_ships(rel: str, skill_platforms: tuple[str, ...], root: Path = ROOT,
             if not md.is_file():
                 cache[skill_dir] = None
             else:
-                front, _ = parse_frontmatter(md.read_text(encoding="utf-8"))
+                front, _ = parse_frontmatter(md.read_text(encoding="utf-8-sig"))
                 listed = front.get("platforms") or []
                 listed = listed if isinstance(listed, list) else [listed]
                 cache[skill_dir] = {str(p).strip().lower() for p in listed}
@@ -664,7 +664,7 @@ def verify_jobs(core_dir: Path, packs: list[tuple[str, Path]], manifest) -> list
 def verify_pack(pack_dir: Path, core_dir: Path, manifest, plans: dict | None = None) -> list[str]:
     """The pack holds exactly what the closure ships with its extras and the core bundle lacks.
     ``plans``: this pack's job from a :func:`verify_jobs` run, when the caller has one."""
-    record = json.loads((pack_dir / PACK_MANIFEST).read_text(encoding="utf-8"))
+    record = json.loads((pack_dir / PACK_MANIFEST).read_text(encoding="utf-8-sig"))
     site, core_site = pack_dir / "site-packages", core_dir / "site-packages"
     if plans is None:
         names, refused = pack_distributions(manifest, record["pack"], [site, core_site], record["target"],
@@ -782,7 +782,7 @@ def verify_bundle(out: Path, manifest, index: dict[str, Path] | None = None,
     Then import the serve entrypoints with ``python`` (the bundle's interpreter), from the bundle alone;
     ``python=None`` skips that probe (a cross-target build on a host with no target interpreter).
     ``distributions``: the core's answer from a :func:`verify_jobs` run, when the caller has one."""
-    record = json.loads((out / BUNDLE_MANIFEST).read_text(encoding="utf-8"))
+    record = json.loads((out / BUNDLE_MANIFEST).read_text(encoding="utf-8-sig"))
     site, app = out / "site-packages", out / "app"
     plan = make_plan(manifest, site, record["target"], record["python_version"], index=index,
                      distributions=distributions)
@@ -826,7 +826,7 @@ def bake(out: Path, python: Path) -> int:
 def locked_python_version() -> str:
     """``3.14.7`` from the bundle interpreter lock (``3.14.7+20260901``)."""
     lock = ROOT / "agent_runtime" / "bundle_profiles" / "interpreters.lock.json"
-    return json.loads(lock.read_text(encoding="utf-8"))["version"].split("+")[0]
+    return json.loads(lock.read_text(encoding="utf-8-sig"))["version"].split("+")[0]
 
 
 def main(argv=None) -> int:

@@ -73,7 +73,7 @@ from agent_runtime.conversation_observability import CONVERSATION_REQUEST_ASSEMB
 from tests.hermes_cli.test_mission_chat_budget_payload import (  # type: ignore
     _SESSION_ID,
     _seed,
-    isolate_agent_runtime_root,  # noqa: F401  (re-exported fixture)
+    isolate_agent_runtime_root,  # (re-exported fixture)
 )
 from hermes_cli.harness_parts.persona import chat_events, chat_turn_message
 
@@ -250,7 +250,7 @@ def _record_on_disk(root: Path, client_message_id: str) -> dict:
 
 
 def _drive(monkeypatch, capsys, provider, *, turn_id, stream=True):
-    harness = _seed(monkeypatch, provider)
+    _seed(monkeypatch, provider)
     code = chat_turn_message._cmd_mission_chat_message(_args(turn_id, stream=stream))
     capsys.readouterr()  # stream frames + terminal envelope; the record is the subject
     return code
@@ -260,7 +260,7 @@ def _drive(monkeypatch, capsys, provider, *, turn_id, stream=True):
 # 1. A live turn writes the block, on schema v3                                #
 # --------------------------------------------------------------------------- #
 @pytest.fixture
-def streamed_turn(monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks):  # noqa: F811
+def streamed_turn(monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks):
     _drive(
         monkeypatch,
         capsys,
@@ -363,7 +363,7 @@ def test_the_scripted_clock_makes_every_phase_a_distinct_instant(streamed_turn):
 # 2. THE ABSENCE RULE — the row the named sabotage must red                     #
 # --------------------------------------------------------------------------- #
 @pytest.fixture
-def dead_before_provider(monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks):  # noqa: F811
+def dead_before_provider(monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks):
     code = _drive(
         monkeypatch, capsys, _never_reaches_the_provider(), turn_id="phases_dead"
     )
@@ -557,7 +557,7 @@ _RUNNER_TIMING = {
 
 
 @pytest.fixture
-def timed_turn(monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks):  # noqa: F811
+def timed_turn(monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks):
     _drive(
         monkeypatch,
         capsys,
@@ -627,7 +627,7 @@ _HANDLER_MEASURED_KEYS: tuple[str, ...] = (
 
 
 def test_the_pre_admit_sub_spans_ride_the_durable_record(
-    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks
 ):
     """Stage 6 item 2, end to end on a real turn.
 
@@ -658,7 +658,7 @@ def test_the_pre_admit_sub_spans_ride_the_durable_record(
 
 
 def test_the_sub_spans_are_bounded_by_the_spans_they_decompose(
-    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks
 ):
     """A sub-span wider than its own phase is a measurement of the wrong thing.
 
@@ -697,7 +697,7 @@ def test_the_sub_spans_are_bounded_by_the_spans_they_decompose(
 
 
 def test_the_observability_rows_timings_never_reach_the_persisted_row(
-    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks
 ):
     """The sub-spans ride ``profile_timing``, and ONLY ``profile_timing``.
 
@@ -724,7 +724,7 @@ def test_the_observability_rows_timings_never_reach_the_persisted_row(
 
 
 @pytest.fixture
-def warm_timed_turn(monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks):  # noqa: F811
+def warm_timed_turn(monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks):
     _drive(
         monkeypatch,
         capsys,
@@ -751,7 +751,7 @@ def test_a_reused_actor_constructed_NOTHING_and_the_record_says_so_by_absence(
 
 
 def test_a_runner_that_reported_no_timing_leaves_only_what_the_HANDLER_measured(
-    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks
 ):
     """Absent stays absent — but "nobody" now has to mean nobody.
 
@@ -794,7 +794,7 @@ def test_a_runner_that_reported_no_timing_leaves_only_what_the_HANDLER_measured(
 
 
 def test_the_handlers_session_db_open_reaches_the_durable_record(
-    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks
 ):
     """Stage 4's instrument, end to end on a real turn.
 
@@ -822,7 +822,7 @@ def test_the_handlers_session_db_open_reaches_the_durable_record(
 
 
 def test_a_plan_that_measured_nothing_leaves_session_db_open_ms_ABSENT(
-    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks
 ):
     """Unmeasured is a third state, and a zero would erase it.
 
@@ -855,7 +855,7 @@ def test_a_plan_that_measured_nothing_leaves_session_db_open_ms_ABSENT(
 
 
 def test_a_bundle_rebuild_names_the_component_that_moved(
-    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks
 ):
     """CP-7, driven through the real handler across two turns of one chat.
 
@@ -896,7 +896,7 @@ def test_a_bundle_rebuild_names_the_component_that_moved(
 
 
 def test_an_admission_shaped_register_and_teardown_between_turns_rebuilds_nothing(
-    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks
 ):
     """lane h-bundle-epoch, through the real handler: MCP admission registers a
     run's tools and tears them down after it, leaving the registry as it found
@@ -940,7 +940,7 @@ def test_an_admission_shaped_register_and_teardown_between_turns_rebuilds_nothin
 
 
 def test_the_rebuild_receipt_carries_NAMES_and_never_VALUES(
-    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks
 ):
     """The same disclosure rule ``ChatLaneBundle.degraded`` follows.
 

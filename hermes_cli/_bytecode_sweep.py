@@ -111,7 +111,7 @@ def _claim_bytecode_sweep_lock(lock_path: Path) -> str:
     except OSError:
         return _SWEEP_CLAIM_UNAVAILABLE
     try:
-        os.write(fd, f"{os.getpid()}\n".encode("utf-8"))
+        os.write(fd, f"{os.getpid()}\n".encode())
     except OSError:
         pass
     finally:
@@ -233,7 +233,7 @@ def _sweep_stale_bytecode_if_checkout_changed() -> None:
             return  # non-git install — the ZIP update path clears explicitly
         stamp_path = PROJECT_ROOT / _BYTECODE_FINGERPRINT_FILE
         try:
-            recorded = stamp_path.read_text(encoding="utf-8").strip()
+            recorded = stamp_path.read_text(encoding="utf-8-sig").strip()
         except OSError:
             recorded = ""
         if recorded == fingerprint:

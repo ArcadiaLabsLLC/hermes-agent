@@ -33,7 +33,7 @@ from .test_mission_chat_budget_payload import (
     _SESSION_ID,
     _args,
     _seed,
-    isolate_agent_runtime_root,  # noqa: F401 — fixture re-export
+    isolate_agent_runtime_root,  # fixture re-export
 )
 
 NO_PROVIDER = "No LLM provider configured. Run `hermes model` to select a provider."

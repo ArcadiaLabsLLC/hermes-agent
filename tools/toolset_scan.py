@@ -144,7 +144,7 @@ def scan_registered_tools(tools_dir: Optional[Path] = None) -> ToolScan:
         if path.name in {"__init__.py", "registry.py", "mcp_tool.py"}:
             continue
         try:
-            source = path.read_text(encoding="utf-8")
+            source = path.read_text(encoding="utf-8-sig")
         except OSError as exc:
             unresolved.append(f"{path.stem}: unreadable ({type(exc).__name__})")
             continue

@@ -59,7 +59,7 @@ def _request(agent, clock, *, reasoning, reply_kind="response.output_text.delta"
              terminal=True):
     """One streamed request: created, reasoning frames, the first reply output, terminal."""
 
-    setattr(agent, "_hermes_stream_gap_receipt", StreamGapReceipt(clock=clock, probe_factory=None))
+    agent._hermes_stream_gap_receipt = StreamGapReceipt(clock=clock, probe_factory=None)
     observe_stream_event(agent, {"type": "response.created"})
     clock.now += gap_s / 2
     observe_stream_event(agent, {"type": "response.reasoning_summary_text.delta", "delta": "hmm"})
@@ -173,7 +173,7 @@ def test_a_reported_zero_reaches_the_row_as_zero(isolate_agent_runtime_root):
 
 
 def test_absent_usage_leaves_the_fields_absent(isolate_agent_runtime_root):
-    trace, stored, replay = _run_persona_turn({})
+    _trace, stored, replay = _run_persona_turn({})
     assert len(stored) == 2 and len(replay) == 2
     for row in stored + replay:
         assert not set(_COUNTS) & set(row)

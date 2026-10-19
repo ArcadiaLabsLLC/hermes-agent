@@ -208,7 +208,7 @@ def test_the_forge_inputs_are_accepted_regression_dispatch_2540634d5cf3(
     """
 
     db = _canonical_db()
-    harness = _chat_lane(monkeypatch, db)
+    _chat_lane(monkeypatch, db)
     owner = _owned_root(db)
     assert owner.persona_id == "profile_alice"
 
@@ -242,7 +242,7 @@ def test_a_plain_persona_id_is_still_accepted(
     """
 
     db = _canonical_db()
-    harness = _chat_lane(monkeypatch, db)
+    _chat_lane(monkeypatch, db)
     owner = _owned_root(db, persona_id="dev", display_name="Dev")
     assert owner.persona_id == "dev"
 
@@ -266,7 +266,7 @@ def test_a_genuinely_foreign_persona_without_a_pin_is_still_rejected(
     """The protection survives the fix: a different persona is still foreign."""
 
     db = _canonical_db()
-    harness = _chat_lane(monkeypatch, db)
+    _chat_lane(monkeypatch, db)
     owner = _owned_root(db)
 
     code = chat_turn_message._cmd_mission_chat_message(
@@ -313,7 +313,7 @@ def test_a_matching_pin_does_not_launder_a_different_persona(
     """
 
     db = _canonical_db()
-    harness = _chat_lane(monkeypatch, db)
+    _chat_lane(monkeypatch, db)
     owner = _owned_root(db)
 
     code = chat_turn_message._cmd_mission_chat_message(
@@ -342,7 +342,7 @@ def test_a_matching_pin_carries_a_root_whose_owner_persona_is_unreadable(
     """
 
     db = _canonical_db()
-    harness = _chat_lane(monkeypatch, db)
+    _chat_lane(monkeypatch, db)
     owner = _owned_root(db)
 
     store = PersonaInstanceStore()
@@ -385,7 +385,7 @@ def test_open_chat_accepts_the_colon_token_cross(
     """``persona instance open-chat``, same two-normalizer shape, same fix."""
 
     db = _canonical_db()
-    harness = _chat_lane(monkeypatch, db)
+    _chat_lane(monkeypatch, db)
     owner = _owned_root(db)
 
     code = chat_open._cmd_persona_instance_open_chat(
@@ -410,7 +410,7 @@ def test_open_chat_still_refuses_a_foreign_root(
     monkeypatch, capsys, isolate_agent_runtime_root
 ):
     db = _canonical_db()
-    harness = _chat_lane(monkeypatch, db)
+    _chat_lane(monkeypatch, db)
     owner = _owned_root(db)
     _owned_root(db, persona_id="profile_bob", display_name="Bob")
 
@@ -440,7 +440,7 @@ def test_open_new_chat_instance_mismatch_accepts_the_colon_token_cross(
     """
 
     db = _canonical_db()
-    harness = _chat_lane(monkeypatch, db)
+    _chat_lane(monkeypatch, db)
     owner = _owned_root(db)
 
     chat_open._cmd_persona_instance_open_new_chat(
@@ -466,7 +466,7 @@ def test_open_new_chat_still_refuses_a_genuinely_foreign_instance(
     monkeypatch, capsys, isolate_agent_runtime_root
 ):
     db = _canonical_db()
-    harness = _chat_lane(monkeypatch, db)
+    _chat_lane(monkeypatch, db)
     foreign = _owned_root(db, persona_id="profile_bob", display_name="Bob")
 
     code = chat_open._cmd_persona_instance_open_new_chat(
@@ -491,7 +491,7 @@ def test_chat_delete_accepts_the_colon_token_cross(
     """``persona chat delete``, third site of the shape."""
 
     db = _canonical_db()
-    harness = _chat_lane(monkeypatch, db)
+    _chat_lane(monkeypatch, db)
     owner = _owned_root(db)
     db.append_message(owner.session_id, "user", "hello")
 
@@ -516,7 +516,7 @@ def test_chat_delete_still_refuses_a_foreign_instance(
     monkeypatch, capsys, isolate_agent_runtime_root
 ):
     db = _canonical_db()
-    harness = _chat_lane(monkeypatch, db)
+    _chat_lane(monkeypatch, db)
     owner = _owned_root(db)
     foreign = _owned_root(db, persona_id="profile_bob", display_name="Bob")
     db.append_message(owner.session_id, "user", "must survive")

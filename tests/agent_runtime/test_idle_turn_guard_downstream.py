@@ -38,7 +38,7 @@ import pytest
 
 from tests.agent_runtime import test_turn_cost_guard_downstream as guard
 from tests.agent_runtime.test_pool_starve_downstream import _fields
-from tests.agent_runtime.test_stream_turn_section import INSTANCE, _seed_chat, home  # noqa: F401
+from tests.agent_runtime.test_stream_turn_section import INSTANCE, _seed_chat, home
 from tests.fakes.providers import openai_responses
 from tests.fakes.providers.openai_responses import FakeResponsesServer
 
@@ -105,7 +105,7 @@ class _Windows:
 @pytest.mark.timeout(240)
 @pytest.mark.parametrize("resident", [True, False], ids=["resident_chats", "no_resident_chats"])
 def test_the_first_turn_after_an_idle_pause_rebuilds_no_memo_and_rides_a_warm_socket(
-    monkeypatch, capsys, isolate_agent_runtime_root, home, resident  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root, home, resident
 ):
     # ``no_resident_chats`` (owner ruling 2026-10-16): a serve with
     # ``persona_chat.hot_sessions_enabled`` off -- the QA home -- builds a fresh actor every

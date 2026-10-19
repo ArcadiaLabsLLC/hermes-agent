@@ -163,7 +163,7 @@ def test_explicit_missing_board_id_is_invalid_request():
 
 
 def test_created_by_resolves_persona_from_session():
-    ws = _make_workspace()
+    _make_workspace()
     from agent_runtime.persona_assignments import PersonaInstanceStore
 
     instance = PersonaInstanceStore().create_operator_chat(
@@ -185,7 +185,7 @@ def test_created_by_resolves_persona_from_session():
 
 
 def test_board_cards_lists_active_cards():
-    ws = _make_workspace()
+    _make_workspace()
     registry.dispatch("board_card_add", {"title": "One"}, task_id=None, session_id=None)
     registry.dispatch("board_card_add", {"title": "Two"}, task_id=None, session_id=None)
     result = json.loads(registry.dispatch("board_cards", {}, task_id=None, session_id=None))

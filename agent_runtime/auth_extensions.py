@@ -10,7 +10,7 @@ import os
 import stat
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any, Dict
 from hermes_cli.auth_constants import AuthError
@@ -35,11 +35,11 @@ def _rotation_state_path() -> Path:
     return auth._auth_file_path().with_name("credential_rotation.json")
 
 
-def _empty_rotation_state() -> Dict[str, Any]:
+def _empty_rotation_state() -> dict[str, Any]:
     return {"version": ROTATION_STATE_VERSION, "providers": {}}
 
 
-def _load_rotation_state() -> Dict[str, Any]:
+def _load_rotation_state() -> dict[str, Any]:
     """Read the rotation sidecar. Never raises; a damaged file starts empty.
 
     Rotation state is reconstructible by definition — losing it costs one
@@ -64,7 +64,7 @@ def _load_rotation_state() -> Dict[str, Any]:
     return raw
 
 
-def read_pool_rotation_state(provider_id: str) -> Dict[str, Any]:
+def read_pool_rotation_state(provider_id: str) -> dict[str, Any]:
     """Return one provider's persisted selection state as a plain dict.
 
     No global-root fallback, deliberately: a profile that borrows another
@@ -79,7 +79,7 @@ def read_pool_rotation_state(provider_id: str) -> Dict[str, Any]:
     return dict(slice_) if isinstance(slice_, dict) else {}
 
 
-def _write_rotation_state_file(store: Dict[str, Any]) -> Path:
+def _write_rotation_state_file(store: dict[str, Any]) -> Path:
     """Atomic 0600 write of the whole sidecar, mirroring ``_save_auth_store`` minus its fsync.
 
     No fsync: the sidecar is reconstructible (``_load_rotation_state``: a damaged file starts
@@ -110,7 +110,7 @@ def _write_rotation_state_file(store: Dict[str, Any]) -> Path:
     return path
 
 
-def write_pool_rotation_state(provider_id: str, state: Dict[str, Any]) -> Path:
+def write_pool_rotation_state(provider_id: str, state: dict[str, Any]) -> Path:
     """Persist one provider's selection state, leaving auth.json untouched.
 
     Takes the auth store lock so rotation writes serialize against credential
@@ -133,7 +133,7 @@ def write_pool_rotation_state(provider_id: str, state: Dict[str, Any]) -> Path:
         else:
             providers.pop(key, None)
         store["version"] = ROTATION_STATE_VERSION
-        store["updated_at"] = datetime.now(timezone.utc).isoformat()
+        store["updated_at"] = datetime.now(UTC).isoformat()
         return _write_rotation_state_file(store)
 
 

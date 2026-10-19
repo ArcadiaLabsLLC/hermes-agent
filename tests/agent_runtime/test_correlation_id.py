@@ -340,7 +340,7 @@ def test_one_upsert_puts_the_token_on_the_domain_event_and_the_paired_patch():
     would have shipped.
     """
 
-    store = _seed()
+    _seed()
 
     reply = _upsert(
         "c-upsert",

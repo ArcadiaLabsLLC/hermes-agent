@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from agent_runtime.board_store.rows import (  # noqa: F401 — the S48 gate reads the four here
+from agent_runtime.board_store.rows import (  # the S48 gate reads the four here
     _board_active_card_count,
     _board_row,
     _card_row,

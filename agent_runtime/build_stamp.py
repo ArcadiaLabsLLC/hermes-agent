@@ -64,7 +64,7 @@ import subprocess
 import threading
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -117,7 +117,7 @@ _BOOT_EPOCH = time.time()
 _BOOT_MONOTONIC = time.monotonic()
 
 _cache_lock = threading.Lock()
-_cached_stamp: "BuildStamp | None" = None
+_cached_stamp: BuildStamp | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -479,7 +479,7 @@ def _baked_sha(root: Path | None) -> str | None:
 
 def _iso(epoch: float) -> str:
     return (
-        datetime.fromtimestamp(epoch, tz=timezone.utc)
+        datetime.fromtimestamp(epoch, tz=UTC)
         .isoformat(timespec="milliseconds")
         .replace("+00:00", "Z")
     )

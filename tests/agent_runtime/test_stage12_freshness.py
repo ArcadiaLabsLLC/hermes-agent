@@ -29,7 +29,7 @@ def test_blueprint_catalog_store_is_removed_with_stage_graph():
 
 
 def _offset() -> int:
-    import agent_runtime.paths as paths
+    from agent_runtime import paths
 
     path = paths.events_path()
     return path.stat().st_size if path.exists() else 0
@@ -123,7 +123,7 @@ def test_stream_backstop_reconciles_eventless_write():
 
     import json
 
-    import agent_runtime.paths as paths
+    from agent_runtime import paths
     from agent_runtime.store import RealmStore
     from agent_runtime.stream import stream_frames
 
@@ -511,7 +511,7 @@ def test_eventless_write_coincident_with_evented_batch_still_converges():
 
     import json
 
-    import agent_runtime.paths as paths
+    from agent_runtime import paths
     from agent_runtime.store import RealmStore, WorkspaceStore
     from agent_runtime.stream import stream_frames
 

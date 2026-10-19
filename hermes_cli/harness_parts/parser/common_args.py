@@ -77,7 +77,7 @@ def _add_stage42_global_args(
     def add(*flags, **kwargs):
         if any(flag in omit for flag in flags):
             return
-        if any(flag in parser._option_string_actions for flag in flags):  # noqa: SLF001 - argparse has no public query
+        if any(flag in parser._option_string_actions for flag in flags):  # argparse has no public query
             return
         parser.add_argument(*flags, **kwargs)
 

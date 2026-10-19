@@ -107,27 +107,27 @@ from here.
 
 from __future__ import annotations
 
-from agent_runtime.gateway_endpoints import (  # noqa: F401
+from agent_runtime.gateway_endpoints import (
     DIAL_LOCAL_POLICY,
     DIAL_UNREACHABLE,
     classify_dial_error,
 )
 
-from .devices import (  # noqa: F401
+from .devices import (
     cmd_gateway_devices_list,
     cmd_gateway_devices_revoke,
     cmd_gateway_pair,
 )
-from .introduce import (  # noqa: F401
+from .introduce import (
     cmd_gateway_introduce,
     cmd_gateway_peers_pair,
 )
-from .join import cmd_gateway_peers_join  # noqa: F401
-from .peers import (  # noqa: F401
+from .join import cmd_gateway_peers_join
+from .peers import (
     cmd_gateway_peers_list,
     cmd_gateway_peers_revoke,
 )
-from .refusals import (  # noqa: F401
+from .refusals import (
     _REFUSAL_CODES,
     _STORE_WRITE_REASONS,
     GRANT_PAYLOAD_KEYS,
@@ -139,15 +139,15 @@ from .refusals import (  # noqa: F401
 __layer__ = "lanes"
 
 __all__ = [
-    "cmd_gateway_introduce",
-    "cmd_gateway_pair",
-    "cmd_gateway_devices_list",
-    "cmd_gateway_devices_revoke",
-    "cmd_gateway_peers_pair",
-    "cmd_gateway_peers_join",
-    "cmd_gateway_peers_list",
-    "cmd_gateway_peers_revoke",
-    "classify_dial_error",
     "DIAL_LOCAL_POLICY",
     "DIAL_UNREACHABLE",
+    "classify_dial_error",
+    "cmd_gateway_devices_list",
+    "cmd_gateway_devices_revoke",
+    "cmd_gateway_introduce",
+    "cmd_gateway_pair",
+    "cmd_gateway_peers_join",
+    "cmd_gateway_peers_list",
+    "cmd_gateway_peers_pair",
+    "cmd_gateway_peers_revoke",
 ]

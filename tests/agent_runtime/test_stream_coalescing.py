@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 
 import agent_runtime.stream as stream_mod
@@ -28,7 +28,7 @@ FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "stream_frames"
 def _append(log: EventLog, index: int) -> None:
     log.append(
         Event(
-            ts=datetime(2026, 7, 16, 12, 0, index % 60, tzinfo=timezone.utc),
+            ts=datetime(2026, 7, 16, 12, 0, index % 60, tzinfo=UTC),
             type="state.reconciled",
             task_id=f"task_burst_{index}",
             run_id=None,

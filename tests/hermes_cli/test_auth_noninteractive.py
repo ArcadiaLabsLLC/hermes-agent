@@ -194,7 +194,7 @@ def test_set_key_profile_flag_redirects_the_write_and_reports_it(
     profile_home.mkdir(parents=True)
     monkeypatch.setenv("HERMES_HOME", str(default_home))
 
-    import hermes_cli.profiles as profiles
+    from hermes_cli import profiles
 
     monkeypatch.setattr(profiles, "get_profile_dir", lambda name: root / "profiles" / name)
     _feed_stdin(monkeypatch, SENTINEL + "\n")

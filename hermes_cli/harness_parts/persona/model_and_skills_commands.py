@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from agent_runtime.operation_result import emit_operation_result
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from agent_runtime.cli_format import emit_json
 from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.coordinator_permissions import review_coordinator_budget
@@ -349,9 +349,9 @@ def _cmd_persona_set_model(args) -> int:
     status = "applied"
     issued_at = request["issued_at"]
     if issued_at is not None and getattr(target, "model_override_issued_at", None) is not None:
-        issued = issued_at if issued_at.tzinfo is not None else issued_at.replace(tzinfo=timezone.utc)
+        issued = issued_at if issued_at.tzinfo is not None else issued_at.replace(tzinfo=UTC)
         applied_at = target.model_override_issued_at
-        applied_at = applied_at if applied_at.tzinfo is not None else applied_at.replace(tzinfo=timezone.utc)
+        applied_at = applied_at if applied_at.tzinfo is not None else applied_at.replace(tzinfo=UTC)
         if issued <= applied_at:
             status = "superseded"
     changed = False
@@ -370,7 +370,7 @@ def _cmd_persona_set_model(args) -> int:
                     setattr(target, field_name, value)
                     changed = True
         if changed:
-            target.model_override_issued_at = issued_at or datetime.now(timezone.utc)
+            target.model_override_issued_at = issued_at or datetime.now(UTC)
             store.save(target)
     default_provider = getattr(cfg, "default_provider", None)
     default_model = getattr(cfg, "default_model", None)
@@ -517,9 +517,9 @@ def _cmd_persona_set_skills(args) -> int:
     status = "applied"
     issued_at = request["issued_at"]
     if issued_at is not None and getattr(target, "skills_override_issued_at", None) is not None:
-        issued = issued_at if issued_at.tzinfo is not None else issued_at.replace(tzinfo=timezone.utc)
+        issued = issued_at if issued_at.tzinfo is not None else issued_at.replace(tzinfo=UTC)
         applied_at = target.skills_override_issued_at
-        applied_at = applied_at if applied_at.tzinfo is not None else applied_at.replace(tzinfo=timezone.utc)
+        applied_at = applied_at if applied_at.tzinfo is not None else applied_at.replace(tzinfo=UTC)
         if issued <= applied_at:
             status = "superseded"
     changed = False
@@ -529,7 +529,7 @@ def _cmd_persona_set_skills(args) -> int:
             target.skills = requested
             changed = True
         if changed:
-            target.skills_override_issued_at = issued_at or datetime.now(timezone.utc)
+            target.skills_override_issued_at = issued_at or datetime.now(UTC)
             store.save(target)
     stored_skills = list(target.skills or [])
     data = attach_root_observability({
@@ -574,7 +574,7 @@ def _unresolvable_skill_ids(skills: list[str]) -> list[str]:
         from agent_runtime.skill_resolution import resolve_skills
 
         resolutions = resolve_skills(list(skills))
-    except Exception:  # noqa: BLE001 - advisory warning list, never a gate
+    except Exception:  # advisory warning list, never a gate
         return []
     return [
         name

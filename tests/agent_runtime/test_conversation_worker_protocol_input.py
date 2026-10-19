@@ -14,6 +14,6 @@ print(child.stdout.strip())
 print(sys.stdin.readline().strip())
 """
     result = subprocess.run([sys.executable, "-c", code], input="owned-request\n",
-                            text=True, capture_output=True, timeout=15, env=os.environ.copy())
+                            text=True, capture_output=True, timeout=15, env=os.environ.copy(), check=False)
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == ["''", "owned-request"]

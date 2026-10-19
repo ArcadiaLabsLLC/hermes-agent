@@ -230,18 +230,18 @@ class TurnPhaseMarks:
     """
 
     __slots__ = (
-        "_monotonic",
+        "__weakref__",
         "_anchor",
         "_anchored_at",
-        "_marks",
+        "_baselines",
+        "_counters",
+        "_cpu_anchor",
         "_flags",
         "_labels",
-        "_counters",
-        "_baselines",
         "_lock",
-        "_cpu_anchor",
+        "_marks",
+        "_monotonic",
         "receipt_turn",
-        "__weakref__",
     )
 
     def __init__(

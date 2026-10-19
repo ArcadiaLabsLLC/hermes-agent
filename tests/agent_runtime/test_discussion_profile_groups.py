@@ -182,7 +182,7 @@ def test_each_idle_guard_alone_keeps_a_group_pending(groups, monkeypatch):
     from types import SimpleNamespace
 
     service, *_ = groups
-    run = create(groups)
+    create(groups)
     assert service.pending_count() == 0  # control: the untouched group is settled
     with monkeypatch.context() as m:
         m.setattr(service, "_plan", lambda *_: SimpleNamespace(status="task"))

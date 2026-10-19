@@ -87,7 +87,7 @@ class PathFilter:
             return None
         try:
             full = _normcase(_abspath(os.fspath(raw)))
-        except Exception:  # noqa: BLE001 — the recorder observes; it never fails the code it watches
+        except Exception:  # the recorder observes; it never fails the code it watches
             return None
         if not full.startswith(self._prefix):
             return None
@@ -106,7 +106,7 @@ class PathFilter:
 
 
 def first_program(argv) -> str:
-    """The program an argv (a sequence, or a command line) names first. Windows audits the
+    r"""The program an argv (a sequence, or a command line) names first. Windows audits the
     command line: a quoted program may hold spaces (``"C:\Program Files\python.exe" -c``),
     so a quoted head is read to its closing quote, never split on spaces. The ONE reader:
     ``hermes_bundle_report.program_kind`` classifies through it too."""
@@ -117,8 +117,8 @@ def first_program(argv) -> str:
             return text[1:].partition('"')[0]
         return text.split()[0] if text.split() else ""
     try:
-        first = list(argv)[0]
-    except (TypeError, IndexError):
+        first = next(iter(argv))
+    except (TypeError, StopIteration):
         return ""
     return os.fsdecode(first) if isinstance(first, bytes) else str(first)
 
@@ -160,7 +160,7 @@ def is_python(program: str) -> bool:
 
 
 class Bucket:
-    __slots__ = ("paths", "dirs", "idirs", "spawn_py", "spawn_other")
+    __slots__ = ("dirs", "idirs", "paths", "spawn_other", "spawn_py")
 
     def __init__(self) -> None:
         self.paths: set[str] = set()
@@ -216,5 +216,5 @@ class AuditTrail:
                     bucket.spawn_py += 1
                 else:
                     bucket.spawn_other += 1
-        except Exception:  # noqa: BLE001 — an audit hook must never raise into the code under test
+        except Exception:  # an audit hook must never raise into the code under test
             return

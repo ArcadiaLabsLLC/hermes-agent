@@ -269,7 +269,7 @@ class ImageRevisionStore:
     def _read_state(self, key: str) -> dict:
         path = self._item_dir(key) / STATE_FILENAME
         try:
-            raw = path.read_text(encoding="utf-8")
+            raw = path.read_text(encoding="utf-8-sig")
         except FileNotFoundError:
             return _empty_state()
         try:
@@ -282,9 +282,7 @@ class ImageRevisionStore:
             record for record in loaded.get("attempts") or [] if isinstance(record, dict)
         ]
         approved = loaded.get("approved")
-        if isinstance(approved, bool) or not isinstance(approved, int):
-            approved = None
-        elif not 0 <= approved < len(attempts):
+        if isinstance(approved, bool) or not isinstance(approved, int) or not 0 <= approved < len(attempts):
             approved = None
         return {
             "schema": loaded.get("schema", SCHEMA),

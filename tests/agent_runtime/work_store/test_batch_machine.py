@@ -167,10 +167,10 @@ def test_lanes_start_under_the_budget():
     d.executor.settle(f"{batch.id}:L1", Outcome(Verdict.DONE))
     assert d.load(WS, batch.id).lanes[2].state is LaneState.RUNNING
     heavy = FakeSource(rows("A-one", "B-two", extra=" on the daily branch"))
-    d2, batch2 = started(heavy)
+    _d2, batch2 = started(heavy)
     assert [lane.state for lane in batch2.lanes] == [LaneState.RUNNING, LaneState.CLAIMED]
     quiet = FakeSource(rows("A-one", extra=" a flaky test"))
-    d3, batch3 = started(quiet, box_idle=False)
+    _d3, batch3 = started(quiet, box_idle=False)
     assert batch3.lanes[0].state is LaneState.CLAIMED
 
 

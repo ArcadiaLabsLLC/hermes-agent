@@ -115,8 +115,7 @@ def write_receipt(rootdir: Path) -> Path | None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "a", encoding="utf-8") as handle:
-            for row in rows:
-                handle.write(json.dumps(row, sort_keys=True) + "\n")
+            handle.writelines(json.dumps(row, sort_keys=True) + "\n" for row in rows)
     except OSError:
         return None
     return path

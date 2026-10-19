@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 _CLI_COMMAND_NAME_RE = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
 
 
-def cli_command_entry(item: object) -> Optional[Dict[str, str]]:
+def cli_command_entry(item: object) -> Optional[dict[str, str]]:
     """``{name, help, description, parent}`` from a cli_commands item; None when a name is invalid.
 
     ``parent`` names a built-in command the verb attaches under (``hermes <parent> <name>``); empty

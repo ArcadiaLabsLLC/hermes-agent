@@ -763,11 +763,11 @@ def test_both_build_families_carry_this_process_pid(monkeypatch, build_log, buil
     # message, so a ``%(process)d`` on the formatter — the rejected alternative,
     # which re-shapes every line this runtime emits — would satisfy nothing
     # here.
-    assert " pid=" in [
+    assert " pid=" in next(
         record.getMessage()
         for record in build_log.records
         if record.getMessage().startswith(_CORE_PREFIX)
-    ][0]
+    )
 
 
 def test_the_pid_field_did_not_displace_the_fields_already_grepped(

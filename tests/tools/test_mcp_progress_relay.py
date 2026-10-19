@@ -17,11 +17,11 @@ import pytest
 
 pytest.importorskip("mcp")
 
-from mcp import ClientSession, types  # noqa: E402
-from mcp.shared.memory import create_client_server_memory_streams  # noqa: E402
-from mcp.shared.message import SessionMessage  # noqa: E402
+from mcp import ClientSession, types
+from mcp.shared.memory import create_client_server_memory_streams
+from mcp.shared.message import SessionMessage
 
-from tools import mcp_progress_relay as relay  # noqa: E402
+from tools import mcp_progress_relay as relay
 
 QA_META = {"stagec_qa_build": {"phase": "compiling", "commit": "87c550098", "expected_ms": 330000}}
 

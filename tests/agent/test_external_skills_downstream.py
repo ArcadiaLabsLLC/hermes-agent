@@ -6,7 +6,7 @@ Same names, same bodies; the upstream file keeps only upstream's tests.
 import os
 from unittest.mock import patch
 
-from tests.agent.test_external_skills import (  # noqa: F401 — upstream fixtures the moved test uses
+from tests.agent.test_external_skills import (  # upstream fixtures the moved test uses
     external_skills_dir,
     hermes_home,
 )

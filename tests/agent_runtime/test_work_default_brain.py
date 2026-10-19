@@ -15,7 +15,7 @@ from agent_runtime.work_store import board
 from agent_runtime.work_store.grammar import parse_note
 from agent_runtime.workspace_slots import declare
 from tests.agent_runtime.persona_instance_mint import mint_free_floating
-from tests.agent_runtime.test_work_service import call, rows_of, start, work  # noqa: F401
+from tests.agent_runtime.test_work_service import call, rows_of, start, work
 
 BRAIN = "Harness_Brain/20 — Active Initiatives"
 MOVED_NOTE = f"{BRAIN}/work-queue.md"

@@ -25,8 +25,8 @@ from .steps import (
 __layer__ = "lanes"
 __all__ = [
     "CHARACTER_STEPS",
-    "CharacterStep",
     "_CHARACTERS_AUTO_STEPS",
+    "CharacterStep",
     "_characters_auto_next",
     "_characters_auto_plan",
     "_characters_auto_steps",

@@ -99,6 +99,7 @@ def _run_preparse(root: Path, argv: list[str], env_home: str | None) -> dict:
         capture_output=True,
         text=True,
         timeout=25,
+        check=False,
     )
     assert proc.returncode == 0, proc.stderr
     return json.loads(proc.stdout.strip().splitlines()[-1])

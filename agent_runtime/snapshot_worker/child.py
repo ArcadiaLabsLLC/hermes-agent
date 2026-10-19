@@ -334,7 +334,7 @@ def serve(requests: BinaryIO, replies: BinaryIO) -> None:
 
     cpu_of = _thread_cpu_reader()
     # The handshake means "a build can start now": the builder's imports are paid.
-    import agent_runtime.snapshot.build  # noqa: F401
+    import agent_runtime.snapshot.build
 
     from agent_runtime.conversations.process_evidence import worker_ready_frame
 

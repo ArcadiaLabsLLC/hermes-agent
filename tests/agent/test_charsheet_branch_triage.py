@@ -55,7 +55,7 @@ from agent.charsheet.spec import FOUR_WAY, SheetSpec, StateSpec, parse_direction
 
 pytest.importorskip("PIL")
 
-from PIL import Image  # noqa: E402
+from PIL import Image
 
 
 @pytest.fixture(autouse=True)

@@ -43,4 +43,4 @@ def cycle_b():
 
 def unresolved(handler):
     handler.emit(1)
-    mystery(1)  # noqa: F821
+    mystery(1)

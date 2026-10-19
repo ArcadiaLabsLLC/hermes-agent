@@ -25,8 +25,8 @@ __layer__ = "stores"
 __all__ = [
     "_SkillObservabilityResolver",
     "_accessible_skills_context",
-    "_persona_skill_assignment_removals",
     "_installed_skill_catalog",
+    "_persona_skill_assignment_removals",
     "_skill_candidate_content_hash",
 ]
 

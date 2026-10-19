@@ -399,7 +399,7 @@ def _safe_event_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "context_proof_count", "context_incident_count", "context_size_estimate",
         "proof_intent", "environment_fingerprint", "environment_fingerprint_status",
         "display_kind", "display_title", "display_summary", "redaction_status", "gate_source",
-        "patch_count", "test_count", "proof_count", "read_search_count",
+        "patch_count", "test_count", "read_search_count",
         "new_evidence_count", "packet_repair_count", "invalid_packet_count",
         "malformed_packet_count", "recovery_action", "recovery_reason",
         "scope_recovery", "handoff_target", "waiting_on_persona_id",

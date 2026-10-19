@@ -348,7 +348,7 @@ def _registered(registry, server: str = "bench") -> set[str]:
 
 
 def test_a_server_with_no_live_session_classifies_cold(monkeypatch):
-    import tools.mcp_tool as mcp_tool
+    from tools import mcp_tool
 
     monkeypatch.setattr(mcp_tool, "_servers", {}, raising=False)
 
@@ -365,7 +365,7 @@ def test_a_connected_server_classifies_warm_and_a_parked_one_does_not(monkeypatc
     describes — worse than no receipt.
     """
 
-    import tools.mcp_tool as mcp_tool
+    from tools import mcp_tool
 
     parked = _FakeConnectedServer("parked", _SURFACE)
     parked.session = None
@@ -385,7 +385,7 @@ def test_a_connected_server_classifies_warm_and_a_parked_one_does_not(monkeypatc
 def test_the_outcome_carries_the_transport_path_the_turn_actually_took(
     monkeypatch, clean_registry
 ):
-    import tools.mcp_tool as mcp_tool
+    from tools import mcp_tool
 
     monkeypatch.setattr(
         mcp_tool, "_servers", {"bench": _FakeConnectedServer("bench", _SURFACE)}, raising=False
@@ -401,7 +401,7 @@ def test_the_outcome_carries_the_transport_path_the_turn_actually_took(
 def test_a_caller_supplied_registrar_gets_no_transport_label(monkeypatch, clean_registry):
     """Silence beats a confident label for a path that was never taken."""
 
-    import tools.mcp_tool as mcp_tool
+    from tools import mcp_tool
 
     monkeypatch.setattr(
         mcp_tool, "_servers", {"bench": _FakeConnectedServer("bench", _SURFACE)}, raising=False
@@ -432,7 +432,7 @@ def test_a_warm_transport_re_registers_under_THIS_runs_tool_filter(
     would re-list from scratch and the leak could not appear.
     """
 
-    import tools.mcp_tool as mcp_tool
+    from tools import mcp_tool
 
     monkeypatch.setattr(
         mcp_tool, "_servers", {"bench": _FakeConnectedServer("bench", _SURFACE)}, raising=False

@@ -23,10 +23,10 @@ from .hoist import HOISTED_SKILL_LIST_FIELDS, _skills_list_content_hash
 
 __layer__ = "stores"
 __all__ = [
+    "_store_skills_catalog",
     "load_skills_catalog_from_store",
     "persist_prompt_observability_context",
     "skills_catalog_by_hash",
-    "_store_skills_catalog",
 ]
 
 

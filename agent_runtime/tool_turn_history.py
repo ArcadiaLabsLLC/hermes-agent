@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from typing import Any
 
 from utils import atomic_json_write
@@ -35,7 +35,7 @@ def persist_tool_turn_actual(
     payload = _read_history(path)
     entry = {
         "schema_version": 1,
-        "recorded_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "recorded_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "persona_id": persona,
         "session_id": _safe_text(session_id),
         "task_id": _safe_token(task_id),

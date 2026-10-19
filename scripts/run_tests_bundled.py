@@ -604,7 +604,7 @@ def _timed_out(outcomes: Sequence[FileOutcome], repo_root: Path) -> list[str]:
 
 def _read_lines(path: Path) -> list[str]:
     try:
-        return path.read_text(encoding="utf-8").splitlines()
+        return path.read_text(encoding="utf-8-sig").splitlines()
     except OSError:
         return []
 

@@ -151,7 +151,7 @@ def stamp_recorded_home(directory: Path, home: str) -> bool:
     """
     path = Path(directory) / DRAFT_FILENAME
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         return False
     if not isinstance(data, dict):
@@ -286,7 +286,7 @@ def read_palette(directory: Path) -> list[str] | None:
     ``characters list`` down over one is a worse outcome than a missing strip.
     """
     try:
-        raw = json.loads((directory / PALETTE_FILENAME).read_text(encoding="utf-8"))
+        raw = json.loads((directory / PALETTE_FILENAME).read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         return None
     if not isinstance(raw, list):

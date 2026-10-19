@@ -27,7 +27,7 @@ from agent_runtime.conversation_observability import (
 )
 from agent_runtime.persona_turn_binding import bind_persona_turn_agent
 from agent_runtime.receipt_sink import ReceiptSink
-from tests.agent.test_request_assembled_marker import loop_agent  # noqa: F401 - fixture
+from tests.agent.test_request_assembled_marker import loop_agent  # fixture
 
 _STEPS = (
     CONVERSATION_STARTED_STEP,
@@ -39,7 +39,7 @@ _STEPS = (
 )
 
 
-def test_loop_stamps_fire_in_turn_order_before_the_provider_call(loop_agent):  # noqa: F811
+def test_loop_stamps_fire_in_turn_order_before_the_provider_call(loop_agent):
     from tests.agent.test_run_agent import _mock_response
 
     order: list[str] = []

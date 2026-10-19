@@ -51,8 +51,17 @@ class ForegroundCommand:
 
 
 class _Entry:
-    __slots__ = ("pid", "command", "started_at", "started_mono", "timeout", "owner_tid", "output",
-                 "seen_chars", "last_output_mono")
+    __slots__ = (
+        "command",
+        "last_output_mono",
+        "output",
+        "owner_tid",
+        "pid",
+        "seen_chars",
+        "started_at",
+        "started_mono",
+        "timeout",
+    )
 
     def __init__(self, *, pid: Any, command: str, timeout: Any, owner_tid: Any, output: Any) -> None:
         now = time.monotonic()

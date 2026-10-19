@@ -170,7 +170,7 @@ def test_a_malformed_id_refuses_to_start_and_never_falls_back_to_the_base(base: 
 def test_the_real_entry_point_refuses_a_malformed_id_with_exit_2(base: Path):
     env = {**os.environ, **_launcher(base, HERMES_NAMESPACE="Not-Valid")}
     proc = subprocess.run([sys.executable, "-m", "hermes_cli.main", "status"], cwd=REPO, env=env,
-                          capture_output=True, text=True, timeout=120)
+                          capture_output=True, text=True, timeout=120, check=False)
     assert proc.returncode == 2, proc.stderr[-2000:]
     line = json.loads(proc.stderr.strip().splitlines()[-1])
     assert line["reason"] == "namespace_invalid_id"
@@ -183,7 +183,7 @@ def _probe(base: Path, *args: str, **extra: str) -> subprocess.CompletedProcess:
     env = {k: v for k, v in os.environ.items() if not k.startswith("HERMES_NAMESPACE")}
     env.update(_env(base, **extra))
     return subprocess.run([sys.executable, "-m", "hermes_cli.main", "namespace", *args], cwd=REPO, env=env,
-                          capture_output=True, text=True, timeout=120)
+                          capture_output=True, text=True, timeout=120, check=False)
 
 
 def test_probe_exits_0_with_json_and_writes_nothing(base: Path):

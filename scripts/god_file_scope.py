@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import ast
 from dataclasses import dataclass, field
-from functools import lru_cache
+from functools import lru_cache, cache
 from pathlib import Path
 from typing import Callable, Iterable, Iterator, Mapping
 
@@ -66,8 +66,7 @@ def is_str_collection(node: ast.AST) -> bool:
 
 def module_name(path: str) -> str:
     stem = path[:-3]
-    if stem.endswith("/__init__"):
-        stem = stem[: -len("/__init__")]
+    stem = stem.removesuffix("/__init__")
     return stem.replace("/", ".")
 
 
@@ -81,7 +80,7 @@ def resolve_from(path: str, node: ast.ImportFrom) -> str:
     return ".".join([*package, *([node.module] if node.module else [])])
 
 
-@lru_cache(maxsize=None)
+@cache
 def module_path(root: Path, dotted: str) -> str | None:
     """The repo file a dotted module resolves to, or None (stdlib, third party, a name)."""
     stem = dotted.replace(".", "/")
@@ -190,7 +189,7 @@ def statement_bindings(root: Path, path: str, node: ast.AST) -> dict[str, Bindin
     return binder(root, path, node) if binder else {}
 
 
-@lru_cache(maxsize=None)
+@cache
 def module_bindings(root: Path, path: str) -> Mapping[str, Binding]:
     """What ``path`` binds at top level that G5 can reason about, re-exports followed."""
     parsed = tree(root, path)
@@ -272,7 +271,7 @@ class _ScopeBuilder:
         return FileScope(self.path, dict(self.str_names), frozenset(self.enum_names), declares)
 
 
-@lru_cache(maxsize=None)
+@cache
 def file_scope(root: Path, path: str) -> FileScope:
     """One file's :class:`FileScope`: its top-level bindings plus every import, deferred ones too."""
     builder = _ScopeBuilder(root, path)

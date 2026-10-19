@@ -60,11 +60,11 @@ def _args(store_root: Path, **kw) -> SimpleNamespace:
     return SimpleNamespace(**{**base, **kw})
 
 
-def _start(repo: Path, store_root: Path, roots=(), **kw) -> "gate_mod.GateRun":
+def _start(repo: Path, store_root: Path, roots=(), **kw) -> gate_mod.GateRun:
     return gate_mod.GateRun.start(_args(store_root, **kw), repo, [repo / T], list(roots), [], environ={})
 
 
-def _red_run(repo: Path, store_root: Path, rc: int = 1) -> "gate_mod.GateRun":
+def _red_run(repo: Path, store_root: Path, rc: int = 1) -> gate_mod.GateRun:
     """A run in which ``T`` went red: its outcome writes the red key, its record the red map."""
 
     gate = _start(repo, store_root)
@@ -193,6 +193,7 @@ def test_a_process_killed_mid_file_leaves_a_partial_record_the_red_key_uses(repo
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_dep_record",
          f"--hermes-gate-deps={tmp_path / 'deps'}", "test_k.py"],
         cwd=proj, env=env, capture_output=True, text=True, timeout=120,
+        check=False,
     )
     assert proc.returncode == 3, proc.stdout + proc.stderr
     collector = cache.DepsCollector(tmp_path / "deps")

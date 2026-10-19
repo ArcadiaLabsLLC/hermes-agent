@@ -26,7 +26,7 @@ __all__ = ["ScheduledTurnLane", "_collect_scheduled_turns"]
 
 def _epoch(stamp: Any) -> float | None:
     try:
-        return datetime.fromisoformat(str(stamp).replace("Z", "+00:00")).timestamp()
+        return datetime.fromisoformat(str(stamp)).timestamp()
     except (TypeError, ValueError):
         return None
 

@@ -33,7 +33,7 @@ from types import SimpleNamespace
 import pytest
 
 from tests._downstream.split_package_source import patch_where_bound
-from tests.agent_runtime.test_persona_chat_actor_prewarm import (  # noqa: F401 - fixture
+from tests.agent_runtime.test_persona_chat_actor_prewarm import (  # fixture
     _Agent,
     _request,
     stub_runtime,

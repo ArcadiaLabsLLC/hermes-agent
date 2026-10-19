@@ -8,7 +8,7 @@ from tools.skills_hub_search import create_source_router, unified_search
 __layer__ = "stores"
 
 
-def _skill_identifier(skill: Dict[str, Any]) -> str:
+def _skill_identifier(skill: dict[str, Any]) -> str:
     """Return the stable identifier a model can pass to ``skill_view``."""
     identifier = str(skill.get("identifier") or "").strip().strip("/")
     if identifier:
@@ -18,7 +18,7 @@ def _skill_identifier(skill: Dict[str, Any]) -> str:
     return f"{category}/{name}" if category else name
 
 
-def _installed_skill_matches(skill: Dict[str, Any], query: str) -> bool:
+def _installed_skill_matches(skill: dict[str, Any], query: str) -> bool:
     haystack = " ".join(
         str(value or "")
         for value in (
@@ -36,13 +36,13 @@ def _compact_text(value: Any, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 3] + "..."
 
 
-def _compact_tags(value: Any, *, max_tags: int = 20, max_len: int = 64) -> List[str]:
+def _compact_tags(value: Any, *, max_tags: int = 20, max_len: int = 64) -> list[str]:
     if not isinstance(value, list):
         return []
     return [_compact_text(tag, max_len) for tag in value[:max_tags]]
 
 
-def _compact_installed_skill_result(skill: Dict[str, Any]) -> Dict[str, Any]:
+def _compact_installed_skill_result(skill: dict[str, Any]) -> dict[str, Any]:
     return {
         "name": _compact_text(skill.get("name", ""), _st.MAX_NAME_LENGTH),
         "identifier": _compact_text(_skill_identifier(skill), 256),
@@ -54,7 +54,7 @@ def _compact_installed_skill_result(skill: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _compact_remote_skill_result(meta: Any) -> Dict[str, Any]:
+def _compact_remote_skill_result(meta: Any) -> dict[str, Any]:
     result = {
         "name": _compact_text(getattr(meta, "name", ""), _st.MAX_NAME_LENGTH),
         "identifier": _compact_text(getattr(meta, "identifier", ""), 256),
@@ -78,7 +78,7 @@ def skill_search(
     source: str = "all",
     limit: int = 10,
     include_installed: bool = True,
-    task_id: str = None,
+    task_id: str | None = None,
 ) -> str:
     """Search installed skills and the Hermes Skills Hub without loading bodies."""
     try:
@@ -109,8 +109,8 @@ def skill_search(
             )
 
         capped_limit = max(1, min(int(limit or 10), 50))
-        results: List[Dict[str, Any]] = []
-        seen: Set[str] = set()
+        results: list[dict[str, Any]] = []
+        seen: set[str] = set()
 
         if include_installed or normalized_source == "installed":
             installed = [

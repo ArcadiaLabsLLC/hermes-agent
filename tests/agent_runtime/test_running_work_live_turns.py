@@ -174,7 +174,7 @@ def test_without_the_executing_process_the_row_stays_durable(journal):
 def test_a_silent_foreground_command_reads_stalling(journal):
     with _build(register=True):
         foreground_watch.snapshot()  # observe the current output count first
-        with foreground_watch._lock:  # noqa: SLF001 - age the observed silence
+        with foreground_watch._lock:  # age the observed silence
             for entry in foreground_watch._entries.values():
                 entry.last_output_mono -= 700.0
         payload = build_running_work()

@@ -96,12 +96,12 @@ class RunnerPolicy:
     the host has a transport — the stream a turn's frames go to."""
 
     root_is_idle: Callable[[str], bool] = _root_is_idle
-    run_turn: Callable[[Any], "tuple[int, dict | None]"] = _run_turn
-    stream: "Callable[[queue.QueuedSend], ContextManager[TurnStream]] | None" = None
+    run_turn: Callable[[Any], tuple[int, dict | None]] = _run_turn
+    stream: Callable[[queue.QueuedSend], ContextManager[TurnStream]] | None = None
     #: Told once per TERMINAL settle, after it is recorded (never for a "queued" answer):
     #: ``(entry, exit_code, payload)``. The serve's Work executor reads its runs' endings here
     #: (``agent_runtime/work_store/persona_turn.py::PersonaTurnExecutor.settled``).
-    on_settle: "Callable[[queue.QueuedSend, int, dict | None], None] | None" = None
+    on_settle: Callable[[queue.QueuedSend, int, dict | None], None] | None = None
 
 
 DEFAULT_RUNNER_POLICY = RunnerPolicy()

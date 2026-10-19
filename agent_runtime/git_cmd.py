@@ -54,4 +54,4 @@ def run_git(
     run_kwargs.setdefault("stdout", subprocess.PIPE)
     run_kwargs.setdefault("stderr", subprocess.PIPE)
     run_kwargs.setdefault("text", True)
-    return subprocess.run(command, **run_kwargs)
+    return subprocess.run(command, check=run_kwargs.pop("check", False), **run_kwargs)

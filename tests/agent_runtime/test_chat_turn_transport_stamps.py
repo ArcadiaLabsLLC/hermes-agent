@@ -75,7 +75,7 @@ def test_phase_order_puts_the_stamps_inside_the_provider_span():
 
 
 class _Handler(BaseHTTPRequestHandler):
-    def do_POST(self):  # noqa: N802 - http.server naming
+    def do_POST(self):  # http.server naming
         length = int(self.headers.get("content-length") or 0)
         self.rfile.read(length)
         body = b"{}"

@@ -46,9 +46,9 @@ __all__ = [
     "_safe_command_label",
     "_safe_label",
     "_safe_reasoning_summary",
-    "_terminal_timeout_seconds",
     "_safe_skill_identifier_from_value",
     "_safe_skill_tool_name",
+    "_terminal_timeout_seconds",
     "_todo_items_from",
     "_todo_state_payload",
     "_tool_finished_payload",
@@ -497,7 +497,7 @@ def _duration_ms(value: Any) -> int | None:
         return None
     if number < 0 or number != number or number == float("inf"):
         return None
-    return int(round(number * 1000))
+    return round(number * 1000)
 
 
 def _safe_label(value: Any) -> str | None:

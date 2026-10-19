@@ -174,7 +174,7 @@ def plugin_roots(manifest) -> tuple[str, ...]:
 
 
 def profile_walk(manifest, index: dict[str, Path] | None = None, *,
-                 parents: bool = False) -> tuple["Walk", dict[str, Path]]:
+                 parents: bool = False) -> tuple[Walk, dict[str, Path]]:
     """The profile's one walk: its roots plus its bundled plugins, never into switched-off modules."""
     index = index if index is not None else module_index(plugins=getattr(manifest, "packaging_plugins", ()))
     first_party = {m.split(".")[0] for m in index}
@@ -274,7 +274,7 @@ def _parse_imports(path: Path, module: str, is_pkg: bool):
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", SyntaxWarning)
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
     except (SyntaxError, UnicodeDecodeError):
         return
     top_level = {id(n) for n in tree.body}
@@ -411,7 +411,7 @@ def _req(raw: str):
 
 def declared(path: Path = ROOT / "pyproject.toml", env: dict | None = None) -> tuple[set[str], dict[str, set[str]]]:
     """-> (base distribution names, extra -> distribution names), markers evaluated for the target."""
-    project = tomllib.loads(path.read_text(encoding="utf-8"))["project"]
+    project = tomllib.loads(path.read_text(encoding="utf-8-sig"))["project"]
     self_name = _norm(project["name"])
     env = TARGET_ENV if env is None else env
 
@@ -449,7 +449,7 @@ def requested_extras(path: Path = ROOT / "pyproject.toml", env: dict | None = No
     A requested extra's requirements ship with the distribution: ``httpx`` loads
     ``socksio`` only when a SOCKS proxy is configured, so no static import reaches it.
     """
-    project = tomllib.loads(path.read_text(encoding="utf-8"))["project"]
+    project = tomllib.loads(path.read_text(encoding="utf-8-sig"))["project"]
     env = TARGET_ENV if env is None else env
     out: dict[str, set[str]] = {}
     for raw in project.get("dependencies", []):
@@ -461,14 +461,14 @@ def requested_extras(path: Path = ROOT / "pyproject.toml", env: dict | None = No
 
 def declared_anywhere(path: Path = ROOT / "pyproject.toml") -> set[str]:
     """Every distribution ``[project]`` declares (base + extras), markers NOT evaluated."""
-    project = tomllib.loads(path.read_text(encoding="utf-8"))["project"]
+    project = tomllib.loads(path.read_text(encoding="utf-8-sig"))["project"]
     raws = [*project.get("dependencies", []), *(r for reqs in project.get("optional-dependencies", {}).values()
                                                  for r in reqs)]
     return {_norm(_req(raw).name) for raw in raws} - {_norm(project["name"])}
 
 
 def _lock(path: Path = ROOT / "uv.lock") -> dict[str, dict]:
-    return {_norm(p["name"]): p for p in tomllib.loads(path.read_text(encoding="utf-8")).get("package", [])}
+    return {_norm(p["name"]): p for p in tomllib.loads(path.read_text(encoding="utf-8-sig")).get("package", [])}
 
 
 def _wheel_size(package: dict) -> int | None:
@@ -635,7 +635,7 @@ print(json.dumps(failed))
 """
 
 
-def dropped_extra_failures(manifest, graph: "Graph", shipped: set[str]) -> list[str]:
+def dropped_extra_failures(manifest, graph: Graph, shipped: set[str]) -> list[str]:
     """``dist[extra] -> reason`` for each dropped extra whose shipped distribution does NOT import with
     the omitted distributions absent (an import error there is a phone that cannot start)."""
     import subprocess
@@ -658,7 +658,7 @@ def dropped_extra_failures(manifest, graph: "Graph", shipped: set[str]) -> list[
             out.append(f"{label}: not installed, so its import without the extra is unproven")
             continue
         done = subprocess.run([sys.executable, "-c", _DROPPED_EXTRA_PROBE, json.dumps(blocked), json.dumps(tops)],
-                              capture_output=True, text=True, timeout=300, cwd=ROOT)
+                              capture_output=True, text=True, timeout=300, cwd=ROOT, check=False)
         if done.returncode != 0:
             raise RuntimeError(f"dropped-extra probe failed for {label}: {done.stderr[-2000:]}")
         failed = json.loads(done.stdout.strip().splitlines()[-1])

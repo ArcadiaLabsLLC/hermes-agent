@@ -101,7 +101,7 @@ stops this one from being read as the whole census.
 from __future__ import annotations
 
 import shutil
-from agent_runtime.core_cache import (  # noqa: F401 — every family, in the original definition order
+from agent_runtime.core_cache import (  # every family, in the original definition order
     vocabulary,
     models,
     walk,
@@ -232,8 +232,6 @@ __all__ = [
     "CORE_FILENAME",
     "CORE_SOURCE_CACHE",
     "CORE_SOURCE_REBUILT",
-    "CacheRead",
-    "CoreFingerprint",
     "DEMOTE_ABSENT",
     "DEMOTE_BUILD_STAMP_MISMATCH",
     "DEMOTE_BUILD_STAMP_UNKNOWN",
@@ -252,7 +250,6 @@ __all__ = [
     "DIFF_UNAVAILABLE_NO_ENTRIES",
     "DIFF_UNAVAILABLE_NO_ENTRY_DELTA",
     "ENTRIES_FILENAME",
-    "FingerprintEntry",
     "GENERATION_RESIDUE_BOUND",
     "NEVER_CONVERGED_BUILDS",
     "POINTER_FILENAME",
@@ -278,6 +275,9 @@ __all__ = [
     "_SHADOW_IGNORED_TOP_KEYS",
     "_SHADOW_IGNORED_WATERMARK_KEYS",
     "_WAL_SIBLING",
+    "CacheRead",
+    "CoreFingerprint",
+    "FingerprintEntry",
     "_cache_dir",
     "_db_entries",
     "_diff_detail",

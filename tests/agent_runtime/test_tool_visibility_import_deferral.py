@@ -67,6 +67,7 @@ def _run_probe(body: str, tmp_path: Path) -> dict:
         capture_output=True,
         text=True,
         timeout=120,
+        check=False,
     )
     assert proc.returncode == 0, f"probe failed:\n{proc.stdout}\n{proc.stderr}"
     payload = [

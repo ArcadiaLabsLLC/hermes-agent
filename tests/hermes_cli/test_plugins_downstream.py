@@ -8,7 +8,7 @@ from hermes_cli.plugins import (
     PluginManager,
 )
 
-from tests.hermes_cli.test_plugins import (  # noqa: F401 — upstream names the moved tests use
+from tests.hermes_cli.test_plugins import (  # upstream names the moved tests use
     _make_plugin_dir,
 )
 

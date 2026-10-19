@@ -164,6 +164,7 @@ def _create_dir_link(link_path: Path, src: Path) -> str:
             ["cmd", "/c", "mklink", "/J", str(link_path), str(src)],
             capture_output=True,
             text=True,
+            check=False,
         )
         if result.returncode == 0:
             return "junction"

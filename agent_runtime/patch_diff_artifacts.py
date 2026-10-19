@@ -31,7 +31,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -65,7 +65,7 @@ def _utc_now() -> datetime:
     """Seam for tests: pinning this makes the content-hash idempotency of a
     repeated write observable without racing the second boundary."""
 
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def result_diff(result: Any) -> str | None:

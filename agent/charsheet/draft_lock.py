@@ -68,7 +68,7 @@ import socket
 import threading
 import time
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 
 from agent.charsheet.errors import DraftBusy
@@ -95,7 +95,7 @@ _REGISTRY_LOCK = threading.Lock()
 
 
 def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def _read_holder(path: Path) -> dict:
@@ -109,7 +109,7 @@ def _read_holder(path: Path) -> dict:
 
     holder: dict = {}
     try:
-        text = path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8-sig")
     except OSError:
         return {"lock": str(path)}
     try:

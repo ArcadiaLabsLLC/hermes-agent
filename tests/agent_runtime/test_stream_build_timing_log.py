@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 import re
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 
 import pytest
 
@@ -50,7 +50,7 @@ def _pairs(message: str) -> dict[str, str]:
 def _append(log: EventLog, index: int) -> None:
     log.append(
         Event(
-            ts=datetime(2026, 8, 16, 12, 0, index % 60, tzinfo=timezone.utc),
+            ts=datetime(2026, 8, 16, 12, 0, index % 60, tzinfo=UTC),
             type="state.reconciled",
             task_id=f"task_timing_{index}",
             run_id=None,

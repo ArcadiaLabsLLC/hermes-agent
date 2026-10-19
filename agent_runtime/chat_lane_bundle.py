@@ -133,7 +133,7 @@ from dataclasses import asdict, dataclass, is_dataclass
 from typing import Any
 
 from .config import chat_lane_defer_tools
-from .chat_lane_scope import (  # noqa: F401 — re-exported: the scope family lived here
+from .chat_lane_scope import (  # re-exported: the scope family lived here
     _CHAT_CAPABILITY_TOOLSETS,
     _augment_chat_capabilities,
     _blocked_tool_names_for_chat,
@@ -180,7 +180,7 @@ _MEMO_MAX_ROOTS = 256
 #:
 #: Cost: one small dict per live chat ROOT — already built on every lookup, and
 #: kept instead of discarded.
-_memo: dict[tuple[str, str], tuple[str, dict[str, Any], "ChatLaneBundle"]] = {}
+_memo: dict[tuple[str, str], tuple[str, dict[str, Any], ChatLaneBundle]] = {}
 _memo_lock = threading.Lock()
 
 #: THREAD-LOCAL, and cumulative for the life of the thread — the same shape and
@@ -634,9 +634,9 @@ __all__ = [
     "apply_chat_lane_tool_scope",
     "bundle_builds_this_thread",
     "chat_lane_bundle",
-    "chat_lane_capability_drops",
     "chat_lane_bundle_key",
     "chat_lane_bundle_key_material",
+    "chat_lane_capability_drops",
     "invalidate_chat_lane_bundles",
     "key_material_moves_since",
     "key_material_moves_this_thread",

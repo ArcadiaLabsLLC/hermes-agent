@@ -18,7 +18,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict, dataclass, replace
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 from enum import StrEnum
 from typing import Any, Iterable
 
@@ -506,7 +506,7 @@ def _settle_text(value: Any) -> str | None:
 
 
 def _iso(moment: datetime) -> str:
-    return moment.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    return moment.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _timestamp() -> str:
@@ -514,4 +514,4 @@ def _timestamp() -> str:
 
 
 def _parse(stamp: str) -> datetime:
-    return datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+    return datetime.fromisoformat(str(stamp))

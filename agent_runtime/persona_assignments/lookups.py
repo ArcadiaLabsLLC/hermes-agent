@@ -25,6 +25,7 @@ from agent_runtime.serde import safe_assignment_text, safe_assignment_token
 __layer__ = "stores"
 
 __all__ = [
+    "_persona_comparison_key",
     "chat_session_owner_persona",
     "normalize_persona_or_template_id",
     "persona_id_from_instance_id",
@@ -32,7 +33,6 @@ __all__ = [
     "personas_equal",
     "resolve_default_chat_session_id_for_instance",
     "sender_scope_workspace_id",
-    "_persona_comparison_key",
 ]
 
 
@@ -127,7 +127,7 @@ def persona_instance_display_name(persona_instance_id: Any) -> str:
 def sender_scope_workspace_id(
     session_id: str | None,
     *,
-    instance_store: "PersonaInstanceStore | None" = None,
+    instance_store: PersonaInstanceStore | None = None,
     active_workspace_id: str | None = None,
 ) -> str | None:
     """The workspace scope a chat SENDER addresses a target from.
@@ -171,7 +171,7 @@ def sender_scope_workspace_id(
 
 
 def resolve_default_chat_session_id_for_instance(
-    store: "PersonaInstanceStore",
+    store: PersonaInstanceStore,
     *,
     persona_id: str,
     persona_instance_id: str | None = None,

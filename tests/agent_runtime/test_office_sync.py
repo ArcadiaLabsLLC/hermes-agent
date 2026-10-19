@@ -539,7 +539,7 @@ def test_publish_names_exactly_the_scans_rows_and_nothing_else():
 
 
 def test_office_wanted_persona_union():
-    realm_id, ws = _make_realm_workspace()
+    _realm_id, ws = _make_realm_workspace()
     store = OfficeStore()
     store.upsert_actor(ws, _payload("edu_tutor"))  # not in any workspace.agent_ids
     workspaces = [WorkspaceStore().get(ws)]

@@ -190,13 +190,13 @@ class TurnVisibility:
     # -- constructors ------------------------------------------------------
 
     @staticmethod
-    def unknown() -> "TurnVisibility":
+    def unknown() -> TurnVisibility:
         return TurnVisibility(
             state=VisibilityState.UNKNOWN, reason=VisibilityReason.NO_EVIDENCE
         )
 
     @classmethod
-    def from_dict(cls, data: Any) -> "TurnVisibility":
+    def from_dict(cls, data: Any) -> TurnVisibility:
         """Rehydrate a wire block. TOTAL: anything unrecognised is unknown.
 
         A consumer reads this off a payload it did not build — an older serve,
@@ -223,7 +223,7 @@ class TurnVisibility:
         )
 
     @classmethod
-    def from_payload(cls, payload: Any) -> "TurnVisibility":
+    def from_payload(cls, payload: Any) -> TurnVisibility:
         """Read a mission-chat payload: typed block first, reply text second.
 
         The fallback is not redundancy for its own sake — it is what lets a

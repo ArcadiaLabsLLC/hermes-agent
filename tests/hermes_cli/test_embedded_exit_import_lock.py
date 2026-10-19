@@ -36,7 +36,7 @@ os._exit(0)
 def test_the_embedded_transport_loads_the_registry_close_imports_lazily():
     try:
         proc = subprocess.run([sys.executable, "-c", _CHILD], cwd=REPO_ROOT, capture_output=True,
-                              text=True, encoding="utf-8", errors="replace", timeout=20)
+                              text=True, encoding="utf-8", errors="replace", timeout=20, check=False)
     except subprocess.TimeoutExpired as exc:  # the hang itself
         raise AssertionError("SessionDB.close()'s lazy import waited on a held import lock") from exc
     assert proc.returncode == 0 and "RELEASED" in proc.stdout, proc.stderr[-3000:]

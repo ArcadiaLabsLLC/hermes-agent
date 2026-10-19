@@ -5,7 +5,7 @@ from agent_runtime.snapshot_worker.child import SnapshotBuildFailed, handle_buil
 
 
 def test_failed_build_preserves_receipts_and_redaction_safe_stack(monkeypatch):
-    import agent_runtime.snapshot.build as build
+    from agent_runtime.snapshot import build
     def fail():
         logging.getLogger("agent_runtime.probe").warning("build_phase before_failure")
         raise ValueError("private_token=must-never-cross-wire")

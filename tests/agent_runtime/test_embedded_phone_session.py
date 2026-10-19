@@ -498,7 +498,7 @@ def test_sign_in_and_one_chat_turn_leave_no_secret_on_disk_and_protect_the_histo
     else:
         cwd, off = REPO_ROOT, tuple(load_profile("bundled-phone").switched_off_modules)
     proc = subprocess.run([sys.executable, "-c", _CHILD, str(app), __file__, wheel, str(REPO_ROOT), json.dumps(off)],
-                          cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=200)
+                          cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=200, check=False)
     lines = [line for line in proc.stdout.splitlines() if line.startswith("RESULT ")]
     assert proc.returncode == 0 and lines, (proc.stdout[-3000:], proc.stderr[-6000:])
     result = json.loads(lines[-1][len("RESULT "):])

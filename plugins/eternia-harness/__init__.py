@@ -259,7 +259,6 @@ def settle_turn_tools(session_id=None, **_context):
     if agent is not None:
         settle_turn_tool_form(agent, blocked=blocked_tools_for(session_id or getattr(agent, "session_id", None)))
     reprune_turn_agent(session_id)
-    return None
 
 
 def refuse_blocked_tool(tool_name=None, session_id="", **_context):

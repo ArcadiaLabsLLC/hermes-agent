@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 
-import agent_runtime.models as models
+from agent_runtime import models
 
 
 def test_stage_graph_runtime_is_removed() -> None:

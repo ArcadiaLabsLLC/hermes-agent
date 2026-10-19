@@ -234,7 +234,7 @@ def classify(cmd, env=None) -> str | None:
     tokens = _tokens(cmd)
     if not tokens:
         return None
-    text = " ".join(tokens)
+    " ".join(tokens)
 
     # The backend arm is the live guard's own classifier (one owner: the inert
     # ``python -c`` rule and the code-word split live there, nowhere else).
@@ -492,9 +492,9 @@ def real_root() -> Path | None:
 
 
 __all__ = [
-    "GatewayFenceViolation",
     "REAL_PAUSE_MARK",
     "REAL_ROOT_ENV",
+    "GatewayFenceViolation",
     "arm",
     "arm_permanently",
     "classify",

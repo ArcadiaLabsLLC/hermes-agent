@@ -49,7 +49,7 @@ def test_status_includes_provider_runtime_health(isolate_agent_runtime_root):
 
 
 def test_corrupt_jiter_from_json_is_reported_before_token_spend(monkeypatch):
-    import hermes_cli.runtime_environment as runtime_environment
+    from hermes_cli import runtime_environment
 
     monkeypatch.setattr(runtime_environment, "module_available", lambda module: module == "openai")
     # Isolate the from_json symptom probe from the structural venv-integrity

@@ -458,7 +458,7 @@ def test_a_run_naming_files_builds_no_node_for_a_sibling(request, tmp_path):
     named = tmp_path / "pkg" / "test_named.py"
     named.write_text("", encoding="utf-8")
     files, ancestors = named_scope(["pkg/test_named.py::test_x"], tmp_path)
-    norm = lambda p: os.path.normcase(os.path.abspath(p))  # noqa: E731
+    norm = lambda p: os.path.normcase(os.path.abspath(p))
     assert files == {norm(named)} and norm(tmp_path / "pkg") in ancestors and norm(tmp_path) in ancestors
     assert norm(tmp_path / "pkg" / "test_sibling.py") not in files | ancestors
     assert named_scope(["pkg"], tmp_path) is None  # a directory argument: pytest's own walk

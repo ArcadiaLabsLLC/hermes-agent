@@ -223,7 +223,7 @@ def test_a_placed_instance_is_not_a_candidate(seeded_workspaces):
     assert _ids(classified["prunable"]) == set()
     assert _ids(classified["held"]) == set()
     assert classified["skipped"] == []
-    live, archived = office_placement_evidence(seeded_workspaces)
+    live, _archived = office_placement_evidence(seeded_workspaces)
     assert placed["persona_instance_id"] in live, (
         "the fixture must really place the agent, or the control above passes "
         "for the wrong reason"

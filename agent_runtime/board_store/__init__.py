@@ -43,7 +43,7 @@ Stores written: ``<boards_root>/<board_id>/`` (``board.json``, ``cards/``,
 
 from __future__ import annotations
 
-from agent_runtime.board_store.models import (  # noqa: F401 — the package's export floor
+from agent_runtime.board_store.models import (  # the package's export floor
     ARCHIVED_LEDGER_CAP,
     BoardScan,
     CardScan,
@@ -59,7 +59,7 @@ from agent_runtime.board_store.models import (  # noqa: F401 — the package's e
     _safe_title,
     _sort_cards,
 )
-from agent_runtime.board_store.files import (  # noqa: F401 — the package's export floor
+from agent_runtime.board_store.files import (  # the package's export floor
     archive_card_locked,
     board_id_of_archived_card,
     board_id_of_conflict,
@@ -72,16 +72,16 @@ from agent_runtime.board_store.files import (  # noqa: F401 — the package's ex
     _write_board,
     _write_card,
 )
-from agent_runtime.board_store.card_mechanics import (  # noqa: F401 — the package's export floor
+from agent_runtime.board_store.card_mechanics import (  # the package's export floor
     CardOrdering,
     IdempotencyReceipts,
 )
-from agent_runtime.board_store.adopt import (  # noqa: F401 — the package's export floor
+from agent_runtime.board_store.adopt import (  # the package's export floor
     adopt_remote_board,
     adopt_remote_card,
     resolve_conflict,
 )
-from agent_runtime.board_store.store import (  # noqa: F401 — the package's export floor
+from agent_runtime.board_store.store import (  # the package's export floor
     BoardStore,
 )
 

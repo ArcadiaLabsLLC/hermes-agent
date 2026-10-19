@@ -97,7 +97,7 @@ class ParentWatch:
         self._was_child = sys.platform != "win32" and os.getppid() == pid
         self._thread = threading.Thread(target=self._run, name="harness-serve-parent-watch", daemon=True)
 
-    def start(self) -> "ParentWatch":
+    def start(self) -> ParentWatch:
         self._thread.start()
         return self
 

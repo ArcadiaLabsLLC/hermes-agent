@@ -312,7 +312,7 @@ def test_a_vault_only_commit_leaves_the_code_tree_where_it_was(real_repo):
     first = code_tree_for(real_repo).code_tree
     queue = real_repo / "Harness_Brain" / "20 — Active Initiatives"
     queue.mkdir(parents=True)
-    (queue / "runtime-queue.md").write_bytes("- **a row** · runtime\n".encode("utf-8"))
+    (queue / "runtime-queue.md").write_bytes("- **a row** · runtime\n".encode())
     (real_repo / "Harness_Brain" / "TODO.md").write_bytes(b"pointers\n")
     _git(real_repo, "add", "-A")
     _git(real_repo, "commit", "-qm", "queue only")

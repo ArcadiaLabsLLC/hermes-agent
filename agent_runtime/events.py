@@ -42,7 +42,7 @@ _ROTATION_CAP_CACHE: dict[str, int] = {}
 # sees lines appended after it started (a point-in-time view without a copy).
 # A new slice, a moved sealed stat, or a live slice that shrank (or was rewritten
 # at the same size) rebuilds the view whole, into fresh lists.
-_EVENT_VIEWS: dict[str, "_EventView"] = {}
+_EVENT_VIEWS: dict[str, _EventView] = {}
 _EVENT_VIEW_CACHE_LOCK = threading.Lock()
 _EVENT_VIEW_CACHE_MAX = 8
 
@@ -457,7 +457,7 @@ class _EventView:
     always just past a ``\\n``, so a torn final line is left for the next refresh.
     """
 
-    __slots__ = ("sources", "sealed_stamps", "live_stamp", "consumed", "lines", "positions")
+    __slots__ = ("consumed", "lines", "live_stamp", "positions", "sealed_stamps", "sources")
 
     def __init__(self, sources, sealed_stamps, live_stamp, consumed, lines, positions) -> None:
         self.sources: tuple[str, ...] = sources

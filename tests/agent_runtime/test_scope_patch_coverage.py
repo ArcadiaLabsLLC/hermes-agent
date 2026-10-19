@@ -33,7 +33,7 @@ import json
 import re
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 
 from tests._downstream.split_package_source import package_source
@@ -65,7 +65,7 @@ from agent_runtime.stream import (
     resolve_fold_variant,
 )
 
-_TS = datetime(2026, 9, 1, 12, 0, 0, tzinfo=timezone.utc)
+_TS = datetime(2026, 9, 1, 12, 0, 0, tzinfo=UTC)
 _FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "stream_frames"
 
 #: The declaration a WS2 launcher sends: today's fielded set plus ``scope``.
@@ -617,7 +617,7 @@ def test_scope_fixture_is_the_frame_the_producer_builds():
         (
             row["seq"],
             Event(
-                ts=datetime(2026, 7, 16, 12, 20, 0, tzinfo=timezone.utc),
+                ts=datetime(2026, 7, 16, 12, 20, 0, tzinfo=UTC),
                 type=STATE_PATCHED_EVENT_TYPE,
                 task_id=None,
                 run_id=None,

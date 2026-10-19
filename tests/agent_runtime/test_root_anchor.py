@@ -466,7 +466,7 @@ def test_a_kept_operator_value_is_reported_as_the_recorded_head(head_env):
     shadow = config_path.parent / "profiles" / "base"
     shadow.mkdir(parents=True)
     config_path.write_bytes(
-        f"agent_runtime:\n  head_home: '{shadow}'\n".encode("utf-8")
+        f"agent_runtime:\n  head_home: '{shadow}'\n".encode()
     )
 
     report = publish_store_root_anchor(env, chat_scope=_explicit_scope(head_home))

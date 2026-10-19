@@ -299,7 +299,7 @@ def mission_chat_mcp_lane_line(persona: Any, *, lane: str | None = None) -> str:
         from .profile_readiness import effective_required_mcp_servers
 
         declared = effective_required_mcp_servers(persona)
-    except Exception as exc:  # noqa: BLE001 — never fail a turn; never silent
+    except Exception as exc:  # never fail a turn; never silent
         logger.warning(
             "mcp_lane_line_declaration_unreadable persona=%s error=%s: %s",
             getattr(persona, "id", None),
@@ -313,7 +313,7 @@ def mission_chat_mcp_lane_line(persona: Any, *, lane: str | None = None) -> str:
         return render_mcp_lane_line(
             mcp_lane_requirement_failures(declared_servers=declared, lane=lane)
         )
-    except Exception as exc:  # noqa: BLE001 — never fail a turn; never silent
+    except Exception as exc:  # never fail a turn; never silent
         logger.warning(
             "mcp_lane_line_render_failed persona=%s error=%s: %s",
             getattr(persona, "id", None),

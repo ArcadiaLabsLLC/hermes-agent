@@ -169,7 +169,7 @@ def persona_roster() -> list[Any]:
         from ..config import ensure_persisted_personas, load_agent_runtime_config
 
         return list(ensure_persisted_personas(load_agent_runtime_config()))
-    except Exception as exc:  # noqa: BLE001 — re-raised as a typed fault below
+    except Exception as exc:  # re-raised as a typed fault below
         raise PersonaRosterUnavailable(str(exc)) from exc
 
 

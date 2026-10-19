@@ -20,7 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_the_conversation_worker_composer_carries_the_defaults(monkeypatch, tmp_path):
-    import hermes_cli.local_runtime.processes as processes
+    from hermes_cli.local_runtime import processes
     from agent_runtime.conversations import worker
 
     captured = {}
@@ -58,7 +58,7 @@ def test_plugin_discovery_writes_no_process_env(tmp_path):
     for key in HARNESS_PROCESS_ENV_DEFAULTS:
         env.pop(key, None)
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
-                         timeout=160, cwd=REPO_ROOT, env=env)
+                         timeout=160, cwd=REPO_ROOT, env=env, check=False)
     assert out.returncode == 0, out.stderr[-2000:]
     changed = out.stdout.strip().splitlines()[-1]
     assert not set(HARNESS_PROCESS_ENV_DEFAULTS) & set(__import__("json").loads(changed)), changed

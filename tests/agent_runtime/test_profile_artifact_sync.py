@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-import agent_runtime.realm_sync as realm_sync
+from agent_runtime import realm_sync
 from agent_runtime import paths
 from agent_runtime.profile_artifact_sync import (
     ProfileArtifactResolveError,
@@ -52,7 +52,7 @@ def homes(monkeypatch, tmp_path):
     active_home = profiles_root / "alice"
     active_home.mkdir(parents=True)
     # Every realm_sync module that reads either name as a global.
-    import agent_runtime.profile_context as profile_context  # _profile_home_for_token's home (lane LAYERS L4)
+    from agent_runtime import profile_context  # _profile_home_for_token's home (lane LAYERS L4)
 
     # An explicit table, patched with ``raising=True`` (monkeypatch's default): a
     # global that moves out of one of these modules fails the fixture by name

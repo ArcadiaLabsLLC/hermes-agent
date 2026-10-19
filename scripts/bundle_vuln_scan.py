@@ -76,7 +76,7 @@ def pins_from_bundles(dirs: list[Path]) -> dict[str, str]:
         for name in ("bundle-manifest.json", "engine-pack.json"):
             record = directory / name
             if record.is_file():
-                pins.update({_norm(k): v for k, v in json.loads(record.read_text(encoding="utf-8"))
+                pins.update({_norm(k): v for k, v in json.loads(record.read_text(encoding="utf-8-sig"))
                              ["distributions"].items()})
                 break
         else:
@@ -161,7 +161,7 @@ def _finding(record: dict, name: str, version: str) -> dict:
 def _offline_records(db: Path):
     if db.is_dir():
         for path in sorted(db.glob("*.json")):
-            yield json.loads(path.read_text(encoding="utf-8"))
+            yield json.loads(path.read_text(encoding="utf-8-sig"))
         return
     with zipfile.ZipFile(db) as archive:
         for member in archive.namelist():
@@ -209,7 +209,7 @@ def scan_online(pins: dict[str, str]) -> list[dict]:
 def load_waivers(path: Path = WAIVERS) -> list[dict]:
     if not path.is_file():
         return []
-    return json.loads(path.read_text(encoding="utf-8")).get("waivers", [])
+    return json.loads(path.read_text(encoding="utf-8-sig")).get("waivers", [])
 
 
 def waiver_for(finding: dict, waivers: list[dict], today: dt.date) -> dict | None:
@@ -256,7 +256,7 @@ def main(argv=None) -> int:
     try:
         pins = pins_from_bundles(args.bundle) if args.bundle else exported_pins(args.profile, args.target, args.uv)
         findings = scan_offline(pins, args.osv_db) if args.osv_db else scan_online(pins)
-    except Exception as exc:  # noqa: BLE001 — a scan that cannot run must fail, loudly
+    except Exception as exc:  # a scan that cannot run must fail, loudly
         print(f"SCAN FAILED ({type(exc).__name__}): {exc}", file=sys.stderr)
         return 2
     unwaived, waived = judge(findings, load_waivers(args.waivers), dt.date.today())

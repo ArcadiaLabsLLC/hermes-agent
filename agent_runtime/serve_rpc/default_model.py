@@ -67,7 +67,7 @@ def _default_model_answer(rid: Any, provider: str | None, model: str | None, req
             refusal.message or f"{METHOD_NAME} refused: {refusal.reason}",
             {"reason": refusal.reason, **refusal.data},
         )
-    except Exception as exc:  # noqa: BLE001 — class name only, never the message
+    except Exception as exc:  # class name only, never the message
         return err(
             rid,
             ERR_HANDLER_FAILED,

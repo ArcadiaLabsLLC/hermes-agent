@@ -21,12 +21,12 @@ from hermes_cli.harness_support import (
 
 __layer__ = "lanes"
 __all__ = [
-    "_cmd_work_restart",
     "WorkCancelOutcome",
     "WorkCancelVerdict",
     "_cmd_work_cancel",
     "_cmd_work_list",
     "_cmd_work_peek",
+    "_cmd_work_restart",
     "_work_cancel_outcome",
     "_work_target_details",
 ]

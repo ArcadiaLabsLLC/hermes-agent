@@ -351,6 +351,6 @@ def _restore_one(item: StoreDriftItem, version: _Upstream, *, office_store, boar
         _apply_revert(item, entity, action, office_store=office_store, board_store=board_store, realm_id=realm_id)
     except _SkillWriteRefused as exc:
         row.outcome, row.detail = REFUSED_STORE_ERROR, exc.code
-    except Exception as exc:  # noqa: BLE001 — accounted, never silent; the pass continues
+    except Exception as exc:  # accounted, never silent; the pass continues
         row.outcome, row.detail = REFUSED_STORE_ERROR, type(exc).__name__
     return row

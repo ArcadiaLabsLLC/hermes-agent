@@ -18,11 +18,11 @@ __layer__ = "stores"
 
 __all__ = [
     "MAX_OFFICE_ACTORS_PROJECTED",
-    "OfficesProjection",
     "_ORPHANED_OFFICE_DETAIL",
-    "office_actor_summary_row",
+    "OfficesProjection",
     "_office_parity_warnings",
     "_offices_summary",
+    "office_actor_summary_row",
     "office_summary_row",
 ]
 
@@ -287,7 +287,7 @@ def _archived_placement_instance_ids(office_store, workspace_token, live_actors)
 
     try:
         scan = office_store.scan_actors(workspace_token, include_archived=True)
-    except Exception:  # noqa: BLE001 - an unreadable office says "cannot say"
+    except Exception:  # an unreadable office says "cannot say"
         return None
     if scan.unreadable:
         return None

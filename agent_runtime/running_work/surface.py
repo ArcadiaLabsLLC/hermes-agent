@@ -4,7 +4,7 @@ lookup, ``peek_work`` and ``cancel_work``."""
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from typing import Any
 
 from ..projection_accountant import ProjectionAccountant
@@ -64,7 +64,7 @@ def build_running_work(
             kwargs["frame_rows"] = rows
         try:
             lane_rows, source = collector(**kwargs)
-        except Exception as exc:  # noqa: BLE001 - a lane must never break the frame
+        except Exception as exc:  # a lane must never break the frame
             lane_rows, source = [], _source(
                 SOURCE_UNAVAILABLE,
                 reason="collector_failed",
@@ -194,7 +194,7 @@ def _peek_terminal(payload: dict[str, Any], session_id: str) -> dict[str, Any]:
     try:
         # Read the rolling buffer directly under the session's own lock.
         # No reconcile, no consumption flag, no state transition.
-        with session._lock:  # noqa: SLF001 - the buffer's only guard
+        with session._lock:  # the buffer's only guard
             buffered = session.output_buffer or ""
         tail = _strip_ansi(buffered)[-PEEK_TAIL_LIMIT:]
     except Exception as exc:
@@ -317,7 +317,7 @@ def _stamp_epoch(text: str):
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
     return parsed.timestamp()
 
 

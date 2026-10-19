@@ -107,8 +107,8 @@ __all__ = [
     "PRIVATE_KEY_FILENAME",
     "VALIDITY_DAYS",
     "GatewayCertificate",
-    "certificate_path",
     "certificate_fingerprint",
+    "certificate_path",
     "ensure_certificate",
     "private_key_path",
     "read_certificate",
@@ -339,7 +339,7 @@ def _mint(store_root: Path | str, *, common_name: str | None) -> GatewayCertific
     name = (common_name or "").strip() or "hermes-gateway"
     key = ec.generate_private_key(ec.SECP256R1())
     subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, name[:64])])
-    now = _datetime.datetime.now(_datetime.timezone.utc)
+    now = _datetime.datetime.now(_datetime.UTC)
     certificate = (
         x509.CertificateBuilder()
         .subject_name(subject)

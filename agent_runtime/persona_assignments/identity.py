@@ -17,6 +17,15 @@ from agent_runtime.serde import safe_assignment_text, safe_assignment_token
 __layer__ = "policy"
 
 __all__ = [
+    "_ACTOR_TOKEN_DRIFT_PREFIX",
+    "_CHAT_SESSION_HEX_SUFFIX_LEN",
+    "_MISSING_TRAVEL_FIELD",
+    "_PERSONA_CHAT_SESSION_PREFIX",
+    "_coerce_travel_value",
+    "_display_name_for_template",
+    "_normalize_instance_source_persona",
+    "_profile_id_for_persona_or_template",
+    "_role_for_persona_or_template",
     "canonical_chat_instance_id",
     "canonical_persona_instance_id",
     "chat_session_is_foreign_to_instance",
@@ -27,15 +36,6 @@ __all__ = [
     "persona_instance_id_for",
     "persona_instance_id_for_placement",
     "row_is_canonical_persona_channel",
-    "_ACTOR_TOKEN_DRIFT_PREFIX",
-    "_CHAT_SESSION_HEX_SUFFIX_LEN",
-    "_coerce_travel_value",
-    "_display_name_for_template",
-    "_MISSING_TRAVEL_FIELD",
-    "_normalize_instance_source_persona",
-    "_PERSONA_CHAT_SESSION_PREFIX",
-    "_profile_id_for_persona_or_template",
-    "_role_for_persona_or_template",
 ]
 
 
@@ -258,7 +258,7 @@ def _coerce_travel_value(name: str, value: Any) -> Any:
         return value
     try:
         return _coerce(annotation, value)
-    except Exception:  # noqa: BLE001 — an uncoercible value stays as it arrived
+    except Exception:  # an uncoercible value stays as it arrived
         return value
 
 

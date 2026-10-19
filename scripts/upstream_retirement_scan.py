@@ -39,7 +39,7 @@ import subprocess
 import sys
 import warnings
 from dataclasses import asdict, dataclass, field
-from functools import lru_cache
+from functools import lru_cache, cache
 from pathlib import Path
 from typing import Callable, Iterable, Iterator
 
@@ -72,15 +72,15 @@ class Finding:
 
 
 def _run_git(*args: str, check: bool = True) -> str:
-    result = subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True,
-                            encoding="utf-8", errors="surrogateescape", check=False)
+    result = subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True,
+                            text=True, encoding="utf-8", errors="surrogateescape", check=False)
     if check and result.returncode != 0:
         raise SystemExit(f"[retire] git {' '.join(args)} failed: {result.stderr.strip()}")
     return result.stdout
 
 
 def manifest_base(path: Path = MANIFEST) -> str:
-    first = path.read_text(encoding="utf-8").splitlines()[0]
+    first = path.read_text(encoding="utf-8-sig").splitlines()[0]
     match = re.match(r"# base ([0-9a-f]+)", first)
     if not match:
         raise SystemExit(f"[retire] {path} carries no '# base <sha>' header")
@@ -162,7 +162,7 @@ class _BlobReader:
 _READER = _BlobReader()
 
 
-@lru_cache(maxsize=None)
+@cache
 def _blob(ref: str, path: str) -> str:
     return _READER(ref, path)
 
@@ -177,7 +177,7 @@ class WorkTree:
 
     def read(self, path: str) -> str | None:
         try:
-            return (ROOT / path).read_text(encoding="utf-8", errors="replace")
+            return (ROOT / path).read_text(encoding="utf-8-sig", errors="replace")
         except OSError:
             return None
 
@@ -496,7 +496,7 @@ def enclosing(funcs: dict[str, ast.AST], line: int) -> str | None:
 def changed_lines(base: str, path: str) -> list[int]:
     diff = _run_git("diff", "-U0", "--no-color", base, "--", path)
     lines = []
-    for match in re.finditer(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", diff, re.M):
+    for match in re.finditer(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", diff, re.MULTILINE):
         start, count = int(match[1]), int(match[2] or 1)
         lines.extend(range(start, start + max(count, 1)))
     return lines
@@ -591,7 +591,7 @@ def carried_arm(tag: Tree, manifest: Path = CARRIED) -> list[Finding]:
     sys.path.insert(0, str(ROOT / "scripts"))
     from check_carried_prs import added_blocks, contains_lines
 
-    data = json.loads(manifest.read_text(encoding="utf-8"))
+    data = json.loads(manifest.read_text(encoding="utf-8-sig"))
     findings = []
     for number, entry in sorted(data["prs"].items(), key=lambda item: int(item[0])):
         head, base = entry["reviewed_head"], entry["reviewed_base"]

@@ -179,6 +179,7 @@ def _connect(env: dict[str, str], *args: str) -> int:
         capture_output=True,
         text=True,
         timeout=CLI_TIMEOUT_SECONDS,
+        check=False,
     )
     return int(completed.returncode)
 

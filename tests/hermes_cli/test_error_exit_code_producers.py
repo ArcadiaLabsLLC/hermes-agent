@@ -225,7 +225,7 @@ def _scan() -> tuple[dict[str, list[str]], dict[str, list[str]]]:
     )
     text = installer.read_text(encoding="utf-8", errors="replace")
     for code in table:
-        if re.search(r'["\']%s["\']' % re.escape(code), text):
+        if re.search(rf'["\']{re.escape(code)}["\']', text):
             literals[code].append("scripts/install-mission-control-hermes.ps1")
     return literals, raises
 
@@ -437,7 +437,7 @@ def _declared_code_classes() -> dict[str, str]:
     for module in pkgutil.iter_modules(agent_runtime.__path__):
         try:
             importlib.import_module(f"agent_runtime.{module.name}")
-        except Exception:  # noqa: BLE001 — an optional dep must not silently shrink the walk
+        except Exception:  # an optional dep must not silently shrink the walk
             pass
 
     seen: dict[str, type] = {}

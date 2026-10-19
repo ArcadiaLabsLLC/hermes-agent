@@ -15,13 +15,13 @@ __layer__ = "stores"
 
 __all__ = [
     "BOARD_CARD_DESC_LIMIT",
-    "BoardsProjection",
     "MAX_BOARD_CARDS_PROJECTED",
-    "board_card_row",
+    "BoardsProjection",
     "_board_conflict_card_ids",
     "_board_parity_warnings",
     "_boards_summary",
     "_mask_board_secrets",
+    "board_card_row",
     "board_summary_row",
 ]
 

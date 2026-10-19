@@ -1,5 +1,5 @@
 import json
-from datetime import timedelta, timezone
+from datetime import timedelta, timezone, UTC
 
 import pytest
 
@@ -206,7 +206,7 @@ def test_backend_provider_denies_expired_credential_without_http(monkeypatch):
         api_token=fresh.api_token,
         git_url=fresh.git_url,
         git_authorization=fresh.git_authorization,
-        expires_at=now().astimezone(timezone.utc) - timedelta(hours=1),
+        expires_at=now().astimezone(UTC) - timedelta(hours=1),
     )
     decision = BackendRealmMembershipProvider(expired).authorize(_realm(), "pull")
     assert decision.allowed is False

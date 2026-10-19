@@ -56,22 +56,22 @@ __layer__ = "models"
 
 __all__ = [
     "AMBIGUOUS_400_FAILURE_REASONS",
-    "ChatErrorKind",
     "DELEGATED_ERROR_KIND_SOURCES",
-    "ExecutionState",
     "FAILURE_EXECUTION_STATES",
-    "FinalizationWarning",
-    "FinalizationWarningKind",
     "MISSION_CHAT_EXIT_FAILURE",
     "MISSION_CHAT_EXIT_OK",
-    "MissionChatDeferredFinalization",
-    "MissionChatTurnPlan",
     "OK_EXECUTION_STATES",
     "PROVIDER_REFUSAL_STATUS_CODES",
     "PROVIDER_REFUSED_OUTCOME",
     "PROVIDER_UNAVAILABLE_OUTCOME",
     "PROVIDER_UNAVAILABLE_REASON",
     "PROVIDER_UNAVAILABLE_STATUS_CODE",
+    "ChatErrorKind",
+    "ExecutionState",
+    "FinalizationWarning",
+    "FinalizationWarningKind",
+    "MissionChatDeferredFinalization",
+    "MissionChatTurnPlan",
     "ProviderRefusal",
     "TurnOutcome",
     "classify_turn_failure",
@@ -466,7 +466,7 @@ def _reset_delta_seconds(value: object, *, now: float | None = None) -> float | 
             from datetime import datetime
 
             try:
-                parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+                parsed = datetime.fromisoformat(text)
             except ValueError:
                 return None
             return parsed.timestamp() - moment

@@ -225,7 +225,7 @@ def validate_model(path: Path) -> dict:
             shard = path.with_name(f"{match[1]}-{index + 1:05d}-of-{count:05d}.gguf")
             try:
                 part = gguf_file_header(shard).metadata
-            except Exception as exc:  # noqa: BLE001 — OSError or a malformed header alike
+            except Exception as exc:  # OSError or a malformed header alike
                 raise _fail("incomplete_model", "A GGUF shard is missing or unreadable") from exc
             if (part.get("split.count") != count or part.get("split.no") != index
                     or any(k in part and part[k] != info.get(k) for k in ("general.name", "general.architecture"))):

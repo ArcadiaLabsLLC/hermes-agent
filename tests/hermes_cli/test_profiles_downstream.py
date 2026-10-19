@@ -10,7 +10,7 @@ from hermes_cli.profiles import (
     create_profile,
     delete_profile,
 )
-from tests.hermes_cli.test_profiles import profile_env  # noqa: F401 — upstream fixture
+from tests.hermes_cli.test_profiles import profile_env  # upstream fixture
 
 
 class TestDeleteProfile:

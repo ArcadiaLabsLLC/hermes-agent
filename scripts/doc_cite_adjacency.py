@@ -493,7 +493,7 @@ PAST_END = "past-end"
 def verdict(
     doc_lines: list[str],
     index: int,
-    match: "re.Match[str]",
+    match: re.Match[str],
     target: Target,
     radius: int,
     ceiling: int = MAX_SUBJECT_OCCURRENCES,
@@ -550,7 +550,7 @@ class ContinuedCite:
     own position and not at the path cite's.
     """
 
-    def __init__(self, token: str, match: "re.Match[str]") -> None:
+    def __init__(self, token: str, match: re.Match[str]) -> None:
         self.token = token
         self.match = match
 
@@ -568,8 +568,8 @@ class ContinuedCite:
 def continued_path(
     doc_lines: list[str],
     index: int,
-    match: "re.Match[str]",
-    mention: "re.Pattern[str]" = PATH_MENTION,
+    match: re.Match[str],
+    mention: re.Pattern[str] = PATH_MENTION,
 ) -> str | None:
     """The path token a bare ``:N`` inherits, or ``None`` when it has none.
 
@@ -812,7 +812,7 @@ def walk(
 def load_baseline(path: Path) -> dict[str, str]:
     if not path.exists():
         return {}
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = json.loads(path.read_text(encoding="utf-8-sig"))
     return dict(payload.get("waived", {}))
 
 
@@ -849,7 +849,7 @@ def run(
         )
         for key in sorted(set(result.duplicate_keys)):
             print(f"    {key}")
-    print("")
+    print()
 
     if result.cites_seen == 0:
         print(
@@ -913,7 +913,7 @@ def run(
     print(f"  STALE BUDGET KEYS (delete the entry): {len(foreign_stale)}")
     for key in foreign_stale:
         print(f"    {key}")
-    print("")
+    print()
 
     baseline = load_baseline(baseline_path)
     failing_keys = {finding.key for finding in result.failures}
@@ -924,11 +924,11 @@ def run(
     print(f"UNWAIVED FAILURES: {len(unwaived)}")
     for finding in unwaived:
         print(f"  {finding}")
-    print("")
+    print()
     print(f"STALE WAIVERS (no longer failing - delete the entry): {len(stale)}")
     for key in stale:
         print(f"  {key}")
-    print("")
+    print()
 
     if foreign_unlisted or foreign_stale:
         print(

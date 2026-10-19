@@ -402,7 +402,7 @@ def _created_profile_tokens(profiles: list[str]) -> list[str]:
 
             if not profile_exists(normalize_profile_name(token)):
                 created.append(token)
-        except Exception:  # noqa: BLE001 — an unresolvable profile is simply not "created"
+        except Exception:  # an unresolvable profile is simply not "created"
             continue
     return created
 

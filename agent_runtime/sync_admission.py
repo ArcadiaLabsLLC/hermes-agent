@@ -198,7 +198,7 @@ def content_refusal(data: bytes) -> tuple[str, str] | None:
 
     try:
         text = data.decode("utf-8", errors="ignore")
-    except Exception:  # noqa: BLE001 — an undecodable blob carries no assignment
+    except Exception:  # an undecodable blob carries no assignment
         return None
     if _secret_assignment_re().search(text):
         return ("secret_shaped_value", "file content carries a secret-shaped assignment")

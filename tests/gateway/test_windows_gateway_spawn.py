@@ -9,7 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-import hermes_cli.gateway_windows as gateway_windows
+from hermes_cli import gateway_windows
 
 _BREAKAWAY_MARKER = "_HERMES_GATEWAY_BREAKAWAY"
 

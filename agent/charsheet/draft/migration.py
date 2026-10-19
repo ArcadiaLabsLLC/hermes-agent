@@ -20,7 +20,7 @@ def _migration_entry_id(directory: Path) -> str:
     same reason the backfill's does.
     """
     try:
-        data = json.loads((Path(directory) / DRAFT_FILENAME).read_text(encoding="utf-8"))
+        data = json.loads((Path(directory) / DRAFT_FILENAME).read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         return Path(directory).name
     if not isinstance(data, dict):
@@ -137,7 +137,7 @@ def migrate_characters_home(source: Path, destination: Path, *, source_home: str
             )
             continue
         try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
         except (OSError, ValueError):
             manifest = {}
         if not isinstance(manifest, dict):

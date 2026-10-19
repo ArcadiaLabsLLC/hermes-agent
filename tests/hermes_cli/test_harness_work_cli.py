@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 
 import pytest
 
@@ -345,7 +345,7 @@ def test_the_replay_guard_does_not_refuse_a_legitimate_cancel_across_timezones(
     offset-bearing stamp — and a plainly-later `--issued-at` must go through.
     """
 
-    started = datetime(2026, 8, 3, 10, 0, 0, tzinfo=timezone.utc)
+    started = datetime(2026, 8, 3, 10, 0, 0, tzinfo=UTC)
     _stub_build(
         monkeypatch,
         lambda *a, **k: {

@@ -91,7 +91,7 @@ def installed_launcher_interpreter() -> str | None:
         script_path = _gw().get_task_script_path()
         if not script_path.exists():
             return None
-        return launcher_interpreter(script_path.read_text(encoding="utf-8"))
+        return launcher_interpreter(script_path.read_text(encoding="utf-8-sig"))
     except OSError:
         return None
 

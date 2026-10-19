@@ -230,7 +230,7 @@ _WALL_BUDGET = {
 def budget_envelope(monkeypatch, capsys, isolate_agent_runtime_root):
     """Drive one real wall-budget death and hand back its emitted envelope."""
 
-    harness = _seed(monkeypatch, _wall_budget_provider(_WALL_BUDGET))
+    _seed(monkeypatch, _wall_budget_provider(_WALL_BUDGET))
     code = chat_turn_message._cmd_mission_chat_message(_args("budget_turn"))
     return code, json.loads(capsys.readouterr().out)
 
@@ -239,7 +239,7 @@ def budget_envelope(monkeypatch, capsys, isolate_agent_runtime_root):
 def spent_envelope(monkeypatch, capsys, isolate_agent_runtime_root):
     """...then RESEND that same id, which finds the settled record."""
 
-    harness = _seed(monkeypatch, _wall_budget_provider(_WALL_BUDGET))
+    _seed(monkeypatch, _wall_budget_provider(_WALL_BUDGET))
     assert chat_turn_message._cmd_mission_chat_message(_args("budget_turn")) == 2
     capsys.readouterr()
     code = chat_turn_message._cmd_mission_chat_message(_args("budget_turn"))
@@ -327,7 +327,7 @@ def test_a_non_wall_budget_trip_stays_genuinely_ambiguous(
 
     from agent_runtime.mission_chat_turns import mission_chat_turn_record
 
-    harness = _seed(monkeypatch, _wall_budget_provider(None))
+    _seed(monkeypatch, _wall_budget_provider(None))
     code = chat_turn_message._cmd_mission_chat_message(_args("api_budget_turn"))
     payload = json.loads(capsys.readouterr().out)
 
@@ -351,7 +351,7 @@ def test_a_pre_boundary_failure_is_retryable_on_the_same_id(
     pre-turn repair sweep puts the failure unambiguously on the near side.
     """
 
-    harness = _seed(monkeypatch, _wall_budget_provider(_WALL_BUDGET))
+    _seed(monkeypatch, _wall_budget_provider(_WALL_BUDGET))
     monkeypatch.setattr(
         commit_run,
         "mark_stale_inflight_turns_interrupted",

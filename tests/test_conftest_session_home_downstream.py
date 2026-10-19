@@ -39,6 +39,7 @@ def _bare_pytest(env: dict, timeout: float = 150) -> subprocess.CompletedProcess
     return subprocess.run(
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", _PROBE],
         cwd=_REPO, env=env, capture_output=True, text=True, timeout=timeout,
+        check=False,
     )
 
 

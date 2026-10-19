@@ -267,7 +267,7 @@ def _flow_graph_projection(instance_ids: list[str]):
     try:
         store = FlowGraphStore()
         docs = {owner: store.get(graph_id_for_owner(owner)) for owner in wanted}
-    except Exception:  # noqa: BLE001 — accounted as "no canvas", never a failed publish
+    except Exception:  # accounted as "no canvas", never a failed publish
         docs = {}
     return project_flow_graphs(wanted, docs=docs)
 
@@ -292,7 +292,7 @@ def _persona_instance_projection(instance_ids: list[str]):
         scan = PersonaInstanceStore().scan_all()
         records = {instance.id: instance for instance in scan.instances}
         unreadable = scan.unreadable
-    except Exception:  # noqa: BLE001 — accounted below, never a failed publish
+    except Exception:  # accounted below, never a failed publish
         records, unreadable = {}, 0
     return project_persona_instances(wanted, records=records), unreadable
 

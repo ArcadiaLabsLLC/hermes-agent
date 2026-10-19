@@ -194,7 +194,7 @@ def test_apply_pull_resurrection_guard_blocks_archived_card(tmp_path):
     card = store.add_card(workspace_id=ws, title="Doomed")
     board_id = board_models.default_board_id(ws)
     update_board_baseline_after_sync(realm_id, [board_id])
-    board = store.get(board_id)
+    store.get(board_id)
     remote_card = store.get_card(card.card_id)  # remote still has it
     store.archive_card(card.card_id)  # locally archived after baseline
 

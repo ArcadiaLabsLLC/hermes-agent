@@ -250,7 +250,7 @@ def test_the_grandfathered_baseline_still_describes_the_code(agent_runtime_dupli
 # helper with two owners. The baseline is enumerated by the probe into
 # ``tests/fixtures/duplicate_bodies_grandfathered.json`` and only shrinks.
 
-from scripts import god_file_probe as _probe  # noqa: E402
+from scripts import god_file_probe as _probe
 
 
 def _fork_wide_drift() -> tuple[_probe.Drift, _probe.Drift]:

@@ -52,7 +52,7 @@ def named_scope(args, invocation_dir) -> tuple[frozenset[str], frozenset[str]] |
 
 
 @pytest.hookimpl(specname="pytest_ignore_collect", tryfirst=True)
-def pytest_ignore_collect_named_files(collection_path, config):  # noqa: D401 — pytest hook
+def pytest_ignore_collect_named_files(collection_path, config):  # pytest hook
     scope = config.stash.get(_KEY, False)
     if scope is False:
         scope = None if config.getoption("pyargs", False) else named_scope(config.args, config.invocation_params.dir)

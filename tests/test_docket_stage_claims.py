@@ -69,11 +69,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DOCKET_ROOT = "docs/agent-runtime-harness/planned"
 
 #: A markdown heading, any of the three levels these dockets use.
-HEADING = re.compile(r"^#{2,4}\s+(.*)$", re.M)
+HEADING = re.compile(r"^#{2,4}\s+(.*)$", re.MULTILINE)
 
 #: The heading of a stage section. ``Track`` as well as ``Stage`` because the
 #: mis-scheduled unit in the incident was "Track Z0".
-STAGE_HEADING = re.compile(r"^(?:Stage|Track)\s+([A-Za-z]?\d+[a-z]?)\b", re.I)
+STAGE_HEADING = re.compile(r"^(?:Stage|Track)\s+([A-Za-z]?\d+[a-z]?)\b", re.IGNORECASE)
 
 #: A stage heading declaring the stage shipped. Read from the HEADING only, not
 #: from the body: a body saying "stage 4 landed" is prose about a neighbour,
@@ -152,16 +152,19 @@ def _git(*args: str) -> subprocess.CompletedProcess:
     )
 
 
-def _in_this_history(sha: str, _cache: dict[str, bool] = {}) -> bool:
+_IN_THIS_HISTORY: dict[str, bool] = {}
+
+
+def _in_this_history(sha: str) -> bool:
     """Is ``sha`` an ancestor of HEAD in THIS repo?
 
     Cached because a docket corpus cites the same commit from many rows and each
     answer costs a process.
     """
 
-    if sha not in _cache:
-        _cache[sha] = _git("merge-base", "--is-ancestor", sha, "HEAD").returncode == 0
-    return _cache[sha]
+    if sha not in _IN_THIS_HISTORY:
+        _IN_THIS_HISTORY[sha] = _git("merge-base", "--is-ancestor", sha, "HEAD").returncode == 0
+    return _IN_THIS_HISTORY[sha]
 
 
 def _assert_the_clone_can_answer_ancestry() -> None:

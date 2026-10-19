@@ -4307,7 +4307,7 @@ def _unresolvable_scope_tokens(packages: tuple[str, ...]) -> list[str]:
 _THIS_FILE = Path(__file__).resolve()
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _scan_paths(packages: tuple[str, ...]) -> tuple[Path, ...]:
     """The files a scan over ``packages`` visits, with this file excluded.
 

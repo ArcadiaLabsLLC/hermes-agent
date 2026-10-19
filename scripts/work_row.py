@@ -26,8 +26,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from agent_runtime.work_store.grammar import Op, apply, find, is_queue, parse_note, row_defects  # noqa: E402
-from agent_runtime.work_store.reasons import Reason, WorkRefused  # noqa: E402
+from agent_runtime.work_store.grammar import Op, apply, find, is_queue, parse_note, row_defects
+from agent_runtime.work_store.reasons import Reason, WorkRefused
 
 COMMANDS = {"claim": Op.CLAIM, "release": Op.RELEASE, "set-status": Op.SET_STATUS, "delete": Op.DELETE,
             "append": Op.APPEND}
@@ -42,7 +42,7 @@ Git = Callable[[list[str], Path], subprocess.CompletedProcess]
 
 def run_git(args: list[str], repo: Path) -> subprocess.CompletedProcess:
     return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, encoding="utf-8",
-                          errors="replace", stdin=subprocess.DEVNULL)
+                          errors="replace", stdin=subprocess.DEVNULL, check=False)
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -62,7 +62,7 @@ def queue_notes(repo: Path, note: str | None) -> list[Path]:
     if note:
         return [repo / note]
     found = [path for pattern in BRAIN_GLOBS for path in sorted(repo.glob(pattern))]
-    return [path for path in found if is_queue(path.read_text(encoding="utf-8"))]
+    return [path for path in found if is_queue(path.read_text(encoding="utf-8-sig"))]
 
 
 def _note_and_text(repo: Path, args: argparse.Namespace) -> tuple[Path, str]:

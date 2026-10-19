@@ -12,7 +12,7 @@ subscriber that did not declare still gets today's frames.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 
 import pytest
 
@@ -74,7 +74,7 @@ def _seed_chat(root: str = ROOT, *, messages: int = 2):
 
 def _event(event_type: str, *, root: str = ROOT, session_id: str | None = None, payload=None) -> Event:
     return Event(
-        ts=datetime.now(timezone.utc),
+        ts=datetime.now(UTC),
         type=event_type,
         task_id=None,
         run_id=None,
@@ -542,7 +542,7 @@ def _reconcile(*, families=None, chat_roots=None, source="stream_watchdog") -> E
     if chat_roots is not None:
         payload["chat_roots"] = chat_roots
     return Event(
-        ts=datetime.now(timezone.utc),
+        ts=datetime.now(UTC),
         type="state.reconciled",
         task_id=None,
         run_id=None,
@@ -711,7 +711,7 @@ def test_the_overlay_read_stands_aside_for_a_hot_turn_window(isolate_agent_runti
 
     import logging
 
-    import agent_runtime.turn_activity as turn_activity
+    from agent_runtime import turn_activity
 
     _seed_chat()
     start = _log_end()

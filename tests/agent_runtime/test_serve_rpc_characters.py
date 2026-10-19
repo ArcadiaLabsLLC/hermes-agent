@@ -12,11 +12,11 @@ import pytest
 
 pytest.importorskip("PIL")
 
-from agent.charsheet import pipeline  # noqa: E402
-from agent.charsheet.fake_draftsman import FakeDraftsman, square_image  # noqa: E402
-from agent_runtime.call_authorization import STDIO_OWNER  # noqa: E402
-from agent_runtime.serve_rpc import handle_request, manifest, method_tier  # noqa: E402
-from agent_runtime.serve_rpc.protocol import ERR_INVALID_PARAMS, ERR_NOT_FOUND, RpcContext  # noqa: E402
+from agent.charsheet import pipeline
+from agent.charsheet.fake_draftsman import FakeDraftsman, square_image
+from agent_runtime.call_authorization import STDIO_OWNER
+from agent_runtime.serve_rpc import handle_request, manifest, method_tier
+from agent_runtime.serve_rpc.protocol import ERR_INVALID_PARAMS, ERR_NOT_FOUND, RpcContext
 
 TWINS = ("runtime.characters.list", "runtime.characters.status",
          "runtime.characters.thumb", "runtime.characters.sprite")

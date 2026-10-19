@@ -20,7 +20,7 @@ upstream file out, and must cite "ADR 0015"; a fork file is refused under
 from __future__ import annotations
 
 import re
-from functools import lru_cache
+from functools import lru_cache, cache
 from pathlib import Path
 
 import pytest
@@ -43,7 +43,7 @@ _P0 = {
 }
 
 
-@lru_cache(maxsize=None)
+@cache
 def _discovered(sub: str = "tests") -> tuple[Path, ...]:
     """The runner's discovery under ``sub``, once per process: every case reads the same tree
     (fork-hygiene FORK-TEST-UPSTREAM-SKIP-LIST — each case re-walked it)."""
@@ -51,7 +51,7 @@ def _discovered(sub: str = "tests") -> tuple[Path, ...]:
     return tuple(bundled.rtp._discover_files([_REPO_ROOT / sub]))
 
 
-@lru_cache(maxsize=None)
+@cache
 def _offered() -> frozenset[str]:
     """The repo-relative paths discovery offers under ``tests``."""
 

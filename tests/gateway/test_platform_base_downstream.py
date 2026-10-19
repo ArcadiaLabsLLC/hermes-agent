@@ -31,7 +31,7 @@ class TestMediaDeliveryDiagnosability:
         """extract_media must not raise on a crafted ~\\x00 MEDIA tag."""
         content = "here\nMEDIA:`~\x00evil.png`\ntrailing"
         # Must not raise ValueError("embedded null byte").
-        media, cleaned = BasePlatformAdapter.extract_media(content)
+        media, _cleaned = BasePlatformAdapter.extract_media(content)
         assert all("\x00" not in p for p, _ in media)
 
     def test_log_safe_path_neutralises_line_breaks(self):

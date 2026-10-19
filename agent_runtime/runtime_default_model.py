@@ -103,7 +103,7 @@ def _serve_profile() -> str:
         from agent_runtime.profile_context import active_profile_name
 
         return active_profile_name()
-    except Exception:  # noqa: BLE001 — a label, never a reason to refuse the write
+    except Exception:  # a label, never a reason to refuse the write
         return "default"
 
 
@@ -132,7 +132,7 @@ def set_runtime_default_model(
         raise DefaultModelRefused("config_managed", "this install's configuration is managed")
     try:
         cfg = load_config()
-    except Exception as exc:  # noqa: BLE001 — class name only
+    except Exception as exc:  # class name only
         raise DefaultModelRefused("config_unreadable", error_class=type(exc).__name__) from None
     if isinstance(cfg, FailedConfigRead) or not isinstance(cfg, dict):
         raise DefaultModelRefused("config_unreadable", "config.yaml failed to read; nothing was written")
@@ -166,7 +166,7 @@ def set_runtime_default_model(
         cfg["model"] = apply_model_selection(cfg.get("model"), result)
         try:
             save_config(cfg)
-        except Exception as exc:  # noqa: BLE001 — class name only
+        except Exception as exc:  # class name only
             raise DefaultModelRefused("config_write_failed", error_class=type(exc).__name__) from None
         try:
             # The serve process's boot record may still say "nothing configured";
@@ -174,7 +174,7 @@ def set_runtime_default_model(
             from hermes_cli.free_tier_bootstrap import reconcile_record
 
             reconcile_record()
-        except Exception:  # noqa: BLE001 — the write landed; the gate re-checks on its own
+        except Exception:  # the write landed; the gate re-checks on its own
             pass
         payload: dict[str, Any] = {
             "provider": after_provider,

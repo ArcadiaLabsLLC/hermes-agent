@@ -462,7 +462,7 @@ def adopt_persona_def(
     store = store if store is not None else AgentStore()
     try:
         record = store.get(persona_id)
-    except Exception:  # noqa: BLE001 — no store row: the config lane owns this persona
+    except Exception:  # no store row: the config lane owns this persona
         record = None
     if record is None:
         atomic_roundtrip_yaml_update(

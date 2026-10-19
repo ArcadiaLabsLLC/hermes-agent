@@ -1,14 +1,14 @@
 import ast, glob, re, os, io, json, tokenize, hashlib, collections, sys
 
 ROOT = "."
-FILES = [l.strip() for l in open(sys.argv[1], encoding="utf-8") if l.strip()]
+FILES = [l.strip() for l in open(sys.argv[1], encoding="utf-8-sig") if l.strip()]
 PY_FILES = [f.replace("\\", "/") for f in glob.glob("**/*.py", recursive=True)
             if not any(seg in f.replace("\\", "/").split("/") for seg in (".venv", "node_modules", "site-packages", "__pycache__", "_worktrees", "worktrees"))]
 IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 # ---------- code-line counter (two variants, to match the operator's table) ----------
 def code_lines(path):
-    src = open(path, encoding="utf-8", errors="ignore").read()
+    src = open(path, encoding="utf-8-sig", errors="ignore").read()
     raw = src.count("\n") + (0 if src.endswith("\n") else 1)
     # variant A: non-blank, non-comment (docstrings count)
     a = sum(1 for l in src.splitlines() if l.strip() and not l.strip().startswith("#"))
@@ -28,7 +28,7 @@ def code_lines(path):
 tokens = {}
 for f in PY_FILES:
     try:
-        tokens[f] = set(IDENT.findall(open(f, encoding="utf-8", errors="ignore").read()))
+        tokens[f] = set(IDENT.findall(open(f, encoding="utf-8-sig", errors="ignore").read()))
     except Exception:
         tokens[f] = set()
 is_test = lambda f: f.startswith("tests/") or "/tests/" in f or os.path.basename(f).startswith("test_")
@@ -41,7 +41,7 @@ def in_module_seams(path="tests/_downstream/_seams.py"):
     reached by tests on purpose, so it is counted as ``seam``, not offered as a test-only DECIDE.
     """
     try:
-        tree = ast.parse(open(path, encoding="utf-8").read())
+        tree = ast.parse(open(path, encoding="utf-8-sig").read())
     except (OSError, SyntaxError):
         return set()
     for node in tree.body:
@@ -84,7 +84,7 @@ dead = {}
 for f in FILES:
     if not f.endswith(".py"):
         continue
-    src = open(f, encoding="utf-8").read()
+    src = open(f, encoding="utf-8-sig").read()
     tree = ast.parse(src)
     names = []
     for n in tree.body:
@@ -135,7 +135,7 @@ for f in scan:
     if not f.endswith(".py"):
         continue
     try:
-        tree = ast.parse(open(f, encoding="utf-8").read())
+        tree = ast.parse(open(f, encoding="utf-8-sig").read())
     except SyntaxError:
         continue
     for n in ast.walk(tree):

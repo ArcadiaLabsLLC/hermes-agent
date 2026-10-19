@@ -23,7 +23,7 @@ SECONDS = ("collect", "setup", "call", "teardown")
 
 
 def _lines(path: Path) -> list[dict]:
-    return [json.loads(raw) for raw in path.read_text(encoding="utf-8").splitlines() if raw.strip()]
+    return [json.loads(raw) for raw in path.read_text(encoding="utf-8-sig").splitlines() if raw.strip()]
 
 
 def _default_store() -> Path:

@@ -896,7 +896,7 @@ def _append_state_reconciled(
                 )
             )
         return True
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.warning("state.reconciled append failed", exc_info=True)
         return False
 

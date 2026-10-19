@@ -31,7 +31,7 @@ def test_a_real_discovery_reads_config_for_the_deadline_once(monkeypatch):
     """A real bundled discovery: the resolver's config reads are 1, not one per loaded plugin.
     Killing mutation: drop the ``_discover_and_load_inner`` wrap from ``install_if_imported``."""
 
-    import hermes_cli.config as config
+    from hermes_cli import config
 
     assert memo.install_if_imported()
     real_read = config.load_config_readonly

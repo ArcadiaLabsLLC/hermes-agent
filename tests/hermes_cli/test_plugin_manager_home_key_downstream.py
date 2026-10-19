@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 import hermes_constants
-import hermes_cli.plugins as plugins
+from hermes_cli import plugins
 from agent_runtime import plugin_manager_home
 
 

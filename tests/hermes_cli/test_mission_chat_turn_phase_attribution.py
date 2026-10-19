@@ -28,7 +28,7 @@ from agent_runtime.mission_chat_phases import TURN_PHASES_KEY, TurnPhaseMarks
 
 from tests.hermes_cli.test_mission_chat_budget_payload import (  # type: ignore
     _seed,
-    isolate_agent_runtime_root,  # noqa: F401  (re-exported fixture)
+    isolate_agent_runtime_root,  # (re-exported fixture)
 )
 from tests.hermes_cli.test_mission_chat_turn_phases import (  # type: ignore
     _TickClock,
@@ -187,7 +187,7 @@ _OUTSIDE_BUILD = (1_000_000.0, 1_000_001.0)
 
 
 @pytest.fixture
-def attributed_turn(request, monkeypatch, capsys, isolate_agent_runtime_root, empty_ledger):  # noqa: F811
+def attributed_turn(request, monkeypatch, capsys, isolate_agent_runtime_root, empty_ledger):
     """Drive one real turn against a scripted clock and a fixture build ledger."""
 
     builds = request.param if hasattr(request, "param") else (_INSIDE_BUILD,)
@@ -219,7 +219,7 @@ def attributed_turn(request, monkeypatch, capsys, isolate_agent_runtime_root, em
         bundle_module, "bundle_builds_this_thread", lambda: next(bundle_builds, 4)
     )
 
-    harness = _seed(
+    _seed(
         monkeypatch,
         _streaming_provider(profile_timing={"resident_actor_reused": 0}),
     )
@@ -308,14 +308,14 @@ def test_a_freshly_constructed_agent_is_reported_COLD(attributed_turn):
 
 
 @pytest.fixture
-def warm_turn(monkeypatch, capsys, isolate_agent_runtime_root, empty_ledger):  # noqa: F811
+def warm_turn(monkeypatch, capsys, isolate_agent_runtime_root, empty_ledger):
     empty_ledger.record_build(started=_INSIDE_BUILD[0], ended=_INSIDE_BUILD[1])
     monkeypatch.setattr(
         mission_chat_phases,
         "TurnPhaseMarks",
         lambda: TurnPhaseMarks(monotonic=_TickClock(), wall_now=lambda: "stamp"),
     )
-    harness = _seed(
+    _seed(
         monkeypatch,
         _streaming_provider(profile_timing={"resident_actor_reused": 1}),
     )
@@ -329,7 +329,7 @@ def test_a_reused_resident_actor_is_reported_WARM(warm_turn):
 
 
 @pytest.fixture
-def unattributable_turn(monkeypatch, capsys, isolate_agent_runtime_root, empty_ledger):  # noqa: F811
+def unattributable_turn(monkeypatch, capsys, isolate_agent_runtime_root, empty_ledger):
     """A runner that reports no reuse timing at all, and an unseen build lane."""
 
     monkeypatch.setattr(
@@ -337,7 +337,7 @@ def unattributable_turn(monkeypatch, capsys, isolate_agent_runtime_root, empty_l
         "TurnPhaseMarks",
         lambda: TurnPhaseMarks(monotonic=_TickClock(), wall_now=lambda: "stamp"),
     )
-    harness = _seed(monkeypatch, _streaming_provider(profile_timing={}))
+    _seed(monkeypatch, _streaming_provider(profile_timing={}))
     chat_turn_message._cmd_mission_chat_message(_args("stage4_blind", stream=True))
     capsys.readouterr()
     return _record_on_disk(isolate_agent_runtime_root, "stage4_blind")[TURN_PHASES_KEY]

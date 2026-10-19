@@ -19,7 +19,7 @@ import pytest
 from agent_runtime.dispatch_delivery import completions
 from agent_runtime.dispatch_delivery.forge import DrainPolicy
 from agent_runtime.running_work import build_running_work
-from tests.tools.test_mcp_job_wake import (  # noqa: F401 — `registry` is the shared fixture
+from tests.tools.test_mcp_job_wake import (  # `registry` is the shared fixture
     JOB,
     SERVER,
     SESSION,

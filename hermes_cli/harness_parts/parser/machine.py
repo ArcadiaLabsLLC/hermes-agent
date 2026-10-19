@@ -30,8 +30,8 @@ settle_commands = lazy_module("hermes_cli.harness_parts.serve.settle_commands")
 __layer__ = "wiring"
 __all__ = [
     "_cmd_serve",
-    "add_builds",
     "_cmd_serve_connect",
+    "add_builds",
     "add_config",
     "add_contracts",
     "add_doctor",

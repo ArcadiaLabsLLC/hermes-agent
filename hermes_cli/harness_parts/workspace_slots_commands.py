@@ -8,7 +8,7 @@ calls; this module holds no rule of its own. ``bind`` writes ``roots.<slot>`` th
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 
 from hermes_cli.flag_binding import list_flag_or_empty
@@ -26,7 +26,7 @@ __all__ = [
 
 
 def _issued_at(args) -> str:
-    return str(getattr(args, "issued_at", None) or datetime.now(timezone.utc).isoformat())
+    return str(getattr(args, "issued_at", None) or datetime.now(UTC).isoformat())
 
 
 def _pairs(values, name: str) -> dict[str, str]:
@@ -60,7 +60,7 @@ def _cmd_workspace_slots_declare(args) -> int:
     from agent_runtime.workspace_slots import declare, machine_id, require_publish_right
 
     def action():
-        slots = json.loads(Path(str(args.slots_file)).read_text(encoding="utf-8"))
+        slots = json.loads(Path(str(args.slots_file)).read_text(encoding="utf-8-sig"))
         require_publish_right(str(args.workspace_id))
         return declare(str(args.workspace_id), slots, issued_at=_issued_at(args), machine=machine_id())
 

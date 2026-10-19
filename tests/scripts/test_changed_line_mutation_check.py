@@ -319,7 +319,7 @@ def test_the_census_reads_the_diff_and_leaves_tests_and_deletions_out(monkeypatc
 
     class _Completed:
         returncode = 0
-        stdout = "agent_runtime/office_store.py\ntests/agent_runtime/test_x.py\nhermes_cli\y.py\n"
+        stdout = "agent_runtime/office_store.py\ntests/agent_runtime/test_x.py\nhermes_cli\\y.py\n"
         stderr = ""
 
     def _run(argv, **kwargs):

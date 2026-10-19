@@ -22,7 +22,7 @@ false-all-clear class this workstream retires.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 
 import pytest
 
@@ -40,7 +40,7 @@ from agent_runtime.stream_resume import (
     resolve_stream_resume,
 )
 
-_TS = datetime(2026, 8, 27, 12, 0, 0, tzinfo=timezone.utc)
+_TS = datetime(2026, 8, 27, 12, 0, 0, tzinfo=UTC)
 
 DESKTOP_FOLD = frozenset({"persona_instance", "incident", OFFICE_ACTOR_ENTITY})
 PHONE_FOLD = frozenset({"persona_instance", "incident"})

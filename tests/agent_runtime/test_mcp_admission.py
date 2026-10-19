@@ -102,7 +102,7 @@ def _bind_profile(monkeypatch, profile_home):
     from agent_runtime import profile_context, profile_readiness
     from agent_runtime.profile_context import PersonaProfileBinding
 
-    binding = lambda persona: PersonaProfileBinding(  # noqa: E731 - one-line stub
+    binding = lambda persona: PersonaProfileBinding(  # one-line stub
         persona_id=persona.id,
         hermes_profile="launcher-qa",
         profile_home=profile_home,
@@ -306,7 +306,7 @@ def test_unresolvable_server_reuses_the_machine_roots_taxonomy(tmp_path, monkeyp
 
 
 def test_resolution_performs_zero_spawns(qa_profile, monkeypatch):
-    import tools.mcp_tool as mcp_tool
+    from tools import mcp_tool
 
     def _explode(*_args, **_kwargs):
         raise AssertionError("resolve_mcp_admission must never register anything")
@@ -1051,7 +1051,7 @@ def _enable_root_admission(monkeypatch, **kwargs):
 
     from agent_runtime import config as agent_config
 
-    fake = lambda: _cfg(enabled=True, **kwargs)  # noqa: E731
+    fake = lambda: _cfg(enabled=True, **kwargs)
     # Admission reads the loader's own binding (config.loader, policy — lane B4);
     # patched wherever the config package binds it, the package attribute included.
     patch_where_bound(monkeypatch, agent_config, "load_root_runtime_config", fake)
@@ -1230,7 +1230,7 @@ def test_a_run_without_admission_gets_no_mcp_toolset(fake_registered_launcher_qa
 
 
 def test_an_admitted_run_carries_its_toolset_and_blocks(qa_profile, monkeypatch):
-    import agent_runtime.profile_runner as profile_runner
+    from agent_runtime import profile_runner
 
     admission = resolve_mcp_admission(
         _persona("qa"), permission_mode="read_only", cfg=_cfg(enabled=True)
@@ -1254,7 +1254,7 @@ def test_an_admitted_run_carries_its_toolset_and_blocks(qa_profile, monkeypatch)
 def test_a_failed_admission_does_not_leave_the_toolset_on_the_run(qa_profile, monkeypatch):
     # The registration timed out / never landed: the run must not advertise a
     # toolset that resolves to nothing.
-    import agent_runtime.profile_runner as profile_runner
+    from agent_runtime import profile_runner
 
     admission = resolve_mcp_admission(
         _persona("qa"), cfg=_cfg(enabled=True)
@@ -1272,7 +1272,7 @@ def test_a_failed_admission_does_not_leave_the_toolset_on_the_run(qa_profile, mo
 
 def test_registry_hygiene_still_applies_alongside_admission(qa_profile, monkeypatch):
     from agent_runtime.personas import REGISTRY_HYGIENE_BLOCKED_TOOLS
-    import agent_runtime.profile_runner as profile_runner
+    from agent_runtime import profile_runner
 
     admission = resolve_mcp_admission(
         _persona("qa"), permission_mode="read_only", cfg=_cfg(enabled=True)
@@ -1298,7 +1298,7 @@ def test_explain_mcp_is_stable_machine_readable_and_registers_nothing(
     import argparse
     import json
 
-    import tools.mcp_tool as mcp_tool
+    from tools import mcp_tool
     from hermes_cli.harness import build_parser
 
     monkeypatch.setattr(

@@ -199,7 +199,7 @@ def build_relay_sender_marker(persona_id: str | None, instance_id: str | None) -
     return f"{RELAY_SENDER_FINISH_REASON_PREFIX}{persona}:{instance}"
 
 
-def parse_relay_sender_marker(value) -> "RelaySender | None":
+def parse_relay_sender_marker(value) -> RelaySender | None:
     """Decode a ``finish_reason`` value into a :class:`RelaySender`, or ``None``.
 
     Non-marker values (``None``, ``""``, ``"stop"``, ``"pre_trace_ack"``, any
@@ -289,7 +289,7 @@ def build_harness_delivery_marker(
     )
 
 
-def parse_harness_delivery_marker(value) -> "HarnessDeliveryOrigin | None":
+def parse_harness_delivery_marker(value) -> HarnessDeliveryOrigin | None:
     """Decode a ``finish_reason`` value into a :class:`HarnessDeliveryOrigin`.
 
     ``None`` for every non-marker value, so an operator row, a CLI send and a

@@ -54,7 +54,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from scripts.bundle_profile_closure import (  # noqa: E402 — after the path insert, like the closure's own callers
+from scripts.bundle_profile_closure import (  # after the path insert, like the closure's own callers
     TARGETS,
     _guarded_ids,
     _lock,
@@ -103,7 +103,7 @@ def _parse(path: Path) -> ast.AST | None:
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", SyntaxWarning)
-            return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            return ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
     except (SyntaxError, UnicodeDecodeError):
         return None
 
@@ -263,7 +263,7 @@ def placeholder_seams(manifest, walk, index: dict[str, Path]) -> dict[str, list[
     done = subprocess.run(
         [sys.executable, "-c", _PLACEHOLDER_PROBE, str(ROOT), json.dumps(list(manifest.switched_off_modules)),
          json.dumps(wanted)],
-        capture_output=True, text=True, timeout=300, cwd=ROOT)
+        capture_output=True, text=True, timeout=300, cwd=ROOT, check=False)
     if done.returncode != 0:
         raise RuntimeError(f"placeholder probe failed: {done.stderr[-2000:]}")
     answered = json.loads(done.stdout.strip().splitlines()[-1])
@@ -367,11 +367,11 @@ def spawn_seams(manifest, findings: list[dict], index: dict[str, Path], *,
         done = subprocess.run(
             [sys.executable, "-c", _SPAWN_PROBE, str(ROOT), json.dumps(list(manifest.switched_off_modules)),
              json.dumps(apply_to_config(manifest, {})), json.dumps(sites), table, str(out)],
-            capture_output=True, text=True, timeout=600, cwd=ROOT)
+            capture_output=True, text=True, timeout=600, cwd=ROOT, check=False)
         if done.returncode != 0 or not out.is_file():
             raise RuntimeError(f"spawn stand-in probe failed ({done.returncode}): "
                                f"{(done.stderr or done.stdout)[-2000:]}")
-        rows = json.loads(out.read_text(encoding="utf-8"))
+        rows = json.loads(out.read_text(encoding="utf-8-sig"))
     answered: dict[str, list[str]] = {}
     hit = set()
     for module, line, function in rows:
@@ -487,7 +487,7 @@ INTERPRETER_LOCK = ROOT / "agent_runtime" / "bundle_profiles" / "interpreters.lo
 
 def pinned_interpreter() -> tuple[str, tuple[int, int]]:
     """``(full pin, (major, minor))`` from :data:`INTERPRETER_LOCK`, e.g. ``("3.14.7+20260901", (3, 14))``."""
-    version = json.loads(INTERPRETER_LOCK.read_text(encoding="utf-8"))["version"]
+    version = json.loads(INTERPRETER_LOCK.read_text(encoding="utf-8-sig"))["version"]
     major, minor = version.split("+")[0].split(".")[:2]
     return version, (int(major), int(minor))
 

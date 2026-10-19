@@ -38,7 +38,7 @@ import re
 import shutil
 import uuid
 from dataclasses import dataclass
-from datetime import timezone
+from datetime import timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -405,7 +405,7 @@ def _archive_dir(slug: str) -> Path:
     suffix as a last-resort collision breaker.
     """
 
-    ts = now().astimezone(timezone.utc).strftime("%Y%m%dT%H%M%S_%fZ")
+    ts = now().astimezone(UTC).strftime("%Y%m%dT%H%M%S_%fZ")
     flat = slug.replace("/", "__")
     parent = _archive_root() / ts
     parent.mkdir(parents=True, exist_ok=True)
@@ -470,7 +470,7 @@ def _write_provenance(
         "skill": skill,
         "content_hash": content_hash,
         "source": _normalize_source(source),
-        "promoted_at": now().astimezone(timezone.utc).isoformat(),
+        "promoted_at": now().astimezone(UTC).isoformat(),
     }
     if previous_hash is not None:
         record["previous_hash"] = previous_hash

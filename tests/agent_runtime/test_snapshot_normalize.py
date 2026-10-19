@@ -73,7 +73,7 @@ def test_goals_is_keyed_map_and_tasks_wire_section_retired(isolate_agent_runtime
 def test_goals_single_owner_carries_union_of_both_projections(isolate_agent_runtime_root):
     snap = build_snapshot()
     assert snap["parity"]["contract_version"] == SNAPSHOT_CONTRACT_VERSION
-    assert set(("goals", "runs", "proofs", "incidents")).isdisjoint(snap)
+    assert {"goals", "runs", "proofs", "incidents"}.isdisjoint(snap)
 
 
 def test_parent_child_tasks_are_not_collapsed(isolate_agent_runtime_root):

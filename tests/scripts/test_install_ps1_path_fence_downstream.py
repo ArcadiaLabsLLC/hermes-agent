@@ -62,6 +62,7 @@ def test_set_launcher_user_path_is_fenced_by_the_inherited_marker(tmp_path):
         [powershell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
          "-File", str(probe), "-InstallerPath", str(INSTALL_PS1), "-BinDir", str(bin_dir)],
         capture_output=True, text=True, timeout=60, env=dict(os.environ),
+        check=False,
     )
 
     assert run.returncode == 0, run.stdout + run.stderr

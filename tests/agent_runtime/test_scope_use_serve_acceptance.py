@@ -30,7 +30,7 @@ from agent_runtime.call_authorization import (
 )
 from agent_runtime.scope_activation import REALM_USE_METHOD, WORKSPACE_USE_METHOD
 from agent_runtime.store import RealmStore, WorkspaceStore
-from tests.agent_runtime.test_serve_gateway_lane import (  # noqa: F401 — `gateway_on` is a fixture
+from tests.agent_runtime.test_serve_gateway_lane import (  # `gateway_on` is a fixture
     _rpc,
     device_client,
     gateway_on,

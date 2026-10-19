@@ -131,21 +131,21 @@ __all__ = [
     "CANONICAL_SESSION_PERSISTENCE_ATTR",
     "CHAT_HEAD_POINTER_FILENAME",
     "CHAT_SESSION_DB_FILENAME",
+    "DECLARED_HEAD_HOME_KEY",
+    "SESSION_DB_ABSENT",
     "ChatHeadSource",
     "ChatScopeMismatch",
     "ChatSessionScope",
     "InstanceChatHead",
     "InstanceChatHeadStatus",
-    "SESSION_DB_ABSENT",
     "SessionDbAccess",
-    "DECLARED_HEAD_HOME_KEY",
     "ambient_chat_reads_allowed",
     "chat_session_db_path",
     "chat_session_store_exists",
+    "configured_head_home",
     "declared_chat_head_home",
     "is_canonical_session_persistence",
     "open_chat_session_db",
-    "configured_head_home",
     "publish_chat_head_home",
     "recorded_chat_head_home",
     "recorded_instance_chat_head",
@@ -712,7 +712,7 @@ def _purge_retired_scratch_once(db: Any, db_path: Any) -> None:
         )
 
         removed = purge_retired_scratch_sessions(db)
-    except Exception as exc:  # noqa: BLE001 — reported, never fatal
+    except Exception as exc:  # reported, never fatal
         logger.warning("retired_scratch_purge_failed db=%s error=%s", key, exc)
         return
     if removed:

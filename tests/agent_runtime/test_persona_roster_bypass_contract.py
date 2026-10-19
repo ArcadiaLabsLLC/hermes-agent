@@ -113,7 +113,7 @@ def test_any_non_none_persona_short_circuits_the_roster_check(monkeypatch):
 
     from agent_runtime.models import AgentPersona
 
-    monkeypatch.setattr(agent_create.request, "persona_roster", lambda: [])
+    monkeypatch.setattr(agent_create.request, "persona_roster", list)
 
     synthesized = AgentPersona(
         id="not_in_any_roster",

@@ -256,7 +256,7 @@ class RemoteDispatch:
     attempts: int = 0
 
     @classmethod
-    def for_spec(cls, dispatch_id: str, spec: dict[str, Any]) -> "RemoteDispatch":
+    def for_spec(cls, dispatch_id: str, spec: dict[str, Any]) -> RemoteDispatch:
         from agent_runtime.gateway_targets import peer_store_root
 
         install_id = str(spec["remote_install_id"])

@@ -464,7 +464,7 @@ def test_chat_lane_agent_chat_send_is_granted_and_never_deferred(bounded_chat_se
     """First-class on the chat lane means BOTH halves: the toolset grant puts
     the def in the lane's tools, and the never-defer promotion keeps it out
     from behind the tool_search bridge (operator ruling 2026-08-23)."""
-    import tools.agent_chat_tool  # noqa: F401 — registration runs at import
+    import tools.agent_chat_tool  # registration runs at import
     from tools.tool_search import ToolSearchConfig, is_deferrable_tool_name
 
     persona = _persona("neko_supervisor")

@@ -14,7 +14,7 @@ from tests._downstream.split_package_source import patch_where_bound
 
 
 def _git(repo, *args):
-    return subprocess.run(["git", *args], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+    return subprocess.run(["git", *args], cwd=repo, text=True, capture_output=True, check=True)
 
 
 def test_isolated_repo_context_uses_distinct_worktrees_for_parallel_runs(tmp_path, monkeypatch):

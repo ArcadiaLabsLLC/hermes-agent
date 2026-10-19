@@ -134,7 +134,7 @@ def _harness_function(name: str):
     import importlib
     from pathlib import Path
 
-    import hermes_cli.harness as harness
+    from hermes_cli import harness
 
     parts_dir = Path(harness.__file__).with_name("harness_parts")
     dotted = (

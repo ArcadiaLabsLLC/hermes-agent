@@ -72,7 +72,7 @@ from types import SimpleNamespace
 import pytest
 
 from tests.agent_runtime.test_pool_starve_downstream import _fields, _session
-from tests.agent_runtime.test_stream_turn_section import (  # noqa: F401  (``home`` is a fixture)
+from tests.agent_runtime.test_stream_turn_section import (  # (``home`` is a fixture)
     DECLARING,
     INSTANCE,
     ROOT,
@@ -84,6 +84,7 @@ from tests.agent_runtime.test_stream_turn_section import (  # noqa: F401  (``hom
 )
 from tests.fakes.providers import openai_responses
 from tests.fakes.providers.openai_responses import FakeResponsesServer
+import itertools
 
 MODEL = "gpt-5.6-luna"
 TURNS = 3
@@ -150,7 +151,7 @@ def _keepalive_handler_for(server):
     base = _REAL_HANDLER_FOR(server)
 
     class KeepAlive(base):
-        def do_HEAD(self) -> None:  # noqa: N802
+        def do_HEAD(self) -> None:
             server.requests.append({"path": self.path, "kind": "head", "body": {}, "t": time.time(),
                                     "headers": {k.lower(): v for k, v in self.headers.items()}})
             self.send_response(404)
@@ -382,8 +383,8 @@ class _Readers:
     POLL_S = 0.1
 
     def __init__(self, offset: int) -> None:
-        import agent_runtime.snapshot_turn_yield  # noqa: F401  (the readers' lazy imports)
-        import agent_runtime.turn_section_read  # noqa: F401
+        import agent_runtime.snapshot_turn_yield  # (the readers' lazy imports)
+        import agent_runtime.turn_section_read
         from agent_runtime.running_work import build_running_work
 
         build_running_work()  # live readers were attached long before the chat; their imports are paid
@@ -448,7 +449,7 @@ def _prefix_breaks(bodies: list[dict]) -> list[str]:
     and turn N's input as its own first items."""
 
     breaks = []
-    for n, (before, after) in enumerate(zip(bodies, bodies[1:])):
+    for n, (before, after) in enumerate(itertools.pairwise(bodies)):
         for key in ("tools", "instructions", "prompt_cache_key", "model", "reasoning", "include"):
             if json.dumps(before.get(key), sort_keys=True) != json.dumps(after.get(key), sort_keys=True):
                 breaks.append(f"turn {n}->{n + 1}: request {key} moved")
@@ -674,7 +675,7 @@ def _run_guard(monkeypatch, capsys) -> tuple[list[str], list[str], list[str]]:
 
 @pytest.mark.timeout(240)
 def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
-    monkeypatch, capsys, isolate_agent_runtime_root, home  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root, home
 ):
     violations, budgets, _spans = _run_guard(monkeypatch, capsys)
     assert not violations, "turn-cost guard (counts):\n  " + "\n  ".join(violations)

@@ -119,7 +119,7 @@ def _maybe_inject_boot_fault() -> None:
 
     mode = (os.environ.get(BOOT_FAULT_ENV_VAR) or "").strip().lower()
     if not mode:
-        return None
+        return
     if mode == "exit":
         raise SystemExit(9)
     if mode == "hard":

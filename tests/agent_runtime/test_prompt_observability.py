@@ -345,8 +345,8 @@ def test_accessible_skills_hash_check_uses_persona_profile_home(monkeypatch, tmp
     # Without the home an isolated persona (e.g. base) shows a false hash_mismatch in
     # Mission Control while `harness status` reports the skill clean.
     from agent_runtime import prompt_observability as po
-    import agent_runtime.skill_install as skill_install
-    import agent_runtime.profile_context as profile_context
+    from agent_runtime import skill_install
+    from agent_runtime import profile_context
 
     home = tmp_path / "base_home"
     captured = {}
@@ -394,7 +394,7 @@ def test_mission_chat_prompt_observability_has_no_empty_mission_hud_placeholder(
 def test_accessible_skill_receipt_preserves_instance_policy_and_load_state(
     monkeypatch, tmp_path
 ):
-    import agent.skill_utils as skill_utils
+    from agent import skill_utils
     from agent_runtime import prompt_observability as po
 
     shared = tmp_path / "shared"
@@ -441,7 +441,7 @@ def test_a_used_skill_receipt_reports_what_its_preload_cost(monkeypatch, tmp_pat
     version without ever naming the cost, which is how a package grew 70% in one
     rewrite with every gate green. One ``stat`` on a path the hash already read.
     """
-    import agent.skill_utils as skill_utils
+    from agent import skill_utils
     from agent_runtime.prompt_observability.skills_context import _resolved_skill_receipt
 
     shared = tmp_path / "shared"
@@ -468,8 +468,8 @@ def test_snapshot_omits_mission_hud_even_for_a_bound_task(monkeypatch):
 
     from agent_runtime import prompt_observability as po
 
-    monkeypatch.setattr(po.catalog_store, "load_latest_prompt_observability_contexts", lambda: [])
-    monkeypatch.setattr(po.context_store, "load_latest_prompt_observability_contexts", lambda: [])
+    monkeypatch.setattr(po.catalog_store, "load_latest_prompt_observability_contexts", list)
+    monkeypatch.setattr(po.context_store, "load_latest_prompt_observability_contexts", list)
     persona = SimpleNamespace(id="dev", hermes_profile="dev", display_name="Dev", role="dev")
     instance = SimpleNamespace(
         id="personainst_dev",
@@ -491,8 +491,8 @@ def test_snapshot_omits_mission_hud_even_for_a_bound_task(monkeypatch):
 def test_snapshot_omits_mission_hud_for_unbound_instance(monkeypatch):
     from agent_runtime import prompt_observability as po
 
-    monkeypatch.setattr(po.catalog_store, "load_latest_prompt_observability_contexts", lambda: [])
-    monkeypatch.setattr(po.context_store, "load_latest_prompt_observability_contexts", lambda: [])
+    monkeypatch.setattr(po.catalog_store, "load_latest_prompt_observability_contexts", list)
+    monkeypatch.setattr(po.context_store, "load_latest_prompt_observability_contexts", list)
     persona = SimpleNamespace(id="dev", hermes_profile="dev", display_name="Dev", role="dev")
     instance = SimpleNamespace(id="personainst_dev", persona_id="dev", session_id="s")
     snapshot = snapshot_prompt_observability(
@@ -505,8 +505,8 @@ def test_snapshot_omits_mission_hud_for_unbound_instance(monkeypatch):
 def test_snapshot_empty_roster_omits_compiled_flow_and_persona_context(monkeypatch):
     from agent_runtime import prompt_observability as po
 
-    monkeypatch.setattr(po.catalog_store, "load_latest_prompt_observability_contexts", lambda: [])
-    monkeypatch.setattr(po.context_store, "load_latest_prompt_observability_contexts", lambda: [])
+    monkeypatch.setattr(po.catalog_store, "load_latest_prompt_observability_contexts", list)
+    monkeypatch.setattr(po.context_store, "load_latest_prompt_observability_contexts", list)
     snapshot = snapshot_prompt_observability(
         personas=[
             SimpleNamespace(
@@ -526,8 +526,8 @@ def test_snapshot_empty_roster_omits_compiled_flow_and_persona_context(monkeypat
 def test_snapshot_includes_situational_hud_for_instance(monkeypatch):
     from agent_runtime import prompt_observability as po
 
-    monkeypatch.setattr(po.catalog_store, "load_latest_prompt_observability_contexts", lambda: [])
-    monkeypatch.setattr(po.context_store, "load_latest_prompt_observability_contexts", lambda: [])
+    monkeypatch.setattr(po.catalog_store, "load_latest_prompt_observability_contexts", list)
+    monkeypatch.setattr(po.context_store, "load_latest_prompt_observability_contexts", list)
     persona = SimpleNamespace(
         id="neko_supervisor", hermes_profile="neko", display_name="Neko Mission Lead", role="supervisor"
     )
@@ -557,8 +557,8 @@ def test_snapshot_includes_situational_hud_for_instance(monkeypatch):
 def test_snapshot_situational_hud_without_daemon_scope_still_carries_lane(monkeypatch):
     from agent_runtime import prompt_observability as po
 
-    monkeypatch.setattr(po.catalog_store, "load_latest_prompt_observability_contexts", lambda: [])
-    monkeypatch.setattr(po.context_store, "load_latest_prompt_observability_contexts", lambda: [])
+    monkeypatch.setattr(po.catalog_store, "load_latest_prompt_observability_contexts", list)
+    monkeypatch.setattr(po.context_store, "load_latest_prompt_observability_contexts", list)
     persona = SimpleNamespace(id="dev", hermes_profile="dev", display_name="Dev", role="dev")
     instance = SimpleNamespace(
         id="personainst_dev",

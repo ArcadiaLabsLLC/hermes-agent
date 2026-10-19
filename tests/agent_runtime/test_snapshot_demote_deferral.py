@@ -356,11 +356,11 @@ def test_an_unreadable_admitted_counter_reads_unknown_and_never_zero(
             sleeper=clock.sleep,
             clock=clock,
         )
-    line = [
+    line = next(
         r.getMessage()
         for r in caplog.records
         if "snapshot_build_deferred" in r.getMessage()
-    ][0]
+    )
     assert "admitted_at_exit=unknown" in line
 
 

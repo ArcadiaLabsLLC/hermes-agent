@@ -153,7 +153,7 @@ def _run_suite(
     environment = dict(os.environ)
     environment["HERMES_TEST_COVERAGE_RC"] = str(rcfile)
     print(f"▶ tracing: {' '.join(argv)}", flush=True)
-    return subprocess.run(argv, cwd=REPO_ROOT, env=environment).returncode
+    return subprocess.run(argv, cwd=REPO_ROOT, env=environment, check=False).returncode
 
 
 def _combine_and_dump(rcfile: Path, data_file: Path, out: Path) -> dict:
@@ -164,6 +164,7 @@ def _combine_and_dump(rcfile: Path, data_file: Path, out: Path) -> dict:
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        check=False,
     )
     if combine.returncode != 0:
         raise RuntimeError(
@@ -177,10 +178,11 @@ def _combine_and_dump(rcfile: Path, data_file: Path, out: Path) -> dict:
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        check=False,
     )
     if dump.returncode != 0:
         raise RuntimeError(f"coverage json failed:\n{dump.stdout}\n{dump.stderr}")
-    return json.loads(out.read_text(encoding="utf-8"))
+    return json.loads(out.read_text(encoding="utf-8-sig"))
 
 
 def _ranges(numbers: list[int]) -> str:
@@ -321,7 +323,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        import coverage  # noqa: F401
+        import coverage
     except ImportError:
         print(
             "unreachable_branch_report: coverage is not installed in this "

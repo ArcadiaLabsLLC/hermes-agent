@@ -57,7 +57,7 @@ def source(path: os.PathLike[str] | str) -> str:
     if cached is not None and cached[0] == key:
         _COUNTS["read_hits"] += 1
         return cached[1]
-    with open(key[0], encoding="utf-8", errors="replace", newline=None) as handle:
+    with open(key[0], encoding="utf-8-sig", errors="replace", newline=None) as handle:
         text = handle.read()
     _COUNTS["reads"] += 1
     _SOURCES[key[0]] = (key, text)

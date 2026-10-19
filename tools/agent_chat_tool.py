@@ -106,8 +106,6 @@ __all__ = [
     "_MESSAGE_LIMIT",
     "_REPLY_LIMIT",
     "_async_delivery_available",
-    "resolve_chat_lane_target",
-    "session_belongs_to_chat_lane",
     "agent_chat_dispatches",
     "agent_chat_installs",
     "agent_chat_log_path",
@@ -115,6 +113,8 @@ __all__ = [
     "agent_chat_send",
     "agent_chat_threads",
     "harness_query",
+    "resolve_chat_lane_target",
+    "session_belongs_to_chat_lane",
 ]
 
 

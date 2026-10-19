@@ -155,6 +155,12 @@ def reset_for_tests() -> None:
 
 
 __all__ = [
-    "Entry", "PURPOSE_HERMES_CHILD", "forget_child", "index_directory", "process_start_ticks",
-    "record_child", "reset_for_tests", "resolve_index_directory",
+    "PURPOSE_HERMES_CHILD",
+    "Entry",
+    "forget_child",
+    "index_directory",
+    "process_start_ticks",
+    "record_child",
+    "reset_for_tests",
+    "resolve_index_directory",
 ]

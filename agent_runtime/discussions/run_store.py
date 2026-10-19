@@ -19,7 +19,7 @@ from hermes_cli.sqlite_util import transaction
 
 from .definition_store import DefinitionStore, _encode
 from .definitions import DefinitionError, ParticipantRef, identifier, revision
-from .run_values import DiscussionError, text as text, digest, member_id
+from .run_values import DiscussionError, text, digest, member_id
 from .run_schema import run_schema_ready, initialize_runs
 from .run_records import read_run_record, _advance, _expect_run, _add_member, claim_table_member
 from .run_admission import admit, table_admission, room_admission

@@ -154,7 +154,7 @@ def generate_row_strip(
                 method="components" if strict else "auto",
                 fit=False,
             )
-        except Exception as exc:  # noqa: BLE001 - retried; the reason is reported below
+        except Exception as exc:  # retried; the reason is reported below
             last_error = exc
             logger.warning(
                 "charsheet row %r attempt %d/%d rejected: %s",

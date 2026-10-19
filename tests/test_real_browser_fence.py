@@ -20,7 +20,7 @@ _OUTSIDE = os.path.join(os.path.abspath(os.sep), "h13-fence-nowhere", "node_modu
 
 def test_a_real_agent_browser_spawn_skips_instead_of_running():
     with pytest.raises(pytest.skip.Exception, match="real-browser fence: .*agent-browser"):
-        subprocess.run([os.path.join(_OUTSIDE, "agent-browser.cmd"), "--version"])
+        subprocess.run([os.path.join(_OUTSIDE, "agent-browser.cmd"), "--version"], check=False)
 
 
 @pytest.mark.parametrize("program", [
@@ -42,4 +42,4 @@ def test_a_fake_under_the_temp_root_runs(tmp_path):
 
 def test_an_ordinary_spawn_is_untouched(tmp_path):
     assert real_browser_spawn([sys.executable, "-c", "pass"], None, None, (str(tmp_path),)) is None
-    assert subprocess.run([sys.executable, "-c", "pass"]).returncode == 0
+    assert subprocess.run([sys.executable, "-c", "pass"], check=False).returncode == 0

@@ -35,7 +35,7 @@ from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Sequence
 
 #: a progress line of the bundled runner: ``[ n/N] ✓ tests/x.py (bundle, 1.2s) {...}``
-_PROGRESS = re.compile(r"^\[\s*\d+/\d+\] . (tests[/\\]\S+?\.py) \(\w[\w -]*?(?:,[^)]*?)?, ([\d.]+)s\)", re.M)
+_PROGRESS = re.compile(r"^\[\s*\d+/\d+\] . (tests[/\\]\S+?\.py) \(\w[\w -]*?(?:,[^)]*?)?, ([\d.]+)s\)", re.MULTILINE)
 RUNS_FILE = ".pytest_cache/hermes_bundled_runs.jsonl"
 RECEIPTS_FILE = ".pytest_cache/hermes_worker_protocol.jsonl"
 SKIP_LIST = "tests/fixtures/upstream_skip_list.txt"
@@ -60,8 +60,8 @@ class SaturationSampler:
     def __init__(self, interval: float = 5.0, cpu: Callable[[float], float] = _psutil_cpu,
                  mem: Callable[[], float] = _psutil_mem) -> None:
         self.interval, self._cpu, self._mem = interval, cpu, mem
-        self.cpu_samples: List[float] = []
-        self.mem_samples: List[float] = []
+        self.cpu_samples: list[float] = []
+        self.mem_samples: list[float] = []
         self._stop = threading.Event()
         self.thread = threading.Thread(target=self._loop, name="saturation-sampler", daemon=True)
 
@@ -73,7 +73,7 @@ class SaturationSampler:
             self.cpu_samples.append(busy)
             self.mem_samples.append(self._mem())
 
-    def start(self) -> "SaturationSampler":
+    def start(self) -> SaturationSampler:
         self.thread.start()
         return self
 
@@ -81,13 +81,13 @@ class SaturationSampler:
         self._stop.set()
         self.thread.join()
 
-    def __enter__(self) -> "SaturationSampler":
+    def __enter__(self) -> SaturationSampler:
         return self.start()
 
     def __exit__(self, *exc: object) -> None:
         self.stop()
 
-    def summary(self) -> Dict[str, object]:
+    def summary(self) -> dict[str, object]:
         cpu = sorted(self.cpu_samples)
         p90 = cpu[min(len(cpu) - 1, int(0.9 * len(cpu)))] if cpu else None
         return {
@@ -99,17 +99,17 @@ class SaturationSampler:
         }
 
 
-def last_attempt_seconds(log_text: str) -> Dict[str, float]:
+def last_attempt_seconds(log_text: str) -> dict[str, float]:
     """rel -> seconds of the file's LAST attempt in a bundled-runner log."""
 
-    seconds: Dict[str, float] = {}
+    seconds: dict[str, float] = {}
     for match in _PROGRESS.finditer(log_text):
         seconds[match.group(1).replace("\\", "/")] = float(match.group(2))
     return seconds
 
 
-def build_sample(seconds: Dict[str, float], *, exclude: Iterable[str] = (), seed: int = 7, slow: float = 60.0,
-                 band: Sequence[float] = (0.5, 4.0), draw: int = 200) -> List[str]:
+def build_sample(seconds: dict[str, float], *, exclude: Iterable[str] = (), seed: int = 7, slow: float = 60.0,
+                 band: Sequence[float] = (0.5, 4.0), draw: int = 200) -> list[str]:
     """Every file >= ``slow`` seconds, plus ``draw`` files from the ``band`` population."""
 
     skip = set(exclude)
@@ -118,28 +118,28 @@ def build_sample(seconds: Dict[str, float], *, exclude: Iterable[str] = (), seed
     return heavy + sorted(random.Random(seed).sample(pool, min(draw, len(pool))))
 
 
-def skip_listed(repo: Path) -> List[str]:
+def skip_listed(repo: Path) -> list[str]:
     path = repo / SKIP_LIST
-    rows = path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
+    rows = path.read_text(encoding="utf-8-sig").splitlines() if path.is_file() else []
     return [row.split(" · ", 1)[0].strip() for row in rows if row.strip() and not row.startswith("#")]
 
 
-def _ledger_lines(repo: Path) -> List[str]:
+def _ledger_lines(repo: Path) -> list[str]:
     path = repo / RUNS_FILE
-    return path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
+    return path.read_text(encoding="utf-8-sig").splitlines() if path.is_file() else []
 
 
-def measure(command: Sequence[str], workers: int, repo: Path, *, interval: float = 5.0) -> Dict[str, object]:
+def measure(command: Sequence[str], workers: int, repo: Path, *, interval: float = 5.0) -> dict[str, object]:
     """Run ``command`` under the sampler; the receipt carries the ledger line the run appended."""
 
     before = len(_ledger_lines(repo))
     started = time.time()
     with SaturationSampler(interval) as sampler:
-        rc = subprocess.run(list(command), cwd=str(repo), stdin=subprocess.DEVNULL).returncode
+        rc = subprocess.run(list(command), cwd=str(repo), stdin=subprocess.DEVNULL, check=False).returncode
     elapsed = time.time() - started
     added = _ledger_lines(repo)[before:]
     ledger: Optional[dict] = json.loads(added[-1]) if added else None
-    receipt: Dict[str, object] = {"t": time.strftime("%Y-%m-%dT%H:%M:%S"), "workers": workers, "rc": rc,
+    receipt: dict[str, object] = {"t": time.strftime("%Y-%m-%dT%H:%M:%S"), "workers": workers, "rc": rc,
                                   "elapsed": round(elapsed, 1), **sampler.summary(), "ledger": ledger}
     if ledger and ledger.get("floor_seconds") and ledger.get("elapsed"):
         receipt["floor_over_elapsed"] = round(ledger["floor_seconds"] / ledger["elapsed"], 3)
@@ -160,7 +160,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parser.parse_args(argv)
     repo = Path.cwd()
     if args.verb == "sample":
-        seconds = last_attempt_seconds(args.log.read_text(encoding="utf-8", errors="replace"))
+        seconds = last_attempt_seconds(args.log.read_text(encoding="utf-8-sig", errors="replace"))
         gone = [rel for rel in seconds if not (repo / rel).is_file()]
         files = build_sample(seconds, exclude=[*skip_listed(repo), *gone])
         args.out.write_text("\n".join(files) + "\n", encoding="utf-8", newline="\n")

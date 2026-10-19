@@ -582,7 +582,7 @@ def _live_instance_ids() -> set[str]:
         from .persona_assignments import PersonaInstanceStore
 
         return {instance.id for instance in PersonaInstanceStore().scan_all().instances}
-    except Exception:  # noqa: BLE001 — accounting, never a failed pull
+    except Exception:  # accounting, never a failed pull
         return set()
 
 
@@ -631,5 +631,5 @@ def _write_conflict_sidecar(
             indent=2,
             sort_keys=True,
         )
-    except Exception:  # noqa: BLE001 — the HOLD stands with or without its receipt
+    except Exception:  # the HOLD stands with or without its receipt
         pass

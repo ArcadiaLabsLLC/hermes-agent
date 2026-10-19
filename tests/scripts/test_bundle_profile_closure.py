@@ -243,7 +243,7 @@ def test_a_name_imported_through_a_facade_reaches_its_defining_module(tmp_path, 
     monkeypatch.setattr(closure, "facade_exports", lambda: {"fac": {"hint": "fac.extras", "big": "fac.heavy"}})
     walk = Walk(("user",), ("fac.extras", "fac.heavy"), index, tops)
     assert walk.pinned == {"fac.extras"}  # the name's own module, and not the facade's others
-    monkeypatch.setattr(closure, "facade_exports", lambda: {})  # positive control: the old blind spot
+    monkeypatch.setattr(closure, "facade_exports", dict)  # positive control: the old blind spot
     assert Walk(("user",), ("fac.extras", "fac.heavy"), index, tops).pinned == set()
 
 
@@ -335,8 +335,8 @@ def test_planning_the_core_and_every_pack_over_two_site_sets_is_one_walk_and_one
             {"sites": [], "selections": {"": [], "bedrock": ["bedrock"]}}]
     import sys
 
-    import packaging.markers  # noqa: F401 — loaded before the venv leaves sys.path
-    import packaging.requirements  # noqa: F401
+    import packaging.markers  # loaded before the venv leaves sys.path
+    import packaging.requirements
 
     # No installed metadata at all: every fact comes from uv.lock, so the answer cannot depend on
     # what the test interpreter happens to have installed (or on a broken dist-info in it).

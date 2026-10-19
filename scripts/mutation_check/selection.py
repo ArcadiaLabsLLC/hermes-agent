@@ -33,7 +33,7 @@ __layer__ = "stores"
 
 def _load_json(path: Path) -> dict[str, Any]:
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
+        value = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, json.JSONDecodeError) as error:
         raise RuntimeError(f"cannot read {path}: {error}") from error
     if not isinstance(value, dict):

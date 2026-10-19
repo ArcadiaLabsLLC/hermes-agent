@@ -40,7 +40,7 @@ def readers_from_ledger(text: str) -> frozenset[str]:
         match = _ROW_PATH.match(line)
         if match and READER_MOVED in line:
             path = match[1][: -len(".py")]
-            modules.add(path[: -len("/__init__")] if path.endswith("/__init__") else path)
+            modules.add(path.removesuffix("/__init__"))
     return frozenset(module.replace("/", ".") for module in modules)
 
 
@@ -50,7 +50,7 @@ def fork_readonly_readers() -> frozenset[str]:
     return readers_from_ledger(LEDGER.read_text(encoding="utf-8"))
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _module_file(module: str) -> Path | None:
     base = REPO_ROOT.joinpath(*module.split("."))
     for candidate in (base.with_suffix(".py"), base / "__init__.py"):
@@ -78,7 +78,7 @@ def _imports_of(path: Path) -> set[str]:
     return _repo_modules(imported_modules(path, rel))
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _module_imports(module: str) -> frozenset[str]:
     path = _module_file(module)
     return frozenset(_imports_of(path)) if path is not None else frozenset()
@@ -91,7 +91,7 @@ def reaches_a_reader(direct: set[str], readers: frozenset[str]) -> bool:
     return any(_module_imports(module) & readers for module in direct)
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def file_reads_through(path: str) -> bool:
     """Whether the test file at ``path`` imports a fork-moved reader within one hop."""
     readers = fork_readonly_readers()

@@ -66,7 +66,7 @@ def realm_sync_status(
     realm_id: str,
     *,
     membership: RealmMembershipProvider | None = None,
-    credential: "RealmSyncCredential | None" = None,
+    credential: RealmSyncCredential | None = None,
 ) -> dict[str, Any]:
     """The diagnostic read: the repo (remote-refreshed when allowed), the local
     drift, the holds, the envelope. See ``_status_repo`` for the degrade."""
@@ -178,7 +178,7 @@ def realm_sync_status(
 def _status_repo(
     realm: Realm,
     membership: RealmMembershipProvider | None,
-    credential: "RealmSyncCredential | None",
+    credential: RealmSyncCredential | None,
 ) -> tuple[Path, dict[str, Any]]:
     """``(repo, remote_check)`` for the status read.
 

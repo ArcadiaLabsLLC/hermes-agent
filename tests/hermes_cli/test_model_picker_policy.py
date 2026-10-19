@@ -19,7 +19,7 @@ def test_descriptor_projection_matches_shared_wire_fixture(monkeypatch):
     token = _token("account-a")
     monkeypatch.setattr(auth_codex, "_read_codex_tokens", lambda: {"tokens": {"access_token": token}})
     monkeypatch.setattr(model_picker_policy, "get_verified_codex_model_ids", lambda value: list(ids))
-    monkeypatch.setattr(provider_catalog, "provider_catalog", lambda: [])
+    monkeypatch.setattr(provider_catalog, "provider_catalog", list)
     rows = {row["id"]: row for row in provider_login_catalog.provider_login_catalog()}
     for slug, policy in fixture["policies"].items():
         assert rows[slug]["model_picker"] == policy
@@ -43,7 +43,7 @@ def test_failure_isolation_and_secret_redaction(monkeypatch):
         raise RuntimeError("secret-token-and-account-id")
     monkeypatch.setattr(auth_codex, "_read_codex_tokens", fail)
     monkeypatch.setattr(auth_codex, "_pool_codex_credential", lambda: ("", ""))
-    monkeypatch.setattr(provider_catalog, "provider_catalog", lambda: [])
+    monkeypatch.setattr(provider_catalog, "provider_catalog", list)
     rows = {row["id"]: row for row in provider_login_catalog.provider_login_catalog()}
     assert rows["openai-codex"]["model_picker"]["catalog_mode"] == "unavailable"
     assert "secret-token" not in json.dumps(rows)

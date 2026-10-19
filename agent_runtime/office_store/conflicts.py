@@ -67,7 +67,7 @@ def scan_conflicts(store: OfficeStore, workspace_id: str) -> ConflictScan:
         try:
             payload = read_json(path)
             key = str(payload.get("actor_key") or "").strip()
-        except Exception as exc:  # noqa: BLE001 — the scan survives one bad file
+        except Exception as exc:  # the scan survives one bad file
             outcomes.append(
                 OfficeActorOutcome.conflict_key_from_filename(
                     workspace_id, path.stem, exc

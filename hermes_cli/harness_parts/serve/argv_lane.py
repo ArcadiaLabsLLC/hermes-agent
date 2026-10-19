@@ -18,37 +18,37 @@ from hermes_cli.harness_parts.serve.constants import (
 __layer__ = "lanes"
 
 __all__ = [
-    "HarnessParserUnbound",
-    "bind_harness_parser",
     "ARGV_ROOT",
     "ArgvRootUnsupported",
     "HandlerExit",
+    "HarnessParserUnbound",
     "_ArgvRequest",
     "_build_harness_parser",
     "_clean_argv_root",
     "_system_exit_code",
+    "bind_harness_parser",
     "dispatch_argv",
 ]
 
 
 class _ArgvRequest:
     __slots__ = (
-        "rid",
+        "accepted",
         "argv",
+        "cancel_event",
+        "from_gateway",
+        "interrupt_scope",
         "is_chat_turn",
         "is_long_run",
         "is_runtime_stream",
-        "cancel_event",
-        "interrupt_scope",
         "key",
         "owner",
-        "sink",
-        "turn_request_id",
-        "from_gateway",
-        "submitted_monotonic",
-        "started_monotonic",
         "progress_monotonic",
-        "accepted",
+        "rid",
+        "sink",
+        "started_monotonic",
+        "submitted_monotonic",
+        "turn_request_id",
     )
 
     def __init__(

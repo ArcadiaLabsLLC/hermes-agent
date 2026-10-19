@@ -9,6 +9,7 @@ from agent_runtime.runtime_hud import (
     render_situational_hud_block,
     resolve_situational_hud,
 )
+from datetime import UTC
 
 
 def _instance(**overrides):
@@ -847,7 +848,7 @@ def test_the_unreachable_age_is_rendered_from_the_stamp_and_not_stored():
 
     from datetime import datetime, timedelta, timezone
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     assert _age_phrase((now - timedelta(seconds=5)).isoformat()) == "just now"
     assert _age_phrase((now - timedelta(minutes=12)).isoformat()) == "12 min"
     assert _age_phrase((now - timedelta(hours=3)).isoformat()) == "3 h"
@@ -907,7 +908,7 @@ def test_age_phrase_reads_a_naive_stamp_and_a_z_stamp_as_utc():
 
     from agent_runtime.runtime_hud.hud import _age_phrase
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     naive = (now - timedelta(minutes=12)).replace(tzinfo=None).isoformat()
     zulu = (now - timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%S") + "Z"
     assert _age_phrase(naive) == "12 min"

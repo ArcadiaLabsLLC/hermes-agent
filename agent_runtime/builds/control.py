@@ -152,7 +152,7 @@ def stop_build(row: dict[str, Any], *, reason: str = "operator_cancel") -> dict[
         return _error(str(row.get("work_id") or ""), "cancel_unsupported", "unknown build source")
     try:
         return stop(row, reason)
-    except Exception as exc:  # noqa: BLE001 — a failed kill is a typed answer, never a crash
+    except Exception as exc:  # a failed kill is a typed answer, never a crash
         return _error(row["work_id"], "cancel_failed", type(exc).__name__)
 
 

@@ -12,7 +12,7 @@ from agent_runtime.conversations.store import ConversationStore
 from agent_runtime.work import service
 from agent_runtime.work.model import Reason, WorkRefused
 from tests.agent_runtime.persona_instance_mint import mint_free_floating
-from tests.agent_runtime.test_work_service import call, rows_of, start, work  # noqa: F401
+from tests.agent_runtime.test_work_service import call, rows_of, start, work
 
 
 @pytest.fixture

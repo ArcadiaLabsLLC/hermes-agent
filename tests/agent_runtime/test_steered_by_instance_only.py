@@ -68,7 +68,7 @@ def _write_corrupt_row(store: PersonaInstanceStore, instance_id: str, *, steered
         steered_by=list(steered_by),
         spawned_by=spawned_by,
     )
-    store._write(inst)  # noqa: SLF001 — test fabricates a pre-fix on-disk row
+    store._write(inst)  # test fabricates a pre-fix on-disk row
 
 
 # ── predicate ──────────────────────────────────────────────────────────────

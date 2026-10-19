@@ -19,7 +19,6 @@ __layer__ = "stores"
 
 __all__ = [
     "FINGERPRINT_HOME_CLI_BOOT_SITE",
-    "capture_for_harness_command",
     "_capture_fingerprint_home_locked",
     "_fingerprint_home",
     "_fingerprint_home_boot_site",
@@ -28,6 +27,7 @@ __all__ = [
     "_pinned_to_fingerprint_home",
     "_receipt_fingerprint_home_lazy_capture",
     "capture_fingerprint_home",
+    "capture_for_harness_command",
     "declare_fingerprint_home_boot_site",
     "resolved_fingerprint_home",
 ]

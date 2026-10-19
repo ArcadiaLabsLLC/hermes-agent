@@ -38,7 +38,7 @@ import pytest
 from tests.hermes_cli.test_mission_chat_budget_payload import (  # type: ignore
     _args,
     _seed,
-    isolate_agent_runtime_root,  # noqa: F401  (re-exported fixture)
+    isolate_agent_runtime_root,  # (re-exported fixture)
 )
 from hermes_cli.harness_parts.persona import chat_turn_message
 from hermes_cli.harness_parts import parser as harness_parser

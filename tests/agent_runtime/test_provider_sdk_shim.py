@@ -90,4 +90,4 @@ def test_the_sdk_free_client_refuses_audio_by_name():
     client = sdk_free.SdkFreeClient(api_key="k", base_url="https://p.example/v1")
     assert client.chat.completions.create  # control: the chat surface is there
     with pytest.raises(sdk_free.SdkFreeWireUnavailable, match="agent.provider_sdks: false"):
-        client.audio  # noqa: B018 — the attribute access is the call under test
+        client.audio  # the attribute access is the call under test

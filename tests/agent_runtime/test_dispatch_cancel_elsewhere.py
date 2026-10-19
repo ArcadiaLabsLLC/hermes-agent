@@ -26,7 +26,7 @@ from agent_runtime.dispatch_store import (
 )
 from tools import agent_chat_dispatch
 from tools.agent_chat_dispatch import cancel_watch
-import tools.agent_chat_dispatch.local_child  # noqa: F401 - the spawn the tests patch
+import tools.agent_chat_dispatch.local_child  # the spawn the tests patch
 
 SENDER_ROOT = "persona_chat_personainst_neko_aaaaaaaaaaaa"
 
