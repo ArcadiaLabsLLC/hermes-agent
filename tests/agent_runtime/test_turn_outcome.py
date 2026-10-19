@@ -90,3 +90,26 @@ def test_caps_bound_the_rows_and_mark_truncated():
     block = fold.block()
     assert len(block["tests"]) == TURN_OUTCOME_MAX_TESTS == 32
     assert block["truncated"] is True
+
+
+# S2 binding. Mutation: drop ``raw_result["turn_outcome"] = outcome.block()`` -> the
+# key is missing; drop the runner copy -> AgentRunResult.turn_outcome stays None.
+def test_the_persona_runner_binds_the_fold_around_the_turn_and_carries_the_block():
+    from agent_runtime.profile_runner import _run_conversation_with_usage_ledger
+    from agent_runtime.profile_runner.runner import _normalize_result
+
+    class _Agent:
+        def run_conversation(self, **kwargs):
+            _terminal("pytest -q", exit_code=0)
+            return {"final_response": "ok"}
+
+    class _Quiet:
+        def run_conversation(self, **kwargs):
+            return {"final_response": "ok"}
+
+    result = _run_conversation_with_usage_ledger(_Agent(), {})
+    assert result["turn_outcome"]["tests"] == [{"command": "pytest -q", "exit_code": 0, "verdict": "passed"}]
+    assert _normalize_result(result, agent=_Agent()).turn_outcome == result["turn_outcome"]
+    quiet = _run_conversation_with_usage_ledger(_Quiet(), {})
+    assert quiet["turn_outcome"] is None
+    assert _normalize_result(quiet, agent=_Quiet()).turn_outcome is None
