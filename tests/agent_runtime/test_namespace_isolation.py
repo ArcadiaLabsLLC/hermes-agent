@@ -16,6 +16,13 @@ from agent_runtime.resolution import RuntimeResolution, resolve_runtime
 from agent_runtime.root_anchor import RootAnchorOutcome, publish_store_root_anchor
 
 
+@pytest.fixture(autouse=True)
+def _long_paths(monkeypatch):
+    from hermes_cli import _namespace_bootstrap
+
+    monkeypatch.setattr(_namespace_bootstrap, "long_paths_enabled", lambda: True)
+
+
 @pytest.fixture
 def layout(tmp_path: Path):
     base = tmp_path / ".hermes"

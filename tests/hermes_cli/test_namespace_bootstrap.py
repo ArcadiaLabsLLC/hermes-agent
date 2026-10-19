@@ -19,6 +19,12 @@ from hermes_cli import _namespace_bootstrap as ns
 REPO = Path(__file__).resolve().parents[2]
 
 
+@pytest.fixture(autouse=True)
+def _long_paths(monkeypatch):
+    """The path budget has its own file; here a long ``tmp_path`` must not decide a resolution."""
+    monkeypatch.setattr(ns, "long_paths_enabled", lambda: True)
+
+
 @pytest.fixture
 def base(tmp_path: Path) -> Path:
     root = tmp_path / "install" / ".hermes"
@@ -187,7 +193,8 @@ def test_probe_exits_0_with_json_and_writes_nothing(base: Path):
     assert out["schema"] == 1
     assert out["namespaces_dir"] == str(base.parent / "hermes-namespaces")
     assert out["root"] == str(base.parent / "hermes-namespaces" / "acct-0123456789abcdef")
-    assert out["refusal"] is None
+    # a real child reads the real registry: a long tmp_path on a box without long paths is the budget's refusal
+    assert out["refusal"] is None or (not out["long_paths"] and out["refusal"]["reason"] == "namespace_root_too_long")
     assert not (base.parent / "hermes-namespaces").exists()
 
 

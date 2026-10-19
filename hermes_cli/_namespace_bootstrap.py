@@ -1,7 +1,7 @@
 """Fork-owned, stdlib only: ``HERMES_NAMESPACE`` -> a namespace root, resolved before any hermes module imports.
 
 Plan: ``EterniaLauncher/docs/embedded_hermes/planned/ONE_HERMES_INSTALL_PROFILE_NAMESPACE_2026-10-19.md``
-§2.1-2.2, §2.8, §4 H1 (rows ``RT-NAMESPACE-ROOT``, ``RT-NAMESPACE-ID-CHARSET``). One code install per machine; N data namespaces inside it. A namespace is a
+§2.1-2.2, §2.8, §4 H1/H1c (rows ``RT-NAMESPACE-ROOT``, ``-ID-CHARSET``, ``-PATH-BUDGET``). One code install per machine; N data namespaces inside it. A namespace is a
 complete Hermes data root (profiles, agent-runtime, shared DBs, auth, pairing, serve lock) at
 ``<HERMES_NAMESPACES_DIR or <base parent>/hermes-namespaces>/<id>`` — a SIBLING of the base root,
 never inside it — that borrows the base install read-only.
@@ -22,6 +22,9 @@ The rules, each pinned by ``tests/hermes_cli/test_namespace_bootstrap.py``:
 * Fences: ``HERMES_DEPENDENCY_ROOT=<base>``, ``HERMES_REGISTRY_WRITE_FENCE=1`` and
   ``HERMES_DISABLE_LAZY_INSTALLS=1`` are ``setdefault``ed, so a namespace never syncs its own venv
   nor writes the user's registry.
+* Path budget (Windows ``MAX_PATH``): a root longer than :data:`ROOT_BUDGET` refuses unless the
+  OS has long paths enabled.
+
 Unset ``HERMES_NAMESPACE`` in a launcher-spawned process touches nothing: no env write, no file read.
 """
 
@@ -59,6 +62,15 @@ _ID = re.compile(r"[a-z0-9][a-z0-9-]{0,47}")
 ACCOUNT_ID = re.compile(r"acct-[0-9a-f]{16}")
 _WINDOWS_DEVICE = re.compile(r"con|prn|aux|nul|com[0-9]|lpt[0-9]")
 
+#: Windows ``MAX_PATH`` (260) less the terminating NUL.
+MAX_PATH_CHARS = 259
+#: Measured 2026-10-19: the longest path ``agent_runtime/paths.py`` builds below a namespace root with
+#: 32-character ids (``agent-runtime/realm_sync/<realm>/prefab_conflicts/<profile>/<prefab>.json``).
+#: ``tests/agent_runtime/test_namespace_path_budget.py`` re-measures it from the module itself.
+LONGEST_STORE_SUFFIX = 146
+ROOT_BUDGET = MAX_PATH_CHARS - LONGEST_STORE_SUFFIX
+
+
 class Reason(StrEnum):
     INVALID_ID = "namespace_invalid_id"
     ARGV_ENV_MISMATCH = "namespace_argv_env_mismatch"
@@ -66,6 +78,7 @@ class Reason(StrEnum):
     CONTAINMENT = "namespace_containment"
     HOME_ESCAPE = "namespace_home_escape"
     ISOLATION = "namespace_isolation"
+    ROOT_TOO_LONG = "namespace_root_too_long"
     RESERVED = "namespace_reserved"
     NOT_FOUND = "namespace_not_found"
     BUSY = "namespace_busy"
@@ -151,6 +164,24 @@ def namespaces_dir(env: Mapping[str, str], base: Path) -> Path:
     return folder
 
 
+_LONG_PATHS: list[bool] = []
+
+
+def long_paths_enabled() -> bool:
+    """True off Windows; on Windows, ``LongPathsEnabled`` = 1 (a registry READ — the fence allows reads)."""
+    if sys.platform != "win32":
+        return True
+    if not _LONG_PATHS:
+        try:
+            import winreg
+
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\FileSystem") as key:
+                _LONG_PATHS.append(int(winreg.QueryValueEx(key, "LongPathsEnabled")[0]) == 1)
+        except (OSError, ValueError):
+            _LONG_PATHS.append(False)
+    return _LONG_PATHS[0]
+
+
 @dataclass(frozen=True, slots=True)
 class Layout:
     """One namespace's paths. ``classify`` answers where any path lies relative to it."""
@@ -191,7 +222,7 @@ class Layout:
         return "outside"
 
 
-def layout(ns_id: str, env: Mapping[str, str]) -> Layout:
+def layout(ns_id: str, env: Mapping[str, str], *, long_paths: bool | None = None) -> Layout:
     """The layout of namespace *ns_id* (never ``base``), or a typed refusal."""
     ns_id = validate_id(ns_id)
     if ns_id == BASE_ID:
@@ -199,6 +230,14 @@ def layout(ns_id: str, env: Mapping[str, str]) -> Layout:
     base = base_root(env)
     folder = namespaces_dir(env, base)
     item = Layout(ns_id, base, folder, folder / ns_id)
+    allowed = long_paths_enabled() if long_paths is None else long_paths
+    if item.root_length > ROOT_BUDGET and not allowed:
+        raise NamespaceRefused(
+            Reason.ROOT_TOO_LONG,
+            f"{item.root} is {item.root_length} characters; the budget is {ROOT_BUDGET} "
+            f"({MAX_PATH_CHARS} less the {LONGEST_STORE_SUFFIX}-character longest store path) and this "
+            "OS does not have long paths enabled",
+        )
     return item
 
 
@@ -351,8 +390,9 @@ def apply_cli_namespace(argv: list[str] | None = None, environ: MutableMapping[s
 def probe(env: Mapping[str, str], ns_id: str | None = None) -> dict[str, object]:
     """``hermes namespace probe``: the launcher's pre-spawn capability check. Reads only; writes nothing."""
     out: dict[str, object] = {
-        "schema": SCHEMA, "namespaces_dir": None, "base_root": None,
-        "namespace": None, "root": None, "refusal": None,
+        "schema": SCHEMA, "namespaces_dir": None, "base_root": None, "root_budget": ROOT_BUDGET,
+        "max_path": MAX_PATH_CHARS, "long_paths": long_paths_enabled(),
+        "namespace": None, "root": None, "root_length": None, "refusal": None,
     }
     try:
         base = base_root(env)
@@ -361,7 +401,9 @@ def probe(env: Mapping[str, str], ns_id: str | None = None) -> dict[str, object]
         if requested is not None:
             out["namespace"] = validate_id(requested)
             if requested != BASE_ID:
-                out["root"] = str(layout(requested, env).root)
+                item = layout(requested, env, long_paths=True)
+                out["root"], out["root_length"] = str(item.root), item.root_length
+                layout(requested, env)  # the budget refusal, reported beside the length it measured
     except NamespaceRefused as exc:
         out["refusal"] = {"reason": exc.reason.value, "detail": exc.detail}
     return out
