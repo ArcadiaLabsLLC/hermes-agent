@@ -54,7 +54,18 @@ def test_run_tests_sources_the_door_and_the_shipped_list_holds_only_names():
         line.split("#", 1)[0].strip()
         for line in (REPO / "scripts" / "fork_test_env.txt").read_text(encoding="utf-8").splitlines()
     ]
-    assert [n for n in names if n] == ["HERMES_TEST_IDLE_BOX"]
+    assert [n for n in names if n] == ["HERMES_TEST_IDLE_BOX", "HERMES_TEST_BODY_PATCH_UNDO"]
+
+
+@pytest.mark.skipif(sys.platform == "win32" and not Path(BASH).is_file(), reason="Git Bash not installed")
+def test_the_body_patch_knob_crosses_env_i_through_the_shipped_list(tmp_path):
+    """p10 S-A2: ``HERMES_TEST_BODY_PATCH_UNDO`` set by the caller reaches the test process, so an
+    ``=on`` run measures the undo and not the default. Mutation: drop its line from the list."""
+
+    listing = (REPO / "scripts" / "fork_test_env.txt").read_text(encoding="utf-8")
+    proc = _extend(tmp_path, listing, {"HERMES_TEST_BODY_PATCH_UNDO": "on"})
+    assert proc.returncode == 0, proc.stderr
+    assert "HERMES_TEST_BODY_PATCH_UNDO=on" in proc.stdout.splitlines()
 
 
 def _door(script: str, env: dict) -> subprocess.CompletedProcess:
