@@ -9,7 +9,10 @@ models (models): ``Platform``, ``Reason``, ``MessagingRefused`` — the closed v
 bindings (stores): ``Binding`` / ``BindingStore`` — a platform chat POINTS AT a persona instance, never a session;
 operators (stores): ``Operator`` / ``OperatorStore`` — who may talk; fail closed;
 credentials (stores): ``bot_token`` / ``set_token`` / ``clear_token`` — the bot token behind the host-store seam;
-rpc (lanes): ``runtime.messaging.status|binding.*|operator.*|credential.*``.
+rpc (lanes): ``runtime.messaging.status|binding.*|operator.*|credential.*``;
+chunks (models): ``chunk(text, limit)`` — a reply split at a platform's message limit;
+transport (models): ``Transport`` — the protocol every platform transport implements, and its values;
+telegram_api (lanes): ``TelegramTransport`` — Bot API long polling over ``httpx``, backoff as a table.
 """
 
 __layer__ = "models"
