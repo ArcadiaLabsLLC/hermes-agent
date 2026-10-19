@@ -240,8 +240,8 @@ def test_a_spawn_event_names_its_program_for_every_event_shape():
     assert trail.spawned_program("os.exec", ("/bin/sh", ["sh"], {})) == "/bin/sh"
     assert trail.spawned_program("os.spawn", (0, "node", ["node"], {})) == "node"
     assert trail.spawned_program("os.system", ("echo hi",)) == ""
-    spaced = '"C:\Program Files\Py\python.exe" -c pass'  # Windows audits a quoted command line
-    assert trail.spawned_program("subprocess.Popen", (None, spaced, None, None)) == "C:\Program Files\Py\python.exe"
+    spaced = r'"C:\Program Files\Py\python.exe" -c pass'  # Windows audits a quoted command line
+    assert trail.spawned_program("subprocess.Popen", (None, spaced, None, None)) == r"C:\Program Files\Py\python.exe"
     assert trail.is_python(trail.spawned_program("subprocess.Popen", (None, spaced, None, None)))
 
 
@@ -254,7 +254,7 @@ def test_the_run_report_classifies_a_program_through_the_recorder(monkeypatch):
     import hermes_dep_trail as trail
 
     assert report.first_program is trail.first_program and report.is_python is trail.is_python
-    spaced = '"C:\Program Files\Py\python.exe" -c pass'
+    spaced = r'"C:\Program Files\Py\python.exe" -c pass'
     assert report.program_kind(spaced) == "python"
     assert report.program_kind(["git", "status"]) == "git" and report.program_kind("node x.js") == "other"
 

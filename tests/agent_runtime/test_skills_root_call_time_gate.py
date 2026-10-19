@@ -381,7 +381,7 @@ def switched_profile(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     long-lived ``serve`` is in after ``set_hermes_home_override()``.
     """
 
-    import tools.skills_sync as skills_sync
+    from tools import skills_sync
 
     home_a = tmp_path / "profile-a"
     home_b = tmp_path / "profile-b"

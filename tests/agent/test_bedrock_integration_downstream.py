@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from tests.agent.test_bedrock_integration import (  # noqa: F401 — upstream names the moved tests use
+from tests.agent.test_bedrock_integration import (  # upstream names the moved tests use
     _boto_sys_modules_hygiene,
 )
 

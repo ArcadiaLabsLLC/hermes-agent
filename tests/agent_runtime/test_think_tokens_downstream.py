@@ -59,7 +59,7 @@ def _request(agent, clock, *, reasoning, reply_kind="response.output_text.delta"
              terminal=True):
     """One streamed request: created, reasoning frames, the first reply output, terminal."""
 
-    setattr(agent, "_hermes_stream_gap_receipt", StreamGapReceipt(clock=clock, probe_factory=None))
+    agent._hermes_stream_gap_receipt = StreamGapReceipt(clock=clock, probe_factory=None)
     observe_stream_event(agent, {"type": "response.created"})
     clock.now += gap_s / 2
     observe_stream_event(agent, {"type": "response.reasoning_summary_text.delta", "delta": "hmm"})

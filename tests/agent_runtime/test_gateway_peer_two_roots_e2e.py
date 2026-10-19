@@ -56,12 +56,13 @@ from pathlib import Path
 
 import pytest
 
-from tests.agent_runtime._serve_fixtures import (  # noqa: F401 — two_installs is a fixture
+from tests.agent_runtime._serve_fixtures import (  # two_installs is a fixture
     _Install,
     boot_together,
     stop_together,
     two_installs,
 )
+from datetime import UTC
 
 #: Suite-speed Stage 4A's class mark: this file boots real serve/gateway CHILD
 #: processes. It selects nothing and skips nothing; it lets the runner's tail
@@ -337,7 +338,7 @@ def test_a_join_walks_past_an_unroutable_first_candidate_and_lands_on_the_second
     assert joined["endpoints"] == [{"host": "127.0.0.1", "port": a.gateway_port}]
 
 
-def _cache_row(install: "_Install", peer_install_id: str) -> dict:
+def _cache_row(install: _Install, peer_install_id: str) -> dict:
     """One row of an install's ``peers_cache.json``, read off its own disk."""
 
     path = install.root / "gateway" / "peers_cache.json"
@@ -459,7 +460,7 @@ _PERSONA_CONFIG = b"""agent_runtime:
 """
 
 
-def _seed_persona(install: "_Install") -> None:
+def _seed_persona(install: _Install) -> None:
     """Give one install an addressable agent, the way its own config would."""
 
     config = install.base / "home" / "config.yaml"
@@ -606,7 +607,7 @@ def test_introduce_on_b_join_on_a_and_the_device_half_redeems(two_installs):
     # ~30 days out, as a window rather than an equality.
     from datetime import datetime, timezone
 
-    lifetime = datetime.fromisoformat(a_row["expires_at"]) - datetime.now(timezone.utc)
+    lifetime = datetime.fromisoformat(a_row["expires_at"]) - datetime.now(UTC)
     assert 29 * 86400 < lifetime.total_seconds() <= 30 * 86400
 
     # ── the device half redeems against B, as a phone would ─────────────────

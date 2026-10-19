@@ -32,7 +32,7 @@ from agent_runtime.snapshot_worker.peer import WorkerLoss, WorkerLost
 from agent_runtime.stream import batch_turn_roots, persona_chat_turn_frames
 from agent_runtime.stream.frames import _append_state_reconciled
 from agent_runtime.turn_section_read import read_turn_sections
-from tests.agent_runtime.test_stream_turn_section import (  # noqa: F401  (``home`` is a fixture)
+from tests.agent_runtime.test_stream_turn_section import (  # (``home`` is a fixture)
     INSTANCE,
     PERSONA,
     ROOT,
@@ -46,6 +46,7 @@ from tests.agent_runtime.test_stream_turn_section import (  # noqa: F401  (``hom
     _seed_chat,
     home,
 )
+from datetime import UTC
 
 OPENING = sorted(set(DECLARING) | {PERSONA_CHAT_OPEN_CAPABILITY})
 
@@ -127,7 +128,7 @@ def test_a_bound_worker_reads_the_frame_and_says_so(isolate_agent_runtime_root, 
     assert executor_mod.bind(_home())
     caplog.set_level("INFO")
     in_worker = persona_chat_turn_frames(batch, roots, base_offset=start, caller="hub")
-    strip = lambda frame: {k: v for k, v in _unclocked(frame).items() if k not in {"generated_at", "watermark", "running_work"}}  # noqa: E731
+    strip = lambda frame: {k: v for k, v in _unclocked(frame).items() if k not in {"generated_at", "watermark", "running_work"}}
     assert [strip(f) for f in in_worker] == [strip(f) for f in in_process]
     receipts = [r.getMessage() for r in caplog.records if r.getMessage().startswith("turn_section ")]
     assert receipts and " executor=worker " in receipts[-1] and " pid=" in receipts[-1]
@@ -287,12 +288,12 @@ def test_an_open_only_covers_the_instance_it_opened():
     from agent_runtime.models import Event
 
     def event(event_type, payload):
-        return Event(ts=datetime.now(timezone.utc), type=event_type, task_id=None, run_id=None,
+        return Event(ts=datetime.now(UTC), type=event_type, task_id=None, run_id=None,
                      persona_id=PERSONA, payload=payload, session_id=None)
 
     opened = event("persona_instance.chat_opened", {"persona_instance_id": INSTANCE, "session_id": ROOT})
-    window = lambda *events: [(index + 1, item) for index, item in enumerate(events)]  # noqa: E731
-    patch = lambda **extra: event("state.patched", {"entity": "persona_instance", "id": INSTANCE, "op": "upsert", **extra})  # noqa: E731
+    window = lambda *events: [(index + 1, item) for index, item in enumerate(events)]
+    patch = lambda **extra: event("state.patched", {"entity": "persona_instance", "id": INSTANCE, "op": "upsert", **extra})
     assert batch_turn_roots(window(patch(), opened), opens=True) == [(ROOT, 2)]
     for refused in (
         event("state.patched", {"entity": "persona_instance", "id": "personainst_other", "op": "upsert"}),
@@ -316,7 +317,7 @@ def test_a_worker_read_does_not_stand_aside_for_a_hot_window(isolate_agent_runti
     point → the hot window is polled and the read waits → red.
     """
 
-    import agent_runtime.turn_activity as turn_activity
+    from agent_runtime import turn_activity
 
     _seed_chat()
     start = _log_end()
@@ -352,7 +353,7 @@ def test_the_second_lanes_start_section_is_the_first_lanes_read(isolate_agent_ru
     """
 
     import agent_runtime.stream.frames as frames_module
-    import agent_runtime.turn_activity as turn_activity
+    from agent_runtime import turn_activity
     from agent_runtime import turn_section_reuse
 
     _seed_chat()

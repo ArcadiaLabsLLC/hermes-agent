@@ -94,7 +94,7 @@ def _bind_profile(monkeypatch, profile_home):
     from agent_runtime import profile_context, profile_readiness
     from agent_runtime.profile_context import PersonaProfileBinding
 
-    binding = lambda persona: PersonaProfileBinding(  # noqa: E731 - one-line stub
+    binding = lambda persona: PersonaProfileBinding(  # one-line stub
         persona_id=persona.id,
         hermes_profile="launcher-qa",
         profile_home=profile_home,
@@ -180,7 +180,7 @@ def warm_launcher_qa(monkeypatch, clean_registry):
     registry scope does not.
     """
 
-    import tools.mcp_tool as mcp_tool
+    from tools import mcp_tool
 
     server = _FakeConnectedServer("launcher_qa", _LAUNCHER_QA_FULL_SURFACE)
     monkeypatch.setitem(mcp_tool._servers, "launcher_qa", server)
@@ -228,7 +228,7 @@ def test_teardown_keeps_the_transport_warm(clean_registry, warm_launcher_qa):
     handshake.
     """
 
-    import tools.mcp_tool as mcp_tool
+    from tools import mcp_tool
     from tools.mcp_tool_registration import _register_server_tools
 
     _register_server_tools("launcher_qa", warm_launcher_qa, {})
@@ -351,7 +351,7 @@ def test_a_teardown_that_cannot_take_the_admission_mutex_is_typed(
     refuses any MCP toolset it was not admitted.
     """
 
-    import agent_runtime.mcp_admission as mcp_admission
+    from agent_runtime import mcp_admission
     from tools.mcp_tool_registration import _register_server_tools
 
     _register_server_tools("launcher_qa", warm_launcher_qa, {})
@@ -418,7 +418,7 @@ def test_the_upstream_warm_registration_seam_exists():
 
     import inspect
 
-    import tools.mcp_tool as mcp_tool
+    from tools import mcp_tool
 
     import tools.mcp_tool_registration as registration
 
@@ -438,7 +438,7 @@ def test_a_missing_warm_seam_fails_closed(monkeypatch, clean_registry, warm_laun
     registered before.
     """
 
-    import tools.mcp_tool as mcp_tool
+    from tools import mcp_tool
     from agent_runtime.mcp_admission import _default_registrar
 
     import tools.mcp_tool_registration as registration
@@ -466,7 +466,7 @@ def test_a_parked_server_is_not_live(monkeypatch, clean_registry):
     one's scope left room for.
     """
 
-    import tools.mcp_tool as mcp_tool
+    from tools import mcp_tool
     from agent_runtime.mcp_admission import _live_mcp_sessions
 
     parked = _FakeConnectedServer("launcher_qa", ("mcp_launcher_qa_get_auth_state",))
@@ -920,8 +920,8 @@ def test_the_mission_chat_line_is_empty_with_the_flag_off(qa_profile, monkeypatc
     See ``test_mcp_lane_agent_context_line.py`` for the declaring case.
     """
 
-    import agent_runtime.chat_lane_bundle as chat_lane_bundle
-    import agent_runtime.chat_lane_scope as chat_lane_scope
+    from agent_runtime import chat_lane_bundle
+    from agent_runtime import chat_lane_scope
 
     def _never(*_args, **_kwargs):
         raise AssertionError("the flag-off path must not resolve admission policy")
@@ -933,8 +933,8 @@ def test_the_mission_chat_line_is_empty_with_the_flag_off(qa_profile, monkeypatc
 
 
 def test_the_mission_chat_line_reports_a_denial_with_the_flag_on(qa_profile, monkeypatch):
-    import agent_runtime.chat_lane_bundle as chat_lane_bundle
-    import agent_runtime.chat_lane_scope as chat_lane_scope
+    from agent_runtime import chat_lane_bundle
+    from agent_runtime import chat_lane_scope
 
     monkeypatch.setattr(chat_lane_scope, "admission_enabled", lambda: True)
     monkeypatch.setattr(
@@ -949,8 +949,8 @@ def test_the_mission_chat_line_reports_a_denial_with_the_flag_on(qa_profile, mon
 
 
 def test_the_mission_chat_line_never_fails_a_turn(qa_profile, monkeypatch):
-    import agent_runtime.chat_lane_bundle as chat_lane_bundle
-    import agent_runtime.chat_lane_scope as chat_lane_scope
+    from agent_runtime import chat_lane_bundle
+    from agent_runtime import chat_lane_scope
 
     monkeypatch.setattr(chat_lane_scope, "admission_enabled", lambda: True)
 
@@ -1018,7 +1018,7 @@ def torn_down(monkeypatch):
     D1.01 (owner ruling 2026-10-10): the runner RELEASES the run's budget and keeps the
     resident scope; the release still runs on both the completed and the raised path."""
 
-    import agent_runtime.mcp_admission as mcp_admission
+    from agent_runtime import mcp_admission
     from agent_runtime.mcp_admission import McpTeardownOutcome
 
     seen: list[tuple[str, ...]] = []
@@ -1032,7 +1032,7 @@ def torn_down(monkeypatch):
 
 
 def _stub_admission(monkeypatch, outcome: McpAdmissionOutcome):
-    import agent_runtime.profile_runner as profile_runner
+    from agent_runtime import profile_runner
 
     monkeypatch.setattr(
         profile_runner.ProfileAgentRunner,

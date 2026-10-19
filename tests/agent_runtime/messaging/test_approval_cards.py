@@ -65,7 +65,7 @@ def rig(monkeypatch):
     turns = PersonaTurnExecutor(instances=_Instances(), root_of=lambda store, persona_instance_id, **_:
                                 ROOTS.get(persona_instance_id), wake=lambda: None)
     cards = ApprovalCards(transport, turns, identity=lambda root, iid: {"session_id": root, "persona_instance_id": iid})
-    bridge = MessagingBridge(transport, turns, roster=lambda: [], approvals=cards)
+    bridge = MessagingBridge(transport, turns, roster=list, approvals=cards)
     OperatorStore().allow(Operator(TG, "42", "Max", "rpc:stdio_owner", "2026-10-19T00:00:00+00:00"))
     BindingStore().set(Binding(TG, "-1001", None, "inst-alice", "rpc:stdio_owner", "2026-10-19T00:00:00+00:00"))
     resolved: list[dict] = []

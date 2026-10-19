@@ -101,7 +101,7 @@ def test_a_command_spawned_in_another_slot_runs_with_that_slot_not_the_turn_work
     not the turn's workdir: drive the real ``LocalEnvironment._run_bash`` with Popen captured."""
     import types
 
-    import tools.environments.local as local
+    from tools.environments import local
 
     workspace, checkout, prepend = slot
     primary = tmp_path / "primary"

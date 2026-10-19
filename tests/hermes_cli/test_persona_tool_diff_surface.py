@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 
-from tests.hermes_cli.test_persona_tool_diff_declaration import (  # noqa: F401 - fixtures
+from tests.hermes_cli.test_persona_tool_diff_declaration import (  # fixtures
     _seed_persona,
     _tool_diff,
     bound_profile_home,
@@ -19,7 +19,7 @@ from tests.hermes_cli.test_persona_tool_diff_declaration import (  # noqa: F401 
 )
 
 
-def test_tool_diff_prints_the_split(bound_profile_home, capsys):  # noqa: F811
+def test_tool_diff_prints_the_split(bound_profile_home, capsys):
     _seed_persona()
 
     assert _tool_diff("dev", "--json") == 0
@@ -42,12 +42,12 @@ def test_tool_diff_prints_the_split(bound_profile_home, capsys):  # noqa: F811
             assert f"{state} ({reason})" in out, (state, reason)
 
 
-def test_tool_diff_computes_the_surface_once(bound_profile_home, capsys, monkeypatch):  # noqa: F811
+def test_tool_diff_computes_the_surface_once(bound_profile_home, capsys, monkeypatch):
     """Owner ruling 2026-10-09: one surface per preview. The bundle's capability account no
     longer computes a preview surface (the HUD reads the settled receipt), so a fresh bundle
     build plus ``_preview_tool_surface`` is ONE ``compute_tool_surface``, not two."""
 
-    import agent_runtime.tool_surface as tool_surface
+    from agent_runtime import tool_surface
     from agent_runtime.chat_lane_bundle import invalidate_chat_lane_bundles
 
     _seed_persona()

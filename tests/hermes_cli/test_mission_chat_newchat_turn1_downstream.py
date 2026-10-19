@@ -24,8 +24,8 @@ from tests.hermes_cli.test_mission_chat_turn_phases import (  # type: ignore
     _drive,
     _record_on_disk,
     _streaming_provider,
-    isolate_agent_runtime_root,  # noqa: F401  (re-exported fixture)
-    scripted_marks,  # noqa: F401  (re-exported fixture)
+    isolate_agent_runtime_root,  # (re-exported fixture)
+    scripted_marks,  # (re-exported fixture)
 )
 from tests.hermes_cli.test_mission_chat_budget_payload import _seed  # type: ignore
 from hermes_cli.harness_parts.persona import chat_turn_message
@@ -35,7 +35,7 @@ def _prewarm_the_bundle(monkeypatch) -> None:
     """What ``persona_chat_actor_prewarm._prepare`` does for the opened root: resolve the
     lane bundle on its own thread, before the operator's first message."""
 
-    import model_tools  # noqa: F401  -- registers the builtins, as the serve's boot does
+    import model_tools  # registers the builtins, as the serve's boot does
     from agent_runtime.chat_lane_bundle import chat_lane_bundle
     from agent_runtime.tool_visibility import _ensure_plugin_tools_registered
 
@@ -68,7 +68,7 @@ def _builds_and_moves(root, turn_id):
 
 
 def test_a_prewarmed_new_chat_turn_one_builds_no_bundle(
-    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks
 ):
     """The baseline the live 00:15 chat read (``rt_bundle_builds=0``): prewarm, then turn 1."""
 
@@ -79,7 +79,7 @@ def test_a_prewarmed_new_chat_turn_one_builds_no_bundle(
 
 
 def test_another_runs_admission_during_turn_one_builds_no_bundle(
-    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks
 ):
     """The 01:25 case: the prewarm's admission scope is live while turn 1 assembles.
 

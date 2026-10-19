@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tests.agent.test_compression_feasibility import (  # noqa: F401 — upstream names the moved tests use
+from tests.agent.test_compression_feasibility import (  # upstream names the moved tests use
     _make_agent,
     _stable_aux_provider_config,
 )

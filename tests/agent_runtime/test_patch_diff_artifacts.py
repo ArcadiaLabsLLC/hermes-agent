@@ -6,7 +6,7 @@ into ``tmp_path``), so the live store is never touched — which matters more fo
 this module than most, because it is the one that writes files.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 
 import json
 
@@ -145,7 +145,7 @@ def test_the_same_diff_written_twice_is_one_file(monkeypatch):
     monkeypatch.setattr(
         patch_diff_artifacts,
         "_utc_now",
-        lambda: datetime(2026, 8, 24, 12, 0, 0, tzinfo=timezone.utc),
+        lambda: datetime(2026, 8, 24, 12, 0, 0, tzinfo=UTC),
     )
 
     first = record_patch_diff({"success": True, "diff": _DIFF})

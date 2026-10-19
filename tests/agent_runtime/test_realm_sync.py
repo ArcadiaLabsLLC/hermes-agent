@@ -106,7 +106,7 @@ def test_publish_dry_run_is_allowlisted_and_excludes_state(isolate_agent_runtime
 
     assert result["state"] == "dry_run"
     assert result["secrets_excluded"] == []
-    assert f"skills/demo-skill/SKILL.md" in paths
+    assert "skills/demo-skill/SKILL.md" in paths
     assert any(path.startswith("store/workspaces/") for path in paths)
     assert f"store/realms/{realm.id}.json" in paths
     # ``dev``'s role prompt is REPOSITORY-bundled

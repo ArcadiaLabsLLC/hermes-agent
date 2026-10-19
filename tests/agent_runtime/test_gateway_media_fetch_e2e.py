@@ -24,7 +24,7 @@ import pytest
 from agent_runtime import chat_live_log, media_handles, paths
 from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ, REASON_SCOPE_DENIED
 from agent_runtime.serve_socket import ServeSocketClient
-from tests.agent_runtime.test_serve_gateway_lane import (  # noqa: F401 - fixtures
+from tests.agent_runtime.test_serve_gateway_lane import (  # fixtures
     WAIT,
     _rpc,
     device_client,

@@ -48,6 +48,6 @@ def no_cold_discovery():
 
 
 @pytest.hookimpl(specname="pytest_runtest_teardown", wrapper=True)
-def pytest_runtest_teardown_plugin_delivery(item, nextitem):  # noqa: D401 — pytest hook
+def pytest_runtest_teardown_plugin_delivery(item, nextitem):  # pytest hook
     with no_cold_discovery():
         return (yield)

@@ -35,7 +35,7 @@ from .test_mission_chat_budget_payload import (
     _SESSION_ID,
     _args,
     _seed,
-    isolate_agent_runtime_root,  # noqa: F401 — fixture re-export
+    isolate_agent_runtime_root,  # fixture re-export
 )
 
 #: What the live incident's transport produced: the ``_summarize_api_error``

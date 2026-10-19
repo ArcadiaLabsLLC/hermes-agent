@@ -58,7 +58,7 @@ pytest.importorskip("PIL")
 #: environment and then ASSERTED absent: "the fake drew it" is the claim, and a
 #: child that could not have paid even if it wanted to is how it is bounded from
 #: the other side.
-_CREDENTIAL = re.compile(r"(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|OPENAI|ANTHROPIC|OPENROUTER|NOUS|KREA|FAL|XAI|DEEPINFRA)", re.I)
+_CREDENTIAL = re.compile(r"(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|OPENAI|ANTHROPIC|OPENROUTER|NOUS|KREA|FAL|XAI|DEEPINFRA)", re.IGNORECASE)
 
 CONCEPT = "an arrow knight"
 STATES = "idle:2"
@@ -149,7 +149,7 @@ class _Serve:
             self.process.stdin.write(json.dumps({"op": "shutdown"}) + "\n")
             self.process.stdin.flush()
             self.process.wait(timeout=60)
-        except Exception:  # noqa: BLE001 - teardown; the kill below is the fallback
+        except Exception:  # teardown; the kill below is the fallback
             self.process.kill()
             self.process.wait(timeout=60)
 

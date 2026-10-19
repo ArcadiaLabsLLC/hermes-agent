@@ -6,7 +6,7 @@ upstream autouse ``_isolate_config`` is imported by name so it applies here too.
 
 from typing import Any, Dict
 
-from tests.hermes_cli.test_mcp_config import (  # noqa: F401 — upstream fixture + helpers
+from tests.hermes_cli.test_mcp_config import (  # upstream fixture + helpers
     _isolate_config,
     _make_args,
     _seed_config,
@@ -24,7 +24,7 @@ class TestMcpTestRuntimeEnv:
 
     def test_runtime_env_passes_to_probe(self, tmp_path, monkeypatch):
         self._seed_stdio_server(tmp_path)
-        captured: Dict[str, Any] = {}
+        captured: dict[str, Any] = {}
 
         def mock_probe(name, config, **kw):
             captured["config"] = config
@@ -129,7 +129,7 @@ class TestMcpTestRuntimeEnv:
     def test_no_env_arg_is_backward_compatible(self, tmp_path, monkeypatch):
         """Existing call sites that don't pass --env behave identically."""
         self._seed_stdio_server(tmp_path)
-        captured: Dict[str, Any] = {}
+        captured: dict[str, Any] = {}
 
         def mock_probe(name, config, **kw):
             captured["config"] = config

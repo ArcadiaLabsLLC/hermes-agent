@@ -45,6 +45,7 @@ from agent_runtime.serve_gateway_auth import (
     revoke_device,
     verify_device_proof,
 )
+from datetime import UTC
 
 
 def pair(root: Path, *, tier: str = TIER_CONSOLE, name: str | None = None, now: float = 1000.0):
@@ -516,7 +517,7 @@ def test_a_pairing_code_minted_with_a_ttl_redeems_into_a_row_that_expires(tmp_pa
     assert record.expires_at is not None
     assert record.expired is False
     delta = datetime.fromisoformat(record.expires_at) - datetime.fromtimestamp(
-        at, tz=timezone.utc
+        at, tz=UTC
     )
     assert delta.total_seconds() == CREDENTIAL_TTL_SECONDS_INTRODUCED
     assert record.payload()["expires_at"] == record.expires_at

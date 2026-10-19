@@ -10,7 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 
-import hermes_cli.harness as harness
+from hermes_cli import harness
 from hermes_cli.harness_parts import skills_commands
 
 

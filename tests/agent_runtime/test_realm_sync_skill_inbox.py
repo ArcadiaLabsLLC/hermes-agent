@@ -143,7 +143,7 @@ def _seed_canonical(slug: str, *, body: str) -> Path:
     pkg = _canonical(slug)
     pkg.mkdir(parents=True, exist_ok=True)
     (pkg / "SKILL.md").write_bytes(
-        f"---\nname: {slug.split('/')[-1]}\n---\n{body}".encode("utf-8")
+        f"---\nname: {slug.split('/')[-1]}\n---\n{body}".encode()
     )
     return pkg
 
@@ -152,7 +152,7 @@ def _write_package(base: Path, slug: str, *, body: str = "# Body\n") -> Path:
     pkg = base.joinpath(*slug.split("/"))
     pkg.mkdir(parents=True, exist_ok=True)
     (pkg / "SKILL.md").write_bytes(
-        f"---\nname: {slug.split('/')[-1]}\n---\n{body}".encode("utf-8")
+        f"---\nname: {slug.split('/')[-1]}\n---\n{body}".encode()
     )
     return pkg
 

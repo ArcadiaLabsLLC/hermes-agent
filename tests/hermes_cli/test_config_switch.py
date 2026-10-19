@@ -152,7 +152,7 @@ def _dispatch(request: dict) -> dict:
 def test_voice_mode_and_wake_word_are_not_offered_when_switched_off(monkeypatch):
     from tui_gateway import server
 
-    monkeypatch.setattr(server, "_load_cfg", lambda: {})
+    monkeypatch.setattr(server, "_load_cfg", dict)
     monkeypatch.setitem(sys.modules, "tools.voice_mode", types.SimpleNamespace(
         check_voice_requirements=lambda: {"available": True, "details": ""}))
     monkeypatch.setenv("HERMES_VOICE", "0")

@@ -168,7 +168,7 @@ def test_a_wildcard_bind_with_nothing_to_enumerate_refuses_rather_than_minting(
     from hermes_cli.harness_parts.gateway_commands import NO_DIAL_HOST_SENTENCE
     from hermes_cli.harness_support import ERROR_EXIT_CODES
 
-    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates.machine_addresses", lambda: [])
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates.machine_addresses", list)
 
     code = _dispatch(["harness", "gateway", "pair", "--json"])
     out = capsys.readouterr()

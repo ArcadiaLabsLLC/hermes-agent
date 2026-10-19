@@ -345,8 +345,8 @@ def _upstream_lane_gate() -> tuple[set, dict]:
     """
 
     source = (_REPO_ROOT / "hermes_cli" / "main.py").read_text(encoding="utf-8")
-    commands = re.search(r"^_AGENT_COMMANDS = (\{.*?\})$", source, re.M)
-    subcommands = re.search(r"^_AGENT_SUBCOMMANDS = (\{.*?^\})$", source, re.M | re.S)
+    commands = re.search(r"^_AGENT_COMMANDS = (\{.*?\})$", source, re.MULTILINE)
+    subcommands = re.search(r"^_AGENT_SUBCOMMANDS = (\{.*?^\})$", source, re.MULTILINE | re.DOTALL)
     assert commands and subcommands, (
         "hermes_cli/main.py no longer spells the MCP-registration gate as "
         "_AGENT_COMMANDS/_AGENT_SUBCOMMANDS; re-derive agent_runtime.mcp_lane."

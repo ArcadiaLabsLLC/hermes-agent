@@ -15,7 +15,7 @@ import pytest
 
 from hermes_cli import update_cmd
 from hermes_cli.update_history import HISTORY_REVIEW_EXIT
-from tests.hermes_cli.test_update_diverged_rescue_ref import (  # noqa: F401 — the fixture
+from tests.hermes_cli.test_update_diverged_rescue_ref import (  # the fixture
     GIT,
     _assert_reset_kept_local_commit,
     _git,

@@ -221,7 +221,7 @@ def test_a_config_declaration_disagreeing_with_the_record_is_a_typed_mismatch(
     _bind(monkeypatch, runtime_root)
     # No pointer at all: the declaration is the recorded rung that answers.
     (runtime_root["other_home"] / "config.yaml").write_bytes(
-        f"agent_runtime:\n  head_home: '{runtime_root['other_home']}'\n".encode("utf-8")
+        f"agent_runtime:\n  head_home: '{runtime_root['other_home']}'\n".encode()
     )
     monkeypatch.delenv("HERMES_AGENT_RUNTIME_ROOT", raising=False)
     monkeypatch.delenv("HERMES_HEAD_HOME", raising=False)

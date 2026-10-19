@@ -591,7 +591,7 @@ def test_a_peer_that_never_answers_no_longer_delays_the_next_request(
     import threading
 
     from agent_runtime import media_proxy
-    from tests.agent_runtime.test_serve_socket_lane import (  # noqa: F401
+    from tests.agent_runtime.test_serve_socket_lane import (
         WAIT,
         client,
         running_serve,

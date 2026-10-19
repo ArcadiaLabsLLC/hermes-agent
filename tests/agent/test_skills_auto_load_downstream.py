@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from tests.agent.test_skills_auto_load import (  # noqa: F401 — upstream names the moved tests use
+from tests.agent.test_skills_auto_load import (  # upstream names the moved tests use
     _write_skill,
 )
 

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 
 import pytest
 
@@ -123,7 +123,7 @@ def _process_event(event_type: str) -> Event:
     if event_type == EVENT_PROCESS_ENDED:
         payload.update(exit_code=0, completion_reason="exited")
     return Event(
-        ts=datetime(2026, 10, 19, 12, 0, 0, tzinfo=timezone.utc),
+        ts=datetime(2026, 10, 19, 12, 0, 0, tzinfo=UTC),
         type=event_type,
         task_id=None,
         run_id=None,
@@ -147,7 +147,7 @@ def test_both_types_are_declared_and_are_not_covered_domain_events():
     assert batch_is_patch_coverable(batch) is False
     # The positive twin: a covered state.patched IS coverable under the same call.
     patched = Event(
-        ts=datetime(2026, 10, 19, 12, 0, 0, tzinfo=timezone.utc),
+        ts=datetime(2026, 10, 19, 12, 0, 0, tzinfo=UTC),
         type=STATE_PATCHED_EVENT_TYPE,
         task_id=None,
         run_id=None,

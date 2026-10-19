@@ -138,7 +138,7 @@ def test_the_deadline_is_read_from_config_yaml_and_falls_back_to_the_default(mon
 
     # Absent section, absent key, and a value that will not coerce all land on
     # the default rather than on an unbounded call or a crash mid-draft.
-    monkeypatch.setattr(config_module, "load_config_readonly", lambda: {})
+    monkeypatch.setattr(config_module, "load_config_readonly", dict)
     assert pipeline.provider_timeout_seconds() == pipeline.PROVIDER_TIMEOUT_SECONDS
     monkeypatch.setattr(
         config_module, "load_config_readonly", lambda: {"charsheet": {"provider_timeout_seconds": "soon"}}
@@ -174,5 +174,5 @@ def test_the_module_default_is_the_only_default(monkeypatch):
     from hermes_cli.config_defaults import DEFAULT_CONFIG
 
     assert "charsheet" not in DEFAULT_CONFIG
-    monkeypatch.setattr(config_module, "load_config_readonly", lambda: {})
+    monkeypatch.setattr(config_module, "load_config_readonly", dict)
     assert pipeline.provider_timeout_seconds() == pipeline.PROVIDER_TIMEOUT_SECONDS

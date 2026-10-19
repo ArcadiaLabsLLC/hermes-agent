@@ -14,7 +14,7 @@ import pytest
 
 from agent_runtime.discussions import rpc
 from gateway.hosted_room_discussion import DiscussionValidationError
-from tests.agent_runtime.test_discussion_runtime import (  # noqa: F401 - pytest fixture
+from tests.agent_runtime.test_discussion_runtime import (  # pytest fixture
     begin,
     engine,
     settled,

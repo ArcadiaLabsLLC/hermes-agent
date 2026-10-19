@@ -38,14 +38,14 @@ from __future__ import annotations
 # and a bundle imports every member before it runs any, so the fake reached
 # every co-member (lane REDS2's two observed pairs). With the real module in
 # sys.modules their own guard is a no-op; upstream bytes untouched.
-import dotenv  # noqa: F401
+import dotenv
 
-import pathlib  # noqa: E402
+import pathlib
 
-import pytest  # noqa: E402
+import pytest
 
-from tests._env_gap_fence import KnownDefectTracker, apply_skips, is_owned  # noqa: E402
-from tests._downstream.hermes_cli_conftest.fences import (  # noqa: E402, F401
+from tests._env_gap_fence import KnownDefectTracker, apply_skips, is_owned
+from tests._downstream.hermes_cli_conftest.fences import (
     _gateway_fence_is_armed_for_this_test,
     _AGENT_BROWSER_PROBE_BINDINGS,
     _agent_browser_probe_never_spawns,
@@ -53,7 +53,7 @@ from tests._downstream.hermes_cli_conftest.fences import (  # noqa: E402, F401
     _empty_process_iter,
     _no_live_process_table,
 )
-from tests._downstream.hermes_cli_conftest.isolation import (  # noqa: E402, F401
+from tests._downstream.hermes_cli_conftest.isolation import (
     _backup_native_home_follows_test_home,
     _APP_BASELINE,
     _web_server_app_is_pristine,
@@ -61,7 +61,7 @@ from tests._downstream.hermes_cli_conftest.isolation import (  # noqa: E402, F40
     _sys_modules_identity_is_restored,
     _kanban_live_worker_registry_is_per_test,
 )
-from tests._downstream.hermes_cli_conftest.probes import (  # noqa: E402, F401
+from tests._downstream.hermes_cli_conftest.probes import (
     _VITE8_NODE_FLOOR,
     _node_version,
     _web_build_prereq_failure,
@@ -73,8 +73,8 @@ from tests._downstream.hermes_cli_conftest.probes import (  # noqa: E402, F401
     _no_posix_privilege_api,
     _no_shebang_script_execution,
 )
-from tests.hermes_cli import _gateway_fence  # noqa: E402
-from tests._downstream.hermes_cli_conftest.registry import (  # noqa: E402, F401
+from tests.hermes_cli import _gateway_fence
+from tests._downstream.hermes_cli_conftest.registry import (
     _WEB_BUILD_PREREQ_FILES,
     _ENV_GAP_SKIPS,
     _KNOWN_DEFECTS,
@@ -94,7 +94,7 @@ _OWNER_DIR = pathlib.Path(__file__).resolve().parents[2] / "hermes_cli"
 _KNOWN_DEFECT_TRACKER = KnownDefectTracker(_KNOWN_DEFECTS, "tests/hermes_cli/conftest.py")
 
 
-def pytest_configure(config):  # noqa: D401 — pytest hook
+def pytest_configure(config):  # pytest hook
     """Register the one mark this directory owns (the real-pause opt-out)."""
     config.addinivalue_line(
         "markers",
@@ -105,7 +105,7 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
     )
 
 
-def pytest_collection_modifyitems(items):  # noqa: D401 — pytest hook
+def pytest_collection_modifyitems(items):  # pytest hook
     """Apply the prerequisite guards, then the probe-backed env-gap skips.
 
     Items OUTSIDE this directory are skipped first. This is a global pytest
@@ -127,7 +127,7 @@ def pytest_collection_modifyitems(items):  # noqa: D401 — pytest hook
     apply_skips(items, _ENV_GAP_SKIPS, owner_dir=_OWNER_DIR)
 
 
-def pytest_runtest_logreport(report):  # noqa: D401 — pytest hook
+def pytest_runtest_logreport(report):  # pytest hook
     """Record the known-defect tests' outcomes.
 
     The known-defect test is ``xfail(strict=True)``, so its ordinary outcome is
@@ -138,7 +138,7 @@ def pytest_runtest_logreport(report):  # noqa: D401 — pytest hook
     _KNOWN_DEFECT_TRACKER.record(report)
 
 
-def pytest_sessionfinish(session, exitstatus):  # noqa: D401 — pytest hook
+def pytest_sessionfinish(session, exitstatus):  # pytest hook
     """Latch the gateway fence on for whatever the process does next.
 
     Every fixture has torn down by now and every monkeypatch is undone, which
@@ -155,7 +155,7 @@ def pytest_sessionfinish(session, exitstatus):  # noqa: D401 — pytest hook
     _gateway_fence.arm_permanently()
 
 
-def pytest_terminal_summary(terminalreporter):  # noqa: D401 — pytest hook
+def pytest_terminal_summary(terminalreporter):  # pytest hook
     """Explain the deliberate reds."""
     _KNOWN_DEFECT_TRACKER.report(terminalreporter, "KNOWN DEFECTS — fenced xfail(strict), still open")
 

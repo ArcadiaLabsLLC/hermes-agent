@@ -24,7 +24,7 @@ import hashlib
 import importlib.util
 import json
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -80,7 +80,7 @@ def _fixture(name: str) -> dict:
 
 def _seed_event(log: EventLog, *, task: str, fingerprint: str) -> Event:
     evt = Event(
-        ts=datetime(2026, 7, 16, 12, 0, 0, tzinfo=timezone.utc),
+        ts=datetime(2026, 7, 16, 12, 0, 0, tzinfo=UTC),
         type="state.reconciled",
         task_id=task,
         run_id=None,
@@ -147,7 +147,7 @@ def _live_generated_frames() -> dict[str, dict]:
     core = hydrate["core"]
     log = EventLog()
     first = Event(
-        ts=datetime(2026, 7, 16, 12, 0, 0, tzinfo=timezone.utc),
+        ts=datetime(2026, 7, 16, 12, 0, 0, tzinfo=UTC),
         type="state.reconciled",
         task_id="task_shape",
         run_id=None,

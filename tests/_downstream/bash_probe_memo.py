@@ -46,7 +46,7 @@ def _bash_probe_memo(monkeypatch, _live_system_guard):
     if shell is None:
         if "tools.environments.local" not in sys.modules:
             return  # nothing in this process runs local-backend commands yet
-        import pm.shell as shell  # local.py imports it on its first command
+        from pm import shell  # local.py imports it on its first command
     original = getattr(shell, "_bash_starts", None)
     if original is None or getattr(original, "__wrapped__", None) is not None:
         return

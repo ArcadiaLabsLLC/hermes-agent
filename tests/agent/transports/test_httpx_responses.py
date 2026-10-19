@@ -126,7 +126,7 @@ def _normalized(final):
 
     try:
         return asdict(ResponsesApiTransport().normalize_response(final))
-    except Exception as exc:  # noqa: BLE001 — the failed fixture raises on both sides; compare it
+    except Exception as exc:  # the failed fixture raises on both sides; compare it
         return type(exc).__name__, str(exc)
 
 

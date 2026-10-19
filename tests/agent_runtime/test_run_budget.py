@@ -519,7 +519,7 @@ def _dispatching_agent(stub: _StubTools, tool: str, times: int):
 
 
 def test_mcp_untripped_dispatches_and_shows_headroom(monkeypatch, clean_registry):
-    import agent_runtime.mcp_admission as mcp_admission
+    from agent_runtime import mcp_admission
 
     stub = _StubTools(clean_registry)
     patch_where_bound(monkeypatch, mcp_admission, "_default_registrar", stub.register)
@@ -542,7 +542,7 @@ def test_mcp_untripped_dispatches_and_shows_headroom(monkeypatch, clean_registry
 
 
 def test_mcp_tripped_refuses_the_call_and_still_lands_the_turn(monkeypatch, clean_registry):
-    import agent_runtime.mcp_admission as mcp_admission
+    from agent_runtime import mcp_admission
 
     stub = _StubTools(clean_registry)
     patch_where_bound(monkeypatch, mcp_admission, "_default_registrar", stub.register)
@@ -574,7 +574,7 @@ def test_mcp_tripped_refuses_the_call_and_still_lands_the_turn(monkeypatch, clea
 def test_the_refusal_envelope_is_unchanged(monkeypatch, clean_registry):
     """The model reads a normal tool refusal — the shape must not drift."""
 
-    import agent_runtime.mcp_admission as mcp_admission
+    from agent_runtime import mcp_admission
 
     stub = _StubTools(clean_registry)
     patch_where_bound(monkeypatch, mcp_admission, "_default_registrar", stub.register)

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import hermes_cli.gateway_windows as gateway_windows
+from hermes_cli import gateway_windows
 
 _VBS = Path(r"C:\hermes\gateway-service\Hermes_Gateway_alice.vbs")
 _EXEC_VBS = f'<Command>wscript.exe</Command>\n      <Arguments>//B //Nologo "{_VBS}"</Arguments>'

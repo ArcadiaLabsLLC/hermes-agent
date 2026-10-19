@@ -16,7 +16,7 @@ pytestmark = pytest.mark.skipif(
     ),
 )
 from agent.pet.generate import atlas
-from PIL import Image, ImageDraw  # noqa: E402
+from PIL import Image, ImageDraw
 
 
 def test_merge_rejoins_a_subject_severed_into_stacked_slabs():

@@ -9,7 +9,7 @@ import os
 import sys
 from pathlib import Path
 
-from tests.hermes_cli.test_apply_profile_override import (  # noqa: F401 — upstream names the moved tests use
+from tests.hermes_cli.test_apply_profile_override import (  # upstream names the moved tests use
     _run_apply_profile_override,
 )
 

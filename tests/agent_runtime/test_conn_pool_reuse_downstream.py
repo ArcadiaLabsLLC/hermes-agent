@@ -70,20 +70,20 @@ class _Handler(BaseHTTPRequestHandler):
     def _record(self):
         self.server.requests.append((self.command, self.path.split("?")[0], self.client_address[1]))
 
-    def do_GET(self):  # noqa: N802 - the agent's init-time model probes
+    def do_GET(self):  # the agent's init-time model probes
         self._record()
         self.send_response(404)
         self.send_header("Content-Length", "2")
         self.end_headers()
         self.wfile.write(b"{}")
 
-    def do_HEAD(self):  # noqa: N802 - the pre-connect
+    def do_HEAD(self):  # the pre-connect
         self._record()
         self.send_response(404)
         self.send_header("Content-Length", "0")
         self.end_headers()
 
-    def do_POST(self):  # noqa: N802 - a turn or the title call
+    def do_POST(self):  # a turn or the title call
         body = json.loads(self.rfile.read(int(self.headers.get("content-length") or 0)) or b"{}")
         self._record()
         payload = _completed_stream(body.get("model") or MODEL)

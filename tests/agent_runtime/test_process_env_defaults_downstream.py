@@ -20,7 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_the_conversation_worker_composer_carries_the_defaults(monkeypatch, tmp_path):
-    import hermes_cli.local_runtime.processes as processes
+    from hermes_cli.local_runtime import processes
     from agent_runtime.conversations import worker
 
     captured = {}

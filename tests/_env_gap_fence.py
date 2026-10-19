@@ -142,7 +142,7 @@ def is_owned(path, owner_dir) -> bool:
 # Each probe performs the real spawn once per session.
 
 
-def _memo(fn: "Callable[[], bool]") -> "Callable[[], bool]":
+def _memo(fn: Callable[[], bool]) -> Callable[[], bool]:
     cache: list[bool] = []
 
     def _probe() -> bool:
@@ -155,7 +155,7 @@ def _memo(fn: "Callable[[], bool]") -> "Callable[[], bool]":
     return _probe
 
 
-def describes_host(host_check: "Callable[[], bool]") -> "Callable[[Callable[[], bool]], Callable[[], bool]]":
+def describes_host(host_check: Callable[[], bool]) -> Callable[[Callable[[], bool]], Callable[[], bool]]:
     """Scope a probe's rows to the HOST CLASS they were measured on.
 
     A probe answering False means "no gap here", which on a host of a different
@@ -166,14 +166,14 @@ def describes_host(host_check: "Callable[[], bool]") -> "Callable[[Callable[[], 
     keep the fleet-wide reading in ``tests/test_env_gap_registry.py``.
     """
 
-    def _scope(probe: "Callable[[], bool]") -> "Callable[[], bool]":
+    def _scope(probe: Callable[[], bool]) -> Callable[[], bool]:
         probe.host_check = _memo(host_check)
         return probe
 
     return _scope
 
 
-def describes_this_host(probe: "Callable[[], bool]") -> bool:
+def describes_this_host(probe: Callable[[], bool]) -> bool:
     """False only for a probe scoped to a host class this host is not."""
 
     host_check = getattr(probe, "host_check", None)

@@ -414,7 +414,7 @@ def _seed_assignment(
     archive_scope: str = "assignment",
     production_proof_eligible: bool = False,
     client_message_id: str | None = None,
-) -> "PersonaAssignment":
+) -> PersonaAssignment:
     from agent_runtime.models import PersonaAssignment
 
     ts = now()
@@ -1902,7 +1902,7 @@ def test_persona_chat_history_summary_projects_builtin_chat_source_when_worker_o
 
 
 def test_snapshot_preserves_open_chat_and_emits_history(monkeypatch, isolate_agent_runtime_root):
-    import agent_runtime.chat_session_scope as chat_session_scope
+    from agent_runtime import chat_session_scope
     import agent_runtime.persona_chat_history as history
     import agent_runtime.snapshot as snapshot_module
 
@@ -2819,7 +2819,7 @@ def test_mission_chat_queues_skill_for_next_turn_once(
     db = _TranscriptDB()
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
 
-    import agent.skill_utils as skill_utils
+    from agent import skill_utils
 
     skill_root = isolate_agent_runtime_root / "skills"
     manifest = skill_root / "deep-audit" / "SKILL.md"
@@ -2845,7 +2845,7 @@ def test_mission_chat_queues_skill_for_next_turn_once(
         session_id="persona_chat_personainst_dev",
     ) == ["deep-audit"]
 
-    import agent.skill_commands as skill_commands
+    from agent import skill_commands
 
     monkeypatch.setattr(
         skill_commands,
@@ -2932,9 +2932,9 @@ def test_queue_skill_rejects_missing_skill_without_pending_state(
 ):
     from agent_runtime.queued_skills import pending_skills_for_next_turn
 
-    import tools.skills_tool as skills_tool
+    from tools import skills_tool
 
-    monkeypatch.setattr(skills_tool, "_find_all_skills", lambda: [])
+    monkeypatch.setattr(skills_tool, "_find_all_skills", list)
 
     code = chat_coordinator._cmd_mission_chat_queue_skill(
         SimpleNamespace(
@@ -2960,7 +2960,7 @@ def test_prompt_observability_reports_redaction_safe_available_skill_catalog(
 ):
     from agent_runtime import prompt_observability
 
-    import tools.skills_tool as skills_tool
+    from tools import skills_tool
 
     monkeypatch.setattr(
         skills_tool,
@@ -4501,7 +4501,7 @@ def test_profile_visibility_preserves_custom_instance_role_without_config(monkey
         state=WorkerSessionState.IDLE,
     )
 
-    persona = _profile_visibility_persona(instance, lambda: [])
+    persona = _profile_visibility_persona(instance, list)
 
     assert persona.id == "profile_researcher"
     assert persona.role == "literature_reviewer"
@@ -5185,7 +5185,7 @@ def test_the_two_unbind_paths_are_told_apart_by_what_they_emit():
     clear = inspect.getsource(PersonaInstanceStore.clear_chat_session_binding)
     retract = inspect.getsource(PersonaInstanceStore.rollback_chat_root_bind)
 
-    body_of = lambda src: src.split('"""', 2)[-1]  # noqa: E731 - drop the docstring
+    body_of = lambda src: src.split('"""', 2)[-1]  # drop the docstring
 
     assert "chat_binding_cleared" in body_of(clear)
     assert "emit_persona_instance_patch" not in body_of(clear)

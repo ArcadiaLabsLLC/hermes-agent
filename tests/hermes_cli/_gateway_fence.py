@@ -492,9 +492,9 @@ def real_root() -> Path | None:
 
 
 __all__ = [
-    "GatewayFenceViolation",
     "REAL_PAUSE_MARK",
     "REAL_ROOT_ENV",
+    "GatewayFenceViolation",
     "arm",
     "arm_permanently",
     "classify",

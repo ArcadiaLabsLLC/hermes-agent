@@ -116,14 +116,14 @@ def test_harness_doctor_fix_is_idempotent(isolate_agent_runtime_root):
         fix=True,
         dry_run=True,
         include_worktrees=False,
-        snapshot_builder=lambda: {},
+        snapshot_builder=dict,
     )
     assert dry["repairs"] == {"worktrees_reaped": [], "dry_run": True}
 
     fixed = run_harness_doctor(
         fix=True,
         include_worktrees=False,
-        snapshot_builder=lambda: {},
+        snapshot_builder=dict,
     )
 
     assert fixed["repairs"] == {"worktrees_reaped": [], "dry_run": False}
@@ -131,7 +131,7 @@ def test_harness_doctor_fix_is_idempotent(isolate_agent_runtime_root):
     again = run_harness_doctor(
         fix=True,
         include_worktrees=False,
-        snapshot_builder=lambda: {},
+        snapshot_builder=dict,
     )
     assert again["summary"]["finding_counts"] == {
         "orphan_worktrees": 0,
@@ -162,7 +162,7 @@ def test_harness_doctor_rejects_the_removed_mission_era_parameters(isolate_agent
         with pytest.raises(TypeError):
             run_harness_doctor(
                 include_worktrees=False,
-                snapshot_builder=lambda: {},
+                snapshot_builder=dict,
                 **{kwarg: 1},
             )
     params = set(inspect.signature(run_harness_doctor).parameters)
@@ -176,7 +176,7 @@ def test_harness_doctor_rejects_the_removed_mission_era_parameters(isolate_agent
     }
 
 
-def _diverged_binding() -> "object":
+def _diverged_binding() -> object:
     from agent_runtime.persona_profile_binding import EffectiveBinding
 
     return EffectiveBinding(
@@ -207,7 +207,7 @@ def test_harness_doctor_verdict_spans_the_persona_binding_section(
         lambda *_a, **_k: {"dev": _diverged_binding()},
     )
 
-    report = run_harness_doctor(include_worktrees=False, snapshot_builder=lambda: {})
+    report = run_harness_doctor(include_worktrees=False, snapshot_builder=dict)
 
     assert report["persona_binding"]["diverged_count"] == 1
     assert report["persona_binding"]["health"] == "defect"
@@ -232,7 +232,7 @@ def test_harness_doctor_reports_an_unexamined_section_instead_of_an_all_clear(
 
     monkeypatch.setattr("agent_runtime.harness_doctor.probes.event_log_health", _boom)
 
-    report = run_harness_doctor(include_worktrees=False, snapshot_builder=lambda: {})
+    report = run_harness_doctor(include_worktrees=False, snapshot_builder=dict)
 
     assert report["findings"]["event_log"]["health"] == "unknown"
     assert "share violation" in report["findings"]["event_log"]["error"]
@@ -250,7 +250,7 @@ def test_harness_doctor_model_authority_error_is_unknown_not_ok(
         lambda *_a, **_k: (_ for _ in ()).throw(ValueError("config.yaml is not a mapping")),
     )
 
-    report = run_harness_doctor(include_worktrees=False, snapshot_builder=lambda: {})
+    report = run_harness_doctor(include_worktrees=False, snapshot_builder=dict)
 
     assert report["model_authority"]["available"] is False
     assert report["model_authority"]["health"] == "unknown"
@@ -310,7 +310,7 @@ def test_harness_doctor_thresholds_and_findings_carry_no_mission_rows(isolate_ag
         fix=True,
         dry_run=True,
         include_worktrees=False,
-        snapshot_builder=lambda: {},
+        snapshot_builder=dict,
     )
 
     assert set(report["thresholds"]) == {"worktree_min_age_seconds", "include_worktrees"}
@@ -366,7 +366,7 @@ def test_one_table_row_is_the_whole_cost_of_a_new_doctor_section(
         (*harness_doctor.DOCTOR_SECTIONS, _synthetic_section()),
     )
 
-    report = run_harness_doctor(include_worktrees=False, snapshot_builder=lambda: {})
+    report = run_harness_doctor(include_worktrees=False, snapshot_builder=dict)
 
     # 1: section_health.  2: finding_counts.  3: the payload placement.
     assert report["summary"]["section_health"]["synthetic_probe"] == "defect"
@@ -409,7 +409,7 @@ def test_an_unexamined_section_counts_none_from_the_same_table_row(
         (*harness_doctor.DOCTOR_SECTIONS, unknown),
     )
 
-    report = run_harness_doctor(include_worktrees=False, snapshot_builder=lambda: {})
+    report = run_harness_doctor(include_worktrees=False, snapshot_builder=dict)
 
     assert report["summary"]["finding_counts"]["synthetic_widgets"] is None
     assert "synthetic_probe" in report["summary"]["unexamined_sections"]
@@ -498,7 +498,7 @@ def _seed_office(workspace_id: str):
 def _census(**kwargs):
     report = run_harness_doctor(
         include_worktrees=False,
-        snapshot_builder=lambda: {},
+        snapshot_builder=dict,
         **kwargs,
     )
     return report, report["findings"]["placement_census"]
@@ -1331,7 +1331,7 @@ def test_the_doctor_report_declares_its_schema_version(isolate_agent_runtime_roo
     about, and the reason a removal moves the version rather than riding along.
     """
 
-    report = run_harness_doctor(include_worktrees=False, snapshot_builder=lambda: {})
+    report = run_harness_doctor(include_worktrees=False, snapshot_builder=dict)
 
     assert report["schema_version"] == 10
 
@@ -1534,7 +1534,6 @@ def test_the_join_sweep_reads_a_receipt_only_for_an_orphan(isolate_agent_runtime
 
     def _receipt_for(instance_id):
         asked.append(instance_id)
-        return None
 
     bindings = [
         (_actor("a-ok", persona_id="qa", instance_id="i-live"), "i-live"),

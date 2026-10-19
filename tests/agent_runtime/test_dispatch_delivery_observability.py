@@ -30,7 +30,7 @@ from agent_runtime.file_locks import try_lock_fd, unlock_fd
 
 # Reused AS-IS from the drain's own suite: these are the fixtures whose
 # overrides this module has to prove are still honored.
-from tests.agent_runtime.test_dispatch_delivery import (  # noqa: F401
+from tests.agent_runtime.test_dispatch_delivery import (
     SENDER_ROOT,
     _completed,
     _queue_once,

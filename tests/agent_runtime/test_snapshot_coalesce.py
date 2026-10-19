@@ -15,6 +15,7 @@ import pytest
 
 from agent_runtime import snapshot as snapshot_mod
 from tests._downstream.split_package_source import patch_where_bound
+from datetime import UTC
 
 
 @pytest.fixture(autouse=True)
@@ -146,7 +147,7 @@ def test_shared_results_are_independent_copies(monkeypatch):
         return {
             "n": n,
             "nested": {"rows": [1, 2]},
-            "generated": datetime.now(timezone.utc),
+            "generated": datetime.now(UTC),
         }
 
     monkeypatch.setattr(snapshot_mod.build, "_build_snapshot_uncoalesced", fake_build)

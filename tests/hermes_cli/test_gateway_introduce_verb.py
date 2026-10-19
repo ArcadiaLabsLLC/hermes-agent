@@ -200,7 +200,7 @@ def test_introduce_refuses_a_wildcard_bind_that_enumerates_no_address(
         monkeypatch.setattr(
             _home, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
         )
-    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates.machine_addresses", lambda: [])
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates.machine_addresses", list)
 
     code = _dispatch(
         ["harness", "gateway", "introduce", "--for-install", "install-a", "--json"]
@@ -558,7 +558,7 @@ def test_gateway_id_says_null_rather_than_a_bind_when_there_is_nothing_to_dial(
         monkeypatch.setattr(
             _home, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
         )
-    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates.machine_addresses", lambda: [])
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates.machine_addresses", list)
 
     code, payload = _run(capsys, "id")
 

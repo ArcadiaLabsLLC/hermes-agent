@@ -175,11 +175,7 @@ def _gated_env_access(tree: ast.AST) -> list[int]:
             if isinstance(func, ast.Name) and func.id == "getenv":
                 hits.append(node.lineno)
             elif isinstance(func, ast.Attribute):
-                if func.attr == "getenv":
-                    hits.append(node.lineno)
-                # os.environ.get("HERMES_HOME") — receiver must BE the
-                # process environment, not any mapping that has `.get`.
-                elif func.attr == "get" and _is_process_environ(func.value):
+                if func.attr == "getenv" or func.attr == "get" and _is_process_environ(func.value):
                     hits.append(node.lineno)
         # os.environ["HERMES_HOME"], read or assigned.
         if isinstance(node, ast.Subscript) and names_gated_constant(node.slice):

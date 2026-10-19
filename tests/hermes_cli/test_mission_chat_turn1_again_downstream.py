@@ -30,14 +30,14 @@ from tests.hermes_cli.test_mission_chat_turn_phases import (  # type: ignore
     _drive,
     _record_on_disk,
     _streaming_provider,
-    isolate_agent_runtime_root,  # noqa: F401  (re-exported fixture)
-    scripted_marks,  # noqa: F401  (re-exported fixture)
+    isolate_agent_runtime_root,  # (re-exported fixture)
+    scripted_marks,  # (re-exported fixture)
 )
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["argv_no_stream", "streamed"])
 def test_a_new_chats_first_turn_records_its_first_byte_on_either_lane(
-    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks, stream  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks, stream
 ):
     """*Killing mutation:* wire ``stream_callback=None`` for a non-``--stream`` turn again --
     the ``argv_no_stream`` case records no ``provider_first_byte``."""
@@ -56,7 +56,7 @@ def test_a_new_chats_first_turn_records_its_first_byte_on_either_lane(
 
 
 def test_a_first_turn_with_a_concurrent_build_waits_on_no_catalog_walk(
-    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks
 ):
     """A snapshot build is open and its catalog walk is in flight when turn 1 assembles.
 

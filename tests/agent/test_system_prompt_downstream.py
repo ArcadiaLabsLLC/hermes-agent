@@ -7,7 +7,7 @@ so they render in the volatile tier's plugin block, gated on the session's tool 
 
 from unittest.mock import patch
 
-from tests.agent.test_system_prompt import (  # noqa: F401 — upstream names the moved tests use
+from tests.agent.test_system_prompt import (  # upstream names the moved tests use
     _make_agent,
     _prompt_parts,
     _stable_prompt,

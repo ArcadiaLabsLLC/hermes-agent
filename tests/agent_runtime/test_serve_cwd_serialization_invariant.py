@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import ast
 
-import agent_runtime.profile_runner as profile_runner
+from agent_runtime import profile_runner
 from tests._downstream.split_package_source import package_tree
 
 def _module_tree() -> ast.Module:

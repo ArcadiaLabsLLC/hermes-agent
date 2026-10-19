@@ -38,7 +38,7 @@ from agent.charsheet.spec import (
 
 pytest.importorskip("PIL")
 
-from PIL import Image, ImageDraw  # noqa: E402
+from PIL import Image, ImageDraw
 
 SPEC = SheetSpec(
     states=(StateSpec("idle", 2, True), StateSpec("walk", 3, True)),
@@ -474,7 +474,7 @@ def test_the_composed_sheet_s_table_is_exactly_the_colours_on_it(sheet):
     """End to end: the table names the sheet's own distinct opaque colours."""
     colors = sheet.getcolors(maxcolors=sheet.width * sheet.height) or []
     opaque = {
-        "#{:02x}{:02x}{:02x}ff".format(r, g, b)
+        f"#{r:02x}{g:02x}{b:02x}ff"
         for _count, (r, g, b, alpha) in colors
         if alpha > palette_mod.ALPHA_FLOOR
     }
@@ -1320,7 +1320,7 @@ FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "charsheet"
 FIXTURE_META = json.loads((FIXTURE_ROOT / "handedness.json").read_text(encoding="utf-8"))
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def load_fixture_sheet(name: str):
     """``(spec, image)`` for a checked-in sheet of REAL character art.
 
@@ -1365,7 +1365,7 @@ REPAIRED = (("flip", "idle-ne"),)
 TWO_BASIS_TOKEN = pipeline.accept_basis_token("rotation and states")
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def variant(name: str, ops: tuple = ()):
     """``(spec, image)`` for a fixture with a deterministic mutation applied.
 
@@ -1389,14 +1389,14 @@ def variant(name: str, ops: tuple = ()):
     return spec, image
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def variant_findings(name: str, ops: tuple = ()):
     """:func:`detect_mirrored_art` on a fixture variant, computed once."""
     spec, sheet = variant(name, ops)
     return pipeline.detect_mirrored_art(spec, sheet)
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def variant_validation(name: str, ops: tuple = (), accepted: tuple[str, ...] = ()):
     """:func:`validate_sheet` on a fixture variant, computed once."""
     spec, sheet = variant(name, ops)
@@ -1777,7 +1777,7 @@ def test_the_culprit_is_not_simply_the_first_row_of_the_run():
     assert spec.row_by_key("walk-e").index < spec.row_by_key("walk-ne").index
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def two_state_cut(ops: tuple = ()):
     """The fixture's `idle` and `walk` states only — the DEFAULT sheet's shape.
 
@@ -2233,7 +2233,7 @@ def four_way_three_states(spec, source, mirror: tuple[str, ...] = ()):
     return wide, flip_rows(wide, out, *mirror) if mirror else out
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def four_state_sheet(mirror: tuple[str, ...] = ()):
     """The three real states plus a fourth, then *mirror* applied.
 

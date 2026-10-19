@@ -160,13 +160,13 @@ def test_a_detected_restart_runs_with_the_slot_environment_and_says_so(head, ide
     lanes_build.BuildLane(now=2.0, accountant=None, frame_rows=frame).collect()
     [new] = [row for row in frame if row["work_id"] == "build:agent:proc_restarted"]
     assert (new["restart_of"], new["env_source"], new["started_by"]["kind"]) == (original["work_id"], "slot:launcher", "operator")
-    env_unobserved = lambda row: [u for u in row["unknowns"] if u["kind"] == "env_unobserved"]  # noqa: E731
+    env_unobserved = lambda row: [u for u in row["unknowns"] if u["kind"] == "env_unobserved"]
     assert len(env_unobserved(new)) < len(env_unobserved(original))
 
 
 def test_a_restart_without_an_argv_or_off_its_slot_is_refused_typed(monkeypatch):
     assert control.restart_build(_row("announced", "qb"))["detail"] == "argv_unknown"
-    monkeypatch.setattr("agent_runtime.workspace_slots.authorized_roots_bound_here", lambda: [])
+    monkeypatch.setattr("agent_runtime.workspace_slots.authorized_roots_bound_here", list)
     off = _row("detected", "1-1", workspace_id="ws", slot_id="gone", restart={"argv": [DART], "cwd": "C:/x"})
     assert control.restart_build(off)["detail"] == "slot_unbound"
 

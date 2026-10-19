@@ -28,7 +28,7 @@ from agent_runtime.mission_chat_phases import TURN_PHASES_KEY, TurnPhaseMarks
 
 from tests.hermes_cli.test_mission_chat_budget_payload import (  # type: ignore
     _seed,
-    isolate_agent_runtime_root,  # noqa: F401  (re-exported fixture)
+    isolate_agent_runtime_root,  # (re-exported fixture)
 )
 from tests.hermes_cli.test_mission_chat_turn_phases import (  # type: ignore
     _TickClock,
@@ -187,7 +187,7 @@ _OUTSIDE_BUILD = (1_000_000.0, 1_000_001.0)
 
 
 @pytest.fixture
-def attributed_turn(request, monkeypatch, capsys, isolate_agent_runtime_root, empty_ledger):  # noqa: F811
+def attributed_turn(request, monkeypatch, capsys, isolate_agent_runtime_root, empty_ledger):
     """Drive one real turn against a scripted clock and a fixture build ledger."""
 
     builds = request.param if hasattr(request, "param") else (_INSIDE_BUILD,)
@@ -308,7 +308,7 @@ def test_a_freshly_constructed_agent_is_reported_COLD(attributed_turn):
 
 
 @pytest.fixture
-def warm_turn(monkeypatch, capsys, isolate_agent_runtime_root, empty_ledger):  # noqa: F811
+def warm_turn(monkeypatch, capsys, isolate_agent_runtime_root, empty_ledger):
     empty_ledger.record_build(started=_INSIDE_BUILD[0], ended=_INSIDE_BUILD[1])
     monkeypatch.setattr(
         mission_chat_phases,
@@ -329,7 +329,7 @@ def test_a_reused_resident_actor_is_reported_WARM(warm_turn):
 
 
 @pytest.fixture
-def unattributable_turn(monkeypatch, capsys, isolate_agent_runtime_root, empty_ledger):  # noqa: F811
+def unattributable_turn(monkeypatch, capsys, isolate_agent_runtime_root, empty_ledger):
     """A runner that reports no reuse timing at all, and an unseen build lane."""
 
     monkeypatch.setattr(

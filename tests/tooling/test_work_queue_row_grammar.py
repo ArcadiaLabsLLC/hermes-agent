@@ -47,7 +47,7 @@ BRAIN = REPO / "Harness_Brain"
 ROW = re.compile(r"^\s*- (?:\[[ xX]\] )?\*\*")
 ROW_ID = re.compile(r"^- \*\*`([^`]*)` — ")
 ID_SHAPE = re.compile(r"^[A-Z0-9][A-Z0-9._-]*$")
-STATUS = re.compile(r"^(READY|BLOCKED|DEFERRED|NEEDS PLAN) (\d{4}-\d{2}-\d{2})(?::\s*(.*))?$", re.S)
+STATUS = re.compile(r"^(READY|BLOCKED|DEFERRED|NEEDS PLAN) (\d{4}-\d{2}-\d{2})(?::\s*(.*))?$", re.DOTALL)
 RULED = re.compile(r"^RULED \d{4}-\d{2}-\d{2}\b")
 ASSIGNEE = re.compile(r"^assignee: persona:[A-Za-z0-9_.-]+$")
 SKILLS = re.compile(r"^skills: `[A-Za-z0-9_./-]+`(?:, `[A-Za-z0-9_./-]+`)*$")
@@ -55,7 +55,7 @@ WORK_ID = re.compile(r"^WORK-[A-Z2-7]{6}$")
 RETIRED = re.compile(r"^(VERDICT|DESIGN|OWNER|PLAN|VERIFY)\b")
 BLOCKED_REASONS = ("owner decision", "owner sitting", "backend", "hermes", "launcher", "upstream", "another lane")
 LANE_REASONS = ("backend", "hermes", "launcher", "another lane")
-BLOCKER = re.compile(r"^`([A-Z0-9][A-Z0-9._-]*)`(.*)$", re.S)
+BLOCKER = re.compile(r"^`([A-Z0-9][A-Z0-9._-]*)`(.*)$", re.DOTALL)
 CROSS_REPO = re.compile(r"^\s*\(?(launcher|backend|EterniaLauncher|eternia-backend)\b")
 
 #: Lane-blocked rows with no blocker ID when the rule landed (2026-10-18). Shrink-only:

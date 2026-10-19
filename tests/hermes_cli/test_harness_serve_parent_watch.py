@@ -32,7 +32,7 @@ class _Pipe:
     def __init__(self) -> None:
         self._queue: queue.Queue = queue.Queue()
 
-    def __iter__(self) -> "_Pipe":
+    def __iter__(self) -> _Pipe:
         return self
 
     def __next__(self) -> str:

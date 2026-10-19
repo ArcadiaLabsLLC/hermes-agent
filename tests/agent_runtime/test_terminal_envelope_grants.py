@@ -259,7 +259,7 @@ def test_grants_have_no_wildcard_and_no_lane_inheritance():
 
 
 def test_a_grant_for_one_role_does_not_leak_to_another(monkeypatch, tmp_path):
-    cfg = _cfg(**{"dev": {LANE_MISSION_CHAT: [GIT_PUSH]}})
+    cfg = _cfg(dev={LANE_MISSION_CHAT: [GIT_PUSH]})
     qa_scope = TerminalEnvelopeScope(
         lane=LANE_MISSION_CHAT, role="qa", persona_id="qa", runtime_root=str(tmp_path)
     )
@@ -270,7 +270,7 @@ def test_a_grant_for_one_role_does_not_leak_to_another(monkeypatch, tmp_path):
 
 
 def test_unknown_class_in_config_is_a_typed_error_not_a_silent_grant():
-    cfg = _cfg(**{"dev": {LANE_MISSION_CHAT: ["git-push", GIT_PUSH]}})
+    cfg = _cfg(dev={LANE_MISSION_CHAT: ["git-push", GIT_PUSH]})
     grants = resolve_terminal_envelope_grants(role="dev", lane=LANE_MISSION_CHAT, cfg=cfg)
     # The valid entry still grants; the typo grants nothing AND is reported.
     assert grants.classes == frozenset({GIT_PUSH})
@@ -280,7 +280,7 @@ def test_unknown_class_in_config_is_a_typed_error_not_a_silent_grant():
 
 
 def test_unknown_class_alone_grants_nothing_and_still_refuses(tmp_path):
-    cfg = _cfg(**{"dev": {LANE_MISSION_CHAT: ["teleport"]}})
+    cfg = _cfg(dev={LANE_MISSION_CHAT: ["teleport"]})
     decision = envelope_decision(
         "git push origin main", scope=_dev_scope(tmp_path), cfg=cfg
     )
@@ -294,7 +294,7 @@ def test_unknown_class_alone_grants_nothing_and_still_refuses(tmp_path):
 
 def test_removed_floor_names_are_unknown_and_their_commands_are_allowed(tmp_path):
     retired = ["credential_" + "read", "prod_" + "operation"]
-    cfg = _cfg(**{"dev": {LANE_MISSION_CHAT: retired}})
+    cfg = _cfg(dev={LANE_MISSION_CHAT: retired})
     grants = resolve_terminal_envelope_grants(role="dev", lane=LANE_MISSION_CHAT, cfg=cfg)
     assert grants.classes == frozenset()
     assert {issue.code for issue in grants.issues} == {GRANT_UNKNOWN_COMMAND_CLASS}
@@ -307,7 +307,7 @@ def test_removed_floor_names_are_unknown_and_their_commands_are_allowed(tmp_path
 
 
 def test_malformed_grant_value_grants_nothing_and_reports_the_shape():
-    cfg = _cfg(**{"dev": {LANE_MISSION_CHAT: GIT_PUSH}})  # str, not a list
+    cfg = _cfg(dev={LANE_MISSION_CHAT: GIT_PUSH})  # str, not a list
     grants = resolve_terminal_envelope_grants(role="dev", lane=LANE_MISSION_CHAT, cfg=cfg)
     assert grants.classes == frozenset()
     assert [issue.code for issue in grants.issues] == [GRANT_MALFORMED]
@@ -530,7 +530,7 @@ def test_granted_class_passes_the_gate_and_logs_grant_provenance(tmp_path, monke
     """
 
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path))
-    cfg = _cfg(**{"dev": {LANE_MISSION_CHAT: [GIT_PUSH]}})
+    cfg = _cfg(dev={LANE_MISSION_CHAT: [GIT_PUSH]})
     scope = _dev_scope(tmp_path)
 
     # Same command, no grant ⇒ refused. The None below is therefore meaningful.
@@ -559,7 +559,7 @@ def test_granted_class_passes_the_gate_and_logs_grant_provenance(tmp_path, monke
 
 
 def test_a_grant_covers_only_the_class_it_names(tmp_path):
-    cfg = _cfg(**{"dev": {LANE_MISSION_CHAT: [GIT_PUSH]}})
+    cfg = _cfg(dev={LANE_MISSION_CHAT: [GIT_PUSH]})
     scope = _dev_scope(tmp_path)
     assert envelope_decision("git push origin main", scope=scope, cfg=cfg).outcome == (
         OUTCOME_GRANTED
@@ -661,7 +661,7 @@ def test_chat_lane_keeps_no_envelope_at_all(monkeypatch):
 def test_a_grant_does_not_leak_off_the_governed_lane(tmp_path):
     """A mission-chat grant is never interpreted for an unknown lane."""
 
-    cfg = _cfg(**{"dev": {LANE_MISSION_CHAT: [GIT_PUSH]}})
+    cfg = _cfg(dev={LANE_MISSION_CHAT: [GIT_PUSH]})
     stale = TerminalEnvelopeScope(lane="retired_lane", role="dev", runtime_root=str(tmp_path))
     assert envelope_decision("git push origin main", scope=stale, cfg=cfg) is None
 
@@ -874,7 +874,7 @@ def test_the_upstream_receipt_writer_delegates_instead_of_resolving_its_own_root
 
 
 def test_explain_is_a_complete_operator_answer():
-    cfg = _cfg(**{"dev": {LANE_MISSION_CHAT: [GIT_PUSH]}})
+    cfg = _cfg(dev={LANE_MISSION_CHAT: [GIT_PUSH]})
     view = explain_terminal_envelope(role="dev", lane=LANE_MISSION_CHAT, cfg=cfg)
     assert view["governed"] is True
     assert view["granted"] == [GIT_PUSH]
@@ -886,7 +886,7 @@ def test_explain_is_a_complete_operator_answer():
 def test_supervisor_role_alias_is_honored():
     """The role is spelled ``alice_supervisor``; the live persona is Neko."""
 
-    cfg = _cfg(**{"neko_supervisor": {LANE_MISSION_CHAT: [GIT_PUSH]}})
+    cfg = _cfg(neko_supervisor={LANE_MISSION_CHAT: [GIT_PUSH]})
     grants = resolve_terminal_envelope_grants(
         role="alice_supervisor", lane=LANE_MISSION_CHAT, cfg=cfg
     )

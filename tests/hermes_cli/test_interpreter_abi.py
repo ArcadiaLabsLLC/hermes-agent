@@ -137,7 +137,6 @@ def test_openai_loader_names_the_broken_dependency(monkeypatch):
             if name == "openai":
                 raise ModuleNotFoundError("No module named 'pydantic_core._pydantic_core'",
                                           name="pydantic_core._pydantic_core")
-            return None
 
     for name in [m for m in sys.modules if m == "openai" or m.startswith("openai.")]:
         monkeypatch.delitem(sys.modules, name)

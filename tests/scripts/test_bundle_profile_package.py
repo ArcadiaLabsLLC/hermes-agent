@@ -229,7 +229,7 @@ def test_the_engine_pack_path_file_adds_only_installed_packs(tmp_path: Path, mon
     monkeypatch.setenv(ENGINE_PACKS_ENV, os.pathsep.join([str(pack), str(missing)]))
     monkeypatch.setattr(sys, "path", list(sys.path))
     assert ENGINE_PACKS_PTH_LINE.startswith("import ")  # site only executes .pth lines that do
-    exec(ENGINE_PACKS_PTH_LINE)  # noqa: S102 — exactly what site.addpackage runs
+    exec(ENGINE_PACKS_PTH_LINE)  # exactly what site.addpackage runs
     assert str(pack) in sys.path
     assert str(missing) not in sys.path
 

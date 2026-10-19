@@ -125,9 +125,9 @@ def test_run_doctor_vendor_slug_policy_for_openai_api_endpoint(
 
     from hermes_cli import auth as _auth_mod
 
-    monkeypatch.setattr(_auth_mod, "get_nous_auth_status_local", lambda: {})
-    monkeypatch.setattr(_auth_mod, "get_codex_auth_status", lambda: {})
-    monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", lambda: {})
+    monkeypatch.setattr(_auth_mod, "get_nous_auth_status_local", dict)
+    monkeypatch.setattr(_auth_mod, "get_codex_auth_status", dict)
+    monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", dict)
 
     # Imported by name: the fork edits run_doctor, and upstream's last direct
     # reference to it (the WAL-reset doctor test) left at the 2026-09-25 merge.

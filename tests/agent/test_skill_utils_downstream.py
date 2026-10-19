@@ -114,7 +114,7 @@ def test_canonical_harness_skill_refuses_non_shared_source_and_duplicates(
 
 
 def test_required_preload_policy_uses_resolver_and_compatibility(tmp_path, monkeypatch):
-    import agent.skill_utils as skill_utils
+    from agent import skill_utils
 
     shared = tmp_path / "shared"
     shared.mkdir()

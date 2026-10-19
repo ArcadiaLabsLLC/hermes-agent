@@ -9,7 +9,7 @@ from hermes_cli import _boot_clock
 from hermes_cli import main as hermes_main
 from hermes_cli import _bytecode_sweep as sweep
 
-from tests.hermes_cli.test_bytecode_sweep import (  # noqa: F401 — upstream names the moved tests use
+from tests.hermes_cli.test_bytecode_sweep import (  # upstream names the moved tests use
     _make_pycache,
     _make_repo,
 )

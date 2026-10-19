@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import ast
 import inspect
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 
 import pytest
 
@@ -46,7 +46,7 @@ def _instance(instance_id: str, **extra) -> dict:
     return row
 
 
-_NOW = datetime.now(timezone.utc)
+_NOW = datetime.now(UTC)
 
 
 PRODUCIBLE = {

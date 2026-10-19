@@ -8,7 +8,7 @@ invalidation. The autouse conftest fixtures isolate the runtime root per test.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 
 import pytest
 
@@ -63,12 +63,12 @@ def test_rebalance_is_strictly_increasing_and_unique():
 
 
 def test_default_board_content_hash_is_machine_independent():
-    a = board_models.default_board("ws_1", created_at=datetime(2020, 1, 1, tzinfo=timezone.utc), updated_by="alice")
-    b = board_models.default_board("ws_1", created_at=datetime(2024, 6, 6, tzinfo=timezone.utc), updated_by="bob")
+    a = board_models.default_board("ws_1", created_at=datetime(2020, 1, 1, tzinfo=UTC), updated_by="alice")
+    b = board_models.default_board("ws_1", created_at=datetime(2024, 6, 6, tzinfo=UTC), updated_by="bob")
     # Timestamps + updated_by differ, but semantic content hash is identical.
     assert board_models.board_content_hash(a) == board_models.board_content_hash(b)
     # Different workspace → different hash.
-    c = board_models.default_board("ws_2", created_at=datetime(2020, 1, 1, tzinfo=timezone.utc))
+    c = board_models.default_board("ws_2", created_at=datetime(2020, 1, 1, tzinfo=UTC))
     assert board_models.board_content_hash(a) != board_models.board_content_hash(c)
 
 
@@ -382,7 +382,7 @@ def _blind_card(board_id: str, card_id: str):
 def _seeded_board(n: int = 3):
     """A workspace + default board carrying ``n`` cards in one column."""
 
-    from agent_runtime.errors import CardsUnreadable  # noqa: F401 — import proof
+    from agent_runtime.errors import CardsUnreadable  # import proof
 
     ws = _make_workspace("Boards")
     store = BoardStore()

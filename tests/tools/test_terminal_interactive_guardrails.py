@@ -2,7 +2,7 @@
 
 import json
 
-import tools.terminal_tool as terminal_tool
+from tools import terminal_tool
 
 
 def test_interactive_hermes_tools_command_is_rejected_before_execution(monkeypatch):

@@ -15,7 +15,7 @@ import sys
 
 import pytest
 
-from tests.test_live_system_guard_self_test import (  # noqa: F401 — upstream autouse fixture
+from tests.test_live_system_guard_self_test import (  # upstream autouse fixture
     _refuse_to_fire_live_weapons,
 )
 

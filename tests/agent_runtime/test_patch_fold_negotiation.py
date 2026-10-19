@@ -24,7 +24,7 @@ declaration.
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 
 import pytest
 
@@ -83,7 +83,7 @@ def _patch_event(entity: str, entity_id: str, op: str = PATCH_OP_UPSERT, changed
     if changed is not None:
         payload["changed"] = changed
     return Event(
-        ts=datetime(2026, 8, 13, 12, 0, 0, tzinfo=timezone.utc),
+        ts=datetime(2026, 8, 13, 12, 0, 0, tzinfo=UTC),
         type=STATE_PATCHED_EVENT_TYPE,
         task_id=None,
         run_id=None,
@@ -213,7 +213,7 @@ def test_the_op_rules_run_first_and_are_unchanged_by_the_entity_gate():
     # A covered domain event carries no fold state of its own and is not
     # entity-gated; the gate lives on the paired ``state.patched``.
     steered = Event(
-        ts=datetime(2026, 8, 13, 12, 0, 1, tzinfo=timezone.utc),
+        ts=datetime(2026, 8, 13, 12, 0, 1, tzinfo=UTC),
         type="persona_instance.steered",
         task_id=None,
         run_id=None,
@@ -302,7 +302,7 @@ def test_a_persona_instance_remove_is_not_create_gated():
 def test_a_malformed_entity_demotes_rather_than_slipping_through():
     for payload_entity in (None, "", 17):
         event = Event(
-            ts=datetime(2026, 8, 13, 12, 0, 2, tzinfo=timezone.utc),
+            ts=datetime(2026, 8, 13, 12, 0, 2, tzinfo=UTC),
             type=STATE_PATCHED_EVENT_TYPE,
             task_id=None,
             run_id=None,

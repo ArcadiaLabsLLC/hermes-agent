@@ -111,7 +111,7 @@ def _tool_registry_scope(request):
 
 
 @pytest.hookimpl(specname="pytest_runtest_teardown", wrapper=True)
-def pytest_runtest_teardown_tool_registry(item, nextitem):  # noqa: D401 — pytest hook
+def pytest_runtest_teardown_tool_registry(item, nextitem):  # pytest hook
     """Restore AFTER every function fixture, ``monkeypatch`` included.
 
     The restore reads the registry, which resolves the Hermes home (``Path.resolve`` ->

@@ -437,7 +437,7 @@ def _declared_code_classes() -> dict[str, str]:
     for module in pkgutil.iter_modules(agent_runtime.__path__):
         try:
             importlib.import_module(f"agent_runtime.{module.name}")
-        except Exception:  # noqa: BLE001 — an optional dep must not silently shrink the walk
+        except Exception:  # an optional dep must not silently shrink the walk
             pass
 
     seen: dict[str, type] = {}

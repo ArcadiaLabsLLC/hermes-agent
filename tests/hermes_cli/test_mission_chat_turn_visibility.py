@@ -28,7 +28,7 @@ from hermes_cli.harness_parts.persona import chat_turn_message
 
 from agent_runtime.turn_visibility import TURN_VISIBILITY_KEY
 
-from tests.hermes_cli.test_mission_chat_budget_payload import (  # noqa: F401
+from tests.hermes_cli.test_mission_chat_budget_payload import (
     _SESSION_ID,
     _args,
     _seed,

@@ -96,7 +96,7 @@ def test_the_plugin_records_phases_spawns_the_wrapped_callable_and_sleeps(tmp_pa
     assert tally.failed_nodeids == [], "a slow phase's node id is not a failure"
 
 
-def _diagnosis() -> "diag.Diagnosis":
+def _diagnosis() -> diag.Diagnosis:
     d = diag.Diagnosis()
     d.add([
         json.dumps({"k": "collect", "f": "tests/a.py", "d": 1.0}),

@@ -285,7 +285,7 @@ def gateway(monkeypatch):
 def resume_context():
     return SimpleNamespace(
         mint=lambda: ('resume', 'eternia_intelligence', '.'), restore=lambda: ([], [], []),
-        display_prefix=lambda: [], profile_home=None, target='stored', db=None, found={},
+        display_prefix=list, profile_home=None, target='stored', db=None, found={},
         profile_resume_cwd='', owns_db=False, cols=80, rid='request')
 
 

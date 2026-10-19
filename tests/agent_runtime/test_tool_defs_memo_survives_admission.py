@@ -46,7 +46,7 @@ def _admission() -> McpAdmission:
 def warm_probe(monkeypatch):
     """A connected ``memo_probe`` in ``tools/mcp_tool._servers``: live session, 12 listed tools."""
 
-    import tools.mcp_tool as mcp_tool
+    from tools import mcp_tool
 
     tools = [
         SimpleNamespace(
@@ -109,7 +109,7 @@ class _Agent:
 
 
 def test_the_runner_records_a_reused_admission_and_the_record_keeps_it(monkeypatch, warm_probe):
-    import agent_runtime.mcp_admission as mcp_admission
+    from agent_runtime import mcp_admission
     from agent_runtime.mcp_admission import _default_registrar
     from agent_runtime.mission_chat_turns.records import safe_turn_profile_timing
     from agent_runtime.profile_runner import AgentRunRequest, ProfileAgentRunner

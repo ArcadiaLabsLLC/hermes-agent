@@ -28,7 +28,7 @@ class _Head(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     seen: list[str] = []
 
-    def do_HEAD(self):  # noqa: N802
+    def do_HEAD(self):
         type(self).seen.append(self.headers.get("user-agent") or "")
         self.send_response(404)
         self.send_header("Content-Length", "0")

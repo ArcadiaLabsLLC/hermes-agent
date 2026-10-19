@@ -17,7 +17,7 @@ from agent_runtime.chat_lane_skill_index import COMPACT_ATTR
 from agent_runtime.conversations import worker_skills
 from agent_runtime.subagents import native
 from agent_runtime.subagents.references import references
-from tests.tui_gateway.test_subagent_snapshot import runtime  # noqa: F401 - the fixture
+from tests.tui_gateway.test_subagent_snapshot import runtime  # the fixture
 
 ADDRESS = {"owner_scope": "owned-route", "worker_generation": "worker-1"}
 
@@ -29,7 +29,7 @@ class Child:
 
 
 @pytest.fixture
-def world(runtime, monkeypatch, tmp_path):  # noqa: F811
+def world(runtime, monkeypatch, tmp_path):
     from tools.delegate_tool_child_run import _register_child
     from tui_gateway import server
     from tui_gateway.transport import _current_transport, bind_transport
@@ -42,7 +42,7 @@ def world(runtime, monkeypatch, tmp_path):  # noqa: F811
     snapshot = {"info": {"cwd": str(tmp_path / "parent-cwd"), "tools": {}}, "session_key": "parent-session"}
     monkeypatch.setattr(server, "handle_request", lambda request: {"result": snapshot})
 
-    import agent.runtime_cwd as runtime_cwd
+    from agent import runtime_cwd
     import hermes_state_registry
     from agent_runtime import skill_activity, skill_inspection
     from agent_runtime import chat_lane_skill_index

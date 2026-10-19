@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 
 import pytest
 
@@ -188,7 +188,7 @@ def test_join_prints_the_correlation_it_was_given_and_records_the_far_expiry(
     than derived here, so the two ends of the edge lapse together."""
 
     # Relative to now: a dated literal lapsed on 2026-10-03 and flipped `expired`.
-    far_expiry = (datetime.now(timezone.utc) + timedelta(days=30)).replace(microsecond=0).isoformat()
+    far_expiry = (datetime.now(UTC) + timedelta(days=30)).replace(microsecond=0).isoformat()
     _stub_successful_join(monkeypatch, expires_at=far_expiry)
 
     code = _dispatch(

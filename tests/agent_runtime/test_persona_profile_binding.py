@@ -83,7 +83,7 @@ def _seed(persona: AgentPersona, *, placements: tuple[str, ...] = ("agent_aaa", 
     store = PersonaInstanceStore()
     store.ensure_for_persona(saved)
     for suffix in placements:
-        store._write(  # noqa: SLF001 — seeding a drifted projection row on purpose
+        store._write(  # seeding a drifted projection row on purpose
             PersonaInstance(
                 id=f"personainst_{saved.id}_{suffix}",
                 persona_id=saved.id,
@@ -240,7 +240,7 @@ def test_rebind_repairs_a_drifted_projection_without_moving_the_persona(profiles
     persona = _seed(_persona(hermes_profile="beta"))
     drifted = PersonaInstanceStore().get(f"personainst_{persona.id}_agent_aaa")
     drifted.profile_id = "alpha"
-    PersonaInstanceStore()._write(drifted)  # noqa: SLF001
+    PersonaInstanceStore()._write(drifted)
 
     result = rebind_persona_profile("widget", profile="beta")
 
@@ -259,7 +259,7 @@ def test_rebind_refuses_while_an_instance_is_busy_and_writes_nothing(profiles):
     _seed(_persona())
     busy = PersonaInstanceStore().get("personainst_widget_agent_aaa")
     busy.current_task_id = "task_live"
-    PersonaInstanceStore()._write(busy)  # noqa: SLF001
+    PersonaInstanceStore()._write(busy)
     before = _store_bytes()
 
     with pytest.raises(PersonaProfileRebindError) as excinfo:

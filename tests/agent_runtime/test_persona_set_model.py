@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 from argparse import Namespace
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 
 import pytest
 from agent_runtime import persona_chat_session as chat_session
@@ -255,7 +255,7 @@ def test_update_profile_stale_issued_at_is_superseded_not_applied():
     persona = _persona()
     store = PersonaInstanceStore()
     instance, _ = _two_instances(store, persona)
-    newer = datetime.now(timezone.utc)
+    newer = datetime.now(UTC)
     older = newer - timedelta(seconds=30)
 
     store.update_profile(instance.id, model="model-new", model_issued_at=newer)
@@ -513,7 +513,7 @@ def test_cli_instance_set_model_stale_write_superseded(monkeypatch, capsys):
     persona = _persona()
     store = PersonaInstanceStore()
     _, b = _two_instances(store, persona)
-    newer = datetime.now(timezone.utc)
+    newer = datetime.now(UTC)
     older = newer - timedelta(seconds=45)
 
     code = model_and_skills_commands._cmd_persona_instance_set_model(
@@ -613,7 +613,7 @@ def test_cli_persona_set_model_unknown_persona(monkeypatch, capsys):
 def test_cli_persona_set_model_stale_write_superseded(monkeypatch, capsys):
     harness = _patched_harness(monkeypatch)
     ensure_persisted_personas(_cfg())
-    newer = datetime.now(timezone.utc)
+    newer = datetime.now(UTC)
     older = newer - timedelta(seconds=45)
 
     assert model_and_skills_commands._cmd_persona_set_model(_persona_args("base", model="model-new", issued_at=newer.isoformat())) == 0

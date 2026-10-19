@@ -174,7 +174,7 @@ _FULL_SURFACE = tuple(
 
 @pytest.fixture
 def warm_server(monkeypatch, registry):
-    import tools.mcp_tool as mcp_tool
+    from tools import mcp_tool
 
     server = _FakeConnectedServer(_SERVER, _FULL_SURFACE)
     monkeypatch.setitem(mcp_tool._servers, _SERVER, server)

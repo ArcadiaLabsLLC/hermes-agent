@@ -39,9 +39,7 @@ def pyyaml_imports(source: str, path: str = "<string>") -> list[int]:
     for node in ast.walk(ast.parse(source, filename=path)):
         if isinstance(node, ast.Import) and any(
             _names_pyyaml(alias.name) for alias in node.names
-        ):
-            found.append(node.lineno)
-        elif (
+        ) or (
             isinstance(node, ast.ImportFrom)
             and node.level == 0
             and _names_pyyaml(node.module)

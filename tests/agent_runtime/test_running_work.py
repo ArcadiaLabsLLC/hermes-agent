@@ -13,7 +13,7 @@ import json
 import os
 import time
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 from pathlib import Path
 
 import pytest
@@ -458,7 +458,7 @@ def test_a_failed_live_enrichment_is_a_typed_field_not_prose(home, monkeypatch):
     """
 
     class _BrokenRegistry:
-        class process_registry:  # noqa: N801 - mirrors the real module attribute
+        class process_registry:  # mirrors the real module attribute
             @staticmethod
             def list_sessions():
                 raise TypeError("registry exploded")
@@ -1138,7 +1138,7 @@ def test_a_chat_turn_ages_from_its_journal_stamp(home, monkeypatch):
     stamp from a dropped one.
     """
 
-    started = (datetime.now(timezone.utc) - timedelta(seconds=90)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    started = (datetime.now(UTC) - timedelta(seconds=90)).strftime("%Y-%m-%dT%H:%M:%SZ")
     monkeypatch.setattr(
         "agent_runtime.mission_chat_turns.reads.inflight_turn_rows",
         lambda: [{"turn_id": "turn-aged", "state": "executing", "started_at": started}],
@@ -1435,7 +1435,7 @@ def test_every_started_at_on_the_wire_carries_a_utc_offset(home, monkeypatch):
     assert parsed.tzinfo is not None
     assert parsed.utcoffset() == timedelta(0)
     # ...and it is the SAME instant the registry meant, not a relabelled one.
-    assert parsed == datetime(2026, 8, 3, 10, 0, 0).astimezone(timezone.utc)
+    assert parsed == datetime(2026, 8, 3, 10, 0, 0).astimezone(UTC)
 
 
 @pytest.mark.parametrize(
@@ -2106,7 +2106,7 @@ def test_cancelling_a_dispatch_nobody_here_supervises_goes_through_the_row(dispa
     """Recorded is not supervised: no process here holds its child, so the cancel
     is a durable request (D1.07, owner ruling a) — never a kill from here. A row
     that never started is settled by it; a started one answers ``cancel_requested``."""
-    import tools.agent_chat_dispatch  # noqa: F401 - the lane must be resident for the seam to answer
+    import tools.agent_chat_dispatch  # the lane must be resident for the seam to answer
     from agent_runtime.dispatch_store import get_dispatch, set_dispatch_owner
 
     queued = _record_dispatch()

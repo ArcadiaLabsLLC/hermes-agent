@@ -42,7 +42,7 @@ from tests.hermes_cli.test_mission_chat_budget_payload import (  # type: ignore
     _args,
     _seed,
     _TranscriptDB,
-    isolate_agent_runtime_root,  # noqa: F401  (re-exported fixture)
+    isolate_agent_runtime_root,  # (re-exported fixture)
 )
 from hermes_cli.harness_parts.persona import (
     chat_admission,
@@ -143,7 +143,7 @@ def test_no_turn_phase_state_is_smuggled_on_the_args_namespace():
 # 2. The lease actually covers the writes                                      #
 # --------------------------------------------------------------------------- #
 @pytest.fixture
-def lease_witness(monkeypatch, isolate_agent_runtime_root):  # noqa: F811
+def lease_witness(monkeypatch, isolate_agent_runtime_root):
     """Record, for each durable write, whether the chat-root lease was held."""
 
     from agent_runtime.persona_assignments import PersonaInstanceStore
@@ -218,7 +218,7 @@ def test_the_two_writes_that_cannot_be_leased_are_named_not_hidden(
 
 
 def test_each_leasable_write_happens_exactly_once_per_turn(
-    monkeypatch, capsys, isolate_agent_runtime_root  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root
 ):
     """The re-entry ran them twice. Count them."""
 
@@ -250,7 +250,7 @@ def test_each_leasable_write_happens_exactly_once_per_turn(
 # 3. Finalization accounting                                                   #
 # --------------------------------------------------------------------------- #
 def test_a_clean_turn_carries_no_finalization_warnings(
-    monkeypatch, capsys, isolate_agent_runtime_root  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root
 ):
     """The key is ABSENT when nothing went wrong — its presence is the signal,
     and its absence keeps the wire byte-identical for every healthy send."""
@@ -262,7 +262,7 @@ def test_a_clean_turn_carries_no_finalization_warnings(
 
 
 def test_a_failed_instance_state_commit_is_reported_not_swallowed(
-    monkeypatch, capsys, isolate_agent_runtime_root  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root
 ):
     """The worst of the silent-swallow cluster.
 
@@ -308,7 +308,7 @@ def test_a_failed_instance_state_commit_is_reported_not_swallowed(
 
 
 def test_a_non_clean_turn_journal_write_is_accounted_for(
-    monkeypatch, capsys, isolate_agent_runtime_root  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root
 ):
     """Eight ``transition_mission_chat_turn`` calls discarded their outcome.
 

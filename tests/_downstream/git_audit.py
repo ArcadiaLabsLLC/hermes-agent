@@ -75,12 +75,12 @@ def _hook(event: str, args) -> None:
         line = {"file": nodeid.split("::", 1)[0], "nodeid": nodeid, "argv": argv, "cwd": str(where)}
         with open(_state["receipt"], "a", encoding="utf-8") as handle:
             handle.write(json.dumps(line) + "\n")
-    except Exception:  # noqa: BLE001 — an audit hook must never break the call it watches
+    except Exception:  # an audit hook must never break the call it watches
         return
 
 
 @pytest.hookimpl(specname="pytest_configure")
-def pytest_configure_git_audit(config):  # noqa: D401 — pytest hook
+def pytest_configure_git_audit(config):  # pytest hook
     if os.environ.get(GIT_AUDIT_ENV) != "1" or _state["receipt"] is not None:
         return
     receipt = Path(str(config.rootpath)) / RECEIPT
@@ -90,7 +90,7 @@ def pytest_configure_git_audit(config):  # noqa: D401 — pytest hook
 
 
 @pytest.hookimpl(specname="pytest_runtest_protocol", hookwrapper=True)
-def pytest_runtest_protocol_git_audit(item, nextitem):  # noqa: D401 — pytest hook
+def pytest_runtest_protocol_git_audit(item, nextitem):  # pytest hook
     _state["nodeid"] = item.nodeid
     try:
         yield

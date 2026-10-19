@@ -54,7 +54,7 @@ def test_links_shared_skills_into_external_dir(shared_root, tmp_path):
     for name in ("harness-mission-lead", "multi"):
         link = ext / name
         assert _is_managed_link(link)
-        assert Path((link / "SKILL.md")).read_text(encoding="utf-8").strip().endswith(f"# {name}")
+        assert Path(link / "SKILL.md").read_text(encoding="utf-8").strip().endswith(f"# {name}")
     # multi-file skill is reachable through the link
     assert (ext / "multi" / "references" / "g.md").read_text(encoding="utf-8") == "g"
 

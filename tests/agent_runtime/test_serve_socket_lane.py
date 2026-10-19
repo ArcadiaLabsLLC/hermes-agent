@@ -189,7 +189,7 @@ class _StdioPipe:
     def __init__(self) -> None:
         self._queue: queue.Queue = queue.Queue()
 
-    def __iter__(self) -> "_StdioPipe":
+    def __iter__(self) -> _StdioPipe:
         return self
 
     def __next__(self) -> str:
@@ -2947,7 +2947,7 @@ def test_two_connections_asking_to_drain_at_once_start_exactly_one_drain():
                         connection.send(
                             {"op": "drain", "force": True, "deadline_seconds": 30}
                         )
-                    except BaseException as exc:  # noqa: BLE001 - reported below
+                    except BaseException as exc:  # reported below
                         errors.append(exc)
 
                 askers = [
@@ -3143,7 +3143,7 @@ def test_a_non_ascii_proof_is_refused_like_any_other_wrong_one():
         port,
         _logs,
     ):
-        for proof in ("é" * 64, "☃" + "a" * 63, "prøøf", "​" * 64):
+        for proof in ("é" * 64, "☃" + "a" * 63, "prøøf", "\u200b" * 64):
             _g, reply = raw_handshake(port, token=None, proof=proof)
             assert reply == {
                 "event": "hello_rejected",
@@ -3393,7 +3393,7 @@ def test_set_timeout_rearms_the_read_budget_on_a_live_connection():
         try:
             silent.set_timeout(0.2)
             started = time.monotonic()
-            with pytest.raises(socket.timeout):  # noqa: UP041 - alias differs across versions
+            with pytest.raises(socket.timeout):  # alias differs across versions
                 silent.read_frame()
             assert time.monotonic() - started < 5.0
         finally:

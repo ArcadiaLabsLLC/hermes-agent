@@ -35,7 +35,7 @@ import sys
 
 import pytest
 
-import plugins.memory as memory
+from plugins import memory
 
 PROBE = "loader_identity_probe"
 
@@ -107,7 +107,7 @@ def test_loaded_provider_is_bound_on_its_parent_package(loader_sandbox):
     # through the real ``IMPORT_FROM`` machinery rather than a getattr this test
     # performed itself, because a getattr is the thing under test.
     namespace: dict = {}
-    exec(f"from plugins.memory import {PROBE} as loaded", namespace)  # noqa: S102
+    exec(f"from plugins.memory import {PROBE} as loaded", namespace)
     assert namespace["loaded"] is sys.modules[full]
     assert namespace["loaded"].LOADED == 42
     # The other spelling still answers, and answers with the SAME object.
@@ -125,7 +125,7 @@ def test_submodules_are_bound_on_the_provider_package_too(loader_sandbox):
     memory._load_provider_from_dir(directory)
 
     provider = sys.modules[f"plugins.memory.{PROBE}"]
-    assert getattr(provider, "store") is sys.modules[f"plugins.memory.{PROBE}.store"]
+    assert provider.store is sys.modules[f"plugins.memory.{PROBE}.store"]
     assert provider.store.VALUE == 42
 
 
@@ -172,7 +172,7 @@ def test_a_user_installed_provider_binds_on_its_synthetic_parent(tmp_path):
         full = memory._module_name(directory, PROBE)
         assert full.startswith(memory._USER_NAMESPACE + ".")
         assert getattr(namespace, full.rsplit(".", 1)[1]) is sys.modules[full]
-        assert getattr(sys.modules[full], "store") is sys.modules[f"{full}.store"]
+        assert sys.modules[full].store is sys.modules[f"{full}.store"]
     finally:
         for name in [n for n in sys.modules if n not in before]:
             sys.modules.pop(name, None)

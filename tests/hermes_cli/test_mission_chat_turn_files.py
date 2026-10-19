@@ -24,7 +24,7 @@ from agent_runtime.mission_chat_outcome import ChatErrorKind
 from tests.hermes_cli.test_mission_chat_turn_phases import (  # type: ignore
     _args,
     _record_on_disk,
-    isolate_agent_runtime_root,  # noqa: F401  (re-exported fixture)
+    isolate_agent_runtime_root,  # (re-exported fixture)
 )
 from tests.hermes_cli.test_mission_chat_budget_payload import _seed  # type: ignore
 
@@ -53,7 +53,7 @@ def _stored(*parts):
 
 
 def test_a_turn_with_files_names_them_by_path_on_the_request_and_the_row(
-    monkeypatch, capsys, isolate_agent_runtime_root,  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root,
 ):
     refs = _stored(("notes.txt", "text/plain", b"alpha\n"), ("cfg.json", "application/json", b"{}"))
     resolved = of.resolve_refs(refs)
@@ -81,7 +81,7 @@ def test_a_turn_with_files_names_them_by_path_on_the_request_and_the_row(
 
 
 def test_a_dangling_file_reference_refuses_the_turn_file_invalid(
-    monkeypatch, capsys, isolate_agent_runtime_root,  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root,
 ):
     seen_requests: list = []
     _seed(monkeypatch, _provider(seen_requests))

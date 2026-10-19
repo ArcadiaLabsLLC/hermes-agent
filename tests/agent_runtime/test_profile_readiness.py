@@ -101,7 +101,7 @@ def test_profile_readiness_finds_nested_profile_skills_by_frontmatter_name(tmp_p
 def test_readiness_receipt_reports_effective_hash_and_loadability(
     tmp_path, monkeypatch
 ):
-    import agent.skill_utils as skill_utils
+    from agent import skill_utils
     from agent_runtime.profile_readiness import _resolve_skill_names
 
     shared = tmp_path / "shared"
@@ -227,7 +227,7 @@ def test_readiness_missing_set_is_single_source_derivation(tmp_path, monkeypatch
     derived set must equal both the rows' ``status == 'missing'`` ids and the
     re-resolving compatibility wrapper — proving the removal is behavior-identical
     including duplicate occurrences and order."""
-    import agent.skill_utils as skill_utils
+    from agent import skill_utils
     from agent_runtime.profile_readiness import (
         _missing_skill_ids,
         _resolve_skill_names,

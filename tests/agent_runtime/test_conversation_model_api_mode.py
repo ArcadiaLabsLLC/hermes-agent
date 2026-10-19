@@ -91,7 +91,7 @@ def test_a_challenge_403_is_typed_and_names_the_path_it_guarded(monkeypatch, pat
     from agent.error_classifier import FailoverReason, classify_api_error
     from agent.provider_failure import attach_provider_failure
     from agent_runtime.provider_challenge import classify_challenge_refusal
-    import hermes_cli.plugins as plugins
+    from hermes_cli import plugins
 
     monkeypatch.setattr(plugins, "invoke_hook", lambda name, **kwargs: (
         [classify_challenge_refusal(**kwargs)] if name == "transform_api_error_classification" else []))

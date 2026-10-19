@@ -380,7 +380,7 @@ def test_an_empty_roster_that_LOADED_still_refuses_as_persona_not_found(
 
     from agent_runtime import agent_create
 
-    monkeypatch.setattr(agent_create.request, "persona_roster", lambda: [])
+    monkeypatch.setattr(agent_create.request, "persona_roster", list)
 
     with pytest.raises(agent_create.AgentCreateInvalid) as caught:
         agent_create.normalize_agent_create(

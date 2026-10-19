@@ -25,9 +25,9 @@ from unittest import mock
 
 import pytest
 
-import hermes_cli.doctor as doctor
-import hermes_cli.gateway as gateway
-import hermes_cli.gateway_windows as gateway_windows
+from hermes_cli import doctor
+from hermes_cli import gateway
+from hermes_cli import gateway_windows
 
 
 def _make_venv(tmp_path: Path, name: str = "hermes-venv") -> Path:

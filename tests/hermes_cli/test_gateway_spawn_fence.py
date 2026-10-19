@@ -334,7 +334,7 @@ def test_fence_holds_on_a_background_thread():
     def _spawn():
         try:
             subprocess.Popen(["hermes", "gateway", "run"])
-        except BaseException as exc:  # noqa: BLE001 — recording, then re-asserted
+        except BaseException as exc:  # recording, then re-asserted
             caught.append(exc)
 
     worker = threading.Thread(target=_spawn)
@@ -363,7 +363,7 @@ def test_cold_start_helper_cannot_reach_a_live_spawn(monkeypatch):
     from hermes_cli import gateway_windows, update_cmd
 
     monkeypatch.setattr(update_cmd, "_m", lambda: SimpleNamespace(
-        _is_windows=lambda: True, _detect_venv_python_processes=lambda: []))
+        _is_windows=lambda: True, _detect_venv_python_processes=list))
     monkeypatch.setattr("hermes_cli.gateway.find_gateway_pids", lambda **_k: [])
     calls: list[object] = []
     real_fenced = gateway_windows._spawn_detached
@@ -481,7 +481,7 @@ def test_a_disarmed_fence_passes_a_backend_argv_straight_through():
         # Stand in for the OS call so the pass-through is observable without
         # starting anything: if the fence still refused, this never runs.
         subprocess.Popen = lambda cmd, *a, **k: recorded.append(cmd)
-        real_popen.__init__  # noqa: B018 — keep the reference obviously live
+        real_popen.__init__  # keep the reference obviously live
         subprocess.Popen(argv)
     finally:
         subprocess.Popen = real_popen

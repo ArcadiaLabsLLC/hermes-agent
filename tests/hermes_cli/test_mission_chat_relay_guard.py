@@ -223,7 +223,7 @@ def test_direct_operator_send_carries_no_relay_refusal(tmp_path, monkeypatch, ca
     )
     try:
         exit_code = args.func(args)
-    except Exception as exc:  # noqa: BLE001 - the exception IS the evidence here
+    except Exception as exc:  # the exception IS the evidence here
         # A raise is acceptable ONLY if it is not the relay lane. Blanket
         # acceptance is the second silent-pass route, and it swallowed the one
         # failure this test exists to notice: the guard itself blowing up.
@@ -280,7 +280,7 @@ def _mission_chat_message_call_names():
     import ast
     from pathlib import Path
 
-    import hermes_cli.harness as harness
+    from hermes_cli import harness
 
     tree = ast.parse(package_source())
     func = next(

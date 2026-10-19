@@ -64,7 +64,7 @@ def test_the_committed_inventory_matches_the_live_registry(emitter):
 
 
 def test_every_tool_in_the_json_is_registered_and_none_is_hygiene_blocked(emitter):
-    import model_tools  # noqa: F401 - the import IS the registration
+    import model_tools  # the import IS the registration
     from agent_runtime.personas import REGISTRY_HYGIENE_BLOCKED_TOOLS
     from hermes_cli.plugins import discover_plugins
     from tools.registry import registry
@@ -225,7 +225,7 @@ def test_the_emitter_refuses_to_list_a_withheld_tool(emitter, monkeypatch):
     """The emitter's own floor: hygiene ∩ declared must be empty, and the
     refusal is a hard exit rather than a quietly longer table."""
 
-    import agent_runtime.personas as personas
+    from agent_runtime import personas
 
     monkeypatch.setattr(
         personas, "REGISTRY_HYGIENE_BLOCKED_TOOLS", frozenset({"terminal"})

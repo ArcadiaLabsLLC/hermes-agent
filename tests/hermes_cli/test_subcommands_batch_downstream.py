@@ -8,7 +8,7 @@ from __future__ import annotations
 import argparse
 from hermes_cli.subcommands.postinstall import add_postinstall_arguments
 
-from tests.hermes_cli.test_subcommands_batch import (  # noqa: F401 — upstream names the moved tests use
+from tests.hermes_cli.test_subcommands_batch import (  # upstream names the moved tests use
     _h,
 )
 

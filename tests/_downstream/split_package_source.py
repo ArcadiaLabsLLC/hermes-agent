@@ -39,7 +39,7 @@ def package_tree(package: ModuleType) -> ast.Module:
     return ast.parse(package_source(package))
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _fork_texts() -> tuple[tuple[str, str], ...]:
     """``(dotted module, source)`` for every fork production module, read once."""
     from scripts import god_file_probe as probe
@@ -53,7 +53,7 @@ def _fork_texts() -> tuple[tuple[str, str], ...]:
     return tuple(out)
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def fork_importers_of(name: str) -> frozenset[str]:
     """Fork production modules that bind *name* by ``from … import`` (any scope).
 

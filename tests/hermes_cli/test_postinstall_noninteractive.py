@@ -7,13 +7,13 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 
-import hermes_cli._downstream_cli as _downstream_cli
+from hermes_cli import _downstream_cli
 import hermes_cli.path_setup as _path_setup
 
 def _patch_common(monkeypatch, calls, *, stub_shim: bool = True):
     """Patch the side-effecting bits of cmd_postinstall for a hermetic run."""
     import hermes_cli.main as main_mod
-    import hermes_cli.path_setup as path_setup
+    from hermes_cli import path_setup
     import pm
     import pm.shell
 

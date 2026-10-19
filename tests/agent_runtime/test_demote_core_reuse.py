@@ -39,7 +39,7 @@ landing between the two builds must make the second one build again.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 
 import pytest
 
@@ -103,7 +103,7 @@ def _append_uncoverable_event(index: int) -> None:
 
     EventLog().append(
         Event(
-            ts=datetime(2026, 8, 22, 10, 50, index % 60, tzinfo=timezone.utc),
+            ts=datetime(2026, 8, 22, 10, 50, index % 60, tzinfo=UTC),
             type="state.reconciled",
             task_id=f"task_w3h2_{index}",
             run_id=None,

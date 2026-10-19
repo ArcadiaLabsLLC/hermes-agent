@@ -64,7 +64,7 @@ def repo(tmp_path):
 _DEPS = dict(paths={T, "data/fix.txt"}, dirs={"listed"}, mods={"conftest.py", "pkg/__init__.py", "pkg/mod.py"})
 
 
-def _keyer(root: Path, store: "cache.GateStore", env=None, args=()) -> "cache.Keyer":
+def _keyer(root: Path, store: cache.GateStore, env=None, args=()) -> cache.Keyer:
     snap = cache.TreeSnapshot.take(root, bundled.scope._scope_git)
     fixed = cache.FixedInputs.collect(snap, list(args), env or {}, interp=["interp\tpinned"])
     deps = store.load_deps()
@@ -255,7 +255,7 @@ def test_the_audit_samples_at_least_25_hits_and_its_seed_reproduces_the_sample()
     assert cache.audit_sample(hits[:10], 1) == hits[:10], "fewer hits than the minimum: every hit runs"
 
 
-def _gate_with_hits(repo: Path, store, tmp_path: Path, n: int) -> "gate_mod.GateRun":
+def _gate_with_hits(repo: Path, store, tmp_path: Path, n: int) -> gate_mod.GateRun:
     gate = gate_mod.GateRun(repo, store, tmp_path / "deps")
     gate.keyer = _keyer(repo, store)
     paths = [repo / f"tests/test_{i:03d}.py" for i in range(n)]
@@ -317,7 +317,7 @@ def test_a_sampled_hit_red_then_green_alone_is_flaky_not_a_defect_and_loses_its_
 # ── stage 4: the never-cache classes and the max age ────────────────────────
 
 
-def _writing_gate(repo: Path, store, tmp_path: Path) -> "gate_mod.GateRun":
+def _writing_gate(repo: Path, store, tmp_path: Path) -> gate_mod.GateRun:
     gate = gate_mod.GateRun(repo, store, tmp_path / "deps")
     gate.keyer = _keyer(repo, store)
     gate.collector.files[T] = cache.FileDeps(**{k: set(v) for k, v in _DEPS.items()})

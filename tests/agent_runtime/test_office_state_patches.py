@@ -1335,7 +1335,7 @@ def test_concurrent_writers_never_invert_revision_against_offset(
         try:
             barrier.wait(timeout=10)
             OfficeStore().upsert_actor(WORKSPACE, _actor_payload("qa", x=float(n), y=0.0))
-        except BaseException as exc:  # noqa: BLE001 - reported, never swallowed
+        except BaseException as exc:  # reported, never swallowed
             errors.append(exc)
 
     threads = [threading.Thread(target=write, args=(n,)) for n in range(4)]

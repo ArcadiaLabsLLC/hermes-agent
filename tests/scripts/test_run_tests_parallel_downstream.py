@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from test_run_tests_parallel import (  # noqa: F401 — upstream names the moved tests use
+from test_run_tests_parallel import (  # upstream names the moved tests use
     _make_probe_dir,
     _probe_root,
 )

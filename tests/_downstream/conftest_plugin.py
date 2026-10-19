@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._downstream.id_markers import (  # noqa: F401 — hook re-exports
+from tests._downstream.id_markers import (  # hook re-exports
     NO_LIVE_GATEWAY_MARK,
     pytest_collection_modifyitems,
     pytest_make_collect_report,
@@ -32,54 +32,54 @@ from tests._downstream.id_markers import (  # noqa: F401 — hook re-exports
 )
 # The mark NAMES the id table applies, spelled once (id_markers/reasons.py):
 # registered below, read by the consumer fixtures.
-from tests._downstream.real_browser_fence import _no_real_browser_spawn  # noqa: F401 — autouse fence
-from tests._downstream.host_disk_room import (  # noqa: F401 — id-marked fixture + hook re-export
+from tests._downstream.real_browser_fence import _no_real_browser_spawn  # autouse fence
+from tests._downstream.host_disk_room import (  # id-marked fixture + hook re-export
     _host_disk_has_room,
     pytest_configure_host_disk_room,
 )
-from tests._downstream.state_db_scope import _state_db_resolves_through_scope  # noqa: F401 — id-marked
-from tests._downstream.state_db_no_fsync import _state_db_no_fsync  # noqa: F401 — autouse (suite speed, r-state)
-from tests._downstream.session_db_template import session_db_from_template  # noqa: F401 — autouse (D3.11, h1-setup)
-from tests._downstream.home_config import _home_carries_a_config  # noqa: F401 — autouse (h1-setup)
-from tests._downstream.bash_probe_memo import _bash_probe_memo  # noqa: F401 — autouse (suite speed, r-state)
-from tests._downstream.bash_resolution_reset import _bash_resolution_reset  # noqa: F401 — autouse (q-pm)
-from tests._downstream.tool_registry_scope import (  # noqa: F401 — autouse mark + teardown restore (plan S3)
+from tests._downstream.state_db_scope import _state_db_resolves_through_scope  # id-marked
+from tests._downstream.state_db_no_fsync import _state_db_no_fsync  # autouse (suite speed, r-state)
+from tests._downstream.session_db_template import session_db_from_template  # autouse (D3.11, h1-setup)
+from tests._downstream.home_config import _home_carries_a_config  # autouse (h1-setup)
+from tests._downstream.bash_probe_memo import _bash_probe_memo  # autouse (suite speed, r-state)
+from tests._downstream.bash_resolution_reset import _bash_resolution_reset  # autouse (q-pm)
+from tests._downstream.tool_registry_scope import (  # autouse mark + teardown restore (plan S3)
     _tool_registry_scope,
     pytest_runtest_teardown_tool_registry,
 )
-from tests._downstream.plugin_discovery_cache import (  # noqa: F401 — autouse + reset fixture (ruling 2026-10-10)
+from tests._downstream.plugin_discovery_cache import (  # autouse + reset fixture (ruling 2026-10-10)
     _plugin_discovery_cache,
     cold_plugin_discovery,
 )
-from tests._downstream.plugin_load_memo import _plugin_load_memo  # noqa: F401 — autouse (suite speed, h3-plugins)
-from tests._downstream.parse_memo import _bundled_parse_memo  # noqa: F401 — autouse (suite speed, w2-speed-b)
-from tests._downstream.plugin_module_keep import _plugin_module_keep  # noqa: F401 — autouse, opt-in env, OFF (h3-plugins)
-from tests._downstream.teardown_plugin_delivery import (  # noqa: F401 — teardown hook (suite speed, h6-collect)
+from tests._downstream.plugin_load_memo import _plugin_load_memo  # autouse (suite speed, h3-plugins)
+from tests._downstream.parse_memo import _bundled_parse_memo  # autouse (suite speed, w2-speed-b)
+from tests._downstream.plugin_module_keep import _plugin_module_keep  # autouse, opt-in env, OFF (h3-plugins)
+from tests._downstream.teardown_plugin_delivery import (  # teardown hook (suite speed, h6-collect)
     pytest_runtest_teardown_plugin_delivery,
 )
-from tests._downstream.named_files_collect import (  # noqa: F401 — collect hook (suite speed, h6-collect)
+from tests._downstream.named_files_collect import (  # collect hook (suite speed, h6-collect)
     pytest_ignore_collect_named_files,
 )
-from tests._downstream.version_info_scope import _version_info_scope  # noqa: F401 — autouse (q-chain)
-from tests._downstream.git_audit import (  # noqa: F401 — hook re-exports (opt-in, design sweep D3.16)
+from tests._downstream.version_info_scope import _version_info_scope  # autouse (q-chain)
+from tests._downstream.git_audit import (  # hook re-exports (opt-in, design sweep D3.16)
     pytest_configure_git_audit,
     pytest_runtest_protocol_git_audit,
 )
-from tests._downstream.idle_box import (  # noqa: F401 — hook re-exports (owner ruling 2026-10-10)
+from tests._downstream.idle_box import (  # hook re-exports (owner ruling 2026-10-10)
     pytest_collection_modifyitems_idle_box,
     pytest_configure_idle_box,
     pytest_runtest_setup_idle_box,
 )
-from tests._downstream.child_job import (  # noqa: F401 — hook and fixture re-exports
+from tests._downstream.child_job import (  # hook and fixture re-exports
     _children_die_with_the_test,
     pytest_configure_child_job,
 )
-from tests._downstream.body_patch_scope import (  # noqa: F401 — hook re-exports (p10 S-A1, FORK-PATCH-IN-TEARDOWN)
+from tests._downstream.body_patch_scope import (  # hook re-exports (p10 S-A1, FORK-PATCH-IN-TEARDOWN)
     BODY_PATCH_MARK as _BODY_PATCH_MARK,
     pytest_fixture_setup,
     pytest_pyfunc_call,
 )
-from tests._downstream.git_env_memo import _git_env_memo  # noqa: F401 — autouse (suite speed, p10-bar)
+from tests._downstream.git_env_memo import _git_env_memo  # autouse (suite speed, p10-bar)
 from tests._downstream import child_startup, registry_write_fence, server_shutdown_poll
 from tests._downstream.fork_readonly_readers import file_reads_through
 from tests._downstream.id_markers.reasons import (
@@ -220,7 +220,7 @@ def _release_test_tmp_run_dir(run_dir: str | None, exitstatus: int | None) -> bo
 _SESSION_EXIT: dict[str, int] = {}
 
 
-def pytest_sessionfinish(session, exitstatus):  # noqa: D401 — pytest hook
+def pytest_sessionfinish(session, exitstatus):  # pytest hook
     """Record the exit status for the at-exit release below."""
     _SESSION_EXIT["status"] = int(exitstatus)
 
@@ -605,11 +605,9 @@ def _neutralize_claude_code_credentials_file(request, monkeypatch, _hermetic_env
 
     def _blocked_read(*_args, **_kwargs):
         counts["read"] += 1
-        return None
 
     def _blocked_write(*_args, **_kwargs):
         counts["write"] += 1
-        return None
 
     _blocked_read._hermes_neutralized = True  # type: ignore[attr-defined]
     _blocked_write._hermes_neutralized = True  # type: ignore[attr-defined]
@@ -746,7 +744,7 @@ def _config_reads_through_load_config(request, monkeypatch):
 
 def _guard_roots() -> list[Path] | None:
     """``tests/conftest.py``'s live home-I/O guard root list, through its public door."""
-    import tests._downstream as _downstream
+    from tests import _downstream
 
     door = getattr(_downstream.root_conftest, "real_hermes_root_candidates", None)
     return door() if door is not None else None
@@ -881,7 +879,7 @@ FORK_TEST_TIMEOUT_METHOD = "thread"
 
 
 
-def pytest_sessionstart(session):  # noqa: D401 — pytest hook
+def pytest_sessionstart(session):  # pytest hook
     """Register the fresh-SessionDB census when ``HERMES_TEST_COUNT_FRESH_DBS`` asks (D3.11).
 
     At session start, not in ``pytest_configure``: the census is a session's
@@ -897,7 +895,7 @@ def pytest_sessionstart(session):  # noqa: D401 — pytest hook
 
 
 @pytest.hookimpl(tryfirst=True)
-def pytest_configure(config):  # noqa: D401 — pytest hook
+def pytest_configure(config):  # pytest hook
     """Register the fork's markers and default the per-test timeout.
 
     ``tryfirst`` because pytest-timeout reads ``config.option.timeout`` in its

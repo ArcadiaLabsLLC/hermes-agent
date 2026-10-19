@@ -11,7 +11,7 @@ from typing import Any, Dict, List
 
 import pytest
 
-from tests.tools.test_tool_search import (  # noqa: F401 — upstream names the moved tests use
+from tests.tools.test_tool_search import (  # upstream names the moved tests use
     TestCatalogListing as _UpstreamCatalogListing,
     TestRegression_ToolsetScoping as _UpstreamToolsetScoping,
     _td,
@@ -184,7 +184,7 @@ class TestClassification:
         """Operator ruling 2026-08-23: agent-to-agent send is a first-class
         tool. It is promoted in tool_search's never-defer set — NOT added to
         toolsets._HERMES_CORE_TOOLS, which would grant it everywhere."""
-        import tools.agent_chat_tool  # noqa: F401 — registration runs at import
+        import tools.agent_chat_tool  # registration runs at import
         from tools.tool_search import ToolSearchConfig, is_deferrable_tool_name
         cfg = ToolSearchConfig.from_raw(None)
         for name in ("agent_chat_send", "agent_chat_dispatches"):
@@ -194,7 +194,7 @@ class TestClassification:
 
     def test_other_agent_chat_tools_stay_deferrable(self):
         """The promotion's boundary: only send + dispatches ride eagerly."""
-        import tools.agent_chat_tool  # noqa: F401
+        import tools.agent_chat_tool
         from tools.registry import registry
         from tools.tool_search import ToolSearchConfig, is_deferrable_tool_name
         cfg = ToolSearchConfig.from_raw(None)
@@ -245,7 +245,7 @@ class TestClassification:
         """Un-hide, never grant. classify_tools only PARTITIONS the defs it is
         handed — a promoted name can never materialize in a lane that was not
         granted the toolset producing its def."""
-        import tools.agent_chat_tool  # noqa: F401
+        import tools.agent_chat_tool
         from tools.tool_search import ToolSearchConfig, classify_tools
         defs = [_td("terminal", "Run shell")]
         visible, deferrable = classify_tools(
@@ -355,8 +355,8 @@ class TestRegression_ToolsetScoping:
         from tools.tool_search import ToolSearchConfig, dispatch_tool_search
         from tools.tool_search_downstream import _SEARCH_HIT_SCHEMA_TOP_N
 
-        props: Dict[str, Any] = {}
-        defs: List[Dict[str, Any]] = []
+        props: dict[str, Any] = {}
+        defs: list[dict[str, Any]] = []
         for i in range(6):
             name = f"mcp_inline_sch_{i}"
             self._register(name, "mcp-inline-sch")
@@ -439,7 +439,7 @@ class TestCatalogListing:
         """The promotion's whole point, end to end: agent_chat_send ships in
         the model-facing array next to the bridge trio, and vanishes from both
         the tier-1 listing and the tool_search catalog."""
-        import tools.agent_chat_tool  # noqa: F401
+        import tools.agent_chat_tool
         from tools.registry import registry
         from tools.tool_search import (
             ToolSearchConfig, assemble_tool_defs, dispatch_tool_search,
@@ -561,7 +561,7 @@ class TestOneDoorForAnEagerName:
     _register = staticmethod(_UpstreamCatalogListing._register)
 
     def _send_def(self):
-        import tools.agent_chat_tool  # noqa: F401
+        import tools.agent_chat_tool
         from tools.registry import registry
 
         raw = registry.get_schema("agent_chat_send") or {}

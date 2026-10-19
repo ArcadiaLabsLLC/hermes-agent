@@ -162,7 +162,7 @@ def test_steering_repair_destroys_no_edge_it_cannot_prove_is_dangling(
     before = _instance_row_bytes()
     try:
         store.repair_missing_steering_references(apply=True)
-    except Exception:  # noqa: BLE001 — a raising arm is still an arm that wrote nothing
+    except Exception:  # a raising arm is still an arm that wrote nothing
         pass
 
     assert _instance_row_bytes() == before

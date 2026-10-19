@@ -61,7 +61,7 @@ import functools
 import subprocess
 from pathlib import Path
 
-__all__ = ["text", "parsed", "git_lines", "clear"]
+__all__ = ["clear", "git_lines", "parsed", "text"]
 
 
 def clear() -> None:
@@ -71,13 +71,13 @@ def clear() -> None:
     git_lines.cache_clear()
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def text(path: str | Path, errors: str = "strict") -> str:
     """The file's text, read once per (path, errors) for the process."""
     return Path(path).read_text(encoding="utf-8", errors=errors)
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def parsed(path: str | Path, errors: str = "strict") -> ast.Module:
     """The file's AST, parsed once per (path, errors) for the process.
 
@@ -86,7 +86,7 @@ def parsed(path: str | Path, errors: str = "strict") -> ast.Module:
     return ast.parse(text(path, errors))
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def git_lines(args: tuple[str, ...], cwd: str) -> tuple[str, ...]:
     """Stdout lines of ``git *args`` run in ``cwd``, executed once per query.
 

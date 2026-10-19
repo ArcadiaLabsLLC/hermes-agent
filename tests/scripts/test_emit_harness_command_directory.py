@@ -26,7 +26,7 @@ def test_committed_reference_matches_live_parser(tree):
 
 
 def test_operator_examples_parse_without_executing_handlers(tree):
-    blocks = re.findall(r"```bash\n(.*?)```", DIRECTORY.read_text(encoding="utf-8"), re.S)
+    blocks = re.findall(r"```bash\n(.*?)```", DIRECTORY.read_text(encoding="utf-8"), re.DOTALL)
     commands = [line for block in blocks for line in block.splitlines()
                 if line.startswith("hermes ")]
     assert commands, "No operator examples found"

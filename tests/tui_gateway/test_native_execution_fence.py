@@ -205,7 +205,7 @@ def test_uncertain_compute_dispatch_never_falls_back_to_an_inline_execution(owne
     monkeypatch.setattr(server, "_reattach_refusal", lambda *args: None)
     monkeypatch.setattr(server, "current_transport", lambda: None)
     monkeypatch.setattr(server, "_session_uses_compute_host", lambda *args: True)
-    monkeypatch.setattr(server, "_load_dashboard_process_isolation_config", lambda: {})
+    monkeypatch.setattr(server, "_load_dashboard_process_isolation_config", dict)
     monkeypatch.setattr(server, "_submit_prompt_to_compute_host",
         lambda *a, **k: server._err("rpc", 5019, "dispatch acknowledgement lost"))
     monkeypatch.setattr(server, "_persist_session_row_for_submit",

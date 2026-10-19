@@ -54,7 +54,7 @@ def _tokens(chars: int) -> int:
 
 
 def _tool_wire_tokens() -> tuple[int, dict[str, int]]:
-    import model_tools  # noqa: F401 — registers the built-in tools
+    import model_tools  # registers the built-in tools
     from tools.downstream_schema import wire_tool_chars
     from tools.registry import registry
     from tools.tool_search_downstream import tool_describe_schema

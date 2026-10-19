@@ -221,7 +221,7 @@ def test_the_wire_refuses_with_the_pinned_code_and_reason(deleted):
     code is what a client's error class switches on first.
     """
 
-    from agent_runtime import serve_rpc  # noqa: F401 - imported for the lane
+    from agent_runtime import serve_rpc  # imported for the lane
     from tests.agent_runtime.test_serve_rpc_office import SHUTDOWN, _reply, _rpc, _run
 
     reply = _reply(

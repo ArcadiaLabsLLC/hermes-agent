@@ -244,8 +244,8 @@ def test_actual_preload_and_catalog_share_request_manifest_epoch(tmp_path, monke
     resolver = skills_resolver._SkillObservabilityResolver(root_registries=turn_map)
     assert resolver.preparation_epoch is turn_map.preparation_epoch
     monkeypatch.setattr(resolver, "resolve", lambda *args, **kwargs: resolutions)
-    monkeypatch.setattr(resolver, "shared_catalog", lambda: {})
-    monkeypatch.setattr(resolver, "realm_publish_states", lambda: [])
+    monkeypatch.setattr(resolver, "shared_catalog", dict)
+    monkeypatch.setattr(resolver, "realm_publish_states", list)
     monkeypatch.setattr(skills_context, "_installed_skill_catalog", lambda: [{"name": name} for name in resolutions])
     files = {candidate.skill_md for candidate in candidates}; original = Path.stat; stats = []
     def stat(path, *args, **kwargs):

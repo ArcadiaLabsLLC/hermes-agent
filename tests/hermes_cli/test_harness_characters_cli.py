@@ -40,7 +40,7 @@ from agent_runtime.profile_home import get_shared_characters_dir
 
 pytest.importorskip("PIL")
 
-from PIL import Image, ImageDraw  # noqa: E402
+from PIL import Image, ImageDraw
 from hermes_cli.harness_parts.characters import auto as characters_auto
 
 SPEC = SheetSpec(

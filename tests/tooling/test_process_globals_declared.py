@@ -110,7 +110,7 @@ def process_globals(source: str) -> set[str]:
 
 def _dotted(path: str) -> str:
     module = path[:-3].replace("/", ".")
-    return module[: -len(".__init__")] if module.endswith(".__init__") else module
+    return module.removesuffix(".__init__")
 
 
 def _declared(path: str, source: str) -> frozenset[str]:

@@ -44,7 +44,7 @@ class _StdioPipe:
     def __init__(self) -> None:
         self._queue: queue.Queue = queue.Queue()
 
-    def __iter__(self) -> "_StdioPipe":
+    def __iter__(self) -> _StdioPipe:
         return self
 
     def __next__(self) -> str:
@@ -148,7 +148,7 @@ def _serve(**kwargs):
         if thread.is_alive():
             try:
                 _drain_over_socket(handle)
-            except Exception:  # noqa: BLE001 - teardown, never the assertion
+            except Exception:  # teardown, never the assertion
                 pass
         handle.pipe.close()
         thread.join(WAIT)

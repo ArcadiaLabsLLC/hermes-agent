@@ -29,7 +29,7 @@ import time
 import pytest
 
 from tests._downstream.split_package_source import patch_where_bound
-from tests.agent_runtime.test_persona_chat_actor_prewarm import (  # noqa: F401 - fixture
+from tests.agent_runtime.test_persona_chat_actor_prewarm import (  # fixture
     _Agent,
     _request,
     stub_runtime,
@@ -52,7 +52,7 @@ TURN_BUDGET_MS = 600
 
 
 @pytest.fixture
-def slow_prewarm(stub_runtime, monkeypatch):  # noqa: F811
+def slow_prewarm(stub_runtime, monkeypatch):
     """A prewarm of ``root_b`` whose MCP admission blocks until released (or 4 s)."""
 
     registry = PersonaChatRuntimeRegistry()

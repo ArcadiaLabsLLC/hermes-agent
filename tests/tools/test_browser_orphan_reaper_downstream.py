@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.tools.test_browser_orphan_reaper import (  # noqa: F401 — upstream names the moved tests use
+from tests.tools.test_browser_orphan_reaper import (  # upstream names the moved tests use
     TestReaperIdentityGuard as _UpstreamReaperIdentityGuard,
     _isolate_sessions,
 )

@@ -15,7 +15,7 @@ def test_dry_run_warns_git_history_not_backed_up(monkeypatch, tmp_path, capsys):
     hermes_home.mkdir()
 
     monkeypatch.setattr(uninstall, "_is_default_hermes_home", lambda home: False)
-    monkeypatch.setattr(uninstall, "_discover_named_profiles", lambda: [])
+    monkeypatch.setattr(uninstall, "_discover_named_profiles", list)
     # Upstream (2026-09-25 merge) refuses code removal for a steward-owned install
     # before the banner; this checkout is not one.
     monkeypatch.setattr(uninstall, "code_removal_refusal", lambda: None)
@@ -42,7 +42,7 @@ def test_interactive_preamble_warns_git_history_not_backed_up(
     monkeypatch.setattr(uninstall, "get_project_root", lambda: project_root)
     monkeypatch.setattr(uninstall, "get_hermes_home", lambda: hermes_home)
     monkeypatch.setattr(uninstall, "_is_default_hermes_home", lambda home: False)
-    monkeypatch.setattr(uninstall, "_discover_named_profiles", lambda: [])
+    monkeypatch.setattr(uninstall, "_discover_named_profiles", list)
     # Upstream (2026-09-25 merge) refuses code removal for a steward-owned install
     # before the banner; this checkout is not one.
     monkeypatch.setattr(uninstall, "code_removal_refusal", lambda: None)

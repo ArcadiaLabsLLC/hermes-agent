@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 
 import pytest
 
@@ -64,7 +64,7 @@ from agent_runtime.stream import (
 )
 from tests._downstream.split_package_source import patch_where_bound
 
-_TS = datetime(2026, 8, 27, 12, 0, 0, tzinfo=timezone.utc)
+_TS = datetime(2026, 8, 27, 12, 0, 0, tzinfo=UTC)
 
 
 def _op_event(offset: int, entity: str, entity_id: str, op: str, **payload):

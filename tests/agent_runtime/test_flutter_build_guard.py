@@ -88,7 +88,7 @@ def test_a_build_in_the_primary_checkout_is_refused_naming_the_qa_door(hook, pri
     package = primary / "packages" / "pkg_a"
     package.mkdir(parents=True)
     assert _call(hook, BUILD, package)["action"] == "block"
-    assert _call(hook, f'& "C:\\sdk\\flutter\\bin\\flutter.bat" build windows --profile', primary)["action"] == "block"
+    assert _call(hook, '& "C:\\sdk\\flutter\\bin\\flutter.bat" build windows --profile', primary)["action"] == "block"
 
     # Positive control: the same build in a lane worktree proceeds.
     lane = _checkout(tmp_path / "worktrees" / "lane", worktree=True)

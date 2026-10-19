@@ -1000,7 +1000,7 @@ def _close_every_connection_to(db_path) -> int:
             continue
         try:
             files = [row[2] for row in obj.execute("PRAGMA database_list").fetchall()]
-        except Exception:  # noqa: BLE001 — already closed, or not usable here
+        except Exception:  # already closed, or not usable here
             continue
         if not any(
             file and os.path.normcase(os.path.abspath(file)) == wanted for file in files
@@ -1008,7 +1008,7 @@ def _close_every_connection_to(db_path) -> int:
             continue
         try:
             obj.close()
-        except Exception:  # noqa: BLE001
+        except Exception:
             continue
         closed += 1
     return closed
@@ -1617,10 +1617,9 @@ class _ImportRecorder(importlib.abc.MetaPathFinder):
         self.watched = watched
         self.attempts: list[str] = []
 
-    def find_spec(self, fullname, path=None, target=None):  # noqa: D102
+    def find_spec(self, fullname, path=None, target=None):
         if fullname == self.watched or fullname.startswith(self.watched + "."):
             self.attempts.append(fullname)
-        return None
 
 
 def test_a_cache_hit_boot_imports_no_model_tools(

@@ -143,8 +143,8 @@ def test_the_visibility_token_figure_is_measured_from_the_schema():
 # the form it describes; the wire capture runs AFTER the transport aliased the bridge
 # (``hermes_tool_search``), so the join reverses the transport's own alias map.
 
-from tests.agent_runtime.test_chat_lane_defer import NEKO_DEFER  # noqa: E402
-from tests.agent_runtime.test_tool_surface import harness_lane  # noqa: E402,F401 - fixture
+from tests.agent_runtime.test_chat_lane_defer import NEKO_DEFER
+from tests.agent_runtime.test_tool_surface import harness_lane  # fixture
 
 _BLOCK = ("skill_manage",)
 
@@ -157,7 +157,7 @@ def _factory_agent(lane):
     return agent
 
 
-def test_the_wire_names_are_the_surface_eager_set_plus_bridge(harness_lane):  # noqa: F811
+def test_the_wire_names_are_the_surface_eager_set_plus_bridge(harness_lane):
     from agent_runtime.persona_turn_binding import bind_persona_turn_agent, capture_final_request_tools
     from agent_runtime.tool_surface import receipt_names, unaliased_wire_names
 
@@ -188,7 +188,7 @@ def test_the_wire_names_are_the_surface_eager_set_plus_bridge(harness_lane):  # 
     assert "skill_manage" in surface["blocked"] and "memory" in surface["deferred"]
 
 
-def test_hud_renders_the_deferred_line(harness_lane):  # noqa: F811
+def test_hud_renders_the_deferred_line(harness_lane):
     from agent_runtime.runtime_hud.capability import render_capability_block, resolve_capability_block
     from agent_runtime.tool_surface import AGENT_SURFACE_ATTR
 
@@ -212,7 +212,7 @@ def test_hud_renders_the_deferred_line(harness_lane):  # noqa: F811
     assert "deferred" not in render_capability_block(resolve_capability_block())
 
 
-def test_the_safe_view_keeps_reasons_and_counts_only(harness_lane):  # noqa: F811
+def test_the_safe_view_keeps_reasons_and_counts_only(harness_lane):
     from agent_runtime.prompt_observability.safe_views import _safe_tool_schema
     from agent_runtime.tool_surface import AGENT_SURFACE_ATTR
 

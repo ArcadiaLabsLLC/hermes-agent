@@ -60,11 +60,11 @@ def _args(store_root: Path, **kw) -> SimpleNamespace:
     return SimpleNamespace(**{**base, **kw})
 
 
-def _start(repo: Path, store_root: Path, roots=(), **kw) -> "gate_mod.GateRun":
+def _start(repo: Path, store_root: Path, roots=(), **kw) -> gate_mod.GateRun:
     return gate_mod.GateRun.start(_args(store_root, **kw), repo, [repo / T], list(roots), [], environ={})
 
 
-def _red_run(repo: Path, store_root: Path, rc: int = 1) -> "gate_mod.GateRun":
+def _red_run(repo: Path, store_root: Path, rc: int = 1) -> gate_mod.GateRun:
     """A run in which ``T`` went red: its outcome writes the red key, its record the red map."""
 
     gate = _start(repo, store_root)

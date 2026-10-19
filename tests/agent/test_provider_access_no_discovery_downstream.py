@@ -23,7 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 @pytest.fixture
 def no_discovery(monkeypatch):
-    import hermes_cli.plugins as plugins
+    from hermes_cli import plugins
 
     def _refuse(*_args, **_kwargs):
         raise AssertionError("the provider-access port ran plugin discovery")

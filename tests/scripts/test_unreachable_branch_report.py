@@ -14,8 +14,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-import scripts.unreachable_branch_report as report  # noqa: E402
-from scripts.unreachable_branch_report import _ranges, summarise  # noqa: E402
+import scripts.unreachable_branch_report as report
+from scripts.unreachable_branch_report import _ranges, summarise
 
 
 def _document(**files) -> dict:

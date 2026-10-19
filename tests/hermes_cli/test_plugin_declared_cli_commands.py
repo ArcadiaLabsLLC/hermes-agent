@@ -202,9 +202,9 @@ def test_a_built_in_verb_skips_the_declared_scan(monkeypatch):
 # ── RT-HARNESS-ARGV-MANIFEST-SCAN: the fingerprint cache (T2-T8; T1 is
 # tests/hermes_cli/test_declared_cli_cache_superset.py, a gate) ──────────────────────────────
 
-from hermes_cli import plugins_declared_cli_cache as cache_mod  # noqa: E402
-from hermes_cli import plugins_discovery as discovery_mod  # noqa: E402
-from hermes_cli import plugins_manifest as manifest_mod  # noqa: E402
+from hermes_cli import plugins_declared_cli_cache as cache_mod
+from hermes_cli import plugins_discovery as discovery_mod
+from hermes_cli import plugins_manifest as manifest_mod
 
 
 def _home():

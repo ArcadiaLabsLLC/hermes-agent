@@ -151,7 +151,7 @@ def test_a_failed_return_summary_append_is_not_mirrored():
 
     import json
 
-    import agent_runtime.continuity as continuity
+    from agent_runtime import continuity
     from agent_runtime.chat_live_log import chat_live_log_path, reset_chat_live_log_state
 
     reset_chat_live_log_state()

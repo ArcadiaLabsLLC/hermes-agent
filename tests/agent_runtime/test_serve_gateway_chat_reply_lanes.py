@@ -68,7 +68,7 @@ from hermes_cli.harness_parts.serve import dispatch_argv
 from tests.agent_runtime.test_serve_gateway_lane import (
     WAIT,
     device_client,
-    gateway_on,  # noqa: F401 - fixture
+    gateway_on,  # fixture
     pair_device,
     running_serve,
 )

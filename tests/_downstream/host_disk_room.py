@@ -30,7 +30,7 @@ def _host_disk_has_room(request, monkeypatch):
 
 
 @pytest.hookimpl(specname="pytest_configure")
-def pytest_configure_host_disk_room(config):  # noqa: D401 — pytest hook
+def pytest_configure_host_disk_room(config):  # pytest hook
     config.addinivalue_line(
         "markers",
         f"{_MARK}: shutil.disk_usage reports a half-used volume, so a probe of the real "
