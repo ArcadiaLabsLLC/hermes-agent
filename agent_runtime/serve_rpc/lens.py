@@ -42,7 +42,6 @@ and, for a schema refusal, ``data.detail`` naming the field — never a value.
 
 from __future__ import annotations
 
-from datetime import timedelta
 from typing import Any, Callable
 
 from agent_runtime.call_authorization import TIER_CONSOLE
@@ -52,12 +51,6 @@ from agent_runtime.serve_rpc.registry import method
 __layer__ = "lanes"
 
 __all__ = ["_runtime_lens_list"]
-
-#: The longest range one call may read (the raw window is 24 h; rollups cover 7 d).
-MAXIMUM_RANGE = timedelta(days=7)
-MAXIMUM_RANGE_ROWS = 10_000
-SERIES_SCHEMA = "lens-range-v1"
-
 
 def _lens_call(rid: Any, body: Callable[[], dict]) -> dict:
     """Run ``body``; turn a Lens refusal into its typed frame."""
@@ -166,14 +159,7 @@ def _runtime_lens_preview(rid: Any, params: dict, context: RpcContext | None = N
 
 @method("runtime.lens.latest", tier=TIER_CONSOLE)
 def _runtime_lens_latest(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
-    def body() -> dict:
-        store = _store()
-        monitor = store.get(_monitor_id(params))
-        manifest = (monitor["sealed"] or {}).get("manifest") or {"feeds": []}
-        return {"monitor_id": monitor["monitor_id"],
-                "latest": [store.latest(monitor["monitor_id"], feed["id"]) for feed in manifest["feeds"]]}
-
-    return _lens_call(rid, body)
+    return _lens_call(rid, lambda: _store().latest_reads(_monitor_id(params)))
 
 
 @method("runtime.lens.range", tier=TIER_CONSOLE)
@@ -181,22 +167,11 @@ def _runtime_lens_range(rid: Any, params: dict, context: RpcContext | None = Non
     """A bounded series with EXPLICIT gaps (the Generative UI chart's one read, plan §6a)."""
 
     def body() -> dict:
-        from agent_runtime.lens.store import from_ms
-        from agent_runtime.lens.wire_value import WireError, WireRefusal, bounded_int, opaque_id
+        from agent_runtime.lens.wire_value import bounded_int, opaque_id
 
         params_ = params or {}
-        monitor_id, feed_id = _monitor_id(params_), opaque_id(params_.get("feed_id"))
-        start, end = bounded_int(params_.get("start_ms")), bounded_int(params_.get("end_ms"))
-        if not start < end or end - start > MAXIMUM_RANGE / timedelta(milliseconds=1):
-            raise WireError(WireRefusal.INVALID_VALUE, "range_bound")
-        store = _store()
-        store.get(monitor_id)
-        rows = store.observations(monitor_id, feed_id, start=from_ms(start), end=from_ms(end),
-                                  limit=MAXIMUM_RANGE_ROWS + 1)
-        rollups = [r for r in store.rollups(monitor_id, feed_id) if start <= r["minute_ms"] < end]
-        return {"series": SERIES_SCHEMA, "monitor_id": monitor_id, "feed_id": feed_id, "start_ms": start,
-                "end_ms": end, "observations": rows[:MAXIMUM_RANGE_ROWS],
-                "truncated": len(rows) > MAXIMUM_RANGE_ROWS, "rollups": rollups}
+        return _store().series(_monitor_id(params_), opaque_id(params_.get("feed_id")),
+                               start_ms=bounded_int(params_.get("start_ms")), end_ms=bounded_int(params_.get("end_ms")))
 
     return _lens_call(rid, body)
 

@@ -60,7 +60,7 @@ def test_one_unknown_key_anywhere_is_refused(path):
 
 @pytest.mark.parametrize("mutate, code", [
     (lambda d: d["automation"].update(level="act"), WireRefusal.UNKNOWN_ENUM),  # ruling 3: no act level
-    (lambda d: d["feeds"][0].update(kind="sql_readonly"), WireRefusal.INVALID_VALUE),  # L4, not built
+    (lambda d: d["feeds"][0].update(kind="sql_readonly"), WireRefusal.UNKNOWN_KEY),  # L4: its own source block
     (lambda d: d["rules"][0].update(feed_id="nope"), WireRefusal.INVALID_VALUE),
     (lambda d: d["rules"][0].update(recovery_threshold=95), WireRefusal.INVALID_VALUE),  # no hysteresis
     (lambda d: d["feeds"][0]["source"].update(base_url="https://u:p@prom.example.invalid"), WireRefusal.INVALID_STRING),
@@ -129,6 +129,6 @@ def test_runtime_lens_list_is_on_the_method_lane():
     reply = serve_rpc.handle_request({"jsonrpc": "2.0", "id": 1, "method": "runtime.lens.list", "params": {}})
     assert reply["result"]["feed_kinds"] == {
         "http_json": "available", "prometheus": "available",
-        "sql_readonly": "unavailable", "command_allowlisted": "unavailable", "push": "available",
+        "sql_readonly": "available", "command_allowlisted": "available", "push": "available",
     }
     assert serve_rpc.method_tier("runtime.lens.list") == TIER_CONSOLE

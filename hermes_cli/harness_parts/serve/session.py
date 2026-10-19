@@ -797,7 +797,8 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
             import logging as _forge_logging
 
             _forge_logging.getLogger(__name__).warning("lens forge did not start", exc_info=True)
-        # And the push door: the in-serve ingress listener, loopback unless bound (L3).
+        # And the push door: the in-serve ingress listener, loopback unless bound (L3), armed here and
+        # bound only while a route exists (ingress.sync_ingress).
         try:
             from agent_runtime.lens.ingress import start_lens_ingress
 

@@ -10,6 +10,10 @@ Exposure (W11 a+b):
 * bound to loopback (``127.0.0.1:47652``) unless the operator binds a LAN address
   through ``runtime.lens.ingress.bind`` (:func:`bind_ingress`: loopback or a private
   address only — never a public or unspecified one);
+* bound ONLY while at least one route exists (:func:`sync_ingress`): the serve arms
+  the door at boot and binds if routes are already stored; the first
+  ``ingress.register`` binds it, the last ``ingress.revoke`` closes it. A serve whose
+  home has no route (a test serve, a fresh install) never holds the port;
 * ``POST /lens/<route_id>`` only; the body is capped at :data:`MAXIMUM_BODY_BYTES`
   and refused by its ``Content-Length`` BEFORE anything is read or verified;
 * every route has its own secret (``ingress_routes``). Two signatures are accepted:
@@ -274,7 +278,9 @@ class IngressListener:
 
 # --- the serve's one listener ------------------------------------------------------
 
-_ACTIVE: dict[str, Any] = {"listener": None}
+#: ``armed``: a serve owns the door (set at boot, cleared with its liveness event);
+#: ``listener``: the bound listener, present only while armed AND a route exists.
+_ACTIVE: dict[str, Any] = {"listener": None, "armed": False}
 _ACTIVE_LOCK = threading.Lock()
 
 
@@ -282,32 +288,52 @@ def active_listener() -> IngressListener | None:
     return _ACTIVE["listener"]
 
 
+def sync_ingress(store: LensStore | None = None) -> IngressListener | None:
+    """Bind the armed door while a route exists; close it when none does. The one writer of
+    ``_ACTIVE["listener"]`` besides :func:`bind_ingress`'s move and the serve's stop.
+
+    Called at boot (:func:`start_lens_ingress`) and after every route write
+    (``ingress_routes.register_route`` / ``revoke_route``). Unarmed (no serve in this
+    process) it does nothing. A bind failure is logged; the route write stands."""
+
+    with _ACTIVE_LOCK:
+        if not _ACTIVE["armed"]:
+            return None
+        wanted = bool((store or LensStore()).routes())
+        current = _ACTIVE["listener"]
+        if wanted and current is None:
+            try:
+                _ACTIVE["listener"] = IngressListener().start()
+            except OSError:
+                logger.warning("lens ingress did not bind %s:%s", *ingress_address(), exc_info=True)
+        elif not wanted and current is not None:
+            _ACTIVE["listener"] = None
+            current.stop()
+        return _ACTIVE["listener"]
+
+
 def start_lens_ingress(*, stop_event: threading.Event) -> IngressListener | None:
-    """Start the push door at the home's bind; it stops with ``stop_event``. None when not
-    shipped, or when the address cannot be bound (logged; the serve runs on)."""
+    """Arm the push door for this serve and bind it if a route exists; it stops with
+    ``stop_event``. None when not shipped, when no route exists yet (the first
+    ``ingress.register`` binds it), or when the address cannot be bound (logged)."""
 
     from .poller import lens_shipped
 
     if not lens_shipped():
         return None
     with _ACTIVE_LOCK:
-        try:
-            listener = IngressListener().start()
-        except OSError:
-            logger.warning("lens ingress did not bind %s:%s", *ingress_address(), exc_info=True)
-            return None
-        _ACTIVE["listener"] = listener
+        _ACTIVE["armed"] = True
 
     def _stop_with_serve() -> None:
         stop_event.wait()
         with _ACTIVE_LOCK:
             current = _ACTIVE["listener"]
-            _ACTIVE["listener"] = None
+            _ACTIVE["listener"], _ACTIVE["armed"] = None, False
         if current is not None:
             current.stop()
 
     threading.Thread(target=_stop_with_serve, name="harness-serve-lens-ingress-stop", daemon=True).start()
-    return listener
+    return sync_ingress()
 
 
 def read_bind_host(value: Any) -> str:

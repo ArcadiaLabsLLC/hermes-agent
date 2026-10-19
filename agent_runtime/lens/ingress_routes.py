@@ -21,7 +21,8 @@ store row holds the reference only. Revoking a route forgets its secret.
 
 The listener's address (``lens/ingress.json`` under the home, resolved at call
 time) is loopback unless an operator bound it elsewhere (``runtime.lens.ingress.bind``,
-stage L3.3); a route's ``url`` is built from it.
+stage L3.3); a route's ``url`` is built from it. The listener is bound only while a
+route exists: every route write ends in ``ingress.sync_ingress``.
 """
 
 from __future__ import annotations
@@ -148,7 +149,14 @@ def register_route(monitor_id: str, kind: Any, mapping: Any = None, *, store: Le
     except LensStoreError:
         _forget(route["secret_ref"])
         raise
+    _sync_listener(store)
     return {**public_route(route), "secret": secret}
+
+
+def _sync_listener(store: LensStore) -> None:
+    from .ingress import sync_ingress
+
+    sync_ingress(store)
 
 
 def _forget(ref: str) -> None:
@@ -175,4 +183,5 @@ def revoke_route(route_id: str, *, store: LensStore | None = None) -> dict[str, 
     store = store or LensStore()
     route = store.delete_route(opaque_id(route_id))
     _forget(route["secret_ref"])
+    _sync_listener(store)
     return {**public_route(route), "revoked": True}
