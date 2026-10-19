@@ -206,6 +206,19 @@ PERSONA_CHAT_TURN_CAPABILITY = "persona_chat_turn"
 #: core. Without it the open keeps today's core.
 PERSONA_CHAT_OPEN_CAPABILITY = "persona_chat_open"
 
+#: The SIXTH token (plan p10-turn §2 S3, row RT-EMIT-RUNNING-WORK-CHAT, 2026-10-19).
+#: A terminal background process's spawn/exit appends ``running_work.process_started``
+#: / ``.process_ended`` (``agent_runtime.running_work.process_presence``); like the
+#: chat turn's pair they are not covered domain events and ride beside nothing. A
+#: batch made ONLY of them (and watchdog reconciles naming only ``running_work``)
+#: is expressed whole by the ``running_work`` section, so a room where EVERY
+#: subscriber names this token is handed that section carrying the batch's
+#: ``watermark`` / ``base_offset`` (:func:`agent_runtime.stream.frames.running_work_section_frame`)
+#: instead of a full core. Every mixed pair degrades to today's wire: an old client
+#: never declares it and keeps its core (with the un-sequenced ``as_of_offset``
+#: overlay ahead of it); an old runtime ignores the string.
+RUNNING_WORK_SECTION_CAPABILITY = "running_work_section"
+
 #: Domain events that ride alongside their ``state.patched`` in the same
 #: coalesced batch (same chokepoint) and carry no fold state of their own — the
 #: launcher ignores them and folds the paired op. Each has a paired op:

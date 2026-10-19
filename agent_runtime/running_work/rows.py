@@ -155,6 +155,13 @@ def _progress(
     }
 
 
+def work_id_of(kind: str, stable_id: str) -> str:
+    """A row's ``work_id``: the one derivation every lane and every presence
+    event (``process_presence``) names a row by."""
+
+    return f"{kind}:{stable_id}"
+
+
 def work_row(
     *,
     kind: str,
@@ -180,7 +187,7 @@ def work_row(
     never replace a shared key, so every row keeps the one shape consumers read."""
 
     row = {
-        "work_id": f"{kind}:{stable_id}",
+        "work_id": work_id_of(kind, stable_id),
         "kind": kind,
         "label": label,
         "command": command,

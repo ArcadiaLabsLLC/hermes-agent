@@ -19,6 +19,7 @@ from ..events import EventLog
 from ..models import Event
 from ..patch_coverage import normalize_fold_entities
 from ..running_work import build_running_work
+from ..running_work.process_presence import PROCESS_PRESENCE_EVENT_TYPES
 from ..serde import optional_text, section_rows, to_jsonable
 from ..snapshot.build import build_snapshot
 from ..state_patches.models import STATE_PATCHED_EVENT_TYPE
@@ -154,13 +155,89 @@ def heartbeat_frame(
     return frame
 
 
-def batch_changes_chat_turn_presence(batch: list[tuple[int, Event]]) -> bool:
-    """Whether a turn entered or left the running-work set in this batch."""
+#: The events that move a ``running_work`` row's presence: a chat turn's pair
+#: (``chat_turn_presence``) and a terminal process's pair (``running_work.process_presence``,
+#: plan p10-turn §2 S3).
+_RUNNING_WORK_PRESENCE_EVENT_TYPES = frozenset(
+    {EVENT_TURN_STARTED, EVENT_TURN_ENDED, *PROCESS_PRESENCE_EVENT_TYPES}
+)
 
-    return any(getattr(event, "type", None) in {EVENT_TURN_STARTED, EVENT_TURN_ENDED} for _, event in batch)
+
+def batch_changes_running_work_presence(batch: list[tuple[int, Event]]) -> bool:
+    """Whether a chat turn or a terminal process entered or left the running-work set in this batch."""
+
+    return any(getattr(event, "type", None) in _RUNNING_WORK_PRESENCE_EVENT_TYPES for _, event in batch)
 
 
-def running_work_frame(*, as_of_offset: int | None) -> dict[str, Any] | None:
+#: The old name, kept one release for importers outside this package (p10-turn §2 S3).
+batch_changes_chat_turn_presence = batch_changes_running_work_presence
+
+
+def _is_running_work_event(event: Event) -> bool:
+    """A process presence event, or a watchdog reconcile that moved ONLY the
+    ``running_work`` stores (``families == ["running_work"]``)."""
+
+    event_type = getattr(event, "type", None)
+    if event_type in PROCESS_PRESENCE_EVENT_TYPES:
+        return True
+    payload = event.payload if isinstance(event.payload, dict) else {}
+    return (
+        event_type == EVENT_STATE_RECONCILED
+        and payload.get("source") == WATCHDOG_SOURCE
+        and payload.get("families") == ["running_work"]
+    )
+
+
+def batch_is_running_work_only(batch: list[tuple[int, Event]]) -> bool:
+    """Whether EVERY event of ``batch`` moves only ``running_work`` (p10-turn §2 S3).
+
+    Such a batch is expressed whole by the ``running_work`` section, so a room
+    that declared :data:`~agent_runtime.patch_coverage.RUNNING_WORK_SECTION_CAPABILITY`
+    is handed that section carrying the batch's watermark instead of a core.
+    Empty → ``False``.
+    """
+
+    if not batch:
+        return False
+    return all(_is_running_work_event(event) for _, event in batch)
+
+
+def running_work_section_frame(
+    batch: list[tuple[int, Event]], *, base_offset: int
+) -> dict[str, Any] | None:
+    """The ``running_work`` section as a SEQUENCED frame for a running-work-only
+    batch: ``base_offset`` / ``watermark`` exactly as :func:`patch_batch_frame`
+    carries them, so a client that declared the token folds it and advances.
+    ``None`` if the section could not be read (the caller demotes)."""
+
+    last_offset, last_event = batch[-1]
+    started = time.monotonic()
+    frame = running_work_frame(
+        as_of_offset=None,
+        watermark={
+            "event_offset": int(last_offset or 0),
+            "last_event_ts": last_event.ts,
+            "captured_at": now(),
+        },
+        base_offset=base_offset,
+    )
+    logger.debug(
+        "running_work_section batch=%d events=%d ms=%d",
+        int(last_offset or 0),
+        len(batch),
+        int((time.monotonic() - started) * 1000),
+    )
+    if frame is not None:
+        frame["coalesced_count"] = len(batch)
+    return frame
+
+
+def running_work_frame(
+    *,
+    as_of_offset: int | None,
+    watermark: dict[str, Any] | None = None,
+    base_offset: int | None = None,
+) -> dict[str, Any] | None:
     """The ``running_work`` section alone, read NOW; ``None`` if it cannot be read.
 
     Why it exists: a turn's ``persona_chat.turn_ended`` batch can never ride the
@@ -180,6 +257,12 @@ def running_work_frame(*, as_of_offset: int | None) -> dict[str, Any] | None:
     A read that raises answers ``None`` and the caller ships nothing: the core
     that follows still carries the section, so the cost of a miss is the old
     lag, never a wrong row.
+
+    ``watermark`` (p10-turn §2 S3, :func:`running_work_section_frame`): given,
+    the frame IS sequenced — it carries ``watermark`` and ``base_offset`` and no
+    ``as_of_offset``. Only a room that declared
+    :data:`~agent_runtime.patch_coverage.RUNNING_WORK_SECTION_CAPABILITY` is
+    ever handed one (the gate is ``stream.build._turn_batch_frames``).
     """
 
     try:
@@ -187,13 +270,18 @@ def running_work_frame(*, as_of_offset: int | None) -> dict[str, Any] | None:
     except Exception:
         logger.debug("running_work_frame: section read failed", exc_info=True)
         return None
-    return {
+    frame: dict[str, Any] = {
         "type": FRAME_RUNNING_WORK,
         "schema_version": STREAM_SCHEMA_VERSION,
         "generated_at": now(),
-        "as_of_offset": None if as_of_offset is None else int(as_of_offset),
-        "running_work": _redaction_safe_json(section),
     }
+    if watermark is None:
+        frame["as_of_offset"] = None if as_of_offset is None else int(as_of_offset)
+    else:
+        frame["watermark"] = dict(watermark)
+        frame["base_offset"] = int(base_offset or 0)
+    frame["running_work"] = _redaction_safe_json(section)
+    return frame
 
 
 #: The events one chat turn appends, and nothing else (plan h-turn1 §2 C0.1):

@@ -407,6 +407,9 @@ def register(ctx) -> None:
     from agent_runtime.harness_toolset import ensure_harness_core
 
     ensure_harness_core()  # the persona lane's composite, through upstream's create_custom_toolset
+    from agent_runtime.running_work.process_presence import install_process_presence
+
+    install_process_presence()  # RT-EMIT-RUNNING-WORK-CHAT: process spawn/exit -> running_work events
     from agent_runtime.skill_config_cache import install_bounded_skill_config_cache
 
     install_bounded_skill_config_cache()  # one parsed config.yaml per persona home, not one per process
