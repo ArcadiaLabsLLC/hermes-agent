@@ -118,3 +118,23 @@ def test_the_landing_lane_carries_one_gate_per_slot_and_round_trips_the_wire():
     assert again == made and dict(again.landing.gates) == dict(made.landing.gates)
     old = {key: value for key, value in made.landing.wire().items() if key != "gates"}
     assert Lane.from_wire(old).gates == {}, "a manifest from before the gates folds to none (every slot red)"
+
+
+def test_a_lane_takes_the_union_of_its_rows_skills_and_round_trips_the_wire():
+    """p10-work S1: ``Lane.skills`` is the union of the rows' ``skills:`` segments, named in the brief."""
+
+    from agent_runtime.work_store.grammar import parse_row
+
+    def lent(row_id, *skills):
+        line = f"- **`{row_id}` — t** · `agent_runtime/{row_id}.py` · skills: " + ", ".join(f"`{s}`" for s in skills)
+        return parse_row(line + " · READY 2026-10-19", slot="hermes", note=NOTE, line_no=1, heading="Fork-owned")
+
+    made = plan([lent("RT-A", "git-workflow", "eternia/qa"), lent("RT-B", "eternia/qa", "pytest"), qrow("RT-C")],
+                workspace_id=WS)
+    [lane] = made.lanes
+    assert lane.skills == ("git-workflow", "eternia/qa", "pytest")
+    assert "Skills lent for this lane (preloaded): git-workflow, eternia/qa, pytest" in lane.brief.objective
+    assert lane.files == ("agent_runtime/RT-A.py", "agent_runtime/RT-B.py"), "a lent skill is not a touched file"
+    assert "`eternia/qa`" not in lane.brief.inputs
+    assert Plan.from_wire(made.wire()).lanes[0].skills == lane.skills
+    assert made.landing.skills == ()

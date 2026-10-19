@@ -391,7 +391,7 @@ class WorkEngine:
         body = self._brief_of(row, writer)
         brief = Brief(title=row.title, objective=body or row.title,
                       inputs=(row.raw, *(f"`{pointer}`" for pointer in row.pointers)), constraints=(_CONSTRAINT,))
-        return Assignment((row.ref,), row.taken.persona_instance_id, brief, request_id)
+        return Assignment((row.ref,), row.taken.persona_instance_id, brief, request_id, skills=row.skills)
 
     def _start(self, record: RunRecord, assignment: Assignment) -> str:
         try:

@@ -1720,6 +1720,7 @@ omit the module and never advertise the methods.
 | `runtime.work.set_status` | `request_id`, `slot`, `task_id`, `status` (a full status segment) | `task`, `receipt` | `row_gone`, `grammar_invalid`, `not_claimant`, git reasons |
 | `runtime.work.done` | `request_id`, `slot`, `task_id`, `result` (≤4,000, one paragraph) | `ending`, `receipt` — the row is deleted; the commit body carries the result | `row_gone`, `not_claimant`, git reasons |
 | `runtime.work.create_brain` | `request_id`, `slot?` (omitted: the default brain), `promote?` (`true`: promote the default brain to a private GitHub remote now, ignoring the automatic path's back-off — doc 06 § The todo board) | `board`, `receipt`, `promotion?` (`{outcome: promoted \| already, url, declaration}`) | `slot_unbound`, git reasons; with `promote`: `needs_git_account`, `remote_exists`, `git_host_unsupported`, `token_scope`, `host_unreachable`, `remote_diverged`, `url_mismatch` |
+| `runtime.work.lend_skills` | `request_id`, `slot`, `task_id`, `skills` (non-empty list of slugs), `mode?` (`lend` default: the union with the row's set; `revoke`: the difference) | `task`, `receipt` — the row's `skills:` segment rewritten (removed when empty); a write verb (RULED 2026-10-18) | `invalid_request`, `skills_not_loadable` (+ `rejected_skills {slug: reason}`; nothing written), `row_gone`, `not_claimant`, git reasons |
 
 Scope is `install_id` plus the opaque `owner` = `fingerprint([install, workspace_id])`; every call
 re-derives the owner set and a missing or changed owner refuses. The idempotency key is `request_id`
@@ -1734,6 +1735,12 @@ is the receipt log.
 
 A session that races the writer on the same queue note re-applies its op by ID with
 `scripts/work_row.py` in its own checkout (never a text merge).
+
+A row's `skills: `<slug>`[, `<slug>`]` segment (ADR 0011 amendment 2026-10-19) lends skills to whoever
+works it: every projected task carries `skills: [..]`; the engine's and the batch planner's `Assignment.skills`
+are DERIVED from it (a batch lane takes its rows' union, `Lane.skills` on the wire), and the persona-turn
+executor queues them for the run's turn through `queue_skills_for_next_turn` before it queues the turn (an
+unloadable skill refuses the run `skills_not_loadable`); an `UNTIL_DONE` continuation re-queues them.
 
 ### Chat goal methods and `UNTIL_DONE` Work runs
 
@@ -1856,3 +1863,22 @@ persona_instance_id, session_id}`; it passes `validate_operator_conversation`, a
 IS the assignee: `context.assignee = persona:<persona_instance_id>`, the default `who` of a claim, the
 default `assignee` of a `start` (a row started there for that instance is written `TAKEN` by it), and the
 `conversation` view lists the rows that instance holds (`in_conversation`).
+
+**Lending skills to a worker (p10-work S2).** The gateway worker's `eternia.skills.{list,detail,history}`
+(`conversations/worker_skills.py`) take the `eternia.subagents.*` child address — `owner_scope`,
+`worker_generation`, `child_ref`, all three or none (a partial address is 4090 `invalid_request`). With it,
+the read is the CHILD's (`subagents/native.py::child_record`: its agent's cwd, its own `valid_tool_names` for
+`can_load`, its own `session_id` for history) and `list` adds `lent: [..]`; a stale generation or a replaced
+worker is the subagent refusal (4602 `subagent_reference_stale`), never a parent read.
+`eternia.skills.lend` `{session_id, owner_scope, worker_generation, child_ref, skills, mode: lend | revoke,
+request_id}` is the worker half of lending (a write verb, RULED 2026-10-18; a task's half is
+`runtime.work.lend_skills`, and `lend` without a child says so): every lent skill is resolved first
+(`skills_not_loadable` + `rejected_skills`, nothing written), then the record
+`<store_root>/skill_lends/child_<subagent_id>.json` `{target, owner_session, skills, lent_at, lent_by, pid}`
+(`agent_runtime/skill_lends.py`), then the child's `_chat_lane_compact_skill_categories` = the parent's
+compact set ∩ compact(lent) (an unscoped parent stays unscoped; nothing lent restores the unscoped child),
+then a steer (`Skills lent: …` / `Skills no longer lent: …`). Reply `{target, skills_lent, effective:
+"next_turn", steered}` — a body already loaded is not unloaded mid-turn. The `eternia.subagents.list` roster
+row carries `skills_lent`. The record lives as long as its child: the dispatch drain's orphan cadence
+(`dispatch_delivery/drain.py::sweep_skill_lends`) and every lend drop a record whose child this process no
+longer registers, and another process's record once that process is dead.

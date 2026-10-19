@@ -285,6 +285,19 @@ def sweep_orphaned_dispatches() -> int:
         return 0
 
 
+def sweep_skill_lends() -> int:
+    """Drop the ``skill_lends`` records of children that are gone (p10-work S2); the count. Never raises."""
+
+    from ..skill_lends import sweep
+    from ..subagents.native import child_registered
+
+    try:
+        return sweep(child_registered)
+    except Exception:  # pragma: no cover - a sweep must never kill the drain
+        logger.debug("skill lend sweep failed", exc_info=True)
+        return 0
+
+
 def start_delivery_drain(
     *,
     stop_event: threading.Event,
@@ -327,6 +340,7 @@ def start_delivery_drain(
                 if now >= next_sweep:
                     next_sweep = now + ORPHAN_SWEEP_INTERVAL_SECONDS
                     sweep_orphaned_dispatches()
+                    sweep_skill_lends()
                 # A — the cross-process mirror. Written when this pass changed
                 # an outcome row, or once a heartbeat has elapsed. An idle serve
                 # therefore touches the file once a minute and no more; a pass

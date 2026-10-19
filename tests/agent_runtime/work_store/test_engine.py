@@ -393,3 +393,16 @@ def test_a_scheduled_assignment_on_a_row_another_claimant_holds_is_refused(board
 
     assert fire["refused"] == Reason.ALREADY_TAKEN.value and executor.started == []
     assert records() == []
+
+
+def test_a_row_with_skills_hands_them_to_the_assignment(board):
+    """p10-work S1: ``Assignment.skills`` is DERIVED from the row's ``skills:`` segment, never a pointer."""
+
+    lent = f"- **`RT-L` — lend** · `docs/RT-L.md` · skills: `git-workflow`, `eternia/qa` · READY {DATE} · **TAKEN {DATE} persona:inst-1**"
+    writer, b = board(lent, _row("RT-M", "persona:inst-2"))
+    engine, executor = _engine(writer, b)
+    engine.tick()
+    by_row = {a.rows[0].id: a for a in executor.started}
+    assert by_row["RT-L"].skills == ("git-workflow", "eternia/qa")
+    assert "`git-workflow`" not in by_row["RT-L"].brief.inputs[1:]
+    assert by_row["RT-M"].skills == ()

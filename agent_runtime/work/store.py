@@ -208,6 +208,7 @@ def project(row: Row, writer: Writer | None, *, context=None, detail: bool = Fal
         "status": status_word(row), "status_word": row.status.value if row.status else None,
         "status_date": row.status_date, "status_body": row.status_body, "recommend": row.recommend,
         "assignee": f"persona:{row.assignee.token}" if row.assignee else None,
+        "skills": list(row.skills),
         "taken": {"date": taken.date, "who": taken.who, "persona_instance_id": taken.persona_instance_id}
         if taken else None,
         "rulings": list(row.rulings), "pointers": list(row.pointers), "heading": row.heading, "raw": row.raw,
@@ -366,6 +367,39 @@ def assign(scope, params, actor, *, context=None):
     token = resolve_assignee(_assignee_token(params["assignee"])).token if params.get("assignee") is not None else None
     writer, receipt = _row_write(scope, params, Op.ASSIGN, _writer_who(params, actor), {"assignee": token},
                                  context=context)
+    return {"task": _task(writer, receipt.ref, context), "receipt": receipt.wire()}
+
+
+#: ``runtime.work.lend_skills`` modes: the row's lent set after the call, from (held, asked).
+LEND_MODES = {
+    "lend": lambda held, asked: list(dict.fromkeys([*held, *asked])),
+    "revoke": lambda held, asked: [skill for skill in held if skill not in asked],
+}
+
+
+def lend_skills(scope, params, actor, *, context=None, rejected=None):
+    """Lend skills to whoever works a row (``mode: lend``, the union) or take them back (``revoke``).
+
+    Every lent slug is resolved and compatibility-checked first (``rejected``: slug list -> {slug: reason},
+    the ``runtime.chat.queue_skill`` check the service hands in); one unloadable skill refuses the whole call
+    ``skills_not_loadable`` with nothing written. The set is the row's ``skills:`` segment (p10-work S1).
+    """
+
+    mode = params.get("mode", "lend")
+    asked = params.get("skills")
+    if mode not in LEND_MODES or not isinstance(asked, list) or not asked:
+        raise WorkRefused(Reason.INVALID, "skills is a non-empty list and mode is lend | revoke")
+    asked = list(dict.fromkeys(text(skill, maximum=128) for skill in asked))
+    refused = (rejected or (lambda skills: {}))(asked) if mode == "lend" else {}
+    if refused:
+        raise WorkRefused(Reason.SKILLS_NOT_LOADABLE, ", ".join(sorted(refused)), data={"rejected_skills": refused})
+    view = synced(scope.workspace_id, slot=params.get("slot"))
+    board = _view_board(view, params.get("slot"))
+    row = find(boards_store.rows(scope.workspace_id, slot=board.slot, read_roots=view.read_roots),
+               text(params.get("task_id")))
+    held = list(row.skills) if row is not None else []
+    writer, receipt = _row_write(scope, params, Op.SET_SKILLS, _writer_who(params, actor),
+                                 {"skills": LEND_MODES[mode](held, asked)}, context=context)
     return {"task": _task(writer, receipt.ref, context), "receipt": receipt.wire()}
 
 

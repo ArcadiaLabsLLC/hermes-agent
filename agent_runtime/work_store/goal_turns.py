@@ -26,6 +26,8 @@ A judge ``wait`` parks the run on upstream's barrier (a pid, a process session, 
 CLI polls that barrier when idle; the serve's poll is :func:`wake_parked`, run on the Work engine's
 tick, which continues a parked run whose barrier lifted and whose root has nothing queued — and a parked
 chat goal no run owns, forged from the settled turn's arguments its ``wait`` recorded.
+A run whose assignment lends skills carries them in its origin (:data:`SKILLS_ORIGIN`); every continuation
+re-queues them for its own turn (``queued_skills`` is one turn deep, p10-work S1).
 Receipts: ``work.goal_arm | goal_continue | goal_hold | goal_wake | goal_end | chat_goal_continue |
 chat_goal_hold | chat_goal_settle | chat_goal_wake``.
 """
@@ -46,12 +48,14 @@ from .reasons import Reason, WorkRefused
 
 __layer__ = "lanes"
 __all__ = [
-    "CHAT_GOAL_ORIGIN", "DECISION_ENDINGS", "after_chat_goal_turn", "after_turn", "arm_run", "direct_entry",
+    "CHAT_GOAL_ORIGIN", "DECISION_ENDINGS", "SKILLS_ORIGIN", "after_chat_goal_turn", "after_turn", "arm_run", "direct_entry",
     "first_cmid", "run_status", "stop_run", "wake_parked",
 ]
 
 #: The origin key a chat goal's own continuation carries (``user_initiated=False`` when it settles).
 CHAT_GOAL_ORIGIN = "chat_goal"
+#: The origin key a Work run's lent skills ride in (``PersonaTurnExecutor.start_from`` writes it).
+SKILLS_ORIGIN = "skills"
 #: Arguments of the settled turn a chat goal's continuation does NOT inherit: each names that one send.
 _NOT_CARRIED = frozenset({send_queue.ORIGIN_ARG, "idempotency_key", "retry_of", "images", "clarify_token",
                           "title", "new_session"})
@@ -160,9 +164,23 @@ def _forge(bound: chat_goal.GoalBinding, entry: send_queue.QueuedSend, prompt: s
         return
     cmid = f"{first_cmid(bound.request_id)}-g{bound.turns + 1}"
     chat_goal.bind(bound.advanced(cmid=cmid, turns=bound.turns + 1, held=False))
+    _requeue_skills(bound)
     enqueue(root, cmid, {**bound.turn_args, "message": prompt, "client_message_id": cmid})
     wake()
     receipts.emit("work.goal_continue", root=root, request_id=bound.request_id, cmid=cmid, turn=bound.turns + 1)
+
+
+def _requeue_skills(bound: chat_goal.GoalBinding) -> None:
+    """The run's lent skills, queued again for the continuation's turn (they were consumed by the last one)."""
+
+    origin = bound.turn_args.get(send_queue.ORIGIN_ARG)
+    skills = list(origin.get(SKILLS_ORIGIN) or ()) if isinstance(origin, dict) else []
+    if skills:
+        from ..queued_skills import queue_skills_for_next_turn
+
+        queue_skills_for_next_turn(persona_id=str(bound.turn_args.get("persona_id") or ""),
+                                   session_id=bound.root_session_id, skills=skills,
+                                   persona_instance_id=bound.turn_args.get("persona_instance_id"))
 
 
 def _ending_now(bound: chat_goal.GoalBinding, payload: dict | None, report: RowEnding | None) -> RowEnding | None:

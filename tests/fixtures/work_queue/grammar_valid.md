@@ -29,3 +29,4 @@ queues. -->
 - **`FX-ASSIGNEE` — Assigned row** · assignee: persona:alice · READY 2026-10-18
 - **`FX-PERSONA-TAKEN` — Persona-claimed row** · READY 2026-10-18 · **TAKEN 2026-10-18 persona:pi_alice_01**
 - **`WORK-A2B3C4` — Engine-minted row** · assignee: persona:pi_alice_01 · READY 2026-10-18
+- **`FX-SKILLS` — Lent-skills row** · assignee: persona:alice · skills: `git-workflow`, `eternia/qa` · READY 2026-10-19

@@ -21,6 +21,11 @@ p10-messaging §3 M3): ``work`` reports the run, ``goal`` is the root's chat goa
 own kind (:meth:`PersonaTurnExecutor.register_origin_listener`; the messaging bridge's ``messaging``).
 Pinned by ``tests/agent_runtime/work_store/test_origin_listener_table.py`` and
 ``tests/agent_runtime/messaging/test_bridge_inbound.py``.
+
+``Assignment.skills`` (a row's ``skills:`` segment, p10-work S1): before anything is armed or queued the
+skills are queued for the run's turn on the root (``chat_verbs.queue_skill.queue_skills_next_turn``, the
+``runtime.chat.queue_skill`` row); one unloadable skill refuses the run ``skills_not_loadable`` with nothing
+enqueued. The origin carries them, so every ``UNTIL_DONE`` continuation re-queues them (``goal_turns``).
 """
 
 from __future__ import annotations
@@ -177,6 +182,7 @@ class PersonaTurnExecutor:
         draining: Callable[[], bool] = lambda: False,
         goals: Callable[[str], Any] = chat_goal.manager,
         workdir_of: Callable[[Any], str | None] | None = None,
+        queue_skills: Callable[..., dict] | None = None,
     ) -> None:
         self._enqueue = enqueue
         self._wake = wake
@@ -186,6 +192,7 @@ class PersonaTurnExecutor:
         self._draining = draining
         self._goals = goals
         self._workdir_of = workdir_of or _persona_workdir
+        self._queue_skills = queue_skills
         self._callbacks: list[Callable[[Run, Outcome], None]] = []
         self._origin_listeners: dict[OriginKind, OriginListener] = {
             OriginKind.WORK: self._work_settled, OriginKind.GOAL: self._goal_settled}
@@ -268,7 +275,10 @@ class PersonaTurnExecutor:
         until_done = a.goal_mode is GoalMode.UNTIL_DONE
         origin = {**dict(origin), "owner": None, "gateway": False, ORIGIN_KIND_KEY: OriginKind.WORK.value,
                   "work": a.request_id,
-                  "rows": [[ref.slot, ref.note, ref.id] for ref in a.rows], "goal": until_done}
+                  "rows": [[ref.slot, ref.note, ref.id] for ref in a.rows], "goal": until_done,
+                  **({goal_turns.SKILLS_ORIGIN: list(a.skills)} if a.skills else {})}
+        if a.skills:
+            self._lend(instance, root, a)
         turn = _turn_args(instance, root, cmid, message or render_brief(a), f"work:{a.request_id}")
         if workdir:
             setattr(turn, RUN_WORKDIR_ARG, workdir)
@@ -281,6 +291,20 @@ class PersonaTurnExecutor:
                       persona_instance_id=a.persona_instance_id, rows=[ref.id for ref in a.rows],
                       executor=self.kind.value)
         return Run(_run_id(root, cmid), a.request_id, a, root, cmid, entry.queued_at, RunStatus.QUEUED)
+
+    def _lend(self, instance: Any, root: str, a: Assignment) -> None:
+        """Queue the assignment's skills for the run's turn; an unloadable one refuses the whole run."""
+
+        if self._queue_skills is None:
+            from ..chat_verbs.queue_skill import queue_skills_next_turn
+
+            self._queue_skills = queue_skills_next_turn
+        reply = self._queue_skills(persona_id=instance.persona_id, session_id=root,
+                                   persona_instance_id=instance.id, skills=list(a.skills))
+        if not reply.get("ok"):
+            rejected = dict(reply.get("rejected_skills") or {})
+            raise WorkRefused(Reason.SKILLS_NOT_LOADABLE, ", ".join(sorted(rejected)) or str(reply.get("error") or ""),
+                              data={"rejected_skills": rejected})
 
     def queue_prompt(self, persona_instance_id: str, message: str, *, request_id: str,
                      origin: Mapping[str, Any]) -> Run:

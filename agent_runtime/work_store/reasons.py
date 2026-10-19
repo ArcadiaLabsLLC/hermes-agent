@@ -71,12 +71,16 @@ class Reason(StrEnum):
     HOST_UNREACHABLE = "host_unreachable"
     REMOTE_DIVERGED = "remote_diverged"
     URL_MISMATCH = "url_mismatch"
+    # A lent skill set with a skill that does not resolve or cannot load (p10-work S1, RT-ETERNIA-SKILLS-LENDS-SKILLS).
+    SKILLS_NOT_LOADABLE = "skills_not_loadable"
 
 
 class WorkRefused(ValueError):
     """A Work request refused with a typed ``reason`` (the wire word) and an optional ``detail``."""
 
-    def __init__(self, reason: Reason, detail: str = "") -> None:
+    def __init__(self, reason: Reason, detail: str = "", *, data: dict | None = None) -> None:
         super().__init__(detail or reason.value)
         self.reason = reason
         self.detail = detail
+        #: Typed fields the wire carries beside ``reason`` / ``detail`` (``rejected_skills``).
+        self.data = dict(data or {})
