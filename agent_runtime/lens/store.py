@@ -8,7 +8,9 @@ Tables: ``monitors`` (state, the sealed body + digest + revision, the open draft
 ``observations`` (raw; a recorded gap is a row with ``value`` NULL and a typed
 ``reason``), ``rollups`` (one row per feed-minute, written by retention),
 ``episodes`` (the Episode JSON by id), ``receipts`` (one per Episode the exit
-door admitted: the forged turn's identity, outcome and artifacts; stage L2).
+door admitted: the forged turn's identity, outcome and artifacts; stage L2),
+``ingress_routes`` (one per push-door route: the monitor it writes, its body kind,
+its mapping and the credential reference of its secret — never the secret; L3).
 
 Monitor lifecycle: ``create`` writes a DRAFT (a validated manifest, not yet
 running); ``seal`` freezes the draft as the next revision; ``enable`` / ``pause``
@@ -41,6 +43,8 @@ __layer__ = "stores"
 MAXIMUM_MONITORS = 64
 #: Receipts are refused past this many, never made room for by eviction (W13).
 MAXIMUM_RECEIPTS = 50_000
+#: Push-door routes are refused past this many (W13).
+MAXIMUM_ROUTES = 64
 _LOCK = threading.RLock()
 
 _SCHEMA = """
@@ -67,6 +71,9 @@ CREATE TABLE IF NOT EXISTS receipts (
   started_ms INTEGER NOT NULL, finished_ms INTEGER, outcome TEXT NOT NULL,
   artifact_handles TEXT NOT NULL DEFAULT '[]', files TEXT NOT NULL DEFAULT '[]', tool_admission TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS receipts_by_monitor ON receipts (monitor_id, started_ms);
+CREATE TABLE IF NOT EXISTS ingress_routes (
+  route_id TEXT PRIMARY KEY, monitor_id TEXT NOT NULL, kind TEXT NOT NULL, secret_ref TEXT NOT NULL,
+  mapping TEXT NOT NULL, created_ms INTEGER NOT NULL);
 """
 
 
@@ -85,10 +92,13 @@ class StoreRefusal(str, Enum):
     RETIRED = "monitor_retired"
     RECEIPT_NOT_FOUND = "receipt_not_found"
     RECEIPTS_FULL = "receipts_full"
+    ROUTE_NOT_FOUND = "route_not_found"
+    ROUTES_FULL = "routes_full"
 
 
 #: The refusals a reader answers as "not found" (the rest are conflicts).
-NOT_FOUND_REFUSALS = frozenset({StoreRefusal.NOT_FOUND, StoreRefusal.RECEIPT_NOT_FOUND})
+NOT_FOUND_REFUSALS = frozenset({StoreRefusal.NOT_FOUND, StoreRefusal.RECEIPT_NOT_FOUND,
+                                StoreRefusal.ROUTE_NOT_FOUND})
 
 
 class ReceiptOutcome(str, Enum):
@@ -412,6 +422,50 @@ class LensStore:
                 f"SELECT COUNT(*) FROM receipts WHERE monitor_id = ? AND started_ms >= ? AND started_ms < ? "
                 f"AND outcome IN ({', '.join('?' * len(CAPPED_OUTCOMES))})",
                 (monitor_id, start, end, *CAPPED_OUTCOMES)).fetchone()[0])
+
+    # --- ingress routes (L3) --------------------------------------------------
+
+    def save_route(self, route: dict[str, Any]) -> None:
+        with self._db() as conn:
+            if conn.execute("SELECT COUNT(*) FROM ingress_routes").fetchone()[0] >= MAXIMUM_ROUTES:
+                raise LensStoreError(StoreRefusal.ROUTES_FULL)
+            conn.execute(f"INSERT INTO ingress_routes ({', '.join(_ROUTE_COLUMNS)}) VALUES "
+                         f"({', '.join('?' * len(_ROUTE_COLUMNS))})",
+                         tuple(json.dumps(route[c], sort_keys=True) if c == "mapping" else route[c]
+                               for c in _ROUTE_COLUMNS))
+
+    def route(self, route_id: str) -> dict[str, Any]:
+        with self._db() as conn:
+            row = conn.execute(f"SELECT {', '.join(_ROUTE_COLUMNS)} FROM ingress_routes WHERE route_id = ?",
+                               (route_id,)).fetchone()
+        if row is None:
+            raise LensStoreError(StoreRefusal.ROUTE_NOT_FOUND)
+        return _route_json(row)
+
+    def routes(self, *, monitor_id: str | None = None) -> list[dict[str, Any]]:
+        if not self.exists():
+            return []
+        sql, args = f"SELECT {', '.join(_ROUTE_COLUMNS)} FROM ingress_routes", []
+        if monitor_id is not None:
+            sql, args = sql + " WHERE monitor_id = ?", [monitor_id]
+        with self._db() as conn:
+            rows = conn.execute(sql + " ORDER BY created_ms, route_id", args).fetchall()
+        return [_route_json(row) for row in rows]
+
+    def delete_route(self, route_id: str) -> dict[str, Any]:
+        route = self.route(route_id)
+        with self._db() as conn:
+            conn.execute("DELETE FROM ingress_routes WHERE route_id = ?", (route_id,))
+        return route
+
+
+_ROUTE_COLUMNS = ("route_id", "monitor_id", "kind", "secret_ref", "mapping", "created_ms")
+
+
+def _route_json(row: tuple[Any, ...]) -> dict[str, Any]:
+    out = dict(zip(_ROUTE_COLUMNS, row))
+    out["mapping"] = json.loads(out["mapping"])
+    return out
 
 
 def _receipt_row(receipt: dict[str, Any]) -> tuple[Any, ...]:

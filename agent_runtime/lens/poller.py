@@ -14,6 +14,8 @@ Each :meth:`LensPoller.tick` polls every due feed of every ENABLED monitor once:
   rule's Episode moves (``episode.observe``);
 * a feed the watcher could not see while the serve was down gets ONE
   ``watcher_offline`` gap at start (W8(a)): missed windows are gaps, never silence;
+* a ``push`` feed is never read here (its ingress route writes it, L3): it is
+  skipped by the tick, the offline catch-up and the deadline's confirming read;
 * a read is typed by ``sources.typed_result`` with the feed's recent raw reads (the
   outlier window, kept in memory: a restart refills it, and the guard abstains
   until it is full) and the monitor's newest dated exchange rate (W2(c), W5);
@@ -37,6 +39,7 @@ from datetime import datetime, timedelta, timezone, UTC
 from typing import Any, Callable
 
 from .episode import EpisodeState, observe
+from .feed import is_push_feed
 from .rules import CLOCK_FORMS, RuleForm, evaluate, rule_feed_ids
 from .sources import read_feed_source
 from .sources.transport import ReadReason, ReadResult
@@ -117,6 +120,8 @@ class LensPoller:
         store, now, recorded = self.store_factory(), self.clock(), 0
         for monitor_id, manifest in self._enabled(store):
             for feed in manifest["feeds"]:
+                if is_push_feed(feed):
+                    continue
                 latest = store.latest(monitor_id, feed["id"])
                 horizon = timedelta(milliseconds=feed["interval_ms"] * _OFFLINE_INTERVALS)
                 if latest is not None and now - from_ms(latest["observed_ms"]) > horizon:
@@ -133,6 +138,8 @@ class LensPoller:
             deadline = self._deadline(store, monitor_id, manifest, now)
             # A rate feed is read before the feeds it converts, so one tick's total uses one tick's rate.
             for feed in sorted(manifest["feeds"], key=lambda f: not _is_rate_feed(manifest, f["id"])):
+                if is_push_feed(feed):
+                    continue
                 clock = self._clocks.setdefault((monitor_id, feed["id"]), _FeedClock())
                 if clock.last_read is not None and now < clock.last_read + clock.period(feed, deadline):
                     continue
@@ -221,8 +228,9 @@ class LensPoller:
                 if RuleForm(rule["form"]) not in CLOCK_FORMS:
                     continue
                 clock = self._clocks.get((monitor_id, rule["feed_id"]))
-                if (clock is None or clock.last_read != now) and self._would_open(store, monitor_id, manifest,
-                                                                                  rule, now):
+                pulled = not is_push_feed(feeds[rule["feed_id"]])
+                if pulled and (clock is None or clock.last_read != now) and self._would_open(
+                        store, monitor_id, manifest, rule, now):
                     self._read(store, monitor_id, manifest, feeds[rule["feed_id"]], now)
                     reads += 1
                 self._evaluate(store, monitor_id, manifest, rule, now)

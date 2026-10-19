@@ -57,6 +57,8 @@ class ReadReason(str, Enum):
     OUTLIER = "outlier"
     #: A total cost needed an exchange rate and held no current dated one (W5).
     FX_STALE = "fx_stale"
+    #: A ``push`` feed is written by its ingress route only; nothing reads it (L3).
+    PUSH_ONLY = "push_only"
     SOURCE_FAILED = "source_failed"
 
 

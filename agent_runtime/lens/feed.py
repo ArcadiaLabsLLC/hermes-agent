@@ -5,7 +5,9 @@ to the hermes contract (plan ``eternia-lens-in-hermes.md`` §3): a feed names it
 kind, its cadence and its kind's source block; nothing else survives the reader.
 
 Feed kinds admitted today are the poll door's two (L1): ``http_json`` and
-``prometheus``. ``sql_readonly`` and ``command_allowlisted`` are stage L4; until
+``prometheus``, and the push door's one (L3): ``push`` — a feed nothing polls,
+written only by an ingress route (``lens.ingress_routes``; its source block is
+empty, its ``interval_ms`` the cadence a rule expects). ``sql_readonly`` and ``command_allowlisted`` are stage L4; until
 they land a manifest naming one is REFUSED with ``feed_kind_unavailable`` — a
 missing capability is reported, never faked.
 
@@ -76,10 +78,17 @@ class FeedKind(str, Enum):
     PROMETHEUS = "prometheus"
     SQL_READONLY = "sql_readonly"
     COMMAND_ALLOWLISTED = "command_allowlisted"
+    PUSH = "push"
 
 
 #: The kinds whose source is built. Every other kind is refused by name.
-AVAILABLE_FEED_KINDS = frozenset({FeedKind.HTTP_JSON, FeedKind.PROMETHEUS})
+AVAILABLE_FEED_KINDS = frozenset({FeedKind.HTTP_JSON, FeedKind.PROMETHEUS, FeedKind.PUSH})
+
+
+def is_push_feed(feed: dict[str, Any]) -> bool:
+    """True for a feed only an ingress route writes: the poller never reads it."""
+
+    return feed.get("kind") == FeedKind.PUSH.value
 
 
 def source_url(value: Any) -> str:
@@ -115,10 +124,16 @@ def _prometheus_source(value: Any) -> dict[str, Any]:
     return {"base_url": source_url(m["base_url"]), "query": bounded_string(m["query"], maximum=1024)}
 
 
+def _push_source(value: Any) -> dict[str, Any]:
+    checked_object(value, ())
+    return {}
+
+
 #: Feed kind -> its source block's reader. A kind absent here is unavailable.
 _SOURCE_READERS = {
     FeedKind.HTTP_JSON: _http_json_source,
     FeedKind.PROMETHEUS: _prometheus_source,
+    FeedKind.PUSH: _push_source,
 }
 
 FEED_KEYS_REQUIRED = frozenset({"version", "id", "kind", "interval_ms", "source"})

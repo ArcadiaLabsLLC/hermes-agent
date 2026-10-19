@@ -31,7 +31,10 @@ SOURCE_READERS: dict[FeedKind, Callable[..., ReadResult]] = {
 def read_feed_source(feed: dict[str, Any], *, client: Any = None, resolver: Any = None) -> ReadResult:
     from ..credentials import resolve_credential
 
-    reader = SOURCE_READERS.get(FeedKind(feed["kind"]))
+    kind = FeedKind(feed["kind"])
+    if kind is FeedKind.PUSH:
+        return unavailable(ReadReason.PUSH_ONLY)
+    reader = SOURCE_READERS.get(kind)
     if reader is None:
         return unavailable(ReadReason.SOURCE_FAILED)
     headers = {"Accept": "application/json"}
