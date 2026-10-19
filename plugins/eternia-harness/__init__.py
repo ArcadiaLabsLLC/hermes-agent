@@ -53,14 +53,45 @@ def _cmd_postinstall(args):
     return cmd_postinstall(args)
 
 
-# (tool that gates the line, guidance attribute in ``agent_runtime.prompt_guidance``), in render order.
+def _work_clause_gate() -> tuple[str, ...]:
+    from agent_runtime.prompt_guidance import WORK_SUBMIT_TOOLS
+
+    return ("delegate_task", "agent_chat_send", *sorted(WORK_SUBMIT_TOOLS))
+
+
+# (gate, guidance attribute in ``agent_runtime.prompt_guidance``), in render order. A gate
+# is one tool name or a tuple of them; the line renders when EVERY name is present.
 _TOOL_GUIDANCE = (
     ("tool_describe", "TOOL_DESCRIBE_GUIDANCE"),
     ("terminal", "SHELL_TOOL_PREFERENCE_GUIDANCE"),
     ("clarify", "CLARIFY_CHOICES_GUIDANCE"),
     ("browser_navigate", "BROWSER_PRECONDITION_GUIDANCE"),
     ("skill_manage", "SKILL_MANAGE_CONFIRM_GUIDANCE"),
+    (("delegate_task", "agent_chat_send"), "DELEGATION_HANDOFF_GUIDANCE"),
+    (_work_clause_gate(), "DELEGATION_HANDOFF_WORK_CLAUSE"),
 )
+
+# clause attribute -> the line it extends, joined in place of that line's final period.
+_JOINED_CLAUSES = {"DELEGATION_HANDOFF_WORK_CLAUSE": "DELEGATION_HANDOFF_GUIDANCE"}
+
+
+def _gate_open(gate: str | tuple[str, ...], tools: set[str]) -> bool:
+    return all(name in tools for name in ((gate,) if isinstance(gate, str) else gate))
+
+
+def _fixed_guidance_lines(tools: set[str]) -> list[str]:
+    from agent_runtime import prompt_guidance
+
+    lines: dict[str, str] = {}
+    for gate, attr in _TOOL_GUIDANCE:
+        if not _gate_open(gate, tools):
+            continue
+        target = _JOINED_CLAUSES.get(attr)
+        if target is None:
+            lines[attr] = getattr(prompt_guidance, attr)
+        elif target in lines:
+            lines[target] = lines[target].removesuffix(".") + getattr(prompt_guidance, attr)
+    return list(lines.values())
 
 
 def render_tool_guidance(session_info) -> str:
@@ -69,19 +100,15 @@ def render_tool_guidance(session_info) -> str:
     ``session_info["tool_names"]`` is the comma-joined sorted tool set core renders
     the prompt with. The fixed lines are the T6b policy moved OFF the brief wire
     descriptions, so they render only in a session that runs that wire — one that
-    carries ``tool_describe`` — and then one line per gating tool present. The
+    carries ``tool_describe`` — and then one line per gate whose every tool is present
+    (``_gate_open``; the hand-off line needs both hand-off tools). The
     Launcher's app-function ``guidance`` lines render for any session whose list
     holds the tool. Nothing present gets an empty section, which core skips.
     """
-    from agent_runtime import prompt_guidance
     from agent_runtime.launcher_app_functions import app_function_guidance_lines
 
     tools = set(str(session_info.get("tool_names") or "").split(","))
-    lines = (
-        [getattr(prompt_guidance, attr) for tool, attr in _TOOL_GUIDANCE if tool in tools]
-        if "tool_describe" in tools
-        else []
-    )
+    lines = _fixed_guidance_lines(tools) if "tool_describe" in tools else []
     # The host's own WHEN rules (the Launcher's app-function ``guidance``), one
     # line per offered tool present in this session: the rule, the tool brief
     # and any skill then derive from one text the host owns.
