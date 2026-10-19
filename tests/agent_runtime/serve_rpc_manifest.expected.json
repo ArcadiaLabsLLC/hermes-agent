@@ -1,6 +1,19 @@
 {
   "contract": 1,
   "limits": {
+    "files": {
+      "max_count": 8,
+      "max_file_bytes": 262144,
+      "max_total_bytes": 524288,
+      "media_types": [
+        "text/*",
+        "application/json",
+        "application/xml",
+        "application/yaml",
+        "text/csv",
+        "application/pdf"
+      ]
+    },
     "operator_text": {
       "max_length": 64000,
       "unit": "unicode_code_point"
@@ -374,6 +387,7 @@
       "clarify_token",
       "client_scope",
       "correlation_id",
+      "files",
       "images",
       "intent_hint",
       "max_seconds",

@@ -53,6 +53,13 @@ it counts (`unicode_code_point`, Python `len`). A composer resolves its own limi
 from that value and product entitlements and refuses before send; the server refusal
 (`message_invalid`) stays final. No client copies the number.
 
+`rpc.limits.files` (RT-MISSION-CHAT-MESSAGE-TAKES) is
+`agent_runtime/operator_files.py::files_limits()` = the native conversation lane's
+`conversations/prompt.py::files_capability()` — `{max_count, max_file_bytes,
+max_total_bytes, media_types}`, one owner of the number (D2.01). It bounds the `files`
+param of `runtime.chat.message` below; the console reads it the way the native lane reads
+`capabilities.files`.
+
 ## Operator model selection
 
 The existing `runtime.operator.conversation.model.select` also accepts
@@ -903,6 +910,20 @@ model it runs on; otherwise the provider gets upstream's
 `build_native_content_parts` and the transcript row carries one `MEDIA:<path>`
 line per image (the bubble, and `runtime.media.get`'s derived scope). Module:
 `agent_runtime/operator_images.py`.
+
+**`files` on `runtime.chat.message` (RT-MISSION-CHAT-MESSAGE-TAKES, 2026-10-19).**
+`[{name ≤200, media_type, data (base64)}]` — the native lane's `prompt.files` item shape —
+bounded by `rpc.limits.files` (8 files, 256 KiB each, 512 KiB together, `text/*`, json,
+xml, yaml, csv, pdf). Refusals at the door are the native spellings, `file_unsupported` /
+`file_oversize` / `file_invalid` (`ChatTurnInvalid.reason`). The bytes are stored
+content-addressed under `<store root>/operator_files/<sha256>.<ext>` with a
+`<sha256>.name.json` sidecar, and the argv names each as `--file sha256:<hex>.<ext>`. A
+file is STAGED, never inlined (owner ruling 2026-10-19): the turn's request text and its
+user row gain one guidance sentence and one `FILE:<path>` line per file, before any
+`MEDIA:` lines, and the agent reads what it needs with `read_file`. A `FILE:` line joins
+`runtime.media.get`'s derived scope only when its path sits directly in that store
+(`media_handles._DECLARATION_ADMITS`). `RPC_CONTRACT_VERSION` does not move. Module:
+`agent_runtime/operator_files.py`.
 
 **The tier is now a refusal, and what it refuses is a paired device** (Stage A5,
 landed with the gateway's Stage 1). `authorize_call` compares the tier a

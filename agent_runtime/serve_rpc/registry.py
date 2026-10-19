@@ -219,9 +219,13 @@ def manifest() -> dict[str, Any]:
     every operator-text door (``runtime.chat.message``, ``runtime.chat.steer``,
     ``runtime.operator.conversation.message``, the CLI) admits, and the unit it counts
     in, so a composer can refuse before send instead of copying the number.
+    ``files`` is ``operator_files.files_limits()`` — the native conversation lane's
+    ``files_capability()``, one owner of the number (D2.01) — the bound on
+    ``runtime.chat.message``'s ``files`` (RT-MISSION-CHAT-MESSAGE-TAKES).
     """
 
     from ..chat_turn import CHAT_TURN_METHOD_PARAMS
+    from ..operator_files import files_limits
     from ..operator_message import operator_text_admission
     from ..persona_open_chat import OPEN_CHAT_METHOD, OPEN_CHAT_METHOD_PARAMS
     from .board import BOARD_METHOD_PARAMS
@@ -241,5 +245,5 @@ def manifest() -> dict[str, Any]:
                 **SUBAGENT_METHOD_PARAMS,
             }.items())
         },
-        "limits": {"operator_text": operator_text_admission()},
+        "limits": {"operator_text": operator_text_admission(), "files": files_limits()},
     }

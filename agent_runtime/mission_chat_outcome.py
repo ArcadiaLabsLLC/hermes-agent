@@ -172,6 +172,9 @@ class ChatErrorKind(StrEnum):
     #: The send carries images and the model this turn runs on takes none
     #: (upstream ``decide_image_input_mode`` answered ``text``). Refused before any token.
     VISION_UNSUPPORTED = "vision_unsupported"
+    #: A reviewed-file reference names no stored file (``agent_runtime.operator_files``);
+    #: the native lane's ``Refusal.FILE_INVALID`` spelling, so one client branch reads both.
+    FILE_INVALID = "file_invalid"
 
     # -- chat-root ownership / concurrency -----------------------------------
     UNKNOWN_CHAT_SESSION = "unknown_chat_session"
@@ -231,6 +234,7 @@ ADMISSION_ERROR_KINDS = frozenset(
         ChatErrorKind.CHAT_TURN_RETRY_TARGET_INVALID,
         ChatErrorKind.IMAGE_INVALID,
         ChatErrorKind.VISION_UNSUPPORTED,
+        ChatErrorKind.FILE_INVALID,
     }
 )
 CHAT_ROOT_ERROR_KINDS = frozenset(

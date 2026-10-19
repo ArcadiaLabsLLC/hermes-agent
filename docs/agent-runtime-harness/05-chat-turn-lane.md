@@ -224,6 +224,17 @@ file created and the owner refusal.
 
 ## 1. Send admission — the turn's identity and its thread
 
+**Attachments are admitted before the turn runs.** `chat_turn_commit/admit.py` resolves
+`--image` refs (`_admit_images`: `image_invalid`, or `vision_unsupported` for a model without
+vision) and then `--file` refs (`_admit_files`, RT-MISSION-CHAT-MESSAGE-TAKES: a ref naming
+no stored file is `file_invalid`, admission family, `next_expected` "re-send the files with
+the message"). The door's own refusals (`file_unsupported` / `file_oversize` /
+`file_invalid`) and `limits.files` are doc 03's. An admitted file is staged, never inlined:
+`run.py` composes the request text as `with_file_lines(message, user_files)` and the
+mirrored user row from that same text (`MEDIA:` lines after), and the write-ahead record
+carries `pending_user_files` beside `pending_user_images`
+(`mission_chat_turns/records.py::_JOURNAL_PATH_LISTS`).
+
 **Inline relay admission uses the runtime head, not the sender's profile.**
 `hermes_cli/harness_parts/mission_chat_door_binding.py::_mission_chat_turn_via_cli`
 enters `profile_context.process_home_scope(get_hermes_head_home())` around the

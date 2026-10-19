@@ -145,6 +145,11 @@ def test_every_send_option_reaches_the_serve_and_round_trips():
             "--compression-protect-last-n", "3", "--relay-chain", "a,b",
             "--relay-deadline-epoch", "1000.5", "--requested-by-session", "rs",
             "--defer-thread-policy", "--json", "--use-agent-default",
+            # Plan p10-turn §3.5 test 7: list-kind routes forward EVERY item. Killing
+            # mutation: ``"value"`` for ``"list"`` on the files row -> the two refs
+            # collapse into one stringified value and the round trip differs.
+            "--image", "sha256:" + "a" * 64 + ".png", "--image", "sha256:" + "b" * 64 + ".jpg",
+            "--file", "sha256:" + "c" * 64 + ".txt", "--file", "sha256:" + "d" * 64 + ".json",
         ]
     )
     known = {dest for dest, _flag, _kind in chat_serve_route.SEND_FLAGS}

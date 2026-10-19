@@ -99,6 +99,14 @@ _JOURNAL_TEXT_FIELDS = {
 }
 
 
+#: The write-ahead's attachment paths (``chat_turn_commit/run.py::_write_ahead``): the
+#: stored files a turn's user row names, each list bounded at 16 (above every send limit;
+#: the send's own limit is enforced at the door, not re-derived here).
+#: ``pending_user_images`` was written since RT-OPERATOR-CHAT-SEND-PERSONA and dropped
+#: here, at the write, until RT-MISSION-CHAT-MESSAGE-TAKES added this table.
+_JOURNAL_PATH_LISTS = {"pending_user_images": 16, "pending_user_files": 16}
+
+
 #: The ONE structured entry on a turn record, carried verbatim from
 #: ``run_budget.RunBudgetLedger.accounting()`` — the whole "what bounded this
 #: turn?" block (``bounded_by`` / ``trip_reason`` / ``enforcement`` /
@@ -360,6 +368,12 @@ def _safe_journal_metadata(value: Any) -> dict[str, Any]:
         text = safe_assignment_text(value.get(key), limit=limit)
         if text:
             result[key] = text
+    for key, cap in _JOURNAL_PATH_LISTS.items():
+        raw = value.get(key)
+        kept = [text for text in (safe_assignment_text(item, limit=1024) for item in raw[:cap]) if text] \
+            if isinstance(raw, list) else []
+        if kept:
+            result[key] = kept
     run_budget = safe_run_budget_accounting(value.get(_JOURNAL_RUN_BUDGET_FIELD))
     if run_budget is not None:
         result[_JOURNAL_RUN_BUDGET_FIELD] = run_budget

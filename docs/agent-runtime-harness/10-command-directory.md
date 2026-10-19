@@ -143,6 +143,9 @@ hermes harness mission-chat message --persona PERSONA_ID --persona-instance-id I
 
 Capture the response's turn/session identity. Accepted or queued is not completed;
 read the transcript and runtime state. A provider refusal is not a successful turn.
+`--image REF` / `--file REF` (repeatable) name a pasted image or a reviewed file that
+`runtime.chat.message` stored, by reference (`sha256:<hex>.<ext>`), never by path; a file
+reaches the agent as a `FILE:<path>` line it reads with `read_file`.
 Do not blindly retry an outcome-unknown response; see [chat error handling](05-chat-turn-lane.md).
 
 Read the transcript (**READ**) or steer an in-flight turn (**EXECUTE**):

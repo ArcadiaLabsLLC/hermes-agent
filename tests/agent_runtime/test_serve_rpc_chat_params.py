@@ -394,3 +394,36 @@ def test_the_manifest_advertises_the_operator_text_admission_its_doors_enforce()
     assert normalize_operator_message("\U0001F600" * limit)
     with pytest.raises(OperatorMessageInvalid):
         normalize_operator_message("\U0001F600" * (limit + 1))
+
+
+# ── RT-MISSION-CHAT-MESSAGE-TAKES: reviewed files (plan p10-turn §3.5, tests 4 and 5) ──
+
+
+def test_one_file_lowers_to_a_stored_reference_and_the_manifest_lists_files(isolate_agent_runtime_root):
+    """Plan test 4. Killing mutation: drop the ``--file`` loop -> no ``--file`` on the argv."""
+
+    import base64
+
+    from agent_runtime.operator_files import FILE_FLAG, resolve_refs
+
+    data = base64.b64encode(b"line one\n").decode("ascii")
+    argv = _message(files=[{"name": "notes.txt", "media_type": "text/plain", "data": data}])
+    assert argv[:len(BASE_ARGV)] == BASE_ARGV
+    assert argv[len(BASE_ARGV)] == FILE_FLAG and argv[len(BASE_ARGV) + 1].startswith("sha256:")
+    [resolved] = resolve_refs([argv[len(BASE_ARGV) + 1]])
+    assert (resolved.name, resolved.path.read_bytes()) == ("notes.txt", b"line one\n")
+    assert "files" in serve_rpc.manifest()["params"][CHAT_MESSAGE_METHOD]
+
+
+def test_a_refused_file_is_refused_at_the_door_with_the_native_spelling(isolate_agent_runtime_root):
+    with pytest.raises(ChatTurnInvalid) as caught:
+        _message(files=[{"name": "a.png", "media_type": "image/png", "data": "AAAA"}])
+    assert caught.value.reason == "file_unsupported"
+
+
+def test_the_manifest_publishes_the_native_file_limits_as_limits_files():
+    """Plan test 5. Killing mutation: hard-code a number in the manifest -> drift red."""
+
+    from agent_runtime.conversations.prompt import files_capability
+
+    assert serve_rpc.manifest()["limits"]["files"] == files_capability()
