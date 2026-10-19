@@ -13,6 +13,7 @@ from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.mission_chat_turns.reads import mission_chat_turn_record
 from agent_runtime.mission_chat_phases import TURN_PHASES_KEY, turn_timing_block
 from agent_runtime.serde import safe_assignment_token
+from agent_runtime.turn_outcome import turn_outcome_block
 from agent_runtime.mission_chat_turns.states import (
     TERMINAL_TURN_STATES, TURN_STATE_INTERRUPTED,
 )
@@ -66,7 +67,7 @@ def execution_status(session_id: str, turn_id: str, *, stop: bool = False) -> di
         outcome = "stopped" if receipt.exit_code == 130 else "finished"
     else:
         outcome = "stop_requested" if receipt.stop_requested else "unsettled"
-    timing = None
+    timing = left_behind = None
     if (not receipt.is_new and journal is not None
             and journal.get("client_message_id") == str(turn_id).strip()
             and journal.get("turn_id") == safe_assignment_token(turn_id)
@@ -74,8 +75,10 @@ def execution_status(session_id: str, turn_id: str, *, stop: bool = False) -> di
         timing = turn_timing_block(
             phases=journal.get(TURN_PHASES_KEY), profile_timing=journal.get("profile_timing")
         )
+        left_behind = turn_outcome_block(journal)
     return {"turn_request_id": turn_id, "outcome": outcome,
             **({"timing": timing} if timing is not None else {}),
+            **({"left_behind": left_behind} if left_behind is not None else {}),
             "admitted": not receipt.is_new, "stop_requested": receipt.stop_requested,
             **chat_observation_guidance(terminal=outcome in {"stopped", "finished"})}
 

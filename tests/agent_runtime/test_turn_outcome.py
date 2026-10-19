@@ -150,3 +150,58 @@ def test_safe_turn_outcome_drops_what_it_cannot_read():
     assert safe_turn_outcome({"schema": 1, "tests": [{"command": "", "exit_code": 0, "verdict": "passed"}]}) is None
     many = safe_turn_outcome({"schema": 1, "files": [{"path": f"f{i}", "op": "patch"} for i in range(70)]})
     assert len(many["files"]) == 64 and many["truncated"] is True
+
+
+_STORED = {
+    "schema": 1,
+    "tests": [{"command": "pytest -q", "exit_code": 0, "verdict": "passed"}],
+    "commits": [], "files": [{"path": "a.py", "op": "write"}], "truncated": False,
+}
+
+
+# 7. Mutation: default ``left_behind`` to {} -> the key appears, empty, on a turn with no block.
+def test_execution_status_carries_left_behind_only_for_a_turn_with_a_block(tmp_path, monkeypatch):
+    from agent_runtime.mission_chat_turns import persist_mission_chat_turn
+    from agent_runtime.operator_execution import execution_status
+    from tests.agent_runtime.operator_lane_fixture import OperatorLane
+    from tests.agent_runtime.test_operator_conversation_attachment import fixture
+
+    target = fixture(tmp_path / "home", monkeypatch, "Amelia")
+    lane = OperatorLane(tmp_path / "home", lambda _argv: 0)
+    for turn, extra in (("with-block", {"turn_outcome": dict(_STORED)}), ("no-block", {})):
+        send = {**target, "turn_request_id": turn, "message": "Work"}
+        assert lane.rpc("runtime.chat.message", send)["result"]["accepted"]
+        persist_mission_chat_turn(
+            session_id=target["session_id"], client_message_id=turn, turn_id=turn, state="projected",
+            elements=[], metadata={"root_chat_session_id": target["session_id"],
+                                   "persona_instance_id": target["persona_instance_id"], **extra})
+    status = execution_status(target["session_id"], "with-block")
+    assert status["outcome"] == "finished"
+    assert status["left_behind"] == _STORED
+    assert "left_behind" not in execution_status(target["session_id"], "no-block")
+
+
+# 8. Mutation: drop the ``_carry_turn_outcome`` call at the agent-row site -> the
+#    history row of a settled turn has no block.
+def test_the_history_row_carries_the_block_and_an_older_record_leaves_it_untouched(monkeypatch):
+    from agent_runtime.persona_chat_history import curation
+    from agent_runtime.persona_chat_history.markers import _carry_turn_outcome
+    from agent_runtime.persona_chat_history.vocabulary import MessageRole
+
+    older: dict = {"id": "r0"}
+    _carry_turn_outcome(older, {"state": "projected"})
+    _carry_turn_outcome(older, None)
+    assert older == {"id": "r0"}
+
+    monkeypatch.setattr(curation, "mission_chat_turn_elements", lambda **_kw: [])
+    state = curation.CurationState(
+        session_id="s", turn_records=[],
+        turn_records_by_message={"cm-1": {"client_message_id": "cm-1", "turn_outcome": dict(_STORED)}},
+    )
+    ctx = curation.RowContext(index=0, raw={}, role=MessageRole.AGENT, client_message_id="cm-1",
+                              logical_client_message_id="cm-1", turn_id="cm-1")
+    row: dict = {"id": "r1"}
+    curation.ROLE_CURATORS[MessageRole.AGENT].after_row(state, row, ctx)
+    assert row["turn_outcome"] == _STORED
+    row["turn_outcome"]["tests"].clear()  # a copy: the record is not aliased
+    assert state.turn_records_by_message["cm-1"]["turn_outcome"]["tests"]

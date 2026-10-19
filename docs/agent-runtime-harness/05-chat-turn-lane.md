@@ -969,6 +969,22 @@ long capability account cannot squeeze out the countdown. Over-budget content st
 twice: in band, so the agent reads it was not told everything, and as a typed accounting row, so no
 operator has to grep prose to learn a fact was clipped.
 
+**What the turn left behind** (`RT-TURN-LEFT-BEHIND-RECORD`, plan `planned/p10-turn-2026-10-19.md` §1)
+rides the terminal record as ONE optional block, `turn_outcome {schema: 1, tests[{command, exit_code,
+verdict}], commits[{command, sha, pushed}], files[{path, op}], truncated}`. The persona runner binds a
+fold around `run_conversation` (`agent_runtime/turn_outcome.py::bind_turn_outcome`, beside the usage
+ledger in `profile_runner/execute.py::_run_conversation_with_usage_ledger`); the eternia-harness
+plugin's `post_tool_call` hook feeds it (`turn_outcome.py::on_post_tool_call`), classifying a terminal
+command by the `COMMAND_SHAPES` table. Failed calls are included (a red test is what a turn left
+behind); `verdict` comes from the exit code only (`null` → `unknown`); `pushed` is `true` or `null`,
+never `false`; `files` come from `write_file`/`patch` args on an `ok` call. The settle point
+(`chat_turn_commit/settle.py::_project`) persists it through
+`mission_chat_turns/records.py::safe_turn_outcome` and logs one `turn_outcome turn=… tests=… failed=…`
+receipt line, never a frame key. Absent means "not recorded" — a Codex app-server turn fires no
+`post_tool_call` — so the block bumped no `TURN_RECORD_SCHEMA_VERSION`. The reads copy it:
+`operator_execution.py::execution_status` as `left_behind`, the history row as `turn_outcome`
+(`persona_chat_history/markers.py::_carry_turn_outcome`).
+
 ## 8. Session scope and continuity
 
 `agent_runtime/chat_session_scope.py` is the ONE authority for *which* chat `SessionDB` is

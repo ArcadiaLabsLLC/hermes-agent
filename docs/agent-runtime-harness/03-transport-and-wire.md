@@ -139,6 +139,9 @@ existing session; none selects a default or creates a conversation worker.
 Read projects SessionDB, the turn journal, admission receipts and clarify tickets.
 Message calls the existing `perform_chat_turn`; Stop targets its exact admitted
 execution. See [turn ownership](05-chat-turn-lane.md#existing-operator-conversations).
+A settled turn's history row carries `turn_outcome` and its `executions[]` entry
+`left_behind` — the same stored block, copied, absent when nothing was recorded
+([what the turn left behind](05-chat-turn-lane.md#7-turn-durability-and-the-run-budget)).
 
 ## 1. The serve process model
 

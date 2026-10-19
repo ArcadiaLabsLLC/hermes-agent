@@ -19,6 +19,7 @@ which is the truth about it.
 
 from __future__ import annotations
 
+import copy
 import json
 import re
 import threading
@@ -229,3 +230,14 @@ def on_post_tool_call(tool_name: Any = None, args: Any = None, result: Any = Non
         path = bounded_operator_text(args.get("path"), limit=TURN_OUTCOME_TEXT_LIMIT)
         if path:
             fold.fold_file(path, op)
+
+
+def turn_outcome_block(record: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """The stored ``turn_outcome`` block of a turn record, COPIED (never derived), or None.
+
+    The store already bounded it through ``mission_chat_turns.records.safe_turn_outcome``;
+    a record with no block (an older turn, a Codex app-server turn) answers None.
+    """
+
+    block = (record or {}).get(TURN_OUTCOME_KEY)
+    return copy.deepcopy(block) if isinstance(block, dict) and block else None
