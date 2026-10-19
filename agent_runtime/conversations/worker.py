@@ -17,7 +17,10 @@ def start_worker(home: Path, *, receive: Callable[[dict], None],
     from hermes_cli.local_runtime.processes import spawn_server
     from hermes_cli.process_identity import spawn_env, register_child
 
+    fresh_scratch = not (home / "cache" / "scratch").exists()
     environment = served_profile_child_env(target_home=home, inherit_credentials=True)
+    if fresh_scratch:
+        stamp_fresh_scratch(home)
     if auth_home is not None:
         environment["HERMES_AUTH_HOME"] = str(auth_home)
     environment["PYTHONUNBUFFERED"] = "1"
@@ -52,6 +55,30 @@ def start_worker(home: Path, *, receive: Callable[[dict], None],
         peer.close()
         raise
     return peer
+
+
+#: Upstream's prune stamp in ``<home>/cache/scratch`` (``hermes_constants``): a stamp younger than
+#: an hour skips the scratch prune. Pinned by behaviour in ``test_native_worker_scratch_stamp.py``.
+SCRATCH_PRUNE_STAMP = ".last_prune"
+
+
+def stamp_fresh_scratch(home: Path) -> None:
+    """Mark a home's just-created scratch dir as pruned, so its worker skips the prune.
+
+    RT-NATIVE-WORKER-ENGINE-CPU: upstream's once-per-process scratch prune reads the cwd of
+    every process on the host through ``psutil`` (0.4-5 s, by box load) to reap processes
+    rooted in the scratch dir. A scratch dir that did not exist before this spawn holds no
+    entry and no live process can be rooted in it, so that pass finds nothing; the stamp says
+    so. (A process left in a scratch dir deleted by hand waits for the next hourly pass, as it
+    does whenever another process pruned within the hour.) The caller decides freshness BEFORE anything creates the dir. An existing scratch dir is
+    never stamped here: its worker prunes as upstream does.
+    """
+    from hermes_constants import get_scratch_dir
+
+    try:
+        (get_scratch_dir(home, prune=False) / SCRATCH_PRUNE_STAMP).touch()
+    except OSError:
+        pass  # the worker prunes as upstream does
 
 
 def subprocess_worker_enabled() -> bool:
