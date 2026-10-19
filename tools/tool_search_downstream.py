@@ -236,8 +236,8 @@ DIRECT_CALL_RULE = (
 # Upstream's bridge refuses a ``tool_call`` that names a directly-listed tool and tells
 # the model to call it by name. On the chat lane that correction costs a full provider
 # round trip (a ~50K-token request, 4–16 s) for a call whose intent was unambiguous;
-# Amelia turn ``agent-chat-send-db7a2d34`` (2026-10-08) paid it for
-# ``launcher_generated_list`` while the same name sat in its eager list. Both vendors'
+# Amelia turn ``agent-chat-send-db7a2d34`` (2026-10-08) paid it for the Launcher's
+# generated-content list tool while the same name sat in its eager list. Both vendors'
 # native discovery dispatch a discovered tool by name through one door, so the fork
 # admits an in-scope eager name through the bridge and keeps upstream's correction for
 # the one case it is right about: an UNKNOWN name. Scope is the union the executor and
