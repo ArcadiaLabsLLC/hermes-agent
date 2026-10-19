@@ -391,7 +391,9 @@ def _collect_mcp_jobs(
 
 #: ``tool_calls.json`` row status -> running_work status (``tools/long_tool_calls.py`` ROW_*).
 TOOL_CALL_STATUS_BY_ROW = {"running": STATUS_RUNNING, "ready": STATUS_COMPLETED,
-                           "failed": STATUS_ERROR, "cancelled": STATUS_ERROR}
+                           "failed": STATUS_ERROR, "cancelled": STATUS_ERROR,
+                           # the boot sweep re-owned a call whose writer died (``sweep_orphaned_rows``)
+                           "lost": STATUS_ERROR}
 
 
 class BackgroundToolCallLane(McpJobLane):

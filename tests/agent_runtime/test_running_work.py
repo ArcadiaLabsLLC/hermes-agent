@@ -2369,3 +2369,28 @@ def test_the_build_source_reports_three_sub_healths_and_the_detect_cost(home):
     source = build_running_work()["sources"]["build"]
     assert source["status"] == "ok" and set(source["sub"]) == {"agent", "announced", "detected"}
     assert {"scan_ms", "processes_examined", "candidates", "budget_ms"} <= set(source["sub"]["detected"])
+
+
+def test_background_work_homes_walks_head_and_every_profile(tmp_path, monkeypatch):
+    """The long-call boot sweep's one authority (RT-LONG-CALL-WAKE-LOST-ON-RESTART): the head home
+    first, then every profile home, each once; a profile that cannot resolve is skipped."""
+
+    from hermes_cli import profiles
+
+    from agent_runtime.running_work import background_work_homes
+
+    root = tmp_path / "root"
+    root.mkdir()
+    monkeypatch.setenv("HERMES_HOME", str(root))
+    monkeypatch.delenv("HERMES_HEAD_HOME", raising=False)
+    dirs = {"default": root, "alice": root / "profiles" / "alice", "bob": root / "profiles" / "bob"}
+
+    def profile_dir(name):
+        if name not in dirs:
+            raise ValueError(name)
+        return dirs[name]
+
+    monkeypatch.setattr(profiles, "list_profile_names", lambda: ["default", "alice", "broken", "bob"])
+    monkeypatch.setattr(profiles, "get_profile_dir", profile_dir)
+
+    assert background_work_homes() == [root, dirs["alice"], dirs["bob"]]

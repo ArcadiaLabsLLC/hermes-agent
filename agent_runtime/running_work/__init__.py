@@ -229,6 +229,7 @@ from .ownership import (
     _head_home,
     _owner_of,
     _pid_identity,
+    background_work_homes,
     running_work_store_paths,
 )
 from .rows import (
@@ -308,6 +309,7 @@ __all__ = [
     "RUNNING_WORK_SOURCES",
     "STATUS_VALUES",
     "TAIL_PREVIEW_LIMIT",
+    "background_work_homes",
     "build_running_work",
     "cancel_work",
     "find_work_row",
