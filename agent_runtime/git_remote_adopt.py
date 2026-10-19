@@ -127,7 +127,7 @@ def adopt_remote(
         raise AdoptRefused("fetch_failed", door.scrub(fetched.stderr))
     remote_has = fetched.returncode == 0 and door.ok("rev-parse", "-q", "--verify", f"refs/remotes/origin/{branch}")
     local_has = door.ok("rev-parse", "-q", "--verify", "HEAD")
-    outcome, detail = _reconcile(door, branch, local_has=local_has, remote_has=remote_has,
+    outcome, detail = _reconcile_tips(door, branch, local_has=local_has, remote_has=remote_has,
                                  merge_unrelated_if_disjoint=merge_unrelated_if_disjoint)
     receipt = AdoptReceipt(outcome, url, branch, door.out("rev-parse", "HEAD"), detail)
     from .work_store.receipts import emit
@@ -136,7 +136,7 @@ def adopt_remote(
     return receipt
 
 
-def _reconcile(door: _Door, branch: str, *, local_has: bool, remote_has: bool,
+def _reconcile_tips(door: _Door, branch: str, *, local_has: bool, remote_has: bool,
                merge_unrelated_if_disjoint: bool) -> tuple[Adoption, str]:
     tip = f"origin/{branch}"
     if not local_has and not remote_has:

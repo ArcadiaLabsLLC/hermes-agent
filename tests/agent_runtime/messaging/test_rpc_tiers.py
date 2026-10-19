@@ -44,7 +44,7 @@ def test_binding_set_refuses_an_unknown_instance_and_writes_a_known_one(monkeypa
     params = {"platform": "telegram", "chat_id": -1001, "persona_instance_id": "inst-ghost"}
     reply = _call("runtime.messaging.binding.set", params)
     assert reply["error"]["code"] == 4001 and reply["error"]["data"]["reason"] == "unknown_instance"
-    monkeypatch.setattr(rpc, "_instance_exists", lambda instance_id: instance_id == "inst-alice")
+    monkeypatch.setattr(rpc, "_persona_instance_exists", lambda instance_id: instance_id == "inst-alice")
     reply = _call("runtime.messaging.binding.set", params | {"persona_instance_id": "inst-alice"})
     assert reply["result"]["binding"]["chat_id"] == "-1001"
     assert reply["result"]["binding"]["bound_by"] == "rpc:stdio_owner"

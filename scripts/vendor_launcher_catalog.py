@@ -108,7 +108,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.out.is_file():
         old = json.loads(args.out.read_text(encoding="utf-8")).get("entries", [])
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(fixture, indent=2) + "\n", encoding="utf-8")
+    args.out.write_text(json.dumps(fixture, indent=2) + "\n", encoding="utf-8", newline="\n")
     delta = entry_delta(old, fixture["entries"])
     print(f"vendored {len(fixture['entries'])} entries from launcher {fixture['source_commit'][:10]}")
     print("\n".join(delta) if delta else "no entry changed")

@@ -76,7 +76,7 @@ def reset_connected_cache() -> None:
     _cache = None
 
 
-def _user_agent() -> str:
+def _github_user_agent() -> str:
     """An explicit UA (the realm module's rule: the stdlib default is bot-blocked at some edges)."""
 
     try:
@@ -92,7 +92,7 @@ def _request(method: str, path: str, authorization: str, body: dict[str, Any] | 
 
     data = json.dumps(body).encode("utf-8") if body is not None else None
     request = urllib.request.Request(API + path, data=data, method=method, headers={
-        "Authorization": authorization, "Accept": "application/vnd.github+json", "User-Agent": _user_agent(),
+        "Authorization": authorization, "Accept": "application/vnd.github+json", "User-Agent": _github_user_agent(),
         "X-GitHub-Api-Version": "2022-11-28", **({"Content-Type": "application/json"} if data else {})})
     try:
         with urlopen(request, timeout=timeout) as response:

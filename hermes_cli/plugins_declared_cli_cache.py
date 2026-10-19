@@ -69,7 +69,7 @@ def _stat_row(path: str, entry: os.DirEntry) -> tuple[str, int, int]:
     return (path, st.st_size, st.st_mtime_ns)
 
 
-def _walk(directory: str, level: int, depth_cap: int, out: list) -> None:
+def _walk_manifests(directory: str, level: int, depth_cap: int, out: list) -> None:
     """Record manifest files in ``directory`` (``level`` below its root) and recurse to ``depth_cap``."""
     try:
         with os.scandir(directory) as it:
@@ -86,7 +86,7 @@ def _walk(directory: str, level: int, depth_cap: int, out: list) -> None:
             except OSError:
                 continue
             if is_dir:
-                _walk(os.path.join(directory, entry.name), level + 1, depth_cap, out)
+                _walk_manifests(os.path.join(directory, entry.name), level + 1, depth_cap, out)
 
 
 def manifest_fingerprint(
@@ -99,7 +99,7 @@ def manifest_fingerprint(
     roots = tuple((str(source), os.fspath(root)) for source, root in roots)
     files: list = []
     for _source, root in roots:
-        _walk(root, 0, depth_cap, files)
+        _walk_manifests(root, 0, depth_cap, files)
     return Fingerprint(SCHEMA, roots, tuple((str(k), str(v)) for k, v in env), tuple(sorted(files)))
 
 

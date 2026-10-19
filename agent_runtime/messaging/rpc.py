@@ -44,7 +44,7 @@ def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
 
-def _instance_exists(instance_id: str) -> bool:
+def _persona_instance_exists(instance_id: str) -> bool:
     try:
         from ..persona_assignments.store import PersonaInstanceStore
 
@@ -77,7 +77,7 @@ def _binding_set(params: Mapping[str, Any], by: str) -> dict[str, Any]:
     platform = platform_of(params.get("platform"))
     chat_id, thread_id = chat_key(params.get("chat_id"), params.get("thread_id"))
     instance_id = field_text(params.get("persona_instance_id"), "persona_instance_id")
-    if not _instance_exists(instance_id):
+    if not _persona_instance_exists(instance_id):
         raise MessagingRefused(Reason.UNKNOWN_INSTANCE, "persona_instance_id")
     binding = BindingStore().set(Binding(platform, chat_id, thread_id, instance_id, by, _now()))
     emit("messaging.binding.set", platform=platform.value, chat_id=chat_id, thread_id=thread_id,
@@ -157,7 +157,7 @@ def execute(op: str, params: Mapping[str, Any] | None, *, by: str) -> dict[str, 
     return row[1](dict(params or {}), by)
 
 
-def _reply(rid: Any, op: str, params: Any, by: str) -> dict:
+def _messaging_reply(rid: Any, op: str, params: Any, by: str) -> dict:
     try:
         return ok(rid, execute(op, params if isinstance(params, Mapping) else {}, by=by))
     except MessagingRefused as refusal:
@@ -171,7 +171,7 @@ def _reply(rid: Any, op: str, params: Any, by: str) -> dict:
 def _handler(op: str):
     def handle(rid, params, context=None):
         caller = getattr(context, "caller", None)
-        return _reply(rid, op, params, f"rpc:{getattr(caller, 'kind', 'unknown')}")
+        return _messaging_reply(rid, op, params, f"rpc:{getattr(caller, 'kind', 'unknown')}")
     return handle
 
 

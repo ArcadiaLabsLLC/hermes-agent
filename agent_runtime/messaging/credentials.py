@@ -59,7 +59,7 @@ def valid_token(platform: Platform, token: Any) -> str:
     return text
 
 
-def _read(path: Path) -> dict[str, Any]:
+def _read_credentials(path: Path) -> dict[str, Any]:
     view = secret_files.view(path)
     try:
         if not view.exists():
@@ -71,7 +71,7 @@ def _read(path: Path) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def _write(path: Path, data: dict[str, Any]) -> None:
+def _write_credentials(path: Path, data: dict[str, Any]) -> None:
     if secret_files.bound():
         secret_files.write_json(path, data)
         return
@@ -101,7 +101,7 @@ def bot_token(platform: Platform, *, home: Path | None = None) -> str | None:
     override = _env_token(platform, head)
     if override:
         return override
-    entry = _read(credentials_path(head)).get(platform.value)
+    entry = _read_credentials(credentials_path(head)).get(platform.value)
     token = entry.get("bot_token") if isinstance(entry, dict) else None
     return str(token).strip() or None if token else None
 
@@ -113,19 +113,19 @@ def credential_state(platform: Platform, *, home: Path | None = None) -> str:
 def set_token(platform: Platform, token: Any, *, home: Path | None = None) -> None:
     value = valid_token(platform, token)
     path = credentials_path(home)
-    data = _read(path)
+    data = _read_credentials(path)
     data[platform.value] = {"bot_token": value, "set_at": datetime.now(UTC).isoformat(timespec="seconds")}
-    _write(path, data)
+    _write_credentials(path, data)
 
 
 def clear_token(platform: Platform, *, home: Path | None = None) -> bool:
     """Forget the stored token; True when one was stored. The env override is the secret manager's, not ours."""
     path = credentials_path(home)
-    data = _read(path)
+    data = _read_credentials(path)
     if data.pop(platform.value, None) is None:
         return False
     if data:
-        _write(path, data)
+        _write_credentials(path, data)
     elif secret_files.bound():
         secret_files.delete(path)
     else:
