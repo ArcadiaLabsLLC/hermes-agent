@@ -64,6 +64,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import partial
 
+from .operator_files import FILE_FLAG, OperatorFilesInvalid, normalize_files, store_files
 from .operator_images import IMAGE_FLAG, OperatorImagesInvalid, normalize_images, store_images
 from typing import Any, Callable
 
@@ -173,6 +174,7 @@ CHAT_MESSAGE_PARAMS: tuple[str, ...] = (
     "clarify_token",
     "client_scope",
     "correlation_id",
+    "files",
     "images",
     "intent_hint",
     "max_seconds",
@@ -487,6 +489,9 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
     # RT-OPERATOR-CHAT-SEND-PERSONA: pasted images ride as stored references, never bytes or paths.
     for ref in _image_refs(params):
         argv += [IMAGE_FLAG, ref]
+    # RT-MISSION-CHAT-MESSAGE-TAKES: reviewed files ride the same way (``agent_runtime.operator_files``).
+    for ref in _file_refs(params):
+        argv += [FILE_FLAG, ref]
 
     return ChatTurnRequest(
         verb=CHAT_MESSAGE_METHOD,
@@ -506,6 +511,16 @@ def _image_refs(params: dict) -> list[str]:
         images = normalize_images(params.get("images"))
         return store_images(images) if images else []
     except OperatorImagesInvalid as exc:
+        raise ChatTurnInvalid(exc.reason, exc.message) from exc
+
+
+def _file_refs(params: dict) -> list[str]:
+    """Validate and store the send's ``files`` (``agent_runtime.operator_files``); their references."""
+
+    try:
+        files = normalize_files(params.get("files"))
+        return store_files(files) if files else []
+    except OperatorFilesInvalid as exc:
         raise ChatTurnInvalid(exc.reason, exc.message) from exc
 
 

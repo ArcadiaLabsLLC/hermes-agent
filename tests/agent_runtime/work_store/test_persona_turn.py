@@ -200,3 +200,54 @@ def test_render_brief_is_under_forty_lines_and_names_the_row_and_pointers():
     assert lines[-1] == "```" and "```work_report" in lines
     short = render_brief(_assignment())
     assert "Make it work." in short and "`docs/plan.md`" in short and len(short.split("\n")) <= BRIEF_MAX_LINES
+
+
+def test_start_queues_the_assignments_skills_on_the_root_and_refuses_an_unloadable_one(no_direct_turns):
+    """p10-work S1: the row's skills are queued for the run's turn BEFORE the turn is queued; one unloadable
+    skill refuses the run ``skills_not_loadable`` with nothing enqueued."""
+
+    calls: list[dict] = []
+
+    def queue_skills(**kwargs):
+        calls.append(kwargs)
+        return {"ok": True, "skills": kwargs["skills"]}
+
+    executor, _ = _executor(queue_skills=queue_skills)
+    run = executor.start(_assignment(skills=("git-workflow", "eternia/qa")))
+    assert calls == [{"persona_id": "neko", "session_id": ROOT, "persona_instance_id": "inst-1",
+                      "skills": ["git-workflow", "eternia/qa"]}]
+    origin = send_queue.find(ROOT, run.client_message_id).args[send_queue.ORIGIN_ARG]
+    assert origin["skills"] == ["git-workflow", "eternia/qa"]
+
+    def unloadable(**kwargs):
+        return {"ok": False, "error_kind": "skills_not_loadable", "rejected_skills": {"ghost": "not_found"}}
+
+    executor, woken = _executor(root="persona_chat_root_refused", queue_skills=unloadable)
+    with pytest.raises(WorkRefused) as refused:
+        executor.start(_assignment(request_id="refused", skills=("ghost",)))
+    assert refused.value.reason is Reason.SKILLS_NOT_LOADABLE
+    assert refused.value.data == {"rejected_skills": {"ghost": "not_found"}}
+    assert send_queue._entries("persona_chat_root_refused") == [] and woken == []
+
+    # A row lending nothing never touches the skill queue.
+    calls.clear()
+    executor, _ = _executor(root="persona_chat_root_plain", queue_skills=queue_skills)
+    executor.start(_assignment(request_id="plain"))
+    assert calls == []
+
+
+def test_an_until_done_continuation_requeues_the_runs_lent_skills():
+    """p10-work S1: queued skills last one turn, so every continuation of a lending run queues them again."""
+
+    from agent_runtime import chat_goal
+    from agent_runtime.queued_skills import pending_skills_for_next_turn
+    from agent_runtime.work_store import goal_turns
+
+    args = {"persona_id": "neko", "persona_instance_id": "inst-1",
+            send_queue.ORIGIN_ARG: {"work": "r1", goal_turns.SKILLS_ORIGIN: ["git-workflow"]}}
+    bound = chat_goal.GoalBinding(ROOT, "r1", (), args, goal_turns.first_cmid("r1"))
+    goal_turns._requeue_skills(bound)
+    assert pending_skills_for_next_turn(persona_id="neko", session_id=ROOT) == ["git-workflow"]
+    plain = chat_goal.GoalBinding("persona_chat_plain", "r2", (), {"persona_id": "neko"}, goal_turns.first_cmid("r2"))
+    goal_turns._requeue_skills(plain)
+    assert pending_skills_for_next_turn(persona_id="neko", session_id="persona_chat_plain") == []

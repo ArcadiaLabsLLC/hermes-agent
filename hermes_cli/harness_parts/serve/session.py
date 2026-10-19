@@ -789,6 +789,25 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
             import logging as _lens_logging
 
             _lens_logging.getLogger(__name__).warning("lens poller did not start", exc_info=True)
+        # Beside it, the exit door: owed Episodes get their one turn on its own thread (L2).
+        try:
+            from agent_runtime.lens.trigger import start_lens_forge
+
+            start_lens_forge(stop_event=self.liveness_stop)
+        except Exception:
+            import logging as _forge_logging
+
+            _forge_logging.getLogger(__name__).warning("lens forge did not start", exc_info=True)
+        # And the push door: the in-serve ingress listener, loopback unless bound (L3), armed here and
+        # bound only while a route exists (ingress.sync_ingress).
+        try:
+            from agent_runtime.lens.ingress import start_lens_ingress
+
+            start_lens_ingress(stop_event=self.liveness_stop)
+        except Exception:
+            import logging as _ingress_logging
+
+            _ingress_logging.getLogger(__name__).warning("lens ingress did not start", exc_info=True)
 
     def _bind_subscription_lanes(self) -> None:
 

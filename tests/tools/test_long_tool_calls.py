@@ -207,3 +207,129 @@ def test_running_work_shows_the_promoted_call_as_a_cancellable_tool_call(queue_r
     assert row["status"] == "running" and row["cancellable"] is True and row["background"] is True
     tools_reg.release.set()
     _wait_event(queue_registry)
+
+
+# ── the boot sweep (RT-LONG-CALL-WAKE-LOST-ON-RESTART) ───────────────────────
+
+_DEAD_PID = 4194303 + 77  # above any pid the host hands out
+
+
+def _orphan(home, *, handle="bg:orphan1", pid=_DEAD_PID, start=12345, status="running", **extra):
+    row = {"handle": handle, "tool_name": "slow", "label": "slow: x", "status": status,
+           "started_at": time.time() - 90, "finished_at": None, "elapsed_ms": None, "cancel_requested": False,
+           "session_key": SESSION_KEY, "task_id": "task-7", "owner_task_id": "owner-7",
+           "parent_session_id": "parent-7", "turn_id": TURN, "tool_call_id": CALL,
+           "expires_at": time.time() + 3600, "pid": pid, "host_start_time": start,
+           "checkpoint": str(home / long_tool_calls.CHECKPOINT_FILENAME), **extra}
+    home.mkdir(parents=True, exist_ok=True)
+    (home / long_tool_calls.CHECKPOINT_FILENAME).write_text(json.dumps([row]), encoding="utf-8")
+    return row
+
+
+def _stored(home):
+    return json.loads((home / long_tool_calls.CHECKPOINT_FILENAME).read_text(encoding="utf-8"))
+
+
+def test_a_running_row_of_a_dead_writer_becomes_lost_and_wakes_its_session(queue_registry, tmp_path):
+    home = tmp_path / "bg"
+    _orphan(home)
+    assert long_tool_calls.sweep_orphaned_rows([home]) == ["bg:orphan1"]
+
+    (row,) = _stored(home)
+    pid, start = long_tool_calls._writer()
+    assert (row["status"], row["pid"], row["host_start_time"]) == ("lost", pid, start)
+    assert row["elapsed_ms"] >= 89_000 and row["finished_at"] is not None
+    evt = _wait_event(queue_registry, timeout=1)
+    assert evt["type"] == long_tool_calls.EVENT_TYPE and evt["outcome"] == "lost"
+    assert evt["session_id"] == "tool_call:bg:orphan1"
+    assert (evt["session_key"], evt["task_id"], evt["owner_task_id"], evt["parent_session_id"]) == (
+        SESSION_KEY, "task-7", "owner-7", "parent-7")
+    assert "(lost)" in fork_completion_events.format_fork_completion_event(evt)
+    assert queue_registry.completion_queue.empty()
+
+    assert fork_completion_events.settle_fork_completion_event(evt) is True
+    assert _stored(home) == []
+
+
+def test_a_running_row_of_a_recycled_writer_pid_becomes_lost(queue_registry, tmp_path):
+    import os
+
+    home = tmp_path / "bg"
+    _orphan(home, pid=os.getppid(), start=1)  # alive, but not the process that wrote the row
+    assert long_tool_calls.sweep_orphaned_rows([home]) == ["bg:orphan1"]
+    assert _stored(home)[0]["status"] == "lost"
+    assert _wait_event(queue_registry, timeout=1)["outcome"] == "lost"
+
+
+def test_a_running_row_of_a_live_writer_is_left_alone(queue_registry, tmp_path):
+    from agent_runtime.running_work.vocabulary import PID_VERIFIED
+
+    home = tmp_path / "bg"
+    before = _orphan(home, pid=_DEAD_PID - 1)
+    assert long_tool_calls.sweep_orphaned_rows(
+        [home], identity=lambda pid, start: (True, True, PID_VERIFIED)) == []
+    assert _stored(home) == [before]
+    assert queue_registry.completion_queue.empty()
+
+
+@pytest.mark.parametrize("verdict", ["PID_NO_BASELINE", "PID_START_TIME_UNREADABLE"])
+def test_an_unprovable_pid_is_left_alone(queue_registry, tmp_path, verdict):
+    from agent_runtime.running_work import vocabulary
+
+    home = tmp_path / "bg"
+    before = _orphan(home)
+    unproven = getattr(vocabulary, verdict)
+    assert long_tool_calls.sweep_orphaned_rows([home], identity=lambda pid, start: (True, False, unproven)) == []
+    assert _stored(home) == [before]
+    assert queue_registry.completion_queue.empty()
+
+
+def test_a_lost_row_survives_a_second_restart_and_is_rewoken_once_settled_removes_it(queue_registry, tmp_path, monkeypatch):
+    home = tmp_path / "bg"
+    _orphan(home)
+    assert long_tool_calls.sweep_orphaned_rows([home]) == ["bg:orphan1"]
+    _wait_event(queue_registry, timeout=1)
+    from agent_runtime.running_work.vocabulary import PID_DEAD
+
+    dead = lambda pid, start: (False, False, PID_DEAD)
+    # Same process, second pass: the row is this process's now — never re-swept, even by a probe
+    # that misreads its own pid, so no second wake.
+    assert long_tool_calls.sweep_orphaned_rows([home], identity=dead) == []
+    assert queue_registry.completion_queue.empty()
+
+    # The runtime restarts before the wake settled: a new process, and the old writer is dead.
+    long_tool_calls.reset_for_tests()
+    monkeypatch.setattr(long_tool_calls, "_writer", lambda: (_DEAD_PID - 5, 999))
+    assert long_tool_calls.sweep_orphaned_rows([home], identity=dead) == ["bg:orphan1"]
+    (row,) = _stored(home)
+    assert (row["status"], row["pid"]) == ("lost", _DEAD_PID - 5)
+    evt = _wait_event(queue_registry, timeout=1)
+    assert evt["outcome"] == "lost" and queue_registry.completion_queue.empty()
+    assert long_tool_calls.note_wake_settled(evt) is True
+    assert _stored(home) == []
+
+
+def test_running_work_shows_a_lost_row_as_error_until_the_wake_settles(queue_registry, tmp_path, monkeypatch):
+    from agent_runtime.running_work import lanes_process
+
+    home = tmp_path / "bg"
+    monkeypatch.setattr(lanes_process, "_head_home", lambda: (home, "test_home"))
+    monkeypatch.setattr(lanes_process, "_owner_of", lambda session, memo=None: ("", ""))
+    _orphan(home)
+    long_tool_calls.sweep_orphaned_rows([home])
+    rows, _source = lanes_process._collect_background_tool_calls(now=time.time(), accountant=None)
+    (row,) = rows
+    assert row["work_id"] == "tool_call:bg:orphan1" and row["status"] == "error"
+    assert row["outcome"] == "lost" and row["cancellable"] is False
+
+    long_tool_calls.note_wake_settled(_wait_event(queue_registry, timeout=1))
+    rows, _source = lanes_process._collect_background_tool_calls(now=time.time(), accountant=None)
+    assert rows == []
+
+
+def test_a_promoted_row_carries_the_routing_a_lost_wake_needs(queue_registry, tools_reg, tmp_path):
+    result = json.loads(_in_live_call(lambda: tools_reg.dispatch("slow", {"seconds": 1.2}, task_id="t-9")))
+    (row,) = _stored(tmp_path / "bg")
+    assert row["handle"] == result["handle"] and row["task_id"] == "t-9"
+    assert {"owner_task_id", "parent_session_id"} <= set(row)
+    _wait_event(queue_registry)

@@ -303,6 +303,10 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
         # Phase B (row H11): Clone and a recipe command step SPAWN on this machine.
         "runtime.workspace.slot.clone",
         "runtime.workspace.recipe.run_step",
+        # p10-messaging §2.4: a platform bot token is a secret of THIS runtime; a paired device
+        # holding ``console`` may bind chats and allow operators, never write or clear the token.
+        "runtime.messaging.credential.set",
+        "runtime.messaging.credential.clear",
     }
 )
 

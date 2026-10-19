@@ -1,7 +1,10 @@
 """The ``prometheus`` poll source: one instant query against the HTTP API.
 
-``GET <base_url>/api/v1/query?query=<q>`` (plan §3: the API directly; ``via:
-kube_proxy`` is L4). A ``scalar`` result is its value; a ``vector`` must hold
+``GET <base_url>/api/v1/query?query=<q>`` (plan §3: the API directly), or through
+``kubectl proxy`` (``via: kube_proxy``, L4): the base is
+``feed.kube_proxy_base_url`` on loopback port 8001, built from validated Kubernetes
+names, so its loopback read needs no ``allow_private_network`` — no part of the
+host is the manifest's. A ``scalar`` result is its value; a ``vector`` must hold
 exactly one sample — zero is ``no_series`` and more than one is
 ``ambiguous_series``, because picking one of several series would be a guess.
 Prometheus writes sample values as strings, ``NaN`` and ``+Inf`` included; a
@@ -13,6 +16,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from ..feed import kube_proxy_base_url
 from .transport import ReadReason, ReadResult, fetch_json, unavailable
 
 __layer__ = "lanes"
@@ -49,9 +53,11 @@ def _value_of(data: Any) -> ReadResult:
 
 def read(feed: dict[str, Any], *, headers: dict[str, str], client: Any = None, resolver: Any = None) -> ReadResult:
     source = feed["source"]
-    url = source["base_url"].rstrip("/") + "/api/v1/query"
+    proxied = "via" in source
+    base = kube_proxy_base_url(source) if proxied else source["base_url"]
+    url = base.rstrip("/") + "/api/v1/query"
     document, failed = fetch_json(url, headers=headers, params={"query": source["query"]},
-                                  allow_private=feed.get("allow_private_network", False),
+                                  allow_private=proxied or feed.get("allow_private_network", False),
                                   client=client, resolver=resolver)
     if failed is not None:
         return failed

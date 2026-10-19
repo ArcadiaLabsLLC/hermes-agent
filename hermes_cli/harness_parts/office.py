@@ -216,6 +216,7 @@ def _cmd_office_actor_upsert(args) -> int:
         CLASS_KEY_REFUSAL_CODE,
         ClassKeyedPlacementRefused,
     )
+    from agent_runtime.office_store.models import ActorKindInvalid, ActorKindMismatch
     store = _office_store()
     workspace = _office_workspace_for(args)
     if not workspace:
@@ -287,6 +288,11 @@ def _cmd_office_actor_upsert(args) -> int:
         # ``--resurrect``); reconstructing it here is the second copy EG-6.6
         # removed.
         return emit_harness_error(exc, args=args, code=exc.code, message=str(exc))
+    except (ActorKindMismatch, ActorKindInvalid) as exc:
+        # ``actor_kind`` refused (RT-GENERIC-DESK-WRITE-PAYS): a payload the
+        # operator must fix, so ``invalid_request``; the store's sentence names
+        # which (``actor_kind_mismatch`` / ``actor_kind_invalid``).
+        return emit_harness_error(exc, args=args, code="invalid_request", message=str(exc))
     # An ``except DuplicateDeskRefused`` arm stood here, translating the store's
     # one-desk-per-persona fence into exit family 4 with code ``duplicate_desk``.
     # Both the fence and the taxonomy row are gone (2026-09-18, owner ruling:

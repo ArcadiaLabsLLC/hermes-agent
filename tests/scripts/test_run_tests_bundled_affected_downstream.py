@@ -118,14 +118,16 @@ def test_main_lists_the_selection_and_writes_nothing_to_the_gate_store(tmp_path,
     runner = SimpleNamespace(
         plan=SimpleNamespace(primary_checkout=lambda r: r, load_skip_list=lambda p: {}, SKIP_LIST=Path("none.txt")),
         rtp=SimpleNamespace(_discover_files=lambda roots: sorted(repo.glob("tests/**/test_*.py")), _DEFAULT_ROOTS=["tests"]),
-        _rel=lambda f, r: f.relative_to(r).as_posix(),
+        _rel=lambda f, r: f.relative_to(r).as_posix(), _UNCACHED_ESTIMATE_SECONDS=30.0,
     )
-    args = SimpleNamespace(since=None, skip_list=None, cache_dir=None, paths=[], cache_dry_run=True, fail_fast=False)
+    args = SimpleNamespace(since=None, skip_list=None, cache_dir=None, paths=[], cache_dry_run=True, fail_fast=False,
+                           jobs=8)
 
     assert affected.main(args, repo, runner, []) == 0
 
     out = capsys.readouterr().out
     assert f"{T_DIRECT}  — imports {MOD}" in out and T_OTHER not in out
+    assert "Σ 30 s, floor 3.8 s at -j 8 — under-a-minute edit" in out, "the bar is on the Affected line"
     assert {p.name: p.read_bytes() for p in store.root.iterdir()} == before
 
 
@@ -244,3 +246,26 @@ def test_the_runner_reads_the_affected_durations_in_its_own_spelling(tmp_path):
     keyed = affected.os_keyed({rel: 190.0})
     assert bundled._estimate(tmp_path / rel, tmp_path, keyed) == 190.0
     assert affected.Pick(rel, "x").rel in keyed, "the selection's POSIX order keys stay"
+
+
+def test_a_selection_over_sixty_seconds_a_job_is_a_hub_edit():
+    """p10-suite B.1: the locks.py selection's recorded Σ 1,027 s at -j 8 is a hub edit; its bar is
+    1.25 × floor + 20 s, and a wall over it prints the banner (a verdict, never an exit code)."""
+
+    durations = {"tests/a.py": 1000.0, "tests/b.py": 27.0}
+    bar = affected.bar_for(["tests/a.py", "tests/b.py"], durations, 8, 30.0)
+
+    assert (bar.sigma, round(bar.floor, 1), bar.hub) == (1027.0, 128.4, True)
+    assert bar.line() == "Σ 1027 s, floor 128.4 s at -j 8 — hub edit"
+    assert bar.seconds == 1.25 * bar.floor + 20.0
+    assert affected.bar_verdict(bar.seconds + 1, bar)[-1] == "=== affected wall over its bar ==="
+    assert len(affected.bar_verdict(bar.seconds, bar)) == 1
+
+
+def test_a_small_selection_is_an_under_a_minute_edit():
+    durations = {"tests/a.py": 100.0}
+    bar = affected.bar_for(["tests/a.py", "tests/untimed.py"], durations, 8, 30.0)
+
+    assert (bar.sigma, bar.hub, bar.verdict, bar.seconds) == (130.0, False, "under-a-minute edit", 60.0)
+    assert affected.bar_verdict(61.0, bar) == ["affected: wall 61.0 s vs bar 60.0 s (under-a-minute edit)",
+                                               "=== affected wall over its bar ==="]

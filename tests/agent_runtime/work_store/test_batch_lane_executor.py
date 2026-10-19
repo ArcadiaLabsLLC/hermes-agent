@@ -15,6 +15,16 @@ RT-BATCH-GATE-RECEIPT (owner ruling 2026-10-18): the landing settle runs ``plann
 carries a ``scripts/run_tests_bundled.sh`` that prints a Summary line and exits ``$GATE_EXIT`` — off the settle's
 thread in the landing worktree. Killing mutation, red recorded in its commit body:
 * ``GitLander.push`` without its ``require_green`` HEAD check → ``test_a_commit_after_the_gate_is_not_approved`` red.
+
+RT-BATCH-GATE-PER-SLOT-COMMAND (p10-work §3 G1, owner ruling 2026-10-19): each landing site runs its own slot's
+``Lane.gates`` entry; None is a RED receipt "no gate declared" and ``GATE_NONE`` a green one, neither through a
+subprocess. Killing mutations, each red recorded in its commit body:
+* the executor keeps ``(LANDING_GATE,)`` as the fallback for a slot with no gate →
+  ``test_a_slot_with_no_gate_is_a_red_receipt_without_a_subprocess`` red (a green receipt appears);
+* ``GateRunner.run`` sends ``GATE_NONE`` through the subprocess → ``test_the_default_brain_is_green_without_a_subprocess``
+  red (the recording ``run`` sees a call);
+* ``_gate_then_deliver`` runs the first slot's commands at every site →
+  ``test_the_landing_gate_runs_each_slots_own_command`` red.
 """
 
 from __future__ import annotations
@@ -28,7 +38,7 @@ import pytest
 
 from agent_runtime import chat_root_send_queue as send_queue
 from agent_runtime import paths
-from agent_runtime.batch.gate import GateRunner
+from agent_runtime.batch.gate import GATE_NONE, GATES_BY_TOOLCHAIN_KIND, GateRunner, require_green
 from agent_runtime.batch.lane_executor import BatchLaneExecutor, render_lane_brief
 from agent_runtime.batch.lane_git import Clone, LaneGit, Site
 from agent_runtime.batch.lander import GitLander
@@ -61,6 +71,12 @@ def repo(tmp_path, monkeypatch):
     for key, value in {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
                        "GIT_COMMITTER_EMAIL": "t@t"}.items():
         monkeypatch.setenv(key, value)
+    monkeypatch.setenv("GATE_EXIT", "0")
+    return _init_repo(tmp_path)
+
+
+def _init_repo(tmp_path: Path) -> SimpleNamespace:
+    tmp_path.mkdir(parents=True, exist_ok=True)
     origin, clone = tmp_path / "origin.git", tmp_path / "clone"
     subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(origin)], check=True)
     subprocess.run(["git", "clone", "-q", str(origin), str(clone)], check=True, capture_output=True)
@@ -70,7 +86,6 @@ def repo(tmp_path, monkeypatch):
     (clone / "scripts" / "run_tests_bundled.sh").write_text(
         'echo "ran in $(pwd)"\necho "=== Summary: 3 files, 12 tests passed, 0 failed ==="\nexit "${GATE_EXIT:-0}"\n',
         encoding="utf-8", newline="\n")
-    monkeypatch.setenv("GATE_EXIT", "0")
     git(clone, "add", "README.md", "scripts/run_tests_bundled.sh")
     git(clone, "commit", "-q", "-m", "base")
     git(clone, "push", "-q", "origin", "main")
@@ -101,13 +116,26 @@ class ThreadNotingGate(GateRunner):
         return super().run(site, commands)
 
 
-def lanes_over(repo, rows, **kw):
+class RecordingGate(GateRunner):
+    """The real ``GateRunner`` over a recording ``run``: every subprocess it would start, and where."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[list[str], str]] = []
+        super().__init__(run=self._record, timeout=120)
+
+    def _record(self, argv, *, cwd, **_kw):
+        self.calls.append((list(argv), cwd))
+        return subprocess.CompletedProcess(argv, 0, "=== Summary: recorded ===\n")
+
+
+def lanes_over(repo, rows, *, clones=None, gate=None, **kw):
     manifests = FakeManifests()
     turns = FakeTurns()
+    clone_of = lambda _ws, slot: Clone((clones or {}).get(slot, repo.clone))
     executor = BatchLaneExecutor(inner=turns, manifests=manifests, workspaces=lambda: [WS],
-                                 clone_of=lambda _ws, _slot: Clone(repo.clone), gate=ThreadNotingGate())
+                                 clone_of=clone_of, gate=gate or ThreadNotingGate())
     d = dispatcher(FakeSource(rows), manifests=manifests, executor=executor, roster=ROSTER,
-                   lander=GitLander(clone_of=lambda _ws, _slot: Clone(repo.clone)), **kw)
+                   lander=GitLander(clone_of=clone_of), **kw)
     batch = d.start(WS, d.plan(WS).id)
     return d, turns, batch
 
@@ -169,9 +197,9 @@ def test_settle_reports_the_lanes_commits_and_a_sequenced_lane_is_cut_from_its_p
     assert git(later, "rev-parse", "HEAD") == sha and (later / "shared.txt").is_file()
 
 
-def _land(repo):
-    rows = [qrow("RT-A", heading="One", assignee="inst-a"), qrow("RT-B", heading="Two", assignee="inst-a")]
-    d, turns, batch = lanes_over(repo, rows)
+def _land(repo, rows=None, **kw):
+    rows = rows or [qrow("RT-A", heading="One", assignee="inst-a"), qrow("RT-B", heading="Two", assignee="inst-a")]
+    d, turns, batch = lanes_over(repo, rows, **kw)
     shas = {}
     for lane, (name, text) in zip(batch.lanes, [("a.txt", "a\n"), ("b.txt", "b\n")]):
         shas[lane.id] = commit_in(worktree_of(turns, f"{batch.id}:{lane.id}"), name, text)
@@ -326,3 +354,57 @@ def test_lane_git_refuses_a_path_that_is_not_a_worktree(repo):
     with pytest.raises(WorkRefused) as refused:
         LaneGit().ensure(site)
     assert refused.value.reason is Reason.WORKTREE_FAILED
+
+
+FLUTTER_GATE = GATES_BY_TOOLCHAIN_KIND["flutter"][0]
+
+
+def _settle_landing(d, turns, batch):
+    d.land(WS, batch.id)
+    turns.settle(f"{batch.id}:LAND:1", Outcome(Verdict.DONE, report="green"))
+    d.executor.wait_for_gates(120)
+    return d.load(WS, batch.id)
+
+
+def test_the_landing_gate_runs_each_slots_own_command(repo):
+    launcher = _init_repo(repo.tmp / "launcher")
+    gate = RecordingGate()
+    rows = [qrow("RT-A", assignee="inst-a"), qrow("RT-L", assignee="inst-a", slot="launcher")]
+    d, turns, batch, _shas = _land(repo, rows, clones={"launcher": launcher.clone}, gate=gate,
+                                   slot_gates={"hermes": (LANDING_GATE,), "launcher": (FLUTTER_GATE,)})
+    assert dict(batch.landing.lane.gates) == {"hermes": (LANDING_GATE,), "launcher": (FLUTTER_GATE,)}
+    waiting = _settle_landing(d, turns, batch)
+    by_root = {Path(cwd).parent.parent: argv for argv, cwd in gate.calls}
+    assert len(gate.calls) == 2
+    assert by_root[repo.tmp.resolve()][-2:] == ["scripts/run_tests_bundled.sh", "tests"]
+    assert by_root[launcher.tmp.resolve()] == ["dart", "tool/heavy_run/run.dart", "--", "dart", "tool/run_tier.dart"]
+    assert {g.slot: g.command for g in waiting.gate_receipts} == {"hermes": LANDING_GATE, "launcher": FLUTTER_GATE}
+    assert waiting.state is BatchState.AWAITING_APPROVAL
+
+
+def test_a_slot_with_no_gate_is_a_red_receipt_without_a_subprocess(repo):
+    gate = RecordingGate()
+    d, turns, batch, _shas = _land(repo, gate=gate, slot_gates={})
+    assert dict(batch.landing.lane.gates) == {"hermes": None}
+    again = _settle_landing(d, turns, batch)
+    assert gate.calls == [], "no gate declared runs nothing"
+    (receipt,) = again.gate_receipts
+    assert (receipt.slot, receipt.command, receipt.exit_code) == ("hermes", "", -1)
+    assert receipt.summary == "no gate declared for slot hermes; set context.gate"
+    assert again.state is BatchState.READY_TO_LAND
+    with pytest.raises(WorkRefused) as refused:
+        require_green(again.gate_receipts, ["hermes"])
+    assert refused.value.reason is Reason.GATE_NOT_GREEN and "no gate declared" in str(refused.value)
+    with pytest.raises(WorkRefused):
+        d.approve(WS, batch.id)
+
+
+def test_the_default_brain_is_green_without_a_subprocess(repo):
+    gate = RecordingGate()
+    d, turns, batch, _shas = _land(repo, gate=gate, slot_gates={"hermes": (GATE_NONE,)})
+    waiting = _settle_landing(d, turns, batch)
+    assert gate.calls == [], "the brain-only no-op starts no subprocess"
+    (receipt,) = waiting.gate_receipts
+    assert (receipt.command, receipt.exit_code, receipt.summary) == (GATE_NONE, 0, "no code to test: brain-only slot")
+    assert waiting.state is BatchState.AWAITING_APPROVAL
+    assert d.approve(WS, batch.id).state is BatchState.LANDED

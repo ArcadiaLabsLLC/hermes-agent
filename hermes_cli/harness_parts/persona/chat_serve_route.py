@@ -70,6 +70,7 @@ SEND_FLAGS: tuple[tuple[str, str, str], ...] = (
     ("idempotency_key", "--idempotency-key", "value"),
     ("retry_of", "--retry-of", "value"),
     ("images", "--image", "list"),
+    ("files", "--file", "list"),
     ("stream", "--stream", "flag"),
     ("max_seconds", "--max-seconds", "float"),
     ("compression_threshold_tokens", "--compression-threshold-tokens", "int"),

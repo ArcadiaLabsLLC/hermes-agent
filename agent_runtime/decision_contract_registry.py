@@ -215,6 +215,15 @@ _EVENT_CONTRACTS: dict[str, EventContract] = {
     # what the projection will report.
     "persona_chat.turn_started": EventContract("persona_chat.turn_started", "Persona chat turn started", ("persona_instance_id", "root_chat_session_id", "client_message_id", "turn_id"), ("active_session_id",)),
     "persona_chat.turn_ended": EventContract("persona_chat.turn_ended", "Persona chat turn left the in-flight set", ("persona_instance_id", "root_chat_session_id", "client_message_id", "turn_id", "state"), ("active_session_id",)),
+    # RT-EMIT-RUNNING-WORK-CHAT (plan p10-turn-2026-10-19 §2 S2). The terminal
+    # lane's pair, the chat-turn pair one lane over: a background process entered
+    # / left the ``running_work`` terminal rows. Emitter:
+    # ``agent_runtime.running_work.process_presence._on_lifecycle``, called by the
+    # additive ``ProcessRegistry.add_lifecycle_listener`` seam after the checkpoint
+    # write. NOT covered domain events (they ride beside no ``state.patched``); a
+    # batch of only these rides the ``running_work`` section frame.
+    "running_work.process_started": EventContract("running_work.process_started", "Background process started", ("process_session_id", "work_id", "pid", "command", "owner_task_id", "started_at"), ()),
+    "running_work.process_ended": EventContract("running_work.process_ended", "Background process left the running set", ("process_session_id", "work_id", "pid", "command", "owner_task_id", "started_at", "exit_code", "completion_reason"), ()),
     # The refusal counter-record (2026-08-09). Every durable write a mission-chat
     # turn performs lives inside the chat-root lease, so a send REFUSED on the
     # way to that lease wrote nothing at all — the investigation went looking for

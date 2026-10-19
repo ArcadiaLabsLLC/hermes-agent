@@ -168,6 +168,19 @@ def set_credential(ref: str, *, scheme: str, secret: str, username: str | None =
     return credential_status(ref)
 
 
+def forget_credential(ref: str) -> bool:
+    """Remove ``ref`` from this home's file (a revoked ingress route's secret). True when it was there."""
+
+    ref = opaque_id(ref)
+    migrate_pool_slice()
+    with _LOCK:
+        rows = _read_credentials_file()
+        if rows.pop(ref, None) is None:
+            return False
+        _write_file(rows)
+    return True
+
+
 def credential_status(ref: str) -> dict[str, Any]:
     """``{ref, set, rotated_at}`` — presence and rotation only (the Launcher's write-only view)."""
 

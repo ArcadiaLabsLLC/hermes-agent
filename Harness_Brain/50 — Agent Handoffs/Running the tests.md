@@ -63,7 +63,12 @@ when a chain path changed. An ALL-sentinel file (it spawned an unrecorded progra
 path changed and its imports reach it. A file tied only by a `.py` it opened (a whole-tree source walker) is counted in the header, never run. The skip and idle-box lists win; nothing is cached, sampled or
 audited; `--cache-dry-run` lists without running; `--fail-fast` runs edited → direct importers → the rest
 as waves. A session-chain or dynamic-import reach is not selected: the landing gate is the backstop. The
-import memo lives beside the store (`.pytest_cache/hermes_affected_imports.json`; cold build ~8 s).
+import memo lives beside the store (`.pytest_cache/hermes_affected_imports.json`; cold build ~8 s). The `Affected:` line prints
+`Σ` (the selection's quiet estimates), `floor = Σ / -j` and the verdict: a **hub edit** is one whose Σ exceeds
+`-j × 60 s` (`HUB_SECONDS_PER_JOB`), anything else an **under-a-minute edit**. An under-a-minute edit's bar is a
+60 s wall; a hub edit's bar is `1.25 × floor + 20 s` (packing and start-up), and a floor over 60 s is the edit's
+width, not a runner defect. The run closes with `wall W s vs bar B s` and `=== affected wall over its bar ===` when
+W > B — a printed verdict, never an exit code (p10-suite B.1, pending the owner's ruling).
 
 **A one-file debugging run names the test venv's interpreter, and reads a red twice.** A bare
 `python` on this box is the system Python 3.12 without the test venv, so its import errors are
@@ -140,6 +145,14 @@ files whose last attempt timed out (`timed_out`) and the test count of every fil
 (`tests`, the shard planner's input) and the cache's block (`cache`: skipped, sampled, seed, misses
 by reason, audit defects and flakes). Quote that line in a landing report instead of reconstructing
 timings from the log.
+
+**The diagnosis also counts tests, per file** (p10 S-A1, row `FORK-PATCH-IN-TEARDOWN`):
+`body_patches` is the tests whose body left a `monkeypatch` entry live into fixture teardown;
+`late_fixture_patches` is the tests where a fixture the body requested late (`request.getfixturevalue`)
+pushed one; `teardown_errors` is the teardown-phase errors, with up to 20 node ids. They ride
+`diagnosis.jsonl`, the `counts` block of the `runs.jsonl` line and the `=== Diagnosis ===` block. The knob
+`HERMES_TEST_BODY_PATCH_UNDO=on` (default off; `pytest.mark.body_patch_undo("on"|"off")` wins) undoes a
+body's own entries at call end, before any fixture tears down (`tests/_downstream/body_patch_scope.py`).
 
 An abnormal bundle also records `bundle_diagnostics` in that same line: original process/session
 statuses, ordered members, last observed member, failing IDs and bounded, redacted output. The

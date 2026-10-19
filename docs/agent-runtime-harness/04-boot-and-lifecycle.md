@@ -182,6 +182,21 @@ processes booting against one checkout is a REAL concurrency, so the sweep is cl
 by `tests/agent_runtime/test_tool_visibility_import_deferral.py`, which drives the real chain
 through subprocesses after recording that the originally specified assertion was vacuous.
 
+**The declared-command scan** (`RT-HARNESS-ARGV-MANIFEST-SCAN`, 2026-10-19). Every `hermes harness …`
+process — each CLI call, each serve boot, each test child — runs
+`hermes_cli/plugins_manifest_cli_commands.py::discover_declared_cli_commands` to find the manifest that
+declares `harness`. It no longer parses every `plugin.yaml` to do so: a fingerprint cache at
+`<HERMES_HOME>/cache/declared_cli_commands.json` (`hermes_cli/plugins_declared_cli_cache.py`, the home
+resolved at call time) keys the declaring winners on an over-approximating stat enumeration of every
+manifest-named file the upstream walk could read (the bundled, user and opt-in project roots, depth two,
+no skip list) plus `HERMES_ENABLE_PROJECT_PLUGINS`. A hit re-parses only the declaring manifest(s); a miss
+runs the full walk and rewrites the file; an unwritable or corrupt file is a miss, never an error. The
+enable gate is never cached — it runs on the re-parsed manifest against the live config on every call —
+so **a hit never changes which plugin wins or whether it is enabled**. Measured in-process 2026-10-19,
+n = 20 each, box at 100 % load (upper bounds): miss median 134 ms, hit median 18.5 ms (102 files
+stat'ed). Receipt at debug: `declared_cli_scan cache=hit|miss|unwritable files=N ms=N`. The superset is
+pinned by the gate `tests/hermes_cli/test_declared_cli_cache_superset.py`.
+
 ## Stages 2-3 — `booting`, then registry, head pointer, root anchor
 
 The `booting` frame is emitted before ANY heavy boot work, carrying `boot: timeline.stamps()`
@@ -281,7 +296,8 @@ know (`serve.py:1419-1632`):
    restart asks `drain_if_idle`; a refusal names its hold in `held_by`
    (`hermes_cli/harness_parts/serve/idle_drain.py::IdleDrainHold`), and a cron job running in this
    process (`cron.scheduler.get_running_job_ids()`, the set upstream's gateway drain reads) holds
-   it as `cron_job`. All
+   it as `cron_job`; a send-queue entry a scheduler fire or a platform message queued holds it as
+   `scheduled_turn` / `messaging_turn` (`idle_drain._QUEUED_TURN_HOLDS`, one row per origin). All
    of it is `agent_runtime/build_identity.py`, and the two implementations — this one and the
    launcher's Dart — are held to one answer by a byte-equal fixture hashed on both sides:
    `tests/fixtures/build_identity/code_tree_parity_tree.txt` and
@@ -741,6 +757,15 @@ child writes `booting`, `root_anchor`, `ready` and exits 1 having said nothing a
 Restoring `sys.stderr` therefore restores a channel nobody was going to print to; the uncaught arm
 writes the traceback into the service stderr log itself. A NON-service child still says nothing —
 that is unchanged behaviour, not a regression, and its parent still has the exit code and the pipe.
+
+**The messaging lane on the way down (p10-messaging M5).** The bridge
+(`agent_runtime/messaging/serve_lane.py::MessagingLane`) watches the drain between ticks: the moment
+`drain_state` is set it stops POLLING — an update its long poll still holds is dropped unhandled and
+unacknowledged, so the next serve receives it — while the settle listener stays registered, so a turn
+already queued still sends its reply. `liveness_stop` closes the bridge (listener and approval notifiers
+unregistered). It starts with the Work engine, after the scheduler, and never on the boot path: its first
+tick runs on its own thread one interval (5 s) after the boot. Absent from both bundle closures (`switched_off_modules`), off by default
+everywhere (`messaging_enabled` false). Pinned by `tests/agent_runtime/messaging/test_serve_lane.py`.
 
 ---
 

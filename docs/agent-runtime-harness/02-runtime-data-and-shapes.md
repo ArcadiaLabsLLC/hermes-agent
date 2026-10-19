@@ -45,6 +45,14 @@ Directories present in the live root, with the module that owns each:
 | `serve_instances/` | `serve_registry.py` (`SERVE_INSTANCES_DIRNAME`) | one `<pid>.json` per live serve, one `<pid>.ended.json` per serve that ended, one `<pid>.stderr.log` per `--service` runtime (below) |
 | `deleted_archive/`, `migration_backups/`, `wt_reaped_patches/`, `locks/` | `paths.py:302`, `default_scope.py:552`, `delivery_directive.py:65` | archive-never-delete and lock trees |
 
+An office actor file (`office/<ws>/actors/<key>.json`) is written by one store method,
+`office_store/actor_writes.py::upsert_actor`, whose payload carries an additive, optional
+`actor_kind` (`RT-GENERIC-DESK-WRITE-PAYS`, 2026-10-19): `ActorKind(StrEnum)` in
+`office_store/models.py`, two words — `persona` (default, absent) and `furniture` (a generic desk,
+whose `persona_id` is its own `desk_<8 base36>` address, CONTRACT 43). It is read by
+`office_store/normalize.py::normalize_actor_kind` (an unknown word is `ActorKindInvalid`,
+`actor_kind_invalid`) and decides the write, not the file: the actor file does not store it.
+
 `paths.py` also declares `runs/`, `runtime_instances/`, `incidents/` and
 `prompt_observability_archive/`. None exist in the live root — they are created
 on first write, and a store with no such write has no directory.
@@ -761,6 +769,15 @@ send-queue entries whose origin names a schedule
 ``phase`` (``queued`` | ``running``) and ``work_request``. Same ruling as
 ``tool_call``: nothing left the wire. The goldens and ``work_list_empty.json``
 moved; the launcher mirror is owed (``tests/fixtures/stream_frames/README.md``).
+
+54 KEPT (msg-b, 2026-10-19) — ``running_work`` gained a ``messaging_turn`` kind and
+SOURCE (p10-messaging M4, the ``scheduled_turn`` precedent): a platform message the
+messaging bridge queued on a bound instance's chat root, from the queue until the
+runner removes the entry, read durably from the send-queue entries whose origin
+carries a ``messaging`` block (``running_work/lanes_messaging.py``). A row adds
+``platform``, ``chat_id``, ``thread_id`` and ``phase``; never the message text. Same
+ruling: nothing left the wire. The goldens and ``work_list_empty.json`` moved; the
+launcher mirror is owed (``tests/fixtures/stream_frames/README.md``).
 
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead

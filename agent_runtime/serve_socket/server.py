@@ -59,6 +59,22 @@ __all__ = [
 ]
 
 
+def _disable_nagle(sock: Any) -> None:
+    """Set TCP_NODELAY on an accepted connection (RT-SERVE-SOCKET-NODELAY).
+
+    Per-token frames are small writes; with Nagle on, the kernel holds one
+    behind the peer's delayed ACK and the launcher sees text arrive in bunches
+    (as ``tui_gateway/ws.py::_disable_nagle`` found for the TUI lane). A
+    transport that is not TCP (a unix or pipe socket) refuses the option with
+    ``OSError``; that is not this connection's failure, so it is tolerated.
+    """
+
+    try:
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    except (OSError, AttributeError):
+        pass
+
+
 # ── the server ───────────────────────────────────────────────────────────────
 
 
@@ -502,6 +518,7 @@ class ServeSocketServer:
             if admitted:
                 self._pending += 1
                 self._pending_peak = max(self._pending_peak, self._pending)
+        _disable_nagle(sock)
         connection = SocketConnection(
             key=key,
             sock=sock,

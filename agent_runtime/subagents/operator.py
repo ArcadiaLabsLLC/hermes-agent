@@ -8,8 +8,10 @@ from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.operator_conversation import OperatorConversationRefused
 from agent_runtime.operator_session_inspection import operator_session_read, inspection_identity, _inspection_persona
 from agent_runtime.profile_context import resolve_persona_profile, persona_profile_context
-from .model import HISTORY_OPERATIONS, Refusal, SubagentError, include_history_capabilities
+from .model import (HISTORY_OPERATIONS, SETTINGS_OPERATIONS, SPAWNING_OPERATIONS, Refusal, SubagentError,
+                    include_history_capabilities, validate_request)
 from .native import has_live_ancestor, inspect_records, registry_snapshot
+from .references import references
 
 __layer__ = "lanes"
 
@@ -77,6 +79,16 @@ def inspect_operator(operation: str, params: dict) -> dict:
         identity = inspection_identity(params, session.owner)
         owner = (tuple(sorted(identity.items())), str(home), str(Path(session.db.db_path).resolve()))
 
+        if operation in SETTINGS_OPERATIONS:
+            from .settings import inspect_settings
+            return {**identity, **inspect_settings(operation, params, owner=owner, home=home)}
+        if operation in SPAWNING_OPERATIONS:
+            # Operator turns run delegate_task in the serve itself: the pause is serve-wide.
+            from .spawning import inspect_spawning
+            validate_request(operation, params)
+            generation = references.require_generation(owner, params.get("expected_generation"))
+            return {**identity, **inspect_spawning(operation, params, generation=generation,
+                                                   host_kind="operator_runtime")}
         checked = _Owner(params, instance.id, session.db, home)
         if operation in HISTORY_OPERATIONS:
             from .history import inspect_history

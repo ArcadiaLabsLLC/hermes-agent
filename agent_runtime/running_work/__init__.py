@@ -189,6 +189,8 @@ Modules, lowest layer first; no module imports one above it (W0-G6)::
                                 announced registry, the detected sub-source
       lanes_schedule.py lanes   ScheduledTurnLane: a scheduler fire, read from the send-queue
                                 entries whose origin names a schedule (RT-SCHEDULE-TURN-RUNNING-WORK)
+      lanes_messaging.py lanes  MessagingTurnLane: a platform message, read from the send-queue
+                                entries whose origin carries a messaging block (p10-messaging M4)
       surface.py        lanes   _COLLECTORS (the table over the lanes), build_running_work,
                                 find_work_row, split_work_id, peek_work, cancel_work
 
@@ -211,7 +213,10 @@ attribute reaches none of them — patch the binding module.
 
 from __future__ import annotations
 
-from . import build_rows, lanes_build, lanes_chat, lanes_process, lanes_schedule, ownership, rows, surface, vocabulary
+from . import (
+    build_rows, lanes_build, lanes_chat, lanes_messaging, lanes_process, lanes_schedule, ownership, rows, surface,
+    vocabulary,
+)
 from .lanes_chat import (
     DELEGATION_RECORD_RUNNING,
     DELEGATION_STATUS_BY_RECORD,
@@ -229,6 +234,7 @@ from .ownership import (
     _head_home,
     _owner_of,
     _pid_identity,
+    background_work_homes,
     running_work_store_paths,
 )
 from .rows import (
@@ -258,6 +264,7 @@ from .vocabulary import (
     KIND_DELEGATION,
     KIND_DISPATCH,
     KIND_MCP_JOB,
+    KIND_MESSAGING_TURN,
     KIND_SCHEDULED_TURN,
     KIND_TERMINAL,
     KIND_TOOL_CALL,
@@ -299,6 +306,7 @@ __all__ = [
     "KIND_DELEGATION",
     "KIND_DISPATCH",
     "KIND_MCP_JOB",
+    "KIND_MESSAGING_TURN",
     "KIND_SCHEDULED_TURN",
     "KIND_TERMINAL",
     "KIND_TOOL_CALL",
@@ -308,6 +316,7 @@ __all__ = [
     "RUNNING_WORK_SOURCES",
     "STATUS_VALUES",
     "TAIL_PREVIEW_LIMIT",
+    "background_work_homes",
     "build_running_work",
     "cancel_work",
     "find_work_row",

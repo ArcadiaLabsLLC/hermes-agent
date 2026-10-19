@@ -13,6 +13,7 @@ from ..mission_chat_turns.reads import mission_chat_turn_records
 from ..serde import safe_assignment_text, safe_assignment_token
 from ..run_budget import ACCOUNTING_KEY as RUN_BUDGET_ACCOUNTING_KEY
 from ..transcript_order import TURN_SEQ_TERMINAL, order_transcript_rows
+from ..turn_outcome import TURN_OUTCOME_KEY, turn_outcome_block
 from ..turn_visibility import TURN_VISIBILITY_KEY, classify_persisted_turn_row
 from .vocabulary import (
     PERSONA_TURN_SILENT_KIND,
@@ -24,6 +25,7 @@ from .vocabulary import (
 __layer__ = "stores"
 __all__ = [
     "_carry_run_budget",
+    "_carry_turn_outcome",
     "_ordered_message_rows",
     "_silent_turn_marker_row",
     "_terminal_turn_marker_rows",
@@ -43,6 +45,15 @@ def _carry_run_budget(row: dict[str, Any], record: dict[str, Any] | None) -> Non
     block = (record or {}).get(RUN_BUDGET_ACCOUNTING_KEY)
     if isinstance(block, dict) and block:
         row[RUN_BUDGET_ACCOUNTING_KEY] = block
+
+
+def _carry_turn_outcome(row: dict[str, Any], record: dict[str, Any] | None) -> None:
+    """Ride the turn record's ``turn_outcome`` block (what the turn left behind) onto
+    its row, or nothing — copied, never derived; an older record leaves the row untouched."""
+
+    block = turn_outcome_block(record)
+    if block is not None:
+        row[TURN_OUTCOME_KEY] = block
 
 
 def _silent_turn_marker_row(
@@ -204,6 +215,7 @@ def _terminal_turn_marker_rows(
         if client_message_id in retried_as:
             marker_row["retried_as"] = retried_as[client_message_id]
         _carry_run_budget(marker_row, record)
+        _carry_turn_outcome(marker_row, record)
         rows.append(marker_row)
     return rows
 

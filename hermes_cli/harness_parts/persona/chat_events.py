@@ -418,6 +418,10 @@ class _ChatProtocolV2Emitter:
                 "seq": segment["seq"],
                 "id": segment["id"],
                 "text": text,
+                # Emit time, ms since this turn's emitter started (monotonic):
+                # lets a consumer tell which hop bunches streamed text
+                # (RT-SEGMENT-DELTA-TMS, launcher MC-STREAM-CHOPPY).
+                "t_ms": elapsed_ms(self._started_at),
             }
         )
         self._notify_update(immediate=False)

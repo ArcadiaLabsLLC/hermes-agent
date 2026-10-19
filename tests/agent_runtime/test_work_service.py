@@ -52,12 +52,12 @@ def test_capabilities_lists_one_owner_per_workspace_and_creates_the_default_brai
     owner = next(row for row in caps["owners"] if row["workspace_id"] == work.ws)
     assert owner == {"owner": WorkScope(caps["install_id"], work.ws).owner, "workspace_id": work.ws, "label": "Desk",
                      "operations": ["inspect", "start", "assign", "claim", "release", "set_status", "done",
-                                    "create_brain"]}
+                                    "create_brain", "lend_skills"]}
     assert len({row["owner"] for row in caps["owners"]}) == len(caps["owners"])
-    assert caps["default_brain"][work.ws] == {"state": "created"}
+    assert caps["default_brain"][work.ws] == {"state": "created", "reason": "needs_git_account"}
     assert (paths.default_brain_dir(work.ws) / ".git").is_dir()
     again = service.execute("capabilities", {}, STDIO_OWNER)
-    assert again["default_brain"][work.ws] == {"state": "present"}
+    assert again["default_brain"][work.ws] == {"state": "present", "reason": "needs_git_account"}
 
 
 def test_start_mints_a_work_id_and_replays_by_request_id(work):
@@ -206,3 +206,30 @@ def test_engine_rows_on_the_default_board_land_in_its_work_queue(work):
     assert task["note"].endswith("/work-queue.md") and task["program"] == "work"
     (board,) = call(work, "list")["boards"]
     assert [(q["program"], q["title"]) for q in board["queues"]] == [("alpha", "Alpha"), ("work", "Work queue")]
+
+
+def test_lend_skills_unions_and_revoke_differences_through_the_writer(work, monkeypatch):
+    """p10-work S1: ``runtime.work.lend_skills`` rewrites the row's ``skills:`` segment; an unloadable skill
+    refuses the whole lend ``skills_not_loadable`` with ``rejected_skills`` and nothing written."""
+
+    from agent_runtime.chat_verbs import queue_skill
+
+    monkeypatch.setattr(queue_skill, "_rejected_skills",
+                        lambda skills: {s: "not_found" for s in skills if s.startswith("ghost")})
+    task_id = start(work)["task"]["id"]
+    where = {"slot": "brain", "task_id": task_id}
+    lent = call(work, "lend_skills", request_id="l1", skills=["git-workflow", "eternia/qa"], **where)
+    assert lent["task"]["skills"] == ["git-workflow", "eternia/qa"] and lent["receipt"]["kind"] == "work.row_set_skills"
+    more = call(work, "lend_skills", request_id="l2", skills=["eternia/qa", "pytest"], mode="lend", **where)["task"]
+    assert more["skills"] == ["git-workflow", "eternia/qa", "pytest"] and more["raw"].count("skills:") == 1
+    less = call(work, "lend_skills", request_id="l3", skills=["git-workflow", "pytest"], mode="revoke", **where)["task"]
+    assert less["skills"] == ["eternia/qa"]
+    reply = rpc._work_reply("r", "lend_skills", {**work.scope, "request_id": "l4", "skills": ["ghost-1"], **where},
+                            STDIO_OWNER)
+    assert reply["error"]["data"] == {"reason": "skills_not_loadable", "detail": "ghost-1",
+                                      "rejected_skills": {"ghost-1": "not_found"}}
+    gone = call(work, "lend_skills", request_id="l5", skills=["eternia/qa"], mode="revoke", **where)["task"]
+    assert gone["skills"] == [] and "skills:" not in gone["raw"]
+    with pytest.raises(WorkRefused) as bad:
+        call(work, "lend_skills", request_id="l6", skills=["x"], mode="borrow", **where)
+    assert bad.value.reason is Reason.INVALID

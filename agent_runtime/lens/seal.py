@@ -13,7 +13,7 @@ import hashlib
 from dataclasses import dataclass
 from typing import Any
 
-from .manifest import decode_manifest, read_manifest
+from .manifest import check_sealable, decode_manifest, read_manifest
 from .wire_value import WireError, WireRefusal, bounded_int, canonical_bytes
 
 __layer__ = "models"
@@ -49,6 +49,8 @@ def seal_manifest(value: Any, *, revision: int) -> SealedManifest:
     """Validate ``value`` and freeze it at ``revision`` (>= 1)."""
 
     manifest = read_manifest(value)
+    # Only at the seal: a revision sealed before the guard still reads (and its turn refuses).
+    check_sealable(manifest)
     body = canonical_bytes(manifest)
     return SealedManifest(
         monitor_id=manifest["monitor_id"],

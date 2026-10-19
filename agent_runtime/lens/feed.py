@@ -4,10 +4,21 @@ Ported from Companion's ``monitor_feed.dart`` / ``monitor_snapshot.dart``, reduc
 to the hermes contract (plan ``eternia-lens-in-hermes.md`` §3): a feed names its
 kind, its cadence and its kind's source block; nothing else survives the reader.
 
-Feed kinds admitted today are the poll door's two (L1): ``http_json`` and
-``prometheus``. ``sql_readonly`` and ``command_allowlisted`` are stage L4; until
-they land a manifest naming one is REFUSED with ``feed_kind_unavailable`` — a
-missing capability is reported, never faked.
+Feed kinds: the poll door's (L1) ``http_json`` and ``prometheus`` (L4: or through
+``kubectl proxy``, ``via: kube_proxy``); the push door's (L3) ``push`` — a feed
+nothing polls, written only by an ingress route (``lens.ingress_routes``; its source
+block is empty, its ``interval_ms`` the cadence a rule expects); and the pull
+door's local sources (L4, plan ``p10-agent-2026-10-19.md`` §5.5 L4.3):
+
+* ``sql_readonly`` — ``{database, query}``: an absolute SQLite path, opened
+  read-only, and ONE statement that begins with ``SELECT`` or ``WITH``
+  (:data:`READ_ONLY_STATEMENT`); one row, one value.
+* ``command_allowlisted`` — ``{argv, allow, extract}``: ``argv`` must be one of
+  the ``allow`` lists, and runs only from a SEALED manifest (no shell, 10 s);
+  its stdout is JSON and ``extract`` selects the number.
+
+A kind outside :data:`AVAILABLE_FEED_KINDS` is REFUSED with
+``feed_kind_unavailable`` — a missing capability is reported, never faked.
 
 A feed's URL never carries a credential: userinfo in the URL is refused at the
 reader, because the only place a source secret may live is the home's Lens
@@ -51,6 +62,7 @@ from .wire_value import (
     WireError,
     WireRefusal,
     bounded_int,
+    bounded_list,
     bounded_string,
     boolean_value,
     checked_object,
@@ -76,10 +88,29 @@ class FeedKind(str, Enum):
     PROMETHEUS = "prometheus"
     SQL_READONLY = "sql_readonly"
     COMMAND_ALLOWLISTED = "command_allowlisted"
+    PUSH = "push"
 
 
 #: The kinds whose source is built. Every other kind is refused by name.
-AVAILABLE_FEED_KINDS = frozenset({FeedKind.HTTP_JSON, FeedKind.PROMETHEUS})
+AVAILABLE_FEED_KINDS = frozenset({FeedKind.HTTP_JSON, FeedKind.PROMETHEUS, FeedKind.SQL_READONLY,
+                                  FeedKind.COMMAND_ALLOWLISTED, FeedKind.PUSH})
+#: The kinds that run only from a sealed manifest: never in a preview of a draft.
+SEALED_ONLY_FEED_KINDS = frozenset({FeedKind.COMMAND_ALLOWLISTED})
+
+#: A ``sql_readonly`` statement begins with SELECT or WITH (case-insensitive); the
+#: read-only open and ``PRAGMA query_only`` refuse a write that hides behind a WITH.
+READ_ONLY_STATEMENT = re.compile(r"\s*(?:SELECT|WITH)\b", re.IGNORECASE)
+#: ``kubectl proxy``'s default listen address: the only base a ``via: kube_proxy`` feed reads.
+KUBE_PROXY_BASE = "http://127.0.0.1:8001"
+_KUBE_NAME = re.compile(r"[a-z0-9](?:[-a-z0-9]{0,61}[a-z0-9])?")
+MAXIMUM_ARGV = 32
+MAXIMUM_ALLOWED_COMMANDS = 8
+
+
+def is_push_feed(feed: dict[str, Any]) -> bool:
+    """True for a feed only an ingress route writes: the poller never reads it."""
+
+    return feed.get("kind") == FeedKind.PUSH.value
 
 
 def source_url(value: Any) -> str:
@@ -110,15 +141,81 @@ def _http_json_source(value: Any) -> dict[str, Any]:
     return {"url": source_url(m["url"]), "selector": extraction_path(m["selector"])}
 
 
+class PrometheusVia(str, Enum):
+    KUBE_PROXY = "kube_proxy"
+
+
+def _kube_name(value: Any) -> str:
+    text = bounded_string(value, maximum=63)
+    require(_KUBE_NAME.fullmatch(text) is not None, "kubernetes name", WireRefusal.INVALID_STRING)
+    return text
+
+
+def _kube_port(value: Any) -> int | str:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return bounded_int(value, minimum=1, maximum=65535)
+    return _kube_name(value)
+
+
 def _prometheus_source(value: Any) -> dict[str, Any]:
-    m = checked_object(value, {"base_url", "query"})
-    return {"base_url": source_url(m["base_url"]), "query": bounded_string(m["query"], maximum=1024)}
+    """``{base_url, query}``, or ``{via: kube_proxy, namespace, service, port, query}`` (L4)."""
+
+    m = checked_object(value, {"query"}, {"base_url", "via", "namespace", "service", "port"})
+    query = bounded_string(m["query"], maximum=1024)
+    if m.get("via") is None:
+        m = checked_object(m, {"base_url", "query"})
+        return {"base_url": source_url(m["base_url"]), "query": query}
+    m = checked_object(m, {"via", "namespace", "service", "port", "query"})
+    return {"via": enum_value(m["via"], PrometheusVia).value, "namespace": _kube_name(m["namespace"]),
+            "service": _kube_name(m["service"]), "port": _kube_port(m["port"]), "query": query}
+
+
+def kube_proxy_base_url(source: dict[str, Any]) -> str:
+    """The Prometheus API base behind ``kubectl proxy`` for a ``via: kube_proxy`` source."""
+
+    return (f"{KUBE_PROXY_BASE}/api/v1/namespaces/{source['namespace']}/services/"
+            f"{source['service']}:{source['port']}/proxy")
+
+
+def read_only_statement(value: Any) -> str:
+    text = bounded_string(value, maximum=4096)
+    require(READ_ONLY_STATEMENT.match(text) is not None, "statement", WireRefusal.INVALID_STRING)
+    return text
+
+
+def _sql_readonly_source(value: Any) -> dict[str, Any]:
+    from pathlib import Path
+
+    m = checked_object(value, {"database", "query"})
+    database = bounded_string(m["database"], maximum=1024)
+    require(Path(database).is_absolute(), "database path", WireRefusal.INVALID_STRING)
+    return {"database": database, "query": read_only_statement(m["query"])}
+
+
+def _argv(value: Any) -> list[str]:
+    return bounded_list(value, lambda item: bounded_string(item, maximum=1024), minimum=1, maximum=MAXIMUM_ARGV)
+
+
+def _command_source(value: Any) -> dict[str, Any]:
+    m = checked_object(value, {"argv", "allow", "extract"})
+    argv = _argv(m["argv"])
+    allow = bounded_list(m["allow"], _argv, minimum=1, maximum=MAXIMUM_ALLOWED_COMMANDS)
+    require(argv in allow, "argv not in allow")
+    return {"argv": argv, "allow": allow, "extract": extraction_path(m["extract"])}
+
+
+def _push_source(value: Any) -> dict[str, Any]:
+    checked_object(value, ())
+    return {}
 
 
 #: Feed kind -> its source block's reader. A kind absent here is unavailable.
 _SOURCE_READERS = {
     FeedKind.HTTP_JSON: _http_json_source,
     FeedKind.PROMETHEUS: _prometheus_source,
+    FeedKind.SQL_READONLY: _sql_readonly_source,
+    FeedKind.COMMAND_ALLOWLISTED: _command_source,
+    FeedKind.PUSH: _push_source,
 }
 
 FEED_KEYS_REQUIRED = frozenset({"version", "id", "kind", "interval_ms", "source"})

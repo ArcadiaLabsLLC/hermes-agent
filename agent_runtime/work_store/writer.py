@@ -106,7 +106,7 @@ def _held(op: RowOp, row: Row | None) -> None:
 
 
 def _present(op: RowOp, row: Row | None) -> None:
-    """SET_STATUS / DELETE / ASSIGN: the row exists; a taken row answers only its holder or the operator."""
+    """SET_STATUS / DELETE / ASSIGN / SET_SKILLS: the row exists; a taken row answers only its holder or the operator."""
 
     if row is None:
         raise WorkRefused(Reason.ROW_GONE, op.ref.id)
@@ -119,6 +119,7 @@ _PRECONDITIONS: dict[Op, Callable[[RowOp, Row | None], None]] = {
     Op.SET_STATUS: _present,
     Op.DELETE: _present,
     Op.ASSIGN: _present,
+    Op.SET_SKILLS: _present,
 }
 
 
@@ -186,10 +187,20 @@ class Writer:
             raise WorkRefused(Reason.SLOT_UNBOUND, self.board.slot)
         return clone
 
+    def _common_dir(self, repo: Path) -> str:
+        done = self._git(["rev-parse", "--path-format=absolute", "--git-common-dir"], repo=repo)
+        text = str(done.stdout or "").strip() if done.returncode == 0 else ""
+        return os.path.normcase(os.path.realpath(text)) if text else f"?{repo}"
+
     def _ensure_worktree(self, clone: Path) -> None:
         self._git(["worktree", "prune"], repo=clone)
         if (self.worktree / ".git").exists():
-            return
+            if self._common_dir(self.worktree) == self._common_dir(clone):
+                return
+            # Another checkout's worktree under this slot's name: the default brain and a declared slot
+            # ``brain`` adopted on a second machine share it until the move retires the default (p10-work §2.5).
+            shutil.rmtree(self.worktree)
+            self._git(["worktree", "prune"], repo=clone)
         if self.worktree.exists():
             shutil.rmtree(self.worktree)
         self.worktree.parent.mkdir(parents=True, exist_ok=True)

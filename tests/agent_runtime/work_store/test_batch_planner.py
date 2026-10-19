@@ -3,13 +3,20 @@ shared file, a persona per lane by assignee or roster role match, one landing.
 
 Killing mutation (plan §6 B2): ``planner.plan`` groups by row instead of ``Domain`` (key
 ``row.ref`` in place of ``domain_of(row)``) → ``test_one_lane_per_domain`` red (6 lanes, not 2).
+
+RT-BATCH-GATE-PER-SLOT-COMMAND (p10-work §3 G1): ``plan`` gives the landing lane every slot's gate
+(``Lane.gates``) and the wire round-trips it. Killing mutation, red recorded in its commit body: ``Lane.wire``
+drops ``gates`` → ``test_the_landing_lane_carries_one_gate_per_slot_and_round_trips_the_wire`` red.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from agent_runtime.batch.planner import LANDING_ID, Budget, LaneKind, Member, plan, row_effort, touched_files
+from agent_runtime.batch.gate import slot_gate
+from agent_runtime.batch.planner import (
+    LANDING_GATE, LANDING_ID, Budget, Lane, LaneKind, Member, Plan, plan, row_effort, touched_files,
+)
 from agent_runtime.work_store.reasons import Reason, WorkRefused
 from agent_runtime.work_store.source import Domain
 
@@ -86,3 +93,48 @@ def test_the_plan_id_is_the_rows_and_nothing_ready_refuses():
     with pytest.raises(WorkRefused) as none:
         plan([], workspace_id=WS)
     assert none.value.reason is Reason.PLAN_REFUSED
+
+
+def test_the_landing_lane_carries_one_gate_per_slot_and_round_trips_the_wire():
+    declared = {"toolchain": {"kind": "python"}, "context": {"gate": ["bash scripts/lint.sh", "bash scripts/t.sh"]}}
+    slot_gates = {"hermes": slot_gate(declared, is_default=False),
+                  "launcher": slot_gate({"toolchain": {"kind": "flutter"}}, is_default=False),
+                  "backend": slot_gate({"toolchain": {"kind": "rust"}}, is_default=False),
+                  "unused": (LANDING_GATE,)}
+    rows = [qrow("RT-H"), qrow("RT-L", slot="launcher"), qrow("RT-B", slot="backend")]
+    made = plan(rows, workspace_id=WS, slot_gates=slot_gates)
+    assert dict(made.landing.gates) == {
+        "backend": None,
+        "hermes": ("bash scripts/lint.sh", "bash scripts/t.sh"),
+        "launcher": ("dart tool/heavy_run/run.dart -- dart tool/run_tier.dart",),
+    }
+    assert all(lane.gates == {} for lane in made.lanes), "only the landing lane carries gates"
+    assert "- backend: NO GATE DECLARED" in made.landing.brief.objective
+    assert made.landing.brief.tests == ("bash scripts/lint.sh", "bash scripts/t.sh",
+                                        "dart tool/heavy_run/run.dart -- dart tool/run_tier.dart")
+    wired = made.wire()
+    assert wired["landing"]["gates"]["backend"] is None
+    again = Plan.from_wire(wired)
+    assert again == made and dict(again.landing.gates) == dict(made.landing.gates)
+    old = {key: value for key, value in made.landing.wire().items() if key != "gates"}
+    assert Lane.from_wire(old).gates == {}, "a manifest from before the gates folds to none (every slot red)"
+
+
+def test_a_lane_takes_the_union_of_its_rows_skills_and_round_trips_the_wire():
+    """p10-work S1: ``Lane.skills`` is the union of the rows' ``skills:`` segments, named in the brief."""
+
+    from agent_runtime.work_store.grammar import parse_row
+
+    def lent(row_id, *skills):
+        line = f"- **`{row_id}` — t** · `agent_runtime/{row_id}.py` · skills: " + ", ".join(f"`{s}`" for s in skills)
+        return parse_row(line + " · READY 2026-10-19", slot="hermes", note=NOTE, line_no=1, heading="Fork-owned")
+
+    made = plan([lent("RT-A", "git-workflow", "eternia/qa"), lent("RT-B", "eternia/qa", "pytest"), qrow("RT-C")],
+                workspace_id=WS)
+    [lane] = made.lanes
+    assert lane.skills == ("git-workflow", "eternia/qa", "pytest")
+    assert "Skills lent for this lane (preloaded): git-workflow, eternia/qa, pytest" in lane.brief.objective
+    assert lane.files == ("agent_runtime/RT-A.py", "agent_runtime/RT-B.py"), "a lent skill is not a touched file"
+    assert "`eternia/qa`" not in lane.brief.inputs
+    assert Plan.from_wire(made.wire()).lanes[0].skills == lane.skills
+    assert made.landing.skills == ()

@@ -283,6 +283,17 @@ Run it after any rebuild that touches the chat path.
 build never reached is absent, never zero (`agent_runtime/context_build_receipt.py`). It is a log line
 only: the durable `profile_timing` keeps `context_native_history_ms` and the builder's own sub-stamps.
 
+**Terminal process presence (2026-10-19, `RT-EMIT-RUNNING-WORK-CHAT`).** Two EventLog events, not
+log lines: `running_work.process_started` / `running_work.process_ended` (`{process_session_id,
+work_id, pid, command, owner_task_id, started_at}` plus `{exit_code, completion_reason}` on the end;
+`command` carries the checkpoint's redaction and the row's 400 bound), appended by
+`agent_runtime/running_work/process_presence.py` on a background process's spawn and FIRST finish,
+fail-safe (a failed append never touches the process). A batch of only these that rode the sequenced
+`running_work` section frame logs one DEBUG receipt, `running_work_section batch=<end offset>
+events=<n> ms=<section read>` (`agent_runtime/stream/frames.py::running_work_section_frame`); the
+`snapshot_build` line gains nothing. The section read measured 9.0 ms median (n = 10, four live
+processes, scratch home, box at 100 % CPU from parallel lanes) on 2026-10-19.
+
 ### The core-cache family and its census
 
 `agent_runtime/core_cache/__init__.py:42-85` is **the authority** — a per-receipt

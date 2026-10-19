@@ -78,6 +78,24 @@ def test_declare_replaces_the_declared_set_and_tombstones_what_left(workspace):
     assert stale["error"]["data"]["reason"] == "stale_revision"
 
 
+def test_declare_one_slot_keeps_the_other_slots(workspace):
+    """The second write site (p10-work §2.5): one name in, nothing tombstoned — the positive control
+    against ``declare``'s REPLACE. Killing mutation: ``declare_one_slot`` delegating to ``declare([entry])``
+    tombstones ``backend`` and this goes red."""
+
+    from agent_runtime.workspace_slots import declare_one_slot
+
+    _declare(workspace, [_slot("launcher"), _slot("backend")])
+    reply = declare_one_slot(workspace, _slot("brain"), issued_at=LATER, machine="m-1")
+    assert reply["declared"] == ["brain"] and reply["tombstoned"] == []
+    slots = load_document(workspace)["slots"]
+    assert {name for name, slot in slots.items() if not slot.get("removed_at")} == {"launcher", "backend", "brain"}
+    assert slots["brain"]["declared_by_machine"] == "m-1" and load_document(workspace)["issued_at"] == LATER
+    with pytest.raises(Exception) as stale:
+        declare_one_slot(workspace, _slot("brain"), issued_at=ISSUED, machine="m-1")
+    assert getattr(stale.value, "reason", None) == "stale_revision"
+
+
 @pytest.mark.parametrize(
     ("slot", "reason"),
     [(_slot("bad-name"), "invalid_slot_name"), (_slot(repo={"clone_url": "file:///x"}), "invalid_clone_url")],
@@ -319,3 +337,27 @@ def test_a_local_slot_round_trips_normalize_declaration(workspace):
     with pytest.raises(SlotRefused) as escaping:
         normalize_declaration({**entry, "context": {"brain_dir": "../outside"}})
     assert escaping.value.reason == "invalid_declaration"
+
+
+def test_context_gate_round_trips_and_refuses_a_credential(workspace):
+    """``context.gate`` (p10-work §3 G1): the slot's landing-gate commands, synced like the rest of ``context``.
+
+    Killing mutation, red recorded in its commit body: ``_context`` drops the ``gate`` key → this test red.
+    """
+
+    from agent_runtime.workspace_slots import SlotRefused, normalize_declaration
+
+    entry = {"name": "launcher", "repo": {"clone_url": CLONE_URL, "default_branch": "main"},
+             "toolchain": {"kind": "flutter"},
+             "context": {"role": "frontend", "gate": [" dart tool/heavy_run/run.dart -- dart tool/run_tier.dart "]}}
+    name, body = normalize_declaration(entry)
+    assert body["context"]["gate"] == ["dart tool/heavy_run/run.dart -- dart tool/run_tier.dart"]
+    assert normalize_declaration({**entry, **body, "name": name}) == (name, body)
+    assert "gate" not in normalize_declaration({**entry, "context": {"role": "frontend"}})[1]["context"]
+    assert normalize_declaration({**entry, "context": {"gate": []}})[1]["context"]["gate"] == []
+    assert "result" in _declare(workspace, [entry])
+    assert load_document(workspace)["slots"]["launcher"]["context"]["gate"] == body["context"]["gate"]
+    for bad in (["git push https://me:hunter2@github.com/x/y.git"], "bash scripts/test.sh", [""], [3]):
+        with pytest.raises(SlotRefused) as refused:
+            normalize_declaration({**entry, "context": {"gate": bad}})
+        assert refused.value.reason == "invalid_declaration", bad

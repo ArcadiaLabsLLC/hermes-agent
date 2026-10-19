@@ -9,20 +9,19 @@ Launcher did not list on this connection.
 
 This is a "must never be written" rule, so a source walk is the right shape and
 over-approximation is the safe direction: comments and docstrings count.
-Population: every tracked source file (and model-facing prose under the skill
-and plugin roots) outside the test trees and ``docs/`` — a test's fake Launcher
-must name ids, and docs describe the wire.
+Population (shared with the tool-name fence, ``_launcher_literals.py``): every
+tracked source file (and model-facing prose under the skill and plugin roots)
+outside the test trees and ``docs/`` — a test's fake Launcher must name ids,
+and docs describe the wire.
 """
 
 from __future__ import annotations
 
 import re
-import subprocess
-from pathlib import PurePosixPath
-
-from scripts import god_file_probe as probe
 
 import pytest
+
+from tests.tooling._launcher_literals import population_texts
 
 pytestmark = pytest.mark.gate
 
@@ -36,42 +35,26 @@ ENTRY_ID = re.compile(r"(?<![\w.])launcher\.(?!parent\.)[a-z][a-z0-9_]*(?:\.[a-z
 ALLOWED: dict[tuple[str, str], str] = {
     ("agent_runtime/launcher_app_functions.py", "launcher.app_functions.list"):
         "LIST_METHOD — the discovery request itself, the one id the runtime must know",
+    ("scripts/vendor_launcher_catalog.py", "launcher.app_functions.list"):
+        "names the discovery request whose answer the vendored fixture copies",
+    **{("evals/genui_first_response_ab.py", f"launcher.generated.{verb}"):
+        "the A/B's SUBJECT (RT-VERIFY-IMPROVE-FIRST-RESPONSE): it scores whether these entries are chosen "
+        "first; their tool names are read from the vendored catalog, never spelled"
+       for verb in ("list", "inspect", "create", "update", "edit")},
+    ("evals/genui_first_response_ab.py", "launcher.agent_chat.new"):
+        "the launcher_qa MCP server's own tool (opens a QA chat), not an app-function intent",
+    ("evals/genui_first_response_ab.py", "launcher.agent_chat.send"):
+        "the launcher_qa MCP server's own tool (sends a QA turn), not an app-function intent",
 }
-
-_SOURCE_SUFFIXES = frozenset({
-    ".py", ".pyi", ".ts", ".tsx", ".js", ".mjs", ".cjs", ".rs", ".go", ".sh", ".ps1",
-    ".yaml", ".yml", ".toml", ".json", ".txt", ".j2", ".jinja", ".tmpl",
-})
-#: Prose the model reads as instructions: a skill teaching an id is the same leak.
-_PROSE_ROOTS = ("skills/", "optional-skills/", "plugins/")
-_EXCLUDED_ROOTS = ("docs/", "Harness_Brain/", "website/")
-_TEST_DIRS = frozenset({"tests", "tests-js", "__tests__", "test"})
 
 
 def entry_ids(text: str) -> set[str]:
     return set(ENTRY_ID.findall(text))
 
 
-def _in_population(path: str) -> bool:
-    pure = PurePosixPath(path)
-    if path.startswith(_EXCLUDED_ROOTS) or _TEST_DIRS.intersection(pure.parts[:-1]):
-        return False
-    name = pure.name
-    if name.startswith("test_") or name.endswith("_test.py") or ".test." in name or ".spec." in name:
-        return False
-    return pure.suffix in _SOURCE_SUFFIXES or (pure.suffix == ".md" and path.startswith(_PROSE_ROOTS))
-
-
-def _population() -> list[str]:
-    out = subprocess.run(["git", "ls-files", "-z"], cwd=probe.ROOT, capture_output=True, check=True)
-    return sorted(p for p in out.stdout.decode("utf-8").split("\0")
-                  if p and _in_population(p) and (probe.ROOT / p).is_file())
-
-
 def _found() -> set[tuple[str, str]]:
     found = set()
-    for path in _population():
-        text = (probe.ROOT / path).read_text(encoding="utf-8", errors="ignore")
+    for path, text in population_texts():
         if "launcher." in text:
             found.update((path, ident) for ident in entry_ids(text))
     return found

@@ -3,7 +3,7 @@ from functools import partial
 
 from agent_runtime.call_authorization import TIER_CONSOLE
 from agent_runtime.operator_conversation import OperatorConversationRefused
-from agent_runtime.subagents.model import OPERATIONS, MUTATIONS, Refusal, SubagentError
+from agent_runtime.subagents.model import OPERATIONS, WRITES, Refusal, SubagentError
 from agent_runtime.subagents.operator import inspect_operator
 from .protocol import defer_or_inline, err, ok
 from .registry import method
@@ -17,7 +17,7 @@ def _subagent_reply(operation, rid, params):
     except (OperatorConversationRefused, SubagentError) as exc:
         return err(rid, 4090, "This conversation's subagents are unavailable.", {"reason": exc.reason})
     except Exception:
-        reason = Refusal.UNKNOWN if operation in MUTATIONS else Refusal.UNAVAILABLE
+        reason = Refusal.UNKNOWN if operation in WRITES else Refusal.UNAVAILABLE
         return err(rid, 4090, "Subagent outcome could not be verified.", {"reason": reason})
 
 

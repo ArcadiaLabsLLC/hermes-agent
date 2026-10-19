@@ -74,6 +74,12 @@ from tests._downstream.child_job import (  # noqa: F401 — hook and fixture re-
     _children_die_with_the_test,
     pytest_configure_child_job,
 )
+from tests._downstream.body_patch_scope import (  # noqa: F401 — hook re-exports (p10 S-A1, FORK-PATCH-IN-TEARDOWN)
+    BODY_PATCH_MARK as _BODY_PATCH_MARK,
+    pytest_fixture_setup,
+    pytest_pyfunc_call,
+)
+from tests._downstream.git_env_memo import _git_env_memo  # noqa: F401 — autouse (suite speed, p10-bar)
 from tests._downstream import child_startup, registry_write_fence, server_shutdown_poll
 from tests._downstream.fork_readonly_readers import file_reads_through
 from tests._downstream.id_markers.reasons import (
@@ -875,46 +881,6 @@ FORK_TEST_TIMEOUT_METHOD = "thread"
 
 
 
-@pytest.hookimpl(wrapper=True)
-def pytest_pyfunc_call(pyfuncitem):
-    """Run an upstream test's mid-body ``monkeypatch.undo()`` against its OWN patches.
-
-    Upstream tests that drop a stub with ``monkeypatch.undo()`` unwind the shared
-    per-test instance, fixtures' hermetic pins included, and redden
-    ``_shared_monkeypatch_pin_tripwire``. For a test carrying the mark (applied at
-    collection to every test whose body calls ``.undo()``,
-    ``id_markers.hooks.body_calls_monkeypatch_undo``) ``undo`` is narrowed, for the call
-    only, to the entries the BODY pushed: the stack length is taken once every
-    fixture has set up, and an undo replays only the tail above it. Upstream's
-    bytes run unchanged; what they drop is exactly what they patched.
-    """
-    monkeypatch = None
-    if pyfuncitem.get_closest_marker(_SCOPED_MONKEYPATCH_UNDO_MARK) is not None:
-        monkeypatch = getattr(pyfuncitem, "funcargs", {}).get("monkeypatch")
-    if monkeypatch is None:
-        return (yield)
-    base_attr, base_item = len(monkeypatch._setattr), len(monkeypatch._setitem)
-    base_cwd, base_path = monkeypatch._cwd, monkeypatch._savesyspath
-
-    def body_undo() -> None:
-        # A private instance takes the body's tail; leaving the context unwinds it alone.
-        with pytest.MonkeyPatch.context() as body:
-            body._setattr = monkeypatch._setattr[base_attr:]
-            del monkeypatch._setattr[base_attr:]
-            body._setitem = monkeypatch._setitem[base_item:]
-            del monkeypatch._setitem[base_item:]
-            if base_cwd is None:
-                body._cwd, monkeypatch._cwd = monkeypatch._cwd, None
-            if base_path is None:
-                body._savesyspath, monkeypatch._savesyspath = monkeypatch._savesyspath, None
-
-    monkeypatch.undo = body_undo
-    try:
-        return (yield)
-    finally:
-        del monkeypatch.undo
-
-
 def pytest_sessionstart(session):  # noqa: D401 — pytest hook
     """Register the fresh-SessionDB census when ``HERMES_TEST_COUNT_FRESH_DBS`` asks (D3.11).
 
@@ -1017,6 +983,12 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
         f"{_SCOPED_MONKEYPATCH_UNDO_MARK}: the upstream test calls monkeypatch.undo() "
         "mid-body; undo is narrowed to the body's own patches so the fixtures' hermetic "
         "pins hold (applied at collection by an AST walk of the test body).",
+    )
+    config.addinivalue_line(
+        "markers",
+        f"{_BODY_PATCH_MARK}(mode): 'on' undoes the body's own monkeypatch entries at call end, "
+        "before any fixture tears down; 'off' only counts them. Wins over HERMES_TEST_BODY_PATCH_UNDO "
+        "(default off; tests/_downstream/body_patch_scope.py).",
     )
     config.addinivalue_line(
         "markers",

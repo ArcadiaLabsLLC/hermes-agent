@@ -702,6 +702,19 @@ class BootPhases:
         except Exception:
             dispatches_restored = 0
         self.timeline.mark("dispatch_restore_ms")
+        # Same moment again, for long tool calls promoted to the background
+        # (RT-LONG-CALL-WAKE-LOST-ON-RESTART): a ``running`` row whose writer is
+        # provably gone can never finish, so this process re-owns it as ``lost``
+        # and wakes its session — before the drain starts. Fail-open.
+        long_calls_lost: list[str] = []
+        try:
+            from agent_runtime.running_work.ownership import background_work_homes
+            from tools.long_tool_calls import sweep_orphaned_rows
+
+            long_calls_lost = sweep_orphaned_rows(background_work_homes())
+        except Exception:
+            long_calls_lost = []
+        self.timeline.mark("long_call_sweep_ms")
         # Builds (build plan §2, §5, §7): THIS process owns the detected-build scan, exports
         # HERMES_BUILD_REGISTRY_DIR so every child it spawns can announce, sweeps expired
         # records, and starts the 30 s stall-fail / build.ended tick.
@@ -773,6 +786,8 @@ class BootPhases:
             self.ready_frame["orphaned_turns_repaired"] = len(orphaned_repaired)
         if dispatches_restored:
             self.ready_frame["dispatches_restored"] = dispatches_restored
+        if long_calls_lost:
+            self.ready_frame["long_calls_lost"] = len(long_calls_lost)
         # Every phase this boot actually paid, on the frame the supervisor
         # already waits for — and the same line in agent.log, because the boot
         # worth attributing (the cold one) is the boot nobody is watching a

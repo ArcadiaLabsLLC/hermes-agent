@@ -66,6 +66,9 @@ class RealmRevokedReason(str, Enum):
     GRANT_REMOVED = "grant_removed"
     REALM_DELETED = "realm_deleted"
     SERVER_DELETED = "server_deleted"
+    # The realm's ownership moved to another member (backend
+    # REALM-REVOKED-OWNERSHIP-TRANSFERRED); the member's access, not the host.
+    OWNERSHIP_TRANSFERRED = "ownership_transferred"
     GIT_HOST_UNBOUND = "git_host_unbound"
     GIT_HOST_BINDING_LOST = "git_host_binding_lost"
 

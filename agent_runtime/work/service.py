@@ -23,9 +23,18 @@ VERSION = 2
 LIMITATIONS = ["Claims and write-backs land as git commits in Eternia Harness's own worktree; "
                "the operator's checkout sees them after a pull."]
 
+
+def _lend_skills(scope, params, actor, *, context=None):
+    """``runtime.work.lend_skills``: the row half of lending (the worker half is ``eternia.skills.lend``)."""
+    from agent_runtime.chat_verbs.queue_skill import _rejected_skills
+
+    return store.lend_skills(scope, params, actor, context=context, rejected=_rejected_skills)
+
+
 #: The owner operations; each takes ``(scope, params, actor, *, context)``.
 _WRITES = {"start": store.start, "assign": store.assign, "claim": store.claim, "release": store.release,
-           "set_status": store.set_status, "done": store.done, "create_brain": store.create_brain}
+           "set_status": store.set_status, "done": store.done, "create_brain": store.create_brain,
+           "lend_skills": _lend_skills}
 _READS = {"list": store.list_work, "inspect": store.inspect}
 
 
@@ -69,20 +78,38 @@ def _workspace_label(workspace_id):
         return workspace_id
 
 
-def _default_brain_state(workspace_id):
-    from agent_runtime.work_store.board import declared_boards, default_board, needs_default_brain
-    from agent_runtime.work_store.default_brain import ensure_default_brain
+def _worded(remote, word):
+    """A remote word replaces the tree's word; a local brain keeps its word and carries the remote's ``reason``."""
+    if remote is None:
+        return {"state": word}
+    if remote["state"] == "present":
+        return {**remote, "state": word}
+    return remote
 
+
+def _default_brain_state(workspace_id):
+    """``capabilities.default_brain.<ws>``: ``{state, clone_url?, slot?, reason?, retry_after?}``.
+
+    The tree's words stay (``absent``: a repo brain carries the board; ``present``: a live local default
+    brain; ``created``; ``moved``; ``unavailable``) and promotion adds ``remote``,
+    ``remote_pending_declare`` and ``remote_refused`` (``default_brain.remote_state``, p10-work §2.5).
+    """
+    from agent_runtime.work_store.board import declared_boards, default_board, needs_default_brain
+    from agent_runtime.work_store.default_brain import ensure_default_brain, remote_state
+
+    issued = store._now().isoformat(timespec="seconds")
     try:
         if not needs_default_brain(declared_boards(workspace_id)):
             _require_git()
             moved = store.normalize_default_brain(workspace_id)
-            return {"state": "moved", "into": moved["into"]} if moved else {"state": "absent"}
+            return {"state": "moved", "into": moved["into"]} if moved else _worded(remote_state(workspace_id), "absent")
         if default_board(workspace_id) is not None:
-            return {"state": "present"}
+            if git_shipped():
+                ensure_default_brain(workspace_id, issued_at=issued)  # the automatic promotion
+            return _worded(remote_state(workspace_id), "present")
         _require_git()
-        ensure_default_brain(workspace_id, issued_at=store._now().isoformat(timespec="seconds"))
-        return {"state": "created"}
+        ensure_default_brain(workspace_id, issued_at=issued)
+        return _worded(remote_state(workspace_id), "created")
     except WorkRefused as refusal:
         return {"state": "unavailable", "reason": refusal.reason.value}
     except (NotFound, FileNotFoundError, KeyError, ValueError, OSError):

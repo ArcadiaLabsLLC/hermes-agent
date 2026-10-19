@@ -31,6 +31,8 @@ __all__ = [
     "compression_threshold_for_model",
     "cron_pools_present",
     "default_hermes_home",
+    "delegation_knobs",
+    "delegation_managed_keys",
     "dispatch_streams",
     "doctor_section",
     "gateway_agent_pending_sentinel",
@@ -454,6 +456,35 @@ def subagent_compute_supervisor():
     from tui_gateway import server
 
     return server._compute_host_supervisor
+
+
+# Step 6 (RT-AGENT-CONSOLE-STEP-6): the delegation defaults the Agent Console shows are the
+# values the next child actually gets, so they are read through upstream's own knob getters
+# (each parses, floors and falls back exactly as delegate_task does). Held widening rows in
+# ``upstream-footprint-ledger.md``; retired by a public ``delegation_settings()`` reader.
+def delegation_knobs() -> dict:
+    """``delegation.<key>`` -> zero-argument getter of the effective value under the current home."""
+    from tools import delegate_tool, delegate_tool_config as knobs
+
+    return {
+        "max_concurrent_children": knobs._get_max_concurrent_children,
+        "max_spawn_depth": knobs._get_max_spawn_depth,
+        "orchestrator_enabled": knobs._get_orchestrator_enabled,
+        "child_timeout_seconds": knobs._get_child_timeout,
+        "worktree_isolation": knobs._get_worktree_isolation,
+        "independent_completions": knobs._get_independent_completions,
+        "oneshot_max_children": knobs._get_oneshot_max_children,
+        "inherit_mcp_toolsets": knobs._get_inherit_mcp_toolsets,
+        "compression_threshold_tokens": lambda: delegate_tool._child_compression_cap_tokens(
+            knobs._cfg().get("compression_threshold_tokens")),
+    }
+
+
+def delegation_managed_keys() -> frozenset:
+    """``delegation.<key>`` leaves the administrator's managed scope pins (read-only to a profile)."""
+    from hermes_cli.managed_scope import managed_config_keys
+
+    return frozenset(key.split(".", 1)[1] for key in managed_config_keys() if key.startswith("delegation."))
 
 
 # ── lane pb-r (footprint audit 2026-10-15, row R): the reasoning control catalog left the

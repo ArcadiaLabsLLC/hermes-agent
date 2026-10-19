@@ -107,6 +107,7 @@ def test_snapshot_carries_the_running_work_section(isolate_agent_runtime_root) -
         "build",  # row H4 (c2fe7ad3fd): the build lane
         "tool_call",  # RT-LONG-TOOL-CALLS-BACKGROUND: promoted long tool calls
         "scheduled_turn",  # RT-SCHEDULE-TURN-RUNNING-WORK: a scheduler fire until its turn settles
+        "messaging_turn",  # p10-messaging M4: a platform message until its turn settles
     }
     for name, entry in section["sources"].items():
         assert entry["status"] in {"ok", "unavailable"}, name

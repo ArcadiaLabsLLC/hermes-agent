@@ -16,7 +16,7 @@ __layer__ = "models"
 __all__ = ["OPERATIONS", "Reason", "WorkRefused", "WorkScope", "fingerprint", "text"]
 
 #: What an owner advertises on the wire (``capabilities`` / ``context`` are not owner operations).
-OPERATIONS = ("inspect", "start", "assign", "claim", "release", "set_status", "done", "create_brain")
+OPERATIONS = ("inspect", "start", "assign", "claim", "release", "set_status", "done", "create_brain", "lend_skills")
 
 
 def text(value, *, maximum=256, multiline=False):

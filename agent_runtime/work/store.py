@@ -208,6 +208,7 @@ def project(row: Row, writer: Writer | None, *, context=None, detail: bool = Fal
         "status": status_word(row), "status_word": row.status.value if row.status else None,
         "status_date": row.status_date, "status_body": row.status_body, "recommend": row.recommend,
         "assignee": f"persona:{row.assignee.token}" if row.assignee else None,
+        "skills": list(row.skills),
         "taken": {"date": taken.date, "who": taken.who, "persona_instance_id": taken.persona_instance_id}
         if taken else None,
         "rulings": list(row.rulings), "pointers": list(row.pointers), "heading": row.heading, "raw": row.raw,
@@ -369,6 +370,39 @@ def assign(scope, params, actor, *, context=None):
     return {"task": _task(writer, receipt.ref, context), "receipt": receipt.wire()}
 
 
+#: ``runtime.work.lend_skills`` modes: the row's lent set after the call, from (held, asked).
+LEND_MODES = {
+    "lend": lambda held, asked: list(dict.fromkeys([*held, *asked])),
+    "revoke": lambda held, asked: [skill for skill in held if skill not in asked],
+}
+
+
+def lend_skills(scope, params, actor, *, context=None, rejected=None):
+    """Lend skills to whoever works a row (``mode: lend``, the union) or take them back (``revoke``).
+
+    Every lent slug is resolved and compatibility-checked first (``rejected``: slug list -> {slug: reason},
+    the ``runtime.chat.queue_skill`` check the service hands in); one unloadable skill refuses the whole call
+    ``skills_not_loadable`` with nothing written. The set is the row's ``skills:`` segment (p10-work S1).
+    """
+
+    mode = params.get("mode", "lend")
+    asked = params.get("skills")
+    if mode not in LEND_MODES or not isinstance(asked, list) or not asked:
+        raise WorkRefused(Reason.INVALID, "skills is a non-empty list and mode is lend | revoke")
+    asked = list(dict.fromkeys(text(skill, maximum=128) for skill in asked))
+    refused = (rejected or (lambda skills: {}))(asked) if mode == "lend" else {}
+    if refused:
+        raise WorkRefused(Reason.SKILLS_NOT_LOADABLE, ", ".join(sorted(refused)), data={"rejected_skills": refused})
+    view = synced(scope.workspace_id, slot=params.get("slot"))
+    board = _view_board(view, params.get("slot"))
+    row = find(boards_store.rows(scope.workspace_id, slot=board.slot, read_roots=view.read_roots),
+               text(params.get("task_id")))
+    held = list(row.skills) if row is not None else []
+    writer, receipt = _row_write(scope, params, Op.SET_SKILLS, _writer_who(params, actor),
+                                 {"skills": LEND_MODES[mode](held, asked)}, context=context)
+    return {"task": _task(writer, receipt.ref, context), "receipt": receipt.wire()}
+
+
 def claim(scope, params, actor, *, context=None):
     who = params.get("who") or (context.assignee if context else None)
     instance = _assignee_token(who) if who else None
@@ -427,9 +461,26 @@ def _create_default(scope, params, actor):
     return {"board": board_wire(made, None), "receipt": record}
 
 
+def _promote_default(scope, params, actor):
+    """``promote: true`` — the manual door to the default brain's remote (p10-work §2.5); it ignores the back-off."""
+    from agent_runtime.work_store.default_brain import ensure_default_brain, promote_default_brain
+
+    issued = _now().isoformat(timespec="seconds")
+    record = boards_store.read_binding(scope.workspace_id)
+    if record is None or record.get("retired_into"):
+        ensure_default_brain(scope.workspace_id, issued_at=issued)
+    promotion = promote_default_brain(scope.workspace_id, issued_at=issued)
+    made = ensure_default_brain(scope.workspace_id, issued_at=issued)
+    record = receipts.emit("work.brain_create", workspace_id=scope.workspace_id, slot=made.slot, who=actor,
+                           request_id=params.get("request_id"), promote=True)
+    return {"board": board_wire(made, None), "receipt": record, "promotion": promotion}
+
+
 def create_brain(scope, params, actor, *, context=None):
     request = text(params.get("request_id"))
     if params.get("slot") is None:
+        if params.get("promote") is True:
+            return _promote_default(scope, params, actor)
         return _create_default(scope, params, actor)
     found = next((b for b in boards_store.boards(scope.workspace_id) if b.slot == params["slot"]), None)
     if found is None or not found.bound_here:

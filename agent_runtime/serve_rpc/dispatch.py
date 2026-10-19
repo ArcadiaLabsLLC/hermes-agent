@@ -25,6 +25,7 @@ from agent_runtime.serve_rpc.registry import (
     _ensure_discussion_methods,
     _ensure_local_llama_methods,
     _ensure_conversation_methods,
+    _ensure_messaging_methods,
     _ensure_work_methods,
     method_names,
     method_tier,
@@ -139,6 +140,7 @@ def handle_request(req: Any, context: RpcContext | None = None) -> dict:
     _ensure_conversation_methods()
     _ensure_work_methods()
     _ensure_batch_methods()
+    _ensure_messaging_methods()
     rid, name, params = normalized
     fn = _METHODS.get(name)
     if fn is None:

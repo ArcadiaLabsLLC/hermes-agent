@@ -881,3 +881,21 @@ SERVE_AUTH_TOKEN_FILENAME = "serve_auth_token"
 SERVE_INSTANCES_DIRNAME = "serve_instances"
 SOCKET_LOCK_FILENAME = "serve_socket.lock"
 SOCKET_OWNER_FILENAME = "serve_socket.owner.json"
+
+
+def messaging_dir() -> Path:
+    """Messaging platforms' machine-local state (p10-messaging §2.3): bindings and operators, never a session."""
+
+    return store_root() / "messaging"
+
+
+def messaging_bindings_dir() -> Path:
+    """One JSON file per platform chat/thread: the persona instance it POINTS AT (``messaging/bindings.py``)."""
+
+    return messaging_dir() / "bindings"
+
+
+def messaging_operators_dir() -> Path:
+    """One JSON file per platform user allowed to talk to the runtime (``messaging/operators.py``)."""
+
+    return messaging_dir() / "operators"

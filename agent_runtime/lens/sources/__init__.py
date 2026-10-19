@@ -16,8 +16,10 @@ from __future__ import annotations
 
 from typing import Any, Callable, Sequence
 
-from ..feed import FeedKind, ReadingRefusal, fx_feed_id, outlier_refused, total_cost, typed_reading
-from . import http_json, prometheus
+from ..feed import (
+    SEALED_ONLY_FEED_KINDS, FeedKind, ReadingRefusal, fx_feed_id, outlier_refused, total_cost, typed_reading,
+)
+from . import command, http_json, prometheus, sql_readonly
 from .transport import ReadReason, ReadResult, unavailable
 
 __layer__ = "lanes"
@@ -25,13 +27,24 @@ __layer__ = "lanes"
 SOURCE_READERS: dict[FeedKind, Callable[..., ReadResult]] = {
     FeedKind.HTTP_JSON: http_json.read,
     FeedKind.PROMETHEUS: prometheus.read,
+    FeedKind.SQL_READONLY: sql_readonly.read,
+    FeedKind.COMMAND_ALLOWLISTED: command.read,
 }
 
 
-def read_feed_source(feed: dict[str, Any], *, client: Any = None, resolver: Any = None) -> ReadResult:
+def read_feed_source(feed: dict[str, Any], *, client: Any = None, resolver: Any = None,
+                     sealed: bool = False) -> ReadResult:
+    """``sealed`` is True only for a read of a SEALED manifest (the poller): a command feed
+    runs from nothing else, so a draft's preview never executes a proposed argv."""
+
     from ..credentials import resolve_credential
 
-    reader = SOURCE_READERS.get(FeedKind(feed["kind"]))
+    kind = FeedKind(feed["kind"])
+    if kind is FeedKind.PUSH:
+        return unavailable(ReadReason.PUSH_ONLY)
+    if kind in SEALED_ONLY_FEED_KINDS and not sealed:
+        return unavailable(ReadReason.NOT_SEALED)
+    reader = SOURCE_READERS.get(kind)
     if reader is None:
         return unavailable(ReadReason.SOURCE_FAILED)
     headers = {"Accept": "application/json"}
@@ -66,7 +79,8 @@ def typed_result(feed: dict[str, Any], result: ReadResult, *, history: Sequence[
 
 
 def preview_reads(manifest: dict[str, Any], *, client: Any = None, resolver: Any = None) -> dict[str, ReadResult]:
-    """One read per feed, typed as the poller would store it, in manifest order.
+    """One read per feed, typed as the poller would store it, in manifest order. A preview
+    is of a manifest that is not sealed, so a command feed answers ``not_sealed``.
 
     A converting feed's rate is this preview's own read of its rate feed (W5); the
     outlier guard has no history in a preview, so it abstains."""

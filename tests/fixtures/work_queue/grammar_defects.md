@@ -18,3 +18,5 @@ status: open
 - **`FX-BAD-ASSIGNEE` — Bad assignee row** · assignee: bob · READY 2026-10-18
 - **`FX-TWO-ASSIGNEES` — Two assignees row** · assignee: persona:alice · assignee: persona:bob · READY 2026-10-18
 - **`WORK-ABCDE` — Short engine-minted ID row** · READY 2026-10-18
+- **`FX-BARE-SKILL` — Bare skill row** · skills: git-workflow · READY 2026-10-19
+- **`FX-TWO-SKILLS` — Two skills segments row** · skills: `a` · skills: `b` · READY 2026-10-19

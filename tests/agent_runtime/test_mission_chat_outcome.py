@@ -68,6 +68,7 @@ CHAT_ERROR_KIND_WIRE = {
     "CHAT_TURN_RETRY_TARGET_INVALID": "chat_turn_retry_target_invalid",
     "IMAGE_INVALID": "image_invalid",
     "VISION_UNSUPPORTED": "vision_unsupported",
+    "FILE_INVALID": "file_invalid",
     "UNKNOWN_CHAT_SESSION": "unknown_chat_session",
     "FOREIGN_CHAT_SESSION": "foreign_chat_session",
     "CHAT_BUSY": "chat_busy",

@@ -173,6 +173,10 @@ class AgentRunResult:
     # provider reported no reasoning count. Unlike ``reasoning_tokens`` above it
     # tells "reported zero" from "not reported" -- the Thinking row reads this.
     reasoning_window: dict[str, int] = field(default_factory=dict)
+    # What the turn left behind (tests, commits, files), folded by
+    # agent_runtime.turn_outcome from post_tool_call. None when nothing was folded
+    # or the path fires no post_tool_call (Codex app-server): absent stays absent.
+    turn_outcome: dict[str, Any] | None = None
     latency_ms: int | None = None
     # Mostly ``_ms`` / ``_count`` integers, plus the one structured entry
     # ``run_budget`` (the accounting block from ``run_budget.RunBudgetLedger``).

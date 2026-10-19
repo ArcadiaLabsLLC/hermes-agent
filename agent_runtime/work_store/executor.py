@@ -79,6 +79,8 @@ class Assignment:
     goal_mode: GoalMode = GoalMode.NONE
     #: Gates from ``brief.tests`` for an ``UNTIL_DONE`` goal — on by default (owner ruling 2026-10-18).
     goal_gates: bool = True
+    #: Skills the row(s) lend the run (``skills:`` segment; a lane's union) — derived, never a second store.
+    skills: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

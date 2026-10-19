@@ -146,3 +146,12 @@ def test_an_admitted_credential_never_lifts_a_membership_mark(realm):
         _authorize(realm, "pull", None, _admitted_credential(realm.id))
     assert excinfo.value.code == "realm_revoked"
     assert read_realm_revocation(realm.id) is not None
+
+
+def test_an_ownership_transfer_parses_and_is_a_member_reason_not_host_state(realm):
+    """RT-REALM-REVOKED-OWNERSHIP-TRANSFERRED: the backend's newest reason is accepted."""
+    reply = _rpc("runtime.realm.revoked", {"realm_id": realm.id, "reason": "ownership_transferred"})
+    result = reply["result"]
+    assert (result["reason"], result["host_state"]) == ("ownership_transferred", False)
+    assert RealmRevokedReason("ownership_transferred") is RealmRevokedReason.OWNERSHIP_TRANSFERRED
+    assert read_realm_revocation(realm.id)["reason"] == "ownership_transferred"

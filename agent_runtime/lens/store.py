@@ -7,7 +7,10 @@ that same process.
 Tables: ``monitors`` (state, the sealed body + digest + revision, the open draft),
 ``observations`` (raw; a recorded gap is a row with ``value`` NULL and a typed
 ``reason``), ``rollups`` (one row per feed-minute, written by retention),
-``episodes`` (the Episode JSON by id).
+``episodes`` (the Episode JSON by id), ``receipts`` (one per Episode the exit
+door admitted: the forged turn's identity, outcome and artifacts; stage L2),
+``ingress_routes`` (one per push-door route: the monitor it writes, its body kind,
+its mapping and the credential reference of its secret — never the secret; L3).
 
 Monitor lifecycle: ``create`` writes a DRAFT (a validated manifest, not yet
 running); ``seal`` freezes the draft as the next revision; ``enable`` / ``pause``
@@ -24,7 +27,7 @@ import json
 import sqlite3
 import threading
 from contextlib import contextmanager
-from datetime import datetime, timezone, UTC
+from datetime import datetime, timedelta, timezone, UTC
 from enum import Enum
 from pathlib import Path
 from typing import Any, Iterator
@@ -33,11 +36,20 @@ from .episode import Episode
 from .feed import Observation
 from .manifest import read_manifest
 from .seal import SealedManifest, seal_manifest
-from .wire_value import canonical_bytes
+from .wire_value import WireError, WireRefusal, canonical_bytes
 
 __layer__ = "stores"
 
 MAXIMUM_MONITORS = 64
+#: Receipts are refused past this many, never made room for by eviction (W13).
+MAXIMUM_RECEIPTS = 50_000
+#: Push-door routes are refused past this many (W13).
+MAXIMUM_ROUTES = 64
+#: The longest range one series read may span (the raw window is 24 h; rollups cover 7 d).
+MAXIMUM_RANGE_MS = 7 * 24 * 60 * 60 * 1000
+#: The most raw rows one series read answers (``runtime.lens.range``; ``lens_read`` asks fewer).
+MAXIMUM_RANGE_ROWS = 10_000
+SERIES_SCHEMA = "lens-range-v1"
 _LOCK = threading.RLock()
 
 _SCHEMA = """
@@ -59,6 +71,14 @@ CREATE TABLE IF NOT EXISTS episodes (
   id TEXT PRIMARY KEY, monitor_id TEXT NOT NULL, rule_id TEXT NOT NULL, ordinal INTEGER NOT NULL,
   state TEXT NOT NULL, body TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS episodes_by_rule ON episodes (monitor_id, rule_id, ordinal);
+CREATE TABLE IF NOT EXISTS receipts (
+  episode_id TEXT PRIMARY KEY, monitor_id TEXT NOT NULL, turn_id TEXT NOT NULL, session_id TEXT,
+  started_ms INTEGER NOT NULL, finished_ms INTEGER, outcome TEXT NOT NULL,
+  artifact_handles TEXT NOT NULL DEFAULT '[]', files TEXT NOT NULL DEFAULT '[]', tool_admission TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS receipts_by_monitor ON receipts (monitor_id, started_ms);
+CREATE TABLE IF NOT EXISTS ingress_routes (
+  route_id TEXT PRIMARY KEY, monitor_id TEXT NOT NULL, kind TEXT NOT NULL, secret_ref TEXT NOT NULL,
+  mapping TEXT NOT NULL, created_ms INTEGER NOT NULL);
 """
 
 
@@ -75,6 +95,37 @@ class StoreRefusal(str, Enum):
     NO_DRAFT = "no_draft"
     NOT_SEALED = "not_sealed"
     RETIRED = "monitor_retired"
+    RECEIPT_NOT_FOUND = "receipt_not_found"
+    RECEIPTS_FULL = "receipts_full"
+    ROUTE_NOT_FOUND = "route_not_found"
+    ROUTES_FULL = "routes_full"
+    #: ``lens_propose`` never writes over a monitor that already exists (L4.2).
+    EXISTS = "monitor_exists"
+
+
+#: The refusals a reader answers as "not found" (the rest are conflicts).
+NOT_FOUND_REFUSALS = frozenset({StoreRefusal.NOT_FOUND, StoreRefusal.RECEIPT_NOT_FOUND,
+                                StoreRefusal.ROUTE_NOT_FOUND})
+
+
+class ReceiptOutcome(str, Enum):
+    """How the exit door settled one Episode (plan p10-agent §5.2 decision 6).
+
+    ``forging`` is the receipt written BEFORE the turn runs; the turn's end moves it
+    to ``forged`` or ``forge_failed:<reason>`` (:data:`FORGE_FAILED_PREFIX`)."""
+
+    FORGING = "forging"
+    FORGED = "forged"
+    NOTIFIED = "notified"
+    SKIPPED_SEVERITY = "skipped_severity"
+    CAPPED = "capped"
+
+
+FORGE_FAILED_PREFIX = "forge_failed:"
+#: The outcomes ``daily_turn_cap`` counts: a turn run, running, or a notification sent.
+CAPPED_OUTCOMES = (ReceiptOutcome.FORGING.value, ReceiptOutcome.FORGED.value, ReceiptOutcome.NOTIFIED.value)
+_RECEIPT_COLUMNS = ("episode_id", "monitor_id", "turn_id", "session_id", "started_ms", "finished_ms", "outcome",
+                    "artifact_handles", "files", "tool_admission")
 
 
 class LensStoreError(ValueError):
@@ -267,6 +318,31 @@ class LensStore:
         return [{"minute_ms": m, "samples": s, "gaps": g, "min": lo, "max": hi, "sum": t}
                 for m, s, g, lo, hi, t in rows]
 
+    def latest_reads(self, monitor_id: str) -> dict[str, Any]:
+        """The newest row of each feed of the monitor's SEALED manifest (``runtime.lens.latest``,
+        ``lens_read``); a feed never read is None."""
+
+        monitor = self.get(monitor_id)
+        manifest = (monitor["sealed"] or {}).get("manifest") or {"feeds": []}
+        return {"monitor_id": monitor_id, "latest": [self.latest(monitor_id, feed["id"]) for feed in manifest["feeds"]]}
+
+    def series(self, monitor_id: str, feed_id: str, *, start_ms: int, end_ms: int,
+               limit: int = MAXIMUM_RANGE_ROWS, rollup_limit: int | None = None) -> dict[str, Any]:
+        """A bounded series over ``[start_ms, end_ms)`` with EXPLICIT gaps (``runtime.lens.range``,
+        ``lens_read``): raw rows oldest first, at most ``limit`` (``truncated`` says so), and the
+        feed-minute rollups in range — at most ``rollup_limit`` when one is given."""
+
+        if not start_ms < end_ms or end_ms - start_ms > MAXIMUM_RANGE_MS:
+            raise WireError(WireRefusal.INVALID_VALUE, "range_bound")
+        self.get(monitor_id)
+        rows = self.observations(monitor_id, feed_id, start=from_ms(start_ms), end=from_ms(end_ms), limit=limit + 1)
+        rollups = [r for r in self.rollups(monitor_id, feed_id) if start_ms <= r["minute_ms"] < end_ms]
+        out = {"series": SERIES_SCHEMA, "monitor_id": monitor_id, "feed_id": feed_id, "start_ms": start_ms,
+               "end_ms": end_ms, "observations": rows[:limit], "truncated": len(rows) > limit, "rollups": rollups}
+        if rollup_limit is not None:
+            out["rollups"], out["rollups_truncated"] = rollups[-rollup_limit:], len(rollups) > rollup_limit
+        return out
+
     def connection(self):
         """The guarded connection, for retention (the one other writer of these tables)."""
 
@@ -305,3 +381,136 @@ class LensStore:
         with self._db() as conn:
             rows = conn.execute(sql, args).fetchall()
         return [json.loads(row[0]) for row in rows]
+
+    # --- receipts -------------------------------------------------------------
+
+    def save_receipt(self, receipt: dict[str, Any], *, episode: Episode | None = None) -> bool:
+        """Insert ``receipt`` (and ``episode``, in the SAME transaction). False when the
+        Episode already has one: a receipt is written once, so a turn is forged once."""
+
+        row = _receipt_row(receipt)
+        with self._db() as conn:
+            if conn.execute("SELECT 1 FROM receipts WHERE episode_id = ?", (row[0],)).fetchone() is not None:
+                return False
+            if conn.execute("SELECT COUNT(*) FROM receipts").fetchone()[0] >= MAXIMUM_RECEIPTS:
+                raise LensStoreError(StoreRefusal.RECEIPTS_FULL)
+            conn.execute(f"INSERT INTO receipts ({', '.join(_RECEIPT_COLUMNS)}) VALUES "
+                         f"({', '.join('?' * len(_RECEIPT_COLUMNS))})", row)
+            if episode is not None:
+                conn.execute("INSERT OR REPLACE INTO episodes VALUES (?, ?, ?, ?, ?, ?)",
+                             (episode.id, episode.monitor_id, episode.rule_id, episode.ordinal, episode.state.value,
+                              json.dumps(episode.to_json(), sort_keys=True)))
+        return True
+
+    def finish_receipt(self, episode_id: str, *, outcome: str, finished_ms: int, session_id: str | None = None,
+                       artifact_handles: list[dict[str, Any]] = (), files: list[dict[str, Any]] = ()) -> dict[str, Any]:
+        """Settle a ``forging`` receipt with what the turn left."""
+
+        with self._db() as conn:
+            updated = conn.execute(
+                "UPDATE receipts SET outcome = ?, finished_ms = ?, session_id = ?, artifact_handles = ?, files = ? "
+                "WHERE episode_id = ?",
+                (str(outcome), int(finished_ms), session_id, json.dumps(list(artifact_handles), sort_keys=True),
+                 json.dumps(list(files), sort_keys=True), episode_id)).rowcount
+        if not updated:
+            raise LensStoreError(StoreRefusal.RECEIPT_NOT_FOUND)
+        return self.receipt(episode_id)
+
+    def receipt(self, episode_id: str) -> dict[str, Any]:
+        with self._db() as conn:
+            row = conn.execute(f"SELECT {', '.join(_RECEIPT_COLUMNS)} FROM receipts WHERE episode_id = ?",
+                               (episode_id,)).fetchone()
+        if row is None:
+            raise LensStoreError(StoreRefusal.RECEIPT_NOT_FOUND)
+        return _receipt_json(row)
+
+    def has_receipt(self, episode_id: str) -> bool:
+        if not self.exists():
+            return False
+        with self._db() as conn:
+            return conn.execute("SELECT 1 FROM receipts WHERE episode_id = ?", (episode_id,)).fetchone() is not None
+
+    def receipts(self, *, monitor_id: str | None = None, limit: int = 32) -> list[dict[str, Any]]:
+        """Newest first."""
+
+        if not self.exists():
+            return []
+        sql, args = f"SELECT {', '.join(_RECEIPT_COLUMNS)} FROM receipts", []
+        if monitor_id is not None:
+            sql, args = sql + " WHERE monitor_id = ?", [monitor_id]
+        with self._db() as conn:
+            rows = conn.execute(sql + " ORDER BY started_ms DESC, episode_id LIMIT ?", [*args, int(limit)]).fetchall()
+        return [_receipt_json(row) for row in rows]
+
+    def receipts_today(self, monitor_id: str, now: datetime) -> int:
+        """Receipts that spent this monitor's ``daily_turn_cap`` on ``now``'s UTC day."""
+
+        if not self.exists():
+            return 0
+        day = now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        start, end = to_ms(day), to_ms(day + timedelta(days=1))
+        with self._db() as conn:
+            return int(conn.execute(
+                f"SELECT COUNT(*) FROM receipts WHERE monitor_id = ? AND started_ms >= ? AND started_ms < ? "
+                f"AND outcome IN ({', '.join('?' * len(CAPPED_OUTCOMES))})",
+                (monitor_id, start, end, *CAPPED_OUTCOMES)).fetchone()[0])
+
+    # --- ingress routes (L3) --------------------------------------------------
+
+    def save_route(self, route: dict[str, Any]) -> None:
+        with self._db() as conn:
+            if conn.execute("SELECT COUNT(*) FROM ingress_routes").fetchone()[0] >= MAXIMUM_ROUTES:
+                raise LensStoreError(StoreRefusal.ROUTES_FULL)
+            conn.execute(f"INSERT INTO ingress_routes ({', '.join(_ROUTE_COLUMNS)}) VALUES "
+                         f"({', '.join('?' * len(_ROUTE_COLUMNS))})",
+                         tuple(json.dumps(route[c], sort_keys=True) if c == "mapping" else route[c]
+                               for c in _ROUTE_COLUMNS))
+
+    def route(self, route_id: str) -> dict[str, Any]:
+        with self._db() as conn:
+            row = conn.execute(f"SELECT {', '.join(_ROUTE_COLUMNS)} FROM ingress_routes WHERE route_id = ?",
+                               (route_id,)).fetchone()
+        if row is None:
+            raise LensStoreError(StoreRefusal.ROUTE_NOT_FOUND)
+        return _route_json(row)
+
+    def routes(self, *, monitor_id: str | None = None) -> list[dict[str, Any]]:
+        if not self.exists():
+            return []
+        sql, args = f"SELECT {', '.join(_ROUTE_COLUMNS)} FROM ingress_routes", []
+        if monitor_id is not None:
+            sql, args = sql + " WHERE monitor_id = ?", [monitor_id]
+        with self._db() as conn:
+            rows = conn.execute(sql + " ORDER BY created_ms, route_id", args).fetchall()
+        return [_route_json(row) for row in rows]
+
+    def delete_route(self, route_id: str) -> dict[str, Any]:
+        route = self.route(route_id)
+        with self._db() as conn:
+            conn.execute("DELETE FROM ingress_routes WHERE route_id = ?", (route_id,))
+        return route
+
+
+_ROUTE_COLUMNS = ("route_id", "monitor_id", "kind", "secret_ref", "mapping", "created_ms")
+
+
+def _route_json(row: tuple[Any, ...]) -> dict[str, Any]:
+    out = dict(zip(_ROUTE_COLUMNS, row))
+    out["mapping"] = json.loads(out["mapping"])
+    return out
+
+
+def _receipt_row(receipt: dict[str, Any]) -> tuple[Any, ...]:
+    values = dict(receipt)
+    values["artifact_handles"] = json.dumps(list(values.get("artifact_handles") or []), sort_keys=True)
+    values["files"] = json.dumps(list(values.get("files") or []), sort_keys=True)
+    values.setdefault("session_id", None)
+    values.setdefault("finished_ms", None)
+    return tuple(values[column] for column in _RECEIPT_COLUMNS)
+
+
+def _receipt_json(row: tuple[Any, ...]) -> dict[str, Any]:
+    out = dict(zip(_RECEIPT_COLUMNS, row))
+    out["artifact_handles"] = json.loads(out["artifact_handles"])
+    out["files"] = json.loads(out["files"])
+    return {"version": 1, **out}

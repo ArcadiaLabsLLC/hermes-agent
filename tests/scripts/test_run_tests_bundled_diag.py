@@ -131,3 +131,24 @@ def test_the_block_ranks_files_per_column_and_the_store_gets_one_line_per_file(t
 def test_an_empty_diagnosis_prints_and_records_nothing(tmp_path):
     assert diag.render(diag.Diagnosis()) == [] and diag.run_record(None) == {}
     assert diag.append(tmp_path, "r", diag.Diagnosis()) is None
+
+
+def test_body_patch_and_teardown_error_columns_fold_from_the_events(tmp_path):
+    """p10 S-A1: ``bp`` on a call line and a teardown ``error`` fold into three per-file test counts.
+    Mutation: ``_on_test`` ignores ``bp`` -> ``body_patches == 0``."""
+    d = diag.Diagnosis()
+    d.add([
+        json.dumps({"k": "test", "f": "tests/c.py", "c": "passed", "d": 0.1, "w": "call", "bp": [2, 0, 0]}),
+        json.dumps({"k": "test", "f": "tests/c.py", "c": "passed", "d": 0.1, "w": "call", "bp": [0, 1, 3]}),
+        json.dumps({"k": "test", "f": "tests/c.py", "c": "passed", "d": 0.1, "w": "call"}),
+        json.dumps({"k": "test", "f": "tests/c.py", "c": "error", "d": 0.1, "w": "teardown", "n": "tests/c.py::x"}),
+        json.dumps({"k": "test", "f": "tests/c.py", "c": "error", "d": 0.1, "w": "setup", "n": "tests/c.py::y"}),
+    ])
+    row = d.rows["tests/c.py"]
+    assert (row.body_patches, row.late_fixture_patches, row.teardown_errors) == (2, 1, 1)
+    assert row.teardown_error_ids == ["tests/c.py::x"]
+    assert diag.run_record(d)["diagnosis"]["counts"] == {"body_patches": 2, "late_fixture_patches": 1,
+                                                         "teardown_errors": 1}
+    line = json.loads(diag.append(tmp_path, "r", d).read_text(encoding="utf-8").splitlines()[0])
+    assert (line["body_patches"], line["late_fixture_patches"], line["teardown_errors"]) == (2, 1, 1)
+    assert "  body_patches (tests):\n           2   tests/c.py" in "\n".join(diag.render(d))

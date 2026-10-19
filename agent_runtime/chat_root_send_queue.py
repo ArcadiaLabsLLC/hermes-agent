@@ -48,6 +48,9 @@ ORIGIN_ARG = "send_origin"
 #: The origin key a scheduler fire carries (``work_store/serve_scheduler.py``); the ``scheduled_turn``
 #: running-work lane reads the entries that name it (:func:`entries_from`).
 SCHEDULE_ORIGIN_KEY = "schedule"
+#: The origin block a platform message carries (``messaging/bridge.py``); the ``messaging_turn`` lane and the
+#: serve's idle-drain hold read the entries that name it.
+MESSAGING_ORIGIN_KEY = "messaging"
 
 #: Fields of the send's argument namespace that are never persisted: the
 #: transport (the queued run is answered through the door's sink, never a

@@ -12,6 +12,7 @@ import logging
 import time
 from typing import Any
 
+from agent_runtime.operator_files import with_file_lines
 from agent_runtime.operator_images import with_media_lines
 from agent_runtime import paths, relay_policy
 from agent_runtime.auxiliary_chat import is_auxiliary_chat
@@ -176,7 +177,10 @@ class _RunPhases:
         )
         laps.lap("revision")
         self.runtime_registry = runtime_registry
-        self.chat_message = self.message
+        # RT-MISSION-CHAT-MESSAGE-TAKES: the request text names each staged file by a
+        # ``FILE:<path>`` line (owner RULED 2026-10-19: staged, never inlined). The mirrored
+        # row below composes from this same text, so the two cannot differ.
+        self.chat_message = with_file_lines(self.message, getattr(self, "user_files", ()))
         # Relay sender attribution: resolve who sent this incoming message ONCE
         # (agent_chat_send relays carry requested_by="agent:<caller session>") and
         # hand the typed marker to the runtime, which stamps it on the native user
@@ -455,6 +459,7 @@ class _RunPhases:
                 "pending_user_message": self.message,
                 # The pasted images' stored files: a retry or replay of this record names the same bytes.
                 **({"pending_user_images": list(self.user_image_paths)} if getattr(self, "user_image_paths", ()) else {}),
+                **({"pending_user_files": [str(f.path) for f in self.user_files]} if getattr(self, "user_files", ()) else {}),
                 "provider_submitted": False,
                 # Rides the persist that already happens — no new write. On a
                 # turn that dies before the provider this is the ONLY phase
@@ -506,7 +511,7 @@ class _RunPhases:
             session_id=session_id,
             role="user",
             text=_redact_persona_chat_text(
-                with_media_lines(self.message, getattr(self, "user_image_paths", ()))
+                with_media_lines(self.chat_message, getattr(self, "user_image_paths", ()))
             ),
             client_message_id=client_message_id,
             turn_id=stream_emitter.turn_id,

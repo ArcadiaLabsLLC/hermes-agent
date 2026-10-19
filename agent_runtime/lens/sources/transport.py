@@ -57,6 +57,18 @@ class ReadReason(str, Enum):
     OUTLIER = "outlier"
     #: A total cost needed an exchange rate and held no current dated one (W5).
     FX_STALE = "fx_stale"
+    #: A ``push`` feed is written by its ingress route only; nothing reads it (L3).
+    PUSH_ONLY = "push_only"
+    #: A POST to the feed's ingress route was refused (signature, replay, size, body; L3).
+    INGRESS_REFUSED = "ingress_refused"
+    #: A ``sql_readonly`` statement that does not begin with SELECT / WITH (L4).
+    STATEMENT_REFUSED = "statement_refused"
+    #: A ``command_allowlisted`` argv outside its allow list (L4).
+    COMMAND_REFUSED = "command_refused"
+    #: The command did not start, or exited non-zero (L4).
+    COMMAND_FAILED = "command_failed"
+    #: A command feed of a manifest that is not sealed (a preview of a draft; L4).
+    NOT_SEALED = "not_sealed"
     SOURCE_FAILED = "source_failed"
 
 

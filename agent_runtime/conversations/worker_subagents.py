@@ -24,9 +24,15 @@ def declare_contracts():
     class SubagentSteerParams(SubagentCommandParams):
         text: str
 
+    class SpawningParams(SubagentReadParams):
+        host_ref: str | None = None
+        paused: bool | None = None
+        host_kind: str | None = None
+
     class OwnedSubagentSnapshot(SubagentSnapshot):
         child_ref: str | None
         controllable: bool
+        skills_lent: list[str] = []
 
     class ChildObservation(Result):
         version: int
@@ -68,8 +74,18 @@ def declare_contracts():
     class ChildCommandResult(Result):
         data: ChildCommand
 
+    class Spawning(ChildObservation):
+        scope: str
+        host_kind: str
+        host_ref: str
+        paused: bool
+
+    class SpawningResult(Result):
+        data: Spawning
+
     results = {"capabilities": ChildCapabilitiesResult, "list": ChildRosterResult, "tail": ChildTailResult,
-               "steer": ChildCommandResult, "stop": ChildCommandResult, "receipt": ChildCommandResult}
+               "steer": ChildCommandResult, "stop": ChildCommandResult, "receipt": ChildCommandResult,
+               "spawning": SpawningResult, "spawning.set": SpawningResult}
 
     for operation in OPERATIONS:
         name = "eternia.subagents." + operation
@@ -77,6 +93,8 @@ def declare_contracts():
             params = SubagentCommandParams if operation in ("steer", "stop", "receipt") else SubagentReadParams
             if operation == "steer":
                 params = SubagentSteerParams
+            if operation in ("spawning", "spawning.set"):
+                params = SpawningParams
             registry.method(name, params=params, result=results[operation])
 
 

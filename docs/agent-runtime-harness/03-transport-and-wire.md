@@ -53,6 +53,13 @@ it counts (`unicode_code_point`, Python `len`). A composer resolves its own limi
 from that value and product entitlements and refuses before send; the server refusal
 (`message_invalid`) stays final. No client copies the number.
 
+`rpc.limits.files` (RT-MISSION-CHAT-MESSAGE-TAKES) is
+`agent_runtime/operator_files.py::files_limits()` = the native conversation lane's
+`conversations/prompt.py::files_capability()` — `{max_count, max_file_bytes,
+max_total_bytes, media_types}`, one owner of the number (D2.01). It bounds the `files`
+param of `runtime.chat.message` below; the console reads it the way the native lane reads
+`capabilities.files`.
+
 ## Operator model selection
 
 The existing `runtime.operator.conversation.model.select` also accepts
@@ -139,6 +146,9 @@ existing session; none selects a default or creates a conversation worker.
 Read projects SessionDB, the turn journal, admission receipts and clarify tickets.
 Message calls the existing `perform_chat_turn`; Stop targets its exact admitted
 execution. See [turn ownership](05-chat-turn-lane.md#existing-operator-conversations).
+A settled turn's history row carries `turn_outcome` and its `executions[]` entry
+`left_behind` — the same stored block, copied, absent when nothing was recorded
+([what the turn left behind](05-chat-turn-lane.md#7-turn-durability-and-the-run-budget)).
 
 ## 1. The serve process model
 
@@ -901,6 +911,20 @@ model it runs on; otherwise the provider gets upstream's
 line per image (the bubble, and `runtime.media.get`'s derived scope). Module:
 `agent_runtime/operator_images.py`.
 
+**`files` on `runtime.chat.message` (RT-MISSION-CHAT-MESSAGE-TAKES, 2026-10-19).**
+`[{name ≤200, media_type, data (base64)}]` — the native lane's `prompt.files` item shape —
+bounded by `rpc.limits.files` (8 files, 256 KiB each, 512 KiB together, `text/*`, json,
+xml, yaml, csv, pdf). Refusals at the door are the native spellings, `file_unsupported` /
+`file_oversize` / `file_invalid` (`ChatTurnInvalid.reason`). The bytes are stored
+content-addressed under `<store root>/operator_files/<sha256>.<ext>` with a
+`<sha256>.name.json` sidecar, and the argv names each as `--file sha256:<hex>.<ext>`. A
+file is STAGED, never inlined (owner ruling 2026-10-19): the turn's request text and its
+user row gain one guidance sentence and one `FILE:<path>` line per file, before any
+`MEDIA:` lines, and the agent reads what it needs with `read_file`. A `FILE:` line joins
+`runtime.media.get`'s derived scope only when its path sits directly in that store
+(`media_handles._DECLARATION_ADMITS`). `RPC_CONTRACT_VERSION` does not move. Module:
+`agent_runtime/operator_files.py`.
+
 **The tier is now a refusal, and what it refuses is a paired device** (Stage A5,
 landed with the gateway's Stage 1). `authorize_call` compares the tier a
 device's record HOLDS — read off `gateway/devices.json` by the transport, fixed
@@ -1129,14 +1153,16 @@ Every `state.reconciled` names a producer bug to fix at source.
 | `delta` | `delta_frame` (`:376`) / `delta_batch_frame` (`:393`) | 1 | yes — ONE core per batch |
 | `patch` | `patch_batch_frame` (`:456`) | 2 | **no** |
 | `heartbeat` | `heartbeat_frame` (`:328`) | 1 | no |
-| `running_work` | `running_work_frame` (`stream/frames.py`) | 1 | **no** — the `running_work` section alone |
+| `running_work` | `running_work_frame` / `running_work_section_frame` (`stream/frames.py`) | 1 | **no** — the `running_work` section alone (un-sequenced overlay, or sequenced for a `running_work_section` room) |
 | `persona_chat_turn` | `persona_chat_turn_frames` (`stream/frames.py`) | 2 | **no** — one chat root's turn sections |
 
 The chat lane's per-request protocol-v2 frames (`turn.start`, `segment.*`, `tool.*`,
 `reasoning.summary`, `turn.end`, then `chat.final`) are not stream frames and have no row here;
 their one additive turn-end pair — `reasoning_tokens` / `reasoning_ms` on `turn.end` and
 `chat.final`, and on each history-replay `thinking_summary` message carried in the core's
-operator-channel conversation — is doc 05 §2b.
+operator-channel conversation — is doc 05 §2b. Every `segment.delta` carries `t_ms`: an int,
+milliseconds since that turn's emitter started (`_ChatProtocolV2Emitter._started_at`, monotonic),
+stamped at emit, so a consumer can tell which hop bunches streamed text (launcher `MC-STREAM-CHOPPY`).
 
 `persona_chat_turn` (plan h-turn1 §2 C1/C2) replaces the demote core of a batch
 made ONLY of chat-turn events (`batch_turn_roots`: the three `persona_chat.*`
@@ -1217,6 +1243,24 @@ is uncovered), so the finished turn left `running_work` only with the next
 full core — 16.6 s after `turn_ended` measured live, a 10.2 s build queued
 behind another. The office sink skips it (`_NON_OFFICE_STATE_FRAME_TYPES`).
 
+Since 2026-10-19 (row `RT-EMIT-RUNNING-WORK-CHAT`, plan `planned/p10-turn-2026-10-19.md` §2) the
+overlay also ships for a batch carrying a terminal process's `running_work.process_started` /
+`running_work.process_ended` (`stream/frames.py::batch_changes_running_work_presence`; the old
+`batch_changes_chat_turn_presence` name is an alias for one release). The pair is appended by
+`agent_runtime/running_work/process_presence.py` from the additive upstream seam
+`tools/process_registry.py::ProcessRegistry.add_lifecycle_listener` (spawn and FIRST finish, after the
+checkpoint write; a held PR row in `planned/upstream-footprint-ledger.md`), installed by the plugin's
+`register(ctx)` in every hermes process. A batch made ONLY of those events (and watchdog reconciles
+whose `families == ["running_work"]`, `stream/frames.py::batch_is_running_work_only`) is expressed
+whole by the section, so a room where EVERY subscriber declared the sixth token
+`running_work_section` (`patch_coverage.RUNNING_WORK_SECTION_CAPABILITY`) is handed ONE
+`running_work` frame carrying `base_offset` / `watermark` exactly as `patch` does (and
+`coalesced_count`, no `as_of_offset`) instead of the demote core
+(`stream/build.py::_turn_batch_frames`); the client folds the section whole and advances its sequence
+on it. Some or none declared, or the read failed → today's demote core; there is no split. The
+un-sequenced overlay still ships first from `StreamSession.flush` either way. Announced builds stay on
+the full-core lane (RULED 2026-10-16: their writer is not hermes).
+
 `_delta_op` (`:1375`) is a four-arm table — `run.tool.*` / `run.progress` →
 `chat.trace.appended`, `incident.*` → the source type verbatim,
 `persona_assignment.*` → `instance.upserted`, everything else →
@@ -1275,6 +1319,13 @@ Rules, all in `agent_runtime/patch_coverage.py`:
 
 Negotiation makes a new entity POSSIBLE; it does not enable one. The producer
 still emits `state.patched` only for entities its chokepoints cover.
+
+**Frame-gating tokens** ride the same declaration channel and are intersected the same way, but gate
+a FRAME rather than a patch row: `persona_chat_turn` (the fourth), `persona_chat_open` (the fifth,
+a widening of the fourth) and `running_work_section` (the sixth, 2026-10-19, §3 above: a
+running-work-only batch rides a sequenced `running_work` section frame). Every mixed pair degrades to
+today's wire: an old client never declares a token and keeps its core; an old runtime ignores the
+string.
 
 **The `scope` entity, and the demote a pointer flip no longer buys
 (2026-09-01, instant-workspace-switching WS1/WS4 — hermes `ffd540bf73`).**
@@ -1683,7 +1734,7 @@ omit the module and never advertise the methods.
 
 | Method | Input beyond scope | Result | Typed refusals |
 |---|---|---|---|
-| `runtime.work.capabilities` | none | `owners[] {owner, workspace_id, label, operations}`, `default_brain {ws: {state: present \| created \| moved (+ `into`) \| absent \| unavailable (+ `reason`)}}`, `limitations[]`, `chat_scopes`, `execution_identity_guard` | `scope_denied`, `work_unavailable` |
+| `runtime.work.capabilities` | none | `owners[] {owner, workspace_id, label, operations}`, `default_brain {ws: {state: present \| created \| moved (+ `into`) \| absent \| unavailable (+ `reason`) \| remote (+ `clone_url`) \| remote_pending_declare (+ `clone_url`, `slot`) \| remote_refused (+ `reason`, `retry_after`)}}` (`present`/`created` carry `reason: needs_git_account` while no GitHub credential answers), `limitations[]`, `chat_scopes`, `execution_identity_guard` | `scope_denied`, `work_unavailable` |
 | `runtime.work.context` | `client_scope`, `conversation` | `scopes`, `agent_profile`, `assignee`, `can_start` | `invalid_request`, `work_owner_changed` |
 | `runtime.work.list` | `slot?`, `status?` (`READY` / `BLOCKED` / `DEFERRED` / `NEEDS PLAN` / `TAKEN`), `assignee?` (`persona:<token>`), `view?` (`all` / `conversation`), `stale_ok?` | `boards[] {slot, label, brain_dir, bound_here, local, is_default, default_branch, committed_at, queues[] {note, program, title, rows[]}}` — grouped per brain, then per domain (one queue note each; `program` from its frontmatter; every row carries `slot` and `program`), `cursor: null`, `read_at`, `stale` | `work_owner_changed`, `fetch_failed` (unless `stale_ok`) |
 | `runtime.work.inspect` | `slot`, `task_id` | `task` or null; `ending {commit, at, subject, body}` (the deleting commit) when null | `work_owner_changed`, `slot_unbound` |
@@ -1693,7 +1744,8 @@ omit the module and never advertise the methods.
 | `runtime.work.release` | `request_id`, `slot`, `task_id`, `status?` | `task`, `receipt` | `row_gone`, `not_claimant`, git reasons |
 | `runtime.work.set_status` | `request_id`, `slot`, `task_id`, `status` (a full status segment) | `task`, `receipt` | `row_gone`, `grammar_invalid`, `not_claimant`, git reasons |
 | `runtime.work.done` | `request_id`, `slot`, `task_id`, `result` (≤4,000, one paragraph) | `ending`, `receipt` — the row is deleted; the commit body carries the result | `row_gone`, `not_claimant`, git reasons |
-| `runtime.work.create_brain` | `request_id`, `slot?` (omitted: the default brain) | `board`, `receipt` | `slot_unbound`, git reasons |
+| `runtime.work.create_brain` | `request_id`, `slot?` (omitted: the default brain), `promote?` (`true`: promote the default brain to a private GitHub remote now, ignoring the automatic path's back-off — doc 06 § The todo board) | `board`, `receipt`, `promotion?` (`{outcome: promoted \| already, url, declaration}`) | `slot_unbound`, git reasons; with `promote`: `needs_git_account`, `remote_exists`, `git_host_unsupported`, `token_scope`, `host_unreachable`, `remote_diverged`, `url_mismatch` |
+| `runtime.work.lend_skills` | `request_id`, `slot`, `task_id`, `skills` (non-empty list of slugs), `mode?` (`lend` default: the union with the row's set; `revoke`: the difference) | `task`, `receipt` — the row's `skills:` segment rewritten (removed when empty); a write verb (RULED 2026-10-18) | `invalid_request`, `skills_not_loadable` (+ `rejected_skills {slug: reason}`; nothing written), `row_gone`, `not_claimant`, git reasons |
 
 Scope is `install_id` plus the opaque `owner` = `fingerprint([install, workspace_id])`; every call
 re-derives the owner set and a missing or changed owner refuses. The idempotency key is `request_id`
@@ -1708,6 +1760,12 @@ is the receipt log.
 
 A session that races the writer on the same queue note re-applies its op by ID with
 `scripts/work_row.py` in its own checkout (never a text merge).
+
+A row's `skills: `<slug>`[, `<slug>`]` segment (ADR 0011 amendment 2026-10-19) lends skills to whoever
+works it: every projected task carries `skills: [..]`; the engine's and the batch planner's `Assignment.skills`
+are DERIVED from it (a batch lane takes its rows' union, `Lane.skills` on the wire), and the persona-turn
+executor queues them for the run's turn through `queue_skills_for_next_turn` before it queues the turn (an
+unloadable skill refuses the run `skills_not_loadable`); an `UNTIL_DONE` continuation re-queues them.
 
 ### Chat goal methods and `UNTIL_DONE` Work runs
 
@@ -1773,9 +1831,8 @@ written to the `-scratch` directory beside it and sent as the persona's turn, wh
 `invalid_request`, `reason: run_workdir_unavailable` — never falls back to the ladder). The settle reads the lane's commits from git (`base..branch`).
 `land` cuts `land/<batch>` per slot the batch touched and merges each `REPORTED` lane `--no-ff` in order (a
 conflict is aborted and named in the landing brief). When the landing turn settles, the executor runs the
-landing gate itself, off the settle's thread, in each slot's landing worktree (`gate.py::GateRunner`; the
-landing brief's `tests`, `planner.LANDING_GATE` = `bash scripts/run_tests_bundled.sh tests`) and records one
-code-run receipt per slot — `{slot, command, exit_code, summary, sha, seconds}`, `sha` the HEAD it ran on —
+landing gate itself, off the settle's thread, in each slot's landing worktree (`gate.py::GateRunner`) and
+records one code-run receipt per slot — `{slot, command, exit_code, summary, sha, seconds}`, `sha` the HEAD it ran on —
 in the manifest's batch line (`gate_receipts`; `Batch.gate_receipts`). Those receipts alone decide
 `AWAITING_APPROVAL`; the persona's `work_report` verdict is advisory (`advisory`; row RT-BATCH-GATE-RECEIPT,
 owner ruling 2026-10-18). `approve` refuses `gate_not_green` without a green receipt per slot, and
@@ -1783,6 +1840,18 @@ owner ruling 2026-10-18). `approve` refuses `gate_not_green` without a green rec
 HEAD) before it pushes each landing HEAD fast-forward. `land` and `approve` hold
 `locks.batch_landing_lock` (one landing per machine). Receipts: `batch.lane_site`, `batch.gate_started`,
 `batch.gate`.
+
+Which command runs per slot (row RT-BATCH-GATE-PER-SLOT-COMMAND, owner ruling 2026-10-19): the plan's
+`landing` lane carries `gates {slot: [command…] | null}`, one entry per slot its lanes touch, read at plan
+time by `gate.py::slot_gate` in this order — (1) the slot declaration's `context.gate` (a list of non-empty
+command strings set through `workspace.slots.declare`, refused `invalid_declaration` when one carries a
+credential; `[]` is "declared none", a red receipt); (2) `GATES_BY_TOOLCHAIN_KIND[toolchain.kind]`
+(`python`/`hermes` → `bash scripts/run_tests_bundled.sh tests`, `flutter` → `dart tool/heavy_run/run.dart --
+dart tool/run_tier.dart`, `django`/`backend` → `bash scripts/test.sh`, `brain` → `:`); (3) the default brain:
+`:`, a green receipt `no code to test: brain-only slot` without a subprocess; (4) `null`: a RED receipt
+`no gate declared for slot <name>; set context.gate`, never a skip, so `approve` refuses `gate_not_green`. A
+manifest written before `gates` existed folds to `{}` — every slot red; that batch is stopped and planned
+again.
 
 ### Schedule methods — the serve's scheduler
 
@@ -1810,6 +1879,32 @@ on a row another claimant holds is refused `already_taken`, a multi-row assignme
 The persona tool is `schedule_manage`, in the opt-in `schedule` toolset (never `harness_core`). Receipts:
 `schedule.arm | disarm | fire | queued | abandoned`.
 
+### Messaging methods — the headless persona gateway (p10-messaging)
+
+`runtime.messaging.*` (`agent_runtime/messaging/rpc.py::OPS`, one row per op, registered lazily by
+`serve_rpc/registry.py::_ensure_messaging_methods` only where `agent_runtime.messaging` ships — both bundle
+manifests switch it off). `status` (read) answers `{enabled, default_persona, platforms: {telegram:
+{credential: present|absent, bindings, operators, lane: {state: running|off|draining, reason}}}}`; the token
+itself is never on a reply, a receipt or a log. Console: `binding.set|clear|list` (a platform chat POINTS AT a
+persona instance; the session is always the instance's current chat root), `operator.allow|revoke|list`
+(unknown platform users are dropped fail-closed), `credential.set|clear` (also `LOCAL_CONSOLE_METHODS`: a
+paired device never writes the bot token), and `platform.enable|disable` (`{platform?}` → `{platform,
+enabled, lane}`), which write `plugins.entries.eternia-harness.settings.messaging_enabled` through
+`hermes_cli.config.save_config` and wake the running serve's lane, which converges within one tick — read
+`status` for the result. Refusals: `invalid_request` / `unknown_platform` / `token_invalid` (-32602),
+`unknown_instance` (4001), else `messaging_unavailable` (-32000), each with `data.reason`.
+
+The bridge is a serve lane (`agent_runtime/messaging/serve_lane.py::start_messaging_bridge`, started by
+`queued_turns.start_serve_work_engine` after the scheduler, on the same executor): a platform runs while the
+setting is true, its token is present and no drain has begun, else it is `off` with a typed `LaneReason`
+(`disabled`, `credential_absent`, `start_failed`, `not_serving`) — a missing token is reported, never raised.
+An inbound message is a QUEUED send (`PersonaTurnExecutor.queue_inbound`, cmid `msg-<platform>-<update_id>`,
+origin kind `messaging`), so it shows as a `running_work` row of kind `messaging_turn` and its settle carries
+the reply; an exec approval on any bound root becomes a platform card answered through
+`respond_operator_approval`, the launcher's own resolve. Receipts: `messaging.inbound | queued | replied |
+refused | bound | lane | approval_card | approval_answered`. Plan and remaining stages:
+[p10-messaging](planned/p10-messaging-2026-10-19.md).
+
 ### Conversation-scoped Work
 
 `agent_runtime/work/context.py` resolves optional `conversation` references through existing
@@ -1819,3 +1914,22 @@ persona_instance_id, session_id}`; it passes `validate_operator_conversation`, a
 IS the assignee: `context.assignee = persona:<persona_instance_id>`, the default `who` of a claim, the
 default `assignee` of a `start` (a row started there for that instance is written `TAKEN` by it), and the
 `conversation` view lists the rows that instance holds (`in_conversation`).
+
+**Lending skills to a worker (p10-work S2).** The gateway worker's `eternia.skills.{list,detail,history}`
+(`conversations/worker_skills.py`) take the `eternia.subagents.*` child address — `owner_scope`,
+`worker_generation`, `child_ref`, all three or none (a partial address is 4090 `invalid_request`). With it,
+the read is the CHILD's (`subagents/native.py::child_record`: its agent's cwd, its own `valid_tool_names` for
+`can_load`, its own `session_id` for history) and `list` adds `lent: [..]`; a stale generation or a replaced
+worker is the subagent refusal (4602 `subagent_reference_stale`), never a parent read.
+`eternia.skills.lend` `{session_id, owner_scope, worker_generation, child_ref, skills, mode: lend | revoke,
+request_id}` is the worker half of lending (a write verb, RULED 2026-10-18; a task's half is
+`runtime.work.lend_skills`, and `lend` without a child says so): every lent skill is resolved first
+(`skills_not_loadable` + `rejected_skills`, nothing written), then the record
+`<store_root>/skill_lends/child_<subagent_id>.json` `{target, owner_session, skills, lent_at, lent_by, pid}`
+(`agent_runtime/skill_lends.py`), then the child's `_chat_lane_compact_skill_categories` = the parent's
+compact set ∩ compact(lent) (an unscoped parent stays unscoped; nothing lent restores the unscoped child),
+then a steer (`Skills lent: …` / `Skills no longer lent: …`). Reply `{target, skills_lent, effective:
+"next_turn", steered}` — a body already loaded is not unloaded mid-turn. The `eternia.subagents.list` roster
+row carries `skills_lent`. The record lives as long as its child: the dispatch drain's orphan cadence
+(`dispatch_delivery/drain.py::sweep_skill_lends`) and every lend drop a record whose child this process no
+longer registers, and another process's record once that process is dead.

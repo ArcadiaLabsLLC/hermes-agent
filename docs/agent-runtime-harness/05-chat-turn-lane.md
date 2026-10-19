@@ -224,6 +224,17 @@ file created and the owner refusal.
 
 ## 1. Send admission — the turn's identity and its thread
 
+**Attachments are admitted before the turn runs.** `chat_turn_commit/admit.py` resolves
+`--image` refs (`_admit_images`: `image_invalid`, or `vision_unsupported` for a model without
+vision) and then `--file` refs (`_admit_files`, RT-MISSION-CHAT-MESSAGE-TAKES: a ref naming
+no stored file is `file_invalid`, admission family, `next_expected` "re-send the files with
+the message"). The door's own refusals (`file_unsupported` / `file_oversize` /
+`file_invalid`) and `limits.files` are doc 03's. An admitted file is staged, never inlined:
+`run.py` composes the request text as `with_file_lines(message, user_files)` and the
+mirrored user row from that same text (`MEDIA:` lines after), and the write-ahead record
+carries `pending_user_files` beside `pending_user_images`
+(`mission_chat_turns/records.py::_JOURNAL_PATH_LISTS`).
+
 **Inline relay admission uses the runtime head, not the sender's profile.**
 `hermes_cli/harness_parts/mission_chat_door_binding.py::_mission_chat_turn_via_cli`
 enters `profile_context.process_home_scope(get_hermes_head_home())` around the
@@ -316,6 +327,14 @@ keyed on the caller's `idempotency_key` or `send:<client_message_id>`. Two typed
 bind-landed/transcript-didn't case, which retracts the bind rather than returning a root that
 dereferences nowhere). An ambiguous BARE persona target — more than one live instance, no pin, no
 session — is refused before all of this with the candidate `@handles` (`:2210-2234`).
+
+**A platform message is a queued send (p10-messaging).** The messaging bridge never runs a turn: a
+message from an allowed operator in a bound chat is `PersonaTurnExecutor.queue_inbound` on the bound
+instance's CURRENT chat root (minted through `open_chat` with mint receipts when there is none), idempotent
+by the platform's update id (cmid `msg-<platform>-<update_id>`), held behind a busy root like any queued
+send; the queued-send runner runs it through `run_mission_chat_turn` and the executor's `messaging` origin
+listener sends the settle's reply back to the chat it came from. There is no second session store
+([03 § Messaging methods](03-transport-and-wire.md)).
 
 ## 2. The turn phases contract
 
@@ -973,6 +992,38 @@ own byte budget — `turn_budget` 1024, `capability` 4096, `mcp_admission` 2048
 long capability account cannot squeeze out the countdown. Over-budget content states its shortfall
 twice: in band, so the agent reads it was not told everything, and as a typed accounting row, so no
 operator has to grep prose to learn a fact was clipped.
+
+**What the turn left behind** (`RT-TURN-LEFT-BEHIND-RECORD`, plan `planned/p10-turn-2026-10-19.md` §1)
+rides the terminal record as ONE optional block, `turn_outcome {schema: 1, tests[{command, exit_code,
+verdict}], commits[{command, sha, pushed}], files[{path, op}], truncated}`. The persona runner binds a
+fold around `run_conversation` (`agent_runtime/turn_outcome.py::bind_turn_outcome`, beside the usage
+ledger in `profile_runner/execute.py::_run_conversation_with_usage_ledger`); the eternia-harness
+plugin's `post_tool_call` hook feeds it (`turn_outcome.py::on_post_tool_call`), classifying a terminal
+command by the `COMMAND_SHAPES` table. Failed calls are included (a red test is what a turn left
+behind); `verdict` comes from the exit code only (`null` → `unknown`); `pushed` is `true` or `null`,
+never `false`; `files` come from `write_file`/`patch` args on an `ok` call. The settle point
+(`chat_turn_commit/settle.py::_project`) persists it through
+`mission_chat_turns/records.py::safe_turn_outcome` and logs one `turn_outcome turn=… tests=… failed=…`
+receipt line, never a frame key. Absent means "not recorded" — a Codex app-server turn fires no
+`post_tool_call` — so the block bumped no `TURN_RECORD_SCHEMA_VERSION`. The reads copy it:
+`operator_execution.py::execution_status` as `left_behind`, the history row as `turn_outcome`
+(`persona_chat_history/markers.py::_carry_turn_outcome`).
+
+### 7a. A long tool call lost to a restart (RT-LONG-CALL-WAKE-LOST-ON-RESTART, 2026-10-19)
+
+A call promoted to the background (`tools/long_tool_calls.py`) runs on a worker thread of the
+serve that promoted it, so a restart kills it with no finish and no wake. The serve boot closes
+that gap before the drain starts: `boot_phases._boot_sweeps_and_ready_frame` runs
+`long_tool_calls.sweep_orphaned_rows(running_work.background_work_homes())` (the head home and
+every profile home), which re-owns each `running` row whose writer pid is dead or recycled as a
+`lost` row stamped with THIS process's identity, and queues one `tool_call_finished` wake with
+`outcome = "lost"` routed by the row's own `session_key` / `task_id` / `owner_task_id` /
+`parent_session_id`. The drain delivers it like any finish (the agent reads that the result was
+never produced and may re-issue the call) and settling it retires the row; until then the Activity
+row reads `error` with `outcome: lost`. A `lost` row whose wake had not settled before a second
+restart is re-woken once by the next boot. An unprovable pid (no baseline, unreadable start time)
+is left alone and reads `unknown`. The ready frame carries `long_calls_lost` only when the sweep
+found any; the receipt is `long_tool_call_receipt {event: "lost", …}`.
 
 ## 8. Session scope and continuity
 
