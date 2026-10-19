@@ -100,7 +100,7 @@ def _payload(session: Any, *, ended: bool) -> dict[str, Any]:
         "process_session_id": process_session_id,
         "work_id": work_id_of(KIND_TERMINAL, process_session_id),
         "pid": _pid(getattr(session, "pid", None)),
-        "command": _command(getattr(session, "command", "")),
+        "command": _process_command(getattr(session, "command", "")),
         "owner_task_id": str(getattr(session, "owner_task_id", "") or "") or None,
         "started_at": _iso(getattr(session, "started_at", None)),
     }
@@ -115,7 +115,7 @@ def _pid(value: Any) -> int | None:
     return int(value) if isinstance(value, int) and not isinstance(value, bool) else None
 
 
-def _command(command: Any) -> str:
+def _process_command(command: Any) -> str:
     """The checkpoint's redaction (``redact_sensitive_text(..., code_file=True)``),
     then the row's bound — so the event never carries text the row would not."""
 
