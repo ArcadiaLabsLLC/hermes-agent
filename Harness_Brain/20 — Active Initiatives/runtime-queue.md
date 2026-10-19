@@ -884,6 +884,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-19 (launcher wave w1020)
 
+- **`RT-BUNDLED-PHONE-PROFILE` — the Stage 2 phone package profile for `scripts/bundle_profile_package.py` (beside `bundled-desktop`) does not exist, so the launcher cannot retire `tool/mobile_core/wheel.lock.json` for the desktop lock's commit with a phone profile** · `scripts/bundle_profile_package.py` · launcher row `DIST-MOBILE-CORE-WHEEL-LOCK` slice 2, plan `EterniaLauncher/docs/embedded_hermes/planned/MOBILE_WHEEL_LOCK_2026-10-19.md` · filed 2026-10-19 by launcher lane w1020-core · NEEDS PLAN 2026-10-19: name the phone profile and what it bundles
 - **`RT-PROVIDER-AUTH-MODES` — `runtime.provider.list` catalog entries carry `auth_modes: [{id, label, needs_key}]` (azure-foundry: `api_key`, `entra_id`) and the provider-configure verb accepts the chosen mode** · launcher plan `EterniaLauncher/docs/mission_control/planned/AZURE_IDENTITY_AUTH_MODE_2026-10-19.md` · blocks launcher `MC-AZURE-IDENTITY-PACK` (filed by launcher lane w1020-mc-b) · READY 2026-10-19
 
 ## Filed on arrival — 2026-10-19 (launcher wave w1019 plans + backend wave bw-1018)
