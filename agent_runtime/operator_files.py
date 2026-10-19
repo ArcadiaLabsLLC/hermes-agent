@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .conversations.model import Refusal
+from .media_handles import FILE_DECLARATION_PREFIX, OPERATOR_FILE_EXTENSIONS, OPERATOR_FILES_DIRNAME
 from .conversations.prompt import (
     MAX_FILE_BYTES,
     MAX_FILE_COUNT,
@@ -44,9 +45,11 @@ from .conversations.prompt import (
 
 __layer__ = "lanes"
 
-FILES_DIRNAME = "operator_files"
+#: The dirname, the line prefix and the extension table are owned by ``media_handles`` (the
+#: stores layer that admits a ``FILE:`` line into ``runtime.media.get``'s derived scope).
+FILES_DIRNAME = OPERATOR_FILES_DIRNAME
 FILE_FLAG = "--file"
-FILE_LINE_PREFIX = "FILE:"
+FILE_LINE_PREFIX = FILE_DECLARATION_PREFIX
 #: The name sidecar beside each stored file. NOT ``<sha256>.json``: a stored ``application/json``
 #: file IS ``<sha256>.json``, and the two would be one path.
 SIDECAR_SUFFIX = ".name.json"
@@ -56,17 +59,8 @@ FILE_GUIDANCE = "Attached files ({names}) are on disk at the FILE: paths; read t
 
 #: media type -> stored extension. ``text/*`` is the family row: every admitted text subtype
 #: without its own row stores as ``.txt`` — a ``.bin`` would be refused by ``read_file``'s
-#: binary-extension check, and every admitted type has a row here, so no ``.bin`` exists.
-STORED_EXTENSIONS: dict[str, str] = {
-    "text/*": ".txt",
-    "text/markdown": ".md",
-    "text/csv": ".csv",
-    "text/html": ".html",
-    "application/json": ".json",
-    "application/xml": ".xml",
-    "application/yaml": ".yaml",
-    "application/pdf": ".pdf",
-}
+#: binary-extension check, and every admitted type has a row, so no ``.bin`` exists.
+STORED_EXTENSIONS: dict[str, str] = OPERATOR_FILE_EXTENSIONS
 _REF_RE = re.compile(r"^sha256:([0-9a-f]{64})(\.[a-z]+)$")
 _UNSAFE_NAME = re.compile(r"[\x00-\x1f\x7f/\\]")
 

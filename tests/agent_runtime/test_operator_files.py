@@ -95,3 +95,21 @@ def test_with_file_lines_stages_one_path_line_per_file_and_one_guidance_sentence
     assert lines[2] == of.FILE_GUIDANCE.format(names="a.txt, b.json")
     assert lines[3:] == [f"FILE:{item.path}" for item in resolved]
     assert of.with_file_lines("plain", []) == "plain"
+
+
+def test_a_file_line_joins_the_media_scope_only_inside_the_operator_file_store(isolate_agent_runtime_root):
+    """``media_handles`` learns the ``FILE:`` prefix (one table, two rows). Killing mutation: admit
+    every ``FILE:`` payload (drop the containment) -> the out-of-store line parses."""
+
+    from agent_runtime import media_handles
+
+    [ref] = of.store_files(of.normalize_files([_file(b"scope me\n")]))
+    [resolved] = of.resolve_refs([ref])
+    line = f"FILE:{resolved.path}"
+    assert media_handles.parse_media_declaration(line) == str(resolved.path)
+    outside = resolved.path.parent.parent / resolved.path.name
+    assert media_handles.parse_media_declaration(f"FILE:{outside}") is None
+    assert media_handles.parse_media_declaration(f"MEDIA:{resolved.path}") is None  # images only on MEDIA:
+    assert media_handles.media_declarations(f"hi\n{line}\nMEDIA:/x/a.png") == [str(resolved.path), "/x/a.png"]
+    artifact = media_handles._artifact_for(str(resolved.path))
+    assert (artifact.media_type, artifact.size_bytes) == ("text/plain", 9)

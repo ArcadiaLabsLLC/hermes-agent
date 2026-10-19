@@ -315,7 +315,8 @@ class _AdmitPhases:
             _mission_chat_emit(args, data)
             return 2
         self.message = message
-        return self._admit_images()
+        refused = self._admit_images()
+        return refused if refused is not None else self._admit_files()
 
     def _admit_images(self) -> int | None:
         """Pasted images: resolve the references, and refuse a model without vision before any token."""
@@ -347,6 +348,26 @@ class _AdmitPhases:
                 "next_expected": "switch this chat to a vision-capable model, or send the message without images"})
             return 2
         self.user_image_paths = tuple(str(path) for path in paths)
+        return None
+
+    def _admit_files(self) -> int | None:
+        """Reviewed files (RT-MISSION-CHAT-MESSAGE-TAKES): resolve the references into ``user_files``."""
+
+        from agent_runtime.operator_files import OperatorFilesInvalid, resolve_refs
+
+        self.user_files = ()
+        refs = getattr(self.args, "files", None) or ()
+        if not refs:
+            return None
+        try:
+            self.user_files = tuple(resolve_refs(refs))
+        except OperatorFilesInvalid as exc:
+            _mission_chat_emit(self.args, {
+                "ok": False, "capability_id": "mission.chat.message", "execution_state": ExecutionState.REJECTED,
+                "persona_id": self.normalized_persona, "persona_instance_id": self.instance.id,
+                "session_id": self.session_id, "error_kind": ChatErrorKind.FILE_INVALID, "error": exc.message,
+                "next_expected": "re-send the files with the message"})
+            return 2
         return None
 
     def _read_prior_attempt(self) -> None:
