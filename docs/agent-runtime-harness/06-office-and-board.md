@@ -163,6 +163,21 @@ when no live row exists), then `_check_revision`. Each door keeps only a
 TRANSLATION of the typed refusal into its own taxonomy — never a copy of the
 predicate — so deleting a fence does not leave either door guarded.
 
+**Furniture pays no scan** (`RT-GENERIC-DESK-WRITE-PAYS`, 2026-10-19). The payload's
+additive `actor_kind: "persona" | "furniture"` (default `persona`) is the typed answer to
+"is this actor's `persona_id` a class or an address". A generic desk is `furniture`: its
+address is freshly minted, so neither class-key reason can apply, and
+`office_class_key_guard.py::is_class_keyed_payload` answers False for it — the fence runs no
+`scan_actors`. The tombstone fence is orthogonal and still runs. The store refuses a
+`furniture` payload carrying any non-desk item before the lock (`ActorKindMismatch`,
+`actor_kind_mismatch`: 4090 on `runtime.office.upsert`, `invalid_request` on `harness office
+actor-upsert`), so the word cannot carry an agent placement past the fence; an unknown word is
+`actor_kind_invalid` (-32602). A `desk_` prefix test was rejected as a gate that proves only a
+spelling. Until the launcher sends the field (`MC-DESK-ACTOR-KIND-FURNITURE`), a desk write keeps
+paying exactly one fence scan (`test_office_store.py::test_a_generic_desk_write_pays_the_CLASS_KEY_scan_and_only_that_one`).
+The write's post-write patch lane (`office_store/patches.py`) spends its own scan on every upsert;
+that one is not this fence's.
+
 A fourth, `_guard_duplicate_desk`, sat between the conflict guard and the
 tombstone fence until **2026-09-18**. It is gone — see "The desk fence,
 RETIRED 2026-09-18" below for the ruling and what left with it.

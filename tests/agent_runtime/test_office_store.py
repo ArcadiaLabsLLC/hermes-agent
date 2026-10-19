@@ -569,6 +569,112 @@ def test_a_generic_desk_write_pays_the_CLASS_KEY_scan_and_only_that_one():
     )
 
 
+def _furniture_payload(desk_ids: tuple[str, ...], *, kind: str = "desk") -> dict:
+    """A furniture actor (RT-GENERIC-DESK-WRITE-PAYS): the address is the first desk's id."""
+    return {
+        "persona_id": desk_ids[0],
+        "actor_kind": "furniture",
+        "items": [
+            {"item_id": d, "persona_id": desk_ids[0], "kind": kind, "position": [float(i), 0.0], "folder": "Desks"}
+            for i, d in enumerate(desk_ids)
+        ],
+    }
+
+
+def _counting_fence_scans(monkeypatch) -> list[str]:
+    """``scan_actors`` calls made INSIDE the class-key fence (``_guard_class_keyed_write``).
+
+    Scoped to the fence because the write's patch lane (``office_store/patches.py``)
+    spends its own post-write scan on every upsert, furniture or not; that one is
+    not this row's to remove.
+    """
+    from agent_runtime.office_store import OfficeStore as _Store
+
+    calls: list[str] = []
+    inside = [False]
+    real_scan, real_guard = _Store.scan_actors, _Store._guard_class_keyed_write
+
+    def counting(self, workspace_id, *a, **k):
+        if inside[0]:
+            calls.append(workspace_id)
+        return real_scan(self, workspace_id, *a, **k)
+
+    def guard(self, *a, **k):
+        inside[0] = True
+        try:
+            return real_guard(self, *a, **k)
+        finally:
+            inside[0] = False
+
+    monkeypatch.setattr(_Store, "scan_actors", counting)
+    monkeypatch.setattr(_Store, "_guard_class_keyed_write", guard)
+    return calls
+
+
+def test_a_furniture_desk_write_pays_no_scan(monkeypatch):
+    """T1: ``actor_kind: "furniture"`` leaves the class-key fence — its ``scan_actors`` is not paid.
+
+    KILLING MUTATION: drop the furniture arm in
+    ``office_class_key_guard.is_class_keyed_payload`` -> one scan -> red.
+    Positive control: the SAME desks without the word pay exactly one scan.
+    """
+
+    ws = _make_workspace()
+    store = OfficeStore()
+    store.ensure_surface(ws, created_by="seed")
+    scans = _counting_fence_scans(monkeypatch)
+
+    placed = store.upsert_actor(ws, _furniture_payload(("desk_aaaaaaaa", "desk_aaaaaaab")))
+
+    assert scans == []
+    assert placed.actor_key == "desk_aaaaaaaa" and len(placed.items) == 2
+    default_shape = _furniture_payload(("desk_bbbbbbbb", "desk_bbbbbbbc"))
+    del default_shape["actor_kind"]
+    store.upsert_actor(ws, default_shape)
+    assert scans == [ws]
+
+
+def test_furniture_carrying_an_agent_item_is_refused_and_authors_nothing():
+    """T2: the word cannot smuggle an agent placement past the fence.
+
+    KILLING MUTATION: drop the item-kind rule in ``ActorUpsert.parse`` -> the
+    write lands -> red.
+    """
+
+    from agent_runtime.office_store.models import ActorKindMismatch
+
+    ws = _make_workspace()
+    store = OfficeStore()
+
+    with pytest.raises(ActorKindMismatch, match="actor_kind_mismatch"):
+        store.upsert_actor(ws, _furniture_payload(("desk_cccccccc",), kind="agent"))
+
+    assert not store.surface_exists(ws), "a refused furniture write authored an office"
+    assert not paths.office_actor_path(ws, "desk_cccccccc").exists()
+
+
+def test_the_tombstone_fence_still_holds_for_furniture():
+    """T4: furniture skips the class-key fence, never the tombstone fence.
+
+    KILLING MUTATION: skip ``_guard_archived_actor`` for furniture -> the
+    archived desk key is re-added -> red.
+    """
+
+    from agent_runtime.errors import ActorArchived
+
+    ws = _make_workspace()
+    store = OfficeStore()
+    store.upsert_actor(ws, _furniture_payload(("desk_dddddddd",)))
+    store.remove_actor(ws, "desk_dddddddd")
+    assert "desk_dddddddd" in (store.get_surface(ws).archived_actor_keys or [])
+
+    with pytest.raises(ActorArchived):
+        store.upsert_actor(ws, _furniture_payload(("desk_dddddddd",)))
+
+    # Positive control: the operator's consent re-adds it.
+    assert store.upsert_actor(ws, _furniture_payload(("desk_dddddddd",)), resurrect=True).actor_key == "desk_dddddddd"
+
+
 def test_an_instance_keyed_placement_still_never_pays_for_the_scan():
     """The twin, and the boundary: an INSTANCE-keyed write scans nothing.
 

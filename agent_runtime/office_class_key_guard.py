@@ -93,9 +93,22 @@ class ClassKeyedPlacementRefused(AgentRuntimeError):
 
 def is_class_keyed_payload(payload: Any) -> bool:
     """True when the payload carries no instance binding, so the store would
-    fall through to the bare persona id (``_canonical_actor_key``)."""
+    fall through to the bare persona id (``_canonical_actor_key``).
+
+    False for ``actor_kind: "furniture"`` (``RT-GENERIC-DESK-WRITE-PAYS``): a
+    furniture actor's ``persona_id`` is an ADDRESS, not a class (CONTRACT 43),
+    so there is nothing to re-key and neither collision reason can apply —
+    the tombstone fence still runs on every write. The store refuses furniture
+    carrying a non-desk item before this is ever asked. An unknown word raises
+    ``actor_kind_invalid``.
+    """
+
+    from .office_store.models import ActorKind
+    from .office_store.normalize import normalize_actor_kind
 
     if not isinstance(payload, dict):
+        return False
+    if normalize_actor_kind(payload.get("actor_kind")) is ActorKind.FURNITURE:
         return False
     return not str(payload.get("persona_instance_id") or "").strip()
 

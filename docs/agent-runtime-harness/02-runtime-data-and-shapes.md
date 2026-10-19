@@ -45,6 +45,14 @@ Directories present in the live root, with the module that owns each:
 | `serve_instances/` | `serve_registry.py` (`SERVE_INSTANCES_DIRNAME`) | one `<pid>.json` per live serve, one `<pid>.ended.json` per serve that ended, one `<pid>.stderr.log` per `--service` runtime (below) |
 | `deleted_archive/`, `migration_backups/`, `wt_reaped_patches/`, `locks/` | `paths.py:302`, `default_scope.py:552`, `delivery_directive.py:65` | archive-never-delete and lock trees |
 
+An office actor file (`office/<ws>/actors/<key>.json`) is written by one store method,
+`office_store/actor_writes.py::upsert_actor`, whose payload carries an additive, optional
+`actor_kind` (`RT-GENERIC-DESK-WRITE-PAYS`, 2026-10-19): `ActorKind(StrEnum)` in
+`office_store/models.py`, two words — `persona` (default, absent) and `furniture` (a generic desk,
+whose `persona_id` is its own `desk_<8 base36>` address, CONTRACT 43). It is read by
+`office_store/normalize.py::normalize_actor_kind` (an unknown word is `ActorKindInvalid`,
+`actor_kind_invalid`) and decides the write, not the file: the actor file does not store it.
+
 `paths.py` also declares `runs/`, `runtime_instances/`, `incidents/` and
 `prompt_observability_archive/`. None exist in the live root — they are created
 on first write, and a store with no such write has no directory.

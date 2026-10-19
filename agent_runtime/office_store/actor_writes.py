@@ -13,17 +13,23 @@ from typing import TYPE_CHECKING, Any
 
 from hermes_time import now
 
-from agent_runtime import paths
+from agent_runtime import office_models, paths
 from agent_runtime.errors import ArchiveUnreadable, NotFound
 from agent_runtime.locks import office_lock
 from agent_runtime.models import OfficeActor, OfficeItem, OfficeSurface
 from agent_runtime.office_store.files import _write_actor, _write_surface
-from agent_runtime.office_store.models import MAX_ITEMS_PER_ACTOR, OfficePositionPolicy
+from agent_runtime.office_store.models import (
+    MAX_ITEMS_PER_ACTOR,
+    ActorKind,
+    ActorKindMismatch,
+    OfficePositionPolicy,
+)
 from agent_runtime.office_store.normalize import (
     _canonical_actor_key,
     _normalize_actor_persona_ref,
     _normalize_item,
     _safe_actor_ref,
+    normalize_actor_kind,
 )
 from agent_runtime.serde import from_jsonable, read_json, safe_id
 from agent_runtime.store_conflicts import check_revision
@@ -206,6 +212,7 @@ class ActorUpsert:
     raw_items: tuple[Any, ...]
     items: list[OfficeItem]
     backing_profile: str | None
+    actor_kind: ActorKind = ActorKind.PERSONA
 
     @property
     def persona_instance_id(self) -> str | None:
@@ -228,6 +235,18 @@ class ActorUpsert:
             raise ValueError("invalid_request: items required")
         if len(raw_items) > MAX_ITEMS_PER_ACTOR:
             raise ValueError("invalid_request: too many items")
+        actor_kind = normalize_actor_kind(payload.get("actor_kind"))
+        if actor_kind is ActorKind.FURNITURE:
+            # Before any lock, like every shape refusal: furniture skips the
+            # class-key fence, so the word must not carry an agent placement.
+            kinds = {
+                office_models.normalize_item_kind(raw.get("kind")) if isinstance(raw, dict) else None
+                for raw in raw_items
+            }
+            if kinds != {"desk"}:
+                raise ActorKindMismatch(
+                    "actor_kind_mismatch: an actor_kind 'furniture' payload may carry desk items only"
+                )
         if not unaimed:
             items = [_normalize_item(item, persona_id=persona_id) for item in raw_items]
         else:
@@ -245,7 +264,7 @@ class ActorUpsert:
                 )
             items = []
         backing_profile = _normalize_actor_persona_ref(payload.get("backing_profile"))
-        return cls(wsid, persona_id, raw_instance, actor_key, tuple(raw_items), items, backing_profile)
+        return cls(wsid, persona_id, raw_instance, actor_key, tuple(raw_items), items, backing_profile, actor_kind)
 
 
 def _place_unaimed(
