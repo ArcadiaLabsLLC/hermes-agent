@@ -54,6 +54,7 @@ FORK_NAMES: dict[str, str] = {
     "launcher_app_function_binding": "session-state key in agent_runtime/conversations/worker_app_functions.py",
     "launcher_app_function_discovery": "test file test_launcher_app_function_discovery.py, cited by path in tools/tool_search_downstream.py",
     "launcher_app_function_link": "ContextVar name in agent_runtime/launcher_app_functions.py",
+    "launcher_app_functions_catalog": "fixture file tests/fixtures/launcher_app_functions_catalog.json, named by scripts/vendor_launcher_catalog.py",
 }
 
 #: (path, token) -> why it may be written. Empty: the one live leak was rewritten (R10).

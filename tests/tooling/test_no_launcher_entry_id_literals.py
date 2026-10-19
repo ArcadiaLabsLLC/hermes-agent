@@ -35,6 +35,16 @@ ENTRY_ID = re.compile(r"(?<![\w.])launcher\.(?!parent\.)[a-z][a-z0-9_]*(?:\.[a-z
 ALLOWED: dict[tuple[str, str], str] = {
     ("agent_runtime/launcher_app_functions.py", "launcher.app_functions.list"):
         "LIST_METHOD — the discovery request itself, the one id the runtime must know",
+    ("scripts/vendor_launcher_catalog.py", "launcher.app_functions.list"):
+        "names the discovery request whose answer the vendored fixture copies",
+    **{("evals/genui_first_response_ab.py", f"launcher.generated.{verb}"):
+        "the A/B's SUBJECT (RT-VERIFY-IMPROVE-FIRST-RESPONSE): it scores whether these entries are chosen "
+        "first; their tool names are read from the vendored catalog, never spelled"
+       for verb in ("list", "inspect", "create", "update", "edit")},
+    ("evals/genui_first_response_ab.py", "launcher.agent_chat.new"):
+        "the launcher_qa MCP server's own tool (opens a QA chat), not an app-function intent",
+    ("evals/genui_first_response_ab.py", "launcher.agent_chat.send"):
+        "the launcher_qa MCP server's own tool (sends a QA turn), not an app-function intent",
 }
 
 

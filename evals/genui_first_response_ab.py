@@ -1,8 +1,8 @@
 """GenUI first-response A/B eval (RT-VERIFY-IMPROVE-FIRST-RESPONSE) — a receipt reader.
 
 Plan: ``docs/agent-runtime-harness/planned/p10-agent-2026-10-19.md`` §3. The question is
-whether a comparison prompt's FIRST tool call is ``launcher_generated_list`` /
-``launcher_generated_create`` (and the turn creates a document) instead of a Markdown
+whether a comparison prompt's FIRST tool call is the generated-content list or create
+tool (and the turn creates a document) instead of a Markdown
 table, per agent and provider, under two Launcher guidance arms that are switched by QA
 build (owner ruling 2026-10-19), and what the guidance costs per turn.
 
@@ -33,17 +33,27 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+#: Tool names are never spelled here (R10 gates): each is read off the vendored Launcher catalog
+#: (``tests/fixtures/launcher_app_functions_catalog.json``, ``scripts/vendor_launcher_catalog.py``) by entry id.
+CATALOG_PATH = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "launcher_app_functions_catalog.json"
+
+
+def _tool_names(*entry_ids: str) -> tuple[str, ...]:
+    by_id = {e["id"]: e["name"] for e in json.loads(CATALOG_PATH.read_text(encoding="utf-8"))["entries"]}
+    return tuple(by_id[entry_id] for entry_id in entry_ids)
+
+
 #: A hit's first tool: the catalog read or the create itself (plan §3.2).
-HIT_FIRST_TOOLS = frozenset({"launcher_generated_list", "launcher_generated_create"})
-CREATE_TOOL = "launcher_generated_create"
+HIT_FIRST_TOOLS = frozenset(_tool_names("launcher.generated.list", "launcher.generated.create"))
+(CREATE_TOOL,) = _tool_names("launcher.generated.create")
 #: The five generated tools the Launcher declares ``alwaysLoaded``
 #: (``EterniaLauncher/lib/core/services/hermes/runtime/data/capabilities/harness_generated_capabilities.dart``).
-GENERATED_TOOLS = (
-    "launcher_generated_list",
-    "launcher_generated_inspect",
-    "launcher_generated_create",
-    "launcher_generated_update",
-    "launcher_generated_edit",
+GENERATED_TOOLS = _tool_names(
+    "launcher.generated.list",
+    "launcher.generated.inspect",
+    "launcher.generated.create",
+    "launcher.generated.update",
+    "launcher.generated.edit",
 )
 GENERATED_PREFIX = "launcher_generated_"
 TOOL_GUIDANCE_SECTION = "eternia-harness.tool-guidance"
