@@ -11,7 +11,7 @@ from .operator_session_models import _require_idle
 from .persona_chat_continuity.lease import PersonaChatBusyError, persona_chat_root_lease
 from .profile_context import persona_profile_context, resolve_persona_profile
 from .session_control_store import SessionControlStore
-from .session_controls import pending_session_approvals, resolved_session_controls
+from .session_controls import APPROVAL_CHOICES, pending_session_approvals, resolved_session_controls
 
 __layer__ = "lanes"
 
@@ -76,7 +76,7 @@ def respond_operator_approval(params: dict) -> dict:
     from tools.approval import resolve_gateway_approval
 
     request_id, choice = params.get("approval_id"), params.get("choice")
-    if not isinstance(request_id, str) or not request_id or choice not in ("once", "deny"):
+    if not isinstance(request_id, str) or not request_id or choice not in APPROVAL_CHOICES:
         raise OperatorConversationRefused("invalid_approval_response")
     with operator_session_read(params) as (_, session):
         if resolve_gateway_approval(params["session_id"], choice, request_id=request_id) != 1:

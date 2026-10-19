@@ -48,6 +48,9 @@ KIND_BUILD = "build"
 #: the turn settles — read durably from the send-queue entries whose origin names a schedule
 #: (RT-SCHEDULE-TURN-RUNNING-WORK, RULED 2026-10-18: its own kind, not ``cron_job``).
 KIND_SCHEDULED_TURN = "scheduled_turn"
+#: A platform message the messaging bridge queued on a bound instance's chat root, until the turn settles —
+#: read durably from the send-queue entries whose origin carries a ``messaging`` block (p10-messaging M4).
+KIND_MESSAGING_TURN = "messaging_turn"
 
 #: How far back an UNDELIVERABLE dispatch keeps surfacing on the Activity
 #: projection. A day, because "your agent's answer was thrown away" is worth
@@ -73,6 +76,7 @@ RUNNING_WORK_KINDS = (
     KIND_MCP_JOB,
     KIND_BUILD,
     KIND_SCHEDULED_TURN,
+    KIND_MESSAGING_TURN,
 )
 
 #: The lanes that report a ``sources`` entry on every build. ``dispatch`` joined
@@ -89,6 +93,7 @@ RUNNING_WORK_SOURCES = (
     KIND_TOOL_CALL,
     KIND_BUILD,
     KIND_SCHEDULED_TURN,
+    KIND_MESSAGING_TURN,
 )
 
 STATUS_RUNNING = "running"

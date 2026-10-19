@@ -212,6 +212,12 @@ class PersonaTurnExecutor:
             self._root_of = resolve_default_chat_session_id_for_instance
         return self._root_of(self._store(), persona_id=instance.persona_id, persona_instance_id=instance.id)
 
+    def current_root(self, instance_id: str) -> str | None:
+        """The instance's current chat root, or None (no such instance, or no chat yet); never mints."""
+
+        instance = self._instance(instance_id)
+        return None if instance is None else self._root(instance)
+
     def _open(self, instance: Any, request_id: str) -> str:
         from ..mission_chat_door import MissionChatDoorUnbound, run_open_chat
 

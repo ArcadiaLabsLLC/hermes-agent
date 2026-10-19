@@ -1,11 +1,57 @@
-"""Native approval and speed policy for the Mission Chat conversation owner."""
+"""Native approval and speed policy for the Mission Chat conversation owner.
+
+Approvals off-desktop (p10-messaging §2.5, M4): :data:`approval_notifiers` maps a chat root to the
+callable a surface renders a pending approval with (the messaging bridge's approval cards). The
+launcher keeps POLLING the queue; a notifier only adds a second place the same approval shows, and
+both answer through ``operator_session_controls.respond_operator_approval``. Pinned by
+``tests/agent_runtime/messaging/test_approval_cards.py``.
+"""
 from __future__ import annotations
 
+import logging
+import threading
+from collections.abc import Callable
 from contextlib import contextmanager
 
 from .session_control_store import SessionControlStore
 
 __layer__ = "lanes"
+
+logger = logging.getLogger(__name__)
+
+#: The choices an operator may answer an approval with — the ONE list ``pending_session_approvals``
+#: offers and ``respond_operator_approval`` accepts.
+APPROVAL_CHOICES = ("once", "deny")
+
+#: chat root -> ``cb(approval_data)``; read when an approval is raised, so a notifier registered
+#: mid-turn is heard. Written only through :func:`register_approval_notifier` / ``unregister``.
+approval_notifiers: dict[str, Callable[[dict], None]] = {}
+_notifiers_lock = threading.Lock()
+
+
+def register_approval_notifier(session_id: str, cb: Callable[[dict], None]) -> None:
+    with _notifiers_lock:
+        approval_notifiers[session_id] = cb
+
+
+def unregister_approval_notifier(session_id: str, cb: Callable[[dict], None] | None = None) -> None:
+    """Remove the root's notifier (only ``cb``'s, when given — a newer registration is kept)."""
+    with _notifiers_lock:
+        if cb is None or approval_notifiers.get(session_id) is cb:
+            approval_notifiers.pop(session_id, None)
+
+
+def _notify_root(session_id: str, data: dict) -> None:
+    """The gateway notify callback of a root's turn: the root's notifier, if any. Never raises: a
+    raising notify would make upstream deny the approval for every surface (``notify_failed``)."""
+    with _notifiers_lock:
+        cb = approval_notifiers.get(session_id)
+    if cb is None:
+        return
+    try:
+        cb(dict(data))
+    except Exception:
+        logger.warning("the approval notifier of %s failed", session_id, exc_info=True)
 
 APPROVAL_OPTIONS = (
     {"id": "manual", "label": "Ask", "description": "Ask before actions Hermes flags for approval."},
@@ -105,6 +151,9 @@ def apply_session_speed(agent, controls: dict) -> None:
     agent.request_overrides = overrides
 
 
+_CHOICE_LABELS = {"once": "Allow once", "deny": "Deny"}
+
+
 def pending_session_approvals(session_id: str) -> list[dict]:
     from agent.redact import redact_sensitive_text
     from tools.approval import list_gateway_approvals
@@ -112,7 +161,7 @@ def pending_session_approvals(session_id: str) -> list[dict]:
     return [{"id": row["request_id"],
              "command": redact_sensitive_text(str(row.get("command") or ""), force=True),
              "description": redact_sensitive_text(str(row.get("description") or "Approval required"), force=True),
-             "choices": [{"id": "once", "label": "Allow once"}, {"id": "deny", "label": "Deny"}]}
+             "choices": [{"id": choice, "label": _CHOICE_LABELS[choice]} for choice in APPROVAL_CHOICES]}
             for row in list_gateway_approvals(session_id)]
 
 
@@ -130,8 +179,9 @@ def session_approval_scope(session_id: str | None):
 
     mode = approval_policy_mode() if is_managed() else SessionControlStore().read(session_id).get("approval_mode", approval_policy_mode())
     token = set_current_session_key(session_id)
-    # The existing queue is the replay authority, read by the attached console.
-    register_gateway_notify(session_id, lambda _: None)
+    # The existing queue is the replay authority, read by the attached console; a registered
+    # notifier (approval cards, M4) is told as well.
+    register_gateway_notify(session_id, lambda data: _notify_root(session_id, data))
     try:
         with scoped_approval_policy(mode, gateway_session=True):
             yield
