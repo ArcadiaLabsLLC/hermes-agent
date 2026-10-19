@@ -63,7 +63,7 @@ def episode_folder(episode_id: str) -> Path:
     return episodes_root() / digest_value(episode_id)
 
 
-def _sha256(path: Path) -> str:
+def _file_digest(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1 << 16), b""):
@@ -85,7 +85,7 @@ def folder_files(episode_id: str) -> list[dict[str, Any]]:
             continue
         try:
             found.append({"name": path.relative_to(folder).as_posix(), "size_bytes": path.stat().st_size,
-                          "sha256": _sha256(path)})
+                          "sha256": _file_digest(path)})
         except OSError:
             continue
     return found
