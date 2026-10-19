@@ -25,6 +25,16 @@ Gates and their killing mutations (each red was recorded in the stage's commit):
   killed by dropping the ``<`` escape in ``tool._fenced`` (two closing tags);
   free text never leaves the fence — killed by adding ``source`` to the typed
   feed keys (the URL appears outside the fence).
+* forge: the same Episode forges two turns — killed by writing the receipt
+  AFTER the turn (a reentrant pass forges again: two door calls); a monitor at
+  its daily cap forges a turn — killed by dropping the ``receipts_today`` check
+  from ``admit()``; a turn that wrote ``report.md`` leaves ``files`` empty —
+  killed by skipping the folder scan in ``artifacts.collect``; ``notify`` forges
+  a turn — killed by inverting the level check; ``when: urgent`` forges an
+  ``attention`` rule — killed by dropping the severity check; a paused monitor's
+  Episode stays owed (positive control: enable it and it forges).
+* ``runtime.lens.artifact`` reads ``../`` or a symlink out of the folder —
+  killed by dropping the ``is_relative_to`` check in ``resolve_inside``.
 """
 
 from __future__ import annotations
@@ -225,3 +235,172 @@ def test_the_opening_block_fences_free_text_and_names_the_folder(tmp_path):
     assert "status.example.invalid" not in block[:opened] + block[closed:]
     assert "97.5" in block[:opened]  # the evidence travels as typed data
     assert str(tmp_path) in block and "MEDIA:<path>" in block
+
+
+# --- L2.4 the forge ---------------------------------------------------------------
+
+
+class _Door:
+    """A fake mission-chat handler bound on the real door; ``during`` runs inside the turn."""
+
+    def __init__(self, reply: str = "Looked into it.", during=None) -> None:
+        self.calls: list = []
+        self.reply = reply
+        self.during = during
+
+    def __call__(self, args) -> int:
+        self.calls.append(args)
+        if self.during is not None:
+            self.during(args)
+        args.payload_sink({"ok": True, "reply": self.reply, "session_id": f"persona_chat_qa_{len(self.calls)}"})
+        return 0
+
+
+@pytest.fixture
+def door():
+    from agent_runtime import mission_chat_door
+
+    bound = _Door()
+    mission_chat_door.bind_mission_chat_turn(bound)
+    yield bound
+    mission_chat_door.bind_mission_chat_turn(None)
+
+
+def _armed(manifest: dict, *ordinals: int, state=None) -> LensStore:
+    from agent_runtime.lens.store import MonitorState
+
+    store = LensStore()
+    store.create(manifest)
+    store.seal(manifest["monitor_id"])
+    store.set_state(manifest["monitor_id"], state or MonitorState.ENABLED)
+    for ordinal in ordinals or (1,):
+        store.save_episode(_episode(ordinal))
+    return store
+
+
+def _forge():
+    from agent_runtime.lens.trigger import LensForge
+
+    return LensForge(clock=lambda: T0)
+
+
+def _episode_row(store: LensStore, ordinal: int = 1) -> dict:
+    return next(row for row in store.episodes() if row["ordinal"] == ordinal)
+
+
+def test_an_investigate_episode_forges_one_titled_turn_with_lens_provenance(door):
+    store = _armed(_monitor())
+
+    assert _forge().tick() == ["forged"]
+
+    [args] = door.calls
+    episode_id = _episode(1).id
+    assert (args.persona_id, args.new_session, args.title) == ("qa", True, "status · cpu_hot · #1")
+    assert (args.requested_by, args.client_message_id) == (
+        f"lens-episode:{episode_id}:status", f"lens-episode-{episode_id}")
+    assert args.relay_chain == [] and args.intent_hint == "chat" and args.json is True
+    assert "[LENS EPISODE — status · cpu_hot · #1]" in args.message
+    receipt = store.receipt(episode_id)
+    assert (receipt["outcome"], receipt["session_id"], receipt["tool_admission"]) == (
+        "forged", "persona_chat_qa_1", "full")
+    assert _episode_row(store)["turn_id"] == f"lens-episode-{episode_id}"
+    assert _forge().tick() == [] and len(door.calls) == 1
+
+
+def test_the_same_episode_never_forges_two_turns(door):
+    _armed(_monitor())
+    forge = _forge()
+    door.during = lambda args: forge.tick()  # a second pass arrives while the turn runs
+
+    forge.tick()
+
+    assert len(door.calls) == 1
+
+
+def test_a_monitor_at_its_daily_cap_forges_no_more_turns(door):
+    store = _armed(_monitor(cap=2), 1, 2, 3)
+
+    outcomes = _forge().tick()
+
+    assert sorted(outcomes) == ["capped", "forged", "forged"]
+    assert len(door.calls) == 2
+    assert store.receipts_today("status", T0) == 2
+
+
+def test_a_turn_that_wrote_report_md_lists_it_on_the_receipt(door):
+    from agent_runtime.lens.artifacts import episode_folder
+
+    store = _armed(_monitor())
+    door.during = lambda args: (episode_folder(_episode(1).id) / "report.md").write_text("# cpu", encoding="utf-8")
+
+    _forge().tick()
+
+    [listed] = store.receipt(_episode(1).id)["files"]
+    assert (listed["name"], listed["size_bytes"]) == ("report.md", 5)
+    read = _rpc("runtime.lens.artifact", {"episode_id": _episode(1).id, "name": "report.md"})["result"]
+    assert (read["content"], read["media_type"], read["sha256"]) == ("# cpu", "text/markdown", listed["sha256"])
+
+
+def test_notify_forges_no_turn_and_urgent_only_skips_an_attention_rule(door):
+    store = _armed(_monitor(level="notify"))
+    assert _forge().tick() == ["notified"]
+    assert _episode_row(store)["turn_id"] == "notified"
+
+    store.create(_monitor(when="urgent", severity="attention"))  # the next revision
+    store.seal("status")
+    store.save_episode(_episode(2))
+    assert _forge().tick() == ["skipped_severity"]
+
+    assert door.calls == []
+    assert store.receipts_today("status", T0) == 1  # a skip spends no cap
+
+
+def test_a_paused_monitors_episode_stays_owed_until_enabled(door):
+    from agent_runtime.lens.store import MonitorState
+
+    store = _armed(_monitor(), state=MonitorState.PAUSED)
+
+    assert _forge().tick() == []
+    assert door.calls == [] and not store.has_receipt(_episode(1).id)
+
+    store.set_state("status", MonitorState.ENABLED)
+    assert _forge().tick() == ["forged"]
+
+
+def test_a_failed_turn_is_a_typed_receipt_and_is_not_retried(door):
+    from agent_runtime import mission_chat_door
+
+    store = _armed(_monitor())
+
+    def refusing(args):
+        door.calls.append(args)
+        args.payload_sink({"ok": False, "error_kind": "provider_refused"})
+        return 1
+
+    mission_chat_door.bind_mission_chat_turn(refusing)
+    assert _forge().tick() == ["forge_failed:provider_refused"]
+    assert _forge().tick() == [] and len(door.calls) == 1
+    assert store.receipt(_episode(1).id)["outcome"] == "forge_failed:provider_refused"
+
+
+def test_the_artifact_verb_reads_only_inside_the_episode_folder(tmp_path):
+    import os
+
+    from agent_runtime.lens.artifacts import episode_folder
+
+    folder = episode_folder(EPISODE_A)
+    folder.mkdir(parents=True)
+    (folder / "ok.txt").write_text("fine", encoding="utf-8")
+    planted = folder.parent / "secret.txt"
+    planted.write_text("planted", encoding="utf-8")
+
+    assert _rpc("runtime.lens.artifact", {"episode_id": EPISODE_A, "name": "ok.txt"})["result"]["content"] == "fine"
+    for name in ("../secret.txt", r"..\secret.txt", str(planted)):
+        refused = _rpc("runtime.lens.artifact", {"episode_id": EPISODE_A, "name": name})
+        assert refused.get("error", {}).get("data", {}).get("reason") == "outside_episode_folder", name
+    try:
+        os.symlink(planted, folder / "link.txt")
+    except (OSError, NotImplementedError):
+        return  # no symlink privilege on this host: the ``..`` cases above carry the gate
+    refused = _rpc("runtime.lens.artifact", {"episode_id": EPISODE_A, "name": "link.txt"})
+    assert refused["error"]["data"]["reason"] == "outside_episode_folder"

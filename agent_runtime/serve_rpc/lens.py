@@ -24,6 +24,8 @@ credential.set         {ref, scheme, secret, username?} -> {ref, set, rotated_at
                        (write-only: no verb returns a credential value)
 receipt                {episode_id} -> the exit door's receipt for that Episode (stage L2)
 receipts               {monitor_id?, limit?} -> {receipts} (newest first; limit <= 256)
+artifact               {episode_id, name} -> {name, media_type, size_bytes, sha256, encoding, content}
+                       (one file from the Episode's folder only; 1 MiB, text and images)
 =====================  ================================================================
 
 Every refusal carries ``data.reason`` (a ``WireRefusal`` or ``StoreRefusal`` value)
@@ -52,6 +54,7 @@ SERIES_SCHEMA = "lens-range-v1"
 def _lens_call(rid: Any, body: Callable[[], dict]) -> dict:
     """Run ``body``; turn a Lens refusal into its typed frame."""
 
+    from agent_runtime.lens.artifacts import ArtifactRefusal, LensArtifactError
     from agent_runtime.lens.store import NOT_FOUND_REFUSALS, LensStoreError
     from agent_runtime.lens.wire_value import WireError
 
@@ -63,6 +66,9 @@ def _lens_call(rid: Any, body: Callable[[], dict]) -> dict:
     except LensStoreError as exc:
         code = ERR_NOT_FOUND if exc.code in NOT_FOUND_REFUSALS else ERR_CONFLICT
         return err(rid, code, "The Lens store refused the request.", {"reason": exc.code.value})
+    except LensArtifactError as exc:
+        code = ERR_NOT_FOUND if exc.code is ArtifactRefusal.NOT_FOUND else ERR_INVALID_PARAMS
+        return err(rid, code, "The Lens artifact was refused.", {"reason": exc.code.value})
 
 
 def _monitor_id(params: dict) -> str:
@@ -243,5 +249,17 @@ def _runtime_lens_receipts(rid: Any, params: dict, context: RpcContext | None = 
         monitor_id = None if params_.get("monitor_id") is None else _monitor_id(params_)
         limit = bounded_int(params_.get("limit", 32), minimum=1, maximum=MAXIMUM_RECEIPTS_PAGE)
         return {"receipts": _store().receipts(monitor_id=monitor_id, limit=limit)}
+
+    return _lens_call(rid, body)
+
+
+@method("runtime.lens.artifact", tier=TIER_CONSOLE)
+def _runtime_lens_artifact(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    def body() -> dict:
+        from agent_runtime.lens.artifacts import read_artifact
+        from agent_runtime.lens.wire_value import checked_object, digest_value
+
+        m = checked_object(params or {}, {"episode_id", "name"})
+        return read_artifact(digest_value(m["episode_id"]), m["name"])
 
     return _lens_call(rid, body)
