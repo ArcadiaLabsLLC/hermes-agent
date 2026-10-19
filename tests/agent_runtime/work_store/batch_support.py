@@ -9,7 +9,7 @@ from typing import Any
 
 from agent_runtime.batch.dispatcher import BatchDispatcher
 from agent_runtime.batch.manifest import SETTINGS_NOTE, manifest_path
-from agent_runtime.batch.planner import Budget, Member
+from agent_runtime.batch.planner import LANDING_GATE, Budget, Member
 from agent_runtime.work_store.grammar import Row, parse_row
 from agent_runtime.work_store.models import GateReceipt
 
@@ -17,6 +17,8 @@ from contract_fakes import FakeExecutor, FakeSource
 
 NOTE = "Harness_Brain/20 — Active Initiatives/runtime-queue.md"
 WS = "ws-1"
+#: The slot gates a test dispatcher plans with unless told otherwise: the hermes slot runs the hermes gate.
+SLOT_GATES = {"hermes": (LANDING_GATE,)}
 
 
 def qrow(row_id: str, *, heading: str = "Fork-owned", files: Sequence[str] = (), extra: str = "",
@@ -79,12 +81,13 @@ class FakeLander:
 def dispatcher(source: FakeSource, *, manifests: FakeManifests | None = None, executor: FakeExecutor | None = None,
                machine: str = "m-1", roster: Sequence[Member] = (), budget: Budget | None = None,
                box_idle: bool = True, lander: Any = None, slot_roles: Mapping[str, str] | None = None,
-               ) -> BatchDispatcher:
+               slot_gates: Mapping[str, tuple[str, ...] | None] | None = None) -> BatchDispatcher:
     manifests = manifests if manifests is not None else FakeManifests()
     executor = executor or FakeExecutor()
     built = BatchDispatcher(
         source_for=lambda _ws: source, manifests=manifests, executor=executor, machine=lambda: machine,
         roster=lambda _ws: list(roster), slot_roles=lambda _ws: dict(slot_roles or {}),
+        slot_gates=lambda _ws: dict(SLOT_GATES if slot_gates is None else slot_gates),
         budget_for=lambda _ws: budget or Budget(), box_idle=lambda: box_idle, lander=lander,
         workspaces=lambda: [WS], now=lambda: datetime(2026, 10, 18, 12, tzinfo=UTC))
     executor.on_settle(built.settled)

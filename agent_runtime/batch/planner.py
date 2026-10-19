@@ -13,7 +13,9 @@
    ``persona_unresolved`` until answered).
 5. ``heavy``: a row naming a release merge, a daily branch or a suite run. ``quiet_box``: a row judging a
    timeout or a flake (it runs only on an idle box).
-6. The plan ends with ONE landing lane, after every lane.
+6. The plan ends with ONE landing lane, after every lane. It carries ``Lane.gates``: the gate commands per
+   slot the lanes touch (``gate.slot_gate``, handed in as ``slot_gates``); a slot with none is None there and
+   the lane executor answers it with a RED receipt (row RT-BATCH-GATE-PER-SLOT-COMMAND, owner ruling 2026-10-19).
 
 The plan id is ``BATCH-<6 base32>`` of the lanes' rows, so planning the same board twice gives the same
 id and ``start`` can tell the board moved (``idempotency_conflict``).
@@ -51,7 +53,7 @@ __all__ = [
 ]
 
 LANDING_ID = "LAND"
-#: The landing gate the executor runs in each landing worktree (``gate.GateRunner``; `Running the tests.md`).
+#: The hermes slot's landing gate (``gate.GATES_BY_TOOLCHAIN_KIND``; `Running the tests.md`).
 LANDING_GATE = "bash scripts/run_tests_bundled.sh tests"
 #: The playbook's measured ceiling; a lane is sized by effort first (owner ruling 2026-10-18).
 MAX_ROWS_PER_LANE = 65
@@ -113,6 +115,8 @@ class Lane:
     after: tuple[str, ...] = ()
     effort: int = 0
     files: tuple[str, ...] = field(default=(), compare=False)
+    #: The landing lane's gate commands per slot; None = no gate declared (a red receipt).
+    gates: Mapping[str, tuple[str, ...] | None] = field(default_factory=dict, hash=False)
 
     def wire(self) -> dict[str, Any]:
         brief = self.brief
@@ -121,6 +125,7 @@ class Lane:
                 "rows": [[r.slot, r.note, r.id] for r in self.rows], "persona": self.persona,
                 "heavy": self.heavy, "quiet_box": self.quiet_box, "after": list(self.after), "effort": self.effort,
                 "files": list(self.files),
+                "gates": {slot: None if cmds is None else list(cmds) for slot, cmds in self.gates.items()},
                 "brief": {"title": brief.title, "objective": brief.objective, "inputs": list(brief.inputs),
                           "constraints": list(brief.constraints), "acceptance": brief.acceptance,
                           "tests": list(brief.tests)}}
@@ -139,6 +144,8 @@ class Lane:
             heavy=bool(raw.get("heavy")), quiet_box=bool(raw.get("quiet_box")),
             after=tuple(raw.get("after") or ()), effort=int(raw.get("effort") or 0),
             files=tuple(raw.get("files") or ()),
+            gates={str(slot): None if cmds is None else tuple(map(str, cmds))
+                   for slot, cmds in (raw.get("gates") or {}).items()},
         )
 
 
@@ -287,17 +294,22 @@ def _lane_brief(lane_id: str, domain: Domain, rows: Sequence[Row]) -> Brief:
                  acceptance="every row done, or blocked with the one question for the owner")
 
 
-def _landing_brief(lane_ids: Sequence[str]) -> Brief:
+def _gate_line(slot: str, commands: tuple[str, ...] | None) -> str:
+    return f"- {slot}: " + ("NO GATE DECLARED" if commands is None else " && ".join(f"`{c}`" for c in commands))
+
+
+def _landing_brief(lane_ids: Sequence[str], gates: Mapping[str, tuple[str, ...] | None]) -> Brief:
     return Brief(
         title="the landing lane",
         objective="\n".join([
             f"Land the batch: merge the reported lanes in order with --no-ff ({', '.join(lane_ids)}).",
             "Resolve any conflict and commit; leave the landing worktree clean. Fix a caused red as its own commit.",
-            f"When you settle, the executor runs the gate (`{LANDING_GATE}`) here and records its receipt;",
-            "your verdict is advisory. Do NOT push main: the push is the owner's approve."]),
+            "When you settle, the executor runs each slot's gate here and records its receipt:",
+            *(_gate_line(slot, commands) for slot, commands in gates.items()),
+            "Your verdict is advisory. Do NOT push main: the push is the owner's approve."]),
         constraints=("Never push main; never force-push; never amend.",),
         acceptance="every lane merged and committed, the worktree clean; the code-run gate decides green",
-        tests=(LANDING_GATE,))
+        tests=tuple(dict.fromkeys(c for commands in gates.values() for c in commands or ())))
 
 
 # ── the plan ───────────────────────────────────────────────────────────────
@@ -324,6 +336,7 @@ def plan(
     roster: Sequence[Member] = (),
     slot_roles: Mapping[str, str] | None = None,
     budget: Budget | None = None,
+    slot_gates: Mapping[str, tuple[str, ...] | None] | None = None,
 ) -> Plan:
     """The batch for ``rows`` (the source's ``ready``): thick lanes, sequenced, one landing. Writes nothing."""
 
@@ -346,6 +359,9 @@ def plan(
                 quiet_box=any(QUIET_BOX.search(row.raw) for row in part), effort=sum(map(row_effort, part)),
                 files=files))
     lanes = _sequenced(lanes)
+    slots = dict.fromkeys(lane.domain.slot for lane in lanes if lane.domain is not None)
+    gates = {slot: (slot_gates or {}).get(slot) for slot in slots}
     landing = Lane(id=LANDING_ID, kind=LaneKind.LANDING, domain=None, rows=(), persona=lanes[0].persona,
-                   brief=_landing_brief([lane.id for lane in lanes]), after=tuple(lane.id for lane in lanes))
+                   brief=_landing_brief([lane.id for lane in lanes], gates), after=tuple(lane.id for lane in lanes),
+                   gates=gates)
     return Plan(_plan_id(workspace_id, lanes), workspace_id, tuple(lanes), landing, budget)

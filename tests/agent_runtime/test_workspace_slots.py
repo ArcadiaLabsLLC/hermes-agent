@@ -337,3 +337,27 @@ def test_a_local_slot_round_trips_normalize_declaration(workspace):
     with pytest.raises(SlotRefused) as escaping:
         normalize_declaration({**entry, "context": {"brain_dir": "../outside"}})
     assert escaping.value.reason == "invalid_declaration"
+
+
+def test_context_gate_round_trips_and_refuses_a_credential(workspace):
+    """``context.gate`` (p10-work §3 G1): the slot's landing-gate commands, synced like the rest of ``context``.
+
+    Killing mutation, red recorded in its commit body: ``_context`` drops the ``gate`` key → this test red.
+    """
+
+    from agent_runtime.workspace_slots import SlotRefused, normalize_declaration
+
+    entry = {"name": "launcher", "repo": {"clone_url": CLONE_URL, "default_branch": "main"},
+             "toolchain": {"kind": "flutter"},
+             "context": {"role": "frontend", "gate": [" dart tool/heavy_run/run.dart -- dart tool/run_tier.dart "]}}
+    name, body = normalize_declaration(entry)
+    assert body["context"]["gate"] == ["dart tool/heavy_run/run.dart -- dart tool/run_tier.dart"]
+    assert normalize_declaration({**entry, **body, "name": name}) == (name, body)
+    assert "gate" not in normalize_declaration({**entry, "context": {"role": "frontend"}})[1]["context"]
+    assert normalize_declaration({**entry, "context": {"gate": []}})[1]["context"]["gate"] == []
+    assert "result" in _declare(workspace, [entry])
+    assert load_document(workspace)["slots"]["launcher"]["context"]["gate"] == body["context"]["gate"]
+    for bad in (["git push https://me:hunter2@github.com/x/y.git"], "bash scripts/test.sh", [""], [3]):
+        with pytest.raises(SlotRefused) as refused:
+            normalize_declaration({**entry, "context": {"gate": bad}})
+        assert refused.value.reason == "invalid_declaration", bad

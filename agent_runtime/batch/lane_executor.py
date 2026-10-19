@@ -15,8 +15,9 @@ Behind the EXECUTOR contract (``work_store/executor.py``), over a ``PersonaTurnE
 4. On settle the outcome carries the lane's commits read from git (``base..branch``; the landing's HEAD per
    slot) and goes to this executor's listeners (the dispatcher).
 5. The landing lane's settle first runs the landing gate OFF the settle's thread (``gate.GateRunner``, the
-   landing brief's ``tests``: ``planner.LANDING_GATE``) in each slot's landing worktree; the outcome then
-   carries one ``GateReceipt`` per slot, and that — not the persona's verdict — decides green
+   landing lane's ``Lane.gates`` for that slot) in each slot's landing worktree; a slot with no gate declared
+   (None) is a RED receipt without a subprocess (row RT-BATCH-GATE-PER-SLOT-COMMAND, owner ruling 2026-10-19).
+   The outcome then carries one ``GateReceipt`` per slot, and that — not the persona's verdict — decides green
    (row RT-BATCH-GATE-RECEIPT, owner ruling 2026-10-18).
 
 Pushing a default branch is NOT this module's: that is ``lander.GitLander`` behind ``runtime.batch.approve``.
@@ -35,14 +36,15 @@ from typing import Any
 from ..work_store import receipts
 from ..work_store.executor import Assignment, ExecutorKind, Outcome, Run, RunStatus, StopReason
 from ..work_store.persona_turn import BRIEF_MAX_LINES, REPORT_CLOSING
+from ..work_store.models import GateReceipt
 from ..work_store.reasons import Reason, WorkRefused
-from .gate import GateRunner
+from .gate import GateRunner, no_gate_summary
 from .lane_git import (
     Clone, LaneGit, Site, board_clone, landing_site, lane_branch, lane_site, lane_slot, slots_of,
 )
 from .machine import Batch, LaneRecord, LaneState
 from .manifest import ManifestStore, find_batch
-from .planner import LANDING_GATE, LaneKind
+from .planner import LaneKind
 
 __layer__ = "lanes"
 __all__ = ["BatchLaneExecutor", "render_lane_brief"]
@@ -233,11 +235,14 @@ class BatchLaneExecutor:
         gates = []
         try:
             batch, record = self._lane(run.request_id)
-            commands = tuple(record.lane.brief.tests) or (LANDING_GATE,)
             for site in self._landing_sites(batch):
-                receipts.emit("batch.gate_started", batch_id=batch.id, slot=site.slot, command=" && ".join(commands),
-                              worktree=str(site.worktree))
-                gate = self._gate.run(site, commands)
+                commands = record.lane.gates.get(site.slot)
+                if commands is None:
+                    gate = GateReceipt(site.slot, "", -1, no_gate_summary(site.slot), self._git.head(site.worktree))
+                else:
+                    receipts.emit("batch.gate_started", batch_id=batch.id, slot=site.slot,
+                                  command=" && ".join(commands), worktree=str(site.worktree))
+                    gate = self._gate.run(site, commands)
                 receipts.emit("batch.gate", batch_id=batch.id, **gate.wire())
                 gates.append(gate)
         except Exception:

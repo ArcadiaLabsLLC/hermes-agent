@@ -36,7 +36,7 @@ from utils import atomic_json_write
 
 from . import paths
 from .machine_roots import _ROOT_NAME_RE, load_machine_roots, write_machine_roots
-from .workspace_slot_recipe import url_carries_credential
+from .workspace_slot_recipe import text_carries_credential, url_carries_credential
 
 __layer__ = "stores"
 
@@ -216,6 +216,14 @@ def _context(value: Any) -> dict[str, Any]:
         if not _inside_checkout(brain_dir):
             raise SlotRefused(REASON_INVALID_DECLARATION, "context.brain_dir is a relative path inside the checkout")
         held["brain_dir"] = brain_dir
+    gate = value.get("gate") if isinstance(value, dict) else None
+    if gate is not None:
+        # The batch landing gate's commands for this slot (p10-work §3, RT-BATCH-GATE-PER-SLOT-COMMAND).
+        if not isinstance(gate, list) or not all(isinstance(c, str) and c.strip() for c in gate):
+            raise SlotRefused(REASON_INVALID_DECLARATION, "context.gate is a list of non-empty command strings")
+        if any(text_carries_credential(c) for c in gate):
+            raise SlotRefused(REASON_INVALID_DECLARATION, "context.gate names no credential")
+        held["gate"] = [c.strip() for c in gate]
     return held
 
 

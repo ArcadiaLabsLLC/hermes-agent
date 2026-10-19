@@ -47,7 +47,7 @@ from ..work_store.executor import Assignment, Executor, Outcome, RowEnding, Run,
 from ..work_store.grammar import RowRef, Status
 from ..work_store.reasons import Reason, WorkRefused
 from ..work_store.source import Claimant, WorkSource
-from .gate import is_green, require_green
+from .gate import is_green, require_green, slot_gate
 from .lane_git import slots_of
 from .machine import (
     BATCH_MOVES, LANE_MOVES, Automation, Batch, BatchAction, BatchEvent, BatchState, LaneEvent, LaneRecord,
@@ -133,6 +133,7 @@ class BatchDispatcher:
         machine: Callable[[], str],
         roster: Callable[[str], list[Member]] = lambda _ws: [],
         slot_roles: Callable[[str], dict[str, str]] = lambda _ws: {},
+        slot_gates: Callable[[str], Mapping[str, tuple[str, ...] | None]] = lambda _ws: {},
         budget_for: Callable[[str], Budget] = lambda _ws: Budget(),
         box_idle: Callable[[], bool] = idle_box,
         lander: Lander | None = None,
@@ -145,6 +146,7 @@ class BatchDispatcher:
         self._machine = machine
         self._roster = roster
         self._slot_roles = slot_roles
+        self._slot_gates = slot_gates
         self._budget_for = budget_for
         self._box_idle = box_idle
         self._lander = lander or UnbuiltLander()
@@ -158,7 +160,8 @@ class BatchDispatcher:
             automation_allows(self.automation(workspace_id), BatchAction.PLAN)
         rows = self._source_for(workspace_id).ready(workspace_id)
         planned = make_plan(rows, workspace_id=workspace_id, roster=self._roster(workspace_id),
-                            slot_roles=self._slot_roles(workspace_id), budget=self._budget_for(workspace_id))
+                            slot_roles=self._slot_roles(workspace_id), budget=self._budget_for(workspace_id),
+                            slot_gates=self._slot_gates(workspace_id))
         receipts.emit("batch.planned", workspace_id=workspace_id, batch_id=planned.id,
                       lanes=[lane.id for lane in planned.lanes], asks=list(planned.asks))
         return planned
@@ -479,6 +482,16 @@ def _slot_roles(workspace_id: str) -> dict[str, str]:
             for name, slot in live_slots(load_document(workspace_id)).items()}
 
 
+def _slot_gates(workspace_id: str) -> dict[str, tuple[str, ...] | None]:
+    """Each board's landing gate (``gate.slot_gate``): declared, by toolchain kind, the default brain's no-op, or None."""
+
+    from ..work_store.board import boards
+    from ..workspace_slots import live_slots, load_document
+
+    slots = live_slots(load_document(workspace_id))
+    return {board.slot: slot_gate(slots.get(board.slot), is_default=board.is_default) for board in boards(workspace_id)}
+
+
 def _budget(workspace_id: str) -> Budget:
     from ..work_store.engine import default_cap
 
@@ -509,7 +522,7 @@ def default_dispatcher(*, persona: Any = None, executor: Executor | None = None,
     executor = executor or BatchLaneExecutor(inner=persona or PersonaTurnExecutor(), manifests=manifests,
                                              workspaces=_workspace_ids)
     built = BatchDispatcher(source_for=BoardSource, manifests=manifests, executor=executor, machine=this_machine,
-                            roster=_workspace_roster, slot_roles=_slot_roles, budget_for=_budget,
-                            lander=lander or GitLander(), workspaces=_workspace_ids)
+                            roster=_workspace_roster, slot_roles=_slot_roles, slot_gates=_slot_gates,
+                            budget_for=_budget, lander=lander or GitLander(), workspaces=_workspace_ids)
     executor.on_settle(built.settled)
     return built

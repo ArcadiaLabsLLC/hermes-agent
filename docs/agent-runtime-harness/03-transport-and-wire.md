@@ -1775,9 +1775,8 @@ written to the `-scratch` directory beside it and sent as the persona's turn, wh
 `invalid_request`, `reason: run_workdir_unavailable` — never falls back to the ladder). The settle reads the lane's commits from git (`base..branch`).
 `land` cuts `land/<batch>` per slot the batch touched and merges each `REPORTED` lane `--no-ff` in order (a
 conflict is aborted and named in the landing brief). When the landing turn settles, the executor runs the
-landing gate itself, off the settle's thread, in each slot's landing worktree (`gate.py::GateRunner`; the
-landing brief's `tests`, `planner.LANDING_GATE` = `bash scripts/run_tests_bundled.sh tests`) and records one
-code-run receipt per slot — `{slot, command, exit_code, summary, sha, seconds}`, `sha` the HEAD it ran on —
+landing gate itself, off the settle's thread, in each slot's landing worktree (`gate.py::GateRunner`) and
+records one code-run receipt per slot — `{slot, command, exit_code, summary, sha, seconds}`, `sha` the HEAD it ran on —
 in the manifest's batch line (`gate_receipts`; `Batch.gate_receipts`). Those receipts alone decide
 `AWAITING_APPROVAL`; the persona's `work_report` verdict is advisory (`advisory`; row RT-BATCH-GATE-RECEIPT,
 owner ruling 2026-10-18). `approve` refuses `gate_not_green` without a green receipt per slot, and
@@ -1785,6 +1784,18 @@ owner ruling 2026-10-18). `approve` refuses `gate_not_green` without a green rec
 HEAD) before it pushes each landing HEAD fast-forward. `land` and `approve` hold
 `locks.batch_landing_lock` (one landing per machine). Receipts: `batch.lane_site`, `batch.gate_started`,
 `batch.gate`.
+
+Which command runs per slot (row RT-BATCH-GATE-PER-SLOT-COMMAND, owner ruling 2026-10-19): the plan's
+`landing` lane carries `gates {slot: [command…] | null}`, one entry per slot its lanes touch, read at plan
+time by `gate.py::slot_gate` in this order — (1) the slot declaration's `context.gate` (a list of non-empty
+command strings set through `workspace.slots.declare`, refused `invalid_declaration` when one carries a
+credential; `[]` is "declared none", a red receipt); (2) `GATES_BY_TOOLCHAIN_KIND[toolchain.kind]`
+(`python`/`hermes` → `bash scripts/run_tests_bundled.sh tests`, `flutter` → `dart tool/heavy_run/run.dart --
+dart tool/run_tier.dart`, `django`/`backend` → `bash scripts/test.sh`, `brain` → `:`); (3) the default brain:
+`:`, a green receipt `no code to test: brain-only slot` without a subprocess; (4) `null`: a RED receipt
+`no gate declared for slot <name>; set context.gate`, never a skip, so `approve` refuses `gate_not_green`. A
+manifest written before `gates` existed folds to `{}` — every slot red; that batch is stopped and planned
+again.
 
 ### Schedule methods — the serve's scheduler
 
