@@ -1905,6 +1905,37 @@ the reply; an exec approval on any bound root becomes a platform card answered t
 refused | bound | lane | approval_card | approval_answered`. Plan and remaining stages:
 [p10-messaging](planned/p10-messaging-2026-10-19.md).
 
+### Lens ingress — the push door
+
+`runtime.lens.ingress.*` (`agent_runtime/serve_rpc/lens.py`, tier console) owns the Lens L3 push door, an
+in-serve stdlib listener (`agent_runtime/lens/ingress.py::IngressListener`) bound loopback by default, a
+private address only through `ingress.bind`, and only while a route exists. `POST /lens/<route_id>`; a
+refusal is a bodiless 4xx (`REFUSAL_STATUS`) plus, for a route that exists, an `ingress_refused` gap row.
+
+A route records its **auth mode** (`ingress_routes.IngressAuth`), chosen at `ingress.register {monitor_id,
+kind, mapping?, auth?}`:
+
+- `hmac` (default): `X-Lens-Signature` HMAC-SHA256 over `"<ts>:" + body` with `X-Lens-Timestamp`, or Svix.
+  A 5-minute timestamp window and a ring of the last 1024 nonces guard replay.
+- `bearer` (owner ruling 2026-10-19, `RT-LENS-ALERTMANAGER-UNSIGNED`; Alertmanager's `webhook_config`
+  cannot sign a body): `Authorization: Bearer <the route's same secret>`, compared with
+  `hmac.compare_digest` (`ingress.py::verify_bearer`). A bearer route takes bearer only, and an HMAC route
+  ignores a bearer header (`AUTH_VERIFIERS`, keyed by the route's mode). With no timestamp, replay is guarded
+  by a timestamp-free ring of body digests (`BEARER_REPLAY_WINDOW`, 5 minutes, at most `NONCE_RING`
+  entries): the same body to the same route within the window answers 409 `replay`. The ring is listener
+  memory and **survives nothing**: a restart or a rebind forgets it, so a body replayed across a restart is
+  accepted once more. Only `kind: alertmanager` may take bearer (`BEARER_KINDS`; `bearer_not_for_kind`),
+  and only while the bind is loopback or private (`is_local_bind`): register refuses
+  `bearer_needs_local_bind`, `ingress.bind` refuses every public or unspecified host for every route
+  (`bind_host_not_local`), and a listener whose bind is not local (a hand-edited `lens/ingress.json`)
+  answers a bearer route 403 `bearer_public_bind`.
+
+Every route on the wire (`register`, `list`, `revoke`) carries `auth` and `weaker` (`true` for bearer: the
+secret travels on every request); the Console labels a weaker route. The secret is in `register`'s answer
+once and never on a list, a receipt or a log line; the refusal log receipt is `lens ingress refused:
+route=… auth=… reason=…`. Stores written before `auth` existed gain the column on open
+(`store.py::_add_route_auth`) and read their routes as `hmac`.
+
 ### Conversation-scoped Work
 
 `agent_runtime/work/context.py` resolves optional `conversation` references through existing
