@@ -130,6 +130,9 @@ packaging:
     - hermes_cli.namespace_cmd
     - agent_runtime.namespace
     - agent_runtime.namespace_admin
+    # The store epoch (RT-STORE-EPOCH): the bootstrap and `probe` load its FILE without importing the
+    # agent_runtime package, so no import edge from them reaches it — it is a root by name.
+    - agent_runtime.store_epoch
   # Optional extras (pyproject [project.optional-dependencies]) the bundle ships.
   # Every other extra is absent: full Hermes installs extras lazily and their
   # import sites tolerate absence; this profile turns lazy installs off, so an

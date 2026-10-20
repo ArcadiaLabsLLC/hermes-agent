@@ -7,6 +7,8 @@ when it ran — a refusal of the asked id rides its ``refusal`` field); exit 2: 
 
 * ``probe [<id>]`` — the launcher's pre-spawn capability check (an older Hermes exits non-zero on
   the unknown subcommand, so "exit 0 + JSON" is the capability). Reads only; writes nothing.
+  Its ``epoch {stored, mine, verdict}`` is the store-epoch verdict (RT-STORE-EPOCH): ``newer`` also
+  rides ``refusal`` (``namespace_epoch_newer``); ``consent_required`` does not — the launcher asks.
 * ``list`` — every namespace: id, kind (``account`` for ``acct-<16 hex>``, else ``profile``), size,
   last serve, busy, created / seeded-from.
 * ``seed <id> --from <base|ns-id> [--dry-run] [--with-memories]`` — once, at creation (owner ruling

@@ -37,6 +37,7 @@ from hermes_cli._namespace_bootstrap import (
     validate_id,
 )
 
+from . import store_epoch
 from .file_locks import LockUnavailable, try_lock_exclusive, unlock
 from .serve_registry import CLASSIFICATION_LIVE, CLASSIFICATION_UNKNOWN, list_serve_instances, serve_instances_dir
 from .serve_socket.owner_lock import socket_lock_path, socket_owner_path
@@ -59,6 +60,21 @@ def _write_manifest(item: Layout, record: dict[str, Any]) -> None:
     tmp = item.manifest_path.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(record, indent=2, sort_keys=True), encoding="utf-8")
     os.replace(tmp, item.manifest_path)
+
+
+def epoch_admitted(item: Layout, env: Mapping[str, str], *, write: bool = False) -> store_epoch.Decision:
+    """RT-STORE-EPOCH: a verb that reads or writes a namespace's stores refuses one this build cannot read."""
+    decision = store_epoch.guard(item.manifest_path, env, write=write)
+    if decision.refusal is not None:
+        raise NamespaceRefused(Reason(decision.refusal),
+                               f"{item.id!r} is at store epoch {decision.stored}; this build is epoch {decision.mine} "
+                               f"({decision.verdict})")
+    return decision
+
+
+def restamped(record: dict[str, Any]) -> dict[str, Any]:
+    """A manifest this build re-shapes from scratch (``reset``, ``seed``): its epoch is this build's."""
+    return store_epoch.stamped(record, raise_to=store_epoch.STORE_EPOCH)
 
 
 def existing_namespace(ns_id: str, env: Mapping[str, str]) -> Layout:
@@ -154,7 +170,7 @@ def reset(ns_id: str, env: Mapping[str, str]) -> dict[str, Any]:
     _rm(socket_lock_path(item.store_root))
     if item.store_root.is_dir() and not any(item.store_root.iterdir()):
         item.store_root.rmdir()
-    _write_manifest(item, {"schema": 1, "id": item.id, "created_at": _now(), "reset_at": _now()})
+    _write_manifest(item, restamped({"schema": 1, "id": item.id, "created_at": _now(), "reset_at": _now()}))
     return {"ok": True, "verb": "reset", "id": item.id, "root": str(item.root)}
 
 

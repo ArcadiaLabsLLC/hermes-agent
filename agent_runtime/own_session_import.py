@@ -56,7 +56,7 @@ from hermes_cli._namespace_bootstrap import DEPENDENCY_ENV, ENV, Layout, validat
 
 from . import chat_session_scope
 from .models import PersonaInstance
-from .namespace_admin import existing_namespace
+from .namespace_admin import epoch_admitted, existing_namespace
 from .persona_assignments import PersonaInstanceStore, persona_instance_id_for
 from .persona_chat_continuity import PERSONA_CHAT_SESSION_SOURCE
 from .persona_chat_history.history_rows import _infer_persona_id, _model_config, _persisted_persona_instance_id
@@ -328,6 +328,7 @@ def import_into_namespace(ns_id: str, path: Path | str, env: Mapping[str, str], 
                           binds: Mapping[str, str] | None = None, dry_run: bool = False) -> dict[str, Any]:
     """Import an export into NAMED namespace ``ns_id``. Never ``base``: the source root is never a target."""
     item = existing_namespace(validate_id(ns_id), env)
+    epoch_admitted(item, env, write=not dry_run)  # RT-STORE-EPOCH: refuses a newer store; stamps on a write
     source = Path(path).resolve()
     with _homed_in(item):
         report = import_own_export(source, binds=binds, dry_run=dry_run)

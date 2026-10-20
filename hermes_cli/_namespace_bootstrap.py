@@ -104,6 +104,8 @@ class Reason(StrEnum):
     MEMORIES_NOT_ACCOUNT = "namespace_memories_not_account"
     INSTANCE_NOT_REBASED = "namespace_instance_not_rebased"
     DEV_ONLY = "namespace_dev_only"
+    EPOCH_NEWER = "namespace_epoch_newer"
+    EPOCH_CONSENT_REQUIRED = "namespace_epoch_consent_required"
 
 
 class NamespaceRefused(RuntimeError):
@@ -400,12 +402,41 @@ def env_updates(res: CliResolution, env: Mapping[str, str]) -> dict[str, str]:
     return out
 
 
+_STORE_EPOCH_ALIAS = "_hermes_store_epoch"
+
+
+def store_epoch_module():
+    """``agent_runtime.store_epoch`` without importing the ``agent_runtime`` package (RT-STORE-EPOCH).
+
+    The package ``__init__`` imports the models (~0.4 s); this module and ``probe`` run before any of
+    that. The epoch module is stdlib-only by contract, so loading its file under a private name is
+    the same code; when the package has already imported it, that one object is used.
+    """
+    loaded = sys.modules.get("agent_runtime.store_epoch") or sys.modules.get(_STORE_EPOCH_ALIAS)
+    if loaded is not None:
+        return loaded
+    import importlib.util
+
+    path = Path(__file__).resolve().parents[1] / "agent_runtime" / "store_epoch.py"
+    spec = importlib.util.spec_from_file_location(_STORE_EPOCH_ALIAS, path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[_STORE_EPOCH_ALIAS] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def ensure_manifest(item: Layout) -> bool:
-    """Write ``namespace.json`` on first resolve; True when this call created it."""
+    """Write ``namespace.json`` on first resolve; True when this call created it.
+
+    A new store is stamped at creation with this build's epoch (RT-STORE-EPOCH): it was shaped by
+    this build, so no consent is ever asked for it.
+    """
     if item.manifest_path.is_file():
         return False
     item.root.mkdir(parents=True, exist_ok=True)
-    record = {"schema": SCHEMA, "id": item.id, "created_at": datetime.now(UTC).isoformat(timespec="seconds")}
+    epoch = store_epoch_module()
+    record = {"schema": SCHEMA, "id": item.id, "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
+              "epoch": epoch.epoch_block()}
     try:
         with open(item.manifest_path, "x", encoding="utf-8") as handle:
             json.dump(record, handle, indent=2, sort_keys=True)
@@ -443,7 +474,7 @@ def probe(env: Mapping[str, str], ns_id: str | None = None) -> dict[str, object]
     out: dict[str, object] = {
         "schema": SCHEMA, "namespaces_dir": None, "base_root": None, "root_budget": ROOT_BUDGET,
         "max_path": MAX_PATH_CHARS, "long_paths": long_paths_enabled(), "launcher_spawned": launcher_spawned(env),
-        "namespace": None, "root": None, "root_length": None, "active": None, "refusal": None,
+        "namespace": None, "root": None, "root_length": None, "active": None, "refusal": None, "epoch": None,
     }
     try:
         base = base_root(env)
@@ -456,6 +487,12 @@ def probe(env: Mapping[str, str], ns_id: str | None = None) -> dict[str, object]
                 item = layout(requested, env, long_paths=True)
                 out["root"], out["root_length"] = str(item.root), item.root_length
                 layout(requested, env)  # the budget refusal, reported beside the length it measured
+                decision = store_epoch_module().guard(item.manifest_path, env, write=False)
+                out["epoch"] = decision.payload()
+                if decision.verdict == "newer":  # consent_required rides `epoch.verdict`: the launcher asks
+                    raise NamespaceRefused(
+                        Reason.EPOCH_NEWER,
+                        f"{item.id!r} is at store epoch {decision.stored}; this build reads epoch {decision.mine}")
     except NamespaceRefused as exc:
         out["refusal"] = {"reason": exc.reason.value, "detail": exc.detail}
     return out

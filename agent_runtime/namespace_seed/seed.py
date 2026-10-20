@@ -47,7 +47,15 @@ from hermes_cli._namespace_bootstrap import (
     validate_id,
 )
 
-from ..namespace_admin import _exclusive, _namespace_manifest, _now, _write_manifest, existing_namespace
+from ..namespace_admin import (
+    _exclusive,
+    _namespace_manifest,
+    _now,
+    _write_manifest,
+    epoch_admitted,
+    existing_namespace,
+    restamped,
+)
 from ..redaction import has_secret_value
 from .instances import HANDLED as INSTANCES_HANDLED
 from .instances import InstancePlan, plan_instances, write_instances
@@ -254,7 +262,12 @@ def seed(target_id: str, source: str, env: Mapping[str, str], *, dry_run: bool =
     source = validate_id(source)
     if source == item.id:
         raise NamespaceRefused(Reason.SEED_SOURCE, "a namespace cannot seed itself")
-    src_root = item.base_root if source == BASE_ID else existing_namespace(source, env).root
+    if source == BASE_ID:
+        src_root = item.base_root
+    else:
+        src_item = existing_namespace(source, env)
+        epoch_admitted(src_item, env)  # RT-STORE-EPOCH: never copy a shape this build cannot read
+        src_root = src_item.root
     if not src_root.is_dir():
         raise NamespaceRefused(Reason.NOT_FOUND, f"the seed source {src_root} does not exist")
     bad = allowlist_violations(HOME_SEED + STORE_SEED + ROOT_SEED + SHARED_SEED)
@@ -274,9 +287,10 @@ def seed(target_id: str, source: str, env: Mapping[str, str], *, dry_run: bool =
             _copy(src, dst)
         write_instances(plan.instances)
     result = plan.payload()
-    _write_manifest(item, {**manifest, "seeded_from": source, "seeded_at": _now(), "seeded": result["copied"],
-                           "skipped": result["skipped"], "instances": [row["id"] for row in result["instances"]["carried"]],
-                           "with_memories": with_memories})
+    _write_manifest(item, restamped({
+        **manifest, "seeded_from": source, "seeded_at": _now(), "seeded": result["copied"],
+        "skipped": result["skipped"], "instances": [row["id"] for row in result["instances"]["carried"]],
+        "with_memories": with_memories}))
     return {"ok": True, **head, "dry_run": False, **result}
 
 
