@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-20 (launcher lane w1020t-mc-slots)
+
+- **`RT-SLOTS-SHOW-DROPS-MISSING-PATH` — `runtime.workspace.slots.show` drops `path` and answers `bound_here: false` once a bound slot folder is deleted, so the launcher console cannot tell "folder missing" from "not set up on this machine" and its slot-folder-missing notice fires only in a race; keep the bound path and report a distinct missing state** · `agent_runtime/serve_rpc/workspace_slots.py::_slots_show` · consumer: launcher slot picker (`EterniaLauncher` lane w1020t-mc-slots, branch `wave/w1020t-mc-slots`) · READY 2026-10-20
+
 ### Filed on arrival — 2026-10-20 (launcher lane w1020r-mc-office)
 
 - **`PKG-CLOSURE-PLATFORM-GUARDED-IMPORTS` — The bundle packager's closure walk requires runtime-guarded Windows-only imports on POSIX targets, so `stage --target linux-x64|darwin-arm64` fails at ab8578f8f5 ("the closure needs portalocker / pywin32; the pool does not hold it")** · `tools/mcp_tool_loop.py` (`import portalocker` after the fcntl branch), `tui_gateway/host_supervisor.py` (`import win32file` under `os.name == "nt"`), `scripts/bundle_profile_package.py` · blocks launcher `DIST-SIGNING-LISTS-AB8578` · READY 2026-10-20
