@@ -37,6 +37,9 @@ LAUNCHER_ENV = "HERMES_LAUNCHER_SPAWNED"
 PRINT_SCHEMA = 1
 
 #: Every store-shape change that landed, oldest first. Append; never rewrite an entry.
+#: ``pins_sha256`` is :func:`pins_digest` of ``store_shape_pins.json`` AFTER the change: the newest
+#: entry must name the pins in the tree, so re-pinning a changed shape forces a new entry
+#: (``tests/agent_runtime/test_store_epoch_gate.py``, row RT-STORE-EPOCH-GATE).
 MIGRATION_REGISTRY: tuple[dict[str, Any], ...] = (
     {
         "id": "store-epoch-baseline",
@@ -44,11 +47,29 @@ MIGRATION_REGISTRY: tuple[dict[str, Any], ...] = (
         "store": "all",
         "breaking": False,
         "reason": "epoch 1 is the store shape the guard was introduced over; every older namespace reads it",
+        "pins_sha256": "f4ecdffef54e3dcde754394adeaa4a6ae694f41b0de97b5f8edaad2030288aef",
     },
 )
 
 #: ``1 + count(breaking entries)`` — ``tests/agent_runtime/test_store_epoch_gate.py`` holds it to that.
 STORE_EPOCH = 1
+
+#: The store-shape pins the gate compares with the tree (``SCHEMA_VERSION``, the ``SCHEMA_SQL`` digest,
+#: the turn-record and runtime schema versions, every ``models.py`` ``schema_version`` default and the
+#: ``paths.py`` path-table digest).
+PINS_PATH = Path(__file__).resolve().with_name("store_shape_pins.json")
+
+
+def load_pins(path: Path | None = None) -> dict[str, Any]:
+    return json.loads((PINS_PATH if path is None else path).read_text(encoding="utf-8"))["pins"]
+
+
+def pins_digest(pins: Mapping[str, Any]) -> str:
+    """sha256 of the canonical JSON of *pins* — what a registry entry's ``pins_sha256`` names."""
+    import hashlib
+
+    return hashlib.sha256(json.dumps(dict(pins), sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
 
 VERDICT_OK = "ok"
 VERDICT_RAISE = "raise"
