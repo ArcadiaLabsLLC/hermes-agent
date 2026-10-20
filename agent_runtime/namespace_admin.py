@@ -68,17 +68,20 @@ __layer__ = "lanes"
 #: Profile-home entries a seed copies (the root's own and each ``profiles/<name>/``'s): config
 #: (``profile.yaml`` is the profile's own metadata), SOUL, skills, skins, and the persona prompt files
 #: (``personas/``, realm sync's ``PERSONA_PROMPT_DIR``) persona definitions point at.
-HOME_SEED = ("config.yaml", "profile.yaml", "SOUL.md", "skills", "skins", "personas")
+HOME_SEED = ("config.yaml", "profile.yaml", "SOUL.md", "skills", "skins", "personas", "pets")
 #: Runtime-store entries: the world definitions (realm sync's world families, prefabs included) and
 #: the persona definitions.
 STORE_SEED = ("realms", "workspaces", "levels", "maps", "prefabs", "office", "active_realm.json",
-              "active_workspace.json", "agents")
+              "active_workspace.json", "agents", "flow_graphs", "workspace_slots")
 #: Root entries: the machine-root registry.
 ROOT_SEED = ("machine_roots.json",)
 #: ``<root>/shared/`` entries: the install-wide skills and character libraries every profile reads
 #: (``profile_home.get_shared_skills_dir`` / ``get_shared_characters_dir``).
 SHARED_DIRNAME = "shared"
 SHARED_SEED = ("skills", "characters")
+#: The profile memory a seed copies ONLY on ``--with-memories`` into an ``acct-`` namespace (owner ruling
+#: 2026-10-19, row RT-NAMESPACE-SEED-OWNER-SET: "carry memories (opt-in, my reseed only)").
+MEMORIES = "memories"
 #: Install-level code a namespace BORROWS from the base root (``HERMES_DEPENDENCY_ROOT``); never copied.
 BORROWED = ("installs", "venvs", "bin", "builds", "tools", "runtimes")
 #: Names a seed never copies at ANY depth, whatever an allowlist says.
@@ -238,6 +241,16 @@ class SkipReason(StrEnum):
     SECRET_VALUE = "secret_value"  #: a secret-word-named file that holds a secret value (or cannot be read)
     SYMLINK = "symlink"  #: a link, at any depth — a seed copies bytes, never a pointer back into the source
     NOT_ALLOWLISTED = "not_allowlisted"  #: present in the source, on no allowlist (caches, backups, …)
+    MEMORIES_OPT_IN = "opt-in: --with-memories, acct- namespaces only"  #: owner ruling 2026-10-19
+    RULED_CODE = "owner ruled 2026-10-19: runs or schedules code"  #: cron, hooks, plugins, scripts
+    RULED_WORK_STATE = "owner ruled 2026-10-19: work state"  #: boards, kanban
+
+
+#: Allowlist-level names the owner ruled out of every seed (2026-10-19), with the ruling as the reason.
+RULED_OUT: dict[str, SkipReason] = {
+    **dict.fromkeys(("cron", "hooks", "plugins", "scripts"), SkipReason.RULED_CODE),
+    **dict.fromkeys(("boards", "kanban", "kanban.db", "kanban.db-shm", "kanban.db-wal"), SkipReason.RULED_WORK_STATE),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -253,7 +266,7 @@ class SeedPlan:
                 "borrowed": list(self.borrowed)}
 
 
-def _refusal(path: Path, *, nested: bool = False) -> SkipReason | None:
+def _seed_refusal(path: Path, *, nested: bool = False) -> SkipReason | None:
     """The ONE predicate a plan and a copy share: why ``path`` is never copied, or ``None``.
 
     ``nested``: ``path`` lies inside an allowlisted tree, where a secret-word FILE is read and judged
@@ -280,6 +293,17 @@ def _skip(skipped: list[dict[str, str]], rel: str, reason: SkipReason) -> None:
     skipped.append({"path": rel, "reason": reason.value})
 
 
+def _entry_reason(entry: Path, allowlist: tuple[str, ...]) -> SkipReason | None:
+    """Why an allowlist-level entry is not copied: a link, the owner's ruling, never-seed, or no allowlist."""
+    if entry.is_symlink():
+        return SkipReason.SYMLINK
+    if entry.name in RULED_OUT:
+        return RULED_OUT[entry.name]
+    if entry.name == MEMORIES:
+        return None if MEMORIES in allowlist else SkipReason.MEMORIES_OPT_IN
+    return _seed_refusal(entry) or (None if entry.name in allowlist else SkipReason.NOT_ALLOWLISTED)
+
+
 def _plan_dir(src: Path, dst: Path, rel: str, allowlist: tuple[str, ...], plan: list, skipped: list,
               handled: frozenset[str] = frozenset()) -> None:
     """Plan one directory level: allowlisted entries copy, every other entry is a reasoned skip.
@@ -293,7 +317,7 @@ def _plan_dir(src: Path, dst: Path, rel: str, allowlist: tuple[str, ...], plan: 
         if entry.name in handled and not entry.is_symlink():
             continue
         label = f"{rel}{entry.name}"
-        reason = _refusal(entry) or (None if entry.name in allowlist else SkipReason.NOT_ALLOWLISTED)
+        reason = _entry_reason(entry, allowlist)
         if reason is not None:
             _skip(skipped, label, reason)
             continue
@@ -301,18 +325,19 @@ def _plan_dir(src: Path, dst: Path, rel: str, allowlist: tuple[str, ...], plan: 
         for folder, dirs, files in os.walk(entry) if entry.is_dir() else ():
             for name in sorted(dirs + files):
                 inner = Path(folder) / name
-                if (why := _refusal(inner, nested=True)) is not None:
+                if (why := _seed_refusal(inner, nested=True)) is not None:
                     _skip(skipped, f"{label}/{inner.relative_to(entry).as_posix()}", why)
-            dirs[:] = [d for d in dirs if _refusal(Path(folder) / d, nested=True) is None]
+            dirs[:] = [d for d in dirs if _seed_refusal(Path(folder) / d, nested=True) is None]
 
 
-def plan_seed(src_root: Path, item: Layout) -> SeedPlan:
+def plan_seed(src_root: Path, item: Layout, *, with_memories: bool = False) -> SeedPlan:
     """Read-only: the exact seed of ``item`` from ``src_root``. Writes nothing (``--dry-run`` prints it)."""
+    home = HOME_SEED + ((MEMORIES,) if with_memories else ())
     copies: list[tuple[Path, Path, str]] = []
     skipped: list[dict[str, str]] = []
     borrowed = tuple(name for name in BORROWED if (src_root / name).is_dir() and not (src_root / name).is_symlink())
     handled = frozenset({"profiles", SHARED_DIRNAME, STORE_DIRNAME, *borrowed})
-    _plan_dir(src_root, item.root, "", ROOT_SEED + HOME_SEED, copies, skipped, handled)
+    _plan_dir(src_root, item.root, "", ROOT_SEED + home, copies, skipped, handled)
     _plan_dir(src_root / SHARED_DIRNAME, item.root / SHARED_DIRNAME, f"{SHARED_DIRNAME}/", SHARED_SEED, copies, skipped)
     _plan_dir(src_root / STORE_DIRNAME, item.store_root, f"{STORE_DIRNAME}/", STORE_SEED, copies, skipped)
     profiles = src_root / "profiles"
@@ -320,9 +345,9 @@ def plan_seed(src_root: Path, item: Layout) -> SeedPlan:
     for profile in sorted(profiles.iterdir(), key=lambda p: p.name) if listed else []:
         rel = f"profiles/{profile.name}"
         if not profile.is_dir() or profile.name.startswith(".") or allowlist_violations((profile.name,)):
-            _skip(skipped, rel, _refusal(profile) or SkipReason.NOT_ALLOWLISTED)
+            _skip(skipped, rel, _seed_refusal(profile) or SkipReason.NOT_ALLOWLISTED)
             continue
-        _plan_dir(profile, item.root / "profiles" / profile.name, f"{rel}/", HOME_SEED, copies, skipped)
+        _plan_dir(profile, item.root / "profiles" / profile.name, f"{rel}/", home, copies, skipped)
     return SeedPlan(tuple(copies), tuple(skipped), borrowed)
 
 
@@ -331,7 +356,7 @@ def _copy(src: Path, dst: Path) -> None:
     dst.parent.mkdir(parents=True, exist_ok=True)
     if src.is_dir():
         shutil.copytree(src, dst, symlinks=False, dirs_exist_ok=True,
-                        ignore=lambda folder, names: {n for n in names if _refusal(Path(folder) / n, nested=True) is not None})
+                        ignore=lambda folder, names: {n for n in names if _seed_refusal(Path(folder) / n, nested=True) is not None})
     else:
         shutil.copy2(src, dst)
 
@@ -346,12 +371,18 @@ def _assert_fresh(item: Layout, manifest: Mapping[str, Any]) -> None:
         raise NamespaceRefused(Reason.NOT_FRESH, f"{item.id!r} already holds {used}; seed only at creation")
 
 
-def seed(target_id: str, source: str, env: Mapping[str, str], *, dry_run: bool = False) -> dict[str, Any]:
+def seed(target_id: str, source: str, env: Mapping[str, str], *, dry_run: bool = False,
+         with_memories: bool = False) -> dict[str, Any]:
     """Copy the allowlist from ``base`` or a NAMED namespace into a freshly created namespace, once.
 
     ``dry_run`` refuses exactly as the real seed would and returns its plan, writing nothing.
+    ``with_memories`` (the owner's own reseed only) also copies each home's ``memories/``; it is
+    refused unless the target is an account namespace (``acct-<16 hex>``), so a QA seed never carries it.
     """
     item = layout(target_id, env)
+    if with_memories and not ACCOUNT_ID.fullmatch(item.id):
+        raise NamespaceRefused(Reason.MEMORIES_NOT_ACCOUNT,
+                               f"--with-memories seeds only an account namespace (acct-<16 hex>), not {item.id!r}")
     source = validate_id(source)
     if source == item.id:
         raise NamespaceRefused(Reason.SEED_SOURCE, "a namespace cannot seed itself")
@@ -361,20 +392,21 @@ def seed(target_id: str, source: str, env: Mapping[str, str], *, dry_run: bool =
     bad = allowlist_violations(HOME_SEED + STORE_SEED + ROOT_SEED + SHARED_SEED)
     if bad:
         raise NamespaceRefused(Reason.SEED_SOURCE, f"the seed allowlist names never-seed entries {bad}; nothing copied")
-    head = {"verb": "seed", "id": item.id, "from": source, "source_root": str(src_root), "root": str(item.root)}
+    head = {"verb": "seed", "id": item.id, "from": source, "source_root": str(src_root), "root": str(item.root),
+            "with_memories": with_memories}
     if dry_run:
         _assert_fresh(item, _namespace_manifest(item) or {})
-        return {"ok": True, **head, "dry_run": True, **plan_seed(src_root, item).payload()}
+        return {"ok": True, **head, "dry_run": True, **plan_seed(src_root, item, with_memories=with_memories).payload()}
     ensure_manifest(item)
     manifest = _namespace_manifest(item) or {}
     _assert_fresh(item, manifest)
     with _exclusive(item):
-        plan = plan_seed(src_root, item)
+        plan = plan_seed(src_root, item, with_memories=with_memories)
         for src, dst, _rel in plan.copies:
             _copy(src, dst)
     result = plan.payload()
     _write_manifest(item, {**manifest, "seeded_from": source, "seeded_at": _now(), "seeded": result["copied"],
-                           "skipped": result["skipped"]})
+                           "skipped": result["skipped"], "with_memories": with_memories})
     return {"ok": True, **head, "dry_run": False, **result}
 
 

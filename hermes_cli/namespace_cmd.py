@@ -54,7 +54,8 @@ def _admin():
 _RUNNERS = {
     "probe": lambda args: ns.probe(os.environ, args.id),
     "list": lambda args: _admin().list_namespaces(os.environ),
-    "seed": lambda args: _admin().seed(args.id, args.source, os.environ, dry_run=args.dry_run),
+    "seed": lambda args: _admin().seed(args.id, args.source, os.environ, dry_run=args.dry_run,
+                                       with_memories=args.with_memories),
     "reset": lambda args: _admin().reset(args.id, os.environ),
     "delete": lambda args: _admin().delete(args.id, os.environ),
     "import-sessions": lambda args: _session_import().run_namespace_verb(args, os.environ),
@@ -72,6 +73,8 @@ def _namespace_parser() -> argparse.ArgumentParser:
     seed.add_argument("--from", dest="source", required=True, help="'base' or a namespace id, named explicitly")
     seed.add_argument("--dry-run", action="store_true",
                       help="print the plan (copied / skipped with reason / borrowed) and write nothing")
+    seed.add_argument("--with-memories", action="store_true",
+                      help="also copy each home's memories/ (the owner's own reseed; acct- namespaces only)")
     imports = verbs.add_parser("import-sessions",
                                help="import a `hermes sessions export` JSONL into a namespace, rebinding each chat")
     imports.add_argument("id")
