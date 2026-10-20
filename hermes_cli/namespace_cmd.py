@@ -9,14 +9,20 @@ when it ran — a refusal of the asked id rides its ``refusal`` field); exit 2: 
   the unknown subcommand, so "exit 0 + JSON" is the capability). Reads only; writes nothing.
 * ``list`` — every namespace: id, kind (``account`` for ``acct-<16 hex>``, else ``profile``), size,
   last serve, busy, created / seeded-from.
-* ``seed <id> --from <base|ns-id> [--dry-run]`` — once, at creation (owner ruling Q11); the result
-  lists what was copied, what was skipped (each with a reason) and what the namespace borrows.
-  ``--dry-run`` prints that plan, refuses as the real seed would, and writes nothing.
+* ``seed <id> --from <base|ns-id> [--dry-run] [--with-memories]`` — once, at creation (owner ruling
+  Q11); the result lists what was copied, what was skipped (each with a reason), what the namespace
+  borrows, and the persona instances carried rebased. ``--dry-run`` prints that plan, refuses as
+  the real seed would, and writes nothing.
 * ``reset <id>`` / ``delete <id>`` — refused while a serve holds the namespace, for ``base`` and for
   this process's own namespace.
 * ``import-sessions <id> <export.jsonl> [--bind SRC=DST …] [--dry-run]`` — Hermes' own
   ``sessions export`` into a named namespace, each chat rebound to one of its persona instances
   (``agent_runtime/own_session_import.py``, row RT-SESSIONS-IMPORT-OWN-EXPORT); never ``base``.
+
+``seed`` and ``import-sessions`` are Developer Edition only (owner 2026-10-19): on the bundled
+edition they refuse ``namespace_dev_only`` (exit 2, nothing touched) and their modules are not in
+the bundle; ``probe``, ``list``, ``reset`` and ``delete`` ship everywhere (the launcher's spawn path
+calls ``probe``, its account removal ``delete``).
 
 The verbs live in ``agent_runtime/namespace_admin.py`` (``seed``: ``agent_runtime/namespace_seed/``);
 they are not gated by the external-access rule (they name every namespace explicitly and run no
@@ -30,6 +36,7 @@ import json
 import os
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 from hermes_cli import _namespace_bootstrap as ns
 
@@ -39,15 +46,42 @@ def _emit(payload: object) -> None:
     sys.stdout.flush()
 
 
-def _session_import():
-    from agent_runtime import own_session_import  # RT-SESSIONS-IMPORT-OWN-EXPORT
+#: The tree this CLI runs from; its build stamp says which edition it is.
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
+
+def _developer_edition_only(verb: str) -> None:
+    """``seed`` / ``import-sessions`` carry data between namespaces: Developer Edition only (owner 2026-10-19).
+
+    The edition authority is the build stamp (:func:`hermes_cli.steward.is_bundled_payload`), asked
+    BEFORE the implementation is imported; the bundled profiles do not ship it either.
+    """
+    from hermes_cli.steward import is_bundled_payload
+
+    if is_bundled_payload(_PROJECT_ROOT):
+        raise ns.NamespaceRefused(ns.Reason.DEV_ONLY,
+                                  f"`hermes namespace {verb}` ships in the Developer Edition only; nothing touched")
+
+
+def _absent(verb: str, exc: ImportError) -> ns.NamespaceRefused:
+    return ns.NamespaceRefused(ns.Reason.DEV_ONLY, f"`hermes namespace {verb}` is not in this build ({exc.name})")
+
+
+def _session_import():
+    _developer_edition_only("import-sessions")
+    try:
+        from agent_runtime import own_session_import  # RT-SESSIONS-IMPORT-OWN-EXPORT
+    except ImportError as exc:  # the bundled closure switches it off
+        raise _absent("import-sessions", exc) from exc
     return own_session_import
 
 
 def _seeding():
-    from agent_runtime import namespace_seed
-
+    _developer_edition_only("seed")
+    try:
+        from agent_runtime import namespace_seed
+    except ImportError as exc:  # the bundled closure switches it off
+        raise _absent("seed", exc) from exc
     return namespace_seed
 
 

@@ -111,16 +111,18 @@ def test_every_source_entry_is_copied_skipped_with_a_reason_or_borrowed(base: Pa
     assert out["borrowed"] == ["installs", "venvs", "bin", "builds", "tools", "runtimes"]
     for secret in ("auth.json", ".env", "state.db", "install_id", "profiles/coder/auth.json",
                    "profiles/coder/.env", "profiles/coder/state.db",
-                   "agent-runtime/persona_instances", "agent-runtime/sessions", "agent-runtime/realm_sync",
+                   "agent-runtime/sessions", "agent-runtime/realm_sync",
                    "agent-runtime/gateway", "logs"):
         assert skipped[secret] == "never_seed", secret
     for other in ("config.yaml.bak-1", "active_profile", "profiles/.deleted", "agent-runtime/events.jsonl"):
         assert skipped[other] == "not_allowlisted", other
+    instances = [row["path"] for row in [*out["instances"]["carried"], *out["instances"]["skipped"]]]
+    assert instances == ["agent-runtime/persona_instances/personainst_neko.json"]  # "{}" is no record: skipped
     tops = {rel.split("/")[0] for rel in [*out["copied"], *skipped, *out["borrowed"]]}
     assert tops == {p.name for p in base.iterdir()}
     sections = {"profiles": base / "profiles", "agent-runtime": base / "agent-runtime", "shared": base / "shared"}
     for name, folder in sections.items():
-        named = {rel.split("/")[1] for rel in [*out["copied"], *skipped] if rel.startswith(f"{name}/")}
+        named = {rel.split("/")[1] for rel in [*out["copied"], *skipped, *instances] if rel.startswith(f"{name}/")}
         assert named == {p.name for p in folder.iterdir()}, name
 
 

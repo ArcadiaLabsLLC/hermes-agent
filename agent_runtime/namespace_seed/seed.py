@@ -8,11 +8,14 @@ seed is again an explicit operator act).
 
 The allowlists and :data:`NEVER_SEED` moved here from the launcher's
 ``EterniaLauncher/tool/stagec_qa_mcp_server/lib/hermes_parity_seed.dart``; this module is now the
-one authority. Persona DEFINITIONS (``agent-runtime/agents/``) are seeded; persona INSTANCES
-(``agent-runtime/persona_instances/``) are not — an instance record carries its source's
-``runtime_root``, ``chat_head_home`` and session ids, so a copy would point the new namespace back
-into the old one; instances re-mint from the definitions. Chats move by ``hermes sessions export``
-→ ``hermes sessions import --from hermes`` (row RT-SESSIONS-IMPORT-OWN-EXPORT), never by a seed.
+one authority. Persona DEFINITIONS (``agent-runtime/agents/``) are copied; persona INSTANCES
+(``agent-runtime/persona_instances/``) are never copied AS-IS — :mod:`.instances` carries each one
+rebased (row RT-NAMESPACE-SEED-HIRED-INSTANCES, owner 2026-10-19), because the office the seed copies
+places hired instances boot never re-mints. Chats move by ``hermes namespace import-sessions``
+(row RT-SESSIONS-IMPORT-OWN-EXPORT), never by a seed.
+
+Developer Edition only (owner 2026-10-19): ``hermes_cli.namespace_cmd`` refuses ``seed`` on the
+bundled edition before importing this package, and the bundled profiles switch it off.
 
 A seed is planned before it copies (:func:`plan_seed`, read-only): every source entry is either
 copied, skipped with a :class:`SkipReason`, or listed as code the namespace borrows from the base
@@ -46,6 +49,8 @@ from hermes_cli._namespace_bootstrap import (
 
 from ..namespace_admin import _exclusive, _namespace_manifest, _now, _write_manifest, existing_namespace
 from ..redaction import has_secret_value
+from .instances import HANDLED as INSTANCES_HANDLED
+from .instances import InstancePlan, plan_instances, write_instances
 
 __layer__ = "lanes"
 
@@ -121,10 +126,11 @@ class SeedPlan:
     copies: tuple[tuple[Path, Path, str], ...]
     skipped: tuple[dict[str, str], ...]
     borrowed: tuple[str, ...]
+    instances: InstancePlan
 
     def payload(self) -> dict[str, Any]:
         return {"copied": [rel for _src, _dst, rel in self.copies], "skipped": list(self.skipped),
-                "borrowed": list(self.borrowed)}
+                "borrowed": list(self.borrowed), "instances": self.instances.payload()}
 
 
 def _seed_refusal(path: Path, *, nested: bool = False) -> SkipReason | None:
@@ -200,7 +206,8 @@ def plan_seed(src_root: Path, item: Layout, *, with_memories: bool = False) -> S
     handled = frozenset({"profiles", SHARED_DIRNAME, STORE_DIRNAME, *borrowed})
     _plan_dir(src_root, item.root, "", ROOT_SEED + home, copies, skipped, handled)
     _plan_dir(src_root / SHARED_DIRNAME, item.root / SHARED_DIRNAME, f"{SHARED_DIRNAME}/", SHARED_SEED, copies, skipped)
-    _plan_dir(src_root / STORE_DIRNAME, item.store_root, f"{STORE_DIRNAME}/", STORE_SEED, copies, skipped)
+    _plan_dir(src_root / STORE_DIRNAME, item.store_root, f"{STORE_DIRNAME}/", STORE_SEED, copies, skipped,
+              INSTANCES_HANDLED)
     profiles = src_root / "profiles"
     listed = profiles.is_dir() and not profiles.is_symlink()
     for profile in sorted(profiles.iterdir(), key=lambda p: p.name) if listed else []:
@@ -209,7 +216,7 @@ def plan_seed(src_root: Path, item: Layout, *, with_memories: bool = False) -> S
             _skip(skipped, rel, _seed_refusal(profile) or SkipReason.NOT_ALLOWLISTED)
             continue
         _plan_dir(profile, item.root / "profiles" / profile.name, f"{rel}/", home, copies, skipped)
-    return SeedPlan(tuple(copies), tuple(skipped), borrowed)
+    return SeedPlan(tuple(copies), tuple(skipped), borrowed, plan_instances(src_root, item))
 
 
 def _copy(src: Path, dst: Path) -> None:
@@ -255,19 +262,21 @@ def seed(target_id: str, source: str, env: Mapping[str, str], *, dry_run: bool =
         raise NamespaceRefused(Reason.SEED_SOURCE, f"the seed allowlist names never-seed entries {bad}; nothing copied")
     head = {"verb": "seed", "id": item.id, "from": source, "source_root": str(src_root), "root": str(item.root),
             "with_memories": with_memories}
+    _assert_fresh(item, _namespace_manifest(item) or {})
+    plan = plan_seed(src_root, item, with_memories=with_memories)  # every refusal lands before a write
     if dry_run:
-        _assert_fresh(item, _namespace_manifest(item) or {})
-        return {"ok": True, **head, "dry_run": True, **plan_seed(src_root, item, with_memories=with_memories).payload()}
+        return {"ok": True, **head, "dry_run": True, **plan.payload()}
     ensure_manifest(item)
     manifest = _namespace_manifest(item) or {}
     _assert_fresh(item, manifest)
     with _exclusive(item):
-        plan = plan_seed(src_root, item, with_memories=with_memories)
         for src, dst, _rel in plan.copies:
             _copy(src, dst)
+        write_instances(plan.instances)
     result = plan.payload()
     _write_manifest(item, {**manifest, "seeded_from": source, "seeded_at": _now(), "seeded": result["copied"],
-                           "skipped": result["skipped"], "with_memories": with_memories})
+                           "skipped": result["skipped"], "instances": [row["id"] for row in result["instances"]["carried"]],
+                           "with_memories": with_memories})
     return {"ok": True, **head, "dry_run": False, **result}
 
 
