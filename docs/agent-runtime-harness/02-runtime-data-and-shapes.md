@@ -80,6 +80,7 @@ manifest records which store shape last wrote it:
 | `seeded_from`, `seeded_at`, … | `namespace_seed.seed` | the one-time seed's receipt |
 | `epoch` | `ensure_manifest` and `reset`/`seed` (this build's epoch), a consented raise at serve boot | `{"value": N, "raised_at": …, "raised_by": {"commit", "edition", "hermes_version"}}`; ABSENT means epoch 0 (every namespace made before 2026-10-20); a block that does not parse is treated as newer |
 | `last_written_by` | every open by a serve or a writing verb (`import-sessions`) | `{"commit", "edition", "hermes_version", "at"}` — provenance, never compared |
+| `secure_store` | the first OS-secure-store bind in the namespace (`host_store.desktop_binding`) | `true`: sign-ins live in the OS secure store (`<namespace>/secure-store`) and EVERY edition binds it, whatever its own `auth.os_secure_store` says — the bundled edition moves plaintext `auth.json`/`.env` in and unlinks it, so a file-reading edition would otherwise be signed out (RT-NAMESPACE-SECURE-STORE-SHARED) |
 
 **The rule** (owner 2026-10-20): the guard compares a breaking-change EPOCH, never the version.
 `agent_runtime/store_epoch.py` is the one authority: `STORE_EPOCH` (what this build reads and writes,
