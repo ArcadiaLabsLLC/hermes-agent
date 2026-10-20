@@ -71,6 +71,27 @@ before any hermes module imports:
   bundled edition (build stamp `payload: bundled`, `hermes_cli.steward.is_bundled_payload`) they refuse
   `namespace_dev_only` before importing anything, and both bundled profiles switch their modules off;
   `probe`, `list`, `reset` and `delete` ship everywhere.
+- **The store epoch** (`agent_runtime/store_epoch.py`; 02 § "The namespace manifest and the store
+  epoch"). Both editions open one shared namespace, so a build refuses a store shaped by a newer one.
+  `ServeSession.run` runs `store_epoch.refuse_unreadable_store` as its first act after `booting` —
+  BEFORE the root anchor, the skill install, the install identity and the serve token, each of which
+  writes into the store (the launcher plan's "after the socket lock" is earlier in this tree: the store
+  is written before the lock is taken, and a stdio serve takes none). The verdict compares the
+  manifest's `epoch.value` (absent = 0) with `STORE_EPOCH`:
+
+  | stored vs mine | verdict | effect |
+  | --- | --- | --- |
+  | stored > mine, or unparseable | `newer` | refuse `namespace_epoch_newer`: one `namespace_refused` frame, a stderr line, exit 2, nothing written |
+  | equal, or older and this build's registry has no breaking entry above it | `ok` | open; `last_written_by` stamped; the epoch never moves |
+  | older, this build would raise, `HERMES_LAUNCHER_SPAWNED=1` and `HERMES_STORE_EPOCH_CONSENT=<mine>` | `raise` | open; `epoch.value = mine` stamped |
+  | older, this build would raise, no consent (or outside the launcher) | `consent_required` | refuse `namespace_epoch_consent_required`, nothing written |
+
+  The consent env is the launcher's alone: its early-pull disclaimer grants it. The conversation worker
+  entry runs the same check without stamping (its serve stamped this boot). `hermes namespace probe <id>`
+  prints `epoch {stored, mine, verdict}` (a `newer` verdict also rides `refusal`; `consent_required`
+  does not — the launcher decides whether to ask), and `seed` (from a newer source) and
+  `import-sessions` refuse a store this build cannot read; `reset`, `seed` and a new namespace stamp
+  this build's epoch.
 
 ---
 

@@ -78,6 +78,7 @@ or registry entry names something real).
 | `tests/hermes_cli/test_harness_json_root_observability.py` | fence | every `--json` harness verb says which root answered |
 | `tests/hermes_cli/test_error_exit_code_producers.py` | fence | every exit code in the taxonomy has a producer |
 | `tests/hermes_cli/test_flag_binding_boundary.py` | fence | an absent flag is not an empty one |
+| `tests/agent_runtime/test_store_epoch_gate.py` | runtime | a store-shape change is pinned and declared in `MIGRATION_REGISTRY`; `STORE_EPOCH` is 1 + its breaking entries |
 
 ## Generated artifacts are fresh
 
