@@ -29,18 +29,28 @@ def _long_paths(monkeypatch):
 
 @pytest.fixture
 def base(tmp_path: Path) -> Path:
-    """A base root holding every kind of entry a seed must copy or refuse."""
+    """A base root shaped like a Developer Edition root: definitions, secrets, runtime state, borrowed code."""
     root = tmp_path / ".hermes"
     files = {
         "config.yaml": "model: x\n", "SOUL.md": "soul\n", "skills/s1/SKILL.md": "s\n",
-        "skills/s1/token.txt": "SECRET\n", "skins/dark.yaml": "k\n", "machine_roots.json": "{}",
-        "auth.json": "SECRET", ".env": "SECRET", "state.db": "x", "install_id": "id",
-        "profiles/coder/config.yaml": "p\n", "profiles/coder/auth.json": "SECRET", "profiles/coder/.env": "SECRET",
+        "skills/s1/token.txt": "password = fixture-not-real\n",
+        "skills/s1/references/token-budget.md": "how to budget tokens\n", "skills/s1/credentials/key.txt": "SECRET",
+        "skins/dark.yaml": "k\n", "machine_roots.json": "{}",
+        "auth.json": "SECRET", ".env": "SECRET", "state.db": "x", "install_id": "id", "kanban.db": "x",
+        "config.yaml.bak-1": "old\n", "memories/MEMORY.md": "m\n", "logs/agent.log": "l\n",
+        "cron/jobs.json": "{}", "active_profile": "coder",
+        "shared/skills/team/SKILL.md": "t\n", "shared/characters/golem/character.json": "{}",
+        "installs/x/marker": "x", "venvs/v/marker": "x", "bin/hermes": "x", "builds/b/marker": "x",
+        "tools/node/marker": "x", "runtimes/python/marker": "x",
+        "profiles/coder/config.yaml": "p\n", "profiles/coder/profile.yaml": "display_name: C\n",
+        "profiles/coder/auth.json": "SECRET", "profiles/coder/.env": "SECRET", "profiles/coder/state.db": "x",
+        "profiles/coder/memories/MEMORY.md": "m\n", "profiles/coder/personas/neko.md": "prompt\n",
         "profiles/.deleted/x/config.yaml": "gone\n",
         "agent-runtime/agents/neko.json": "{}", "agent-runtime/realms/r.json": "{}",
-        "agent-runtime/active_realm.json": "{}", "agent-runtime/persona_instances/personainst_neko.json": "{}",
+        "agent-runtime/active_realm.json": "{}", "agent-runtime/prefabs/coder/p.json": "{}",
+        "agent-runtime/persona_instances/personainst_neko.json": "{}", "agent-runtime/boards/b/board.json": "{}",
         "agent-runtime/sessions/s.json": "{}", "agent-runtime/realm_sync/r/remote": "https://u:pw@host",
-        "agent-runtime/gateway/pairing.json": "SECRET",
+        "agent-runtime/gateway/pairing.json": "SECRET", "agent-runtime/events.jsonl": "{}",
     }
     for rel, text in files.items():
         (root / rel).parent.mkdir(parents=True, exist_ok=True)
@@ -62,21 +72,66 @@ def _refused(fn, *args) -> str:
     return caught.value.reason.value
 
 
+#: What a seed of the ``base`` fixture copies: config, SOUL, skills (the root's, each profile's and the
+#: shared library), skins, the character library, persona definitions and prompts, world definitions.
+SEEDED = {
+    "namespace.json", "config.yaml", "SOUL.md", "skills/s1/SKILL.md", "skills/s1/references/token-budget.md",
+    "skins/dark.yaml", "machine_roots.json", "shared/skills/team/SKILL.md", "shared/characters/golem/character.json",
+    "profiles/coder/config.yaml", "profiles/coder/profile.yaml", "profiles/coder/personas/neko.md",
+    "agent-runtime/agents/neko.json", "agent-runtime/realms/r.json", "agent-runtime/active_realm.json",
+    "agent-runtime/prefabs/coder/p.json",
+}
+
+
 def test_seed_copies_the_allowlist_and_never_a_secret(base: Path):
     out = admin.seed(QA, "base", _env(base))
     root = base.parent / "hermes-namespaces" / QA
-    assert _files(root) == {
-        "namespace.json", "config.yaml", "SOUL.md", "skills/s1/SKILL.md", "skins/dark.yaml", "machine_roots.json",
-        "profiles/coder/config.yaml", "agent-runtime/agents/neko.json", "agent-runtime/realms/r.json",
-        "agent-runtime/active_realm.json",
-    }
-    assert "skills/s1/token.txt" in out["skipped"]  # a never-seed name inside an allowlisted tree is accounted
+    assert _files(root) == SEEDED
+    skipped = {row["path"]: row["reason"] for row in out["skipped"]}
+    # inside an allowlisted tree a secret-word FILE is judged by its value; a word-named directory never copies
+    assert skipped["skills/s1/token.txt"] == "secret_value" and skipped["skills/s1/credentials"] == "never_seed"
     manifest = json.loads((root / "namespace.json").read_text(encoding="utf-8"))
     assert manifest["seeded_from"] == "base" and manifest["seeded_at"] and manifest["id"] == QA
+    assert manifest["seeded"] == out["copied"] and manifest["skipped"] == out["skipped"]
+
+
+def test_every_source_entry_is_copied_skipped_with_a_reason_or_borrowed(base: Path):
+    """The plan is total: no entry of the source's root, store, shared libraries or profiles goes unaccounted."""
+    out = admin.seed(QA, "base", _env(base))
+    skipped = {row["path"]: row["reason"] for row in out["skipped"]}
+    assert out["borrowed"] == ["installs", "venvs", "bin", "builds", "tools", "runtimes"]
+    for secret in ("auth.json", ".env", "state.db", "install_id", "kanban.db", "profiles/coder/auth.json",
+                   "profiles/coder/.env", "profiles/coder/state.db", "profiles/coder/memories", "memories",
+                   "agent-runtime/persona_instances", "agent-runtime/sessions", "agent-runtime/realm_sync",
+                   "agent-runtime/gateway", "logs"):
+        assert skipped[secret] == "never_seed", secret
+    for other in ("config.yaml.bak-1", "cron", "active_profile", "profiles/.deleted", "agent-runtime/boards",
+                  "agent-runtime/events.jsonl"):
+        assert skipped[other] == "not_allowlisted", other
+    tops = {rel.split("/")[0] for rel in [*out["copied"], *skipped, *out["borrowed"]]}
+    assert tops == {p.name for p in base.iterdir()}
+    sections = {"profiles": base / "profiles", "agent-runtime": base / "agent-runtime", "shared": base / "shared"}
+    for name, folder in sections.items():
+        named = {rel.split("/")[1] for rel in [*out["copied"], *skipped] if rel.startswith(f"{name}/")}
+        assert named == {p.name for p in folder.iterdir()}, name
+
+
+def test_a_dry_run_prints_the_real_plan_and_writes_nothing(base: Path):
+    env = _env(base)
+    before = _files(base.parent)
+    plan = admin.seed(QA, "base", env, dry_run=True)
+    assert _files(base.parent) == before and not (base.parent / "hermes-namespaces").exists()
+    assert plan["dry_run"] is True and plan["copied"] and plan["skipped"]
+    real = admin.seed(QA, "base", env)
+    assert {k: plan[k] for k in ("copied", "skipped", "borrowed")} == {k: real[k] for k in ("copied", "skipped", "borrowed")}
+    assert _refused(admin.seed, QA, "base", env) == "namespace_already_seeded"
+    with pytest.raises(ns.NamespaceRefused):  # a dry run refuses exactly as the real seed would
+        admin.seed(QA, "base", env, dry_run=True)
 
 
 def test_the_allowlists_carry_no_never_seed_entry():
-    assert admin.allowlist_violations(admin.HOME_SEED + admin.STORE_SEED + admin.ROOT_SEED) == []
+    allowlists = admin.HOME_SEED + admin.STORE_SEED + admin.ROOT_SEED + admin.SHARED_SEED
+    assert admin.allowlist_violations(allowlists) == []
     assert admin.allowlist_violations(("auth.json", ".env.local", "state.db", "persona_instances", "a/b", "..")) == [
         "auth.json", ".env.local", "state.db", "persona_instances", "a/b", ".."]
 
@@ -168,6 +223,9 @@ def test_the_cli_prints_json_and_exits_2_on_a_refusal(base: Path):
         return subprocess.run([sys.executable, "-m", "hermes_cli.main", "namespace", *args], cwd=REPO, env=env,
                               capture_output=True, text=True, timeout=180, check=False)
 
+    planned = run("seed", QA, "--from", "base", "--dry-run")
+    assert planned.returncode == 0, planned.stderr[-2000:]
+    assert json.loads(planned.stdout)["dry_run"] is True and not (base.parent / "hermes-namespaces").exists()
     seeded = run("seed", QA, "--from", "base")
     assert seeded.returncode == 0, seeded.stderr[-2000:]
     assert json.loads(seeded.stdout)["copied"]

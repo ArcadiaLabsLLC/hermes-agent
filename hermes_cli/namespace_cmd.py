@@ -9,7 +9,9 @@ when it ran — a refusal of the asked id rides its ``refusal`` field); exit 2: 
   the unknown subcommand, so "exit 0 + JSON" is the capability). Reads only; writes nothing.
 * ``list`` — every namespace: id, kind (``account`` for ``acct-<16 hex>``, else ``profile``), size,
   last serve, busy, created / seeded-from.
-* ``seed <id> --from <base|ns-id>`` — once, at creation (owner ruling Q11).
+* ``seed <id> --from <base|ns-id> [--dry-run]`` — once, at creation (owner ruling Q11); the result
+  lists what was copied, what was skipped (each with a reason) and what the namespace borrows.
+  ``--dry-run`` prints that plan, refuses as the real seed would, and writes nothing.
 * ``reset <id>`` / ``delete <id>`` — refused while a serve holds the namespace, for ``base`` and for
   this process's own namespace.
 
@@ -43,7 +45,7 @@ def _admin():
 _RUNNERS = {
     "probe": lambda args: ns.probe(os.environ, args.id),
     "list": lambda args: _admin().list_namespaces(os.environ),
-    "seed": lambda args: _admin().seed(args.id, args.source, os.environ),
+    "seed": lambda args: _admin().seed(args.id, args.source, os.environ, dry_run=args.dry_run),
     "reset": lambda args: _admin().reset(args.id, os.environ),
     "delete": lambda args: _admin().delete(args.id, os.environ),
 }
@@ -58,6 +60,8 @@ def _namespace_parser() -> argparse.ArgumentParser:
     seed = verbs.add_parser("seed", help="copy the seed allowlist into a NEW namespace, once")
     seed.add_argument("id")
     seed.add_argument("--from", dest="source", required=True, help="'base' or a namespace id, named explicitly")
+    seed.add_argument("--dry-run", action="store_true",
+                      help="print the plan (copied / skipped with reason / borrowed) and write nothing")
     for verb in ("reset", "delete"):
         verbs.add_parser(verb, help=f"{verb} a namespace (refused while a serve holds it)").add_argument("id")
     return parser
