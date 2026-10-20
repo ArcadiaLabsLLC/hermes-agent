@@ -51,8 +51,11 @@ before any hermes module imports:
   home or head home in the base root, another namespace or elsewhere; `root_anchor` refuses
   (`RootAnchorOutcome.NAMESPACED`).
 - **Outside the launcher** (`HERMES_LAUNCHER_SPAWNED` unset) only the id in `<base>/namespace-active.json`
-  (`{"schema": 1, "namespace": "<id>"}`) is reachable; unset with a record follows it; unset with no
-  record, `base`, `pm` and `update` stay on the base root.
+  (`{"schema": 1, "namespace": "<id>"}`, or schema 2 adding `"namespaces_dir": "<absolute dir>"`) is
+  reachable; unset with a record follows it; unset with no record, `base`, `pm` and `update` stay on
+  the base root. With `HERMES_NAMESPACES_DIR` unset, a schema-2 record's `namespaces_dir` IS the
+  namespaces dir (the launcher's shared folder outside both installs; `list` and `probe` read it too)
+  and is exported to every child; schema 1 keeps the base-sibling default (RT-NAMESPACE-ACTIVE-RECORD-DIR).
 - **Stamp.** The owner record, the `serve_instances` row, the `ready` frame, every service-log line and
   receipt line carry `namespace` (`""` for the base root).
 - **`hermes namespace probe | list | seed | reset | delete | import-sessions`** (`hermes_cli.namespace_cmd`,
