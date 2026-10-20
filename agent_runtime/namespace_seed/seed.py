@@ -44,6 +44,7 @@ from hermes_cli._namespace_bootstrap import (
     Reason,
     ensure_manifest,
     layout,
+    sandbox_account,
     validate_id,
 )
 
@@ -256,12 +257,17 @@ def seed(target_id: str, source: str, env: Mapping[str, str], *, dry_run: bool =
     refused unless the target is an account namespace (``acct-<16 hex>``), so a QA seed never carries it.
     """
     item = layout(target_id, env)
-    if with_memories and not ACCOUNT_ID.fullmatch(item.id):
+    owner = sandbox_account(item.id)
+    if with_memories and not (ACCOUNT_ID.fullmatch(item.id) or owner):
         raise NamespaceRefused(Reason.MEMORIES_NOT_ACCOUNT,
-                               f"--with-memories seeds only an account namespace (acct-<16 hex>), not {item.id!r}")
+                               f"--with-memories seeds only an account namespace (acct-<16 hex>) or its sandbox "
+                               f"(acct-<16 hex>-dev), not {item.id!r}")
     source = validate_id(source)
     if source == item.id:
         raise NamespaceRefused(Reason.SEED_SOURCE, "a namespace cannot seed itself")
+    if owner and source != owner:  # RT-NAMESPACE-SANDBOX-KIND: the sandbox is a copy of its own account
+        raise NamespaceRefused(Reason.SEED_SOURCE,
+                               f"the sandbox {item.id!r} seeds only from its account namespace {owner!r}, not {source!r}")
     if source == BASE_ID:
         src_root = item.base_root
     else:

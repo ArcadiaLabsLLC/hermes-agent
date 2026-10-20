@@ -63,7 +63,8 @@ before any hermes module imports:
   capability check (exit 0 + JSON); `seed` copies the allowlist once, at creation, and accounts every
   source entry as copied, skipped with a reason, or borrowed (`seed --dry-run` prints that plan and
   writes nothing; `--with-memories` adds each home's `memories/` and is refused unless the target is
-  `acct-<16 hex>`); `seed` also carries every persona instance (hired and canonical) and the alias
+  `acct-<16 hex>` or its sandbox `acct-<16 hex>-dev`, which `list` reports as kind `account-sandbox` and
+  which seeds only from `acct-<the same hex>`, at most once — RT-NAMESPACE-SANDBOX-KIND); `seed` also carries every persona instance (hired and canonical) and the alias
   registry REBASED — source-root paths re-rooted under the namespace, session/run/heartbeat bindings
   cleared, `state: idle` — refusing `namespace_instance_not_rebased` if a value still names the source,
   and lists each office placement as resolved or "placed but no source instance"

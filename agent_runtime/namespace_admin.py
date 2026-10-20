@@ -25,7 +25,6 @@ from pathlib import Path
 from typing import Any
 
 from hermes_cli._namespace_bootstrap import (
-    ACCOUNT_ID,
     ENV,
     MANIFEST_NAME,
     Layout,
@@ -33,6 +32,7 @@ from hermes_cli._namespace_bootstrap import (
     Reason,
     base_root,
     layout,
+    namespace_kind,
     namespaces_dir,
     validate_id,
 )
@@ -219,7 +219,7 @@ def list_namespaces(env: Mapping[str, str]) -> dict[str, Any]:
         if manifest is None:
             continue
         rows.append({
-            "id": item.id, "kind": "account" if ACCOUNT_ID.fullmatch(item.id) else "profile", "root": str(item.root),
+            "id": item.id, "kind": namespace_kind(item.id), "root": str(item.root),
             "size_bytes": _namespace_bytes(item.root), "last_serve_at": _last_serve(item), "busy": busy_reason(item),
             "created_at": manifest.get("created_at"), "seeded_from": manifest.get("seeded_from"),
         })

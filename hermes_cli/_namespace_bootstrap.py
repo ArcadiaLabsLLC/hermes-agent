@@ -75,6 +75,23 @@ ADMIN_VERB = "namespace"
 
 _ID = re.compile(r"[a-z0-9][a-z0-9-]{0,47}")
 ACCOUNT_ID = re.compile(r"acct-[0-9a-f]{16}")
+#: The opt-in Developer Edition sandbox of an account (launcher plan EDITION_SWITCH §2.1, row
+#: RT-NAMESPACE-SANDBOX-KIND): ``acct-<16 hex>-dev``, seeded at most once from ``acct-<the same hex>``.
+ACCOUNT_SANDBOX_ID = re.compile(r"(acct-[0-9a-f]{16})-dev")
+KIND_ACCOUNT, KIND_ACCOUNT_SANDBOX, KIND_PROFILE = "account", "account-sandbox", "profile"
+
+
+def namespace_kind(ns_id: str) -> str:
+    """``account`` (``acct-<16 hex>``) | ``account-sandbox`` (``acct-<16 hex>-dev``) | ``profile``."""
+    if ACCOUNT_ID.fullmatch(ns_id):
+        return KIND_ACCOUNT
+    return KIND_ACCOUNT_SANDBOX if ACCOUNT_SANDBOX_ID.fullmatch(ns_id) else KIND_PROFILE
+
+
+def sandbox_account(ns_id: str) -> str | None:
+    """The account namespace a sandbox belongs to (its one sanctioned seed source), else ``None``."""
+    match = ACCOUNT_SANDBOX_ID.fullmatch(ns_id)
+    return match.group(1) if match else None
 _WINDOWS_DEVICE = re.compile(r"con|prn|aux|nul|com[0-9]|lpt[0-9]")
 
 #: Windows ``MAX_PATH`` (260) less the terminating NUL.
