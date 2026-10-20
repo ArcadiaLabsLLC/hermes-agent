@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-20 (launcher lane w1020r-dist)
+
+- **`RT-SERVE-SKILLS-CHILD-ADDRESS` — the serve's `runtime.conversation.skills.*` forwards only `session_id` + `skill_id` to the worker peer, dropping `owner_scope` / `worker_generation` / `child_ref`, and no serve method reaches `eternia.skills.lend`, so a launcher cannot read or lend a worker's skills** · `agent_runtime/conversations/rpc.py::_skills` · `agent_runtime/conversations/service.py::skills` · blocks launcher `COMP-SKILLS-WORKER-ADDRESS` · READY 2026-10-20
+
 ### Filed on arrival — 2026-10-18 (land w6)
 
 ### Filed on arrival — 2026-10-18 (lane w6-misc, branch `w6/misc`)
