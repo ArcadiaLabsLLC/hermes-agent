@@ -530,3 +530,7 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 ## Filed on arrival — 2026-10-19 (lane rt-ns-seed)
 
 - **`FH-LENS-BEARER-LADDER` — `agent_runtime/lens/ingress.py::verify_bearer` is a NEW ladder (`vocab|bearer`) on origin/main since f77c1eb284, so `test_no_ladder_routing::test_no_new_ladder` is red for every lane** · make the vocabulary a table · READY 2026-10-19
+
+## Filed on arrival — 2026-10-20 (parent session)
+
+- **`FH-GATE-CACHE-WHOLE-TREE-FALSE-GREEN` — a lane's own gate run reported `test_duplicate_helper_bodies.py` and `test_no_ladder_routing.py` green on a tree where both fail; the landing's full `run_tests_bundled.sh` then caught them (lane rt-ns-seed2, 2026-10-19: NEW `_decode` name clash and an `isinstance` ladder in `agent_runtime/namespace_seed/instances.py`)** · suspect the green-result cache (`Harness_Brain/50 — Agent Handoffs/Running the tests.md` "The green-result cache skips a file nothing it depends on changed"): whole-tree census gates read every fork module, so per-file dependency tracking cannot see a NEW file reach them. Reproduce (add a duplicate private helper in a new module, run the lane's command, check whether the gate is skipped as cached green); if confirmed, mark whole-tree census gates never-cacheable · `scripts/run_tests_bundled_cache.py` · READY 2026-10-20
