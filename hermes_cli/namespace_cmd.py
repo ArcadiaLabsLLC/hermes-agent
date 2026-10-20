@@ -18,8 +18,9 @@ when it ran — a refusal of the asked id rides its ``refusal`` field); exit 2: 
   ``sessions export`` into a named namespace, each chat rebound to one of its persona instances
   (``agent_runtime/own_session_import.py``, row RT-SESSIONS-IMPORT-OWN-EXPORT); never ``base``.
 
-The verbs live in ``agent_runtime/namespace_admin.py``; they are not gated by the external-access
-rule (they name every namespace explicitly and run no agent in one).
+The verbs live in ``agent_runtime/namespace_admin.py`` (``seed``: ``agent_runtime/namespace_seed/``);
+they are not gated by the external-access rule (they name every namespace explicitly and run no
+agent in one).
 """
 
 from __future__ import annotations
@@ -44,6 +45,12 @@ def _session_import():
     return own_session_import
 
 
+def _seeding():
+    from agent_runtime import namespace_seed
+
+    return namespace_seed
+
+
 def _admin():
     from agent_runtime import namespace_admin  # the runtime half; probe stays stdlib-fast
 
@@ -54,8 +61,8 @@ def _admin():
 _RUNNERS = {
     "probe": lambda args: ns.probe(os.environ, args.id),
     "list": lambda args: _admin().list_namespaces(os.environ),
-    "seed": lambda args: _admin().seed(args.id, args.source, os.environ, dry_run=args.dry_run,
-                                       with_memories=args.with_memories),
+    "seed": lambda args: _seeding().seed(args.id, args.source, os.environ, dry_run=args.dry_run,
+                                         with_memories=args.with_memories),
     "reset": lambda args: _admin().reset(args.id, os.environ),
     "delete": lambda args: _admin().delete(args.id, os.environ),
     "import-sessions": lambda args: _session_import().run_namespace_verb(args, os.environ),
