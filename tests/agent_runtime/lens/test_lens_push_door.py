@@ -40,6 +40,18 @@ Gates and their killing mutations (each red was recorded in the stage's commit):
   leaves the door closed — killed by dropping ``_sync_listener`` from
   ``register_route``; the last revoke leaves it bound — killed by dropping it from
   ``revoke_route``.
+* bearer routes (RT-LENS-ALERTMANAGER-UNSIGNED): a wrong bearer secret is accepted —
+  killed by skipping the ``compare_digest`` refusal in ``verify_bearer`` (202 == 401);
+  a replayed body within the window is accepted — killed by dropping the ring admit
+  (202 == 409); a repeat past the window is refused — killed by a ring with no window
+  (409 == 202); register takes bearer on a public bind — killed by dropping the
+  ``is_local_bind`` check in ``_read_auth``; the listener answers a bearer route on a
+  public bind — killed by dropping it in ``_refusal`` (202 == 403); an HMAC route takes
+  a bearer header — killed by choosing the verifier by header, not by route; the token
+  is logged — killed by a debug line carrying it; ``weaker`` is unset — killed by
+  ``weaker: False``; a grafana route takes bearer — killed by widening
+  ``BEARER_KINDS``; a pre-auth store fails to read — killed by dropping
+  ``_add_route_auth``.
 """
 
 from __future__ import annotations
@@ -435,3 +447,128 @@ def test_the_serve_door_binds_only_while_a_route_exists(monkeypatch):
         assert _rpc("runtime.lens.ingress.list", {})["result"]["listener"]["listening"] is False
     finally:
         _stopped(stop)
+
+
+# --- bearer routes (RT-LENS-ALERTMANAGER-UNSIGNED, owner ruling 2026-10-19) ------------
+
+
+def _bearer(secret: str) -> dict:
+    return {"Authorization": f"Bearer {secret}", "Content-Type": "application/json"}
+
+
+def _registered_bearer() -> tuple[str, str]:
+    from agent_runtime.lens.ingress_routes import register_route
+
+    route = register_route("pager", "alertmanager", auth="bearer")
+    assert (route["auth"], route["weaker"]) == ("bearer", True)
+    return f"/lens/{route['route_id']}", route["secret"]
+
+
+def _handle(listener, path: str, body: bytes, headers: dict) -> int:
+    import io
+
+    return listener.handle(path, {**headers, "Content-Length": str(len(body))}, io.BytesIO(body))
+
+
+def test_a_bearer_route_takes_its_secret_and_refuses_any_other_proof(door):
+    listener, store = door
+    path, secret = _registered_bearer()
+    body = _alertmanager(("HighCpu", "firing"))
+
+    assert _post(listener, path, body, _bearer("whsec_not-the-secret")) == 401
+    assert _post(listener, path, body, {"Authorization": f"Basic {secret}"}) == 401
+    assert _post(listener, path, body, _lens_signed(secret, body)) == 401, "a bearer route takes bearer only"
+    assert store.latest_episode("pager", "firing") is None
+    assert _post(listener, path, body, _bearer(secret)) == 202
+    assert store.latest("pager", "alert")["value"] == 1.0
+    assert store.latest_episode("pager", "firing") is not None
+
+
+def test_an_hmac_route_is_unchanged_and_ignores_a_bearer_header(door):
+    listener, store = door
+    path, secret = _registered()
+    body = _alertmanager(("HighCpu", "firing"))
+
+    [row] = _rpc("runtime.lens.ingress.list", {})["result"]["routes"]
+    assert (row["auth"], row["weaker"]) == ("hmac", False)
+    assert _post(listener, path, body, _bearer(secret)) == 401
+    assert _post(listener, path, body, _lens_signed(secret, body)) == 202
+    assert store.latest("pager", "alert")["value"] == 1.0
+
+
+def test_a_replayed_bearer_body_is_refused_within_the_ring_window():
+    from agent_runtime.lens.ingress import BEARER_REPLAY_WINDOW, IngressListener
+
+    store = _enabled()
+    path, secret = _registered_bearer()
+    clock = [T0]
+    listener = IngressListener("127.0.0.1", 0, store_factory=lambda: store, clock=lambda: clock[0])
+    firing, resolved = _alertmanager(("HighCpu", "firing")), _alertmanager(("HighCpu", "resolved"))
+
+    assert _handle(listener, path, firing, _bearer(secret)) == 202
+    assert _handle(listener, path, firing, _bearer(secret)) == 409
+    assert _handle(listener, path, resolved, _bearer(secret)) == 202
+    clock[0] = T0 + BEARER_REPLAY_WINDOW + timedelta(seconds=1)
+    assert _handle(listener, path, firing, _bearer(secret)) == 202, "past the window a repeat is a new notification"
+    assert _handle(IngressListener("127.0.0.1", 0, store_factory=lambda: store, clock=lambda: clock[0]),
+                   path, resolved, _bearer(secret)) == 202, "the ring survives nothing (a new listener)"
+
+
+def test_a_bearer_route_needs_an_alertmanager_kind_and_a_local_bind():
+    import json
+
+    from agent_runtime.lens.ingress import IngressListener
+    from agent_runtime.lens.ingress_routes import ingress_config_path
+
+    store = _enabled()
+    grafana = _rpc("runtime.lens.ingress.register", {"monitor_id": "pager", "kind": "grafana", "auth": "bearer"})
+    assert grafana["error"]["data"] == {"reason": "invalid_value", "detail": "bearer_not_for_kind"}
+    path, secret = _registered_bearer()
+
+    for host in ("0.0.0.0", "8.8.8.8"):
+        refused = _rpc("runtime.lens.ingress.bind", {"host": host, "port": 47652})
+        assert refused["error"]["data"]["detail"] == "bind_host_not_local"
+    ingress_config_path().write_text(json.dumps({"host": "0.0.0.0", "port": 47652}), encoding="utf-8")  # hand-edited
+    public = _rpc("runtime.lens.ingress.register", {"monitor_id": "pager", "kind": "alertmanager", "auth": "bearer"})
+    assert public["error"]["data"] == {"reason": "invalid_value", "detail": "bearer_needs_local_bind"}
+    hmac_route = _rpc("runtime.lens.ingress.register", {"monitor_id": "pager", "kind": "alertmanager"})
+    assert hmac_route["result"]["auth"] == "hmac"
+
+    exposed = IngressListener("0.0.0.0", 0, store_factory=lambda: store, clock=lambda: T0)  # never started
+    assert _handle(exposed, path, _alertmanager(("HighCpu", "firing")), _bearer(secret)) == 403
+    assert store.latest_episode("pager", "firing") is None
+    assert (store.latest("pager", "alert")["reason"]) == "ingress_refused"
+
+
+def test_a_bearer_secret_never_reaches_the_list_the_receipts_or_the_log(door, caplog):
+    import logging
+
+    listener, _ = door
+    caplog.set_level(logging.DEBUG, logger="agent_runtime.lens")
+    path, secret = _registered_bearer()
+    body = _alertmanager(("HighCpu", "firing"))
+    assert _post(listener, path, body, _bearer(secret)) == 202
+    assert _post(listener, path, body, _bearer(secret)) == 409
+    assert _post(listener, path, body, _bearer(secret + "x")) == 401
+
+    listed = _rpc("runtime.lens.ingress.list", {})["result"]
+    revoked = _rpc("runtime.lens.ingress.revoke", {"route_id": path.rsplit("/", 1)[1]})["result"]
+    assert "auth=bearer reason=replay" in caplog.text
+    for text in (repr(listed), repr(revoked), repr(LensStore().routes()), caplog.text):
+        assert secret not in text and secret.removeprefix("whsec_") not in text
+
+
+def test_a_store_written_before_auth_reads_its_routes_as_hmac(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "lens.sqlite"
+    conn = sqlite3.connect(path)
+    conn.executescript("""CREATE TABLE ingress_routes (
+      route_id TEXT PRIMARY KEY, monitor_id TEXT NOT NULL, kind TEXT NOT NULL, secret_ref TEXT NOT NULL,
+      mapping TEXT NOT NULL, created_ms INTEGER NOT NULL);
+    INSERT INTO ingress_routes VALUES ('ab' || hex(randomblob(11)), 'pager', 'alertmanager', 'ingress:x', '{}', 1);""")
+    conn.commit()
+    conn.close()
+
+    [route] = LensStore(path).routes()
+    assert route["auth"] == "hmac"

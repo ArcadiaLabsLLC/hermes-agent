@@ -10,7 +10,8 @@ Tables: ``monitors`` (state, the sealed body + digest + revision, the open draft
 ``episodes`` (the Episode JSON by id), ``receipts`` (one per Episode the exit
 door admitted: the forged turn's identity, outcome and artifacts; stage L2),
 ``ingress_routes`` (one per push-door route: the monitor it writes, its body kind,
-its mapping and the credential reference of its secret — never the secret; L3).
+its mapping, its auth mode (``hmac`` | ``bearer``) and the credential reference of its
+secret — never the secret; L3).
 
 Monitor lifecycle: ``create`` writes a DRAFT (a validated manifest, not yet
 running); ``seal`` freezes the draft as the next revision; ``enable`` / ``pause``
@@ -78,7 +79,7 @@ CREATE TABLE IF NOT EXISTS receipts (
 CREATE INDEX IF NOT EXISTS receipts_by_monitor ON receipts (monitor_id, started_ms);
 CREATE TABLE IF NOT EXISTS ingress_routes (
   route_id TEXT PRIMARY KEY, monitor_id TEXT NOT NULL, kind TEXT NOT NULL, secret_ref TEXT NOT NULL,
-  mapping TEXT NOT NULL, created_ms INTEGER NOT NULL);
+  mapping TEXT NOT NULL, created_ms INTEGER NOT NULL, auth TEXT NOT NULL DEFAULT 'hmac');
 """
 
 
@@ -167,6 +168,7 @@ class LensStore:
             try:
                 conn.execute("PRAGMA journal_mode=WAL")
                 conn.executescript(_SCHEMA)
+                _add_route_auth(conn)
                 with conn:
                     yield conn
             finally:
@@ -491,7 +493,14 @@ class LensStore:
         return route
 
 
-_ROUTE_COLUMNS = ("route_id", "monitor_id", "kind", "secret_ref", "mapping", "created_ms")
+_ROUTE_COLUMNS = ("route_id", "monitor_id", "kind", "secret_ref", "mapping", "created_ms", "auth")
+
+
+def _add_route_auth(conn: sqlite3.Connection) -> None:
+    """A store written before routes carried ``auth`` gains the column; its routes read ``hmac``."""
+
+    if "auth" not in {row[1] for row in conn.execute("PRAGMA table_info(ingress_routes)")}:
+        conn.execute("ALTER TABLE ingress_routes ADD COLUMN auth TEXT NOT NULL DEFAULT 'hmac'")
 
 
 def _route_json(row: tuple[Any, ...]) -> dict[str, Any]:

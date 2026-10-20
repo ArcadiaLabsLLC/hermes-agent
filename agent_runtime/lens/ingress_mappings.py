@@ -58,6 +58,8 @@ class IngressRefusal(str, Enum):
     OVERSIZE = "oversize"
     BAD_SIGNATURE = "bad_signature"
     REPLAY = "replay"
+    #: A bearer route addressed while the listener is bound to a public or unspecified host.
+    BEARER_PUBLIC_BIND = "bearer_public_bind"
 
 
 class IngressError(ValueError):

@@ -26,9 +26,10 @@ receipt                {episode_id} -> the exit door's receipt for that Episode 
 receipts               {monitor_id?, limit?} -> {receipts} (newest first; limit <= 256)
 artifact               {episode_id, name} -> {name, media_type, size_bytes, sha256, encoding, content}
                        (one file from the Episode's folder only; 1 MiB, text and images)
-ingress.register       {monitor_id, kind, mapping?} -> {route_id, url, secret, kind, mapping, ...}
-                       (stage L3; the secret is in this answer ONCE, then only in the
-                       home's credential file as ``ingress:<route_id>``)
+ingress.register       {monitor_id, kind, mapping?, auth?} -> {route_id, url, secret, kind, mapping,
+                       auth, weaker, ...} (stage L3; the secret is in this answer ONCE, then
+                       only in the home's credential file as ``ingress:<route_id>``;
+                       ``auth: bearer``, alertmanager and a local bind only, is ``weaker``)
 ingress.list           {monitor_id?} -> {routes, listener} (never a secret; listener =
                        {host, port, listening, url_base, maximum_body_bytes})
 ingress.revoke         {route_id} -> the route + revoked (its secret is forgotten)
@@ -254,8 +255,8 @@ def _runtime_lens_ingress_register(rid: Any, params: dict, context: RpcContext |
         from agent_runtime.lens.ingress_routes import register_route
         from agent_runtime.lens.wire_value import checked_object
 
-        m = checked_object(params or {}, {"monitor_id", "kind"}, {"mapping"})
-        return register_route(m["monitor_id"], m["kind"], m.get("mapping"))
+        m = checked_object(params or {}, {"monitor_id", "kind"}, {"mapping", "auth"})
+        return register_route(m["monitor_id"], m["kind"], m.get("mapping"), auth=m.get("auth"))
 
     return _lens_call(rid, body)
 

@@ -15,6 +15,15 @@ Mapping, by kind (canonical form; :func:`read_route_mapping`):
   selector (the poll door's bounded ``$.a.b[0]`` path) takes one number for its feed;
   ``observed_at`` names the source's time (epoch ms, or the canonical UTC string).
 
+A route's AUTH mode (:class:`IngressAuth`, chosen at register, ``hmac`` by default)
+says how a POST proves it holds the secret: ``hmac`` signs the body (Lens HMAC or
+Svix), ``bearer`` (owner ruling 2026-10-19, ``RT-LENS-ALERTMANAGER-UNSIGNED``)
+sends the route's SAME secret as ``Authorization: Bearer <secret>`` because
+Alertmanager's ``webhook_config`` cannot sign a body. Bearer is the WEAKER mode — the
+secret travels on every request — so it is taken only by :data:`BEARER_KINDS` and only
+while the listener's bind is loopback or private (:func:`is_local_bind`), and the
+wire marks such a route ``weaker: true``.
+
 The SECRET is minted here, returned ONCE by :func:`register_route`, and stored in the
 home's Lens credential file as ``ingress:<route_id>`` (``lens.credentials``); the
 store row holds the reference only. Revoking a route forgets its secret.
@@ -59,6 +68,17 @@ class IngressKind(str, Enum):
 ALERT_KINDS = frozenset({IngressKind.ALERTMANAGER, IngressKind.GRAFANA})
 
 
+class IngressAuth(str, Enum):
+    """How a POST to a route proves it holds the route's secret."""
+
+    HMAC = "hmac"
+    BEARER = "bearer"
+
+
+#: The kinds that may take bearer auth (a sender that cannot sign a body); the rest keep HMAC.
+BEARER_KINDS = frozenset({IngressKind.ALERTMANAGER})
+
+
 def secret_ref_for(route_id: str) -> str:
     return f"ingress:{route_id}"
 
@@ -79,6 +99,30 @@ def ingress_address() -> tuple[str, int]:
         return str(document["host"]), int(document["port"])
     except (OSError, ValueError, KeyError, TypeError):
         return DEFAULT_HOST, DEFAULT_PORT
+
+
+def is_local_bind(host: str) -> bool:
+    """True when ``host`` is a loopback or private address: the only bind ``ingress.bind`` writes
+    and the only one a bearer route is accepted on. An unspecified (``0.0.0.0``), multicast,
+    public or unparsable host is False."""
+
+    import ipaddress
+
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return not (address.is_unspecified or address.is_multicast) and (address.is_loopback or address.is_private)
+
+
+def _read_auth(auth: Any, kind: IngressKind) -> IngressAuth:
+    mode = IngressAuth.HMAC if auth is None else enum_value(auth, IngressAuth)
+    if mode is IngressAuth.BEARER:
+        if kind not in BEARER_KINDS:
+            raise WireError(WireRefusal.INVALID_VALUE, "bearer_not_for_kind")
+        if not is_local_bind(ingress_address()[0]):
+            raise WireError(WireRefusal.INVALID_VALUE, "bearer_needs_local_bind")
+    return mode
 
 
 def route_url(route_id: str, address: tuple[str, int] | None = None) -> str:
@@ -127,21 +171,23 @@ def read_route_mapping(kind: IngressKind, mapping: Any, push_feeds: list[str]) -
     return out
 
 
-def register_route(monitor_id: str, kind: Any, mapping: Any = None, *, store: LensStore | None = None,
-                   now: datetime | None = None) -> dict[str, Any]:
+def register_route(monitor_id: str, kind: Any, mapping: Any = None, *, auth: Any = None,
+                   store: LensStore | None = None, now: datetime | None = None) -> dict[str, Any]:
     """Mint a route into ``monitor_id``'s push feeds. Returns ``{route_id, url, secret, ...}``;
-    the secret is in this answer and nowhere else the wire can read."""
+    the secret is in this answer and nowhere else the wire can read. ``auth`` is
+    ``hmac`` (default) or ``bearer`` (:func:`_read_auth`)."""
 
     from .credentials import set_credential
 
     store = store or LensStore()
     monitor_id = opaque_id(monitor_id)
     ingress_kind = enum_value(kind, IngressKind)
+    mode = _read_auth(auth, ingress_kind)
     canonical = read_route_mapping(ingress_kind, mapping, _push_feeds(store, monitor_id))
     route_id = secrets.token_hex(12)
     secret = SECRET_PREFIX + base64.b64encode(secrets.token_bytes(32)).decode("ascii")
     route = {"route_id": route_id, "monitor_id": monitor_id, "kind": ingress_kind.value,
-             "secret_ref": secret_ref_for(route_id), "mapping": canonical,
+             "secret_ref": secret_ref_for(route_id), "mapping": canonical, "auth": mode.value,
              "created_ms": to_ms(now or datetime.now(UTC))}
     set_credential(route["secret_ref"], scheme="bearer", secret=secret, now=now)
     try:
@@ -166,10 +212,12 @@ def _forget(ref: str) -> None:
 
 
 def public_route(route: dict[str, Any]) -> dict[str, Any]:
-    """A route as the wire reads it: identity, kind, mapping, url — never the secret."""
+    """A route as the wire reads it: identity, kind, mapping, auth, url — never the secret.
+    ``weaker`` is True for a bearer route (the Console labels it)."""
 
     return {"route_id": route["route_id"], "monitor_id": route["monitor_id"], "kind": route["kind"],
-            "mapping": route["mapping"], "created_ms": route["created_ms"], "url": route_url(route["route_id"])}
+            "mapping": route["mapping"], "auth": route["auth"], "weaker": route["auth"] == IngressAuth.BEARER.value,
+            "created_ms": route["created_ms"], "url": route_url(route["route_id"])}
 
 
 def list_routes(monitor_id: str | None = None, *, store: LensStore | None = None) -> list[dict[str, Any]]:

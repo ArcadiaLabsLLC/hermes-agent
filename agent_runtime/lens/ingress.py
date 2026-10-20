@@ -24,6 +24,15 @@ Exposure (W11 a+b):
   payload). The timestamp must be within :data:`TIMESTAMP_WINDOW`; the id (Svix) or
   the signature (Lens) must not be in the ring of the last :data:`NONCE_RING` seen.
   The signature is verified first, so an unsigned caller can never fill the ring.
+* a route registered with ``auth: bearer`` (``ingress_routes.IngressAuth``; owner ruling
+  2026-10-19, for Alertmanager, which cannot sign a body) instead proves itself with
+  ``Authorization: Bearer <the route's secret>``, compared in constant time. It carries
+  no timestamp, so replay is guarded by a ring of body digests (:data:`NONCE_RING`
+  entries, each kept :data:`BEARER_REPLAY_WINDOW`): the same body to the same route
+  within the window is ``replay``. The ring lives in the listener's memory and
+  survives nothing: a restart (or a rebind) forgets it. A bearer route is answered
+  only while the listener's bind is loopback or private (``bearer_public_bind``
+  otherwise), and it is the WEAKER mode: the secret travels on every request.
 
 A refusal (``IngressRefusal``) is an HTTP 4xx with an EMPTY body — the status is
 the only detail — and, for a route that exists, a gap row ``ingress_refused`` on
@@ -46,7 +55,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable
 
 from .ingress_mappings import IngressError, IngressRefusal, ingest
-from .ingress_routes import ROUTE_PATH_PREFIX, SECRET_PREFIX, ingress_address, ingress_config_path, route_url
+from .ingress_routes import (ROUTE_PATH_PREFIX, SECRET_PREFIX, IngressAuth, ingress_address, ingress_config_path,
+                             is_local_bind, route_url)
 from .sources.transport import ReadReason
 from .store import LensStore, LensStoreError
 from .wire_value import WireError, WireRefusal, bounded_int
@@ -58,6 +68,8 @@ logger = logging.getLogger(__name__)
 MAXIMUM_BODY_BYTES = 256 * 1024
 TIMESTAMP_WINDOW = timedelta(minutes=5)
 NONCE_RING = 1024
+#: How long a bearer route remembers a body's digest (the replay ring has no timestamp to read).
+BEARER_REPLAY_WINDOW = timedelta(minutes=5)
 REFUSAL_GAP_EVERY = timedelta(minutes=1)
 #: A slow sender holds one thread at most this long.
 SOCKET_TIMEOUT_SECONDS = 10
@@ -72,31 +84,35 @@ REFUSAL_STATUS: dict[IngressRefusal, int] = {
     IngressRefusal.REPLAY: 409,
     IngressRefusal.BAD_BODY: 400,
     IngressRefusal.NOT_ENABLED: 409,
+    IngressRefusal.BEARER_PUBLIC_BIND: 403,
 }
 #: The refusals that leave a gap on the route's feeds (a route exists and was addressed).
 _GAP_REFUSALS = frozenset({IngressRefusal.OVERSIZE, IngressRefusal.BAD_SIGNATURE, IngressRefusal.REPLAY,
-                           IngressRefusal.BAD_BODY})
+                           IngressRefusal.BAD_BODY, IngressRefusal.BEARER_PUBLIC_BIND})
 
 
 class _NonceRing:
-    """The last ``size`` nonces, per listener (a restart clears it; the window bounds the rest)."""
+    """The last ``size`` nonces, per listener (a restart clears it). With a ``window`` an
+    entry is also forgotten once older than it (the bearer ring; HMAC's timestamp window
+    bounds the rest)."""
 
-    def __init__(self, size: int = NONCE_RING) -> None:
+    def __init__(self, size: int = NONCE_RING, window: timedelta | None = None) -> None:
         self._order: deque = deque()
         self._seen: set = set()
-        self._size = size
+        self._size, self._window = size, window
         self._lock = threading.Lock()
 
-    def admit(self, nonce: tuple[str, str]) -> bool:
-        """False when ``nonce`` was already seen; otherwise remember it."""
+    def admit(self, nonce: tuple[str, str], now: datetime) -> bool:
+        """False when ``nonce`` was already seen (within the window); otherwise remember it."""
 
         with self._lock:
+            while self._order and (len(self._order) >= self._size or (
+                    self._window is not None and now - self._order[0][1] > self._window)):
+                self._seen.discard(self._order.popleft()[0])
             if nonce in self._seen:
                 return False
-            self._order.append(nonce)
+            self._order.append((nonce, now))
             self._seen.add(nonce)
-            while len(self._order) > self._size:
-                self._seen.discard(self._order.popleft())
             return True
 
 
@@ -140,6 +156,24 @@ def verify_signature(headers: Any, body: bytes, secret: str, now: datetime) -> t
     return None, nonce
 
 
+def verify_bearer(headers: Any, body: bytes, secret: str, now: datetime) -> tuple[IngressRefusal | None, str]:
+    """``(refusal or None, nonce)`` for a bearer route: the header must carry the route's secret.
+    The nonce is the body's digest (the replay ring's key)."""
+
+    scheme, _, token = (_header(headers, "Authorization") or "").partition(" ")
+    if scheme.lower() != "bearer" or not hmac.compare_digest(token.strip().encode("utf-8", "replace"),
+                                                             secret.encode("utf-8")):
+        return IngressRefusal.BAD_SIGNATURE, ""
+    return None, "body:" + hashlib.sha256(body).hexdigest()
+
+
+#: A route's auth mode -> how a POST is verified (its replay ring: :meth:`IngressListener._ring`).
+AUTH_VERIFIERS: dict[IngressAuth, Callable[[Any, bytes, str, datetime], tuple[IngressRefusal | None, str]]] = {
+    IngressAuth.HMAC: verify_signature,
+    IngressAuth.BEARER: verify_bearer,
+}
+
+
 def _route_feed_ids(route: dict[str, Any]) -> list[str]:
     mapping = route["mapping"]
     feeds = {mapping["feed_id"], *mapping["alerts"].values()} if "feed_id" in mapping else set(
@@ -158,6 +192,7 @@ class IngressListener:
         self.port = configured[1] if port is None else port
         self.store_factory, self.clock = store_factory, clock
         self.nonces = _NonceRing()
+        self.bodies = _NonceRing(window=BEARER_REPLAY_WINDOW)
         self._last_gap: dict[str, datetime] = {}
         self._gap_lock = threading.Lock()
         self._server: ThreadingHTTPServer | None = None
@@ -223,8 +258,8 @@ class IngressListener:
         refusal, route = self._refusal(path, headers, stream)
         if refusal is None:
             return 202
-        logger.info("lens ingress refused: route=%s reason=%s", None if route is None else route["route_id"],
-                    refusal.value)
+        logger.info("lens ingress refused: route=%s auth=%s reason=%s", None if route is None else route["route_id"],
+                    None if route is None else route["auth"], refusal.value)
         if route is not None and refusal in _GAP_REFUSALS:
             self._refusal_gap(route)
         return REFUSAL_STATUS[refusal]
@@ -240,6 +275,9 @@ class IngressListener:
             route = None
         if route is None:
             return IngressRefusal.UNKNOWN_ROUTE, None
+        auth = IngressAuth(route["auth"])
+        if auth is IngressAuth.BEARER and not is_local_bind(self.address[0]):
+            return IngressRefusal.BEARER_PUBLIC_BIND, route
         length = _header(headers, "Content-Length")
         if _header(headers, "Transfer-Encoding") is not None or length is None or not length.isdigit():
             return IngressRefusal.BAD_BODY, route
@@ -250,10 +288,10 @@ class IngressListener:
         if credential is None:
             return IngressRefusal.UNKNOWN_ROUTE, route
         now = self.clock()
-        refusal, nonce = verify_signature(headers, body, credential.secret, now)
+        refusal, nonce = AUTH_VERIFIERS[auth](headers, body, credential.secret, now)
         if refusal is not None:
             return refusal, route
-        if not self.nonces.admit((route["route_id"], nonce)):
+        if not self._ring(auth).admit((route["route_id"], nonce), now):
             return IngressRefusal.REPLAY, route
         try:
             ingest(route, body, received=now, store=store)
@@ -262,6 +300,9 @@ class IngressListener:
         except LensStoreError:
             return IngressRefusal.UNKNOWN_ROUTE, route
         return None, route
+
+    def _ring(self, auth: IngressAuth) -> _NonceRing:
+        return self.bodies if auth is IngressAuth.BEARER else self.nonces
 
     def _refusal_gap(self, route: dict[str, Any]) -> None:
         now = self.clock()
@@ -343,7 +384,7 @@ def read_bind_host(value: Any) -> str:
         address = ipaddress.ip_address(value if isinstance(value, str) else "")
     except ValueError:
         raise WireError(WireRefusal.INVALID_VALUE, "bind_host") from None
-    if address.is_unspecified or address.is_multicast or not (address.is_loopback or address.is_private):
+    if not is_local_bind(str(address)):
         raise WireError(WireRefusal.INVALID_VALUE, "bind_host_not_local")
     return str(address)
 
