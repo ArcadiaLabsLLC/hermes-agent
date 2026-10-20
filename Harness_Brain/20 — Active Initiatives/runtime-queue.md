@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-20 (launcher lane w1020r-mc-office)
+
+- **`PKG-CLOSURE-PLATFORM-GUARDED-IMPORTS` — The bundle packager's closure walk requires runtime-guarded Windows-only imports on POSIX targets, so `stage --target linux-x64|darwin-arm64` fails at ab8578f8f5 ("the closure needs portalocker / pywin32; the pool does not hold it")** · `tools/mcp_tool_loop.py` (`import portalocker` after the fcntl branch), `tui_gateway/host_supervisor.py` (`import win32file` under `os.name == "nt"`), `scripts/bundle_profile_package.py` · blocks launcher `DIST-SIGNING-LISTS-AB8578` · READY 2026-10-20
+
 ### Filed on arrival — 2026-10-20 (launcher lane w1020r-mc)
 
 - **`RT-SEGMENT-DELTA-T-MS` — stamp `t_ms` (ms since `_started_at`, monotonic) on every `segment.delta` frame in `_ChatProtocolV2Emitter.delta`, additive; blocks launcher `MC-STREAM-CHOPPY`** · plan `EterniaLauncher/docs/mission_control/planned/STREAM_CADENCE_TRACE_2026-10-19.md` H1 · READY 2026-10-20
