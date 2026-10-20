@@ -69,7 +69,7 @@ def os_secure_store_enabled() -> bool:
     return config_switch(*SWITCH, default=False) or namespace_secure_store()
 
 
-def _namespace_manifest() -> Optional[Path]:
+def _own_manifest_path() -> Optional[Path]:
     """This process's ``namespace.json``, or None on the base root."""
     from hermes_cli._namespace_bootstrap import NamespaceRefused, layout, namespace_stamp
 
@@ -92,14 +92,14 @@ def _manifest_record(path: Path) -> Optional[dict]:
 
 def namespace_secure_store() -> bool:
     """True when this process's namespace records that its sign-ins live in the OS secure store."""
-    path = _namespace_manifest()
+    path = _own_manifest_path()
     record = None if path is None else _manifest_record(path)
     return bool(record) and record.get(NAMESPACE_FACT) is True
 
 
 def record_namespace_secure_store() -> bool:
     """Set the namespace fact at bind (first binder wins; idempotent). True when this call wrote it."""
-    path = _namespace_manifest()
+    path = _own_manifest_path()
     record = None if path is None else _manifest_record(path)
     if record is None or record.get(NAMESPACE_FACT) is True:
         return False

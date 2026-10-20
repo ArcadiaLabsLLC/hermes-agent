@@ -171,7 +171,7 @@ def last_written_block(origin: Mapping[str, Any] | None = None) -> dict[str, Any
     return {**(origin or provenance()), "at": _now()}
 
 
-def _read(manifest_path: Path) -> dict[str, Any] | None:
+def _read_manifest(manifest_path: Path) -> dict[str, Any] | None:
     try:
         record = json.loads(Path(manifest_path).read_text(encoding="utf-8-sig"))
     except FileNotFoundError:
@@ -205,7 +205,7 @@ def guard(manifest_path: Path | None, env: Mapping[str, str], *, write: bool = T
     store to guard. A refusal writes nothing. An open with *write* stamps ``last_written_by``, and a
     consented raise also stamps ``epoch.value = STORE_EPOCH``.
     """
-    record = _read(manifest_path) if manifest_path is not None else None
+    record = _read_manifest(manifest_path) if manifest_path is not None else None
     if record is None:
         return Decision(VERDICT_UNSCOPED, None, STORE_EPOCH)
     decision = decide(stored_epoch(record), env)
