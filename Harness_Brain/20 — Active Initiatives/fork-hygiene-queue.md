@@ -24,6 +24,10 @@ tags: [queue, program/fork-hygiene]
 
 
 
+## Filed on arrival — 2026-10-20 (launcher orchestrator w1020r)
+
+- **`FORK-PARALLEL-MESSAGING-GATEWAY` — recorded parallel: the fork's persona messaging gateway (`agent_runtime/messaging/`, own Telegram transport over httpx) shadows upstream's `plugins/platforms/telegram/` + `gateway/platforms/base.py::BasePlatformAdapter` + `gateway/run.py::GatewayRunner`/`gateway/session.py::SessionStore`; not adopted because wrapping brings upstream's second session store and runner-private coupling, and re-admits 71 upstream test files (plan §2.2); retires if upstream exposes a session-store-free transport hook a persona turn can sit behind** · `docs/agent-runtime-harness/planned/p10-messaging-2026-10-19.md` §2.2 · `Harness_Brain/30 — Decisions/0015 — Upstream features the fork does not ship leave the suite and the boot path.md` · DEFERRED 2026-10-20: owner "sounds good persona system for our custom gateway is the way" — kept until upstream ships a transport-only hook; re-check at each upstream merge's supersession pass
+
 ## Filed on arrival — 2026-10-18 (land w4)
 
 
