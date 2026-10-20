@@ -93,6 +93,12 @@ table); `tests/agent_runtime/test_store_epoch_gate.py` reds when a pin differs f
 again until the newest registry entry names the re-pinned shape — so a shape change is always a
 recorded `breaking: true|false` decision. The verdicts are 04's.
 
+**Which install serves the store** (RT-NAMESPACE-OWNER-INSTALL-STAMP): the socket-owner record and
+every `serve_instances` row carry `install {base_root, edition}` beside `namespace`
+(`agent_runtime.namespace.store_identity`; `edition` is the build stamp's, `bundled` or `developer`).
+A contender that finds a live owner reports `lock_held_by` with `owner_install` — the owner's block —
+so the launcher can name the edition holding the store; the takeover-on-drain rule is unchanged.
+
 ### serve_instances — the row, the end-reason sidecar, and the service log
 
 Three file shapes, one directory. `<pid>.json` is the REGISTRY ROW: written at

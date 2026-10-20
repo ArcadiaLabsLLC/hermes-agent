@@ -178,7 +178,7 @@ from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any, Callable
 
-from .namespace import namespace_stamp
+from .namespace import store_identity
 from .paths import SERVE_INSTANCES_DIRNAME
 from .serde import write_json_atomic
 
@@ -388,8 +388,9 @@ def register_serve_instance(
         "port": None if port is None else int(port),
         "socket_started_at": socket_started_at,
         "store_root": str(store_root),
-        # RT-NAMESPACE-STAMP: always written — this process's namespace id, "" for the base root.
-        "namespace": namespace_stamp(),
+        # RT-NAMESPACE-STAMP / -OWNER-INSTALL-STAMP: always written — the namespace id ("" for the base
+        # root) and `install {base_root, edition}`: one shared store, served by either edition.
+        **store_identity(),
         # The home THIS process resolved AT BOOT — an observability fact, not
         # per-turn authority: the runtime may rebind a home for a turn, and
         # this key will not have moved. Null says "resolution failed"; an
