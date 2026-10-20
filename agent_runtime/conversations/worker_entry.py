@@ -50,6 +50,14 @@ def main() -> None:
     clean: list[bool] = []
     atexit.register(exit_without_finalization, clean)
     own_protocol_input()
+    from agent_runtime.store_epoch import refuse_unreadable_store
+    from tui_gateway.server import write_json
+
+    # RT-STORE-EPOCH: the worker opens state.db too. It checks and never stamps: its serve, the same
+    # build, stamped this boot, and a raise is the serve's alone (consent travels to the serve).
+    refused = refuse_unreadable_store(write_json, write=False)
+    if refused is not None:
+        raise SystemExit(refused)
     from agent_runtime.host_store.desktop_binding import bind_desktop_host_store_or_exit
 
     bind_desktop_host_store_or_exit()  # before the engine reads a credential (bundled desktop)
@@ -60,8 +68,6 @@ def main() -> None:
     from agent_runtime.conversations.worker_app_functions import install as install_app_functions
     install_app_functions()
     from agent_runtime.conversations.process_evidence import worker_ready_frame
-
-    from tui_gateway.server import write_json
 
     write_json(worker_ready_frame())
     serve_native()

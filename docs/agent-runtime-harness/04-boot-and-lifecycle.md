@@ -51,8 +51,11 @@ before any hermes module imports:
   home or head home in the base root, another namespace or elsewhere; `root_anchor` refuses
   (`RootAnchorOutcome.NAMESPACED`).
 - **Outside the launcher** (`HERMES_LAUNCHER_SPAWNED` unset) only the id in `<base>/namespace-active.json`
-  (`{"schema": 1, "namespace": "<id>"}`) is reachable; unset with a record follows it; unset with no
-  record, `base`, `pm` and `update` stay on the base root.
+  (`{"schema": 1, "namespace": "<id>"}`, or schema 2 adding `"namespaces_dir": "<absolute dir>"`) is
+  reachable; unset with a record follows it; unset with no record, `base`, `pm` and `update` stay on
+  the base root. With `HERMES_NAMESPACES_DIR` unset, a schema-2 record's `namespaces_dir` IS the
+  namespaces dir (the launcher's shared folder outside both installs; `list` and `probe` read it too)
+  and is exported to every child; schema 1 keeps the base-sibling default (RT-NAMESPACE-ACTIVE-RECORD-DIR).
 - **Stamp.** The owner record, the `serve_instances` row, the `ready` frame, every service-log line and
   receipt line carry `namespace` (`""` for the base root).
 - **`hermes namespace probe | list | seed | reset | delete | import-sessions`** (`hermes_cli.namespace_cmd`,
@@ -60,7 +63,8 @@ before any hermes module imports:
   capability check (exit 0 + JSON); `seed` copies the allowlist once, at creation, and accounts every
   source entry as copied, skipped with a reason, or borrowed (`seed --dry-run` prints that plan and
   writes nothing; `--with-memories` adds each home's `memories/` and is refused unless the target is
-  `acct-<16 hex>`); `seed` also carries every persona instance (hired and canonical) and the alias
+  `acct-<16 hex>` or its sandbox `acct-<16 hex>-dev`, which `list` reports as kind `account-sandbox` and
+  which seeds only from `acct-<the same hex>`, at most once — RT-NAMESPACE-SANDBOX-KIND); `seed` also carries every persona instance (hired and canonical) and the alias
   registry REBASED — source-root paths re-rooted under the namespace, session/run/heartbeat bindings
   cleared, `state: idle` — refusing `namespace_instance_not_rebased` if a value still names the source,
   and lists each office placement as resolved or "placed but no source instance"
@@ -71,6 +75,27 @@ before any hermes module imports:
   bundled edition (build stamp `payload: bundled`, `hermes_cli.steward.is_bundled_payload`) they refuse
   `namespace_dev_only` before importing anything, and both bundled profiles switch their modules off;
   `probe`, `list`, `reset` and `delete` ship everywhere.
+- **The store epoch** (`agent_runtime/store_epoch.py`; 02 § "The namespace manifest and the store
+  epoch"). Both editions open one shared namespace, so a build refuses a store shaped by a newer one.
+  `ServeSession.run` runs `store_epoch.refuse_unreadable_store` as its first act after `booting` —
+  BEFORE the root anchor, the skill install, the install identity and the serve token, each of which
+  writes into the store (the launcher plan's "after the socket lock" is earlier in this tree: the store
+  is written before the lock is taken, and a stdio serve takes none). The verdict compares the
+  manifest's `epoch.value` (absent = 0) with `STORE_EPOCH`:
+
+  | stored vs mine | verdict | effect |
+  | --- | --- | --- |
+  | stored > mine, or unparseable | `newer` | refuse `namespace_epoch_newer`: one `namespace_refused` frame, a stderr line, exit 2, nothing written |
+  | equal, or older and this build's registry has no breaking entry above it | `ok` | open; `last_written_by` stamped; the epoch never moves |
+  | older, this build would raise, `HERMES_LAUNCHER_SPAWNED=1` and `HERMES_STORE_EPOCH_CONSENT=<mine>` | `raise` | open; `epoch.value = mine` stamped |
+  | older, this build would raise, no consent (or outside the launcher) | `consent_required` | refuse `namespace_epoch_consent_required`, nothing written |
+
+  The consent env is the launcher's alone: its early-pull disclaimer grants it. The conversation worker
+  entry runs the same check without stamping (its serve stamped this boot). `hermes namespace probe <id>`
+  prints `epoch {stored, mine, verdict}` (a `newer` verdict also rides `refusal`; `consent_required`
+  does not — the launcher decides whether to ask), and `seed` (from a newer source) and
+  `import-sessions` refuse a store this build cannot read; `reset`, `seed` and a new namespace stamp
+  this build's epoch.
 
 ---
 

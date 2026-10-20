@@ -59,6 +59,9 @@ DIRNAME = "hermes-namespaces"
 MANIFEST_NAME = "namespace.json"
 ACTIVE_RECORD_NAME = "namespace-active.json"
 SCHEMA = 1
+#: ``namespace-active.json`` schemas read: 1 ``{schema, namespace}``; 2 adds ``namespaces_dir`` (the shared
+#: folder the launcher hands both editions — RT-NAMESPACE-ACTIVE-RECORD-DIR).
+ACTIVE_RECORD_SCHEMAS = (1, 2)
 BASE_PROFILE = "base"
 STORE_DIRNAME = "agent-runtime"
 #: Explicit paths a namespaced process may carry only when they lie inside the namespace.
@@ -72,6 +75,23 @@ ADMIN_VERB = "namespace"
 
 _ID = re.compile(r"[a-z0-9][a-z0-9-]{0,47}")
 ACCOUNT_ID = re.compile(r"acct-[0-9a-f]{16}")
+#: The opt-in Developer Edition sandbox of an account (launcher plan EDITION_SWITCH §2.1, row
+#: RT-NAMESPACE-SANDBOX-KIND): ``acct-<16 hex>-dev``, seeded at most once from ``acct-<the same hex>``.
+ACCOUNT_SANDBOX_ID = re.compile(r"(acct-[0-9a-f]{16})-dev")
+KIND_ACCOUNT, KIND_ACCOUNT_SANDBOX, KIND_PROFILE = "account", "account-sandbox", "profile"
+
+
+def namespace_kind(ns_id: str) -> str:
+    """``account`` (``acct-<16 hex>``) | ``account-sandbox`` (``acct-<16 hex>-dev``) | ``profile``."""
+    if ACCOUNT_ID.fullmatch(ns_id):
+        return KIND_ACCOUNT
+    return KIND_ACCOUNT_SANDBOX if ACCOUNT_SANDBOX_ID.fullmatch(ns_id) else KIND_PROFILE
+
+
+def sandbox_account(ns_id: str) -> str | None:
+    """The account namespace a sandbox belongs to (its one sanctioned seed source), else ``None``."""
+    match = ACCOUNT_SANDBOX_ID.fullmatch(ns_id)
+    return match.group(1) if match else None
 _WINDOWS_DEVICE = re.compile(r"con|prn|aux|nul|com[0-9]|lpt[0-9]")
 
 #: Windows ``MAX_PATH`` (260) less the terminating NUL.
@@ -104,6 +124,8 @@ class Reason(StrEnum):
     MEMORIES_NOT_ACCOUNT = "namespace_memories_not_account"
     INSTANCE_NOT_REBASED = "namespace_instance_not_rebased"
     DEV_ONLY = "namespace_dev_only"
+    EPOCH_NEWER = "namespace_epoch_newer"
+    EPOCH_CONSENT_REQUIRED = "namespace_epoch_consent_required"
 
 
 class NamespaceRefused(RuntimeError):
@@ -162,8 +184,11 @@ def base_root(env: Mapping[str, str]) -> Path:
 
 
 def namespaces_dir(env: Mapping[str, str], base: Path) -> Path:
+    """``HERMES_NAMESPACES_DIR``; else, outside the launcher, the active record's ``namespaces_dir``
+    (schema 2); else ``<base parent>/hermes-namespaces``."""
     override = str(env.get(DIR_ENV) or "").strip()
-    folder = Path(override).expanduser() if override else base.parent / DIRNAME
+    recorded = None if override or launcher_spawned(env) else _active_record_dir(base)
+    folder = Path(override).expanduser() if override else (recorded or base.parent / DIRNAME)
     if not folder.is_absolute():
         raise NamespaceRefused(Reason.CONTAINMENT, f"{DIR_ENV} must be absolute, got {override!r}")
     if is_inside(folder, base) or is_inside(base, folder):
@@ -251,6 +276,18 @@ def layout(ns_id: str, env: Mapping[str, str], *, long_paths: bool | None = None
 
 def read_active_record(base: Path) -> str | None:
     """The id ``<base>/namespace-active.json`` names, ``None`` when there is no record; malformed refuses."""
+    record = _active_record(base)
+    return None if record is None else record["namespace"]
+
+
+def _active_record_dir(base: Path) -> Path | None:
+    """The schema-2 record's ``namespaces_dir``; ``None`` for no record or a schema-1 one."""
+    record = _active_record(base)
+    return None if record is None or record.get("namespaces_dir") is None else Path(record["namespaces_dir"])
+
+
+def _active_record(base: Path) -> dict[str, str] | None:
+    """``{namespace[, namespaces_dir]}`` from ``<base>/namespace-active.json``; malformed refuses."""
     path = base / ACTIVE_RECORD_NAME
     try:
         raw = path.read_text(encoding="utf-8-sig")
@@ -262,15 +299,21 @@ def read_active_record(base: Path) -> str | None:
         record = json.loads(raw)
     except json.JSONDecodeError as exc:
         raise NamespaceRefused(Reason.ACTIVE_RECORD_INVALID, f"{path}: not JSON") from exc
-    if not isinstance(record, dict) or record.get("schema") != SCHEMA or not isinstance(record.get("namespace"), str):
-        raise NamespaceRefused(Reason.ACTIVE_RECORD_INVALID, f"{path}: want {{\"schema\": 1, \"namespace\": <id>}}")
+    schema = record.get("schema") if isinstance(record, dict) else None
+    folder = record.get("namespaces_dir") if isinstance(record, dict) else None
+    if (schema not in ACTIVE_RECORD_SCHEMAS or isinstance(schema, bool) or not isinstance(record.get("namespace"), str)
+            or (schema == 2 and not (isinstance(folder, str) and Path(folder).is_absolute()))):
+        raise NamespaceRefused(
+            Reason.ACTIVE_RECORD_INVALID,
+            f"{path}: want {{\"schema\": 1, \"namespace\": <id>}} or "
+            f"{{\"schema\": 2, \"namespace\": <id>, \"namespaces_dir\": <absolute dir>}}")
     try:
         ns_id = validate_id(record["namespace"])
     except NamespaceRefused as exc:
         raise NamespaceRefused(Reason.ACTIVE_RECORD_INVALID, f"{path}: {exc.detail}") from exc
     if ns_id == BASE_ID:
         raise NamespaceRefused(Reason.ACTIVE_RECORD_INVALID, f"{path}: the active record cannot name 'base'")
-    return ns_id
+    return {"namespace": ns_id, **({"namespaces_dir": folder} if schema == 2 else {})}
 
 
 def launcher_spawned(env: Mapping[str, str]) -> bool:
@@ -394,18 +437,48 @@ def env_updates(res: CliResolution, env: Mapping[str, str]) -> dict[str, str]:
         out["HERMES_HEAD_HOME"] = str(item.head_home)
     if not str(env.get("HERMES_AGENT_RUNTIME_ROOT") or "").strip():
         out["HERMES_AGENT_RUNTIME_ROOT"] = str(item.store_root)
-    for key, value in {DEPENDENCY_ENV: str(item.base_root), **FENCE_DEFAULTS}.items():
+    # The dir a record named (RT-NAMESPACE-ACTIVE-RECORD-DIR) is exported, so every child agrees on it.
+    for key, value in {DEPENDENCY_ENV: str(item.base_root), DIR_ENV: str(item.namespaces_dir), **FENCE_DEFAULTS}.items():
         if key not in env:
             out[key] = value
     return out
 
 
+_STORE_EPOCH_ALIAS = "_hermes_store_epoch"
+
+
+def store_epoch_module():
+    """``agent_runtime.store_epoch`` without importing the ``agent_runtime`` package (RT-STORE-EPOCH).
+
+    The package ``__init__`` imports the models (~0.4 s); this module and ``probe`` run before any of
+    that. The epoch module is stdlib-only by contract, so loading its file under a private name is
+    the same code; when the package has already imported it, that one object is used.
+    """
+    loaded = sys.modules.get("agent_runtime.store_epoch") or sys.modules.get(_STORE_EPOCH_ALIAS)
+    if loaded is not None:
+        return loaded
+    import importlib.util
+
+    path = Path(__file__).resolve().parents[1] / "agent_runtime" / "store_epoch.py"
+    spec = importlib.util.spec_from_file_location(_STORE_EPOCH_ALIAS, path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[_STORE_EPOCH_ALIAS] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def ensure_manifest(item: Layout) -> bool:
-    """Write ``namespace.json`` on first resolve; True when this call created it."""
+    """Write ``namespace.json`` on first resolve; True when this call created it.
+
+    A new store is stamped at creation with this build's epoch (RT-STORE-EPOCH): it was shaped by
+    this build, so no consent is ever asked for it.
+    """
     if item.manifest_path.is_file():
         return False
     item.root.mkdir(parents=True, exist_ok=True)
-    record = {"schema": SCHEMA, "id": item.id, "created_at": datetime.now(UTC).isoformat(timespec="seconds")}
+    epoch = store_epoch_module()
+    record = {"schema": SCHEMA, "id": item.id, "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
+              "epoch": epoch.epoch_block()}
     try:
         with open(item.manifest_path, "x", encoding="utf-8") as handle:
             json.dump(record, handle, indent=2, sort_keys=True)
@@ -443,7 +516,7 @@ def probe(env: Mapping[str, str], ns_id: str | None = None) -> dict[str, object]
     out: dict[str, object] = {
         "schema": SCHEMA, "namespaces_dir": None, "base_root": None, "root_budget": ROOT_BUDGET,
         "max_path": MAX_PATH_CHARS, "long_paths": long_paths_enabled(), "launcher_spawned": launcher_spawned(env),
-        "namespace": None, "root": None, "root_length": None, "active": None, "refusal": None,
+        "namespace": None, "root": None, "root_length": None, "active": None, "refusal": None, "epoch": None,
     }
     try:
         base = base_root(env)
@@ -456,6 +529,12 @@ def probe(env: Mapping[str, str], ns_id: str | None = None) -> dict[str, object]
                 item = layout(requested, env, long_paths=True)
                 out["root"], out["root_length"] = str(item.root), item.root_length
                 layout(requested, env)  # the budget refusal, reported beside the length it measured
+                decision = store_epoch_module().guard(item.manifest_path, env, write=False)
+                out["epoch"] = decision.payload()
+                if decision.verdict == "newer":  # consent_required rides `epoch.verdict`: the launcher asks
+                    raise NamespaceRefused(
+                        Reason.EPOCH_NEWER,
+                        f"{item.id!r} is at store epoch {decision.stored}; this build reads epoch {decision.mine}")
     except NamespaceRefused as exc:
         out["refusal"] = {"reason": exc.reason.value, "detail": exc.detail}
     return out

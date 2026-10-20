@@ -65,6 +65,41 @@ kept deliberately: without it, a store that ran `harness snapshot` before the cu
 has an orphan nothing in the tree can name. `read_model.db` was the other such
 file and has no helper at all any more — `ReadModel` is deleted.
 
+### The namespace manifest and the store epoch (`namespace.json`)
+
+A namespace (`<namespaces dir>/<id>/`, 04 § "Before Stage 1 — the profile namespace") is named by its
+`namespace.json`. Both editions open ONE shared namespaces dir — the launcher hands every child of
+either edition the same `HERMES_NAMESPACES_DIR` (launcher plan
+`EterniaLauncher/docs/embedded_hermes/planned/EDITION_SWITCH_NAMESPACE_STORE_2026-10-20.md` §2.1;
+rule page `EterniaLauncher/docs/embedded_hermes/subsystems/EDITION_STORE_2026-10-20.md`) — so the
+manifest records which store shape last wrote it:
+
+| Key | Written by | Shape |
+| --- | --- | --- |
+| `schema`, `id`, `created_at` | `_namespace_bootstrap.ensure_manifest` (first resolve), `namespace_admin.reset` | `1`, the id, ISO time |
+| `seeded_from`, `seeded_at`, … | `namespace_seed.seed` | the one-time seed's receipt |
+| `epoch` | `ensure_manifest` and `reset`/`seed` (this build's epoch), a consented raise at serve boot | `{"value": N, "raised_at": …, "raised_by": {"commit", "edition", "hermes_version"}}`; ABSENT means epoch 0 (every namespace made before 2026-10-20); a block that does not parse is treated as newer |
+| `last_written_by` | every open by a serve or a writing verb (`import-sessions`) | `{"commit", "edition", "hermes_version", "at"}` — provenance, never compared |
+| `secure_store` | the first OS-secure-store bind in the namespace (`host_store.desktop_binding`) | `true`: sign-ins live in the OS secure store (`<namespace>/secure-store`) and EVERY edition binds it, whatever its own `auth.os_secure_store` says — the bundled edition moves plaintext `auth.json`/`.env` in and unlinks it, so a file-reading edition would otherwise be signed out (RT-NAMESPACE-SECURE-STORE-SHARED) |
+
+**The rule** (owner 2026-10-20): the guard compares a breaking-change EPOCH, never the version.
+`agent_runtime/store_epoch.py` is the one authority: `STORE_EPOCH` (what this build reads and writes,
+always `1 + count(breaking entries)`), `MIGRATION_REGISTRY` (one entry per store-shape change:
+`{id, date, store, breaking, reason, pins_sha256}`, a breaking one also `raises_to`), and
+`python -m agent_runtime.store_epoch` → `{"schema": 1, "store_epoch": N}` for the release lane. An
+additive change never raises the epoch. `agent_runtime/store_shape_pins.json` pins the shape an older
+edition reads (`SCHEMA_VERSION`, the `SCHEMA_SQL` digest, `TURN_RECORD_SCHEMA_VERSION`,
+`CURRENT_RUNTIME_SCHEMA_VERSION`, every `models.py` `schema_version` default, the `paths.py` path
+table); `tests/agent_runtime/test_store_epoch_gate.py` reds when a pin differs from the tree, and
+again until the newest registry entry names the re-pinned shape — so a shape change is always a
+recorded `breaking: true|false` decision. The verdicts are 04's.
+
+**Which install serves the store** (RT-NAMESPACE-OWNER-INSTALL-STAMP): the socket-owner record and
+every `serve_instances` row carry `install {base_root, edition}` beside `namespace`
+(`agent_runtime.namespace.store_identity`; `edition` is the build stamp's, `bundled` or `developer`).
+A contender that finds a live owner reports `lock_held_by` with `owner_install` — the owner's block —
+so the launcher can name the edition holding the store; the takeover-on-drain rule is unchanged.
+
 ### serve_instances — the row, the end-reason sidecar, and the service log
 
 Three file shapes, one directory. `<pid>.json` is the REGISTRY ROW: written at

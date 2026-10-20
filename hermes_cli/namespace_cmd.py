@@ -7,11 +7,15 @@ when it ran — a refusal of the asked id rides its ``refusal`` field); exit 2: 
 
 * ``probe [<id>]`` — the launcher's pre-spawn capability check (an older Hermes exits non-zero on
   the unknown subcommand, so "exit 0 + JSON" is the capability). Reads only; writes nothing.
-* ``list`` — every namespace: id, kind (``account`` for ``acct-<16 hex>``, else ``profile``), size,
+  Its ``epoch {stored, mine, verdict}`` is the store-epoch verdict (RT-STORE-EPOCH): ``newer`` also
+  rides ``refusal`` (``namespace_epoch_newer``); ``consent_required`` does not — the launcher asks.
+* ``list`` — every namespace: id, kind (``account`` for ``acct-<16 hex>``, ``account-sandbox`` for
+  ``acct-<16 hex>-dev``, else ``profile``), size,
   last serve, busy, created / seeded-from.
 * ``seed <id> --from <base|ns-id> [--dry-run] [--with-memories]`` — once, at creation (owner ruling
   Q11); the result lists what was copied, what was skipped (each with a reason), what the namespace
-  borrows, and the persona instances carried rebased. ``--dry-run`` prints that plan, refuses as
+  borrows, and the persona instances carried rebased. A sandbox ``acct-<hex>-dev`` seeds only
+  ``--from acct-<the same hex>`` (the sanctioned copy, RT-NAMESPACE-SANDBOX-KIND). ``--dry-run`` prints that plan, refuses as
   the real seed would, and writes nothing.
 * ``reset <id>`` / ``delete <id>`` — refused while a serve holds the namespace, for ``base`` and for
   this process's own namespace.

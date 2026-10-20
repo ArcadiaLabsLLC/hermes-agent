@@ -17,7 +17,7 @@ from typing import Any, Callable
 
 from agent_runtime.file_locks import LockUnavailable, try_lock_exclusive, unlock
 from agent_runtime.clock import now_iso
-from agent_runtime.namespace import namespace_stamp
+from agent_runtime.namespace import store_identity
 from agent_runtime.serde import safe_int, write_json_atomic
 from agent_runtime.store_file_io import os_error_reason
 
@@ -94,6 +94,10 @@ class SocketLockResult:
     #: One of the ``OWNER_STATE_*`` words: what the pre-existing sidecar was.
     #: Diagnostic — it never reaches a greeting frame (see :meth:`payload`).
     owner_state: str = OWNER_STATE_ABSENT
+    #: RT-NAMESPACE-OWNER-INSTALL-STAMP. On ``lock_held_by``: the LIVE owner's ``install
+    #: {base_root, edition}`` from its record, so a contender from the other edition can say which
+    #: install holds this shared store. None when the record carries none (a pre-stamp owner).
+    owner_install: dict[str, Any] | None = None
 
     @property
     def acquired(self) -> bool:
@@ -122,6 +126,8 @@ class SocketLockResult:
             row["took_over_from"] = self.took_over_from
         if self.waited_for_drain_ms is not None:
             row["waited_for_drain_ms"] = self.waited_for_drain_ms
+        if self.owner_install is not None:
+            row["owner_install"] = self.owner_install
         return row
 
 
@@ -284,6 +290,9 @@ class SocketOwnerLock:
                     ),
                     waited_for_drain_ms=waited_ms,
                     owner_state=owner_state,
+                    owner_install=(
+                        owner.get("install") if failure is None and isinstance(owner.get("install"), dict) else None
+                    ),
                 )
                 self._note(result, owner_pid=owner_pid)
                 return result
@@ -475,13 +484,14 @@ class SocketOwnerLock:
         """Write the identity sidecar. Best effort; the LOCK is the authority.
 
         Every record carries ``namespace`` (RT-NAMESPACE-STAMP): the id, ``""`` for the base root —
-        the store identity a sweep judges a serve by, since install anchors are identical for all.
+        the store identity a sweep judges a serve by — and ``install {base_root, edition}``
+        (RT-NAMESPACE-OWNER-INSTALL-STAMP): which install serves it, since both editions share one store.
         """
 
         if not self._acquired:
             return
         try:
-            write_json_atomic(self._owner_path, {"namespace": namespace_stamp(), **record})
+            write_json_atomic(self._owner_path, {**store_identity(), **record})
         except Exception:
             pass
 

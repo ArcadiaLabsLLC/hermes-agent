@@ -20,6 +20,7 @@ NAMESPACE_MODULES = {
     "hermes_cli.namespace_cmd",  # `hermes namespace probe | list | reset | delete` (+ the dev-only refusals)
     "agent_runtime.namespace",  # the store-root isolation gate
     "agent_runtime.namespace_admin",  # the admin verbs
+    "agent_runtime.store_epoch",  # the store epoch the bootstrap loads by file (RT-STORE-EPOCH)
 }
 #: Developer Edition only (owner 2026-10-19): the code that carries instances and chats between
 #: namespaces is not in a player's bundle at all — not merely refused.

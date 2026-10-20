@@ -24,6 +24,7 @@ from hermes_cli._namespace_bootstrap import (
     Layout,
     NamespaceRefused,
     Reason,
+    base_root,
     layout,
     namespace_stamp,
     validate_id,
@@ -41,9 +42,11 @@ __all__ = [
     "NamespaceRefused",
     "Reason",
     "assert_namespace_isolation",
+    "install_stamp",
     "layout",
     "namespace_named",
     "namespace_stamp",
+    "store_identity",
     "validate_id",
 ]
 
@@ -59,6 +62,30 @@ class NamespaceIsolationViolation(AgentRuntimeError):
         super().__init__(f"{reason}: {detail}")
         self.reason = reason
         self.detail = detail
+
+
+def install_stamp(env: Mapping[str, str] | None = None) -> dict[str, str | None]:
+    """``{base_root, edition}`` of the install THIS process runs from (RT-NAMESPACE-OWNER-INSTALL-STAMP).
+
+    Both editions open one shared namespace, so the store a serve owns no longer says which install
+    is serving it: this does. ``edition`` is the build stamp's (``hermes_cli.steward.is_bundled_payload``):
+    ``bundled`` or ``developer``. Never raises; an unresolvable base root is ``None``.
+    """
+    from pathlib import Path
+
+    from hermes_cli.steward import is_bundled_payload
+
+    try:
+        root: str | None = str(base_root(os.environ if env is None else env))
+    except Exception:
+        root = None
+    bundled = is_bundled_payload(Path(__file__).resolve().parents[1])
+    return {"base_root": root, "edition": "bundled" if bundled else "developer"}
+
+
+def store_identity(env: Mapping[str, str] | None = None) -> dict[str, Any]:
+    """What every owner record and registry row names its store and install by."""
+    return {"namespace": namespace_stamp(env), "install": install_stamp(env)}
 
 
 def namespace_named(env: Mapping[str, str] | None = None) -> bool:

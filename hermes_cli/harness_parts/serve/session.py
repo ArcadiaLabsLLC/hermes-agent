@@ -237,6 +237,11 @@ class ServeSession(
         """Boot, serve until the reader ends, unwind. The process's exit code."""
 
         self._boot_prelude()
+        from agent_runtime.store_epoch import refuse_unreadable_store
+
+        refused = refuse_unreadable_store(self.frames.emit)  # RT-STORE-EPOCH: before any store write
+        if refused is not None:
+            return refused
         self._boot_anchor_and_skills()
         self._init_request_state()
         self._swap_stdio()

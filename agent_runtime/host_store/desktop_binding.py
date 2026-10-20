@@ -12,6 +12,13 @@ Chat history is NOT moved: the ruling covers sign-ins; desktop chat history stay
 file by owner ruling 2026-09-29, and the store passes no ``protect_history_dir``.
 ``tests/agent_runtime/test_desktop_host_store.py`` pins it.
 
+Shared namespace (RT-NAMESPACE-SECURE-STORE-SHARED, owner Q3 2026-10-20): both editions open ONE
+namespace, and a bound process MOVES plaintext into the store and unlinks it — which would sign a
+file-reading Developer Edition out of every provider. So the secure store is also a NAMESPACE fact:
+the first bind records ``secure_store: true`` in the namespace's ``namespace.json``, and every edition
+binds where that fact is set, whatever its own ``auth.os_secure_store`` says. The blobs live under the
+namespace root (``<namespace>/secure-store``), which both editions resolve identically.
+
 Migration: a plaintext credential file left by an older bundled install (census:
 ``docs/downstream/credential-store-census-2026-09-28.md``) is written to its slot,
 read back, and only then unlinked. A crash at any point leaves either the plaintext or
@@ -51,11 +58,58 @@ ROOT_SECRET_FILES = ("auth.json", ".anthropic_oauth.json")
 NOUS_SHARED_FILE = "nous_auth.json"
 
 
+#: The ``namespace.json`` key that makes the secure store a namespace fact.
+NAMESPACE_FACT = "secure_store"
+
+
 def os_secure_store_enabled() -> bool:
-    """``auth.os_secure_store`` — default off (full Hermes keeps upstream's files)."""
+    """``auth.os_secure_store`` (default off: full Hermes keeps upstream's files), or the namespace fact."""
     from hermes_cli.config_switches import config_switch
 
-    return config_switch(*SWITCH, default=False)
+    return config_switch(*SWITCH, default=False) or namespace_secure_store()
+
+
+def _namespace_manifest() -> Optional[Path]:
+    """This process's ``namespace.json``, or None on the base root."""
+    from hermes_cli._namespace_bootstrap import NamespaceRefused, layout, namespace_stamp
+
+    ns_id = namespace_stamp()
+    if not ns_id:
+        return None
+    try:
+        return layout(ns_id, os.environ, long_paths=True).manifest_path
+    except NamespaceRefused:
+        return None
+
+
+def _manifest_record(path: Path) -> Optional[dict]:
+    try:
+        record = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        return None
+    return record if isinstance(record, dict) else None
+
+
+def namespace_secure_store() -> bool:
+    """True when this process's namespace records that its sign-ins live in the OS secure store."""
+    path = _namespace_manifest()
+    record = None if path is None else _manifest_record(path)
+    return bool(record) and record.get(NAMESPACE_FACT) is True
+
+
+def record_namespace_secure_store() -> bool:
+    """Set the namespace fact at bind (first binder wins; idempotent). True when this call wrote it."""
+    path = _namespace_manifest()
+    record = None if path is None else _manifest_record(path)
+    if record is None or record.get(NAMESPACE_FACT) is True:
+        return False
+    from agent_runtime.store_epoch import write_manifest
+
+    try:
+        write_manifest(path, {**record, NAMESPACE_FACT: True})
+    except OSError as exc:  # never move a sign-in another edition could then not find
+        raise HostStoreError(f"could not record {NAMESPACE_FACT} in {path}: {exc}; plaintext kept") from exc
+    return True
 
 
 def shared_auth_dir(root: Path) -> Path:
@@ -128,6 +182,8 @@ def bind_desktop_host_store(
     store = (store_factory or _desktop.os_secure_store)(root / BLOB_DIR_NAME)
     current = _binding.bind_host_store(store.callbacks(), profile=_profile_name(home), store_root=root)
     try:
+        # The fact first: once a plaintext file is gone, an edition that missed the fact is signed out.
+        record_namespace_secure_store()
         moved = migrate_plaintext_secrets(current, plaintext_secret_paths(home, root, shared_auth_dir(root)))
         _reload_dotenv(home)
     except BaseException:
