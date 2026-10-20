@@ -58,7 +58,8 @@ before any hermes module imports:
 - **`hermes namespace probe | list | seed | reset | delete | import-sessions`** (`hermes_cli.namespace_cmd`,
   `agent_runtime.namespace_admin`): `probe` is the launcher's pre-spawn capability check (exit 0 +
   JSON); `seed` copies the allowlist once, at creation, and accounts every source entry as copied,
-  skipped with a reason, or borrowed (`seed --dry-run` prints that plan and writes nothing);
+  skipped with a reason, or borrowed (`seed --dry-run` prints that plan and writes nothing;
+  `--with-memories` adds each home's `memories/` and is refused unless the target is `acct-<16 hex>`);
   `reset`/`delete` refuse a busy namespace; `import-sessions <id> <export.jsonl>` writes a
   `hermes sessions export` into a named namespace, rebinding each chat to one of its persona
   instances (`agent_runtime.own_session_import`; never `base`, idempotent, every skip reasoned).

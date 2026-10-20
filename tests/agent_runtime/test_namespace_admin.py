@@ -51,6 +51,11 @@ def base(tmp_path: Path) -> Path:
         "agent-runtime/persona_instances/personainst_neko.json": "{}", "agent-runtime/boards/b/board.json": "{}",
         "agent-runtime/sessions/s.json": "{}", "agent-runtime/realm_sync/r/remote": "https://u:pw@host",
         "agent-runtime/gateway/pairing.json": "SECRET", "agent-runtime/events.jsonl": "{}",
+        # owner ruling 2026-10-19: pets, flow graphs and workspace slots seed; code and work state never do
+        "profiles/coder/pets/fluff/pet.json": "{}", "agent-runtime/flow_graphs/runtime_personainst_neko.json": "{}",
+        "agent-runtime/workspace_slots/ws_default.json": "{}", "profiles/coder/cron/jobs.json": "{}",
+        "profiles/coder/hooks/h/hook.py": "x", "profiles/coder/plugins/p/plugin.py": "x",
+        "profiles/coder/scripts/s.py": "x", "kanban/boards/b.json": "{}",
     }
     for rel, text in files.items():
         (root / rel).parent.mkdir(parents=True, exist_ok=True)
@@ -79,8 +84,11 @@ SEEDED = {
     "skins/dark.yaml", "machine_roots.json", "shared/skills/team/SKILL.md", "shared/characters/golem/character.json",
     "profiles/coder/config.yaml", "profiles/coder/profile.yaml", "profiles/coder/personas/neko.md",
     "agent-runtime/agents/neko.json", "agent-runtime/realms/r.json", "agent-runtime/active_realm.json",
-    "agent-runtime/prefabs/coder/p.json",
+    "agent-runtime/prefabs/coder/p.json", "profiles/coder/pets/fluff/pet.json",
+    "agent-runtime/flow_graphs/runtime_personainst_neko.json", "agent-runtime/workspace_slots/ws_default.json",
 }
+#: What ``--with-memories`` adds (the root's and each profile's memory).
+MEMORY_FILES = {"memories/MEMORY.md", "profiles/coder/memories/MEMORY.md"}
 
 
 def test_seed_copies_the_allowlist_and_never_a_secret(base: Path):
@@ -100,13 +108,12 @@ def test_every_source_entry_is_copied_skipped_with_a_reason_or_borrowed(base: Pa
     out = admin.seed(QA, "base", _env(base))
     skipped = {row["path"]: row["reason"] for row in out["skipped"]}
     assert out["borrowed"] == ["installs", "venvs", "bin", "builds", "tools", "runtimes"]
-    for secret in ("auth.json", ".env", "state.db", "install_id", "kanban.db", "profiles/coder/auth.json",
-                   "profiles/coder/.env", "profiles/coder/state.db", "profiles/coder/memories", "memories",
+    for secret in ("auth.json", ".env", "state.db", "install_id", "profiles/coder/auth.json",
+                   "profiles/coder/.env", "profiles/coder/state.db",
                    "agent-runtime/persona_instances", "agent-runtime/sessions", "agent-runtime/realm_sync",
                    "agent-runtime/gateway", "logs"):
         assert skipped[secret] == "never_seed", secret
-    for other in ("config.yaml.bak-1", "cron", "active_profile", "profiles/.deleted", "agent-runtime/boards",
-                  "agent-runtime/events.jsonl"):
+    for other in ("config.yaml.bak-1", "active_profile", "profiles/.deleted", "agent-runtime/events.jsonl"):
         assert skipped[other] == "not_allowlisted", other
     tops = {rel.split("/")[0] for rel in [*out["copied"], *skipped, *out["borrowed"]]}
     assert tops == {p.name for p in base.iterdir()}
@@ -114,6 +121,34 @@ def test_every_source_entry_is_copied_skipped_with_a_reason_or_borrowed(base: Pa
     for name, folder in sections.items():
         named = {rel.split("/")[1] for rel in [*out["copied"], *skipped] if rel.startswith(f"{name}/")}
         assert named == {p.name for p in folder.iterdir()}, name
+
+
+def test_the_dry_run_names_the_owner_s_rulings_as_skip_reasons(base: Path):
+    """Owner ruling 2026-10-19: code and work state never seed, memories only on opt-in — and the plan says so."""
+    plan = admin.seed(QA, "base", _env(base), dry_run=True)
+    skipped = {row["path"]: row["reason"] for row in plan["skipped"]}
+    code, work, opt_in = ("owner ruled 2026-10-19: runs or schedules code", "owner ruled 2026-10-19: work state",
+                          "opt-in: --with-memories, acct- namespaces only")
+    assert {p: skipped[p] for p in ("cron", "profiles/coder/cron", "profiles/coder/hooks", "profiles/coder/plugins",
+                                    "profiles/coder/scripts")} == dict.fromkeys(
+        ("cron", "profiles/coder/cron", "profiles/coder/hooks", "profiles/coder/plugins", "profiles/coder/scripts"), code)
+    assert {p: skipped[p] for p in ("kanban", "kanban.db", "agent-runtime/boards")} == dict.fromkeys(
+        ("kanban", "kanban.db", "agent-runtime/boards"), work)
+    assert skipped["memories"] == skipped["profiles/coder/memories"] == opt_in
+    assert plan["with_memories"] is False
+
+
+def test_memories_seed_only_with_the_flag_and_only_into_an_account_namespace(base: Path):
+    env = _env(base)
+    admin.seed(QA, "base", env)
+    assert not MEMORY_FILES & _files(base.parent / "hermes-namespaces" / QA)
+    assert _refused(lambda: admin.seed("qa-two", "base", env, with_memories=True)) == "namespace_memories_not_account"
+    assert not (base.parent / "hermes-namespaces" / "qa-two").exists()
+    out = admin.seed(ACCT, "base", env, with_memories=True)
+    root = base.parent / "hermes-namespaces" / ACCT
+    assert _files(root) == SEEDED | MEMORY_FILES
+    assert {"memories", "profiles/coder/memories"} <= set(out["copied"])
+    assert json.loads((root / "namespace.json").read_text(encoding="utf-8"))["with_memories"] is True
 
 
 def test_a_dry_run_prints_the_real_plan_and_writes_nothing(base: Path):
