@@ -198,6 +198,19 @@ def _rebound(session: dict[str, Any], instance_id: str) -> dict[str, Any]:
     return {**session, "model_config": config if isinstance(raw, dict) else json.dumps(config, sort_keys=True)}
 
 
+def _untaken_title(session: dict[str, Any], db: Any) -> dict[str, Any]:
+    """The session with a title no OTHER chat in the target holds. Titles are unique per store,
+    so a reseed whose export repeats a title (or meets one the namespace already minted) keeps a
+    readable title the way ``import_foreign_history`` does: the text plus the id's last 12."""
+    title, sid = session.get("title"), str(session["id"])
+    if not title:
+        return session
+    holder = db.get_session_by_title(title)
+    if holder is None or str(holder.get("id")) == sid:
+        return session
+    return {**session, "title": f"{title} ({sid[-12:]})"}
+
+
 def _parents_first(sessions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """File order, except a child whose parent is in the export follows that parent."""
     by_id = {str(s["id"]): s for s in sessions}
@@ -241,7 +254,8 @@ def _import_rows(sessions: list[dict[str, Any]], targets: Targets, binds: Mappin
         sid = str(session["id"])
         target, how, detail = _decide(session, targets, binds, db, dropped)
         if not dry_run and not isinstance(how, Skip):
-            result = db.import_sessions([_rebound(session, target) if target else session])
+            row = _rebound(session, target) if target else session
+            result = db.import_sessions([_untaken_title(row, db)])
             if not result.get("ok") or not result.get("imported"):
                 how = Skip.REJECTED if not result.get("ok") else Skip.ALREADY_PRESENT
                 detail = json.dumps(result.get("errors") or [], sort_keys=True)[:400]

@@ -140,6 +140,36 @@ def test_a_second_import_of_the_same_export_creates_no_duplicate(world):
     assert len(_bound(item)) == 4
 
 
+def test_a_title_the_target_already_holds_imports_suffixed_instead_of_aborting(tmp_path, world):
+    """Owner 2026-10-20: the real reseed died on ``UNIQUE constraint failed: sessions.title``
+    (two exported chats titled alike, plus the namespace's own fresh "… chat")."""
+    item = world["item"]
+    _recreate_instances(item)
+    source = SessionDB(db_path=tmp_path / "titled" / "state.db")
+    for sid in ("chat_t1", "chat_t2"):
+        _chat(source, sid, "profile_alice", "personainst_profile_alice")
+    source.set_session_title("chat_t1", "Alice chat")
+    export = tmp_path / "titled.jsonl"
+    rows = source.export_all(source=None, **export_projection(False))
+    rows = [{**r, "title": "Alice chat"} if r.get("id") == "chat_t2" else r for r in rows]  # a repeat in the export
+    export.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
+    source.close()
+    target = _target_db(item)
+    try:  # the namespace already minted one by that title
+        _chat(target, "native_alice", "profile_alice", "personainst_profile_alice")
+        target.set_session_title("native_alice", "Alice chat")
+    finally:
+        target.close()
+    report = imp.import_into_namespace(ACCT, export, world["env"])
+    assert report["counts"]["imported"] == 2, report
+    db = _target_db(item)
+    try:
+        titles = {sid: (db.get_session(sid) or {}).get("title") for sid in ("native_alice", "chat_t1", "chat_t2")}
+    finally:
+        db.close()
+    assert titles == {"native_alice": "Alice chat", "chat_t1": "Alice chat (chat_t1)", "chat_t2": "Alice chat (chat_t2)"}
+
+
 def test_bind_resolves_an_ambiguous_persona_and_a_bind_to_nowhere_refuses_before_writing(world):
     item = world["item"]
     _recreate_instances(item)
