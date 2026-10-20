@@ -83,20 +83,39 @@ class Rebase:
         return re.search(re.escape(root) + r"(?![\w.-])", "/".join(_parts(text.casefold()))) is not None
 
 
-def _rebase_tree(value: Any, rebase: Rebase, path: str, rebased: dict[str, str], leftovers: list[str]) -> Any:
-    if isinstance(value, str):
-        new, tail = rebase.value(value)
+@dataclass(slots=True)
+class _TreeRebase:
+    """One walk over a JSON body: rebases every string, records what moved and what still names the source."""
+
+    rebase: Rebase
+    rebased: dict[str, str]
+    leftovers: list[str]
+
+    def walk(self, value: Any, path: str) -> Any:
+        step = _TREE_STEPS.get(type(value))
+        return step(self, value, path) if step else value
+
+    def _string(self, value: str, path: str) -> str:
+        new, tail = self.rebase.value(value)
         if tail is not None:
-            rebased[path] = new
-        if rebase.names_source(value if tail is None else tail):
-            leftovers.append(path)
+            self.rebased[path] = new
+        if self.rebase.names_source(value if tail is None else tail):
+            self.leftovers.append(path)
         return new
-    if isinstance(value, list):
-        return [_rebase_tree(item, rebase, f"{path}[{i}]", rebased, leftovers) for i, item in enumerate(value)]
-    if isinstance(value, dict):
-        return {key: _rebase_tree(item, rebase, f"{path}.{key}" if path else str(key), rebased, leftovers)
-                for key, item in value.items()}
-    return value
+
+    def _list(self, value: list, path: str) -> list:
+        return [self.walk(item, f"{path}[{i}]") for i, item in enumerate(value)]
+
+    def _dict(self, value: dict, path: str) -> dict:
+        return {key: self.walk(item, f"{path}.{key}" if path else str(key)) for key, item in value.items()}
+
+
+#: JSON container/leaf type -> its step (numbers, booleans and null pass through unchanged).
+_TREE_STEPS = {str: _TreeRebase._string, list: _TreeRebase._list, dict: _TreeRebase._dict}
+
+
+def _rebase_tree(value: Any, rebase: Rebase, path: str, rebased: dict[str, str], leftovers: list[str]) -> Any:
+    return _TreeRebase(rebase, rebased, leftovers).walk(value, path)
 
 
 def _cleared_defaults() -> dict[str, Any]:
@@ -107,7 +126,7 @@ def _cleared_defaults() -> dict[str, Any]:
     return out
 
 
-def _decode(path: Path) -> PersonaInstance | None:
+def _decode_instance(path: Path) -> PersonaInstance | None:
     """The record at ``path`` through the model's decoder, or ``None`` when it is not one (or is misfiled)."""
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
@@ -190,7 +209,7 @@ def plan_instances(src_root: Path, item: Layout) -> InstancePlan:
     listed = folder.is_dir() and not folder.is_symlink()
     for path in sorted(folder.iterdir(), key=lambda p: p.name) if listed else []:
         label = f"{STORE_DIRNAME}/{INSTANCES_DIRNAME}/{path.name}"
-        record = None if path.is_symlink() or not path.is_file() else _decode(path)
+        record = None if path.is_symlink() or not path.is_file() else _decode_instance(path)
         if record is None:
             skipped.append({"path": label, "reason": UNPARSEABLE})
         elif (dst_dir / path.name).exists():
