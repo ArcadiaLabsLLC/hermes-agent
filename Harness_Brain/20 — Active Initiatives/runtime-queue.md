@@ -873,7 +873,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-19 (launcher wave w1019 plans + backend wave bw-1018)
 
-- **`RT-SESSIONS-IMPORT-OWN-EXPORT` — `hermes sessions import` takes only --from claude|codex: add an import of hermes's own `sessions export` JSONL into another home (SessionDB rows plus the persona-instance binding), so QA can open a read-only copy of the owner's longest chat** · `hermes_cli/foreign_sessions.py`, `hermes_cli/sessions_cmd.py` · unblocks launcher `QA-OWNER-HOME-READONLY` (owner RULED 2026-10-18: export, never attach) · READY 2026-10-19
+- **`RT-SESSIONS-IMPORT-OWN-EXPORT` — `hermes sessions import` takes only --from claude|codex: add an import of hermes's own `sessions export` JSONL into another home (SessionDB rows plus the persona-instance binding), so QA can open a read-only copy of the owner's longest chat** · `hermes_cli/foreign_sessions.py`, `hermes_cli/sessions_cmd.py` · unblocks launcher `QA-OWNER-HOME-READONLY` (owner RULED 2026-10-18: export, never attach) · READY 2026-10-19 · **TAKEN 2026-10-19 rt-ns-seed**
 
 ## Filed on arrival — 2026-10-19 (land w10, b05ccafe29)
 
