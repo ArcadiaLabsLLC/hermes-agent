@@ -19,9 +19,9 @@ written.
 
 **The binding.** A Mission Control chat belongs to a persona instance through its row's
 ``model_config.persona_instance_id`` (``persona_chat_history.history_rows._persisted_persona_instance_id``).
-Persona INSTANCES are not seeded (``namespace_admin``: they carry the source's ``runtime_root``,
-``chat_head_home`` and session ids), so the target re-creates its own; each persona chat is REBOUND
-to one of them, first rule wins (:class:`BoundBy`):
+Persona INSTANCES are seeded REBASED (``namespace_seed.instances``: the source's session ids are
+cleared, its roots re-rooted), or re-minted by the target; each persona chat is REBOUND to one of
+the target's instances, first rule wins (:class:`BoundBy`):
 
 1. ``--bind SRC=DST`` — SRC is the chat's source instance id or its persona id; DST must be an
    instance of the target (else the whole run refuses ``import_bind_target_unknown``);

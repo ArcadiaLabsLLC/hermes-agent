@@ -56,13 +56,21 @@ before any hermes module imports:
 - **Stamp.** The owner record, the `serve_instances` row, the `ready` frame, every service-log line and
   receipt line carry `namespace` (`""` for the base root).
 - **`hermes namespace probe | list | seed | reset | delete | import-sessions`** (`hermes_cli.namespace_cmd`,
-  `agent_runtime.namespace_admin`): `probe` is the launcher's pre-spawn capability check (exit 0 +
-  JSON); `seed` copies the allowlist once, at creation, and accounts every source entry as copied,
-  skipped with a reason, or borrowed (`seed --dry-run` prints that plan and writes nothing;
-  `--with-memories` adds each home's `memories/` and is refused unless the target is `acct-<16 hex>`);
-  `reset`/`delete` refuse a busy namespace; `import-sessions <id> <export.jsonl>` writes a
-  `hermes sessions export` into a named namespace, rebinding each chat to one of its persona
-  instances (`agent_runtime.own_session_import`; never `base`, idempotent, every skip reasoned).
+  `agent_runtime.namespace_admin`, `agent_runtime.namespace_seed`): `probe` is the launcher's pre-spawn
+  capability check (exit 0 + JSON); `seed` copies the allowlist once, at creation, and accounts every
+  source entry as copied, skipped with a reason, or borrowed (`seed --dry-run` prints that plan and
+  writes nothing; `--with-memories` adds each home's `memories/` and is refused unless the target is
+  `acct-<16 hex>`); `seed` also carries every persona instance (hired and canonical) and the alias
+  registry REBASED — source-root paths re-rooted under the namespace, session/run/heartbeat bindings
+  cleared, `state: idle` — refusing `namespace_instance_not_rebased` if a value still names the source,
+  and lists each office placement as resolved or "placed but no source instance"
+  (`namespace_seed.instances`); `reset`/`delete` refuse a busy namespace; `import-sessions <id>
+  <export.jsonl>` writes a `hermes sessions export` into a named namespace, rebinding each chat to one
+  of its persona instances (`agent_runtime.own_session_import`; never `base`, idempotent, every skip
+  reasoned). **`seed` and `import-sessions` are Developer Edition only** (owner 2026-10-19): on the
+  bundled edition (build stamp `payload: bundled`, `hermes_cli.steward.is_bundled_payload`) they refuse
+  `namespace_dev_only` before importing anything, and both bundled profiles switch their modules off;
+  `probe`, `list`, `reset` and `delete` ship everywhere.
 
 ---
 

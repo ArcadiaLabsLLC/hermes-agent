@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from agent_runtime import namespace_admin as admin
+from agent_runtime import namespace_seed as seeding
 from agent_runtime.file_locks import try_lock_exclusive, unlock
 from agent_runtime.serve_registry import register_serve_instance
 from agent_runtime.serve_socket.owner_lock import socket_lock_path
@@ -92,7 +93,7 @@ MEMORY_FILES = {"memories/MEMORY.md", "profiles/coder/memories/MEMORY.md"}
 
 
 def test_seed_copies_the_allowlist_and_never_a_secret(base: Path):
-    out = admin.seed(QA, "base", _env(base))
+    out = seeding.seed(QA, "base", _env(base))
     root = base.parent / "hermes-namespaces" / QA
     assert _files(root) == SEEDED
     skipped = {row["path"]: row["reason"] for row in out["skipped"]}
@@ -105,27 +106,29 @@ def test_seed_copies_the_allowlist_and_never_a_secret(base: Path):
 
 def test_every_source_entry_is_copied_skipped_with_a_reason_or_borrowed(base: Path):
     """The plan is total: no entry of the source's root, store, shared libraries or profiles goes unaccounted."""
-    out = admin.seed(QA, "base", _env(base))
+    out = seeding.seed(QA, "base", _env(base))
     skipped = {row["path"]: row["reason"] for row in out["skipped"]}
     assert out["borrowed"] == ["installs", "venvs", "bin", "builds", "tools", "runtimes"]
     for secret in ("auth.json", ".env", "state.db", "install_id", "profiles/coder/auth.json",
                    "profiles/coder/.env", "profiles/coder/state.db",
-                   "agent-runtime/persona_instances", "agent-runtime/sessions", "agent-runtime/realm_sync",
+                   "agent-runtime/sessions", "agent-runtime/realm_sync",
                    "agent-runtime/gateway", "logs"):
         assert skipped[secret] == "never_seed", secret
     for other in ("config.yaml.bak-1", "active_profile", "profiles/.deleted", "agent-runtime/events.jsonl"):
         assert skipped[other] == "not_allowlisted", other
+    instances = [row["path"] for row in [*out["instances"]["carried"], *out["instances"]["skipped"]]]
+    assert instances == ["agent-runtime/persona_instances/personainst_neko.json"]  # "{}" is no record: skipped
     tops = {rel.split("/")[0] for rel in [*out["copied"], *skipped, *out["borrowed"]]}
     assert tops == {p.name for p in base.iterdir()}
     sections = {"profiles": base / "profiles", "agent-runtime": base / "agent-runtime", "shared": base / "shared"}
     for name, folder in sections.items():
-        named = {rel.split("/")[1] for rel in [*out["copied"], *skipped] if rel.startswith(f"{name}/")}
+        named = {rel.split("/")[1] for rel in [*out["copied"], *skipped, *instances] if rel.startswith(f"{name}/")}
         assert named == {p.name for p in folder.iterdir()}, name
 
 
 def test_the_dry_run_names_the_owner_s_rulings_as_skip_reasons(base: Path):
     """Owner ruling 2026-10-19: code and work state never seed, memories only on opt-in — and the plan says so."""
-    plan = admin.seed(QA, "base", _env(base), dry_run=True)
+    plan = seeding.seed(QA, "base", _env(base), dry_run=True)
     skipped = {row["path"]: row["reason"] for row in plan["skipped"]}
     code, work, opt_in = ("owner ruled 2026-10-19: runs or schedules code", "owner ruled 2026-10-19: work state",
                           "opt-in: --with-memories, acct- namespaces only")
@@ -140,11 +143,11 @@ def test_the_dry_run_names_the_owner_s_rulings_as_skip_reasons(base: Path):
 
 def test_memories_seed_only_with_the_flag_and_only_into_an_account_namespace(base: Path):
     env = _env(base)
-    admin.seed(QA, "base", env)
+    seeding.seed(QA, "base", env)
     assert not MEMORY_FILES & _files(base.parent / "hermes-namespaces" / QA)
-    assert _refused(lambda: admin.seed("qa-two", "base", env, with_memories=True)) == "namespace_memories_not_account"
+    assert _refused(lambda: seeding.seed("qa-two", "base", env, with_memories=True)) == "namespace_memories_not_account"
     assert not (base.parent / "hermes-namespaces" / "qa-two").exists()
-    out = admin.seed(ACCT, "base", env, with_memories=True)
+    out = seeding.seed(ACCT, "base", env, with_memories=True)
     root = base.parent / "hermes-namespaces" / ACCT
     assert _files(root) == SEEDED | MEMORY_FILES
     assert {"memories", "profiles/coder/memories"} <= set(out["copied"])
@@ -154,41 +157,41 @@ def test_memories_seed_only_with_the_flag_and_only_into_an_account_namespace(bas
 def test_a_dry_run_prints_the_real_plan_and_writes_nothing(base: Path):
     env = _env(base)
     before = _files(base.parent)
-    plan = admin.seed(QA, "base", env, dry_run=True)
+    plan = seeding.seed(QA, "base", env, dry_run=True)
     assert _files(base.parent) == before and not (base.parent / "hermes-namespaces").exists()
     assert plan["dry_run"] is True and plan["copied"] and plan["skipped"]
-    real = admin.seed(QA, "base", env)
+    real = seeding.seed(QA, "base", env)
     assert {k: plan[k] for k in ("copied", "skipped", "borrowed")} == {k: real[k] for k in ("copied", "skipped", "borrowed")}
-    assert _refused(admin.seed, QA, "base", env) == "namespace_already_seeded"
+    assert _refused(seeding.seed, QA, "base", env) == "namespace_already_seeded"
     with pytest.raises(ns.NamespaceRefused):  # a dry run refuses exactly as the real seed would
-        admin.seed(QA, "base", env, dry_run=True)
+        seeding.seed(QA, "base", env, dry_run=True)
 
 
 def test_the_allowlists_carry_no_never_seed_entry():
-    allowlists = admin.HOME_SEED + admin.STORE_SEED + admin.ROOT_SEED + admin.SHARED_SEED
-    assert admin.allowlist_violations(allowlists) == []
-    assert admin.allowlist_violations(("auth.json", ".env.local", "state.db", "persona_instances", "a/b", "..")) == [
+    allowlists = seeding.HOME_SEED + seeding.STORE_SEED + seeding.ROOT_SEED + seeding.SHARED_SEED
+    assert seeding.allowlist_violations(allowlists) == []
+    assert seeding.allowlist_violations(("auth.json", ".env.local", "state.db", "persona_instances", "a/b", "..")) == [
         "auth.json", ".env.local", "state.db", "persona_instances", "a/b", ".."]
 
 
 def test_a_namespace_is_seeded_at_most_once_and_only_at_creation(base: Path):
     env = _env(base)
-    admin.seed(QA, "base", env)
-    assert _refused(admin.seed, QA, "base", env) == "namespace_already_seeded"
+    seeding.seed(QA, "base", env)
+    assert _refused(seeding.seed, QA, "base", env) == "namespace_already_seeded"
     used = ns.layout(ACCT, env)
     ns.ensure_manifest(used)
     (used.root / "profiles" / "base").mkdir(parents=True)
-    assert _refused(admin.seed, ACCT, "base", env) == "namespace_not_fresh"
+    assert _refused(seeding.seed, ACCT, "base", env) == "namespace_not_fresh"
     admin.reset(QA, env)  # a reseed is an explicit operator act: reset, then seed
-    assert admin.seed(QA, "base", env)["ok"] is True
+    assert seeding.seed(QA, "base", env)["ok"] is True
 
 
 def test_a_seed_source_is_named_never_discovered(base: Path):
     env = _env(base)
-    assert _refused(admin.seed, QA, ACCT, env) == "namespace_not_found"
-    admin.seed(ACCT, "base", env)
-    assert admin.seed(QA, ACCT, env)["from"] == ACCT
-    assert _refused(admin.seed, ACCT, ACCT, env) == "namespace_seed_source"
+    assert _refused(seeding.seed, QA, ACCT, env) == "namespace_not_found"
+    seeding.seed(ACCT, "base", env)
+    assert seeding.seed(QA, ACCT, env)["from"] == ACCT
+    assert _refused(seeding.seed, ACCT, ACCT, env) == "namespace_seed_source"
 
 
 def _hold_lock(item) -> object:
@@ -202,7 +205,7 @@ def _hold_lock(item) -> object:
 @pytest.mark.parametrize("verb", [admin.reset, admin.delete])
 def test_reset_and_delete_are_refused_while_a_serve_holds_the_namespace(base: Path, verb):
     env = _env(base)
-    admin.seed(QA, "base", env)
+    seeding.seed(QA, "base", env)
     item = ns.layout(QA, env)
     handle = _hold_lock(item)
     try:
@@ -217,7 +220,7 @@ def test_reset_and_delete_are_refused_while_a_serve_holds_the_namespace(base: Pa
 
 def test_delete_refuses_base_and_this_process_s_own_namespace(base: Path):
     env = _env(base)
-    admin.seed(QA, "base", env)
+    seeding.seed(QA, "base", env)
     assert _refused(admin.delete, "base", env) == "namespace_reserved"
     assert _refused(admin.delete, QA, {**env, "HERMES_NAMESPACE": QA}) == "namespace_in_use_by_this_process"
     assert _refused(admin.delete, "nothing-here", env) == "namespace_not_found"
@@ -225,7 +228,7 @@ def test_delete_refuses_base_and_this_process_s_own_namespace(base: Path):
 
 def test_reset_empties_and_delete_removes(base: Path):
     env = _env(base)
-    admin.seed(QA, "base", env)
+    seeding.seed(QA, "base", env)
     root = base.parent / "hermes-namespaces" / QA
     admin.reset(QA, env)
     assert _files(root) == {"namespace.json"}
@@ -237,7 +240,7 @@ def test_reset_empties_and_delete_removes(base: Path):
 
 def test_list_reports_each_namespace_and_skips_what_is_not_one(base: Path):
     env = _env(base)
-    admin.seed(ACCT, "base", env)
+    seeding.seed(ACCT, "base", env)
     ns.ensure_manifest(ns.layout(QA, env))
     (base.parent / "hermes-namespaces" / "Not_An_Id").mkdir()
     (base.parent / "hermes-namespaces" / "no-manifest").mkdir()

@@ -102,6 +102,8 @@ class Reason(StrEnum):
     NOT_FRESH = "namespace_not_fresh"
     SEED_SOURCE = "namespace_seed_source"
     MEMORIES_NOT_ACCOUNT = "namespace_memories_not_account"
+    INSTANCE_NOT_REBASED = "namespace_instance_not_rebased"
+    DEV_ONLY = "namespace_dev_only"
 
 
 class NamespaceRefused(RuntimeError):

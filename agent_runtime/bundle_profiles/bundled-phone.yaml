@@ -534,6 +534,10 @@ packaging:
     - plugins.web.ddgs
     # Dev and QA tooling.
     - agent_runtime.doctor_extensions
+    # Namespace seed / session import: Developer Edition only (owner 2026-10-19); the CLI refuses
+    # them on a bundled edition before the guarded import (hermes_cli.namespace_cmd).
+    - agent_runtime.namespace_seed
+    - agent_runtime.own_session_import
     - tests
     - scripts
     - evals
