@@ -55,9 +55,13 @@ before any hermes module imports:
   record, `base`, `pm` and `update` stay on the base root.
 - **Stamp.** The owner record, the `serve_instances` row, the `ready` frame, every service-log line and
   receipt line carry `namespace` (`""` for the base root).
-- **`hermes namespace probe | list | seed | reset | delete`** (`hermes_cli.namespace_cmd`,
+- **`hermes namespace probe | list | seed | reset | delete | import-sessions`** (`hermes_cli.namespace_cmd`,
   `agent_runtime.namespace_admin`): `probe` is the launcher's pre-spawn capability check (exit 0 +
-  JSON); `seed` copies the allowlist once, at creation; `reset`/`delete` refuse a busy namespace.
+  JSON); `seed` copies the allowlist once, at creation, and accounts every source entry as copied,
+  skipped with a reason, or borrowed (`seed --dry-run` prints that plan and writes nothing);
+  `reset`/`delete` refuse a busy namespace; `import-sessions <id> <export.jsonl>` writes a
+  `hermes sessions export` into a named namespace, rebinding each chat to one of its persona
+  instances (`agent_runtime.own_session_import`; never `base`, idempotent, every skip reasoned).
 
 ---
 

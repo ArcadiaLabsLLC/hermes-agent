@@ -9,9 +9,14 @@ when it ran — a refusal of the asked id rides its ``refusal`` field); exit 2: 
   the unknown subcommand, so "exit 0 + JSON" is the capability). Reads only; writes nothing.
 * ``list`` — every namespace: id, kind (``account`` for ``acct-<16 hex>``, else ``profile``), size,
   last serve, busy, created / seeded-from.
-* ``seed <id> --from <base|ns-id>`` — once, at creation (owner ruling Q11).
+* ``seed <id> --from <base|ns-id> [--dry-run]`` — once, at creation (owner ruling Q11); the result
+  lists what was copied, what was skipped (each with a reason) and what the namespace borrows.
+  ``--dry-run`` prints that plan, refuses as the real seed would, and writes nothing.
 * ``reset <id>`` / ``delete <id>`` — refused while a serve holds the namespace, for ``base`` and for
   this process's own namespace.
+* ``import-sessions <id> <export.jsonl> [--bind SRC=DST …] [--dry-run]`` — Hermes' own
+  ``sessions export`` into a named namespace, each chat rebound to one of its persona instances
+  (``agent_runtime/own_session_import.py``, row RT-SESSIONS-IMPORT-OWN-EXPORT); never ``base``.
 
 The verbs live in ``agent_runtime/namespace_admin.py``; they are not gated by the external-access
 rule (they name every namespace explicitly and run no agent in one).
@@ -33,6 +38,12 @@ def _emit(payload: object) -> None:
     sys.stdout.flush()
 
 
+def _session_import():
+    from agent_runtime import own_session_import  # RT-SESSIONS-IMPORT-OWN-EXPORT
+
+    return own_session_import
+
+
 def _admin():
     from agent_runtime import namespace_admin  # the runtime half; probe stays stdlib-fast
 
@@ -43,9 +54,10 @@ def _admin():
 _RUNNERS = {
     "probe": lambda args: ns.probe(os.environ, args.id),
     "list": lambda args: _admin().list_namespaces(os.environ),
-    "seed": lambda args: _admin().seed(args.id, args.source, os.environ),
+    "seed": lambda args: _admin().seed(args.id, args.source, os.environ, dry_run=args.dry_run),
     "reset": lambda args: _admin().reset(args.id, os.environ),
     "delete": lambda args: _admin().delete(args.id, os.environ),
+    "import-sessions": lambda args: _session_import().run_namespace_verb(args, os.environ),
 }
 
 
@@ -58,6 +70,15 @@ def _namespace_parser() -> argparse.ArgumentParser:
     seed = verbs.add_parser("seed", help="copy the seed allowlist into a NEW namespace, once")
     seed.add_argument("id")
     seed.add_argument("--from", dest="source", required=True, help="'base' or a namespace id, named explicitly")
+    seed.add_argument("--dry-run", action="store_true",
+                      help="print the plan (copied / skipped with reason / borrowed) and write nothing")
+    imports = verbs.add_parser("import-sessions",
+                               help="import a `hermes sessions export` JSONL into a namespace, rebinding each chat")
+    imports.add_argument("id")
+    imports.add_argument("path", help="the export file (read only, never written)")
+    imports.add_argument("--bind", action="append", metavar="SRC=DST",
+                         help="bind chats of source instance (or persona) SRC to the namespace's instance DST")
+    imports.add_argument("--dry-run", action="store_true", help="report what would import and skip; write nothing")
     for verb in ("reset", "delete"):
         verbs.add_parser(verb, help=f"{verb} a namespace (refused while a serve holds it)").add_argument("id")
     return parser
@@ -66,11 +87,11 @@ def _namespace_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = _namespace_parser().parse_args(list(sys.argv[2:] if argv is None else argv))
     try:
-        _emit(_RUNNERS[args.verb](args))
+        payload = _RUNNERS[args.verb](args)
     except ns.NamespaceRefused as exc:
-        _emit(exc.payload())
-        return 2
-    return 0
+        payload = exc.payload()
+    _emit(payload)
+    return 2 if payload.get("ok") is False else 0
 
 
 if __name__ == "__main__":  # pragma: no cover
