@@ -124,7 +124,7 @@ def _write_manifest(item: Layout, record: dict[str, Any]) -> None:
     os.replace(tmp, item.manifest_path)
 
 
-def _existing(ns_id: str, env: Mapping[str, str]) -> Layout:
+def existing_namespace(ns_id: str, env: Mapping[str, str]) -> Layout:
     """A namespace that provably exists (its manifest names it) — never an arbitrary directory."""
     item = layout(ns_id, env)
     if _namespace_manifest(item) is None:
@@ -211,7 +211,7 @@ def _empty_keeping_lock(item: Layout) -> None:
 def reset(ns_id: str, env: Mapping[str, str]) -> dict[str, Any]:
     """Empty a namespace back to a fresh manifest (a seed is allowed again)."""
     _refuse_own(validate_id(ns_id), env)
-    item = _existing(ns_id, env)
+    item = existing_namespace(ns_id, env)
     with _exclusive(item):
         _empty_keeping_lock(item)
     _rm(socket_lock_path(item.store_root))
@@ -224,7 +224,7 @@ def reset(ns_id: str, env: Mapping[str, str]) -> dict[str, Any]:
 def delete(ns_id: str, env: Mapping[str, str]) -> dict[str, Any]:
     """Remove a namespace from the disk (Q10: the explicit action or an erasure signal, never sign-out)."""
     _refuse_own(validate_id(ns_id), env)
-    item = _existing(ns_id, env)
+    item = existing_namespace(ns_id, env)
     with _exclusive(item):
         _empty_keeping_lock(item)
     _rm(item.root)
@@ -355,7 +355,7 @@ def seed(target_id: str, source: str, env: Mapping[str, str], *, dry_run: bool =
     source = validate_id(source)
     if source == item.id:
         raise NamespaceRefused(Reason.SEED_SOURCE, "a namespace cannot seed itself")
-    src_root = item.base_root if source == BASE_ID else _existing(source, env).root
+    src_root = item.base_root if source == BASE_ID else existing_namespace(source, env).root
     if not src_root.is_dir():
         raise NamespaceRefused(Reason.NOT_FOUND, f"the seed source {src_root} does not exist")
     bad = allowlist_violations(HOME_SEED + STORE_SEED + ROOT_SEED + SHARED_SEED)
