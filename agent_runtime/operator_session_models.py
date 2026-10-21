@@ -9,6 +9,7 @@ from . import chat_session_scope, paths
 from .chat_turn_reservations import unsettled_chat_receipts
 from .config import load_agent_runtime_config
 from .conversation_owner import require_session_owner
+from .credential_pool_snapshot import credential_pool_snapshot
 from .mission_chat_turns.reads import mission_chat_turn_records
 from .mission_chat_turns.states import INFLIGHT_TURN_STATES, SETTLING_TURN_STATES
 from .operator_conversation import OperatorConversationRefused
@@ -41,7 +42,7 @@ def _model_profile(instance):
 def operator_model_inventory(instance) -> dict:
     from hermes_cli.inventory import build_model_options_payload, load_picker_context
 
-    with _model_profile(instance):
+    with _model_profile(instance), credential_pool_snapshot():
         return build_model_options_payload(load_picker_context())
 
 
@@ -51,7 +52,8 @@ def _selected_model(instance, choice: str) -> tuple[str, str, str]:
 
     with _model_profile(instance):
         context = load_picker_context()
-        selection = choices(build_model_options_payload(context)).get(choice)
+        with credential_pool_snapshot():
+            selection = choices(build_model_options_payload(context)).get(choice)
         if selection is None:
             raise OperatorConversationRefused("model_unavailable")
         provider, model = selection
