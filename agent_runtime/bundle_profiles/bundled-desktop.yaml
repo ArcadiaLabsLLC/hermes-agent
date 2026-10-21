@@ -11,9 +11,11 @@
 #   environment        -> variables an existing dependency already honours
 #   refused_routes     -> upstream dashboard routes, refused caller-side by
 #                         agent_runtime.bundle_profiles.route_gate
-# "Present but off" (shell family) means the code ships and a single agent's
-# profile may drop the toolset from its own `agent.disabled_toolsets`, with
-# approvals, when a feature needs it.
+# "Present but off" (shell family) means the code ships and the bundled serve's
+# chat request subtracts `toolsets.disabled` whatever the shared config.yaml says
+# (agent_runtime/bundled_toolsets.py); a single agent opts back in only through the
+# approval record `<its profile home>/approvals/toolsets.json`, written by
+# `runtime.persona.toolset.approve` on the bundled edition (owner ruling 2026-10-21).
 schema_version: 1
 profile: bundled-desktop
 
