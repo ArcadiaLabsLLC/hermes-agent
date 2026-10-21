@@ -334,6 +334,21 @@ def test_draft_drop_forgets_only_a_sealed_monitors_next_revision():
     assert _call("runtime.lens.draft.drop", {"monitor_id": "nope"})["error"]["data"]["reason"] == "monitor_not_found"
 
 
+def test_list_rows_flag_a_pending_draft_beside_the_sealed_revision():
+    """RT-LENS-LIST-DRAFT-FLAG: a sealed monitor's next revision is visible on ``runtime.lens.list``."""
+
+    def row() -> dict:
+        return next(m for m in _call("runtime.lens.list", {})["result"]["monitors"] if m["monitor_id"] == "status")
+
+    _call("runtime.lens.create", {"manifest": _manifest()})
+    assert (row()["state"], row()["revision"], row()["has_draft"]) == ("draft", None, True)
+    _call("runtime.lens.seal", {"monitor_id": "status"})
+    _call("runtime.lens.enable", {"monitor_id": "status"})
+    assert (row()["state"], row()["revision"], row()["has_draft"]) == ("enabled", 1, False)
+    _call("runtime.lens.create", {"manifest": _manifest(_feed(interval_ms=10_000))})
+    assert (row()["state"], row()["revision"], row()["has_draft"]) == ("enabled", 1, True)
+
+
 def test_preview_reads_and_writes_nothing():
     reply = _call("runtime.lens.preview", {"manifest": _manifest(_feed(credential_ref="absent"))})
     assert reply["result"]["feeds"] == [{"feed_id": "api", "status": "unavailable", "number": None,

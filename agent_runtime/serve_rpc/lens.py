@@ -7,7 +7,9 @@ monitor names the operator's own systems, and a credential is theirs.
 =====================  ================================================================
 verb                   params -> result
 =====================  ================================================================
-list                   {} -> {monitors, feed_kinds}
+list                   {} -> {monitors, feed_kinds}; a monitor row is {monitor_id, state,
+                       updated_at_ms, revision, has_draft} — ``has_draft`` is true while a
+                       draft waits for seal: a new proposal, or a SEALED monitor's next revision
 create                 {manifest} -> monitor (the manifest becomes its DRAFT)
 seal                   {monitor_id} -> monitor (draft frozen as the next revision)
 draft.drop             {monitor_id} -> monitor (a SEALED monitor's pending next-revision draft
@@ -98,7 +100,8 @@ def _feed_kinds() -> dict[str, str]:
 def _runtime_lens_list(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     def body() -> dict:
         monitors = [{key: row[key] for key in ("monitor_id", "state", "updated_at_ms")}
-                    | {"revision": None if row["sealed"] is None else row["sealed"]["revision"]}
+                    | {"revision": None if row["sealed"] is None else row["sealed"]["revision"],
+                       "has_draft": row["draft"] is not None}
                     for row in _store().monitors()]
         return {"monitors": monitors, "feed_kinds": _feed_kinds()}
 
