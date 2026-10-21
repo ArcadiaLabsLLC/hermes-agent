@@ -13,7 +13,8 @@ Only lines the plan settles without a further decision are in the table:
   then the global root's, which a persona profile borrows), so selection
   spreads without an ``auth.json`` write per select (#124193).
 
-Lines 3–6 and 8 are held in the plan's status section with the question each
+Line 3 is ruled out (owner 2026-10-21: creates stay profile-local and promote).
+Lines 4–6 and 8 are held in the plan's status section with the question each
 still needs answered; line 7 is "leave unset" and line 9 is not a hermes key.
 
 Rule of the writer: FILL IF ABSENT. A key an operator (or an earlier seed)
