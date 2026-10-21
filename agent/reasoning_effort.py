@@ -166,9 +166,24 @@ def route_supported_efforts(
     accepted wherever the model's ladder reaches ``max`` (codex runs it at ``max``; a model without
     ``max`` rejects it), so it is sent verbatim there."""
     if (provider or "").strip().lower() == "openai-codex":
-        supported = codex_supported_efforts(model)
+        supported = _declared_codex_efforts(model)
         return (*supported, "ultra") if api_mode == "codex_app_server" and "max" in supported else supported
     return OPENAI_COMPAT_WIRE_EFFORTS
+
+
+def _declared_codex_efforts(model: Optional[str]) -> tuple[str, ...]:
+    """The ``openai-codex`` profile's declared vocabulary (``ProviderProfile.supported_reasoning_efforts``),
+    else the static per-generation ladder. The profile is the one place a catalog-driven answer can
+    land, so the entry clamp, the picker label and the transport read one fact. Lazy import: provider
+    plugins import this module during registry discovery."""
+    try:
+        from providers import get_provider_profile
+
+        profile = get_provider_profile("openai-codex")
+        declared = profile.supported_reasoning_efforts(model) if profile is not None else None
+    except Exception:
+        declared = None
+    return tuple(declared) if declared is not None else codex_supported_efforts(model)
 
 
 def effort_display_label(

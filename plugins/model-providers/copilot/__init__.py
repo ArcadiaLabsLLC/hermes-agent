@@ -14,6 +14,23 @@ from providers.base import ProviderProfile
 class CopilotProfile(ProviderProfile):
     """GitHub Copilot / GitHub Models — editor headers + reasoning."""
 
+    def supported_reasoning_efforts(self, model: str | None) -> tuple[str, ...] | None:
+        """The levels the cached Copilot catalog advertises for *model* (``()`` when its structured
+        entry advertises none); ``None`` while the catalog is cold or does not list the model, so
+        the transport keeps its own vocabulary. Never fetches: this runs per request."""
+        from hermes_cli.models import (
+            cached_github_model_catalog, github_model_reasoning_efforts, normalize_copilot_model_id,
+        )
+
+        catalog = cached_github_model_catalog()
+        if not catalog or not model:
+            return None
+        normalized = normalize_copilot_model_id(model, catalog=catalog)
+        entry = next((item for item in catalog if item.get("id") == normalized), None)
+        if entry is None or not isinstance(entry.get("capabilities"), dict):
+            return None
+        return tuple(github_model_reasoning_efforts(model, catalog=catalog))
+
     def build_api_kwargs_extras(
         self, *, model: str | None = None, reasoning_config: dict | None = None,
         supports_reasoning: bool = False, **ctx,
@@ -23,7 +40,9 @@ class CopilotProfile(ProviderProfile):
         try:
             from hermes_cli.models import clamp_github_reasoning_effort, github_model_reasoning_efforts
 
-            supported = github_model_reasoning_efforts(model)
+            supported = self.supported_reasoning_efforts(model)
+            if supported is None:
+                supported = github_model_reasoning_efforts(model)
             if not supported:
                 return {}, {}
             if not reasoning_config:
