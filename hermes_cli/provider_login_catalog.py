@@ -147,6 +147,23 @@ def disconnect_command_for(slug: str, flow: str, platform: str | None = None) ->
     return None
 
 
+#: Providers that take more than one auth mode, as ``(id, label, needs_key)``. The chosen id
+#: is ``model.auth_mode`` (``runtime_provider_backends``: azure-foundry ``api_key`` reads
+#: ``AZURE_FOUNDRY_API_KEY``, ``entra_id`` acquires a token and takes no key). A provider
+#: absent here has one implicit mode. Every mode ``runtime_environment``'s
+#: ``_PROVIDER_MODE_PACKAGE_REQUIREMENTS`` names must be declared here
+#: (``tests/hermes_cli/test_provider_auth_modes.py``).
+PROVIDER_AUTH_MODES: dict[str, tuple[tuple[str, str, bool], ...]] = {
+    "azure-foundry": (("api_key", "API key", True), ("entra_id", "Microsoft Entra ID", False)),
+}
+
+
+def auth_modes_for(slug: str) -> list[dict]:
+    """The catalog row's ``auth_modes``: ``[{id, label, needs_key}]``; empty = one implicit mode."""
+    return [{"id": mode, "label": label, "needs_key": needs_key}
+            for mode, label, needs_key in PROVIDER_AUTH_MODES.get(slug, ())]
+
+
 def provider_login_catalog() -> list[dict]:
     """Every CONNECTABLE provider, whether or not a credential exists for it.
 
@@ -162,7 +179,7 @@ def provider_login_catalog() -> list[dict]:
     catalog order first, then any override-only rows.
 
     Each row: ``{id, name, flows, key_var, models_dev_id, docs_url,
-    disconnect_command}``. NEVER a credential value — this block describes what
+    disconnect_command, model_picker, auth_modes}``. NEVER a credential value — this block describes what
     CAN be connected, never what is stored.
     """
     from hermes_cli.model_picker_policy import model_picker_policy_for
@@ -197,6 +214,7 @@ def provider_login_catalog() -> list[dict]:
                 "docs_url": (override or {}).get("docs_url") or docs_url or None,
                 "disconnect_command": disconnect_command_for(slug, flow),
                 "model_picker": model_picker_policy_for(slug),
+                "auth_modes": auth_modes_for(slug),
             }
         )
 
