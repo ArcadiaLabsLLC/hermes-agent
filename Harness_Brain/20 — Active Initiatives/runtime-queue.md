@@ -31,7 +31,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-21 (launcher landing land-w1021c)
 
-- **`RT-REVENDOR-LAUNCHER-CATALOG-WINDOWS-LIST` — re-vendor the launcher app-function catalog fixture: it still lists `launcher.windows.list`, which the launcher retired** · `tests/fixtures/launcher_app_functions_catalog.json` · source: launcher `tool/app_function_catalog.json` (retired at launcher d33c78081f, landed 718ce52747; 155 functions) · READY 2026-10-21
+- **`RT-REVENDOR-LAUNCHER-CATALOG-WINDOWS-LIST` — re-vendor the launcher app-function catalog fixture: it still lists `launcher.windows.list`, which the launcher retired** · `tests/fixtures/launcher_app_functions_catalog.json` · source: launcher `EterniaLauncher/docs/embedded_hermes/generated/app_function_catalog.json` (retired at launcher d33c78081f, landed 718ce52747; 155 functions) · READY 2026-10-21
 
 ### Filed on arrival — 2026-10-21 (launcher plan lane w1021c-plan-mc)
 
