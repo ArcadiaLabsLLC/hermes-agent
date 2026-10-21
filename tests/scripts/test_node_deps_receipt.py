@@ -72,14 +72,17 @@ def checkout(tmp_path):
     driver.write_text(DRIVER % json.dumps(module))
     base = {"PATH": os.environ.get("PATH", ""), "npm_execpath": str(npm / "bin" / "npm-cli.js"),
             "FAKE_NPM_STATE": str(state), "FAKE_NPM_HELD": HELD}
-    for key in ("SYSTEMROOT", "SystemRoot", "TEMP", "TMP"):
+    temp = tmp_path / "tmp"
+    temp.mkdir()
+    base.update(TEMP=str(temp), TMP=str(temp), TMPDIR=str(temp))  # npm's logs dir; never the runner's
+    for key in ("SYSTEMROOT", "SystemRoot"):
         if key in os.environ:
             base[key] = os.environ[key]
 
     def prepare(extra=None):
         env = {**base, **(extra or {})}
         return subprocess.run([NODE, str(driver), json.dumps(env), str(source)],
-                              capture_output=True, text=True, timeout=120, check=False)
+                              env=env, capture_output=True, text=True, timeout=120, check=False)
 
     def calls():
         path = state / "calls"
