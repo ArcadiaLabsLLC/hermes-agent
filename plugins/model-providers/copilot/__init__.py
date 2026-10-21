@@ -5,10 +5,21 @@ this profile covers the chat_completions remainder: editor attribution headers
 (copilot_default_headers()) and catalog-gated GitHub Models reasoning.
 """
 
+import time
 from typing import Any
 
 from providers import register_provider
 from providers.base import ProviderProfile
+
+
+def _cached_catalog() -> list[dict[str, Any]] | None:
+    """The catalog ``fetch_github_model_catalog`` last cached, while fresh; never fetches (read-only)."""
+    from hermes_cli import models
+
+    cached = models._github_model_catalog_cache
+    if cached is None or time.monotonic() - models._github_model_catalog_cache_time >= models._GITHUB_MODEL_CATALOG_CACHE_TTL:
+        return None
+    return cached
 
 
 class CopilotProfile(ProviderProfile):
@@ -18,11 +29,9 @@ class CopilotProfile(ProviderProfile):
         """The levels the cached Copilot catalog advertises for *model* (``()`` when its structured
         entry advertises none); ``None`` while the catalog is cold or does not list the model, so
         the transport keeps its own vocabulary. Never fetches: this runs per request."""
-        from hermes_cli.models import (
-            cached_github_model_catalog, github_model_reasoning_efforts, normalize_copilot_model_id,
-        )
+        from hermes_cli.models import github_model_reasoning_efforts, normalize_copilot_model_id
 
-        catalog = cached_github_model_catalog()
+        catalog = _cached_catalog()
         if not catalog or not model:
             return None
         normalized = normalize_copilot_model_id(model, catalog=catalog)

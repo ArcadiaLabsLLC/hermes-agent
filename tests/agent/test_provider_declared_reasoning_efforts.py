@@ -17,7 +17,7 @@ from agent.reasoning_effort import CODEX_GPT56_EFFORTS, CODEX_LEGACY_EFFORTS, ro
 
 @pytest.fixture
 def profiles():
-    import model_tools  # noqa: F401 — plugin discovery registers the provider profiles
+    import model_tools  # plugin discovery registers the provider profiles
     import providers
 
     return providers.get_provider_profile("openai-codex"), providers.get_provider_profile("copilot")
@@ -41,7 +41,7 @@ def test_the_route_clamp_reads_the_codex_declaration(profiles, monkeypatch):
 
 
 def test_copilot_declares_its_cached_catalog_and_never_fetches(profiles, monkeypatch):
-    import hermes_cli.models as models
+    from hermes_cli import models
 
     _, copilot = profiles
     monkeypatch.setattr(models, "fetch_github_model_catalog", lambda *a, **k: pytest.fail("fetched"))

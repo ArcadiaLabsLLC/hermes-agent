@@ -2336,15 +2336,6 @@ _github_model_catalog_cache_time: float = 0.0
 _GITHUB_MODEL_CATALOG_CACHE_TTL = 300  # 5 minutes
 
 
-def cached_github_model_catalog() -> Optional[list[dict[str, Any]]]:
-    """The GitHub Copilot catalog :func:`fetch_github_model_catalog` last fetched, while fresh; never
-    fetches. For per-request hot paths that must answer from a cache (``None`` while cold)."""
-    if (_github_model_catalog_cache is None
-            or (time.monotonic() - _github_model_catalog_cache_time) >= _GITHUB_MODEL_CATALOG_CACHE_TTL):
-        return None
-    return copy.deepcopy(_github_model_catalog_cache)
-
-
 def fetch_github_model_catalog(
     api_key: Optional[str] = None, timeout: float = 5.0) -> Optional[list[dict[str, Any]]]:
     """Fetch the live GitHub Copilot model catalog for this account."""

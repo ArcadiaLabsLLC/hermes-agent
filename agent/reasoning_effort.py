@@ -176,13 +176,10 @@ def _declared_codex_efforts(model: Optional[str]) -> tuple[str, ...]:
     else the static per-generation ladder. The profile is the one place a catalog-driven answer can
     land, so the entry clamp, the picker label and the transport read one fact. Lazy import: provider
     plugins import this module during registry discovery."""
-    try:
-        from providers import get_provider_profile
+    from providers import get_provider_profile
 
-        profile = get_provider_profile("openai-codex")
-        declared = profile.supported_reasoning_efforts(model) if profile is not None else None
-    except Exception:
-        declared = None
+    profile = get_provider_profile("openai-codex")
+    declared = profile.supported_reasoning_efforts(model) if profile is not None else None
     return tuple(declared) if declared is not None else codex_supported_efforts(model)
 
 
