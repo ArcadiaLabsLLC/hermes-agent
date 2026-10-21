@@ -56,7 +56,7 @@ def publish_module(full_name: str, module) -> None:
         return
     try:
         setattr(parent, child, module)
-    except Exception:  # noqa: BLE001 — a binding failure must never fail a load
+    except Exception:  # health: allow BLE001 -- a binding failure must never fail a load
         logger.debug("could not bind %s on %s", child, parent_name, exc_info=True)
 
 

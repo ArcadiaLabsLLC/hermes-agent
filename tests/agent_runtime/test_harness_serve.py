@@ -702,6 +702,30 @@ def test_boot_reports_the_dispatches_it_settled(monkeypatch):
     assert frames[1]["dispatches_restored"] == 2
 
 
+def test_boot_reports_the_long_calls_it_found_lost(monkeypatch):
+    """A long tool call whose writer died is re-owned as ``lost`` BEFORE the drain starts
+    (RT-LONG-CALL-WAKE-LOST-ON-RESTART); the frame counts it, absent when none."""
+
+    from tools import long_tool_calls
+
+    seen = {}
+
+    def sweep(homes):
+        seen["homes"] = list(homes)
+        return ["bg:a", "bg:b"]
+
+    monkeypatch.setattr(long_tool_calls, "sweep_orphaned_rows", sweep)
+
+    frames = _run([SHUTDOWN], dispatch=lambda argv: 0)
+
+    assert frames[1]["event"] == "ready"
+    assert frames[1]["long_calls_lost"] == 2
+    assert seen["homes"], "the sweep walks at least the head home"
+
+    monkeypatch.setattr(long_tool_calls, "sweep_orphaned_rows", lambda homes: [])
+    assert "long_calls_lost" not in _run([SHUTDOWN], dispatch=lambda argv: 0)[1]
+
+
 # ── Boot instrumentation (T5/T9) ────────────────────────────────────────────
 #
 # A cold boot is the one worth attributing and the one nobody is watching a
@@ -828,6 +852,7 @@ def test_ready_frame_attributes_every_boot_phase():
         "store_root_ms",
         "orphaned_turn_sweep_ms",
         "dispatch_restore_ms",
+        "long_call_sweep_ms",
     ):
         assert phase in stamps, phase
         assert stamps[phase] >= 0
@@ -1023,7 +1048,7 @@ def test_the_provider_prewarm_does_not_begin_until_the_snapshot_prewarm_returns(
     exists here or anywhere in this stage.
     """
 
-    gate, provider_calls, out, loop, result = _gated_prewarm_run()
+    gate, provider_calls, _out, loop, result = _gated_prewarm_run()
     try:
         # The build is provably pending: the gate is unreleased and held by us.
         assert provider_calls == []
@@ -1051,7 +1076,7 @@ def test_ready_is_emitted_before_either_prewarm_completes():
     ready frame.
     """
 
-    gate, provider_calls, out, loop, result = _gated_prewarm_run()
+    gate, provider_calls, out, loop, _result = _gated_prewarm_run()
     try:
         # The loop ran to completion — booting, ready, shutdown — while the
         # read-model prewarm is still parked inside the test's gate.
@@ -1071,7 +1096,7 @@ def test_a_failed_build_still_warms_the_providers():
     independent threads had for free and a naive `then` would have silently
     dropped."""
 
-    gate, provider_calls, out, loop, result = _gated_prewarm_run(snapshot_raises=True)
+    gate, provider_calls, _out, loop, result = _gated_prewarm_run(snapshot_raises=True)
     gate.set()
     assert _wait_for(lambda: provider_calls == ["provider"])
     loop.join(10)

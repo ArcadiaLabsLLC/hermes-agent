@@ -289,10 +289,12 @@ def ledger_add_row(text: str, row: FileDelta, *, disposition: str, reason: str, 
 
 # A reason row that raises the fixture cites the owner's ruling (owner, 2026-10-15): the date and
 # where it is recorded, e.g. "2026-10-15 · Harness_Brain/30 — Decisions/0015". The rows already on
-# main when the rule landed carry ``"grandfathered": true`` instead; there are exactly
-# GRANDFATHERED_REASONS of them and the number only falls, so a new row cannot borrow the marker.
+# main when the rule landed carry ``"grandfathered": true`` instead. Each one's IDENTITY (a digest
+# of the row) is pinned in GRANDFATHERED_PINS, which may only lose lines: a count alone let a new
+# row take an old exemption's vacant slot, or swap in for one at the same count (audit 2026-10-17).
 OWNER_RULING_RE = re.compile(r"^\d{4}-\d{2}-\d{2}\b\W*\w.*")
-GRANDFATHERED_REASONS = 121
+GRANDFATHERED_REASONS = 120
+GRANDFATHERED_PINS = ROOT / "tests" / "fixtures" / "upstream_footprint_grandfathered.txt"
 
 
 def unruled_reasons(fixture: dict) -> list[str]:
@@ -308,6 +310,29 @@ def unruled_reasons(fixture: dict) -> list[str]:
 
 def grandfathered_count(fixture: dict) -> int:
     return sum(1 for row in fixture.get("reasons", []) if row.get("grandfathered") is True)
+
+
+def reason_identity(row: dict) -> str:
+    """A grandfathered row's identity: any edit to the row makes a different row."""
+    import hashlib
+
+    canonical = json.dumps(row, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+
+
+def grandfathered_pins(path: Path = GRANDFATHERED_PINS) -> list[str]:
+    """The pinned identities, one ``<digest> <change>`` line each (the change is for a reader)."""
+    return [line.split()[0] for line in path.read_text(encoding="utf-8-sig").splitlines() if line.strip()]
+
+
+def unpinned_grandfathered(fixture: dict, pins: Iterable[str]) -> list[str]:
+    """``change`` of every row marked grandfathered whose identity is not pinned."""
+    pinned = set(pins)
+    return [
+        str(row.get("change", "?"))
+        for row in fixture.get("reasons", [])
+        if row.get("grandfathered") is True and reason_identity(row) not in pinned
+    ]
 
 
 def fixture_add_reason(fixture: dict, tree: Footprint, *, change: str, reason: str, today: str,
@@ -334,13 +359,13 @@ def add_row(path: str, *, reason: str, change: str, disposition: str = "carry", 
     row = next((r for r in tree.rows if r.path == path), None)
     if row is None:
         raise SystemExit(f"--add-row: the fork does not edit upstream file {path} ({tree.line()})")
-    text = ledger_add_row(ledger.read_text(encoding="utf-8"), row, disposition=disposition, reason=reason, stage=stage)
+    text = ledger_add_row(ledger.read_text(encoding="utf-8-sig"), row, disposition=disposition, reason=reason, stage=stage)
     missing = sorted({r.path for r in tree.rows} - set(ledger_rows(text)))
     if missing:
         raise SystemExit(f"--add-row: upstream edits with no ledger row: {', '.join(missing)} — add each one")
     import datetime
 
-    fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+    fixture = json.loads(fixture_path.read_text(encoding="utf-8-sig"))
     updated = fixture_add_reason(fixture, tree, change=change, reason=reason, today=datetime.date.today().isoformat(),
                                  owner_ruling=owner_ruling)
     ledger.write_text(text, encoding="utf-8", newline="\n")
@@ -366,7 +391,7 @@ def _git(*args: str) -> str:
 
 
 def read_manifest(path: Path = MANIFEST) -> tuple[str | None, list[str]]:
-    return parse_manifest(path.read_text(encoding="utf-8"))
+    return parse_manifest(path.read_text(encoding="utf-8-sig"))
 
 
 def measure(base: str | None = None, manifest_path: Path = MANIFEST) -> tuple[str, Footprint]:
@@ -446,7 +471,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps([asdict(row) for row in footprint.rows], indent=2))
     if args.ledger:
         ledger = Path(args.ledger)
-        existing = ledger.read_text(encoding="utf-8") if ledger.exists() else None
+        existing = ledger.read_text(encoding="utf-8-sig") if ledger.exists() else None
         merged = merge_ledger(existing, footprint)
         ledger.write_text(merged, encoding="utf-8", newline="\n")
         ruled = sum(1 for row in ledger_rows(merged).values() if row.get("disposition") == "carry-permanent")

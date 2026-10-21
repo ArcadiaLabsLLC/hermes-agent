@@ -37,6 +37,7 @@ from hermes_cli.gateway_home_receipt import (
     RESOLUTION_DEFAULT,
     RESOLUTION_ENV_PROFILE_DIR,
     RESOLUTION_FLAG,
+    RESOLUTION_RUNGS,
     build_gateway_home_receipt,
     env_key_names,
     profile_name_of,
@@ -98,6 +99,7 @@ def _run_preparse(root: Path, argv: list[str], env_home: str | None) -> dict:
         capture_output=True,
         text=True,
         timeout=25,
+        check=False,
     )
     assert proc.returncode == 0, proc.stderr
     return json.loads(proc.stdout.strip().splitlines()[-1])
@@ -217,6 +219,24 @@ def test_receipt_reports_telegram_true_when_a_telegram_key_is_present(tmp_path):
     )
     assert receipt["env_key_count"] == 3
     assert receipt["telegram_configured"] is True
+
+
+def test_the_receipt_reads_the_rung_vocabulary(tmp_path):
+    """Plan l5-17-test-only-names, bucket C: ``RESOLUTION_RUNGS`` is what the receipt reads.
+
+    Every rung is recognised (the positive control); a value outside the tuple is
+    reported as such rather than passed off as a rung. Kill: drop a rung from the tuple.
+    """
+    home = tmp_path / "profiles" / "alice"
+    home.mkdir(parents=True)
+    for rung in RESOLUTION_RUNGS:
+        receipt = build_gateway_home_receipt(hermes_home=home, resolution=rung, env_keys=[])
+        assert receipt["resolution_recognised"] is True, rung
+        assert "not a rung" not in receipt["summary"]
+    stray = build_gateway_home_receipt(hermes_home=home, resolution="STALE_INHERITED", env_keys=[])
+    assert stray["resolution"] == "STALE_INHERITED"
+    assert stray["resolution_recognised"] is False
+    assert "not a rung this build knows" in stray["summary"]
 
 
 def test_no_env_value_appears_anywhere_in_the_emitted_line(tmp_path):
@@ -413,6 +433,22 @@ def _preparse_source() -> str:
     text = path.read_text(encoding="utf-8", errors="replace")
     assert len(text) > 5_000, "main.py read came back too small - vacuous"
     return text
+
+
+@pytest.mark.parametrize(
+    "constant",
+    [
+        "RESOLUTION_FLAG",
+        "RESOLUTION_ENV_PROFILE_DIR",
+        "RESOLUTION_ACTIVE_PROFILE_MARKER",
+        "RESOLUTION_DEFAULT",
+    ],
+)
+def test_the_rung_vocabulary_is_exactly_the_four_named_rungs(constant):
+    from hermes_cli import gateway_home_receipt
+
+    assert getattr(gateway_home_receipt, constant) in RESOLUTION_RUNGS
+    assert len(RESOLUTION_RUNGS) == len(set(RESOLUTION_RUNGS)) == 4
 
 
 @pytest.mark.parametrize(

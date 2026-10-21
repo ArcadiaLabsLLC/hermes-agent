@@ -17,16 +17,20 @@ from __future__ import annotations
 
 import ast
 import subprocess
-from functools import lru_cache
+from functools import lru_cache, cache
 from pathlib import Path
 
 from scripts.upstream_footprint import MANIFEST, read_manifest
+
+import pytest
+
+pytestmark = pytest.mark.gate
 
 ROOT = Path(__file__).resolve().parents[2]
 PLUGIN = ROOT / "plugins" / "eternia-harness"
 
 
-@lru_cache(maxsize=None)
+@cache
 def _manifest() -> tuple[str, frozenset[str]]:
     base, paths = read_manifest(MANIFEST)
     return base, frozenset(paths)
@@ -46,7 +50,7 @@ def _is_repo_module(module: str) -> bool:
     return stem.with_suffix(".py").is_file() or (stem / "__init__.py").is_file()
 
 
-@lru_cache(maxsize=None)
+@cache
 def _base_names(path: str) -> frozenset[str]:
     """Top-level names ``path`` defined at the manifest base."""
     base, _ = _manifest()

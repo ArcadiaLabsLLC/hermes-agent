@@ -313,7 +313,7 @@ def test_the_declaration_read_never_imports_model_tools(tmp_path):
         "HERMES_HOME": str(home),
     }
     out = subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True, env=env
+        [sys.executable, "-c", code], capture_output=True, text=True, env=env, check=False
     )
 
     assert out.returncode == 0, out.stderr

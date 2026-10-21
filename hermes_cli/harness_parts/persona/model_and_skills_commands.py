@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from agent_runtime.operation_result import emit_operation_result
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from agent_runtime.cli_format import emit_json
 from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.coordinator_permissions import review_coordinator_budget
@@ -81,12 +81,11 @@ def _model_api_mode(provider: str | None, model: str | None, profile_api_mode: s
     """The ``api_mode`` persisted beside *model*. An OpenCode family routes PER MODEL
     (``opencode_model_api_mode``: Claude on ``anthropic_messages``, GPT on ``codex_responses``), so
     its provider profile's single ``api_mode`` is right for one model at most; every other
-    provider keeps the profile's."""
-    from hermes_cli.models import opencode_model_api_mode, opencode_provider_family
+    provider keeps the profile's. The rule's one home is ``agent_runtime.model_api_mode``, which a
+    chat override's turn derives its api_mode by too."""
+    from agent_runtime.model_api_mode import model_api_mode
 
-    if provider and model and opencode_provider_family(provider):
-        return opencode_model_api_mode(provider, model)
-    return profile_api_mode
+    return model_api_mode(provider, model, profile_api_mode)
 
 
 def _validated_set_model_request(args) -> dict:
@@ -350,9 +349,9 @@ def _cmd_persona_set_model(args) -> int:
     status = "applied"
     issued_at = request["issued_at"]
     if issued_at is not None and getattr(target, "model_override_issued_at", None) is not None:
-        issued = issued_at if issued_at.tzinfo is not None else issued_at.replace(tzinfo=timezone.utc)
+        issued = issued_at if issued_at.tzinfo is not None else issued_at.replace(tzinfo=UTC)
         applied_at = target.model_override_issued_at
-        applied_at = applied_at if applied_at.tzinfo is not None else applied_at.replace(tzinfo=timezone.utc)
+        applied_at = applied_at if applied_at.tzinfo is not None else applied_at.replace(tzinfo=UTC)
         if issued <= applied_at:
             status = "superseded"
     changed = False
@@ -371,7 +370,7 @@ def _cmd_persona_set_model(args) -> int:
                     setattr(target, field_name, value)
                     changed = True
         if changed:
-            target.model_override_issued_at = issued_at or datetime.now(timezone.utc)
+            target.model_override_issued_at = issued_at or datetime.now(UTC)
             store.save(target)
     default_provider = getattr(cfg, "default_provider", None)
     default_model = getattr(cfg, "default_model", None)
@@ -518,9 +517,9 @@ def _cmd_persona_set_skills(args) -> int:
     status = "applied"
     issued_at = request["issued_at"]
     if issued_at is not None and getattr(target, "skills_override_issued_at", None) is not None:
-        issued = issued_at if issued_at.tzinfo is not None else issued_at.replace(tzinfo=timezone.utc)
+        issued = issued_at if issued_at.tzinfo is not None else issued_at.replace(tzinfo=UTC)
         applied_at = target.skills_override_issued_at
-        applied_at = applied_at if applied_at.tzinfo is not None else applied_at.replace(tzinfo=timezone.utc)
+        applied_at = applied_at if applied_at.tzinfo is not None else applied_at.replace(tzinfo=UTC)
         if issued <= applied_at:
             status = "superseded"
     changed = False
@@ -530,7 +529,7 @@ def _cmd_persona_set_skills(args) -> int:
             target.skills = requested
             changed = True
         if changed:
-            target.skills_override_issued_at = issued_at or datetime.now(timezone.utc)
+            target.skills_override_issued_at = issued_at or datetime.now(UTC)
             store.save(target)
     stored_skills = list(target.skills or [])
     data = attach_root_observability({
@@ -575,7 +574,7 @@ def _unresolvable_skill_ids(skills: list[str]) -> list[str]:
         from agent_runtime.skill_resolution import resolve_skills
 
         resolutions = resolve_skills(list(skills))
-    except Exception:  # noqa: BLE001 - advisory warning list, never a gate
+    except Exception:  # advisory warning list, never a gate
         return []
     return [
         name

@@ -105,6 +105,9 @@ from pathlib import Path
 import pytest
 
 from agent_runtime.decision_contract_registry import event_catalog
+from scripts import source_cache
+
+pytestmark = pytest.mark.gate
 
 
 #: Production packages scanned for emitters. Tests are excluded on purpose: an
@@ -199,10 +202,9 @@ def _production_trees_uncached() -> dict[str, ast.Module]:
             paths += [Path(dirpath) / name for name in filenames if name.endswith(".py")]
     paths += [p for p in root.glob("*.py")]
     for path in paths:
-        try:
-            trees[str(path)] = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
-        except SyntaxError:
-            continue
+        tree = source_cache.tree(path)  # shared with every whole-tree walker; read-only
+        if tree is not None:
+            trees[str(path)] = tree
     return trees
 
 
@@ -225,7 +227,9 @@ def _slot_value(call: ast.Call, index: int | None, keyword: str | None) -> ast.e
         for kw in call.keywords:
             if kw.arg == keyword:
                 return kw.value
-    if index is not None and index < len(call.args):
+    # A negative index is never a call-site slot: it is the bound receiver a
+    # method forwarded (``self``/``cls`` at position 0, minus the dropped self).
+    if index is not None and 0 <= index < len(call.args):
         if not any(isinstance(arg, ast.Starred) for arg in call.args[: index + 1]):
             return call.args[index]
     return None
@@ -334,7 +338,9 @@ def _emitted_event_types() -> dict[str, list[str]]:
                         # from the call-site argument list.
                         if value.id in positional:
                             at = positional.index(value.id)
-                            discovered.add((func_name, at - 1 if is_method else at, value.id))
+                            slot = at - 1 if is_method else at
+                            # Forwarding the receiver itself has no positional slot.
+                            discovered.add((func_name, slot if slot >= 0 else None, value.id))
                         elif value.id in keyword_only:
                             discovered.add((func_name, None, value.id))
         if discovered <= sinks:

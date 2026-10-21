@@ -76,7 +76,7 @@ def main(argv: list[str] | None = None) -> int:
         # ``errors="replace"``: a log is a byte stream a crashed writer may have
         # torn mid-character, and refusing to census a runtime because one line
         # is malformed would be the tool failing at its own job.
-        text = Path(path).read_text(encoding="utf-8", errors="replace")
+        text = Path(path).read_text(encoding="utf-8-sig", errors="replace")
     except OSError as exc:
         print(
             f"core-cache demote census: cannot read {path}: "

@@ -77,8 +77,5 @@ class TurnCheckpointRecorder:
 
 
 def checkpoint_for_tree(manager, workdir: str, tree: str) -> str | None:
-    for checkpoint in manager.list_checkpoints(workdir):
-        candidate = manager.checkpoint_tree(workdir, checkpoint["hash"])
-        if candidate == tree:
-            return checkpoint["hash"]
-    return None
+    """The newest listed checkpoint whose tree is ``tree``: one ``log``, not a git call per row."""
+    return next((commit for commit, candidate in manager.checkpoint_trees(workdir) if candidate == tree), None)

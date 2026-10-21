@@ -289,6 +289,18 @@ class SnapshotFrameBuild:
         if isinstance(detected.get("scan_ms"), int):
             self.sections_ms["running_work.build_detect"] = detected["scan_ms"]
 
+    def lens(self) -> None:
+        """The Lens fold (:func:`agent_runtime.lens.snapshot_fold.lens_fold`), untimed.
+
+        Not a ``sections_ms`` key: a new key there is a new key on the parity
+        envelope. The fold is bounded (``MAXIMUM_OPEN_EPISODES``) and an absent
+        store answers the empty fold without creating it.
+        """
+
+        from agent_runtime.lens.snapshot_fold import lens_fold
+
+        self.lens_section = lens_fold()
+
     def frame(self) -> None:
         """The frame dict: contract stamps, runtime default and config, and the projections above."""
 
@@ -357,6 +369,9 @@ class SnapshotFrameBuild:
             # lane carries its own ok/unavailable health under ``sources``; an
             # unreadable lane is REPORTED, never rendered as "nothing running".
             "running_work": self.running_work_section,
+            # The Lens fold (owner ruling 2026-10-18): the method lane's
+            # ``runtime.lens.fold`` answer, carried on the push lane too.
+            "lens": self.lens_section,
             "active_workspace_id": self.workspace_store.active_id(),
             "active_realm_id": self.realm_store.active_id(),
             "agents": self.agent_summaries,
@@ -467,6 +482,9 @@ class SnapshotFrameBuild:
             completeness=self.completeness,
             drop_samples=self.drop_samples,
             sections_ms=self.sections_ms,
+            office_evidence=getattr(
+                getattr(self, "offices_projection", None), "archived_placement_instance_ids", None
+            ),
         )
         # ``sections_ms`` is stored by reference in the envelope, so recording the
         # parity section's own duration after the call is reflected in the frame.
@@ -491,7 +509,7 @@ _PRECOMPUTED_RUNNING_WORK: ContextVar[dict | None] = ContextVar(
 class _RecordedAccountant:
     """The serve's running-work accountant, as the two reads ``parity`` makes of it."""
 
-    __slots__ = ("_summary", "_drop_samples")
+    __slots__ = ("_drop_samples", "_summary")
 
     def __init__(self, recorded: dict) -> None:
         self._summary = dict(recorded["summary"])
@@ -544,6 +562,7 @@ SECTIONS: tuple[tuple[str, Callable[[SnapshotFrameBuild], None]], ...] = (
     ("prompt_observability", SnapshotFrameBuild.prompt_observability),
     ("boards_offices", SnapshotFrameBuild.boards_offices),
     ("running_work", SnapshotFrameBuild.running_work),
+    ("lens", SnapshotFrameBuild.lens),
     ("frame", SnapshotFrameBuild.frame),
     ("persona_rows", SnapshotFrameBuild.persona_rows),
     ("persona_chat", SnapshotFrameBuild.persona_chat),

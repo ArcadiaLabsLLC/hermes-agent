@@ -76,7 +76,7 @@ class IdleProbe:
             raise ValueError(f"IdleProbe refused busy_sub {self.busy_sub!r} (vocabulary.IDLE_SUB_REASONS)")
 
     @staticmethod
-    def idle() -> "IdleProbe":
+    def idle() -> IdleProbe:
         return IdleProbe(True)
 
 
@@ -138,12 +138,12 @@ class _DrainTelemetry:
         #: field a human checks first — cannot mistake a silent delivery for a
         #: visible one.
         self.last_delivery_reason: str = ""
-        self.outcomes: "OrderedDict[tuple[str, str], DrainBounce]" = OrderedDict()
+        self.outcomes: OrderedDict[tuple[str, str], DrainBounce] = OrderedDict()
         #: Bumped whenever an outcome row is inserted or updated. The mirror
         #: writer compares it across a pass to decide whether anything happened
         #: worth persisting — an unchanged revision means an empty pass.
         self.outcome_revision = 0
-        self._ownerless_streak: "OrderedDict[str, int]" = OrderedDict()
+        self._ownerless_streak: OrderedDict[str, int] = OrderedDict()
         self._ownerless_warned: set[str] = set()
 
     # -- writers ----------------------------------------------------------

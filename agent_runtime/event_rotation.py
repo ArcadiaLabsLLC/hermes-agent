@@ -335,7 +335,7 @@ def _normalize_cap(cap_bytes: Any) -> int:
         cap = int(cap_bytes)
     except (TypeError, ValueError):
         return DEFAULT_ROTATION_CAP_BYTES
-    return cap if cap >= 0 else 0
+    return max(cap, 0)
 
 
 def prepare_live_for_append(cap_bytes: int) -> Path:

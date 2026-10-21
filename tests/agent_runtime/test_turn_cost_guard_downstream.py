@@ -17,7 +17,9 @@ end to end and fails on any of them:
   for a room that declared ``persona_chat_turn`` + ``persona_chat_open``, with the resident
   snapshot worker bound.
 
-COUNTS are asserted exactly; spans get generous budgets (about 3x the 2026-10-06 numbers).
+COUNTS are asserted exactly; spans get generous budgets (about 3x the 2026-10-06 numbers). The
+scenario is ``_run_guard``; this idle-box file asserts its counts and its budgets, and
+``test_turn_cost_guard_counts_downstream.py`` (not idle-only) asserts the counts on every gate.
 Killing mutations (positive control, recorded in the CHANGE commit): ``batch_turn_roots`` answers
 ``None`` (a demote core per turn); ``_installed_skill_catalog`` walks inline past its TTL (a
 turn-path catalog walk); ``submit_accepted`` puts a chat turn on the shared lane (a rider holds
@@ -70,7 +72,7 @@ from types import SimpleNamespace
 import pytest
 
 from tests.agent_runtime.test_pool_starve_downstream import _fields, _session
-from tests.agent_runtime.test_stream_turn_section import (  # noqa: F401  (``home`` is a fixture)
+from tests.agent_runtime.test_stream_turn_section import (  # (``home`` is a fixture)
     DECLARING,
     INSTANCE,
     ROOT,
@@ -82,6 +84,7 @@ from tests.agent_runtime.test_stream_turn_section import (  # noqa: F401  (``hom
 )
 from tests.fakes.providers import openai_responses
 from tests.fakes.providers.openai_responses import FakeResponsesServer
+import itertools
 
 MODEL = "gpt-5.6-luna"
 TURNS = 3
@@ -148,7 +151,7 @@ def _keepalive_handler_for(server):
     base = _REAL_HANDLER_FOR(server)
 
     class KeepAlive(base):
-        def do_HEAD(self) -> None:  # noqa: N802
+        def do_HEAD(self) -> None:
             server.requests.append({"path": self.path, "kind": "head", "body": {}, "t": time.time(),
                                     "headers": {k.lower(): v for k, v in self.headers.items()}})
             self.send_response(404)
@@ -380,8 +383,8 @@ class _Readers:
     POLL_S = 0.1
 
     def __init__(self, offset: int) -> None:
-        import agent_runtime.snapshot_turn_yield  # noqa: F401  (the readers' lazy imports)
-        import agent_runtime.turn_section_read  # noqa: F401
+        import agent_runtime.snapshot_turn_yield  # (the readers' lazy imports)
+        import agent_runtime.turn_section_read
         from agent_runtime.running_work import build_running_work
 
         build_running_work()  # live readers were attached long before the chat; their imports are paid
@@ -446,7 +449,7 @@ def _prefix_breaks(bodies: list[dict]) -> list[str]:
     and turn N's input as its own first items."""
 
     breaks = []
-    for n, (before, after) in enumerate(zip(bodies, bodies[1:])):
+    for n, (before, after) in enumerate(itertools.pairwise(bodies)):
         for key in ("tools", "instructions", "prompt_cache_key", "model", "reasoning", "include"):
             if json.dumps(before.get(key), sort_keys=True) != json.dumps(after.get(key), sort_keys=True):
                 breaks.append(f"turn {n}->{n + 1}: request {key} moved")
@@ -457,10 +460,16 @@ def _prefix_breaks(bodies: list[dict]) -> list[str]:
     return breaks
 
 
-@pytest.mark.timeout(240)
-def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
-    monkeypatch, capsys, isolate_agent_runtime_root, home  # noqa: F811
-):
+def _run_guard(monkeypatch, capsys) -> tuple[list[str], list[str], list[str]]:
+    """The scenario: ``(violations, budgets, spans)``.
+
+    ``violations`` are COUNTS (frames, receipts, imports, walks, handlers, connections) and do not
+    move with box load, so every landing gate asserts them
+    (``test_turn_cost_guard_counts_downstream.py``); ``budgets`` are the clock checks, asserted
+    only on an idle box (this file, ``scripts/test_idle_box_files.txt``). The caller requests the
+    ``isolate_agent_runtime_root`` and ``home`` fixtures.
+    """
+
     from agent_runtime import provider_preconnect
     from agent_runtime.persona_chat_continuity.runtime_registry import (
         initialize_persona_chat_runtime_registry,
@@ -599,7 +608,7 @@ def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
                     violations.append(f"turn {index}: no chat_turn_accept_to_anchor receipt")
                     continue
                 if index == RIDER_TURN and int(anchor[0]["queue_ms"]) > QUEUE_BEHIND_RIDERS_MS:
-                    violations.append(f"turn {index}: queued {anchor[0]['queue_ms']} ms behind "
+                    budgets.append(f"turn {index}: queued {anchor[0]['queue_ms']} ms behind "
                                       f"{RIDERS} parked hydrate riders")
                 if int(anchor[0]["total_ms"]) > ACCEPT_TO_ANCHOR_MS:
                     budgets.append(f"turn {index}: accept->anchor {anchor[0]['total_ms']} ms "
@@ -661,5 +670,13 @@ def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
 
     print(f"turn-cost guard: {time.monotonic() - started:.1f} s; " + "; ".join(spans))
     print("\n".join(log.receipts("send_prep_receipt ")))
+    return violations, budgets, spans
+
+
+@pytest.mark.timeout(240)
+def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
+    monkeypatch, capsys, isolate_agent_runtime_root, home
+):
+    violations, budgets, _spans = _run_guard(monkeypatch, capsys)
     assert not violations, "turn-cost guard (counts):\n  " + "\n  ".join(violations)
     assert not budgets, "turn-cost guard (span budgets):\n  " + "\n  ".join(budgets)

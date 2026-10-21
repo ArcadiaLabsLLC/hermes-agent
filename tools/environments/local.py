@@ -18,6 +18,7 @@ from pathlib import Path
 
 from hermes_constants import get_process_hermes_home
 from agent_runtime.windows_system_path import augment_windows_system_path  # fork seam: Windows tooling PATH
+from agent_runtime.bash_resolution_memo import memoize_find_bash  # fork seam: no bash re-probe per command
 from tools.environments.base import BaseEnvironment
 from tools.environments.base_output import _pipe_stdin
 from hermes_cli._subprocess_compat import windows_hide_flags
@@ -538,6 +539,9 @@ def _find_bash() -> str:
         "No shell found. Hermes needs bash (Git for Windows on Windows). "
         "Run `hermes pm install` or reinstall the bundle."
     )
+
+
+_find_bash = memoize_find_bash(_find_bash)  # fork seam (ledger row tools/environments/local.py)
 
 
 _git_bash_bin_dirs_cache: list[str] | None = None

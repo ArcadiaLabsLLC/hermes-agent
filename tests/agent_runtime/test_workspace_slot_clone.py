@@ -20,12 +20,12 @@ import pytest
 
 from agent_runtime import serve_rpc, workspace_slot_setup
 from agent_runtime.machine_roots import load_machine_roots, machine_roots_cache_clear, write_machine_roots
-from agent_runtime.redaction import is_credential_key
 from agent_runtime.store import WorkspaceStore
 from agent_runtime.workspace_slot_recipe import text_carries_credential
 from agent_runtime.workspace_slot_runs import all_runs, runs_path
 from agent_runtime.workspace_slot_setup import clone_slot, run_step, settle_runs
 from agent_runtime.workspace_slots import SlotRefused, load_document, write_document
+from tests._downstream._seams import is_credential_key
 
 CLONE_URL = "https://github.com/ArcadiaLabsLLC/EterniaLauncher.git"
 ISSUED = "2026-10-05T12:00:00+00:00"
@@ -307,3 +307,17 @@ def test_the_runs_file_never_travels_with_the_realm():
 
     assert _is_hard_excluded_path(MACHINE_SLOT_RUNS_FILENAME)
     assert not _is_hard_excluded_path("store/workspace_slots/ws.json")  # positive control: the document travels
+
+
+def test_a_local_slot_is_never_cloned(workspace, registry, tmp_path):
+    """A ``repo.local`` slot has no remote (work-on-markdown §4): clone refuses ``slot_local_only``."""
+
+    from agent_runtime.workspace_slots import declare
+
+    declare(workspace, [{"name": "brain", "repo": {"clone_url": None, "default_branch": "main", "local": True}}],
+            issued_at=LATER, machine="m1")
+    write_machine_roots({}, dry_run=False)
+    with pytest.raises(SlotRefused) as refused:
+        clone_slot(workspace, "brain", str(tmp_path / "elsewhere"), issued_at=LATEST, registry=registry, watch=False)
+    assert refused.value.reason == "slot_local_only"
+    assert registry.spawned == []

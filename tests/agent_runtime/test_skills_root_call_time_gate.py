@@ -71,6 +71,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.gate
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TOOLS_DIR = REPO_ROOT / "tools"
 
@@ -379,7 +381,7 @@ def switched_profile(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     long-lived ``serve`` is in after ``set_hermes_home_override()``.
     """
 
-    import tools.skills_sync as skills_sync
+    from tools import skills_sync
 
     home_a = tmp_path / "profile-a"
     home_b = tmp_path / "profile-b"
@@ -408,7 +410,7 @@ def switched_profile(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 def test_index_installed_skill_dirs_by_name_follows_the_live_profile(
     switched_profile,
 ) -> None:
-    skills_sync, frozen_root, live_root = switched_profile
+    _skills_sync, frozen_root, live_root = switched_profile
     _write_skill(frozen_root, "cat/ghost", "ghost")
     expected = _write_skill(live_root, "cat/widget", "widget")
 
@@ -424,7 +426,7 @@ def test_index_installed_skill_dirs_by_name_follows_the_live_profile(
 def test_find_installed_skill_dir_by_name_follows_the_live_profile(
     switched_profile,
 ) -> None:
-    skills_sync, _frozen_root, live_root = switched_profile
+    _skills_sync, _frozen_root, live_root = switched_profile
     expected = _write_skill(live_root, "cat/widget", "widget")
 
     from tools import skills_sync_optional

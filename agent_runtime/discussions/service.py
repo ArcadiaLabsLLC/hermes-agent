@@ -39,7 +39,11 @@ logger = logging.getLogger(__name__)
 
 
 class DiscussionService:
-    def __init__(self, context: NativeContext, *, active_poll_interval: float = 0.5, conversations=None) -> None:
+    def __init__(self, context: NativeContext, *, active_poll_interval: float = 0.5, conversations=None,
+                 lease_ttl: float = 30.0) -> None:
+        """``lease_ttl`` is the room driver lease's lifetime: a successor serve adopts a room
+        whose previous owner left a task running only once that lease expires, so this
+        bounds restart recovery (tests shorten it rather than wait the production 30 s)."""
         self.context = context
         self.db_path = context.home / "state.db"
         self.definitions = DefinitionStore(self.db_path)
@@ -61,7 +65,7 @@ class DiscussionService:
             db_path=self.db_path, rooms=self.bindings, turn_lock=self._turn_lock,
             transport_resolver=self.transport, prepare_room=self.prepare,
             publish_terminal=self.published, active_poll_interval_seconds=active_poll_interval,
-            poll_interval_seconds=2.0, turn_timeout_seconds=1830.0)
+            poll_interval_seconds=2.0, turn_timeout_seconds=1830.0, lease_ttl_seconds=lease_ttl)
         self.commands = RoomCommands(self.state, self.runtime, context)
 
     @staticmethod
@@ -76,6 +80,10 @@ class DiscussionService:
         with self._lock:
             if self._closed:
                 raise DiscussionError("runtime_stopping")
+            try:
+                self.state.sweep()  # Before the room worker can bind a room.
+            except Exception:
+                logger.warning("Discussion start-up clean-up failed", exc_info=True)
             self.runtime.start()
             self._started = True
 

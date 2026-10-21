@@ -1082,8 +1082,8 @@ def test_the_two_upstream_seams_the_marker_rides_are_still_present():
     # The staging seam is only as durable as the two upstream lines it rides.
     # Pin them by source so an upstream merge that reshapes either one fails
     # HERE — loudly — instead of silently un-attributing every relay again.
-    import agent.turn_context as turn_context
-    import agent.session_persistence as session_persistence
+    from agent import turn_context
+    from agent import session_persistence
 
     prologue = Path(turn_context.__file__).read_text(encoding="utf-8")
     assert 'pending_cli_message = getattr(agent, "_pending_cli_user_message", None)' in prologue

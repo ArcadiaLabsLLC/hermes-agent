@@ -75,7 +75,7 @@ def test_the_verb_is_registered_allowlisted_and_declares_console():
     # R-C8 joined params to the shape, additively: a client that ignores
     # the key keeps working, which is the same rule the set and the map already
     # ride under.
-    assert set(manifest) == {"contract", "methods", "tiers", "params"}
+    assert set(manifest) == {"contract", "methods", "tiers", "params", "limits"}
     assert PEER_CHAT_EXECUTE_METHOD in PEER_METHOD_ALLOWLIST
 
 

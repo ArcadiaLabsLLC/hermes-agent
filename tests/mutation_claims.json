@@ -80,8 +80,8 @@
       "path": "hermes_cli/_bytecode_sweep.py",
       "symbol": "_claim_bytecode_sweep_lock/unavailable",
       "operator": "collapse-unavailable-onto-contended",
-      "find": "    except OSError:\n        return _SWEEP_CLAIM_UNAVAILABLE\n    try:\n        os.write(fd, f\"{os.getpid()}\\n\".encode(\"utf-8\"))",
-      "replace": "    except OSError:\n        return _SWEEP_CLAIM_CONTENDED\n    try:\n        os.write(fd, f\"{os.getpid()}\\n\".encode(\"utf-8\"))",
+      "find": "    except OSError:\n        return _SWEEP_CLAIM_UNAVAILABLE\n    try:\n        os.write(fd, f\"{os.getpid()}\\n\".encode())",
+      "replace": "    except OSError:\n        return _SWEEP_CLAIM_CONTENDED\n    try:\n        os.write(fd, f\"{os.getpid()}\\n\".encode())",
       "test": [
         "{python}",
         "-m",
@@ -608,8 +608,8 @@
       "path": "hermes_cli/harness_parts/persona/model_and_skills_commands.py",
       "symbol": "_cmd_persona_set_skills",
       "operator": "drop-store-persist",
-      "find": "            target.skills_override_issued_at = issued_at or datetime.now(timezone.utc)\n            store.save(target)",
-      "replace": "            target.skills_override_issued_at = issued_at or datetime.now(timezone.utc)",
+      "find": "            target.skills_override_issued_at = issued_at or datetime.now(UTC)\n            store.save(target)",
+      "replace": "            target.skills_override_issued_at = issued_at or datetime.now(UTC)",
       "test": [
         "{python}",
         "-m",
@@ -625,8 +625,8 @@
       "path": "hermes_cli/harness_parts/persona/model_and_skills_commands.py",
       "symbol": "_cmd_persona_set_skills",
       "operator": "invert-supersede-comparison",
-      "find": "        applied_at = target.skills_override_issued_at\n        applied_at = applied_at if applied_at.tzinfo is not None else applied_at.replace(tzinfo=timezone.utc)\n        if issued <= applied_at:",
-      "replace": "        applied_at = target.skills_override_issued_at\n        applied_at = applied_at if applied_at.tzinfo is not None else applied_at.replace(tzinfo=timezone.utc)\n        if issued > applied_at:",
+      "find": "        applied_at = target.skills_override_issued_at\n        applied_at = applied_at if applied_at.tzinfo is not None else applied_at.replace(tzinfo=UTC)\n        if issued <= applied_at:",
+      "replace": "        applied_at = target.skills_override_issued_at\n        applied_at = applied_at if applied_at.tzinfo is not None else applied_at.replace(tzinfo=UTC)\n        if issued > applied_at:",
       "test": [
         "{python}",
         "-m",
@@ -1302,8 +1302,8 @@
       "path": "agent_runtime/persona_assignments/retire.py",
       "symbol": "read_retire_receipt",
       "operator": "degrade-absence-to-empty",
-      "find": "        except Exception:  # noqa: BLE001 - absent, unreadable, or not JSON\n            return None",
-      "replace": "        except Exception:  # noqa: BLE001 - absent, unreadable, or not JSON\n            return {}",
+      "find": "        except Exception:  # absent, unreadable, or not JSON\n            return None",
+      "replace": "        except Exception:  # absent, unreadable, or not JSON\n            return {}",
       "test": [
         "{python}",
         "-m",
@@ -1340,21 +1340,6 @@
         "pytest",
         "-q",
         "tests/agent_runtime/test_harness_doctor.py::test_the_census_names_a_retire_that_left_its_desk_standing"
-      ]
-    },
-    {
-      "id": "hh12-the-minted-kind-echoes-the-write-instead-of-sticking",
-      "path": "agent_runtime/office_store/normalize.py",
-      "symbol": "_stamp_minted_kinds",
-      "operator": "echo-current-kind",
-      "find": "        replace(item, minted_kind=on_record.get(item.item_id) or item.kind)",
-      "replace": "        replace(item, minted_kind=item.kind)",
-      "test": [
-        "{python}",
-        "-m",
-        "pytest",
-        "-q",
-        "tests/agent_runtime/test_office_store.py::test_the_minted_kind_is_stamped_once_and_never_moves_again"
       ]
     },
     {
@@ -1400,21 +1385,6 @@
         "pytest",
         "-q",
         "tests/agent_runtime/test_serve_rpc_authorization.py::test_the_service_refuses_a_read_tier_caller_with_no_dispatcher_involved"
-      ]
-    },
-    {
-      "id": "hh12-the-recorded-mint-rides-the-sync-hash",
-      "path": "agent_runtime/office_models.py",
-      "symbol": "office_content_hash",
-      "operator": "hash-the-nested-provenance",
-      "find": "        items = payload.get(\"items\")\n        if isinstance(items, list):\n            payload[\"items\"] = [\n                {k: v for k, v in item.items() if k not in _ITEM_HASH_EXCLUDE}\n                if isinstance(item, dict)\n                else item\n                for item in items\n            ]",
-      "replace": "        items = payload.get(\"items\")\n        if isinstance(items, list):\n            payload[\"items\"] = list(items)",
-      "test": [
-        "{python}",
-        "-m",
-        "pytest",
-        "-q",
-        "tests/agent_runtime/test_office_store.py::test_the_recorded_mint_is_not_content_and_never_moves_the_sync_hash"
       ]
     },
     {
@@ -3480,8 +3450,8 @@
     },
     {
       "id": "longrun-busy-frame-drops-the-long-run-count",
-      "path": "hermes_cli/harness_parts/serve/session.py",
-      "symbol": "ServeSession._busy_frame",
+      "path": "hermes_cli/harness_parts/serve/liveness.py",
+      "symbol": "LivenessPump._busy_frame",
       "operator": "zero-the-long-run-count",
       "find": "            long_runs = sum(1 for item in self.inflight.values() if item.is_long_run)",
       "replace": "            long_runs = 0",
@@ -4083,8 +4053,8 @@
       "path": "agent_runtime/agent_create/phases.py",
       "symbol": "_observed_skills",
       "operator": "stamp-skills-fresh-unconditionally",
-      "find": "    except Exception:  # noqa: BLE001 - a retired row, a decode fault, a gone root\n        return recorded, False",
-      "replace": "    except Exception:  # noqa: BLE001 - a retired row, a decode fault, a gone root\n        return recorded, True",
+      "find": "    except Exception:  # a retired row, a decode fault, a gone root\n        return recorded, False",
+      "replace": "    except Exception:  # a retired row, a decode fault, a gone root\n        return recorded, True",
       "test": [
         "{python}",
         "-m",
@@ -4371,7 +4341,7 @@
     {
       "id": "ph-payload-hides-the-fake-door",
       "path": "hermes_cli/harness_parts/characters/payloads.py",
-      "symbol": "_characters_emit",
+      "symbol": "_characters_print",
       "operator": "drop-the-draftsman-stamp",
       "find": "    print(emit_json({**data, **draftsman()}) if getattr(args, \"json\", False) else human)",
       "replace": "    print(emit_json(data) if getattr(args, \"json\", False) else human)",

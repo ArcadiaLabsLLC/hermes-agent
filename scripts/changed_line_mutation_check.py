@@ -19,9 +19,9 @@ import sys
 if not __package__:  # run as a script: ``scripts/`` is sys.path[0], the repo root is not
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.mutation_check.anchor import _anchor_claim, _qualified_definitions  # noqa: E402
-from scripts.mutation_check.run import _acquire_gate_lock, _claims_for, run  # noqa: E402
-from scripts.mutation_check.schema import (  # noqa: E402
+from scripts.mutation_check.anchor import _anchor_claim, _qualified_definitions
+from scripts.mutation_check.run import _acquire_gate_lock, _claims_for, run
+from scripts.mutation_check.schema import (
     DEFAULT_CLAIMS,
     DEFAULT_EXEMPTIONS,
     DEFAULT_WALL_BUDGET_SECONDS,
@@ -31,7 +31,7 @@ from scripts.mutation_check.schema import (  # noqa: E402
     LOCK_PATH,
     REPO_ROOT,
 )
-from scripts.mutation_check.selection import (  # noqa: E402
+from scripts.mutation_check.selection import (
     _changed_lines,
     _changed_sources,
     _commits_since_derivation,

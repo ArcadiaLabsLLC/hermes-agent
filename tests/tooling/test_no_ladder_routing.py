@@ -27,6 +27,10 @@ import ast
 
 from scripts import god_file_probe as probe
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 
 def _drift() -> probe.Drift:
     return probe.compare_numbers("W0-G5 ladder routing", probe.ladder_live(), probe.ladder_fixture())

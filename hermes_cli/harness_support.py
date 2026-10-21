@@ -46,15 +46,11 @@ from agent_runtime.errors import (
     WorkspaceDeleteBlocked,
     WorkspaceUnresolved,
 )
-from agent_runtime.persona_chat_continuity import PERSONA_CHAT_SESSION_SOURCE
 from agent_runtime.realm_sync import RealmSyncError
 
 __all__ = [
     "ERROR_EXIT_CODES",
-    "PERSONA_CHAT_SESSION_SOURCE",
     "STAGE42_SCHEMA_VERSION",
-    "emit_harness_error",
-    "harness_repo_root",
     "_apply_fields",
     "_error_code_for_exception",
     "_error_envelope",
@@ -69,6 +65,8 @@ __all__ = [
     "_safe_error_message",
     "_sort_rows",
     "_table_output",
+    "emit_harness_error",
+    "harness_repo_root",
 ]
 
 
@@ -99,6 +97,11 @@ ERROR_EXIT_CODES = {
     "invalid_request": 2,
     "invalid_payload": 2,
     "invalid_isolation": 2,
+    # A namespaced process resolved a store/home path outside its own namespace
+    # (``agent_runtime.namespace.NamespaceIsolationViolation``). Family 2 beside
+    # invalid_isolation: the fault is the environment the caller handed over, and
+    # the identical command refuses identically until that changes.
+    "namespace_isolation": 2,
     # `harness skills delete` refusals (SkillTombstoneRefused). Family 2 because
     # the fault is in the REQUEST and the operator's next move is to change what
     # they typed: a malformed slug is retyped, and an installer-owned id is
@@ -181,6 +184,7 @@ ERROR_EXIT_CODES = {
     "role_insufficient": 5,
     "provider_auth_expired": 5,
     "sync_auth_failed": 5,
+    "realm_revoked": 5,
     # State / precondition (6)
     "proof_missing": 6,
     "needs_operator_confirm": 6,
@@ -495,7 +499,7 @@ def _redact_paths(text: str) -> str:
     runtime root). A bare `realm_nope.json` is enough for the operator.
     """
 
-    def _basename(match: "re.Match[str]") -> str:
+    def _basename(match: re.Match[str]) -> str:
         token = match.group(0)
         return re.split(r"[\\/]", token)[-1] or token
 
@@ -522,7 +526,7 @@ def _load_request_json(raw: str) -> dict:
         try:
             path = Path(candidate)
             if path.is_file():
-                candidate = path.read_text(encoding="utf-8")
+                candidate = path.read_text(encoding="utf-8-sig")
         except OSError:
             # Not a usable path — fall through and parse the literal as JSON.
             pass

@@ -85,7 +85,7 @@ def probe(executable):
         try:
             result = subprocess.run([str(executable), flag], capture_output=True, timeout=10, cwd=str(executable.parent),
                                     env=server_child_env(os.environ), text=True, encoding="utf-8", errors="replace",
-                                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+                                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0, check=False)
         except subprocess.TimeoutExpired:
             fail("probe_timeout", "Binary validation exceeded its time limit")
         except OSError:

@@ -28,6 +28,7 @@ from .models import (
 
 __layer__ = "stores"
 __all__ = [
+    "_adopt_credential_remote",
     "_authorize",
     "_credential_git_config",
     "_ensure_git_identity",
@@ -47,7 +48,7 @@ __all__ = [
 ]
 
 
-def _authorize(realm: Realm, action: str, membership: RealmMembershipProvider | None, credential: "RealmSyncCredential | None" = None) -> None:
+def _authorize(realm: Realm, action: str, membership: RealmMembershipProvider | None, credential: RealmSyncCredential | None = None) -> None:
     """Raise the typed refusal when this realm+action is not permitted.
 
     Unchanged for the two WRITE verbs: ``publish_realm_sync`` and
@@ -62,6 +63,13 @@ def _authorize(realm: Realm, action: str, membership: RealmMembershipProvider | 
     error's code. See that function for the floor — no local repo, no degrade.
     """
 
+    from .revocation import refuse_if_revoked
+
+    if credential is not None:
+        from ..realm_membership import require_credential_admits
+
+        require_credential_admits(realm, credential)
+    refuse_if_revoked(realm, credential_admitted=credential is not None)
     if membership is None:
         if not _looks_like_remote(str(realm.sync_manifest_ref or "")):
             membership = RealmMembershipProvider()
@@ -77,19 +85,92 @@ def _authorize(realm: Realm, action: str, membership: RealmMembershipProvider | 
         raise RealmSyncError(decision.code or "membership_denied", decision.message or "Realm membership does not allow this sync action.")
 
 
-def _ensure_sync_repo(realm: Realm, *, credential: "RealmSyncCredential | None" = None) -> Path:
+def _ensure_sync_repo(realm: Realm, *, credential: RealmSyncCredential | None = None) -> Path:
     repo = _sync_repo_path(realm)
-    if repo.exists() and (repo / ".git").exists():
-        _ensure_repo_gitattributes(repo)
-        return repo
-    if _looks_like_remote(str(realm.sync_manifest_ref or "")):
-        repo.parent.mkdir(parents=True, exist_ok=True)
-        _git_clone(str(realm.sync_manifest_ref), repo, extra_config=_credential_git_config(credential))
-    else:
-        repo.mkdir(parents=True, exist_ok=True)
-        _git(repo, "init")
+    if not (repo.exists() and (repo / ".git").exists()):
+        if _looks_like_remote(str(realm.sync_manifest_ref or "")):
+            repo.parent.mkdir(parents=True, exist_ok=True)
+            _git_clone(str(realm.sync_manifest_ref), repo, extra_config=_credential_git_config(credential))
+        else:
+            repo.mkdir(parents=True, exist_ok=True)
+            _git(repo, "init")
+    _adopt_credential_remote(realm, repo, credential)
     _ensure_repo_gitattributes(repo)
     return repo
+
+
+#: The personal repo's one branch: every machine of the player meets on it.
+_LOCAL_REALM_BRANCH = "main"
+
+#: ``AdoptRefused.reason`` -> the ``RealmSyncError`` code a sync verb answers with.
+_ADOPT_REFUSAL_CODES = {
+    "remote_diverged": "sync_remote_diverged",
+    "url_mismatch": "sync_remote_mismatch",
+    "fetch_failed": "sync_remote_unreachable",
+    "push_failed": "sync_remote_unreachable",
+    "not_a_repo": "sync_remote_unreachable",
+}
+
+
+def _adopt_credential_remote(realm: Realm, repo: Path, credential: RealmSyncCredential | None) -> None:
+    """A ``local:`` credential's ``git_url`` becomes the realm's ``sync_manifest_ref``
+    and the shared local repo's ``origin`` (p10-work §2.6, ``REALM-LOCAL-REMOTE-FROM-CREDENTIAL``).
+
+    The mirror of ``realm_membership.adopt_realms`` for a server-less realm, plus the
+    ``git remote add`` a clone never needed: through ``git_remote_adopt.adopt_remote``,
+    which pushes ``-u`` into an empty personal repo, takes the remote into an empty local
+    one, and merges another machine's unrelated history only when the two touch no common
+    path (owner RULED 2026-10-19). Server realms and course credentials never enter (the
+    subject check). The ref is moved only when that does not move the repo
+    (``_sync_repo_path`` keys an empty or remote ref by ``local``; a pinned local-path ref
+    keeps its repo and still gains the remote)."""
+
+    from ..realm_membership import CredentialSubject
+
+    if credential is None or credential.subject is not CredentialSubject.LOCAL_REALM:
+        return
+    if not credential.admits_realm(realm):
+        return
+    url = credential.git_url
+    if str(realm.sync_manifest_ref or "") != url:
+        previous = realm.sync_manifest_ref
+        realm.sync_manifest_ref = url
+        if _sync_repo_path(realm) == repo:
+            from ..store import RealmStore
+
+            RealmStore().save(realm, emit_event=False)
+        else:
+            realm.sync_manifest_ref = previous
+    from ..git_remote_adopt import AdoptRefused, adopt_remote
+
+    config = (*_REPO_CONFIG, *(_credential_git_config(credential) or ()))
+    _align_branch(repo, _LOCAL_REALM_BRANCH)
+    try:
+        adopt_remote(repo, url, branch=_LOCAL_REALM_BRANCH, config=config, merge_unrelated_if_disjoint=True)
+    except AdoptRefused as exc:
+        detail = _redact_text(_scrub_config_values(exc.detail, config))
+        code = _ADOPT_REFUSAL_CODES.get(exc.reason, "sync_remote_unreachable")
+        if code == "sync_remote_unreachable" and "authentication" in detail.lower():
+            code = "sync_auth_failed"
+        raise RealmSyncError(
+            code,
+            "Could not adopt the realm's personal sync repository as origin.",
+            retryable=exc.reason in {"fetch_failed", "push_failed"},
+            safe_details={"adopt_reason": exc.reason, "detail": detail},
+        ) from exc
+
+
+def _align_branch(repo: Path, branch: str) -> None:
+    """Name the local branch ``branch`` so ``push``/``@{u}`` match it under
+    ``push.default=simple`` (a plain ``git init`` may have named it ``master``)."""
+
+    current = _git(repo, "symbolic-ref", "--short", "-q", "HEAD", check=False).strip()
+    if not current or current == branch:
+        return
+    if _git(repo, "rev-parse", "-q", "--verify", "HEAD", check=False).strip():
+        _git(repo, "branch", "-M", branch)
+    else:
+        _git(repo, "symbolic-ref", "HEAD", f"refs/heads/{branch}")
 
 
 def _ensure_repo_gitattributes(repo: Path) -> None:
@@ -114,7 +195,7 @@ def _ensure_repo_gitattributes(repo: Path) -> None:
         return
 
 
-def _credential_git_config(credential: "RealmSyncCredential | None") -> list[str] | None:
+def _credential_git_config(credential: RealmSyncCredential | None) -> list[str] | None:
     """Per-invocation git auth config (Decision 4): rendered as ``git -c`` args,
     never written to ``.git/config`` and never surfaced in safe_details/logs."""
     if credential is None:
@@ -160,7 +241,7 @@ def _has_remote(repo: Path) -> bool:
     return bool(_git(repo, "remote", check=False).strip())
 
 
-def _refresh_remote_tracking(repo: Path, *, credential: "RealmSyncCredential | None" = None) -> dict[str, Any]:
+def _refresh_remote_tracking(repo: Path, *, credential: RealmSyncCredential | None = None) -> dict[str, Any]:
     """Best-effort ``git fetch`` so ``_git_state``'s ahead/behind answer against
     the remote AS IT IS, not as the last pull/publish left it cached.
 

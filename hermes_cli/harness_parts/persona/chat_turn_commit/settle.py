@@ -7,6 +7,8 @@ run to settle as a typed terminal state. Nothing here calls the provider.
 
 from __future__ import annotations
 
+import logging
+from collections import Counter
 from typing import Any
 
 from agent_runtime import turn_budget as _turn_budget
@@ -24,6 +26,7 @@ from agent_runtime.mission_chat_phases import (
 )
 from agent_runtime.mission_chat_turns.journal import transition_mission_chat_turn
 from agent_runtime.mission_chat_turns.records import (
+    TURN_OUTCOME_KEY as MISSION_CHAT_TURN_OUTCOME_KEY,
     TURN_PROFILE_TIMING_KEY as MISSION_CHAT_TURN_PROFILE_TIMING_KEY,
 )
 from agent_runtime.mission_chat_turns.states import (
@@ -39,6 +42,7 @@ from agent_runtime.persona_chat_durability import PersonaChatPersistenceError
 from agent_runtime.prompt_observability import slim_chat_final_observability
 from agent_runtime.run_budget import turn_run_budget_metadata
 from agent_runtime.states import WorkerSessionState
+from agent_runtime.turn_outcome import VERDICT_FAILED
 from ..chat_events import (
     _mission_chat_emit,
     _publish_persona_chat_metadata_event,
@@ -57,6 +61,21 @@ from ..chat_request import (
 )
 from agent_runtime.persona_chat_session import _persona_chat_native_read, _persona_chat_native_revision_of_read
 from ..chat_target import _maybe_auto_title_persona_chat
+
+logger = logging.getLogger(__name__)
+
+
+def _log_turn_outcome(turn_id: str, block: dict[str, Any]) -> None:
+    """The turn-outcome receipt: a grep-able log line, never a key on the terminal frame."""
+
+    tests, commits = block.get("tests") or [], block.get("commits") or []
+    verdicts = Counter(row.get("verdict") for row in tests)
+    logger.info(
+        "turn_outcome turn=%s tests=%d failed=%d commits=%d pushed=%d files=%d truncated=%s",
+        turn_id, len(tests), verdicts[VERDICT_FAILED], len(commits),
+        sum(row.get("pushed") is True for row in commits), len(block.get("files") or []),
+        bool(block.get("truncated")),
+    )
 
 __layer__ = "lanes"
 __all__ = ["_SettlePhases"]
@@ -563,6 +582,9 @@ class _SettlePhases:
             reasoning=dict(getattr(self.chat_result, "reasoning_window", None) or {}),
         )
         self.turn_phases.mark("projected")
+        # What the turn left behind (agent_runtime.turn_outcome), on the terminal
+        # record only; absent when the runner folded nothing.
+        turn_outcome = getattr(self.chat_result, "turn_outcome", None)
         self.terminal_outcome = transition_mission_chat_turn(
             session_id=self.session_id,
             client_message_id=self.client_message_id,
@@ -579,8 +601,11 @@ class _SettlePhases:
                 "active_session_id": self.active_session_id,
                 "native_revision": self.native_revision,
                 **dict(getattr(self.chat_result, "reasoning_window", None) or {}),
+                **({MISSION_CHAT_TURN_OUTCOME_KEY: turn_outcome} if turn_outcome is not None else {}),
             },
         )
+        if isinstance(turn_outcome, dict):
+            _log_turn_outcome(stream_emitter.turn_id, turn_outcome)
         if self.terminal_outcome is not MissionChatTurnPersistOutcome.PERSISTED:
             data["turn_persist_outcome"] = self.terminal_outcome.value
         else:

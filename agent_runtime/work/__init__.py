@@ -1,8 +1,7 @@
-"""Work inspection and admission through Hermes's native task authority.
+"""Work on the workspace todo boards, over the console RPC lane.
 
-model: wire scope and refusals; native: public Kanban API adapter;
-service: authorization and scope checks; rpc: authenticated method registration.
-No scheduler, worker, task database or lifecycle writer lives here.
+model: wire scope and refusals; store: the board and writer adapters; service: authorization and
+scope checks; rpc: registration. No scheduler, worker or task database lives here.
 """
 
 __layer__ = "models"

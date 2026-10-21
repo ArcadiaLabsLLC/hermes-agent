@@ -7,12 +7,19 @@ reaches (``select_scope``): the file itself changed, its convention-mapped
 source (``tests/<pkg>/test_<mod>.py`` → ``<pkg>/<mod>.py``) changed, it imports
 a changed module, a ``conftest.py`` above it changed, or a path of the session
 chain every process loads changed (``scripts/run_tests_bundled_chain.py``,
-fast-gate §5: the root ``conftest.py``, the plugin chain, pytest's config). The change is
+fast-gate §5: the root ``conftest.py``, the plugin chain, pytest's config) — by
+the chain's contract (``tests/tooling/test_session_chain_contract*.py``) plus a
+sample, at an ordinary landing and at a release merge alike (owner rulings
+2026-10-16 and 2026-10-17, ADR 0016: no whole-tree run, ever). The change is
 ``git diff --name-only <--since>...HEAD`` (default ``origin/main``) plus
 working-tree edits; after a release merge it is ``--since-merge <merge>``
 (``merge_change``: what the merge itself produced, plus what came after it,
-less each conftest whose standing fork hunk the merge left unchanged). ``full`` runs everything discovered — the weekly upstream
-merge lane, where the inherited set is the thing under test. In BOTH scopes a
+less each conftest whose standing fork hunk the merge left unchanged). ``full`` is
+retired (ADR 0016): it refuses with exit 2 unless every path on the command line
+is a file, and then runs exactly those files, as a named file always runs.
+``features`` runs every fork file plus every upstream file not on the skip list
+(ADR 0015's unused files stay out): an on-demand measurement on a quiet box,
+never a gate (ADR 0016). A
 file on ``tests/fixtures/upstream_skip_list.txt`` (upstream-owned reds and the
 P0 freeze files) does not run unless it is named on the command line, and nor
 does a file on ``scripts/test_idle_box_files.txt`` (the timing files that run
@@ -23,6 +30,7 @@ only on an idle box: ``scripts/run_tests_idle.sh``).
 
 from __future__ import annotations
 
+import fnmatch
 import os
 import sys
 from dataclasses import dataclass, field
@@ -35,17 +43,23 @@ except ImportError:  # loaded by the runner: ``scripts/`` is sys.path[0]
     import run_tests_bundled_chain as chain
 
 
-def _rel_posix(path: Path, repo_root: Path) -> str:
-    """Repo-relative POSIX spelling (``run_tests_parallel._format_file``'s answer)."""
+def _rel_posix(path: Path, repo_root: Path, *, real: Optional[Path] = None, real_root: Optional[Path] = None) -> str:
+    """Repo-relative POSIX spelling (``run_tests_parallel._format_file``'s answer).
+
+    ``real`` / ``real_root`` are ``path.resolve()`` / ``repo_root.resolve()`` when the caller
+    already holds them: on Windows a ``resolve`` is two ``_getfinalpathname`` calls, and a
+    whole-tree selection used to pay three per file (fork-hygiene FORK-TEST-UPSTREAM-SKIP-LIST).
+    """
 
     try:
-        return path.resolve().relative_to(repo_root.resolve()).as_posix()
+        return (real or path.resolve()).relative_to(real_root or repo_root.resolve()).as_posix()
     except ValueError:
         return path.as_posix()
 
 
 SCOPE_FORK = "fork"
 SCOPE_FULL = "full"
+SCOPE_FEATURES = "features"
 _DEFAULT_MANIFEST = Path("tests") / "fixtures" / "upstream_manifest.txt"
 _DEFAULT_SINCE = "origin/main"
 #: files that run only on an idle box, serial (owner ruling 2026-10-10; design sweep D3.01)
@@ -58,7 +72,7 @@ def load_path_list(path: Path) -> frozenset[str]:
     missing file names nothing."""
 
     try:
-        text = path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8-sig")
     except FileNotFoundError:
         return frozenset()
     entries = (line.split("#", 1)[0].strip() for line in text.splitlines())
@@ -71,7 +85,7 @@ def load_manifest(path: Path) -> set[str]:
     would read as fork-only and the scope would silently be the full set."""
 
     out: set[str] = set()
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
         entry = line.strip()
         if entry and not entry.startswith("#"):
             out.add(Path(entry).as_posix())
@@ -87,6 +101,7 @@ def _scope_git(repo_root: Path, *args: str) -> str:
     proc = subprocess.run(  # no opportunistic index refresh: a killed runner leaves no index.lock (D3.16)
         ["git", "-C", str(repo_root), *args], env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"},
         capture_output=True, text=True, encoding="utf-8", errors="replace",
+        check=False,
     )
     if proc.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)} failed: {proc.stderr.strip()}")
@@ -109,7 +124,7 @@ def changed_paths(repo_root: Path, since: str) -> set[str]:
     return out
 
 
-def merge_parents(repo_root: Path, merge_sha: str) -> List[str]:
+def merge_parents(repo_root: Path, merge_sha: str) -> list[str]:
     """``merge_sha``'s parents; ``RuntimeError`` unless it is a merge HEAD descends from."""
 
     parents = _scope_git(repo_root, "rev-list", "--parents", "-n", "1", merge_sha).split()[1:]
@@ -128,14 +143,13 @@ def changed_paths_for_merge(repo_root: Path, merge_sha: str) -> set[str]:
     merge's resolutions and the fork hunks it re-applied onto upstream's new
     versions), plus ``<merge>..HEAD`` (the ``fix(merge)`` commits) and the
     working-tree edits. An upstream change the merge took verbatim is not in
-    it: upstream tested it at the tag, and ``--scope full`` remains the weekly
-    lane's instrument for the whole inherited set."""
+    it: upstream tested it at the tag (ADR 0016: no whole-tree run, ever)."""
 
     _, merged, after = _merge_parts(repo_root, merge_sha)
     return merged | after
 
 
-def _merge_parts(repo_root: Path, merge_sha: str) -> Tuple[List[str], set[str], set[str]]:
+def _merge_parts(repo_root: Path, merge_sha: str) -> tuple[list[str], set[str], set[str]]:
     """``(parents, combined-diff paths, paths changed after the merge)``."""
 
     parents = merge_parents(repo_root, merge_sha)
@@ -143,7 +157,7 @@ def _merge_parts(repo_root: Path, merge_sha: str) -> Tuple[List[str], set[str], 
     return parents, merged, changed_paths(repo_root, merge_sha)
 
 
-def _delta_lines(diff: str) -> List[str]:
+def _delta_lines(diff: str) -> list[str]:
     """The ``+``/``-`` lines of a one-file ``git diff -U0``: what it changes, not where."""
 
     lines = diff.splitlines()
@@ -161,7 +175,7 @@ def conftest_hunk_unchanged(repo_root: Path, path: str, merge_sha: str) -> bool:
     parents = merge_parents(repo_root, merge_sha)
     base = _scope_git(repo_root, "merge-base", parents[0], parents[1]).strip()
 
-    def delta(old: str, new: str) -> List[str]:
+    def delta(old: str, new: str) -> list[str]:
         return _delta_lines(_scope_git(repo_root, "diff", "-U0", "--no-color", "--no-ext-diff", old, new, "--", path))
 
     return delta(base, parents[0]) == delta(parents[1], merge_sha)
@@ -175,7 +189,7 @@ class MergeChange:
     merged: set[str]  # its combined diff: paths whose blob differs from BOTH parents
     after: set[str]  # ``<merge>..HEAD`` and working-tree edits
     first_parent: int  # paths of ``git diff <parent1> <merge>``, the spelling this replaces
-    standing: List[str]  # paths in ``merged`` whose fork hunk the merge left unchanged
+    standing: list[str]  # paths in ``merged`` whose fork hunk the merge left unchanged
 
     @property
     def paths(self) -> set[str]:
@@ -218,7 +232,7 @@ def module_of(rel: str) -> Optional[str]:
     return ".".join(parts) if parts and all(p.isidentifier() for p in parts) else None
 
 
-def convention_sources(test_rel: str) -> List[str]:
+def convention_sources(test_rel: str) -> list[str]:
     """Upstream's layout: ``tests/<pkg…>/test_<mod>.py`` tests ``<pkg…>/<mod>.py``
     (or the package ``<pkg…>/<mod>/__init__.py``)."""
 
@@ -230,18 +244,36 @@ def convention_sources(test_rel: str) -> List[str]:
     return [f"{base}.py", f"{base}/__init__.py"] if base else []
 
 
-def imported_modules(path: Path, rel: str) -> set[str]:
+#: ``imported_modules`` answers, keyed on (path, rel, mtime_ns, size): a process that selects
+#: twice (the skip-list gate's cases) parses each inherited file once, and an edited file is re-read.
+_IMPORTS: dict[tuple[str, str, int, int], frozenset[str]] = {}
+
+
+def imported_modules(path: Path, rel: str) -> frozenset[str]:
     """Every module name ``path`` imports, relative imports resolved against
     its package. ``from a import b`` yields both ``a`` and ``a.b``. A file that
-    does not parse yields nothing (its own run will say why)."""
+    does not parse yields nothing (its own run will say why). Kept per file
+    version for the process (``_IMPORTS``)."""
 
+    try:
+        st = os.stat(path)
+    except OSError:
+        return frozenset()
+    key = (os.fspath(path), rel, st.st_mtime_ns, st.st_size)
+    kept = _IMPORTS.get(key)
+    if kept is None:
+        kept = _IMPORTS[key] = frozenset(_parse_file_imports(path, rel))
+    return kept
+
+
+def _parse_file_imports(path: Path, rel: str) -> set[str]:
     import ast
     import warnings
 
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")  # a test's own SyntaxWarning is its run's to report
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel)
+            tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=rel)
     except (OSError, SyntaxError, UnicodeDecodeError, ValueError):
         return set()
     package = rel.split("/")[:-1]
@@ -265,25 +297,23 @@ def imported_modules(path: Path, rel: str) -> set[str]:
 class ScopeSelection:
     """Why each selected file is in scope, and what was left out."""
 
-    fork_only: List[Path] = field(default_factory=list)
+    fork_only: list[Path] = field(default_factory=list)
     #: inherited files, by the reason that selected them
-    touched: List[Path] = field(default_factory=list)  # the test file itself changed
-    source: List[Path] = field(default_factory=list)  # its convention-mapped source changed
-    importer: List[Path] = field(default_factory=list)  # it imports a changed module
-    conftest: List[Path] = field(default_factory=list)  # a conftest.py above it changed
-    chain: List[Path] = field(default_factory=list)  # a session-chain path changed (fast-gate §5)
-    named: List[Path] = field(default_factory=list)  # named explicitly on the command line
-    full: List[Path] = field(default_factory=list)  # --scope full: every other discovered file
-    excluded: List[Path] = field(default_factory=list)
-    skipped_red: List[Path] = field(default_factory=list)  # on the upstream skip list, not named
-    idle_box: List[Path] = field(default_factory=list)  # on the idle-box list, not named
+    touched: list[Path] = field(default_factory=list)  # the test file itself changed
+    source: list[Path] = field(default_factory=list)  # its convention-mapped source changed
+    importer: list[Path] = field(default_factory=list)  # it imports a changed module
+    conftest: list[Path] = field(default_factory=list)  # a conftest.py above it changed
+    chain: list[Path] = field(default_factory=list)  # a session-chain path changed (fast-gate §5): the sample
+    named: list[Path] = field(default_factory=list)  # named explicitly on the command line
+    excluded: list[Path] = field(default_factory=list)
+    skipped_red: list[Path] = field(default_factory=list)  # on the upstream skip list, not named
+    idle_box: list[Path] = field(default_factory=list)  # on the idle-box list, not named
     chain_paths: list[str] = field(default_factory=list)  # the changed session-chain paths (the printed reason)
 
     @property
-    def selected(self) -> List[Path]:
+    def selected(self) -> list[Path]:
         return sorted(
-            self.fork_only + self.touched + self.source + self.importer + self.conftest + self.chain + self.named
-            + self.full,
+            self.fork_only + self.touched + self.source + self.importer + self.conftest + self.chain + self.named,
             key=lambda p: str(p),
         )
 
@@ -295,41 +325,49 @@ def select_scope(
     changed: set[str],
     named: Iterable[Path] = (),
     skipped: Iterable[str] = (),
-    full: bool = False,
     idle_box: Iterable[str] = (),
+    size_of=None,
 ) -> ScopeSelection:
     """The ``fork`` scope: every file NOT in ``inherited`` (the upstream
     manifest), plus each inherited file the change could reach — the file
     itself changed, the source its name maps to changed, it imports a changed
-    module, a ``conftest.py`` in one of its directories changed, or a path of
-    the session chain changed (``chain.in_chain``: every process loads it, so
-    it reaches every file). Files named explicitly (not found by walking a
-    directory) always run.
+    module, or a ``conftest.py`` in one of its directories changed. Files named
+    explicitly (not found by walking a directory) always run.
 
     A file on the upstream skip list (``skipped``) goes to ``skipped_red`` and
     nowhere else, in both scopes, unless it is named (owner ruling O1: skip
     wins over reach). A file on the idle-box list (``idle_box``) goes to
     ``idle_box`` the same way: it runs only when named, or on an idle box
-    through ``scripts/run_tests_idle.sh`` (owner ruling 2026-10-10). ``full=True``
-    puts every other file in ``full``."""
+    through ``scripts/run_tests_idle.sh`` (owner ruling 2026-10-10).
+
+    A session-chain change (``chain.in_chain``; owner rulings 2026-10-16 and
+    2026-10-17, ADR 0016 — at a landing and a release merge alike) reaches no file by itself, not even through a chain conftest's directory
+    rule. The fork-owned files then run only as the inherited ones do — touched,
+    convention source, a conftest above, an importer of a changed module — bar the
+    chain's contract, which always runs; ``chain`` takes the smallest file (ties by
+    path) of every test folder the selection would otherwise leave empty, fork and
+    inherited alike."""
 
     named_real = {Path(p).resolve() for p in named}
     changed_modules = {m for m in (module_of(rel) for rel in changed) if m}
-    changed_conftest_dirs = {rel.rsplit("/", 1)[0] for rel in changed if rel.endswith("/conftest.py")}
-    chain_hit = bool(chain.chain_changed(changed))
+    changed_conftest_dirs = {
+        rel.rsplit("/", 1)[0] for rel in changed
+        if rel.endswith("/conftest.py") and not chain.in_chain(rel)
+    }
+    sampling = bool(chain.chain_changed(changed))  # fork files reached, not all of them
     skipped, idle_box = set(skipped), set(idle_box)
     sel = ScopeSelection(chain_paths=chain.chain_changed(changed))
+    real_root = Path(repo_root).resolve()
     for path in files:
-        rel = _rel_posix(path, repo_root)
-        if rel in skipped and path.resolve() not in named_real:
+        real = path.resolve()  # once per file: _rel_posix and the named test share it
+        rel = _rel_posix(path, repo_root, real=real, real_root=real_root)
+        if rel in skipped and real not in named_real:
             sel.skipped_red.append(path)
         elif rel in idle_box:
-            (sel.named if path.resolve() in named_real else sel.idle_box).append(path)
-        elif full:
-            (sel.named if path.resolve() in named_real else sel.full).append(path)
-        elif rel not in inherited:
+            (sel.named if real in named_real else sel.idle_box).append(path)
+        elif rel not in inherited and (not sampling or fnmatch.fnmatchcase(rel, CHAIN_CONTRACT_GLOB)):
             sel.fork_only.append(path)
-        elif path.resolve() in named_real:
+        elif real in named_real:
             sel.named.append(path)
         elif rel in changed:
             sel.touched.append(path)
@@ -337,8 +375,6 @@ def select_scope(
             sel.source.append(path)
         elif any(rel.startswith(d + "/") for d in changed_conftest_dirs):
             sel.conftest.append(path)
-        elif chain_hit:
-            sel.chain.append(path)
         elif changed_modules and any(
             imp == mod or imp.startswith(mod + ".")
             for imp in imported_modules(path, rel)
@@ -347,18 +383,58 @@ def select_scope(
             sel.importer.append(path)
         else:
             sel.excluded.append(path)
+    if sampling:
+        _sample_folders(sel, repo_root, size_of or (lambda rel: (Path(repo_root) / rel).stat().st_size))
     return sel
 
 
-def select_for_run(args, files: List[Path], repo_root: Path, roots: List[Path], skip_rows) -> Optional[ScopeSelection]:
+#: the chain's contract: what a change to a file every test loads must keep (owner ruling 2026-10-16)
+CHAIN_CONTRACT_GLOB = "tests/tooling/test_session_chain_contract*.py"
+
+
+def _sample_folders(sel: ScopeSelection, repo_root: Path, size_of) -> None:
+    """Move the smallest excluded file (fork or inherited) of every folder with nothing selected into ``chain``."""
+
+    def folder(path: Path) -> str:
+        return _rel_posix(path, repo_root).rsplit("/", 1)[0]
+
+    covered = {folder(p) for p in sel.selected}
+    best: dict = {}
+    for path in sel.excluded:
+        key = folder(path)
+        if key not in covered:
+            entry = (size_of(_rel_posix(path, repo_root)), _rel_posix(path, repo_root), path)
+            best[key] = min(best.get(key, entry), entry)
+    picked = {entry[2] for entry in best.values()}
+    sel.chain = sorted(picked, key=str)
+    sel.excluded = [p for p in sel.excluded if p not in picked]
+
+
+#: what ``--scope full`` prints when a directory is on the command line (ADR 0016)
+FULL_RETIRED = (
+    "error: --scope full is retired: nothing runs the whole tree "
+    "(Harness_Brain/30 — Decisions/0016 — No whole-tree run, ever.md); name the files, or run --scope fork"
+)
+
+
+def select_for_run(args, files: list[Path], repo_root: Path, roots: list[Path], skip_rows) -> Optional[ScopeSelection]:
     """``main``'s scope step: the selection for ``args.scope``, its one-line
-    account printed, and every skip-listed file named. ``None`` when the fork
-    scope cannot tell fork from inherited files (``main`` exits 2)."""
+    account printed, and every skip-listed file named. ``None`` (``main`` exits
+    2) when the fork scope cannot tell fork from inherited files, or when
+    ``--scope full`` was asked for a directory (ADR 0016); ``--scope full`` over
+    named files runs exactly those files."""
 
     named = [r for r in roots if r.is_file()]
     idle_box = load_path_list(repo_root / IDLE_BOX_LIST)
-    if args.scope == SCOPE_FULL:
-        sel = select_scope(files, repo_root, set(), set(), named=named, skipped=skip_rows, full=True, idle_box=idle_box)
+    if args.scope == SCOPE_FEATURES:  # every discovered file the lists leave in: no reach rule
+        sel = select_scope(files, repo_root, set(), set(), named=named, skipped=skip_rows, idle_box=idle_box)
+        print(f"Scope features: {len(sel.selected)} file(s) — every fork file and every upstream file not on the "
+              "skip list; an on-demand measurement on a quiet box, never a gate (ADR 0016)", flush=True)
+    elif args.scope == SCOPE_FULL:
+        if len(named) != len(roots):
+            print(FULL_RETIRED, file=sys.stderr)
+            return None
+        sel = ScopeSelection(named=sorted(files, key=str))
     else:
         manifest = args.manifest or repo_root / _DEFAULT_MANIFEST
         try:
@@ -372,7 +448,7 @@ def select_for_run(args, files: List[Path], repo_root: Path, roots: List[Path], 
         except (OSError, RuntimeError) as exc:
             print(
                 f"error: --scope fork cannot tell fork from inherited files: {exc}\n"
-                "       fix the cause, or run --scope full",
+                "       fix the cause, or name the files to run",
                 file=sys.stderr,
             )
             return None
@@ -382,11 +458,13 @@ def select_for_run(args, files: List[Path], repo_root: Path, roots: List[Path], 
             f"{len(sel.selected) - len(sel.fork_only)} inherited reached by the change "
             f"(touched {len(sel.touched)}, source {len(sel.source)}, importer {len(sel.importer)}, "
             f"conftest {len(sel.conftest)}, chain {len(sel.chain)}, named {len(sel.named)}); "
-            f"{len(sel.excluded)} inherited left to --scope full",
+            f"{len(sel.excluded)} inherited not reached",
             flush=True,
         )
-        if chain.chain_changed(changed):  # why a landing pays the whole tree (owner ruling Q3)
-            print(f"  chain: {', '.join(chain.chain_changed(changed))} — loaded by every test process", flush=True)
+        if chain.chain_changed(changed):  # the contract and a sample, landing and release merge alike (ADR 0016)
+            contract = [p for p in sel.selected if fnmatch.fnmatchcase(_rel_posix(p, repo_root), CHAIN_CONTRACT_GLOB)]
+            print(f"  chain: contract + sample — {len(contract)} contract file(s) + {len(sel.chain)} sample(s), one per "
+                  f"folder nothing else reached; {', '.join(chain.chain_changed(changed))}", flush=True)
     for path in sel.skipped_red:  # a run says what it did not run, and why
         rel = _rel_posix(path, repo_root)
         print(f"  skipped (upstream skip list; name the file to run it): {rel}  # {skip_rows[rel].why}")

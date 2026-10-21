@@ -151,7 +151,7 @@ def _action_names(parser: argparse.ArgumentParser) -> dict[type, str]:
     the default action has a name, and it is `"store"`.
     """
     names: dict[type, str] = {}
-    for name, cls in parser._registries.get("action", {}).items():  # noqa: SLF001
+    for name, cls in parser._registries.get("action", {}).items():
         if not isinstance(name, str):
             continue
         names.setdefault(cls, name)
@@ -198,11 +198,11 @@ def _exclusive_groups(parser: argparse.ArgumentParser) -> list[dict[str, Any]]:
     rather than several.
     """
     groups: list[dict[str, Any]] = []
-    for group in parser._mutually_exclusive_groups:  # noqa: SLF001
+    for group in parser._mutually_exclusive_groups:
         opts = sorted(
             {
                 max(action.option_strings, key=len)
-                for action in group._group_actions  # noqa: SLF001
+                for action in group._group_actions
                 if action.option_strings
             }
         )
@@ -225,8 +225,8 @@ def _walk(
     positionals: list[dict[str, Any]] = []
     subparser_actions: list[argparse._SubParsersAction] = []
 
-    for action in parser._actions:  # noqa: SLF001 -- argparse exposes no public walk.
-        if isinstance(action, argparse._SubParsersAction):  # noqa: SLF001
+    for action in parser._actions:  # argparse exposes no public walk.
+        if isinstance(action, argparse._SubParsersAction):
             subparser_actions.append(action)
             continue
         if action.option_strings:
@@ -394,7 +394,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    with open(fixture, "r", encoding="utf-8", newline="") as handle:
+    with open(fixture, "r", encoding="utf-8", newline="") as handle:  # windows-footgun: ok — byte-exact staleness check: a BOM is drift, not a tolerated read
         committed = handle.read()
 
     if committed == rendered:

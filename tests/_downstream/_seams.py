@@ -24,6 +24,8 @@ from agent_runtime.redaction import TEXT_SECRET_VALUE_ASSIGNMENT_RE
 
 __all__ = [
     "BUILD_SELF_PERTURBED_CLASSES",
+    "CREDENTIAL_KEYS",
+    "IN_MODULE_SEAMS",
     "READ_ONLY_ALLOWLIST_PROFILE",
     "FingerprintHomeCapture",
     "RepoContextExcerpt",
@@ -32,16 +34,47 @@ __all__ = [
     "chat_live_log_failures",
     "existing_run_worktrees",
     "fingerprint_home_capture",
+    "is_credential_key",
     "isolated_repo_context_for_run",
     "iter_fingerprint_paths",
+    "palette_colors",
     "remove_harness_worktree_for_repo",
     "repo_execution_context_for_task",
     "reset_core_cache_process_state",
     "reset_fingerprint_home",
     "reset_runtime_resolve_cache",
     "reset_unreadable_instance_rows",
+    "run_queued_sends_once",
 ]
 
+
+#: Test seams that STAY in their production module, by ruling (plan
+#: ``l5-17-test-only-names-2026-10-15``, bucket B, owner-approved 2026-10-15).
+#: Each one reads or resets a module PRIVATE — a cache, a per-thread counter, an
+#: in-flight table — so moving it here would need a public hook into that
+#: private, a worse seam than the one that exists. ``path::Name`` (or
+#: ``path::Class.method``): the spelling ``scripts/refactor_census.py`` reads
+#: (by AST, never by import) to stop offering them as test-only DECIDE rows.
+#: ``tests/scripts/test_refactor_census_downstream.py`` resolves every entry
+#: against the live module, so a stale one is a red.
+IN_MODULE_SEAMS = (
+    "agent_runtime/builds/detect.py::detection_enabled",
+    "agent_runtime/chat_root_send_runner.py::QueuedSendRunner.busy_roots",
+    "agent_runtime/chat_turn_settles.py::read_settle",
+    "agent_runtime/demote_core_reuse.py::reset_process_state",
+    "agent_runtime/events.py::_event_view_cache_clear",
+    "agent_runtime/launcher_client_requests.py::ClientRequests.open_count",
+    "agent_runtime/parse_cache.py::clear_parse_cache",
+    "agent_runtime/profile_readiness.py::_provider_issue_cache_clear",
+    "agent_runtime/skill_resolution.py::_search_roots_cache_clear",
+    "agent_runtime/skill_resolution.py::_skill_root_registry_cache_clear",
+    "agent_runtime/skill_resolution.py::reset_skill_root_walks_for_tests",
+    "agent_runtime/skill_resolution.py::skill_root_rebuilds_this_thread",
+    "agent_runtime/skill_resolution.py::skill_root_walks_this_thread",
+    "agent_runtime/snapshot_build_ledger.py::builds_in_flight",
+    "hermes_cli/charsheet_payload_contract.py::build_flag_inventory",
+    "tools/tool_defs_observability.py::tool_defs_cache_hits_this_thread",
+)
 
 #: The launcher-allowlist PROFILE ROW a ``read_only`` admission's tool set was
 #: compiled from (``agent_runtime.mcp_admission.vocabulary.READ_ONLY_INCLUDED_TOOLS``).
@@ -237,8 +270,7 @@ def _ensure_isolated_worktree(source_root: Path, base: Path) -> Path:
             text=True,
             encoding="utf-8",
             errors="replace",
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=HARNESS_WORKTREE_ADD_TIMEOUT_SECONDS,
             check=False,
         )
@@ -470,8 +502,7 @@ def _link_local_support_dir(source: Path, target: Path) -> bool:
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 timeout=30,
                 check=False,
             )
@@ -739,3 +770,73 @@ def reset_core_cache_process_state() -> None:
     _reset_core_cache_convergence_state()
     _lane._drop_consult_memo()
     reset_fingerprint_home()
+
+
+# ── The charsheet palette reader, from ``agent.charsheet.palette`` ───────────
+# Plan l5-17-test-only-names (bucket D, lane h5-deadcode): no production caller;
+# the pipeline suites assert the locked image's colours against it.
+
+
+def palette_colors(palette) -> list[tuple[int, int, int]]:
+    """The RGB triples a palette image can produce, in palette-index order."""
+    if getattr(palette, "mode", "") != "P":
+        raise ValueError(f"expected a 'P'-mode palette image, got mode {getattr(palette, 'mode', None)!r}")
+    raw = palette.getpalette() or []
+    # Empty, not None, when there is no palette object: the unfiltered fallback
+    # this used to carry was a branch no input could distinguish. `getpalette()`
+    # answers out of the SAME palette object, so bytes here imply a non-empty
+    # `.colors` and no bytes imply an empty `triples` — the two arms returned
+    # the identical list for every reachable image, and the false one only ever
+    # returned `[]` the long way round. Measured 2026-09-05 against the
+    # one-armed-branch report; the equivalence is pinned in
+    # the w16 branch triage.
+    used = palette.palette.colors if getattr(palette, "palette", None) else {}
+    triples = [tuple(raw[i : i + 3]) for i in range(0, len(raw), 3)]
+    # Pillow pads the palette out to 256 entries; keep only the ones the
+    # quantizer actually assigned so callers can assert set membership.
+    return [triple for triple in triples if triple in used]
+
+
+# ── The credential-key oracle, from ``agent_runtime.redaction`` ──────────────
+# Dead-code queue row (lane r-deadcode): its last production reader was the
+# ``_transport`` arm of ``redact_transport_tree`` (deleted ``73afa773143``); the
+# workspace-clone suite asserts a spawn env carries no credential key with it.
+
+#: Mapping keys whose value is a credential, spelled with ``-`` (``_`` folds).
+CREDENTIAL_KEYS = frozenset({
+    "authorization", "proxy-authorization", "api-key", "apikey", "x-api-key",
+    "cookie", "set-cookie", "access-token", "refresh-token",
+})
+
+
+def is_credential_key(key: object) -> bool:
+    """Is ``key`` a credential-bearing header or field name (``_`` and ``-`` alike)?"""
+
+    return str(key).strip().lower().replace("_", "-") in CREDENTIAL_KEYS
+
+
+# ── One waited-out pass of the queued-send runner ────────────────────────────
+# Fork-hygiene row (lane r-deadcode): production's ``run_queued_sends_once`` was
+# a synchronous copy of ``QueuedSendRunner.dispatch_once``'s loop that no serve
+# ran. The suites now drive the REAL dispatcher and wait its workers out.
+
+
+def run_queued_sends_once(policy, *, timeout: float = 30.0) -> dict[str, int]:
+    """``QueuedSendRunner(policy).dispatch_once()``, then wait until every worker it started ended.
+
+    Returns the dispatcher's own tally (``dispatched`` / ``busy`` / ``occupied``).
+    """
+
+    from agent_runtime.chat_root_send_runner import QueuedSendRunner
+
+    runner = QueuedSendRunner(policy)
+    try:
+        tally = runner.dispatch_once()
+        deadline = time.monotonic() + timeout
+        while runner.busy_roots():
+            if time.monotonic() > deadline:
+                raise TimeoutError(f"queued-send workers still running: {sorted(runner.busy_roots())}")
+            time.sleep(0.01)
+    finally:
+        runner.shutdown(wait=True)
+    return tally

@@ -15,6 +15,14 @@ helper or an autouse fixture (every test sets those up) still reaches every
 file. The AST dump ignores comments and line numbers, so moving code or
 editing a comment changes no key.
 
+A ROW naming a test file — a string literal ``tests/<…>.py`` or
+``tests/<…>.py::<node>`` in a tuple, list, set or dict key (the id-marker
+tables, ``tests/_downstream/id_markers/``) — is taken out of the core and keyed
+only into the file it names (r-fastgate, owner ruling 2026-10-16: key each file
+on the session-chain modules it actually loaded, not the whole chain). Adding or
+retiring one upstream-red row used to miss every file the session loaded the
+table into — all of them; it now misses the file the row names.
+
 A fixture module the FILE itself opened (``own``: a test reading the source as
 data) or a child process of it loaded keeps its whole-blob line: only an import
 read is fingerprinted. Anything that will not parse, or whose bytes on disk are
@@ -28,6 +36,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable, Optional
@@ -62,6 +71,51 @@ def _fixture_name(node: ast.AST) -> Optional[str]:
     return None
 
 
+#: a string naming a test file or one of its nodes: a table row that reaches that file only
+_ROW = re.compile(r"^(tests/[^\s:]+\.py)(?:::.*)?$")
+
+
+class _Rows(ast.NodeTransformer):
+    """Takes every row out of the module's tuples, lists, sets and dict keys, by the file it names."""
+
+    def __init__(self) -> None:
+        self.rows: dict[str, list[str]] = {}
+
+    @staticmethod
+    def _names(node: Optional[ast.AST]) -> Optional[str]:
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            found = _ROW.match(node.value)
+            return found.group(1) if found else None
+        return None
+
+    def _sequence(self, node):
+        self.generic_visit(node)
+        kept = []
+        for elt in node.elts:
+            name = self._names(elt)
+            if name is None:
+                kept.append(elt)
+            else:
+                self.rows.setdefault(name, []).append(ast.dump(elt))
+        node.elts = kept
+        return node
+
+    visit_Tuple = visit_List = visit_Set = _sequence
+
+    def visit_Dict(self, node):
+        self.generic_visit(node)
+        keys, values = [], []
+        for key, value in zip(node.keys, node.values):
+            name = self._names(key)
+            if name is None:
+                keys.append(key)
+                values.append(value)
+            else:
+                self.rows.setdefault(name, []).append(ast.dump(key) + "=" + ast.dump(value))
+        node.keys, node.values = keys, values
+        return node
+
+
 def _sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:32]
 
@@ -72,10 +126,13 @@ class ModuleShape:
 
     core: str
     fixtures: dict[str, str]  # name → digest of every definition of that name, in order
+    rows: Optional[dict[str, str]] = None  # test file → digest of the rows naming it, in order
 
-    def line(self, rel: str, used: Iterable[str]) -> str:
+    def line(self, rel: str, used: Iterable[str], test: str = "") -> str:
         reached = sorted(set(used) & set(self.fixtures))
-        return f"fxmod\t{rel}\t{self.core}\t" + ",".join(f"{n}={self.fixtures[n]}" for n in reached)
+        row = (self.rows or {}).get(test, "")
+        fixtures = ",".join(f"{n}={self.fixtures[n]}" for n in reached)
+        return f"fxmod\t{rel}\t{self.core}\t{fixtures}\trows={row}"
 
 
 def shape_of(source: bytes) -> Optional[ModuleShape]:
@@ -85,6 +142,8 @@ def shape_of(source: bytes) -> Optional[ModuleShape]:
         tree = ast.parse(source)
     except (SyntaxError, ValueError):
         return None
+    rows = _Rows()
+    tree = rows.visit(tree)
     core, defs = [], {}
     for node in tree.body:
         name = _fixture_name(node)
@@ -92,7 +151,10 @@ def shape_of(source: bytes) -> Optional[ModuleShape]:
             core.append(ast.dump(node))
         else:
             defs.setdefault(name, []).append(ast.dump(node))
-    return ModuleShape(_sha("\n".join(core)), {name: _sha("\n".join(dumps)) for name, dumps in defs.items()})
+    return ModuleShape(
+        _sha("\n".join(core)), {name: _sha("\n".join(dumps)) for name, dumps in defs.items()},
+        {name: _sha("\n".join(texts)) for name, texts in rows.rows.items()},
+    )
 
 
 class Fingerprints:

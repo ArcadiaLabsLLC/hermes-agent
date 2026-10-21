@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import threading
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 
 import pytest
 
@@ -86,7 +86,7 @@ def _append_office_move(index: int = 0) -> None:
     """
 
     log = EventLog()
-    ts = datetime(2026, 8, 27, 12, 0, 0, tzinfo=timezone.utc) + timedelta(seconds=index)
+    ts = datetime(2026, 8, 27, 12, 0, 0, tzinfo=UTC) + timedelta(seconds=index)
     log.append(
         Event(
             ts=ts,
@@ -287,7 +287,7 @@ def test_a_batch_nobody_folds_still_reaches_both_as_one_core(patch_lane_on):
                 # A watchdog reconcile: coverable for nobody, by design.
                 EventLog().append(
                     Event(
-                        ts=datetime(2026, 8, 27, 12, 5, 0, tzinfo=timezone.utc),
+                        ts=datetime(2026, 8, 27, 12, 5, 0, tzinfo=UTC),
                         type="state.reconciled",
                         task_id=None,
                         run_id=None,

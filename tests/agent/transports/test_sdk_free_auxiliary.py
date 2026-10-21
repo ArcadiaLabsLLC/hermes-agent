@@ -67,17 +67,17 @@ def test_the_async_twin_runs_the_sdk_free_client_off_loop():
 
 
 _ANTHROPIC_STREAM = (
-    'event: message_start\ndata: {"type": "message_start", "message": {"id": "m", "type": "message", "role": '
-    '"assistant", "model": "claude-x", "content": [], "stop_reason": null, "stop_sequence": null, "usage": '
-    '{"input_tokens": 3, "output_tokens": 1}}}\n\n'
-    'event: content_block_start\ndata: {"type": "content_block_start", "index": 0, "content_block": '
-    '{"type": "text", "text": ""}}\n\n'
-    'event: content_block_delta\ndata: {"type": "content_block_delta", "index": 0, "delta": '
-    '{"type": "text_delta", "text": "Compressed summary."}}\n\n'
-    'event: content_block_stop\ndata: {"type": "content_block_stop", "index": 0}\n\n'
-    'event: message_delta\ndata: {"type": "message_delta", "delta": {"stop_reason": "end_turn", '
-    '"stop_sequence": null}, "usage": {"output_tokens": 4}}\n\n'
-    'event: message_stop\ndata: {"type": "message_stop"}\n\n').encode()
+    b'event: message_start\ndata: {"type": "message_start", "message": {"id": "m", "type": "message", "role": '
+    b'"assistant", "model": "claude-x", "content": [], "stop_reason": null, "stop_sequence": null, "usage": '
+    b'{"input_tokens": 3, "output_tokens": 1}}}\n\n'
+    b'event: content_block_start\ndata: {"type": "content_block_start", "index": 0, "content_block": '
+    b'{"type": "text", "text": ""}}\n\n'
+    b'event: content_block_delta\ndata: {"type": "content_block_delta", "index": 0, "delta": '
+    b'{"type": "text_delta", "text": "Compressed summary."}}\n\n'
+    b'event: content_block_stop\ndata: {"type": "content_block_stop", "index": 0}\n\n'
+    b'event: message_delta\ndata: {"type": "message_delta", "delta": {"stop_reason": "end_turn", '
+    b'"stop_sequence": null}, "usage": {"output_tokens": 4}}\n\n'
+    b'event: message_stop\ndata: {"type": "message_stop"}\n\n')
 
 
 def _view(answer):

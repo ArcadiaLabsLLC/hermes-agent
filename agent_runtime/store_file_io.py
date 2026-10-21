@@ -24,9 +24,9 @@ The rules the bodies carry are load-bearing, so they live here once:
   assumed. ``serve_auth.py`` recorded that Windows mode bits are not a
   permission and declined to fix it, on the grounds that the real control
   belongs with the transport slice that introduces the exposure; the gateway
-  lane IS that slice, so the narrowing is attempted — ``icacls`` with
-  inheritance removed and a single grant to the current user, read/write/DELETE
-  since R-D9 because an atomic replace is a delete (see below) — and never
+  lane IS that slice, so the narrowing is attempted — a protected DACL, written
+  in-process through ``advapi32`` (never an ``icacls`` spawn), with inheritance
+  removed and a single grant to the current user, read/write/DELETE since R-D9 because an atomic replace is a delete (see below) — and never
   fatal: a store that could not be narrowed is still a store, and refusing to
   write one would take the lane down over a hardening.
 
@@ -37,7 +37,7 @@ The rules the bodies carry are load-bearing, so they live here once:
   nothing and a traceback on a stream ``serve_loop`` has redirected onto the
   NDJSON protocol.
 - ``write_secure_json``: temp file + atomic replace, ``0600`` where that means
-  something, ``icacls`` narrowing where it does not. Atomic because a reader on
+  something, DACL narrowing where it does not. Atomic because a reader on
   the handshake path must see either the whole old store or the whole new one —
   a half-written store reads as ``{}`` and fails every credential closed until
   the write finishes, which is correct and is the worst kind of bug to chase.
@@ -129,11 +129,11 @@ def narrow_windows_acl(path: Path) -> str:
     completed and then failed to record its row for a week.
 
     Granting DELETE gives away nothing. The DACL names the file's OWNER, and an
-    owner always holds WRITE_DAC — it could grant itself DELETE in one icacls
+    owner always holds WRITE_DAC — it could grant itself DELETE in one
     call. The narrowing exists to keep OTHER principals out, and it still does:
     inheritance is removed and this user is the only ACE.
 
-    The ``icacls`` spawn lives in :mod:`agent_runtime.store_file_io_windows`, imported
+    The Win32 DACL write lives in :mod:`agent_runtime.store_file_io_windows`, imported
     here and only when a Windows caller asks: a profile with no Windows (the phone)
     leaves that module out, and every production caller sits behind ``os.name == "nt"``.
     """

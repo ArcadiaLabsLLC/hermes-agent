@@ -79,7 +79,7 @@ def _cmd_pets_gallery(args) -> int:
                         "generated": entry.slug in installed and installed[entry.slug].generated,
                     }
                 )
-        except Exception as exc:  # noqa: BLE001 - Launcher can still use local pets
+        except Exception as exc:  # Launcher can still use local pets
             manifest_error = f"manifest unavailable: {exc}"
 
     for slug, pet in installed.items():
@@ -212,7 +212,7 @@ def _pet_row_frame_counts(spritesheet: Path) -> dict[str, int]:
                 count += 1
             out[name] = count
         return out
-    except Exception:  # noqa: BLE001 - cosmetic payload; renderer can fall back
+    except Exception:  # cosmetic payload; renderer can fall back
         return {}
 
 
@@ -225,7 +225,7 @@ def _pet_state_rows(spritesheet: Path) -> list[str]:
         with Image.open(spritesheet) as opened:
             row_count = max(1, opened.height // constants.FRAME_H)
         return list(constants.state_rows_for_grid(row_count))
-    except Exception:  # noqa: BLE001
+    except Exception:
         from agent.pet import constants
 
         return list(constants.STATE_ROWS)

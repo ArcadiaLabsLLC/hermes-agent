@@ -8,7 +8,7 @@ from agent_runtime.conversation_owner import session_client_scope
 from agent_runtime.discussions import service as service_module
 from agent_runtime.call_authorization import LOCAL_CONSOLE
 from hermes_state import SessionDB
-from tests.agent_runtime.test_discussion_runtime import engine as engine, wait_until
+from tests.agent_runtime.test_discussion_runtime import engine, wait_until
 from tests.agent_runtime.test_native_discussion_room import spec
 from tests.agent_runtime.test_serve_rpc_open_chat import _device
 

@@ -23,13 +23,13 @@ __layer__ = "models"
 __all__ = [
     "BASE_PROFILE_NAME",
     "HARD_EXCLUDED_PATH_PARTS",
+    "SECRET_PATH_MARKERS",
+    "_REALM_SYNC_GITATTRIBUTES",
+    "_REALM_SYNC_GITATTRIBUTES_MARKER",
     "MembershipDecision",
     "RealmMembershipProvider",
     "RealmSyncArtifact",
     "RealmSyncError",
-    "SECRET_PATH_MARKERS",
-    "_REALM_SYNC_GITATTRIBUTES",
-    "_REALM_SYNC_GITATTRIBUTES_MARKER",
     "_canonicalize_text_bytes",
     "_safe_display_path",
 ]
@@ -103,6 +103,12 @@ _REALM_SYNC_GITATTRIBUTES_MARKER = b"managed by agent_runtime/realm_sync.py"
 
 
 class RealmSyncError(RuntimeError):
+    """A sync verb's typed refusal. ``code`` beside ``sync_conflict`` (unresolved
+    merge in the repo) and ``sync_behind``: ``sync_remote_diverged`` — the personal
+    repo a ``local:`` credential names holds an unrelated history that shares a path
+    with this machine's (``safe_details.detail`` names them); ``sync_remote_mismatch``
+    — the local repo's ``origin`` already names another remote (p10-work §2.6)."""
+
     def __init__(self, code: str, message: str, *, retryable: bool = False, safe_details: dict[str, Any] | None = None):
         super().__init__(message)
         self.code = code

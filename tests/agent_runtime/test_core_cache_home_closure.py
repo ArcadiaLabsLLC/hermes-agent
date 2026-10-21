@@ -8,9 +8,11 @@ WHAT THIS FILE EXISTS TO STOP
 home-relative, and the ladder underneath them ends at
 ``os.environ["HERMES_HOME"]``. The BUILD exports that variable: the
 ``agents_readiness`` section runs ``profile_readiness_for_persona`` inside
-``profile_context.persona_profile_context``, which sets the context-local
-override AND writes the env var process-globally for the length of a per-persona
-scope. So a consult on another thread — a one-shot hydrate, a status probe, the
+``profile_context.persona_profile_context``, which set the context-local
+override AND (until its env mirror retired after run-serialization S5) wrote the
+env var process-globally for the length of a per-persona scope. The off-thread
+cases below keep that flip as an explicit ambient write (``_exported_scope``):
+any ambient ``HERMES_HOME`` writer is the same hazard. So a consult on another thread — a one-shot hydrate, a status probe, the
 hub — computed its closure over whichever profile happened to be exported.
 
 Measured in the field 2026-08-18: ``inputs=24344`` and ``inputs=23107`` from ONE
@@ -45,8 +47,10 @@ stands in for the other:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
+import os
 import threading
 from pathlib import Path
 from types import SimpleNamespace
@@ -111,6 +115,22 @@ def two_profiles(tmp_path, monkeypatch):
         ),
     )
     _seams.reset_core_cache_process_state()
+
+
+@contextlib.contextmanager
+def _exported_scope(two_profiles):
+    """The persona scope PLUS an ambient ``HERMES_HOME`` write — the retired mirror's shape."""
+
+    previous = os.environ.get("HERMES_HOME")
+    os.environ["HERMES_HOME"] = str(two_profiles.other)
+    try:
+        with persona_profile_context(two_profiles.binding):
+            yield
+    finally:
+        if previous is None:
+            os.environ.pop("HERMES_HOME", None)
+        else:
+            os.environ["HERMES_HOME"] = previous
 
 
 def _ambient_home() -> Path:
@@ -258,7 +278,7 @@ def _fingerprint_while_scope_held(two_profiles):
     released = threading.Event()
     thread, box = _fingerprint_off_thread(held, released)
     try:
-        with persona_profile_context(two_profiles.binding):
+        with _exported_scope(two_profiles):
             held.set()
             released.wait(timeout=10)
     finally:
@@ -392,7 +412,7 @@ def test_a_capture_taken_during_a_persona_scope_pins_that_scopes_home(two_profil
     released = threading.Event()
     thread, box = _fingerprint_off_thread(held, released)
     try:
-        with persona_profile_context(two_profiles.binding):
+        with _exported_scope(two_profiles):
             held.set()
             released.wait(timeout=10)
     finally:

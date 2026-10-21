@@ -254,3 +254,36 @@ def test_the_mcp_record_closes_with_the_dispatch(emitter, frames):
 
     _mcp_beat(emitter, frames, lambda _meta: None)
     assert relay.snapshot_by_tid() == {}
+
+
+def test_upstream_compaction_status_reaches_the_stream_as_context_compaction_frames(emitter, frames):
+    # Upstream speaks compaction on the two-argument status_callback(kind, text); the profile
+    # runner's emitter took one argument, so the TypeError was swallowed and nothing reached
+    # the launcher's conversation lane (runtime-queue row, launcher MC row D03).
+    from types import SimpleNamespace
+
+    from agent.conversation_compression import (
+        COMPACTION_HEARTBEAT_STATUS,
+        COMPACTION_STATUS,
+        _emit_compaction_done,
+    )
+    from agent_runtime.events import EventLog
+    from agent_runtime.profile_runner.status import StatusEmitter
+    from agent_runtime.progress import ChatProgressSink
+
+    log = EventLog()
+    sink = ChatProgressSink(session_id="chat_1", persona_id="dev", event_log=log, on_trace=emitter.progress)
+    status = StatusEmitter(SimpleNamespace(progress_callback=sink.callback()), {})
+    agent = SimpleNamespace(status_callback=status.sink())
+
+    agent.status_callback("lifecycle", "Preflight: loading tools")
+    agent.status_callback("lifecycle", COMPACTION_STATUS)
+    agent.status_callback("lifecycle", COMPACTION_HEARTBEAT_STATUS)
+    _emit_compaction_done(agent)
+
+    assert [(f["state"], f["turn_id"], f["protocol_version"]) for f in of_type(frames, "context.compaction")] == [
+        ("compacting", "turn_1", 2),
+        ("compacted", "turn_1", 2),
+    ]
+    assert log.for_session("chat_1") == [], "a lifecycle edge is not a Trace-lane row"
+    assert emitter.elements == []

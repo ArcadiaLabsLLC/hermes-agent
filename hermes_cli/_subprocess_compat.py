@@ -482,6 +482,8 @@ def noninteractive_git_env(base: Mapping[str, str] | None = None) -> dict[str, s
     # does for the user's interactive git. Appended last, but the hardening overrides above are
     # distinct keys, so they are unaffected by ordering within safe.directory.
     overrides.extend(("safe.directory", value) for value in safe_directories)
+    from hermes_cli.git_line_endings import user_line_ending_overrides  # fork seam: r-plugins
+    overrides.extend(user_line_ending_overrides(base))  # fork seam: r-plugins
     env["GIT_CONFIG_COUNT"] = str(len(overrides))
     for idx, (key, value) in enumerate(overrides):
         env[f"GIT_CONFIG_KEY_{idx}"] = key

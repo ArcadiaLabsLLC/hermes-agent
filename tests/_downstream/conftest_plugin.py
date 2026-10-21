@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._downstream.id_markers import (  # noqa: F401 — hook re-exports
+from tests._downstream.id_markers import (  # hook re-exports
     NO_LIVE_GATEWAY_MARK,
     pytest_collection_modifyitems,
     pytest_make_collect_report,
@@ -32,18 +32,55 @@ from tests._downstream.id_markers import (  # noqa: F401 — hook re-exports
 )
 # The mark NAMES the id table applies, spelled once (id_markers/reasons.py):
 # registered below, read by the consumer fixtures.
-from tests._downstream.real_browser_fence import _no_real_browser_spawn  # noqa: F401 — autouse fence
-from tests._downstream.state_db_scope import _state_db_resolves_through_scope  # noqa: F401 — id-marked
-from tests._downstream.git_audit import (  # noqa: F401 — hook re-exports (opt-in, design sweep D3.16)
+from tests._downstream.real_browser_fence import _no_real_browser_spawn  # autouse fence
+from tests._downstream.host_disk_room import (  # id-marked fixture + hook re-export
+    _host_disk_has_room,
+    pytest_configure_host_disk_room,
+)
+from tests._downstream.state_db_scope import _state_db_resolves_through_scope  # id-marked
+from tests._downstream.state_db_no_fsync import _state_db_no_fsync  # autouse (suite speed, r-state)
+from tests._downstream.session_db_template import session_db_from_template  # autouse (D3.11, h1-setup)
+from tests._downstream.home_config import _home_carries_a_config  # autouse (h1-setup)
+from tests._downstream.bash_probe_memo import _bash_probe_memo  # autouse (suite speed, r-state)
+from tests._downstream.bash_resolution_reset import _bash_resolution_reset  # autouse (q-pm)
+from tests._downstream.tool_registry_scope import (  # autouse mark + teardown restore (plan S3)
+    _tool_registry_scope,
+    pytest_runtest_teardown_tool_registry,
+)
+from tests._downstream.plugin_discovery_cache import (  # autouse + reset fixture (ruling 2026-10-10)
+    _plugin_discovery_cache,
+    cold_plugin_discovery,
+)
+from tests._downstream.plugin_load_memo import _plugin_load_memo  # autouse (suite speed, h3-plugins)
+from tests._downstream.parse_memo import _bundled_parse_memo  # autouse (suite speed, w2-speed-b)
+from tests._downstream.plugin_module_keep import _plugin_module_keep  # autouse, opt-in env, OFF (h3-plugins)
+from tests._downstream.teardown_plugin_delivery import (  # teardown hook (suite speed, h6-collect)
+    pytest_runtest_teardown_plugin_delivery,
+)
+from tests._downstream.named_files_collect import (  # collect hook (suite speed, h6-collect)
+    pytest_ignore_collect_named_files,
+)
+from tests._downstream.version_info_scope import _version_info_scope  # autouse (q-chain)
+from tests._downstream.git_audit import (  # hook re-exports (opt-in, design sweep D3.16)
     pytest_configure_git_audit,
     pytest_runtest_protocol_git_audit,
 )
-from tests._downstream.idle_box import (  # noqa: F401 — hook re-exports (owner ruling 2026-10-10)
+from tests._downstream.idle_box import (  # hook re-exports (owner ruling 2026-10-10)
     pytest_collection_modifyitems_idle_box,
     pytest_configure_idle_box,
     pytest_runtest_setup_idle_box,
 )
-from tests._downstream import registry_write_fence
+from tests._downstream.child_job import (  # hook and fixture re-exports
+    _children_die_with_the_test,
+    pytest_configure_child_job,
+)
+from tests._downstream.body_patch_scope import (  # hook re-exports (p10 S-A1, FORK-PATCH-IN-TEARDOWN)
+    BODY_PATCH_MARK as _BODY_PATCH_MARK,
+    pytest_fixture_setup,
+    pytest_pyfunc_call,
+)
+from tests._downstream.git_env_memo import _git_env_memo  # autouse (suite speed, p10-bar)
+from tests._downstream import child_startup, registry_write_fence, server_shutdown_poll
 from tests._downstream.fork_readonly_readers import file_reads_through
 from tests._downstream.id_markers.reasons import (
     ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK as _ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK,
@@ -57,6 +94,10 @@ from tests._downstream.id_markers.reasons import (
 
 # Process-wide, at import: no test in this process writes the real Windows registry.
 registry_write_fence.install()
+# Process-wide, at import: every child a test spawns inherits the start-up shortcut (q-chain).
+child_startup.install()
+# Process-wide, at import: a test's socketserver notices shutdown() within 50 ms (w2-speed-b).
+server_shutdown_poll.install()
 
 
 # ── Opt-in test-temp root (suite-perf Stage 7, ruled 2026-09-01) ─────────────
@@ -179,7 +220,7 @@ def _release_test_tmp_run_dir(run_dir: str | None, exitstatus: int | None) -> bo
 _SESSION_EXIT: dict[str, int] = {}
 
 
-def pytest_sessionfinish(session, exitstatus):  # noqa: D401 — pytest hook
+def pytest_sessionfinish(session, exitstatus):  # pytest hook
     """Record the exit status for the at-exit release below."""
     _SESSION_EXIT["status"] = int(exitstatus)
 
@@ -431,50 +472,26 @@ def _shared_monkeypatch_pin_tripwire(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _reset_snapshot_catalog_memos():
-    """The snapshot core's TTL memos (installed-skill catalog, profile
-    templates) must never leak rows across tests — tests monkeypatch the
-    underlying fetchers (`skills_tool._find_all_skills`,
-    `snapshot.available_profile_templates`) and a warm memo would mask the
-    patch. Start every test cold."""
-    for module_name, attr in (
-        ("agent_runtime.prompt_observability.skills_resolver", "_skill_catalog_memo"),
-        ("agent_runtime.snapshot", "_profile_template_memo"),
-    ):
-        module = sys.modules.get(module_name)
-        memo = getattr(module, attr, None) if module else None
-        if isinstance(memo, dict):
-            memo["rows"] = None
-            memo["at"] = 0.0
-    # Same rule, different shape: the chat-lane visibility bundle
-    # (``agent_runtime.chat_lane_bundle``) is keyed on persona/permission/config
-    # identity, and a test's hermetic HERMES_HOME normally makes that key unique
-    # per test anyway. "Normally" is not a guarantee, and a bundle surviving into
-    # the next test would serve it another test's toolset answer. Start cold.
-    #
-    # This does NOT cover a single test that monkeypatches a resolver BETWEEN two
-    # turn-path calls — the memo cannot see a function patch. Such a test calls
-    # ``invalidate_chat_lane_bundles()`` itself, which is real API.
-    bundle_module = sys.modules.get("agent_runtime.chat_lane_bundle")
-    if bundle_module is not None:
-        bundle_module.invalidate_chat_lane_bundles()
-    # The resident-chat registry is process-global (serve boot's
-    # ``initialize_persona_chat_runtime_registry``); one a test left enabled made every later
-    # history row in the process answer as ``serve:<pid>`` with a fresh observed_at, so the
-    # stream goldens and the overlay compare went red after its importers (lane h-turn1-title).
-    # Start every test with none; close what the last test left.
-    registry_module = sys.modules.get("agent_runtime.persona_chat_continuity.runtime_registry")
-    leftover = getattr(registry_module, "_REGISTRY", None)
-    if leftover is not None:
-        registry_module._REGISTRY = None
-        leftover.close()
-    # h-idle-turn: the idle keeper's open turn windows and registered refreshes are process
-    # state; a window another test left open would defer this test's catalog refresh.
-    keeper_module =sys.modules.get("agent_runtime.idle_turn_keeper")
-    if keeper_module is not None:
-        keeper_module.reset_for_tests()
+    """Every declared process-global state starts each test the way a fresh import left it.
+
+    A fork module that keeps state for the whole process (the skill-catalog and
+    profile-template memos, the chat-lane bundle, the resident-chat registry, the
+    idle keeper, ``builds.detect``) declares its reset beside the global with
+    ``agent_runtime.process_state.register_process_state``; this fixture runs them
+    all (plan ``process-global-state-reset-2026-10-15.md`` S1). A new leak is
+    retired by a declaration in the owning module, never by a line here. Only
+    modules already imported have registered, which is exactly the state a test
+    could see.
+
+    A test that monkeypatches a resolver BETWEEN two turn-path calls still calls
+    ``invalidate_chat_lane_bundles()`` itself: the memo cannot see a function patch.
+    """
+    from agent_runtime.process_state import reset_all_process_state
+
+    reset_all_process_state()
     yield
-    if keeper_module is None:
-        keeper_module = sys.modules.get("agent_runtime.idle_turn_keeper")
+    # The idle keeper's thread must not outlive the test that armed it.
+    keeper_module = sys.modules.get("agent_runtime.idle_turn_keeper")
     if keeper_module is not None:
         keeper_module.stop()
 
@@ -588,11 +605,9 @@ def _neutralize_claude_code_credentials_file(request, monkeypatch, _hermetic_env
 
     def _blocked_read(*_args, **_kwargs):
         counts["read"] += 1
-        return None
 
     def _blocked_write(*_args, **_kwargs):
         counts["write"] += 1
-        return None
 
     _blocked_read._hermes_neutralized = True  # type: ignore[attr-defined]
     _blocked_write._hermes_neutralized = True  # type: ignore[attr-defined]
@@ -729,7 +744,7 @@ def _config_reads_through_load_config(request, monkeypatch):
 
 def _guard_roots() -> list[Path] | None:
     """``tests/conftest.py``'s live home-I/O guard root list, through its public door."""
-    import tests._downstream as _downstream
+    from tests import _downstream
 
     door = getattr(_downstream.root_conftest, "real_hermes_root_candidates", None)
     return door() if door is not None else None
@@ -785,35 +800,6 @@ def _state_db_guard_denies_recorded_root(_state_db_write_guard, monkeypatch):
     _deny_recorded_root_on_state_db_guard(
         sys.modules.get("hermes_state"), _RECORDED_REAL_ROOT, monkeypatch
     )
-
-
-@pytest.fixture(autouse=True)
-def _kanban_guard_denies_recorded_root(_kanban_write_guard, monkeypatch):
-    """Refuse kanban writes under the recorded real root too, after upstream's guard is in place.
-
-    ``tests/conftest.py::_REAL_KANBAN_ROOT`` is captured from the pre-sandbox
-    ``HERMES_HOME`` at import; under the runner that env is already blank, so
-    upstream's guard denies ``~/.hermes`` and never the root the runner recorded
-    in ``HERMES_TEST_REAL_ROOT``. The root is read per call.
-    """
-    _kdb = sys.modules.get("hermes_cli.kanban_db")
-    _kdbc = sys.modules.get("hermes_cli.kanban_db_connect")
-    guarded = getattr(_kdbc, "connect", None)
-    if guarded is None or getattr(_kdb, "kanban_db_path", None) is None:
-        return
-
-    def _connect(db_path=None, *args, **kwargs):
-        if _RECORDED_REAL_ROOT:
-            root = Path(_RECORDED_REAL_ROOT).expanduser().resolve()
-            target = Path(db_path) if db_path is not None else _kdb.kanban_db_path(board=kwargs.get("board"))
-            if target.expanduser().resolve().is_relative_to(root):
-                raise RuntimeError(
-                    f"kanban_write_guard: kanban DB path resolved to {target}, which is under the "
-                    f"recorded real root ({root}, HERMES_TEST_REAL_ROOT); refusing to write."
-                )
-        return guarded(db_path, *args, **kwargs)
-
-    monkeypatch.setattr(_kdbc, "connect", _connect)
 
 
 def _path_without_real_hermes_roots(path: str, roots: list[str]) -> str:
@@ -893,47 +879,7 @@ FORK_TEST_TIMEOUT_METHOD = "thread"
 
 
 
-@pytest.hookimpl(wrapper=True)
-def pytest_pyfunc_call(pyfuncitem):
-    """Run an upstream test's mid-body ``monkeypatch.undo()`` against its OWN patches.
-
-    Upstream tests that drop a stub with ``monkeypatch.undo()`` unwind the shared
-    per-test instance, fixtures' hermetic pins included, and redden
-    ``_shared_monkeypatch_pin_tripwire``. For a test carrying the mark (applied at
-    collection to every test whose body calls ``.undo()``,
-    ``id_markers.hooks.body_calls_monkeypatch_undo``) ``undo`` is narrowed, for the call
-    only, to the entries the BODY pushed: the stack length is taken once every
-    fixture has set up, and an undo replays only the tail above it. Upstream's
-    bytes run unchanged; what they drop is exactly what they patched.
-    """
-    monkeypatch = None
-    if pyfuncitem.get_closest_marker(_SCOPED_MONKEYPATCH_UNDO_MARK) is not None:
-        monkeypatch = getattr(pyfuncitem, "funcargs", {}).get("monkeypatch")
-    if monkeypatch is None:
-        return (yield)
-    base_attr, base_item = len(monkeypatch._setattr), len(monkeypatch._setitem)
-    base_cwd, base_path = monkeypatch._cwd, monkeypatch._savesyspath
-
-    def body_undo() -> None:
-        # A private instance takes the body's tail; leaving the context unwinds it alone.
-        with pytest.MonkeyPatch.context() as body:
-            body._setattr = monkeypatch._setattr[base_attr:]
-            del monkeypatch._setattr[base_attr:]
-            body._setitem = monkeypatch._setitem[base_item:]
-            del monkeypatch._setitem[base_item:]
-            if base_cwd is None:
-                body._cwd, monkeypatch._cwd = monkeypatch._cwd, None
-            if base_path is None:
-                body._savesyspath, monkeypatch._savesyspath = monkeypatch._savesyspath, None
-
-    monkeypatch.undo = body_undo
-    try:
-        return (yield)
-    finally:
-        del monkeypatch.undo
-
-
-def pytest_sessionstart(session):  # noqa: D401 — pytest hook
+def pytest_sessionstart(session):  # pytest hook
     """Register the fresh-SessionDB census when ``HERMES_TEST_COUNT_FRESH_DBS`` asks (D3.11).
 
     At session start, not in ``pytest_configure``: the census is a session's
@@ -949,7 +895,7 @@ def pytest_sessionstart(session):  # noqa: D401 — pytest hook
 
 
 @pytest.hookimpl(tryfirst=True)
-def pytest_configure(config):  # noqa: D401 — pytest hook
+def pytest_configure(config):  # pytest hook
     """Register the fork's markers and default the per-test timeout.
 
     ``tryfirst`` because pytest-timeout reads ``config.option.timeout`` in its
@@ -957,9 +903,10 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
     pytest-timeout installed (``requirements-fork-dev.txt``) the options do not
     exist and nothing is set.
     """
-    from tests._downstream import reserved_dns
+    from tests._downstream import closed_loopback, reserved_dns
 
     reserved_dns.install()  # a fixture host fails fast, not after the 12 s resolver wait
+    closed_loopback.install()  # a closed loopback port refuses at once, not after Windows' SYN retries
     if config.pluginmanager.hasplugin("timeout"):
         if getattr(config.option, "timeout", None) is None:
             config.option.timeout = FORK_TEST_TIMEOUT_SECONDS
@@ -974,6 +921,11 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
         "markers",
         "real_agent_browser_probe: opt out of the autouse stub that stops "
         "hermes_constants.agent_browser_runnable from EXECUTING an agent-browser off the operator PATH",
+    )
+    config.addinivalue_line(
+        "markers",
+        "gate: a file the gate directory (docs/agent-runtime-harness/11-gate-directory.md) lists; "
+        "tests/tooling/test_gate_directory_current.py enumerates every file that carries it",
     )
     config.addinivalue_line(
         "markers",
@@ -1029,6 +981,12 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
         f"{_SCOPED_MONKEYPATCH_UNDO_MARK}: the upstream test calls monkeypatch.undo() "
         "mid-body; undo is narrowed to the body's own patches so the fixtures' hermetic "
         "pins hold (applied at collection by an AST walk of the test body).",
+    )
+    config.addinivalue_line(
+        "markers",
+        f"{_BODY_PATCH_MARK}(mode): 'on' undoes the body's own monkeypatch entries at call end, "
+        "before any fixture tears down; 'off' only counts them. Wins over HERMES_TEST_BODY_PATCH_UNDO "
+        "(default off; tests/_downstream/body_patch_scope.py).",
     )
     config.addinivalue_line(
         "markers",

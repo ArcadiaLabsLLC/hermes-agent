@@ -143,6 +143,9 @@ hermes harness mission-chat message --persona PERSONA_ID --persona-instance-id I
 
 Capture the response's turn/session identity. Accepted or queued is not completed;
 read the transcript and runtime state. A provider refusal is not a successful turn.
+`--image REF` / `--file REF` (repeatable) name a pasted image or a reviewed file that
+`runtime.chat.message` stored, by reference (`sha256:<hex>.<ext>`), never by path; a file
+reaches the agent as a `FILE:<path>` line it reads with `read_file`.
 Do not blindly retry an outcome-unknown response; see [chat error handling](05-chat-turn-lane.md).
 
 Read the transcript (**READ**) or steer an in-flight turn (**EXECUTE**):
@@ -197,6 +200,26 @@ empty panel means an empty runtime. [Observability](07-observability.md),
 [boot/lifecycle](04-boot-and-lifecycle.md) and [transport](03-transport-and-wire.md)
 explain the evidence. Never restart or reap the operator's Launcher merely to
 attach a QA session. `stagec-smoke` QA attachment is not normal-window control.
+
+## Run the runtime as a service — WRITE / EXECUTE
+
+A runtime the OS starts outlives every launcher; the messaging bridge (Telegram) runs on it. The templates
+are in [reference/service/](reference/service/) — one per OS, each with its own install lines. The command
+each one runs, and the stop that drains it:
+
+```bash
+hermes harness serve --ndjson --service
+hermes harness serve connect --drain
+```
+
+Never pass `--parent-pid` to a service. Messaging is off until both of these hold: the setting
+`plugins.entries.eternia-harness.settings.messaging_enabled` is true (`runtime.messaging.platform.enable`,
+or `hermes config set plugins.entries.eternia-harness.settings.messaging_enabled true` on a checkout) and the
+bot token is set through `runtime.messaging.credential.set` from this machine's console. Read
+`runtime.messaging.status` for `credential` and `lane`; allow your platform user with
+`runtime.messaging.operator.allow` before the first message, then send `/persona <name>` in the chat.
+[Transport](03-transport-and-wire.md) owns the verbs; [multi-device](09-multi-device-runtime.md) the
+service model.
 
 ## Keeping this directory current
 

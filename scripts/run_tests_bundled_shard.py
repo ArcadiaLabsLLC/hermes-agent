@@ -30,6 +30,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
+import run_tests_bundled_via as typed_via  # registered by run_tests_bundled._load_sibling
+
 #: files that need intra-file order: one per line, ``#`` starts the observed diff
 UNSHARDED_LIST = Path("scripts") / "test_files_unsharded.txt"
 SHARD_PLUGIN = "hermes_shard"
@@ -40,7 +42,7 @@ MAX_SHARDS = 4
 #: a shard is worth its repeated collection only with at least this many tests
 TESTS_PER_SHARD = 2
 #: ``FileOutcome.via`` of the one whole run after a red shard
-WHOLE_CHECK_VIA = "whole-check"
+WHOLE_CHECK_VIA = typed_via.WHOLE_CHECK
 
 
 def tail_bound(estimates: Sequence[float], jobs: int) -> bool:
@@ -62,27 +64,51 @@ def shard_count(seconds: Optional[float], tests: int) -> int:
 class ShardPlan:
     """rel → k (≥ 2) for the files this run splits, and the record's test counts."""
 
-    counts: Dict[str, int] = field(default_factory=dict)
+    counts: dict[str, int] = field(default_factory=dict)
     tail_bound: bool = False
-    tests: Dict[str, int] = field(default_factory=dict)
+    tests: dict[str, int] = field(default_factory=dict)
 
     def line(self) -> str:
         if not self.tail_bound:
             return "work-bound: no sharding"
         return f"tail-bound: sharding {len(self.counts)} files into {sum(self.counts.values())} shards"
 
-    def record(self, ran: Mapping[str, Tuple[float, int]]) -> Dict[str, object]:
+    def record(self, ran: Mapping[str, tuple[float, int]]) -> dict[str, object]:
         """The run record's ``tests`` key after this run (:func:`tests_after`)."""
 
         return {"tests": tests_after(self.tests, ran)}
 
-    def vias(self, rel: str) -> List[Tuple[str, List[str]]]:
+    def vias(self, rel: str) -> list[tuple[typed_via.Via, list[str]]]:
         """``(via, extra pytest args)`` per shard of ``rel``; ``[]`` when it runs whole."""
 
         k = self.counts.get(rel, 1)
         if k < 2:
             return []
-        return [(f"shard {i}/{k}", ["-p", SHARD_PLUGIN, f"--hermes-shard={i}/{k}"]) for i in range(k)]
+        return [(typed_via.Via.shard(i, k), ["-p", SHARD_PLUGIN, f"--hermes-shard={i}/{k}"]) for i in range(k)]
+
+
+def recorded_tests(runs: Path) -> dict[str, int]:
+    """rel → test count, folded over every line of the gate store's run record
+    (``runs.jsonl``; the newest line wins per file). The planner read the retired
+    ``.pytest_cache/hermes_bundled_runs.jsonl`` after the record moved into the store,
+    so it never saw a count, never sharded, and each run carried an empty ``tests``
+    forward (q-runner 2026-10-18: 216 counts across 37 store lines, 0 in the last)."""
+
+    import json
+
+    out: dict[str, int] = {}
+    try:
+        lines = runs.read_text(encoding="utf-8-sig").splitlines()
+    except OSError:
+        return out
+    for line in lines:
+        try:
+            tests = json.loads(line).get("tests")
+        except (ValueError, AttributeError):
+            continue
+        if isinstance(tests, dict):
+            out.update({str(rel): int(n) for rel, n in tests.items() if isinstance(n, int)})
+    return out
 
 
 def plan_shards(
@@ -103,7 +129,7 @@ def plan_shards(
     return ShardPlan(counts, bound, dict(tests))
 
 
-def tests_after(previous: Mapping[str, int], ran: Mapping[str, Tuple[float, int]]) -> Dict[str, int]:
+def tests_after(previous: Mapping[str, int], ran: Mapping[str, tuple[float, int]]) -> dict[str, int]:
     """The record's test counts after a run: every file the run ran is replaced
     by what it showed (kept when it took ≥ ``SHARD_MIN_SECONDS``, the only files
     the planner asks about), files it did not run carry forward."""
@@ -125,10 +151,10 @@ class ShardJoin:
         self._plan = plan
         self._rel_of = rel_of
         self._lock = threading.Lock()
-        self._pending: Dict[str, list] = {}
-        self._red_shards: Dict[str, str] = {}
+        self._pending: dict[str, list] = {}
+        self._red_shards: dict[str, str] = {}
         #: unsharded-list candidate lines: ``<rel>  # observed: …``
-        self.candidates: List[str] = []
+        self.candidates: list[str] = []
 
     def feed(self, outcome, run_solo: Callable[[Path, str, Optional[int]], None]) -> list:
         """``run_solo(path, via, bundle_index)`` is the runner's single-file
@@ -136,9 +162,10 @@ class ShardJoin:
 
         rel = self._rel_of(outcome.file)
         k = self._plan.counts.get(rel, 1)
-        if outcome.via == WHOLE_CHECK_VIA:
+        kind = typed_via.kind_of(outcome.via)
+        if kind is typed_via.ViaKind.WHOLE_CHECK:
             return [self._after_whole(rel, outcome)]
-        if outcome.via not in {via for via, _args in self._plan.vias(rel)}:
+        if kind is not typed_via.ViaKind.SHARD or outcome.via not in {via for via, _args in self._plan.vias(rel)}:
             return [outcome]
         with self._lock:
             shards = self._pending.setdefault(rel, [])
@@ -156,13 +183,13 @@ class ShardJoin:
 
     @staticmethod
     def _joined(shards: list, k: int):
-        summary: Dict[str, int] = {}
+        summary: dict[str, int] = {}
         for shard in shards:
             for key, value in shard.summary.items():
                 summary[key] = summary.get(key, 0) + value
         output = "\n".join(s.output for s in sorted(shards, key=lambda s: s.via) if s.output)
         return dataclasses.replace(
-            shards[0], rc=0, output=output, summary=summary, seconds=sum(s.seconds for s in shards), via=f"{k} shards"
+            shards[0], rc=0, output=output, summary=summary, seconds=sum(s.seconds for s in shards), via=typed_via.Via.shards(k)
         )
 
     def _after_whole(self, rel: str, outcome):
@@ -175,7 +202,7 @@ class ShardJoin:
             self.candidates.append(line)
         return dataclasses.replace(outcome, output=f"{outcome.output}\nunsharded candidate: {line}".lstrip())
 
-    def closing_lines(self) -> List[str]:
+    def closing_lines(self) -> list[str]:
         if not self.candidates:
             return []
         return [

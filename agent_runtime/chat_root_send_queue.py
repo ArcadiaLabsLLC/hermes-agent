@@ -19,7 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict, dataclass, replace
-from datetime import timezone
+from datetime import timezone, UTC
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -45,6 +45,12 @@ QUEUED_RUN_ARG = "queued_send_run"
 #: the serve's queued-turn stream binds the link a direct run would and answers a
 #: paired-device sender (``hermes_cli/harness_parts/serve/queued_turn_origin.py``).
 ORIGIN_ARG = "send_origin"
+#: The origin key a scheduler fire carries (``work_store/serve_scheduler.py``); the ``scheduled_turn``
+#: running-work lane reads the entries that name it (:func:`entries_from`).
+SCHEDULE_ORIGIN_KEY = "schedule"
+#: The origin block a platform message carries (``messaging/bridge.py``); the ``messaging_turn`` lane and the
+#: serve's idle-drain hold read the entries that name it.
+MESSAGING_ORIGIN_KEY = "messaging"
 
 #: Fields of the send's argument namespace that are never persisted: the
 #: transport (the queued run is answered through the door's sink, never a
@@ -128,6 +134,12 @@ def has_entries(root_session_id: str) -> bool:
     return directory.is_dir() and any(directory.glob("*.json"))
 
 
+def entries(root_session_id: str) -> list[QueuedSend]:
+    """Every entry waiting for (or running on) this root, in the order they run."""
+
+    return _entries(str(root_session_id or "").strip())
+
+
 def head(root_session_id: str) -> QueuedSend | None:
     """The entry that runs next on this root (the lowest ``seq``)."""
 
@@ -150,6 +162,20 @@ def roots_with_entries() -> list[str]:
             heads.append(entries[0])
     heads.sort(key=lambda item: (item.queued_at, item.seq))
     return [item.root_session_id for item in heads]
+
+
+def entries_from(origin_key: str) -> list[QueuedSend]:
+    """Every entry, on any root, whose :data:`ORIGIN_ARG` names ``origin_key`` (a scheduled fire's ``schedule``)."""
+
+    base = paths.chat_root_send_queue_dir()
+    if not base.is_dir():
+        return []
+    found: list[QueuedSend] = []
+    for directory in sorted(base.iterdir()):
+        if directory.is_dir():
+            found += [entry for entry in _entries_in(directory)
+                      if isinstance(entry.args.get(ORIGIN_ARG), dict) and entry.args[ORIGIN_ARG].get(origin_key)]
+    return found
 
 
 def mark(root_session_id: str, client_message_id: str, *, state: str, attempts: int | None = None) -> QueuedSend | None:
@@ -270,4 +296,4 @@ def _write(entry: QueuedSend) -> None:
 
 
 def _timestamp() -> str:
-    return now().astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    return now().astimezone(UTC).isoformat().replace("+00:00", "Z")

@@ -107,8 +107,7 @@ def entrypoint_name(argv0: str) -> str:
         if lowered.endswith(suffix):
             name = name[: -len(suffix)]
             break
-    if name.startswith("."):
-        name = name[1:]
+    name = name.removeprefix(".")
     for shim in ("-script", "-wrapped"):
         if name.lower().endswith(shim):
             name = name[: -len(shim)]

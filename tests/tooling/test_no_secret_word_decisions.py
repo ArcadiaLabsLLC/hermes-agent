@@ -20,6 +20,10 @@ import ast
 
 from scripts import god_file_probe as probe
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 SECRET_WORDS = (
     "secret", "token", "password", "passwd", "api_key", "apikey", "api-key",
     "credential", "bearer", "authorization", "cookie", "private_key", "sk-",
@@ -31,6 +35,10 @@ ALLOWED = {
     "agent_runtime/workspace_slot_setup.py|classify_clone_failure": (
         "classifies git's own refusal text (\"could not read password\") into an end "
         "reason; nothing is hidden or shown by it"
+    ),
+    "agent_runtime/provider_challenge.py|challenge_refusal": (
+        "recognises Cloudflare's challenge page by its own text (\"enable javascript and "
+        "cookies to continue\"); it types a 403, nothing is hidden or shown by it"
     ),
 }
 

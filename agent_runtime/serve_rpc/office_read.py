@@ -129,7 +129,7 @@ def _office_projection(workspace_id: str) -> dict | None:
     exists to end — two readers of one truth, differing silently.
     """
 
-    from agent_runtime import paths  # noqa: F401 - store_root side of the read
+    from agent_runtime import paths  # store_root side of the read
     from agent_runtime.office_models import office_item_wire_row
     from agent_runtime.office_store import OfficeStore
     from agent_runtime.serde import to_jsonable

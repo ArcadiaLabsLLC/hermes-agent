@@ -81,6 +81,7 @@ from .realm_sync import (
     store_drift_items,
 )
 from .realm_sync.drift import DRIFT_KEY_BOARD_DEF, DRIFT_KEY_OFFICE_SURFACE
+from .realm_sync.families import SyncFamily
 from .serde import to_jsonable
 from .store import RealmStore
 
@@ -219,6 +220,7 @@ def _upstream_moved_rows(realm, workspaces, current: _Upstream, version: _Upstre
         rows += _pair_rows(DRIFT_FAMILY_FLOW_GRAPH, owner_instance_id_of, cur_g, ver_g)
     rows += _pair_rows(DRIFT_FAMILY_PERSONA_DEFINITION, "",
                        read_remote_persona_defs(current_subtree)[0], read_remote_persona_defs(version_subtree)[0])
+    rows += _level_moved_rows(realm.id, current_subtree, version_subtree)
 
     def _skill_hashes(root: Path) -> dict[str, str]:
         return {slug: skill_package_sync_hash(pkg) for slug, pkg in iter_skill_packages(root)}
@@ -226,6 +228,29 @@ def _upstream_moved_rows(realm, workspaces, current: _Upstream, version: _Upstre
     rows += _pair_rows(DRIFT_FAMILY_SKILL, "", _skill_hashes(realm_inbox_dir(realm.id)),
                        _skill_hashes(version_skills))
     return rows
+
+
+def _level_moved_rows(realm_id: str, current_subtree: Path, version_subtree: Path) -> list[StoreDriftItem]:
+    """Levels whose published bytes differ between the two subtrees, compared by
+    the family's own hash. Keyed by workspace token (container = token, the drift
+    walk's shape). A HELD level is skipped, as the drift walk skips it: its exit is
+    ``realm sync resolve``, and a row here would adopt around the hold. A token
+    that will not read on either side still pairs, so ``_restore_one`` refuses it
+    as unreadable rather than treating it as absent."""
+
+    from .level_sync import level_document_hash, read_remote_levels
+
+    def _hashes(subtree: Path) -> dict[str, str]:
+        levels, refused = read_remote_levels(subtree)
+        hashes = {token: level_document_hash(raw) for token, raw in levels.items()}
+        hashes.update({str(row.get("key")): "unreadable" for row in refused})
+        return hashes
+
+    cur, ver = _hashes(current_subtree), _hashes(version_subtree)
+    held = {token for token in set(cur) | set(ver) if paths.level_conflict_path(realm_id, token).is_file()}
+    return _pair_rows(SyncFamily.LEVEL, lambda token: token,
+                      {k: v for k, v in cur.items() if k not in held},
+                      {k: v for k, v in ver.items() if k not in held})
 
 
 def _version_candidates(store_drift: list[StoreDriftItem], moved: list[StoreDriftItem]) -> list[StoreDriftItem]:
@@ -326,6 +351,6 @@ def _restore_one(item: StoreDriftItem, version: _Upstream, *, office_store, boar
         _apply_revert(item, entity, action, office_store=office_store, board_store=board_store, realm_id=realm_id)
     except _SkillWriteRefused as exc:
         row.outcome, row.detail = REFUSED_STORE_ERROR, exc.code
-    except Exception as exc:  # noqa: BLE001 — accounted, never silent; the pass continues
+    except Exception as exc:  # accounted, never silent; the pass continues
         row.outcome, row.detail = REFUSED_STORE_ERROR, type(exc).__name__
     return row

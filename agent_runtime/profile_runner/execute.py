@@ -319,17 +319,20 @@ def _notify_agent_ready(request: AgentRunRequest, agent: Any) -> Callable[[], No
 def _run_conversation_with_usage_ledger(agent: Any, conversation_kwargs: dict[str, Any]) -> Any:
     """Run the turn with a per-call usage ledger, the persona agent bound for plugin
     middleware (dispatch timing, cache routing) and the provider stream observers armed;
-    a dict result carries the ledger as ``usage_ledger`` and the turn's reasoning
-    (``stream_gap_receipt.TurnReasoning``) as ``reasoning_window``."""
+    a dict result carries the ledger as ``usage_ledger``, the turn's reasoning
+    (``stream_gap_receipt.TurnReasoning``) as ``reasoning_window`` and what the turn
+    left behind (``turn_outcome.TurnOutcomeFold.block``, None when nothing) as
+    ``turn_outcome``."""
     from agent_runtime.chat_lane_defer import turn_defer_tools
     from agent_runtime.codex_observability import stream_observers_armed
     from agent_runtime.persona_turn_binding import bind_persona_turn_agent
     from agent_runtime.stream_gap_receipt import bind_turn_reasoning
+    from agent_runtime.turn_outcome import bind_turn_outcome
     from agent_runtime.usage_ledger import bind_usage_ledger
     from tools.tool_search_downstream import scoped_turn_defer
 
     # The persona's defer reaches the bridge's reads (search catalog, tool_call resolve) here.
-    with bind_usage_ledger() as usage_ledger, bind_persona_turn_agent(agent), stream_observers_armed(),             scoped_turn_defer(turn_defer_tools(agent)), bind_turn_reasoning(agent) as reasoning:
+    with bind_usage_ledger() as usage_ledger, bind_persona_turn_agent(agent), stream_observers_armed(),             scoped_turn_defer(turn_defer_tools(agent)), bind_turn_reasoning(agent) as reasoning,             bind_turn_outcome() as outcome:
         try:
             raw_result = agent.run_conversation(**conversation_kwargs)
         finally:
@@ -337,6 +340,7 @@ def _run_conversation_with_usage_ledger(agent: Any, conversation_kwargs: dict[st
             run_deferred_turn_persist(agent, RAN_ON_RUN_END)
     if isinstance(raw_result, dict):
         raw_result["usage_ledger"] = list(usage_ledger)
+        raw_result["turn_outcome"] = outcome.block()
         window = reasoning.fields()
         reported = sum(row.get("reasoning_tokens", 0) for row in usage_ledger)
         if reported > 0:
@@ -523,12 +527,12 @@ class AgentRunExecution:
             # Run-serialization S5: a run starts only between workspace writers, then
             # holds ITS ROOT's lock — another chat root runs alongside it, including
             # while this one waits on an operator approval. Everything below binds
-            # context-locally (export_env=False; the cwd in a terminal scope); the one
+            # context-locally (the profile binding; the cwd in a terminal scope); the one
             # process write left is POSIX ``HOME``, serialized by its own lock.
             _workspace_turnstile(),
             root_run_lock(request.root_chat_session_id or request.tool_execution_scope_id),
             _posix_process_home(self.binding),
-            persona_profile_context(self.binding, runtime_root=request.runtime_root, export_env=False),
+            persona_profile_context(self.binding, runtime_root=request.runtime_root),
             prewarm_scope(request),
             _agent_workdir(request.workdir),
             tool_execution_scope(request.tool_execution_scope_id),
@@ -911,6 +915,11 @@ class AgentRunExecution:
             conversation_kwargs["conversation_history"] = request.conversation_history
         if request.reuse_current_user_message:
             conversation_kwargs["reuse_current_user_message"] = True
+        if request.user_image_paths and isinstance(request.user_message, str):
+            from ..operator_images import native_user_message
+
+            conversation_kwargs["user_message"], conversation_kwargs["persist_user_message"] = native_user_message(
+                request.user_message, request.user_image_paths)
         if request.stream_callback is not None:
             conversation_kwargs["stream_callback"] = request.stream_callback
         return conversation_kwargs

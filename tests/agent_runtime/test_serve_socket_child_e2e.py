@@ -122,6 +122,7 @@ def _connect(env: dict[str, str], *args: str) -> tuple[int, dict | None, str]:
         capture_output=True,
         text=True,
         timeout=CLI_TIMEOUT_SECONDS,
+        check=False,
     )
     payload = None
     stdout = completed.stdout or ""
@@ -160,7 +161,7 @@ _REAL_CHILD_SPAWN = pytest.mark.live_system_guard_bypass
 # end are the subject, and a shared serve would have ended in the first test.
 def _spawn_serve(
     env: dict[str, str], *extra_args: str, detached_stdin: bool = False
-) -> "_Child":
+) -> _Child:
     """A real ``harness serve`` child.
 
     ``detached_stdin`` hands it the null device instead of a pipe, which is
@@ -837,6 +838,7 @@ def test_a_service_boots_and_writes_what_its_prune_removed_into_its_own_log(
             "row_boot_id": events[0]["row_boot_id"],
             # Joins this line to this boot's own ``ready`` frame.
             "boot_id": ready["boot_id"],
+            "namespace": "",  # RT-NAMESPACE-STAMP: every service-log line names its store; "" is the base root
         }
         assert isinstance(events[0]["row_boot_id"], str)
     finally:

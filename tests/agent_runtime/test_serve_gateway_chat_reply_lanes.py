@@ -68,7 +68,7 @@ from hermes_cli.harness_parts.serve import dispatch_argv
 from tests.agent_runtime.test_serve_gateway_lane import (
     WAIT,
     device_client,
-    gateway_on,  # noqa: F401 - fixture
+    gateway_on,  # fixture
     pair_device,
     running_serve,
 )
@@ -112,10 +112,16 @@ class _ScriptedAgent:
     #: stream hub's poll cycles — which is the only arrangement in which
     #: "does the stream lane show a turn in flight" is answerable at all.
     dwell_seconds = 0.0
+    #: Set by the test once it has seen what it needed while the turn was in
+    #: flight; the dwell ends then instead of running out its whole bound.
+    dwell_release: threading.Event | None = None
 
     def run_conversation(self, user_message, system_message=None, task_id=None, **kwargs):
         if self.dwell_seconds:
-            time.sleep(self.dwell_seconds)
+            if self.dwell_release is None:
+                time.sleep(self.dwell_seconds)
+            else:
+                self.dwell_release.wait(self.dwell_seconds)
         self.messages = [
             {"role": "user", "content": user_message},
             {"role": "assistant", "content": SCRIPTED_REPLY},
@@ -461,7 +467,7 @@ def test_a_device_tier_turn_reports_which_lane_carries_its_start_and_reply(
                         },
                     }
                 )
-                ack_at, ack = recorder.wait_for(
+                _ack_at, ack = recorder.wait_for(
                     lambda frame: frame.get("id") == "turn-req-1",
                     what="the chat turn ack",
                 )
@@ -680,9 +686,11 @@ def _print_lane_report(
         print(f"  {key}: {value}")
 
 
-#: How long the slow measurement holds its turn open. Long enough to cross
-#: several of the hub's poll cycles (the fast turn above finished inside one),
-#: bounded so the file stays under its wall.
+#: The BOUND on how long the slow measurement holds its turn open. Long enough to
+#: cross several of the hub's poll cycles (the fast turn above finished inside
+#: one), bounded so the file stays under its wall. The test releases the turn as
+#: soon as it has read the in-flight start row (lane h2-sleep: the fixed 12 s
+#: dwell was 12.0 s of sleep per run), so the bound is only paid on a failure.
 SLOW_TURN_SECONDS = 12.0
 
 #: ONE publish interval of the serve hub's producer, from ``stream_frames``'
@@ -729,6 +737,9 @@ def slow_scripted_model(monkeypatch, scripted_model):
     """The same scripted agent, holding its turn open across poll cycles."""
 
     monkeypatch.setattr(_ScriptedAgent, "dwell_seconds", SLOW_TURN_SECONDS)
+    release = threading.Event()
+    monkeypatch.setattr(_ScriptedAgent, "dwell_release", release)
+    return release
 
 
 @pytest.mark.timeout(300)
@@ -775,7 +786,7 @@ def test_a_running_turn_publishes_its_own_start_and_end_on_the_stream_lane(
     credential = pair_device(tier=TIER_CONSOLE, name="the mac")
 
     with running_serve(dispatch=dispatch_argv) as handle:
-        with device_client(handle, credential) as (connection, hello):
+        with device_client(handle, credential) as (connection, _hello):
             recorder = _Recorder(connection)
             recorder.start()
             try:
@@ -828,6 +839,8 @@ def test_a_running_turn_publishes_its_own_start_and_end_on_the_stream_lane(
                     lambda frame: frame.get("id") == request_id
                     and frame.get("event") == "exit"
                 )
+                # The in-flight reading is taken; the turn may end now.
+                slow_scripted_model.set()
 
                 exit_at, _exit_frame = recorder.wait_for(
                     lambda frame: frame.get("id") == request_id

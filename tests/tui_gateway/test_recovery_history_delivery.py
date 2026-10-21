@@ -8,7 +8,7 @@ import pytest
 from tui_gateway import server
 from agent_runtime.gateway import recovery_history, session_recovery
 from agent_runtime.gateway.recovery_history_delivery import HistoryDeliveries, HistoryDelivery
-from tests.tui_gateway.test_native_recovery_snapshot import owner, read_history  # noqa: F401
+from tests.tui_gateway.test_native_recovery_snapshot import owner, read_history
 
 
 @pytest.fixture(autouse=True)
@@ -53,9 +53,9 @@ def test_delivery_seeks_unicode_and_rejects_invalid_offsets():
                 break
         assert json.loads("".join(pieces)) == message
         assert delivery.chunk(0, 3, 9)[0] == "".join(pieces)[3:12]
-        for index, offset in [(1, 0), (-1, 0), (0, -1), (0, offset)]:
+        for index, bad_offset in [(1, 0), (-1, 0), (0, -1), (0, offset)]:
             with pytest.raises(ValueError):
-                delivery.chunk(index, offset, 7)
+                delivery.chunk(index, bad_offset, 7)
     finally:
         delivery.close()
     assert delivery._data.closed and delivery._index.closed

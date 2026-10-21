@@ -11,11 +11,11 @@ into the sender's thread later, when the sender is idle.
 WHY A SUBPROCESS AND NOT A THREAD — the correction that defines this file
 ------------------------------------------------------------------------
 The first implementation ran detached turns in-process on a daemon executor.
-That is unshippable, and not for a subtle reason: every persona turn in this
-runtime executes under ``profile_runner._WORKDIR_LOCK``, a PROCESS-WIDE
-``RLock`` held for the ENTIRE model turn (``_execute_agent_run``). Serve handles
-requests concurrently, but persona turns serialize on that lock. A single
-30-minute detached dispatch would therefore have:
+That was unshippable, and not for a subtle reason: at the time every persona
+turn executed under ``profile_runner._WORKDIR_LOCK``, a PROCESS-WIDE ``RLock``
+held for the ENTIRE model turn (``_execute_agent_run``). Serve handled requests
+concurrently, but persona turns serialized on that lock. A single 30-minute
+detached dispatch would therefore have:
 
 * frozen every foreground operator turn — and frozen it AFTER the journal's
   ``executing`` transition, so the console shows a running turn with no typed
@@ -30,11 +30,22 @@ requests concurrently, but persona turns serialize on that lock. A single
 * deadlocked outright on a nested dispatch, where a parent waiting on a child
   holds the lock the child needs.
 
-A child process has its own ``_WORKDIR_LOCK``, its own ``HERMES_HOME`` override,
-and its own cwd. The executor thread here spawns and WAITS — holding NO lock
-while it waits, which is the entire point — so the parent stays free to run
-operator turns and deliveries throughout. ``dispatch_max_concurrent`` now means
-three genuinely concurrent turns.
+A child process has its own locks, its own ``HERMES_HOME`` override, and its
+own cwd. The executor thread here spawns and WAITS — holding NO lock while it
+waits, which is the entire point — so the parent stays free to run operator
+turns and deliveries throughout. ``dispatch_max_concurrent`` means three
+genuinely concurrent turns.
+
+WHY STILL A SUBPROCESS after run-serialization S5 (``7c3bb31a12b``, decided
+2026-10-16). S5 retired the whole-run ``_WORKDIR_LOCK``: a run holds
+``workdir.root_run_lock`` for its own chat root, so turns of different roots
+run side by side on native Windows. The hop stays, for three facts S5 did not
+change: on POSIX every run still holds ``workdir._PROCESS_HOME_LOCK`` for its
+whole body (until the upstream home door, run-serialization decision 3), so an
+in-process dispatch there would still freeze every other turn; a dispatch whose
+target turn shares a root with a running turn waits on that root's lock with no
+wall budget ticking; and the child's PID identity is what the orphan sweep and
+the kill-after-grace act on — a thread can be neither swept nor killed.
 
 The nested-dispatch deadlock is gone too, but NOT because a child spawns a
 grandchild — an earlier version of this note claimed that and it was wrong. The
@@ -101,14 +112,14 @@ __all__ = [
     "build_peer_execute_params",
     "child_environment",
     "dispatch_detached_turn",
-    "supervised_dispatch_ids",
     "parse_child_payload",
     "request_cancel",
     "request_remote_cancel",
     "summarize_for_caller",
+    "supervised_dispatch_ids",
 ]
 
-from tools.agent_chat_dispatch.child import (  # noqa: F401 — __all__ + the test-pinned privates
+from tools.agent_chat_dispatch.child import (  # __all__ + the test-pinned privates
     _MAX_STREAM_CHARS,
     KILL_GRACE_SECONDS,
     SERVE_STDOUT_EVENT,
@@ -120,7 +131,7 @@ from tools.agent_chat_dispatch.child import (  # noqa: F401 — __all__ + the te
     child_environment,
     parse_child_payload,
 )
-from tools.agent_chat_dispatch.remote import (  # noqa: F401
+from tools.agent_chat_dispatch.remote import (
     RemoteDispatch,
     PEER_DIAL_TIMEOUT_SECONDS,
     PEER_RETRY_BACKOFF_SECONDS,
@@ -129,7 +140,7 @@ from tools.agent_chat_dispatch.remote import (  # noqa: F401
     build_peer_execute_params,
     request_remote_cancel,
 )
-from tools.agent_chat_dispatch.local import (  # noqa: F401
+from tools.agent_chat_dispatch.local import (
     _forget_supervised,
     _get_executor,
     _mark_supervised,

@@ -8,19 +8,22 @@
 upstream-side (doors J2/J3 of ``docs/agent-runtime-harness/planned/upstream-doors-2026-10-06.md``,
 issue #125258).
 
-This module is entered THROUGH ``gateway.hosted_room_discussion``: its seam line sits after the
-constants and error classes this module reads at import time, and every other policy name
-(``_identifier``, ``_thread_messages``, ``_build_prompt``, ...) is read through the module at
-CALL time. Those private reaches are import-layers exceptions
+This module imports on its own, in either order. It defines every name the seam line imports
+before it touches ``gateway.hosted_room_discussion`` (imported last, below); ``DEFAULT_LIMITS``
+is built on first read (module ``__getattr__``) and ``DiscussionLimits`` reads the
+``MAX_DISCUSSION_*`` defaults and the error classes through ``_policy()`` when an instance is
+built, never at class definition. Every other policy name (``_identifier``,
+``_thread_messages``, ``_build_prompt``, ...) is read through the module at CALL time. Those private reaches are import-layers exceptions
 (``tests/fixtures/import_layers_grandfathered.json``) waiting on the same door.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import importlib
+from dataclasses import dataclass, field
 from functools import partial
+from types import ModuleType
 
-from gateway import hosted_room_discussion as _discussion
 from gateway import hosted_room_driver as driver
 from gateway import hosted_rooms
 from gateway.hosted_room_message_intent import response_from_payload
@@ -34,9 +37,9 @@ class DiscussionLimits:
     may retain a larger historical member catalog, limit its active set separately,
     and bound prompts to the native transport's smaller input envelope.
     """
-    max_members: int = _discussion.MAX_DISCUSSION_MEMBERS
-    max_rounds: int = _discussion.MAX_DISCUSSION_ROUNDS
-    max_messages: int = _discussion.MAX_DISCUSSION_MESSAGES
+    max_members: int = field(default_factory=lambda: _policy().MAX_DISCUSSION_MEMBERS)
+    max_rounds: int = field(default_factory=lambda: _policy().MAX_DISCUSSION_ROUNDS)
+    max_messages: int = field(default_factory=lambda: _policy().MAX_DISCUSSION_MESSAGES)
     prompt_bytes: int = driver.MAX_PROMPT_BYTES
     shared_profiles: bool = False
     guidance: str = ""
@@ -47,6 +50,7 @@ class DiscussionLimits:
         return self.max_rounds if self.conclusion_member_id is not None else self.max_rounds - 1
 
     def __post_init__(self) -> None:
+        _discussion = _policy()
         for name, low, high in (("max_members", 2, hosted_rooms.MAX_MEMBERS),
                                 ("max_rounds", 1, _discussion.MAX_DISCUSSION_ROUNDS),
                                 ("max_messages", 1, 384),
@@ -62,7 +66,16 @@ class DiscussionLimits:
             _discussion._identifier(self.conclusion_member_id, label="conclusion_member_id")
 
 
-DEFAULT_LIMITS = DiscussionLimits()
+def _policy() -> ModuleType:
+    """The upstream policy module, even while it is still executing (it imports this one)."""
+    return importlib.import_module("gateway.hosted_room_discussion")
+
+
+def __getattr__(name: str):
+    if name == "DEFAULT_LIMITS":
+        limits = globals().setdefault("DEFAULT_LIMITS", DiscussionLimits())
+        return limits
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _conclude(room, events, discussion, active, decision) -> _discussion.DiscussionDecision:
@@ -96,9 +109,15 @@ def _conclude(room, events, discussion, active, decision) -> _discussion.Discuss
         round_index=room.limits.max_rounds, seen_through_seq=seen, prompt=prompt))
 
 
-def task_round_index(identity: driver.TaskIdentity, *, limits: DiscussionLimits = DEFAULT_LIMITS) -> int:
+def task_round_index(identity: driver.TaskIdentity, *, limits: DiscussionLimits | None = None) -> int:
     """Read a durable task coordinate, including after the room has ended."""
+    if limits is None:
+        limits = __getattr__("DEFAULT_LIMITS")
     match = _discussion._TURN_ID_RE.fullmatch(identity.turn_id)
     if match is None:
         raise _discussion.DiscussionReconstructionError("turn_id is not a Discussion coordinate")
     return _discussion._zero_based_int(int(match.group("round")), label="round_index", maximum=limits.last_round_index)
+
+
+# Last, so a first import of this module has defined every name the upstream seam line imports.
+from gateway import hosted_room_discussion as _discussion

@@ -8,7 +8,7 @@ two) and Mission Control rendered duplicate agent cards.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 
 import pytest
 
@@ -115,8 +115,8 @@ def test_open_chat_cannot_mint_actor_token_drift_rows():
 
 
 def test_reconcile_folds_the_live_four_scheme_corpus():
-    older = datetime(2026, 7, 8, 9, 29, tzinfo=timezone.utc)
-    newer = datetime(2026, 7, 10, 19, 24, tzinfo=timezone.utc)
+    older = datetime(2026, 7, 8, 9, 29, tzinfo=UTC)
+    newer = datetime(2026, 7, 10, 19, 24, tzinfo=UTC)
     # Canonical rows (newest wins on the neko channel).
     _seed_row(
         "personainst_neko_supervisor",
@@ -394,9 +394,9 @@ def test_persona_instance_id_for_matches_canonical_of_selector():
 
 # ── Orphan / legacy-role prune ──────────────────────────────────────────────
 
-_FIXED_NOW = datetime(2026, 7, 12, 20, 0, 0, tzinfo=timezone.utc)
-_STALE = datetime(2026, 6, 1, 0, 0, 0, tzinfo=timezone.utc)  # ~6 weeks old
-_FRESH = datetime(2026, 7, 12, 19, 30, 0, tzinfo=timezone.utc)  # 30 min old
+_FIXED_NOW = datetime(2026, 7, 12, 20, 0, 0, tzinfo=UTC)
+_STALE = datetime(2026, 6, 1, 0, 0, 0, tzinfo=UTC)  # ~6 weeks old
+_FRESH = datetime(2026, 7, 12, 19, 30, 0, tzinfo=UTC)  # 30 min old
 
 
 def _backed_universe():

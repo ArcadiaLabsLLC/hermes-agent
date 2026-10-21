@@ -51,12 +51,18 @@ admission                lanes   ``runtime.admission.*`` (the model memory budge
 health                   lanes   ``runtime.health`` (the ``harness health`` block)
 chat_verbs               lanes   the chat-family argv twins (history, instance
                                  create, turn resolve, queue skill, delete)
+chat_goal                lanes   ``runtime.chat.goal.*`` (upstream's goal engine on a
+                                 chat root; ``agent_runtime/chat_goal.py``)
+schedule                 lanes   ``runtime.schedule.arm/disarm/list`` (the serve's
+                                 scheduler; ``work_store/serve_scheduler.py``)
 realm                    lanes   ``runtime.realm.sync.*`` / ``.skills.*`` /
                                  ``.agents.*`` / ``.adopt`` (the realm argv twins)
-characters               lanes   ``runtime.characters.list/status/thumb/sprite``
-                                 (the character-sheet read twins)
+characters               lanes   ``runtime.characters.list/status/thumb/sprite/recolour``
+                                 (the character-sheet read twins; recolour writes)
 settles                  lanes   ``runtime.settles.list/rearm`` (the settle-push
                                  outbox's operator verbs)
+lens                     lanes   ``runtime.lens.*`` (Eternia Lens; code under
+                                 ``agent_runtime/lens/``)
 =======================  ======  ================================================
 
 Each verb family registers its handlers on import; the family import below is
@@ -103,10 +109,13 @@ from agent_runtime.serve_rpc import (
     admission,
     health,
     chat_verbs,
+    chat_goal,
+    schedule,
     realm,
     client,
     characters,
     settles,
+    lens,
 )
 from agent_runtime.serve_rpc.protocol import (
     DEFERRED,

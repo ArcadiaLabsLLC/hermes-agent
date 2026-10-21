@@ -2,7 +2,7 @@
 
 Plan: ``docs/agent-runtime-harness/archive/run-serialization-retirement-2026-10-15.md`` S2.
 
-Every case binds with ``export_env=False`` — the mode that writes nothing into
+Every case binds through ``persona_profile_context``, which writes nothing into
 ``os.environ`` — and runs two bindings at once on two threads, so a child env that is
 right can only have come from the context, never from a process-wide write that the
 other thread could see.
@@ -41,7 +41,7 @@ def _binding(tmp_path: Path, name: str) -> PersonaProfileBinding:
 def _child_view(env: dict[str, str]) -> dict[str, str]:
     """What a real child process sees: spawn it with *env* and let it print."""
 
-    script = "import json, os; print(json.dumps({k: os.environ.get(k, '') for k in %r}))" % (_KEYS,)
+    script = f"import json, os; print(json.dumps({{k: os.environ.get(k, '') for k in {_KEYS!r}}}))"
     out = subprocess.run([sys.executable, "-c", script], env=env, capture_output=True,
                          text=True, timeout=60, check=True)
     return json.loads(out.stdout)
@@ -69,8 +69,7 @@ def test_two_overlapping_runs_each_hand_their_child_their_own_root_and_auth_home
             binding = _binding(tmp_path, name)
             auth_token = set_hermes_auth_home_override(str(tmp_path / f"auth-{name}"))
             try:
-                with persona_profile_context(binding, runtime_root=tmp_path / f"root-{name}",
-                                             export_env=False):
+                with persona_profile_context(binding, runtime_root=tmp_path / f"root-{name}"):
                     both_inside.wait()  # the other run is bound too, right now
                     envs = {
                         "terminal": _sanitize_subprocess_env(dict(os.environ)),

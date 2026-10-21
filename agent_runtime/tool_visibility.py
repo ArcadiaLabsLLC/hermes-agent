@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from functools import lru_cache
 import hashlib
 import json
@@ -336,7 +336,7 @@ def resolve_tool_visibility(
         role=str(role.value if hasattr(role, "value") else role),
         declaration=declaration,
     )
-    resolved_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    resolved_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     resolution_id = _tool_resolution_id(
         persona_id=persona.id,
         permission_mode=opts.permission_mode,
@@ -574,7 +574,7 @@ def _estimate_model_tool_tokens(tool_names: list[str]) -> int:
         else:
             unmeasured += max(8, (len(name) + 96) // 4)
     measured = sum(wire_tool_chars(defs).values())
-    return int(math.ceil(measured / CHARS_PER_TOKEN)) + unmeasured
+    return math.ceil(measured / CHARS_PER_TOKEN) + unmeasured
 
 
 def _profile_readiness_for_visibility(persona: AgentPersona) -> dict[str, Any]:

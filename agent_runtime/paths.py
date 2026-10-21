@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .namespace import assert_namespace_isolation
 from .resolution import assert_probe_isolation, resolve_runtime
 
 __layer__ = "models"
@@ -12,6 +13,9 @@ def store_root() -> Path:
     # Probe-isolation gate: a no-op unless HERMES_REQUIRE_ISOLATED_ROOT is set, in which
     # case a run that would resolve the live/default root fails fast before any store I/O.
     assert_probe_isolation(resolution)
+    # Namespace gate (RT-NAMESPACE-ROOT): a no-op unless HERMES_NAMESPACE names a namespace, in which
+    # case a store/home outside that namespace (the base root, another namespace) fails fast.
+    assert_namespace_isolation(resolution)
     return resolution.store_root
 
 
@@ -109,6 +113,31 @@ def chat_root_send_queue_dir() -> Path:
     the entry is deleted once its turn has run and its settle is recorded.
     """
     return store_root() / "chat_root_send_queue"
+
+
+def chat_goal_bindings_dir() -> Path:
+    """Which Work run owns a chat root's goal (``chat_goal.GoalBinding``), one JSON file per root.
+
+    The goal itself lives in upstream's SessionDB (``hermes_cli.goals.save_goal``); this records only
+    the run it belongs to, so the after-turn hook can continue or settle it after a restart.
+    """
+    return store_root() / "chat_goal_bindings"
+
+
+def chat_goal_binding_path(root_session_id: str) -> Path:
+    return chat_goal_bindings_dir() / f"{safe_path_token(root_session_id)}.json"
+
+
+def chat_goal_parks_dir() -> Path:
+    """The chat goals no Work run owns that the judge parked on ``wait`` (``chat_goal.ChatGoalPark``).
+
+    One JSON file per root: the settled turn's arguments the serve's waker forges the continuation from.
+    """
+    return store_root() / "chat_goal_parks"
+
+
+def chat_goal_park_path(root_session_id: str) -> Path:
+    return chat_goal_parks_dir() / f"{safe_path_token(root_session_id)}.json"
 
 
 def runtime_instances_dir() -> Path:
@@ -404,8 +433,15 @@ def map_path(map_id: str) -> Path:
 PREFABS_DIRNAME = "prefabs"
 
 
+def prefab_shelves_root() -> Path:
+    """Every profile's shelf: ``store/prefabs/<profile>/`` — the prefab realm-sync
+    family's store root (its token is ``<profile>/<prefab>``)."""
+
+    return store_root() / PREFABS_DIRNAME
+
+
 def prefabs_root(profile: str) -> Path:
-    return store_root() / PREFABS_DIRNAME / safe_path_token(profile)
+    return prefab_shelves_root() / safe_path_token(profile)
 
 
 def prefab_path(profile: str, prefab_id: str) -> Path:
@@ -433,6 +469,23 @@ def map_conflict_path(realm_id: str, map_token: str) -> Path:
         / "map_conflicts"
         / f"{safe_path_token(map_token)}.json"
     )
+
+
+def prefab_baseline_path(realm_id: str) -> Path:
+    # realm-sync baseline sidecar for the USER PREFAB family; NEVER synced, NEVER
+    # published — under the realm-sync root so the walk that ships
+    # ``store/prefabs/`` cannot pick it up (``map_baseline_path``'s reason).
+    return realm_sync_root() / safe_path_token(realm_id) / "prefab_baseline.json"
+
+
+def prefab_conflicts_root(realm_id: str) -> Path:
+    return realm_sync_root() / safe_path_token(realm_id) / "prefab_conflicts"
+
+
+def prefab_conflict_path(realm_id: str, profile: str, prefab_id: str) -> Path:
+    # Where a HELD prefab's remote bytes are parked (``map_conflict_path``'s
+    # reason), nested by profile like the shelf it belongs to.
+    return prefab_conflicts_root(realm_id) / safe_path_token(profile) / f"{safe_path_token(prefab_id)}.json"
 
 
 def flow_graph_baseline_path(realm_id: str) -> Path:
@@ -651,6 +704,38 @@ def workspace_slots_path(workspace_id: str) -> Path:
     return workspace_slots_dir() / f"{safe_path_token(workspace_id)}.json"
 
 
+def work_dir() -> Path:
+    """Work's machine-local state (plan ``work-on-markdown-2026-10-18.md`` §4): never synced."""
+
+    return store_root() / "work"
+
+
+def work_workspace_dir(workspace_id: str) -> Path:
+    return work_dir() / safe_path_token(workspace_id)
+
+
+def default_brain_dir(workspace_id: str) -> Path:
+    """The auto-created default brain of a workspace that binds no repo with a brain (§4)."""
+
+    return work_workspace_dir(workspace_id) / "brain"
+
+
+def work_worktree_dir(workspace_id: str, slot: str) -> Path:
+    """Hermes's own worktree of a slot's checkout (§5) — under ``worktrees/``, never inside the default brain."""
+
+    return work_workspace_dir(workspace_id) / "worktrees" / safe_path_token(slot)
+
+
+def work_runs_dir(workspace_id: str) -> Path:
+    return work_workspace_dir(workspace_id) / "runs"
+
+
+def schedules_dir() -> Path:
+    """Armed schedules (dispatcher plan §2.3, B4): one JSON file per key, ``next_fire`` written on every advance."""
+
+    return store_root() / "schedules"
+
+
 def realm_path(realm_id: str) -> Path:
     return realms_dir() / f"{safe_path_token(realm_id)}.json"
 
@@ -796,3 +881,21 @@ SERVE_AUTH_TOKEN_FILENAME = "serve_auth_token"
 SERVE_INSTANCES_DIRNAME = "serve_instances"
 SOCKET_LOCK_FILENAME = "serve_socket.lock"
 SOCKET_OWNER_FILENAME = "serve_socket.owner.json"
+
+
+def messaging_dir() -> Path:
+    """Messaging platforms' machine-local state (p10-messaging §2.3): bindings and operators, never a session."""
+
+    return store_root() / "messaging"
+
+
+def messaging_bindings_dir() -> Path:
+    """One JSON file per platform chat/thread: the persona instance it POINTS AT (``messaging/bindings.py``)."""
+
+    return messaging_dir() / "bindings"
+
+
+def messaging_operators_dir() -> Path:
+    """One JSON file per platform user allowed to talk to the runtime (``messaging/operators.py``)."""
+
+    return messaging_dir() / "operators"

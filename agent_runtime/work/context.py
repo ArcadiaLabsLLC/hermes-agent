@@ -14,9 +14,10 @@ class WorkContext:
     session: str | None
     profile: str | None
     can_start: bool = False
+    assignee: str | None = None
 
     def wire(self):
-        return {"agent_profile": self.profile, "can_start": self.can_start,
+        return {"agent_profile": self.profile, "can_start": self.can_start, "assignee": self.assignee,
                 "scopes": ["conversation", *(["agent"] if self.profile else []), "all"]}
 
 
@@ -61,6 +62,6 @@ def _operator(reference, client, caller, install):
         validate_operator_conversation({**reference, "install_id": install})
     except OperatorConversationRefused as exc:
         raise WorkRefused(Reason.OWNER_CHANGED) from exc
-    # A persona instance is not a native dispatcher profile. Do not advertise
-    # profile assignment as execution by that persona, even if it has a backing profile.
-    return WorkContext(text(reference.get("session_id"), maximum=512), None, True)
+    # The persona instance the operator is talking to IS the assignee its work goes to.
+    return WorkContext(text(reference.get("session_id"), maximum=512), None, True,
+                       assignee=f"persona:{text(reference.get('persona_instance_id'), maximum=512)}")

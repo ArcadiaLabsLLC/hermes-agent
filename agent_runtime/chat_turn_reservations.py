@@ -265,7 +265,10 @@ def unsettled_chat_receipts(session_scope: str | set[str], *, peer_prefix: str |
 
 
 def _process_started(pid: int) -> float | None:
-    import psutil
+    try:
+        import psutil
+    except ImportError:  # the phone profile omits psutil: no create time, so ownership stays unproven
+        return None
     try:
         return psutil.Process(pid).create_time()
     except psutil.Error:
@@ -274,7 +277,10 @@ def _process_started(pid: int) -> float | None:
 
 def _owner_proven_dead(record: ChatTurnRecord) -> bool:
     """A reused PID is a different owner; inaccessible evidence stays unknown."""
-    import psutil
+    try:
+        import psutil
+    except ImportError:  # the phone profile omits psutil: inaccessible evidence
+        return False
     if record.owner_pid is None or record.owner_started is None:
         return False
     try:

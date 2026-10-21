@@ -257,6 +257,7 @@ def test_a_new_process_pays_the_boot_sections_inside_their_cold_budget(seeded_st
     done = subprocess.run(
         [sys.executable, "-c", _COLD_CHILD], cwd=str(repo), env=env,
         capture_output=True, text=True, timeout=200,
+        check=False,
     )
     assert done.returncode == 0, done.stderr[-2000:]
     report = json.loads(done.stdout.strip().splitlines()[-1])

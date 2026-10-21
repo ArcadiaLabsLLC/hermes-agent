@@ -95,6 +95,7 @@ from .realm_sync.families import (
     split_entity_key,
 )
 from .sync_merge import PullAction, classify_three_way_pull
+from .sync_take import SyncTake
 
 __layer__ = "stores"
 
@@ -401,7 +402,7 @@ def _created_profile_tokens(profiles: list[str]) -> list[str]:
 
             if not profile_exists(normalize_profile_name(token)):
                 created.append(token)
-        except Exception:  # noqa: BLE001 — an unresolvable profile is simply not "created"
+        except Exception:  # an unresolvable profile is simply not "created"
             continue
     return created
 
@@ -582,8 +583,10 @@ def resolve_profile_artifact(
     that the store is byte-identical after a dry run.
     """
 
-    if take not in ("local", "remote"):
-        raise ProfileArtifactResolveError("invalid_request", "take must be 'local' or 'remote'")
+    try:
+        take = SyncTake(take)
+    except ValueError:
+        raise ProfileArtifactResolveError("invalid_request", "take must be 'local' or 'remote'") from None
     split = split_entity_key(key)
     if split is None:
         raise ProfileArtifactResolveError("invalid_request", f"not a profile-file entity key: {key}")
@@ -601,7 +604,7 @@ def resolve_profile_artifact(
     destination = home.joinpath(*dest_rel.split("/"))
     remote_hash = entry.content_hash
     if not dry_run:
-        if take == "remote":
+        if take is SyncTake.REMOTE:
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes(entry.data)
         baseline = read_profile_artifact_baseline(realm_id)
@@ -612,7 +615,7 @@ def resolve_profile_artifact(
         "kind": entry.kind,
         "profile": profile_token,
         "destination": dest_rel,
-        "take": take,
-        "changed": take == "remote",
+        "take": take.value,
+        "changed": take is SyncTake.REMOTE,
         "remote_hash": remote_hash,
     }

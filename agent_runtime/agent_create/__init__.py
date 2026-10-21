@@ -97,12 +97,12 @@ from __future__ import annotations
 
 # The names the single file bound by import, kept as package attributes: a
 # test reads a refusal's reason constant off ``agent_create`` by name.
-from ..models import (  # noqa: F401
+from ..models import (
     PLACEMENT_ID_NOT_DISCRIMINABLE_REASON,
     looks_like_deliberate_placement,
     placement_id_not_discriminable_message,
 )
-from .outcome import (  # noqa: F401
+from .outcome import (
     AgentCreateInvalid,
     AgentCreateOutcome,
     AgentCreateRefusal,
@@ -126,7 +126,7 @@ from .outcome import (  # noqa: F401
     _skills_refusal,
     persona_roster_unavailable_message,
 )
-from .request import (  # noqa: F401
+from .request import (
     AgentCreateRequest,
     MAX_SKILLS,
     PERSONA_CHOICE_LIST_LIMIT,
@@ -143,7 +143,7 @@ from .request import (  # noqa: F401
     require_known_persona,
     resolve_persona,
 )
-from .phases import (  # noqa: F401
+from .phases import (
     _inherited_skills_ack,
     _live_actor,
     _observed_skills,
@@ -156,11 +156,11 @@ from .phases import (  # noqa: F401
     SkillsPhase,
     run_skills_phase,
 )
-from .placement_faults import (  # noqa: F401
+from .placement_faults import (
     PLACEMENT_FAULTS,
     refuse_placement,
 )
-from .perform import (  # noqa: F401
+from .perform import (
     MINT_FAULTS,
     RESUME_ACTIONS,
     AgentCreate,

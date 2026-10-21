@@ -13,7 +13,7 @@ use the real journal and publisher, with one section read for the whole batch.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 
 import pytest
 
@@ -86,7 +86,7 @@ class _Turn:
         )
         EventLog().append(
             Event(
-                ts=datetime.now(timezone.utc),
+                ts=datetime.now(UTC),
                 type="persona_chat.projected",
                 task_id=None,
                 run_id=None,
@@ -209,7 +209,7 @@ def test_a_batch_without_a_presence_change_ships_no_section_frame(isolate_agent_
 
     EventLog().append(
         Event(
-            ts=datetime.now(timezone.utc),
+            ts=datetime.now(UTC),
             type="state.reconciled",
             task_id=None,
             run_id=None,

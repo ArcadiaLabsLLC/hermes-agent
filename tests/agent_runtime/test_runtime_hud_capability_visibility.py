@@ -394,8 +394,8 @@ def test_capability_block_for_persona_degrades_each_half_independently(monkeypat
     versa. Both halves are best-effort — the account decorates a turn, it never
     blocks one — but "best effort" must not mean "all or nothing"."""
 
-    import agent_runtime.chat_lane_bundle as chat_lane_bundle
-    import agent_runtime.terminal_envelope as terminal_envelope
+    from agent_runtime import chat_lane_bundle
+    from agent_runtime import terminal_envelope
 
     persona = types.SimpleNamespace(id="dev", role="dev")
 

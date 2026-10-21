@@ -24,6 +24,6 @@ def test_setup_hermes_script_is_valid_shell():
     # each backslash as an escape, so the argument arrives as "C:workhermes-agent..." — a
     # path-spelling artifact that reads exactly like a syntax failure.
     result = subprocess.run(
-        [bash, "-n", SETUP_SCRIPT.as_posix()], capture_output=True, text=True
+        [bash, "-n", SETUP_SCRIPT.as_posix()], capture_output=True, text=True, check=False
     )
     assert result.returncode == 0, result.stderr

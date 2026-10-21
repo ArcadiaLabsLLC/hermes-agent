@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from typing import Optional
 
 from agent_runtime.clock import iso_timestamp
@@ -181,7 +181,7 @@ def _empty_usage_envelope(degraded: Optional[tuple[str, BaseException]] = None) 
     """
     payload: dict = {
         "schema": USAGE_SCHEMA,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "active_provider": None,
         "lanes": [],
     }

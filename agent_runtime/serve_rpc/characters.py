@@ -1,4 +1,4 @@
-"""``runtime.characters.list/status/thumb/sprite`` — the character-sheet read twins.
+"""``runtime.characters.list/status/thumb/sprite`` — the character-sheet read twins; ``recolour``, the first write.
 
 Argv census rows 16-19 (launcher ``argv-census-full-2026-10-03.md``): the four
 ``harness characters`` read verbs rode ``dispatch_argv``, so their payloads were
@@ -21,15 +21,18 @@ draft or uninstalled slug is ``not_found`` (``ERR_NOT_FOUND``); a wrong request
 (an unknown row, an out-of-range attempt, ``frame`` with ``direction``) is
 ``invalid_request`` (``ERR_INVALID_PARAMS``). The argv message rides ``message``.
 
-**Tiers.** All four are ``read``: views of the install's character library, no
-write beyond the crop cache a thumb renders into.
+**Tiers.** The four twins are ``read``: views of the install's character library,
+no write beyond the crop cache a thumb renders into. ``runtime.characters.recolour``
+(the ``harness characters recolour`` verb, ``agent.charsheet.draft.recolour``) writes
+the draft's palette op log and the installed sheet, so it is ``console``; it runs
+under the draft's generation lock and a second writer is refused as ``DraftBusy``.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from agent_runtime.call_authorization import TIER_READ
+from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
 from agent_runtime.param_readers import read_flag, read_text
 from agent_runtime.serve_rpc.protocol import (
     ERR_HANDLER_FAILED,
@@ -44,6 +47,7 @@ __layer__ = "lanes"
 
 __all__ = [
     "_runtime_characters_list",
+    "_runtime_characters_recolour",
     "_runtime_characters_sprite",
     "_runtime_characters_status",
     "_runtime_characters_thumb",
@@ -72,9 +76,11 @@ def _expected() -> tuple[type[BaseException], ...]:
 
 
 def _payload(data: dict) -> dict:
+    """The argv ``_characters_emit`` envelope: stamped with the ``home`` it read, plus the draftsman."""
     from agent.charsheet.draft.payloads import draftsman
+    from agent_runtime.root_observability import attach_characters_home
 
-    return {**data, **draftsman()}
+    return {**attach_characters_home(dict(data)), **draftsman()}
 
 
 def _invalid_param(key: str, sentence: str) -> _Invalid:
@@ -121,6 +127,19 @@ def _runtime_characters_list(rid: Any, params: dict, context=None) -> dict:
     except _expected() as exc:
         return _charsheet_refusal(rid, exc)
     return ok(rid, _payload({"ok": True, "drafts": drafts, "characters": installed}))
+
+
+@method("runtime.characters.recolour", tier=TIER_CONSOLE)
+def _runtime_characters_recolour(rid: Any, params: dict, context=None) -> dict:
+    """``harness characters recolour --json``. Params: ``draft``, ``from``, ``to`` (all required)."""
+    params = _params(params)
+    try:
+        draft_id = read_text(params, "draft", refuse=_invalid_param, required=True)
+        source = read_text(params, "from", refuse=_invalid_param, required=True)
+        target = read_text(params, "to", refuse=_invalid_param, required=True)
+    except _Invalid as exc:
+        return _charsheet_refusal(rid, exc)
+    return _draft_verb(rid, draft_id, lambda draft: draft.recolour(source, target))
 
 
 @method("runtime.characters.status", tier=TIER_READ)

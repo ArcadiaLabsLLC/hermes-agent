@@ -15,6 +15,8 @@ import os
 from pathlib import Path
 import sys
 
+from tests._env_gap_fence import describes_host
+
 __layer__ = "stores"
 
 _VITE8_NODE_FLOOR = "^20.19.0 || >=22.12.0"
@@ -29,6 +31,7 @@ def _node_version() -> str | None:
             capture_output=True,
             text=True,
             timeout=15,
+            check=False,
         )
     except Exception:
         return None
@@ -165,12 +168,23 @@ def _no_shebang_script_execution() -> bool:
             _fh.write("#!/bin/sh\nexit 0\n")
         os.chmod(_script, 0o755)
         try:
-            _sp.run([_script], capture_output=True, timeout=15)
+            _sp.run([_script], capture_output=True, timeout=15, check=False)
         except OSError:
             return True
         return False
 
 
+def _interpreter_outside_checkout() -> bool:
+    """True where ``sys.executable`` is not under this checkout."""
+    root = Path(__file__).resolve().parents[3]
+    try:
+        Path(sys.executable).resolve().relative_to(root)
+    except ValueError:
+        return True
+    return False
+
+
+@describes_host(_interpreter_outside_checkout)
 def _test_python_outside_project_venv() -> bool:
     """True where ``sys.executable`` is not under this checkout.
 
@@ -178,13 +192,32 @@ def _test_python_outside_project_venv() -> bool:
     whose exe lives under the project venv (or the checkout root), and the live
     venv-holder E2Es spawn their sleepers from ``sys.executable``. A shared test
     venv outside the checkout makes every sleeper invisible to the scan.
+
+    Scoped to the host class it describes: from an in-checkout venv the probe is
+    quiet because the premise is absent, not because the rows rotted, so
+    ``stale_skip_rows`` judges them only from an interpreter outside the checkout.
     """
-    root = Path(__file__).resolve().parents[3]
-    try:
-        Path(sys.executable).resolve().relative_to(root)
-    except ValueError:
-        return True
-    return False
+    return _interpreter_outside_checkout()
+
+
+@functools.cache
+def _global_git_autocrlf_overrides_system() -> bool:
+    """True where the user's git config sets ``core.autocrlf`` to a value the system's
+    config does not: a repo written under ``HOME=<tmp>`` then normalises line endings
+    differently from a git that reads the user's config."""
+    import subprocess as _sp
+
+    def read(scope: str) -> str | None:
+        try:
+            done = _sp.run(["git", "config", scope, "--get", "core.autocrlf"],
+                           capture_output=True, text=True, timeout=15, check=False)
+        except (OSError, _sp.SubprocessError):
+            return None
+        value = done.stdout.strip().lower()
+        return value or None if done.returncode == 0 else None
+
+    user = read("--global")
+    return user is not None and user != (read("--system") or "false")
 
 
 def _unelevated_windows_shell() -> bool:

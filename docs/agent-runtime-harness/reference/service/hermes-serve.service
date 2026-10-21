@@ -1,0 +1,31 @@
+# Hermes runtime as a service (systemd --user) — p10-messaging M5, owner RULED 2026-10-19.
+# A TEMPLATE: edit the two REPLACE paths, then
+#     cp hermes-serve.service ~/.config/systemd/user/ && systemctl --user daemon-reload
+#     systemctl --user enable --now hermes-serve.service
+#     loginctl enable-linger "$USER"     # keep it running with nobody logged in
+# Stop = a drain (ExecStop), then the unit ends when the serve exits. No parent pid: the serve starts with
+# stdin at /dev/null, detaches at once and parks serving both socket lanes. A second start while one runs loses
+# the owner lock and exits 0 (serve_owner_exists). Messaging runs only when
+# plugins.entries.eternia-harness.settings.messaging_enabled is true and the bot token is set.
+# See 09-multi-device-runtime.md § The runtime outlives the launcher, 10-command-directory.md.
+
+[Unit]
+Description=Hermes harness serve (Eternia runtime, messaging bridge)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# REPLACE: the runtime's head home (profiles/base) and the checkout.
+Environment=HERMES_HOME=%h/REPLACE-WITH-HERMES-HOME
+WorkingDirectory=%h/REPLACE-WITH-CHECKOUT
+ExecStart=%h/REPLACE-WITH-CHECKOUT/.venv/bin/hermes harness serve --ndjson --service
+StandardInput=null
+ExecStop=%h/REPLACE-WITH-CHECKOUT/.venv/bin/hermes harness serve connect --drain
+TimeoutStopSec=180
+KillMode=mixed
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=default.target

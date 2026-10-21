@@ -123,13 +123,24 @@ packaging:
     - hermes_cli.local_runtime
     - tools.tts_tool_local
     - tools.transcription_local
+    # Profile namespaces (RT-NAMESPACE-IN-BUNDLE-CLOSURE): a player's bundled Hermes must honour
+    # HERMES_NAMESPACE and answer `hermes namespace probe` (the launcher's pre-spawn check), so the
+    # resolver and the CLI are roots, not only whatever hermes_cli.main happens to import today.
+    - hermes_cli._namespace_bootstrap
+    - hermes_cli.namespace_cmd
+    - agent_runtime.namespace
+    - agent_runtime.namespace_admin
+    # The store epoch (RT-STORE-EPOCH): the bootstrap and `probe` load its FILE without importing the
+    # agent_runtime package, so no import edge from them reaches it — it is a root by name.
+    - agent_runtime.store_epoch
   # Optional extras (pyproject [project.optional-dependencies]) the bundle ships.
   # Every other extra is absent: full Hermes installs extras lazily and their
   # import sites tolerate absence; this profile turns lazy installs off, so an
   # unshipped extra is an unavailable feature, never a download.
   extras:
     # Owner-confirmed 2026-09-28: bedrock, vertex, azure-identity and mistral stay out of the
-    # wheel; since 2026-10-15 each ships as a provider pack instead (packaging.packs below).
+    # wheel; since 2026-10-15 the first three ship as provider packs (packaging.packs below).
+    # mistral ships in no pack (owner ruling 2026-10-16): nothing offers a Mistral speech engine.
     - anthropic     # Anthropic provider (core agent: providers On)
     - mcp           # MCP over HTTP (On); stdio servers are switched off by config
     - fal           # image generation (On)
@@ -181,6 +192,8 @@ packaging:
     - hermes_cli.voice
     - gateway.platforms
     - plugins.platforms
+    # The fork's messaging bridge (p10-messaging): off in every bundle, as the adapters are.
+    - agent_runtime.messaging
     # Checkout-bound (matrix: "—"): git revision skew, git update/repair, the
     # `hermes worktree` command, and the `hermes migrate` relay cut-over.
     # (hermes_cli.worktree_ops stays: kanban's worktree workspaces import it.)
@@ -197,6 +210,10 @@ packaging:
     # (agent_runtime.harness_doctor stays: the harness parser registers
     # `harness doctor` at import.)
     - agent_runtime.doctor_extensions
+    # Namespace seed / session import: Developer Edition only (owner 2026-10-19); the CLI refuses
+    # them on a bundled edition before the guarded import (hermes_cli.namespace_cmd).
+    - agent_runtime.namespace_seed
+    - agent_runtime.own_session_import
     - tests
     - scripts
     - evals
@@ -223,9 +240,7 @@ packaging:
     provider-vertex:
       extras: [vertex]           # google-auth + pyasn1, pyasn1-modules
     provider-azure-identity:
-      extras: [azure-identity]   # Entra ID auth for azure-foundry: azure-core, msal, msal-extensions
-    provider-mistral:
-      extras: [mistral]          # mistralai: the Mistral speech providers (TTS / STT)
+      extras: [azure-identity]   # Entra ID auth for azure-foundry: azure-identity, azure-core, msal, msal-extensions
   # Agent resources (scripts/build/inputs.py RESOURCE_ENV) shipped beside the code.
   resources:
     - skills
@@ -239,6 +254,7 @@ packaging:
   # google_meet (meeting bot, needs playwright), teams_pipeline (Teams messaging, off).
   plugins:
     - eternia-harness     # `harness serve` — the Launcher's wire
+    - eternia-lens        # Lens: poll/push/pull ingest (plan eternia-lens-in-hermes.md); phones run no poller
     - model-providers
     - memory
     - context_engine

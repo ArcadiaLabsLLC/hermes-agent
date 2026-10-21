@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import threading
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 
 import pytest
 
@@ -31,11 +31,11 @@ from tests.agent_runtime.test_serve_promotion_two_subscribers import (
     PHONE_FOLD,
     _collect,
     _drain_producers,
-    patch_lane_on,  # noqa: F401 - fixture, used by name
+    patch_lane_on,  # fixture, used by name
 )
 from tests.agent_runtime.test_serve_socket_lane import _read_until, client, running_serve
 
-_TS = datetime(2026, 8, 27, 12, 0, 0, tzinfo=timezone.utc)
+_TS = datetime(2026, 8, 27, 12, 0, 0, tzinfo=UTC)
 
 
 def _append_roster_write(index: int) -> int:
@@ -109,7 +109,7 @@ def test_a_malformed_resume_is_refused_by_name_rather_than_read_as_absent():
         _drain_producers()
 
 
-def test_a_phone_resuming_at_the_tail_gets_no_hydrate_at_all(patch_lane_on):  # noqa: F811
+def test_a_phone_resuming_at_the_tail_gets_no_hydrate_at_all(patch_lane_on):
     """The R7 mitigation, end to end, with a real producer nobody restarted."""
 
     try:
@@ -175,7 +175,7 @@ def test_a_phone_resuming_at_the_tail_gets_no_hydrate_at_all(patch_lane_on):  # 
         _drain_producers()
 
 
-def test_a_stale_watermark_takes_the_hydrate_and_says_which_reason(patch_lane_on):  # noqa: F811
+def test_a_stale_watermark_takes_the_hydrate_and_says_which_reason(patch_lane_on):
     """The fallback is correct, not a failure — and it is NAMED, because a
     resume that silently fell back is indistinguishable from one that worked."""
 

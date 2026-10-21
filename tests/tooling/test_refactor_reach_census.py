@@ -17,6 +17,10 @@ from pathlib import Path
 from scripts import god_file_probe as probe
 from scripts import refactor_reach_census as census
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 DEAD = "def {name}(x):\n" + "".join(f"    x = x + {i}\n" for i in range(10)) + "    return x\n"
 
 

@@ -25,7 +25,7 @@ from agent_runtime.core_cache.read import (
     label_core,
     read_persisted_core,
 )
-from agent_runtime.core_cache.lane import _armed_window_read, lane_armed
+from agent_runtime.core_cache.lane import _armed_window_read, lane_armed, served_cached_core
 
 __layer__ = "lanes"
 
@@ -155,7 +155,7 @@ def consult(*, caller: str, fingerprint: CoreFingerprint | None = None) -> CoreD
                 sidecar=read.sidecar,
             )
         return CoreDecision(None, read.reason != DEMOTE_ABSENT, read.reason)
-    core = label_core(read.core, source=CORE_SOURCE_CACHE, stale=False)
+    core = served_cached_core(read.core, stale=False)
     logger.info(
         "snapshot_core_cache core_source=%s caller=%s inputs=%d fingerprint=%s offset=%s",
         CORE_SOURCE_CACHE,

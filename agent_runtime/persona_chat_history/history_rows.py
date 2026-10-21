@@ -30,14 +30,14 @@ from .vocabulary import (
 
 __layer__ = "stores"
 __all__ = [
-    "_list_sessions",
     "_get_session_row",
-    "_mission_assignment_for",
     "_history_row",
+    "_infer_persona_id",
+    "_list_sessions",
+    "_mission_assignment_for",
     "_model_config",
     "_persisted_persona_instance_id",
     "_persona_chat_candidate_sort_key",
-    "_infer_persona_id",
 ]
 
 
@@ -433,8 +433,7 @@ def _infer_persona_id(raw: dict[str, Any], *, session_id: str) -> str | None:
     prefix = "persona_chat_"
     if session_id.startswith(prefix):
         value = session_id[len(prefix) :]
-        if value.startswith("personainst_"):
-            value = value[len("personainst_") :]
+        value = value.removeprefix("personainst_")
         return _persona_token_from_chat_session_tail(value)
     return None
 

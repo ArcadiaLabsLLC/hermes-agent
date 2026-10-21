@@ -21,13 +21,63 @@ _PATH_EVENTS = frozenset({"open"})
 _DIR_EVENTS = frozenset({"os.listdir", "os.scandir"})
 _SPAWN_EVENTS = frozenset({"subprocess.Popen", "os.system", "os.exec", "os.posix_spawn", "os.spawn", "os.startfile"})
 _SESSION = ""
+#: Bound at import: a test that patches ``os.path.abspath`` process-wide (``ntpath`` is one module)
+#: must never reach the recorder, whose ``rel`` runs inside pytest's own hooks, not only the audit
+#: hook (``tests/tools/test_search_files_cpu_windows.py``, lane r-state 2026-10-18).
+_abspath = os.path.abspath
+_normcase = os.path.normcase
+#: the import system's directory scan: ``FileFinder._fill_cache`` in ``importlib._bootstrap_external``
+_IMPORT_LISTER = "_fill_cache"
+
+
+def _listed_by_import_system() -> bool:
+    """Whether the ``os.listdir`` being audited was called by the import system
+    (``FileFinder._fill_cache``), read off the caller frames of the hook."""
+
+    try:
+        frame = sys._getframe(2)
+    except ValueError:
+        return False
+    for _ in range(3):
+        if frame is None:
+            return False
+        code = frame.f_code
+        if code.co_name == _IMPORT_LISTER and "importlib" in code.co_filename:
+            return True
+        frame = frame.f_back
+    return False
+
+
+#: pytest's own collection walk (``Dir.collect`` / ``Package.collect`` through
+#: ``_pytest.pathlib.scandir``): it lists the root, ``tests`` and every directory above a
+#: named file, yet collects only the named file — a new sibling changes nothing it does.
+#: 6,733 of 6,736 records listed the repo root ``.`` and 6,727 their own directory this way
+#: (gate store, q-runner 2026-10-18), so any new top-level or sibling file missed every green.
+_COLLECT_LISTERS = frozenset({"collect", "visit", "_recurse"})
+
+
+def _listed_by_pytest_collection() -> bool:
+    """Whether the listing being audited is pytest's collection walk, read off the caller frames."""
+
+    try:
+        frame = sys._getframe(2)
+    except ValueError:
+        return False
+    for _ in range(4):
+        if frame is None:
+            return False
+        code = frame.f_code
+        if code.co_name in _COLLECT_LISTERS and os.path.basename(os.path.dirname(code.co_filename)) == "_pytest":
+            return True
+        frame = frame.f_back
+    return False
 
 
 class PathFilter:
     """Absolute path → repo-relative POSIX path, or None when it is not the repo's."""
 
     def __init__(self, root: str) -> None:
-        self._root = os.path.normcase(os.path.abspath(root))
+        self._root = _normcase(_abspath(root))
         self._prefix = self._root.rstrip("\\/") + os.sep
 
     def rel(self, raw) -> str | None:
@@ -36,8 +86,8 @@ class PathFilter:
         if not isinstance(raw, (str, os.PathLike)):
             return None
         try:
-            full = os.path.normcase(os.path.abspath(os.fspath(raw)))
-        except (OSError, ValueError):
+            full = _normcase(_abspath(os.fspath(raw)))
+        except Exception:  # the recorder observes; it never fails the code it watches
             return None
         if not full.startswith(self._prefix):
             return None
@@ -55,18 +105,29 @@ class PathFilter:
         return out
 
 
+def first_program(argv) -> str:
+    r"""The program an argv (a sequence, or a command line) names first. Windows audits the
+    command line: a quoted program may hold spaces (``"C:\Program Files\python.exe" -c``),
+    so a quoted head is read to its closing quote, never split on spaces. The ONE reader:
+    ``hermes_bundle_report.program_kind`` classifies through it too."""
+
+    if isinstance(argv, (str, bytes)):
+        text = os.fsdecode(argv).strip()
+        if text.startswith('"'):
+            return text[1:].partition('"')[0]
+        return text.split()[0] if text.split() else ""
+    try:
+        first = next(iter(argv))
+    except (TypeError, StopIteration):
+        return ""
+    return os.fsdecode(first) if isinstance(first, bytes) else str(first)
+
+
 def _popen_program(args: tuple) -> str:
     executable, argv = args[0], args[1]
     if executable:
         return os.fsdecode(executable) if isinstance(executable, bytes) else str(executable)
-    if isinstance(argv, (str, bytes)):
-        text = os.fsdecode(argv) if isinstance(argv, bytes) else argv
-        return text.split()[0].strip('"') if text.split() else ""
-    try:
-        first = list(argv)[0]
-    except (TypeError, IndexError):
-        return ""
-    return os.fsdecode(first) if isinstance(first, bytes) else str(first)
+    return first_program(argv)
 
 
 #: spawn audit event → the program it starts, read off the event's arguments
@@ -93,17 +154,19 @@ def is_python(program: str) -> bool:
     if base.startswith("python"):
         return True
     try:
-        return os.path.normcase(os.path.abspath(program)) == os.path.normcase(os.path.abspath(sys.executable))
+        return _normcase(_abspath(program)) == _normcase(_abspath(sys.executable))
     except (OSError, ValueError):
         return False
 
 
 class Bucket:
-    __slots__ = ("paths", "dirs", "spawn_py", "spawn_other")
+    __slots__ = ("dirs", "idirs", "paths", "spawn_other", "spawn_py")
 
     def __init__(self) -> None:
         self.paths: set[str] = set()
         self.dirs: set[str] = set()
+        #: directories the import system listed (keyed on the entries a tried module name matches)
+        self.idirs: set[str] = set()
         self.spawn_py = 0
         self.spawn_other = 0
 
@@ -116,6 +179,8 @@ class AuditTrail:
         self.filter = PathFilter(root)
         self.current = _SESSION
         self.buckets: dict[str, Bucket] = {_SESSION: Bucket()}
+        #: the last dotted component of every module the process tried to import (``import`` event)
+        self.import_names: set[str] = set()
         self.active = True
 
     def bucket(self, name: str) -> Bucket:
@@ -135,15 +200,21 @@ class AuditTrail:
             elif event in _DIR_EVENTS:
                 target = args[0] if args and args[0] not in (None, "") else "."
                 rel = self.filter.rel(target)
-                if rel is None and os.path.normcase(os.path.abspath(os.fspath(target))) == self.filter._root:
+                if rel is None and _normcase(_abspath(os.fspath(target))) == self.filter._root:
                     rel = "."
-                if rel is not None:
-                    self.bucket(self.current).dirs.add(rel)
+                if rel is not None and not _listed_by_pytest_collection():
+                    bucket = self.bucket(self.current)
+                    if event == "os.listdir" and _listed_by_import_system():
+                        bucket.idirs.add(rel)
+                    else:
+                        bucket.dirs.add(rel)
+            elif event == "import":
+                self.import_names.add(str(args[0]).rpartition(".")[2])
             elif event in _SPAWN_EVENTS:
                 bucket = self.bucket(self.current)
                 if is_python(spawned_program(event, args)):
                     bucket.spawn_py += 1
                 else:
                     bucket.spawn_other += 1
-        except Exception:  # noqa: BLE001 — an audit hook must never raise into the code under test
+        except Exception:  # an audit hook must never raise into the code under test
             return

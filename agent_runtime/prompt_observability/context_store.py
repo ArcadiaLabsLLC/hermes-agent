@@ -32,13 +32,13 @@ from .spans import PROMPT_OBSERVABILITY_TIMINGS_KEY
 __layer__ = "stores"
 __all__ = [
     "PROMPT_OBSERVABILITY_RETAIN_PER_LANE",
-    "persist_context_row",
-    "load_live_prompt_observability_contexts",
-    "load_persisted_context_row",
-    "load_latest_prompt_observability_contexts",
     "_context_row_key",
     "_filter_live_chat_contexts",
     "_merge_latest_contexts",
+    "load_latest_prompt_observability_contexts",
+    "load_live_prompt_observability_contexts",
+    "load_persisted_context_row",
+    "persist_context_row",
 ]
 
 
@@ -455,8 +455,8 @@ def _filter_live_chat_contexts(
             kept.append(row)
             continue
         key = _context_row_key(row)
-        inst_id = safe_assignment_token(row.get("persona_instance_id"))
-        sess_id = safe_assignment_text(row.get("session_id"), limit=200)
+        safe_assignment_token(row.get("persona_instance_id"))
+        safe_assignment_text(row.get("session_id"), limit=200)
         is_live = _context_identity_is_live(
             key=key,
             built_keys=built_keys,

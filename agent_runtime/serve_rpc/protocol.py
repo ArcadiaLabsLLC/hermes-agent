@@ -149,7 +149,10 @@ __all__ = [
     "JSONRPC_VERSION",
     "PEER_REQUESTED_BY_PREFIX",
     "RPC_CONTRACT_VERSION",
+    "RUNTIME_STOPPING",
     "RpcContext",
+    "defer_or_inline",
+    "defer_or_refuse",
     "deferred_reply",
     "err",
     "is_deferred",
@@ -280,7 +283,7 @@ def deferred_reply(
     def _run() -> dict:
         try:
             return build()
-        except Exception as exc:  # noqa: BLE001 - the boundary is the point
+        except Exception as exc:  # the boundary is the point
             return err(
                 rid,
                 ERR_HANDLER_FAILED,
@@ -289,6 +292,44 @@ def deferred_reply(
             )
 
     return _run
+
+
+#: The ``data.reason`` of a deferral the transport would not take (draining, pool shut down).
+RUNTIME_STOPPING = "runtime_stopping"
+
+
+def defer_or_refuse(
+    rid: Any, method_name: str, context: RpcContext, build: Callable[[], dict], *,
+    message: str = "The runtime is unavailable.",
+) -> dict:
+    """Hand ``build`` to the worker lane and answer :data:`DEFERRED`, else refuse ``runtime_stopping``.
+
+    The one door for a method that must never run on the reader lane (a board read, a git write, a
+    native conversation turn): where :func:`deferred_reply`'s other callers fall back to answering
+    inline, these refuse, because their work is unbounded at its source. ``message`` is the caller's
+    own sentence; the code (4090) and the reason are the door's. ``build`` runs inside
+    :func:`deferred_reply`'s fault boundary, so a raise on the worker is a ``-32000`` frame on the same
+    ``id``, never a client waiting for a reply nobody writes.
+    """
+
+    if context.spawn_reply is None or not context.spawn_reply(deferred_reply(rid, method_name, build)):
+        return err(rid, ERR_CONFLICT, message, {"reason": RUNTIME_STOPPING})
+    return DEFERRED
+
+
+def defer_or_inline(rid: Any, method_name: str, context: RpcContext | None, build: Callable[[], dict]) -> dict:
+    """Hand ``build`` to the worker lane and answer :data:`DEFERRED`, else answer it inline.
+
+    The sibling of :func:`defer_or_refuse` for a method whose work is bounded enough to run on the reader
+    lane when the transport has no worker lane (a direct call, a test) or will not take the deferral.
+    Both paths run ``build`` inside :func:`deferred_reply`'s fault boundary, so a raise is the same
+    ``-32000`` frame on the same ``id`` whichever thread it raised on.
+    """
+
+    reply = deferred_reply(rid, method_name, build)
+    if context is not None and context.spawn_reply is not None and context.spawn_reply(reply):
+        return DEFERRED
+    return reply()
 
 
 @dataclass(frozen=True)
@@ -351,6 +392,12 @@ class RpcContext:
     this seam does not have to refuse the way ``spawn_chat_turn`` does: the work
     it defers is bounded at its own source, so the fallback is a bad latency
     rather than an unbounded hold. It returns True when the work was accepted.
+
+    ``batch_dispatcher`` is the serve session's own ``BatchDispatcher`` door: a zero-argument
+    callable answering the dispatcher the session built over its persona-turn executor
+    (``queued_turns._batch_hooks``), or None before that build. ``None`` as the field means no
+    serve session stands behind the caller (a test, a direct call), and ``runtime.batch.*``
+    refuses ``door_unbound`` rather than building a dispatcher of its own.
     """
 
     connection_key: str | None = None
@@ -361,6 +408,7 @@ class RpcContext:
     spawn_reply: Callable[[Callable[[], dict]], bool] | None = None
     interrupt_operator: Callable[[str], bool] | None = None
     launcher_request: Callable[[str, dict], dict] | None = None
+    batch_dispatcher: Callable[[], Any] | None = None
 
     def push(self, method_name: str, params: dict) -> bool:
         """Send one notification to THIS caller. False when there is no channel.

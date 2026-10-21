@@ -48,7 +48,7 @@ import subprocess
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import lru_cache, cache
 from pathlib import Path
 from typing import Callable, Iterable, Iterator
 
@@ -85,8 +85,7 @@ DUPLICATE_FIXTURE = FIXTURES / "duplicate_bodies_grandfathered.json"
 LAYER_FIXTURE = FIXTURES / "import_layers_grandfathered.json"
 
 _CONTROL = (ast.If, ast.For, ast.AsyncFor, ast.While, ast.With, ast.AsyncWith, ast.Try, ast.Match)
-if sys.version_info >= (3, 11):
-    _CONTROL = (*_CONTROL, ast.TryStar)
+_CONTROL = (*_CONTROL, ast.TryStar)
 _FUNCS = (ast.FunctionDef, ast.AsyncFunctionDef)
 
 
@@ -99,10 +98,10 @@ def _git(root: Path, *args: str) -> str:
     ).stdout
 
 
-@lru_cache(maxsize=None)
+@cache
 def upstream_paths(manifest: Path = MANIFEST) -> frozenset[str]:
     """Every path upstream owns (the manifest, minus its ``# base`` header)."""
-    lines = manifest.read_text(encoding="utf-8").splitlines()
+    lines = manifest.read_text(encoding="utf-8-sig").splitlines()
     return frozenset(line for line in lines if line and not line.startswith("#"))
 
 
@@ -112,7 +111,7 @@ def is_fork_production(path: str) -> bool:
     return not path.startswith("tests/") or path.startswith("tests/_downstream/")
 
 
-@lru_cache(maxsize=None)
+@cache
 def fork_production_files(root: Path = ROOT, manifest: Path = MANIFEST) -> tuple[str, ...]:
     """The population, from ``git ls-files`` minus the upstream manifest."""
     upstream = upstream_paths(manifest)
@@ -729,7 +728,7 @@ def package_roots(root: Path = ROOT, manifest: Path = MANIFEST) -> tuple[str, ..
     return tuple(sorted(found - set(PACKAGE_PARENTS)))
 
 
-@lru_cache(maxsize=None)
+@cache
 def layered_roots(root: Path = ROOT, manifest: Path = MANIFEST) -> tuple[str, ...]:
     """``LAYERED_ROOTS``, every fork-only tree under ``FORK_ONLY_PARENTS`` and every package
     under ``PACKAGE_PARENTS``, enumerated from the tree."""
@@ -847,7 +846,7 @@ class Drift:
 
 
 def _read(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
 def _write(path: Path, payload: dict) -> None:

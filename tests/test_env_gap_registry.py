@@ -421,3 +421,20 @@ def test_a_row_scoped_to_this_host_class_is_still_judged():
 def test_the_shell_premise_probes_carry_their_host_class():
     assert callable(getattr(bare_bash_is_not_posix, "host_check", None))
     assert callable(getattr(resolved_bash_spells_posix_mount_paths, "host_check", None))
+
+
+def test_the_venv_holder_probe_is_judged_only_from_an_interpreter_outside_the_checkout(monkeypatch):
+    """From an in-checkout venv the holder rows' premise is absent: not stale, still fenced.
+
+    Killing mutation: drop ``@describes_host`` from
+    ``probes._test_python_outside_project_venv`` -> its row reads stale here.
+    """
+    from tests._downstream.hermes_cli_conftest import probes
+
+    probe = probes._test_python_outside_project_venv
+    rows = {"test_venv_holder_windows_live.py": [(probe, "external venv", {"TestDetection::x"})]}
+    # The scope is memoised per process; read it live so the in-checkout interpreter shows.
+    monkeypatch.setattr(probe, "host_check", probes._interpreter_outside_checkout)
+    monkeypatch.setattr(probes.sys, "executable", str(Path(probes.__file__).resolve()))
+    assert probe() is False
+    assert stale_skip_rows(rows) == []

@@ -414,7 +414,7 @@ def _seed_assignment(
     archive_scope: str = "assignment",
     production_proof_eligible: bool = False,
     client_message_id: str | None = None,
-) -> "PersonaAssignment":
+) -> PersonaAssignment:
     from agent_runtime.models import PersonaAssignment
 
     ts = now()
@@ -1902,7 +1902,7 @@ def test_persona_chat_history_summary_projects_builtin_chat_source_when_worker_o
 
 
 def test_snapshot_preserves_open_chat_and_emits_history(monkeypatch, isolate_agent_runtime_root):
-    import agent_runtime.chat_session_scope as chat_session_scope
+    from agent_runtime import chat_session_scope
     import agent_runtime.persona_chat_history as history
     import agent_runtime.snapshot as snapshot_module
 
@@ -2703,6 +2703,72 @@ def test_mission_chat_model_override_is_chat_scoped_and_does_not_mutate_persona(
     assert "mission_control_chat_model_override" not in stored_config
 
 
+def test_a_draft_chats_first_send_pins_its_model_to_the_new_session_only(
+    monkeypatch, capsys, isolate_agent_runtime_root
+):
+    """Owner ruling 2026-10-15: a model picked in a DRAFT chat is held by the Launcher and
+    rides the first send; hermes pins it to the session that draft minted. The next send
+    (no model) keeps it, and the agent's other chat and its default are untouched."""
+
+    from argparse import Namespace
+
+    cfg = _assignment_config()
+    cfg.personas["dev"] = {
+        "model": "gpt-default",
+        "provider": "openai-codex",
+        "api_mode": "codex_responses",
+        "hermes_profile": "profile-dev",
+    }
+    db = _TranscriptDB()
+    for module in (chat_turn_message, chat_open, lifecycle_commands):
+        monkeypatch.setattr(module, "load_agent_runtime_config", lambda: cfg)
+        monkeypatch.setattr(module, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
+    seen: list[str | None] = []
+
+    class _FakeRuntime:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def mission_chat_reply(self, persona_arg, message, **kwargs):
+            seen.append(kwargs.get("model_override"))
+            return SimpleNamespace(final_response="ok", input_tokens=1, output_tokens=1,
+                                   total_tokens=2, raw={})
+
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
+    instance = PersonaInstanceStore().create_operator_chat(persona_id="dev", display_name="Dev")
+    first_thread = instance.session_id
+    assert chat_open._cmd_persona_instance_open_chat(Namespace(
+        persona_id="dev", persona_instance_id=instance.id, session_id=None, new_session=True,
+        idempotency_key="draft-chat-1", kill_active=False, add_instance=False, json=True,
+    )) == 0
+    draft_session = json.loads(capsys.readouterr().out)["session_id"]
+    assert draft_session and draft_session != first_thread
+
+    def send(client_message_id, model):
+        return chat_turn_message._cmd_mission_chat_message(SimpleNamespace(
+            persona_id="dev", persona_instance_id=instance.id, session_id=draft_session,
+            task_id=None, goal_id=None, title=None, message="hello", provider=None,
+            model=model, use_agent_default=False, surface_prompt="", intent_hint="chat",
+            requested_by="test", client_message_id=client_message_id, stream=False,
+            max_seconds=5.0, json=True,
+        ))
+
+    assert send("draft_first", "anthropic/claude-sonnet-4") == 0
+    first = json.loads(capsys.readouterr().out)
+    assert first["session_id"] == draft_session
+    assert first["model_selection"]["effective_model"] == "anthropic/claude-sonnet-4"
+    assert send("draft_second", None) == 0
+    second = json.loads(capsys.readouterr().out)
+    assert second["model_selection"]["effective_model"] == "anthropic/claude-sonnet-4"
+    assert seen == ["anthropic/claude-sonnet-4", "anthropic/claude-sonnet-4"]
+    pinned = json.loads(db.sessions[draft_session]["model_config"])
+    assert pinned["mission_control_chat_model_override"]["model"] == "anthropic/claude-sonnet-4"
+    other = db.sessions.get(first_thread) or {}
+    assert "mission_control_chat_model_override" not in json.loads(other.get("model_config") or "{}")
+    assert AgentStore().get("dev").model != "anthropic/claude-sonnet-4"
+
+
 def test_mission_chat_model_override_rejects_bad_values_before_turn_is_written(
     monkeypatch, capsys, isolate_agent_runtime_root
 ):
@@ -2753,7 +2819,7 @@ def test_mission_chat_queues_skill_for_next_turn_once(
     db = _TranscriptDB()
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
 
-    import agent.skill_utils as skill_utils
+    from agent import skill_utils
 
     skill_root = isolate_agent_runtime_root / "skills"
     manifest = skill_root / "deep-audit" / "SKILL.md"
@@ -2779,7 +2845,7 @@ def test_mission_chat_queues_skill_for_next_turn_once(
         session_id="persona_chat_personainst_dev",
     ) == ["deep-audit"]
 
-    import agent.skill_commands as skill_commands
+    from agent import skill_commands
 
     monkeypatch.setattr(
         skill_commands,
@@ -2866,9 +2932,9 @@ def test_queue_skill_rejects_missing_skill_without_pending_state(
 ):
     from agent_runtime.queued_skills import pending_skills_for_next_turn
 
-    import tools.skills_tool as skills_tool
+    from tools import skills_tool
 
-    monkeypatch.setattr(skills_tool, "_find_all_skills", lambda: [])
+    monkeypatch.setattr(skills_tool, "_find_all_skills", list)
 
     code = chat_coordinator._cmd_mission_chat_queue_skill(
         SimpleNamespace(
@@ -2894,7 +2960,7 @@ def test_prompt_observability_reports_redaction_safe_available_skill_catalog(
 ):
     from agent_runtime import prompt_observability
 
-    import tools.skills_tool as skills_tool
+    from tools import skills_tool
 
     monkeypatch.setattr(
         skills_tool,
@@ -4435,7 +4501,7 @@ def test_profile_visibility_preserves_custom_instance_role_without_config(monkey
         state=WorkerSessionState.IDLE,
     )
 
-    persona = _profile_visibility_persona(instance, lambda: [])
+    persona = _profile_visibility_persona(instance, list)
 
     assert persona.id == "profile_researcher"
     assert persona.role == "literature_reviewer"
@@ -4506,7 +4572,7 @@ def test_contention_warning_still_fires_for_genuinely_open_goal():
 # ---------------------------------------------------------------------------
 
 
-def _placement_instance(persona_id: str = "dev", placement_id: str = "scene_child_2", display_name: str = "Dev (2)") -> PersonaInstance:
+def _placement_instance(persona_id: str = "dev", placement_id: str = "scene_child_2_agent_1", display_name: str = "Dev (2)") -> PersonaInstance:
     return PersonaInstanceStore().add_instance(
         persona_id=persona_id,
         placement_id=placement_id,
@@ -4519,7 +4585,7 @@ def test_retire_archives_placement_row_and_emits_event(isolate_agent_runtime_roo
 
     store = PersonaInstanceStore()
     instance = _placement_instance()
-    assert instance.id == "personainst_scene_child_2"
+    assert instance.id == "personainst_scene_child_2_agent_1"
     session_id = instance.session_id
     assert session_id  # a real chat session pointer we must NOT destroy
 
@@ -5119,7 +5185,7 @@ def test_the_two_unbind_paths_are_told_apart_by_what_they_emit():
     clear = inspect.getsource(PersonaInstanceStore.clear_chat_session_binding)
     retract = inspect.getsource(PersonaInstanceStore.rollback_chat_root_bind)
 
-    body_of = lambda src: src.split('"""', 2)[-1]  # noqa: E731 - drop the docstring
+    body_of = lambda src: src.split('"""', 2)[-1]  # drop the docstring
 
     assert "chat_binding_cleared" in body_of(clear)
     assert "emit_persona_instance_patch" not in body_of(clear)

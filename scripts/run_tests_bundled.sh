@@ -2,13 +2,16 @@
 # Bundled variant of scripts/run_tests.sh: the SAME hermetic environment, with
 # scripts/run_tests_bundled.py (N test files per pytest process) as the runner.
 #
-#   scripts/run_tests_bundled.sh tests/agent_runtime tests/hermes_cli tests/hermes_state  # landing gate: --scope fork (default)
-#   scripts/run_tests_bundled.sh --scope full tests/agent_runtime tests/hermes_cli tests/hermes_state  # weekly upstream merge lane
+#   scripts/run_tests_bundled.sh tests  # landing gate: --scope fork (default)
+#   scripts/run_tests_bundled.sh --since-merge <merge> tests  # release merge
 #   scripts/run_tests_bundled.sh --bundle-size 10 tests/hermes_cli -q
+#   scripts/run_tests_bundled.sh --affected [--fail-fast]  # fast loop: the tests your edits can break; never a gate
 #
 # --scope fork runs the files absent from tests/fixtures/upstream_manifest.txt
 # plus the inherited files the change (git diff <--since, default origin/main>...HEAD)
-# reaches; --scope full runs every discovered file.
+# reaches; --scope features runs every file not on the skip list (an on-demand
+# quiet-box measurement, never a gate); --scope full is retired and exits 2 unless
+# every PATH is a file (ADR 0016: no whole-tree run, ever).
 #
 # The environment is not re-spelled here. This script SOURCES run_tests.sh —
 # venv probe, `env -i` allowlist, Windows location variables, the fence's real

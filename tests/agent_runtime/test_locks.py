@@ -28,7 +28,7 @@ def _contend(path, *, timeout_seconds: float) -> list:
         try:
             with _file_lock(path, timeout_seconds=timeout_seconds):
                 outcome.append("acquired")
-        except BaseException as exc:  # noqa: BLE001 — the outcome IS the assertion
+        except BaseException as exc:  # the outcome IS the assertion
             outcome.append(exc)
 
     thread = threading.Thread(target=_run, daemon=True)

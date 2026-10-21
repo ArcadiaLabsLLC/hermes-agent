@@ -259,7 +259,7 @@ class SkillsPhase:
                     "installed_hash": exc.installed_hash,
                 },
             ) from exc
-        except Exception as exc:  # noqa: BLE001 - a copy fault IS a divergence
+        except Exception as exc:  # a copy fault IS a divergence
             # The staged ``copytree``/``os.replace`` can fail for a dozen OS
             # reasons, and every one of them ends the same way: the installed
             # bytes are not known to match the repo's. Answering that with a
@@ -319,7 +319,7 @@ class SkillsPhase:
             updated = PersonaInstanceStore().update_profile(
                 self.instance_id, skills=list(self.ids), requested_by=self.requested_by
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise AgentCreateSkillsRefused(
                 ERR_HANDLER_FAILED,
                 f"skill assignment failed: {type(exc).__name__}: {exc}",
@@ -430,7 +430,7 @@ def _observed_skills(result: dict[str, Any]) -> tuple[dict[str, Any], bool]:
             for entry in (recorded.get("installed") or [])
             if isinstance(entry, dict)
         ]
-    except Exception:  # noqa: BLE001 - a retired row, a decode fault, a gone root
+    except Exception:  # a retired row, a decode fault, a gone root
         return recorded, False
     return refreshed, True
 
@@ -453,7 +453,7 @@ def _live_actor(result: dict[str, Any]) -> Any | None:
         return None
     try:
         return OfficeStore().get_actor(str(workspace_id), str(actor_key))
-    except Exception:  # noqa: BLE001 - NotFound, a decode fault, a gone surface
+    except Exception:  # NotFound, a decode fault, a gone surface
         return None
 
 
@@ -580,7 +580,7 @@ def compensate_failed_placement(
             reason="runtime.agent.create placement failed",
             requested_by="runtime.agent.create",
         )
-    except Exception as exc:  # noqa: BLE001 - every retire refusal lands here
+    except Exception as exc:  # every retire refusal lands here
         reservation.mark_rollback_failed(
             failure, rollback_error=f"{type(exc).__name__}: {exc}"
         )

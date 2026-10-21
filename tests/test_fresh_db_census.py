@@ -12,6 +12,8 @@ import json
 import os
 import subprocess
 import sys
+import types
+from importlib.machinery import ModuleSpec
 from pathlib import Path
 
 import pytest
@@ -45,6 +47,28 @@ def test_enabled_reads_the_variable():
     assert not fresh_db_census.enabled({})
 
 
+def _half_imported_state(initializing: bool) -> types.ModuleType:
+    module = types.ModuleType("hermes_state")
+    module.__spec__ = ModuleSpec("hermes_state", None)
+    module.__spec__._initializing = initializing
+    return module
+
+
+def test_a_hermes_state_another_thread_is_still_importing_is_skipped_not_a_crash(monkeypatch):
+    """FORK-FRESH-DB-CENSUS-INTERNALERROR: a serve thread importing ``hermes_state`` puts it in
+    ``sys.modules`` before ``SessionDB`` is bound; the census waits for the next test, the session
+    lives. Killing mutation: drop the ``_initializing`` check in ``install`` — the first call raises
+    AttributeError (pytest INTERNALERROR, 152 in the land-w5 gate log)."""
+
+    monkeypatch.setattr(fresh_db_census, "_installed", {})
+    monkeypatch.setitem(sys.modules, "hermes_state", _half_imported_state(True))
+    assert fresh_db_census.install() is False and fresh_db_census._installed == {}
+    # Finished importing and still no SessionDB: a real break, never swallowed.
+    monkeypatch.setitem(sys.modules, "hermes_state", _half_imported_state(False))
+    with pytest.raises(AttributeError):
+        fresh_db_census.install()
+
+
 @pytest.mark.timeout(120)
 def test_a_child_session_counts_the_writer_open_and_not_the_read(tmp_path):
     (tmp_path / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
@@ -66,6 +90,7 @@ def test_a_child_session_counts_the_writer_open_and_not_the_read(tmp_path):
         capture_output=True,
         text=True,
         timeout=110,
+        check=False,
     )
     assert done.returncode == 0, done.stdout[-2000:] + done.stderr[-2000:]
     receipt = tmp_path / fresh_db_census.RECEIPT

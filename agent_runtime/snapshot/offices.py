@@ -18,11 +18,11 @@ __layer__ = "stores"
 
 __all__ = [
     "MAX_OFFICE_ACTORS_PROJECTED",
-    "OfficesProjection",
     "_ORPHANED_OFFICE_DETAIL",
-    "office_actor_summary_row",
+    "OfficesProjection",
     "_office_parity_warnings",
     "_offices_summary",
+    "office_actor_summary_row",
     "office_summary_row",
 ]
 
@@ -164,6 +164,13 @@ class OfficesProjection(NamedTuple):
     #: Workspaces whose office surface would not decode. Additive on the wire as
     #: ``offices_unreadable`` — an old launcher ignores the key.
     unreadable: int
+    #: Per workspace, the instances an ARCHIVED actor of that office was bound to
+    #: and no live actor there still is: the ``unplaced_persona_instance``
+    #: warning's evidence (RT-SNAPSHOT-UNPLACED-INSTANCE). BUILD-ONLY: it reaches
+    #: ``parity_envelope`` as an argument and never rides the frame, so the
+    #: byte-pinned stream goldens do not move. ``None`` for a workspace means its
+    #: directories did not fully decode ("cannot say", never "none").
+    archived_placement_instance_ids: dict[str, list[str] | None] | None = None
 
 
 def _offices_summary(office_store, workspaces, realms=()) -> OfficesProjection:
@@ -193,6 +200,7 @@ def _offices_summary(office_store, workspaces, realms=()) -> OfficesProjection:
     realm_by_workspace = {getattr(w, "id", None): getattr(w, "realm_id", None) for w in workspaces}
     baselines: dict[str, dict[str, str]] = {}
     offices: list[dict] = []
+    archived_evidence: dict[str, list[str] | None] = {}
     unreadable = 0
     for workspace_token in office_store.list_workspaces():
         try:
@@ -257,7 +265,42 @@ def _offices_summary(office_store, workspaces, realms=()) -> OfficesProjection:
                 ),
             )
         )
-    return OfficesProjection(offices=offices, unreadable=unreadable)
+        archived_evidence[surface.workspace_id] = _archived_placement_instance_ids(
+            office_store, workspace_token, actors
+        )
+    return OfficesProjection(
+        offices=offices, unreadable=unreadable, archived_placement_instance_ids=archived_evidence
+    )
+
+
+def _archived_placement_instance_ids(office_store, workspace_token, live_actors) -> list[str] | None:
+    """Instances an archived actor of this workspace was bound to, minus any a
+    live actor here is still bound to; ``None`` when either directory had a file
+    that would not decode (a short read must not mint a ghost).
+
+    Read through the ``scan_actors`` chokepoint; the archive side is bounded by
+    the office archive retention, which is what made this read affordable
+    (owner ruling 2026-10-15).
+    """
+
+    from ..persona_instance_identity import actor_bound_instance_id
+
+    try:
+        scan = office_store.scan_actors(workspace_token, include_archived=True)
+    except Exception:  # an unreadable office says "cannot say"
+        return None
+    if scan.unreadable:
+        return None
+    live_keys = {actor.actor_key for actor in live_actors}
+    live_bound = {actor_bound_instance_id(actor) for actor in live_actors}
+    archived: set[str] = set()
+    for actor in scan.actors:
+        if actor.actor_key in live_keys:
+            continue
+        bound = actor_bound_instance_id(actor)
+        if bound and bound not in live_bound:
+            archived.add(bound)
+    return sorted(archived)
 
 
 #: Detail wording per orphan reason. One sentence each, and each says something

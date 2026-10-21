@@ -459,6 +459,8 @@ class ClientLifecycleMixin:
             request_kwargs["default_headers"] = copilot_request_headers(is_agent_turn=True, is_vision=True)
         cached, stale = self._checkout_request_slot(_OPENAI_SLOT, request_kwargs)
         if cached is not None:
+            from agent_runtime.transport_phase_trace import install_request_client_trace  # fork seam: turn stamps
+            install_request_client_trace(self, cached, reason=reason)
             return cached
         if stale is not None:
             self._close_openai_client(stale, reason=f"reuse_evict:{reason}", shared=False)
@@ -466,6 +468,8 @@ class ClientLifecycleMixin:
         # Snapshot nested dicts (default_headers) so an aliased inner object can't mutate the cache key.
         snapshot = {k: dict(v) if isinstance(v, dict) else v for k, v in request_kwargs.items()}
         self._store_request_slot(_OPENAI_SLOT, client, snapshot)
+        from agent_runtime.transport_phase_trace import install_request_client_trace  # fork seam: turn stamps
+        install_request_client_trace(self, client, reason=reason)
         return client
 
     def _close_request_openai_client(self, client: Any, *, reason: str) -> None:

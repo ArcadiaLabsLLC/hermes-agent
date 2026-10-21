@@ -87,7 +87,7 @@ from .realm_sync import (
 from .realm_revert_level import apply_level, level_content_hash, read_level_upstream, refuse_level_door
 from .realm_sync.families import SyncFamily
 from .serde import to_jsonable
-from .realm_revert_writes import (  # noqa: F401 — REVERT_ACTOR_REF is re-exported
+from .realm_revert_writes import (  # REVERT_ACTOR_REF is re-exported
     REVERT_ACTOR_REF,
     _SkillWriteRefused,
     _apply_persona_def,
@@ -690,7 +690,7 @@ def _revert_one(
         row.outcome = REFUSED_STORE_ERROR
         row.detail = exc.code
         return row
-    except Exception as exc:  # noqa: BLE001 — accounted, never silent; the pass continues
+    except Exception as exc:  # accounted, never silent; the pass continues
         row.outcome = REFUSED_STORE_ERROR
         row.detail = type(exc).__name__
         return row
@@ -856,7 +856,7 @@ def _realign_baseline(
             content_hash(item) if content_hash is not None
             else _current_content_hash(item, office_store=office_store, board_store=board_store)
         )
-    except Exception as exc:  # noqa: BLE001 — the write landed; the receipt did not
+    except Exception as exc:  # the write landed; the receipt did not
         # The write happened, so the row is NOT reported as refused — but a
         # baseline entry that cannot be re-read is left absent rather than
         # guessed, which reclassifies the row as locally added on the next

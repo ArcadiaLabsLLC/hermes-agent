@@ -2,7 +2,7 @@
 
 A ``SessionDB`` writer-opened on a path that does not exist yet runs the whole
 schema and FTS script: 0.8-1.0 s on the workstation, against ~0.02 s to copy a
-finished file (``tests/agent_runtime/_session_db_template.py``). Which test
+finished file (``tests/_downstream/session_db_template.py``). Which test
 files pay that, and how often, is a RUN fact, not a reading: production paths
 open stores the test never names. This plugin writes it down.
 
@@ -58,6 +58,11 @@ def install() -> bool:
     module = sys.modules.get("hermes_state")
     if module is None or _installed.get("module") is module:
         return False
+    if getattr(getattr(module, "__spec__", None), "_initializing", False):
+        # Another thread (a serve's settle worker, say) is still executing the module: it is in
+        # ``sys.modules`` before ``SessionDB`` is bound. The next test's protocol installs. A module
+        # that FINISHED importing without ``SessionDB`` still raises: that is a real break.
+        return False
     original = module.SessionDB._open_writer
 
     def counted_open_writer(self, *args, **kwargs):
@@ -110,8 +115,7 @@ def write_receipt(rootdir: Path) -> Path | None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "a", encoding="utf-8") as handle:
-            for row in rows:
-                handle.write(json.dumps(row, sort_keys=True) + "\n")
+            handle.writelines(json.dumps(row, sort_keys=True) + "\n" for row in rows)
     except OSError:
         return None
     return path

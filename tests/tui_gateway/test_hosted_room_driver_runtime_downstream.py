@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from gateway import hosted_room_driver as state
-from tests.tui_gateway.test_hosted_room_driver_runtime import (  # noqa: F401 — upstream names the moved tests use
+from tests.tui_gateway.test_hosted_room_driver_runtime import (  # upstream names the moved tests use
     BINDING,
     ROOM_ID,
     FakeSessionRPC,

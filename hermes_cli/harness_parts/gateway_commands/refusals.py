@@ -164,7 +164,7 @@ class _StoreWriteRefusal:
     the only contract ``store_refusal_error`` reads is ``.reason`` / ``.detail``.
     """
 
-    __slots__ = ("reason", "detail")
+    __slots__ = ("detail", "reason")
 
     def __init__(self, reason: str, detail: str) -> None:
         self.reason = reason

@@ -99,7 +99,7 @@ def _stamp_reply_media(data: dict, reply_text, args) -> dict:
         minted = mint_reply_media(reply_text)
         if minted:
             data[REPLY_MEDIA_KEY] = minted
-    except Exception:  # noqa: BLE001 - a picture is never worth losing a turn
+    except Exception:  # a picture is never worth losing a turn
         import logging
 
         logging.getLogger(__name__).debug(

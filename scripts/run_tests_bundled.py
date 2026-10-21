@@ -46,9 +46,9 @@ The runner's core (``assign_bundles``, ``tally_events``, ``effective_bundle_rc``
 ``run_tests_parallel.py`` as a ``--bundle-size`` flag.
 
 Usage:
-    python scripts/run_tests_bundled.py [--scope fork|full] [--since REF | --since-merge SHA] [--bundle-size N] [-j N] [PATH ...] [pytest args]
-    scripts/run_tests_bundled.sh tests/agent_runtime tests/hermes_cli tests/hermes_state  # landing gate (fork scope)
-    scripts/run_tests_bundled.sh --scope full tests/agent_runtime tests/hermes_cli tests/hermes_state  # weekly merge lane
+    python scripts/run_tests_bundled.py [--since REF | --since-merge SHA] [--bundle-size N] [-j N] [PATH ...] [pytest args]
+    scripts/run_tests_bundled.sh tests  # landing gate (fork scope)
+    scripts/run_tests_bundled.sh --since-merge <merge> tests  # release merge
 
 Exit code: 0 if every file passed (alone or in its bundle); 1 otherwise.
 """
@@ -75,6 +75,12 @@ _PLUGIN_DIR = _SCRIPTS_DIR / "_bundle_plugin"
 _PLUGIN_NAME = "hermes_bundle_report"
 _DEFAULT_UNBUNDLED = _SCRIPTS_DIR / "test_bundles_unbundled.txt"
 DEFAULT_BUNDLE_SIZE = 20
+#: The landing gate's worker cap (FORK-SUITE-SPEED-J-REMEASURE, quiet 16-thread box
+#: 2026-10-18, --scope fork --no-cache, 1,173 files, 0 failed at every -j): -j 8 646.7 s
+#: (CPU avg 64 %), 10 585.2 s (71 %), 12 539.2 s (78 %), 16 512.1 s (88 %, peaks 100 %).
+#: 12 keeps headroom; 16 buys 5 % more at a saturated box. Per-file runs keep
+#: run_tests_parallel's cap of 8.
+DEFAULT_JOBS = 12
 #: Estimated seconds for a member with no cached duration, for the bundle
 #: timeout and the submission order only.
 _UNCACHED_ESTIMATE_SECONDS = 30.0
@@ -95,6 +101,8 @@ def _load_sibling(name: str):
 
 
 rtp = _load_sibling("run_tests_parallel")
+_fork = _load_sibling("_fork_runner")  # the fork door: the run-once list (a red that writes machine state)
+vias = _load_sibling("run_tests_bundled_via")  # the typed via, first: every sibling imports it
 plan = _load_sibling("run_tests_bundled_plan")  # skip list, budget bundles, run ledger, known reds
 solo = _load_sibling("run_tests_bundled_solo")  # what one single-file process runs with (fast-gate §2)
 shard = _load_sibling("run_tests_bundled_shard")  # slow files split by node id on a tail-bound run (fast-gate §3)
@@ -112,6 +120,13 @@ def load_unbundled(path: Path) -> set[str]:
     observed diff that put the file there); a missing file is an empty list."""
 
     return set(scope.load_path_list(path))
+
+
+def unbundled_files(path: Path) -> set[str]:
+    """What a run keeps out of bundles: the unbundled list plus the run-once list (a red
+    that writes real machine state runs once, alone: ``scripts/_fork_runner.py::run_once``)."""
+
+    return load_unbundled(path) | set(_fork.run_once_list())
 
 
 def _group_key(rel: str) -> tuple[str, ...]:
@@ -160,6 +175,22 @@ def _estimate(path: Path, repo_root: Path, durations: dict[str, float]) -> float
     return float(durations.get(rtp._format_file(path, repo_root)) or _UNCACHED_ESTIMATE_SECONDS)
 
 
+def prepare_child_environ(environ) -> None:
+    """The environment every bundle child inherits, set once before any worker starts (race-free).
+
+    * the plugin directory goes first on ``PYTHONPATH``, so every child loads the plugin by name;
+    * ``PYTHONDONTWRITEBYTECODE`` is dropped: with it set (agent shells export it) no child writes a
+      ``.pyc`` and pytest keeps no rewritten test module, so EVERY process recompiled every module it
+      imported — on a fresh landing worktree, the whole import graph. Measured on 40 small files
+      (h6-collect, 2026-10-18): 11.3–11.8 CPU-s per process with it, 7.2–7.6 without.
+    """
+
+    environ["PYTHONPATH"] = os.pathsep.join(
+        [str(_PLUGIN_DIR)] + [p for p in environ.get("PYTHONPATH", "").split(os.pathsep) if p]
+    )
+    environ.pop("PYTHONDONTWRITEBYTECODE", None)
+
+
 def bundle_timeout(
     bundle: Sequence[Path],
     repo_root: Path,
@@ -177,6 +208,7 @@ def bundle_timeout(
 
 scope = _load_sibling("run_tests_bundled_scope")
 SCOPE_FORK, SCOPE_FULL, _DEFAULT_SINCE = scope.SCOPE_FORK, scope.SCOPE_FULL, scope._DEFAULT_SINCE
+SCOPE_FEATURES = scope.SCOPE_FEATURES
 ScopeSelection, select_scope, load_manifest, changed_paths = (
     scope.ScopeSelection, scope.select_scope, scope.load_manifest, scope.changed_paths
 )
@@ -187,6 +219,7 @@ module_of, convention_sources, imported_modules = scope.module_of, scope.convent
 # The plugin's events folded into per-file tallies: scripts/run_tests_bundled_events.py.
 
 _events = _load_sibling("run_tests_bundled_events")
+diag = _load_sibling("run_tests_bundled_diag")  # per-file diagnosis: phases, spawns, plugin discovery, sleeps
 FileTally, BundleEvents, _CATEGORIES = _events.FileTally, _events.BundleEvents, _events._CATEGORIES
 tally_events, effective_bundle_rc, members_to_rerun = (
     _events.tally_events, _events.effective_bundle_rc, _events.members_to_rerun
@@ -203,7 +236,7 @@ class FileOutcome:
     output: str
     summary: dict[str, int]
     seconds: float
-    via: str  # "bundle" | "solo" | "rerun"
+    via: vias.Via
     bundle_index: Optional[int] = None
 
 
@@ -330,7 +363,7 @@ class _Run:
         self.bundles, self.durations, self.flat_timeout = bundles, durations, flat_timeout
         self.known_reds, self.bundle_runner, self.solo_runner = known_reds, bundle_runner, solo_runner
         self.on_outcome = on_outcome
-        self.ledger = plan.RunLedger()
+        self.ledger = plan.RunLedger(diagnosis=diag.Diagnosis())
         self.solo_seq = iter(range(1 << 30))
         self.lock = threading.Lock()
         self.outcomes: list[FileOutcome] = []
@@ -348,19 +381,21 @@ class _Run:
             if self.on_outcome is not None:
                 self.on_outcome(done)
 
-    def solo(self, path: Path, via: str, bundle_index: Optional[int], leak_info=None) -> None:
+    def solo(self, path: Path, via: vias.Via, bundle_index: Optional[int], leak_info=None) -> None:
         policy, repo_root = self.policy, self.repo_root
         timeout, tries, extra = policy.budget(path, via)
         events_path = self.scratch / f"solo-{next(self.solo_seq):05d}.jsonl"
-        args = list(self.pytest_args) + extra + ["-p", _PLUGIN_NAME, f"--hermes-bundle-events={events_path}"]
+        args = list(self.pytest_args) + extra + ["-p", _PLUGIN_NAME, f"--hermes-bundle-events={events_path}",
+                                                 *diag.PLUGIN_ARGS]
         t0 = time.time()
         fpath, rc, output, summary, wall = self.solo_runner(path, args, repo_root, timeout, tries)
         lines, rel = _read_lines(events_path), _rel(path, repo_root)
+        self.ledger.diagnosis.add(lines)
         first, tally = tally_events(lines), tally_events(plan.last_session(lines)).files.get(rel)
         with self.lock:
             self.ledger.record_solo(via, rel, t0, first.session_start, tally, add=policy.is_shard(path, via))
         output = policy.note(rel, via, rc, output, tally)
-        if via == "rerun" and rc == 0 and leak_info is not None:
+        if vias.kind_of(via) is vias.ViaKind.RERUN and rc == 0 and leak_info is not None:
             with self.lock:
                 self.leaks.append(leak_info)
         self.record(FileOutcome(fpath, rc, output, summary, wall, via, bundle_index))
@@ -372,17 +407,20 @@ class _Run:
             "-p",
             _PLUGIN_NAME,
             f"--hermes-bundle-events={events_path}",
+            *diag.PLUGIN_ARGS,
         ]
         timeout = bundle_timeout(members, repo_root, self.flat_timeout, self.durations)
         started = time.time()
         _first, rc, output, _summary, wall = self.bundle_runner(members[0], args, repo_root, timeout)
-        events = tally_events(_read_lines(events_path))
+        lines = _read_lines(events_path)
+        events = tally_events(lines)
+        self.ledger.diagnosis.add(lines)
         rels = [_rel(m, repo_root) for m in members]
         startup = None if events.session_start is None else max(0.0, events.session_start - started)
         stopped_in, unreached = _where_it_died(members, rels, events, rc)
         with lock:
             self.bundle_walls.append((index, wall, rc))
-            ledger.processes.append(plan.Process("bundle", rels, started, time.time(), startup))
+            ledger.processes.append(plan.Process(vias.BUNDLE, rels, started, time.time(), startup))
             ledger.record_bundle_diagnostic(index, rels, rc, events, output, stopped_in)
         startup_share = (startup or 0.0) / len(members)
         rerun = set(members_to_rerun(rels, events, rc))
@@ -399,7 +437,7 @@ class _Run:
                     if known:
                         ledger.known_red.append(rel)
                 note = _known_red_output(index, rel, tally, output) if known else ""
-                via = "known-red" if known else "bundle"
+                via = vias.KNOWN_RED if known else vias.BUNDLE
                 self.record(FileOutcome(member, 1 if known else 0, note, tally.summary(), startup_share + work, via, index))
                 continue
             if member in unreached:
@@ -417,7 +455,7 @@ class _Run:
             )
             with lock:
                 self.reruns += 1
-                self.futures.append(executor.submit(self.solo, member, "rerun", index, leak))
+                self.futures.append(executor.submit(self.solo, member, vias.RERUN, index, leak))
         # The process died in ``stopped_in`` (which goes solo above); the members
         # queued behind it never started, so nothing about them needs a process
         # of its own — they go back out as one bundle. Each re-bundle is shorter
@@ -430,7 +468,7 @@ class _Run:
         elif unreached:
             with lock:
                 self.reruns += 1
-                self.futures.append(executor.submit(self.solo, unreached[0], "rerun", index, None))
+                self.futures.append(executor.submit(self.solo, unreached[0], vias.RERUN, index, None))
 
 def _solo_policy(
     repo_root: Path,
@@ -451,16 +489,18 @@ def _solo_policy(
 
 
 def _with_shards(
-    policy: solo.SoloPolicy, files: Sequence[Path], repo_root: Path, durations: dict[str, float], jobs: int
+    policy: solo.SoloPolicy, files: Sequence[Path], repo_root: Path, durations: dict[str, float], jobs: int,
+    runs: Path,
 ) -> solo.SoloPolicy:
     """``policy`` with the run's shard plan (fast-gate §3): files cached green ≥ 90 s
-    with ≥ 2k recorded tests split k ways when the run is tail-bound; never a
-    known red, never a file on ``scripts/test_files_unsharded.txt``."""
+    with ≥ 2k recorded tests (``runs``: the gate store's run record) split k ways
+    when the run is tail-bound; never a known red, never a file on
+    ``scripts/test_files_unsharded.txt``."""
 
     estimates = {_rel(f, repo_root): _estimate(f, repo_root, durations) for f in files}
     green = {rel: solo.green_seconds(durations, rel) for rel in estimates}
-    exclude = policy.known | scope.load_path_list(repo_root / shard.UNSHARDED_LIST)
-    shards = shard.plan_shards(estimates, green, plan.last_record(repo_root).get("tests") or {}, jobs, exclude)
+    exclude = policy.known | scope.load_path_list(repo_root / shard.UNSHARDED_LIST) | _fork.run_once_list()
+    shards = shard.plan_shards(estimates, green, shard.recorded_tests(runs), jobs, exclude)
     return dataclasses.replace(policy, shards=shards, joiner=shard.ShardJoin(shards, policy.rel_of))
 
 
@@ -545,12 +585,12 @@ def _retry_timeout_stragglers(
     for position, outcome in enumerate(list(outcomes)):
         if outcome.rc == 0 or not rtp._is_retryable_timeout_result(1, outcome.output, outcome.summary):
             continue
-        if outcome.via == solo.KNOWN_RED_VIA:  # ran once, capped, final on its own exit (fast-gate §2)
+        if vias.kind_of(outcome.via) is vias.ViaKind.KNOWN_RED:  # ran once, capped, final on its own exit (fast-gate §2)
             continue
         t0 = time.time()
         fpath, rc, output, summary, wall = solo_runner(outcome.file, pytest_args, repo_root, flat_timeout, 0)
-        ledger.processes.append(plan.Process("retry", [_rel(outcome.file, repo_root)], t0, time.time()))
-        outcomes[position] = FileOutcome(fpath, rc, output, summary, wall, "retry", outcome.bundle_index)
+        ledger.processes.append(plan.Process(vias.RETRY, [_rel(outcome.file, repo_root)], t0, time.time()))
+        outcomes[position] = FileOutcome(fpath, rc, output, summary, wall, vias.RETRY, outcome.bundle_index)
         if on_outcome is not None:
             on_outcome(outcomes[position])
 
@@ -564,7 +604,7 @@ def _timed_out(outcomes: Sequence[FileOutcome], repo_root: Path) -> list[str]:
 
 def _read_lines(path: Path) -> list[str]:
     try:
-        return path.read_text(encoding="utf-8").splitlines()
+        return path.read_text(encoding="utf-8-sig").splitlines()
     except OSError:
         return []
 
@@ -584,13 +624,17 @@ def _known_red_output(index: int, rel: str, tally: FileTally, bundle_output: str
 
 cache = _load_sibling("run_tests_bundled_cache")  # the green-result cache's store (fast-gate §1)
 _fixtures = _load_sibling("run_tests_bundled_fixtures")  # fixture-scoped keys of fixture modules
+_reds = _load_sibling("run_tests_bundled_reds")  # known reds whose key is unchanged are not re-run
 _leftovers = _load_sibling("run_tests_bundled_leftovers")  # processes a run started that outlive it
 _gate = _load_sibling("run_tests_bundled_gate")  # ... and its wiring into a run
+_confirm = _load_sibling("run_tests_bundled_confirm")  # --confirm-red: one named red, alone, on HEAD and the base
+_affected = _load_sibling("run_tests_bundled_affected")  # --affected: the tests your edits can break, never a gate
 
 _OUR_FLAGS = {
     "-h", "--help", "-j", "--jobs", "--bundle-size", "--file-timeout",
     "--file-retries", "--unbundled-list", "--scope", "--since", "--since-merge", "--manifest",
-    "--bundle-seconds", "--solo-seconds", "--skip-list", "--git-audit", *_gate.FLAGS,
+    "--bundle-seconds", "--solo-seconds", "--skip-list", "--git-audit", *_gate.FLAGS, *_confirm.FLAGS,
+    *_affected.FLAGS,
 }
 _PYTEST_VALUE_FLAGS = {"-k", "-m", "-p", "-o", "-c", "-r", "-W"}
 
@@ -645,6 +689,8 @@ def _print_summary(
     if cost:
         print()
         print("\n".join(plan.render(cost)))
+        for line in diag.render(result.ledger.diagnosis if result.ledger is not None else None):
+            print(line)
     if result.ledger is not None:
         for line in plan.render_bundle_diagnostics(result.ledger.bundle_diagnostics):
             print(line)
@@ -710,25 +756,42 @@ def _print_summary(
     return 1 if failures else 0
 
 
-def _print_expected_wall(to_run, repo_root: Path, durations: dict[str, float], jobs: int, sel) -> None:
-    """The plan line that says how long the run will take, and why when a chain edit made it long."""
-    wall, line = plan.expected_wall(
+def _print_expected_wall(to_run, repo_root: Path, durations: dict[str, float], jobs: int) -> None:
+    """The plan line that says how long the run will take."""
+    _wall, line = plan.expected_wall(
         {_rel(f, repo_root): durations.get(rtp._format_file(f, repo_root)) for f in to_run},
         jobs, _UNCACHED_ESTIMATE_SECONDS,
     )
     print(line, flush=True)
-    hint = plan.chain_split_hint(wall, sel.chain_paths) if sel.chain else None
-    if hint:
-        print(hint, flush=True)
 
 
-def main(argv: Optional[list[str]] = None) -> int:
-    rtp._make_stdio_glyph_safe()
-    ours, pytest_args = _split_argv(list(sys.argv[1:] if argv is None else argv))
+def _progress_printer(total: int, repo_root: Path, pytest_args: list[str]) -> Callable[[FileOutcome], None]:
+    """One ``[n/total]`` line per finished file, a failure's tail printed inline; thread-safe."""
+    done = 0
+    counter_lock = threading.Lock()
+
+    def _progress(outcome: FileOutcome) -> None:
+        nonlocal done
+        with counter_lock:
+            done += 1
+            status = "✓" if outcome.rc == 0 else "✗"
+            print(
+                f"[{done:>5}/{total}] {status} {_rel(outcome.file, repo_root)} "
+                f"({outcome.via}, {outcome.seconds:.1f}s) {outcome.summary}",
+                flush=True,
+            )
+            if outcome.rc != 0:
+                rtp._print_inline_failure(outcome.file, outcome.output, repo_root, pytest_args)
+
+    return _progress
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    """The runner's own options; everything else on the argv goes to pytest (``_split_argv``)."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
         "-j", "--jobs", type=int,
-        default=int(os.environ.get("HERMES_TEST_WORKERS") or rtp._adaptive_default_jobs(os.cpu_count())),
+        default=int(os.environ.get("HERMES_TEST_WORKERS") or min(os.cpu_count() or 4, DEFAULT_JOBS)),
     )
     parser.add_argument("--bundle-size", type=int, default=DEFAULT_BUNDLE_SIZE, help="most files per bundle")
     parser.add_argument(
@@ -750,14 +813,16 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     parser.add_argument("--unbundled-list", type=Path, default=_DEFAULT_UNBUNDLED)
     parser.add_argument(
-        "--scope", choices=(SCOPE_FORK, SCOPE_FULL), default=SCOPE_FORK,
+        "--scope", choices=(SCOPE_FORK, SCOPE_FEATURES, SCOPE_FULL), default=SCOPE_FORK,
         help="fork (default, the landing gate): files absent from the upstream manifest plus the "
-        "inherited files the change reaches; full: every discovered file (the weekly merge lane)",
+        "inherited files the change reaches; features: every file not on the skip list, a quiet-box "
+        "measurement, never a gate; full: RETIRED (ADR 0016) — exit 2 unless every PATH is a file",
     )
     change = parser.add_mutually_exclusive_group()
     change.add_argument(
-        "--since", default=_DEFAULT_SINCE, metavar="REF",
-        help=f"--scope fork: the change is `git diff <REF>...HEAD` plus working-tree edits (default {_DEFAULT_SINCE})",
+        "--since", default=None, metavar="REF",
+        help=f"--scope fork: the change is `git diff <REF>...HEAD` plus working-tree edits (default {_DEFAULT_SINCE}); "
+        "--affected: adds `git diff <REF>...HEAD` to the working-tree change (default: none)",
     )
     change.add_argument(
         "--since-merge", metavar="SHA", help="--scope fork after a release merge: the change is what the merge "
@@ -769,7 +834,16 @@ def main(argv: Optional[list[str]] = None) -> int:
         help="record every git a test runs against this checkout to .pytest_cache/hermes_git_in_checkout.jsonl",
     )
     _gate.add_arguments(parser)
+    _confirm.add_arguments(parser)
+    _affected.add_arguments(parser)
     parser.add_argument("paths", nargs="*", metavar="PATH")
+    return parser
+
+
+def main(argv: Optional[list[str]] = None) -> int:
+    rtp._make_stdio_glyph_safe()
+    ours, pytest_args = _split_argv(list(sys.argv[1:] if argv is None else argv))
+    parser = _build_parser()
     args = parser.parse_args(ours)
     if args.git_audit:  # every bundle child inherits it (tests/_downstream/git_audit.py)
         os.environ["HERMES_TEST_GIT_AUDIT"] = "1"
@@ -778,6 +852,12 @@ def main(argv: Optional[list[str]] = None) -> int:
         parser.error("node ids are not supported here; run the file with scripts/run_tests.sh")
 
     repo_root = _SCRIPTS_DIR.parent
+    if args.affected:
+        return _affected.main(args, repo_root, sys.modules[__name__], pytest_args)
+    args.since = args.since or _DEFAULT_SINCE
+    if args.confirm_red:
+        primary = plan.primary_checkout(repo_root) or repo_root
+        return _confirm.main(args, repo_root, Path(primary), lambda p: _rel(p, repo_root))
     roots = [repo_root / p for p in (args.paths or rtp._DEFAULT_ROOTS)]
     missing = [str(r) for r in roots if not r.exists()]
     if missing:
@@ -803,45 +883,27 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(f"  deselected (upstream skip list node; name the file to run it): {node}  # {skip_rows[node].why}")
     pytest_args = pytest_args + deselect
 
-    # Constant for the whole run, so setting it before any worker starts is
-    # race-free: every bundle child can then load the plugin by name.
-    os.environ["PYTHONPATH"] = os.pathsep.join(
-        [str(_PLUGIN_DIR)] + [p for p in os.environ.get("PYTHONPATH", "").split(os.pathsep) if p]
-    )
+    prepare_child_environ(os.environ)
     # The gate pays the fresh-SessionDB census (D3.11): every child appends its
     # per-file counts to .pytest_cache/hermes_fresh_dbs.jsonl. Set before the gate
     # starts, so the cache key's runner env is the same every run.
     os.environ.setdefault("HERMES_TEST_COUNT_FRESH_DBS", "1")
-    gate = _gate.GateRun.start(args, repo_root, files, roots, pytest_args)  # the store: runs, durations, greens
+    # the skip list's deselects are keyed (its file is a runner input), so they never turn the cache off
+    gate = _gate.GateRun.start(args, repo_root, files, roots, pytest_args, keyed_args=deselect)
     durations = gate.durations(rtp._load_durations)
-    unbundled = load_unbundled(args.unbundled_list)
+    unbundled = unbundled_files(args.unbundled_list)
     known_reds, timed_out = gate.known_reds, gate.timed_out
     policy = _solo_policy(repo_root, args.file_timeout, args.file_retries, durations, known_reds, timed_out)
-    policy = _with_shards(policy, gate.to_run, repo_root, durations, args.jobs)
+    policy = _with_shards(policy, gate.to_run, repo_root, durations, args.jobs, gate.store.runs)
     print(
         f"Bundled runner: {len(files)} test files, bundles of ≤{args.bundle_size} files / ≤{args.bundle_seconds:g}s, "
         f"solo over {args.solo_seconds:g}s, {len(unbundled)} listed unbundled, {len(policy.known)} known red "
         f"(run once, alone, capped), {policy.shards.line()}, -j {args.jobs}",
         flush=True,
     )
-    _print_expected_wall(gate.to_run, repo_root, durations, args.jobs, sel)
+    _print_expected_wall(gate.to_run, repo_root, durations, args.jobs)
 
-    done = 0
-    counter_lock = threading.Lock()
-
-    def _progress(outcome: FileOutcome) -> None:
-        nonlocal done
-        with counter_lock:
-            done += 1
-            status = "✓" if outcome.rc == 0 else "✗"
-            print(
-                f"[{done:>5}/{len(files)}] {status} {_rel(outcome.file, repo_root)} "
-                f"({outcome.via}, {outcome.seconds:.1f}s) {outcome.summary}",
-                flush=True,
-            )
-            if outcome.rc != 0:
-                rtp._print_inline_failure(outcome.file, outcome.output, repo_root, pytest_args)
-
+    _progress = _progress_printer(len(files), repo_root, pytest_args)
     gate.emit_cached(FileOutcome, _progress)  # skipped as cached green: no process
     started, run_wall = time.monotonic(), time.time()
     result = run(
@@ -864,8 +926,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     cost = result.ledger.summary(args.jobs)
     gate.record(  # the audit, then the run record + durations into the gate store
         result, cost, timed_out=_timed_out(result.outcomes, repo_root),
-        extra=policy.shards.record(_ran(result.outcomes, repo_root)),
+        extra={**policy.shards.record(_ran(result.outcomes, repo_root)), **diag.run_record(result.ledger.diagnosis)},
     )
+    diag.append(gate.store.root, gate.run_id, result.ledger.diagnosis)  # diagnosis.jsonl beside runs.jsonl
     for line in policy.closing_lines():  # unsharded-list candidates (fast-gate §3)
         print(line)
     for line in _leftovers.lines(_leftovers.scan(run_wall)):  # a detached hermes update, named

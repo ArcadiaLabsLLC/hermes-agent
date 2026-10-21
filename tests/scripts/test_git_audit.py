@@ -49,6 +49,7 @@ def _session(tmp_path: Path, audit: bool) -> tuple[subprocess.CompletedProcess, 
         [sys.executable, "-m", "pytest", "-p", "tests._downstream.git_audit", "-p", "no:cacheprovider",
          "-o", "addopts=", "--rootdir", str(root), "-q", str(root / "test_throwaway_git.py")],
         cwd=root, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
+        check=False,
     )
     return proc, root / git_audit.RECEIPT
 

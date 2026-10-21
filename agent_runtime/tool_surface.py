@@ -215,7 +215,7 @@ class ToolSurface:
 
     def with_block(
         self, blocked_tool_names: Iterable[str] = (), *, admission_stripped_toolsets: Iterable[str] = (),
-    ) -> "ToolSurface":
+    ) -> ToolSurface:
         """This surface with the run's block applied: a blocked name leaves every other state."""
 
         from .personas import PERSONA_BLOCKED_TOOLS, REGISTRY_HYGIENE_BLOCKED_TOOLS
@@ -239,7 +239,7 @@ class ToolSurface:
     def constructor_form(
         cls, tool_defs: Iterable[dict[str, Any]], *, enabled_toolsets: Iterable[str] | None,
         degraded: Iterable[str],
-    ) -> "ToolSurface":
+    ) -> ToolSurface:
         """The surface of a list nobody re-assembled (the fault path): what stands, eager, recorded."""
 
         from tools.tool_search_catalog import BRIDGE_TOOL_NAMES
@@ -449,7 +449,7 @@ def assemble_surface(
             closure=_toolset_closure(enabled or ()), promoted=never_defer_tool_names(config),
             off=off, curated=curated, persona=persona, config=config,
         )
-    except Exception as exc:  # noqa: BLE001 - the account never costs the form its cost cut
+    except Exception as exc:  # the account never costs the form its cost cut
         # The form stands; the account says it could not be taken (``account:<Exc>``) and
         # reports what it does know, the wire, eager.
         dispositions = [ToolDisposition(n, STATE_EAGER) for n in sorted(wire - BRIDGE_TOOL_NAMES)]
@@ -519,12 +519,12 @@ def unaliased_wire_names(wire_receipt: Mapping[str, Any] | None) -> list[str]:
 
 __all__ = [
     "AGENT_SURFACE_ATTR",
-    "DispositionReason",
     "STATES",
+    "DispositionReason",
     "ToolDisposition",
     "ToolSurface",
-    "blocked_reason",
     "assemble_surface",
+    "blocked_reason",
     "compute_tool_surface",
     "is_mcp_tool_name",
     "not_computed",

@@ -10,7 +10,7 @@ the after-idle row reds on its group counts.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -18,7 +18,7 @@ from agent_runtime import paths
 from agent_runtime.turn_latency_check import load_budgets
 from hermes_cli.harness_parts.observe_commands import _cmd_observe_turn_check
 
-BOOT = datetime(2026, 10, 7, 4, 38, 40, tzinfo=timezone.utc)
+BOOT = datetime(2026, 10, 7, 4, 38, 40, tzinfo=UTC)
 CHAT = "persona_chat_personainst_dev_agent_x"
 
 
@@ -29,7 +29,7 @@ def _stamp(at: datetime) -> str:
 
 def _turn(at: datetime, n: int, *, accept=27, prep=260, conn="reused", wait=800, gap=150) -> list[str]:
     turn, request = f"agent-chat-send-{n:04d}", f"{CHAT}:req-{n}:abc:api:1"
-    anchored = at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    anchored = at.astimezone(UTC).isoformat().replace("+00:00", "Z")
     return [
         f"{_stamp(at)} INFO [{CHAT}] agent_runtime.turn_activity: chat_turn_accept_to_anchor request=chat-{n} "
         f"queue_ms=0 link_ms=0 dispatch_ms={accept} total_ms={accept} turn={turn}",
@@ -43,7 +43,7 @@ def _turn(at: datetime, n: int, *, accept=27, prep=260, conn="reused", wait=800,
 
 
 def _launcher(at: datetime, n: int, *, send="warm", admit=110, build_max=120.5, build_sum=1000.0, paint=25) -> str:
-    end = (at + timedelta(seconds=2.5)).astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    end = (at + timedelta(seconds=2.5)).astimezone(UTC).isoformat().replace("+00:00", "Z")
     return (f"[{end}] INFO eternia.mission.chat.timing — [MissionChatTiming] turn_id=agent-chat-send-{n:04d} "
             f"send={send} enqueue_to_dispatch_ms=1 send_to_admit_ms={admit} ui_apply_to_paint_ms={paint} "
             f"ui_build_max_ms={build_max} ui_build_sum_ms={build_sum}")

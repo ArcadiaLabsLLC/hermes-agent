@@ -34,18 +34,18 @@ if TYPE_CHECKING:
 __layer__ = "stores"
 
 __all__ = [
-    "read_retire_receipt",
-    "retire",
-    "retire_receipt_path",
     "RETIRE_RECEIPTS_DIRNAME",
-    "retired_instance_archive_path",
-    "retired_instance_ids",
-    "retired_persona_instance_ids",
     "_archive_instance_row",
     "_archive_office_placements",
     "_retire_archive_batches",
     "_retired_persona_instance_archive_path",
     "_write_retire_receipt",
+    "read_retire_receipt",
+    "retire",
+    "retire_receipt_path",
+    "retired_instance_archive_path",
+    "retired_instance_ids",
+    "retired_persona_instance_ids",
 ]
 
 
@@ -191,7 +191,7 @@ def _archive_office_placements(
             reason="instance_reaped",
             correlation_id=correlation_id,
         )
-    except Exception as exc:  # noqa: BLE001 - the retire is authoritative regardless
+    except Exception as exc:  # the retire is authoritative regardless
         logging.getLogger(__name__).warning(
             "office placement archive failed for %s", instance.id, exc_info=True
         )
@@ -385,7 +385,7 @@ def _write_retire_receipt(
             indent=2,
             sort_keys=True,
         )
-    except Exception as exc:  # noqa: BLE001 - the retirement is already durable
+    except Exception as exc:  # the retirement is already durable
         logging.getLogger(__name__).warning(
             "retire receipt write failed for %s",
             result["persona_instance_id"],
@@ -427,7 +427,7 @@ def read_retire_receipt(
                 encoding="utf-8"
             )
         )
-    except Exception:  # noqa: BLE001 - absent, unreadable, or not JSON
+    except Exception:  # absent, unreadable, or not JSON
         return None
     return raw if isinstance(raw, dict) else None
 

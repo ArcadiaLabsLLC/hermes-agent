@@ -10,7 +10,8 @@ and never a path** — statuses and versions only; the test greps the written do
 every value the fixture environment set.
 
 The probes, in order: the bound path exists and ``git remote get-url origin`` matches the
-declared ``repo.clone_url`` (``checkout: matches | remote_mismatch | not_a_repo``); each
+declared ``repo.clone_url`` (``checkout: matches | remote_mismatch | not_a_repo``; a
+``repo.local`` slot with a ``.git`` answers ``local``, no remote check); each
 declared tool resolves (``tool_paths`` first, then ``PATH`` with the fill's
 ``path_prepend`` in front, through ``hermes_platform.resolver.locate_command``) and its
 ``--version`` is parsed where it prints one; each env key is present in the fill's ``env``
@@ -40,6 +41,8 @@ PROBE_UNKNOWN = "unknown"
 CHECKOUT_MATCHES = "matches"
 CHECKOUT_REMOTE_MISMATCH = "remote_mismatch"
 CHECKOUT_NOT_A_REPO = "not_a_repo"
+#: A ``repo.local`` slot (the Work default brain) is a repository with no remote to match.
+CHECKOUT_LOCAL = "local"
 
 STATUS_READY = "ready"
 STATUS_NEEDS_SETUP = "needs_setup"
@@ -83,6 +86,8 @@ class _SlotProbe:
     def checkout(self, path: Path) -> str:
         if not (path / ".git").exists():
             return CHECKOUT_NOT_A_REPO
+        if (self.slot.get("repo") or {}).get("local") is True:
+            return CHECKOUT_LOCAL
         try:
             done = self.run(["git", "-C", str(path), "remote", "get-url", "origin"])
         except (OSError, subprocess.SubprocessError) as exc:

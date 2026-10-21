@@ -67,6 +67,10 @@ import pathlib
 
 from hermes_cli import flag_binding
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 HARNESS_ROOT = pathlib.Path(__file__).resolve().parents[2] / "hermes_cli"
 HARNESS = HARNESS_ROOT / "harness.py"
 #: The parser tree lives in its own package since lane H2 (every ``add_argument``).

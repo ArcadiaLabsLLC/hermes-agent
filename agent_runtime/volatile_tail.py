@@ -302,7 +302,7 @@ class VolatileTailBuilder:
     def __init__(self) -> None:
         self._contributions: list[VolatileContribution] = []
 
-    def add(self, name: str, content: Any, *, budget_bytes: int) -> "VolatileTailBuilder":
+    def add(self, name: str, content: Any, *, budget_bytes: int) -> VolatileTailBuilder:
         self._contributions.append(
             VolatileContribution(
                 name=str(name),

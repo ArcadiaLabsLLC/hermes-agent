@@ -73,31 +73,13 @@ ENTRY_POINT_LANE_ENV = "HERMES_ENTRY_POINT_LANE"
 #: the lane label.
 _MCP_TOOLSET_PREFIX = "mcp-"
 
-_lane_override: str | None = None
-
-
-def set_entry_point_lane(lane: str | None) -> None:
-    """Pin this process's entry-point lane (highest-precedence signal).
-
-    For entry points that know what they are and do not want to be inferred
-    from argv. Passing ``None`` clears the pin.
-    """
-
-    global _lane_override
-    text = str(lane or "").strip()
-    _lane_override = text or None
-
-
 def current_entry_point_lane(argv: Sequence[str] | None = None) -> str:
     """Resolve the lane this process is running on.
 
-    Precedence: explicit pin > ``HERMES_ENTRY_POINT_LANE`` > argv inference >
-    ``"unknown"``. Never raises — a lane label must not be able to break a
+    Precedence: ``HERMES_ENTRY_POINT_LANE`` > argv inference > ``"unknown"``. Never raises — a lane label must not be able to break a
     visibility resolve.
     """
 
-    if _lane_override:
-        return _lane_override
     try:
         env = str(os.environ.get(ENTRY_POINT_LANE_ENV, "") or "").strip()
     except Exception:  # pragma: no cover - os.environ access is not expected to fail
@@ -317,7 +299,7 @@ def mission_chat_mcp_lane_line(persona: Any, *, lane: str | None = None) -> str:
         from .profile_readiness import effective_required_mcp_servers
 
         declared = effective_required_mcp_servers(persona)
-    except Exception as exc:  # noqa: BLE001 — never fail a turn; never silent
+    except Exception as exc:  # never fail a turn; never silent
         logger.warning(
             "mcp_lane_line_declaration_unreadable persona=%s error=%s: %s",
             getattr(persona, "id", None),
@@ -331,7 +313,7 @@ def mission_chat_mcp_lane_line(persona: Any, *, lane: str | None = None) -> str:
         return render_mcp_lane_line(
             mcp_lane_requirement_failures(declared_servers=declared, lane=lane)
         )
-    except Exception as exc:  # noqa: BLE001 — never fail a turn; never silent
+    except Exception as exc:  # never fail a turn; never silent
         logger.warning(
             "mcp_lane_line_render_failed persona=%s error=%s: %s",
             getattr(persona, "id", None),

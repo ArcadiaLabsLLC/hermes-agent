@@ -56,22 +56,22 @@ __layer__ = "models"
 
 __all__ = [
     "AMBIGUOUS_400_FAILURE_REASONS",
-    "ChatErrorKind",
     "DELEGATED_ERROR_KIND_SOURCES",
-    "ExecutionState",
     "FAILURE_EXECUTION_STATES",
-    "FinalizationWarning",
-    "FinalizationWarningKind",
     "MISSION_CHAT_EXIT_FAILURE",
     "MISSION_CHAT_EXIT_OK",
-    "MissionChatDeferredFinalization",
-    "MissionChatTurnPlan",
     "OK_EXECUTION_STATES",
     "PROVIDER_REFUSAL_STATUS_CODES",
     "PROVIDER_REFUSED_OUTCOME",
     "PROVIDER_UNAVAILABLE_OUTCOME",
     "PROVIDER_UNAVAILABLE_REASON",
     "PROVIDER_UNAVAILABLE_STATUS_CODE",
+    "ChatErrorKind",
+    "ExecutionState",
+    "FinalizationWarning",
+    "FinalizationWarningKind",
+    "MissionChatDeferredFinalization",
+    "MissionChatTurnPlan",
     "ProviderRefusal",
     "TurnOutcome",
     "classify_turn_failure",
@@ -167,6 +167,14 @@ class ChatErrorKind(StrEnum):
     #: root (absent, another state, or the send itself). A retry of a completed
     #: turn is "regenerate", out of scope; the client falls back to a plain send.
     CHAT_TURN_RETRY_TARGET_INVALID = "chat_turn_retry_target_invalid"
+    #: A pasted image reference names no stored PNG/JPEG (``agent_runtime.operator_images``).
+    IMAGE_INVALID = "image_invalid"
+    #: The send carries images and the model this turn runs on takes none
+    #: (upstream ``decide_image_input_mode`` answered ``text``). Refused before any token.
+    VISION_UNSUPPORTED = "vision_unsupported"
+    #: A reviewed-file reference names no stored file (``agent_runtime.operator_files``);
+    #: the native lane's ``Refusal.FILE_INVALID`` spelling, so one client branch reads both.
+    FILE_INVALID = "file_invalid"
 
     # -- chat-root ownership / concurrency -----------------------------------
     UNKNOWN_CHAT_SESSION = "unknown_chat_session"
@@ -224,6 +232,9 @@ ADMISSION_ERROR_KINDS = frozenset(
         ChatErrorKind.RETIRED_PERSONA_INSTANCE,
         ChatErrorKind.INVALID_CHAT_MODEL_OVERRIDE,
         ChatErrorKind.CHAT_TURN_RETRY_TARGET_INVALID,
+        ChatErrorKind.IMAGE_INVALID,
+        ChatErrorKind.VISION_UNSUPPORTED,
+        ChatErrorKind.FILE_INVALID,
     }
 )
 CHAT_ROOT_ERROR_KINDS = frozenset(
@@ -455,7 +466,7 @@ def _reset_delta_seconds(value: object, *, now: float | None = None) -> float | 
             from datetime import datetime
 
             try:
-                parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+                parsed = datetime.fromisoformat(text)
             except ValueError:
                 return None
             return parsed.timestamp() - moment

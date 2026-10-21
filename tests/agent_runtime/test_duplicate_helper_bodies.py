@@ -74,7 +74,7 @@ import pytest
 #: (h-red-gates, 2026-10-07) - past ``addopts``' ``--timeout=30``, which then
 #: kills the gate with a hang trace instead of its verdict. The bound is a hang
 #: guard, not the gate: what it checks is unchanged.
-pytestmark = pytest.mark.timeout(180)
+pytestmark = [pytest.mark.timeout(180), pytest.mark.gate]
 
 HERMES_ROOT = pathlib.Path(__file__).resolve().parents[2]
 PACKAGE = HERMES_ROOT / "agent_runtime"
@@ -101,15 +101,9 @@ _GRANDFATHERED: dict[tuple[str, ...], str] = {
     # ``storage.try_session_lock``, the lock-held typed-outcome tests re-proven);
     # ``persona_chat_continuity``'s pair folds in its own lane.
     # ``board_content_hash == office_content_hash`` was grandfathered here at
-    # this gate's first run and its row is GONE, per this file's own rule that a
-    # pair which stops being duplicate loses its row in the same commit. They
-    # stopped being duplicate for a reason, not by a rename: H-H12 gave the
-    # office hash a second filter (``_ITEM_HASH_EXCLUDE``) over an actor's
-    # ``items``, which a board row does not have. That is also the answer to the
-    # row's own deferral — it wanted "its own stage with a golden-compare" before
-    # folding the two onto one ``content_hash(payload)``, and the fold is now
-    # further away rather than nearer, because the office lane has an exclusion
-    # rule the board lane must not inherit silently.
+    # this gate's first run; H-H12's item filter made them differ, and its removal
+    # (RT-OFFICEITEM-MINTED-KIND, 2026-10-18) made them identical again, so both
+    # now delegate to ``serde.sync_content_hash`` — one body, hash values unchanged.
 }
 
 
@@ -256,7 +250,7 @@ def test_the_grandfathered_baseline_still_describes_the_code(agent_runtime_dupli
 # helper with two owners. The baseline is enumerated by the probe into
 # ``tests/fixtures/duplicate_bodies_grandfathered.json`` and only shrinks.
 
-from scripts import god_file_probe as _probe  # noqa: E402
+from scripts import god_file_probe as _probe
 
 
 def _fork_wide_drift() -> tuple[_probe.Drift, _probe.Drift]:

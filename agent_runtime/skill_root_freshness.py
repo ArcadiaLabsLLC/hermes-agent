@@ -62,7 +62,7 @@ class TurnRootRegistries(dict):
     that finds a name missing can walk exactly those.
     """
 
-    __slots__ = ("served_from_cache", "preparation_epoch")
+    __slots__ = ("preparation_epoch", "served_from_cache")
 
     def __init__(self) -> None:
         super().__init__()

@@ -51,6 +51,14 @@ Work tracking (adopted from the launcher's ADR 0025):
 - `Harness_Brain/TODO.md` is the master pointer list and holds no items, counts or
   statuses. Work is filed by the SURFACE it serves, never the layer it lives in and never
   the lane that found it.
+- **Every queue row is in the launcher's grammar**, because the launcher's Mission Control
+  Queues tab reads these notes from the checkout: `- **`<ID>` — <title>** · … · <status>`,
+  one line, a unique ID, EXACTLY ONE of `READY <date>` / `BLOCKED <date>: <reason> — …` /
+  `DEFERRED <date>: …` / `NEEDS PLAN <date>: …`; a `backend` / `hermes` / `launcher` / `another lane`
+  block opens its detail with the blocking row's `ID` (no limbo); an open owner question is
+  `BLOCKED <date>: owner decision — … · Recommend: …`, an answer a `RULED <date>:` record;
+  `VERDICT` is retired. The grammar's one home is `Harness_Brain/30 — Decisions/0011`
+  § Row grammar; `tests/tooling/test_work_queue_row_grammar.py` enforces it.
 - **Claim a row before you start it:** fetch, append `**TAKEN <date> <who>**` to the row's
   line, commit that alone, push, then cut the worktree. A row already marked `TAKEN` is
   someone else's. The landing commit deletes the row.
@@ -102,11 +110,15 @@ hermes harness serve                                            # the runtime th
 python scripts/refactor_census.py <files.txt> <out.json>        # code-line counter + dead/duplicate census
 ```
 
+Upstream's area guides (`tests/AGENTS.md`, `agent/AGENTS.md`, …) are upstream's, not this fork's;
+the fork's test guide is `tests/CLAUDE.md`, and `tests/AGENTS.md` is not read (owner 2026-10-16).
+
 **Before you run any test, gate or suite — or brief a lane that will — read
 `Harness_Brain/50 — Agent Handoffs/Running the tests.md`.** It owns the commands, the landing
 gate, what a lane runs, how a red is proven pre-existing, and the heavy-command habits. The one
 rule that cannot wait for the page: never run bare `pytest` over a directory (it detached 11
-unpushed commits on 2026-08-01); the landing gate is `scripts/run_tests_bundled.sh tests`.
+unpushed commits on 2026-08-01); the landing gate, `scripts/run_tests_bundled.sh tests`, runs once per
+batch at its landing, never per lane.
 
 ## Git discipline
 
@@ -118,8 +130,11 @@ unpushed commits on 2026-08-01); the landing gate is `scripts/run_tests_bundled.
   counting once `Harness_Brain/` is in `NON_RUNTIME_PREFIXES`, landing h-turn1).
 - Concurrent sessions share ONE git index: stage and commit in one breath, by pathspec.
 - Cut worktrees from a NEUTRAL cwd (the directory beside the clone, never inside the checkout):
-  `git -C <clone> worktree add <beside the clone>/worktrees/<lane> -b <branch> origin/main`. The
+  `git -C <clone> worktree add <beside the clone>/.worktrees/<lane> -b <branch> origin/main`. The
   clone's location differs per workstation; read it off `git worktree list`, never from this file.
+  The parent is named `.worktrees` because pm reclaims a removed worktree's install state only under
+  such a parent (`pm/install_states.py::_provably_deleted`); the old `worktrees/` parent leaked 335
+  install states, 278 GB (owner ruling 2026-10-18).
   A `fetch` + `worktree add` run inside the primary checkout yanked `main` back to its
   pre-merge tip once (2026-08-31) and both usual tells lied.
 - Never `git stash`. The stash stack and the rerere cache are shared by every worktree of

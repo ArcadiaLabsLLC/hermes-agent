@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from agent_runtime.operation_result import emit_operation_result
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 from agent_runtime.cli_format import emit_json
 from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
 from agent_runtime.harness_query import resolve_instance
@@ -381,7 +381,7 @@ def _cmd_persona_permission_set(args) -> int:
     expires_at = str(args.expires_at or "").strip() or None
     ttl_seconds = getattr(args, "ttl_seconds", None)
     if expires_at is None and ttl_seconds is not None and ttl_seconds > 0:
-        expires_at = (datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)).isoformat().replace("+00:00", "Z")
+        expires_at = (datetime.now(UTC) + timedelta(seconds=ttl_seconds)).isoformat().replace("+00:00", "Z")
     record = ChatToolPermissionStore().set(
         persona_id=subject,
         session_id=str(args.session_id or ""),

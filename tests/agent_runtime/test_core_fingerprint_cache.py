@@ -1000,7 +1000,7 @@ def _close_every_connection_to(db_path) -> int:
             continue
         try:
             files = [row[2] for row in obj.execute("PRAGMA database_list").fetchall()]
-        except Exception:  # noqa: BLE001 — already closed, or not usable here
+        except Exception:  # already closed, or not usable here
             continue
         if not any(
             file and os.path.normcase(os.path.abspath(file)) == wanted for file in files
@@ -1008,7 +1008,7 @@ def _close_every_connection_to(db_path) -> int:
             continue
         try:
             obj.close()
-        except Exception:  # noqa: BLE001
+        except Exception:
             continue
         closed += 1
     return closed
@@ -1278,7 +1278,7 @@ def test_a_mismatch_serves_labeled_stale_first_then_authoritative(
 
     def drive() -> None:
         try:
-            for frame in stream_frames(
+            frames.extend(stream_frames(
                 max_frames=2,
                 poll_interval_seconds=0.01,
                 # MC-4 / P6: the stale paint goes to a room that PAINTS, and
@@ -1287,8 +1287,7 @@ def test_a_mismatch_serves_labeled_stale_first_then_authoritative(
                 # whole point of the parameter, and is asserted directly by
                 # ``test_stream_stale_first_routing``.
                 wants_stale_first=True,
-            ):
-                frames.append(frame)
+            ))
         except BaseException as exc:  # pragma: no cover - surfaced below
             failure.append(exc)
 
@@ -1617,10 +1616,9 @@ class _ImportRecorder(importlib.abc.MetaPathFinder):
         self.watched = watched
         self.attempts: list[str] = []
 
-    def find_spec(self, fullname, path=None, target=None):  # noqa: D102
+    def find_spec(self, fullname, path=None, target=None):
         if fullname == self.watched or fullname.startswith(self.watched + "."):
             self.attempts.append(fullname)
-        return None
 
 
 def test_a_cache_hit_boot_imports_no_model_tools(

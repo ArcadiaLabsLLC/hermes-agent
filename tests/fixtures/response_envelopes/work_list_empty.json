@@ -74,7 +74,19 @@
         "lane": "durable",
         "status": "ok"
       },
+      "messaging_turn": {
+        "lane": "durable",
+        "status": "ok"
+      },
+      "scheduled_turn": {
+        "lane": "durable",
+        "status": "ok"
+      },
       "terminal": {
+        "lane": "durable",
+        "status": "ok"
+      },
+      "tool_call": {
         "lane": "durable",
         "status": "ok"
       }

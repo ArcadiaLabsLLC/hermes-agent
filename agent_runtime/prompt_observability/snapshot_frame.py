@@ -54,7 +54,7 @@ def snapshot_prompt_observability(
     workspace: str | None = None,
     active_workspace_id: str | None = None,
     catalog_sink: dict[str, list[dict[str, Any]]] | None = None,
-    skill_resolver: "_SkillObservabilityResolver | None" = None,
+    skill_resolver: _SkillObservabilityResolver | None = None,
 ) -> dict[str, Any]:
     return SnapshotFrame(
         personas=personas,
@@ -81,7 +81,7 @@ class SnapshotFrame:
     workspace: str | None = None
     active_workspace_id: str | None = None
     catalog_sink: dict[str, list[dict[str, Any]]] | None = None
-    skill_resolver: "_SkillObservabilityResolver | None" = None
+    skill_resolver: _SkillObservabilityResolver | None = None
     roster: list[Any] = field(init=False)
     installs: Any = field(init=False)
 

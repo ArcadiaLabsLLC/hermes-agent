@@ -45,6 +45,7 @@ from agent_runtime.runtime_hud import (
 )
 from agent_runtime.turn_budget import render_turn_budget_line
 from agent_runtime.volatile_tail import STATUS_EMITTED, STATUS_EMPTY, STATUS_TRUNCATED
+from datetime import UTC
 
 
 # ── fixtures ────────────────────────────────────────────────────────────────
@@ -499,7 +500,7 @@ def test_the_reuse_key_survives_a_turn_of_row_liveness():
 
     persona, instance = _live_records()
     instance.state = WorkerSessionState.RUNNING
-    instance.updated_at = datetime(2026, 8, 23, 14, 44, tzinfo=timezone.utc)
+    instance.updated_at = datetime(2026, 8, 23, 14, 44, tzinfo=UTC)
     instance.last_heartbeat_at = instance.updated_at
     instance.skill_manifest_hash = "manifest-turn-1"
     instance.active_run_id = "run_turn_1"
@@ -810,7 +811,7 @@ def test_two_consecutive_turn_builds_of_one_chat_move_no_component(tmp_path):
 
     persona, instance = _live_records()
     instance.state = WorkerSessionState.RUNNING
-    instance.updated_at = datetime(2026, 8, 23, 19, 3, 10, tzinfo=timezone.utc)
+    instance.updated_at = datetime(2026, 8, 23, 19, 3, 10, tzinfo=UTC)
     instance.last_heartbeat_at = instance.updated_at
     instance.skill_manifest_hash = "manifest-turn-1"
 
@@ -1020,22 +1021,19 @@ def test_a_steered_chat_goal_is_hud_content_not_actor_identity():
 
 
 def test_the_config_document_a_turn_resolves_is_AMBIENT(tmp_path, monkeypatch):
-    """The hazard, reproduced: another thread's profile binding decides which
-    ``config.yaml`` THIS thread loads.
+    """The hazard, reproduced: another thread's ambient ``HERMES_HOME`` write
+    decides which ``config.yaml`` THIS thread loads — and a profile binding no
+    longer is such a write.
 
-    ``persona_profile_context`` writes ``os.environ["HERMES_HOME"]``
-    process-globally (its own docstring states the invariant: sound only while
-    runs are serialized by ``profile_runner._WORKDIR_LOCK``), and the readiness
-    walk behind every snapshot build enters it per persona — in the same process
-    that serves chat turns, on another thread, every few seconds. A turn that
-    hashes the loaded config document is therefore hashing whichever profile the
-    walk happens to be standing in.
-
-    This test asserts the hazard rather than a fix: nothing here is going to stop
-    a background walk from rebinding the process. What must stop is the reuse key
-    depending on it.
+    ``persona_profile_context`` used to mirror ``os.environ["HERMES_HOME"]``
+    process-globally, and the readiness walk entered it per persona on another
+    thread every few seconds. The mirror retired after run-serialization S5, so
+    the binding half below must NOT move this thread's document. The raw-write
+    half stays: any ambient write still would, which is why the reuse key must
+    not depend on the ambient document.
     """
 
+    import os
     import threading
 
     from agent_runtime.config import load_agent_runtime_config
@@ -1055,28 +1053,38 @@ def test_the_config_document_a_turn_resolves_is_AMBIENT(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(turn_home))
     assert load_agent_runtime_config().default_model == "opus"
 
-    entered = threading.Event()
-    release = threading.Event()
+    def _during(hold) -> str:
+        entered, release = threading.Event(), threading.Event()
 
-    def _readiness_walk():
-        binding = PersonaProfileBinding(
-            persona_id="qa", hermes_profile="qa", profile_home=walked_home
-        )
-        with persona_profile_context(binding):
-            entered.set()
-            release.wait(10)
+        def _walk():
+            with hold():
+                entered.set()
+                release.wait(10)
 
-    walker = threading.Thread(target=_readiness_walk, daemon=True)
-    walker.start()
-    try:
-        assert entered.wait(10), "the walker never entered the profile context"
-        # This thread asked for nothing. It gets the walker's profile anyway.
-        during_walk = load_agent_runtime_config()
-    finally:
-        release.set()
-        walker.join(10)
+        walker = threading.Thread(target=_walk, daemon=True)
+        walker.start()
+        try:
+            assert entered.wait(10), "the walker never entered its scope"
+            return load_agent_runtime_config().default_model
+        finally:
+            release.set()
+            walker.join(10)
 
-    assert during_walk.default_model == "sonnet"
+    binding = PersonaProfileBinding(persona_id="qa", hermes_profile="qa", profile_home=walked_home)
+    assert _during(lambda: persona_profile_context(binding)) == "opus"
+
+    from contextlib import contextmanager
+
+    @contextmanager
+    def _raw_env_write():
+        os.environ["HERMES_HOME"] = str(walked_home)
+        try:
+            yield
+        finally:
+            os.environ["HERMES_HOME"] = str(turn_home)
+
+    # This thread asked for nothing. An ambient write hands it the walker's profile.
+    assert _during(_raw_env_write) == "sonnet"
     assert load_agent_runtime_config().default_model == "opus"
 
 
@@ -1168,7 +1176,7 @@ def test_a_READINESS_walk_does_not_change_what_a_concurrent_turn_RESOLVES(
     env-EXPORTING mode, which keeps its ``_WORKDIR_LOCK`` invariant — really
     does rebind the process. This asserts that the SNAPSHOT lane no longer uses
     it: ``profile_readiness_for_persona`` binds context-locally
-    (``persona_profile_scope``), so a walk standing in ``qa`` is invisible to
+    (``persona_profile_context``), so a walk standing in ``qa`` is invisible to
     every other thread.
 
     *Killing mutation:* point ``profile_readiness`` back at
@@ -1287,10 +1295,10 @@ def _prompt_observability_walk_gate(monkeypatch, walked_home):
     monkeypatch.setattr(prompt_observability.skills_context, "_installed_skill_catalog", _gated)
     monkeypatch.setattr(prompt_observability.skills_resolver, "_installed_skill_catalog", _gated)
     monkeypatch.setattr(
-        prompt_observability.catalog_store, "load_latest_prompt_observability_contexts", lambda: []
+        prompt_observability.catalog_store, "load_latest_prompt_observability_contexts", list
     )
     monkeypatch.setattr(
-        prompt_observability.context_store, "load_latest_prompt_observability_contexts", lambda: []
+        prompt_observability.context_store, "load_latest_prompt_observability_contexts", list
     )
     monkeypatch.setattr(profile_context, "profile_exists", lambda name: name == "qa")
     monkeypatch.setattr(profile_context, "get_profile_dir", lambda name: walked_home)

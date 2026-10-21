@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
+from hashlib import blake2b
+from threading import Lock
+
 from agent.charsheet.spec import RowSpec, SheetSpec
 
 from .findings import Attribution
@@ -91,6 +95,28 @@ def registration_window(frame_w: int) -> int:
     return max(1, round(frame_w / REGISTRATION_WINDOW_DIVISOR))
 
 
+# The level of each bin in one band of a histogram: ``sum(map(mul, bins,
+# _LEVELS))`` is the band sums in C instead of ``ImageStat``'s Python loop over
+# every bin, which was a quarter of the detector's wall time.
+_LEVELS = tuple(range(256))
+
+
+def _band_sums(image) -> list[int]:
+    """Per-band sum of pixel levels, read off one histogram."""
+    from operator import mul
+
+    histogram = image.histogram()
+    return [
+        sum(map(mul, histogram[start : start + 256], _LEVELS))
+        for start in range(0, len(histogram), 256)
+    ]
+
+
+def _mean_of_sums(sums: list[int], pixels: int) -> float:
+    """``ImageStat``'s mean-over-bands, spelled out so it is bit-identical to it."""
+    return sum(float(band) / pixels for band in sums) / len(sums)
+
+
 def _cell_distance(left, right) -> float:
     """Mean absolute per-channel difference of two same-size RGBA cells.
 
@@ -99,10 +125,36 @@ def _cell_distance(left, right) -> float:
     this pipeline actually executes in does not have it. A gate that imports
     numpy is a gate that never runs where it matters.
     """
-    from PIL import ImageChops, ImageStat
+    from PIL import ImageChops
 
     difference = ImageChops.difference(left, right)
-    return sum(ImageStat.Stat(difference).mean) / len(difference.getbands())
+    return _mean_of_sums(_band_sums(difference), left.width * left.height)
+
+
+def _content_box(cell):
+    """The box holding every pixel with ANY non-zero channel, or ``None``.
+
+    ``alpha_only=False`` on purpose: a transparent pixel with colour left in it
+    still differs from one without, so only all-zero pixels may be skipped.
+    """
+    return cell.getbbox(alpha_only=False)
+
+
+def _union(first, second):
+    if first is None:
+        return second
+    if second is None:
+        return first
+    return (
+        min(first[0], second[0]),
+        min(first[1], second[1]),
+        max(first[2], second[2]),
+        max(first[3], second[3]),
+    )
+
+
+def _offset(box, dx: int):
+    return None if box is None else (box[0] + dx, box[1], box[2] + dx, box[3])
 
 
 def _row_cells(rgba, spec: SheetSpec, row: RowSpec) -> list:
@@ -147,19 +199,49 @@ def _registered_distance(left, right, window: int) -> tuple[float, int]:
     """
     if window <= 0:
         return _cell_distance(left, right), 0
+    from PIL import ImageChops
+
     width, height = left.size
     fixed = _padded(right, window)
     sliding = _padded(left, 2 * window)
+    # Only the union of both cells' content can differ: everywhere else both
+    # canvases are all-zero, so the difference there adds nothing to the sum.
+    # Cropping to it changes no band sum, and the mean is still divided by the
+    # WHOLE canvas, so every score is bit-identical to the full-canvas measure.
+    pixels = (width + 2 * window) * height
+    fixed_box = _offset(_content_box(right), window)
+    left_box = _content_box(left)
     best: float | None = None
     best_shift = 0
     for shift in range(-window, window + 1):
         start = window - shift
-        score = _cell_distance(
-            sliding.crop((start, 0, start + width + 2 * window, height)), fixed
-        )
+        box = _union(fixed_box, _offset(left_box, window + shift))
+        if box is None:
+            score = 0.0
+        else:
+            x0, y0, x1, y1 = box
+            difference = ImageChops.difference(
+                sliding.crop((start + x0, y0, start + x1, y1)), fixed.crop(box)
+            )
+            score = _mean_of_sums(_band_sums(difference), pixels)
         if best is None or score < best:
             best, best_shift = score, shift
     return best, best_shift
+
+
+# Seam scores already measured, keyed by the CONTENT of both rows' cells. The
+# measure is a pure function of those pixels and the window, and the same seams
+# come back unchanged: a re-rolled row recomposes a sheet whose other seams are
+# byte-for-byte the last validation's, and a compose reopened with an acceptance
+# token re-validates the very sheet it refused. Bounded, least-recently-used.
+_SEAM_MEMO: OrderedDict[tuple, tuple[float, float]] = OrderedDict()
+_SEAM_MEMO_LOCK = Lock()
+SEAM_MEMO_SIZE = 4096
+
+
+def _cell_key(cell) -> tuple:
+    """A content key for one cell: mode, size and a digest of its pixels."""
+    return (cell.mode, cell.size, blake2b(cell.tobytes(), digest_size=16).digest())
 
 
 def _seam_distance(left_cells, right_cells, *, window: int) -> tuple[float, float]:
@@ -185,6 +267,16 @@ def _seam_distance(left_cells, right_cells, *, window: int) -> tuple[float, floa
     paired = min(len(left_cells), len(right_cells))
     if paired == 0:
         raise ValueError("cannot measure a seam between rows with no frames")
+    key = (
+        window,
+        tuple(_cell_key(cell) for cell in left_cells[:paired]),
+        tuple(_cell_key(cell) for cell in right_cells[:paired]),
+    )
+    with _SEAM_MEMO_LOCK:
+        known = _SEAM_MEMO.get(key)
+        if known is not None:
+            _SEAM_MEMO.move_to_end(key)
+            return known
     direct = 0.0
     flipped = 0.0
     for index in range(paired):
@@ -194,7 +286,12 @@ def _seam_distance(left_cells, right_cells, *, window: int) -> tuple[float, floa
         flipped += _registered_distance(
             left.transpose(Image.FLIP_LEFT_RIGHT), right, window
         )[0]
-    return (direct / paired, flipped / paired)
+    measured = (direct / paired, flipped / paired)
+    with _SEAM_MEMO_LOCK:
+        _SEAM_MEMO[key] = measured
+        while len(_SEAM_MEMO) > SEAM_MEMO_SIZE:
+            _SEAM_MEMO.popitem(last=False)
+    return measured
 
 
 def _seam_record(left: str, right: str, direct: float, flipped: float) -> dict:

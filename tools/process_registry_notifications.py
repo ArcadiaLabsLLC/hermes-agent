@@ -440,9 +440,9 @@ def format_process_notification(evt: dict) -> str | None:
         return f"[IMPORTANT: {evt.get('message', '')}]"
     if evt_type == "async_delegation":
         return _format_async_delegation(evt)
-    if evt_type == "mcp_job_finished":  # fork: tools/mcp_job_wake.py
-        from tools.mcp_job_wake import format_job_finished
-        return format_job_finished(evt)
+    from tools.fork_completion_events import format_fork_completion_event  # fork: one table, no per-type hunk
+    if (fork_text := format_fork_completion_event(evt)) is not None:
+        return fork_text
     _sid, _cmd = evt.get("session_id", "unknown"), evt.get("command", "unknown")
     _attribution = _delegation_attribution_line(evt)
     if evt.get("handoff_note"):

@@ -23,7 +23,7 @@ def test_marked_worker_refuses_a_generation_built_for_another_python():
     spawn site reports the pre-ack exit with this stderr. The positive control is
     ``test_marked_worker_keeps_its_generation_through_a_rotation``: same generation shape,
     this interpreter's version, and it boots."""
-    import cron.worker_bootstrap as worker_bootstrap
+    from cron import worker_bootstrap
     import pm.environments
 
     repo_root = Path(worker_bootstrap.__file__).resolve().parent.parent

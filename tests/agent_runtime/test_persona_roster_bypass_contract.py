@@ -48,6 +48,8 @@ import pytest
 from agent_runtime import agent_create
 from tests.agent_runtime import _tree_index
 
+pytestmark = pytest.mark.gate
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 #: Every production entry point that accepts a caller-supplied persona object,
@@ -111,7 +113,7 @@ def test_any_non_none_persona_short_circuits_the_roster_check(monkeypatch):
 
     from agent_runtime.models import AgentPersona
 
-    monkeypatch.setattr(agent_create.request, "persona_roster", lambda: [])
+    monkeypatch.setattr(agent_create.request, "persona_roster", list)
 
     synthesized = AgentPersona(
         id="not_in_any_roster",

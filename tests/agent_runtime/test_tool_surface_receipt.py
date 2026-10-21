@@ -14,12 +14,12 @@ from types import SimpleNamespace
 
 from agent_runtime.tool_surface import receipt_names
 from tests.agent_runtime.test_chat_lane_defer import NEKO_DEFER
-from tests.agent_runtime.test_tool_surface import ENABLED, harness_lane  # noqa: F401 - fixture
+from tests.agent_runtime.test_tool_surface import ENABLED, harness_lane  # fixture
 
 _BLOCK = ("skill_manage",)
 
 
-def test_the_preview_and_the_factory_agree_on_one_input(harness_lane, monkeypatch):  # noqa: F811
+def test_the_preview_and_the_factory_agree_on_one_input(harness_lane, monkeypatch):
     import agent_runtime.chat_lane_bundle as CLB
     from agent_runtime.chat_lane_tool_form import apply_chat_lane_defer
     from agent_runtime.tool_surface import AGENT_SURFACE_ATTR
@@ -46,11 +46,11 @@ def test_the_preview_and_the_factory_agree_on_one_input(harness_lane, monkeypatc
     # Anti-vacuity: the factory's eager set IS the wire it published (block pruned), and the
     # persona's defer took names off it — the join compares two non-trivial answers.
     assert receipt_names(factory, "eager") | set(factory["bridge"]) == {d["function"]["name"] for d in agent.tools}
-    assert factory["deferred"]["browser_vault_list"]["reason"] == "persona_defer"
+    assert factory["deferred"]["memory"]["reason"] == "persona_defer"
     assert "skill_manage" in factory["blocked"]
 
 
-def test_a_persona_with_no_defer_list_still_carries_the_account(harness_lane):  # noqa: F811
+def test_a_persona_with_no_defer_list_still_carries_the_account(harness_lane):
     """The constructor's form is the wire for a persona with no ``chat_lane_defer_tools``; its
     first settle accounts it once, so the curated and non-core defers are reported, not silent."""
 
@@ -69,7 +69,7 @@ def test_a_persona_with_no_defer_list_still_carries_the_account(harness_lane):  
     assert sorted([*receipt_names(receipt, "eager"), *receipt["bridge"]]) == sorted(shipped)
 
 
-def test_a_persona_with_no_defer_list_is_accounted_at_construction(harness_lane):  # noqa: F811
+def test_a_persona_with_no_defer_list_is_accounted_at_construction(harness_lane):
     """Turn 1 of a prewarmed actor reads the receipt before any turn settle: construction
     (which the prewarm pays, off the turn) leaves it, and the first settle keeps it."""
 
@@ -87,7 +87,7 @@ def test_a_persona_with_no_defer_list_is_accounted_at_construction(harness_lane)
     assert getattr(agent, AGENT_SURFACE_ATTR) == at_construction
 
 
-def test_a_shell_preview_without_the_live_mcp_list_agrees_with_the_factory(harness_lane, monkeypatch):  # noqa: F811
+def test_a_shell_preview_without_the_live_mcp_list_agrees_with_the_factory(harness_lane, monkeypatch):
     """The live gap (2026-10-09): ``persona tool-diff neko_supervisor`` said eager 19 /
     ``toolsurf_927c...`` while the turn's prompt record said eager 22 / ``toolsurf_97fc...``: the
     serve's process held launcher_qa's three promoted tools, the shell's had no MCP connection.

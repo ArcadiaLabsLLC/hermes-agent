@@ -196,7 +196,7 @@ def _declared_name(metadata_dir: Path) -> tuple[Optional[str], Optional[str]]:
     if source is None:
         return None, "no METADATA/PKG-INFO file"
     try:
-        text = source.read_text(encoding="utf-8", errors="replace")
+        text = source.read_text(encoding="utf-8-sig", errors="replace")
     except OSError as exc:
         return None, f"metadata unreadable ({exc.__class__.__name__})"
     for line in text.splitlines():

@@ -13,7 +13,7 @@ import types
 from pathlib import Path
 
 import hermes_cli.config as config_module
-import tools.vision_tools  # noqa: F401 — a fork-moved reader: puts this file under the route
+import tools.vision_tools  # a fork-moved reader: puts this file under the route
 
 from tests._downstream import fork_readonly_readers as readers
 from tests._downstream.conftest_plugin import _deferring_readonly

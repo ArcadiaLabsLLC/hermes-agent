@@ -664,6 +664,29 @@ def test_the_assembly_folds_the_instance_model_override_into_the_persona(
     assert (request.provider, request.model) == ("openai-codex", "gpt-5.6-luna")
 
 
+def test_a_chat_override_onto_another_provider_warms_on_that_providers_api_mode(
+    persisted_persona_samples, bundled_persona_profiles
+):
+    """RT-CONV-MODEL-SELECT-STALE-API-MODE: the instance tier is Anthropic, the chat picked
+    ``openai-codex``. The warmed actor must speak Responses — an actor built on the instance's
+    ``anthropic_messages`` POSTs ``…/codex/v1/messages`` and every turn on it is a 403."""
+
+    from agent_runtime.persona_assignments import PersonaInstanceStore
+    from agent_runtime.persona_chat_session import _persist_chat_model_override
+
+    root, instance, session_db = _live_chat_root()
+    instance.provider, instance.model, instance.api_mode = "anthropic", "claude-opus-5-5", "anthropic_messages"
+    PersonaInstanceStore().update(instance)
+    _persist_chat_model_override(session_db=session_db, session_id=root, override={
+        "schema_version": 1, "provider": "openai-codex", "model": "gpt-6-sol", "source": "operator",
+        "scope": "mission_control_chat_session"})
+
+    request, _runner = prewarm_module._prepare(root, None)
+
+    assert (request.provider, request.model) == ("openai-codex", "gpt-6-sol")
+    assert request.api_mode == "codex_responses"
+
+
 def test_the_signature_tracks_an_instance_model_override(
     persisted_persona_samples, bundled_persona_profiles
 ):

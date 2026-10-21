@@ -187,7 +187,7 @@ def announce_in_background(
     def _run() -> None:
         try:
             announce_to_peers(store_root, payload, **kwargs)
-        except Exception:  # noqa: BLE001 — courtesy channel, never the work
+        except Exception:  # courtesy channel, never the work
             pass
 
     threading.Thread(target=_run, name="gateway-announce", daemon=True).start()
@@ -224,7 +224,7 @@ def announce_roster_changed() -> None:
         from .gateway_targets import peer_store_root
 
         announce_in_background(peer_store_root(), {"roster_changed": True})
-    except Exception:  # noqa: BLE001 — courtesy channel, never the work
+    except Exception:  # courtesy channel, never the work
         pass
 
 

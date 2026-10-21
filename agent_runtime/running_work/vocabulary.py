@@ -27,11 +27,14 @@ KIND_CRON_JOB = "cron_job"
 #: BEFORE its producer existed, so the wire vocabulary was complete from the
 #: first landing and no consumer had to re-derive it when the lane arrived.
 KIND_DISPATCH = "dispatch"
-#: A tool call in flight INSIDE a live chat turn — today the foreground
-#: ``terminal`` command the turn is blocked on (RW2). A child row: it carries
-#: ``parent_work_id`` (``chat_turn:<turn_id>``) and is produced by the chat-turn
-#: lane from the executing process's live-turn registry, so it has no
-#: ``sources`` entry of its own and exists only where that process answers.
+#: A tool call, in one of two shapes. In flight INSIDE a live chat turn — the
+#: foreground ``terminal`` command the turn is blocked on (RW2): a child row
+#: carrying ``parent_work_id`` (``chat_turn:<turn_id>``), produced by the
+#: chat-turn lane from the executing process's live-turn registry, existing only
+#: where that process answers. Or PROMOTED to the background past its threshold
+#: (``tools/long_tool_calls.py``, RT-LONG-TOOL-CALLS-BACKGROUND): ``background:
+#: true``, ``handle``, no parent, read durably from :data:`_TOOL_CALLS_FILENAME`
+#: by the ``tool_call`` source.
 KIND_TOOL_CALL = "tool_call"
 #: A job an MCP server runs in the background on an agent's behalf (a QA build), from the moment
 #: a tool result names it until its finish wake is settled. Written by ``tools/mcp_job_wake.py``
@@ -41,6 +44,13 @@ KIND_MCP_JOB = "mcp_job"
 #: by its own writer into the build registry, or detected under a bound repo slot
 #: (plan ``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md`` §1).
 KIND_BUILD = "build"
+#: A scheduler fire (``work_store/serve_scheduler.py``) from the moment it queues on its chat root until
+#: the turn settles — read durably from the send-queue entries whose origin names a schedule
+#: (RT-SCHEDULE-TURN-RUNNING-WORK, RULED 2026-10-18: its own kind, not ``cron_job``).
+KIND_SCHEDULED_TURN = "scheduled_turn"
+#: A platform message the messaging bridge queued on a bound instance's chat root, until the turn settles —
+#: read durably from the send-queue entries whose origin carries a ``messaging`` block (p10-messaging M4).
+KIND_MESSAGING_TURN = "messaging_turn"
 
 #: How far back an UNDELIVERABLE dispatch keeps surfacing on the Activity
 #: projection. A day, because "your agent's answer was thrown away" is worth
@@ -65,6 +75,8 @@ RUNNING_WORK_KINDS = (
     KIND_TOOL_CALL,
     KIND_MCP_JOB,
     KIND_BUILD,
+    KIND_SCHEDULED_TURN,
+    KIND_MESSAGING_TURN,
 )
 
 #: The lanes that report a ``sources`` entry on every build. ``dispatch`` joined
@@ -78,7 +90,10 @@ RUNNING_WORK_SOURCES = (
     KIND_CRON_JOB,
     KIND_DISPATCH,
     KIND_MCP_JOB,
+    KIND_TOOL_CALL,
     KIND_BUILD,
+    KIND_SCHEDULED_TURN,
+    KIND_MESSAGING_TURN,
 )
 
 STATUS_RUNNING = "running"
@@ -128,6 +143,8 @@ _MAX_ROWS_PER_SOURCE = 200
 
 _CHECKPOINT_FILENAME = "processes.json"
 _MCP_JOBS_FILENAME = "mcp_jobs.json"
+#: Promoted long tool calls, written by ``tools/long_tool_calls.py`` (its ``CHECKPOINT_FILENAME``).
+_TOOL_CALLS_FILENAME = "tool_calls.json"
 _STATE_DB_FILENAME = "state.db"
 
 

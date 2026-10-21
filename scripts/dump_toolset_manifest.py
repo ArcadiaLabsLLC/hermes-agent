@@ -50,7 +50,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tools.toolset_scan import scan_registered_tools  # noqa: E402
+from tools.toolset_scan import scan_registered_tools
 
 #: Bumped when the SHAPE moves, never when a tool is added or removed.
 MANIFEST_SCHEMA_VERSION = 1
@@ -131,7 +131,7 @@ def main() -> int:
         )
         return 1
 
-    with open(artifact, "r", encoding="utf-8", newline="") as handle:
+    with open(artifact, "r", encoding="utf-8", newline="") as handle:  # windows-footgun: ok — byte-exact staleness check: a BOM is drift, not a tolerated read
         committed = handle.read()
 
     if committed == rendered:

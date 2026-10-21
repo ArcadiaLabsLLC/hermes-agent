@@ -34,7 +34,7 @@ def load_idle_box_files() -> frozenset[str]:
 
 
 @pytest.hookimpl(specname="pytest_configure")
-def pytest_configure_idle_box(config):  # noqa: D401 — pytest hook
+def pytest_configure_idle_box(config):  # pytest hook
     config.addinivalue_line(
         "markers",
         f"{IDLE_BOX_MARK}: runs only on an idle box, serial ({IDLE_BOX_ENV}=1, set by "
@@ -43,7 +43,7 @@ def pytest_configure_idle_box(config):  # noqa: D401 — pytest hook
 
 
 @pytest.hookimpl(specname="pytest_collection_modifyitems")
-def pytest_collection_modifyitems_idle_box(items):  # noqa: D401 — pytest hook
+def pytest_collection_modifyitems_idle_box(items):  # pytest hook
     listed = load_idle_box_files()
     for item in items:
         if item.nodeid.split("::", 1)[0] in listed:
@@ -51,6 +51,6 @@ def pytest_collection_modifyitems_idle_box(items):  # noqa: D401 — pytest hook
 
 
 @pytest.hookimpl(specname="pytest_runtest_setup", tryfirst=True)
-def pytest_runtest_setup_idle_box(item):  # noqa: D401 — pytest hook
+def pytest_runtest_setup_idle_box(item):  # pytest hook
     if item.get_closest_marker(IDLE_BOX_MARK) is not None and os.environ.get(IDLE_BOX_ENV) != "1":
         pytest.skip(SKIP_REASON)

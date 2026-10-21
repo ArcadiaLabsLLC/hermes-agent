@@ -50,7 +50,7 @@ class LazyHandler:
             target = wrap(target)
         return target
 
-    def wrapped(self, wrapper: Callable[[Any], Any]) -> "LazyHandler":
+    def wrapped(self, wrapper: Callable[[Any], Any]) -> LazyHandler:
         return LazyHandler(self.__module__, self.__name__, (*self.wrappers, wrapper))
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:

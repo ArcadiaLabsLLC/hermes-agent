@@ -93,6 +93,23 @@ if _WIN:
         "test_plain_linux_host_passes_platform_check": (
             _posix_only("install.sh refuses MINGW/MSYS; Windows installs via install.ps1"),
         ),
+        # Lane r-reds-a (2026-10-16): the worker-log stub opens the literal "/dev/null",
+        # which Windows resolves to <drive>:\dev\null (PermissionError).
+        "tests/gateway/test_kanban_multiplex_served_profile_parity.py::"
+        "test_worker_for_served_profile_gets_its_own_env_and_toolset_pin": (
+            _posix_xfail('stubs _open_worker_log with open("/dev/null", "w"); '
+                         "Windows has no /dev/null (os.devnull is nul)"),
+        ),
+        # Lane r-gateway (2026-10-17, owner ruling 2026-10-18): the test spins on
+        # `st_ctime_ns` moving under `os.utime`; win32 st_ctime is creation time, so the
+        # loop never ends (30 s cap), and `utils.file_signature` documents mtime + size there.
+        # Replaces the upstream_reds xfail row (class e-ID: copy2 keeps the NTFS file id and
+        # creation ctime): an xfail still ran the loop to the cap.
+        "tests/tui_gateway/test_tui_gateway_server.py::"
+        "test_load_cfg_raw_sees_replacement_with_pinned_mtime_and_size": (
+            _posix_only("POSIX change-time premise; win32 st_ctime is creation time and "
+                        "os.utime never moves it"),
+        ),
         "tests/hermes_cli/test_relaunch.py::TestRelaunch::test_calls_execvp": (
             pytest.mark.skip(reason=_POSIX_ONLY),
         ),

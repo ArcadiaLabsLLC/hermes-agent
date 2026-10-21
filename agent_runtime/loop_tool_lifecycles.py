@@ -48,10 +48,11 @@ the phone runtime's entry point.
 
 from __future__ import annotations
 
-import importlib.util
 import sys
 import types
 from typing import Any
+
+from .module_presence import is_lifecycle_placeholder, shipped
 
 __layer__ = "lanes"
 __all__ = ["BROWSER_CLOUD", "BROWSER_LIFECYCLE", "COMPUTER_USE_TOOL", "DELEGATE_TOOL", "FILE_TOOLS", "TERMINAL_LIFECYCLE", "LifecycleNotShipped",
@@ -171,26 +172,6 @@ _PRESENCE: dict[str, str] = {
     VAULT_BACKENDS_BASE: VAULT_BACKENDS,
     VAULT_UNLOCK: VAULT_BACKENDS,
 }
-
-
-def is_lifecycle_placeholder(module: object) -> bool:
-    return bool(getattr(type(module), "__hermes_placeholder__", False))
-
-
-def shipped(module: str) -> bool:
-    """True when *module* is in this installation — importable, and not one of these placeholders.
-
-    The presence test for a feature a profile leaves out of its wheel (``packaging.switched_off_modules``):
-    the phone wheel omits the module, so the caller skips the step that would import it. Desktop and
-    full Hermes ship every module, so there the answer is always True and the step runs as before.
-    """
-    loaded = sys.modules.get(module)
-    if loaded is not None:
-        return not is_lifecycle_placeholder(loaded)
-    try:
-        return importlib.util.find_spec(module) is not None
-    except (ImportError, ValueError):
-        return False
 
 
 def ensure_lifecycle_placeholders() -> tuple[str, ...]:

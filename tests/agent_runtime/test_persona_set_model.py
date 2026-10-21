@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 from argparse import Namespace
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 
 import pytest
 from agent_runtime import persona_chat_session as chat_session
@@ -255,7 +255,7 @@ def test_update_profile_stale_issued_at_is_superseded_not_applied():
     persona = _persona()
     store = PersonaInstanceStore()
     instance, _ = _two_instances(store, persona)
-    newer = datetime.now(timezone.utc)
+    newer = datetime.now(UTC)
     older = newer - timedelta(seconds=30)
 
     store.update_profile(instance.id, model="model-new", model_issued_at=newer)
@@ -383,7 +383,7 @@ def _patched_harness(monkeypatch):
 
 
 def test_cli_instance_set_model_happy_path_derives_api_mode(monkeypatch, capsys):
-    harness = _patched_harness(monkeypatch)
+    _patched_harness(monkeypatch)
     persona = _persona()
     store = PersonaInstanceStore()
     _, b = _two_instances(store, persona)
@@ -405,7 +405,7 @@ def test_cli_instance_set_model_happy_path_derives_api_mode(monkeypatch, capsys)
 
 def test_cli_instance_can_select_local_model_while_server_is_off(monkeypatch, capsys):
     import uuid
-    harness = _patched_harness(monkeypatch)
+    _patched_harness(monkeypatch)
     store = PersonaInstanceStore()
     first, second = _two_instances(store, _persona())
     model = str(uuid.uuid4())
@@ -421,7 +421,7 @@ def test_cli_instance_can_select_local_model_while_server_is_off(monkeypatch, ca
 
 
 def test_cli_instance_set_model_provider_alias_canonicalized(monkeypatch, capsys):
-    harness = _patched_harness(monkeypatch)
+    _patched_harness(monkeypatch)
     from providers import get_provider_profile
 
     profile = get_provider_profile("anthropic")
@@ -439,7 +439,7 @@ def test_cli_instance_set_model_provider_alias_canonicalized(monkeypatch, capsys
 
 
 def test_cli_instance_set_model_unknown_provider_rejected(monkeypatch, capsys):
-    harness = _patched_harness(monkeypatch)
+    _patched_harness(monkeypatch)
     persona = _persona()
     store = PersonaInstanceStore()
     _, b = _two_instances(store, persona)
@@ -454,7 +454,7 @@ def test_cli_instance_set_model_unknown_provider_rejected(monkeypatch, capsys):
 
 
 def test_cli_instance_set_model_conflicting_args_rejected(monkeypatch, capsys):
-    harness = _patched_harness(monkeypatch)
+    _patched_harness(monkeypatch)
     persona = _persona()
     store = PersonaInstanceStore()
     _, b = _two_instances(store, persona)
@@ -473,7 +473,7 @@ def test_cli_instance_set_model_conflicting_args_rejected(monkeypatch, capsys):
 
 
 def test_cli_instance_set_model_bad_shape_rejected(monkeypatch, capsys):
-    harness = _patched_harness(monkeypatch)
+    _patched_harness(monkeypatch)
     persona = _persona()
     store = PersonaInstanceStore()
     _, b = _two_instances(store, persona)
@@ -485,7 +485,7 @@ def test_cli_instance_set_model_bad_shape_rejected(monkeypatch, capsys):
 
 
 def test_cli_instance_set_model_unknown_instance(monkeypatch, capsys):
-    harness = _patched_harness(monkeypatch)
+    _patched_harness(monkeypatch)
     code = model_and_skills_commands._cmd_persona_instance_set_model(_instance_args("personainst_ghost", model="x"))
     assert code == 2
     data = json.loads(capsys.readouterr().out)
@@ -493,7 +493,7 @@ def test_cli_instance_set_model_unknown_instance(monkeypatch, capsys):
 
 
 def test_cli_instance_set_model_use_profile_default_clears(monkeypatch, capsys):
-    harness = _patched_harness(monkeypatch)
+    _patched_harness(monkeypatch)
     persona = _persona()
     store = PersonaInstanceStore()
     _, b = _two_instances(store, persona)
@@ -509,11 +509,11 @@ def test_cli_instance_set_model_use_profile_default_clears(monkeypatch, capsys):
 
 
 def test_cli_instance_set_model_stale_write_superseded(monkeypatch, capsys):
-    harness = _patched_harness(monkeypatch)
+    _patched_harness(monkeypatch)
     persona = _persona()
     store = PersonaInstanceStore()
     _, b = _two_instances(store, persona)
-    newer = datetime.now(timezone.utc)
+    newer = datetime.now(UTC)
     older = newer - timedelta(seconds=45)
 
     code = model_and_skills_commands._cmd_persona_instance_set_model(
@@ -537,7 +537,7 @@ def test_cli_instance_set_model_stale_write_superseded(monkeypatch, capsys):
 
 
 def test_cli_persona_set_model_happy_path_emits_persona_updated(monkeypatch, capsys):
-    harness = _patched_harness(monkeypatch)
+    _patched_harness(monkeypatch)
     ensure_persisted_personas(_cfg())
     before = len(_events("persona.updated"))
 
@@ -557,7 +557,7 @@ def test_cli_persona_set_model_happy_path_emits_persona_updated(monkeypatch, cap
 
 
 def test_cli_persona_set_model_profile_id_targets_backing_store_persona(monkeypatch, capsys):
-    harness = _patched_harness(monkeypatch)
+    _patched_harness(monkeypatch)
     ensure_persisted_personas(_cfg())
 
     code = model_and_skills_commands._cmd_persona_set_model(_persona_args("profile_base", model="claude-x"))
@@ -568,7 +568,7 @@ def test_cli_persona_set_model_profile_id_targets_backing_store_persona(monkeypa
 
 
 def test_cli_persona_set_model_profile_without_backing_record_rejected(monkeypatch, capsys):
-    harness = _patched_harness(monkeypatch)
+    _patched_harness(monkeypatch)
     ensure_persisted_personas(_cfg())
 
     code = model_and_skills_commands._cmd_persona_set_model(_persona_args("profile_nonexistent", model="claude-x"))
@@ -578,7 +578,7 @@ def test_cli_persona_set_model_profile_without_backing_record_rejected(monkeypat
 
 
 def test_cli_persona_set_model_ambiguous_profile_rejected(monkeypatch, capsys):
-    harness = _patched_harness(monkeypatch)
+    _patched_harness(monkeypatch)
     ensure_persisted_personas(_cfg())
     twin = _persona("base_twin")
     twin.hermes_profile = "base"
@@ -592,7 +592,7 @@ def test_cli_persona_set_model_ambiguous_profile_rejected(monkeypatch, capsys):
 
 
 def test_cli_persona_set_model_dormant_catalog_persona_rejected(monkeypatch, capsys):
-    harness = _patched_harness(monkeypatch)
+    _patched_harness(monkeypatch)
     ensure_persisted_personas(_cfg())
 
     code = model_and_skills_commands._cmd_persona_set_model(_persona_args("dev", model="claude-x"))
@@ -603,7 +603,7 @@ def test_cli_persona_set_model_dormant_catalog_persona_rejected(monkeypatch, cap
 
 
 def test_cli_persona_set_model_unknown_persona(monkeypatch, capsys):
-    harness = _patched_harness(monkeypatch)
+    _patched_harness(monkeypatch)
     code = model_and_skills_commands._cmd_persona_set_model(_persona_args("definitely_not_a_persona_xyz", model="x"))
     assert code == 2
     data = json.loads(capsys.readouterr().out)
@@ -611,9 +611,9 @@ def test_cli_persona_set_model_unknown_persona(monkeypatch, capsys):
 
 
 def test_cli_persona_set_model_stale_write_superseded(monkeypatch, capsys):
-    harness = _patched_harness(monkeypatch)
+    _patched_harness(monkeypatch)
     ensure_persisted_personas(_cfg())
-    newer = datetime.now(timezone.utc)
+    newer = datetime.now(UTC)
     older = newer - timedelta(seconds=45)
 
     assert model_and_skills_commands._cmd_persona_set_model(_persona_args("base", model="model-new", issued_at=newer.isoformat())) == 0
@@ -626,7 +626,7 @@ def test_cli_persona_set_model_stale_write_superseded(monkeypatch, capsys):
 
 
 def test_cli_persona_set_model_credentials_warning_is_nonblocking(monkeypatch, capsys):
-    harness = _patched_harness(monkeypatch)
+    _patched_harness(monkeypatch)
     ensure_persisted_personas(_cfg())
     from providers import get_provider_profile
 
@@ -719,7 +719,7 @@ def test_persona_instance_summary_reasoning_unsupported_for_non_reasoning_model(
 
 
 def test_cli_instance_set_model_reasoning_only_applies(monkeypatch, capsys):
-    harness = _patched_harness(monkeypatch)
+    _patched_harness(monkeypatch)
     persona = _persona(model="gpt-5.6-luna")
     store = PersonaInstanceStore()
     _, b = _two_instances(store, persona)
@@ -738,7 +738,7 @@ def test_cli_instance_set_model_reasoning_only_applies(monkeypatch, capsys):
 def test_cli_instance_set_model_invalid_reasoning_rejected(monkeypatch, capsys):
     from hermes_constants import VALID_REASONING_EFFORTS
 
-    harness = _patched_harness(monkeypatch)
+    _patched_harness(monkeypatch)
     persona = _persona()
     store = PersonaInstanceStore()
     _, b = _two_instances(store, persona)
@@ -761,7 +761,7 @@ def test_cli_instance_set_model_invalid_reasoning_rejected(monkeypatch, capsys):
 
 
 def test_cli_instance_set_model_use_profile_default_clears_reasoning(monkeypatch, capsys):
-    harness = _patched_harness(monkeypatch)
+    _patched_harness(monkeypatch)
     persona = _persona(model="gpt-5.6-luna")
     store = PersonaInstanceStore()
     _, b = _two_instances(store, persona)
@@ -773,7 +773,7 @@ def test_cli_instance_set_model_use_profile_default_clears_reasoning(monkeypatch
 
 
 def test_cli_persona_set_model_rejects_reasoning_effort(monkeypatch, capsys):
-    harness = _patched_harness(monkeypatch)
+    _patched_harness(monkeypatch)
     ensure_persisted_personas(_cfg())
     code = model_and_skills_commands._cmd_persona_set_model(_persona_args("base", reasoning_effort="high"))
     assert code == 2
@@ -784,7 +784,7 @@ def test_cli_persona_set_model_rejects_reasoning_effort(monkeypatch, capsys):
 def test_store_persisted_model_survives_config_persona_override(monkeypatch, capsys):
     """config.yaml agent_runtime.personas.base.model must NOT clobber a
     store-persisted verb write on reload (config.py merge: {**catalog, **stored})."""
-    harness = _patched_harness(monkeypatch)
+    _patched_harness(monkeypatch)
     ensure_persisted_personas(_cfg())
     assert model_and_skills_commands._cmd_persona_set_model(_persona_args("base", provider="anthropic", model="claude-x")) == 0
     capsys.readouterr()
@@ -833,7 +833,7 @@ def test_selection_profile_fallback_and_effort_are_one_authority(tmp_path, monke
     from agent_runtime import profile_context, config
     monkeypatch.setattr(profile_context, "resolve_persona_profile",
         lambda persona: SimpleNamespace(readiness="ready"))
-    monkeypatch.setattr(profile_context, "persona_profile_scope", lambda binding: nullcontext())
+    monkeypatch.setattr(profile_context, "persona_profile_context", lambda binding: nullcontext())
     patch_where_bound(monkeypatch, config, "load_agent_runtime_config",
         lambda *a, **k: SimpleNamespace(default_model="profile-model", default_provider="profile-provider"))
     persona = SimpleNamespace(model=None, provider=None)

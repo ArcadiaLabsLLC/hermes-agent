@@ -42,7 +42,7 @@ def test_canonical_resolver_reports_collision_and_exact_hash(tmp_path):
     local.mkdir()
     shared.mkdir()
     _write_skill(local, "same")
-    shared_skill = _write_skill(shared, "shared-only")
+    _write_skill(shared, "shared-only")
 
     resolved = resolve_skill("shared-only", roots=[local, shared])
     assert resolved.status == "resolved"
@@ -114,7 +114,7 @@ def test_canonical_harness_skill_refuses_non_shared_source_and_duplicates(
 
 
 def test_required_preload_policy_uses_resolver_and_compatibility(tmp_path, monkeypatch):
-    import agent.skill_utils as skill_utils
+    from agent import skill_utils
 
     shared = tmp_path / "shared"
     shared.mkdir()
@@ -476,7 +476,7 @@ def test_a_shared_map_is_keyed_by_root_so_lanes_with_different_roots_are_safe(
 ):
     """CP-5a: the two lanes may enumerate DIFFERENT root lists.
 
-    ``mission_chat_prompt_observability`` runs inside ``persona_profile_scope``
+    ``mission_chat_prompt_observability`` runs inside ``persona_profile_context``
     and the context builder does not, so for a persona whose profile is not the
     ambient one the lists can differ. The map is keyed by RESOLVED ROOT PATH,
     which is what makes the hand-off safe without the lanes having to agree: a

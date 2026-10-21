@@ -25,8 +25,8 @@ from .steps import (
 __layer__ = "lanes"
 __all__ = [
     "CHARACTER_STEPS",
-    "CharacterStep",
     "_CHARACTERS_AUTO_STEPS",
+    "CharacterStep",
     "_characters_auto_next",
     "_characters_auto_plan",
     "_characters_auto_steps",
@@ -146,7 +146,9 @@ def _characters_auto_write(args, data: dict, human: str) -> None:
     rows it is watching land (RL-26).
     """
     from agent.charsheet.draft.payloads import draftsman
+    from agent_runtime.root_observability import attach_characters_home
 
+    data = attach_characters_home(dict(data))  # each line states the home it read (D3.17)
     sys.stdout.write(
         (emit_json_line({**data, **draftsman()}) if getattr(args, "json", False) else human) + "\n"
     )

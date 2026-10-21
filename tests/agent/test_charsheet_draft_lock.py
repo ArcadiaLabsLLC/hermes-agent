@@ -54,7 +54,7 @@ def test_a_second_writer_on_one_draft_is_refused_and_told_who_holds_it(lock_path
         try:
             with draft_generation_lock(lock_path, draft_id="d1", verb="rows"):
                 refused.append(AssertionError("the second writer was admitted"))
-        except BaseException as exc:  # noqa: BLE001 - the assertion is the type
+        except BaseException as exc:  # the assertion is the type
             refused.append(exc)
 
     with draft_generation_lock(lock_path, draft_id="d1", verb="turnaround"):
@@ -112,7 +112,7 @@ def test_the_same_thread_re_enters_and_the_nested_exit_does_not_release(lock_pat
         try:
             with draft_generation_lock(lock_path, draft_id="d1", verb="rows"):
                 refused.append(AssertionError("admitted while auto held it"))
-        except BaseException as exc:  # noqa: BLE001
+        except BaseException as exc:
             refused.append(exc)
 
     with draft_generation_lock(lock_path, draft_id="d1", verb="auto"):
@@ -215,7 +215,7 @@ def test_a_stale_lock_broken_and_taken_by_another_writer_first_names_that_writer
             with draft_generation_lock(lock_path, draft_id="d1", verb="compose"):
                 took_it.set()
                 release.wait(WAIT)
-        except BaseException as exc:  # noqa: BLE001 - reported, not swallowed
+        except BaseException as exc:  # reported, not swallowed
             rival_failure.append(exc)
             took_it.set()
 

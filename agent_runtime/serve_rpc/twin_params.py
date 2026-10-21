@@ -19,6 +19,7 @@ __all__ = [
 #: ``runtime.characters.*`` (``serve_rpc/characters.py``).
 CHARACTERS_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     "runtime.characters.list": (),
+    "runtime.characters.recolour": ("draft", "from", "to"),
     "runtime.characters.status": ("draft",),
     "runtime.characters.thumb": ("attempt", "direction", "draft", "frame", "row", "scale", "square"),
     "runtime.characters.sprite": ("include_sheet", "slug"),

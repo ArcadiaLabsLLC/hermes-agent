@@ -33,7 +33,7 @@ from agent_runtime.dispatch_store import (
 )
 from agent_runtime.relay_policy import RELAY_CHAIN, RELAY_DEADLINE
 from tools import agent_chat_dispatch
-import tools.agent_chat_dispatch.local_child  # noqa: F401 - the spawn the tests patch
+import tools.agent_chat_dispatch.local_child  # the spawn the tests patch
 from tools.agent_chat_tool import (
     AGENT_CHAT_DISPATCHES_SCHEMA,
     AGENT_CHAT_SEND_SCHEMA,
@@ -1318,6 +1318,42 @@ def test_cancel_of_a_running_child_kills_it_and_settles_cancelled(store_home, mo
     row = get_dispatch(dispatch_id)
     assert row["state"] == "cancelled"
     assert "operator_stop" in row["result"]["error"]
+
+
+def test_a_cancel_between_the_owner_stamp_and_the_spawns_mark_check_kills_once(store_home, monkeypatch):
+    """FORK-FLAKE-CANCEL-KILLS-TWICE, made deterministic: the cancel lands after the spawn stamped the
+    owner and before the spawn checked the mark, so BOTH sides saw a kill to make. One claims it.
+
+    Killing mutation: drop the ``_claim_kill`` test from either kill site -> ``[(4242, 777), (4242, 777)]``.
+    """
+
+    from agent_runtime import dispatch_store
+
+    dispatch_id = _armed_dispatch()
+    proc = _BlockingProc()
+    killed, stamped, cancelled = [], threading.Event(), threading.Event()
+    real_stamp = dispatch_store.set_dispatch_owner
+
+    def stamp_then_wait_for_the_cancel(*args, **kwargs):
+        result = real_stamp(*args, **kwargs)
+        stamped.set()
+        assert cancelled.wait(5)
+        return result
+
+    def on_kill(pid, started):
+        killed.append((pid, started))
+        proc.release.set()
+
+    monkeypatch.setattr(dispatch_store, "set_dispatch_owner", stamp_then_wait_for_the_cancel)
+    worker = _run_in_background(dispatch_id, proc, monkeypatch, on_kill=on_kill)
+    assert stamped.wait(5)
+    assert agent_chat_dispatch.request_cancel(dispatch_id, reason="operator_stop")["outcome"] == "stopping"
+    cancelled.set()
+    worker.join(5)
+
+    assert not worker.is_alive()
+    assert killed == [(4242, 777)]
+    assert get_dispatch(dispatch_id)["state"] == "cancelled"
 
 
 def test_cancel_that_lands_after_the_child_replied_keeps_the_reply(store_home, monkeypatch):

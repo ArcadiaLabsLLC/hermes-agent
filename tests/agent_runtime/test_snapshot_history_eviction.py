@@ -19,7 +19,7 @@ import pytest
 from hermes_time import now
 from utils import atomic_json_write
 
-import hermes_cli.harness as harness
+from hermes_cli import harness
 from agent_runtime.models import Incident
 from types import SimpleNamespace
 

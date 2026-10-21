@@ -241,7 +241,7 @@ def project_persona_instances(
             if is_canonical_persona_channel(record):
                 skipped_canonical.append(instance_id)
                 continue
-        except Exception:  # noqa: BLE001 — a record that cannot answer is not projectable
+        except Exception:  # a record that cannot answer is not projectable
             refused.append(
                 {
                     "key": instance_id,

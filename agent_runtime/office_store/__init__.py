@@ -75,20 +75,20 @@ from agent_runtime.office_store.store import (
 __layer__ = "stores"
 
 __all__ = [
-    "ActorScan",
     "ARCHIVED_LEDGER_CAP",
-    "ConflictScan",
     "MAX_FOLDERS",
     "MAX_ITEMS_PER_ACTOR",
     "MAX_UNREADABLE_ACTOR_FILE_NAMES",
     "NO_UNREADABLE_ACTOR_FILES",
+    "OUTCOME_OK",
+    "ActorScan",
+    "ConflictScan",
     "OfficeActorOutcome",
     "OfficePositionPolicy",
     "OfficeStore",
-    "OUTCOME_OK",
-    "read_actor_dir",
     "UnreadableActorFiles",
     "_assert_display_name_publishable",
     "_write_actor",
     "_write_surface",
+    "read_actor_dir",
 ]

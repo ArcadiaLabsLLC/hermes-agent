@@ -216,18 +216,18 @@ def test_the_idle_tail_starts_when_the_pool_last_stopped_being_full():
 # ── Stage 1: the skip list ──────────────────────────────────────────────────
 
 
-def test_a_listed_file_is_skipped_in_both_scopes_even_when_reached_but_runs_when_named(tmp_path):
+def test_a_listed_file_is_skipped_even_when_reached_but_runs_when_named(tmp_path):
     files = _tree(tmp_path, ["tests/pkg/test_fork.py", "tests/pkg/test_up.py", "tests/pkg/test_listed.py"])
     inherited = {"tests/pkg/test_up.py", "tests/pkg/test_listed.py"}
     listed = {"tests/pkg/test_listed.py"}
 
     fork = bundled.select_scope(files, tmp_path, inherited, {"tests/pkg/test_listed.py"}, skipped=listed)
-    full = bundled.select_scope(files, tmp_path, set(), set(), skipped=listed, full=True)
+    every_fork = bundled.select_scope(files, tmp_path, set(), set(), skipped=listed)
     named = bundled.select_scope(files, tmp_path, inherited, set(), named=[files[2]], skipped=listed)
 
     assert [_rel(tmp_path, p) for p in fork.skipped_red] == ["tests/pkg/test_listed.py"]
     assert [_rel(tmp_path, p) for p in fork.selected] == ["tests/pkg/test_fork.py"]
-    assert [_rel(tmp_path, p) for p in full.selected] == ["tests/pkg/test_fork.py", "tests/pkg/test_up.py"]
+    assert [_rel(tmp_path, p) for p in every_fork.selected] == ["tests/pkg/test_fork.py", "tests/pkg/test_up.py"]
     assert [_rel(tmp_path, p) for p in named.named] == ["tests/pkg/test_listed.py"] and not named.skipped_red
 
 

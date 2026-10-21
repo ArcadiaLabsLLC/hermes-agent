@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.gate
+
 HOOK = Path(__file__).resolve().parents[2] / ".githooks" / "post-merge"
 STUB = "import sys, pathlib\npathlib.Path(sys.argv[0]).with_name('argv.txt').write_text(' '.join(sys.argv[1:]) or '<repair>')\n"
 
@@ -23,7 +25,7 @@ def _git(cwd: Path, *args: str) -> None:
 
 
 def _run_hook(cwd: Path) -> str:
-    result = subprocess.run(["sh", str(HOOK)], cwd=cwd, capture_output=True, text=True, timeout=60)
+    result = subprocess.run(["sh", str(HOOK)], cwd=cwd, capture_output=True, text=True, timeout=60, check=False)
     assert result.returncode == 0, result.stderr
     return (cwd / "scripts" / "argv.txt").read_text(encoding="utf-8")
 

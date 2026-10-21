@@ -127,13 +127,13 @@ def _skill_profile_context(persona: Any) -> Any:
     documents exactly that property. The realm rows are a sidecar file read
     ("zero git calls in the snapshot", Decision 7). The per-persona hash check
     takes an EXPLICIT ``hermes_home=`` and never the ambient one. Residue:
-    ``HOME`` is not redirected — see ``persona_profile_scope``.
+    ``HOME`` is not redirected — see ``persona_profile_context``.
     """
 
     try:
-        from ..profile_context import persona_profile_scope, resolve_persona_profile
+        from ..profile_context import persona_profile_context, resolve_persona_profile
 
-        return persona_profile_scope(resolve_persona_profile(persona))
+        return persona_profile_context(resolve_persona_profile(persona))
     except Exception:
         return nullcontext()
 
@@ -183,7 +183,7 @@ class MissionChatObservability:
     preloaded_skills_loaded: Iterable[str] | None = None
     preloaded_skills_missing: Iterable[str] | None = None
     instance_skill_overrides: Iterable[str] | None = None
-    skill_resolver: "_SkillObservabilityResolver | None" = None
+    skill_resolver: _SkillObservabilityResolver | None = None
 
     # bind()
     persona_id: str = field(init=False)

@@ -92,7 +92,7 @@ def test_reported_child_creation_time_must_match(tree):
 
 
 def test_descendant_pid_reused_during_rss_read_is_omitted(tree, monkeypatch):
-    root, child, processes = tree
+    _root, child, processes = tree
     replacement = Process(20, 9.0, 999)
     def memory():
         processes[20] = replacement

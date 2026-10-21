@@ -3,13 +3,15 @@ import json
 
 from agent_runtime.call_authorization import TIER_CONSOLE
 from agent_runtime.operator_conversation import OperatorConversationRefused
-from agent_runtime.operator_session_inspection import inspect_operator_settings, inspect_operator_skills
+from agent_runtime.operator_session_inspection import (
+    inspect_operator_memory, inspect_operator_settings, inspect_operator_skills,
+)
 from agent_runtime.operator_session_models import operator_model_facts, operator_selected_model_facts, select_operator_model
 from agent_runtime.operator_session_controls import (
     operator_control_facts, operator_approval_facts, set_operator_control, respond_operator_approval,
 )
 from agent_runtime.skill_inspection import SkillInspectionError
-from .protocol import DEFERRED, RpcContext, deferred_reply, err, ok
+from .protocol import RpcContext, defer_or_inline, err, ok
 from .registry import method
 
 __layer__ = "lanes"
@@ -31,10 +33,7 @@ def _inspect_reply(rid, params, inspect):
 
 
 def _inspect_off_reader(rid, params, context, operation, inspect):
-    build = deferred_reply(rid, operation, lambda: _inspect_reply(rid, params, inspect))
-    if context is not None and context.spawn_reply is not None and context.spawn_reply(build):
-        return DEFERRED
-    return build()
+    return defer_or_inline(rid, operation, context, lambda: _inspect_reply(rid, params, inspect))
 
 
 @method("runtime.operator.conversation.settings", tier=TIER_CONSOLE)
@@ -85,3 +84,8 @@ def approvals(rid, params: dict, context: RpcContext | None = None):
 @method("runtime.operator.conversation.approval.respond", tier=TIER_CONSOLE)
 def respond_approval(rid, params: dict, context: RpcContext | None = None):
     return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.approval.respond", respond_operator_approval)
+
+
+@method("runtime.operator.conversation.memory", tier=TIER_CONSOLE)
+def memory(rid, params: dict, context: RpcContext | None = None):
+    return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.memory", inspect_operator_memory)

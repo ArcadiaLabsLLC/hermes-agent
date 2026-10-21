@@ -10,6 +10,7 @@ from agent_runtime.discussions.service import DiscussionService
 from tests.agent_runtime.native_recovery_provider import until
 from tests.agent_runtime.test_native_conversation_roundtrip import Provider
 from tests.agent_runtime.test_discussion_profile_groups import create, act, idle
+from tests.agent_runtime.test_discussion_runtime import NATIVE_LEASE_TTL, room_timings
 from tests.agent_runtime.test_discussion_member_models import model_call
 
 pytestmark = pytest.mark.timeout(180)
@@ -34,7 +35,7 @@ def test_real_group_compare_discuss_target_and_reopen(tmp_path):
     root = tmp_path / "runtime"
     conversations = ConversationService(root, "install", profile_home=lambda p: tmp_path / p, auth_home=owner)
     context = NativeContext(root, owner, "install")
-    service = DiscussionService(context, active_poll_interval=.05, conversations=lambda: conversations)
+    service = DiscussionService(context, **room_timings(.05, lease_ttl=NATIVE_LEASE_TTL), conversations=lambda: conversations)
     service.start()
     try:
         run = create((service, conversations, None, tmp_path))
@@ -62,7 +63,7 @@ def test_real_group_compare_discuss_target_and_reopen(tmp_path):
         conversations.close()
         requests = len(Provider.requests)
         conversations = ConversationService(root, "install", profile_home=lambda p: tmp_path / p, auth_home=owner)
-        service = DiscussionService(context, active_poll_interval=.05, conversations=lambda: conversations)
+        service = DiscussionService(context, **room_timings(.05, lease_ttl=NATIVE_LEASE_TTL), conversations=lambda: conversations)
         service.start()
         after = service.view(run["workspace_id"], run["run_id"])
         assert after["log"]["events"] == before["log"]["events"]

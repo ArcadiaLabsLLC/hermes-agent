@@ -57,7 +57,7 @@ def test_no_registered_model_tool_names_introduce():
     about a shell, not about a tool, and this is what keeps that distinction
     true."""
 
-    import model_tools  # noqa: F401 — importing IS what populates the registry
+    import model_tools  # importing IS what populates the registry
     from tools.registry import registry
 
     names = sorted(registry.get_all_tool_names())

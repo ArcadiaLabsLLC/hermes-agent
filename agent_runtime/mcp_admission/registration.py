@@ -414,7 +414,7 @@ def _bind_call_budget(
     servers: Iterable[str],
     configs: Mapping[str, Mapping[str, Any]],
     reused: Mapping[str, ResidentScope],
-    budget: "McpCallBudget",
+    budget: McpCallBudget,
     *,
     on_exhausted: Callable[[McpAdmissionDenial, dict[str, Any]], None] | None = None,
 ) -> list[str]:

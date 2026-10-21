@@ -2,6 +2,7 @@
 from contextlib import closing
 import json
 import logging
+import urllib.error
 
 import pytest
 
@@ -16,6 +17,7 @@ from agent_runtime.persona_chat_session import (
     _chat_model_override_from_config, _resolve_turn_model_selection, _session_model_config,
 )
 from agent_runtime.session_model_catalog import model_key
+from hermes_cli import models as hermes_models
 from tests.agent_runtime.test_operator_session_inspection import inspect, target
 from tests.agent_runtime.test_serve_rpc_open_chat import PERSONA, _call, qa_persona, placed_agent
 from tests.agent_runtime.test_instance_conversation_owner import chat_head, OWNER, OTHER
@@ -36,6 +38,22 @@ def catalog(monkeypatch):
     }}}), encoding="utf-8")
     (home / ".env").write_text("TEST_ENDPOINT_API_KEY=isolated-test-key\n", encoding="utf-8")
     monkeypatch.setattr(model_inventory, "_prewarm_pricing_async", lambda *args, **kwargs: None)
+    monkeypatch.setattr(hermes_models, "_urlopen_model_catalog_request",
+                        _refuse_closed_port(hermes_models._urlopen_model_catalog_request))
+
+
+def _refuse_closed_port(real):
+    """Raise the refusal a connect to the endpoint's closed port gets, without the connect.
+
+    Windows answers a loopback connect to a closed port only after its SYN retries, ~2.4 s each;
+    the 35 validation probes of this file were a third of its wall time. Other URLs stay real."""
+
+    def opener(req, *, timeout, **kwargs):
+        if req.full_url.startswith("http://127.0.0.1:1/"):
+            raise urllib.error.URLError(ConnectionRefusedError(10061, "connection refused (closed test port)"))
+        return real(req, timeout=timeout, **kwargs)
+
+    return opener
 
 
 def choose(params, name="first", scope="conversation"):

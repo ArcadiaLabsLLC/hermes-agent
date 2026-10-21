@@ -31,6 +31,10 @@ import types
 from scripts import god_file_fences as fences
 from scripts import god_file_probe as probe
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 
 def test_the_borrowed_callable_check_reds_a_reexport():
     """Positive control: one borrowed repo callable is caught; allowlisted, local, stdlib and modules are not."""
@@ -52,13 +56,13 @@ def test_a_borrowed_callable_the_harness_reads_is_still_refused():
 
 
 def test_no_part_is_execd_into_the_harness_namespace():
-    import hermes_cli.harness as harness
+    from hermes_cli import harness
 
     assert not hasattr(harness, "_load_command_parts")
     assert fences.exec_sites() == []
 
 
 def test_the_harness_binds_no_borrowed_callable():
-    import hermes_cli.harness as harness
+    from hermes_cli import harness
 
     assert fences.borrowed_callables(harness) == []

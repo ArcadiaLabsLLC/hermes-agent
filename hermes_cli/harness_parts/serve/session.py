@@ -1,11 +1,12 @@
 """``ServeSession`` — one serve process's state and its boot order.
 
 The fields are what ``serve_loop``'s closures used to capture; the methods are
-those closures, on six modules by what they do: this one (boot order, the end
-reason, liveness, the registry row, the stdio owner), ``boot_phases`` (the boot
-steps between the stdio swap and ``ready``), ``handle_message`` (the op table
-and the dispatcher), ``lanes`` (the pool), ``subscriptions`` (the stream hub and
-the socket lanes' plumbing) and ``drain``. ``serve_loop`` builds one and
+those closures, on modules by what they do: this one (boot order, the end
+reason, the registry row, the stdio owner), ``boot_phases`` (the boot steps
+between the stdio swap and ``ready``), ``handle_message`` (the op table and the
+dispatcher), ``lanes`` (the pool), ``subscriptions`` (the stream hub and the
+socket lanes' plumbing), ``drain``, ``settle_push`` and ``liveness`` (the
+``busy`` frame, the pump, the per-request silence report). ``serve_loop`` builds one and
 runs it; nothing else constructs one.
 
 ``serve_loop`` — the entry point every caller and test drives — lives here,
@@ -34,7 +35,6 @@ from hermes_cli.harness_parts.serve.constants import (
     _DRAIN_POLL_INTERVAL_SECONDS,
     _DRAIN_SOCKET_MINIMUM_DEADLINE_SECONDS,
     _READ_CACHE_MAX_AGE_SECONDS,
-    _REQUEST_SILENCE_SECONDS,
     _SERVICE_PARK_POLL_SECONDS,
     DEFAULT_DRAIN_DEADLINE_SECONDS,
     DEFAULT_POOL_SIZE,
@@ -57,17 +57,21 @@ from hermes_cli.harness_parts.serve.frames import (
 )
 from hermes_cli.harness_parts.serve.handle_message import MessageHandling
 from hermes_cli.harness_parts.serve.lanes import ArgvLanes
+from hermes_cli.harness_parts.serve.liveness import LivenessPump
 from hermes_cli.harness_parts.serve.request_pool import RequestPool, TurnClaims
 from hermes_cli.harness_parts.serve.settle_push import SettlePush
 from hermes_cli.harness_parts.serve.shell import ServeShell, default_shell
 from hermes_cli.harness_parts.serve.subscriptions import SubscriptionLanes
+from agent_runtime.namespace import namespace_stamp
 
 __layer__ = "lanes"
 
 __all__ = ["ServeSession", "serve_loop"]
 
 
-class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, DrainLane, SettlePush):
+class ServeSession(
+    BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, DrainLane, SettlePush, LivenessPump
+):
     """Core dispatch loop over explicit streams. stdio is transport #1; the
     localhost socket is transport #2, and both feed THIS dispatcher.
 
@@ -233,6 +237,11 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         """Boot, serve until the reader ends, unwind. The process's exit code."""
 
         self._boot_prelude()
+        from agent_runtime.store_epoch import refuse_unreadable_store
+
+        refused = refuse_unreadable_store(self.frames.emit)  # RT-STORE-EPOCH: before any store write
+        if refused is not None:
+            return refused
         self._boot_anchor_and_skills()
         self._init_request_state()
         self._swap_stdio()
@@ -479,6 +488,22 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         from agent_runtime.chat_session_scope import publish_chat_head_home
 
         publish_chat_head_home()
+        # A serve nothing names a head for (no HERMES_HEAD_HOME, no pointer, no
+        # declaration -- a hand-started serve on a fresh root) takes its own home as the
+        # head of its requests (``process_home_scope(head_home=...)``), context-locally:
+        # the boot frame still reports ``head.outcome = no_explicit_head`` and nothing is
+        # declared machine-wide. Captured here, like ``serve_request_home``.
+        from agent_runtime.chat_session_scope import resolve_process_chat_scope
+
+        self.serve_head_home = (
+            None if resolve_process_chat_scope().authoritative else self.serve_request_home
+        )
+        if self.serve_head_home is not None:
+            import logging as _head_logging
+
+            _head_logging.getLogger(__name__).info(
+                "serve_head_fallback head_home=%s reason=no_head_authority", self.serve_head_home
+            )
         self.timeline.mark("head_publish_ms")
 
     def _boot_anchor_and_skills(self) -> None:
@@ -735,6 +760,17 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
                 "agent_chat_send(wait=false) will be refused for this serve",
                 exc_info=True,
             )
+        # Same owner: the Work engine (work plan §6.3), built BEFORE the runner so its boot read of
+        # the run records precedes the runner's first pass.
+        try:
+            from hermes_cli.harness_parts.serve.queued_turns import start_serve_work_engine
+
+            start_serve_work_engine(self)
+        except Exception:
+            import logging as _work_logging
+
+            _work_logging.getLogger(__name__).warning(
+                "work engine did not start; claimed rows wait for the next serve", exc_info=True)
         # Same owner as the drain: one serve runs the busy-root send queue.
         try:
             from agent_runtime.chat_root_send_runner import start_queued_send_runner
@@ -752,6 +788,34 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
                 "queued-send runner did not start; sends queued behind a busy root wait for "
                 "the next serve", exc_info=True,
             )
+        # Same owner again: one watcher writes the home's Lens store (plan eternia-lens L1).
+        try:
+            from agent_runtime.lens.poller import start_lens_poller
+
+            start_lens_poller(stop_event=self.liveness_stop)
+        except Exception:
+            import logging as _lens_logging
+
+            _lens_logging.getLogger(__name__).warning("lens poller did not start", exc_info=True)
+        # Beside it, the exit door: owed Episodes get their one turn on its own thread (L2).
+        try:
+            from agent_runtime.lens.trigger import start_lens_forge
+
+            start_lens_forge(stop_event=self.liveness_stop)
+        except Exception:
+            import logging as _forge_logging
+
+            _forge_logging.getLogger(__name__).warning("lens forge did not start", exc_info=True)
+        # And the push door: the in-serve ingress listener, loopback unless bound (L3), armed here and
+        # bound only while a route exists (ingress.sync_ingress).
+        try:
+            from agent_runtime.lens.ingress import start_lens_ingress
+
+            start_lens_ingress(stop_event=self.liveness_stop)
+        except Exception:
+            import logging as _ingress_logging
+
+            _ingress_logging.getLogger(__name__).warning("lens ingress did not start", exc_info=True)
 
     def _bind_subscription_lanes(self) -> None:
 
@@ -1007,99 +1071,6 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         if self.end_reason is not None:
             self.end_reason.write(reason)
 
-    def _busy_frame(self) -> dict[str, Any]:
-        from .idle_drain import native_pending_count
-
-        with self.inflight_lock:
-            pending = len(self.inflight)
-            chat_turns = sum(1 for item in self.inflight.values() if item.is_chat_turn)
-            long_runs = sum(1 for item in self.inflight.values() if item.is_long_run)
-            subscriptions = sum(
-                1 for item in self.inflight.values() if item.is_runtime_stream
-            )
-        # ``long_runs`` and ``subscriptions``/``work`` are ADDITIVE.
-        # ``chat_turns`` and ``pending`` keep their exact meanings and their
-        # exact names because the launcher decodes them by those names
-        # (`mission_control_serve_session_io.dart`, the `busy` case →
-        # `MissionServeBusySignal.chatTurns`), and a supervisor that learned to
-        # read a renamed key would be a supervisor that stopped reading the old
-        # one mid-upgrade.
-        #
-        # ``subscriptions`` counts the STANDING requests — `harness stream`,
-        # infinite by design, which the launcher holds two of for the life of
-        # the attachment. ``work`` is everything else. The distinction is not
-        # cosmetic: an attached launcher used to make an IDLE runtime answer
-        # `pending: 2` forever (measured 2026-09-05), so `pending > 0` — the
-        # only "is it working?" test the frame offered — was true on a service
-        # doing nothing at all. ``work`` is the number that goes back to zero,
-        # and it is what the liveness pump keys on.
-        native = native_pending_count(self.conversation_owner)
-        discussions = native_pending_count(self.discussion_owner)
-        return {
-            "event": "busy",
-            "chat_turns": chat_turns,
-            "long_runs": long_runs,
-            "pending": pending,
-            "subscriptions": subscriptions,
-            "work": pending - subscriptions + native + discussions,
-            "native_conversations": native,
-            "discussions": discussions,
-        }
-
-    def _report_quiet_requests(self, pending: list[_ArgvRequest]) -> None:
-        """Describe every request that has gone quiet, to the lane that asked.
-
-        ``busy`` says the SERVICE is alive and carries a count. It cannot
-        answer the question a waiting client actually has, which is about ONE
-        request: has mine started, or is it behind the pool? This does, by id,
-        on that request's own sink — so the answer arrives on the connection
-        that is waiting for it rather than on stdout, where a socket client
-        cannot see it.
-
-        The budget is read from the module on every lap, so a test lowers it.
-
-        ``harness stream`` is deliberately excluded: it is the infinite
-        subscription, it is silent between events BY DESIGN, and it has the
-        stream lane's own liveness. Everything else that produces nothing for
-        this long is a fact an operator wants.
-        """
-
-        budget = max(0.0, float(_REQUEST_SILENCE_SECONDS))
-        now = time.monotonic()
-        depth = len(pending)
-        for request in pending:
-            if request.is_runtime_stream:
-                continue
-            waited = now - request.submitted_monotonic
-            if waited < budget:
-                continue
-            last = request.progress_monotonic
-            if last is not None and (now - last) < budget:
-                continue
-            request.progress_monotonic = now
-            started = request.started_monotonic
-            frame = {
-                "id": request.rid,
-                "event": "request_progress",
-                # The one field that matters. "queued" means no handler code
-                # has run, so nothing has been mutated and a retry is free;
-                # "running" means side effects may already have landed.
-                "state": "running" if started is not None else "queued",
-                "waited_ms": int(waited * 1000),
-                "running_ms": (
-                    0 if started is None else int((now - started) * 1000)
-                ),
-                "pending": depth,
-                "pool_size": self.pool_size,
-            }
-            target = request.sink if request.sink is not None else self.frames
-            try:
-                target.emit(frame)
-            except Exception:
-                # Same contract as the pump that calls this: telemetry must
-                # never take down the loop it describes.
-                pass
-
     def _service_log(self, payload: dict[str, Any]) -> None:
         """One structured line per transport event, on the serve's own stderr.
 
@@ -1107,64 +1078,15 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         ``{"id":null,"event":"stderr","line":…}`` frame — the lane serve already
         uses for everything a handler writes to stderr. No new frame type, no
         new sink, and correlatable by ``boot_id`` against the ready frame.
+        Every line names its store (``namespace``, RT-NAMESPACE-STAMP).
         """
 
         try:
             sys.stderr.write(
-                json.dumps(payload, ensure_ascii=False, default=str) + "\n"
+                json.dumps({"namespace": namespace_stamp(), **payload}, ensure_ascii=False, default=str) + "\n"
             )
         except Exception:
             pass
-
-    def _liveness_pump(self) -> None:
-        while not self.liveness_stop.wait(self.liveness_pump_interval_seconds):
-            with self.inflight_lock:
-                pending = list(self.inflight.values())
-            if not pending:
-                continue
-            busy_frame = self._busy_frame()
-            # STANDING SUBSCRIPTIONS ARE NOT WORK. `harness stream` never
-            # ends by design, so an attached launcher keeps two of them in
-            # `inflight` for the life of the attachment — and this pump,
-            # which only ever asked "is anything pending?", therefore
-            # announced `busy` every 5s to a runtime that was doing
-            # NOTHING (measured 2026-09-05: `chat_turns: 0, long_runs: 0,
-            # pending: 2`, forever). `_report_quiet_requests` had already
-            # learned to exclude them, and says why; this is the same
-            # exclusion applied to the frame the launcher actually reads.
-            # `ping` is untouched — a supervisor that ASKS still gets every
-            # count, because silence is the pump's rule, not the frame's.
-            if busy_frame["work"] > 0:
-                try:
-                    self.frames.emit(busy_frame)
-                except Exception:
-                    # Writer gone — the main loop is on its way down too.
-                    return
-                # And to every SOCKET client, for the identical reason the
-                # comment above gives for stdout. This lane was left behind
-                # when the drain path learned the same lesson: "the socket
-                # client IS such a watchdog: it reads with a finite timeout
-                # and reports `transport_failed` on silence" (see the
-                # drain's `_broadcast_lanes(progress)`). Measured
-                # 2026-08-27: an authenticated socket connection waiting on
-                # a `characters list` read ZERO frames for >120s while this
-                # pump was emitting `busy` the whole time — to stdout,
-                # where that client could not see it.
-                #
-                # Best-effort and never fatal: `_broadcast_lanes` is a later
-                # local of this loop, so an early tick can find it unbound,
-                # and a broadcast failing must not stop the liveness the
-                # launcher keys on.
-                try:
-                    self._broadcast_lanes(busy_frame)
-                except Exception:
-                    pass
-            # The per-request half: `busy` is a count, and a client waiting
-            # on ONE id needs to know whether that id has started. It gets
-            # the FULL pending list — it does its own stream exclusion, and
-            # a subscription-only lap can still be the lap on which an
-            # argv request crosses the silence budget.
-            self._report_quiet_requests(pending)
 
     def _unregister_instance(self, reason: str = "shutdown") -> None:
         """Drop this serve's registry entry. Idempotent, never raises.

@@ -95,7 +95,7 @@ import os
 import socket
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -295,7 +295,7 @@ def set_display_name(store_root: Path | str, name: str) -> InstallIdentity:
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _safe_hostname() -> str:

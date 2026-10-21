@@ -29,6 +29,10 @@ import sys
 import textwrap
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 REPO = Path(__file__).resolve().parents[3]
 
 CHILD = textwrap.dedent('''
@@ -92,7 +96,7 @@ def test_the_phone_path_runs_without_any_sdk_or_pydantic(tmp_path):
                                                   "tui_gateway": {"pydantic_contracts": False}}), encoding="utf-8")
     env = {**os.environ, "HERMES_HOME": str(home), "PYTHONPATH": str(REPO)}
     result = subprocess.run([sys.executable, "-c", CHILD], cwd=REPO, env=env, capture_output=True, text=True,
-                            timeout=240)
+                            timeout=240, check=False)
     assert result.returncode == 0, result.stderr[-4000:]
     out = json.loads(result.stdout.strip().splitlines()[-1])
     assert out["loaded"] == []

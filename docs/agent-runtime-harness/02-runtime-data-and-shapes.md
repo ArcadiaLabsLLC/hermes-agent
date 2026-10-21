@@ -45,6 +45,14 @@ Directories present in the live root, with the module that owns each:
 | `serve_instances/` | `serve_registry.py` (`SERVE_INSTANCES_DIRNAME`) | one `<pid>.json` per live serve, one `<pid>.ended.json` per serve that ended, one `<pid>.stderr.log` per `--service` runtime (below) |
 | `deleted_archive/`, `migration_backups/`, `wt_reaped_patches/`, `locks/` | `paths.py:302`, `default_scope.py:552`, `delivery_directive.py:65` | archive-never-delete and lock trees |
 
+An office actor file (`office/<ws>/actors/<key>.json`) is written by one store method,
+`office_store/actor_writes.py::upsert_actor`, whose payload carries an additive, optional
+`actor_kind` (`RT-GENERIC-DESK-WRITE-PAYS`, 2026-10-19): `ActorKind(StrEnum)` in
+`office_store/models.py`, two words — `persona` (default, absent) and `furniture` (a generic desk,
+whose `persona_id` is its own `desk_<8 base36>` address, CONTRACT 43). It is read by
+`office_store/normalize.py::normalize_actor_kind` (an unknown word is `ActorKindInvalid`,
+`actor_kind_invalid`) and decides the write, not the file: the actor file does not store it.
+
 `paths.py` also declares `runs/`, `runtime_instances/`, `incidents/` and
 `prompt_observability_archive/`. None exist in the live root — they are created
 on first write, and a store with no such write has no directory.
@@ -56,6 +64,41 @@ answers *where a legacy copy would be* rather than where a live file is. It is
 kept deliberately: without it, a store that ran `harness snapshot` before the cut
 has an orphan nothing in the tree can name. `read_model.db` was the other such
 file and has no helper at all any more — `ReadModel` is deleted.
+
+### The namespace manifest and the store epoch (`namespace.json`)
+
+A namespace (`<namespaces dir>/<id>/`, 04 § "Before Stage 1 — the profile namespace") is named by its
+`namespace.json`. Both editions open ONE shared namespaces dir — the launcher hands every child of
+either edition the same `HERMES_NAMESPACES_DIR` (launcher plan
+`EterniaLauncher/docs/embedded_hermes/planned/EDITION_SWITCH_NAMESPACE_STORE_2026-10-20.md` §2.1;
+rule page `EterniaLauncher/docs/embedded_hermes/subsystems/EDITION_STORE_2026-10-20.md`) — so the
+manifest records which store shape last wrote it:
+
+| Key | Written by | Shape |
+| --- | --- | --- |
+| `schema`, `id`, `created_at` | `_namespace_bootstrap.ensure_manifest` (first resolve), `namespace_admin.reset` | `1`, the id, ISO time |
+| `seeded_from`, `seeded_at`, … | `namespace_seed.seed` | the one-time seed's receipt |
+| `epoch` | `ensure_manifest` and `reset`/`seed` (this build's epoch), a consented raise at serve boot | `{"value": N, "raised_at": …, "raised_by": {"commit", "edition", "hermes_version"}}`; ABSENT means epoch 0 (every namespace made before 2026-10-20); a block that does not parse is treated as newer |
+| `last_written_by` | every open by a serve or a writing verb (`import-sessions`) | `{"commit", "edition", "hermes_version", "at"}` — provenance, never compared |
+| `secure_store` | the first OS-secure-store bind in the namespace (`host_store.desktop_binding`) | `true`: sign-ins live in the OS secure store (`<namespace>/secure-store`) and EVERY edition binds it, whatever its own `auth.os_secure_store` says — the bundled edition moves plaintext `auth.json`/`.env` in and unlinks it, so a file-reading edition would otherwise be signed out (RT-NAMESPACE-SECURE-STORE-SHARED) |
+
+**The rule** (owner 2026-10-20): the guard compares a breaking-change EPOCH, never the version.
+`agent_runtime/store_epoch.py` is the one authority: `STORE_EPOCH` (what this build reads and writes,
+always `1 + count(breaking entries)`), `MIGRATION_REGISTRY` (one entry per store-shape change:
+`{id, date, store, breaking, reason, pins_sha256}`, a breaking one also `raises_to`), and
+`python -m agent_runtime.store_epoch` → `{"schema": 1, "store_epoch": N}` for the release lane. An
+additive change never raises the epoch. `agent_runtime/store_shape_pins.json` pins the shape an older
+edition reads (`SCHEMA_VERSION`, the `SCHEMA_SQL` digest, `TURN_RECORD_SCHEMA_VERSION`,
+`CURRENT_RUNTIME_SCHEMA_VERSION`, every `models.py` `schema_version` default, the `paths.py` path
+table); `tests/agent_runtime/test_store_epoch_gate.py` reds when a pin differs from the tree, and
+again until the newest registry entry names the re-pinned shape — so a shape change is always a
+recorded `breaking: true|false` decision. The verdicts are 04's.
+
+**Which install serves the store** (RT-NAMESPACE-OWNER-INSTALL-STAMP): the socket-owner record and
+every `serve_instances` row carry `install {base_root, edition}` beside `namespace`
+(`agent_runtime.namespace.store_identity`; `edition` is the build stamp's, `bundled` or `developer`).
+A contender that finds a live owner reports `lock_held_by` with `owner_install` — the owner's block —
+so the launcher can name the edition holding the store; the takeover-on-drain rule is unchanged.
 
 ### serve_instances — the row, the end-reason sidecar, and the service log
 
@@ -347,8 +390,9 @@ the cold boot (pid 30588) and `walk_ms=769 tool_visibility_ms=26` warm
 (pid 32164).
 
 **The walk binds each persona's profile CONTEXT-LOCALLY.**
-`profile_readiness_for_persona` enters `profile_context.persona_profile_scope`,
-not the env-exporting `persona_profile_context`: it installs the ContextVars
+`profile_readiness_for_persona` enters `profile_context.persona_profile_context`
+(context-local only since its env mirror retired after run-serialization S5; the
+walk's old `persona_profile_scope` entry point folded into it): it installs the ContextVars
 (`set_hermes_home_override`, `set_hermes_auth_home_override`, the head-home
 recording) and writes **no** `os.environ`. That matters because this walk runs
 on the snapshot builder thread every 2–4 s in the same `harness serve` process
@@ -739,6 +783,36 @@ additive key on a row the launcher parses as a map. One golden moved
 (``delta_agent_create_narrow_profile.json``, the only generated frame with a
 workspace row) and the launcher mirror is owed
 (``tests/fixtures/stream_frames/README.md``).
+
+54 KEPT (w2-turn, 2026-10-18) — ``running_work`` gained a ``tool_call`` SOURCE:
+long tool calls promoted to the background (RT-LONG-TOOL-CALLS-BACKGROUND,
+``tools/long_tool_calls.py``), read durably from ``tool_calls.json`` beside
+``mcp_jobs.json``. The kind was already on the wire (the foreground child rows,
+RW2); a promoted row adds ``background: true``, ``handle``, ``tool_name``,
+``tool_call_id``, ``outcome``, ``cancel_requested``, ``finished_at`` and no
+``parent_work_id``. A chat turn's ``current_tool`` gained ``promotable``. Same
+ruling as ``mcp_job``: nothing left the wire, ``sources`` is a map, ``kind`` an
+open string. The goldens and ``work_list_empty.json`` moved; the launcher mirror
+is owed (``tests/fixtures/stream_frames/README.md``).
+
+54 KEPT (w5-sched, 2026-10-18) — ``running_work`` gained a ``scheduled_turn`` kind
+and SOURCE (RT-SCHEDULE-TURN-RUNNING-WORK, RULED: its own kind, not ``cron_job``):
+a fire of ``work_store/serve_scheduler.py::ServeTickScheduler`` from the moment it
+queues on its chat root until the runner removes the entry, read durably from the
+send-queue entries whose origin names a schedule
+(``running_work/lanes_schedule.py``). A row adds ``schedule_key``, ``fire``,
+``phase`` (``queued`` | ``running``) and ``work_request``. Same ruling as
+``tool_call``: nothing left the wire. The goldens and ``work_list_empty.json``
+moved; the launcher mirror is owed (``tests/fixtures/stream_frames/README.md``).
+
+54 KEPT (msg-b, 2026-10-19) — ``running_work`` gained a ``messaging_turn`` kind and
+SOURCE (p10-messaging M4, the ``scheduled_turn`` precedent): a platform message the
+messaging bridge queued on a bound instance's chat root, from the queue until the
+runner removes the entry, read durably from the send-queue entries whose origin
+carries a ``messaging`` block (``running_work/lanes_messaging.py``). A row adds
+``platform``, ``chat_id``, ``thread_id`` and ``phase``; never the message text. Same
+ruling: nothing left the wire. The goldens and ``work_list_empty.json`` moved; the
+launcher mirror is owed (``tests/fixtures/stream_frames/README.md``).
 
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead

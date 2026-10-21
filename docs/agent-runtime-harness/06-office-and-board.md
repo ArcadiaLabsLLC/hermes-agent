@@ -113,6 +113,13 @@ eviction — a doctor remediation, a dispatch step, a census cleanup aimed only 
 local projection; that lane gets its own local-only mode rather than borrowing
 this one.
 
+**Archive retention (ruled 2026-10-15).** `office/<ws>/archive/` keeps the newest
+`ARCHIVED_ACTOR_FILES_RETAIN` (20) actor copies per workspace; every archive write prunes
+the older ones (`_prune_archived_actor_files`, logged as `office archive retention`). The
+tombstone is the `archived_actor_keys` ledger, not the file, so a pruned key still refuses a
+plain re-add; what the 21st-oldest removal loses is `actor-restore`. A `--local-only` removal
+has no ledger entry, so once its copy is pruned nothing fences it.
+
 **What that local-only mode withholds, and what it does not (AX7).**
 `remove_actor` writes two things: the archive copy, and the
 `archived_actor_keys` ledger entry. Only the ledger crosses machines —
@@ -155,6 +162,21 @@ callers by EG-6.6), `_guard_no_conflict` (an unresolved realm-sync sidecar),
 when no live row exists), then `_check_revision`. Each door keeps only a
 TRANSLATION of the typed refusal into its own taxonomy — never a copy of the
 predicate — so deleting a fence does not leave either door guarded.
+
+**Furniture pays no scan** (`RT-GENERIC-DESK-WRITE-PAYS`, 2026-10-19). The payload's
+additive `actor_kind: "persona" | "furniture"` (default `persona`) is the typed answer to
+"is this actor's `persona_id` a class or an address". A generic desk is `furniture`: its
+address is freshly minted, so neither class-key reason can apply, and
+`office_class_key_guard.py::is_class_keyed_payload` answers False for it — the fence runs no
+`scan_actors`. The tombstone fence is orthogonal and still runs. The store refuses a
+`furniture` payload carrying any non-desk item before the lock (`ActorKindMismatch`,
+`actor_kind_mismatch`: 4090 on `runtime.office.upsert`, `invalid_request` on `harness office
+actor-upsert`), so the word cannot carry an agent placement past the fence; an unknown word is
+`actor_kind_invalid` (-32602). A `desk_` prefix test was rejected as a gate that proves only a
+spelling. Until the launcher sends the field (`MC-DESK-ACTOR-KIND-FURNITURE`), a desk write keeps
+paying exactly one fence scan (`test_office_store.py::test_a_generic_desk_write_pays_the_CLASS_KEY_scan_and_only_that_one`).
+The write's post-write patch lane (`office_store/patches.py`) spends its own scan on every upsert;
+that one is not this fence's.
 
 A fourth, `_guard_duplicate_desk`, sat between the conflict guard and the
 tombstone fence until **2026-09-18**. It is gone — see "The desk fence,
@@ -222,6 +244,15 @@ chokepoint, by the owner's general ruling that old schema is reported so it can
 be deleted and replaced rather than kept alive by a compatibility path. Hermes
 holds no migration for them and needs none: an old `<persona>_desk` item still
 decodes and still writes here, because this store never knew what the id meant.
+
+The launcher's drop is a READ, so an actor whose only item was a legacy desk was never
+rewritten and its file stayed. Owner ruling 2026-10-15 (RT-DROPPED-LEGACY-DESK-LEAVES):
+clean them up once and report the count. `agent_runtime.office_legacy_migration`'s
+`sweep_legacy_desks` step (one-shot per store, report in
+`<store>/migrations/office_legacy_desks.json`) drops every desk whose `persona_id` is not
+its own `item_id` from each LIVE actor file, and archives through `remove_actor` an actor
+left with no items. `is_legacy_desk_item` is the launcher's
+`missionOfficeIsLegacyDeskAddress`, spelled once on this side.
 
 The plan is `EterniaLauncher/docs/archive/mission_control/generic-desk-and-inspector-tables.md`
 (slice 1 is this change), cited in prose rather than linked because a cross-repo
@@ -1116,6 +1147,18 @@ hands over a count and no tokens. Both keys are additive — a row from an older
 core has no such list, which reads as exactly the claim the bare list used to
 make silently.
 
+**The `unplaced_persona_instance` warning (2026-10-18, RT-SNAPSHOT-UNPLACED-INSTANCE).**
+`_offices_summary` also gathers, per workspace, the instances an ARCHIVED actor of that
+office was bound to and no live actor there still is (`scan_actors(include_archived=True)`,
+bounded by the archive retention above; `None` when either directory had an unreadable
+file). That evidence is BUILD-ONLY: `OfficesProjection.archived_placement_instance_ids`
+reaches `parity_envelope(office_evidence=)` as an argument and never rides the frame, so
+the byte-pinned stream goldens do not move. The parity check runs
+`classify_unplaced_persona_instances` (the classifier the reconcile lane prunes by) and
+emits `unplaced_persona_instance` / `held_unplaced_persona_instance`; it says nothing when
+the evidence is absent or `None`, or any office row's live list is truncated or unreadable.
+The launcher shows it through its generic `warningCodes`; no launcher change is needed.
+
 **`office_actors_unreadable` out of `copy_workspace_content`**, same commit and
 same shape: it skipped an undecodable source actor and emitted NOTHING, while
 every other fault in that module (a broken surface, a folder write, a refused
@@ -1177,6 +1220,70 @@ lane reasons (`agent_chat/mission_agent_model_switcher_view_model.dart`);
 `usage {phase} failed (HTTP {status} — re-auth may be required)`
 (`hermes_cli/harness_parts/usage/detect.py::_usage_failure_reason`), with class-name-only discipline preserved for
 everything that is not an HTTP status, because a bare status code leaks nothing.
+
+## The todo board
+
+A workspace's todo board is the union of the `type: queue` notes of every repo slot the workspace
+binds — `<bound path>/<brain dir>/*.md`, the brain dir pinned in the slot's `context.brain_dir` or
+discovered as `*_Brain/20 — Active Initiatives` — plus, when no bound slot carries a brain, the
+auto-created local default brain (listed as slot `brain`, `Work_Brain/`, no remote). The default brain is a
+machine-local binding (`<store_root>/work/<ws>/default_brain.json`, which also carries `remote_url` for the
+promotion below), never a declared slot until promoted, so it works the same in
+every realm (owner ruling 2026-10-18). When a repo slot with a brain is bound (the first by slot name — the
+slot document records no declaration order), the default board's rows move into that brain's `work-queue.md` in one commit with their IDs
+kept, the default board drops from the list, and new rows land in the repo brain. A row in the ADR 0011 grammar
+IS a task; nothing is copied, and tasks are keyed `(slot, ID)` (plan
+[work-on-markdown-2026-10-18.md](planned/work-on-markdown-2026-10-18.md) §2, §4; the wire is doc 03 §
+Native Work methods).
+
+The default brain has four states, and promotion is the one door from binding to slot
+(`RT-WORK-DEFAULT-BRAIN-REMOTE`, plan [p10-work-2026-10-19.md](planned/p10-work-2026-10-19.md) §2.5; owner ruling
+2026-10-18: a connected git account means the remote is created automatically). **Local**: no remote. When the
+machine's own GitHub chain (`GITHUB_TOKEN`/`GH_TOKEN`, `gh auth token`, the git credential helper) answers
+`GET /user`, `default_brain.promote_default_brain` creates a PRIVATE `eternia-work-<workspace slug>` repo (a name
+that exists is refused `remote_exists`, never adopted), pushes the brain with upstream through
+`agent_runtime/git_remote_adopt.py::adopt_remote`, and records `remote_url`. **Remote**: where this machine may
+publish (no realm, a server-less realm) slot `brain` is declared with `workspace_slots.declare_one_slot` (nothing
+else is touched) and bound here, and the declared slot lists the board. **Remote, pending declare**: in a
+server-bound realm the entry is staged in the binding and the Launcher's next credentialed `slots.declare` carries
+it; meanwhile the default board is listed with its remote and the writer pushes. **Refused**: a refusal backs the
+automatic path off for a day; `runtime.work.create_brain` with `promote: true` retries at once. A second machine
+that finds a declared `brain` slot it has not bound clones it instead of creating a brain; a local default brain
+it already had moves its rows in through the normal move.
+
+The write path (plan §5), in six lines:
+
+1. hermes keeps its OWN worktree of each slot's clone (`<store_root>/work/<ws>/worktrees/<slot>`, branch
+   `work/<machine_id>`, `--no-checkout` + a sparse checkout of the brain folder); the operator's index and
+   tree are never touched.
+2. Each write fetches the tip, `reset --hard`s the worktree to it, and replays by `request_id` when the
+   tip already carries the commit.
+3. The op's precondition is read at the tip (claim: present and untaken; release: held by `who`;
+   re-status / delete / assign: a taken row answers only its holder or the operator).
+4. The edit is one line by ID (`agent_runtime/work_store/grammar.py::apply`), never a text merge; a note
+   whose rows fail the grammar is never edited (`grammar_invalid`).
+5. The commit carries hermes's identity as `-c` pairs (`Eternia Harness <harness+<machine>@eternia.local>`);
+   the push is fast-forward only, and a rejection replays from the fetch, at most 8 times
+   (`push_contended`). A local slot moves its branch with a compare-and-swap `update-ref`.
+6. Done = the row deleted; the deleting commit's body carries `result:`, which `runtime.work.inspect`
+   answers as the gone row's `ending`.
+
+Receipts are log lines, one per write: `work.row_append | row_claim | row_release | row_set_status |
+row_delete | row_assign`, `work.brain_create` and `work.default_brain_move` (`agent_runtime/work_store/receipts.py`).
+
+The worker engine (plan §6.3, `agent_runtime/work_store/engine.py`) runs in the socket-owning serve only and
+never claims: every 15 s it hands each row `**TAKEN <date> persona:<instance_id>**` with no live run to
+that instance as ONE chat turn — `PersonaTurnExecutor` (`persona_turn.py`, behind the dispatcher's EXECUTOR
+contract `executor.py`) enqueues the brief on the instance's chat root through the busy-root send queue, so
+the turn runs when the root is idle; a session lane's claim is never touched. The turn's ending is the LAST
+fenced `work_report` block of its reply, read when the queued-send runner settles it
+(`RunnerPolicy.on_settle`): done deletes the row; blocked writes `BLOCKED <date>: owner decision — … ·
+Recommend: …` and releases; stopped releases and writes `DEFERRED <date>: stopped — …`; an unreadable
+ending, or a run that ended while the serve was down, releases and writes `NEEDS PLAN <date>: …` (re-claim
+to retry). Each step is one writer op by row ID with a request id derived from the run's. A run is a file
+under `<store_root>/work/<ws>/runs/` (the engine's whole state); `goal_mode=UNTIL_DONE` is refused until
+the dispatcher's B3. Receipts: `work.run_start | run_settle | run_refused | engine_tick` and the executor's
+`work.exec_start | exec_settle | exec_stop`.
 
 ## The board — method twins on the hermes side, argv on the launcher
 

@@ -211,6 +211,53 @@ def test_an_interpreter_does_not_launder_an_argument_naming_the_store(argv):
     _assert_real_store_refusal(argv)
 
 
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["{root}/tools/uv-0.12.3-win32-x64/uv.EXE", "lock"],
+        ["{root}/tools/uv-0.12.3-win32-x64/uv.EXE", "lock", "--python",
+         "{root}/installs/abc/test-environment/gen-1/venv/Scripts/python.exe"],
+    ],
+    ids=["pm-uv-lock", "pm-uv-lock-with-gate-python"],
+)
+def test_a_pm_provisioned_tool_as_argv0_is_not_the_store(argv):
+    """Hosted Windows run 38426498916: 264 refusals of PM's own ``uv lock``.
+
+    Killing mutation: drop the ``_is_provisioned_tool`` term in ``classify`` ->
+    both ids red with "REAL store".
+    """
+    real_root = _gateway_fence.real_root()
+    if real_root is None:
+        pytest.skip("no default hermes root resolvable on this host")
+    root = str(real_root).replace("\\", "/")
+    assert _gateway_fence.classify([tok.replace("{root}", root) for tok in argv]) is None
+
+
+@pytest.mark.parametrize(
+    "argv, env_key",
+    [
+        (["{root}/tools/uv-0.12.3-win32-x64/uv.EXE", "sync", "--directory", "{root}/profiles/alice"], None),
+        (["bash", "-c", "{root}/tools/uv-0.12.3-win32-x64/uv.EXE lock"], None),
+        (["{root}/tools/uv-0.12.3-win32-x64/nested/uv.EXE", "lock"], None),
+        (["{root}/tools/uv-0.12.3-win32-x64/uv.EXE", "lock"], "UV_CACHE_DIR"),
+        (["{root}/tools/uv-0.12.3-win32-x64/uv.EXE", "sync"], "UV_PROJECT_ENVIRONMENT"),
+    ],
+    ids=["tool-plus-store-arg", "tool-not-argv0", "tool-not-directly-provisioned",
+         "uv-cache-on-store", "uv-project-env-on-store"],
+)
+def test_a_pm_tool_still_cannot_write_the_store(argv, env_key):
+    """The argv[0] exemption is the binary only: an argument, a wrapper, or a uv cache /
+    project venv on the store is still refused. Killing mutation: drop ``UV_CACHE_DIR`` and
+    ``UV_PROJECT_ENVIRONMENT`` from ``_STORE_ENV_KEYS`` -> the two env ids red."""
+    real_root = _gateway_fence.real_root()
+    if real_root is None:
+        pytest.skip("no default hermes root resolvable on this host")
+    root = str(real_root).replace("\\", "/")
+    env = {env_key: str(real_root / "cache" / "uv")} if env_key else None
+    reason = _gateway_fence.classify([tok.replace("{root}", root) for tok in argv], env)
+    assert reason is not None and "REAL store" in reason
+
+
 def _assert_real_store_refusal(argv):
     """ANTI-VACUITY for the row above, and the older regression it replaced.
 
@@ -254,7 +301,7 @@ def test_popen_refuses_the_measured_argv():
 @pytest.mark.live_system_guard_bypass
 def test_subprocess_run_refuses_the_measured_argv():
     with pytest.raises(GatewayFenceViolation):
-        subprocess.run([sys.executable, "-m", "hermes_cli.main", "gateway", "run"])
+        subprocess.run([sys.executable, "-m", "hermes_cli.main", "gateway", "run"], check=False)
 
 
 @pytest.mark.live_system_guard_bypass
@@ -287,7 +334,7 @@ def test_fence_holds_on_a_background_thread():
     def _spawn():
         try:
             subprocess.Popen(["hermes", "gateway", "run"])
-        except BaseException as exc:  # noqa: BLE001 — recording, then re-asserted
+        except BaseException as exc:  # recording, then re-asserted
             caught.append(exc)
 
     worker = threading.Thread(target=_spawn)
@@ -316,7 +363,7 @@ def test_cold_start_helper_cannot_reach_a_live_spawn(monkeypatch):
     from hermes_cli import gateway_windows, update_cmd
 
     monkeypatch.setattr(update_cmd, "_m", lambda: SimpleNamespace(
-        _is_windows=lambda: True, _detect_venv_python_processes=lambda: []))
+        _is_windows=lambda: True, _detect_venv_python_processes=list))
     monkeypatch.setattr("hermes_cli.gateway.find_gateway_pids", lambda **_k: [])
     calls: list[object] = []
     real_fenced = gateway_windows._spawn_detached
@@ -434,7 +481,7 @@ def test_a_disarmed_fence_passes_a_backend_argv_straight_through():
         # Stand in for the OS call so the pass-through is observable without
         # starting anything: if the fence still refused, this never runs.
         subprocess.Popen = lambda cmd, *a, **k: recorded.append(cmd)
-        real_popen.__init__  # noqa: B018 — keep the reference obviously live
+        real_popen.__init__  # keep the reference obviously live
         subprocess.Popen(argv)
     finally:
         subprocess.Popen = real_popen

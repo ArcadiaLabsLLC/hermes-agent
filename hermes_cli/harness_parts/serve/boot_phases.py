@@ -28,6 +28,7 @@ from hermes_cli.harness_parts.serve.gateway_listener import (
     start_gateway_listener,
 )
 from hermes_cli.harness_parts.serve.manifest import ops_manifest
+from agent_runtime.namespace import namespace_stamp
 
 __layer__ = "lanes"
 
@@ -79,6 +80,8 @@ class BootPhases:
                 "code_tree": None,
                 "code_tree_rule": None,
                 "code_tree_reason": f"stamp_failed:{type(exc).__name__}",
+                "uv_lock_sha256": None,
+                "uv_lock_reason": f"stamp_failed:{type(exc).__name__}",
             }
         # 2. THE SECRET. Unwired to any transport (stdio needs none), minted
         #    now so the socket slice starts with a lock already on the door
@@ -437,7 +440,7 @@ class BootPhases:
                         "display_name": self.install_block.get("display_name"),
                     },
                 )
-            except Exception:  # noqa: BLE001 — courtesy channel, never the boot
+            except Exception:  # courtesy channel, never the boot
                 pass
 
     def _boot_register_instance(self) -> None:
@@ -699,6 +702,19 @@ class BootPhases:
         except Exception:
             dispatches_restored = 0
         self.timeline.mark("dispatch_restore_ms")
+        # Same moment again, for long tool calls promoted to the background
+        # (RT-LONG-CALL-WAKE-LOST-ON-RESTART): a ``running`` row whose writer is
+        # provably gone can never finish, so this process re-owns it as ``lost``
+        # and wakes its session — before the drain starts. Fail-open.
+        long_calls_lost: list[str] = []
+        try:
+            from agent_runtime.running_work.ownership import background_work_homes
+            from tools.long_tool_calls import sweep_orphaned_rows
+
+            long_calls_lost = sweep_orphaned_rows(background_work_homes())
+        except Exception:
+            long_calls_lost = []
+        self.timeline.mark("long_call_sweep_ms")
         # Builds (build plan §2, §5, §7): THIS process owns the detected-build scan, exports
         # HERMES_BUILD_REGISTRY_DIR so every child it spawns can announce, sweeps expired
         # records, and starts the 30 s stall-fail / build.ended tick.
@@ -710,6 +726,8 @@ class BootPhases:
             "pid": os.getpid(),
             "schema_version": SERVE_SCHEMA_VERSION,
             "runtime_root": self.runtime_root,
+            # RT-NAMESPACE-STAMP: the store's namespace id, "" for the base root (never the subject).
+            "namespace": namespace_stamp(),
             # Additive, always present (never conditional on success): a
             # missing block would read as "old runtime", while a block whose
             # own fields say `unknown`/`error:…` reads as what it is — the
@@ -768,6 +786,8 @@ class BootPhases:
             self.ready_frame["orphaned_turns_repaired"] = len(orphaned_repaired)
         if dispatches_restored:
             self.ready_frame["dispatches_restored"] = dispatches_restored
+        if long_calls_lost:
+            self.ready_frame["long_calls_lost"] = len(long_calls_lost)
         # Every phase this boot actually paid, on the frame the supervisor
         # already waits for — and the same line in agent.log, because the boot
         # worth attributing (the cold one) is the boot nobody is watching a

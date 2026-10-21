@@ -156,6 +156,25 @@ def _no_af_unix() -> bool:
     return not hasattr(socket, "AF_UNIX")
 
 
+@_cached
+def _hermes_cli_resolves_through_path() -> bool:
+    """True where the Bot Chat delivery CLI has no launcher beside this install.
+
+    ``tools.bot_relay._hermes_cli`` prefers ``<checkout>/.hermes/bin/hermes(.exe)``, then the
+    console script beside ``sys.executable``; with neither it takes ``shutil.which("hermes")``,
+    which on Windows spells the PATHEXT suffix upper-case (``hermes.EXE``). Read from the
+    same two paths, not by calling the private resolver.
+    """
+    import sys
+    from pathlib import Path
+
+    name = "hermes.exe" if sys.platform == "win32" else "hermes"
+    checkout = Path(__file__).resolve().parents[2]
+    published = checkout / ".hermes" / "bin" / name
+    sibling = Path(sys.executable or "").parent / name
+    return not published.is_file() and not sibling.is_file()
+
+
 def _no_process_groups() -> bool:
     """True where os.getpgid is absent — no process groups, no killpg."""
     return not hasattr(os, "getpgid")
@@ -165,6 +184,22 @@ def _no_process_groups() -> bool:
 # tests/test_env_gap_registry.py still refuses it if it comes back.
 
 _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
+    # -- hosted Windows XPASS requalification (run 38426498916, lane r-isolation) --
+    'test_bot_retry_policy.py': [
+        (
+            _hermes_cli_resolves_through_path,
+            'the delivery CLI resolves through PATH (no launcher beside this install), '
+            'as `hermes.EXE`, and the fake transport matches only `hermes`/`hermes.exe`, '
+            'so no turn is intercepted and the reply is empty. Green on the hosted '
+            'runner, whose PM venv carries the console script',
+            {
+                'test_deliver_never_retries_auth_failure',
+                'test_deliver_retries_once_on_context_overflow',
+                'test_deliver_retries_same_argv_on_transient_failure',
+                'test_deliver_retry_reads_the_stream_the_cli_writes_and_resumes_the_persisted_row',
+            },
+        ),
+    ],
     # ── NTFS records no POSIX mode bits ────────────────────────────────────
     'test_base_environment.py': [
         (
@@ -386,30 +421,30 @@ _KNOWN_DEFECTS: dict[str, str] = {
 _KNOWN_DEFECT_TRACKER = KnownDefectTracker(_KNOWN_DEFECTS, "tests/tools/conftest.py")
 
 
-def pytest_collection_modifyitems(items):  # noqa: D401 — pytest hook
+def pytest_collection_modifyitems(items):  # pytest hook
     """Skip every registered node whose probe reports its gap on this host."""
     apply_skips(items, _ENV_GAP_SKIPS, owner_dir=_OWNER_DIR)
 
 
-def pytest_runtest_logreport(report):  # noqa: D401 — pytest hook
+def pytest_runtest_logreport(report):  # pytest hook
     """Record the known-defect tests' outcomes."""
     _KNOWN_DEFECT_TRACKER.record(report)
 
 
-def pytest_terminal_summary(terminalreporter):  # noqa: D401 — pytest hook
+def pytest_terminal_summary(terminalreporter):  # pytest hook
     """Explain the deliberate reds."""
     _KNOWN_DEFECT_TRACKER.report(terminalreporter, "KNOWN DEFECTS — deliberately not fenced")
 
 
 __all__ = [
-    "_cached",
-    "_no_posix_file_modes",
-    "_no_af_unix",
-    "_no_process_groups",
     "_ENV_GAP_SKIPS",
-    "_OWNER_DIR",
     "_KNOWN_DEFECTS",
     "_KNOWN_DEFECT_TRACKER",
+    "_OWNER_DIR",
+    "_cached",
+    "_no_af_unix",
+    "_no_posix_file_modes",
+    "_no_process_groups",
     "pytest_collection_modifyitems",
     "pytest_runtest_logreport",
     "pytest_terminal_summary",

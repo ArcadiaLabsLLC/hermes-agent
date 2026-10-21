@@ -284,7 +284,7 @@ class DrainPolicy:
     """
 
     sender_is_idle: Callable[[str], bool] = _sender_is_idle
-    sender_persona: Callable[[str], "tuple[str, str] | None"] = _sender_persona
+    sender_persona: Callable[[str], tuple[str, str] | None] = _sender_persona
 
 
 #: The production policy: the real idle probe and the real ownership proof.

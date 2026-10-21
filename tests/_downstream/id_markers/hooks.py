@@ -59,7 +59,7 @@ SHARED_KEYS: frozenset[str] = _shared_keys(*_TABLES)
 
 
 @pytest.hookimpl(wrapper=True)
-def pytest_make_collect_report(collector):  # noqa: D401 — pytest hook
+def pytest_make_collect_report(collector):  # pytest hook
     """Lend ``IMPORT_TIME_POSIX_SHIMS`` to one module's import, then take them back;
     turn a collection that failed on a ``REQUIRES_DISTRIBUTION`` import into a skip."""
     shims = IMPORT_TIME_POSIX_SHIMS.get(collector.nodeid)
@@ -132,7 +132,7 @@ def _narrowed_files(config) -> set[str]:
     return out
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _undo_calling_def_lines(path: str) -> frozenset[int]:
     """Every line a ``def`` (or one of its decorators) starts on, for each function in *path*
     whose body calls ``<expr>.undo()``. A file without the text ``.undo(`` is never parsed."""
@@ -162,7 +162,7 @@ def body_calls_monkeypatch_undo(item) -> bool:
 
 
 @pytest.hookimpl(tryfirst=True)
-def pytest_collection_modifyitems(config, items):  # noqa: D401 — pytest hook
+def pytest_collection_modifyitems(config, items):  # pytest hook
     """Apply ``ID_MARKS`` before upstream's own modifyitems reads the marks."""
     matched: set[str] = set()
     collected_files: set[str] = set()
@@ -194,7 +194,7 @@ def pytest_collection_modifyitems(config, items):  # noqa: D401 — pytest hook
 
 
 @pytest.hookimpl(tryfirst=True)
-def pytest_runtest_setup(item):  # noqa: D401 — pytest hook
+def pytest_runtest_setup(item):  # pytest hook
     """Skip a ``requires_no_live_gateway`` test on a machine running a gateway.
 
     Runs before any fixture, so it reads the real process table the test will

@@ -9,7 +9,7 @@ from hermes_cli.update_inventory import (
     report_unaccounted_runtimes,
 )
 
-from tests.hermes_cli.test_restart_plan_reconciliation import (  # noqa: F401 — upstream names the moved tests use
+from tests.hermes_cli.test_restart_plan_reconciliation import (  # upstream names the moved tests use
     _plan,
     _serve,
 )

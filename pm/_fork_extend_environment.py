@@ -15,19 +15,23 @@ from pathlib import Path
 __all__ = ["extend_environment"]
 
 
-def extend_environment(requirements: Sequence[str], *, environment: Path, explicit: bool = False,
-                       timeout: int = 300) -> bool:
-    """Install ``requirements`` into ``environment`` in place. False on a resolver conflict."""
+def extend_environment(requirements: Sequence[str], *, environment: Path, timeout: int = 300) -> bool:
+    """Install ``requirements`` into ``environment`` in place. False on a resolver conflict.
+
+    Always an explicit request (the operator's Connections install), so pm's lazy-install policy
+    has nothing to refuse. Built on pm's public names only (runtime-queue row, lane q-pm)."""
+    from packaging.requirements import Requirement
+
     from pm._fork_uv_retry import retry_sync_on_sharing_violation
     from pm.environment import ResolutionConflict, classify_uv_failure, managed_environment
     from pm.environments import venv_python
-    from pm.operations import _require_install_allowed, _requirements
 
-    _require_install_allowed(explicit)
-    requirements = _requirements(requirements)
+    if isinstance(requirements, str) or not requirements:
+        raise ValueError("an in-place install needs a nonempty sequence of requirements")
+    requirements = sorted({str(Requirement(requirement)) for requirement in requirements})
     environment = Path(environment).absolute()
     python = venv_python(environment)
-    engine = managed_environment(environment, python=python, explicit=explicit)
+    engine = managed_environment(environment, python=python, explicit=True)
     command = ["pip", "install", "--python", str(python), *requirements]
     result = engine._run(command, cwd=environment, timeout=timeout)
     result = retry_sync_on_sharing_violation(engine._run, command, environment, timeout, result)

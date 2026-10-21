@@ -262,10 +262,10 @@ def mission_chat_operating_skills(
 
 def apply_chat_lane_tool_scope(
     persona: AgentPersona,
-    options: "ToolVisibilityOptions",
+    options: ToolVisibilityOptions,
     *,
     session_id: str | None,
-) -> "ToolVisibilityOptions":
+) -> ToolVisibilityOptions:
     """Thread the REAL chat-lane resolution onto a tool-visibility PREVIEW (T9b).
 
     The operator-facing permission preview (``persona_instance_summary`` /

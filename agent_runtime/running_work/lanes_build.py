@@ -31,6 +31,7 @@ from ..builds.liveness import PROGRESS, liveness_for
 from ..builds.recognizer_flutter import FlutterRecognizer
 from ..builds.unknowns import UNKNOWN_WRITER_UNIDENTIFIED
 from ..builds.vocabulary import (
+    ANNOUNCED_SUB_REASONS,
     BUILD_REGISTRY_DIRNAME,
     BUILD_STAGES,
     CONTROL_ALLOWED,
@@ -60,7 +61,7 @@ from ..builds.vocabulary import (
     SUB_REASON_REGISTRY_UNREADABLE,
 )
 from ..projection_accountant import ProjectionAccountant
-from .build_rows import BuildFacts, apply_slot, build_row, label_for, note_starter, slot_env_source
+from .build_rows import BuildFacts, apply_slot, build_row, label_for, note_starter, slot_env_source, spelled
 from .lanes_process import _read_checkpoint
 from .ownership import _head_home, _owner_of, _pid_identity
 from .rows import LanePass, _iso, _module, _preview, _source, elapsed_seconds
@@ -79,8 +80,12 @@ from .vocabulary import (
 __layer__ = "lanes"
 
 
+#: The agent and announced sub-healths' reasons (the detected one's are ``builds.detect``'s).
+_SUB_REASONS = ("", *ANNOUNCED_SUB_REASONS)
+
+
 def _sub(status: str, reason: str = "", **cost: Any) -> dict[str, Any]:
-    return {"status": status, "reason": reason, **cost}
+    return {"status": status, "reason": spelled(reason, _SUB_REASONS, "sub.reason"), **cost}
 
 
 def _census() -> Any:
@@ -90,7 +95,7 @@ def _census() -> Any:
 
     try:
         return slot_census()
-    except Exception:  # noqa: BLE001 — no slot store is "no slot", typed per row as slot_unresolved
+    except Exception:  # no slot store is "no slot", typed per row as slot_unresolved
         return SlotCensus(0, ())
 
 
@@ -207,7 +212,7 @@ class BuildLane(LanePass):
         if session is None:
             facts.liveness, facts.progress_signal = LIVENESS_LIVE, PROGRESS_SIGNAL_NONE
             return
-        with session._lock:  # noqa: SLF001 — the buffer's only guard, read-only
+        with session._lock:  # the buffer's only guard, read-only
             buffered, total = session.output_buffer or "", int(getattr(session, "total_output_chars", 0) or 0)
         recognizer = FlutterRecognizer(cwd=facts.project_root)
         recognizer.feed(buffered, seen_at=self.now)
@@ -230,7 +235,7 @@ class BuildLane(LanePass):
             return [], _sub(SOURCE_UNAVAILABLE, SUB_REASON_REGISTRY_UNREADABLE, detail="home_unresolved")
         try:
             files, error = build_registry.read_records(head / BUILD_REGISTRY_DIRNAME)
-        except Exception as exc:  # noqa: BLE001 — "I could not look" is a typed sub-health
+        except Exception as exc:  # "I could not look" is a typed sub-health
             files, error = [], type(exc).__name__
         if error:
             return [], _sub(SOURCE_UNAVAILABLE, SUB_REASON_REGISTRY_UNREADABLE, detail=error)
@@ -352,7 +357,7 @@ def _registry_session(registry: Any, session_id: str) -> Any:
         return None
     try:
         return registry.process_registry.get(session_id)
-    except Exception:  # noqa: BLE001 — a registry that cannot answer owns nothing here
+    except Exception:  # a registry that cannot answer owns nothing here
         return None
 
 

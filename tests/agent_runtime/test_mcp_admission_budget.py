@@ -556,7 +556,7 @@ def test_the_resolved_admission_carries_the_configured_bound(monkeypatch, tmp_pa
     (home / "config.yaml").write_text(
         "mcp_servers:\n  launcher_qa:\n    command: noop\n", encoding="utf-8"
     )
-    binding = lambda persona: PersonaProfileBinding(  # noqa: E731 - one-line stub
+    binding = lambda persona: PersonaProfileBinding(  # one-line stub
         persona_id=persona.id,
         hermes_profile="launcher-qa",
         profile_home=home,
@@ -621,8 +621,8 @@ def _request(**kwargs):
 def test_the_runner_records_the_run_s_call_accounting(monkeypatch):
     """The meter dies with the scope, so end-of-run is the last honest read."""
 
-    import agent_runtime.mcp_admission as mcp_admission
-    import agent_runtime.profile_runner as profile_runner
+    from agent_runtime import mcp_admission
+    from agent_runtime import profile_runner
     from agent_runtime.mcp_admission import McpTeardownOutcome
     from agent_runtime.profile_runner import ProfileAgentRunner
 
@@ -656,7 +656,7 @@ def test_the_runner_reports_the_bound_it_armed(monkeypatch, clean_registry):
     from agent_runtime.profile_runner import ProfileAgentRunner
 
     stub = _StubTools(clean_registry)
-    import agent_runtime.mcp_admission as mcp_admission
+    from agent_runtime import mcp_admission
 
     patch_where_bound(monkeypatch, mcp_admission, "_default_registrar", stub.register)
 
@@ -667,7 +667,7 @@ def test_the_runner_reports_the_bound_it_armed(monkeypatch, clean_registry):
 
 
 def test_the_runner_emits_one_operator_row_when_the_budget_trips(monkeypatch, clean_registry):
-    import agent_runtime.mcp_admission as mcp_admission
+    from agent_runtime import mcp_admission
     from agent_runtime.profile_runner import ProfileAgentRunner
 
     stub = _StubTools(clean_registry)

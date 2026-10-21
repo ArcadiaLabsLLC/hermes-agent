@@ -84,7 +84,7 @@ inherits its parent directory's ACL, so on a default install it is readable by
 any process running as this user. ``serve_auth.py`` recorded this gap for the
 root token and declined to fix it there; the gap is unchanged, and the exposure
 is larger, because the file now gates a listener that is reachable from another
-machine. A best-effort ``icacls`` narrowing is applied on Windows and its
+machine. A best-effort DACL narrowing is applied on Windows and its
 outcome is REPORTED rather than assumed — a permission posture this module
 cannot enforce is never claimed as enforced.
 
@@ -183,7 +183,12 @@ from .store_file_io import write_secure_json as _write_secure
 __layer__ = "stores"
 
 __all__ = [
+    "AUTH_BAD_PROOF",
     "AUTH_EXPIRED",
+    "AUTH_MALFORMED",
+    "AUTH_OK",
+    "AUTH_REVOKED",
+    "AUTH_UNKNOWN_DEVICE",
     "CODE_ALPHABET",
     "CODE_LENGTH",
     "CODE_TTL_SECONDS",
@@ -200,11 +205,6 @@ __all__ = [
     "PAIRING_STORE_FILENAME",
     "REVOKED_ROW_RETENTION_SECONDS",
     "REVOKED_SUPERSEDED",
-    "AUTH_BAD_PROOF",
-    "AUTH_MALFORMED",
-    "AUTH_OK",
-    "AUTH_REVOKED",
-    "AUTH_UNKNOWN_DEVICE",
     "DeviceAuth",
     "DeviceCredential",
     "DeviceRecord",
@@ -506,7 +506,7 @@ def device_proof(token: str, nonce: str, *, port: int, device_id: str) -> str:
     proof discloses nothing about it. It does not travel, in either direction.
     """
 
-    message = f"gwv{GATEWAY_PROOF_CONTRACT}|{int(port)}|{str(device_id)}|{nonce}"
+    message = f"gwv{GATEWAY_PROOF_CONTRACT}|{int(port)}|{device_id!s}|{nonce}"
     return hmac.new(
         device_verifier(token).encode("ascii"), message.encode("utf-8"), hashlib.sha256
     ).hexdigest()
@@ -515,7 +515,7 @@ def device_proof(token: str, nonce: str, *, port: int, device_id: str) -> str:
 def _proof_from_verifier(verifier: str, nonce: str, *, port: int, device_id: str) -> str:
     """The server's half: it holds the verifier, never the token."""
 
-    message = f"gwv{GATEWAY_PROOF_CONTRACT}|{int(port)}|{str(device_id)}|{nonce}"
+    message = f"gwv{GATEWAY_PROOF_CONTRACT}|{int(port)}|{device_id!s}|{nonce}"
     return hmac.new(
         str(verifier).encode("ascii"), message.encode("utf-8"), hashlib.sha256
     ).hexdigest()

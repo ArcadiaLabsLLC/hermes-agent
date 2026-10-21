@@ -133,6 +133,10 @@ def _resolve_relay_sender_marker(
       delivery the harness forged into the sender's own thread. Checked FIRST
       because it is an exact-prefix machine provenance, and because a delivery
       is not a relay: no agent sent it and there is no sending persona to name.
+    * ``requested_by = "lens-episode:<episode_id>:<monitor_id>"`` — an Eternia
+      Lens Episode's forged turn (``agent_runtime.lens.trigger``). Checked right
+      after the delivery prefix, for the same reason: exact-prefix machine
+      provenance, no sending persona.
     * ``requested_by = "agent:<caller session id>"`` — an ``agent_chat_send``
       relay (set by tools/agent_chat_tool.py from the CALLER's session).
       Resolution is tiered most-to-least specific; each tier is a deliberate
@@ -153,6 +157,11 @@ def _resolve_relay_sender_marker(
         return _relay_policy.build_harness_delivery_marker(
             delivery.dispatch_id, delivery.notify_operator, delivery.state
         )
+    from agent_runtime.lens.provenance import parse_lens_requested_by
+
+    lens = parse_lens_requested_by(requested_by)
+    if lens is not None:
+        return _relay_policy.build_lens_episode_marker(lens.episode_id)
     if not isinstance(requested_by, str) or not requested_by.startswith("agent:"):
         return None
     token = requested_by[len("agent:"):].strip()
@@ -404,8 +413,8 @@ def _mirror_persona_chat_message(
             session_db=session_db,
         )
     except Exception:
-        return None
-    return None
+        return
+    return
 
 
 def _update_persona_chat_token_counts(*, session_db, session_id: str, result) -> None:

@@ -149,6 +149,9 @@ packaging:
     - distribution: pillow-heif
       imports: [pillow_heif]
       degrades: nothing — the phone host transcodes HEIC/AVIF photos to JPEG before handing them to Hermes (owner D2 2026-09-30); agent.image_routing's HEIF opener registration is ImportError-guarded
+    - distribution: fastapi
+      imports: [fastapi]
+      degrades: a history row holding a native-vision image attachment shows its stored text, not the `@image:` refs (tui_gateway/session_history.py::_user_image_display_text verifies the file through the web server's helpers; its import is ImportError-guarded, RT-PHONE-HISTORY-IMAGE-IMPORT); the web dashboard and its routers are not packaged
     - distribution: psutil
       imports: [psutil]
       degrades: nothing a phone has — it starts no sibling process; pid liveness falls back to the stdlib (hermes_cli/_subprocess_compat.py::pid_exists_stdlib), and every kept import site is ImportError-guarded (discussions/native.py, conversations/native_peer.py, process_identity.py and hermes_constants_scratch.py since lane s2-g2)
@@ -240,6 +243,8 @@ packaging:
     # Local LLM and the speech service (OS speech and the OS model on phones).
     - hermes_cli.local_runtime
     - agent_runtime.work
+    - agent_runtime.batch
+    - agent_runtime.messaging     # p10-messaging: the headless gateway is never a phone feature
     - agent_runtime.local_llama_adapter
     - agent_runtime.speech_service
     - tools.tts_tool_local
@@ -302,6 +307,11 @@ packaging:
     - tools.connectors.portal
     - tools.connectors.gateway.client
     - tools.connectors.gateway.wire
+    # The connector tool bridge and its file staging (files imports the wire at module level). Kept code
+    # reaches them only lazily, behind connections_in_scope (tools/connectors/search.py), which a phone
+    # never satisfies: tools.connectors.enabled false keeps manage_connections out of the schema.
+    - tools.connectors.gateway.bridge
+    - tools.connectors.gateway.files
     # MCP OAuth: its provider and manager import the `mcp` SDK (a provider SDK the phone never ships).
     - tools.mcp_oauth_device
     - tools.mcp_oauth_manager
@@ -377,6 +387,10 @@ packaging:
     - hermes_cli.setup_tts
     - hermes_cli.memory_setup
     - hermes_cli.model_setup_flows
+    # `hermes model` → Local models (it drives the dashboard's FastAPI route handlers, and fastapi
+    # requires pydantic): reached only from the desktop picker (hermes_cli.main), and
+    # hermes_cli.local_runtime is off already.
+    - hermes_cli.model_setup_flows_local
     - hermes_cli.plugin_validate
     - hermes_cli.plugins_provenance
     - hermes_cli.plugins_updates
@@ -430,10 +444,7 @@ packaging:
     # hermes_cli.goals (the turn path asks it: tui_gateway/prompt_turn.py, hermes_cli/loops.py).
     - tools.kanban_tools
     - hermes_cli.kanban
-    - hermes_cli.kanban_blocked_pm
-    - hermes_cli.kanban_blocked_pm_tick
     - hermes_cli.kanban_boards
-    - hermes_cli.kanban_crash_evidence
     - hermes_cli.kanban_db
     - hermes_cli.kanban_db_connect
     - hermes_cli.kanban_db_dispatch
@@ -523,6 +534,10 @@ packaging:
     - plugins.web.ddgs
     # Dev and QA tooling.
     - agent_runtime.doctor_extensions
+    # Namespace seed / session import: Developer Edition only (owner 2026-10-19); the CLI refuses
+    # them on a bundled edition before the guarded import (hermes_cli.namespace_cmd).
+    - agent_runtime.namespace_seed
+    - agent_runtime.own_session_import
     - tests
     - scripts
     - evals

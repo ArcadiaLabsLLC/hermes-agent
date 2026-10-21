@@ -1,11 +1,13 @@
 """The lanes whose liveness is a PROCESS this runtime owns: terminal
 background processes (durable checkpoint + live registry), MCP background
-jobs (durable checkpoint, owned by the process holding the MCP session) and
-cron jobs (live-only, with positive proof the scheduler runs here)."""
+jobs (durable checkpoint, owned by the process holding the MCP session),
+promoted long tool calls (durable checkpoint, owned by the process whose worker
+thread runs the call) and cron jobs (live-only, with positive proof the scheduler runs here)."""
 
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +31,7 @@ from .vocabulary import (
     KIND_CRON_JOB,
     KIND_MCP_JOB,
     KIND_TERMINAL,
+    KIND_TOOL_CALL,
     LANE_DURABLE,
     LANE_LIVE,
     PID_DEAD,
@@ -43,6 +46,7 @@ from .vocabulary import (
     STATUS_UNKNOWN,
     _CHECKPOINT_FILENAME,
     _MCP_JOBS_FILENAME,
+    _TOOL_CALLS_FILENAME,
 )
 
 __layer__ = "lanes"
@@ -261,6 +265,9 @@ class McpJobLane(LanePass):
     An unprovable writer leaves a ``running`` entry ``unknown``, as rule 2 says. A ``ready`` /
     ``failed`` entry is the writer's record of a notification it already received, so it ships
     as written. Expiry is the writer's own ``expires_at`` — one authority for the TTL.
+    An entry whose ``checkpoint`` names another file was written for another home and reached
+    this one by a copy (a profile clone, a backup restore): it is dropped (by design), so no
+    upstream backup / clone / boot skip list has to know this file's name.
     """
 
     kind = KIND_MCP_JOB
@@ -273,6 +280,7 @@ class McpJobLane(LanePass):
         if refusal is not None:
             return [], refusal
         self.folded = _folded_mcp_jobs(head, self.now)
+        self.checkpoint = _same_file_key(head / _MCP_JOBS_FILENAME)
         rows = [row for row in map(self.durable_row, entries) if row is not None]
         return self.finish(rows), _source(SOURCE_OK, lane=LANE_DURABLE)
 
@@ -291,6 +299,11 @@ class McpJobLane(LanePass):
             self.drop("folded_into_build", entity_id=stable_id, detail="an announced build carries this job", by_design=True)
             return None
         if self.expired(entry, stable_id):
+            return None
+        written_for = entry.get("checkpoint")
+        if written_for and _same_file_key(written_for) != getattr(self, "checkpoint", None):
+            self.drop("mcp_job_foreign_home", entity_id=stable_id,
+                      detail="written for another home's checkpoint; copied here", by_design=True)
             return None
         _alive, verified, verdict = _pid_identity(entry.get("pid"), entry.get("host_start_time"))
         if verdict in (PID_DEAD, PID_RECYCLED):
@@ -329,6 +342,12 @@ class McpJobLane(LanePass):
         )
 
 
+def _same_file_key(path: Any) -> str:
+    """One spelling per file, so the writer's recorded checkpoint and the reader's compare."""
+
+    return os.path.normcase(os.path.realpath(str(path)))
+
+
 def _mcp_job_extra(entry: dict[str, Any]) -> dict[str, Any]:
     """The ``mcp_job`` row's own keys, additive to the shared shape."""
 
@@ -352,7 +371,7 @@ def _folded_mcp_jobs(head: Path, now: float) -> set[tuple[str, str]]:
         from ..builds.vocabulary import BUILD_REGISTRY_DIRNAME
 
         return mcp_job_keys(head / BUILD_REGISTRY_DIRNAME, now=now)
-    except Exception:  # noqa: BLE001 — an unreadable registry folds nothing; the build lane says why
+    except Exception:  # an unreadable registry folds nothing; the build lane says why
         return set()
 
 
@@ -368,6 +387,96 @@ def _collect_mcp_jobs(
     """The MCP-job lane's collector: one :class:`McpJobLane` pass."""
 
     return McpJobLane(now=now, accountant=accountant).collect()
+
+
+#: ``tool_calls.json`` row status -> running_work status (``tools/long_tool_calls.py`` ROW_*).
+TOOL_CALL_STATUS_BY_ROW = {"running": STATUS_RUNNING, "ready": STATUS_COMPLETED,
+                           "failed": STATUS_ERROR, "cancelled": STATUS_ERROR,
+                           # the boot sweep re-owned a call whose writer died (``sweep_orphaned_rows``)
+                           "lost": STATUS_ERROR}
+
+
+class BackgroundToolCallLane(McpJobLane):
+    """Durable ``tool_calls.json``: a long tool call promoted to the background, until its wake settles.
+
+    The call runs on a worker thread of the WRITER, so the writer's pid is the liveness proof, as
+    for an MCP job: dead or recycled drops the row (its wake can never arrive), unprovable leaves a
+    ``running`` row ``unknown``. Expiry and the foreign-home copy rule are the MCP lane's.
+    """
+
+    kind = KIND_TOOL_CALL
+
+    def collect(self) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        head, _provenance = _head_home()
+        if head is None:
+            return [], _source(SOURCE_UNAVAILABLE, lane=LANE_DURABLE, reason="home_unresolved")
+        entries, refusal = _read_checkpoint(head / _TOOL_CALLS_FILENAME)
+        if refusal is not None:
+            return [], refusal
+        self.checkpoint = _same_file_key(head / _TOOL_CALLS_FILENAME)
+        rows = [row for row in map(self.durable_row, entries) if row is not None]
+        return self.finish(rows), _source(SOURCE_OK, lane=LANE_DURABLE)
+
+    def durable_row(self, entry: Any) -> dict[str, Any] | None:
+        if not isinstance(entry, dict):
+            return None
+        handle = bounded_operator_text(entry.get("handle"), limit=80)
+        status = TOOL_CALL_STATUS_BY_ROW.get(str(entry.get("status") or ""))
+        if not handle or status is None:
+            return None
+        self.consider()
+        if self.expired(entry, handle):
+            return None
+        written_for = entry.get("checkpoint")
+        if written_for and _same_file_key(written_for) != getattr(self, "checkpoint", None):
+            self.drop("tool_call_foreign_home", entity_id=handle,
+                      detail="written for another home's checkpoint; copied here", by_design=True)
+            return None
+        _alive, verified, verdict = _pid_identity(entry.get("pid"), entry.get("host_start_time"))
+        if verdict in (PID_DEAD, PID_RECYCLED):
+            self.drop("tool_call_owner_exited", entity_id=handle,
+                      detail="the process running the call is gone", by_design=True)
+            return None
+        if status == STATUS_RUNNING and not verified:
+            status = STATUS_UNKNOWN
+        return self.row(entry, handle, status, verified)
+
+    def row(self, entry: dict[str, Any], stable_id: str, status: str, verified: bool) -> dict[str, Any]:
+        started = entry.get("started_at")
+        started = float(started) if isinstance(started, (int, float)) else None
+        elapsed_ms = _whole(entry.get("elapsed_ms"))
+        finished = elapsed_ms is not None and status != STATUS_RUNNING
+        elapsed = elapsed_ms // 1000 if finished else elapsed_seconds(started, now=self.now)
+        session = bounded_operator_text(entry.get("session_key"), limit=200)
+        owner_persona, owner_instance = _owner_of(session, memo=self.owners)
+        tool_name = bounded_operator_text(entry.get("tool_name"), limit=120)
+        return work_row(
+            kind=KIND_TOOL_CALL, stable_id=stable_id,
+            label=bounded_operator_text(entry.get("label"), limit=120) or tool_name or stable_id,
+            status=status, source_lane=LANE_DURABLE, pid_verified=verified,
+            persona_id=owner_persona, persona_instance_id=owner_instance, session_id=session,
+            started_at=_iso(started), elapsed_seconds=elapsed,
+            progress=_progress(in_tool=tool_name, available=False),
+            # Cancel sets the worker's interrupt bit in the writer process (``long_tool_calls.cancel``).
+            cancellable=status == STATUS_RUNNING and not entry.get("cancel_requested"),
+            extra={
+                "background": True,
+                "handle": stable_id,
+                "tool_name": tool_name,
+                "tool_call_id": bounded_operator_text(entry.get("tool_call_id"), limit=160),
+                "outcome": None if status == STATUS_RUNNING else bounded_operator_text(entry.get("status"), limit=40),
+                "cancel_requested": bool(entry.get("cancel_requested")),
+                "finished_at": _iso(entry.get("finished_at")),
+            },
+        )
+
+
+def _collect_background_tool_calls(
+    *, now: float, accountant: ProjectionAccountant | None
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """The promoted-tool-call lane's collector: one :class:`BackgroundToolCallLane` pass."""
+
+    return BackgroundToolCallLane(now=now, accountant=accountant).collect()
 
 
 def _collect_terminal(

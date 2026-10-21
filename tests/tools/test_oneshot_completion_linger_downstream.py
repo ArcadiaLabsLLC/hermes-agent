@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import threading
 
-from tests.tools.test_oneshot_completion_linger import (  # noqa: F401 — upstream names the moved test uses
+from tests.tools.test_oneshot_completion_linger import (  # upstream names the moved test uses
     _make_session,
     registry,
 )

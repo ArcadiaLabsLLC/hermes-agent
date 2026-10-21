@@ -44,7 +44,7 @@ _TESTS = Path(__file__).resolve().parent / "tests"
 # so a bare ``python -m pytest`` from a live shell starts where the runner's
 # ``env -i`` starts and every child inherits the session sandbox, never the
 # live home (``tests/_downstream/session_home.py`` says why; lane h-suite-hermetic).
-from tests._downstream import session_home as _session_home  # noqa: E402
+from tests._downstream import session_home as _session_home
 
 _SPAWNED_BY_TEST = bool(os.environ.get(_session_home.ISOLATION_ENV))
 _session_home.detach_operator_home(os.environ)
@@ -59,7 +59,7 @@ os.environ.setdefault("GIT_OPTIONAL_LOCKS", "0")
 
 
 @pytest.hookimpl(tryfirst=True)
-def pytest_sessionstart(session):  # noqa: D401 — pytest hook
+def pytest_sessionstart(session):  # pytest hook
     """Refuse to run a session whose HERMES_HOME is a real install."""
     home = _session_home.ensure_session_home(os.environ)
     refusal = _session_home.live_home_refusal(
@@ -128,7 +128,7 @@ def _hooks_of(half) -> types.ModuleType:
 
 
 @pytest.hookimpl(tryfirst=True)
-def pytest_plugin_registered(plugin, plugin_name, manager):  # noqa: D401 — pytest hook
+def pytest_plugin_registered(plugin, plugin_name, manager):  # pytest hook
     """Attach a conftest's fork half right after the conftest itself registers.
 
     ``tryfirst`` so the graft lands before ``FixtureManager`` reads the conftest
@@ -138,7 +138,7 @@ def pytest_plugin_registered(plugin, plugin_name, manager):  # noqa: D401 — py
         return
     key = _key(plugin_name)
     if key == _ROOT_CONFTEST:
-        import tests._downstream as _downstream
+        from tests import _downstream
 
         _downstream.root_conftest = plugin
         manager.import_plugin(_ROOT_PLUGIN)

@@ -164,6 +164,7 @@ class TestHarnessCoreToolset:
         out = subprocess.run(
             [sys.executable, "-c", code], capture_output=True, text=True, timeout=240,
             env={**os.environ, "HERMES_HOME": str(tmp_path)},
+            check=False,
         )
         assert out.returncode == 0, out.stderr[-4000:]
         assert out.stdout.strip().splitlines()[-1] == "False True False"

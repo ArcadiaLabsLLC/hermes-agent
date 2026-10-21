@@ -133,7 +133,7 @@ def _cmd_workspace_delete(args) -> int:
     if was_active and realm_id:
         try:
             _reconcile_active_workspace_to_realm(RealmStore().get(realm_id))
-        except Exception:  # noqa: BLE001 — pointer reconcile is best-effort; the delete already landed
+        except Exception:  # pointer reconcile is best-effort; the delete already landed
             pass
     _print_stage42(_object_envelope("workspace", row), args=args, default_output="json")
     return 0

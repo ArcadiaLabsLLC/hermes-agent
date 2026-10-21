@@ -85,6 +85,8 @@ def test_the_ready_frame_carries_build_auth_and_instance_blocks():
         "code_tree",
         "code_tree_rule",
         "code_tree_reason",
+        "uv_lock_sha256",
+        "uv_lock_reason",
     }
     assert ready["auth"] == {"token_file": "minted"}
     assert ready["instance"]["outcome"] == "registered"

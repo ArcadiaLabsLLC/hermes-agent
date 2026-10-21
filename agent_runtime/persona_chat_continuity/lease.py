@@ -242,7 +242,7 @@ def repair_orphaned_chat_turns() -> list[str]:
                 )
         except PersonaChatBusyError:
             continue
-        except Exception:  # noqa: BLE001 — sweep must never block serve boot
+        except Exception:  # sweep must never block serve boot
             continue
         if flipped:
             repaired.append(root)
@@ -264,6 +264,6 @@ def repair_orphaned_chat_turns() -> list[str]:
                     {"fingerprint": digest, "source": "chat_orphan_sweep"},
                 )
             )
-        except Exception:  # noqa: BLE001 — the repair itself already landed
+        except Exception:  # the repair itself already landed
             pass
     return repaired

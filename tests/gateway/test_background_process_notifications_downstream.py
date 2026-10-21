@@ -9,7 +9,7 @@ import pytest
 from gateway.config import Platform
 from gateway.run import GatewayRunner
 
-from tests.gateway.test_background_process_notifications import (  # noqa: F401 — upstream names the moved tests use
+from tests.gateway.test_background_process_notifications import (  # upstream names the moved tests use
     _FakeRegistry,
     _build_runner,
 )

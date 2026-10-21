@@ -19,8 +19,10 @@ The join, end to end:
 4. Background work: every bound job is a row in ``<background-work home>/mcp_jobs.json`` — the
    checkpoint the ``running_work`` projection's ``mcp_job`` lane reads, beside ``processes.json``
    (``agent_runtime/running_work/lanes_process.py``). ``running`` on bind; ``ready``/``failed``
-   (with elapsed and the redacted tail) on the finish notification; gone once the serve drain
-   settles the wake (:func:`note_wake_settled`), or past the row's own ``expires_at``.
+   (with elapsed and the redacted tail) on the finish notification; gone once a drain settles the
+   wake (:func:`note_wake_settled` — the serve drain directly, CLI / TUI / quiet mode through their
+   ``complete_event_delivery`` ack, ``tools/fork_completion_events.py``), or past the row's own
+   ``expires_at``.
    **Except a QA build** (``job_kind == qa_build``, build plan §8 step 3, row H9): its writer
    announces it into the build registry, so it is a ``build`` row and no ``mcp_job`` row is
    written for it. Its route — and so its wake — is bound exactly as before.
@@ -58,8 +60,8 @@ _SEARCH_DEPTH = 4
 _MAX_ROUTES = 128
 _ROUTE_TTL_S = 6 * 3600.0
 _TAIL_CHARS = 4000
-#: How long a FINISHED row stays in background work when no drain settles its wake (a CLI/TUI
-#: drain has no settle hook) — long enough to be seen, short enough not to become an archive.
+#: How long a FINISHED row stays in background work when no drain settles its wake (the gateway's
+#: watch drain acknowledges nothing) — long enough to be seen, short enough not to become an archive.
 _FINISHED_TTL_S = 30 * 60.0
 CHECKPOINT_FILENAME = "mcp_jobs.json"
 ROW_RUNNING, ROW_READY, ROW_FAILED = "running", "ready", "failed"
@@ -71,10 +73,10 @@ JOB_WAKE_CAPABILITY = "eternia.job_wake"
 JOB_WAKE_VERSION = 1
 
 _lock = threading.Lock()
-_routes: "OrderedDict[tuple[str, str], dict]" = OrderedDict()
+_routes: OrderedDict[tuple[str, str], dict] = OrderedDict()
 #: The background-work rows, keyed like ``_routes``. A route is popped when its wake is queued
 #: (wake at most once); its row outlives it until the wake is settled or the row expires.
-_rows: "OrderedDict[tuple[str, str], dict]" = OrderedDict()
+_rows: OrderedDict[tuple[str, str], dict] = OrderedDict()
 _writer_identity: Optional[tuple[int, Any]] = None
 
 
@@ -372,6 +374,13 @@ def note_wake_settled(evt: Mapping[str, Any]) -> bool:
     return row is not None
 
 
+def writer_identity() -> tuple[int, Any]:
+    """This process's pid and spawn ticks — the reader's proof a checkpoint row's owner still lives.
+
+    Public because ``tools/long_tool_calls.py`` stamps its rows with the same identity (one owner)."""
+    return _writer()
+
+
 def _writer() -> tuple[int, Any]:
     """This process's pid and spawn ticks — the reader's proof the rows' owner still lives."""
     global _writer_identity
@@ -387,11 +396,14 @@ def _writer() -> tuple[int, Any]:
 
 
 def _write_checkpoints_locked(path: str) -> None:
-    """Rewrite *path*: this process's rows for it, plus other writers' unexpired entries."""
+    """Rewrite *path*: this process's rows for it, plus other writers' unexpired entries.
+
+    Each row keeps its ``checkpoint``: the reader drops a row that names another file, so a copy of
+    this file in another home (a profile clone, a backup restore) shows nothing."""
     if not path:
         return
     pid, wall = _writer()[0], time.time()
-    mine = [{k: v for k, v in row.items() if k != "checkpoint"} for row in _rows.values() if row["checkpoint"] == path]
+    mine = [dict(row) for row in _rows.values() if row["checkpoint"] == path]
     try:
         from utils import atomic_json_write
         foreign = [e for e in _checkpoint_dicts(path) if e.get("pid") != pid and _expires_after(e, wall)]
@@ -403,7 +415,7 @@ def _write_checkpoints_locked(path: str) -> None:
 
 def _checkpoint_dicts(path: str) -> list[dict]:
     try:
-        entries = json.loads(Path(path).read_text(encoding="utf-8"))
+        entries = json.loads(Path(path).read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         return []
     return [e for e in entries if isinstance(e, dict)] if isinstance(entries, list) else []

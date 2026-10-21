@@ -21,6 +21,10 @@ import json
 import pytest
 
 from scripts import doc_cite_adjacency as probe
+import functools
+import operator
+
+pytestmark = pytest.mark.gate
 
 
 LIVE_ROOT = "docs/agent-runtime-harness"
@@ -300,7 +304,7 @@ def test_the_live_canon_is_capped_by_its_baseline(capsys):
     with a written reason, and nothing new has appeared."""
 
     code = probe.main(
-        ["--root", LIVE_ROOT, *sum(([f"--exclude={f}"] for f in LIVE_EXCLUDE), [])]
+        ["--root", LIVE_ROOT, *functools.reduce(operator.iadd, ([f"--exclude={f}"] for f in LIVE_EXCLUDE), [])]
     )
     out = capsys.readouterr().out
 
@@ -646,7 +650,7 @@ def test_the_live_canon_carries_no_foreign_line_cite(capsys):
     already named, exactly as the launcher's nine were."""
 
     code = probe.main(
-        ["--root", LIVE_ROOT, *sum(([f"--exclude={f}"] for f in LIVE_EXCLUDE), [])]
+        ["--root", LIVE_ROOT, *functools.reduce(operator.iadd, ([f"--exclude={f}"] for f in LIVE_EXCLUDE), [])]
     )
     out = capsys.readouterr().out
 

@@ -22,7 +22,7 @@ from ..mission_chat_turns.reads import (
 )
 from ..mission_chat_turns.states import TERMINAL_TURN_STATES
 from ..serde import safe_assignment_text, safe_assignment_token
-from ..relay_policy import parse_harness_delivery_marker, parse_relay_sender_marker
+from ..relay_policy import parse_harness_delivery_marker, parse_lens_episode_marker, parse_relay_sender_marker
 from ..runtime_hud.envelopes import (
     extract_runtime_context_envelope,
     extract_skill_preload_envelope,
@@ -30,6 +30,7 @@ from ..runtime_hud.envelopes import (
 from ..transcript_order import TURN_SEQ_OPERATOR, TURN_SEQ_TERMINAL
 from .markers import (
     _carry_run_budget,
+    _carry_turn_outcome,
     _ordered_message_rows,
     _silent_turn_marker_row,
     _terminal_turn_marker_rows,
@@ -45,6 +46,7 @@ from .vocabulary import (
     CHAT_REDACTION_UNKNOWN,
     PERSONA_CHAT_MESSAGE_TEXT_LIMIT,
     PERSONA_HARNESS_DELIVERY_KIND,
+    PERSONA_LENS_EPISODE_KIND,
     PERSONA_PRE_TRACE_ACK_FINISH_REASON,
     PERSONA_PRE_TRACE_ACK_KIND,
     PERSONA_RELAYED_MESSAGE_KIND,
@@ -213,12 +215,18 @@ class _OperatorCurator:
         # already left every live projection.
         raw = ctx.raw
         delivery = parse_harness_delivery_marker(raw.get("finish_reason"))
+        lens = None if delivery is not None else parse_lens_episode_marker(raw.get("finish_reason"))
         relay_sender = (
             None
-            if delivery is not None
+            if delivery is not None or lens is not None
             else parse_relay_sender_marker(raw.get("finish_reason"))
         )
-        if delivery is not None:
+        if lens is not None:
+            # LENS ATTRIBUTION: the opening row of an Episode's forged chat; the
+            # watcher sent it (plan p10-agent §5.2 decision 3).
+            row["kind"] = PERSONA_LENS_EPISODE_KIND
+            row["lens_episode_id"] = lens.episode_id
+        elif delivery is not None:
             row["kind"] = PERSONA_HARNESS_DELIVERY_KIND
             row["delivery_dispatch_id"] = delivery.dispatch_id
             row["delivery_notify_operator"] = delivery.notify_operator
@@ -308,9 +316,10 @@ class _AgentCurator:
         # through on its own; this is the additive extension that lets the
         # cockpit read the block the settle point persisted. Read-only: the
         # projection reads the journal, it never writes it.
-        _carry_run_budget(
-            row, state.turn_records_by_message.get(str(ctx.logical_client_message_id or ""))
-        )
+        turn_record = state.turn_records_by_message.get(str(ctx.logical_client_message_id or ""))
+        _carry_run_budget(row, turn_record)
+        # What the turn left behind, copied off the same record (agent_runtime.turn_outcome).
+        _carry_turn_outcome(row, turn_record)
 
 
 #: The transcript roles that render, each with its curator. ``MessageRole.SYSTEM``

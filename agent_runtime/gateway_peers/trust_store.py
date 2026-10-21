@@ -113,7 +113,7 @@ def peer_proof(verifier: str, nonce: str, *, port: int, peer_install_id: str) ->
     credential. It does not travel, in either direction.
     """
 
-    message = f"pwv{PEER_PROOF_CONTRACT}|{int(port)}|{str(peer_install_id)}|{nonce}"
+    message = f"pwv{PEER_PROOF_CONTRACT}|{int(port)}|{peer_install_id!s}|{nonce}"
     return hmac.new(
         str(verifier).encode("ascii"), message.encode("utf-8"), hashlib.sha256
     ).hexdigest()
@@ -580,5 +580,5 @@ def _emit_peer_event(
     for listener in tuple(_peer_event_listeners):
         try:
             listener(event_type, dict(payload), store_root=store_root)
-        except Exception:  # noqa: BLE001 — a notification is never the mutation
+        except Exception:  # a notification is never the mutation
             pass

@@ -160,15 +160,21 @@ class Send:
         # inline", which happens to be the right default but would make the two
         # indistinguishable to anything downstream that needs to know which it was.
         detached = coerce_optional_flag(self.wait) is False
-        # An inline wait from INSIDE a run cannot be honoured in this process:
-        # the run holds ``profile_runner._WORKDIR_LOCK`` for its whole body, the
-        # tool executes on a worker thread, and the target's turn would need
-        # that lock to build its actor -- so the wait only ends when the sender's
-        # wall budget kills the sender (measured 203 s on 2026-10-08). The
-        # detached lane runs the target in its own PROCESS, which is the one
-        # place the lock does not reach, so the send goes there instead and the
-        # result says so. ``agent_runs_in_flight`` is the gauge the prewarm
-        # already reads for the same question.
+        # An inline wait from INSIDE a run is still not honoured in this process,
+        # though the reason narrowed with run-serialization S5 (``7c3bb31a12b``):
+        # a run no longer holds the process-wide ``_WORKDIR_LOCK`` for its body,
+        # it holds ``workdir.root_run_lock`` for its OWN chat root, so a target in
+        # ANOTHER root no longer waits on the sender on native Windows. Two locks
+        # still would, and the tool executes on a worker thread, so reentrancy
+        # (per thread) does not save it: on POSIX every run holds
+        # ``workdir._PROCESS_HOME_LOCK`` for its whole body (until the upstream
+        # home door, run-serialization decision 3), and a send whose target turn
+        # lands in the sender's own root needs the root lock the sender holds.
+        # Either one waits until the sender's wall budget kills the sender
+        # (measured 203 s on 2026-10-08, before S5). The detached lane runs the
+        # target in its own PROCESS, where neither lock reaches, so the send goes
+        # there and the result says so. ``agent_runs_in_flight`` is the gauge the
+        # prewarm already reads for "is a run in flight here".
         auto_detached = False
         if not detached and _inside_agent_run():
             detached, auto_detached = True, True
@@ -178,7 +184,6 @@ class Send:
         self.parent_turn_id = relay_policy.RELAY_PARENT_TURN.get()
         self.detached, self.notify, self.sender_session = detached, notify, sender_session
         self.auto_detached = auto_detached
-        return None
 
     def remote(self):
         """A cross-install target: detached only, no clarify token, and it must resolve."""

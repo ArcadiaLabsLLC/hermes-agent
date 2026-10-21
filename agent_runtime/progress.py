@@ -101,7 +101,7 @@ _OPERATOR_PATCH_ARTIFACT_MAX = 500
 # yield a WRONG id rather than a short one, so an over-long value is dropped.
 _OPERATOR_DISPATCH_ID_MAX = 240
 _DISPATCH_ID_KEYS = ("dispatch_target_session_id",)
-_DISPATCH_ID_RE = re.compile(r"[A-Za-z0-9_.:-]{1,%d}" % _OPERATOR_DISPATCH_ID_MAX)
+_DISPATCH_ID_RE = re.compile(rf"[A-Za-z0-9_.:-]{{1,{_OPERATOR_DISPATCH_ID_MAX}}}")
 # Producer bounds are 1000/1600 (profile_runner) plus a one-line truncation
 # marker; these re-scrub bounds sit just above so the marker itself is never
 # re-truncated into garbage.
@@ -207,18 +207,16 @@ class ChatProgressSink:
     def emit(self, event_type: str, payload: dict[str, Any] | None = None) -> None:
         try:
             if event_type not in _CHAT_TRACE_EVENT_TYPES:
-                return None
+                return
             payload = payload or {}
-            if event_type == "run.progress" and self._forward_phase_timing_marker(payload):
-                return None
-            if event_type == "run.progress" and not _chat_progress_has_signal(payload):
-                return None
+            if event_type == "run.progress" and self._progress_consumed(payload):
+                return
             safe_payload = _safe_progress_payload(event_type, payload)
             self._stamp_reasoning_id(safe_payload)
             if not self.session_id:
                 if self.on_trace is not None:
                     self.on_trace(safe_payload)
-                return None
+                return
             # before_first_trace is the operator-channel "agent started tool
             # work" hook (the mission-chat handler persists an acknowledgment
             # row from it). Latch it on the first REAL tool start only: a
@@ -260,7 +258,21 @@ class ChatProgressSink:
                     type(exc).__name__, self.lost_appends,
                 )
         except Exception:
-            return None
+            return
+
+    def _progress_consumed(self, payload: dict[str, Any]) -> bool:
+        """True when a ``run.progress`` payload ends here: forwarded by a bypass, or dropped.
+
+        The consumers run in table order and the first that takes the payload
+        stops the walk; a payload none of them takes is an ordinary trace row.
+        """
+
+        consumers: tuple[Callable[[dict[str, Any]], bool], ...] = (
+            self._forward_phase_timing_marker,
+            self._forward_compaction_state,
+            lambda raw: not _chat_progress_has_signal(raw),  # nothing worth a trace row: drop
+        )
+        return any(consume(payload) for consume in consumers)
 
     def _stamp_reasoning_id(self, safe_payload: dict[str, Any]) -> None:
         """Mint the stable id one reasoning summary carries live AND stored.
@@ -336,6 +348,22 @@ class ChatProgressSink:
         self.on_trace(marker)
         return True
 
+    def _forward_compaction_state(self, payload: dict[str, Any]) -> bool:
+        """Pass a compaction lifecycle edge to the live stream only (True when it was one).
+
+        Like the timing marker above: no EventLog row, no first-trace latch, and only
+        the closed-set ``step`` crosses, so the redaction boundary holds.
+        """
+
+        from .conversation_observability import COMPACTION_PHASE, compaction_state
+
+        state = compaction_state(payload)
+        if state is None:
+            return False
+        if self.on_trace is not None:
+            self.on_trace({"type": "run.progress", "phase": COMPACTION_PHASE, "step": state})
+        return True
+
     def _mirror_tool_line(self, event_type: str, safe_payload: dict[str, Any]) -> None:
         """Mirror tool starts/finishes into the session's live chat log.
 
@@ -351,7 +379,7 @@ class ChatProgressSink:
         """
 
         if event_type not in {"run.tool.started", "run.tool.finished"}:
-            return None
+            return
         try:
             from .chat_live_log import record_chat_tool
 
@@ -363,8 +391,8 @@ class ChatProgressSink:
                 turn_id=self.turn_id,
             )
         except Exception:
-            return None
-        return None
+            return
+        return
 
     def record_reasoning_usage(self, fields: dict[str, Any] | None) -> None:
         """Store the turn's ``reasoning_tokens`` / ``reasoning_ms`` as ONE event, at turn end.
@@ -382,7 +410,7 @@ class ChatProgressSink:
 
         try:
             if not fields or not self.session_id:
-                return None
+                return
             safe = _safe_progress_payload(
                 "run.progress",
                 {
@@ -391,7 +419,7 @@ class ChatProgressSink:
                 },
             )
             if safe.get("reasoning_tokens") is None:
-                return None
+                return
             _append_bounded_event(
                 self.event_log,
                 Event(
@@ -406,9 +434,9 @@ class ChatProgressSink:
                 ),
             )
         except Exception:
-            return None
+            return
 
-    def callback(self) -> "Callable[[dict[str, Any]], None]":
+    def callback(self) -> Callable[[dict[str, Any]], None]:
         """Adapter matching the runner's ``progress_callback`` contract."""
 
         def _emit(payload: dict[str, Any]) -> None:

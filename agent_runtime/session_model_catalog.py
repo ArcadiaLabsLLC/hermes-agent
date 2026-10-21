@@ -47,4 +47,22 @@ def facts(conversation_id: str, snapshot: dict, inventory: dict) -> dict:
             "models": [{"id": key, "label": model, "provider_id": provider,
                         "provider_label": labels[provider]}
                        for key, (provider, model) in offered.items()],
-            "usage": info.get("usage") or {}}
+            "usage": info.get("usage") or {},
+            "provider_usage": provider_usage(inventory)}
+
+
+def provider_usage(inventory: dict) -> dict[str, dict]:
+    """Each signed-in provider's account usage, exactly as upstream's picker carries it.
+
+    ``hermes_cli.inventory`` attaches ``usage`` from its cache only (a background refresh is
+    queued, never awaited): ``{"windows": [...]}`` for a single-account provider, or
+    ``{"accounts": [{id, label, windows, state, resets_at}]}`` for a multi-entry credential
+    pool, each window ``{label, used_percent, resets_at, scope}``. A provider with no fresh
+    snapshot is absent — never a guessed gauge. Usage is a percent: no upstream fetcher
+    reports an absolute used/limit pair."""
+    result = {}
+    for row in inventory.get("providers", ()):
+        slug, usage = provider_id(row), row.get("usage")
+        if isinstance(slug, str) and isinstance(usage, dict) and usage:
+            result[slug] = usage
+    return result

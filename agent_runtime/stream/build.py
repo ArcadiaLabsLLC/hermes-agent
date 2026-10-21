@@ -13,13 +13,13 @@ from ..core_cache.lane import REFUSAL_CORE_BEHIND_FRAME, close_cache_lane
 from ..core_cache.shadow import shadow_validate
 from ..models import Event
 from ..parity import core_event_offset
-from ..patch_coverage import PERSONA_CHAT_OPEN_CAPABILITY, PERSONA_CHAT_TURN_CAPABILITY, batch_required_fold_tokens, normalize_fold_entities
+from ..patch_coverage import PERSONA_CHAT_OPEN_CAPABILITY, PERSONA_CHAT_TURN_CAPABILITY, RUNNING_WORK_SECTION_CAPABILITY, batch_required_fold_tokens, normalize_fold_entities
 from ..request_control import request_cancelled
 from ..snapshot.build import build_snapshot
 from ..snapshot.receipts import BUILD_ROLE_REUSED
 
 from .build_policy import _defer_demote_build_for_active_turns, _log_snapshot_build
-from .frames import batch_carries_patch_rows, batch_opens_a_chat, batch_turn_roots, delta_batch_frame, fold_variants_frame, heartbeat_frame, patch_batch_frame, persona_chat_turn_frames
+from .frames import batch_carries_patch_rows, batch_is_running_work_only, batch_opens_a_chat, batch_turn_roots, delta_batch_frame, fold_variants_frame, heartbeat_frame, patch_batch_frame, persona_chat_turn_frames, running_work_section_frame
 from .vocabulary import BATCH_REASON_DEMOTE, DEFAULT_STREAM_CALLER, FRAME_HEARTBEAT, _SNAPSHOT_CANCEL_POLL_SECONDS
 
 __layer__ = "lanes"
@@ -342,8 +342,20 @@ def _turn_batch_frames(
     offset, so a non-declaring subscriber is handed the core exactly once.
     Declared by nobody, not a turn batch, or an overlay that could not be read →
     the demote core, exactly today's frame.
+
+    A running-work-only batch (:func:`batch_is_running_work_only`: terminal
+    process presence, plan p10-turn §2 S3) whose WHOLE room declared
+    :data:`RUNNING_WORK_SECTION_CAPABILITY` → ONE sequenced ``running_work``
+    section frame and nothing else. Some or none declared, or the section could
+    not be read → the demote core (no split: the section is cheap, the core is
+    what the declaring subscribers are spared).
     """
 
+    if RUNNING_WORK_SECTION_CAPABILITY in accepted and batch_is_running_work_only(batch):
+        section = running_work_section_frame(batch, base_offset=base_offset)
+        if section is not None:
+            yield section
+            return
     required = frozenset({PERSONA_CHAT_TURN_CAPABILITY})
     if batch_opens_a_chat(batch):
         required |= {PERSONA_CHAT_OPEN_CAPABILITY}

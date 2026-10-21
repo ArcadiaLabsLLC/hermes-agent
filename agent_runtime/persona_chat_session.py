@@ -28,14 +28,10 @@ from agent_runtime.persona_chat_continuity import PERSONA_CHAT_SESSION_SOURCE
 __layer__ = "stores"
 __all__ = [
     "MODEL_SELECTION_RECEIPT",
+    "TURN_EFFORT_RECEIPT",
     "TURN_MODEL_RECEIPT",
     "_chat_effective_model_payload",
     "_chat_model_override_from_config",
-    "_resolve_turn_model_selection",
-    "chat_model_source",
-    "TURN_EFFORT_RECEIPT",
-    "log_model_selection",
-    "reasoning_effort_label",
     "_persona_chat_bound_owner",
     "_persona_chat_native_history",
     "_persona_chat_native_read",
@@ -44,8 +40,12 @@ __all__ = [
     "_persona_chat_native_tip",
     "_persona_chat_session_owner",
     "_resolve_chat_model_override",
+    "_resolve_turn_model_selection",
     "_safe_chat_model_override_value",
     "_session_model_config",
+    "chat_model_source",
+    "log_model_selection",
+    "reasoning_effort_label",
 ]
 
 
@@ -278,7 +278,7 @@ def _chat_effective_model_payload(
     """
     default_provider = getattr(persona, "provider", None) or getattr(config, "default_provider", None)
     default_model = getattr(persona, "model", None) or getattr(config, "default_model", None)
-    from agent_runtime.profile_context import resolve_persona_profile, persona_profile_scope
+    from agent_runtime.profile_context import resolve_persona_profile, persona_profile_context
     # An instance whose persona left the roster still gets a summary; it has no
     # profile to scope into, so only the instance and config tiers apply.
     binding = resolve_persona_profile(persona) if persona is not None else None
@@ -286,7 +286,7 @@ def _chat_effective_model_payload(
     effort = chat_effort or getattr(instance, "reasoning_effort", None)
     reasoning = None
     if binding is not None and binding.readiness == "ready":
-        with persona_profile_scope(binding):
+        with persona_profile_context(binding):
             if not default_model or not default_provider:
                 from agent_runtime.config import load_agent_runtime_config
                 profile_config = load_agent_runtime_config()
@@ -304,17 +304,23 @@ def _chat_effective_model_payload(
     agent_model = instance_model or default_model
     provider = (override or {}).get("provider") or agent_provider
     model = (override or {}).get("model") or agent_model
+    from agent_runtime.model_api_mode import turn_api_mode
     from agent_runtime.reasoning_capabilities import ReasoningCapabilities, reasoning_capabilities
 
+    # The agent tier's api_mode belongs to the agent tier's provider: a chat override onto
+    # another provider derives its own (RT-CONV-MODEL-SELECT-STALE-API-MODE). The run
+    # (``persona_runtime``), the prewarm and the runtime signature read this one answer.
+    tier_api_mode = getattr(instance, "api_mode", None) or getattr(persona, "api_mode", None)
+    effective_api_mode = turn_api_mode(agent_provider, tier_api_mode, provider, model)
     capabilities = ReasoningCapabilities(provider, model)
     if binding is not None and binding.readiness == "ready":
-        with persona_profile_scope(binding):
+        with persona_profile_context(binding):
             from hermes_cli.config import load_config
 
             profile_config = load_config() or {}
             model_config = profile_config.get("model") or {}
-            api_mode = getattr(instance, "api_mode", None) or (
-                model_config.get("api_mode") if isinstance(model_config, dict) else None)
+            api_mode = turn_api_mode(agent_provider, getattr(instance, "api_mode", None) or (
+                model_config.get("api_mode") if isinstance(model_config, dict) else None), provider, model)
             capabilities = reasoning_capabilities(
                 provider, model, api_mode=api_mode,
                 default_effort=reasoning_effort_label(reasoning_config_for(None, model)),
@@ -323,7 +329,8 @@ def _chat_effective_model_payload(
                     model_config.get("base_url") if isinstance(model_config, dict) else None),
             )
     elif binding is None:
-        capabilities = reasoning_capabilities(provider, model, api_mode=getattr(instance, "api_mode", None))
+        capabilities = reasoning_capabilities(provider, model, api_mode=turn_api_mode(
+            agent_provider, getattr(instance, "api_mode", None), provider, model))
     return {
         "default_provider": default_provider,
         "default_model": default_model,
@@ -335,6 +342,7 @@ def _chat_effective_model_payload(
         "chat_model": (override or {}).get("model"),
         "effective_provider": provider,
         "effective_model": model,
+        "effective_api_mode": effective_api_mode,
         "effective_reasoning_effort": reasoning_effort_label(reasoning),
         "chat_reasoning_effort": chat_effort,
         "reasoning_effort_source": ("conversation" if chat_effort else "instance" if effort
@@ -452,7 +460,7 @@ def _persona_chat_native_read(session_db, root_session_id: str):
 
     try:
         stamp = lineage_stamp(session_db, root_session_id)
-    except Exception:  # noqa: BLE001 — a stamp is an optimisation; the read stays the authority
+    except Exception:  # a stamp is an optimisation; the read stays the authority
         _logger.debug("lineage stamp unavailable for %s", root_session_id, exc_info=True)
         stamp = None
     tip = _persona_chat_native_tip(session_db, root_session_id)

@@ -51,7 +51,7 @@ admitted the day it shipped.
 | Source | this repo, pre-fold commit `4a21f0779` (absent from `main`'s history) |
 | Snapshot sha256 | `7714caec75881a47ef52524f851d250e34eab8c03b4f99127048158e2da8b41c` |
 | Snapshot taken | 2026-09-29, lane h10b-ci, after CI run 36621081725 failed `bad revision` on a fresh clone |
-| Consumed by | `tests/agent_runtime/test_tombstone_registry.py` (`test_round4_deleted_tests_left_no_live_production_subject_uncovered`) |
+| Consumed by | `tests/agent_runtime/test_tombstone_registry_round4.py` (`test_round4_deleted_tests_left_no_live_production_subject_uncovered`) |
 
 Not cross-repo, but the same problem: the round-4 coverage audit's base is a
 commit a fresh clone cannot resolve. The file freezes every top-level `test_*`

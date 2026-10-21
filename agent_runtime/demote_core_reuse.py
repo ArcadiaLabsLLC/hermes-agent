@@ -103,7 +103,7 @@ def _store_root() -> str | None:
 
     try:
         return str(paths.store_root())
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None
 
 

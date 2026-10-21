@@ -48,7 +48,7 @@ _READ_LAP_SECONDS = 30.0
 
 #: ``(dest, flag, kind)`` for every option of ``mission-chat message`` the serve
 #: must see. ``kind`` is ``"value"`` (passed when not None), ``"float"``/``"int"``
-#: (spelled numerically) or ``"flag"`` (passed when true). A test walks the real
+#: (spelled numerically), ``"flag"`` (passed when true) or ``"list"`` (one flag per item). A test walks the real
 #: parser: every key is here or in ``NOT_FORWARDED``, so a new flag cannot be
 #: dropped silently.
 SEND_FLAGS: tuple[tuple[str, str, str], ...] = (
@@ -69,6 +69,8 @@ SEND_FLAGS: tuple[tuple[str, str, str], ...] = (
     ("client_message_id", "--client-message-id", "value"),
     ("idempotency_key", "--idempotency-key", "value"),
     ("retry_of", "--retry-of", "value"),
+    ("images", "--image", "list"),
+    ("files", "--file", "list"),
     ("stream", "--stream", "flag"),
     ("max_seconds", "--max-seconds", "float"),
     ("compression_threshold_tokens", "--compression-threshold-tokens", "int"),
@@ -109,6 +111,8 @@ def _spell(args: Any, flags: tuple[tuple[str, str, str], ...]) -> list[str]:
         if kind == "flag":
             if value:
                 argv.append(flag)
+        elif kind == "list":
+            argv.extend(f"{flag}={item}" for item in value or ())
         elif value is not None:
             if kind == "float":
                 text = repr(float(value))

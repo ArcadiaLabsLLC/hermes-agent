@@ -42,7 +42,7 @@ def install_gettext_find_memo() -> bool:
         return False
     answers: dict = {}
 
-    def find(domain, localedir=None, languages=None, all=False):  # noqa: A002 — gettext's own signature
+    def find(domain, localedir=None, languages=None, all=False):  # gettext's own signature
         env = None if languages is not None else tuple(os.environ.get(key) for key in _LOCALE_ENV_KEYS)
         key = (domain, localedir, None if languages is None else tuple(languages), bool(all), env)
         try:

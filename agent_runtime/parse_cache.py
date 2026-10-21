@@ -62,7 +62,7 @@ def _bounded_set(cache: dict, key: tuple, value: Any) -> None:
 
 
 def cached_by_mtime(
-    path: Path, loader: Callable[[Path], Any], *, default: Any = None, disk: "DiskTier | None" = None,
+    path: Path, loader: Callable[[Path], Any], *, default: Any = None, disk: DiskTier | None = None,
 ) -> Any:
     """Return ``loader(path)``, memoized by the file's identity+mtime.
 
@@ -99,7 +99,7 @@ DISK_TIER_VERSION = 1
 #: Past this many entries a flush drops the ones whose file is gone.
 _DISK_TIER_PRUNE_AT = 16384
 
-_DISK_TIERS: list["DiskTier"] = []
+_DISK_TIERS: list[DiskTier] = []
 _EXIT_FLUSH = {"armed": False}
 
 

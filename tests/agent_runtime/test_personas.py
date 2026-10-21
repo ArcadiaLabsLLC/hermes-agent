@@ -1,3 +1,6 @@
+import pytest
+from dataclasses import replace
+
 from agent_runtime.models import AgentPersona
 from agent_runtime.personas import (
     AgentRole,
@@ -76,3 +79,18 @@ def test_pm_role_remains_available_for_explicit_legacy_configuration():
     # The legacy role still resolves as data (this is the subject); its declared
     # capability comes from the profile lane default.
     assert declared_lane_toolsets(pm).source == "profile_unresolved"
+
+
+def test_autonomy_is_typed_by_the_enum_and_reads_its_retired_spellings():
+    """RT-AUTONOMY-APPLY-WITH-REVIEW (owner ruling 2026-10-18): two members, ``review``
+    an alias of ``propose_only``, a stored ``apply_with_review`` read as the autonomous
+    scope it always had, and every constructor lands on the enum."""
+    assert [level.value for level in AutonomyLevel] == ["propose_only", "autonomous"]
+    assert AutonomyLevel("review") is AutonomyLevel.PROPOSE_ONLY
+    assert AutonomyLevel("apply_with_review") is AutonomyLevel.AUTONOMOUS
+    stored = persona(AgentRole.PM)
+    assert stored.autonomy is AutonomyLevel.PROPOSE_ONLY
+    for raw, level in (("review", AutonomyLevel.PROPOSE_ONLY), ("apply_with_review", AutonomyLevel.AUTONOMOUS)):
+        assert replace(stored, autonomy=raw).autonomy is level
+    with pytest.raises(ValueError):
+        AutonomyLevel("sometimes")

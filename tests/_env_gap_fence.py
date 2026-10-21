@@ -142,7 +142,7 @@ def is_owned(path, owner_dir) -> bool:
 # Each probe performs the real spawn once per session.
 
 
-def _memo(fn: "Callable[[], bool]") -> "Callable[[], bool]":
+def _memo(fn: Callable[[], bool]) -> Callable[[], bool]:
     cache: list[bool] = []
 
     def _probe() -> bool:
@@ -155,7 +155,7 @@ def _memo(fn: "Callable[[], bool]") -> "Callable[[], bool]":
     return _probe
 
 
-def describes_host(host_check: "Callable[[], bool]") -> "Callable[[Callable[[], bool]], Callable[[], bool]]":
+def describes_host(host_check: Callable[[], bool]) -> Callable[[Callable[[], bool]], Callable[[], bool]]:
     """Scope a probe's rows to the HOST CLASS they were measured on.
 
     A probe answering False means "no gap here", which on a host of a different
@@ -166,14 +166,14 @@ def describes_host(host_check: "Callable[[], bool]") -> "Callable[[Callable[[], 
     keep the fleet-wide reading in ``tests/test_env_gap_registry.py``.
     """
 
-    def _scope(probe: "Callable[[], bool]") -> "Callable[[], bool]":
+    def _scope(probe: Callable[[], bool]) -> Callable[[], bool]:
         probe.host_check = _memo(host_check)
         return probe
 
     return _scope
 
 
-def describes_this_host(probe: "Callable[[], bool]") -> bool:
+def describes_this_host(probe: Callable[[], bool]) -> bool:
     """False only for a probe scoped to a host class this host is not."""
 
     host_check = getattr(probe, "host_check", None)
@@ -216,7 +216,7 @@ def bare_bash_is_not_posix() -> bool:
     probe = "a$HOME b"
     try:
         done = subprocess.run(["bash", "-c", 'printf %s "$1"', "_", probe], capture_output=True,
-                              timeout=30, stdin=subprocess.DEVNULL)
+                              timeout=30, stdin=subprocess.DEVNULL, check=False)
     except (OSError, subprocess.SubprocessError):
         return False
     return done.stdout != probe.encode()
@@ -231,7 +231,7 @@ def shell_true_is_not_posix() -> bool:
 
     try:
         done = subprocess.run("echo $((1+1))", shell=True, capture_output=True, text=True,
-                              timeout=30, stdin=subprocess.DEVNULL)
+                              timeout=30, stdin=subprocess.DEVNULL, check=False)
     except (OSError, subprocess.SubprocessError):
         return False
     return done.stdout.strip() != "2"
@@ -258,7 +258,7 @@ def resolved_bash_spells_posix_mount_paths() -> bool:
     with tempfile.TemporaryDirectory() as tmp:
         try:
             done = subprocess.run([bash, "-c", "pwd -P"], cwd=tmp, capture_output=True, text=True,
-                                  timeout=30, stdin=subprocess.DEVNULL)
+                                  timeout=30, stdin=subprocess.DEVNULL, check=False)
         except (OSError, subprocess.SubprocessError):
             return False
         native = os.path.normcase(os.path.realpath(tmp))

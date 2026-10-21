@@ -14,15 +14,15 @@ from typing import Any, Callable
 __layer__ = "stores"
 
 __all__ = [
-    "EndReason",
     "CONSOLE_CTRL_END_REASONS",
     "END_REASON_UNCAUGHT_PREFIX",
     "END_REASON_UNKNOWN",
     "END_REASON_VOCABULARY",
     "SIGNAL_END_REASONS",
     "_CONSOLE_CTRL_HANDLER_KEEPALIVE",
-    "_ServeEndReason",
     "_UNCAUGHT_TYPE_MAX_LENGTH",
+    "EndReason",
+    "_ServeEndReason",
     "_console_ctrl_reason_callback",
     "_end_reason_is_known",
     "_install_console_ctrl_reason_handler",

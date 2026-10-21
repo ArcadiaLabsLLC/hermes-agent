@@ -1,0 +1,64 @@
+[
+  {
+    "id": "snooze-restart-expiry",
+    "selection": "snooze15m",
+    "recoverFirst": false,
+    "decisionAtMs": 0,
+    "decisionState": "resolved",
+    "suppressedUntilMs": 900000,
+    "frames": [
+      {
+        "atMs": 895000,
+        "value": 90,
+        "state": "resolved",
+        "ordinal": 1,
+        "count": 1,
+        "admissions": 1
+      },
+      {
+        "atMs": 900000,
+        "value": 90,
+        "state": "active",
+        "ordinal": 2,
+        "count": 1,
+        "admissions": 2
+      }
+    ]
+  },
+  {
+    "id": "recovered-dismiss-new-breach",
+    "selection": "dismiss",
+    "recoverFirst": true,
+    "decisionAtMs": 5000,
+    "decisionState": "closedRecovered",
+    "suppressedUntilMs": null,
+    "frames": [
+      {
+        "atMs": 10000,
+        "value": 90,
+        "state": "active",
+        "ordinal": 2,
+        "count": 1,
+        "admissions": 2
+      }
+    ]
+  },
+  {
+    "id": "recovered-investigate-stays-open",
+    "selection": "investigate",
+    "recoverFirst": true,
+    "decisionAtMs": 5000,
+    "decisionState": "recovered",
+    "suppressedUntilMs": null,
+    "frames": [
+      {
+        "atMs": 10000,
+        "value": 90,
+        "state": "active",
+        "ordinal": 1,
+        "count": 2,
+        "admissions": 1
+      }
+    ]
+  }
+]

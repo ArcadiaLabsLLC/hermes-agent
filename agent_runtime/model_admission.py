@@ -31,9 +31,9 @@ from typing import Any, Callable
 __layer__ = "stores"
 
 __all__ = [
+    "RESOURCES",
     "AdmissionRefused",
     "ModelAdmission",
-    "RESOURCES",
     "admission",
     "set_admission",
 ]
@@ -213,7 +213,7 @@ class ModelAdmission:
         for victim in victims:
             try:
                 victim.evict()
-            except Exception:  # noqa: BLE001 - a failed unload keeps its bytes counted
+            except Exception:  # a failed unload keeps its bytes counted
                 with self._lock:
                     if self._held.get(victim.holder) is victim:
                         victim.evicting = False

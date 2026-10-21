@@ -183,10 +183,12 @@ class WorkerBinding:
         peer = self._live_peer()
         if peer is None:
             return None
+        from agent_runtime.lens.snapshot_fold import watcher_state
         from agent_runtime.snapshot.sections import running_work_for_worker
 
         params = {"resolution": _resolution_params(), "serve_pid": os.getpid(),
-                  "running_work": running_work_for_worker(), "runtime": _runtime_params()}
+                  "running_work": running_work_for_worker(), "runtime": _runtime_params(),
+                  "lens_watcher": watcher_state()}
         try:
             reply = peer.build(params, timeout=self.timeout)
         except WorkerLost as lost:

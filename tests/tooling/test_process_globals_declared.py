@@ -33,6 +33,10 @@ import json
 
 from scripts import god_file_probe as probe
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 #: Flip once every allowlist row carries a reason instead of the seed marker.
 ENFORCE = False
 
@@ -106,7 +110,7 @@ def process_globals(source: str) -> set[str]:
 
 def _dotted(path: str) -> str:
     module = path[:-3].replace("/", ".")
-    return module[: -len(".__init__")] if module.endswith(".__init__") else module
+    return module.removesuffix(".__init__")
 
 
 def _declared(path: str, source: str) -> frozenset[str]:
@@ -156,6 +160,16 @@ def test_census_report():
     print(report)
     if ENFORCE:
         assert not new and not stale and not unreasoned, report
+
+
+def test_no_allowlist_row_outlives_its_global():
+    """Enforced now, whatever ``ENFORCE`` says: a stale row is never reasoned debt, only a row
+    to delete (W5 deleted a module and its row stayed green — FORK-PROCESS-GLOBALS-STALE-ROW)."""
+
+    stale = sorted(set(_allowlist()) - census())
+    assert not stale, "delete these allowlist rows — the global is gone or declared:\n" + "\n".join(
+        f"  STALE {row}" for row in stale
+    )
 
 
 def test_the_walk_sees_a_global_rebind_and_a_mutated_container_but_not_a_constant_table():

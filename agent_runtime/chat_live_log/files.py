@@ -160,8 +160,7 @@ def _publish(path: Path, claim: Path, lines: list[dict[str, Any]]) -> Path | Non
 
     try:
         with open(claim, "w", encoding="utf-8", newline="\n") as handle:
-            for payload in lines:
-                handle.write(_encode(payload) + "\n")
+            handle.writelines(_encode(payload) + "\n" for payload in lines)
             handle.flush()
             os.fsync(handle.fileno())
     except (OSError, ValueError) as exc:

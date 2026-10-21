@@ -124,7 +124,7 @@ def _declared_members() -> list[str]:
 def collect(root: Path) -> dict[str, Any]:
     """The inventory, read off the live registry. Imports ``model_tools``."""
 
-    import model_tools  # noqa: F401 - importing IS what populates the registry
+    import model_tools  # importing IS what populates the registry
     from agent_runtime.personas import REGISTRY_HYGIENE_BLOCKED_TOOLS
     from agent_runtime.tool_visibility import _estimate_model_tool_tokens, _mutating_tools
     from hermes_cli.plugins import discover_plugins
@@ -252,7 +252,7 @@ def render_inventory_json(inventory: dict[str, Any]) -> str:
 
 
 def _skill_text(root: Path) -> str:
-    return (root / SKILL_MD).read_text(encoding="utf-8")
+    return (root / SKILL_MD).read_text(encoding="utf-8-sig")
 
 
 def splice_skill(root: Path, block: str) -> str:
@@ -356,7 +356,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             failed = True
             continue
-        with open(path, "r", encoding="utf-8", newline="") as handle:
+        with open(path, "r", encoding="utf-8", newline="") as handle:  # windows-footgun: ok — byte-exact staleness check: a BOM is drift, not a tolerated read
             committed = handle.read()
         if committed == rendered:
             continue

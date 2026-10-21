@@ -15,6 +15,7 @@ from __future__ import annotations
 import pytest
 
 from tests._downstream.id_markers.reasons import (
+    _CHILDREN_DIE_WITH_THE_TEST,
     _CLAUDE_HOME_TMP,
     _CREDENTIALS_FILE,
     _FORK_LIVE_SYSTEM_GUARD,
@@ -22,6 +23,8 @@ from tests._downstream.id_markers.reasons import (
     _fork_replaces,
     _FORK_SPAWN_DETACHED,
     _FORK_SYSTEM_PATH,
+    _GATE,
+    _HOST_DISK_HAS_ROOM,
     __layer__,
     _LOOKALIKE,
     _NO_LIVE_GATEWAY,
@@ -99,6 +102,12 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # (~15 s apiece): 36.97 s green on pure tag v0.21.6 818c13be1d, 2026-10-10.
     "tests/pm/test_plugin_survival_contract.py::"
     "test_update_sync_retries_a_fetch_failure_once_before_disabling": (pytest.mark.timeout(90),),
+    # The carried PR #125263 test waits its 30 s scaled bound out by design (the pool
+    # attempt hangs and is killed at 30 s), then a ~15 s retry: 31 s Timeout alone at
+    # load 16, 2026-10-17. 180 s sits above the test's own subprocess bound (170 s), so
+    # a real hang fails that assertion instead of killing the file's process.
+    "tests/scripts/test_run_tests_parallel.py::"
+    "test_isolation_retry_keeps_the_scaled_timeout_and_counts_skips": (pytest.mark.timeout(180),),
     # MCF-66: reads the real ~/.claude/.credentials.json via the fixture's
     # redirected Path.home() (gate: tests/test_claude_code_credentials_file_gate.py).
     "tests/hermes_cli/test_codex_cli_model_picker.py::"
@@ -204,9 +213,27 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     "test_stale_served_turn_never_recreates_archived_profile": (_STATE_DB_THROUGH_SCOPE,),
     "tests/gateway/test_multiplex_routing_authz.py::"
     "test_completion_preflight_runs_in_target_profile_scope": (_STATE_DB_THROUGH_SCOPE,),
+    # Each probe spawns twelve children through spawn_local (bash + python per child,
+    # ~0.3 s apiece on Windows): 3.5-4 s a probe measured outside pytest, nine probes in the
+    # first test and six in the second -> 35.96 s and 24.51 s alone with --timeout=0
+    # (lane r-gateway, 2026-10-17); the fork's 30 s cap killed the first every run.
+    # A timeout's os._exit skipped the probe's finally and left its busy-waiters alive
+    # (40 on 2026-10-18); the job keeps them from outliving the test (tests/_downstream/child_job.py).
+    "tests/hermes_cli/test_completion_backlog.py": (pytest.mark.timeout(120), _CHILDREN_DIE_WITH_THE_TEST),
     # The fork runs the whole tree under --timeout=30; these PowerShell
     # harnesses carry their own child budgets above that.
     "tests/scripts/desktop_update/test_desktop_update_windows_cwd.py": (pytest.mark.timeout(75),),
+    # Upstream's live uninstall starts a real gateway and four `hermes` CLI children, each under
+    # its own 180 s budget: 32.4 s (killed by the 30 s cap) and 42.8 s green alone at 1 worker on
+    # this box, 2026-10-17 (lane r-plugins).
+    "tests/hermes_cli/test_plugin_uninstall_windows_live.py::"
+    "test_uninstall_while_gateway_has_plugin_loaded": (pytest.mark.timeout(180),),
+    # Upstream's bootstrap repair runs a real `uv lock` and a real bootstrap child per case (own
+    # budgets 60-90 s): 16.2-17.3 s per case alone on this box, 2026-10-17, so the 30 s cap kills
+    # a case once the box is loaded (lane r-plugins).
+    "tests/pm/test_startup_recovery.py::test_bootstrap_repairs_before_dependency_activation": (
+        pytest.mark.timeout(120),
+    ),
     # v0.22.2's PowerShell clone-failure case runs install.ps1 under its own 240 s child
     # budget and takes 29.2 s alone on this box (2026-10-16), so the 30 s cap killed it
     # under load (release lane rel-0222-reds).
@@ -314,6 +341,19 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/hermes_cli/test_oauth_status_pool_observation_downstream.py",
         ),
     ),
+    # Lane r-reds-a (2026-10-16): the test's premise is a REAL hermes console-script
+    # install, found through the operator's PATH; on a fork workstation that install is
+    # <real store>/bin, inside the root run_tests.sh hands the home I/O guard
+    # (HERMES_TEST_REAL_ROOT), so shutil.which() probing it is refused as real-home I/O.
+    "tests/tools/test_build_subprocess_env.py::"
+    "test_e2e_scrubbed_env_resolves_bare_hermes_under_minimal_parent_path": (
+        pytest.mark.skip(reason="probes the real hermes install, which the fork keeps under "
+                                "the guarded real store root (<root>/bin/hermes.exe)"),
+    ),
+    # Upstream asserts an all-ok readiness while probing the REAL test-tmp volume; the
+    # fork's test-tmp drive is over the probe's 90 % line (fixture: host_disk_room).
+    "tests/gateway/test_readiness.py::"
+    "test_collect_runtime_readiness_reports_healthy_local_runtime": (_HOST_DISK_HAS_ROOM,),
     # Upstream web-server tests whose restart / desktop-startup path runs the REAL
     # gateway orphan reap and its 30 s exit wait (fixture: conftest_plugin).
     **{
@@ -322,6 +362,28 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/hermes_cli/test_web_server.py::TestWebServerEndpoints::"
             "test_telegram_onboarding_apply_reports_restart_failure_after_save",
             "tests/hermes_cli/test_web_server.py::TestDesktopCronTicker::test_ticker_runs_when_desktop",
+        )
+    },
+    # Upstream's whole-tests/ shadow walk parses ~7,000 files (33.4 s alone, over the 30 s
+    # cap under load); the fork half runs the same check through the shared parse.
+    "tests/test_no_shadowed_test_definitions.py::test_no_shadowed_definitions_in_test_modules": (
+        pytest.mark.skip(reason="run by tests/test_no_shadowed_test_definitions_downstream.py "
+                                "(upstream's _duplicates_in, the shared parse, a def-name pre-filter)"),
+    ),
+    # Upstream test files the gate directory lists (its lint checkers): an upstream file
+    # takes no edit, so its file-level ``gate`` mark is applied here
+    # (tests/tooling/test_gate_directory_current.py reads it through ``ids_marked``).
+    **{
+        path: (_GATE,)
+        for path in (
+            "tests/hermes_cli/test_config_yaml_comment_preservation.py",
+            "tests/scripts/test_bash_shebangs.py",
+            "tests/scripts/test_case_collision_check.py",
+            "tests/scripts/test_check_no_tmp_literals.py",
+            "tests/scripts/test_check_profile_scope_patterns.py",
+            "tests/scripts/test_code_health_cli.py",
+            "tests/scripts/test_footgun_subprocess_encoding.py",
+            "tests/tools/test_subprocess_stdin_guard.py",
         )
     },
 }

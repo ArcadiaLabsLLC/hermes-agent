@@ -10,7 +10,7 @@ spawning pytest — the bundle and solo launchers are injected:
   a bundle whose process DIED runs the file it died in alone and re-bundles
   the members that never started;
 * ``--scope fork`` runs the fork-only files plus the inherited files the
-  change reaches, and leaves an untouched inherited file to ``--scope full``;
+  change reaches, and leaves an untouched inherited file out (ADR 0016);
 * a file named in ``scripts/test_bundles_unbundled.txt`` never enters a bundle.
 """
 
@@ -525,3 +525,24 @@ def test_the_manifest_is_read_without_its_comment_lines(tmp_path):
     manifest.write_text("# base abc\ntests/a/test_x.py\n\n", encoding="utf-8")
 
     assert bundled.load_manifest(manifest) == {"tests/a/test_x.py"}
+
+
+def test_bundle_children_write_bytecode_and_load_the_plugin_by_name():
+    """An inherited PYTHONDONTWRITEBYTECODE made every bundle process recompile its whole import
+    graph (h6-collect, 2026-10-18); the runner drops it before any worker starts."""
+
+    environ = {"PYTHONDONTWRITEBYTECODE": "1", "PYTHONPATH": "elsewhere"}
+    bundled.prepare_child_environ(environ)
+    assert "PYTHONDONTWRITEBYTECODE" not in environ
+    assert environ["PYTHONPATH"].split(bundled.os.pathsep) == [str(bundled._PLUGIN_DIR), "elsewhere"]
+
+
+def test_landing_gate_defaults_to_twelve_workers(monkeypatch) -> None:
+    """FORK-SUITE-SPEED-J-REMEASURE (2026-10-18): the gate's cap is 12, bounded by the box."""
+    monkeypatch.delenv("HERMES_TEST_WORKERS", raising=False)
+    monkeypatch.setattr(bundled.os, "cpu_count", lambda: 16)
+    assert bundled._build_parser().parse_args([]).jobs == 12
+    monkeypatch.setattr(bundled.os, "cpu_count", lambda: 6)
+    assert bundled._build_parser().parse_args([]).jobs == 6
+    monkeypatch.setenv("HERMES_TEST_WORKERS", "8")
+    assert bundled._build_parser().parse_args([]).jobs == 8

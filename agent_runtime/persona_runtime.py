@@ -8,6 +8,7 @@ from .chat_lane_bundle import chat_lane_bundle
 from .cache_routing import persona_cache_scope_id
 from .chat_lane_skill_index import chat_lane_index_skills
 from .mcp_admission import LANE_MISSION_CHAT
+from .model_api_mode import turn_api_mode
 from .launcher_invocation import launcher_invocation
 from .models import AgentPersona
 from .mission_chat_clarify import MissionChatClarifyCapture
@@ -94,6 +95,7 @@ class GPTPersonaRuntime:
         situational_hud_content: str | None = None,
         conversation_history: list[dict] | None = None,
         reuse_current_user_message: bool = False,
+        user_image_paths: tuple[str, ...] = (),  # pasted images (operator_images), admitted for this model
         # Relay sender attribution. An ``agent_chat_send`` relay resolves the
         # SENDING agent once at the CLI chokepoint and hands the typed
         # ``relay_from:<persona>:<instance>`` marker down here; the runner stamps
@@ -136,8 +138,7 @@ class GPTPersonaRuntime:
         binding = resolve_persona_profile(persona)
         if binding.readiness == "missing_profile":
             raise ValueError(binding.summary)
-        runtime_provider = provider_override or persona.provider or self._default_provider
-        runtime_model = model_override or persona.model or self._default_model or ""
+        runtime_provider, runtime_model = turn_provider_model(persona, provider_override, model_override, self._default_provider, self._default_model)
         _assert_turn_provider_health(persona, runtime_provider, runtime_model)
         # Non-blocking clarify bridge for this lane: a clarify call records the
         # question and ends the turn instead of blocking on a human queue the
@@ -222,7 +223,7 @@ class GPTPersonaRuntime:
                     profile=binding.hermes_profile,
                     provider=runtime_provider,
                     model=runtime_model,
-                    api_mode=persona.api_mode,
+                    api_mode=turn_api_mode(persona.provider or self._default_provider, persona.api_mode, runtime_provider, runtime_model),
                     reasoning_effort=reasoning_effort,
                     terminal_envelope_scope=envelope_scope,
                     mcp_admission=admission,
@@ -254,7 +255,7 @@ class GPTPersonaRuntime:
                     chat_lane_index_skills=chat_lane_index_skills(persona, lane_bundle.operating_skills),
                     tool_execution_scope_id=root_chat_session_id or perm_session_id,
                     conversation_history=conversation_history,
-                    reuse_current_user_message=reuse_current_user_message,
+                    reuse_current_user_message=reuse_current_user_message, user_image_paths=tuple(user_image_paths or ()),
                     persona_chat_user_finish_reason=relay_sender_marker,
                     root_chat_session_id=root_chat_session_id or perm_session_id,
                     client_message_id=client_message_id,
@@ -319,6 +320,18 @@ class GPTPersonaRuntime:
 # so the agent's raw, in-flight copy never becomes recall-reachable while real
 # cross-session recall stays on.
 PERSONA_CHAT_SCRATCH_SOURCE = "tool"
+
+
+def turn_provider_model(
+    persona: AgentPersona, provider_override: str | None, model_override: str | None,
+    default_provider: str | None, default_model: str | None,
+) -> tuple[str, str]:
+    """The provider and model a mission-chat turn runs on: override, then persona, then default.
+
+    One precedence for the run and for the pasted-image vision admission that must ask about the same model."""
+    provider = provider_override or persona.provider or default_provider
+    model = model_override or persona.model or default_model or ""
+    return provider, model
 
 
 def _assert_turn_provider_health(persona: AgentPersona, provider: str, model: str) -> None:

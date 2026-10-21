@@ -132,7 +132,7 @@ class _FakeProc:
 def test_a_dispatch_child_is_named_while_it_runs_and_forgotten_once_settled(tmp_path, monkeypatch):
     from agent_runtime.dispatch_store import get_dispatch, mint_dispatch_id, record_dispatch
     from tools import agent_chat_dispatch
-    import tools.agent_chat_dispatch.local_child  # noqa: F401 - the spawn patched below
+    import tools.agent_chat_dispatch.local_child  # the spawn patched below
 
     home = tmp_path / "bg-home"
     home.mkdir()

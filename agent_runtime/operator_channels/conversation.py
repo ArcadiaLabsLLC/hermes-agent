@@ -322,7 +322,7 @@ class DedupeState:
     seen_thinking_texts: set[Any] = field(default_factory=set)
 
     @classmethod
-    def of(cls, messages: list[dict[str, Any]]) -> "DedupeState":
+    def of(cls, messages: list[dict[str, Any]]) -> DedupeState:
         return cls(
             # A run's reasoning often lands twice: once as the run-summary flow
             # message (thinking_summary/turn) and once as a trace progress row

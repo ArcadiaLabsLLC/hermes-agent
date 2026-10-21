@@ -62,6 +62,7 @@ import json
 import re
 from dataclasses import dataclass, field, fields
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 from agent_runtime import yaml_io
@@ -256,13 +257,22 @@ def _plain(value: Any) -> Any:
     the content hash.
     """
 
-    if value is None or isinstance(value, (str, bool, int, float)):
-        return value
-    if isinstance(value, (list, tuple)):
-        return [_plain(item) for item in value]
-    if isinstance(value, dict):
-        return {str(key): _plain(item) for key, item in sorted(value.items(), key=lambda kv: str(kv[0]))}
+    if value is None:
+        return None
+    for kinds, coerce in _PLAIN_COERCIONS:
+        if isinstance(value, kinds):
+            return coerce(value)
     raise TypeError(type(value).__name__)
+
+
+#: ``_plain``'s type table, first match wins: ``str`` first, so a StrEnum member (``autonomy``)
+#: publishes its plain value.
+_PLAIN_COERCIONS: tuple[tuple[type | tuple[type, ...], Callable[[Any], Any]], ...] = (
+    (str, str),
+    ((bool, int, float), lambda value: value),
+    ((list, tuple), lambda value: [_plain(item) for item in value]),
+    (dict, lambda value: {str(key): _plain(item) for key, item in sorted(value.items(), key=lambda kv: str(kv[0]))}),
+)
 
 
 def _allowlist_persona_def(persona_id: str, raw: Any, dropped: list[str]) -> dict[str, Any]:
@@ -452,7 +462,7 @@ def adopt_persona_def(
     store = store if store is not None else AgentStore()
     try:
         record = store.get(persona_id)
-    except Exception:  # noqa: BLE001 — no store row: the config lane owns this persona
+    except Exception:  # no store row: the config lane owns this persona
         record = None
     if record is None:
         atomic_roundtrip_yaml_update(

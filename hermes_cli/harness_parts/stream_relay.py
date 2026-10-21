@@ -84,7 +84,7 @@ def _receipt(lane: str, **fields: Any) -> None:
     try:
         tail = " ".join(f"{key}={value}" for key, value in fields.items())
         _log.info("stream_relay lane=%s %s pid=%d", lane, tail, os.getpid())
-    except Exception:  # noqa: BLE001 - an instrument never fails the verb
+    except Exception:  # an instrument never fails the verb
         pass
 
 
@@ -131,7 +131,7 @@ def relay_stream_via_serve(args: Any, *, out: TextIO | None = None) -> int | Non
         try:
             connection.connect()
             hello = connection.hello(token=token, client=RELAY_CLIENT_NAME)
-        except Exception as exc:  # noqa: BLE001 - any dial failure builds in-process, by name
+        except Exception as exc:  # any dial failure builds in-process, by name
             _receipt("in_process", serve_fallback=f"transport_failed:{type(exc).__name__}")
             return None
         if not isinstance(hello, dict) or hello.get("event") != "hello_ok":
@@ -172,7 +172,7 @@ def relay_stream_via_serve(args: Any, *, out: TextIO | None = None) -> int | Non
                 return int(frame.get("code") or 0)
     except KeyboardInterrupt:
         return 0
-    except Exception as exc:  # noqa: BLE001 - a broken lane mid-stream ends the stream
+    except Exception as exc:  # a broken lane mid-stream ends the stream
         if relayed == 0:
             _receipt("in_process", serve_fallback=f"transport_failed:{type(exc).__name__}")
             return None

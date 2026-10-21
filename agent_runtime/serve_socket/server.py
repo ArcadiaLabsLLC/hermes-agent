@@ -59,6 +59,22 @@ __all__ = [
 ]
 
 
+def _disable_nagle(sock: Any) -> None:
+    """Set TCP_NODELAY on an accepted connection (RT-SERVE-SOCKET-NODELAY).
+
+    Per-token frames are small writes; with Nagle on, the kernel holds one
+    behind the peer's delayed ACK and the launcher sees text arrive in bunches
+    (as ``tui_gateway/ws.py::_disable_nagle`` found for the TUI lane). A
+    transport that is not TCP (a unix or pipe socket) refuses the option with
+    ``OSError``; that is not this connection's failure, so it is tolerated.
+    """
+
+    try:
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    except (OSError, AttributeError):
+        pass
+
+
 # ── the server ───────────────────────────────────────────────────────────────
 
 
@@ -446,7 +462,7 @@ class ServeSocketServer:
                 # rejection of one peer, and the lane keeps serving everybody
                 # else.
                 self._admit_socket(sock, peer)
-        except BaseException as exc:  # noqa: BLE001 - reported, never raised out
+        except BaseException as exc:  # reported, never raised out
             outcome = f"error:{type(exc).__name__}"
             with self._lock:
                 self._accept_errors += 1
@@ -476,7 +492,7 @@ class ServeSocketServer:
                 name="harness-serve-socket-conn",
                 daemon=True,
             ).start()
-        except BaseException as exc:  # noqa: BLE001 - reported, never raised out
+        except BaseException as exc:  # reported, never raised out
             with self._lock:
                 self._accept_errors += 1
             self._emit_log(
@@ -502,6 +518,7 @@ class ServeSocketServer:
             if admitted:
                 self._pending += 1
                 self._pending_peak = max(self._pending_peak, self._pending)
+        _disable_nagle(sock)
         connection = SocketConnection(
             key=key,
             sock=sock,
@@ -518,7 +535,7 @@ class ServeSocketServer:
             sock.settimeout(self._hello_deadline)
         except OSError:
             pass
-        reader: "_LineReader | None" = None
+        reader: _LineReader | None = None
         try:
             # TLS BEFORE the admission checks, not after, and the cost is
             # deliberate. Every one of those checks answers with a typed

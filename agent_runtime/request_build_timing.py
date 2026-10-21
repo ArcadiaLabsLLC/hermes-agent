@@ -24,6 +24,8 @@ import logging
 import time
 from typing import Any
 
+from agent_runtime.receipt_sink import agent_receipt_callback
+
 __layer__ = "policy"
 
 logger = logging.getLogger(__name__)
@@ -83,7 +85,7 @@ class RequestBuildLaps:
 
         try:
             self.lap(part)
-            callback = getattr(self._agent, "status_callback", None)
+            callback = agent_receipt_callback(self._agent)
             if callback is None:
                 return
             total = sum(self._values.values())

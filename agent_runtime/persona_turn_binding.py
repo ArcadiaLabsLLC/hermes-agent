@@ -75,6 +75,6 @@ def _wire_aliases(agent: Any) -> dict[str, str]:
     try:
         transport = (getattr(agent, "_transport_cache", None) or {}).get(getattr(agent, "api_mode", None))
         aliases = getattr(transport, "_last_wire_aliases", None)
-    except Exception:  # noqa: BLE001 - a receipt never fails a request
+    except Exception:  # a receipt never fails a request
         return {}
     return {str(k): str(v) for k, v in aliases.items()} if isinstance(aliases, dict) else {}

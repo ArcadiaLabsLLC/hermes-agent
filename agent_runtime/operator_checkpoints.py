@@ -14,7 +14,7 @@ from .models import apply_instance_model_overrides
 from .operator_conversation import OperatorConversationRefused
 from .operator_history import history_write_scope
 from .operator_session_inspection import _inspection_persona, inspection_identity, operator_session_read
-from .profile_context import persona_profile_scope, resolve_persona_profile
+from .profile_context import persona_profile_context, resolve_persona_profile
 from .history_recovery import fence_history_operation, clear_history_operation, pending_history_operation
 from agent_runtime.checkpoint_reviewed_restore import restore_revision
 
@@ -37,7 +37,7 @@ def _checkpoint_session(params, *, receipt_only=False):
         tip = session.db.resolve_resume_session_id(params["session_id"])
         current = session.db.get_session(tip) or session.row
         identity = inspection_identity(params, session.owner)
-        with persona_profile_scope(binding, runtime_root=paths.store_root()), chat_root_session_key_scope(params["session_id"]):
+        with persona_profile_context(binding, runtime_root=paths.store_root()), chat_root_session_key_scope(params["session_id"]):
             options = apply_chat_lane_tool_scope(persona, permission_options_for_chat(
                 persona, session_id=params["session_id"]), session_id=params["session_id"])
             workdir = (params.get("workspace_path") if receipt_only else

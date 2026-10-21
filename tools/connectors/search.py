@@ -4,7 +4,6 @@ import functools
 import logging
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-from tools.connectors.gateway.bridge import NOT_SET_UP, NOT_SET_UP_MESSAGE, SIGN_IN_EXPIRED, UNREACHABLE
 from tools.connectors.gateway.names import format_connector_name, is_connector_name, vendor_slug_candidates
 from tools.tool_search_catalog import CatalogEntry, _fn, _tokenize
 
@@ -17,6 +16,9 @@ def connections_in_scope(tool_defs: Iterable[dict[str, Any]]) -> bool:
 
 def connectors_unavailable(failure: str, *, verb: str,
                            names: Optional[list[str]] = None) -> dict[str, Any]:
+    # fork seam (phone closure, 2026-10-18): bridge -> files -> wire loads only when a connector path runs.
+    from tools.connectors.gateway.bridge import NOT_SET_UP, NOT_SET_UP_MESSAGE, SIGN_IN_EXPIRED
+
     if failure == NOT_SET_UP:
         from tools.connectors.gateway.config import guest_setup_failure
 
@@ -55,6 +57,8 @@ def connector_entries_by_group(
     connector_search: Optional[Any] = None,
     call: Optional[Any] = None,
 ) -> tuple[list[list[CatalogEntry]], Optional[str]]:
+    from tools.connectors.gateway.bridge import UNREACHABLE
+
     per_query: list[list[CatalogEntry]] = [[] for _ in queries]
     try:
         if connector_search is None:
@@ -112,6 +116,8 @@ def remote_schemas_for(
     connector_names = [n for n in names if is_connector_name(n)]
     if not connector_names or not connections_in_scope(current_tool_defs):
         return {}, None
+    from tools.connectors.gateway.bridge import UNREACHABLE
+
     try:
         if connector_describe is None:
             from tools.connectors.gateway.bridge import connector_describe as describe

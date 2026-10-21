@@ -205,7 +205,7 @@ def _dispatch(request: dict) -> dict:
 def test_voice_mode_and_wake_word_are_not_offered(monkeypatch):
     from tui_gateway import server
 
-    monkeypatch.setattr(server, "_load_cfg", lambda: {})
+    monkeypatch.setattr(server, "_load_cfg", dict)
     monkeypatch.setitem(sys.modules, "tools.voice_mode", types.SimpleNamespace(
         check_voice_requirements=lambda: {"available": True, "details": ""}))
     monkeypatch.setenv("HERMES_VOICE", "0")
@@ -225,7 +225,7 @@ def test_voice_mode_and_wake_word_are_not_offered(monkeypatch):
 
 
 def test_external_cli_logins_are_never_adopted(monkeypatch):
-    import hermes_cli.auth as auth
+    from hermes_cli import auth
     from hermes_cli.auth_codex import _recover_codex_tokens_from_cli
 
     reads: list[bool] = []
@@ -272,15 +272,15 @@ def test_without_nemo_relay_the_relay_host_is_noop(monkeypatch):
 
 
 def test_qwen_oauth_is_refused_on_every_surface(monkeypatch):
-    import agent.credential_pool as credential_pool
-    import hermes_cli.runtime_provider as runtime_provider
+    from agent import credential_pool
+    from hermes_cli import runtime_provider
     from agent_runtime.provider_signin import ProviderSignIns, SignInRefused
     from hermes_cli.harness_parts.provider_visibility import build_provider_visibility
     from hermes_cli.provider_login_catalog import provider_login_catalog
 
     pools_read: list[str] = []
     monkeypatch.setattr(credential_pool, "load_pool",
-                        lambda provider: pools_read.append(provider) or types.SimpleNamespace(entries=lambda: []))
+                        lambda provider: pools_read.append(provider) or types.SimpleNamespace(entries=list))
     # The ladder is stubbed: "auto" lands on qwen-oauth without touching any credential file.
     monkeypatch.setattr(runtime_provider, "_ladder_rungs",
                         lambda *a, **k: iter([{"provider": "qwen-oauth", "api_mode": "chat_completions"}]))

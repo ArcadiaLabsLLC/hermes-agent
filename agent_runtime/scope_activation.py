@@ -69,18 +69,18 @@ from .store import RealmStore, WorkspaceStore
 __layer__ = "lanes"
 
 __all__ = [
-    "WORKSPACE_USE_METHOD",
     "REALM_USE_METHOD",
     "RECONCILE_KEPT",
-    "workspace_row",
-    "realm_row",
-    "activation_outcome_row",
-    "reconcile_active_workspace_to_realm",
-    "activate_workspace",
-    "activate_realm",
-    "ScopeActivationRefusal",
+    "WORKSPACE_USE_METHOD",
     "ScopeActivationOutcome",
+    "ScopeActivationRefusal",
+    "activate_realm",
+    "activate_workspace",
+    "activation_outcome_row",
     "perform_scope_activation",
+    "realm_row",
+    "reconcile_active_workspace_to_realm",
+    "workspace_row",
 ]
 
 _log = logging.getLogger(__name__)
@@ -305,7 +305,7 @@ def _follow_realm_of_selected_workspace(workspace, *, issued_at: str | None) -> 
         return
     try:
         realms.set_active(realm_id, issued_at=issued_at)
-    except Exception:  # noqa: BLE001 — the workspace write already landed
+    except Exception:  # the workspace write already landed
         _log.warning(
             "workspace %s selected but its realm %s could not be parked",
             getattr(workspace, "id", None),
@@ -368,7 +368,7 @@ def _heal_realm_pointer_to_winning_workspace(requested_realm_id: str) -> dict | 
         return None
     try:
         winner = workspaces.get(winner_id)
-    except Exception:  # noqa: BLE001 — an unreadable pointer heals nothing
+    except Exception:  # an unreadable pointer heals nothing
         _log.warning("active workspace %s is unreadable; not healing", winner_id, exc_info=True)
         return None
     winning_realm_id = getattr(winner, "realm_id", None)
@@ -377,7 +377,7 @@ def _heal_realm_pointer_to_winning_workspace(requested_realm_id: str) -> dict | 
     realms = RealmStore()
     try:
         realms.set_active(winning_realm_id, issued_at=workspaces.active_intent_issued_at())
-    except Exception:  # noqa: BLE001 — report the pointer's real owner below
+    except Exception:  # report the pointer's real owner below
         _log.warning("could not re-park the realm pointer to %s", winning_realm_id, exc_info=True)
     # The pointer is re-READ rather than assumed: if an even newer realm intent
     # took it between the reconcile and here, the row must name what actually

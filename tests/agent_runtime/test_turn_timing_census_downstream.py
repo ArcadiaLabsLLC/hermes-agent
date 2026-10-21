@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -29,7 +29,7 @@ from agent_runtime.turn_timing_census import (
 )
 
 BASELINE = json.loads(default_baseline_path().read_text(encoding="utf-8"))
-NOW = datetime.now(timezone.utc).replace(microsecond=0)
+NOW = datetime.now(UTC).replace(microsecond=0)
 
 
 def _record(store: Path, turn_id: str, anchored: datetime, **marks) -> None:

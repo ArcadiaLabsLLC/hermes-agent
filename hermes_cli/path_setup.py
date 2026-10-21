@@ -64,16 +64,16 @@ _IS_WINDOWS = os.name == "nt"
 
 @dataclass
 class PathSetupResult:
-    shim_path: "str | None" = None
-    path_dir: "str | None" = None
+    shim_path: str | None = None
+    path_dir: str | None = None
     path_registered: bool = False
-    note: "str | None" = None
+    note: str | None = None
     #: Machine-readable refusal code when no shim was written. ``None`` on a
     #: run that wrote one (a written shim whose dir is not yet on PATH is
     #: guidance in ``note``, not an error). Spelled as a code beside the prose
     #: so the installer, which only ever sees this process's JSON summary, can
     #: branch on the refusal instead of matching on a sentence.
-    error: "str | None" = None
+    error: str | None = None
 
 
 def render_windows_shim(hermes_home: str, hermes_exe: str) -> str:
@@ -96,12 +96,12 @@ def render_posix_shim(hermes_home: str, hermes_exe: str) -> str:
     )
 
 
-def _hermes_exe_names() -> "tuple[str, ...]":
+def _hermes_exe_names() -> tuple[str, ...]:
     """Console-script file names to look for, most canonical first."""
     return ("hermes.exe", "hermes.cmd", "hermes.bat") if _IS_WINDOWS else ("hermes",)
 
 
-def _hermes_exe_dirs() -> "list[str]":
+def _hermes_exe_dirs() -> list[str]:
     """Directories that may hold the ``hermes`` console-script, best first.
 
     ``sys.executable``'s ``bin``/``Scripts`` dir leads: a console-script lives
@@ -147,7 +147,7 @@ def _hermes_exe_dirs() -> "list[str]":
     return dirs
 
 
-def _resolve_hermes_exe() -> "str | None":
+def _resolve_hermes_exe() -> str | None:
     """Absolute path to the ``hermes`` console-script the shim should call."""
     dirs = _hermes_exe_dirs()
     names = _hermes_exe_names()
@@ -164,7 +164,7 @@ def _resolve_hermes_exe() -> "str | None":
     return None
 
 
-def _shim_install_dir() -> "str | None":
+def _shim_install_dir() -> str | None:
     """The one stable directory the shim is written into, or None.
 
     Split out of :func:`register_hermes_command` so it is (a) assertable

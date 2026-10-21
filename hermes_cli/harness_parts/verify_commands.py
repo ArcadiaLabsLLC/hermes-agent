@@ -12,7 +12,7 @@ import os
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 
 from agent_runtime import paths
@@ -35,7 +35,7 @@ __all__ = [
 
 def _cmd_verify(args) -> int:
     cfg = load_agent_runtime_config()
-    started = datetime.now(timezone.utc)
+    started = datetime.now(UTC)
     # Anchored to the support module rather than ``Path(__file__)`` (which,
     # before lane H1 exec'd this file into harness.py, read as harness.py's path).
     repo_root = harness_repo_root()
@@ -88,11 +88,35 @@ def _cmd_verify(args) -> int:
     except Exception as exc:
         ok = False
         packet["final_status"] = {"error": type(exc).__name__}
-    if args.mode == "live-tony" and str(paths.store_root()).replace("/", "\\").lower() != r"x:\eternia\.hermes\agent-runtime":
-        ok = False
-        packet.setdefault("issues", []).append({"kind": "runtime_root_mismatch", "expected": r"X:\Eternia\.hermes\agent-runtime"})
+    if args.mode == "live-tony":
+        expected = _live_store_root()
+        if not _store_roots_match(paths.store_root(), expected):
+            ok = False
+            packet.setdefault("issues", []).append({"kind": "runtime_root_mismatch", "expected": str(expected)})
     print(emit_json(packet) if args.json else f"verify ok={ok} commands={len(packet['commands'])} tests={len(packet['tests'])}")
     return 0 if ok else 2
+
+
+def _live_store_root() -> Path:
+    """The store root a live serve on THIS machine resolves by default.
+
+    ``--mode live-tony`` asserts the configured store is this machine's default
+    live store, never one owner's literal drive path.
+    """
+    from hermes_constants import get_default_hermes_root
+
+    return get_default_hermes_root() / "agent-runtime"
+
+
+def _store_roots_match(left: Path, right: Path) -> bool:
+    def norm(path: Path) -> str:
+        try:
+            path = path.resolve()
+        except OSError:
+            pass
+        return os.path.normcase(os.path.normpath(str(path)))
+
+    return norm(left) == norm(right)
 
 
 def _run_verify_command(label: str, command: list[str], *, cwd: Path) -> dict:
@@ -109,6 +133,7 @@ def _run_verify_command(label: str, command: list[str], *, cwd: Path) -> dict:
             encoding="utf-8",
             errors="replace",
             timeout=120,
+            check=False,
         )
         stdout = completed.stdout or ""
         stderr = completed.stderr or ""
@@ -143,6 +168,7 @@ def _git_summary(root: Path) -> dict:
                 encoding="utf-8",
                 errors="replace",
                 timeout=10,
+                check=False,
             )
         except Exception:
             return None

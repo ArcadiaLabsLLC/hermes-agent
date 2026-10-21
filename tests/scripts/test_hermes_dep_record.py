@@ -45,6 +45,7 @@ def test_spawns():
 _FILE_C = '''
 import subprocess
 import sys
+import c_only_mod  # loaded while C is collected, after A's collection and before any test runs
 
 def test_spawns_isolated():
     subprocess.run([sys.executable, "-I", "-c", "pass"], check=True)  # -I ignores PYTHONPATH: no record
@@ -63,6 +64,7 @@ def _bundle(tmp_path: Path) -> Path:
     (root / "test_b.py").write_text(_FILE_B, encoding="utf-8")
     (root / "test_c.py").write_text(_FILE_C, encoding="utf-8")
     (root / "child_mod.py").write_text("CHILD = 1\n", encoding="utf-8")
+    (root / "c_only_mod.py").write_text("C = 1\n", encoding="utf-8")
     return root
 
 
@@ -72,6 +74,7 @@ def _record(root: Path, deps_dir: Path) -> dict:
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_dep_record",
          f"--hermes-gate-deps={deps_dir}", "test_a.py", "test_b.py", "test_c.py"],
         cwd=root, env=env, capture_output=True, text=True, timeout=120,
+        check=False,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
     return cache.DepsCollector(deps_dir).poll()
@@ -93,6 +96,15 @@ def test_each_file_records_its_module_fixture_directory_and_spawns(tmp_path):
     # superset by design: B imported helper_mod after A loaded it, and still depends on it
     assert "helper_mod.py" in b.mods
 
+    # the file's own: A loaded helper_mod first; B only names it (an earlier member loaded it)
+    assert a.own_known and b.own_known
+    assert "helper_mod.py" in a.mods_own and "helper_mod.py" not in b.mods_own
+    assert "helper_mod.py" in b.mods_ref
+    assert "child_mod.py" in b.mods_own, "a Python child's modules are the file's own"
+    c = files["test_c.py"]
+    assert "helper_mod.py" not in c.mods_own | c.mods_ref
+    assert "c_only_mod.py" in c.mods_own and "c_only_mod.py" not in a.mods_own, "collection loads are the file's"
+
 
 def test_paths_outside_the_root_or_under_caches_are_dropped(tmp_path):
     spec = importlib.util.spec_from_file_location("hermes_dep_trail_under_test", _PLUGIN_DIR / "hermes_dep_trail.py")
@@ -107,6 +119,19 @@ def test_paths_outside_the_root_or_under_caches_are_dropped(tmp_path):
     assert rec.is_python(sys.executable) and not rec.is_python("git")
 
 
+def test_the_store_keeps_the_files_own_modules_only_when_every_record_said(tmp_path):
+    store = cache.GateStore(tmp_path / "store")
+    known = cache.FileDeps(paths={"tests/t.py"}, mods={"pkg/a.py", "pkg/b.py"}, mods_own={"pkg/a.py"},
+                           mods_ref={"pkg/c.py"}, own_records=1, deps_records=1)
+    unknown = cache.FileDeps(paths={"tests/u.py"}, mods={"pkg/a.py"}, mods_own={"pkg/a.py"}, deps_records=1)
+    store.write_deps({"tests/t.py": known, "tests/u.py": unknown}, "run-1")
+
+    loaded, sets = store.load_deps(), store.load_modsets()
+    assert sets[loaded["tests/t.py"].mown[0]] == ["pkg/a.py", "pkg/c.py"]
+    assert sets[loaded["tests/t.py"].mref[0]] == ["pkg/c.py"]
+    assert loaded["tests/u.py"].mown is None, "a record that did not say keeps the static reach"
+
+
 def test_the_store_keeps_one_module_set_per_digest_and_reads_back_the_newest_line(tmp_path):
     store = cache.GateStore(tmp_path / "store")
     deps = cache.FileDeps(paths={"tests/t.py"}, dirs={"pkg"}, mods={"pkg/a.py", "pkg/b.py"}, spawn_py=1)
@@ -118,6 +143,75 @@ def test_the_store_keeps_one_module_set_per_digest_and_reads_back_the_newest_lin
     sets = store.load_modsets()
     assert len(sets) == 2
     assert sets[loaded["tests/u.py"].mods[0]] == ["pkg/a.py", "pkg/b.py"]
+
+
+_FILE_IMPORTS = '''
+import os
+
+def test_imports_a_package_and_lists_a_directory():
+    import pkgx.sub  # FileFinder lists pkgx/ for the submodule: an import-system listing
+    assert pkgx.sub.VALUE == 2
+    assert os.listdir(os.path.join(os.path.dirname(__file__), "listed")) == ["one.txt"]
+'''
+
+
+@pytest.mark.timeout(150)
+def test_an_import_system_listing_is_recorded_apart_from_a_plain_listing_with_the_names_tried(tmp_path):
+    root = tmp_path / "proj"
+    (root / "pkgx").mkdir(parents=True)
+    (root / "listed").mkdir()
+    (root / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+    (root / "pkgx" / "__init__.py").write_text("", encoding="utf-8")
+    (root / "pkgx" / "sub.py").write_text("VALUE = 2\n", encoding="utf-8")
+    (root / "listed" / "one.txt").write_text("1", encoding="utf-8")
+    (root / "test_i.py").write_text(_FILE_IMPORTS, encoding="utf-8")
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join([str(_PLUGIN_DIR), str(root)])}
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_dep_record",
+         f"--hermes-gate-deps={tmp_path / 'deps'}", "test_i.py"],
+        cwd=root, env=env, capture_output=True, text=True, timeout=120,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+    i = cache.DepsCollector(tmp_path / "deps").poll()["test_i.py"]
+    assert "pkgx" in i.idirs and "pkgx" not in i.dirs, "FileFinder's listing is an import-system listing"
+    assert "listed" in i.dirs and "listed" not in i.idirs, "a test's own listing keeps today's whole key"
+    assert {"pkgx", "sub"} <= i.inames, "the last dotted component of every module the process tried"
+
+
+_FILE_WALKED = '''
+import os
+
+def test_lists_its_own_folder_on_purpose():
+    assert "data" in os.listdir(os.path.join(os.path.dirname(__file__), "..", "..", "walked"))
+'''
+
+
+@pytest.mark.timeout(150)
+def test_pytest_collection_walk_is_no_listing_but_a_tests_own_listing_is(tmp_path):
+    """q-runner 2026-10-18: pytest's collection lists the root, ``tests`` and the file's own
+    folder (6,733 of 6,736 store records listed ``.``), so any new top-level or sibling file
+    missed every green. Those listings are pytest's walk, not the file's: dropped."""
+
+    root = tmp_path / "proj"
+    (root / "tests" / "sub").mkdir(parents=True)
+    (root / "walked" / "data").mkdir(parents=True)
+    (root / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+    (root / "tests" / "sub" / "test_w.py").write_text(_FILE_WALKED, encoding="utf-8")
+    (root / "tests" / "sub" / "test_sibling.py").write_text("def test_x():\n    pass\n", encoding="utf-8")
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join([str(_PLUGIN_DIR), str(root)])}
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_dep_record",
+         f"--hermes-gate-deps={tmp_path / 'deps'}", "tests/sub/test_w.py"],
+        cwd=root, env=env, capture_output=True, text=True, timeout=120,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+    w = cache.DepsCollector(tmp_path / "deps").poll()["tests/sub/test_w.py"]
+    assert not {".", "tests", "tests/sub"} & w.dirs, f"pytest's collection walk recorded as a listing: {sorted(w.dirs)}"
+    assert "walked" in w.dirs, "the test's own listing keeps its whole key"
 
 
 def test_the_store_is_the_primary_checkouts_unless_overridden(tmp_path):
@@ -149,6 +243,23 @@ def test_a_spawn_event_names_its_program_for_every_event_shape():
     assert trail.spawned_program("os.exec", ("/bin/sh", ["sh"], {})) == "/bin/sh"
     assert trail.spawned_program("os.spawn", (0, "node", ["node"], {})) == "node"
     assert trail.spawned_program("os.system", ("echo hi",)) == ""
+    spaced = r'"C:\Program Files\Py\python.exe" -c pass'  # Windows audits a quoted command line
+    assert trail.spawned_program("subprocess.Popen", (None, spaced, None, None)) == r"C:\Program Files\Py\python.exe"
+    assert trail.is_python(trail.spawned_program("subprocess.Popen", (None, spaced, None, None)))
+
+
+def test_the_run_report_classifies_a_program_through_the_recorder(monkeypatch):
+    """q-runner 2026-10-18: program classification has ONE owner (``hermes_dep_trail``); the
+    run report's ``program_kind`` reads and judges through it, so the two never disagree."""
+
+    monkeypatch.syspath_prepend(str(_PLUGIN_DIR))
+    import hermes_bundle_report as report
+    import hermes_dep_trail as trail
+
+    assert report.first_program is trail.first_program and report.is_python is trail.is_python
+    spaced = r'"C:\Program Files\Py\python.exe" -c pass'
+    assert report.program_kind(spaced) == "python"
+    assert report.program_kind(["git", "status"]) == "git" and report.program_kind("node x.js") == "other"
 
 
 _FX_CONFTEST = '''
@@ -196,6 +307,7 @@ def test_a_record_names_the_fixtures_set_up_and_the_paths_the_file_opened_itself
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_dep_record",
          f"--hermes-gate-deps={deps_dir}", "test_fx.py"],
         cwd=root, env=env, capture_output=True, text=True, timeout=120,
+        check=False,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
     deps = cache.DepsCollector(deps_dir).poll()["test_fx.py"]
@@ -203,3 +315,38 @@ def test_a_record_names_the_fixtures_set_up_and_the_paths_the_file_opened_itself
     assert {"auto", "used", "dyn", "request"} <= set(deps.fx), "autouse, requested and getfixturevalue all count"
     assert "unused" not in deps.fx
     assert "conftest.py" in deps.own, "a data read of the conftest must keep its whole-blob key"
+
+
+_FILE_PATCHES_ABSPATH = '''
+import os
+
+def test_patches_abspath_process_wide(monkeypatch):
+    def refuse(path):
+        raise AssertionError("abspath used")
+
+    monkeypatch.setattr(os.path, "abspath", refuse)
+    with open(__file__, encoding="utf-8") as fh:
+        fh.read(1)
+
+def test_after():
+    assert os.path.abspath(".")
+'''
+
+
+@pytest.mark.timeout(150)
+def test_a_test_that_patches_abspath_process_wide_cannot_break_the_recorder(tmp_path):
+    # The recorder resolves a path in its own pytest hooks (``pytest_runtest_teardown``), while the
+    # test's patch still stands; it binds ``os.path.abspath`` at import (lane r-state 2026-10-18).
+    # Killing mutation: call ``os.path.abspath`` in ``PathFilter.rel`` again -> this run exits 1.
+    root = tmp_path / "proj"
+    root.mkdir()
+    (root / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+    (root / "test_patch.py").write_text(_FILE_PATCHES_ABSPATH, encoding="utf-8")
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join([str(_PLUGIN_DIR), str(root)])}
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_dep_record",
+         f"--hermes-gate-deps={tmp_path / 'deps'}", "test_patch.py"],
+        cwd=root, env=env, capture_output=True, text=True, timeout=120,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr

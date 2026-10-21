@@ -35,8 +35,15 @@ from agent_runtime.speech_text import spell_numbers
 
 __layer__ = "stores"
 
-__all__ = ["MisakiG2P", "OnnxModel", "OpenPhonemizer", "PHONEMIZER_ARTIFACTS", "PRODUCT_LEXICON", "artifact_files",
-           "rp_from_us"]
+__all__ = [
+    "PHONEMIZER_ARTIFACTS",
+    "PRODUCT_LEXICON",
+    "MisakiG2P",
+    "OnnxModel",
+    "OpenPhonemizer",
+    "artifact_files",
+    "rp_from_us",
+]
 
 #: The artifact each voice family reads, as ``(onnx, json)`` names next to the voice.
 PHONEMIZER_ARTIFACTS = {

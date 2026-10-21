@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 
 import pytest
@@ -81,7 +81,7 @@ def _op_event(offset: int, entity: str, entity_id: str, op: str, changed: dict |
     if changed is not None:
         payload["changed"] = changed
     return offset, Event(
-        ts=datetime(2026, 7, 16, 12, 0, 1, tzinfo=timezone.utc),
+        ts=datetime(2026, 7, 16, 12, 0, 1, tzinfo=UTC),
         type=STATE_PATCHED_EVENT_TYPE,
         task_id=None, run_id=None, persona_id=None, payload=payload,
     )
@@ -89,7 +89,7 @@ def _op_event(offset: int, entity: str, entity_id: str, op: str, changed: dict |
 
 def _plain_event(offset: int, event_type: str) -> tuple[int, Event]:
     return offset, Event(
-        ts=datetime(2026, 7, 16, 12, 0, 2, tzinfo=timezone.utc),
+        ts=datetime(2026, 7, 16, 12, 0, 2, tzinfo=UTC),
         type=event_type, task_id="task_x", run_id=None, persona_id=None,
         payload={"fingerprint": "fp"},
     )
@@ -329,7 +329,7 @@ def test_delete_gesture_fixture_is_the_frame_the_producer_builds():
     # The live builder, over the same rows: every key the golden carries must be
     # one the producer still emits, or the launcher is folding a shape hermes no
     # longer sends.
-    ts = datetime(2026, 7, 16, 12, 20, 0, tzinfo=timezone.utc)
+    ts = datetime(2026, 7, 16, 12, 20, 0, tzinfo=UTC)
     batch = [
         (
             row["seq"],
@@ -425,7 +425,7 @@ def test_office_surface_fixture_is_the_frame_the_producer_builds():
     assert golden["coalesced_count"] == 2
     assert golden["coalesced_count"] > len(golden["patches"])
 
-    ts = datetime(2026, 7, 16, 12, 20, 0, tzinfo=timezone.utc)
+    ts = datetime(2026, 7, 16, 12, 20, 0, tzinfo=UTC)
     payload = {
         "entity": row["entity"],
         "id": row["id"],
@@ -832,7 +832,7 @@ def test_the_persona_chat_turn_token_gates_a_frame_not_a_covered_event():
     assert not set(turn_types) & LIVE_COVERED_DOMAIN_EVENT_TYPES
     events = [
         Event(
-            ts=datetime.now(timezone.utc),
+            ts=datetime.now(UTC),
             type=event_type,
             task_id=None,
             run_id=None,

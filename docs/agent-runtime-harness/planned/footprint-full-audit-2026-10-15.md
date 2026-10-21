@@ -31,7 +31,7 @@ on 2026-10-15: 63 open, **0 merged**, so no row drops because a PR landed.
   `invoke_hook` in `v0.22.2`), so the stream-gap receipt there cannot ride the existing stream hooks.
 - **Doors the fork has already built, unmerged:** `feat/optional-module-door` (`b472d428cf1`,
   `hermes_constants.module_shipped()` — door A of
-  [`upstream-doors-2026-10-06.md`](upstream-doors-2026-10-06.md), 13 rows below) and
+  `upstream-doors-2026-10-06.md`, on branch `h-doors-2` (not on `main`), 13 rows below) and
   `feat/sdk-fallback-door` (`36ba53ebda7`, `process_bootstrap.register_sdk_fallback()` — door B, 5 rows).
   Doors C (secret-file store, 14 rows), D (provider access, 10 rows), F (psutil), G (MCP session hooks,
   5 rows), H (terminal-result evidence), I (live foreground commands) and J1–J3 (Group Chat host surface)

@@ -4,19 +4,21 @@ lookup, ``peek_work`` and ``cancel_work``."""
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from typing import Any
 
 from ..projection_accountant import ProjectionAccountant
 
 from .lanes_build import _collect_builds
 from .lanes_chat import _collect_chat_turns, _collect_delegations, _collect_dispatches
-from .lanes_process import _collect_cron, _collect_mcp_jobs, _collect_terminal
+from .lanes_process import _collect_background_tool_calls, _collect_cron, _collect_mcp_jobs, _collect_terminal
+from .lanes_messaging import _collect_messaging_turns
+from .lanes_schedule import _collect_scheduled_turns
 from ..builds.registry import BuildLogRefused, build_log_tail
 from ..builds.vocabulary import SOURCE_AGENT, SOURCE_ANNOUNCED, TAIL_SOURCE_TERMINAL
 from .ownership import _ambient_context
 from .rows import _module, bounded_operator_text, _source, _strip_ansi
-from .vocabulary import KIND_BUILD, KIND_CHAT_TURN, KIND_CRON_JOB, KIND_DELEGATION, KIND_DISPATCH, KIND_MCP_JOB, KIND_TERMINAL, KIND_TOOL_CALL, KILL_NOT_FOUND, PEEK_TAIL_LIMIT, REASON_NOT_IN_PROCESS, RUNNING_WORK_KINDS, SOURCE_OK, SOURCE_UNAVAILABLE, STATUS_VALUES
+from .vocabulary import KIND_BUILD, KIND_CHAT_TURN, KIND_CRON_JOB, KIND_DELEGATION, KIND_DISPATCH, KIND_MCP_JOB, KIND_MESSAGING_TURN, KIND_SCHEDULED_TURN, KIND_TERMINAL, KIND_TOOL_CALL, KILL_NOT_FOUND, PEEK_TAIL_LIMIT, REASON_NOT_IN_PROCESS, RUNNING_WORK_KINDS, SOURCE_OK, SOURCE_UNAVAILABLE, STATUS_VALUES
 
 __layer__ = "lanes"
 
@@ -27,6 +29,9 @@ _COLLECTORS = (
     (KIND_CHAT_TURN, _collect_chat_turns, True),
     (KIND_DISPATCH, _collect_dispatches, True),
     (KIND_MCP_JOB, _collect_mcp_jobs, True),
+    (KIND_TOOL_CALL, _collect_background_tool_calls, True),
+    (KIND_SCHEDULED_TURN, _collect_scheduled_turns, True),
+    (KIND_MESSAGING_TURN, _collect_messaging_turns, True),
     # AFTER the terminal lane: it reclassifies the frame's terminal rows in place.
     (KIND_BUILD, _collect_builds, True),
     (KIND_CRON_JOB, _collect_cron, False),
@@ -59,7 +64,7 @@ def build_running_work(
             kwargs["frame_rows"] = rows
         try:
             lane_rows, source = collector(**kwargs)
-        except Exception as exc:  # noqa: BLE001 - a lane must never break the frame
+        except Exception as exc:  # a lane must never break the frame
             lane_rows, source = [], _source(
                 SOURCE_UNAVAILABLE,
                 reason="collector_failed",
@@ -189,7 +194,7 @@ def _peek_terminal(payload: dict[str, Any], session_id: str) -> dict[str, Any]:
     try:
         # Read the rolling buffer directly under the session's own lock.
         # No reconcile, no consumption flag, no state transition.
-        with session._lock:  # noqa: SLF001 - the buffer's only guard
+        with session._lock:  # the buffer's only guard
             buffered = session.output_buffer or ""
         tail = _strip_ansi(buffered)[-PEEK_TAIL_LIMIT:]
     except Exception as exc:
@@ -312,7 +317,7 @@ def _stamp_epoch(text: str):
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
     return parsed.timestamp()
 
 
@@ -458,7 +463,20 @@ def _cancel_delegation(work_id: str, kind: str, stable: str, row: dict[str, Any]
 
 
 def _cancel_tool_call_arm(work_id: str, kind: str, stable: str, row: dict[str, Any], *, reason: str) -> dict[str, Any]:
+    if row.get("background"):
+        return _cancel_background_tool_call(work_id, stable)
     return _cancel_tool_call(work_id, row, reason=reason)
+
+
+def _cancel_background_tool_call(work_id: str, handle: str) -> dict[str, Any]:
+    """A promoted long tool call: its worker's interrupt bit, in the process running it."""
+
+    lane = _module("tools.long_tool_calls")
+    if lane is None:
+        return {"status": "error", "code": "not_owned_here", "work_id": work_id, "kind": KIND_TOOL_CALL,
+                "detail": "this process does not run that call"}
+    answer = lane.cancel(handle)
+    return {**answer, "work_id": work_id, "kind": KIND_TOOL_CALL}
 
 
 def _cancel_tool_call(work_id: str, row: dict[str, Any], *, reason: str) -> dict[str, Any]:

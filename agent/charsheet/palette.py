@@ -122,26 +122,6 @@ def build_palette(images: Iterable, max_colors: int = DEFAULT_MAX_COLORS):
     return sample.quantize(colors=min(max_colors, len(counts)), method=Image.Quantize.MEDIANCUT)
 
 
-def palette_colors(palette) -> list[tuple[int, int, int]]:
-    """The RGB triples a palette image can produce, in palette-index order."""
-    if getattr(palette, "mode", "") != "P":
-        raise ValueError(f"expected a 'P'-mode palette image, got mode {getattr(palette, 'mode', None)!r}")
-    raw = palette.getpalette() or []
-    # Empty, not None, when there is no palette object: the unfiltered fallback
-    # this used to carry was a branch no input could distinguish. `getpalette()`
-    # answers out of the SAME palette object, so bytes here imply a non-empty
-    # `.colors` and no bytes imply an empty `triples` — the two arms returned
-    # the identical list for every reachable image, and the false one only ever
-    # returned `[]` the long way round. Measured 2026-09-05 against the
-    # one-armed-branch report; the equivalence is pinned in
-    # `tests/agent/test_charsheet_branch_triage.py`.
-    used = palette.palette.colors if getattr(palette, "palette", None) else {}
-    triples = [tuple(raw[i : i + 3]) for i in range(0, len(raw), 3)]
-    # Pillow pads the palette out to 256 entries; keep only the ones the
-    # quantizer actually assigned so callers can assert set membership.
-    return [triple for triple in triples if triple in used]
-
-
 def palette_table(image) -> list[str]:
     """*image*'s opaque colour table as ``#RRGGBBAA``, most-used pixel first.
 
@@ -210,3 +190,46 @@ def lock_to_palette(frame_rgba, palette):
     locked.putalpha(alpha)
     opaque = alpha.point(lambda value: 255 if value else 0)
     return Image.composite(locked, Image.new("RGBA", locked.size, (0, 0, 0, 0)), opaque)
+
+
+def opaque_hex(text: str) -> str:
+    """*text* as ``#rrggbb``; ``#RRGGBB`` or a palette-table ``#RRGGBBff`` entry.
+
+    The swatch strip hands back the ``#RRGGBBAA`` spelling :func:`palette_table`
+    published, so the ``ff`` alpha is accepted; any other alpha is refused, because
+    the locked palette is an opaque RGB table and a recolour never touches alpha.
+    """
+    raw = str(text or "").strip().lower()
+    digits = raw.removeprefix("#")
+    if len(digits) == 8 and digits.endswith("ff"):
+        digits = digits[:6]
+    if len(digits) != 6 or any(char not in "0123456789abcdef" for char in digits):
+        raise ValueError(f"colour {text!r} is not '#RRGGBB' (or an opaque '#RRGGBBff' palette entry)")
+    return f"#{digits}"
+
+
+def recolour(image, source: str, target: str):
+    """Every pixel of *image* whose RGB is *source* turned *target*; alpha unchanged.
+
+    Returns ``(image, pixels)``. An EXACT lookup-table edit, which is why it cannot
+    band: a palette-locked sheet carries each swatch as one RGB value at many
+    alphas, so the match is equality and needs no tolerance. Fully-transparent
+    pixels are never matched — they are ``(0, 0, 0, 0)`` by
+    :func:`lock_to_palette`'s rule, and recolouring black must not paint the
+    backdrop.
+    """
+    from PIL import Image, ImageChops
+
+    rgba = as_rgba(image)
+    want = tuple(int(opaque_hex(source)[i:i + 2], 16) for i in (1, 3, 5))
+    paint = tuple(int(opaque_hex(target)[i:i + 2], 16) for i in (1, 3, 5))
+    red, green, blue, alpha = rgba.split()
+    mask = alpha.point(lambda value: 255 if value else 0)
+    for channel, value in zip((red, green, blue), want):
+        mask = ImageChops.multiply(mask, channel.point(lambda v, value=value: 255 if v == value else 0))
+    pixels = mask.histogram()[255]
+    if not pixels:
+        return rgba, 0
+    layer = Image.new("RGB", rgba.size, paint).convert("RGBA")
+    layer.putalpha(alpha)
+    return Image.composite(layer, rgba, mask), pixels

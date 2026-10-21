@@ -35,7 +35,6 @@ from agent_runtime.level_sync import (
     level_document_hash,
     published_relative_path,
     read_level_baseline,
-    workspace_token_for_published_path,
     write_level_baseline,
 )
 
@@ -151,22 +150,11 @@ def test_a_moved_prop_hashes_differently(isolate_agent_runtime_root):
     )
 
 
-# ── the published path grammar, both directions ─────────────────────────────
+# ── the published path grammar ────────────────────────────────────────────────
 
 
-def test_the_published_path_and_its_inverse_agree():
-    rel = published_relative_path(WS)
-    assert rel == f"store/levels/{WS}.json"
-    assert workspace_token_for_published_path(rel) == WS
-
-
-def test_a_nested_path_under_the_prefix_is_not_a_level_address():
-    """Over-approximating here would let a subdirectory somebody committed by
-    hand be adopted as a workspace's environment."""
-
-    assert workspace_token_for_published_path("store/levels/a/b.json") is None
-    assert workspace_token_for_published_path("store/levels/") is None
-    assert workspace_token_for_published_path("store/office/ws.json") is None
+def test_the_published_path_is_one_file_per_workspace_under_the_prefix():
+    assert published_relative_path(WS) == f"store/levels/{WS}.json"
 
 
 # ── the pull's arms ─────────────────────────────────────────────────────────

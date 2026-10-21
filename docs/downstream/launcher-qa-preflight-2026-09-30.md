@@ -80,6 +80,19 @@ Receipts are retained under ignored `qa-artifacts/launcher-qa-preflight-20260930
 Launcher qualification remains in
 `EterniaLauncher/docs/companion/evidence/COMBINED_ACCEPTANCE_2026-09-29.md`.
 
+### q-reds recheck 2026-10-18
+
+The trigger is no longer inherited on this box (`SSLKEYLOGFILE` unset in the session and in the
+User/Machine environment); `import pm.downloader` returns at once. With the variable set, the
+failure is in the standard library, not in Hermes: on the test venv's CPython 3.14.5 / OpenSSL
+3.5.6, `python -c "import ssl; ssl.create_default_context()"` exits 1 printing
+`OPENSSL_Uplink(...): no OPENSSL_Applink` for every target tried (a regular file, `NUL`, `CON`,
+`CONOUT$`, a missing named pipe), in console, `CREATE_NO_WINDOW` and `DETACHED_PROCESS` spawns
+alike, in about 0.4 s. The system CPython 3.12.5 / OpenSSL 3.0.13 writes the key log and passes. A
+target whose open blocks (a device or pipe) stalls before that abort, which is the trace above. A
+lazy downloader opener therefore moves the failure to the first HTTPS call (httpx and the provider
+clients build the same context); it does not remove it.
+
 ## Documentation checks
 
 Diff whitespace and the added relative links/anchors pass. The repository's

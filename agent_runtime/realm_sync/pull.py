@@ -69,6 +69,7 @@ __all__ = [
     "_pull_office",
     "_pull_persona_config",
     "_pull_persona_instances",
+    "_pull_prefab",
     "_pull_profile_files",
     "_pull_skill_inbox",
     "_pull_skill_tombstones",
@@ -83,7 +84,7 @@ def pull_realm_sync(
     *,
     dry_run: bool = False,
     membership: RealmMembershipProvider | None = None,
-    credential: "RealmSyncCredential | None" = None,
+    credential: RealmSyncCredential | None = None,
 ) -> dict[str, Any]:
     """Pull this realm: the generic overwrite loop, then every applier in
     ``PULL_APPLIERS`` order, then the skill reconcile and the report."""
@@ -94,7 +95,9 @@ def pull_realm_sync(
     git = _git_state(repo)
     if git["conflicts"]:
         raise RealmSyncError("sync_conflict", "Realm sync repo has unresolved git conflicts.", safe_details={"conflicts": git["conflicts"]})
-    if _has_remote(repo):
+    # An adopted personal repo that is still EMPTY (no remote-tracking ref after the
+    # adopter's fetch, p10-work §2.6) has nothing to pull and no upstream to pull from.
+    if _has_remote(repo) and _git(repo, "for-each-ref", "--count=1", "refs/remotes", check=False).strip():
         _git(repo, "pull", "--ff-only", extra_config=_credential_git_config(credential))
     subtree = _realm_subtree(repo, realm.id)
     artifacts = _artifacts_from_subtree(subtree)
@@ -161,6 +164,7 @@ class _PullRun:
     office: Any = None
     level: Any = None
     map: Any = None
+    prefab: Any = None
     skill: Any = None
     skill_tombstones: dict[str, list] | None = None
     persona: Any = None
@@ -226,6 +230,17 @@ def _pull_map(run: _PullRun) -> bool:
 
     run.map = apply_map_pull(run.realm.id, run.subtree)
     return bool(run.map.changed)
+
+
+def _pull_prefab(run: _PullRun) -> bool:
+    # USER PREFABS: same exclusion (store/prefabs/* -> the owner applier), the
+    # map family's whole-document 3-way shape, one descriptor. No ordering
+    # argument: a prefab is addressed by (profile, prefab), and nothing else
+    # reads a shelf.
+    from ..prefab_store import apply_prefab_pull
+
+    run.prefab = apply_prefab_pull(run.realm.id, run.subtree)
+    return bool(run.prefab.changed)
 
 
 def _pull_workspace_slots(run: _PullRun) -> bool:
@@ -350,6 +365,7 @@ PULL_APPLIERS: Final[tuple[PullApplier, ...]] = (
     PullApplier("office_sync", _pull_office),
     PullApplier("level_sync", _pull_level),
     PullApplier("map_sync", _pull_map),
+    PullApplier("prefab_sync", _pull_prefab),
     PullApplier("workspace_slots_sync", _pull_workspace_slots),
     PullApplier("skill_sync", _pull_skill_inbox),
     PullApplier("skill_tombstones", _pull_skill_tombstones),
@@ -379,6 +395,8 @@ def _pull_accounting(run: _PullRun, install_results: list[Any]) -> dict[str, Any
         # with no map family", which is the one case where a missing catalogue
         # entry is expected rather than a defect.
         "map_sync": run.map.as_dict(),
+        # Unconditional for the same reason: ``source: null`` = no shelf travelled.
+        "prefab_sync": run.prefab.as_dict(),
         # Unconditional for the reason the two rows above are: ``source: null`` says
         # "this realm publishes no slot document" rather than "an older hermes".
         "workspace_slots_sync": run.workspace_slots.as_dict(),
@@ -432,7 +450,7 @@ def _apply_workspace_tombstones(realm_id: str) -> dict[str, list]:
     summary: dict[str, list] = {"deleted": [], "archived": [], "warnings": []}
     try:
         realm = RealmStore().get(realm_id)  # re-read: the pull may have rewritten it
-    except Exception:  # noqa: BLE001 — no realm, nothing to reconcile
+    except Exception:  # no realm, nothing to reconcile
         return summary
     ledger = list(getattr(realm, "deleted_workspace_ids", None) or [])
     if not ledger:
@@ -460,11 +478,11 @@ def _apply_workspace_tombstones(realm_id: str) -> dict[str, list]:
                         "message": f"Deleted in realm but kept archived here: {exc}",
                     }
                 )
-            except Exception as inner:  # noqa: BLE001 — accounted, never silent
+            except Exception as inner:  # accounted, never silent
                 summary["warnings"].append(
                     {"code": "workspace_tombstone_failed", "workspace_id": workspace_id, "message": str(inner)}
                 )
-        except Exception as exc:  # noqa: BLE001 — accounted, never silent
+        except Exception as exc:  # accounted, never silent
             summary["warnings"].append(
                 {"code": "workspace_tombstone_failed", "workspace_id": workspace_id, "message": str(exc)}
             )
@@ -528,7 +546,7 @@ def _apply_skill_tombstones(realm: Realm) -> dict[str, list]:
         try:
             _archive_package(package_dir, slug)
             summary["archived"].append(slug)
-        except Exception as exc:  # noqa: BLE001 — accounted, never silent
+        except Exception as exc:  # accounted, never silent
             summary["warnings"].append(
                 {"code": "skill_tombstone_failed", "skill": slug, "message": str(exc)}
             )

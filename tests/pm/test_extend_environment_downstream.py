@@ -26,13 +26,11 @@ class _Engine:
 def engine(monkeypatch, tmp_path):
     import pm.environment
     import pm.environments
-    import pm.operations
 
     def use(*replies):
         fake = _Engine(replies)
         monkeypatch.setattr(pm.environment, "managed_environment", lambda *a, **k: fake)
         monkeypatch.setattr(pm.environments, "venv_python", lambda venv: Path(venv) / "python")
-        monkeypatch.setattr(pm.operations, "_require_install_allowed", lambda explicit: None)
         monkeypatch.setattr("time.sleep", lambda _: None)
         return fake
     return use
@@ -42,7 +40,7 @@ def test_pm_extends_the_environment_in_place_and_waits_out_a_held_file(engine, t
     from pm._fork_extend_environment import extend_environment
 
     fake = engine((2, "failed to remove directory x.data (os error 32)"), (0, ""))
-    assert extend_environment(["anthropic==0.87.0"], environment=tmp_path, explicit=True) is True
+    assert extend_environment(["anthropic==0.87.0"], environment=tmp_path) is True
     assert len(fake.commands) == 2
     assert fake.commands[0][:4] == ["pip", "install", "--python", str(tmp_path.absolute() / "python")]
 
@@ -51,4 +49,14 @@ def test_pm_answers_a_resolver_conflict_with_false(engine, tmp_path):
     from pm._fork_extend_environment import extend_environment
 
     engine((1, "No solution found when resolving dependencies"))
-    assert extend_environment(["anthropic==0.87.0"], environment=tmp_path, explicit=True) is False
+    assert extend_environment(["anthropic==0.87.0"], environment=tmp_path) is False
+
+
+@pytest.mark.parametrize("requirements", ["anthropic==0.87.0", [], ["not a requirement ==="]])
+def test_pm_refuses_requirements_it_cannot_parse(engine, tmp_path, requirements):
+    from pm._fork_extend_environment import extend_environment
+
+    fake = engine()
+    with pytest.raises(ValueError):
+        extend_environment(requirements, environment=tmp_path)
+    assert fake.commands == []

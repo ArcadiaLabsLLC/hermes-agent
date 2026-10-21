@@ -12,7 +12,7 @@ from agent_runtime.models import AgentPersona
 from agent_runtime.personas import blocked_tool_names
 from agent_runtime.persona_profiles import effective_toolsets
 from tests.agent_runtime.persona_samples import sample_personas
-import agent_runtime.repo_context as repo_context
+from agent_runtime import repo_context
 from agent_runtime.repo_context import resolve_affected_repo_workdir, safe_affected_repo_labels
 from tests._downstream._seams import repo_execution_context_for_task
 from agent_runtime.snapshot import build_snapshot

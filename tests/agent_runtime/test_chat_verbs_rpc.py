@@ -122,9 +122,9 @@ def test_queue_skill_method_and_argv_reach_one_implementation(monkeypatch, capsy
 
 def test_queue_skill_refuses_unloadable_skills_and_queues_nothing(monkeypatch, isolate_agent_runtime_root):
     from agent_runtime.queued_skills import pending_skills_for_next_turn
-    import tools.skills_tool as skills_tool
+    from tools import skills_tool
 
-    monkeypatch.setattr(skills_tool, "_find_all_skills", lambda: [])
+    monkeypatch.setattr(skills_tool, "_find_all_skills", list)
     error = _rpc("runtime.chat.queue_skill",
                  {"persona_id": "dev", "session_id": "s1", "skills": ["missing-skill"]})["error"]
     assert error["code"] == ERR_INVALID_PARAMS

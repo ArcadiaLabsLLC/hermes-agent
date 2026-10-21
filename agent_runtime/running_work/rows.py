@@ -4,7 +4,7 @@ stamps, progress, the row, the preview, the source entry and the per-lane cap.""
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from typing import Any
 
 from ..projection_accountant import ProjectionAccountant
@@ -44,7 +44,7 @@ def _iso(epoch: Any) -> str:
     if seconds <= 0:
         return ""
     try:
-        return datetime.fromtimestamp(seconds, timezone.utc).isoformat()
+        return datetime.fromtimestamp(seconds, UTC).isoformat()
     except (OverflowError, OSError, ValueError):
         return ""
 
@@ -73,14 +73,14 @@ def _iso_from_naive_local(text: Any) -> str:
     if not raw:
         return ""
     try:
-        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(raw)
     except ValueError:
         return ""
     if parsed.tzinfo is None:
         # `astimezone()` on a naive datetime interprets it as local time, which
         # is exactly what `time.localtime` produced.
         parsed = parsed.astimezone()
-    return parsed.astimezone(timezone.utc).isoformat()
+    return parsed.astimezone(UTC).isoformat()
 
 
 def elapsed_seconds(started_epoch: float | None, *, now: float) -> int:
@@ -155,6 +155,13 @@ def _progress(
     }
 
 
+def work_id_of(kind: str, stable_id: str) -> str:
+    """A row's ``work_id``: the one derivation every lane and every presence
+    event (``process_presence``) names a row by."""
+
+    return f"{kind}:{stable_id}"
+
+
 def work_row(
     *,
     kind: str,
@@ -180,7 +187,7 @@ def work_row(
     never replace a shared key, so every row keeps the one shape consumers read."""
 
     row = {
-        "work_id": f"{kind}:{stable_id}",
+        "work_id": work_id_of(kind, stable_id),
         "kind": kind,
         "label": label,
         "command": command,

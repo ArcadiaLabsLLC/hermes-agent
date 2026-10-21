@@ -130,7 +130,7 @@ class McpAdmissionOutcome:
     #: ``None`` when nothing registered. Carried on the outcome (rather than kept
     #: module-global) because the budget IS per-run: a new admission mints a new
     #: meter, and the old one dies with the run's registry scope.
-    call_budget: "McpCallBudget | None" = None
+    call_budget: McpCallBudget | None = None
     #: ``{server: "warm" | "cold"}`` as observed BEFORE this run registered
     #: anything — the one attribution that turns ``mcp_admission_ms`` from a
     #: number into an explanation. Empty when a caller supplied its own
@@ -220,7 +220,7 @@ class McpCallBudget:
     a bound that can be raced is not a bound.
     """
 
-    __slots__ = ("limit", "_lock", "_spent", "_refused", "_per_server")
+    __slots__ = ("_lock", "_per_server", "_refused", "_spent", "limit")
 
     def __init__(self, limit: int):
         self.limit = max(1, int(limit))
@@ -303,9 +303,9 @@ _ADMISSION_LINE_PREFIX = "- MCP tools:"
 
 
 def render_mcp_admission_line(
-    admission: "McpAdmission | None",
+    admission: McpAdmission | None,
     *,
-    outcome: "McpAdmissionOutcome | None" = None,
+    outcome: McpAdmissionOutcome | None = None,
 ) -> str:
     """One compact, agent-visible line naming what this turn did NOT get.
 
@@ -387,7 +387,7 @@ def render_mcp_admission_line(
 
 
 def _admitted_clause(
-    admission: "McpAdmission | None", denied_servers: "Mapping[str, str]"
+    admission: McpAdmission | None, denied_servers: Mapping[str, str]
 ) -> str:
     """The positive half of an admission — ``""`` when nothing was admitted.
 

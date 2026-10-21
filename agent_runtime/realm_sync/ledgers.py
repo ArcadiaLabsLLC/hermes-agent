@@ -8,7 +8,7 @@ lifts; plus the ledger's receipt rows for the status envelope.
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from typing import Any
 
 from ..models import Realm
@@ -56,7 +56,7 @@ def skill_tombstone_rows(realm: Realm) -> list[dict[str, Any]]:
     return [
         {
             "slug": entry.slug,
-            "deleted_at": entry.deleted_at.astimezone(timezone.utc).isoformat(),
+            "deleted_at": entry.deleted_at.astimezone(UTC).isoformat(),
             "deleted_hash": entry.deleted_hash,
         }
         for entry in sorted(active_skill_tombstones(realm), key=lambda item: item.slug)
@@ -91,7 +91,7 @@ _REALM_AUTHORITY_FIELDS = (
 _UNIONED_REALM_LEDGERS = ("skill_tombstones", "workspace_lifts", "deleted_workspace_ids")
 
 
-def _tombstone_transition_at(row: dict[str, Any]) -> "datetime | None":
+def _tombstone_transition_at(row: dict[str, Any]) -> datetime | None:
     """When this entry last CHANGED STATE — the union merge's comparison key.
 
     Not ``deleted_at``: after RD-11 an entry is a per-slug state register, and a
@@ -192,7 +192,7 @@ def _merge_state_register(
     ordered = sorted(
         merged.values(),
         key=lambda row: (
-            _tombstone_transition_at(row) or datetime.min.replace(tzinfo=timezone.utc),
+            _tombstone_transition_at(row) or datetime.min.replace(tzinfo=UTC),
             str(row.get(key) or ""),
         ),
     )

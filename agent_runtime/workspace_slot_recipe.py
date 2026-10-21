@@ -358,6 +358,7 @@ def _dotenv_state(step: dict[str, Any], row: dict[str, Any]) -> tuple[str, str |
 #: ``checkout`` probe → the clone step's ``(state, why)``; any other value is an unknown probe.
 _CHECKOUT_STATES = {
     "matches": (STATE_DONE, None),
+    "local": (STATE_DONE, None),
     "remote_mismatch": (STATE_WARNING, "remote_mismatch"),
     "not_a_repo": (STATE_TODO, "not_a_repo"),
     None: (STATE_UNKNOWN, UNKNOWN_PROBE_ABSENT),
@@ -453,8 +454,8 @@ __all__ = [
     "READY_YES",
     "RUN_MODES",
     "RecipeRefused",
-    "derived_steps",
     "derived_by_id",
+    "derived_steps",
     "materialize",
     "normalize_owner_step",
     "normalize_owner_steps",

@@ -8,14 +8,14 @@ request from ``agent.tools``, the ``llm_request`` middleware.
 
 from __future__ import annotations
 
-from tests.agent_runtime.test_chat_lane_cache_hit_downstream import (  # noqa: F401 — the fixtures
+from tests.agent_runtime.test_chat_lane_cache_hit_downstream import (  # the fixtures
     VAULT,
     _bytes,
     _register_late,
     _reset,
     chat,
 )
-from tests.agent_runtime.test_chat_lane_defer import _names, lane  # noqa: F401 — the fixture
+from tests.agent_runtime.test_chat_lane_defer import _names, lane  # the fixture
 
 
 def _receipt(agent):
@@ -192,7 +192,7 @@ def test_a_rebuilt_actor_restores_the_wire_form_from_the_pin(chat):
     *Killing mutations:* the factory leaves upstream's refresh on (its pin carries the deferred
     tools back; the owner rebuilds and publishes); the owner compares names, not bytes (without
     W2, B would keep its stale bridge -- see the h-cache-hit cross-chat test)."""
-    import tools.mcp_tool_agent as mcp_tool_agent
+    from tools import mcp_tool_agent
 
     new_actor, turn, raw, ledger = chat
     chat_b = new_actor("chat-x")

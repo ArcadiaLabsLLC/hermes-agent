@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import json
 import subprocess
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 from pathlib import Path
 
 import pytest
@@ -47,7 +47,7 @@ from agent_runtime.store import (
 from tests._downstream._seams import active_workspace_lifts
 from agent_runtime.profile_home import get_shared_skills_dir
 
-T0 = datetime(2026, 8, 31, 12, 0, 0, tzinfo=timezone.utc)
+T0 = datetime(2026, 8, 31, 12, 0, 0, tzinfo=UTC)
 
 
 def _stamp(offset_seconds: int) -> str:
@@ -341,7 +341,7 @@ def _set_ledger(realm_id: str, entries: list) -> None:
 def _seed_canonical(slug: str) -> Path:
     pkg = get_shared_skills_dir().joinpath(*slug.split("/"))
     pkg.mkdir(parents=True, exist_ok=True)
-    (pkg / "SKILL.md").write_bytes(f"---\nname: {slug}\n---\n# Live\n".encode("utf-8"))
+    (pkg / "SKILL.md").write_bytes(f"---\nname: {slug}\n---\n# Live\n".encode())
     return pkg
 
 
@@ -481,7 +481,7 @@ def test_a_delete_after_a_lift_supersedes_the_marker_end_to_end(tmp_path):
     # The re-delete's supersede stamp, written the way WorkspaceStore.delete
     # writes it (the workspace row itself is long gone in this fixture).
     item = RealmStore().get(realm.id)
-    item.workspace_lifts[0].deleted_at = datetime.now(timezone.utc)
+    item.workspace_lifts[0].deleted_at = datetime.now(UTC)
     RealmStore().save(item)
 
     pull_realm_sync(realm.id)

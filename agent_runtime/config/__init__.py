@@ -47,7 +47,7 @@ way.
 
 from __future__ import annotations
 
-from agent_runtime.config.schema import (  # noqa: F401 — the vocabulary
+from agent_runtime.config.schema import (  # the vocabulary
     MCP_ADMISSION_MAX_TOOL_CALLS_CEILING,
     MISSION_CHAT_MAX_COMPACTION_TOKENS,
     MISSION_CHAT_MAX_MAX_SECONDS,
@@ -57,14 +57,14 @@ from agent_runtime.config.schema import (  # noqa: F401 — the vocabulary
     TOOL_PERMISSION_DEFAULT_MODE_UNKNOWN,
     AgentRuntimeConfig,
 )
-from agent_runtime.config.sections import (  # noqa: F401 — THE section table + the test-pinned parsers
+from agent_runtime.config.sections import (  # THE section table + the test-pinned parsers
     SECTION_PARSERS,
     _event_log_config,
     _mcp_admission_config,
     _mission_chat_config,
     _read_model_config,
 )
-from agent_runtime.config.loader import (  # noqa: F401
+from agent_runtime.config.loader import (
     OVERRIDE_STATE_ABSENT,
     OVERRIDE_STATE_OVERRIDE_ONLY,
     OVERRIDE_STATE_REDUNDANT,
@@ -75,17 +75,17 @@ from agent_runtime.config.loader import (  # noqa: F401
     load_root_runtime_config,
     scan_misplaced_root_only_keys,
 )
-from agent_runtime.config.persona_records import (  # noqa: F401
+from agent_runtime.config.persona_records import (
     _expand_machine_root_tokens,
     merge_persisted_personas,
     persona_records_from_config,
     skill_sources_for,
 )
-from agent_runtime.config.roster import (  # noqa: F401
+from agent_runtime.config.roster import (
     ensure_persisted_personas,
     persona_skill_sources,
 )
-from agent_runtime.config.knobs import (  # noqa: F401
+from agent_runtime.config.knobs import (
     chat_lane_defer_tools,
     chat_lane_restore_toolsets,
     mission_chat_clarify_token_binding,
@@ -98,6 +98,7 @@ from agent_runtime.config.knobs import (  # noqa: F401
     mission_chat_workdir,
     resolve_mission_chat_dispatch_max_seconds,
     resolve_mission_chat_max_seconds,
+    scheduler_max_parallel,
 )
 
 __layer__ = "stores"

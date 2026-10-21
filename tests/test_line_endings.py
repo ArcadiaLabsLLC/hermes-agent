@@ -33,6 +33,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.gate
+
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -44,6 +46,15 @@ DELIBERATE_CRLF: frozenset[str] = frozenset({
     # carrying a normalising edit in an upstream file (lane FOOTPRINT-DROP,
     # 2026-09-27). Keeper: contributors/emails/.gitattributes.
     "contributors/emails/uperLu@users.noreply.github.com",
+    # Eternia-Companion's Lens conformance oracle, copied byte-for-byte: Companion
+    # commits these with CRLF and corpus_manifest.json pins Companion's own sha256
+    # over those bytes, so normalising them would break the oracle pin. Their
+    # `* -text` rule predates this entry (lens L0); the gate only lacked the name.
+    # Keeper: tests/agent_runtime/lens/conformance/.gitattributes.
+    "tests/agent_runtime/lens/conformance/episode_rearm_corpus.json",
+    "tests/agent_runtime/lens/conformance/evidence_corpus.json",
+    "tests/agent_runtime/lens/conformance/http_redaction_corpus.json",
+    "tests/agent_runtime/lens/conformance/observation_corpus.json",
 })
 
 #: `git ls-files --eol` index states that mean "this blob carries CR".

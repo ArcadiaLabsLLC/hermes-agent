@@ -205,13 +205,13 @@ def test_each_provider_sdk_the_wheel_omits_ships_as_its_own_pack():
     core = graph.closure(set(base) | set().union(*(extras[e] for e in manifest.packaging_extras)))
     providers = {name: pack for name, pack in manifest.packaging_packs.items() if name.startswith("provider-")}
     assert "speech" not in providers
+    # provider-mistral was dropped (owner ruling 2026-10-16): no dependency row reaches it.
     assert {pack for extras_ in providers.values() for pack in extras_} == {
-        "bedrock", "vertex", "azure-identity", "mistral"}
+        "bedrock", "vertex", "azure-identity"}
     for name, (extra,) in providers.items():
         assert name == f"provider-{extra}"
         added = graph.closure(core | set(extras[extra])) - core
-        sdk = {"bedrock": "boto3", "vertex": "google-auth", "azure-identity": "azure-identity",
-               "mistral": "mistralai"}[extra]
+        sdk = {"bedrock": "boto3", "vertex": "google-auth", "azure-identity": "azure-identity"}[extra]
         assert sdk in added, (name, sorted(added))
     omitted = {extra for extra in _PM_EXTRA_FOR_DISTRIBUTION.values() if extra not in manifest.packaging_extras}
     assert omitted <= {extra for (extra,) in providers.values()}

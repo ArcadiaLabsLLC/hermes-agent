@@ -156,7 +156,7 @@ def test_unknown_chat_session_send_refusal_is_durably_recorded(
     """An explicit session id that names no row in the canonical store."""
 
     db = _canonical_db()
-    harness = _chat_lane(monkeypatch, db)
+    _chat_lane(monkeypatch, db)
 
     code = chat_turn_message._cmd_mission_chat_message(
         _send_args(
@@ -186,7 +186,7 @@ def test_foreign_chat_session_send_refusal_is_durably_recorded(
     """A live root that exists, owned by a persona instance the caller is not."""
 
     db = _canonical_db()
-    harness = _chat_lane(monkeypatch, db)
+    _chat_lane(monkeypatch, db)
     owner = _owned_root(db, persona_id="dev", display_name="Dev")
 
     code = chat_turn_message._cmd_mission_chat_message(
@@ -224,9 +224,9 @@ def test_retired_persona_instance_send_refusal_is_durably_recorded(
     """
 
     db = _canonical_db()
-    harness = _chat_lane(monkeypatch, db)
+    _chat_lane(monkeypatch, db)
     store = PersonaInstanceStore()
-    instance = store.add_instance(persona_id="dev", placement_id="dev_agent_retired")
+    instance = store.add_instance(persona_id="dev", placement_id="dev_agent_retired_agent_1")
     db.create_session(
         instance.session_id,
         "agent_runtime_persona_chat",
@@ -274,7 +274,7 @@ def test_all_three_guard_refusals_satisfy_the_registered_event_contract(
     from agent_runtime.decision_contract_registry import validate_event_payload
 
     db = _canonical_db()
-    harness = _chat_lane(monkeypatch, db)
+    _chat_lane(monkeypatch, db)
 
     chat_turn_message._cmd_mission_chat_message(
         _send_args(

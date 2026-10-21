@@ -9,13 +9,18 @@ back.
 
 from __future__ import annotations
 
+import inspect
+
 import hermes_yaml
 
 from agent_runtime import yaml_io
 
 
 def test_load_is_upstreams_reader():
-    assert yaml_io.load is hermes_yaml.safe_load
+    # The suite's parse memo (``tests/_downstream/parse_memo.py``) re-binds ``hermes_yaml.safe_load``
+    # to a wrapper carrying ``__wrapped__``, so which side is wrapped depends on import order; the
+    # reader underneath both must be the same function.
+    assert inspect.unwrap(yaml_io.load) is inspect.unwrap(hermes_yaml.safe_load)
 
 
 def test_every_scalar_the_reader_would_retype_round_trips_through_dump():

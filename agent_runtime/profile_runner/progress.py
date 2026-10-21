@@ -26,8 +26,8 @@ __layer__ = "stores"
 __all__ = [
     "CALLBACK_EVENTS",
     "JOINED_CALLBACK_EVENTS",
-    "ProgressBuilder",
     "RUN_EVENTS",
+    "ProgressBuilder",
     "ToolFinishJoin",
     "_progress_adapter",
     "_progress_payload_from_callback",
@@ -111,9 +111,9 @@ def _progress_adapter(
             if event_type not in RUN_EVENTS and args and str(args[0]) in JOINED_CALLBACK_EVENTS:
                 if join is not None:
                     join.hold(_safe_label(args[1]) if len(args) > 1 else None, kwargs)
-                return None
+                return
             if event_type not in RUN_EVENTS and args and str(args[0]) == "reasoning.available" and is_reply_echo():
-                return None  # the reply relayed as thinking: no Thinking row that repeats the reply
+                return  # the reply relayed as thinking: no Thinking row that repeats the reply
             if join is not None and event_type == "run.tool.finished":
                 kwargs = {**join.claim(_safe_label(args[1]) if len(args) > 1 else None), **kwargs}
             payload = _progress_payload_from_callback(event_type, args, kwargs)
@@ -150,7 +150,7 @@ def _progress_adapter(
                             "next_expected": "stop_skill_loading_and_produce_proof_or_block",
                         }
                     )
-                    return None
+                    return
                 if guard.repeated_counts[key] >= 6 and key not in guard.warned:
                     guard.warned.add(key)
                     callback(
@@ -167,7 +167,7 @@ def _progress_adapter(
         except RunBudgetExceeded:
             raise
         except Exception:
-            return None
+            return
 
     return emit
 

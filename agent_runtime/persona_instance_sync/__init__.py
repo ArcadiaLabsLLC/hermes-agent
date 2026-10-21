@@ -81,7 +81,7 @@ drift/revert readers → ``sidecars`` / ``projection``.
 
 from __future__ import annotations
 
-from agent_runtime.persona_instance_sync.contract import (  # noqa: F401 — the contract names
+from agent_runtime.persona_instance_sync.contract import (  # the contract names
     PERSONA_INSTANCE_ALLOWED_KEYS,
     PERSONA_INSTANCE_DERIVED_KEYS,
     PERSONA_INSTANCE_LOCAL_ONLY_KEYS,
@@ -97,7 +97,7 @@ from agent_runtime.persona_instance_sync.contract import (  # noqa: F401 — the
     PersonaInstancePullSummary,
     cleared_travel_value,
 )
-from agent_runtime.persona_instance_sync.projection import (  # noqa: F401
+from agent_runtime.persona_instance_sync.projection import (
     PersonaInstanceProjection,
     instance_relative_path,
     persona_instance_def_hash,
@@ -107,7 +107,7 @@ from agent_runtime.persona_instance_sync.projection import (  # noqa: F401
     refuse_persona_instance,
     valid_persona_instance_id,
 )
-from agent_runtime.persona_instance_sync.sidecars import (  # noqa: F401
+from agent_runtime.persona_instance_sync.sidecars import (
     instance_baseline_key,
     instance_conflict_path,
     read_dropped_steering_ledger,
@@ -117,7 +117,7 @@ from agent_runtime.persona_instance_sync.sidecars import (  # noqa: F401
     write_dropped_steering_ledger,
     write_persona_instance_baseline,
 )
-from agent_runtime.persona_instance_sync.pull import (  # noqa: F401 — the mint door + two test-pinned helpers
+from agent_runtime.persona_instance_sync.pull import (  # the mint door + two test-pinned helpers
     _healable_dropped_parents,
     _remote_body_without_edges,
     apply_persona_instance_pull,

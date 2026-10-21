@@ -128,7 +128,7 @@ def test_restores_version_x_keeps_later_rows_and_writes_no_baseline(two_versions
 
 
 def test_a_row_archived_locally_after_x_is_restored(two_versions):
-    realm_id, ws, repo, version_x = two_versions
+    realm_id, ws, _repo, version_x = two_versions
     OfficeStore().remove_actor(ws, "dev")
 
     result = revert_realm_sync_to_version(realm_id, to=version_x, item_specs=[f"office_actor:{ws}:dev"])
@@ -138,7 +138,7 @@ def test_a_row_archived_locally_after_x_is_restored(two_versions):
 
 
 def test_dry_run_writes_nothing(two_versions):
-    realm_id, ws, repo, version_x = two_versions
+    realm_id, ws, _repo, version_x = two_versions
 
     result = revert_realm_sync_to_version(realm_id, to=version_x, revert_all=True, dry_run=True)
 

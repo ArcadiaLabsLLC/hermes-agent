@@ -86,7 +86,7 @@ def publish_realm_sync(
     *,
     dry_run: bool = False,
     membership: RealmMembershipProvider | None = None,
-    credential: "RealmSyncCredential | None" = None,
+    credential: RealmSyncCredential | None = None,
 ) -> dict[str, Any]:
     """Publish this realm: stage the subtree, commit and push, record every
     family's baseline, account. Each phase is its own function below."""
@@ -166,7 +166,7 @@ def _stage_commit_and_push(
     repo: Path,
     subtree: Path,
     artifacts: list[RealmSyncArtifact],
-    credential: "RealmSyncCredential | None",
+    credential: RealmSyncCredential | None,
 ) -> tuple[bool, list[str]]:
     """Rewrite the realm subtree when its canonical bytes changed, then commit and
     push. Returns whether a commit was made, and the subtree-relative paths whose
@@ -215,7 +215,10 @@ def _stage_commit_and_push(
         _ensure_git_identity(repo)
         _git(repo, "commit", "-m", f"Publish realm sync {realm.id}")
         try:
-            _git(repo, "push", extra_config=_credential_git_config(credential))
+            # No upstream yet (a personal repo adopted empty, p10-work §2.6): set it.
+            upstream = _git(repo, "rev-parse", "--abbrev-ref", "@{u}", check=False).strip()
+            push = ("push",) if upstream else ("push", "-u", "origin", "HEAD")
+            _git(repo, *push, extra_config=_credential_git_config(credential))
         except RealmSyncError as exc:
             raise RealmSyncError("sync_remote_unreachable", "Realm sync publish committed locally but could not push upstream.", retryable=True, safe_details=exc.safe_details) from exc
     return changed, changed_paths if changed else []
@@ -249,6 +252,7 @@ def _publish_accounting(resolved: _ResolvedPublish, *, office_baseline: dict[str
     # below already carry.
     rows["level_sync"] = _published_row(resolved.level_hashes, resolved.level_refused, published=published)
     rows["map_sync"] = _published_row(resolved.map_hashes, resolved.map_refused, published=published)
+    rows["prefab_sync"] = _published_row(resolved.prefab_hashes, resolved.prefab_refused, published=published)
     if resolved.instance_projection is not None:
         rows["persona_instance_projection"] = _persona_instance_row(
             resolved.instance_projection, resolved.instance_rows_unreadable
@@ -352,6 +356,14 @@ def _record_map_baseline(realm: Realm, resolved: _ResolvedPublish) -> None:
         update_map_baseline_after_publish(realm.id, dict(resolved.map_hashes))
 
 
+def _record_prefab_baseline(realm: Realm, resolved: _ResolvedPublish) -> None:
+    # The map family's discipline: a held shelf over the bytes just shipped.
+    from ..prefab_store import update_prefab_baseline_after_publish
+
+    if resolved.prefab_hashes:
+        update_prefab_baseline_after_publish(realm.id, dict(resolved.prefab_hashes))
+
+
 #: Every family whose baseline a publish records, in the order they are
 #: recorded. ``_record_publish_baselines`` iterates this and nothing else; the
 #: skill family is the one exception, and ``publish_realm_sync`` says why.
@@ -364,6 +376,7 @@ BASELINE_FAMILIES: Final[tuple[tuple[SyncFamily, Callable[[Realm, _ResolvedPubli
     (SyncFamily.FLOW_GRAPH, _record_flow_graph_baseline),
     (SyncFamily.LEVEL, _record_level_baseline),
     (SyncFamily.MAP, _record_map_baseline),
+    (SyncFamily.PREFAB, _record_prefab_baseline),
 )
 
 
@@ -375,18 +388,20 @@ def _record_publish_baselines(realm: Realm, resolved: _ResolvedPublish) -> dict[
     for family, record in BASELINE_FAMILIES:
         try:
             receipts[family] = record(realm, resolved)
-        except Exception:  # noqa: BLE001 — baseline is best-effort; never fail publish
+        except Exception:  # baseline is best-effort; never fail publish
             receipts[family] = None
     return receipts
 
 
-def _notify_publish(realm: Realm, *, repo: Path, artifacts: list[RealmSyncArtifact], credential: "RealmSyncCredential | None") -> list[dict[str, Any]]:
+def _notify_publish(realm: Realm, *, repo: Path, artifacts: list[RealmSyncArtifact], credential: RealmSyncCredential | None) -> list[dict[str, Any]]:
     """Best-effort counts-only publish notification (Stage 43 C4).
 
     A notify failure is downgraded to a ``warnings[]`` entry on the success
     envelope — the publish itself already landed and must not be failed.
     """
-    if credential is None:
+    if credential is None or not credential.has_backend_realm:
+        # A local realm's credential (``local:<id>``) has no backend realm row,
+        # so there is no notify route and no ``realm:`` channel to fan out on.
         return []
     commit = _git(repo, "rev-parse", "HEAD", check=False).strip()
     counts: dict[str, int] = {}
@@ -440,7 +455,7 @@ def _record_skill_publish_baseline(realm: Realm, *, subtree: Path) -> None:
                 for slug, package_dir in publishable_skill_packages(realm)
             },
         )
-    except Exception:  # noqa: BLE001 — baseline is best-effort; never fail publish
+    except Exception:  # baseline is best-effort; never fail publish
         logger.exception("skill baseline write failed after publish for realm %s", realm.id)
     try:
         _mirror_realm_skill_inbox(
@@ -448,7 +463,7 @@ def _record_skill_publish_baseline(realm: Realm, *, subtree: Path) -> None:
             realm_inbox_dir(realm.id),
             tombstoned=lambda slug: skill_tombstoned(realm, slug) is not None,
         )
-    except Exception:  # noqa: BLE001 — the mirror is a cache the next pull rebuilds
+    except Exception:  # the mirror is a cache the next pull rebuilds
         logger.exception("skill inbox re-mirror failed after publish for realm %s", realm.id)
 
 
@@ -502,7 +517,7 @@ def _residual_drift(realm: Realm, resolved: _ResolvedPublish, receipts: dict[Syn
     }
     try:
         items = store_drift_items(realm.id, _workspaces_for_realm(realm))
-    except Exception:  # noqa: BLE001 — accounting never fails a landed publish
+    except Exception:  # accounting never fails a landed publish
         logger.exception("residual drift walk failed after publish for realm %s", realm.id)
         return []
     rows = []

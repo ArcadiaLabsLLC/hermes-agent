@@ -16,9 +16,9 @@ __layer__ = "models"
 
 __all__ = [
     "SNAPSHOT_CONTRACT_VERSION",
+    "_SNAPSHOT_BUILD_CONTEXT",
     "SnapshotBuildContext",
     "SnapshotSummary",
-    "_SNAPSHOT_BUILD_CONTEXT",
     "logger",
     "snapshot_build_context_scope",
 ]

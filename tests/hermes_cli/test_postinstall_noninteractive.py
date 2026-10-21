@@ -7,13 +7,13 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 
-import hermes_cli._downstream_cli as _downstream_cli
+from hermes_cli import _downstream_cli
 import hermes_cli.path_setup as _path_setup
 
 def _patch_common(monkeypatch, calls, *, stub_shim: bool = True):
     """Patch the side-effecting bits of cmd_postinstall for a hermetic run."""
     import hermes_cli.main as main_mod
-    import hermes_cli.path_setup as path_setup
+    from hermes_cli import path_setup
     import pm
     import pm.shell
 
@@ -65,7 +65,7 @@ def test_postinstall_yes_bootstraps_without_provider_setup(monkeypatch, capsys):
 
 def test_postinstall_json_emits_summary_as_final_line(monkeypatch, capsys):
     calls: list[tuple[str, object]] = []
-    main_mod = _patch_common(monkeypatch, calls)
+    _patch_common(monkeypatch, calls)
 
     _downstream_cli.cmd_postinstall(
         SimpleNamespace(yes=True, non_interactive=False, json=True)
@@ -102,7 +102,7 @@ def test_postinstall_writes_its_shim_inside_the_sandbox_and_nowhere_else(
     former read-back of the real install dir, which is why that snapshot left.
     """
     calls: list[tuple[str, object]] = []
-    main_mod = _patch_common(monkeypatch, calls, stub_shim=False)
+    _patch_common(monkeypatch, calls, stub_shim=False)
 
     # A resolvable target, so the run reaches the write instead of refusing.
     console_script = tmp_path / "venv" / (
@@ -138,7 +138,7 @@ def test_postinstall_says_out_loud_when_it_refuses_to_write_the_shim(
     branch, so a human running `hermes postinstall` was told nothing at all.
     """
     calls: list[tuple[str, object]] = []
-    main_mod = _patch_common(monkeypatch, calls)
+    _patch_common(monkeypatch, calls)
     monkeypatch.setattr(
         _path_setup, "register_hermes_command",
         lambda home: _path_setup.PathSetupResult(

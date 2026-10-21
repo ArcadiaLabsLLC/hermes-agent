@@ -19,7 +19,7 @@ from hermes_cli.sqlite_util import transaction
 
 from .definition_store import DefinitionStore, _encode
 from .definitions import DefinitionError, ParticipantRef, identifier, revision
-from .run_values import DiscussionError, text as text, digest, member_id
+from .run_values import DiscussionError, text, digest, member_id
 from .run_schema import run_schema_ready, initialize_runs
 from .run_records import read_run_record, _advance, _expect_run, _add_member, claim_table_member
 from .run_admission import admit, table_admission, room_admission
@@ -197,6 +197,21 @@ class RunStore:
             run = read_run_record(conn, run_id)
             if run.get("error") != reason:
                 conn.execute("UPDATE mc_discussion_runs SET error=? WHERE run_id=?", (reason, run_id))
+                _advance(conn, run)
+
+    def with_error(self, phase: str, reason: str) -> list[dict[str, Any]]:
+        """Runs in ``phase`` whose error is ``reason`` (a start-up sweep's mark)."""
+        with closing(self.connect()) as conn:
+            ids = conn.execute("SELECT run_id FROM mc_discussion_runs WHERE phase=? AND error=? ORDER BY created_at",
+                               (phase, reason)).fetchall()
+            return [read_run_record(conn, row[0]) for row in ids]
+
+    def replace_error(self, run_id: str, old: str, new: str | None) -> None:
+        """Swap the error ``old`` for ``new`` (``None`` clears it); any other error stays."""
+        with transaction(self.connect(), immediate=True) as conn:
+            run = read_run_record(conn, run_id)
+            if run.get("error") == old and old != new:
+                conn.execute("UPDATE mc_discussion_runs SET error=? WHERE run_id=?", (new, run_id))
                 _advance(conn, run)
 
     def commands(self, run_id: str) -> list[dict[str, Any]]:

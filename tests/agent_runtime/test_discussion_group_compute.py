@@ -7,6 +7,7 @@ from agent_runtime.discussions.native_context import NativeContext
 from agent_runtime.discussions.service import DiscussionService
 from tests.agent_runtime.native_recovery_provider import RecoveryProvider, until
 from tests.agent_runtime.test_discussion_profile_groups import create, act
+from tests.agent_runtime.test_discussion_runtime import NATIVE_LEASE_TTL, room_timings
 
 pytestmark = pytest.mark.timeout(120)
 
@@ -18,7 +19,7 @@ def test_compute_question_lost_answer_ack_and_confirmed_stop(tmp_path, monkeypat
     provider.configure(tmp_path / "a", compute=True)
     conversations = ConversationService(tmp_path / "runtime", "install", profile_home=lambda p: tmp_path / p)
     context = NativeContext(tmp_path / "runtime", tmp_path / "home", "install")
-    service = DiscussionService(context, active_poll_interval=.05, conversations=lambda: conversations)
+    service = DiscussionService(context, **room_timings(.05, lease_ttl=NATIVE_LEASE_TTL), conversations=lambda: conversations)
     service.start()
     try:
         run = create((service, conversations, None, tmp_path))

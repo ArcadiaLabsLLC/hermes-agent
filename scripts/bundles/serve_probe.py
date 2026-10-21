@@ -30,7 +30,7 @@ _TIMEZONE_PROBE = (
 def named_timezone_problems(site: Path, python: Path | str = sys.executable) -> list[str]:
     """``zoneinfo`` resolves :data:`NAMED_TIMEZONE` from ``site`` alone (``-I -S``, no TZPATH)."""
     done = subprocess.run([str(python), "-I", "-S", "-B", "-c", _TIMEZONE_PROBE, str(site), NAMED_TIMEZONE],
-                          capture_output=True, text=True, timeout=120)
+                          capture_output=True, text=True, timeout=120, check=False)
     if done.returncode == 0:
         return []
     last = (done.stderr.strip().splitlines() or ["(no output)"])[-1]
@@ -87,7 +87,7 @@ def _spawned_modules(path: Path) -> list[str]:
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", SyntaxWarning)
-            tree = ast.parse(path.read_text(encoding="utf-8"))
+            tree = ast.parse(path.read_text(encoding="utf-8-sig"))
     except (SyntaxError, UnicodeDecodeError):
         return []
     found = []
@@ -127,7 +127,7 @@ def serve_import_problems(out: Path, first_party: set[str], index: dict[str, Pat
     what ``hermes harness serve`` loads: its handler (from the bundle's own parser), that handler's
     lazy imports and theirs, and the ``-m`` children a shipped module spawns (conversation workers)."""
     done = subprocess.run([str(python), "-c", "import sys; print('%d.%d' % sys.version_info[:2])"],
-                          capture_output=True, text=True, timeout=60)
+                          capture_output=True, text=True, timeout=60, check=False)
     have, want = done.stdout.strip(), ".".join(python_version.split(".")[:2])
     if have != want:
         return [f"serve import probe needs a CPython {want} interpreter (--python); {python} is {have or '?'}"]
@@ -140,7 +140,7 @@ def serve_import_problems(out: Path, first_party: set[str], index: dict[str, Pat
                                str(out / "site-packages"), str(table), json.dumps(list(SERVE_ARGV)),
                                str(out / FORCED_TREE_DIR) if (out / FORCED_TREE_DIR).is_dir() else ""],
                               capture_output=True, text=True, timeout=300, env=env, cwd=scratch,
-                              stdin=subprocess.DEVNULL)
+                              stdin=subprocess.DEVNULL, check=False)
     lines = done.stdout.strip().splitlines()
     if done.returncode != 0 or not lines:
         last = (done.stderr.strip().splitlines() or ["(no output)"])[-1]

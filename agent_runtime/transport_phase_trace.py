@@ -144,4 +144,28 @@ def install_transport_phase_trace(agent: Any, client: Any) -> None:
         logger.debug("transport phase trace install skipped", exc_info=True)
 
 
-__all__ = ["TRACE_EVENT_STEPS", "install_transport_phase_trace", "phase_trace_for"]
+#: API modes whose request client is hooked where the stream OPENS, not at checkout: the Codex
+#: Responses stream installs in ``codex_runtime._open_codex_stream``, so its ``client_built`` keeps
+#: meaning "the stream open begins".
+_HOOKED_AT_STREAM_OPEN = frozenset({"codex_responses"})
+
+
+def install_request_client_trace(agent: Any, client: Any, *, reason: str = "") -> None:
+    """Hook the OpenAI-SDK request client a turn checks out (chat completions and the rest).
+
+    Before it only the Anthropic checkout and the Codex stream open were hooked, so a chat
+    completions turn never marked ``request_sent`` and ``provider_request_dispatched`` could
+    not be positive on it (runtime-queue row "Provider request-start evidence ..."). The
+    pre-connect's checkout (``reason="prewarm_preconnect"``) is not a turn and is skipped.
+    Never raises.
+    """
+
+    try:
+        if reason == "prewarm_preconnect" or str(getattr(agent, "api_mode", "") or "") in _HOOKED_AT_STREAM_OPEN:
+            return
+        install_transport_phase_trace(agent, client)
+    except Exception:
+        logger.debug("request client trace not installed", exc_info=True)
+
+
+__all__ = ["TRACE_EVENT_STEPS", "install_request_client_trace", "install_transport_phase_trace", "phase_trace_for"]

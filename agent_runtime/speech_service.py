@@ -256,7 +256,7 @@ def _stt_config() -> dict:
         from hermes_cli.config import load_config
 
         config = dict(load_config().get("stt") or {})
-    except Exception:  # noqa: BLE001 - an unreadable config is upstream's defaults
+    except Exception:  # an unreadable config is upstream's defaults
         config = {}
     config.setdefault("language", "en")
     return config
@@ -268,7 +268,7 @@ def _configured_paths() -> tuple[Any, Any]:
         from hermes_cli.config import load_config
 
         config = load_config()
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None, None
     stt = ((config.get("stt") or {}).get("local") or {}).get("model")
     tts = ((config.get("tts") or {}).get("piper") or {}).get("voice")
@@ -449,7 +449,7 @@ class SpeechService:
                 model = self.engines.load_stt(path, device="cpu", compute_type="int8")
             else:
                 model = self.engines.load_tts(path, preset=view.get("preset"))
-        except Exception as exc:  # noqa: BLE001 - a load failure is a typed state, never a raise
+        except Exception as exc:  # a load failure is a typed state, never a raise
             self.authority.release(slot.holder)
             with self._lock:
                 slot.state, slot.path, slot.model, slot.reserved = "unloaded", None, None, 0
@@ -481,7 +481,7 @@ class SpeechService:
         if slot.kind == "tts" and slot.model is not None:
             try:
                 self.engines.unload_tts()
-            except Exception:  # noqa: BLE001 - the reference is dropped either way
+            except Exception:  # the reference is dropped either way
                 pass
         slot.model, slot.state, slot.path, slot.reserved = None, "unloaded", None, 0
         slot.preset, slot.presets = None, []
@@ -605,7 +605,7 @@ class SpeechService:
                         {"stream_id": stream.stream_id, "index": stream.partials, "text": text,
                          "audio_ms": _ms(total)})
             return (total, text) if whole else None
-        except Exception:  # noqa: BLE001 - a partial is a preview; the final is the answer
+        except Exception:  # a partial is a preview; the final is the answer
             return None
         finally:
             stream.partial_running = False

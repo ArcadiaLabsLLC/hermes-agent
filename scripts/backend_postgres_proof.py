@@ -190,6 +190,7 @@ def run(argv: list[str] | None = None) -> int:
         cwd=str(backend_root),
         text=True,
         timeout=args.timeout_seconds,
+        check=False,
     )
     return completed.returncode
 

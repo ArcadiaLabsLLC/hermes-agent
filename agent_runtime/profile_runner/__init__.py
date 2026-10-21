@@ -42,7 +42,7 @@ import time
 from hermes_cli.profiles import get_profile_dir, normalize_profile_name, profile_exists
 from hermes_cli.runtime_provider import resolve_runtime_provider
 from agent_runtime.profile_context import persona_profile_context
-from agent_runtime.profile_runner import (  # noqa: F401 — every family, in the original definition order
+from agent_runtime.profile_runner import (  # every family, in the original definition order
     errors,
     models,
     budget,
@@ -110,18 +110,18 @@ from agent_runtime.profile_runner.model_input_observability import (
 __layer__ = "lanes"
 
 __all__ = [
+    "RUNTIME_RESOLVE_CACHE_TTL_SECONDS",
+    "_TODO_STATE_MAX_CONTENT",
+    "_TODO_STATE_MAX_ITEMS",
+    "_WORKDIR_LOCK",
     "AgentRunRequest",
     "AgentRunResult",
     "PrewarmYielded",
     "ProfileAgentRunner",
     "ProfileRunnerError",
-    "RUNTIME_RESOLVE_CACHE_TTL_SECONDS",
     "RunBudgetExceeded",
     "WallBudgetCheckpoint",
-    "_TODO_STATE_MAX_CONTENT",
-    "_TODO_STATE_MAX_ITEMS",
     "_ToolBudgetGuard",
-    "_WORKDIR_LOCK",
     "_agent_chat_target_label",
     "_agent_workdir",
     "_apply_chat_compaction_threshold",

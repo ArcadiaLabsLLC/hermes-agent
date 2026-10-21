@@ -9,6 +9,7 @@ from typing import Any
 
 from hermes_cli.profiles import get_profile_dir, normalize_profile_name, profile_exists
 from agent_runtime.profile_home import PersonaProfileBinding
+from agent_runtime.receipt_sink import ReceiptSink
 
 from agent_runtime.profile_runner.models import AgentRunRequest
 
@@ -50,18 +51,33 @@ def _emit_request_timing(request: AgentRunRequest, timing_key: str, started: flo
 
 class StatusEmitter:
     """The run's status callback: records the agent's profile timings into the
-    run's ``timing`` and forwards every payload to the request's progress
+    run's ``timing`` and forwards every receipt to the request's progress
     callback (a forwarding failure is swallowed — an instrument never fails a run).
+
+    The agent holds :meth:`sink`: upstream's ``(kind, text)`` calls reach
+    :meth:`status`, the fork's dict receipts reach :meth:`receipt`
+    (``agent_runtime/receipt_sink.py``) — one shape per door.
     """
 
     def __init__(self, request: AgentRunRequest, timing: dict[str, Any]) -> None:
         self.request = request
         self.timing = timing
 
-    def emit(self, payload: Any) -> None:
-        if isinstance(payload, dict):
-            self._record_timing_key(payload)
-            self._record_timing_values(payload.get("timing_values"))
+    def sink(self) -> ReceiptSink:
+        return ReceiptSink(self.receipt, self.status)
+
+    def status(self, kind: str, text: Any = None) -> None:
+        """Upstream's two-argument ``status_callback(kind, text)``. Only the
+        compaction lifecycle crosses; every other kind stays a CLI line."""
+        from agent_runtime.conversation_observability import compaction_progress_payload
+
+        payload = compaction_progress_payload(kind, text)
+        if payload is not None:
+            self.receipt(payload)
+
+    def receipt(self, payload: dict) -> None:
+        self._record_timing_key(payload)
+        self._record_timing_values(payload.get("timing_values"))
         callback = self.request.progress_callback
         if callback is not None:
             try:
@@ -100,8 +116,8 @@ class StatusEmitter:
                 self.timing[f"profile_{key}"] = parsed
 
 
-def _profile_status_callback(request: AgentRunRequest, timing: dict[str, Any]):
-    return StatusEmitter(request, timing).emit
+def _profile_status_callback(request: AgentRunRequest, timing: dict[str, Any]) -> ReceiptSink:
+    return StatusEmitter(request, timing).sink()
 
 
 def _binding_for_profile(profile: str | None) -> PersonaProfileBinding:

@@ -170,7 +170,6 @@ def _message_args(*, instance_id: str, session_id: str):
 def test_a_dragged_in_agent_is_not_refused_its_own_chat_pointer(
     qa_persona, harness_with_stub_provider, capsys
 ):
-    harness = harness_with_stub_provider
     created = _drag_in_an_agent("qa_agent_first_message_agent_2")
     root = created["default_chat_session_id"]
 
@@ -214,7 +213,6 @@ def test_the_created_root_is_the_one_the_turn_actually_threads_onto(
 
     from agent_runtime.persona_chat_durability import default_persona_session_db
 
-    harness = harness_with_stub_provider
     created = _drag_in_an_agent("qa_agent_threaded_agent_2")
     root = created["default_chat_session_id"]
 

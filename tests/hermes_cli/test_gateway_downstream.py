@@ -5,9 +5,9 @@ Same names, same bodies; the upstream file is byte-identical to upstream.
 
 import sys
 from types import ModuleType
-import hermes_cli.gateway as gateway
+from hermes_cli import gateway
 
-from tests.hermes_cli.test_gateway import (  # noqa: F401 — upstream names the moved tests use
+from tests.hermes_cli.test_gateway import (  # upstream names the moved tests use
     inert_task_scheduler_probe,
 )
 
@@ -20,7 +20,7 @@ def _install_fake_gateway_run(monkeypatch, start_gateway):
         if code:
             raise SystemExit(code)
 
-    setattr(module, "_exit_after_graceful_shutdown", _exit_after_graceful_shutdown)
+    module._exit_after_graceful_shutdown = _exit_after_graceful_shutdown
     monkeypatch.setitem(sys.modules, "gateway.run", module)
     # ``run_gateway()`` calls ``refresh_systemd_unit_if_needed()`` on every
     # invocation so that restart settings stay current after exit-code-75

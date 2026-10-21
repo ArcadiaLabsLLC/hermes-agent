@@ -967,3 +967,38 @@ def test_every_conflict_reason_reaches_the_caller_as_4090_and_its_own_word(
     assert outcome.result is None
     assert outcome.refusal.code == ERR_CONFLICT
     assert outcome.refusal.data["reason"] == reason
+
+
+def test_a_store_code_nobody_listed_is_not_silently_a_conflict(
+    qa_persona, seeded_workspace, monkeypatch
+):
+    """The mapping reads ``CONFLICT_REASONS`` (plan l5-17-test-only-names, bucket C).
+
+    The test above is the positive control: a listed code answers 4090. An
+    unlisted one answers the generic handler failure with its word intact.
+    """
+
+    from agent_runtime.agent_retire import CONFLICT_REASONS, ERR_HANDLER_FAILED
+    from agent_runtime.persona_assignments import (
+        PersonaInstanceRetireError,
+        PersonaInstanceStore,
+    )
+
+    assert "guard_nobody_listed" not in CONFLICT_REASONS
+    placed = _place(placement_id="qa_conflict_unlisted_agent_3")
+    instance_id = placed["persona_instance_id"]
+
+    def _refuse(self, persona_instance_id, **kwargs):
+        raise PersonaInstanceRetireError(
+            "guard_nobody_listed",
+            "refused: guard_nobody_listed",
+            persona_instance_id=persona_instance_id,
+        )
+
+    monkeypatch.setattr(PersonaInstanceStore, "retire", _refuse)
+
+    outcome = perform_agent_retire({"persona_instance_id": instance_id})
+
+    assert outcome.result is None
+    assert outcome.refusal.code == ERR_HANDLER_FAILED
+    assert outcome.refusal.data["reason"] == "guard_nobody_listed"

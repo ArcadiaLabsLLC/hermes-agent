@@ -587,7 +587,7 @@ def test_an_unknown_bare_persona_is_refused_and_provably_wrote_nothing(qa_person
 
     assert set(_instances()) == before_instances
     assert not paths.persona_instance_path("personainst_qa_agent_probe_agent_2").exists()
-    digest = hashlib.sha256("gesture-1".encode("utf-8")).hexdigest()
+    digest = hashlib.sha256(b"gesture-1").hexdigest()
     assert not paths.agent_create_reservation_path(digest).exists()
     assert _event_count() == before_events
     assert _actors() == {}

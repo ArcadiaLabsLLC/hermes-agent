@@ -20,9 +20,11 @@ __layer__ = "lanes"
 __all__ = [
     "_METHODS",
     "_METHOD_TIERS",
+    "_ensure_batch_methods",
     "_ensure_conversation_methods",
     "_ensure_discussion_methods",
     "_ensure_local_llama_methods",
+    "_ensure_messaging_methods",
     "_ensure_work_methods",
     "manifest",
     "method",
@@ -121,6 +123,24 @@ def _ensure_work_methods():
         register(method)
 
 
+def _ensure_batch_methods():
+    from ..loop_tool_lifecycles import shipped
+
+    # The batch dispatcher rides Work (dispatcher plan §3); the phone wheel ships neither.
+    if "runtime.batch.plan" not in _METHODS and shipped("agent_runtime.batch") and shipped("agent_runtime.work"):
+        from ..batch.rpc import register
+        register(method)
+
+
+def _ensure_messaging_methods():
+    from ..loop_tool_lifecycles import shipped
+
+    # p10-messaging: both bundle manifests switch the package off, so a bundled build has no such methods.
+    if "runtime.messaging.status" not in _METHODS and shipped("agent_runtime.messaging"):
+        from ..messaging.rpc import register
+        register(method)
+
+
 def method_names() -> list[str]:
     # Registration is lazy to keep imports one-directional and avoid eager
     # filesystem/process work on every client of the method manifest.
@@ -128,6 +148,8 @@ def method_names() -> list[str]:
     _ensure_discussion_methods()
     _ensure_conversation_methods()
     _ensure_work_methods()
+    _ensure_batch_methods()
+    _ensure_messaging_methods()
     return sorted(_METHODS)
 
 
@@ -191,9 +213,20 @@ def manifest() -> dict[str, Any]:
     2026-10-10): ``serve_rpc.twin_params.TWIN_METHOD_PARAMS`` and the
     ``runtime.board.*`` writes from ``board.BOARD_METHOD_PARAMS`` (characters, health,
     the five chat-family verbs and the ten ``runtime.realm.*`` verbs in the first).
+
+    ``limits`` says how much a client may SEND, under the same additive rule.
+    ``operator_text`` is ``operator_message.operator_text_admission()``: the length
+    every operator-text door (``runtime.chat.message``, ``runtime.chat.steer``,
+    ``runtime.operator.conversation.message``, the CLI) admits, and the unit it counts
+    in, so a composer can refuse before send instead of copying the number.
+    ``files`` is ``operator_files.files_limits()`` — the native conversation lane's
+    ``files_capability()``, one owner of the number (D2.01) — the bound on
+    ``runtime.chat.message``'s ``files`` (RT-MISSION-CHAT-MESSAGE-TAKES).
     """
 
     from ..chat_turn import CHAT_TURN_METHOD_PARAMS
+    from ..operator_files import files_limits
+    from ..operator_message import operator_text_admission
     from ..persona_open_chat import OPEN_CHAT_METHOD, OPEN_CHAT_METHOD_PARAMS
     from .board import BOARD_METHOD_PARAMS
     from .twin_params import TWIN_METHOD_PARAMS
@@ -212,4 +245,5 @@ def manifest() -> dict[str, Any]:
                 **SUBAGENT_METHOD_PARAMS,
             }.items())
         },
+        "limits": {"operator_text": operator_text_admission(), "files": files_limits()},
     }

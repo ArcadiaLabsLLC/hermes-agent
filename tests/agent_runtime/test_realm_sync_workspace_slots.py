@@ -7,7 +7,7 @@ Key-wise at three depths: slot names union, a slot's record by newest recipe rev
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 
 import pytest
 
@@ -187,7 +187,7 @@ def test_a_peer_document_filed_under_another_workspace_is_refused_whole(tmp_path
 
 # ── a peer's machines block and stamps are not taken on trust (row h-trust) ──
 
-NOW = datetime(2026, 10, 5, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 5, 12, 0, tzinfo=UTC)
 FAR_FUTURE = "2999-01-01T00:00:00+00:00"
 
 
@@ -225,7 +225,7 @@ def _refusals(summary: dict) -> list[tuple]:
 
 def _declare_now(workspace: str) -> dict:
     return declare(workspace, [{"name": "launcher", "repo": {"clone_url": "https://x/launcher.git"}}],
-                   issued_at=datetime.now(timezone.utc).isoformat(), machine="mach_local")
+                   issued_at=datetime.now(UTC).isoformat(), machine="mach_local")
 
 
 def test_a_peer_copy_of_this_machines_report_never_replaces_it(tmp_path):

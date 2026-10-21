@@ -5,27 +5,7 @@ tags: [operations, testing, gates]
 
 # Testing & Gates
 
-Every check this repo has, who runs it, and what it protects. There is no push gate ([[0002 — No push gates, checks are tests]]) — a check is only real when someone runs it. How to run the suite itself: [[Running the tests]].
-
-## The gates (run at a landing, concurrently)
-
-| gate | command / test | protects | shrinks-only list? |
-|---|---|---|---|
-| fork landing gate | `scripts/run_tests_bundled.sh tests` (`--scope fork`: every fork test + the upstream tests the change reaches) | everything the change can break; minutes ([[Running the tests]]) | — |
-| full scope (weekly upstream merge only; not on a workstation while the P0 freeze row is open) | `scripts/run_tests_bundled.sh --scope full tests` | upstream's untouched code too; ~1 h+ | — |
-| CLI contract | `scripts/dump_cli_contract.py --check` ↔ `tests/hermes_cli/test_cli_contract_dump.py` | the launcher's argv buttons | — |
-| payload contract | `scripts/dump_payload_contract.py --check` ↔ `tests/hermes_cli/test_payload_contract_dump.py` | the launcher's character keys | — |
-| doc-cite adjacency | `scripts/doc_cite_adjacency.py --exclude archive --exclude planned` (RULED scope; the bare walk is red by 829 by ruling) | canon anchors point at real code | — |
-| docket stage claims | `tests/test_docket_stage_claims.py` | a plan that says EXECUTED names a SHA in this history | — (one pre-existing red, queue row) |
-| frozen HERMES_HOME | `tests/test_no_frozen_hermes_home.py` | call-time home resolution | yes |
-| tombstone registry | `tests/agent_runtime/test_tombstone_registry.py` | deleted symbols stay deleted (census ≥ 703; loops expand literals — never grep-count) | yes |
-| duplicate helper bodies | `tests/agent_runtime/test_duplicate_helper_bodies.py` (`_GRANDFATHERED`) | one authority per helper; widened by the refactor's W0-G3 | yes |
-| changed-line mutation | `scripts/changed_line_mutation_check.py` (`--list --base origin/main` is safe unattended; a real run takes `.mutation_gate.lock`) | every claimed test line still kills its mutation | — |
-| coverage claims | `scripts/run_tests.sh tests/test_coverage_claims_resolve.py tests/scripts` | citations resolve; outside the validated four dirs, run by nobody unless named | — |
-| toolset manifest | `scripts/dump_toolset_manifest.py` ↔ `tests/agent_runtime/test_harness_tool_inventory.py` | the fork's tool inventory | — |
-| test-env drift | `scripts/check_test_env_drift.py` | the hermetic env the runner builds | — |
-| upstream sync gate | `scripts/upstream_sync_gate.py` | (read it — queue row) | — |
-| **refactor gates (Wave 0, planned)** | `tests/tooling/test_downstream_size_ceiling.py` (`[ds-size]`), `test_refactor_stays_downstream.py`, `test_harness_namespace_is_thin.py` | 800-line ceiling, upstream fence, no silent patch no-ops | yes |
+Which checks exist and what each guarantees is the canon's [gate directory](../../docs/agent-runtime-harness/11-gate-directory.md) (kept current by `tests/tooling/test_gate_directory_current.py`). There is no push gate ([[0002 — No push gates, checks are tests]]) — a check is only real when someone runs it. How and when to run them: [[Running the tests]]. This note keeps the operational side: the unattended run, CI, and positive controls.
 
 ## Unattended
 

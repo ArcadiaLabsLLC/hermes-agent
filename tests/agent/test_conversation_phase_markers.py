@@ -26,7 +26,8 @@ from agent_runtime.conversation_observability import (
     CONVERSATION_TURN_CONTEXT_BUILT_STEP,
 )
 from agent_runtime.persona_turn_binding import bind_persona_turn_agent
-from tests.agent.test_request_assembled_marker import loop_agent  # noqa: F401 - fixture
+from agent_runtime.receipt_sink import ReceiptSink
+from tests.agent.test_request_assembled_marker import loop_agent  # fixture
 
 _STEPS = (
     CONVERSATION_STARTED_STEP,
@@ -38,7 +39,7 @@ _STEPS = (
 )
 
 
-def test_loop_stamps_fire_in_turn_order_before_the_provider_call(loop_agent):  # noqa: F811
+def test_loop_stamps_fire_in_turn_order_before_the_provider_call(loop_agent):
     from tests.agent.test_run_agent import _mock_response
 
     order: list[str] = []
@@ -47,7 +48,7 @@ def test_loop_stamps_fire_in_turn_order_before_the_provider_call(loop_agent):  #
         if isinstance(payload, dict) and payload.get("phase") == "timing" and payload.get("step") in _STEPS:
             order.append(payload["step"])
 
-    loop_agent.status_callback = _observe
+    loop_agent.status_callback = ReceiptSink(_observe)
 
     def _provider_call(*args, **kwargs):
         order.append("provider_call")

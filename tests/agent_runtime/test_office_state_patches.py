@@ -221,11 +221,11 @@ def test_patch_carries_the_post_write_revision_not_the_pre_write_one(
     stored = seeded_office.get_actor(WORKSPACE, "personainst_qa_agent_0001")
     assert stored.revision == 3  # seeded at 2
 
-    patch = [
+    patch = next(
         e.payload
         for _, e in EventLog().iter_from_offset(before)
         if e.type == STATE_PATCHED_EVENT_TYPE
-    ][0]
+    )
     assert patch["changed"]["revision"] == 3
 
 
@@ -270,11 +270,11 @@ def test_office_actor_patch_is_small_against_the_office_row(seeded_office, set_d
     set_delta_patches(True)
     before = _log_end()
     seeded_office.upsert_actor(WORKSPACE, _actor_payload("qa", x=1.5, y=9.25))
-    patch = [
+    patch = next(
         e.payload
         for _, e in EventLog().iter_from_offset(before)
         if e.type == STATE_PATCHED_EVENT_TYPE
-    ][0]
+    )
 
     def size(value) -> int:
         return len(json.dumps(value, ensure_ascii=False, default=str).encode("utf-8"))
@@ -311,11 +311,11 @@ def test_changed_is_byte_equal_to_the_snapshot_rebuild_row(seeded_office, set_de
     set_delta_patches(True)
     before = _log_end()
     seeded_office.upsert_actor(WORKSPACE, _actor_payload("qa", x=1.5, y=9.25))
-    patch = [
+    patch = next(
         e.payload
         for _, e in EventLog().iter_from_offset(before)
         if e.type == STATE_PATCHED_EVENT_TYPE
-    ][0]
+    )
 
     core = build_snapshot()
     rebuilt = next(
@@ -345,11 +345,11 @@ def test_unpublished_is_recomputed_and_omitted_without_a_realm(
     # No realm behind the workspace (nothing was created) → key absent.
     before = _log_end()
     seeded_office.upsert_actor(WORKSPACE, _actor_payload("qa", x=1.5, y=9.25))
-    patch = [
+    patch = next(
         e.payload
         for _, e in EventLog().iter_from_offset(before)
         if e.type == STATE_PATCHED_EVENT_TYPE
-    ][0]
+    )
     assert "unpublished" not in patch["changed"]
 
     # A realm-bound workspace whose baseline does not know this actor → True.
@@ -358,11 +358,11 @@ def test_unpublished_is_recomputed_and_omitted_without_a_realm(
     )
     before = _log_end()
     seeded_office.upsert_actor(WORKSPACE, _actor_payload("qa", x=2.5, y=9.25))
-    patch = [
+    patch = next(
         e.payload
         for _, e in EventLog().iter_from_offset(before)
         if e.type == STATE_PATCHED_EVENT_TYPE
-    ][0]
+    )
     assert patch["changed"]["unpublished"] is True
 
 
@@ -427,11 +427,11 @@ def test_create_emits_a_complete_row_upsert_stamped_created(
     before = _log_end()
     seeded_office.upsert_actor(WORKSPACE, _actor_payload("backend_dev", x=5.0, y=5.0))
 
-    patch = [
+    patch = next(
         e.payload
         for _, e in EventLog().iter_from_offset(before)
         if e.type == STATE_PATCHED_EVENT_TYPE
-    ][0]
+    )
     assert patch["op"] == PATCH_OP_UPSERT, patch
     assert patch["id"] == f"{WORKSPACE}/personainst_backend_dev_agent_0001"
     assert patch["created"] is True, patch
@@ -452,11 +452,11 @@ def test_create_emits_a_complete_row_upsert_stamped_created(
     # thereby gated every drag behind the token) dies here.
     before = _log_end()
     seeded_office.upsert_actor(WORKSPACE, _actor_payload("backend_dev", x=6.0, y=6.0))
-    drag = [
+    drag = next(
         e.payload
         for _, e in EventLog().iter_from_offset(before)
         if e.type == STATE_PATCHED_EVENT_TYPE
-    ][0]
+    )
     assert drag["op"] == PATCH_OP_UPSERT
     assert "created" not in drag, drag
 
@@ -491,11 +491,11 @@ def test_readd_of_an_archived_key_is_a_created_upsert(seeded_office, set_delta_p
     seeded_office.upsert_actor(
         WORKSPACE, _actor_payload("qa", x=4.0, y=4.0), resurrect=True
     )
-    patch = [
+    patch = next(
         e.payload
         for _, e in EventLog().iter_from_offset(before)
         if e.type == STATE_PATCHED_EVENT_TYPE
-    ][0]
+    )
     assert patch["op"] == PATCH_OP_UPSERT, patch
     assert patch["created"] is True, patch
     # And the ledger really did move — otherwise this test passes for the wrong
@@ -546,11 +546,11 @@ def test_a_live_actor_still_in_the_ledger_is_a_plain_upsert_not_a_created_one(
 
     before = _log_end()
     seeded_office.upsert_actor(WORKSPACE, _actor_payload("qa", x=4.0, y=4.0))
-    patch = [
+    patch = next(
         e.payload
         for _, e in EventLog().iter_from_offset(before)
         if e.type == STATE_PATCHED_EVENT_TYPE
-    ][0]
+    )
     assert patch["op"] == PATCH_OP_UPSERT, patch
     assert "created" not in patch, patch
     # The state really was the ledger arm: the actor existed AND the surface was
@@ -787,11 +787,11 @@ def test_a_workspace_over_the_projection_cap_keeps_the_honest_refresh(
 
         before = _log_end()
         seeded_office.upsert_actor(WORKSPACE, _actor_payload("qa", x=4.0, y=4.0))
-        patch = [
+        patch = next(
             e.payload
             for _, e in EventLog().iter_from_offset(before)
             if e.type == STATE_PATCHED_EVENT_TYPE
-        ][0]
+        )
         assert patch["op"] == PATCH_OP_REFRESH, patch
         assert "changed" not in patch
         assert "created" not in patch
@@ -800,11 +800,11 @@ def test_a_workspace_over_the_projection_cap_keeps_the_honest_refresh(
     # this cannot be green because the lane went dark.
     before = _log_end()
     seeded_office.upsert_actor(WORKSPACE, _actor_payload("qa", x=5.0, y=5.0))
-    patch = [
+    patch = next(
         e.payload
         for _, e in EventLog().iter_from_offset(before)
         if e.type == STATE_PATCHED_EVENT_TYPE
-    ][0]
+    )
     assert patch["op"] == PATCH_OP_UPSERT, patch
 
 
@@ -862,11 +862,11 @@ def test_a_workspace_that_reads_SHORT_keeps_the_honest_refresh_too(
 
     before = _log_end()
     seeded_office.upsert_actor(WORKSPACE, _agent_only(6.0))
-    patch = [
+    patch = next(
         e.payload
         for _, e in EventLog().iter_from_offset(before)
         if e.type == STATE_PATCHED_EVENT_TYPE
-    ][0]
+    )
     assert patch["op"] == PATCH_OP_REFRESH, patch
 
     # Anti-vacuity, the same shape the cap's test uses: repair the directory and
@@ -875,11 +875,11 @@ def test_a_workspace_that_reads_SHORT_keeps_the_honest_refresh_too(
     broken.unlink()
     before = _log_end()
     seeded_office.upsert_actor(WORKSPACE, _agent_only(7.0))
-    patch = [
+    patch = next(
         e.payload
         for _, e in EventLog().iter_from_offset(before)
         if e.type == STATE_PATCHED_EVENT_TYPE
-    ][0]
+    )
     assert patch["op"] == PATCH_OP_UPSERT, patch
 
 
@@ -957,11 +957,11 @@ def test_the_capability_token_is_inert_as_an_entity_name(seeded_office, set_delt
     set_delta_patches(True)
     before = _log_end()
     seeded_office.upsert_actor(WORKSPACE, _actor_payload("qa", x=1.0, y=1.0))
-    drag = [
+    drag = next(
         e
         for _, e in EventLog().iter_from_offset(before)
         if e.type == STATE_PATCHED_EVENT_TYPE
-    ][0]
+    )
 
     # The token ALONE (no ``office_actor``) does not promote an office row.
     assert not event_is_patch_coverable(
@@ -1335,7 +1335,7 @@ def test_concurrent_writers_never_invert_revision_against_offset(
         try:
             barrier.wait(timeout=10)
             OfficeStore().upsert_actor(WORKSPACE, _actor_payload("qa", x=float(n), y=0.0))
-        except BaseException as exc:  # noqa: BLE001 - reported, never swallowed
+        except BaseException as exc:  # reported, never swallowed
             errors.append(exc)
 
     threads = [threading.Thread(target=write, args=(n,)) for n in range(4)]

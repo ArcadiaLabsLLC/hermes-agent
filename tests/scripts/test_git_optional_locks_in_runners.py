@@ -41,6 +41,7 @@ def test_a_test_process_without_the_variable_sees_git_optional_locks_off():
         proc = subprocess.run(
             [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", str(probe_dir / "test_probe.py")],
             cwd=_REPO_ROOT, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
+            check=False,
         )
         got = seen.read_text(encoding="utf-8") if seen.exists() else "<the probe did not run>"
     finally:

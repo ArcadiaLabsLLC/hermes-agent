@@ -23,8 +23,8 @@ from .vocabulary import (
 
 __layer__ = "policy"
 __all__ = [
-    "_trace_entry",
     "_bounded_message_tail",
+    "_trace_entry",
     "_trace_fetch_limit",
 ]
 

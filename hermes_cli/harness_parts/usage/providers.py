@@ -63,7 +63,7 @@ def _codex_usage_login_detected() -> bool:
 
         if bool((get_codex_auth_status() or {}).get("logged_in")):
             return True
-    except Exception as exc:  # noqa: BLE001 — held, re-raised only if unanswered
+    except Exception as exc:  # held, re-raised only if unanswered
         primary_error = exc
     from agent.credential_pool import load_pool
 
@@ -88,7 +88,7 @@ def _openrouter_usage_login_detected() -> bool:
 
         if load_pool("openrouter").entries():
             return True
-    except Exception as exc:  # noqa: BLE001 — held, re-raised only if unanswered
+    except Exception as exc:  # held, re-raised only if unanswered
         primary_error = exc
     from hermes_cli.runtime_provider import resolve_runtime_provider
 

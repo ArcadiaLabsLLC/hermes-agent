@@ -12,7 +12,7 @@ import sys
 import pytest
 from hermes_cli import main_desktop
 
-from tests.hermes_cli.test_gui_command import (  # noqa: F401 — upstream names the moved tests use
+from tests.hermes_cli.test_gui_command import (  # upstream names the moved tests use
     _isolate_xdg_data_home,
     _stable_keychain_detection,
 )

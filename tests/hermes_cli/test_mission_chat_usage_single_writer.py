@@ -32,7 +32,7 @@ from tests._downstream.persona_source import package_source
 
 
 def _persona_commands_tree() -> ast.Module:
-    import hermes_cli.harness as harness
+    from hermes_cli import harness
 
     return ast.parse(package_source())
 

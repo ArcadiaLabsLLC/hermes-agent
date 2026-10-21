@@ -3053,9 +3053,9 @@ def _format_gateway_process_notification(evt: dict) -> str | None:
     if evt_type in ("async_delegation", "heartbeat"):
         from tools.process_registry_notifications import format_process_notification
         return format_process_notification(evt)
-    if evt_type == "mcp_job_finished":  # fork: an MCP server's job wake (tools/mcp_job_wake.py)
-        from tools.process_registry_notifications import format_process_notification
-        return format_process_notification(evt)
+    from tools.fork_completion_events import format_fork_completion_event  # fork: one table, no per-type hunk
+    if (fork_text := format_fork_completion_event(evt)) is not None:
+        return fork_text
 
     return None
 
@@ -3063,6 +3063,7 @@ def _format_gateway_process_notification(evt: dict) -> str | None:
 def _drain_gateway_watch_events(completion_queue) -> list[dict]:
     """Drain gateway-owned watch events without spinning on requeued events.
     Foreign events requeued inside ``while not queue.empty()`` never terminate: detach, then requeue."""
+    from tools.fork_completion_events import is_fork_completion_event  # fork: tools/fork_completion_events.py
     watch_events: list[dict] = []
     requeue: list[dict] = []
     while not completion_queue.empty():
@@ -3077,7 +3078,7 @@ def _drain_gateway_watch_events(completion_queue) -> list[dict]:
             watch_events.append(evt)
         elif evt_type == "async_delegation":
             requeue.append(evt)
-        elif evt_type == "mcp_job_finished":  # fork: no per-process watcher owns an MCP job wake
+        elif is_fork_completion_event(evt_type):  # fork: no per-process watcher owns a fork event type
             watch_events.append(evt)
         # else: process completion events are handled by the watcher task
     for evt in requeue:

@@ -174,10 +174,11 @@ import sys
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any, Callable
 
+from .namespace import store_identity
 from .paths import SERVE_INSTANCES_DIRNAME
 from .serde import write_json_atomic
 
@@ -387,6 +388,9 @@ def register_serve_instance(
         "port": None if port is None else int(port),
         "socket_started_at": socket_started_at,
         "store_root": str(store_root),
+        # RT-NAMESPACE-STAMP / -OWNER-INSTALL-STAMP: always written — the namespace id ("" for the base
+        # root) and `install {base_root, edition}`: one shared store, served by either edition.
+        **store_identity(),
         # The home THIS process resolved AT BOOT — an observability fact, not
         # per-turn authority: the runtime may rebind a home for a turn, and
         # this key will not have moved. Null says "resolution failed"; an
@@ -1094,7 +1098,7 @@ def _argv_hint(argv: list[str]) -> str:
 
 def _now_iso() -> str:
     return (
-        datetime.now(tz=timezone.utc)
+        datetime.now(tz=UTC)
         .isoformat(timespec="milliseconds")
         .replace("+00:00", "Z")
     )

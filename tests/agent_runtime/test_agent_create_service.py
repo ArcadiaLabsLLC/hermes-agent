@@ -285,13 +285,14 @@ def test_verb_authors_no_desk(qa_persona):
     """
 
     store = _seed_workspace()
-    # A desk for ``qa``, held by somebody else entirely.
+    # A desk held by somebody else entirely, beside ``qa``. It is a generic (self-addressed)
+    # desk: a desk filed under a persona is legacy and the office migration sweeps it.
     store.upsert_actor(
         WORKSPACE,
         {
             "persona_id": "qa",
             "items": [
-                {"item_id": "qa_desk", "persona_id": "qa", "kind": "desk", "position": [0.0, 0.0]}
+                {"item_id": "qa_desk", "persona_id": "qa_desk", "kind": "desk", "position": [0.0, 0.0]}
             ],
         },
     )
@@ -379,7 +380,7 @@ def test_an_empty_roster_that_LOADED_still_refuses_as_persona_not_found(
 
     from agent_runtime import agent_create
 
-    monkeypatch.setattr(agent_create.request, "persona_roster", lambda: [])
+    monkeypatch.setattr(agent_create.request, "persona_roster", list)
 
     with pytest.raises(agent_create.AgentCreateInvalid) as caught:
         agent_create.normalize_agent_create(

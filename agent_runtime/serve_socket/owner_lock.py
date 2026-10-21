@@ -17,6 +17,7 @@ from typing import Any, Callable
 
 from agent_runtime.file_locks import LockUnavailable, try_lock_exclusive, unlock
 from agent_runtime.clock import now_iso
+from agent_runtime.namespace import store_identity
 from agent_runtime.serde import safe_int, write_json_atomic
 from agent_runtime.store_file_io import os_error_reason
 
@@ -93,6 +94,10 @@ class SocketLockResult:
     #: One of the ``OWNER_STATE_*`` words: what the pre-existing sidecar was.
     #: Diagnostic — it never reaches a greeting frame (see :meth:`payload`).
     owner_state: str = OWNER_STATE_ABSENT
+    #: RT-NAMESPACE-OWNER-INSTALL-STAMP. On ``lock_held_by``: the LIVE owner's ``install
+    #: {base_root, edition}`` from its record, so a contender from the other edition can say which
+    #: install holds this shared store. None when the record carries none (a pre-stamp owner).
+    owner_install: dict[str, Any] | None = None
 
     @property
     def acquired(self) -> bool:
@@ -121,6 +126,8 @@ class SocketLockResult:
             row["took_over_from"] = self.took_over_from
         if self.waited_for_drain_ms is not None:
             row["waited_for_drain_ms"] = self.waited_for_drain_ms
+        if self.owner_install is not None:
+            row["owner_install"] = self.owner_install
         return row
 
 
@@ -283,6 +290,9 @@ class SocketOwnerLock:
                     ),
                     waited_for_drain_ms=waited_ms,
                     owner_state=owner_state,
+                    owner_install=(
+                        owner.get("install") if failure is None and isinstance(owner.get("install"), dict) else None
+                    ),
                 )
                 self._note(result, owner_pid=owner_pid)
                 return result
@@ -355,7 +365,7 @@ class SocketOwnerLock:
             from ..serve_registry import serve_instance_path
 
             return serve_instance_path(self._store_root, owner_pid).exists()
-        except Exception:  # noqa: BLE001 — a probe never fails a boot
+        except Exception:  # a probe never fails a boot
             return True
 
     def _wait_for_drain(self) -> tuple[Any, str | None, int]:
@@ -376,7 +386,7 @@ class SocketOwnerLock:
         while True:
             self._sleep(SOCKET_LOCK_DRAIN_POLL_SECONDS)
             handle, failure = self._try_lock()
-            waited_ms = int(round((self._clock() - started) * 1000.0))
+            waited_ms = round((self._clock() - started) * 1000.0)
             if handle is not None or failure is not None:
                 return handle, failure, waited_ms
             if (self._clock() - started) >= SOCKET_LOCK_DRAIN_WAIT_SECONDS:
@@ -467,16 +477,21 @@ class SocketOwnerLock:
                     "path": result.path,
                 }
             )
-        except Exception:  # noqa: BLE001 — an instrument never fails a boot
+        except Exception:  # an instrument never fails a boot
             pass
 
     def publish_owner(self, record: dict[str, Any]) -> None:
-        """Write the identity sidecar. Best effort; the LOCK is the authority."""
+        """Write the identity sidecar. Best effort; the LOCK is the authority.
+
+        Every record carries ``namespace`` (RT-NAMESPACE-STAMP): the id, ``""`` for the base root —
+        the store identity a sweep judges a serve by — and ``install {base_root, edition}``
+        (RT-NAMESPACE-OWNER-INSTALL-STAMP): which install serves it, since both editions share one store.
+        """
 
         if not self._acquired:
             return
         try:
-            write_json_atomic(self._owner_path, dict(record))
+            write_json_atomic(self._owner_path, {**store_identity(), **record})
         except Exception:
             pass
 
@@ -508,7 +523,7 @@ class SocketOwnerLock:
             row[SOCKET_OWNER_DRAINING_KEY] = when or now_iso()
             write_json_atomic(self._owner_path, row)
             return True
-        except Exception:  # noqa: BLE001 — the drain outranks its own receipt
+        except Exception:  # the drain outranks its own receipt
             return False
 
     def release(self) -> None:
@@ -566,9 +581,12 @@ def read_socket_owner(store_root: Path | str) -> dict[str, Any]:
 
     try:
         record, _state = _read_owner_record(socket_owner_path(store_root))
-    except Exception:  # noqa: BLE001 — advisory data, never a raise
+    except Exception:  # advisory data, never a raise
         return {}
-    return record or {}
+    if not record:
+        return {}
+    # A record that predates the stamp is the base root's (plan §2.5: naming no namespace = base).
+    return {**record, "namespace": str(record.get("namespace") or "")}
 
 
 def _read_owner_record(path: Path) -> tuple[dict[str, Any] | None, str | None]:
@@ -613,7 +631,7 @@ def _owner_pid_alive(pid: int) -> bool | None:
         from ..serve_registry import pid_alive
 
         return pid_alive(int(pid))
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None
 
 

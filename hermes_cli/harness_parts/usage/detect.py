@@ -11,8 +11,8 @@ __layer__ = "policy"
 __all__ = [
     "DEFAULT_USAGE_TIMEOUT",
     "USAGE_SCHEMA",
-    "UnknownUsageLaneError",
     "_USAGE_LANE_PROVIDERS",
+    "UnknownUsageLaneError",
     "_detect_usage_candidates",
     "_resolve_active_provider_id",
     "_usage_failure_reason",
@@ -186,7 +186,7 @@ def _detect_usage_candidates(
     for provider in _usage_lane_scope(only_provider):
         try:
             hit = _usage_lane_detected(provider)
-        except Exception as exc:  # noqa: BLE001 — class/status only, per lane
+        except Exception as exc:  # class/status only, per lane
             failures[provider] = _usage_failure_reason(exc, phase="detection")
             continue
         if hit:

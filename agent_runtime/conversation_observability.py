@@ -3,6 +3,8 @@ import logging
 import time
 from typing import Any, Optional
 
+from agent_runtime.receipt_sink import agent_receipt_callback
+
 __layer__ = "policy"
 
 CONVERSATION_REQUEST_ASSEMBLED_STEP = "conversation_request_assembled"
@@ -68,7 +70,7 @@ def _emit_conversation_timing(
     **extra: Any,
 ) -> int:
     duration_ms = max(0, int((time.perf_counter() - started) * 1000))
-    callback = getattr(agent, "status_callback", None)
+    callback = agent_receipt_callback(agent)
     if callback is not None:
         try:
             callback(
@@ -104,7 +106,7 @@ def _emit_request_assembled_marker(agent: Any, **extra: Any) -> None:
     first-mark-wins keeps the first attempt's instant.
     """
 
-    callback = getattr(agent, "status_callback", None)
+    callback = agent_receipt_callback(agent)
     if callback is None:
         return
     try:
@@ -138,7 +140,7 @@ def _emit_phase_marker(agent: Any, step: str) -> None:
         from agent_runtime.request_build_timing import note_preflight_done
 
         note_preflight_done(agent)
-    callback = getattr(agent, "status_callback", None)
+    callback = agent_receipt_callback(agent)
     if callback is None:
         return
     try:
@@ -197,3 +199,32 @@ def time_provider_dispatch(
         _emit_conversation_timing(
             agent, "provider_dispatch", started, status=status, streaming=streaming, **meta)
         _emit_phase_marker(agent, CONVERSATION_PROVIDER_RETURNED_STEP)
+
+
+#: Auto-compaction's lifecycle, as the conversation lane sees it. Upstream speaks it on the
+#: two-argument ``status_callback(kind, text)`` (``kind="compacted"`` for the done edge, a
+#: ``"lifecycle"`` line ``is_compaction_progress_status`` matches for the pause); the profile
+#: runner's one-argument emitter turns it into this ``run.progress`` payload, the chat sink
+#: forwards ``step`` alone, and the mission-chat stream writes one ``context.compaction`` frame.
+COMPACTION_PHASE = "compaction"
+COMPACTION_STATES = frozenset({"compacting", "compacted"})
+
+
+def compaction_progress_payload(kind: Any, text: Any) -> Optional[dict[str, Any]]:
+    """The ``run.progress`` payload for an upstream two-argument status, or ``None``."""
+    state = kind if kind in COMPACTION_STATES else None
+    if state is None and kind == "lifecycle":
+        from agent.conversation_compression import is_compaction_progress_status
+
+        state = "compacting" if is_compaction_progress_status(str(text or "")) else None
+    if state is None:
+        return None
+    return {"type": "run.progress", "phase": COMPACTION_PHASE, "step": state}
+
+
+def compaction_state(payload: Any) -> Optional[str]:
+    """``compacting`` / ``compacted`` for a compaction progress payload, else ``None``."""
+    if not isinstance(payload, dict) or payload.get("phase") != COMPACTION_PHASE:
+        return None
+    step = payload.get("step")
+    return step if step in COMPACTION_STATES else None

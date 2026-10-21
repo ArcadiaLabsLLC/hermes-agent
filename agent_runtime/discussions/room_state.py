@@ -17,6 +17,8 @@ __layer__ = "lanes"
 logger = logging.getLogger(__name__)
 _LIVE_TASKS = frozenset({"queued", "running", "stopping", "indeterminate"})
 _TERMINAL = frozenset({"settled", "failed", "cancelled", "deferred"})
+#: The ended run's error while its room is still live: the start-up sweep's mark.
+DISBAND_DEFERRED = "room_disband_deferred"
 
 
 class RoomState:
@@ -137,14 +139,30 @@ class RoomState:
                 try:
                     rooms.disband_room(self.db_path, room_id=rid,
                         expected_gateway_id=self.install_id, expected_epoch=1)
-                except Exception:
+                except Exception as exc:
                     if refusal is None:
                         self.release(rid)  # Never leave a pin on a room still live.
-                    raise
+                    if isinstance(exc, rooms.RoomNotFoundError) or not isinstance(exc, rooms.HostedRoomError):
+                        raise
+                    # Owner ruling 2026-10-15: an ended run releases its seats; the live
+                    # room stays marked (the run's error) for the start-up clean-up.
+                    logger.warning("Discussion room disband deferred: %s (%s)", rid, type(exc).__name__)
+                    return DISBAND_DEFERRED
         except rooms.RoomNotFoundError:
             if self.attempts.rows(rid):
                 raise
         return refusal
+
+    def sweep(self) -> None:
+        """Start-up clean-up (owner ruling 2026-10-15): retry each ended run's deferred
+        disband, then drop every retention pin still sitting on a live room."""
+        for run in self.runs.with_error("ended", DISBAND_DEFERRED):
+            try:
+                self.runs.replace_error(run["run_id"], DISBAND_DEFERRED, self.finalize_room(run))
+            except Exception:
+                logger.warning("Discussion deferred disband still held: %s", run["run_id"], exc_info=True)
+        for rid in pins.live_room_pins(self.db_path):
+            self.release(rid)
 
     def task(self, run_id: str, task_id: str, generation: int) -> dict[str, Any]:
         task = next((t for t in driver.list_tasks(self.db_path, room_id=run_id) if t["identity"].task_id == task_id), None)

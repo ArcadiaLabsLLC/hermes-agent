@@ -179,14 +179,19 @@ Modules, lowest layer first; no module imports one above it (W0-G6)::
                                 per-lane cap, and LanePass (consider / drop / finish)
       ownership.py      stores  the head home, running_work_store_paths (the ONE authority), PID
                                 identity (rule 2), the session owner (rule 5), the ambient block
-      lanes_process.py  lanes   liveness is a PROCESS this runtime owns: TerminalLane, McpJobLane, cron
+      lanes_process.py  lanes   liveness is a PROCESS this runtime owns: TerminalLane, McpJobLane,
+                                BackgroundToolCallLane (promoted long tool calls), cron
       lanes_chat.py     lanes   keyed on a chat session's durable store: DelegationLane
                                 (DELEGATION_STATUS_BY_RECORD), chat turns, DispatchLane
       build_rows.py     policy  the ``build`` row: BuildFacts -> work_row + every build key (§1 of
                                 the build plan), the status derived from liveness + outcome once
       lanes_build.py    lanes   BuildLane: terminal -> build reclassification in place, the
                                 announced registry, the detected sub-source
-      surface.py        lanes   _COLLECTORS (the table over the six lanes), build_running_work,
+      lanes_schedule.py lanes   ScheduledTurnLane: a scheduler fire, read from the send-queue
+                                entries whose origin names a schedule (RT-SCHEDULE-TURN-RUNNING-WORK)
+      lanes_messaging.py lanes  MessagingTurnLane: a platform message, read from the send-queue
+                                entries whose origin carries a messaging block (p10-messaging M4)
+      surface.py        lanes   _COLLECTORS (the table over the lanes), build_running_work,
                                 find_work_row, split_work_id, peek_work, cancel_work
 
     entry point                                  opens
@@ -208,7 +213,10 @@ attribute reaches none of them — patch the binding module.
 
 from __future__ import annotations
 
-from . import build_rows, lanes_build, lanes_chat, lanes_process, ownership, rows, surface, vocabulary
+from . import (
+    build_rows, lanes_build, lanes_chat, lanes_messaging, lanes_process, lanes_schedule, ownership, rows, surface,
+    vocabulary,
+)
 from .lanes_chat import (
     DELEGATION_RECORD_RUNNING,
     DELEGATION_STATUS_BY_RECORD,
@@ -226,6 +234,7 @@ from .ownership import (
     _head_home,
     _owner_of,
     _pid_identity,
+    background_work_homes,
     running_work_store_paths,
 )
 from .rows import (
@@ -255,6 +264,8 @@ from .vocabulary import (
     KIND_DELEGATION,
     KIND_DISPATCH,
     KIND_MCP_JOB,
+    KIND_MESSAGING_TURN,
+    KIND_SCHEDULED_TURN,
     KIND_TERMINAL,
     KIND_TOOL_CALL,
     LANE_DURABLE,
@@ -295,6 +306,8 @@ __all__ = [
     "KIND_DELEGATION",
     "KIND_DISPATCH",
     "KIND_MCP_JOB",
+    "KIND_MESSAGING_TURN",
+    "KIND_SCHEDULED_TURN",
     "KIND_TERMINAL",
     "KIND_TOOL_CALL",
     "PEEK_TAIL_LIMIT",
@@ -303,6 +316,7 @@ __all__ = [
     "RUNNING_WORK_SOURCES",
     "STATUS_VALUES",
     "TAIL_PREVIEW_LIMIT",
+    "background_work_homes",
     "build_running_work",
     "cancel_work",
     "find_work_row",

@@ -24,6 +24,8 @@ import pytest
 
 from tests.hermes_cli import test_config_read_guard as upstream
 
+pytestmark = pytest.mark.gate
+
 FORK_ALLOWLIST: frozenset[str] = frozenset()
 FORK_EXCLUDED_DIR_PARTS = {".claude"}
 VENV_MARKER = "pyvenv.cfg"

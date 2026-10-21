@@ -58,7 +58,7 @@ import json
 import threading
 import time
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -148,7 +148,7 @@ def _seed_events(count: int = 2, *, start: int = 0) -> None:
     for index in range(start, start + count):
         log.append(
             Event(
-                ts=datetime(2026, 7, 16, 12, 0, 0, tzinfo=timezone.utc)
+                ts=datetime(2026, 7, 16, 12, 0, 0, tzinfo=UTC)
                 + timedelta(seconds=index),
                 type="state.reconciled",
                 task_id=f"parity_task_{index}",
@@ -527,7 +527,7 @@ def test_the_advertisement_grew_and_no_contract_integer_moved():
     # ``methods``, which is exactly the additive growth this test's docstring
     # permits; this pin was red from that landing until it learned the key,
     # because A1 updated the shape and missed the pin.
-    assert set(serve_rpc.manifest()) == {"contract", "methods", "tiers", "params"}
+    assert set(serve_rpc.manifest()) == {"contract", "methods", "tiers", "params", "limits"}
 
 
 # ── byte parity against argv ``harness stream`` ──────────────────────────────
@@ -566,7 +566,7 @@ def test_the_hub_lane_delivers_the_argv_streams_frames_byte_for_byte():
                 caller="cli",
             ):
                 argv_frames.append(to_jsonable(frame))
-        except BaseException as exc:  # noqa: BLE001 - reported, not swallowed
+        except BaseException as exc:  # reported, not swallowed
             argv_error.append(exc)
 
     argv_thread = threading.Thread(target=_argv_lane, name="argv-stream", daemon=True)

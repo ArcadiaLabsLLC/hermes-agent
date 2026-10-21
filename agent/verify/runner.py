@@ -148,6 +148,9 @@ def _terminate_process_group(proc: subprocess.Popen) -> None:
         else:
             fallback()
 
+    if os.name == "nt":  # Fork: terminate() reaches only the shell; its child keeps the stdout pipe open
+        from agent.deadline import kill_process_tree
+        kill_process_tree(proc.pid)
     try:
         stop(signal.SIGTERM, proc.terminate)
     except (ProcessLookupError, PermissionError):

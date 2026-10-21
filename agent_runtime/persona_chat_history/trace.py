@@ -30,7 +30,7 @@ def persona_chat_trace_summary(
     persona_instances: Iterable[PersonaInstance],
     event_log: Any | None = None,
     message_tail: int = DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
-    accountant: "ProjectionAccountant | None" = None,
+    accountant: ProjectionAccountant | None = None,
 ) -> list[dict[str, Any]]:
     """Return redaction-safe tool/progress trace rows for persona chats.
 
@@ -70,10 +70,10 @@ def persona_chat_trace_summary(
     instances = list(persona_instances)
     # Preserve instance order for stable row output while accumulating each
     # instance's events from both lanes before rendering.
-    accumulators: "dict[str, _TraceAccumulator]" = {}
+    accumulators: dict[str, _TraceAccumulator] = {}
     order: list[str] = []
 
-    def _accumulator(instance: Any, persona_id: str) -> "_TraceAccumulator":
+    def _accumulator(instance: Any, persona_id: str) -> _TraceAccumulator:
         instance_id = safe_assignment_text(
             getattr(instance, "id", None) or persona_instance_id_for(persona_id),
             limit=160,
@@ -192,7 +192,7 @@ class _TraceAccumulator:
     """Collects a persona instance's trace events across lanes, then renders
     them chronologically into a bounded list of redaction-safe entry dicts."""
 
-    __slots__ = ("instance_id", "persona_id", "task_id", "session_id", "cut_turn_ids", "_events")
+    __slots__ = ("_events", "cut_turn_ids", "instance_id", "persona_id", "session_id", "task_id")
 
     def __init__(self, *, instance_id: str, persona_id: str, task_id: str | None, session_id: str | None):
         self.instance_id = instance_id
@@ -207,7 +207,7 @@ class _TraceAccumulator:
     def extend(self, events: Iterable[Any]) -> None:
         self._events.extend(events)
 
-    def entries(self, *, tail: int, accountant: "ProjectionAccountant | None" = None) -> list[dict[str, Any]]:
+    def entries(self, *, tail: int, accountant: ProjectionAccountant | None = None) -> list[dict[str, Any]]:
         ordered = sorted(self._events, key=_trace_event_sort_key)
         rendered: list[dict[str, Any]] = []
         unrenderable = 0

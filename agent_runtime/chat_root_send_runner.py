@@ -96,39 +96,18 @@ class RunnerPolicy:
     the host has a transport — the stream a turn's frames go to."""
 
     root_is_idle: Callable[[str], bool] = _root_is_idle
-    run_turn: Callable[[Any], "tuple[int, dict | None]"] = _run_turn
-    stream: "Callable[[queue.QueuedSend], ContextManager[TurnStream]] | None" = None
+    run_turn: Callable[[Any], tuple[int, dict | None]] = _run_turn
+    stream: Callable[[queue.QueuedSend], ContextManager[TurnStream]] | None = None
+    #: Told once per TERMINAL settle, after it is recorded (never for a "queued" answer):
+    #: ``(entry, exit_code, payload)``. The serve's Work executor reads its runs' endings here
+    #: (``agent_runtime/work_store/persona_turn.py::PersonaTurnExecutor.settled``).
+    on_settle: Callable[[queue.QueuedSend, int, dict | None], None] | None = None
 
 
 DEFAULT_RUNNER_POLICY = RunnerPolicy()
 
 
-def run_queued_sends_once(policy: RunnerPolicy | None = None) -> dict[str, int]:
-    """One pass: the head of every idle root, once. Never raises; returns a tally."""
-
-    policy = policy or DEFAULT_RUNNER_POLICY
-    tally = {"ran": 0, "busy": 0, "requeued": 0, "failed": 0}
-    try:
-        roots = queue.roots_with_entries()
-    except Exception:
-        logger.warning("queued-send runner could not read the queue", exc_info=True)
-        return tally
-    for root in roots:
-        try:
-            entry = queue.head(root)
-            if entry is None:
-                continue
-            if not policy.root_is_idle(root):
-                tally["busy"] += 1
-                continue
-            tally[_run_entry(entry, policy)] += 1
-        except Exception:
-            logger.warning("queued send on root %s could not run", root, exc_info=True)
-            tally["failed"] += 1
-    return tally
-
-
-def _run_entry(entry: queue.QueuedSend, policy: RunnerPolicy) -> str:
+def _run_entry(entry: queue.QueuedSend, policy: RunnerPolicy) -> None:
     root, cmid = entry.root_session_id, entry.client_message_id
     queue.mark(root, cmid, state=queue.STATE_RUNNING)
     try:
@@ -138,23 +117,35 @@ def _run_entry(entry: queue.QueuedSend, policy: RunnerPolicy) -> str:
         logger.warning("queued send %s raised (attempt %d)", cmid, attempts, exc_info=True)
         if attempts < MAX_RUN_EXCEPTIONS:
             queue.mark(root, cmid, state=queue.STATE_QUEUED, attempts=attempts)
-            return "failed"
+            return
         _settle(entry, 2, TurnOutcome(
             session_id=root,
             turn_id=cmid,
             refusal_class=str(ChatErrorKind.CHAT_TURN_OUTCOME_UNKNOWN),
             summary=f"the queued turn raised {attempts} times: {type(exc).__name__}",
         ))
+        _tell_settled(policy, entry, 2, None)
         queue.remove(root, cmid)
-        return "failed"
+        return
     if (payload or {}).get("queued") is True:
         # A newer turn took the lease between the probe and the run; the enqueue
         # converged on this entry, which stays the head for the next pass.
         queue.mark(root, cmid, state=queue.STATE_QUEUED)
-        return "requeued"
+        return
     _settle(entry, int(exit_code), outcome_from_payload(payload))
+    _tell_settled(policy, entry, int(exit_code), payload)
     queue.remove(root, cmid)
-    return "ran"
+
+
+def _tell_settled(policy: RunnerPolicy, entry: queue.QueuedSend, exit_code: int, payload: dict | None) -> None:
+    """``policy.on_settle`` after a terminal settle; its failure is logged, never the runner's."""
+
+    if policy.on_settle is None:
+        return
+    try:
+        policy.on_settle(entry, exit_code, payload)
+    except Exception:
+        logger.warning("on_settle for queued send %s failed", entry.client_message_id, exc_info=True)
 
 
 def _run_streamed(entry: queue.QueuedSend, policy: RunnerPolicy) -> tuple[int, dict | None]:

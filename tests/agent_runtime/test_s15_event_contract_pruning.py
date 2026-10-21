@@ -261,7 +261,11 @@ REMOVED_EVENT_TYPES = frozenset(
 # 68 (row H7, 79560dff44, 2026-10-04): ``build.ended``, one event per build
 # ending, emitted by the serve build sweep (``agent_runtime.builds.sweep``).
 # The commit registered the type but left this counter at 67; moved here.
-SURVIVING_EVENT_COUNT = 68
+# 70 (lane p10-b, 2026-10-19, RT-EMIT-RUNNING-WORK-CHAT): ``running_work.process_started``
+# / ``running_work.process_ended``, a terminal background process entering / leaving the
+# running set (``agent_runtime.running_work.process_presence``). Red at 68 on that commit
+# and moved deliberately.
+SURVIVING_EVENT_COUNT = 70
 
 
 def test_the_unemittable_event_types_are_no_longer_registered():

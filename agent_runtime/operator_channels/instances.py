@@ -152,7 +152,7 @@ def is_dormant_channel(identity: ChannelIdentity, messages: list[Any]) -> bool:
 
 
 def _operator_conversation_relationships(
-    builders: Iterable["_OperatorChannelBuilder"],
+    builders: Iterable[_OperatorChannelBuilder],
 ) -> dict[str, tuple[str, str | None]]:
     """Resolve conversation ancestry from the persisted instance graph.
 

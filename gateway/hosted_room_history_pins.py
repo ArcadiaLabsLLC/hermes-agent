@@ -69,3 +69,20 @@ def unpin_room_history(
         if room is not None:
             rooms._require_authority(room, expected_gateway_id, expected_epoch, "stale hosted room authority")
         return conn.execute("DELETE FROM hosted_room_history_pins WHERE room_id=?", (room_id,)).rowcount > 0
+
+
+def live_room_pins(db_path: DbPath) -> list[str]:
+    """Room ids holding a retention pin while their room is still live (not disbanded).
+
+    A pin is taken only to outlive a disband; on a live room it is a leftover from a
+    crash between pin and disband (or a disband that was deferred), and no prune lane
+    reclaims it — age and tombstone lanes exempt pins, the byte lane reads disbanded
+    rooms only. The host clears these at start-up (RT-DISCUSSION-RETENTION-PIN-LEAK,
+    owner ruling 2026-10-15).
+    """
+    with rooms._transaction(db_path) as conn:
+        if not table_exists(conn, "hosted_room_history_pins"):
+            return []
+        return [row[0] for row in conn.execute(
+            "SELECT p.room_id FROM hosted_room_history_pins p JOIN hosted_rooms r ON r.room_id=p.room_id "
+            "WHERE r.disbanded_at IS NULL ORDER BY p.room_id")]

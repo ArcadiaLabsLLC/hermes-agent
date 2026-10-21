@@ -178,8 +178,7 @@ def _event_log_config(raw: dict[str, Any]) -> EventLogConfig:
         cap_int = defaults.rotation_cap_bytes
     # Negative is meaningless; clamp to 0 (rotation disabled). 0 is a valid
     # explicit "never rotate" (legacy unbounded live file).
-    if cap_int < 0:
-        cap_int = 0
+    cap_int = max(cap_int, 0)
     return EventLogConfig(rotation_cap_bytes=cap_int)
 
 

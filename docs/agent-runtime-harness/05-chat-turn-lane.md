@@ -209,7 +209,31 @@ result; absent owners and disconnected reads remain unconfirmed. The
 [Stop audit](../downstream/operator-stop-audit-2026-10-06.md) records regression
 and baseline qualification; live cancellation latency remains unmeasured.
 
+`runtime.operator.conversation.memory` (console tier, `serve_rpc/operator_inspection.py`
+→ `operator_session_inspection.inspect_operator_memory`) is the read surface for what a
+persona remembers. It passes the same exact-target and owner checks as `.settings` and
+`.skills`, then reads inside `persona_profile_context`, so the stores are the persona's
+own profile home, never the serve's: `stores[]` (`memory` / `user`: `enabled`,
+`entries`, `char_count`, `char_limit`, upstream `load_on_disk_store`) and
+`write_approval` (`enabled` from upstream `write_approval_enabled`, `pending[]` as
+`id`/`action`/`target`/`summary`/`origin`/`created_at`, never the staged payload).
+`on_lane` is `include_profile_memory`: whether this persona's turns load the store at
+all. It applies and discards nothing; staging approval is a later write verb.
+`test_operator_session_inspection` proves profile isolation, the pending projection, no
+file created and the owner refusal.
+
 ## 1. Send admission — the turn's identity and its thread
+
+**Attachments are admitted before the turn runs.** `chat_turn_commit/admit.py` resolves
+`--image` refs (`_admit_images`: `image_invalid`, or `vision_unsupported` for a model without
+vision) and then `--file` refs (`_admit_files`, RT-MISSION-CHAT-MESSAGE-TAKES: a ref naming
+no stored file is `file_invalid`, admission family, `next_expected` "re-send the files with
+the message"). The door's own refusals (`file_unsupported` / `file_oversize` /
+`file_invalid`) and `limits.files` are doc 03's. An admitted file is staged, never inlined:
+`run.py` composes the request text as `with_file_lines(message, user_files)` and the
+mirrored user row from that same text (`MEDIA:` lines after), and the write-ahead record
+carries `pending_user_files` beside `pending_user_images`
+(`mission_chat_turns/records.py::_JOURNAL_PATH_LISTS`).
 
 **Inline relay admission uses the runtime head, not the sender's profile.**
 `hermes_cli/harness_parts/mission_chat_door_binding.py::_mission_chat_turn_via_cli`
@@ -304,6 +328,14 @@ bind-landed/transcript-didn't case, which retracts the bind rather than returnin
 dereferences nowhere). An ambiguous BARE persona target — more than one live instance, no pin, no
 session — is refused before all of this with the candidate `@handles` (`:2210-2234`).
 
+**A platform message is a queued send (p10-messaging).** The messaging bridge never runs a turn: a
+message from an allowed operator in a bound chat is `PersonaTurnExecutor.queue_inbound` on the bound
+instance's CURRENT chat root (minted through `open_chat` with mint receipts when there is none), idempotent
+by the platform's update id (cmid `msg-<platform>-<update_id>`), held behind a busy root like any queued
+send; the queued-send runner runs it through `run_mission_chat_turn` and the executor's `messaging` origin
+listener sends the settle's reply back to the chat it came from. There is no second session store
+([03 § Messaging methods](03-transport-and-wire.md)).
+
 ## 2. The turn phases contract
 
 `agent_runtime/mission_chat_phases.py` is the turn's monotonic timeline; records carry it under
@@ -342,7 +374,7 @@ inside it. It is taken on EVERY lane: a turn without `--stream` hands the runner
 `first_reply_text` (the stamp, no frames, no elements) as its stream callback — the argv fallback's
 turn `b00deebf` (2026-10-06) recorded no first byte before it (h-turn1-again); `response_headers` is the nearer first-byte stamp. The name is the persisted phase key
 and the source of the wire's `provider_first_byte_ms` (launcher-read), so it is not renamed. Beside the marks ride one
-flag (`agent_init_cold`, `:92`) and four counters (`registry_probe_rounds`,
+flag (`agent_init_cold`, `:92`), one closed-set label (`context_native_history_source`: `resident` when the resident actor handed over its lineage-stamped history, `read` when SessionDB was read; `PHASE_LABELS`, 2026-10-16) and four counters (`registry_probe_rounds`,
 `visibility_bundle_builds`, `builds_overlapped`, `prewarm_overlapped`); `_BLOCK_ORDER` is the
 closed set a reader may see. `visibility_bundle_builds` landed 2026-08-23 with the chat-lane bundle
 (§4a) and is a delta of a thread-cumulative counter like `registry_probe_rounds`: `0` on a warm
@@ -523,7 +555,12 @@ not per-instance. Values validate against
 `^[A-Za-z0-9_.:/@+-]{1,200}$` (`:6582`); a violation is a typed refusal, a persist failure is
 `CHAT_MODEL_OVERRIDE_PERSIST_FAILED` (`:3552-3558`). The payload reports every tier separately
 rather than folding them, so `model_is_default` and `model_is_instance_override` are answerable from
-one record. Chat-lane compaction has its own cap:
+one record. `api_mode` is not a tier of its own: it belongs to the provider it was chosen with, so
+`effective_api_mode` is the agent tier's while the effective provider is the agent tier's, and a chat
+override onto another provider derives it from the selected provider by the `persona set-model` rule
+(`agent_runtime/model_api_mode.py::turn_api_mode`). The run, the prewarm and the runtime signature all
+read that one answer; an Anthropic `api_mode` carried onto `openai-codex` POSTed to
+`…/codex/v1/messages` and met a Cloudflare 403 (2026-10-19). Chat-lane compaction has its own cap:
 `agent_runtime.mission_chat.compaction_threshold_tokens`, default **150,000**
 (`agent_runtime/runtime_config.py::MissionChatConfig.compaction_threshold_tokens`), applied so it can only make compaction fire *earlier* than
 the compressor's own `ratio × window` derivation.
@@ -873,6 +910,21 @@ an IDLE bound that each progress report restarts, and the call's absolute cap is
 an error naming both numbers. The agent's own per-call deadline (`timeouts.tools.sequential_call`,
 420 s default) is separate and still applies.
 
+### 5b. Compaction on the `context.compaction` frame (2026-10-16)
+
+A streamed turn whose context is auto-compacted mid-turn carries one `context.compaction` v2 frame
+per lifecycle edge: `{"type": "context.compaction", "protocol_version": 2, "turn_id", "state",
+"after_seq"}`, `state` `compacting` (once per pause, however many heartbeats upstream repeats) then
+`compacted`. Like `reasoning.summary` it is presentation-only: no element `seq`, no segment end, no
+EventLog row, no text — the launcher writes its own copy, and that copy says the model's context
+was summarised, never that the visible transcript changed. The path: upstream's two-argument
+`status_callback(kind, text)` → `profile_runner.status.StatusEmitter.status` (only the compaction
+kinds cross; `conversation_observability.compaction_progress_payload`) → `ChatProgressSink`
+(`_forward_compaction_state`, `step` alone) → `_ChatProtocolV2Emitter._compaction`.
+The agent's `status_callback` has that ONE convention: the fork's dict timing receipts go through
+`agent_runtime/receipt_sink.py::receipt_callback` to the profile runner's `ReceiptSink.receipt`
+only, so a CLI / gateway / TUI / api_server callback never receives one.
+
 ## 6. Terminal envelope grants
 
 `agent_runtime/terminal_envelope/` is the ONE deterministic answer to "may this command run on
@@ -940,6 +992,38 @@ own byte budget — `turn_budget` 1024, `capability` 4096, `mcp_admission` 2048
 long capability account cannot squeeze out the countdown. Over-budget content states its shortfall
 twice: in band, so the agent reads it was not told everything, and as a typed accounting row, so no
 operator has to grep prose to learn a fact was clipped.
+
+**What the turn left behind** (`RT-TURN-LEFT-BEHIND-RECORD`, plan `planned/p10-turn-2026-10-19.md` §1)
+rides the terminal record as ONE optional block, `turn_outcome {schema: 1, tests[{command, exit_code,
+verdict}], commits[{command, sha, pushed}], files[{path, op}], truncated}`. The persona runner binds a
+fold around `run_conversation` (`agent_runtime/turn_outcome.py::bind_turn_outcome`, beside the usage
+ledger in `profile_runner/execute.py::_run_conversation_with_usage_ledger`); the eternia-harness
+plugin's `post_tool_call` hook feeds it (`turn_outcome.py::on_post_tool_call`), classifying a terminal
+command by the `COMMAND_SHAPES` table. Failed calls are included (a red test is what a turn left
+behind); `verdict` comes from the exit code only (`null` → `unknown`); `pushed` is `true` or `null`,
+never `false`; `files` come from `write_file`/`patch` args on an `ok` call. The settle point
+(`chat_turn_commit/settle.py::_project`) persists it through
+`mission_chat_turns/records.py::safe_turn_outcome` and logs one `turn_outcome turn=… tests=… failed=…`
+receipt line, never a frame key. Absent means "not recorded" — a Codex app-server turn fires no
+`post_tool_call` — so the block bumped no `TURN_RECORD_SCHEMA_VERSION`. The reads copy it:
+`operator_execution.py::execution_status` as `left_behind`, the history row as `turn_outcome`
+(`persona_chat_history/markers.py::_carry_turn_outcome`).
+
+### 7a. A long tool call lost to a restart (RT-LONG-CALL-WAKE-LOST-ON-RESTART, 2026-10-19)
+
+A call promoted to the background (`tools/long_tool_calls.py`) runs on a worker thread of the
+serve that promoted it, so a restart kills it with no finish and no wake. The serve boot closes
+that gap before the drain starts: `boot_phases._boot_sweeps_and_ready_frame` runs
+`long_tool_calls.sweep_orphaned_rows(running_work.background_work_homes())` (the head home and
+every profile home), which re-owns each `running` row whose writer pid is dead or recycled as a
+`lost` row stamped with THIS process's identity, and queues one `tool_call_finished` wake with
+`outcome = "lost"` routed by the row's own `session_key` / `task_id` / `owner_task_id` /
+`parent_session_id`. The drain delivers it like any finish (the agent reads that the result was
+never produced and may re-issue the call) and settling it retires the row; until then the Activity
+row reads `error` with `outcome: lost`. A `lost` row whose wake had not settled before a second
+restart is re-woken once by the next boot. An unprovable pid (no baseline, unreadable start time)
+is left alone and reads `unknown`. The ready frame carries `long_calls_lost` only when the sweep
+found any; the receipt is `long_tool_call_receipt {event: "lost", …}`.
 
 ## 8. Session scope and continuity
 
@@ -1112,7 +1196,7 @@ an instant rather than work. That silently unmeasured `request_assembled` on eve
 ahead of the filter) now forwards the marker to `on_trace` ONLY: no EventLog row, no
 `before_first_trace` latch, no chat-log mirror, and only a `step` matched against the closed set of
 marker steps plus a bare `status` token — so the noise rule and the redaction boundary both stay
-intact. `phase_timing_marker_step` (`mission_chat_phases.py:400-431`) is the single authority both
+intact. `phase_timing_marker_step` (`mission_chat_phases.py:488-518`) is the single authority both
 sides read, so producer and consumer cannot drift apart again.
 
 The live measurement that motivated the split (turn `c59ab99e`, 2026-08-22): **1,762 ms of a 13,532

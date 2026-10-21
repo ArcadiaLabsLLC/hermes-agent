@@ -24,6 +24,7 @@ from .publish_scans import (
     _board_publish_scan,
     _level_publish_scan,
     _map_publish_scan,
+    _prefab_publish_scan,
     _office_publish_scan,
 )
 from .persona_artifacts import (
@@ -133,6 +134,10 @@ class _ResolvedPublish:
     #: absence as "the realm removed this map", which is the ``unnamed`` caption
     #: this family exists to stop.
     map_refused: list[dict[str, Any]] = ()  # type: ignore[assignment]
+    #: The USER PREFAB family's hashes and refusals, out of the same pass for
+    #: ``map_hashes``'s reason.
+    prefab_hashes: dict[str, str] = ()  # type: ignore[assignment]
+    prefab_refused: list[dict[str, Any]] = ()  # type: ignore[assignment]
 
 
 def resolve_realm_sync_artifacts(realm_id: str) -> list[RealmSyncArtifact]:
@@ -169,6 +174,9 @@ def _resolve_artifacts_with_projection(realm_id: str) -> _ResolvedPublish:
     # for why that trade is the cheaper half.
     map_scan = _map_publish_scan()
     artifacts.extend(map_scan.artifacts)
+    # USER PREFABS: every profile's shelf, the map catalogue's no-filter rule.
+    prefab_scan = _prefab_publish_scan()
+    artifacts.extend(prefab_scan.artifacts)
     # The repo-slot documents (build plan §3.1), one per workspace of this realm,
     # copied verbatim; the pull side merges them key-wise.
     from ..workspace_slots_sync import publish_artifacts as _workspace_slot_artifacts
@@ -232,6 +240,8 @@ def _resolve_artifacts_with_projection(realm_id: str) -> _ResolvedPublish:
         level_refused=level_scan.refused,
         map_hashes=map_scan.hashes,
         map_refused=map_scan.refused,
+        prefab_hashes=prefab_scan.hashes,
+        prefab_refused=prefab_scan.refused,
     )
 
 
@@ -257,7 +267,7 @@ def _flow_graph_projection(instance_ids: list[str]):
     try:
         store = FlowGraphStore()
         docs = {owner: store.get(graph_id_for_owner(owner)) for owner in wanted}
-    except Exception:  # noqa: BLE001 — accounted as "no canvas", never a failed publish
+    except Exception:  # accounted as "no canvas", never a failed publish
         docs = {}
     return project_flow_graphs(wanted, docs=docs)
 
@@ -282,7 +292,7 @@ def _persona_instance_projection(instance_ids: list[str]):
         scan = PersonaInstanceStore().scan_all()
         records = {instance.id: instance for instance in scan.instances}
         unreadable = scan.unreadable
-    except Exception:  # noqa: BLE001 — accounted below, never a failed publish
+    except Exception:  # accounted below, never a failed publish
         records, unreadable = {}, 0
     return project_persona_instances(wanted, records=records), unreadable
 

@@ -26,6 +26,10 @@ from functools import lru_cache
 from scripts import god_file_probe as probe
 from scripts import god_file_scope as scope
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 _FUNCS = (ast.FunctionDef, ast.AsyncFunctionDef)
 
 

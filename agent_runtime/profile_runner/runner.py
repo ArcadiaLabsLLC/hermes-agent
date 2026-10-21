@@ -349,6 +349,7 @@ def _normalize_result(result: Any, *, agent) -> AgentRunResult:
             cache_write_tokens=result.get("cache_write_tokens"),
             reasoning_tokens=result.get("reasoning_tokens"),
             reasoning_window=dict(result.get("reasoning_window") or {}),
+            turn_outcome=result.get("turn_outcome") if isinstance(result.get("turn_outcome"), dict) else None,
             usage_ledger=[
                 row for row in (result.get("usage_ledger") or []) if isinstance(row, dict)
             ]

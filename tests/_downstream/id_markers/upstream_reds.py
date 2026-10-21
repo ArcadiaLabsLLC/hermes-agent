@@ -43,6 +43,13 @@ QUALIFIED = "CPython 3.14.5 / SQLite 3.50.4 (2026-10-15)"
 _up_red = functools.partial(_up_red_unqualified, qualified=QUALIFIED)
 
 ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
+    # Every host: the test stubs ``subprocess.run`` but upstream ``ea665a911d`` moved
+    # ``checkout_contains`` onto ``update_custody.run_git``, so the stub never answers and the
+    # probe fails closed. Code and test are byte-identical to upstream/main 9e01b44dd2. The file
+    # is also an `unused` skip-list row (ADR 0015); this row keeps a named run honest.
+    "tests/hermes_cli/test_update_fleet_checkout_build_stamp.py::test_git_checkout_still_walks_ancestry": (
+        _up_red("test stubs subprocess.run after the custody move to update_custody.run_git"),
+    ),
 }
 
 if _WIN:
@@ -215,7 +222,6 @@ if _WIN:
             'tests/hermes_cli/test_shared_profile_warning.py::test_cli_startup_quarantines_corrupt_ledger[\\xff]',
             'tests/hermes_cli/test_shared_profile_warning.py::test_cli_startup_quarantines_corrupt_ledger[{broken]',
             'tests/hermes_cli/test_shared_profile_warning.py::test_warning_tracks_live_other_install_in_same_home',
-            'tests/hermes_cli/test_source_build.py::test_installed_npm_does_not_authorize_missing_workspace_dependencies',
             'tests/hermes_cli/test_source_channel_integration.py::test_retirement_refuses_to_downgrade_newer_source[shallow]',
             'tests/hermes_cli/test_update_target_identity.py::test_branch_update_uses_real_refs_and_completion_request[fork-late-reverted]',
             'tests/hermes_cli/test_update_target_identity.py::test_branch_update_uses_real_refs_and_completion_request[fork-late-wrong-branch]',
@@ -224,8 +230,6 @@ if _WIN:
             'tests/hermes_cli/test_update_target_identity.py::test_update_syntax_failure_restores_pre_update_head[True-late]',
             'tests/hermes_cli/test_update_target_identity.py::test_update_syntax_failure_restores_pre_update_head[True-origin]',
             'tests/hermes_cli/test_venv_sync_currency.py::test_own_tree_sync_reuses_pm_without_writing_an_extra_stamp',
-            'tests/hermes_cli/test_version_info.py::test_get_version_info_derives_identity_from_reachable_release_tag',
-            'tests/hermes_cli/test_version_info.py::test_get_version_info_takes_the_version_a_calver_only_release_shipped',
         )},
         "tests/hermes_cli/test_isolated_serve_ledger_marker.py::"
         "test_isolated_serve_ledger_row_is_marked_and_ordinary_serve_is_not": (
@@ -245,11 +249,6 @@ if _WIN:
         "test_enabled_portable_plugin_registers_components": (
             _up_red("app.darwin.location is str(tmp_path), a drive-letter path the declaration "
                     "rejects as not absolute, so the plugin is disabled at load (class c-D)"),
-        ),
-        "tests/tui_gateway/test_tui_gateway_server.py::"
-        "test_load_cfg_raw_sees_replacement_with_pinned_mtime_and_size": (
-            _up_red("shutil.copy2 over an existing file keeps its NTFS file id and creation "
-                    "ctime, so no field of the cache signature moves (class e-ID)"),
         ),
         # A SKIP: the red is a teardown error, which a strict xfail cannot cover (the
         # call phase passes and reads XPASS(strict)).

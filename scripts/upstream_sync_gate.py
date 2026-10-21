@@ -166,8 +166,7 @@ def run_command(command: GateCommand, *, tail_chars: int) -> GateResult:
         text=True,
         encoding="utf-8",
         errors="replace",
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         check=False,
     )
     return GateResult(
@@ -191,8 +190,7 @@ def _changed_paths(repo_root: Path, base_ref: str | None, explicit: list[str]) -
             text=True,
             encoding="utf-8",
             errors="replace",
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             check=False,
         )
     except OSError:

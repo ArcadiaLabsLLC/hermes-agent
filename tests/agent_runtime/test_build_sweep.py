@@ -15,8 +15,9 @@ import types
 import pytest
 
 from agent_runtime.builds import history, sweep
-from agent_runtime.builds.registry import new_record, write_record
+from agent_runtime.builds.registry import new_record
 from agent_runtime.builds.vocabulary import REGISTRY_DIR_ENV
+from tests.agent_runtime._build_rows_fixture import write_record
 
 NOW = 1_759_590_720.0
 
@@ -66,7 +67,7 @@ def test_a_detected_build_past_the_threshold_is_marked_and_never_ended(tmp_path)
 def test_a_build_under_the_threshold_or_queued_is_never_ended(tmp_path):
     rows = [_row("build:agent:quiet", "agent", status="stalled", quiet=600),
             _row("build:announced:qb-queued", "announced", status="running", quiet=None)]
-    built, log, calls = _sweep(tmp_path, [rows])
+    built, _log, calls = _sweep(tmp_path, [rows])
     assert built.tick(NOW).stall_failed == [] and calls == []
 
 

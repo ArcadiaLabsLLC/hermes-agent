@@ -80,7 +80,7 @@ def reap_orphan_worktrees(
             kept.append({**entry, "reason": unsafe_reason})
             continue
         try:
-            resolved = worktree.resolve()
+            worktree.resolve()
         except OSError:
             kept.append({**entry, "reason": "unresolvable"})
             continue

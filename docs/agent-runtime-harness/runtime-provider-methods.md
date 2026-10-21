@@ -68,7 +68,12 @@ no rows. Each row also carries `pack_available` and `pack`: in a bundle (the Ete
 Harness) nothing is `installable` — the runtime never installs — and a provider whose
 extra a provider pack carries (`packaging.packs.provider-<extra>`) answers
 `pack_available: true, pack: {name, commit}`; the Launcher downloads that pack. Outside
-a bundle `pack` is null.
+a bundle `pack` is null. Each row also carries `needed_when`: null for an SDK the
+provider cannot run without, or `{auth_mode}` for one it needs only in that mode
+(owner ruling 2026-10-16: `azure-foundry` reports `azure-identity` with
+`needed_when: {auth_mode: entra_id}`, offering the `provider-azure-identity` pack; an
+api-key Foundry turn is never refused for it). The mode table is
+`_PROVIDER_MODE_PACKAGE_REQUIREMENTS` in `hermes_cli/runtime_environment.py`.
 
 **dependency.install** — `{contract, provider, extra, outcome, environment,
 restart_required}`. `outcome` ∈ `installed`, `already_installed`;

@@ -20,6 +20,7 @@ from agent_runtime.office_store.models import ConflictScan, OfficeActorOutcome
 from agent_runtime.office_store.normalize import _safe_actor_ref
 from agent_runtime.serde import from_jsonable, read_json, safe_id
 from agent_runtime.store_conflicts import archive_conflict_sidecar, guard_no_conflict
+from agent_runtime.sync_take import SyncTake
 
 if TYPE_CHECKING:
     from agent_runtime.office_store.store import OfficeStore
@@ -66,7 +67,7 @@ def scan_conflicts(store: OfficeStore, workspace_id: str) -> ConflictScan:
         try:
             payload = read_json(path)
             key = str(payload.get("actor_key") or "").strip()
-        except Exception as exc:  # noqa: BLE001 — the scan survives one bad file
+        except Exception as exc:  # the scan survives one bad file
             outcomes.append(
                 OfficeActorOutcome.conflict_key_from_filename(
                     workspace_id, path.stem, exc
@@ -142,9 +143,10 @@ def resolve_conflict(
     the refusal it can raise points at a real next move. Same input class,
     opposite dispositions, one rule."""
 
-    take = str(take or "").strip().lower()
-    if take not in {"local", "remote"}:
-        raise ValueError("invalid_request")
+    try:
+        take = SyncTake(str(take or "").strip().lower())
+    except ValueError:
+        raise ValueError("invalid_request") from None
     wsid = safe_id(workspace_id)
     if not wsid:
         raise ValueError("invalid_request")
@@ -154,7 +156,7 @@ def resolve_conflict(
             raise SyncConflict(f"no_conflict:{actor_key}")
         sidecar = read_json(sidecar_path)
         result_actor: OfficeActor | None = None
-        if take == "local":
+        if take is SyncTake.LOCAL:
             if store.actor_exists(wsid, actor_key):
                 result_actor = store.get_actor(wsid, actor_key)
         else:  # take == remote
@@ -223,7 +225,7 @@ def resolve_conflict(
             correlation_id,
             workspace_id=wsid,
             actor_key=actor_key,
-            take=take,
+            take=take.value,
             revision=getattr(result_actor, "revision", None),
         )
     return result_actor

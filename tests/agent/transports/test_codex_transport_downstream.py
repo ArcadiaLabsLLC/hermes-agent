@@ -19,7 +19,7 @@ import pytest
 from agent.chat_completion_helpers import build_api_kwargs
 from agent_runtime.cache_routing import apply_persona_cache_routing
 from agent_runtime.persona_turn_binding import bind_persona_turn_agent
-from tests.agent.transports.test_codex_transport import (  # noqa: F401 — upstream names the moved tests use
+from tests.agent.transports.test_codex_transport import (  # upstream names the moved tests use
     transport,
 )
 

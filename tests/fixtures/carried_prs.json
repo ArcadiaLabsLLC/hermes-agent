@@ -43,40 +43,40 @@
     },
     "119069": {
       "head_ref": "origin/fix/legacy-launchd-labels-pwd-import",
-      "reviewed_head": "3be47f27e761d64094868c6f3a3eaa2ac370fc20",
+      "reviewed_head": "f7a679f959ed39c6665e1629036fab7a7ba42293",
       "base_ref": "upstream/main",
       "files": {
         "hermes_cli/gateway.py": {
           "mode": "hunks"
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "121219": {
       "head_ref": "origin/up/win-conpty-line-wrap",
-      "reviewed_head": "7184a91be8ac11e55ceeecd7407cf4f50bc46216",
+      "reviewed_head": "179fb36c0de878364fc79b1450a82b9240566aaf",
       "base_ref": "upstream/main",
       "files": {
         "tests/hermes_cli/test_win_pty_bridge.py": {
           "mode": "hunks"
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "121224": {
       "head_ref": "origin/up/win-path-spelling",
-      "reviewed_head": "4dbd8aa171dbde941308897a717cf811317ec294",
+      "reviewed_head": "0476e1fb7df92faec833569762ec918b2391a8d3",
       "base_ref": "upstream/main",
       "files": {
         "tests/hermes_cli/test_deleted_profile_tombstone.py": {
           "mode": "hunks"
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "121225": {
       "head_ref": "origin/up/win-posix-only-apis",
-      "reviewed_head": "3c77ad9a2f2a1b1cc21877e19c4b1ae6d3149f97",
+      "reviewed_head": "4d8e71b63a745d3e4b59629c9cfe115f58df9769",
       "base_ref": "upstream/main",
       "files": {
         "tests/hermes_cli/test_auth_nous_provider.py": {
@@ -84,11 +84,11 @@
           "reason": "Current PR has no delta for this ledger path; stale attribution, existing Windows tests retained."
         }
       },
-      "reviewed_base": "ee8dd6c886326db4b468c2ba18d9409f123da827"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "121226": {
       "head_ref": "origin/up/win-shell-invocation",
-      "reviewed_head": "ab4c8098d9e771d574f2e5620ad8e847bea26524",
+      "reviewed_head": "2765d2db50d0c598c6e58a480d758f53041127d8",
       "base_ref": "upstream/main",
       "files": {
         "tests/hermes_cli/test_setup_hermes_script.py": {
@@ -101,11 +101,11 @@
           "mode": "hunks"
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "121640": {
       "head_ref": "origin/up/doc-accuracy",
-      "reviewed_head": "989f21fe3cd940c697795e27b40881e495a88018",
+      "reviewed_head": "4ef61a5da4860e0dcf33a2475f28dd0789d6211b",
       "base_ref": "upstream/main",
       "files": {
         "hermes_cli/service_manager.py": {
@@ -121,11 +121,11 @@
           "mode": "hunks"
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "121642": {
       "head_ref": "origin/up/nous-login-inference-url",
-      "reviewed_head": "7faa143ac1a01f68bac44a9e235e2020e378af26",
+      "reviewed_head": "b65424b648a86b93cff8443dc0c9bda771f5d406",
       "base_ref": "upstream/main",
       "files": {
         "hermes_cli/auth_nous.py": {
@@ -135,11 +135,11 @@
           "mode": "hunks"
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "121643": {
       "head_ref": "origin/up/win-remote-posix-paths",
-      "reviewed_head": "acd91dfa42eaa5e02d47a04381d92eca672c4a42",
+      "reviewed_head": "0dbed9968ffb198e043eeb14616917eff442cb5b",
       "base_ref": "upstream/main",
       "files": {
         "tools/credential_files.py": {
@@ -150,11 +150,11 @@
           "mode": "hunks"
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "121645": {
       "head_ref": "origin/up/win-posix-guard-forms",
-      "reviewed_head": "e19556f3d86dd1c22797e6a0aa9f37eb8b1de053",
+      "reviewed_head": "a1eeddb3ba8eca77469114fc3f24582fff9729a3",
       "base_ref": "upstream/main",
       "files": {
         "tools/file_tools.py": {
@@ -177,22 +177,22 @@
           "reason": "Reviewed proc/device guards carried; fork posix_match_forms/path_identity adapter and import spelling remain independently owned. No exact added fragment survives adapter spelling; semantic coverage is in targeted importing tests."
         }
       },
-      "reviewed_base": "ee8dd6c886326db4b468c2ba18d9409f123da827"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "123890": {
       "head_ref": "origin/fix/cache-concurrency-probe-nameerror",
-      "reviewed_head": "b6c5c1ca4b9463e733f25a9f169ebecc26a8afb0",
+      "reviewed_head": "01ca8468c0132611089666beca4e1d38a4289ea1",
       "base_ref": "upstream/main",
       "files": {
         "evals/postmortem/live_ab/cache_concurrency_probe.py": {
           "mode": "hunks"
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "123891": {
       "head_ref": "origin/fix/process-hermes-home-no-override-fallback",
-      "reviewed_head": "815c833d7920fd91d26a58c212ecbcbc59158322",
+      "reviewed_head": "4425b621d13249e8269d942b048d85ecd577f1a8",
       "base_ref": "upstream/main",
       "files": {
         "gateway/lifecycle_ledger.py": {
@@ -202,11 +202,11 @@
           "mode": "hunks"
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "123892": {
       "head_ref": "origin/fix/shell-hook-script-path-os-sep",
-      "reviewed_head": "b9bb7aa3b1150475c513b2881dfcf0060db17c68",
+      "reviewed_head": "a9b0dcc93e0d11010b9a4732e71f729049e141a4",
       "base_ref": "upstream/main",
       "files": {
         "agent/shell_hooks.py": {
@@ -216,11 +216,11 @@
           "mode": "hunks"
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "123977": {
       "head_ref": "origin/widen/terminal-command-guard-hook",
-      "reviewed_head": "497a78b05856fece55b85e67ea4d0e88d8e03d02",
+      "reviewed_head": "35479f6823bc9a7fe0e7966ca367ffe2c7d1a406",
       "base_ref": "upstream/main",
       "files": {
         "tools/terminal_tool.py": {
@@ -228,11 +228,11 @@
           "reason": "Future approval/plugin dispatch door; fork direct terminal_policy wrapper remains, no carried generic hook."
         }
       },
-      "reviewed_base": "ee8dd6c886326db4b468c2ba18d9409f123da827"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "123978": {
       "head_ref": "origin/widen/per-call-usage-record",
-      "reviewed_head": "a119e3691162572145978ed88e27819c3d500572",
+      "reviewed_head": "a85a2e0ab4efac59309abdf42a6053caa157bc3e",
       "base_ref": "upstream/main",
       "files": {
         "agent/codex_runtime.py": {
@@ -240,11 +240,11 @@
           "reason": "Future post_api_request door; fork direct usage-ledger seam is not a copied generic hook."
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "123979": {
       "head_ref": "origin/widen/register-toolset",
-      "reviewed_head": "ff5986263a9897868b666bedb29ffc8d6134f41d",
+      "reviewed_head": "d791f75fa6d0e18758217141726c17e43e276e00",
       "base_ref": "upstream/main",
       "files": {
         "tools/registry.py": {
@@ -252,11 +252,11 @@
           "reason": "Future register-toolset widening; _toolset_defs and registration API absent; newer plugins_toolsets split not carried."
         }
       },
-      "reviewed_base": "ee8dd6c886326db4b468c2ba18d9409f123da827"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "124190": {
       "head_ref": "origin/up/store-home-override",
-      "reviewed_head": "5dfd9f30d27c2f7b230006517a10b7aa3275c691",
+      "reviewed_head": "3b5be6f7dcaf143a9410a6db4bf2844ddbed50b9",
       "base_ref": "upstream/main",
       "files": {
         "hermes_cli/auth.py": {
@@ -272,11 +272,11 @@
           "reason": "Future get_store_home hook; fork directly owns profile/provider storage, generic contract not adopted."
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "124191": {
       "head_ref": "origin/up/skills-extra-dirs",
-      "reviewed_head": "f54abc0034373f98268d28e71bb1c218340ce1d6",
+      "reviewed_head": "d01a4cc13dd3ffd90c8928e18bfcd83514efd639",
       "base_ref": "upstream/main",
       "files": {
         "agent/skill_utils.py": {
@@ -288,11 +288,11 @@
           "reason": "Redesigned PR depends on upstream tiered roots/catalog absent from fork; writable shared-root seam retained. Job 2 reviews separately."
         }
       },
-      "reviewed_base": "ee8dd6c886326db4b468c2ba18d9409f123da827"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "124193": {
       "head_ref": "origin/up/credential-pool-pick-and-rotate",
-      "reviewed_head": "2f2bba6345f12b856a0085a0a0d5b07d991203f7",
+      "reviewed_head": "2dbe63c5711707c63bf0bfd2c995c3d16bab67ab",
       "base_ref": "upstream/main",
       "files": {
         "agent/credential_pool.py": {
@@ -300,11 +300,11 @@
           "reason": "Future rotation seam; fork PoolRotationMixin cursor implementation is independent of PR _pick_and_rotate."
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "124194": {
       "head_ref": "origin/up/local-runtime-knobs",
-      "reviewed_head": "fd43b6fea3f0ad55082d7785142198e8ece2ab88",
+      "reviewed_head": "90bd293201314e5d8f997ce67baf4a2db7bb49a5",
       "base_ref": "upstream/main",
       "files": {
         "hermes_cli/local_runtime/bootstrap.py": {
@@ -316,11 +316,11 @@
           "reason": "Future local-runtime knobs; fork-owned adapter provides model/executable/preset parallel, PR knobs not copied."
         }
       },
-      "reviewed_base": "ee8dd6c886326db4b468c2ba18d9409f123da827"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "124195": {
       "head_ref": "origin/up/public-drain-fd",
-      "reviewed_head": "5b6fe26fb8286bece6302b73ef4ab950ff54a3d5",
+      "reviewed_head": "c12d3e7f3c5923d91d7c43f6100403d73172ce3b",
       "base_ref": "upstream/main",
       "files": {
         "tools/environments/base_output.py": {
@@ -328,11 +328,11 @@
           "reason": "Future public drain_fd; fork subprocess pump is independent recorded implementation."
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "124210": {
       "head_ref": "origin/up/persisted-row-hooks",
-      "reviewed_head": "fb0122d52f7950e0954973fa04e981269a55edc2",
+      "reviewed_head": "c87ed369c770ea75af6510723810dfb749a36f69",
       "base_ref": "upstream/main",
       "files": {
         "agent/conversation_loop.py": {
@@ -377,11 +377,11 @@
           "reason": "Generic runtime transform hook not adopted; direct runtime_env/progress/job-wake seam retained."
         }
       },
-      "reviewed_base": "ee8dd6c886326db4b468c2ba18d9409f123da827"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "125259": {
       "head_ref": "origin/fix/readonly-config-reads",
-      "reviewed_head": "73e9a775a41196f72e6c411206e6ece5fb53c85b",
+      "reviewed_head": "a24863669d74e45387d6e6db400f690be7a4b572",
       "base_ref": "upstream/main",
       "files": {
         "hermes_cli/config.py": {
@@ -400,11 +400,11 @@
           "mode": "hunks"
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "125260": {
       "head_ref": "origin/fix/doctor-call-time-home",
-      "reviewed_head": "238f779fd9a810be7d2fdbd022065970493f77f1",
+      "reviewed_head": "7f4a2868e8b922cb151418cd4382817fa69e0230",
       "base_ref": "upstream/main",
       "files": {
         "hermes_cli/doctor.py": {
@@ -445,11 +445,11 @@
           "reason": "All current PR added blocks; independent fork additions preserved. Context and removed lines require manual review."
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "125261": {
       "head_ref": "origin/fix/win-runtime-fixes",
-      "reviewed_head": "5c6e33a665ab9b3b13deb08961d1e6a554b9620f",
+      "reviewed_head": "57dd4cc4375de55d3142869166c61891d6aebd69",
       "base_ref": "upstream/main",
       "files": {
         "tools/environments/local.py": {
@@ -463,11 +463,11 @@
           "mode": "hunks"
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "125262": {
       "head_ref": "origin/fix/win-path-identity",
-      "reviewed_head": "d980890227debd9f672289c80f20bc7d3b1fd211",
+      "reviewed_head": "a72ff6a9999f77c9029565c44a63afa470bc2762",
       "base_ref": "upstream/main",
       "files": {
         "tools/approval_detection.py": {
@@ -486,11 +486,11 @@
           "mode": "hunks"
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "125263": {
       "head_ref": "origin/fix/test-runner",
-      "reviewed_head": "a30866858c9f21d8b37cd32a1dbaa42d4fb34c53",
+      "reviewed_head": "c6020e7db51c2fb2ade4ade0050d07528f9fbcc9",
       "base_ref": "upstream/main",
       "files": {
         "scripts/run_tests.sh": {
@@ -529,16 +529,16 @@
             "    return _root_the_probe(probe_dir)",
             "    # This probe is a bare file rather than a directory, so `tmp_path` itself is\n    # what the inner pytest has to root on.\n    probe = _root_the_probe(tmp_path) / \"test_flaky_probe.py\"",
             "        encoding=\"utf-8\",\n        errors=\"replace\",",
-            "def test_isolation_retry_keeps_the_scaled_timeout_and_counts_skips(tmp_path: Path) -> None:\n    \"\"\"The 1-worker retry gets the pool's scaled bound, and its skips are counted.\n\n    The cached 10 s duration scales the 2 s flat cap to 30 s.\n    The first (pool) attempt hangs and is killed at 30 s; the retry sleeps 3 s\n    (about 15 s of wall with interpreter start on a busy Windows box), which the\n    30 s bound survives and the 2 s flat cap cannot, and it skips one test.\n    \"\"\"\n    repo_root = _probe_root(tmp_path)\n    (repo_root / \"tests\").mkdir()\n    tests_dir = _root_the_probe(repo_root / \"tests\")\n    probe = tests_dir / \"test_straggler_probe.py\"\n    marker = tmp_path / \"first-attempt\"\n    probe.write_text(\n        textwrap.dedent(\n            f\"\"\"\n            import time\n            from pathlib import Path\n            import pytest\n\n            def test_straggler():\n                marker = Path({str(marker)!r})\n                if not marker.exists():\n                    marker.write_text(\"hung once\")\n                    time.sleep(120)\n                time.sleep(3)\n\n            @pytest.mark.skip(reason=\"counted by the retry\")\n            def test_skipped():\n                pass\n            \"\"\"\n        ),\n        encoding=\"utf-8\",\n    )\n    (repo_root / \"test_durations.json\").write_text(\n        json.dumps({str(Path(\"tests\") / probe.name): 10.0}), encoding=\"utf-8\"\n    )\n    proc = subprocess.run(\n        [sys.executable, str(repo_root / \"scripts\" / \"run_tests_parallel.py\"),\n         \"--files\", str(probe), \"--file-timeout\", \"2\", \"--file-retries\", \"0\", \"-j\", \"1\"],\n        cwd=repo_root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,\n        encoding=\"utf-8\", errors=\"replace\", timeout=170,\n    )\n    assert marker.exists(), proc.stdout  # the pool attempt really ran first\n    assert \"RETRY PASS\" in proc.stdout, proc.stdout\n    assert proc.returncode == 0, proc.stdout\n    assert \"1 skipped\" in proc.stdout, proc.stdout\n\n\ndef test_node_id_selector_runs_the_named_test(tmp_path: Path) -> None:\n    \"\"\"``file.py::test_alpha`` runs that test instead of discovering nothing.\"\"\"\n    probe_dir = _make_probe_dir(tmp_path)\n    target = probe_dir / \"test_flagprobe.py\"\n    repo_root = Path(__file__).resolve().parent.parent.parent\n    proc = subprocess.run(\n        [sys.executable, str(repo_root / \"scripts\" / \"run_tests_parallel.py\"),\n         f\"{target}::test_alpha\", \"-j\", \"1\", \"--file-timeout\", \"30\"],\n        cwd=repo_root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,\n        # Decode as UTF-8 like the runner emits (see _run_runner's note);\n        # text=True alone uses the locale codec and blows up on cp1252.\n        encoding=\"utf-8\", errors=\"replace\", timeout=60,\n    )\n    assert proc.returncode == 0, proc.stdout\n    assert \"No test files to run\" not in proc.stdout\n    assert \"node id\" in proc.stdout  # explains the translation\n    # Ran exactly the one selected test, not both in the file.\n    assert \"1 tests passed\" in proc.stdout\n\n\ndef test_explicit_k_wins_over_node_id_inference(tmp_path: Path) -> None:\n    \"\"\"A caller's own ``-k`` is not overridden by the node-id translation.\"\"\"\n    probe_dir = _make_probe_dir(tmp_path)\n    target = probe_dir / \"test_flagprobe.py\"\n    repo_root = Path(__file__).resolve().parent.parent.parent\n    proc = subprocess.run(\n        [sys.executable, str(repo_root / \"scripts\" / \"run_tests_parallel.py\"),\n         f\"{target}::test_alpha\", \"-k\", \"test_beta\",\n         \"-j\", \"1\", \"--file-timeout\", \"30\"],\n        cwd=repo_root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,\n        # Decode as UTF-8 like the runner emits (see _run_runner's note);\n        # text=True alone uses the locale codec and blows up on cp1252.\n        encoding=\"utf-8\", errors=\"replace\", timeout=60,\n    )\n    # -k test_beta wins: one test ran, and it wasn't filtered to nothing.\n    assert proc.returncode == 0, proc.stdout\n    assert \"1 tests passed\" in proc.stdout"
+            "def test_isolation_retry_keeps_the_scaled_timeout_and_counts_skips(tmp_path: Path) -> None:\n    \"\"\"The 1-worker retry gets the pool's scaled bound, and its skips are counted.\n\n    The cached 10 s duration scales the 2 s flat cap to 30 s.\n    The first (pool) attempt hangs and is killed at 30 s; the retry sleeps 3 s\n    (about 15 s of wall with interpreter start on a busy Windows box), which the\n    30 s bound survives and the 2 s flat cap cannot, and it skips one test.\n    \"\"\"\n    repo_root = _probe_root(tmp_path)\n    (repo_root / \"tests\").mkdir()\n    tests_dir = _root_the_probe(repo_root / \"tests\")\n    probe = tests_dir / \"test_straggler_probe.py\"\n    marker = tmp_path / \"first-attempt\"\n    probe.write_text(\n        textwrap.dedent(\n            f\"\"\"\n            import time\n            from pathlib import Path\n            import pytest\n\n            def test_straggler():\n                marker = Path({str(marker)!r})\n                if not marker.exists():\n                    marker.write_text(\"hung once\")\n                    time.sleep(120)\n                time.sleep(3)\n\n            @pytest.mark.skip(reason=\"counted by the retry\")\n            def test_skipped():\n                pass\n            \"\"\"\n        ),\n        encoding=\"utf-8\",\n    )\n    (repo_root / \"test_durations.json\").write_text(\n        json.dumps({str(Path(\"tests\") / probe.name): 10.0}), encoding=\"utf-8\"\n    )\n    proc = subprocess.run(\n        [sys.executable, str(repo_root / \"scripts\" / \"run_tests_parallel.py\"),\n         \"--files\", str(probe), \"--file-timeout\", \"2\", \"--file-retries\", \"0\", \"-j\", \"1\"],\n        cwd=repo_root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,\n        encoding=\"utf-8\", errors=\"replace\", timeout=170, check=False,\n    )\n    assert marker.exists(), proc.stdout  # the pool attempt really ran first\n    assert \"RETRY PASS\" in proc.stdout, proc.stdout\n    assert proc.returncode == 0, proc.stdout\n    assert \"1 skipped\" in proc.stdout, proc.stdout\n\n\ndef test_node_id_selector_runs_the_named_test(tmp_path: Path) -> None:\n    \"\"\"``file.py::test_alpha`` runs that test instead of discovering nothing.\"\"\"\n    probe_dir = _make_probe_dir(tmp_path)\n    target = probe_dir / \"test_flagprobe.py\"\n    repo_root = Path(__file__).resolve().parent.parent.parent\n    proc = subprocess.run(\n        [sys.executable, str(repo_root / \"scripts\" / \"run_tests_parallel.py\"),\n         f\"{target}::test_alpha\", \"-j\", \"1\", \"--file-timeout\", \"30\"],\n        cwd=repo_root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,\n        # Decode as UTF-8 like the runner emits (see _run_runner's note);\n        # text=True alone uses the locale codec and blows up on cp1252.\n        encoding=\"utf-8\", errors=\"replace\", timeout=60, check=False,\n    )\n    assert proc.returncode == 0, proc.stdout\n    assert \"No test files to run\" not in proc.stdout\n    assert \"node id\" in proc.stdout  # explains the translation\n    # Ran exactly the one selected test, not both in the file.\n    assert \"1 tests passed\" in proc.stdout\n\n\ndef test_explicit_k_wins_over_node_id_inference(tmp_path: Path) -> None:\n    \"\"\"A caller's own ``-k`` is not overridden by the node-id translation.\"\"\"\n    probe_dir = _make_probe_dir(tmp_path)\n    target = probe_dir / \"test_flagprobe.py\"\n    repo_root = Path(__file__).resolve().parent.parent.parent\n    proc = subprocess.run(\n        [sys.executable, str(repo_root / \"scripts\" / \"run_tests_parallel.py\"),\n         f\"{target}::test_alpha\", \"-k\", \"test_beta\",\n         \"-j\", \"1\", \"--file-timeout\", \"30\"],\n        cwd=repo_root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,\n        # Decode as UTF-8 like the runner emits (see _run_runner's note);\n        # text=True alone uses the locale codec and blows up on cp1252.\n        encoding=\"utf-8\", errors=\"replace\", timeout=60, check=False,\n    )\n    # -k test_beta wins: one test ran, and it wasn't filtered to nothing.\n    assert proc.returncode == 0, proc.stdout\n    assert \"1 tests passed\" in proc.stdout"
           ],
           "reason": "Reviewed conservative jobs, timeout formatting/retry and probe rooting; fork coverage/console isolation and docstring wrapping retained."
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "125264": {
       "head_ref": "origin/fix/media-path-hardening",
-      "reviewed_head": "e59e49cf9d3dd6ea88ba75156589658561b5ecea",
+      "reviewed_head": "839916bf287426de626b04cb58238cfbf5bbfcbc",
       "base_ref": "upstream/main",
       "files": {
         "gateway/platforms/base.py": {
@@ -555,11 +555,11 @@
           "reason": "Current PR additions except the regex grouping boundary: fork preserves closing-quote termination for quoted Windows paths by applying the boundary only to bare paths. Covered by test_platform_base_downstream and test_media_path_hardening; grouping, context and removed lines require manual review."
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "125265": {
       "head_ref": "origin/fix/updater-fork-history",
-      "reviewed_head": "857f6bb83b1652b3b17de338acd165e7cb97c76a",
+      "reviewed_head": "3ce22f9a3ababb3a70947a1a80fb8bb6a2465d8c",
       "base_ref": "upstream/main",
       "files": {
         "hermes_cli/update_cmd.py": {
@@ -569,11 +569,11 @@
           "mode": "hunks"
         }
       },
-      "reviewed_base": "ee8dd6c886326db4b468c2ba18d9409f123da827"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "128648": {
       "head_ref": "origin/feat/plugin-cli-commands",
-      "reviewed_head": "9e86d299b2d88daedb8a7190ad04fff4dfadb095",
+      "reviewed_head": "03d6b21a9aedc4922aea56135c2277af2481b677",
       "base_ref": "upstream/main",
       "files": {
         "hermes_cli/main.py": {
@@ -616,22 +616,22 @@
           "reason": "Reviewed name/parent validation and returned descriptor moved into fork-owned cli_command_entry; facade metadata/field wiring independently retained."
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "128650": {
       "head_ref": "origin/fix/pet-atlas-extraction",
-      "reviewed_head": "da0ccd09bbc2814e231dc5b958b29faff245dea1",
+      "reviewed_head": "fdcf664bdf174b3c38a4b658bf204ac967c4f7d9",
       "base_ref": "upstream/main",
       "files": {
         "agent/pet/generate/atlas.py": {
           "mode": "hunks"
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "128651": {
       "head_ref": "origin/fix/memory-plugin-publish-module",
-      "reviewed_head": "c951d6051dc23aa8656393dfe9772c8251a011fe",
+      "reviewed_head": "ad12cb4c5281c1a674bfc210ebcc49d697284d69",
       "base_ref": "upstream/main",
       "files": {
         "plugins/memory/__init__.py": {
@@ -652,7 +652,7 @@
             "            try:\n                spec.loader.exec_module(cli_mod)\n            except Exception:",
             "                raise",
             {
-              "text": "    sys.modules[full_name] = module\n    parent_name, _, child = full_name.rpartition(\".\")\n    if not parent_name:\n        return\n    parent = sys.modules.get(parent_name)\n    if parent is None:\n        return\n    try:\n        setattr(parent, child, module)\n    except Exception:  # noqa: BLE001 — a binding failure must never fail a load\n        logger.debug(\"could not bind %s on %s\", child, parent_name, exc_info=True)",
+              "text": "    sys.modules[full_name] = module\n    parent_name, _, child = full_name.rpartition(\".\")\n    if not parent_name:\n        return\n    parent = sys.modules.get(parent_name)\n    if parent is None:\n        return\n    try:\n        setattr(parent, child, module)\n    except Exception:  # health: allow BLE001 -- a binding failure must never fail a load\n        logger.debug(\"could not bind %s on %s\", child, parent_name, exc_info=True)",
               "fork_path": "plugins/memory/_module_publish.py",
               "scope_map": {
                 "_publish_module": "publish_module"
@@ -673,33 +673,33 @@
           "reason": "The PR splits the __init__/sys.modules skip (a deletion); the fork carries an additive equivalent — a rebind branch ahead of upstream's unchanged skip line — per owner ruling D3.03 2026-10-10. Retires when the PR merges."
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "128652": {
       "head_ref": "origin/fix/state-db-small-fixes",
-      "reviewed_head": "5125ad8683854fcc77dc69c0877a06f9010053e8",
+      "reviewed_head": "9769785f3a7294e8a36f03c28449d608354101fb",
       "base_ref": "upstream/main",
       "files": {
         "hermes_state_messages.py": {
           "mode": "hunks"
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "128653": {
       "head_ref": "origin/feat/plugin-session-info-tool-names",
-      "reviewed_head": "eea3343908d1534f306e54fe2de1d554e452e636",
+      "reviewed_head": "b8f207d258eb07404b6eebb0453c9a77682fc937",
       "base_ref": "upstream/main",
       "files": {
         "agent/system_prompt.py": {
           "mode": "hunks"
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "128654": {
       "head_ref": "origin/refactor/oauth-flow-catalog",
-      "reviewed_head": "b1209f4ca45be109bb1021ab261f8f9382703132",
+      "reviewed_head": "cc914d50225f969f827aac8fb07af22c0fc0f694",
       "base_ref": "upstream/main",
       "files": {
         "hermes_cli/web_routers/oauth.py": {
@@ -713,27 +713,32 @@
         "hermes_cli/web_server_oauth.py": {
           "mode": "lines",
           "fragments": [
-            "_OAUTH_STATUS_FNS = {\n    \"copilot-acp\": _copilot_acp_status,\n    \"anthropic\": _anthropic_oauth_status,\n    \"claude-code\": _claude_code_only_status,\n}\n_OAUTH_PROVIDER_CATALOG: tuple[Dict[str, Any], ...] = tuple(\n    {**row, \"status_fn\": _OAUTH_STATUS_FNS.get(row[\"id\"])} for row in OAUTH_FLOW_OVERRIDES"
+            {
+              "text": "_OAUTH_STATUS_FNS = {\n    \"copilot-acp\": _copilot_acp_status,\n    \"anthropic\": _anthropic_oauth_status,\n    \"claude-code\": _claude_code_only_status,\n}\n_OAUTH_PROVIDER_CATALOG: tuple[dict[str, Any], ...] = tuple(\n    {**row, \"status_fn\": _OAUTH_STATUS_FNS.get(row[\"id\"])} for row in OAUTH_FLOW_OVERRIDES",
+              "replacements": {
+                "dict": "Dict"
+              }
+            }
           ],
           "reason": "Reviewed OAuth catalog/disconnect consumer; provider_login_catalog is independently extracted fork authority."
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "128840": {
       "head_ref": "origin/fix/bytecode-sweep-lock",
-      "reviewed_head": "bbf8384d28aab7d2d00ea3389bf04a843fcb3b58",
+      "reviewed_head": "1a3e6a8d9da55da94b849cb68a33ecbcdaf1d773",
       "base_ref": "upstream/main",
       "files": {
         "hermes_cli/main_web_build.py": {
           "mode": "hunks"
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "128841": {
       "head_ref": "origin/fix/tool-registry-probe-cache",
-      "reviewed_head": "2f5249dbb6ae69f647a6811da8aed50f239bcf2d",
+      "reviewed_head": "026d9b053e4e7f6c02ed37ab9a5eb4beab5da59c",
       "base_ref": "upstream/main",
       "files": {
         "tools/registry.py": {
@@ -749,11 +754,11 @@
           "reason": "Reviewed tuple expiry/grace policy; fork _note_check_fn_probe instrumentation and comment formatting retained."
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "128843": {
       "head_ref": "origin/feat/config-switch-keys",
-      "reviewed_head": "146667c267fa147da43e226d872a70d112530ae0",
+      "reviewed_head": "edc3e46c061cdb3fec6ab2f696c088ecbcdc7d11",
       "base_ref": "upstream/main",
       "files": {
         "agent/tool_dispatch_helpers.py": {
@@ -787,7 +792,7 @@
         "hermes_cli/web_server_config.py": {
           "mode": "lines",
           "fragments": [
-            "def _wake_word_providers() -> Tuple[str, ...]:\n    \"\"\"The wake engines ``tools.wake_word`` prefers, imported lazily: a distribution that does not\n    package wake word (``voice.mode_enabled: false``) still loads the config schema, offering only\n    ``auto``.\"\"\"\n    try:\n        from tools.wake_word import _PROVIDER_PREFERENCE\n    except ImportError:\n        return ()\n    return tuple(_PROVIDER_PREFERENCE)\n\n",
+            "def _wake_word_providers() -> tuple[str, ...]:\n    \"\"\"The wake engines ``tools.wake_word`` prefers, imported lazily: a distribution that does not\n    package wake word (``voice.mode_enabled: false``) still loads the config schema, offering only\n    ``auto``.\"\"\"\n    try:\n        from tools.wake_word import _PROVIDER_PREFERENCE\n    except ImportError:\n        return ()\n    return tuple(_PROVIDER_PREFERENCE)\n\n",
             "        \"auto\", *_wake_word_providers(),"
           ],
           "reason": "All current PR added blocks; independent fork additions preserved. Context and removed lines require manual review."
@@ -808,7 +813,7 @@
           "mode": "hunks"
         }
       },
-      "reviewed_base": "ee8dd6c886326db4b468c2ba18d9409f123da827"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "129411": {
       "head_ref": "origin/fix/secret-prompt-termios-guard",
@@ -828,18 +833,18 @@
     },
     "129412": {
       "head_ref": "origin/fix/process-identity-psutil-guard",
-      "reviewed_head": "1c69dcdb799ca4ee053474ef8ddebfc0085aa9e7",
+      "reviewed_head": "267d4145bd6ea13b82dbb753e3a41ff2adcc2c98",
       "base_ref": "upstream/main",
       "files": {
         "hermes_cli/process_identity.py": {
           "mode": "hunks"
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "129413": {
       "head_ref": "origin/refactor/bootstrap-relaunch-in-venv-sync",
-      "reviewed_head": "1f18a33a351b72f4624429f644fd6c83049e5f9e",
+      "reviewed_head": "3c12e739d274c43c6960a2112620f267d7ad168f",
       "base_ref": "upstream/main",
       "files": {
         "hermes_bootstrap.py": {
@@ -857,22 +862,23 @@
           "reason": "Reviewed shared relaunch contract; fork recover callback, ABI re-entry, phone fallback and write fence retained."
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "129414": {
       "head_ref": "origin/refactor/tui-gateway-methods-pdf",
-      "reviewed_head": "49cc32892e2eb562cda77f07f1b6abbde0631861",
+      "reviewed_head": "0dd508f2d5a326e098762c8d6b10c2ebd92250f0",
       "base_ref": "upstream/main",
       "files": {
         "tests/fixtures/resolution_allowlist.json": {
-          "mode": "hunks"
+          "mode": "deferred",
+          "reason": "The PR's one allowlist row names upstream's tui_gateway/methods_pdf.py; the fork relocated that module to agent_runtime/gateway/methods_pdf.py and carries the same row (symbol _, kind bare_which) under the fork path. Re-check when the PR merges."
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "129582": {
       "head_ref": "origin/test/live-guard-lazy-children",
-      "reviewed_head": "47028bf43282f6b71aaa51494eb3f6af6a0bb1bb",
+      "reviewed_head": "7f257abc5e8ec8e676ac89966b0028606850a24e",
       "base_ref": "upstream/main",
       "files": {
         "tests/_fixtures/live_system_guard.py": {
@@ -891,11 +897,11 @@
           "reason": "Exact bound Process/children capture, whole lazy snapshot helper with reviewed cache-variable rename, and caller; fork console-event refusal and backend-spawn guard retained."
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "129695": {
       "head_ref": "origin/widen/mcp",
-      "reviewed_head": "b1405a264407323f7e8df8a050858702b3230645",
+      "reviewed_head": "ad606b303a94faaddaa402fa0f816d74d162bef2",
       "base_ref": "upstream/main",
       "files": {
         "tools/mcp_tool.py": {
@@ -915,11 +921,11 @@
           "reason": "Future MCP public-reader widening; fork keeps private-reader adapter, public APIs not adopted."
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "129698": {
       "head_ref": "origin/widen/skills",
-      "reviewed_head": "95c0e4c6c10d856adea21ab51d24260e9403b273",
+      "reviewed_head": "378e425744ee51e315698229b85d44c38b12c9f9",
       "base_ref": "upstream/main",
       "files": {
         "tools/skills_sync.py": {
@@ -931,11 +937,11 @@
           "reason": "Future skills public-reader widening; not adopted and newest version needs tiered roots absent fork."
         }
       },
-      "reviewed_base": "ee8dd6c886326db4b468c2ba18d9409f123da827"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "129700": {
       "head_ref": "origin/widen/pet",
-      "reviewed_head": "39ff513cbafcb1b4a7c4bf85acbdbb1d0b9f230e",
+      "reviewed_head": "67493374e837e3e1a0c4e6af474934301da6ebd6",
       "base_ref": "upstream/main",
       "files": {
         "agent/pet/generate/atlas.py": {
@@ -947,11 +953,11 @@
           "reason": "Future pet public-name widening, not adopted; underscore readers remain (distinct from carried atlas fix #128650)."
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "129702": {
       "head_ref": "origin/widen/text-streaming",
-      "reviewed_head": "002f9ed2a7a25e0d6250c14ebb00eae9b09ba2c1",
+      "reviewed_head": "883bdf1042b04fa5a767b99785bfbd90436c6ef4",
       "base_ref": "upstream/main",
       "files": {
         "agent/message_sanitization.py": {
@@ -963,11 +969,11 @@
           "reason": "Future text/streaming public-name widening; aliases not adopted, private-reader seam retained."
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "129704": {
       "head_ref": "origin/widen/codex-cache",
-      "reviewed_head": "712e98ccf7075675978e448d3e0aff42e4d75eb9",
+      "reviewed_head": "448b79e3245face91152fef6470b699975791cff",
       "base_ref": "upstream/main",
       "files": {
         "agent/transports/codex.py": {
@@ -975,11 +981,11 @@
           "reason": "Future cache public-name widening; private readers retained, public aliases not adopted."
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "131902": {
       "head_ref": "origin/widen/terminal",
-      "reviewed_head": "ec1abe3e6e70a1dd9cc2622dc1a55550ce156f1c",
+      "reviewed_head": "1b88a1781cb8a62982ab4ee3134c70e454f4ef63",
       "base_ref": "upstream/main",
       "files": {
         "tools/terminal_tool_guards.py": {
@@ -987,11 +993,11 @@
           "reason": "Future terminal guard public-name widening; not adopted."
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "131903": {
       "head_ref": "origin/widen/processes",
-      "reviewed_head": "f5c1f1c87e04601022872473bcb7bc487343307a",
+      "reviewed_head": "3111bbb78c6b11193fc614c11fdd20d9a69e774b",
       "base_ref": "upstream/main",
       "files": {
         "tools/process_registry.py": {
@@ -999,11 +1005,11 @@
           "reason": "Future public terminate_host_pid widening and new termination-module split; private-reader seam retained."
         }
       },
-      "reviewed_base": "9b38eb1432d8363fe0f01056d03b0fc123014946"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "131904": {
       "head_ref": "origin/widen/misc",
-      "reviewed_head": "203baca0bccc24880be170e21c56b7826ee5a941",
+      "reviewed_head": "c26d098aac4a2cf95c3e26fad22099395188010a",
       "base_ref": "upstream/main",
       "files": {
         "gateway/run.py": {
@@ -1019,18 +1025,18 @@
           "reason": "Future public sentinel/doctor/profile-reader widening; public aliases not adopted."
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "131905": {
       "head_ref": "origin/fix/win-test-lock-sweep-probe",
-      "reviewed_head": "940d8956a302a3a52b4011f086054b35f61a7ec3",
+      "reviewed_head": "6adc9ab7ea7096fd68c8eedf3f3155f13b2d29ba",
       "base_ref": "upstream/main",
       "files": {
         "tests/conftest.py": {
           "mode": "hunks"
         }
       },
-      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
     "137460": {
       "head_ref": "refs/carried-prs/137460/head",

@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import json
 import shutil
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from typing import Any
 
 from hermes_time import now
@@ -535,6 +535,23 @@ def _profile_template_names() -> list[str]:
         return []
 
 
+def actor_bound_instance_id(actor) -> str | None:
+    """The canonical persona-instance id an office actor is bound to, or ``None``.
+
+    The one derivation both evidence readers spend: the reconcile lane's
+    :func:`office_placement_evidence` and the snapshot's office rows
+    (``archived_placement_instance_ids``), so the parity warning and the prune it
+    names cannot disagree about which instance a desk belonged to.
+    """
+
+    from .persona_assignments import canonical_persona_instance_id
+
+    raw = str(getattr(actor, "persona_instance_id", "") or "").strip()
+    if not raw:
+        return None
+    return canonical_persona_instance_id(raw, persona_id=actor.persona_id) or raw
+
+
 def office_placement_evidence(office_store) -> tuple[set[str] | None, dict[str, set[str]] | None]:
     """Which instances hold a LIVE office placement anywhere, and which hold an
     ARCHIVED one in each workspace.
@@ -556,16 +573,9 @@ def office_placement_evidence(office_store) -> tuple[set[str] | None, dict[str, 
     with the fail direction chosen the same way.
     """
 
-    from .persona_assignments import canonical_persona_instance_id
-
     live: set[str] = set()
     archived_by_ws: dict[str, set[str]] = {}
-
-    def _bound(actor) -> str | None:
-        raw = str(getattr(actor, "persona_instance_id", "") or "").strip()
-        if not raw:
-            return None
-        return canonical_persona_instance_id(raw, persona_id=actor.persona_id) or raw
+    _bound = actor_bound_instance_id
 
     for wsid in office_store.list_workspaces():
         try:
@@ -673,7 +683,7 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
         _archive_row(instance.id, archive_dir)
         by_id.pop(instance.id, None)
         aliases[instance.id] = canonical
-        store._event(  # noqa: SLF001 — the reconciler IS store maintenance
+        store._event(  # the reconciler IS store maintenance
             "persona_instance.reconciled",
             instance,
             {"from_id": instance.id, "to_id": canonical, "action": action},
@@ -704,7 +714,7 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
         instance = surviving_by_id.get(candidate["persona_instance_id"])
         if instance is None:
             continue
-        if store._has_live_binding(instance):  # noqa: SLF001 — reconciler IS store maintenance
+        if store._has_live_binding(instance):  # reconciler IS store maintenance
             held_actions.append({**candidate, "reason": HELD_REASON_ACTIVE})
             continue
         pruned_actions.append(dict(candidate))
@@ -712,7 +722,7 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
             continue
         _archive_row(instance.id, prune_archive_dir)
         by_id.pop(instance.id, None)
-        store._event(  # noqa: SLF001 — the reconciler IS store maintenance
+        store._event(  # the reconciler IS store maintenance
             "persona_instance.pruned",
             instance,
             {
@@ -756,7 +766,7 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
         instance = surviving_by_id.get(candidate["persona_instance_id"])
         if instance is None:
             continue
-        if store._has_live_binding(instance):  # noqa: SLF001 — reconciler IS store maintenance
+        if store._has_live_binding(instance):  # reconciler IS store maintenance
             # The cross-store belt phase 2 wears for the same reason: the row's
             # own fields can be stale about a binding another store holds.
             unplaced_held.append({**candidate, "reason": HELD_REASON_ACTIVE})
@@ -766,7 +776,7 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
             continue
         _archive_row(instance.id, unplaced_archive_dir)
         by_id.pop(instance.id, None)
-        store._event(  # noqa: SLF001 — the reconciler IS store maintenance
+        store._event(  # the reconciler IS store maintenance
             "persona_instance.pruned",
             instance,
             {
@@ -965,9 +975,9 @@ def _archive_row(instance_id: str, archive_dir) -> None:
 
 def _recency(value: datetime | None) -> datetime:
     if value is None:
-        return datetime.min.replace(tzinfo=timezone.utc)
+        return datetime.min.replace(tzinfo=UTC)
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
+        return value.replace(tzinfo=UTC)
     return value
 
 

@@ -81,28 +81,28 @@ from typing import Any
 __layer__ = "models"
 
 __all__ = [
-    "TIER_READ",
-    "TIER_CONSOLE",
-    "TIERS",
-    "CALLER_STDIO_OWNER",
-    "CALLER_LOCAL_CONSOLE",
     "CALLER_DEVICE",
+    "CALLER_LOCAL_CONSOLE",
     "CALLER_PEER",
+    "CALLER_STDIO_OWNER",
     "CALLER_UNKNOWN",
-    "PEER_METHOD_ALLOWLIST",
-    "LOCAL_CONSOLE_METHODS",
-    "TRANSPORT_GATEWAY",
-    "RpcCaller",
-    "LOCAL_CONSOLE",
-    "STDIO_OWNER",
-    "UNKNOWN_CALLER",
     "CLI_CONSOLE",
-    "caller_for_connection",
+    "LOCAL_CONSOLE",
+    "LOCAL_CONSOLE_METHODS",
+    "PEER_METHOD_ALLOWLIST",
     "REASON_SCOPE_DENIED",
     "REASON_UNKNOWN_TIER",
-    "CallAuthorization",
-    "authorize_call",
     "SERVICE_DEFAULT_CALLER",
+    "STDIO_OWNER",
+    "TIERS",
+    "TIER_CONSOLE",
+    "TIER_READ",
+    "TRANSPORT_GATEWAY",
+    "UNKNOWN_CALLER",
+    "CallAuthorization",
+    "RpcCaller",
+    "authorize_call",
+    "caller_for_connection",
     "service_backstop",
 ]
 
@@ -303,6 +303,10 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
         # Phase B (row H11): Clone and a recipe command step SPAWN on this machine.
         "runtime.workspace.slot.clone",
         "runtime.workspace.recipe.run_step",
+        # p10-messaging §2.4: a platform bot token is a secret of THIS runtime; a paired device
+        # holding ``console`` may bind chats and allow operators, never write or clear the token.
+        "runtime.messaging.credential.set",
+        "runtime.messaging.credential.clear",
     }
 )
 

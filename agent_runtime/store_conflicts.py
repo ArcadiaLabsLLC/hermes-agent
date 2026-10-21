@@ -90,7 +90,7 @@ def park_conflict_sidecar(
             indent=2,
             sort_keys=True,
         )
-    except Exception:  # noqa: BLE001 — the HOLD stands with or without its receipt
+    except Exception:  # the HOLD stands with or without its receipt
         pass
 
 

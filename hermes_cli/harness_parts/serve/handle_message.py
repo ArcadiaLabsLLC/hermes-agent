@@ -188,6 +188,8 @@ class MessageHandling:
                 "code_tree": None,
                 "code_tree_rule": None,
                 "code_tree_reason": f"stamp_failed:{type(exc).__name__}",
+                "uv_lock_sha256": None,
+                "uv_lock_reason": f"stamp_failed:{type(exc).__name__}",
             }
         sink.emit(
             {
@@ -327,7 +329,7 @@ class MessageHandling:
             return resolve_stream_resume(
                 options.resume_offset, fold_entities=options.declared
             )
-        except Exception as exc:  # noqa: BLE001 - never fatal
+        except Exception as exc:  # never fatal
             # A resume that cannot be COMPUTED must still leave the
             # client subscribed. The hydrate is the answer to every
             # question this path could have answered more cheaply, so
@@ -876,6 +878,7 @@ class MessageHandling:
                 spawn_reply=partial(self._spawn_reply, sink),
                 interrupt_operator=partial(interrupt_operator_turn, self),
                 launcher_request=self._launcher_requester(connection, sink),
+                batch_dispatcher=partial(getattr, self, "batch_dispatcher", None),
             ),
         )
         # The ONE frame this lane does not write: the handler took the

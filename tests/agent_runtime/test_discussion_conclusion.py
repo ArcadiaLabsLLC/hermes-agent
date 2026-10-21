@@ -6,7 +6,7 @@ import pytest
 from agent_runtime.discussions.definitions import DefinitionError
 from agent_runtime.discussions.service import DiscussionService
 from agent_runtime.mission_chat_turns import transition_mission_chat_turn
-from tests.agent_runtime.test_discussion_runtime import engine, wait_until, settled, command
+from tests.agent_runtime.test_discussion_runtime import engine, room_timings, wait_until, settled, command
 from tests.agent_runtime.test_native_discussion_room import spec
 
 pytestmark = pytest.mark.timeout(90)
@@ -34,7 +34,7 @@ def test_conclusion_is_opt_in_and_exactly_once_across_reconstruction(engine, ena
         assert ctx.calls[-1].client_message_id != ctx.calls[0].client_message_id
         assert view["log"]["events"][-1]["payload"]["reason_code"] == "conclusion_completed"
     service.close()
-    restored = DiscussionService(ctx, active_poll_interval=.02)
+    restored = DiscussionService(ctx, **room_timings())
     try:
         restored.start()
         restored.prepare(restored.bindings()[0])
@@ -102,7 +102,7 @@ def test_conclusion_approval_survives_owner_reconstruction_and_answers_exact_tur
     assert len(ctx.calls) == 3
     original = ctx.calls[-1]
     service.close()
-    restored = DiscussionService(ctx, active_poll_interval=.02)
+    restored = DiscussionService(ctx, **room_timings())
     try:
         restored.start()
         recovered = next(t for t in restored.view("ws", run["run_id"])["tasks"] if t["question"])

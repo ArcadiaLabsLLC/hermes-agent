@@ -7,7 +7,7 @@ from agent_runtime.operator_conversation import (
 )
 from agent_runtime.operator_execution import execution_status, stop_operator_execution
 from agent_runtime.chat_turn_reservations import ChatTurnReservationError
-from .protocol import DEFERRED, RpcContext, deferred_reply, err, ok
+from .protocol import RpcContext, defer_or_inline, err, ok
 from .registry import method
 
 __layer__ = "lanes"
@@ -15,10 +15,7 @@ __layer__ = "lanes"
 
 @method("runtime.operator.conversation.read", tier=TIER_CONSOLE)
 def read(rid, params: dict, context: RpcContext | None = None) -> dict:
-    build = deferred_reply(rid, "runtime.operator.conversation.read", lambda: _read_operator_reply(rid, params, context))
-    if context is not None and context.spawn_reply is not None and context.spawn_reply(build):
-        return DEFERRED
-    return build()
+    return defer_or_inline(rid, "runtime.operator.conversation.read", context, lambda: _read_operator_reply(rid, params, context))
 
 
 def _read_operator_reply(rid, params: dict, context: RpcContext | None) -> dict:

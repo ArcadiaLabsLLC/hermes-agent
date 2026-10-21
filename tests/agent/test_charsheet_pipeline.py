@@ -19,9 +19,9 @@ from pathlib import Path
 
 import pytest
 
-from agent.charsheet import palette as palette_mod
+from agent.charsheet import palette as palette_mod, pipeline
+from tests._downstream._seams import palette_colors
 from agent.charsheet.palette import palette_table
-from agent.charsheet import pipeline
 from agent.charsheet.fake_draftsman import FakeDraftsman, slots_for
 from agent.charsheet.fake_draftsman import draw_glyph as _draw_glyph
 from agent.charsheet.fake_draftsman import square_image as _square_image
@@ -38,7 +38,8 @@ from agent.charsheet.spec import (
 
 pytest.importorskip("PIL")
 
-from PIL import Image, ImageDraw  # noqa: E402
+from PIL import Image, ImageDraw
+import itertools
 
 SPEC = SheetSpec(
     states=(StateSpec("idle", 2, True), StateSpec("walk", 3, True)),
@@ -362,7 +363,7 @@ def test_composition_itself_leaves_no_rgb_under_transparency(sheet):
 
 def test_every_opaque_colour_on_the_sheet_comes_from_the_locked_palette(sheet, refs):
     palette = pipeline.build_sheet_palette(list(refs.values()))
-    allowed = set(palette_mod.palette_colors(palette))
+    allowed = set(palette_colors(palette))
     colors = sheet.getcolors(maxcolors=sheet.width * sheet.height) or []
     opaque = {(r, g, b) for _count, (r, g, b, alpha) in colors if alpha > 0}
 
@@ -373,7 +374,7 @@ def test_every_opaque_colour_on_the_sheet_comes_from_the_locked_palette(sheet, r
 def test_the_chroma_field_is_keyed_out_before_the_palette_is_built(refs):
     palette = pipeline.build_sheet_palette(list(refs.values()))
 
-    assert pipeline.MAGENTA not in set(palette_mod.palette_colors(palette))
+    assert pipeline.MAGENTA not in set(palette_colors(palette))
 
 
 def test_the_palette_needs_at_least_one_reference():
@@ -397,7 +398,7 @@ def test_locking_a_cell_keeps_its_alpha_and_zeroes_only_transparent_pixels(refs)
             if alpha == 0:
                 assert (r, g, b) == (0, 0, 0)
             else:
-                assert (r, g, b) in set(palette_mod.palette_colors(palette))
+                assert (r, g, b) in set(palette_colors(palette))
 
 
 def test_locking_refuses_anything_that_is_not_a_built_palette(refs):
@@ -474,7 +475,7 @@ def test_the_composed_sheet_s_table_is_exactly_the_colours_on_it(sheet):
     """End to end: the table names the sheet's own distinct opaque colours."""
     colors = sheet.getcolors(maxcolors=sheet.width * sheet.height) or []
     opaque = {
-        "#{:02x}{:02x}{:02x}ff".format(r, g, b)
+        f"#{r:02x}{g:02x}{b:02x}ff"
         for _count, (r, g, b, alpha) in colors
         if alpha > palette_mod.ALPHA_FLOOR
     }
@@ -871,9 +872,7 @@ def pose_columns(cell, *, field):
         sum(
             1
             for y in range(cell.height)
-            if (lambda p: p[3] > 16 and abs(p[0] - fr) + abs(p[1] - fg) + abs(p[2] - fb) > 90)(
-                px[x, y]
-            )
+            if (p := px[x, y])[3] > 16 and abs(p[0] - fr) + abs(p[1] - fg) + abs(p[2] - fb) > 90
         )
         for x in range(cell.width)
     ]
@@ -1271,7 +1270,7 @@ def test_a_sheet_mirrored_on_EVERY_row_passes_and_that_is_the_blind_spot():
     # distance(flip(flip a), flip b) == distance(flip a, b).
     window = pipeline.registration_window(EIGHT.frame_w)
     chain = [EIGHT.row_by_key(f"idle-{d}") for d in ("s", "se", "e", "ne", "n")]
-    for left, right in zip(chain, chain[1:]):
+    for left, right in itertools.pairwise(chain):
         before = pipeline._seam_distance(
             pipeline._row_cells(upright, EIGHT, left),
             pipeline._row_cells(upright, EIGHT, right),
@@ -1320,7 +1319,7 @@ FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "charsheet"
 FIXTURE_META = json.loads((FIXTURE_ROOT / "handedness.json").read_text(encoding="utf-8"))
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def load_fixture_sheet(name: str):
     """``(spec, image)`` for a checked-in sheet of REAL character art.
 
@@ -1365,7 +1364,7 @@ REPAIRED = (("flip", "idle-ne"),)
 TWO_BASIS_TOKEN = pipeline.accept_basis_token("rotation and states")
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def variant(name: str, ops: tuple = ()):
     """``(spec, image)`` for a fixture with a deterministic mutation applied.
 
@@ -1389,14 +1388,14 @@ def variant(name: str, ops: tuple = ()):
     return spec, image
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def variant_findings(name: str, ops: tuple = ()):
     """:func:`detect_mirrored_art` on a fixture variant, computed once."""
     spec, sheet = variant(name, ops)
     return pipeline.detect_mirrored_art(spec, sheet)
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def variant_validation(name: str, ops: tuple = (), accepted: tuple[str, ...] = ()):
     """:func:`validate_sheet` on a fixture variant, computed once."""
     spec, sheet = variant(name, ops)
@@ -1777,7 +1776,7 @@ def test_the_culprit_is_not_simply_the_first_row_of_the_run():
     assert spec.row_by_key("walk-e").index < spec.row_by_key("walk-ne").index
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def two_state_cut(ops: tuple = ()):
     """The fixture's `idle` and `walk` states only — the DEFAULT sheet's shape.
 
@@ -2233,7 +2232,7 @@ def four_way_three_states(spec, source, mirror: tuple[str, ...] = ()):
     return wide, flip_rows(wide, out, *mirror) if mirror else out
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def four_state_sheet(mirror: tuple[str, ...] = ()):
     """The three real states plus a fourth, then *mirror* applied.
 
@@ -2599,7 +2598,7 @@ def worst_registered_shift(spec, sheet):
             rows[pipeline.row_key(state.name, direction)]
             for direction in pipeline.turnaround_order(spec.scheme.authored)
         ]
-        for left, right in zip(chain, chain[1:]):
+        for left, right in itertools.pairwise(chain):
             left_cells = pipeline._row_cells(sheet, spec, left)
             right_cells = pipeline._row_cells(sheet, spec, right)
             for index in range(min(len(left_cells), len(right_cells))):

@@ -1,27 +1,22 @@
-"""Immutable Work scope and bounded wire values."""
+"""Immutable Work scope and bounded wire values.
+
+A Work owner is a WORKSPACE (plan ``work-on-markdown-2026-10-18.md`` §6.2): its todo board is the
+brain queue notes of every repo slot it binds. ``Reason`` and ``WorkRefused`` are the work store's
+one enum, re-exported here so the wire keeps its old import path.
+"""
 from __future__ import annotations
 
 import hashlib
 import json
 from dataclasses import dataclass
-from enum import StrEnum
+
+from agent_runtime.work_store.reasons import Reason, WorkRefused
 
 __layer__ = "models"
+__all__ = ["OPERATIONS", "Reason", "WorkRefused", "WorkScope", "fingerprint", "text"]
 
-
-class Reason(StrEnum):
-    INVALID = "invalid_request"
-    OWNER_CHANGED = "work_owner_changed"
-    UNAVAILABLE = "work_unavailable"
-    CONFLICT = "idempotency_conflict"
-    DENIED = "scope_denied"
-    UNKNOWN = "work_outcome_unknown"
-
-
-class WorkRefused(ValueError):
-    def __init__(self, reason: Reason):
-        self.reason = reason
-        super().__init__(reason.value)
+#: What an owner advertises on the wire (``capabilities`` / ``context`` are not owner operations).
+OPERATIONS = ("inspect", "start", "assign", "claim", "release", "set_status", "done", "create_brain", "lend_skills")
 
 
 def text(value, *, maximum=256, multiline=False):
@@ -38,15 +33,12 @@ def fingerprint(value):
 @dataclass(frozen=True)
 class WorkScope:
     install: str
-    board: str
-    profile: str
-    database: str
-    home: str
+    workspace_id: str
 
     @property
     def owner(self):
-        return fingerprint([self.install, self.board, self.profile, self.database, self.home])
+        return fingerprint([self.install, self.workspace_id])
 
     def wire(self, label):
-        return {"owner": self.owner, "board": self.board, "profile": self.profile,
-                "label": label, "operations": ["inspect", "start"]}
+        return {"owner": self.owner, "workspace_id": self.workspace_id, "label": label,
+                "operations": list(OPERATIONS)}

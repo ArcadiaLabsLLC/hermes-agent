@@ -130,7 +130,7 @@ def test_an_append_that_fails_does_not_reach_the_turn(isolate_agent_runtime_root
 
     presence = _presence()
     with pytest.MonkeyPatch.context() as patched:
-        def _boom(self, evt):  # noqa: ANN001 - signature mirrors EventLog.append
+        def _boom(self, evt):  # signature mirrors EventLog.append
             raise RuntimeError("event log is full")
 
         patched.setattr(EventLog, "append", _boom)

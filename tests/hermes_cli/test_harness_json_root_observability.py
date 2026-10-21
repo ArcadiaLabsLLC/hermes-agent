@@ -21,6 +21,10 @@ from pathlib import Path
 import hermes_cli.harness as harness_module
 from tests._downstream.call_graph import CallGraph, module_name
 
+import pytest
+
+pytestmark = pytest.mark.gate
+
 _HARNESS_PY = Path(harness_module.__file__)
 _PARTS_DIR = _HARNESS_PY.parent / "harness_parts"
 _REPO_ROOT = _HARNESS_PY.parent.parent
@@ -58,6 +62,14 @@ ATTACHING_DELEGATES = {
     "realm_agents_set": False,
     "realm_adopt": False,
 }
+
+# The charsheet family answers from the install-wide character library under the
+# HERMES home, not from the store root, so its envelopes carry ``home``
+# (``attach_characters_home``) instead of ``resolution``. These are the seams every
+# ``characters`` verb emits through; ``test_every_charsheet_seam_states_its_home``
+# holds each to a runtime proof, as ``test_every_attaching_delegate_attaches``
+# holds the map above.
+HOME_ATTACHING_DELEGATES = frozenset({"_characters_emit", "_characters_verb", "_characters_auto_write"})
 
 # Chat lanes must also stamp ``chat_scope`` — ``source: "ambient_home"``
 # beside an empty result is the tell the incident lacked entirely.
@@ -150,37 +162,17 @@ LEDGER: dict[str, str] = {
 # The handlers the import-graph scan (D3.17, 2026-10-10) found emitting that the
 # hand-kept name set never saw, each family read and classified. None attaches
 # today; each reason says why the exemption is sound or which row owns the fix.
-_CHARSHEET_REASON = (
-    "charsheet verb (emits through _characters_emit / _characters_auto_write): the "
-    "payload key set is the charsheet contract pinned by "
-    "tests/fixtures/charsheet_payload_contract.json and mirrored by the launcher, so "
-    "a resolution key is a contract change owed with the launcher; until it lands an "
-    "empty library is indistinguishable from a wrong root - runtime-queue row "
-    "'charsheet and workspace-slot JSON verbs state no root' (D3.17)"
-)
-_WORKSPACE_SLOTS_REASON = (
-    "repo-slot verb (emits through _run_workspace_slot_verb -> _print_stage42): the "
-    "envelope names the workspace_id it read, but a slot document read from a wrong "
-    "root is an empty document, not a refusal - runtime-queue row 'charsheet and "
-    "workspace-slot JSON verbs state no root' (D3.17)"
+_CHARSHEET_CONTRACT_REASON = (
+    "prints the static charsheet key-set document (hermes_cli/charsheet_payload_contract.py) "
+    "through _characters_print: it reads no library, and a hand run must stay byte-identical "
+    "to scripts/dump_payload_contract.py, so it carries no home block"
 )
 _PERSONA_SLOTS_REASON = (
     "persona slot verb (emits through _run_slot_verb -> _print_stage42): the instance "
     "is read first (persona_slots._slot_instance), so a wrong root refuses the id "
     "rather than answering an empty slot list"
 )
-LEDGER.update({name: _CHARSHEET_REASON for name in (
-    "_cmd_characters_add_state", "_cmd_characters_approve_direction", "_cmd_characters_auto",
-    "_cmd_characters_backfill_home", "_cmd_characters_base", "_cmd_characters_compose",
-    "_cmd_characters_list", "_cmd_characters_migrate_home", "_cmd_characters_payload_contract",
-    "_cmd_characters_reopen", "_cmd_characters_reroll_direction", "_cmd_characters_reroll_row",
-    "_cmd_characters_rows", "_cmd_characters_sprite", "_cmd_characters_start",
-    "_cmd_characters_status", "_cmd_characters_thumb", "_cmd_characters_turnaround",
-)})
-LEDGER.update({name: _WORKSPACE_SLOTS_REASON for name in (
-    "_cmd_workspace_slots_bind", "_cmd_workspace_slots_clone", "_cmd_workspace_slots_declare",
-    "_cmd_workspace_slots_env_set", "_cmd_workspace_slots_report", "_cmd_workspace_slots_show",
-)})
+LEDGER["_cmd_characters_payload_contract"] = _CHARSHEET_CONTRACT_REASON
 LEDGER.update({name: _PERSONA_SLOTS_REASON for name in ("_cmd_persona_slots_set", "_cmd_persona_slots_show")})
 LEDGER.update(
     {
@@ -268,6 +260,8 @@ def _handlers() -> dict[str, dict]:
                     continue
                 if name.startswith("_emit_"):
                     called.add(name)
+                if name in HOME_ATTACHING_DELEGATES:
+                    attaches = True
                 if name in ATTACHING_DELEGATES:
                     attaches = True
                     chat_scope = chat_scope or ATTACHING_DELEGATES[name]
@@ -378,7 +372,7 @@ def test_every_attaching_delegate_attaches(monkeypatch, tmp_path):
     claims one. Positive by construction: the stubs below return NO resolution
     block, so the keys can only come from the delegate's own attach."""
 
-    import agent_runtime.realm_revert as realm_revert
+    from agent_runtime import realm_revert
     from agent_runtime import realm_sync, realm_verbs, store
     from tests._downstream.split_package_source import patch_where_bound
     from agent_runtime.chat_verbs.history import persona_chat_history_page
@@ -425,6 +419,53 @@ def test_every_attaching_delegate_attaches(monkeypatch, tmp_path):
     for name, envelope in produced.items():
         assert "resolution" in envelope, f"{name} no longer attaches the resolution block"
         assert ("chat_scope" in envelope) is ATTACHING_DELEGATES[name], name
+
+
+def test_every_charsheet_seam_states_its_home(monkeypatch, tmp_path, capsys):
+    """The runtime half of :data:`HOME_ATTACHING_DELEGATES`: each seam, called with
+    ``--json``, prints an envelope whose ``home`` names the library the verb read.
+    Positive by construction: the payloads handed in carry no ``home``."""
+
+    import json
+    from argparse import Namespace
+
+    from agent.charsheet.draft import CharacterDraft
+    from hermes_cli.harness_parts.characters import auto, payloads
+
+    library = tmp_path / "shared" / "characters"
+    monkeypatch.setenv("HERMES_SHARED_CHARACTERS", str(library))
+    args = Namespace(json=True, draft="d1")
+
+    class _Draft:
+        id, stage = "d1", "base"
+
+    monkeypatch.setattr(CharacterDraft, "load", classmethod(lambda cls, draft_id: _Draft()))
+    envelopes = []
+    payloads._characters_emit(args, {"ok": True, "characters": []}, "")
+    envelopes.append(json.loads(capsys.readouterr().out))
+    payloads._characters_verb(args, lambda draft: ({}, ""))
+    envelopes.append(json.loads(capsys.readouterr().out))
+    auto._characters_auto_write(args, {"step": "base"}, "")
+    envelopes.append(json.loads(capsys.readouterr().out))
+    assert len(envelopes) == len(HOME_ATTACHING_DELEGATES)
+    for envelope in envelopes:
+        assert envelope["home"] == {
+            "hermes_home": envelope["home"]["hermes_home"],
+            "characters_dir": str(library),
+            "source": "shared_characters_env",
+        }, envelope
+
+
+def test_payload_contract_verb_prints_no_home(capsys):
+    """The one exempt charsheet verb stays the dump script's bytes."""
+
+    import json
+    from argparse import Namespace
+
+    from hermes_cli.harness_parts.characters.commands import _cmd_characters_payload_contract
+
+    assert _cmd_characters_payload_contract(Namespace(json=True)) == 0
+    assert "home" not in json.loads(capsys.readouterr().out)
 
 
 def test_ledger_does_not_rot():

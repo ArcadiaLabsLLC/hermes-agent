@@ -37,12 +37,12 @@ class _DrainState:
     """
 
     __slots__ = (
-        "started_monotonic",
-        "deadline_seconds",
-        "refused",
         "completed",
         "deadline_holds",
+        "deadline_seconds",
         "lock",
+        "refused",
+        "started_monotonic",
     )
 
     def __init__(self, deadline_seconds: float):

@@ -25,3 +25,17 @@ def test_every_frame_has_the_next_frame_seq_while_deltas_share_one_element_seq(c
     assert len(deltas) == 2
     assert deltas[0]["seq"] == deltas[1]["seq"], "the element seq is shared: the reason frame_seq exists"
     assert deltas[0]["frame_seq"] != deltas[1]["frame_seq"]
+
+
+def test_every_segment_delta_carries_an_int_monotonic_t_ms(capsys, monkeypatch):
+    """RT-SEGMENT-DELTA-TMS: each delta is stamped at emit with ms since ``_started_at``."""
+    emitter = chat_events._ChatProtocolV2Emitter(turn_id="turn_1", client_message_id="client_1")
+    emitter._started_at = 100.0
+    monkeypatch.setattr(chat_events.time, "monotonic", lambda: 100.25)
+    emitter.delta("Hel")
+    monkeypatch.setattr(chat_events.time, "monotonic", lambda: 101.5)
+    emitter.delta("lo")
+    frames = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.strip()]
+    deltas = [frame for frame in frames if frame["type"] == "segment.delta"]
+    assert [frame["t_ms"] for frame in deltas] == [250, 1500]
+    assert all(type(frame["t_ms"]) is int for frame in deltas)

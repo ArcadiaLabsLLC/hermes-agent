@@ -12,16 +12,20 @@ import logging
 import time
 from typing import Any
 
+from agent_runtime.operator_files import with_file_lines
+from agent_runtime.operator_images import with_media_lines
 from agent_runtime import paths, relay_policy
 from agent_runtime.auxiliary_chat import is_auxiliary_chat
 from agent_runtime.cli_format import emit_json
 from agent_runtime.config import resolve_mission_chat_max_seconds
+from agent_runtime.context_build_receipt import ContextBuildLaps
 from agent_runtime.mission_chat_phases import (
     TURN_PHASES_KEY as MISSION_CHAT_TURN_PHASES_KEY,
     mark_from_trace_payload as _mark_turn_phase_from_trace_payload,
     phase_timing_marker_step,
 )
 from agent_runtime.mission_chat_steer import start_active_mission_chat_turn
+from agent_runtime.mission_chat_workdir import RUN_WORKDIR_ARG
 from agent_runtime.mission_chat_turns.journal import (
     mark_stale_inflight_turns_interrupted,
     persist_mission_chat_turn,
@@ -134,15 +138,20 @@ class _RunPhases:
         # lineage from SessionDB (the sole continuation authority), and until
         # this span it hid inside ``context_built`` beside the skill preload.
         _history_started = time.monotonic()
+        # r-turn: the span's remaining parts, as exclusive laps on a log receipt (never a durable key).
+        laps = ContextBuildLaps()
         runtime_registry = persona_chat_runtime_registry()
+        laps.lap("registry")
         # lineage-stamp S3: a resident actor whose stamped history is still current
         # hands that history over; any write to the lineage since moves the stamp.
         reused = _resident_native_history(runtime_registry, session_db, session_id)
+        self.turn_phases.label("context_native_history_source", "read" if reused is None else "resident")
         if reused is not None:
             active_session_id, native_history = reused
         else:
             active_session_id = _persona_chat_native_tip(session_db, session_id)
             native_history = _persona_chat_native_history(session_db, active_session_id)
+        laps.lap("history_read")
         history_read = native_history
         abandoned_ids = abandoned_mission_chat_message_ids(session_id=session_id)
         kept_history = [
@@ -152,6 +161,7 @@ class _RunPhases:
             )
         ]
         native_history = safe_native_history(kept_history)
+        laps.lap("abandoned_filter")
         self.active_session_id = active_session_id
         self.native_history = native_history
         self.pre_admit_timings.update(
@@ -165,8 +175,12 @@ class _RunPhases:
             session_db, session_id, active_session_id, history_read,
             safe_history=native_history if len(kept_history) == len(history_read or []) else None,
         )
+        laps.lap("revision")
         self.runtime_registry = runtime_registry
-        self.chat_message = self.message
+        # RT-MISSION-CHAT-MESSAGE-TAKES: the request text names each staged file by a
+        # ``FILE:<path>`` line (owner RULED 2026-10-19: staged, never inlined). The mirrored
+        # row below composes from this same text, so the two cannot differ.
+        self.chat_message = with_file_lines(self.message, getattr(self, "user_files", ()))
         # Relay sender attribution: resolve who sent this incoming message ONCE
         # (agent_chat_send relays carry requested_by="agent:<caller session>") and
         # hand the typed marker to the runtime, which stamps it on the native user
@@ -185,6 +199,7 @@ class _RunPhases:
             relay_chain_in=self.relay_chain_in,
         )
         self.relay_sender_marker = relay_sender_marker
+        laps.lap("relay_marker")
 
         # The WHOLE per-turn context — wall budget, capability account, situational
         # HUD + delivery, skill preload envelope, workspace AGENTS.md, runtime
@@ -206,7 +221,7 @@ class _RunPhases:
         # instead of re-walking.
         #
         # Keyed by RESOLVED ROOT PATH, which is what makes the hand-off safe: the
-        # observability row runs inside ``persona_profile_scope`` and this builder
+        # observability row runs inside ``persona_profile_context`` and this builder
         # does not, so the two lanes can legitimately enumerate different root
         # LISTS. A per-path key needs no agreement about the list — a root both
         # lanes see is walked once, a root only one lane sees is walked by that
@@ -217,6 +232,8 @@ class _RunPhases:
         # h-warm-phases: a root this map has not seen is read from the process registry cache when
         # it holds one, and re-walked off-thread after this turn's ``request_sent``.
         self.turn_root_registries: dict[str, Any] = TurnRootRegistries()
+        session_model_config = _session_model_config(session_db, session_id)
+        laps.lap("model_config")
 
         self.turn_context = build_mission_chat_turn_context(
             persona=self.persona,
@@ -225,7 +242,7 @@ class _RunPhases:
             session_id=session_id,
             native_history=native_history,
             model_selection=self.model_selection,
-            session_model_config=_session_model_config(session_db, session_id),
+            session_model_config=session_model_config,
             max_seconds=resolve_mission_chat_max_seconds(getattr(args, "max_seconds", None)),
             relay_deadline_epoch=self.relay_deadline,
             relay_chain=self.turn_relay_chain,
@@ -233,7 +250,10 @@ class _RunPhases:
             agents_file=getattr(args, "agents_file", None),
             surface_prompt=getattr(args, "surface_prompt", "") or "",
             root_registries=self.turn_root_registries,
+            run_workdir=getattr(args, RUN_WORKDIR_ARG, None),
         )
+        laps.lap("builder")
+        laps.emit(getattr(self, "client_message_id", None), source="read" if reused is None else "resident")
         self.turn_phases.mark("context_built")
 
     def _observe(self) -> None:
@@ -437,6 +457,9 @@ class _RunPhases:
                 "active_session_id": self.active_session_id,
                 "persona_instance_id": self.instance.id,
                 "pending_user_message": self.message,
+                # The pasted images' stored files: a retry or replay of this record names the same bytes.
+                **({"pending_user_images": list(self.user_image_paths)} if getattr(self, "user_image_paths", ()) else {}),
+                **({"pending_user_files": [str(f.path) for f in self.user_files]} if getattr(self, "user_files", ()) else {}),
                 "provider_submitted": False,
                 # Rides the persist that already happens — no new write. On a
                 # turn that dies before the provider this is the ONLY phase
@@ -488,7 +511,7 @@ class _RunPhases:
             session_id=session_id,
             role="user",
             text=_redact_persona_chat_text(
-                self.message
+                with_media_lines(self.chat_message, getattr(self, "user_image_paths", ()))
             ),
             client_message_id=client_message_id,
             turn_id=stream_emitter.turn_id,
@@ -587,6 +610,7 @@ class _RunPhases:
                 reuse_current_user_message=(
                     self.journal_state == TURN_STATE_PENDING and bool(self.replay.get("operator"))
                 ),
+                user_image_paths=getattr(self, "user_image_paths", ()),
                 relay_sender_marker=self.relay_sender_marker,
                 root_chat_session_id=self.session_id,
                 client_message_id=self.client_message_id,

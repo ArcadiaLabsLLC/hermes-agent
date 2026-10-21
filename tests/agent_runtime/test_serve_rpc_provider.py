@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import queue
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 
 import pytest
 
@@ -226,9 +226,9 @@ def test_usage_projects_the_snapshot_and_drops_the_raw_body(monkeypatch):
     from agent import account_usage
 
     snapshot = account_usage.AccountUsageSnapshot(
-        provider="anthropic", source="oauth_usage_api", fetched_at=datetime(2026, 9, 28, tzinfo=timezone.utc),
+        provider="anthropic", source="oauth_usage_api", fetched_at=datetime(2026, 9, 28, tzinfo=UTC),
         windows=(account_usage.AccountUsageWindow(label="Current session", used_percent=42.0,
-                                                  reset_at=datetime(2026, 9, 28, 5, tzinfo=timezone.utc)),),
+                                                  reset_at=datetime(2026, 9, 28, 5, tzinfo=UTC)),),
         details=("Extra usage: 1.00 / 5.00 USD",), raw={"token": SECRET})
     seen = []
     monkeypatch.setattr(account_usage, "fetch_account_usage", lambda provider, **_: seen.append(provider) or snapshot)
@@ -236,7 +236,7 @@ def test_usage_projects_the_snapshot_and_drops_the_raw_body(monkeypatch):
     assert seen == ["anthropic"]
     assert result["available"] is True
     assert result["windows"] == [{"label": "Current session", "used_percent": 42.0,
-                                  "reset_at": "2026-09-28T05:00:00+00:00", "detail": None}]
+                                  "reset_at": "2026-09-28T05:00:00+00:00", "detail": None, "scope": "account"}]
     assert result["details"] == ["Extra usage: 1.00 / 5.00 USD"]
 
 
@@ -363,7 +363,7 @@ def test_the_contract_publishes_a_reply_budget_for_every_provider_method():
     doc = (Path(__file__).resolve().parents[2] / "docs" / "agent-runtime-harness"
            / "runtime-provider-methods.md").read_text(encoding="utf-8")
     section = doc.split("## Reply budgets", 1)[1].split("\n## ", 1)[0]
-    rows = re.findall(r"^\| `(runtime\.provider\.[a-z.]+)` \|.*\| (\d+) s \|$", section, re.M)
+    rows = re.findall(r"^\| `(runtime\.provider\.[a-z.]+)` \|.*\| (\d+) s \|$", section, re.MULTILINE)
     registered = {name for name in registry.method_names() if name.startswith("runtime.provider.")}
     assert registered  # positive control: the family is registered
     assert sorted(name for name, _ in rows) == sorted(registered)

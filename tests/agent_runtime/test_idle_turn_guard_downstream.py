@@ -38,7 +38,7 @@ import pytest
 
 from tests.agent_runtime import test_turn_cost_guard_downstream as guard
 from tests.agent_runtime.test_pool_starve_downstream import _fields
-from tests.agent_runtime.test_stream_turn_section import INSTANCE, _seed_chat, home  # noqa: F401
+from tests.agent_runtime.test_stream_turn_section import INSTANCE, _seed_chat, home
 from tests.fakes.providers import openai_responses
 from tests.fakes.providers.openai_responses import FakeResponsesServer
 
@@ -103,9 +103,15 @@ class _Windows:
 
 
 @pytest.mark.timeout(240)
+@pytest.mark.parametrize("resident", [True, False], ids=["resident_chats", "no_resident_chats"])
 def test_the_first_turn_after_an_idle_pause_rebuilds_no_memo_and_rides_a_warm_socket(
-    monkeypatch, capsys, isolate_agent_runtime_root, home  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root, home, resident
 ):
+    # ``no_resident_chats`` (owner ruling 2026-10-16): a serve with
+    # ``persona_chat.hot_sessions_enabled`` off -- the QA home -- builds a fresh actor every
+    # turn; live 2026-10-15 6/6 turns read ``conn=new``. The keeper arms there too and keeps the
+    # process-shared pool warm through a client of its own. Its warm turns pay an actor build
+    # each, so only the connection and the HEAD statuses are judged, not the warm budgets.
     from agent_runtime import idle_turn_keeper, provider_preconnect
     from agent_runtime.persona_chat_continuity.runtime_registry import (
         initialize_persona_chat_runtime_registry,
@@ -151,7 +157,7 @@ def test_the_first_turn_after_an_idle_pause_rebuilds_no_memo_and_rides_a_warm_so
         guard._seed_persona()
         _seed_chat()
         _seed_skills(SKILLS)
-        initialize_persona_chat_runtime_registry()
+        initialize_persona_chat_runtime_registry(enabled=resident)
         assert executor_mod.bind(Path(get_hermes_home())), "the snapshot worker is off"
         serve = guard._Serve(monkeypatch, capsys)  # counts walks on its own wrapper
 
@@ -167,7 +173,8 @@ def test_the_first_turn_after_an_idle_pause_rebuilds_no_memo_and_rides_a_warm_so
                 "--persona-instance-id", INSTANCE, "--new-session", "--idempotency-key", "idle", "--json",
             ]) == 0
             root = json.loads(capsys.readouterr().out)["session_id"]
-            assert guard._await_prewarm(log, root) == "warmed"
+            if resident:
+                assert guard._await_prewarm(log, root) == "warmed"
             # h-idle-socket: the chat that turns was never pre-connected (live 2026-10-07 12:07 its
             # prewarm read skipped_turn_active); the keeper must keep the client its turns rode.
             provider_preconnect._IDLE_TARGETS.clear()
@@ -216,6 +223,9 @@ def test_the_first_turn_after_an_idle_pause_rebuilds_no_memo_and_rides_a_warm_so
                           "client the last turn rode, pre-connected or not)")
     warm = [sent[i] for i in WARM_TURNS[1:] if isinstance(sent.get(i), int)]
     after = sent.get(IDLE_TURN)
+    if not resident:
+        assert not violations, "idle-turn guard (no resident chats):\n  " + "\n  ".join(violations)
+        return
     if not warm or not isinstance(after, int):
         violations.append(f"missing request_sent_ms: {sent}")
     else:

@@ -57,7 +57,7 @@ def _timezone_options() -> list[str]:
         return ["UTC"]
 
 
-def _wake_word_providers() -> Tuple[str, ...]:
+def _wake_word_providers() -> tuple[str, ...]:
     """The wake engines ``tools.wake_word`` prefers, imported lazily: a distribution that does not
     package wake word (``voice.mode_enabled: false``) still loads the config schema, offering only
     ``auto``."""

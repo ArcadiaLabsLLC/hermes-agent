@@ -13,7 +13,7 @@ def delete_compression_lineage(
     db: Any,
     root_session_id: str,
     sessions_dir: Optional[Path] = None,
-) -> List[str]:
+) -> list[str]:
     """Delete a root and only its native compression continuation chain.
 
     A child is lineage when its parent ended in ``'compression'`` and upstream's
@@ -30,7 +30,7 @@ def delete_compression_lineage(
         "SELECT c.id FROM sessions c JOIN sessions p ON p.id = c.parent_session_id"
         " WHERE c.parent_session_id = ? AND p.end_reason = 'compression'\n" + child_filter
     )
-    removed: List[str] = []
+    removed: list[str] = []
 
     def _do(conn):
         if conn.execute("SELECT 1 FROM sessions WHERE id = ?", (root_session_id,)).fetchone() is None:
@@ -69,14 +69,14 @@ def delete_compression_lineage(
 RETIRED_SCRATCH_SOURCE = "agent_runtime_persona_chat_scratch"
 
 
-def purge_retired_scratch_sessions(db: Any, sessions_dir: Optional[Path] = None) -> List[str]:
+def purge_retired_scratch_sessions(db: Any, sessions_dir: Optional[Path] = None) -> list[str]:
     """Delete every session still carrying :data:`RETIRED_SCRATCH_SOURCE`.
 
     Children of a purged row are detached, not deleted (``delete_session``'s
     child semantics). Returns the purged ids so the caller reports the count.
     """
 
-    removed: List[str] = []
+    removed: list[str] = []
 
     def _do(conn):
         ids = [

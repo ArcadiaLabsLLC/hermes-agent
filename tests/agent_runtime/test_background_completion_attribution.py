@@ -80,7 +80,7 @@ def _background_spawn_session_key(monkeypatch, task_id: str) -> str:
     registry and return the ``session_key`` it was spawned with."""
 
     import tools.process_registry as process_registry_mod
-    import tools.terminal_tool as terminal_tool
+    from tools import terminal_tool
 
     class FakeEnv:
         env = {}

@@ -147,7 +147,7 @@ Stores written: ``<audit root>/terminal_envelope_decisions.jsonl`` and
 
 from __future__ import annotations
 
-from agent_runtime.terminal_envelope import (  # noqa: F401 — every family, lowest layer first
+from agent_runtime.terminal_envelope import (  # every family, lowest layer first
     classes,
     records,
     grants,

@@ -154,7 +154,7 @@ def _characters_rows_next(draft, only: list[str] | None) -> dict | None:
     # the draft's state fails here, the flat error shape still travels.
     try:
         pending = draft.status_payload()["pending"]["rows"]
-    except Exception:  # noqa: BLE001 - a missing hint beats a lost refusal
+    except Exception:  # a missing hint beats a lost refusal
         return None
     if only is not None:
         wanted = set(only)

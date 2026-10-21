@@ -53,14 +53,45 @@ def _cmd_postinstall(args):
     return cmd_postinstall(args)
 
 
-# (tool that gates the line, guidance attribute in ``agent_runtime.prompt_guidance``), in render order.
+def _work_clause_gate() -> tuple[str, ...]:
+    from agent_runtime.prompt_guidance import WORK_SUBMIT_TOOLS
+
+    return ("delegate_task", "agent_chat_send", *sorted(WORK_SUBMIT_TOOLS))
+
+
+# (gate, guidance attribute in ``agent_runtime.prompt_guidance``), in render order. A gate
+# is one tool name or a tuple of them; the line renders when EVERY name is present.
 _TOOL_GUIDANCE = (
     ("tool_describe", "TOOL_DESCRIBE_GUIDANCE"),
     ("terminal", "SHELL_TOOL_PREFERENCE_GUIDANCE"),
     ("clarify", "CLARIFY_CHOICES_GUIDANCE"),
     ("browser_navigate", "BROWSER_PRECONDITION_GUIDANCE"),
     ("skill_manage", "SKILL_MANAGE_CONFIRM_GUIDANCE"),
+    (("delegate_task", "agent_chat_send"), "DELEGATION_HANDOFF_GUIDANCE"),
+    (_work_clause_gate(), "DELEGATION_HANDOFF_WORK_CLAUSE"),
 )
+
+# clause attribute -> the line it extends, joined in place of that line's final period.
+_JOINED_CLAUSES = {"DELEGATION_HANDOFF_WORK_CLAUSE": "DELEGATION_HANDOFF_GUIDANCE"}
+
+
+def _gate_open(gate: str | tuple[str, ...], tools: set[str]) -> bool:
+    return all(name in tools for name in ((gate,) if isinstance(gate, str) else gate))
+
+
+def _fixed_guidance_lines(tools: set[str]) -> list[str]:
+    from agent_runtime import prompt_guidance
+
+    lines: dict[str, str] = {}
+    for gate, attr in _TOOL_GUIDANCE:
+        if not _gate_open(gate, tools):
+            continue
+        target = _JOINED_CLAUSES.get(attr)
+        if target is None:
+            lines[attr] = getattr(prompt_guidance, attr)
+        elif target in lines:
+            lines[target] = lines[target].removesuffix(".") + getattr(prompt_guidance, attr)
+    return list(lines.values())
 
 
 def render_tool_guidance(session_info) -> str:
@@ -69,19 +100,15 @@ def render_tool_guidance(session_info) -> str:
     ``session_info["tool_names"]`` is the comma-joined sorted tool set core renders
     the prompt with. The fixed lines are the T6b policy moved OFF the brief wire
     descriptions, so they render only in a session that runs that wire — one that
-    carries ``tool_describe`` — and then one line per gating tool present. The
+    carries ``tool_describe`` — and then one line per gate whose every tool is present
+    (``_gate_open``; the hand-off line needs both hand-off tools). The
     Launcher's app-function ``guidance`` lines render for any session whose list
     holds the tool. Nothing present gets an empty section, which core skips.
     """
-    from agent_runtime import prompt_guidance
     from agent_runtime.launcher_app_functions import app_function_guidance_lines
 
     tools = set(str(session_info.get("tool_names") or "").split(","))
-    lines = (
-        [getattr(prompt_guidance, attr) for tool, attr in _TOOL_GUIDANCE if tool in tools]
-        if "tool_describe" in tools
-        else []
-    )
+    lines = _fixed_guidance_lines(tools) if "tool_describe" in tools else []
     # The host's own WHEN rules (the Launcher's app-function ``guidance``), one
     # line per offered tool present in this session: the rule, the tool brief
     # and any skill then derive from one text the host owns.
@@ -232,7 +259,6 @@ def settle_turn_tools(session_id=None, **_context):
     if agent is not None:
         settle_turn_tool_form(agent, blocked=blocked_tools_for(session_id or getattr(agent, "session_id", None)))
     reprune_turn_agent(session_id)
-    return None
 
 
 def refuse_blocked_tool(tool_name=None, session_id="", **_context):
@@ -297,25 +323,18 @@ def record_usage_ledger_row(**kwargs):
     on_post_api_request(**kwargs)
 
 
+def record_turn_outcome(**kwargs):
+    """``post_tool_call`` hook: a terminal call or file write folds into a bound persona turn's outcome."""
+    from agent_runtime.turn_outcome import on_post_tool_call
+
+    on_post_tool_call(**kwargs)
+
+
 async def answer_queue_status(**kwargs):
     """``pre_gateway_dispatch`` hook: answer ``/queue-status`` (``/qstatus``), busy path included."""
     from agent_runtime.gateway_queue_status import answer_queue_status as _answer
 
     return await _answer(**kwargs)
-
-
-def route_blocked_kanban_cards(**kwargs):
-    """``on_kanban_dispatch_tick`` hook: route the ticking board's new ``blocked`` cards to PM."""
-    from hermes_cli.kanban_blocked_pm_tick import on_kanban_dispatch_tick
-
-    on_kanban_dispatch_tick(**kwargs)
-
-
-def record_kanban_crash_evidence(**kwargs):
-    """``on_kanban_worker_exited`` hook: a redacted crash artifact for the reclaimed run."""
-    from hermes_cli.kanban_crash_evidence import on_kanban_worker_exited
-
-    on_kanban_worker_exited(**kwargs)
 
 
 # Process-env defaults (kanban claim TTL, lazy installs) are NOT written here: plugin code
@@ -351,6 +370,17 @@ def migrate_legacy_persona_toolsets() -> None:
         logging.getLogger(__name__).warning("persona toolsets legacy-key migration failed", exc_info=True)
 
 
+def migrate_legacy_office_schema() -> None:
+    """Owner rule 2026-09-18 (old schema: delete and report): the one-shot office
+    cleanups in ``agent_runtime.office_legacy_migration.STEPS``, once per store."""
+    try:
+        from agent_runtime.office_legacy_migration import run_office_legacy_migrations_once
+
+        run_office_legacy_migrations_once()
+    except Exception:  # a failed migration must not take plugin load down
+        logging.getLogger(__name__).warning("office legacy-schema migration failed", exc_info=True)
+
+
 def seed_persona_profile_defaults() -> None:
     """Owner ruling 2026-10-03: hermes fills the approved seed keys into every persona's
     bound profile ``config.yaml`` — absent keys only (``agent_runtime.persona_seed_defaults``)."""
@@ -383,9 +413,13 @@ def register(ctx) -> None:
         migrate_retired_local_llama_id()
         migrate_legacy_persona_toolsets()
         seed_persona_profile_defaults()
+    migrate_legacy_office_schema()  # a store migration, not a config.yaml rewrite
     from agent_runtime.harness_toolset import ensure_harness_core
 
     ensure_harness_core()  # the persona lane's composite, through upstream's create_custom_toolset
+    from agent_runtime.running_work.process_presence import install_process_presence
+
+    install_process_presence()  # RT-EMIT-RUNNING-WORK-CHAT: process spawn/exit -> running_work events
     from agent_runtime.skill_config_cache import install_bounded_skill_config_cache
 
     install_bounded_skill_config_cache()  # one parsed config.yaml per persona home, not one per process
@@ -400,14 +434,17 @@ def register(ctx) -> None:
     ctx.register_hook("pre_llm_call", settle_turn_tools)
     ctx.register_hook("pre_tool_call", refuse_tool_call)
     ctx.register_hook("post_api_request", record_usage_ledger_row)
+    ctx.register_hook("post_tool_call", record_turn_outcome)
+    from agent_runtime.provider_challenge import classify_challenge_refusal
+
+    # A 403 challenge page, typed (transport_mismatch / upstream_blocked) and named by its path.
+    ctx.register_hook("transform_api_error_classification", classify_challenge_refusal)
     # The on_stream_* receipt observers register only while a persona turn runs: any
     # registered one makes upstream treat EVERY agent in the process as a stream consumer.
     from agent_runtime.codex_observability import install_stream_observers
 
     install_stream_observers(ctx.register_hook)
     ctx.register_hook("transform_tool_result", skill_view_result)
-    ctx.register_hook("on_kanban_dispatch_tick", route_blocked_kanban_cards)
-    ctx.register_hook("on_kanban_worker_exited", record_kanban_crash_evidence)
     ctx.register_hook("pre_gateway_dispatch", answer_queue_status)
     # Joins the built-in `skills` toolset by registry membership: a platform bundle reaches it through
     # `skills` (hermes_cli.tools_config._get_platform_tools maps a bundle onto its member toolsets), and
@@ -416,6 +453,14 @@ def register(ctx) -> None:
         "skill_search", toolset="skills", schema=SKILL_SEARCH_SCHEMA, handler=_handle_skill_search,
         check_fn=_check_skill_search, emoji="🔎",
     )
+    # The serve scheduler's one tool (dispatcher plan §4, B4), in the opt-in `schedule` toolset — never
+    # harness_core: a persona schedules only when the operator opted its profile in.
+    from agent_runtime.work_store.schedule_tool import (
+        SCHEDULE_MANAGE_SCHEMA, SCHEDULE_TOOLSET, handle_schedule_manage,
+    )
+
+    ctx.register_tool("schedule_manage", toolset=SCHEDULE_TOOLSET, schema=SCHEDULE_MANAGE_SCHEMA,
+                      handler=handle_schedule_manage, emoji="⏰")
     # handler_fn=None: every harness subparser sets its own func= (behind _harness_entry).
     ctx.register_cli_command("harness", help=_HARNESS_HELP, setup_fn=_setup_harness_parser, handler_fn=None)
     ctx.register_cli_command(

@@ -65,7 +65,7 @@ class _Pipe:
     def __init__(self) -> None:
         self._queue: queue.Queue = queue.Queue()
 
-    def __iter__(self) -> "_Pipe":
+    def __iter__(self) -> _Pipe:
         return self
 
     def __next__(self) -> str:
@@ -161,7 +161,7 @@ def impatient(monkeypatch):
     ``_DRAIN_EXIT_DEADLINE_SECONDS`` uses, and for the same reason.
     """
 
-    monkeypatch.setattr(serve_module.session, "_REQUEST_SILENCE_SECONDS", 0.05)
+    monkeypatch.setattr(serve_module.liveness, "_REQUEST_SILENCE_SECONDS", 0.05)
 
 
 # ── DEFECT A ────────────────────────────────────────────────────────────────
@@ -534,7 +534,7 @@ def test_disconnect_discards_queued_requests_before_any_effect():
     with running_serve(dispatch=dispatch, pool_size=1) as handle:
         handle.pipe.send({"id":"hold", "argv":["harness","block"]})
         assert entered.wait(WAIT)
-        with client(handle) as (connection, hello):
+        with client(handle) as (connection, _hello):
             connection.send({"id":"discard", "argv":["harness","status","--json"]})
             connection.send({"op":"ping"})
             # A synchronous ping is ordered after registration of the request.

@@ -115,15 +115,6 @@ TEXT_SECRET_VALUE_ASSIGNMENT_RE = re.compile(
     r"(?i)(" + TEXT_SECRET_KEYS + r")" + SECRET_KEY_SEPARATOR + r"([^\s,;]+)"
 )
 
-#: Every secret-assignment pattern this module owns. The group-contract test
-#: iterates it, so a new pattern added here is automatically pinned.
-ALL_SECRET_ASSIGNMENT_PATTERNS = (
-    SECRET_ASSIGNMENT_RE,
-    ENV_SECRET_ASSIGNMENT_RE,
-    TEXT_SECRET_ASSIGNMENT_RE,
-    TEXT_SECRET_VALUE_ASSIGNMENT_RE,
-)
-
 
 # ── file labels ───────────────────────────────────────────────────────────────
 
@@ -238,19 +229,7 @@ SIGNED_QUERY_MARKERS = (
     "api_key", "apikey", "token", "sig", "key",
 )
 
-#: Mapping keys whose value is a credential, spelled with ``-`` (``_`` folds).
-CREDENTIAL_KEYS = frozenset({
-    "authorization", "proxy-authorization", "api-key", "apikey", "x-api-key",
-    "cookie", "set-cookie", "access-token", "refresh-token",
-})
-
 _URL_RE = re.compile(r"https?://[^\s\]\[<>{}\"']+")
-
-
-def is_credential_key(key: Any) -> bool:
-    """Is ``key`` a credential-bearing header or field name (``_`` and ``-`` alike)?"""
-
-    return str(key).strip().lower().replace("_", "-") in CREDENTIAL_KEYS
 
 
 def _signed_query_name(name: str) -> bool:
@@ -286,39 +265,6 @@ def redact_transport_text(value: str, *, secrets: tuple[str, ...] = ()) -> str:
     for secret in filter(None, secrets):
         text = text.replace(secret, REDACTED_VALUE)
     return text
-
-
-def redact_transport_tree(value: Any) -> Any:
-    """A JSON-safe copy of ``value``: credential-keyed values masked, every other
-    string through :func:`redact_transport_text`, scalars kept, anything else
-    stringified and redacted."""
-
-    return _transport(value)
-
-
-@singledispatch
-def _transport(value: Any) -> Any:
-    if value is None or isinstance(value, (bool, int, float)):
-        return value
-    return redact_transport_text(str(value))
-
-
-@_transport.register(dict)
-def _transport_mapping(value: dict) -> Any:
-    return {str(key): REDACTED_VALUE if is_credential_key(key) else _transport(item) for key, item in value.items()}
-
-
-@_transport.register(list)
-@_transport.register(tuple)
-@_transport.register(set)
-@_transport.register(frozenset)
-def _transport_sequence(value: Any) -> Any:
-    return [_transport(item) for item in value]
-
-
-@_transport.register(str)
-def _transport_text(value: str) -> Any:
-    return redact_transport_text(value)
 
 
 # ── secret VALUES in a tool's input or result (the operator tool-IO lane) ─────

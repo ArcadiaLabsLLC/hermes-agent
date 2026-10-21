@@ -8,7 +8,6 @@ import pytest
 from agent_runtime import repo_context as _repo_context
 from agent_runtime.config import harness_root_config_path
 from agent_runtime.profile_home import get_hermes_head_home
-from tests.agent_runtime._session_db_template import session_db_from_template  # noqa: F401 — autouse (D3.11)
 
 
 @pytest.fixture(autouse=True, scope="session")
@@ -167,6 +166,25 @@ def reset_chat_lane_tool_form_memo():
 
 
 @pytest.fixture(autouse=True)
+def in_process_gateway_methods_follow_the_method_table():
+    """Re-arm the in-process peer's once-per-process method install after every test.
+
+    ``in_process_peer._install_gateway_methods`` registers ``eternia.skills.*`` into
+    ``tui_gateway.server._methods`` once and sets ``_installed``. The root conftest's
+    ``_reset_tui_gateway_server_state`` restores ``_methods`` to its pre-test snapshot,
+    which drops those methods whenever the server was imported before the test (any
+    earlier file in the process, e.g. ``test_native_worker_app_function_lifetime.py``),
+    while the flag stays set: the next test's ``eternia.skills.list`` answered -32601
+    "unknown method" (``native_refusal``). The flag follows the table it guards.
+    """
+
+    yield
+    peer = sys.modules.get("agent_runtime.conversations.in_process_peer")
+    if peer is not None:
+        peer._installed = False
+
+
+@pytest.fixture(autouse=True)
 def reset_profile_runner_runtime_resolve_cache():
     """Keep the T6 runtime-resolve memo from crossing test boundaries.
 
@@ -203,6 +221,17 @@ def reset_core_cache_fingerprint_home():
     reset_fingerprint_home()
     yield
     reset_fingerprint_home()
+
+
+@pytest.fixture(autouse=True)
+def no_test_reaches_a_git_host(monkeypatch):
+    """The default brain's automatic promotion asks the machine's GitHub chain (``gh auth token``, the git
+    credential helper, ``api.github.com``) whether it is connected (p10-work §2.5). No test does: the
+    door's memo answers "not connected" unless a test fakes ``git_host_account`` itself."""
+
+    from agent_runtime import git_host_account
+
+    monkeypatch.setattr(git_host_account, "_cache", (float("inf"), None))
 
 
 @pytest.fixture(autouse=True)

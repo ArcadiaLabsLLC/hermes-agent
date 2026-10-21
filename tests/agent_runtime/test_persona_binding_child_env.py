@@ -3,21 +3,19 @@
 ANTI-VACUITY NOTE.
 
 The trap in this file's subject matter is asserting on a variable the fixture
-itself set. ``persona_profile_context`` writes ``os.environ["HERMES_HOME"]``, so
-a test that enters the context and then reads ``os.environ["HERMES_HOME"]``
-proves only that the context did what the test just watched it do — it says
-nothing about what a CHILD would receive.
+itself set. ``persona_profile_context`` binds the home in a ContextVar and writes
+no ``os.environ`` at all (its env mirror retired after run-serialization S5), so
+the only honest probe is the dict handed to the CHILD — a ContextVar never crosses
+a spawn, so a child env that is right came from the production factory.
 
 Every case below therefore probes the dict handed to the child, built by the
 production factory, and compares it against a home the test did NOT write into
 ``os.environ``:
 
 * ``test_mcp_child_env_carries_the_bound_profile_home`` compares the child's
-  ``HERMES_HOME`` against ``binding.profile_home`` while ``HOME`` in the same
-  dict points somewhere ELSE (``<profile>/home``). Under the pre-fix code the
-  key is simply absent, and under a "just copy os.environ" mutant the two would
-  still differ — the assertion pins the relationship between two keys, not the
-  presence of one.
+  ``HERMES_HOME`` against ``binding.profile_home``, a path that is in no
+  ``os.environ``. Under the pre-fix code the key is simply absent, and under a
+  "just copy os.environ" mutant it is the ambient home.
 * ``test_factory_resolves_at_call_time_not_import_time`` builds the env twice
   under two DIFFERENT context bindings within one process. A module-load-time
   snapshot yields the same answer twice; only a call-time resolver yields two.
@@ -35,6 +33,7 @@ from agent_runtime.profile_context import (
     PersonaProfileBinding,
     persona_profile_context,
 )
+from agent_runtime.profile_home import get_hermes_auth_home
 
 
 def _profile(tmp_path: Path, name: str, *, with_home: bool = True) -> Path:
@@ -67,26 +66,23 @@ def test_mcp_child_env_carries_the_bound_profile_home(tmp_path):
     ``_build_safe_env`` (i.e. restore the pre-fix allowlist). ``HERMES_HOME`` is
     then absent from the child env entirely.
 
-    Anti-vacuity: the assertion pins ``HERMES_HOME`` to the profile ROOT while
-    asserting the same dict's ``HOME`` is the profile's ``home/`` SUBDIRECTORY.
-    Those are two different paths, and the pre-fix behaviour (inherit ``HOME``,
-    drop ``HERMES_HOME``) is exactly what makes a child resolve
-    ``<profile>/home/.hermes``. A mutant that reinstates the old allowlist
-    cannot satisfy the pair; nor can one that blindly copies ``os.environ``,
-    because ``HOME`` and ``HERMES_HOME`` must come out DIFFERENT.
+    Anti-vacuity: the binding writes no ``os.environ``, so the profile ROOT can
+    reach the child only through the factory. The pre-fix behaviour (inherit
+    ``HOME``, drop ``HERMES_HOME``) is what made a child resolve
+    ``<home>/.hermes``; a mutant that reinstates the old allowlist, or one that
+    blindly copies ``os.environ``, hands the child the ambient home instead.
     """
     from tools.mcp_tool_config import _build_safe_env
 
     home = _profile(tmp_path, "alice")
     with persona_profile_context(_binding(home), runtime_root=tmp_path / "rt"):
+        assert os.environ.get("HERMES_HOME") != str(home)  # nothing was mirrored
         child = _build_safe_env(None)
 
     assert child.get("HERMES_HOME") == str(home)
-    # The two keys must NOT be the same path — that inequality is the whole bug.
-    assert child.get("HOME") == str(home / "home")
-    assert child["HERMES_HOME"] != child["HOME"]
     # And the child must not be handed a home derived from HOME.
-    assert child["HERMES_HOME"] != str(Path(child["HOME"]) / ".hermes")
+    if child.get("HOME"):
+        assert child["HERMES_HOME"] != str(Path(child["HOME"]) / ".hermes")
 
 
 def test_mcp_child_env_never_leaks_the_head_auth_home(tmp_path):
@@ -100,7 +96,7 @@ def test_mcp_child_env_never_leaks_the_head_auth_home(tmp_path):
 
     home = _profile(tmp_path, "alice")
     with persona_profile_context(_binding(home), runtime_root=tmp_path / "rt"):
-        assert os.environ.get("HERMES_AUTH_HOME")  # the context DID set it
+        assert get_hermes_auth_home()  # the context DID bind it
         child = _build_safe_env(None)
     assert "HERMES_AUTH_HOME" not in child
 
@@ -160,8 +156,8 @@ def test_factory_resolves_at_call_time_not_import_time(tmp_path, factory_name):
     Anti-vacuity: the probe is an INEQUALITY between two calls in the same
     interpreter, so it cannot be satisfied by any frozen value — including one
     the fixture itself happened to write. Neither expected path is ever placed
-    in ``os.environ`` by this test directly; both arrive through
-    ``persona_profile_context``.
+    in ``os.environ``; both arrive through ``persona_profile_context``'s
+    ContextVar.
     """
     from tools.environments import local as local_env
 

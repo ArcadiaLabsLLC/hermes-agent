@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any, Callable, NamedTuple
 
 from agent_runtime.models import OfficeActor
@@ -15,21 +16,60 @@ from agent_runtime.models import OfficeActor
 __layer__ = "models"
 
 __all__ = [
-    "ActorScan",
+    "ARCHIVED_ACTOR_FILES_RETAIN",
     "ARCHIVED_LEDGER_CAP",
-    "ConflictScan",
     "MAX_FOLDERS",
     "MAX_ITEMS_PER_ACTOR",
     "MAX_UNREADABLE_ACTOR_FILE_NAMES",
     "NO_UNREADABLE_ACTOR_FILES",
+    "OUTCOME_OK",
+    "ActorKind",
+    "ActorKindInvalid",
+    "ActorKindMismatch",
+    "ActorScan",
+    "ConflictScan",
     "OfficeActorOutcome",
     "OfficePositionPolicy",
-    "OUTCOME_OK",
     "UnreadableActorFiles",
 ]
 
 
+class ActorKind(StrEnum):
+    """What an upsert payload's actor IS (``RT-GENERIC-DESK-WRITE-PAYS``, additive wire field
+    ``actor_kind``, default ``persona``).
+
+    ``FURNITURE`` is an actor whose ``persona_id`` is an ADDRESS (a generic desk's
+    ``desk_<8 base36>``, CONTRACT 43), never a persona class: it has no class to re-key, so the
+    class-key fence does not apply to it and its write pays no actor scan. The store refuses a
+    furniture payload whose items are not all desks (:class:`ActorKindMismatch`).
+    """
+
+    PERSONA = "persona"
+    FURNITURE = "furniture"
+
+
+class ActorKindInvalid(ValueError):
+    """``actor_kind`` is neither ``persona`` nor ``furniture``."""
+
+    reason = "actor_kind_invalid"
+
+
+class ActorKindMismatch(ValueError):
+    """A ``furniture`` payload carries an item that is not a desk: the word cannot carry an agent
+    placement past the class-key fence."""
+
+    reason = "actor_kind_mismatch"
+
+
 ARCHIVED_LEDGER_CAP = 5000
+#: How many archived actor FILES one workspace keeps under ``office/<ws>/archive/``
+#: (owner ruling 2026-10-15, RT-OFFICE-ARCHIVE-DIRECTORY): the newest 20, the
+#: same bound the agent archive keeps. The tombstone is the surface's
+#: ``archived_actor_keys`` ledger (``ARCHIVED_LEDGER_CAP``), not the file, so a
+#: pruned copy never lets a removed key resurrect; what goes is
+#: ``actor-restore`` for the 21st-oldest removal and the history an unbounded
+#: directory made every reader walk.
+ARCHIVED_ACTOR_FILES_RETAIN = 20
 MAX_ITEMS_PER_ACTOR = 32
 MAX_FOLDERS = 64
 
@@ -113,13 +153,13 @@ class UnreadableActorFiles:
     total: int = 0
 
     @classmethod
-    def of(cls, names: Sequence[str]) -> "UnreadableActorFiles":
+    def of(cls, names: Sequence[str]) -> UnreadableActorFiles:
         """THE mint. Caps the names, keeps the count exact."""
 
         ordered = tuple(str(name) for name in names)
         return cls(names=ordered[:MAX_UNREADABLE_ACTOR_FILE_NAMES], total=len(ordered))
 
-    def merge(self, other: "UnreadableActorFiles") -> "UnreadableActorFiles":
+    def merge(self, other: UnreadableActorFiles) -> UnreadableActorFiles:
         """Two directories' shortfalls as one. Re-caps rather than concatenating
         two already-capped lists, so a merge of two full lists is still bounded
         and the count is still the sum of the two totals."""
@@ -237,13 +277,13 @@ class OfficeActorOutcome:
     error: str | None = None
 
     @classmethod
-    def archived(cls, workspace_id: str, actor_key: str) -> "OfficeActorOutcome":
+    def archived(cls, workspace_id: str, actor_key: str) -> OfficeActorOutcome:
         return cls(workspace_id=workspace_id, actor_key=actor_key, outcome=OUTCOME_OK)
 
     @classmethod
     def archive_failed(
         cls, workspace_id: str, actor_key: str, exc: BaseException
-    ) -> "OfficeActorOutcome":
+    ) -> OfficeActorOutcome:
         return cls(
             workspace_id=workspace_id,
             actor_key=actor_key,
@@ -252,7 +292,7 @@ class OfficeActorOutcome:
         )
 
     @classmethod
-    def scan_unreadable(cls, workspace_id: str, scan: ActorScan) -> "OfficeActorOutcome":
+    def scan_unreadable(cls, workspace_id: str, scan: ActorScan) -> OfficeActorOutcome:
         """The shortfall row for a workspace whose actor directory read short.
 
         NAMES the files, and not only how many there were. The row's job is to
@@ -276,13 +316,13 @@ class OfficeActorOutcome:
         )
 
     @classmethod
-    def conflict_read(cls, workspace_id: str, actor_key: str) -> "OfficeActorOutcome":
+    def conflict_read(cls, workspace_id: str, actor_key: str) -> OfficeActorOutcome:
         return cls(workspace_id=workspace_id, actor_key=actor_key, outcome=OUTCOME_OK)
 
     @classmethod
     def conflict_key_from_filename(
         cls, workspace_id: str, token: str, exc: BaseException
-    ) -> "OfficeActorOutcome":
+    ) -> OfficeActorOutcome:
         """A conflict sidecar that would not decode, named by its FILENAME.
 
         The substitution stays — a conflict the operator can half-name beats a

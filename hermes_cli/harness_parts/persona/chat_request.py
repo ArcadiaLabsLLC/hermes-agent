@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from agent_runtime.operator_message import OperatorMessageInvalid, normalize_operator_message
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from agent_runtime import paths
 from agent_runtime.cli_format import emit_json
 from agent_runtime.config import mission_chat_clarify_token_binding
@@ -100,7 +100,7 @@ def _requested_chat_model_override(args) -> dict[str, object] | None:
             "clear": True,
             "source": "operator",
             "scope": "mission_control_chat_session",
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
         }
     if not provider and not model:
         return None
@@ -110,7 +110,7 @@ def _requested_chat_model_override(args) -> dict[str, object] | None:
         "model": model,
         "source": "operator",
         "scope": "mission_control_chat_session",
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
     }
 
 

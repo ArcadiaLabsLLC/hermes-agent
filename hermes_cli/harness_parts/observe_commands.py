@@ -7,7 +7,7 @@ Read-only; the derivations are ``agent_runtime.snapshot_build_census``'s and
 from __future__ import annotations
 
 import sys
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 from agent_runtime.root_observability import attach_root_observability
 
@@ -74,7 +74,7 @@ def _cmd_observe_turn_timing(args) -> int:
         return 2
     baseline_path = Path(args.baseline) if getattr(args, "baseline", None) else default_baseline_path()
     try:
-        baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+        baseline = json.loads(baseline_path.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError) as exc:
         print(f"baseline unreadable: {baseline_path}: {exc}", file=sys.stderr)
         return 2
@@ -88,7 +88,7 @@ def _cmd_observe_turn_timing(args) -> int:
         log, source = default_log_path(), "no live serve; this CLI's profile"
     launcher_log = Path(args.launcher_log) if getattr(args, "launcher_log", None) else default_launcher_log()
     report = census_turn_timing(store_root=store_root, log=log, launcher_log=launcher_log, baseline=baseline,
-                                since=datetime.now(timezone.utc) - window)
+                                since=datetime.now(UTC) - window)
     report["home"] = {"path": str(log.parent.parent), "source": source}
     report["baseline"]["path"] = str(baseline_path)
     print(emit_json(attach_root_observability(report)) if getattr(args, "json", False) else format_report(report))

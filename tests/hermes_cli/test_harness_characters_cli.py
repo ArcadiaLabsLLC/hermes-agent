@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import base64
 import contextlib
+import functools
 import io
 import json
 import os
@@ -39,7 +40,7 @@ from agent_runtime.profile_home import get_shared_characters_dir
 
 pytest.importorskip("PIL")
 
-from PIL import Image, ImageDraw  # noqa: E402
+from PIL import Image, ImageDraw
 from hermes_cli.harness_parts.characters import auto as characters_auto
 
 SPEC = SheetSpec(
@@ -55,7 +56,11 @@ GLYPH_PX = 44
 MAGENTA = (*pipeline.MAGENTA, 255)
 
 
+@functools.cache
 def parser():
+    # Built once per process: the harness parser is ~200 subcommands and 351 rebuilds were 69% of
+    # this file's CPU (argparse's per-subparser gettext lookups). It reads no environment and no
+    # test patches a handler it binds, and parse_args leaves it unchanged.
     p = argparse.ArgumentParser()
     subs = p.add_subparsers(dest="command")
     build_parser(subs)

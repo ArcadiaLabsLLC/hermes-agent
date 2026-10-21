@@ -30,6 +30,7 @@ __all__ = [
     "MAX_PERSONA_CHAT_MESSAGE_TAIL",
     "PERSONA_CHAT_MESSAGE_TEXT_LIMIT",
     "PERSONA_HARNESS_DELIVERY_KIND",
+    "PERSONA_LENS_EPISODE_KIND",
     "PERSONA_PRE_TRACE_ACK_FINISH_REASON",
     "PERSONA_PRE_TRACE_ACK_KIND",
     "PERSONA_RELAYED_MESSAGE_KIND",
@@ -95,6 +96,12 @@ PERSONA_RELAYED_MESSAGE_KIND = "relayed_message"
 # back the answer to work the agent dispatched. Without the kind it renders as
 # something the operator typed, which is the one thing it is not.
 PERSONA_HARNESS_DELIVERY_KIND = "harness_delivery"
+
+
+# Typed kind for the role="user" row an Eternia Lens Episode's forged turn opens
+# its chat with (finish_reason=lens_episode:<episode_id>). The watcher sent it,
+# not the operator and not an agent (plan p10-agent-2026-10-19 §5.2 decision 3).
+PERSONA_LENS_EPISODE_KIND = "lens_episode"
 
 
 # ── terminal-turn marker vocabulary (ONE table, keyed on the turn state) ─────

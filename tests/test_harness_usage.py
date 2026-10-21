@@ -9,7 +9,7 @@ without touching a real provider account.
 import argparse
 import json
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from types import SimpleNamespace
 
 import pytest
@@ -26,18 +26,18 @@ def _snapshot(provider="openai-codex"):
     return AccountUsageSnapshot(
         provider=provider,
         source="usage_api",
-        fetched_at=datetime(2026, 7, 23, 12, 34, 56, tzinfo=timezone.utc),
+        fetched_at=datetime(2026, 7, 23, 12, 34, 56, tzinfo=UTC),
         plan="Pro",
         windows=(
             AccountUsageWindow(
                 label="Session",
                 used_percent=15.0,
-                reset_at=datetime(2026, 7, 23, 15, 0, 0, tzinfo=timezone.utc),
+                reset_at=datetime(2026, 7, 23, 15, 0, 0, tzinfo=UTC),
             ),
             AccountUsageWindow(
                 label="Weekly",
                 used_percent=40.0,
-                reset_at=datetime(2026, 7, 27, 0, 0, 0, tzinfo=timezone.utc),
+                reset_at=datetime(2026, 7, 27, 0, 0, 0, tzinfo=UTC),
             ),
         ),
         details=("Credits balance: $12.50",),
@@ -47,7 +47,7 @@ def _snapshot(provider="openai-codex"):
 def _wire_instant(stamp):
     """A wire stamp as an aware instant, after proving it is a UTC ``Z`` stamp."""
     assert isinstance(stamp, str) and stamp.endswith("Z"), stamp
-    return datetime.fromisoformat(stamp[:-1] + "+00:00")
+    return datetime.fromisoformat(stamp)
 
 
 def test_usage_codex_logged_in_active(monkeypatch):
@@ -74,16 +74,16 @@ def test_usage_codex_logged_in_active(monkeypatch):
     # The wire stamp is a RELATIONSHIP, not a spelling: UTC, Z-suffixed (what the
     # fork's one normalizer writes and the launcher's DateTime.tryParse reads),
     # and the same instant the snapshot carried.
-    assert _wire_instant(lane["fetched_at"]) == datetime(2026, 7, 23, 12, 34, 56, tzinfo=timezone.utc)
+    assert _wire_instant(lane["fetched_at"]) == datetime(2026, 7, 23, 12, 34, 56, tzinfo=UTC)
     assert lane["unavailable_reason"] is None
 
     session, weekly = lane["windows"]
     assert session["label"] == "Session"
     assert session["used_percent"] == 15.0
-    assert _wire_instant(session["reset_at"]) == datetime(2026, 7, 23, 15, 0, 0, tzinfo=timezone.utc)
+    assert _wire_instant(session["reset_at"]) == datetime(2026, 7, 23, 15, 0, 0, tzinfo=UTC)
     assert session["detail"] is None
     assert weekly["label"] == "Weekly"
-    assert _wire_instant(weekly["reset_at"]) == datetime(2026, 7, 27, 0, 0, 0, tzinfo=timezone.utc)
+    assert _wire_instant(weekly["reset_at"]) == datetime(2026, 7, 27, 0, 0, 0, tzinfo=UTC)
     assert lane["details"] == ["Credits balance: $12.50"]
 
 
@@ -101,7 +101,7 @@ def test_usage_lane_fetch_raising_is_isolated(monkeypatch):
         return AccountUsageSnapshot(
             provider="openai-codex",
             source="usage_api",
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
             windows=(AccountUsageWindow(label="Session", used_percent=5.0),),
         )
 
@@ -160,7 +160,7 @@ def test_usage_provider_filter_restricts_to_one_lane(monkeypatch):
         lambda p: AccountUsageSnapshot(
             provider=p,
             source="usage_api",
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
             windows=(AccountUsageWindow(label="Session", used_percent=1.0),),
         ),
     )
@@ -228,7 +228,7 @@ def test_serialize_window_drops_non_finite_percent_and_json_is_strict(monkeypatc
         lambda p: AccountUsageSnapshot(
             provider="openai-codex",
             source="usage_api",
-            fetched_at=datetime(2026, 7, 23, 12, 0, 0, tzinfo=timezone.utc),
+            fetched_at=datetime(2026, 7, 23, 12, 0, 0, tzinfo=UTC),
             windows=(
                 AccountUsageWindow(label="Session", used_percent=float("nan")),
                 AccountUsageWindow(label="Overage", used_percent=float("inf")),
@@ -313,7 +313,7 @@ def test_usage_codex_401_reports_http_status_not_no_usage_data(monkeypatch):
     written by the mutated path too — it just writes a provably different
     string, which is why probing it is not vacuous.
     """
-    import agent.account_usage as account_usage
+    from agent import account_usage
 
     monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: "openai-codex")
     monkeypatch.setattr(usage_detect, "_usage_lane_detected", lambda p: p == "openai-codex")
@@ -346,7 +346,7 @@ def test_usage_codex_500_reports_status_without_reauth_hint(monkeypatch):
     is the ABSENCE of the suffix on a non-auth status; the unguarded path writes
     the same field with the suffix present, so it cannot pass by accident.
     """
-    import agent.account_usage as account_usage
+    from agent import account_usage
 
     monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: None)
     monkeypatch.setattr(usage_detect, "_usage_lane_detected", lambda p: p == "openai-codex")
@@ -368,7 +368,7 @@ def test_usage_non_http_exception_keeps_class_name_only(monkeypatch):
     MUTATION: make ``_usage_failure_reason`` fall back to ``str(exc)`` — red,
     and the token/URL assertions below fire.
     """
-    import agent.account_usage as account_usage
+    from agent import account_usage
 
     monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: None)
     monkeypatch.setattr(usage_detect, "_usage_lane_detected", lambda p: p == "anthropic")
@@ -391,7 +391,7 @@ def test_usage_raising_anthropic_does_not_sink_the_codex_lane(monkeypatch):
     MUTATION: hoist the ``try/except`` out of the per-future loop in
     ``_fetch_usage_lanes`` — the codex lane disappears and this goes red.
     """
-    import agent.account_usage as account_usage
+    from agent import account_usage
 
     monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: None)
     monkeypatch.setattr(
@@ -408,7 +408,7 @@ def test_usage_raising_anthropic_does_not_sink_the_codex_lane(monkeypatch):
         lambda *_a, **_k: AccountUsageSnapshot(
             provider="openai-codex",
             source="usage_api",
-            fetched_at=datetime(2026, 8, 16, 12, 0, 0, tzinfo=timezone.utc),
+            fetched_at=datetime(2026, 8, 16, 12, 0, 0, tzinfo=UTC),
             windows=(AccountUsageWindow(label="Session", used_percent=1.0),),
         ),
     )
@@ -432,7 +432,7 @@ def test_usage_declining_fetcher_still_reads_no_usage_data(monkeypatch):
     MUTATION: make ``_serialize_usage_lane`` emit a failure reason for None —
     red.
     """
-    import agent.account_usage as account_usage
+    from agent import account_usage
 
     monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: None)
     monkeypatch.setattr(usage_detect, "_usage_lane_detected", lambda p: p == "openrouter")
@@ -476,13 +476,13 @@ def test_usage_lane_slower_than_deadline_times_out_bounded(monkeypatch):
             return AccountUsageSnapshot(
                 provider="anthropic",
                 source="usage_api",
-                fetched_at=datetime.now(timezone.utc),
+                fetched_at=datetime.now(UTC),
                 windows=(AccountUsageWindow(label="Weekly", used_percent=10.0),),
             )
         return AccountUsageSnapshot(
             provider="openai-codex",
             source="usage_api",
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
             windows=(AccountUsageWindow(label="Session", used_percent=5.0),),
         )
 
@@ -527,7 +527,7 @@ def _usage_stub_snapshot(provider):
     return AccountUsageSnapshot(
         provider=provider,
         source="usage_api",
-        fetched_at=datetime(2026, 8, 17, 9, 0, 0, tzinfo=timezone.utc),
+        fetched_at=datetime(2026, 8, 17, 9, 0, 0, tzinfo=UTC),
         windows=(AccountUsageWindow(label="Session", used_percent=7.0),),
     )
 
@@ -586,14 +586,13 @@ def test_no_usage_lane_routes_through_fetch_account_usage(monkeypatch):
     id from `_USAGE_LANE_PROVIDERS` cannot make this pass vacuously either — the
     candidate list is asserted to be all four.
     """
-    import agent.account_usage as account_usage
-    import hermes_cli.nous_account as nous_account
+    from agent import account_usage
+    from hermes_cli import nous_account
 
     swallow_calls: list[tuple] = []
 
     def recorder(*args, **kwargs):
         swallow_calls.append((args, kwargs))
-        return None
 
     monkeypatch.setattr(account_usage, "fetch_account_usage", recorder)
     monkeypatch.setattr(
@@ -1027,9 +1026,9 @@ def test_the_detector_feeders_raise_instead_of_answering_not_signed_in(monkeypat
     the raise fixtures go red while the True fixtures still pass, which is
     exactly the half-fix this pair exists to catch.
     """
-    import agent.credential_pool as credential_pool
-    import hermes_cli.auth as auth
-    import hermes_cli.runtime_provider as runtime_provider
+    from agent import credential_pool
+    from hermes_cli import auth
+    from hermes_cli import runtime_provider
 
     def _pool(entries):
         return SimpleNamespace(entries=lambda: entries)

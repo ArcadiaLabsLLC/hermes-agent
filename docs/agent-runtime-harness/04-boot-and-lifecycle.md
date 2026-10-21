@@ -32,6 +32,73 @@ These records are routing evidence, never a second transcript store.
 
 ---
 
+## Before Stage 1 — the profile namespace (`HERMES_NAMESPACE`)
+
+One code install per machine; N data namespaces inside it (plan
+`EterniaLauncher/docs/embedded_hermes/planned/ONE_HERMES_INSTALL_PROFILE_NAMESPACE_2026-10-19.md`).
+`hermes_cli._namespace_bootstrap.apply_cli_namespace` is the first act of `_apply_profile_override`,
+before any hermes module imports:
+
+- **Contract.** `HERMES_NAMESPACE=<id>` or `--namespace <id>` anywhere before `--` (both must agree)
+  resolves to `<HERMES_NAMESPACES_DIR or <base parent>/hermes-namespaces>/<id>`, a sibling of the
+  base root (`HERMES_DEPENDENCY_ROOT`, else `HERMES_HOME`'s root, else the platform home). Ids are
+  `[a-z0-9][a-z0-9-]{0,47}`; `base` names the base root. The process gets `HERMES_HOME=<ns>/profiles/base`,
+  `HERMES_HEAD_HOME`, `HERMES_AGENT_RUNTIME_ROOT=<ns>/agent-runtime` when unset, and `setdefault`s
+  `HERMES_DEPENDENCY_ROOT=<base>`, `HERMES_REGISTRY_WRITE_FENCE=1`, `HERMES_DISABLE_LAZY_INSTALLS=1`;
+  `namespace.json` is written on first resolve. Any refusal is one JSON line on stderr and exit 2.
+- **Isolation.** An explicit home outside the namespace refuses at resolution;
+  `agent_runtime.namespace.assert_namespace_isolation` (in `paths.store_root`) raises for any store,
+  home or head home in the base root, another namespace or elsewhere; `root_anchor` refuses
+  (`RootAnchorOutcome.NAMESPACED`).
+- **Outside the launcher** (`HERMES_LAUNCHER_SPAWNED` unset) only the id in `<base>/namespace-active.json`
+  (`{"schema": 1, "namespace": "<id>"}`, or schema 2 adding `"namespaces_dir": "<absolute dir>"`) is
+  reachable; unset with a record follows it; unset with no record, `base`, `pm` and `update` stay on
+  the base root. With `HERMES_NAMESPACES_DIR` unset, a schema-2 record's `namespaces_dir` IS the
+  namespaces dir (the launcher's shared folder outside both installs; `list` and `probe` read it too)
+  and is exported to every child; schema 1 keeps the base-sibling default (RT-NAMESPACE-ACTIVE-RECORD-DIR).
+- **Stamp.** The owner record, the `serve_instances` row, the `ready` frame, every service-log line and
+  receipt line carry `namespace` (`""` for the base root).
+- **`hermes namespace probe | list | seed | reset | delete | import-sessions`** (`hermes_cli.namespace_cmd`,
+  `agent_runtime.namespace_admin`, `agent_runtime.namespace_seed`): `probe` is the launcher's pre-spawn
+  capability check (exit 0 + JSON); `seed` copies the allowlist once, at creation, and accounts every
+  source entry as copied, skipped with a reason, or borrowed (`seed --dry-run` prints that plan and
+  writes nothing; `--with-memories` adds each home's `memories/` and is refused unless the target is
+  `acct-<16 hex>` or its sandbox `acct-<16 hex>-dev`, which `list` reports as kind `account-sandbox` and
+  which seeds only from `acct-<the same hex>`, at most once — RT-NAMESPACE-SANDBOX-KIND); `seed` also carries every persona instance (hired and canonical) and the alias
+  registry REBASED — source-root paths re-rooted under the namespace, session/run/heartbeat bindings
+  cleared, `state: idle` — refusing `namespace_instance_not_rebased` if a value still names the source,
+  and lists each office placement as resolved or "placed but no source instance"
+  (`namespace_seed.instances`); `reset`/`delete` refuse a busy namespace; `import-sessions <id>
+  <export.jsonl>` writes a `hermes sessions export` into a named namespace, rebinding each chat to one
+  of its persona instances (`agent_runtime.own_session_import`; never `base`, idempotent, every skip
+  reasoned). **`seed` and `import-sessions` are Developer Edition only** (owner 2026-10-19): on the
+  bundled edition (build stamp `payload: bundled`, `hermes_cli.steward.is_bundled_payload`) they refuse
+  `namespace_dev_only` before importing anything, and both bundled profiles switch their modules off;
+  `probe`, `list`, `reset` and `delete` ship everywhere.
+- **The store epoch** (`agent_runtime/store_epoch.py`; 02 § "The namespace manifest and the store
+  epoch"). Both editions open one shared namespace, so a build refuses a store shaped by a newer one.
+  `ServeSession.run` runs `store_epoch.refuse_unreadable_store` as its first act after `booting` —
+  BEFORE the root anchor, the skill install, the install identity and the serve token, each of which
+  writes into the store (the launcher plan's "after the socket lock" is earlier in this tree: the store
+  is written before the lock is taken, and a stdio serve takes none). The verdict compares the
+  manifest's `epoch.value` (absent = 0) with `STORE_EPOCH`:
+
+  | stored vs mine | verdict | effect |
+  | --- | --- | --- |
+  | stored > mine, or unparseable | `newer` | refuse `namespace_epoch_newer`: one `namespace_refused` frame, a stderr line, exit 2, nothing written |
+  | equal, or older and this build's registry has no breaking entry above it | `ok` | open; `last_written_by` stamped; the epoch never moves |
+  | older, this build would raise, `HERMES_LAUNCHER_SPAWNED=1` and `HERMES_STORE_EPOCH_CONSENT=<mine>` | `raise` | open; `epoch.value = mine` stamped |
+  | older, this build would raise, no consent (or outside the launcher) | `consent_required` | refuse `namespace_epoch_consent_required`, nothing written |
+
+  The consent env is the launcher's alone: its early-pull disclaimer grants it. The conversation worker
+  entry runs the same check without stamping (its serve stamped this boot). `hermes namespace probe <id>`
+  prints `epoch {stored, mine, verdict}` (a `newer` verdict also rides `refusal`; `consent_required`
+  does not — the launcher decides whether to ask), and `seed` (from a newer source) and
+  `import-sessions` refuse a store this build cannot read; `reset`, `seed` and a new namespace stamp
+  this build's epoch.
+
+---
+
 ## Before Stage 1 — the bundled-desktop build: what the interpreter is given
 
 The Eternia Harness (bundled Hermes inside the Launcher) runs from a build, not a checkout. The
@@ -63,8 +130,10 @@ not, with its own `engine-pack.json`, `licenses.json` and `sbom.cdx.json`. Measu
 | `speech` | `speech-tts`, `stt-onnx` | flatbuffers, numpy, onnx-asr, onnxruntime, protobuf | 894 | 73.9 MiB | local TTS and STT (`runtime.speech.*`, [runtime-speech-methods](runtime-speech-methods.md)): `agent_runtime/speech_onnx_voice.py` and `agent_runtime/speech_stt_engines.py` import onnxruntime / onnx-asr |
 | `provider-bedrock` | `bedrock` | boto3, botocore, jmespath, s3transfer | 2,079 | 19.8 MiB | the AWS Bedrock provider: `agent/bedrock_adapter.py` imports boto3 (`_PROVIDER_PACKAGE_REQUIREMENTS["bedrock"]` in `hermes_cli/runtime_environment.py`) |
 | `provider-vertex` | `vertex` | google-auth, pyasn1, pyasn1-modules | 270 | 1.9 MiB | the Google Vertex AI provider: `agent/vertex_adapter.py` imports google.auth (`_PROVIDER_PACKAGE_REQUIREMENTS["vertex"]`) |
-| `provider-azure-identity` | `azure-identity` | azure-core | 85 | 0.7 MiB | Entra ID auth for azure-foundry: `agent/azure_identity_adapter.py` imports azure.identity. The pack does NOT carry azure-identity, msal or msal-extensions (an open row in the runtime queue) |
-| `provider-mistral` | `mistral` | eval-type-backport, jsonpath-python, mistralai, opentelemetry-semantic-conventions | 1,170 | 5.1 MiB | the Mistral cloud speech providers: `tools/transcription_cloud.py` and `tools/tts_tool.py` import mistralai |
+| `provider-azure-identity` | `azure-identity` | azure-core, azure-identity, msal, msal-extensions | 224 | 1.7 MiB | Entra ID auth for azure-foundry (`model.auth_mode: entra_id`): `agent/azure_identity_adapter.py` imports azure.identity; `runtime.provider.list` offers it on the azure-foundry row with `needed_when: {auth_mode: entra_id}` (`_PROVIDER_MODE_PACKAGE_REQUIREMENTS` in `hermes_cli/runtime_environment.py`; re-measured 2026-10-16 after the closure resolved the shared `azure` namespace by its dotted import) |
+
+There is no Mistral pack: owner ruling 2026-10-16 dropped `provider-mistral` (mistralai), which no
+`runtime.provider.list` row and no Launcher surface reached.
 
 **Owner ruling (2026-10-15): provider packs are desktop-only, and mobile works without them.** The
 phone edition is SDK-free (`agent.provider_sdks: false`; `agent_runtime/provider_dependencies.py`
@@ -151,6 +220,21 @@ processes booting against one checkout is a REAL concurrency, so the sweep is cl
 by `tests/agent_runtime/test_tool_visibility_import_deferral.py`, which drives the real chain
 through subprocesses after recording that the originally specified assertion was vacuous.
 
+**The declared-command scan** (`RT-HARNESS-ARGV-MANIFEST-SCAN`, 2026-10-19). Every `hermes harness …`
+process — each CLI call, each serve boot, each test child — runs
+`hermes_cli/plugins_manifest_cli_commands.py::discover_declared_cli_commands` to find the manifest that
+declares `harness`. It no longer parses every `plugin.yaml` to do so: a fingerprint cache at
+`<HERMES_HOME>/cache/declared_cli_commands.json` (`hermes_cli/plugins_declared_cli_cache.py`, the home
+resolved at call time) keys the declaring winners on an over-approximating stat enumeration of every
+manifest-named file the upstream walk could read (the bundled, user and opt-in project roots, depth two,
+no skip list) plus `HERMES_ENABLE_PROJECT_PLUGINS`. A hit re-parses only the declaring manifest(s); a miss
+runs the full walk and rewrites the file; an unwritable or corrupt file is a miss, never an error. The
+enable gate is never cached — it runs on the re-parsed manifest against the live config on every call —
+so **a hit never changes which plugin wins or whether it is enabled**. Measured in-process 2026-10-19,
+n = 20 each, box at 100 % load (upper bounds): miss median 134 ms, hit median 18.5 ms (102 files
+stat'ed). Receipt at debug: `declared_cli_scan cache=hit|miss|unwritable files=N ms=N`. The superset is
+pinned by the gate `tests/hermes_cli/test_declared_cli_cache_superset.py`.
+
 ## Stages 2-3 — `booting`, then registry, head pointer, root anchor
 
 The `booting` frame is emitted before ANY heavy boot work, carrying `boot: timeline.stamps()`
@@ -222,9 +306,19 @@ know (`serve.py:1419-1632`):
 
 1. **Which code** — `build_stamp().frame_payload()`. A durable service that silently pins last
    week's code is the shape of the dispatch dead-flag-proxy incident. The block is
-   `commit` / `dirty` / `source` / `resolved_at` plus RS-6's three, and it rides the register
-   row (`serve_instances/<pid>.json`'s `build`) and the socket greeting unchanged, because a
-   reader that has to ask a second question is the window this stage exists to close.
+   `commit` / `dirty` / `source` / `resolved_at` plus RS-6's three plus `uv_lock_sha256` /
+   `uv_lock_reason`, and it rides the register row (`serve_instances/<pid>.json`'s `build`) and
+   the socket greeting unchanged, because a reader that has to ask a second question is the
+   window this stage exists to close.
+
+   **The build triple.** "The same debug build" is `(code_tree, commit, dirty, uv_lock_sha256)`
+   (`EterniaLauncher/docs/embedded_hermes/planned/ONE_HERMES_INSTALL_PROFILE_NAMESPACE_2026-10-19.md`
+   §0): a QA run label and a serve's ready frame compare on all four. `uv_lock_sha256` is sha256
+   over the checkout's working-tree `uv.lock` bytes — the digest `pm` keys its venv sync on — and
+   is measured in every arm, git or not. The bundled edition reports what the bundle stamps: the
+   commit from `.hermes_build_sha`, `dirty: null`, and `uv_lock_reason: lock_missing` when the
+   bundle ships no lock (`no_root` / `lock_unreadable` are the other tokens). Pinned by
+   `tests/agent_runtime/test_build_stamp.py::test_the_frame_carries_the_build_triple_with_the_checkouts_uv_lock_hash`.
 
    **RS-6: a commit is not a build.** `code_tree` is a sha1 over the tracked files a runtime can
    actually load — `git ls-tree -r HEAD` minus `docs/`, `tests/`, `.github/` and the repo-root
@@ -236,7 +330,12 @@ know (`serve.py:1419-1632`):
    (`not_git:<source>` for a Docker image or an unresolvable checkout; a `git_*` token for a
    probe that failed). The launcher's RL-20 build-behind restart compares `code_tree`, not
    `commit`: on 2026-09-07 at 16:25:09Z a **docs-only** hermes landing moved the commit, drained
-   a healthy runtime, and the replacement lost the socket lock for the rest of the session. All
+   a healthy runtime, and the replacement lost the socket lock for the rest of the session. The
+   restart asks `drain_if_idle`; a refusal names its hold in `held_by`
+   (`hermes_cli/harness_parts/serve/idle_drain.py::IdleDrainHold`), and a cron job running in this
+   process (`cron.scheduler.get_running_job_ids()`, the set upstream's gateway drain reads) holds
+   it as `cron_job`; a send-queue entry a scheduler fire or a platform message queued holds it as
+   `scheduled_turn` / `messaging_turn` (`idle_drain._QUEUED_TURN_HOLDS`, one row per origin). All
    of it is `agent_runtime/build_identity.py`, and the two implementations — this one and the
    launcher's Dart — are held to one answer by a byte-equal fixture hashed on both sides:
    `tests/fixtures/build_identity/code_tree_parity_tree.txt` and
@@ -384,7 +483,7 @@ The readiness section publishes its own split. Same cold boot:
 `snapshot_agents_readiness walk_ms=2133 tool_visibility_ms=2232`; warm, same day,
 `walk_ms=769 tool_visibility_ms=26`.
 
-The walk's per-persona profile binding is `persona_profile_scope` —
+The walk's per-persona profile binding is `persona_profile_context` —
 context-local, no `os.environ` writes, and therefore no `_WORKDIR_LOCK`. On this
 lane that is not a nicety: the walk runs on the builder thread every 2–4 s in the
 process that also serves chat turns, so the env-exporting binding rebound
@@ -697,6 +796,15 @@ Restoring `sys.stderr` therefore restores a channel nobody was going to print to
 writes the traceback into the service stderr log itself. A NON-service child still says nothing —
 that is unchanged behaviour, not a regression, and its parent still has the exit code and the pipe.
 
+**The messaging lane on the way down (p10-messaging M5).** The bridge
+(`agent_runtime/messaging/serve_lane.py::MessagingLane`) watches the drain between ticks: the moment
+`drain_state` is set it stops POLLING — an update its long poll still holds is dropped unhandled and
+unacknowledged, so the next serve receives it — while the settle listener stays registered, so a turn
+already queued still sends its reply. `liveness_stop` closes the bridge (listener and approval notifiers
+unregistered). It starts with the Work engine, after the scheduler, and never on the boot path: its first
+tick runs on its own thread one interval (5 s) after the boot. Absent from both bundle closures (`switched_off_modules`), off by default
+everywhere (`messaging_enabled` false). Pinned by `tests/agent_runtime/messaging/test_serve_lane.py`.
+
 ---
 
 ## Invariants
@@ -722,7 +830,7 @@ that is unchanged behaviour, not a regression, and its parent still has the exit
     `AgentRunExecution.scopes` holds `profile_runner.workdir.root_run_lock` for the whole
     run; another root runs alongside, including while one waits on an operator approval.
     That is sound because a turn writes no process state: the profile home, auth home and
-    runtime root are bound in ContextVars (`persona_profile_context(..., export_env=False)`,
+    runtime root are bound in ContextVars (`persona_profile_context`,
     `agent_runtime/run_context.py`, which also bridges them into every factory-built child
     env), and the workdir is bound in the run's terminal scope, never `os.chdir`
     (`tests/agent_runtime/test_serve_cwd_serialization_invariant.py` reds on a `chdir`).
@@ -756,8 +864,6 @@ Nothing below is implemented. Each links to a plan carrying its own evidence and
   aimed at it. → [`planned/cold-first-core-build-cost.md`](planned/cold-first-core-build-cost.md)
 - **The boot resubscribe still buys a fourth full core** — HY-L2, the one stage of its plan that
   did not ship. → [`planned/boot-resubscribe-fourth-core.md`](planned/boot-resubscribe-fourth-core.md)
-- **Turn concurrency is capped by a process-global `chdir`** (Invariant 10); retiring it is
-  designed, unscheduled. → [`planned/serve-cwd-per-run-paths.md`](planned/serve-cwd-per-run-paths.md)
 
 ## Supersedes
 

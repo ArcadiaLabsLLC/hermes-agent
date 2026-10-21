@@ -46,6 +46,7 @@ from agent_runtime.builds.unknowns import (
 )
 from agent_runtime.builds.vocabulary import (
     DETECT_BUDGET_MS,
+    DETECTED_SUB_REASONS,
     SUB_REASON_NO_SLOTS_DECLARED,
     SUB_REASON_NOT_IN_PROCESS,
     SUB_REASON_SCAN_BUDGET,
@@ -114,6 +115,10 @@ class DetectScan:
     unknowns: UnknownsIndex = field(default_factory=UnknownsIndex)
 
     def sub(self) -> dict[str, Any]:
+        if self.reason and self.reason not in DETECTED_SUB_REASONS:
+            # Only this module writes ``reason``, from the vocabulary's constants: a word
+            # outside the tuple is a producer bug, reported as the lane's collector_failed.
+            raise ValueError(f"detected sub reason {self.reason!r} is not a word of {DETECTED_SUB_REASONS}")
         return {"status": self.status, "reason": self.reason, "scan_ms": self.scan_ms,
                 "processes_examined": self.processes_examined, "candidates": self.candidates,
                 "budget_ms": self.budget_ms, "unknowns": self.unknowns.wire()}
@@ -187,7 +192,7 @@ def _process_fact(reader: Callable[[], Any]) -> Any:
 
     try:
         return reader()
-    except Exception as exc:  # noqa: BLE001 — the CLASS is the evidence the index records
+    except Exception as exc:  # the CLASS is the evidence the index records
         return exc
 
 
@@ -212,15 +217,19 @@ def scan(*, now: float, census: Any, owned: set[int], table: Iterable[Any] | Non
         return result
     scanner = _Scanner(result, now=now, bound=list(census.bound), owned=owned, clock=clock, budget_ms=budget_ms)
     try:
-        for proc in (table if table is not None else psutil_table()):
+        if table is None:
+            import psutil  # the phone profile omits it: ImportError is "I could not look", below
+
+            table = psutil_table(psutil)
+        for proc in table:
             scanner.consider(proc)
             if scanner.over_budget():
                 result.status, result.reason, result.builds = "unavailable", SUB_REASON_SCAN_BUDGET, []
                 break
-    except Exception as exc:  # noqa: BLE001 — "I could not look" is a typed sub-health
+    except Exception as exc:  # "I could not look" is a typed sub-health
         result.status, result.reason, result.builds = "unavailable", SUB_REASON_SCAN_FAILED, []
         result.unknowns.add(UNKNOWN_PROCESS_UNIDENTIFIED, f"process table: {type(exc).__name__}", now)
-    result.scan_ms = int(round((clock() - scanner.started) * 1000.0))
+    result.scan_ms = round((clock() - scanner.started) * 1000.0)
     return result
 
 
@@ -278,7 +287,5 @@ class _PsutilProcess:
         return [(parent.pid, parent.name()) for parent in self._proc.parents()]
 
 
-def psutil_table() -> Iterable[Any]:
-    import psutil
-
+def psutil_table(psutil: Any) -> Iterable[Any]:
     return (_PsutilProcess(proc) for proc in psutil.process_iter(["pid", "name"]))

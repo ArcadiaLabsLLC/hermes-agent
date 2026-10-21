@@ -321,7 +321,7 @@ def _test_modules() -> list[Path]:
     )
 
 
-_PARSE_CACHE: dict[Path, "ast.Module | None"] = {}
+_PARSE_CACHE: dict[Path, ast.Module | None] = {}
 
 # Tokens that make a module worth PARSING. Reading ~2400 files is cheap;
 # compiling them all is not, and every module without one of these strings is
@@ -332,7 +332,7 @@ _PARSE_CACHE: dict[Path, "ast.Module | None"] = {}
 _RELEVANT_TOKENS = (_MARKER, *_SURFACE)
 
 
-_CANDIDATES: list["set[Path] | None"] = []
+_CANDIDATES: list[set[Path] | None] = []
 
 
 def _token_candidates() -> set[Path] | None:
@@ -353,6 +353,7 @@ def _token_candidates() -> set[Path] | None:
             proc = subprocess.run(
                 [*argv, "--", "."], cwd=tests_root, capture_output=True,
                 text=True, encoding="utf-8", timeout=60,
+                check=False,
             )
         except (OSError, subprocess.TimeoutExpired):
             proc = None

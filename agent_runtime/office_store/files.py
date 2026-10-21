@@ -11,17 +11,22 @@ from utils import atomic_json_write
 from agent_runtime import paths
 from agent_runtime.errors import AlreadyExists
 from agent_runtime.models import OfficeActor, OfficeSurface
-from agent_runtime.office_store.models import ActorScan, UnreadableActorFiles
+from agent_runtime.office_store.models import (
+    ARCHIVED_ACTOR_FILES_RETAIN,
+    ActorScan,
+    UnreadableActorFiles,
+)
 from agent_runtime.serde import from_jsonable, read_json, to_jsonable
 
 __layer__ = "stores"
 
 __all__ = [
-    "read_actor_dir",
     "_free_surface_archive_dir",
+    "_prune_archived_actor_files",
     "_write_actor",
     "_write_archived_actor",
     "_write_surface",
+    "read_actor_dir",
 ]
 
 
@@ -65,7 +70,7 @@ def read_actor_dir(directory) -> ActorScan:
     for path in sorted(directory.glob("*.json")):
         try:
             actors.append(from_jsonable(OfficeActor, read_json(path)))
-        except Exception as exc:  # noqa: BLE001 — the scan survives one bad file
+        except Exception as exc:  # the scan survives one bad file
             unreadable_names.append(f"{directory.name}/{path.name}")
             name = type(exc).__name__
             classes[name] = classes.get(name, 0) + 1
@@ -97,6 +102,45 @@ def _write_archived_actor(actor: OfficeActor) -> None:
         indent=2,
         sort_keys=True,
     )
+
+
+def _prune_archived_actor_files(workspace_id: str, *, keep: int = ARCHIVED_ACTOR_FILES_RETAIN) -> int:
+    """Keep the newest ``keep`` archived actor files of one workspace; return
+    how many older ones were removed (RT-OFFICE-ARCHIVE-DIRECTORY).
+
+    Newest by modification time, ties broken by name so two runs agree. Called
+    under ``office_lock`` right after an archive write, so the file just written
+    is always among the kept. A file that will not unlink (held by a scanner)
+    stays and is retried by the next archive; it is not counted.
+    """
+
+    directory = paths.office_archive_dir(workspace_id)
+    if not directory.exists():
+        return 0
+    ranked = []
+    for path in directory.glob("*.json"):
+        try:
+            ranked.append((path.stat().st_mtime_ns, path.name, path))
+        except OSError:
+            continue
+    ranked.sort(key=lambda row: (row[0], row[1]), reverse=True)
+    removed = 0
+    for _mtime, _name, path in ranked[max(0, int(keep)):]:
+        try:
+            path.unlink()
+        except OSError:
+            continue
+        removed += 1
+    if removed:
+        import logging
+
+        logging.getLogger(__name__).info(
+            "office archive retention: workspace=%s removed=%d kept=%d",
+            workspace_id,
+            removed,
+            min(len(ranked), max(0, int(keep))),
+        )
+    return removed
 
 
 def _write_actor(actor: OfficeActor) -> None:

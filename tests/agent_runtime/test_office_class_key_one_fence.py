@@ -66,6 +66,8 @@ from tests.agent_runtime.test_office_class_key_guard import (
     _workspace,
 )
 
+pytestmark = pytest.mark.gate
+
 #: The fault every lane must name, on the shared fixture. Both of the guard's
 #: reasons fire there — real post-migration state, and the peer payload carries
 #: the item ids the surviving instance-keyed actor holds.
@@ -130,6 +132,7 @@ def _run_harness_utf8(*args: str):
         encoding="utf-8",
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         timeout=90,
+        check=False,
     )
 
 

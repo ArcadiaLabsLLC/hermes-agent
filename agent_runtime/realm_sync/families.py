@@ -35,9 +35,9 @@ __all__ = [
     "PERSONA_PROMPT_DIR",
     "PROFILE_FILES_ROOT",
     "SYNC_PATH_FAMILIES",
+    "_LEGACY_PROFILE_FILE_KINDS",
     "SyncFamily",
     "SyncPathFamily",
-    "_LEGACY_PROFILE_FILE_KINDS",
     "_contains",
     "_destination_for_sync_path",
     "_exactly",
@@ -87,6 +87,7 @@ class SyncFamily(StrEnum):
     FLOW_GRAPH = "flow_graph"
     LEVEL = "level"
     MAP = "map"
+    PREFAB = "prefab"
     #: The repo-slot documents (build plan §3.1): key-wise at three depths.
     WORKSPACE_SLOTS = "workspace_slots"
     PROFILE_FILE = "profile_file"
@@ -327,6 +328,9 @@ SYNC_PATH_FAMILIES: Final[tuple[SyncPathFamily, ...]] = (
     # last-write-wins over one this operator may have authored or renamed.
     SyncPathFamily(SyncFamily.LEVEL, _prefix("store/levels/"), owner="level_sync.apply_level_pull"),
     SyncPathFamily(SyncFamily.MAP, _prefix("store/maps/"), owner="map_sync.apply_map_pull"),
+    # USER PREFABS: the same whole-document class, one descriptor
+    # (``prefab_store.PREFAB_FAMILY``), nested ``<profile>/<prefab>.json``.
+    SyncPathFamily(SyncFamily.PREFAB, _prefix("store/prefabs/"), owner="prefab_store.apply_prefab_pull"),
     # The repo-slot documents: a key-wise merge (slot names union, tombstones by
     # issued_at, machines disjoint by id). A raw write would drop another machine's
     # accounting or resurrect a slot a newer declaration removed.

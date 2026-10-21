@@ -63,7 +63,7 @@ def _parse_session_source_table(text: str) -> set[str]:
     """Parse §3's "SessionSource fields (the wire surface)" table → field names."""
     section = text.split("### SessionSource fields (the wire surface)", 1)[-1]
     section = section.split("### SessionSource discriminators per platform", 1)[0]
-    return set(re.findall(r"^\|\s*`([a-z_]+)`\s*\|", section, re.M))
+    return set(re.findall(r"^\|\s*`([a-z_]+)`\s*\|", section, re.MULTILINE))
 
 
 def test_session_source_wire_keys_documented_in_contract():

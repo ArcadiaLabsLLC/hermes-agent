@@ -1,6 +1,6 @@
 """``characters`` verbs outside the pipeline steps.
 
-Start, list, status, thumb, sprite, base, reopen, add-state, the home
+Start, list, status, thumb, sprite, base, reopen, recolour, add-state, the home
 backfill/migrate pair, and payload-contract.
 """
 
@@ -14,6 +14,7 @@ from .payloads import (
     _characters_emit,
     _characters_error,
     _characters_next,
+    _characters_print,
     _characters_verb,
 )
 
@@ -25,6 +26,7 @@ __all__ = [
     "_cmd_characters_list",
     "_cmd_characters_migrate_home",
     "_cmd_characters_payload_contract",
+    "_cmd_characters_recolour",
     "_cmd_characters_reopen",
     "_cmd_characters_sprite",
     "_cmd_characters_start",
@@ -299,6 +301,17 @@ def _cmd_characters_reopen(args) -> int:
     return _characters_verb(args, call)
 
 
+def _cmd_characters_recolour(args) -> int:
+    def call(draft):
+        result = draft.recolour(str(getattr(args, "source", "") or ""), str(getattr(args, "target", "") or ""))
+        return result, (
+            f"Draft {draft.id}: {result['op']['from']} -> {result['op']['to']} on {result['pixels']} px "
+            f"(palette op {len(result['paletteOps'])}; replayed by every later compose)"
+        )
+
+    return _characters_verb(args, call)
+
+
 def _cmd_characters_add_state(args) -> int:
     state_text = str(getattr(args, "state", "") or "").strip()
 
@@ -363,15 +376,17 @@ def _cmd_characters_payload_contract(args) -> int:
     `hermes_cli/charsheet_payload_contract.py`, which is also where a new
     payload kind is added.
 
-    It emits through `_characters_emit` like every other `characters` verb, so
-    `--json` prints the document and a bare call prints a human line. There is
-    no draft and no slug: the probes are built and thrown away inside the call.
+    It prints through `_characters_print`, not `_characters_emit`: the document is
+    a key set, read from no library, so it carries no `home` block and a hand run
+    stays byte-identical to `scripts/dump_payload_contract.py`. `--json` prints the
+    document and a bare call prints a human line. There is no draft and no slug:
+    the probes are built and thrown away inside the call.
     """
     from hermes_cli.charsheet_payload_contract import build_payload_contract
 
     document = build_payload_contract()
     kinds = document["payloads"]
-    return _characters_emit(
+    return _characters_print(
         args,
         document,
         "; ".join(

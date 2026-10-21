@@ -22,8 +22,8 @@ from agent_runtime.serve_socket.wire import _LineReader, _parse_object
 __layer__ = "lanes"
 
 __all__ = [
-    "_add_peer_assertions",
     "ServeSocketClient",
+    "_add_peer_assertions",
 ]
 
 
@@ -447,11 +447,11 @@ class ServeSocketClient:
         except OSError:
             pass
 
-    def __enter__(self) -> "ServeSocketClient":
+    def __enter__(self) -> ServeSocketClient:
         self.connect()
         return self
 
-    def __exit__(self, *_exc: Any) -> None:
+    def __exit__(self, *_exc: object) -> None:
         self.close()
 
 

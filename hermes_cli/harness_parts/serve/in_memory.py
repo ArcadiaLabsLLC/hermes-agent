@@ -49,7 +49,7 @@ import threading
 from pathlib import Path
 from typing import Any, Callable, Iterator, MutableMapping
 
-import hermes_state_registry  # noqa: F401 — see below
+import hermes_state_registry  # see below
 from hermes_cli.harness_parts.serve.session import serve_loop
 from hermes_cli.harness_parts.serve.shell import EmbeddedShell
 

@@ -35,6 +35,7 @@ from agent_runtime.mission_chat_phases import (
     turn_timing_block,
 )
 from agent_runtime.transport_phase_trace import install_transport_phase_trace
+from agent_runtime.receipt_sink import ReceiptSink
 
 _NEW_MARKS = (
     "conversation_started",
@@ -74,7 +75,7 @@ def test_phase_order_puts_the_stamps_inside_the_provider_span():
 
 
 class _Handler(BaseHTTPRequestHandler):
-    def do_POST(self):  # noqa: N802 - http.server naming
+    def do_POST(self):  # http.server naming
         length = int(self.headers.get("content-length") or 0)
         self.rfile.read(length)
         body = b"{}"
@@ -101,7 +102,7 @@ def local_server():
 
 
 def _agent(steps: list[str]):
-    return SimpleNamespace(status_callback=lambda payload: steps.append(payload.get("step")))
+    return SimpleNamespace(status_callback=ReceiptSink(lambda payload: steps.append(payload.get("step"))))
 
 
 def test_a_live_request_announces_client_sent_and_headers_but_no_tls(local_server):
@@ -166,7 +167,7 @@ class _AnthropicHost:
     api_mode = "chat_completions"  # skip the credential refresh: this pins the stamp seam only
 
     def __init__(self, steps, cached=None):
-        self.status_callback = lambda payload: steps.append(payload.get("step"))
+        self.status_callback = ReceiptSink(lambda payload: steps.append(payload.get("step")))
         self._cached = cached
         self.built = []
 
@@ -205,3 +206,61 @@ def test_an_anthropic_turn_marks_request_sent(local_server, reuse):
         client._client.close()
     marks = [CONVERSATION_MARKER_STEPS[s] for s in steps if s in CONVERSATION_MARKER_STEPS]
     assert "request_sent" in marks, steps
+
+
+class _OpenAIHost:
+    """The slice of ``ClientLifecycleMixin`` an OpenAI-SDK request-client checkout reads."""
+
+    provider = "openai"
+
+    def __init__(self, steps, api_mode, cached=None):
+        import threading as _threading
+
+        self.api_mode = api_mode
+        self.status_callback = ReceiptSink(lambda payload: steps.append(payload.get("step")))
+        self._cached = cached
+        self._client_kwargs = {"base_url": "http://127.0.0.1/v1"}
+        self._lock = _threading.RLock()
+
+    def _ensure_primary_openai_client(self, *, reason):
+        return object()
+
+    def _openai_client_lock(self):
+        return self._lock
+
+    def _checkout_request_slot(self, slot, key):
+        return self._cached, None
+
+    def _create_openai_client(self, kwargs, *, reason, shared):
+        return SimpleNamespace(_client=httpx.Client())
+
+    def _store_request_slot(self, slot, client, key):
+        pass
+
+
+@pytest.mark.parametrize("reuse", [False, True], ids=["built", "reused"])
+def test_a_chat_completions_turn_marks_request_sent(local_server, reuse):
+    """Runtime-queue row 'Provider request-start evidence...': ``request_sent`` (the
+    transport-boundary dispatch evidence) fired only for Anthropic checkouts and the Codex
+    stream open, never for a chat-completions turn. The OpenAI request-client checkout now
+    hooks it; the Codex mode keeps its stream-open hook, and the pre-connect is not a turn."""
+
+    from agent.client_lifecycle import ClientLifecycleMixin
+
+    steps: list[str] = []
+    cached = SimpleNamespace(_client=httpx.Client()) if reuse else None
+    host = _OpenAIHost(steps, "chat_completions", cached)
+    client = ClientLifecycleMixin._create_request_openai_client(host, reason="chat_completion_stream_request")
+    try:
+        client._client.post(f"{local_server}/v1/chat/completions", json={"messages": "x" * 4096})
+    finally:
+        client._client.close()
+    marks = [CONVERSATION_MARKER_STEPS[s] for s in steps if s in CONVERSATION_MARKER_STEPS]
+    assert "request_sent" in marks, steps
+
+    for api_mode, reason in (("codex_responses", "turn"), ("chat_completions", "prewarm_preconnect")):
+        steps.clear()
+        host = _OpenAIHost(steps, api_mode)
+        client = ClientLifecycleMixin._create_request_openai_client(host, reason=reason)
+        client._client.close()
+        assert steps == [], (api_mode, reason, steps)

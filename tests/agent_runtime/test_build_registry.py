@@ -16,6 +16,7 @@ import pytest
 
 from agent_runtime.builds import registry as reg
 from agent_runtime.builds import vocabulary as v
+from tests.agent_runtime._build_rows_fixture import write_record
 
 NOW = 1_759_590_720.0
 
@@ -48,7 +49,7 @@ def test_a_new_record_carries_every_v1_key_and_a_running_ttl():
 
 def test_a_record_is_written_temp_then_rename_and_read_back(tmp_path):
     tmp_path = tmp_path / "registry"
-    path = reg.write_record(tmp_path, _record())
+    path = write_record(tmp_path, _record())
     assert path == tmp_path / "qb-1.json"
     assert [p.name for p in tmp_path.iterdir()] == ["qb-1.json"]  # no temp left behind
     files, error = reg.read_records(tmp_path)
@@ -56,7 +57,7 @@ def test_a_record_is_written_temp_then_rename_and_read_back(tmp_path):
     assert [f.record["job_id"] for f in files] == ["qb-1"]
     assert files[0].record["unknowns"][0]["kind"] == "stage_line_unrecognized"
     with pytest.raises(ValueError):
-        reg.write_record(tmp_path, _record(job_id="../escape"))
+        write_record(tmp_path, _record(job_id="../escape"))
 
 
 def test_an_absent_directory_is_zero_records_and_a_bad_file_is_typed(tmp_path):
@@ -111,8 +112,8 @@ def test_the_reader_words_are_the_running_work_words():
 
 def test_gc_removes_only_records_past_expiry_plus_grace(tmp_path):
     tmp_path = tmp_path / "registry"
-    reg.write_record(tmp_path, _record(job_id="old", expires_at=NOW - 100))
-    reg.write_record(tmp_path, _record(job_id="fresh", expires_at=NOW + 100))
+    write_record(tmp_path, _record(job_id="old", expires_at=NOW - 100))
+    write_record(tmp_path, _record(job_id="fresh", expires_at=NOW + 100))
     reg.stop_request_path(tmp_path, "old").write_text("", encoding="utf-8")
     assert reg.gc_expired(tmp_path, now=NOW, grace_seconds=50) == ["old"]
     assert sorted(p.name for p in tmp_path.iterdir()) == ["fresh.json"]
@@ -137,11 +138,11 @@ def test_the_core_cache_fingerprint_stats_every_record(monkeypatch):
         return {entry.path: (entry.mtime_ns, entry.size) for entry in entries}
 
     before = collected()
-    record = reg.write_record(reg.registry_dir(), _record())
+    record = write_record(reg.registry_dir(), _record())
     after = collected()
     assert str(record) in after and str(record) not in before
     time.sleep(0.02)
-    reg.write_record(reg.registry_dir(), _record(stage="linking", stage_detail="error LNK2019: unresolved"))
+    write_record(reg.registry_dir(), _record(stage="linking", stage_detail="error LNK2019: unresolved"))
     assert collected()[str(record)] != after[str(record)]
 
 

@@ -37,7 +37,7 @@ reject reasons, drain, TLS pin) is documented once, in
 
 from __future__ import annotations
 
-from agent_runtime.serve_socket import (  # noqa: F401 — every family, in the original definition order
+from agent_runtime.serve_socket import (  # every family, in the original definition order
     vocabulary,
     owner_lock,
     hello,
@@ -109,8 +109,6 @@ __all__ = [
     "HELLO_FAILURE_LIMIT",
     "HELLO_FAILURE_WINDOW_SECONDS",
     "HELLO_PROOF_ALGORITHM",
-    "HelloAuthOutcome",
-    "HelloRateLimiter",
     "MAX_LINE_BYTES",
     "NONCE_BYTES",
     "REJECT_BAD_PROOF",
@@ -129,6 +127,8 @@ __all__ = [
     "SOCKET_LOCK_DRAIN_WAIT_SECONDS",
     "SOCKET_LOCK_FILENAME",
     "SOCKET_OWNER_FILENAME",
+    "HelloAuthOutcome",
+    "HelloRateLimiter",
     "ServeCertificatePinMismatch",
     "ServeHelloProtocolError",
     "ServeSocketClient",

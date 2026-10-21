@@ -173,7 +173,7 @@ def run_deferred_turn_persist(agent: Any, ran_on: str = RAN_ON_REQUEST_SENT) -> 
         logger.warning("deferred first-turn persist failed for session %s", getattr(agent, "session_id", None),
                        exc_info=True)
     elapsed_ms = max(0, int((time.perf_counter() - started) * 1000))
-    setattr(agent, "_hermes_deferred_persist_ms", elapsed_ms)
+    agent._hermes_deferred_persist_ms = elapsed_ms
     logger.info(DEFERRED_PERSIST_RECEIPT, getattr(agent, "session_id", None), ran_on, elapsed_ms)
     return True
 
@@ -185,13 +185,13 @@ def deferred_turn_persist_duration_ms(agent: Any) -> int | None:
 
 __all__ = [
     "DEFERRED_PERSIST_RECEIPT",
+    "DISCARD_REASONS",
+    "PREWARM_DISCARDED_RECEIPT",
+    "PREWARM_SYSTEM_PROMPT_BUILD_MS",
     "RAN_ON_REQUEST_SENT",
     "RAN_ON_RUN_END",
     "defer_prewarmed_turn_persist",
     "run_deferred_turn_persist",
-    "DISCARD_REASONS",
-    "PREWARM_DISCARDED_RECEIPT",
-    "PREWARM_SYSTEM_PROMPT_BUILD_MS",
     "stash_prewarmed_system_prompt",
     "take_prewarmed_system_prompt",
 ]

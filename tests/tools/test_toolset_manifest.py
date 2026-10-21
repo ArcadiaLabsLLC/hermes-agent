@@ -43,12 +43,13 @@ import pytest
 from tools.toolset_scan import scan_registered_tools
 from tools.toolset_manifest import (
     MANIFEST_PATH,
-    builtin_modules,
     builtin_tool_names,
     builtin_tool_names_for_toolsets,
     builtin_toolset_for_tool,
     builtin_toolset_names,
 )
+
+pytestmark = pytest.mark.gate
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -82,6 +83,7 @@ def test_the_generator_check_mode_agrees_byte_for_byte():
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode == 0, result.stderr
 
@@ -127,6 +129,7 @@ def test_the_manifest_agrees_with_the_live_registry():
         capture_output=True,
         text=True,
         encoding="utf-8",
+        check=False,
     )
     assert result.returncode == 0, result.stderr
     live = json.loads(next(line for line in result.stdout.splitlines() if line.startswith("LIVE "))[5:])
@@ -173,6 +176,7 @@ def test_the_reader_answers_a_toolset_without_importing_a_registrar_module():
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout.strip().splitlines()[-1])
@@ -212,7 +216,6 @@ def test_the_reader_and_the_artifact_are_the_same_facts():
 
     assert builtin_tool_names() == sorted(manifest["tools"])
     assert builtin_toolset_names() == sorted(set(manifest["tools"].values()))
-    assert builtin_modules() == manifest["modules"]
     for name, toolset in manifest["tools"].items():
         assert builtin_toolset_for_tool(name) == toolset
 

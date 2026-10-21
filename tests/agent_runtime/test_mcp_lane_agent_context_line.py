@@ -28,6 +28,7 @@ import pytest
 
 from agent_runtime.mcp_admission import render_mcp_admission_line
 from agent_runtime.mcp_lane import (
+    ENTRY_POINT_LANE_ENV,
     HARNESS_LANE,
     MCP_CONTEXT_LINE_PREFIX,
     MCP_CONTEXT_LINE_TAIL,
@@ -35,7 +36,6 @@ from agent_runtime.mcp_lane import (
     mcp_lane_requirement_failures,
     mission_chat_mcp_lane_line,
     render_mcp_lane_line,
-    set_entry_point_lane,
 )
 from tests.agent_runtime.persona_samples import sample_personas
 from tests._downstream.split_package_source import patch_where_bound
@@ -50,16 +50,14 @@ def _qa_declaring(*servers: str):
 
 
 @pytest.fixture(autouse=True)
-def _harness_lane():
-    # The lane pin is process-wide; never let one test's pin leak into the next.
-    set_entry_point_lane(HARNESS_LANE)
-    yield
-    set_entry_point_lane(None)
+def _harness_lane(monkeypatch):
+    # Labelled the way an embedder labels its own lane; monkeypatch undoes it.
+    monkeypatch.setenv(ENTRY_POINT_LANE_ENV, HARNESS_LANE)
 
 
 @pytest.fixture(autouse=True)
 def _flag_off(monkeypatch):
-    import agent_runtime.chat_lane_scope as chat_lane_scope
+    from agent_runtime import chat_lane_scope
 
     monkeypatch.setattr(chat_lane_scope, "admission_enabled", lambda: False)
 
@@ -174,7 +172,7 @@ def test_the_flag_off_and_flag_on_lines_are_ONE_voice():
 def test_the_agent_is_told_about_its_declared_dark_server_with_the_flag_off():
     """THE G5 FIX. This returned "" before 2026-07-26."""
 
-    import agent_runtime.chat_lane_bundle as chat_lane_bundle
+    from agent_runtime import chat_lane_bundle
 
     line = chat_lane_bundle.mission_chat_admission_line(
         _qa_declaring("launcher_qa"), session_id=None
@@ -188,7 +186,7 @@ def test_a_persona_that_declares_nothing_still_pays_nothing():
     """Byte-stability where it is owed: the overwhelming majority of turns
     declare no MCP server, and their volatile envelope must not change."""
 
-    import agent_runtime.chat_lane_bundle as chat_lane_bundle
+    from agent_runtime import chat_lane_bundle
 
     assert (
         chat_lane_bundle.mission_chat_admission_line(_qa_declaring(), session_id=None)
@@ -196,11 +194,11 @@ def test_a_persona_that_declares_nothing_still_pays_nothing():
     )
 
 
-def test_an_mcp_registering_lane_says_nothing():
+def test_an_mcp_registering_lane_says_nothing(monkeypatch):
     """``hermes -p launcher-qa chat`` DOES run discovery. Claiming a drop there
     would be the mirror-image lie of the one this fixes."""
 
-    set_entry_point_lane("chat")
+    monkeypatch.setenv(ENTRY_POINT_LANE_ENV, "chat")
 
     assert mission_chat_mcp_lane_line(_qa_declaring("launcher_qa")) == ""
 
@@ -209,7 +207,7 @@ def test_a_server_actually_registered_in_process_says_nothing(monkeypatch):
     """Registry ground truth beats the lane label — an admitted server that DID
     register must not be reported as dropped."""
 
-    import agent_runtime.mcp_lane as mcp_lane
+    from agent_runtime import mcp_lane
 
     monkeypatch.setattr(
         mcp_lane, "registered_mcp_server_names", lambda: frozenset({"launcher_qa"})
@@ -227,11 +225,11 @@ def test_the_flag_off_line_costs_no_root_config_load_and_no_profile_read(monkeyp
     OPERATOR's rows, where it is already paid for.
     """
 
-    import agent_runtime.mcp_admission as mcp_admission
-    import agent_runtime.parse_cache as parse_cache
-    import agent_runtime.chat_lane_bundle as chat_lane_bundle
-    import agent_runtime.chat_lane_scope as chat_lane_scope
-    import agent_runtime.profile_context as profile_context
+    from agent_runtime import mcp_admission
+    from agent_runtime import parse_cache
+    from agent_runtime import chat_lane_bundle
+    from agent_runtime import chat_lane_scope
+    from agent_runtime import profile_context
 
     def _never_config(*_args, **_kwargs):
         raise AssertionError("the flag-off path must not load root runtime config")
@@ -252,7 +250,7 @@ def test_the_flag_off_line_costs_no_root_config_load_and_no_profile_read(monkeyp
 
 
 def test_the_line_never_fails_a_turn(monkeypatch, caplog):
-    import agent_runtime.mcp_lane as mcp_lane
+    from agent_runtime import mcp_lane
 
     def _boom(*_a, **_k):
         raise RuntimeError("the registry is wedged")
@@ -277,7 +275,7 @@ def test_a_broken_declaration_import_is_heard_not_read_as_no_declaration(
     nothing is logged, so the warning arm cannot pass by always logging.
     """
 
-    import agent_runtime.profile_readiness as profile_readiness
+    from agent_runtime import profile_readiness
 
     with caplog.at_level("WARNING", logger="agent_runtime.mcp_lane"):
         assert MCP_NOT_REGISTERED_ON_LANE in mission_chat_mcp_lane_line(
@@ -300,7 +298,7 @@ def test_the_role_policy_is_imported_never_re_implemented():
 
     import inspect
 
-    import agent_runtime.mcp_lane as mcp_lane
+    from agent_runtime import mcp_lane
 
     source = inspect.getsource(mcp_lane.mission_chat_mcp_lane_line)
     assert "effective_required_mcp_servers" in source

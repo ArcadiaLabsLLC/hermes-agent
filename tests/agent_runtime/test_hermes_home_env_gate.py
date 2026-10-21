@@ -53,6 +53,8 @@ import pytest
 
 from tests.agent_runtime import _tree_index
 
+pytestmark = pytest.mark.gate
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 #: The environment variables that name a runtime root.
@@ -87,7 +89,9 @@ ALLOWED: dict[str, str] = {
     "agent_runtime/profile_home.py": (
         "THE authority's one reader. ``configured_head_home`` IS the "
         "ENV_HEAD_HOME rung; ``chat_session_scope``'s resolution ladder takes "
-        "it from here (moved down a layer, lane LAYERS L4)."
+        "it from here (moved down a layer, lane LAYERS L4). "
+        "``configured_hermes_home`` is the HERMES_HOME rung a rung-reporting "
+        "diagnostic (``root_observability``) asks for instead of the environment."
     ),
     "agent_runtime/profile_context.py": (
         "The profile-binding chokepoint, and the only sanctioned WRITER: it "
@@ -171,11 +175,7 @@ def _gated_env_access(tree: ast.AST) -> list[int]:
             if isinstance(func, ast.Name) and func.id == "getenv":
                 hits.append(node.lineno)
             elif isinstance(func, ast.Attribute):
-                if func.attr == "getenv":
-                    hits.append(node.lineno)
-                # os.environ.get("HERMES_HOME") — receiver must BE the
-                # process environment, not any mapping that has `.get`.
-                elif func.attr == "get" and _is_process_environ(func.value):
+                if func.attr == "getenv" or func.attr == "get" and _is_process_environ(func.value):
                     hits.append(node.lineno)
         # os.environ["HERMES_HOME"], read or assigned.
         if isinstance(node, ast.Subscript) and names_gated_constant(node.slice):

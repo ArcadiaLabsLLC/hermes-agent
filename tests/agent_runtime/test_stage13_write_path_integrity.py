@@ -18,7 +18,7 @@ from agent_runtime.events import EventLog
 
 
 def _event_count() -> int:
-    import agent_runtime.paths as paths
+    from agent_runtime import paths
 
     path = paths.events_path()
     if not path.exists():

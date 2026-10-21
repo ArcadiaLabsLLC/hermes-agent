@@ -123,6 +123,7 @@ def test_the_loop_runs_a_turn_without_sdks_or_desktop_tool_lifecycles(tmp_path):
         [sys.executable, "-c", _CHILD, str(tmp_path)], cwd=REPO_ROOT, capture_output=True, text=True,
         encoding="utf-8", errors="replace",
         timeout=240, env={**__import__("os").environ, "HERMES_HOME": str(tmp_path), "PYTHONPATH": str(REPO_ROOT)},
+        check=False,
     )
     assert proc.returncode == 0, proc.stderr[-4000:]
     report = json.loads(proc.stdout.strip().splitlines()[-1])
@@ -188,7 +189,7 @@ def _run_importers_child(mode: str, tmp_path) -> dict:
     proc = subprocess.run(
         [sys.executable, "-c", _UPSTREAM_IMPORTERS_CHILD, mode], cwd=REPO_ROOT, capture_output=True, text=True,
         encoding="utf-8", errors="replace", timeout=240,
-        env={**__import__("os").environ, "HERMES_HOME": str(tmp_path), "PYTHONPATH": str(REPO_ROOT)})
+        env={**__import__("os").environ, "HERMES_HOME": str(tmp_path), "PYTHONPATH": str(REPO_ROOT)}, check=False)
     assert proc.returncode == 0, proc.stderr[-4000:]
     return json.loads(proc.stdout.strip().splitlines()[-1])
 
@@ -269,7 +270,7 @@ def _run_seams_child(mode: str, tmp_path) -> dict:
     proc = subprocess.run(
         [sys.executable, "-c", _FORK_SEAMS_CHILD, mode, str(REPO_ROOT)], cwd=REPO_ROOT, capture_output=True,
         text=True, encoding="utf-8", errors="replace", timeout=240,
-        env={**__import__("os").environ, "HERMES_HOME": str(tmp_path), "PYTHONPATH": str(REPO_ROOT)})
+        env={**__import__("os").environ, "HERMES_HOME": str(tmp_path), "PYTHONPATH": str(REPO_ROOT)}, check=False)
     assert proc.returncode == 0, proc.stderr[-4000:]
     return json.loads(proc.stdout.strip().splitlines()[-1])
 
@@ -335,6 +336,6 @@ def _run_vault_child(mode: str, tmp_path) -> dict:
     proc = subprocess.run(
         [sys.executable, "-c", _VAULT_CHILD, mode], cwd=REPO_ROOT, capture_output=True,
         text=True, encoding="utf-8", errors="replace", timeout=240,
-        env={**__import__("os").environ, "HERMES_HOME": str(tmp_path), "PYTHONPATH": str(REPO_ROOT)})
+        env={**__import__("os").environ, "HERMES_HOME": str(tmp_path), "PYTHONPATH": str(REPO_ROOT)}, check=False)
     assert proc.returncode == 0, proc.stderr[-4000:]
     return json.loads(proc.stdout.strip().splitlines()[-1])

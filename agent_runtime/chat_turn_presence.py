@@ -94,7 +94,7 @@ class ChatTurnPresence:
     the write-ahead journal record that makes the row real.
     """
 
-    __slots__ = ("_identity", "_started", "_ended")
+    __slots__ = ("_ended", "_identity", "_started")
 
     def __init__(self) -> None:
         self._identity: dict[str, Any] | None = None

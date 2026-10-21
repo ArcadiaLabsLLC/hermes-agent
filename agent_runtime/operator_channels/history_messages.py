@@ -15,6 +15,7 @@ from typing import Any, Callable
 
 from ..persona_chat_history.vocabulary import (
     PERSONA_HARNESS_DELIVERY_KIND,
+    PERSONA_LENS_EPISODE_KIND,
     PERSONA_PRE_TRACE_ACK_KIND,
     PERSONA_RELAYED_MESSAGE_KIND,
     MessageRole,
@@ -67,6 +68,12 @@ def _harness_delivery_shape(row: dict[str, Any], persona_id: str, instance_id: s
     return RowShape(PERSONA_HARNESS_DELIVERY_KIND, "harness", None)
 
 
+def _lens_episode_shape(row: dict[str, Any], persona_id: str, instance_id: str | None) -> RowShape:
+    # An Eternia Lens Episode's forged opening row: role="operator" for the same
+    # degrade-to-today reason as a delivery, the actor the watcher ("lens").
+    return RowShape(PERSONA_LENS_EPISODE_KIND, "lens", None)
+
+
 def _relayed_shape(row: dict[str, Any], persona_id: str, instance_id: str | None) -> RowShape:
     # A relayed incoming message is a role="operator" row that persona_chat_history
     # tagged with the SENDING agent's identity (finish_reason marker). Attribute
@@ -102,6 +109,7 @@ def _system_shape(row: dict[str, Any], persona_id: str, instance_id: str | None)
 #: decision was always taken in. A row no rule matches is a system message.
 HISTORY_ROW_SHAPES: tuple[tuple[Callable[[str, str], bool], ShapeBuilder], ...] = (
     (lambda role, kind: role == OPERATOR and kind == PERSONA_HARNESS_DELIVERY_KIND, _harness_delivery_shape),
+    (lambda role, kind: role == OPERATOR and kind == PERSONA_LENS_EPISODE_KIND, _lens_episode_shape),
     (lambda role, kind: role == OPERATOR and kind == PERSONA_RELAYED_MESSAGE_KIND, _relayed_shape),
     (lambda role, kind: role == AGENT and kind == PERSONA_PRE_TRACE_ACK_KIND, _pre_trace_ack_shape),
     (lambda role, kind: role == AGENT, _reply_shape),
@@ -276,6 +284,9 @@ class HistoryMessage:
             }
         if shape.kind == PERSONA_HARNESS_DELIVERY_KIND:
             message["delivery"] = _delivery_block(row)
+        if shape.kind == PERSONA_LENS_EPISODE_KIND:
+            # The receipt (runtime.lens.receipt) is keyed by this id.
+            message["lens"] = {"episode_id": safe_assignment_token(row.get("lens_episode_id")) or ""}
         # Name the sending agent ONLY when its instance id resolves in the roster —
         # never fabricate a name for an instance we cannot see.
         sender = _relay_sender_instance_id(row) if shape.kind == PERSONA_RELAYED_MESSAGE_KIND else ""

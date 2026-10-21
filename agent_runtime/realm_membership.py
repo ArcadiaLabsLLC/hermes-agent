@@ -19,7 +19,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -48,9 +49,30 @@ def _user_agent() -> str:
     403s that used to masquerade as ``membership_denied``."""
     try:
         from hermes_cli import __version__ as version
-    except Exception:  # noqa: BLE001 — UA must never break a sync call
+    except Exception:  # UA must never break a sync call
         version = "unknown"
     return f"Hermes-Agent/{version} (realm-sync)"
+
+
+class CredentialSubject(str, Enum):
+    """What the frozen credential's ``realm_id`` names (backend 02 §5, §4c;
+    education git-course lane Stage 5). The key was never renamed — a subject
+    ref rides in it: ``course:<id>`` is an education git course's clone
+    credential and never authorizes a realm; ``local:<hermes realm id>`` is a
+    LOCAL (server-less) realm's credential from ``POST /api/me/realms/local:<id>/
+    sync/credential`` — the personal repo's git authorization, no backend realm
+    row."""
+
+    SERVER_REALM = "realm"
+    LOCAL_REALM = "local"
+    COURSE = "course"
+
+
+#: ``realm_id`` prefix -> the subject it names; no prefix is a server realm id.
+_SUBJECT_PREFIXES: dict[str, CredentialSubject] = {
+    "local:": CredentialSubject.LOCAL_REALM,
+    "course:": CredentialSubject.COURSE,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,7 +88,7 @@ class RealmSyncCredential:
     expires_at: datetime
 
     @classmethod
-    def parse(cls, raw: Any) -> "RealmSyncCredential":
+    def parse(cls, raw: Any) -> RealmSyncCredential:
         if not isinstance(raw, dict):
             raise RealmSyncError("sync_auth_failed", "Realm sync credential must be a JSON object.")
         if raw.get("schema_version") != CREDENTIAL_SCHEMA_VERSION:
@@ -88,7 +110,7 @@ class RealmSyncCredential:
         return credential
 
     @classmethod
-    def load(cls, path: Path | str) -> "RealmSyncCredential":
+    def load(cls, path: Path | str) -> RealmSyncCredential:
         try:
             text = Path(path).read_text(encoding="utf-8")
         except OSError as exc:
@@ -100,7 +122,36 @@ class RealmSyncCredential:
         return cls.parse(raw)
 
     def is_expired(self) -> bool:
-        return now().astimezone(timezone.utc) >= self.expires_at
+        return now().astimezone(UTC) >= self.expires_at
+
+    @property
+    def subject(self) -> CredentialSubject:
+        for prefix, subject in _SUBJECT_PREFIXES.items():
+            if self.realm_id.startswith(prefix):
+                return subject
+        return CredentialSubject.SERVER_REALM
+
+    @property
+    def subject_id(self) -> str:
+        """``realm_id`` without its subject prefix."""
+        for prefix in _SUBJECT_PREFIXES:
+            if self.realm_id.startswith(prefix):
+                return self.realm_id[len(prefix):]
+        return self.realm_id
+
+    def admits_realm(self, realm: Realm) -> bool:
+        """Whether this credential was minted for ``realm``: a server realm by its
+        id, a server-less realm by ``local:<id>`` (or its bare id, the pre-§4c
+        shape). A course credential admits no realm."""
+        if self.subject is CredentialSubject.LOCAL_REALM:
+            return not realm.server_id and self.subject_id == realm.id
+        return self.subject is CredentialSubject.SERVER_REALM and self.subject_id == realm.id
+
+    @property
+    def has_backend_realm(self) -> bool:
+        """Whether the backend holds a realm row for this subject, so the
+        ``/realms/{id}/…`` routes (publish notify) exist. A local realm has none."""
+        return self.subject is CredentialSubject.SERVER_REALM
 
     def git_extra_config(self) -> list[str]:
         """Per-invocation git config — never written to .git/config, never logged."""
@@ -123,13 +174,30 @@ def load_realm_sync_credential(credential_file: str | None = None) -> RealmSyncC
     return RealmSyncCredential.load(path)
 
 
+def require_credential_admits(realm: Realm, credential: RealmSyncCredential | None) -> None:
+    """Refuse a credential minted for another subject (a course, another realm),
+    server-less realm or not: its git authorization and api token are not this
+    realm's. ``None`` passes — whether a credential is REQUIRED is the
+    provider selection's question."""
+    if credential is not None and not credential.admits_realm(realm):
+        raise RealmSyncError(
+            "sync_auth_failed",
+            "Realm sync credential was issued for a different subject.",
+            safe_details={"credential_subject": credential.subject.value},
+        )
+
+
 def select_membership_provider(realm: Realm, credential: RealmSyncCredential | None) -> RealmMembershipProvider:
     """Stage 43 provider selection (Decision 4 / spec C1).
 
     - ``server_id is None``  → local allow stub (pre-Stage-43 behavior, unchanged).
     - server-bound + credential → backend-authoritative provider.
     - server-bound + no credential → fail closed (never the allow stub).
+    - a credential minted for another subject (a course, another realm) →
+      fail closed, server-less or not: its git authorization is not this
+      realm's.
     """
+    require_credential_admits(realm, credential)
     if not realm.server_id:
         return RealmMembershipProvider()
     if credential is None:
@@ -218,8 +286,11 @@ def adopt_realms(credential: RealmSyncCredential, *, server_id: str | None = Non
             )
         )
     if not dry_run:
+        from .realm_sync.revocation import clear_realm_revocation
+
         for realm in adopted:
             _append_realm_adopted_event(realm)
+            clear_realm_revocation(realm)  # a re-grant lifts a realm.revoked mark
     return adopted
 
 
@@ -244,7 +315,7 @@ def _append_realm_adopted_event(realm: Realm) -> None:
                 },
             )
         )
-    except Exception:  # noqa: BLE001 — evidence channel, not the mutation
+    except Exception:  # evidence channel, not the mutation
         pass
 
 
@@ -408,8 +479,8 @@ def _parse_expiry(raw: Any) -> datetime:
     except ValueError as exc:
         raise RealmSyncError("sync_auth_failed", "Realm sync credential has an invalid expires_at timestamp.") from exc
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def _request_json(
@@ -433,7 +504,7 @@ def _request_json(
         request_headers["Content-Type"] = "application/json"
     request = urllib.request.Request(url, data=data, headers=request_headers, method=method)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - api_base comes from the brokered credential
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # api_base comes from the brokered credential
             return int(getattr(response, "status", 0) or 0), _parse_json_bytes(response.read())
     except urllib.error.HTTPError as exc:
         try:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from datetime import datetime
+from enum import StrEnum
 import json
 import re
 from typing import Any
@@ -315,19 +316,6 @@ class OfficeItem:
     display_name: str | None = None
     pet_slug: str | None = None
     scale: float = 1.0
-    #: What this item was minted AS, stamped by the store at its first write and
-    #: immutable thereafter (H-H5's sibling, H-H12). ``kind`` is mutable — any
-    #: later upsert may re-spell it — so a reader asking "was this really an
-    #: agent?" had nothing but the ``item_id`` STRING to consult, which is a
-    #: launcher naming convention nothing enforces. This is the store's own
-    #: record of the answer. ``None`` for every item written before it existed
-    #: and for every one adopted from a peer that has not upgraded; the readers
-    #: treat that as "cannot say", never as "no". Deliberately NOT on the wire
-    #: (``office_item_wire_row``): no client decides anything with it — and, for
-    #: the same reason, excluded from ``office_content_hash``
-    #: (``_ITEM_HASH_EXCLUDE``): a field no observer can see must not be able to
-    #: report an actor as changed.
-    minted_kind: str | None = None
 
 
 @dataclass(slots=True)
@@ -403,6 +391,26 @@ class GoalRuntimeInstance:
     schema_version: int = 1
 
 
+#: Stored autonomy spellings outside the enum. ``review`` was the field's old
+#: default and always meant ``propose_only``; ``apply_with_review`` was a member
+#: that no workflow read (``coordinator_permissions.scope_for_persona`` granted it
+#: the autonomous scope), deleted 2026-10-18 (RT-AUTONOMY-APPLY-WITH-REVIEW).
+_AUTONOMY_ALIASES: dict[str, str] = {"review": "propose_only", "apply_with_review": "autonomous"}
+
+
+class AutonomyLevel(StrEnum):
+    PROPOSE_ONLY = "propose_only"
+    AUTONOMOUS = "autonomous"
+
+    @classmethod
+    def _missing_(cls, value: object) -> AutonomyLevel | None:
+        if not isinstance(value, str):
+            return None
+        key = value.strip().lower()
+        key = _AUTONOMY_ALIASES.get(key, key)
+        return next((member for member in cls if member.value == key), None)
+
+
 @dataclass(slots=True)
 class AgentPersona:
     id: str
@@ -420,7 +428,7 @@ class AgentPersona:
     # (resolve_persona_system_prompt_path returns None for both). Rows written
     # before 2026-08-29 may omit the key entirely.
     system_prompt_path: str = ""
-    autonomy: str = "review"
+    autonomy: AutonomyLevel = AutonomyLevel.PROPOSE_ONLY
     hermes_profile: str | None = None
     skills: list[str] = field(default_factory=list)
     soul_overlay_path: str | None = None
@@ -445,6 +453,10 @@ class AgentPersona:
     # existed load unchanged.
     skills_override_issued_at: datetime | None = None
     schema_version: int = 1
+
+    def __post_init__(self) -> None:
+        # Every constructor and ``replace`` path lands on the enum, aliases included.
+        self.autonomy = AutonomyLevel(self.autonomy)
 
 
 @dataclass(slots=True)

@@ -21,6 +21,10 @@ placed agents and XY positions, place/retire an agent, chat, manage the environm
 and diagnose the runtime. Its [complete command reference](reference/harness-commands.md)
 is generated from the live argparse tree, not a second handwritten registry.
 
+[11 — Gate directory](11-gate-directory.md) lists every check the repository has,
+what it guarantees and what runs it; `tests/tooling/test_gate_directory_current.py`
+keeps it current.
+
 ## The nine domains
 
 Read in this order for a full picture; each stands alone for its own territory.
@@ -93,8 +97,8 @@ that carried the claim rather than only at the top.
    planned file). A dated plan/audit/scout file at the root is the sprawl this
    consolidation removed; if a document cannot be folded, the domain partition
    is wrong and should be re-argued instead of bypassed. The operator-requested
-   `10-command-directory.md` is a navigation/recipe exception, not a tenth
-   architecture domain; generated syntax lives under `reference/`, and behavior
+   `10-command-directory.md` and `11-gate-directory.md` (added
+   2026-10-18) are navigation exceptions, not architecture domains; generated syntax lives under `reference/`, and behavior
    remains in the owning domain docs.
 4. **Staleness is the enemy.** When code moves, the domain doc moves in the
    same change set, or the claim is deleted. An anchor that no longer supports

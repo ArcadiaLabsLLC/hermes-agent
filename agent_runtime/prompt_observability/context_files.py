@@ -20,22 +20,22 @@ from .safe_views import _safe_preview
 __layer__ = "stores"
 __all__ = [
     "CONTEXT_FILES",
-    "ContextFileKind",
     "OTHER_CONTEXT_FILE",
+    "ContextFileKind",
     "PromptContribution",
     "WorkspaceAgentsContext",
-    "context_file_kind",
-    "_profile_context_files",
-    "_token_estimate_from_bytes",
+    "_attach_context_file_prompt_contributions",
+    "_attach_skills_prompt_contribution",
     "_layer_text_size",
-    "_soul_overlay_prompt_chars",
-    "_workspace_agents_prompt_chars",
     "_mission_chat_identity_prompt_chars",
     "_mission_chat_identity_prompt_content",
     "_mission_chat_operative_rules_chars",
     "_mission_chat_operative_rules_content",
-    "_attach_context_file_prompt_contributions",
-    "_attach_skills_prompt_contribution",
+    "_profile_context_files",
+    "_soul_overlay_prompt_chars",
+    "_token_estimate_from_bytes",
+    "_workspace_agents_prompt_chars",
+    "context_file_kind",
 ]
 
 
@@ -143,7 +143,7 @@ def _soul_overlay_prompt_chars(persona: Any) -> int | None:
 
 
 def _workspace_agents_prompt_chars(
-    workspace_agents: "WorkspaceAgentsContext | None",
+    workspace_agents: WorkspaceAgentsContext | None,
 ) -> int | None:
     """Chars of the workspace-AGENTS.md PART pasted into the surface message
     (fixed preamble + stripped body), or ``None`` when nothing was injected.

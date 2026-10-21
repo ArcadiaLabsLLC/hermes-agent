@@ -170,7 +170,7 @@ def test_peers_pair_refuses_when_a_wildcard_bind_enumerates_no_address(
 
     for _home in (serve_gateway_listener, endpoint_candidates):
         monkeypatch.setattr(_home, "gateway_listen_config", lambda: ("::", 8765))
-    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates.machine_addresses", lambda: [])
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates.machine_addresses", list)
 
     code = _dispatch(["harness", "gateway", "peers", "pair", "--json"])
     out = capsys.readouterr()

@@ -9,9 +9,14 @@ from tests.agent_runtime.subagent_read_provider import SubagentProvider
 pytestmark = pytest.mark.timeout(120)
 
 
-@pytest.mark.parametrize("mode", ["native-worker", "isolated-compute", "in-process"])
+@pytest.mark.parametrize("mode", ["native-worker", "in-process"])
 @pytest.mark.parametrize("action", ["steer", "stop"])
 def test_owned_child_reads_across_execution_hosts(tmp_path, mode, action):
+    """The isolated-compute host runs from ``test_subagent_compute_roundtrip.py``."""
+    run_owned_child_reads(tmp_path, mode, action)
+
+
+def run_owned_child_reads(tmp_path, mode, action):
     from hermes_cli.profiles import get_profile_dir
     from agent_runtime.conversations.in_process_peer import start_in_process_worker
 
@@ -36,7 +41,8 @@ def test_owned_child_reads_across_execution_hosts(tmp_path, mode, action):
                      lambda r: "Child public progress." in r["text"])
         assert len(tail["text"].encode()) <= 16384 and "PRIVATE_KICKOFF_CONTEXT" not in tail["text"]
         assert tail["subagent_id"] == child["subagent_id"]
-        assert service.subagents(scope, sid, "capabilities", {})["operations"] == ["list", "tail", "steer", "stop", "receipt", "history", "result", "tree"]
+        assert service.subagents(scope, sid, "capabilities", {})["operations"] == ["list", "tail", "steer", "stop", "receipt", "spawning", "spawning.set",
+            "settings", "settings.set", "history", "result", "tree"]
         if mode != "isolated-compute":
             assert service.subagents(scope, sibling, "list", {})["children"] == []
         else:

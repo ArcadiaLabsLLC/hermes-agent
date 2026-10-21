@@ -1,4 +1,5 @@
-"""``runtime.work.cancel`` / ``runtime.work.restart`` — Stop and Restart as direct methods (OWNER call 3).
+"""``runtime.work.cancel`` / ``runtime.work.restart`` — Stop and Restart as direct methods (OWNER call 3);
+``runtime.work.background.promote`` — Send to background (RT-LONG-TOOL-CALLS-BACKGROUND).
 
 Plan ``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md`` §7. Each is the
 SAME decision the argv verb reaches (``harness work cancel`` / ``harness work restart``):
@@ -63,3 +64,35 @@ def _runtime_work_restart(rid, params, context=None):
         return ok(rid, result)
     return err(rid, ERR_CONFLICT, "The build could not be restarted.",
                {"reason": result.get("detail") or result.get("code") or "restart_failed", "code": result.get("code")})
+
+
+@method("runtime.work.background.promote", tier=TIER_CONSOLE)
+def _runtime_work_background_promote(rid, params, context=None):
+    """Send a running foreground tool call to the background now (``tools/long_tool_calls.py``).
+
+    Params: ``work_id`` — the chat turn's (``chat_turn:<turn_id>``, then ``tool_call_id`` names its
+    ``current_tool``) or a foreground ``tool_call`` child's (``tool_call:<turn_id>:<call_id>``).
+    The call returns ``running_in_background`` to its turn within one poll; Cancel on the promoted
+    row is ``runtime.work.cancel``. Refusals: ``invalid_request``, ``not_promotable``.
+    """
+
+    from agent_runtime.running_work import split_work_id
+
+    params = params or {}
+    kind, stable = split_work_id(str(params.get("work_id") or ""))
+    if kind == "chat_turn":
+        turn_id, call_id = stable, str(params.get("tool_call_id") or "")
+    elif kind == "tool_call" and not stable.startswith("bg:"):
+        turn_id, _sep, call_id = stable.partition(":")
+    else:
+        turn_id = call_id = ""
+    if not turn_id or not call_id:
+        return err(rid, ERR_INVALID_PARAMS, "work_id (a chat turn with tool_call_id, or a foreground tool call) is required.",
+                   {"reason": "invalid_request"})
+    from tools.long_tool_calls import request_promotion
+
+    answer = request_promotion(turn_id, call_id)
+    if answer.get("status") == "ok":
+        return ok(rid, {**answer, "work_id": params.get("work_id")})
+    return err(rid, ERR_CONFLICT, "That tool call cannot be sent to the background.",
+               {"reason": answer.get("code") or "not_promotable", "detail": answer.get("detail") or ""})

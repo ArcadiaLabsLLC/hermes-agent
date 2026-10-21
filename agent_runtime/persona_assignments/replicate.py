@@ -278,13 +278,13 @@ def apply_replicated_steering(
             continue
         try:
             store._validate_no_steering_cycle(persona_instance_id, parent)
-        except Exception as exc:  # noqa: BLE001 — accounted, never silent
+        except Exception as exc:  # accounted, never silent
             dropped.append({"parent": parent, "reason": type(exc).__name__})
             continue
         applied.append(parent)
     try:
         instance = store.get(persona_instance_id)
-    except Exception as exc:  # noqa: BLE001 — the row went away under us
+    except Exception as exc:  # the row went away under us
         dropped.append({"parent": "", "reason": type(exc).__name__})
         return [], dropped
     if list(instance.steered_by) == applied:

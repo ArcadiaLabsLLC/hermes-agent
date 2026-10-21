@@ -1,0 +1,25 @@
+{
+  "pins": {
+    "hermes_state_common.SCHEMA_SQL.sha256": "e56a0193af74808a2cda28166562ab6c50479915d269a0bc09d5e59f234a2966",
+    "hermes_state_common.SCHEMA_VERSION": 31,
+    "migrations.CURRENT_RUNTIME_SCHEMA_VERSION": 1,
+    "mission_chat_phases.TURN_RECORD_SCHEMA_VERSION": 3,
+    "models.schema_version_defaults": {
+      "AgentPersona": 1,
+      "AgentRun": 1,
+      "Board": 1,
+      "BoardCard": 1,
+      "GoalRuntimeInstance": 1,
+      "Incident": 1,
+      "OfficeActor": 1,
+      "OfficeSurface": 1,
+      "PersonaAssignment": 1,
+      "PersonaInstance": 1,
+      "Realm": 1,
+      "Workspace": 1
+    },
+    "paths.path_table.count": 107,
+    "paths.path_table.sha256": "08c91365783545c49817a4c5f3d0d1b6319fde97cf110e58a1a83ff1626a623e"
+  },
+  "schema": 1
+}

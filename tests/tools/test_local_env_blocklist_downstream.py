@@ -28,7 +28,7 @@ class TestSanePathIncludesHomebrew:
         # reaches needs USERPROFILE, and only the PATH key's casing is under test.
         windows_env = {k: v for k, v in os.environ.items() if k.upper() != "PATH"}
         windows_env["Path"] = r"C:\Windows\System32;C:\Program Files\Git\bin"
-        monkeypatch.setattr(local_mod, "_git_bash_bin_dirs", lambda: [])
+        monkeypatch.setattr(local_mod, "_git_bash_bin_dirs", list)
         with patch.object(local_mod.os, "environ", windows_env):
             result = _make_run_env({})
         assert "PATH" not in result

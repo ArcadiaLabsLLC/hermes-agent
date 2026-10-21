@@ -30,14 +30,17 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
+import run_tests_bundled_via as vias  # registered by run_tests_bundled._load_sibling
+
 if TYPE_CHECKING:
     from scripts.run_tests_bundled_events import BundleEvents
 
 # ── Stage 1: the upstream-red skip list ─────────────────────────────────────
 
 SKIP_LIST = Path("tests") / "fixtures" / "upstream_skip_list.txt"
-#: the class word a row's ``why`` starts with; the merge lane keys its re-check on it
-SKIP_CLASSES = ("P0", "env", "upstream")
+#: the class word a row's ``why`` starts with; the merge lane keys its re-check on it.
+#: ``unused`` is a feature the fork does not ship (ADR 0015): any upstream file, never re-checked red/green
+SKIP_CLASSES = ("P0", "env", "upstream", "unused")
 _FIELD_SEP = " · "
 
 
@@ -79,12 +82,12 @@ def parse_skip_line(line: str) -> Optional[SkipRow]:
     return SkipRow(Path(head).as_posix() + sep + node, fields[1], fields[2])
 
 
-def load_skip_list(path: Path) -> Dict[str, SkipRow]:
+def load_skip_list(path: Path) -> dict[str, SkipRow]:
     """Repo-relative POSIX path → row. A missing list RAISES, like the
     manifest: without it the P0 files would silently be back in every run."""
 
-    rows: Dict[str, SkipRow] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
+    rows: dict[str, SkipRow] = {}
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
         row = parse_skip_line(line)
         if row is not None:
             rows[row.path] = row
@@ -106,15 +109,15 @@ DEFAULT_BUNDLE_SECONDS = 120.0
 DEFAULT_SOLO_SECONDS = 60.0
 
 
-def cut_by_budget(members: Sequence[Tuple[Path, float]], budget: float, cap: int) -> List[List[Path]]:
+def cut_by_budget(members: Sequence[tuple[Path, float]], budget: float, cap: int) -> list[list[Path]]:
     """Consecutive bundles of ``(path, estimated seconds)``, in the given order.
 
     A bundle closes before the member that would take its Σ estimate past
     ``budget`` or its size past ``cap``; a member alone over the budget is a
     bundle of its own. ``budget <= 0`` cuts by ``cap`` only (the count rule)."""
 
-    bundles: List[List[Path]] = []
-    current: List[Path] = []
+    bundles: list[list[Path]] = []
+    current: list[Path] = []
     total = 0.0
     for path, estimate in members:
         over_budget = budget > 0 and total + estimate > budget
@@ -126,10 +129,6 @@ def cut_by_budget(members: Sequence[Tuple[Path, float]], budget: float, cap: int
     if current:
         bundles.append(current)
     return bundles
-
-
-#: a run expected to take longer than this, from a session-chain edit, says how to avoid paying it
-CHAIN_SPLIT_HINT_SECONDS = 20 * 60.0
 
 
 def expected_wall(estimates: Mapping[str, Optional[float]], jobs: int, default: float) -> tuple[float, str]:
@@ -152,22 +151,14 @@ def expected_wall(estimates: Mapping[str, Optional[float]], jobs: int, default: 
     return wall, line
 
 
-def chain_split_hint(wall: float, chain_paths: Sequence[str]) -> Optional[str]:
-    """The advice a long run caused by a session-chain edit prints up front."""
-
-    if not chain_paths or wall < CHAIN_SPLIT_HINT_SECONDS:
-        return None
-    return (
-        f"  this is a whole-tree run because {', '.join(chain_paths)} changed (session chain): land that change "
-        "alone, or with the release merge, instead of inside a batch"
-    )
-
-
 # ── Stage 0: the run ledger ─────────────────────────────────────────────────
 
-#: the process kinds the ledger counts, by a kind's first word (fast-gate §2 adds
+#: the process kinds the ledger counts, by each process's typed via (fast-gate §2 adds
 #: the known red's one run; §3 a slow file's ``shard i/k`` and its ``whole-check``)
-PROCESS_KINDS = ("bundle", "solo", "known-red", "shard", "whole-check", "rerun", "retry")
+PROCESS_KINDS = (
+    vias.ViaKind.BUNDLE, vias.ViaKind.SOLO, vias.ViaKind.KNOWN_RED, vias.ViaKind.SHARD,
+    vias.ViaKind.WHOLE_CHECK, vias.ViaKind.RERUN, vias.ViaKind.RETRY,
+)
 
 #: Retain the beginning and end of large diagnostics; scrub BEFORE cutting so
 #: truncation cannot split a credential away from its identifying field name.
@@ -179,20 +170,20 @@ class BundleDiagnostic:
     """One original abnormal attempt, independent of its members' later verdicts."""
 
     bundle_index: int
-    members: List[str]
+    members: list[str]
     process_rc: int
     session_rc: Optional[int]
     session_ended: bool
     stopped_in: Optional[str]
-    failed: Dict[str, List[str]]
+    failed: dict[str, list[str]]
     output: str
     omitted_chars: int
 
     @classmethod
     def capture(
-        cls, index: int, members: Sequence[str], rc: int, events: "BundleEvents", output: str,
+        cls, index: int, members: Sequence[str], rc: int, events: BundleEvents, output: str,
         stopped_in: Optional[str],
-    ) -> "BundleDiagnostic":
+    ) -> BundleDiagnostic:
         from agent_runtime.redaction import scrub_secret_values
 
         safe = scrub_secret_values(output)
@@ -208,7 +199,7 @@ class BundleDiagnostic:
         )
 
 
-def render_bundle_diagnostics(diagnostics: Sequence[BundleDiagnostic]) -> List[str]:
+def render_bundle_diagnostics(diagnostics: Sequence[BundleDiagnostic]) -> list[str]:
     """Print each first-attempt output once, even if several members needed a retry."""
     if not diagnostics:
         return []
@@ -232,8 +223,8 @@ def render_bundle_diagnostics(diagnostics: Sequence[BundleDiagnostic]) -> List[s
 class Process:
     """One pytest process the run spawned."""
 
-    kind: str  # "bundle" | "solo" | "known-red" | "rerun" | "retry"
-    members: List[str]
+    kind: vias.Via
+    members: list[str]
     started: float
     ended: float
     startup: Optional[float] = None  # session start − spawn, when the recorder saw it
@@ -250,19 +241,21 @@ class RunLedger:
 
     started: float = field(default_factory=time.time)
     ended: Optional[float] = None
-    processes: List[Process] = field(default_factory=list)
+    processes: list[Process] = field(default_factory=list)
     #: rel → collect + test seconds of the file's LAST attempt
-    file_seconds: Dict[str, float] = field(default_factory=dict)
+    file_seconds: dict[str, float] = field(default_factory=dict)
     #: rel → failing node ids of the file's last attempt (empty when clean)
-    failed: Dict[str, List[str]] = field(default_factory=dict)
+    failed: dict[str, list[str]] = field(default_factory=dict)
     #: collect + test seconds the bundle attempt of a re-run member cost
     first_attempt_seconds: float = 0.0
-    known_red: List[str] = field(default_factory=list)
+    known_red: list[str] = field(default_factory=list)
     #: Only abnormal bundle attempts; retained before retry scheduling and scratch cleanup.
-    bundle_diagnostics: List[BundleDiagnostic] = field(default_factory=list)
+    bundle_diagnostics: list[BundleDiagnostic] = field(default_factory=list)
+    #: per-file diagnosis (``run_tests_bundled_diag.Diagnosis``), set by the runner
+    diagnosis: Optional[object] = None
 
     def record_bundle_diagnostic(
-        self, index: int, members: Sequence[str], rc: int, events: "BundleEvents", output: str,
+        self, index: int, members: Sequence[str], rc: int, events: BundleEvents, output: str,
         stopped_in: Optional[str] = None,
     ) -> None:
         confirmed = rc == 0 and events.session_end is not None and events.exit_status == 0
@@ -270,13 +263,13 @@ class RunLedger:
         if not (confirmed and clean):
             self.bundle_diagnostics.append(BundleDiagnostic.capture(index, members, rc, events, output, stopped_in))
 
-    def diagnostic_record(self) -> Dict[str, object]:
+    def diagnostic_record(self) -> dict[str, object]:
         """The existing runs.jsonl owns durability; final-red caching remains separate."""
         return {"bundle_diagnostics": [asdict(item) for item in sorted(
             self.bundle_diagnostics, key=lambda entry: entry.bundle_index,
         )]}
     def record_solo(
-        self, kind: str, rel: str, started: float, session_start: Optional[float], tally, *, add: bool = False
+        self, kind: vias.Via, rel: str, started: float, session_start: Optional[float], tally, *, add: bool = False
     ) -> None:
         """One single-file process: its wall and start-up, and the file's seconds and
         failing ids from its recorder ``tally`` (None when the recorder wrote nothing).
@@ -290,18 +283,18 @@ class RunLedger:
         failed = list(tally.failed_nodeids) if tally is not None else []
         self.failed[rel] = (self.failed.get(rel, []) if add else []) + failed
 
-    def summary(self, jobs: int, *, slowest: int = 20) -> Dict[str, object]:
+    def summary(self, jobs: int, *, slowest: int = 20) -> dict[str, object]:
         ended = self.ended or time.time()
         elapsed = max(1e-9, ended - self.started)
         worker_seconds = jobs * elapsed
         busy = sum(p.wall for p in self.processes)
         work = sum(self.file_seconds.values())
-        reruns = [p for p in self.processes if p.kind == "rerun"]
+        reruns = [p for p in self.processes if vias.kind_of(p.kind) is vias.ViaKind.RERUN]
         critical = max(self.processes, key=lambda p: p.wall, default=None)
         return {
             "elapsed": round(elapsed, 1),
             "jobs": jobs,
-            "processes": {k: sum(1 for p in self.processes if p.kind.split(" ", 1)[0] == k) for k in PROCESS_KINDS},
+            "processes": {k.value: sum(1 for p in self.processes if vias.kind_of(p.kind) is k) for k in PROCESS_KINDS},
             "worker_seconds": round(worker_seconds, 1),
             "busy_seconds": round(busy, 1),
             "utilization": round(busy / worker_seconds, 3),
@@ -313,7 +306,7 @@ class RunLedger:
             "known_red": sorted(self.known_red),
             "idle_tail_seconds": round(idle_tail(self.processes, jobs, self.started, ended), 1),
             "critical": None if critical is None else {
-                "kind": critical.kind, "wall": round(critical.wall, 1),
+                "kind": str(critical.kind), "wall": round(critical.wall, 1),
                 "first": critical.members[0], "last": critical.members[-1], "files": len(critical.members),
             },
             "slowest": [
@@ -342,7 +335,7 @@ def idle_tail(processes: Iterable[Process], jobs: int, started: float, ended: fl
     return ended - (last_full if last_full is not None else started)
 
 
-def render(summary: Mapping[str, object]) -> List[str]:
+def render(summary: Mapping[str, object]) -> list[str]:
     """The ``=== Run cost ===`` block printed after the Summary line."""
 
     procs = summary["processes"]
@@ -398,14 +391,14 @@ def primary_checkout(repo_root: Path) -> Optional[Path]:
     return None if not common or primary.resolve() == Path(repo_root).resolve() else primary
 
 
-def load_durations_with_primary(repo_root: Path, load) -> Dict[str, float]:
+def load_durations_with_primary(repo_root: Path, load) -> dict[str, float]:
     """``load(repo_root)`` over the primary checkout's cache: a local entry wins."""
 
     primary = primary_checkout(repo_root)
     return {**(load(primary) if primary is not None else {}), **load(repo_root)}
 
 
-def last_record(repo_root: Path, record_path: Optional[Path] = None) -> Dict[str, object]:
+def last_record(repo_root: Path, record_path: Optional[Path] = None) -> dict[str, object]:
     """The LAST gate line of the run record; ``{}`` when it is missing or torn.
     A worktree with no record of its own reads the primary checkout's.
     ``record_path`` names the file outright (the gate store's ``runs.jsonl``)."""
@@ -415,7 +408,7 @@ def last_record(repo_root: Path, record_path: Optional[Path] = None) -> Dict[str
         primary = primary_checkout(repo_root)
         record = primary / RUNS_FILE if primary is not None else record
     try:
-        lines = record.read_text(encoding="utf-8").splitlines()
+        lines = record.read_text(encoding="utf-8-sig").splitlines()
     except OSError:
         return {}
     for line in reversed(lines):
@@ -430,7 +423,7 @@ def last_record(repo_root: Path, record_path: Optional[Path] = None) -> Dict[str
     return {}
 
 
-def load_known_reds(repo_root: Path, record_path: Optional[Path] = None) -> Dict[str, frozenset]:
+def load_known_reds(repo_root: Path, record_path: Optional[Path] = None) -> dict[str, frozenset]:
     """rel → the failing node ids the LAST recorded run carried for it. A
     missing or torn record is empty: every red is then re-run alone."""
 
@@ -464,7 +457,7 @@ def record_run(
     previous_timed_out: Iterable[str] = (),
     extra: Optional[Mapping[str, object]] = None,
     record_path: Optional[Path] = None,
-) -> Dict[str, List[str]]:
+) -> dict[str, list[str]]:
     """Append one JSON line: the run's summary plus the red map — the previous
     map with every file this run ran replaced by what it showed (red with its
     failing ids, or dropped when green). Files not run carry forward, so a
@@ -490,7 +483,7 @@ def record_run(
     return red
 
 
-def last_session(lines: Sequence[str]) -> List[str]:
+def last_session(lines: Sequence[str]) -> list[str]:
     """The event lines of the LAST pytest session in a file several attempts
     appended to (the per-file runner's flake retry re-uses the path)."""
 

@@ -25,7 +25,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from typing import Any
 
 from utils import atomic_json_write
@@ -153,7 +153,7 @@ class ChatToolPermissionStore:
             mode=resolved_mode,
             reason=reason,
             source=source,
-            updated_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            updated_at=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             expires_at=str(expires_at or ""),
             turns_remaining=turns_remaining if turns_remaining is None else max(0, int(turns_remaining)),
         )
@@ -210,7 +210,7 @@ class ChatToolPermissionStore:
             item["turns_remaining"] = 0
         else:
             item["turns_remaining"] = next_turns
-        item["updated_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        item["updated_at"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         raw[key] = item
         self.path.parent.mkdir(parents=True, exist_ok=True)
         atomic_json_write(self.path, raw, indent=2, sort_keys=True)
@@ -424,12 +424,12 @@ def _permission_expired(record: ChatToolPermission) -> bool:
         return False
     raw = record.expires_at.strip()
     try:
-        expires_at = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        expires_at = datetime.fromisoformat(raw)
     except ValueError:
         return False
     if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    return expires_at <= datetime.now(timezone.utc)
+        expires_at = expires_at.replace(tzinfo=UTC)
+    return expires_at <= datetime.now(UTC)
 
 
 #: Re-exported from :mod:`agent_runtime.permission_modes` so this module's public

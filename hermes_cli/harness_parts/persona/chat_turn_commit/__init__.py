@@ -151,6 +151,8 @@ class TurnCommit(_AdmitPhases, _RunPhases, _SettlePhases):
             code = self._answer_prior_attempt()
         if code is None:
             code = self._admit_retry()
+        if code is None:
+            code = self._admit_run_workdir()
         if code is not None:
             return code
         self._build_context()

@@ -45,7 +45,7 @@ def _write_package(base: Path, slug: str, body: str) -> Path:
     pkg.mkdir(parents=True, exist_ok=True)
     # BYTES, not write_text: text mode on Windows rewrites "\r\n" as "\r\r\n",
     # which is a different document after canonicalization, not an EOL variant.
-    (pkg / "SKILL.md").write_bytes(f"---\nname: {slug}\n---\n{body}".encode("utf-8"))
+    (pkg / "SKILL.md").write_bytes(f"---\nname: {slug}\n---\n{body}".encode())
     return pkg
 
 

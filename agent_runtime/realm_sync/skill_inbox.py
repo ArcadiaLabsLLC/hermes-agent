@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 __layer__ = "lanes"
 __all__ = [
-    "SkillSyncSummary",
     "_INBOX_VERDICTS",
+    "SkillSyncSummary",
     "_admit_inbox_package",
     "_held_skill_packages_for_realm",
     "_mirror_realm_skill_inbox",
@@ -175,7 +175,7 @@ def apply_skill_inbox_pull(realm: Realm, subtree: Path) -> SkillSyncSummary:
     for slug, source_dir in _iter_packages(inbox):
         try:
             verdict, remote_hash = _admit_inbox_package(realm, slug, source_dir, baseline=baseline)
-        except Exception:  # noqa: BLE001 — one bad package must not abort the pull
+        except Exception:  # one bad package must not abort the pull
             logger.exception(
                 "skill inbox reconcile raised for %r (realm %s); refusing package",
                 slug,
@@ -189,7 +189,7 @@ def apply_skill_inbox_pull(realm: Realm, subtree: Path) -> SkillSyncSummary:
     if baseline_dirty:
         try:
             write_skill_baseline(realm.id, baseline)
-        except Exception:  # noqa: BLE001 — a baseline is a receipt; it never fails a pull
+        except Exception:  # a baseline is a receipt; it never fails a pull
             logger.exception("skill baseline write failed for realm %s", realm.id)
     return SkillSyncSummary(
         adopted=sorted(set(verdicts["adopted"])),

@@ -132,38 +132,41 @@ from . import paths
 __layer__ = "stores"
 
 __all__ = [
+    "FILE_DECLARATION_PREFIX",
     "HANDLE_PREFIX",
     "HANDLE_RE",
+    "IMAGE_EXTENSIONS",
     "MAX_FETCH_BYTES",
-    "MAX_SCOPE_ARTIFACTS",
-    "MAX_SCOPE_LOGS",
-    "MAX_REPLY_ARTIFACTS",
     "MAX_REMOTE_ARTIFACTS",
     "MAX_REMOTE_COMPLETIONS",
-    "SCOPE_LOG_TAIL_BYTES",
-    "IMAGE_EXTENSIONS",
-    "MEDIA_TYPES",
+    "MAX_REPLY_ARTIFACTS",
+    "MAX_SCOPE_ARTIFACTS",
+    "MAX_SCOPE_LOGS",
     "MEDIA_DECLARATION_PREFIX",
-    "REASON_HANDLE_INVALID",
-    "REASON_UNKNOWN_HANDLE",
+    "MEDIA_TYPES",
+    "OPERATOR_FILES_DIRNAME",
+    "OPERATOR_FILE_EXTENSIONS",
     "REASON_ARTIFACT_TOO_LARGE",
     "REASON_ARTIFACT_UNREADABLE",
+    "REASON_HANDLE_INVALID",
+    "REASON_UNKNOWN_HANDLE",
+    "SCOPE_LOG_TAIL_BYTES",
     "MediaArtifact",
-    "RemoteMediaArtifact",
-    "MediaScope",
     "MediaRefusal",
+    "MediaScope",
+    "RemoteMediaArtifact",
+    "build_media_scope",
     "handle_for_bytes",
     "media_declarations",
     "mint_reply_media",
     "parse_media_declaration",
-    "build_media_scope",
-    "remote_artifacts_from_completions",
-    "resolve_handle",
     "read_artifact_bytes",
-    "remote_cache_path",
     "read_cached_bytes",
-    "write_cached_bytes",
+    "remote_artifacts_from_completions",
+    "remote_cache_path",
     "reset_digest_memo",
+    "resolve_handle",
+    "write_cached_bytes",
 ]
 
 #: The one handle grammar. A namespace with a prefix rather than a bare digest,
@@ -229,6 +232,32 @@ MEDIA_TYPES: dict[str, str] = {
 #: prose, and a case-insensitive match here would put every sentence about the
 #: protocol into the namespace.
 MEDIA_DECLARATION_PREFIX = "MEDIA:"
+
+#: RT-MISSION-CHAT-MESSAGE-TAKES: an operator's reviewed file, staged by
+#: ``agent_runtime.operator_files`` and named on the user row as ``FILE:<path>``.
+#: Owned HERE (the stores layer) so the lanes-layer writer imports it rather than
+#: this module importing upward. A ``FILE:`` line is in scope ONLY when its path
+#: sits directly in ``<store root>/operator_files/`` with an extension below: the
+#: model can type ``FILE:~/.ssh/id_rsa`` as easily as a ``MEDIA:`` line, and the
+#: containment is what keeps that out of the namespace, as the image allowlist
+#: does for ``MEDIA:``.
+FILE_DECLARATION_PREFIX = "FILE:"
+OPERATOR_FILES_DIRNAME = "operator_files"
+#: admitted media type -> stored extension (``text/*`` is the family row). The
+#: inverse is what a fetched file's media type is read from.
+OPERATOR_FILE_EXTENSIONS: dict[str, str] = {
+    "text/*": ".txt",
+    "text/markdown": ".md",
+    "text/csv": ".csv",
+    "application/json": ".json",
+    "application/xml": ".xml",
+    "application/yaml": ".yaml",
+    "application/pdf": ".pdf",
+}
+_OPERATOR_FILE_TYPES: dict[str, str] = {
+    ext: ("text/plain" if media_type == "text/*" else media_type)
+    for media_type, ext in OPERATOR_FILE_EXTENSIONS.items()
+}
 
 #: The argument was not the handle grammar. This is the arm a path-shaped
 #: argument lands in, which is why it is the one refusal that is checked before
@@ -436,24 +465,42 @@ def parse_media_declaration(line: str) -> str | None:
     stripped = line.strip()
     if stripped.startswith("`") and stripped.endswith("`") and len(stripped) > 1:
         stripped = stripped[1:-1].strip()
-    if not stripped.startswith(MEDIA_DECLARATION_PREFIX):
+    prefix = next((p for p in _DECLARATION_ADMITS if stripped.startswith(p)), None)
+    if prefix is None:
         return None
-    payload = stripped[len(MEDIA_DECLARATION_PREFIX) :].strip()
+    payload = stripped[len(prefix) :].strip()
     payload = payload.strip("`").strip()
     payload = payload.rstrip(".,;").strip()
     if payload.startswith(("'", '"')) and payload.endswith(("'", '"')) and len(payload) > 1:
         payload = payload[1:-1].strip()
     if not payload or not _ABSOLUTE_PATH_RE.match(payload):
         return None
-    if _extension(payload) not in IMAGE_EXTENSIONS:
-        return None
-    return payload
+    return payload if _DECLARATION_ADMITS[prefix](payload) else None
+
+
+def _is_operator_file(payload: str) -> bool:
+    """A ``FILE:`` payload: directly in this install's operator-file store, with a stored extension."""
+
+    if _extension(payload) not in _OPERATOR_FILE_TYPES:
+        return False
+    try:
+        store = paths.store_root() / OPERATOR_FILES_DIRNAME
+    except Exception:  # an unresolvable root admits nothing
+        return False
+    return os.path.normcase(os.path.abspath(Path(payload).parent)) == os.path.normcase(os.path.abspath(store))
+
+
+#: line prefix -> the rule that admits its payload. One table, two rows.
+_DECLARATION_ADMITS = {
+    MEDIA_DECLARATION_PREFIX: lambda payload: _extension(payload) in IMAGE_EXTENSIONS,
+    FILE_DECLARATION_PREFIX: _is_operator_file,
+}
 
 
 def media_declarations(text: Any) -> list[str]:
     """Every declared image path in one message body, in order, deduplicated."""
 
-    if not isinstance(text, str) or MEDIA_DECLARATION_PREFIX not in text:
+    if not isinstance(text, str) or not any(prefix in text for prefix in _DECLARATION_ADMITS):
         return []
     seen: list[str] = []
     for line in text.splitlines():
@@ -920,7 +967,7 @@ def _declarations_in_log(log: Path, *, tail_bytes: int) -> Iterable[str]:
 
     found: list[str] = []
     for line in raw.split(b"\n"):
-        if MEDIA_DECLARATION_PREFIX.encode("utf-8") not in line:
+        if not any(prefix.encode("utf-8") in line for prefix in _DECLARATION_ADMITS):
             continue
         try:
             row = json.loads(line.decode("utf-8", errors="replace"))
@@ -949,7 +996,7 @@ def _artifact_for(reference: str) -> MediaArtifact | None:
         stat = resolved.stat()
     except (OSError, ValueError):
         return None
-    media_type = MEDIA_TYPES.get(_extension(reference))
+    media_type = MEDIA_TYPES.get(_extension(reference)) or _OPERATOR_FILE_TYPES.get(_extension(reference))
     if media_type is None:  # pragma: no cover - the parser already gated this
         return None
     handle = _digest_for(resolved, stat.st_size, stat.st_mtime_ns)
@@ -977,7 +1024,7 @@ def _digest_for(path: Path, size: int, mtime_ns: int) -> str | None:
         # the STAT TRIPLE instead — it is stable, it is not a content address,
         # and it is never served, which is why the prefix still says what it is.
         return HANDLE_PREFIX + hashlib.sha256(
-            f"oversize\x00{path}\x00{size}\x00{mtime_ns}".encode("utf-8")
+            f"oversize\x00{path}\x00{size}\x00{mtime_ns}".encode()
         ).hexdigest()
     digest = hashlib.sha256()
     try:

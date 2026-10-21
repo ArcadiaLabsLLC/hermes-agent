@@ -28,7 +28,7 @@ import json
 import re
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -36,7 +36,7 @@ from utils import atomic_json_write
 
 from . import paths
 from .machine_roots import _ROOT_NAME_RE, load_machine_roots, write_machine_roots
-from .workspace_slot_recipe import url_carries_credential
+from .workspace_slot_recipe import text_carries_credential, url_carries_credential
 
 __layer__ = "stores"
 
@@ -79,7 +79,7 @@ class BoundSlot:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def stamp_epoch(text: Any) -> float | None:
@@ -92,7 +92,7 @@ def stamp_epoch(text: Any) -> float | None:
         parsed = datetime.fromisoformat(raw[:-1] + "+00:00" if raw.endswith("Z") else raw)
     except ValueError:
         return None
-    return (parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)).timestamp()
+    return (parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)).timestamp()
 
 
 #: How far ahead of THIS machine's clock a stamp may run and still be believed, in seconds. Two
@@ -207,10 +207,29 @@ def _toolchain(value: Any) -> dict[str, Any]:
 def _context(value: Any) -> dict[str, Any]:
     value = value or {}
     files = value.get("files") if isinstance(value, dict) and value.get("files") is not None else list(DEFAULT_CONTEXT_FILES)
-    if not isinstance(files, list) or not all(isinstance(f, str) and f and ".." not in f.replace("\\", "/").split("/")
-                                              and not Path(f).is_absolute() for f in files):
+    if not isinstance(files, list) or not all(_inside_checkout(f) for f in files):
         raise SlotRefused(REASON_INVALID_DECLARATION, "context.files are relative paths inside the checkout")
-    return {"role": str((value or {}).get("role") or ""), "files": list(files)}
+    held = {"role": str((value or {}).get("role") or ""), "files": list(files)}
+    brain_dir = value.get("brain_dir") if isinstance(value, dict) else None
+    if brain_dir is not None:
+        # The Work board's pinned queue directory (work-on-markdown §6.1).
+        if not _inside_checkout(brain_dir):
+            raise SlotRefused(REASON_INVALID_DECLARATION, "context.brain_dir is a relative path inside the checkout")
+        held["brain_dir"] = brain_dir
+    gate = value.get("gate") if isinstance(value, dict) else None
+    if gate is not None:
+        # The batch landing gate's commands for this slot (p10-work §3, RT-BATCH-GATE-PER-SLOT-COMMAND).
+        if not isinstance(gate, list) or not all(isinstance(c, str) and c.strip() for c in gate):
+            raise SlotRefused(REASON_INVALID_DECLARATION, "context.gate is a list of non-empty command strings")
+        if any(text_carries_credential(c) for c in gate):
+            raise SlotRefused(REASON_INVALID_DECLARATION, "context.gate names no credential")
+        held["gate"] = [c.strip() for c in gate]
+    return held
+
+
+def _inside_checkout(value: Any) -> bool:
+    return (isinstance(value, str) and bool(value) and ".." not in value.replace("\\", "/").split("/")
+            and not Path(value).is_absolute())
 
 
 def normalize_declaration(entry: Any) -> tuple[str, dict[str, Any]]:
@@ -223,6 +242,13 @@ def normalize_declaration(entry: Any) -> tuple[str, dict[str, Any]]:
         raise SlotRefused(REASON_INVALID_SLOT_NAME, f"{name!r} is not a root name ([A-Za-z0-9_]+)")
     repo = entry.get("repo") or {}
     clone_url = str(repo.get("clone_url") or "") if isinstance(repo, dict) else ""
+    if not clone_url and isinstance(repo, dict) and repo.get("local") is True:
+        # A LOCAL slot (the Work default brain, work-on-markdown §4): no remote until one is declared.
+        return name, {
+            "repo": {"clone_url": None, "default_branch": str(repo.get("default_branch") or "main"), "local": True},
+            "toolchain": _toolchain(entry.get("toolchain")),
+            "context": _context(entry.get("context")),
+        }
     if not _CLONE_URL_RE.match(clone_url):
         raise SlotRefused(REASON_INVALID_CLONE_URL, f"{clone_url!r} is not an http(s) or ssh clone URL")
     if url_carries_credential(clone_url):
@@ -258,26 +284,16 @@ def declare(workspace_id: str, slots: Any, *, issued_at: str, machine: str) -> d
     A slot that stays keeps its ``recipe`` (Phase B's, edited separately); a tombstoned name
     that is declared again comes back. An ``issued_at`` older than the document's last
     declare is refused ``stale_revision`` — a retried request cannot undo a newer edit.
+    The second write site is :func:`declare_one_slot` (one name, nothing tombstoned).
     """
 
     if not isinstance(slots, list):
         raise SlotRefused(REASON_INVALID_DECLARATION, "slots must be a list")
     declared = dict(normalize_declaration(entry) for entry in slots)
-    document = load_document(workspace_id)
-    last, issued = stamp_epoch(document.get("issued_at")), stamp_epoch(issued_at)
-    if issued is None:
-        raise SlotRefused(REASON_INVALID_DECLARATION, "issued_at must be an ISO-8601 stamp")
-    # A stored stamp past this machine's horizon (a broken or forged clock, pulled or local) is not
-    # believed, so it can never wedge every later declare as ``stale_revision``; the first honest
-    # declare replaces it and the check holds again from there.
-    if last is not None and last <= stamp_horizon() and issued < last:
-        raise SlotRefused(REASON_STALE_REVISION, "a newer declaration already landed")
+    document = _fresh_document(workspace_id, issued_at)
     current = document.setdefault("slots", {})
     for name, body in declared.items():
-        held = current.get(name) or {}
-        changed = bool(held) and (bool(held.get("removed_at")) or any(held.get(k) != body[k] for k in _DECLARED_PARTS))
-        current[name] = {**body, "recipe": _revised(held.get("recipe"), bump=changed),
-                         "declared_at": issued_at, "declared_by_machine": machine, "issued_at": issued_at, "removed_at": None}
+        current[name] = _declared_record(current.get(name) or {}, body, issued_at=issued_at, machine=machine)
     tombstoned = [name for name, slot in current.items() if name not in declared and not slot.get("removed_at")]
     for name in tombstoned:
         current[name] = {**current[name], "recipe": _revised(current[name].get("recipe"), bump=True),
@@ -292,6 +308,46 @@ def declare(workspace_id: str, slots: Any, *, issued_at: str, machine: str) -> d
     return {"document": document, "declared": sorted(declared), "tombstoned": sorted(tombstoned),
             "assignments_dropped": dropped_from}
 
+
+
+def _fresh_document(workspace_id: str, issued_at: str) -> dict[str, Any]:
+    """The document a declare writes into, or ``stale_revision`` when ``issued_at`` is older than its last write."""
+
+    document = load_document(workspace_id)
+    last, issued = stamp_epoch(document.get("issued_at")), stamp_epoch(issued_at)
+    if issued is None:
+        raise SlotRefused(REASON_INVALID_DECLARATION, "issued_at must be an ISO-8601 stamp")
+    # A stored stamp past this machine's horizon (a broken or forged clock, pulled or local) is not
+    # believed, so it can never wedge every later declare as ``stale_revision``; the first honest
+    # declare replaces it and the check holds again from there.
+    if last is not None and last <= stamp_horizon() and issued < last:
+        raise SlotRefused(REASON_STALE_REVISION, "a newer declaration already landed")
+    return document
+
+
+def _declared_record(held: dict[str, Any], body: dict[str, Any], *, issued_at: str, machine: str) -> dict[str, Any]:
+    changed = bool(held) and (bool(held.get("removed_at")) or any(held.get(k) != body[k] for k in _DECLARED_PARTS))
+    return {**body, "recipe": _revised(held.get("recipe"), bump=changed),
+            "declared_at": issued_at, "declared_by_machine": machine, "issued_at": issued_at, "removed_at": None}
+
+
+def declare_one_slot(workspace_id: str, entry: Any, *, issued_at: str, machine: str) -> dict[str, Any]:
+    """Declare ONE slot and leave every other slot as it is — nothing is tombstoned.
+
+    The second write site beside :func:`declare` (whose call REPLACES the set): the default brain's
+    promotion (p10-work §2.5, ``work_store.default_brain._declare_brain_slot``) adds slot ``brain``
+    without knowing the rest of the set. Same normalization, same ``stale_revision`` check, same
+    revision bump when the slot's decision changed; the document's ``issued_at`` is stamped.
+    """
+
+    name, body = normalize_declaration(entry)
+    document = _fresh_document(workspace_id, issued_at)
+    current = document.setdefault("slots", {})
+    current[name] = _declared_record(current.get(name) or {}, body, issued_at=issued_at, machine=machine)
+    document["issued_at"] = issued_at
+    document["workspace_id"] = workspace_id
+    write_document(workspace_id, document)
+    return {"document": document, "declared": [name], "tombstoned": []}
 
 # ── this machine's fill ──────────────────────────────────────────────────────
 
@@ -433,14 +489,15 @@ def slot_for_path(path: Any, bound: list[BoundSlot] | tuple[BoundSlot, ...]) -> 
 
 
 __all__ = [
-    "BoundSlot",
     "DEFAULT_CONTEXT_FILES",
+    "BoundSlot",
     "SlotCensus",
     "SlotRefused",
     "authorized_roots_bound_here",
     "bind",
     "bound_path",
     "declare",
+    "declare_one_slot",
     "live_slots",
     "load_document",
     "machine_id",

@@ -60,6 +60,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from scripts.bundles.closure_probes import boot_tops, stand_in_answered
 from scripts.bundles.closure_report import _mib, render_markdown
 
 NATIVE_SUFFIXES = (".pyd", ".so", ".dll", ".dylib")
@@ -173,7 +174,7 @@ def plugin_roots(manifest) -> tuple[str, ...]:
 
 
 def profile_walk(manifest, index: dict[str, Path] | None = None, *,
-                 parents: bool = False) -> tuple["Walk", dict[str, Path]]:
+                 parents: bool = False) -> tuple[Walk, dict[str, Path]]:
     """The profile's one walk: its roots plus its bundled plugins, never into switched-off modules."""
     index = index if index is not None else module_index(plugins=getattr(manifest, "packaging_plugins", ()))
     first_party = {m.split(".")[0] for m in index}
@@ -273,7 +274,7 @@ def _parse_imports(path: Path, module: str, is_pkg: bool):
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", SyntaxWarning)
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
     except (SyntaxError, UnicodeDecodeError):
         return
     top_level = {id(n) for n in tree.body}
@@ -410,7 +411,7 @@ def _req(raw: str):
 
 def declared(path: Path = ROOT / "pyproject.toml", env: dict | None = None) -> tuple[set[str], dict[str, set[str]]]:
     """-> (base distribution names, extra -> distribution names), markers evaluated for the target."""
-    project = tomllib.loads(path.read_text(encoding="utf-8"))["project"]
+    project = tomllib.loads(path.read_text(encoding="utf-8-sig"))["project"]
     self_name = _norm(project["name"])
     env = TARGET_ENV if env is None else env
 
@@ -448,7 +449,7 @@ def requested_extras(path: Path = ROOT / "pyproject.toml", env: dict | None = No
     A requested extra's requirements ship with the distribution: ``httpx`` loads
     ``socksio`` only when a SOCKS proxy is configured, so no static import reaches it.
     """
-    project = tomllib.loads(path.read_text(encoding="utf-8"))["project"]
+    project = tomllib.loads(path.read_text(encoding="utf-8-sig"))["project"]
     env = TARGET_ENV if env is None else env
     out: dict[str, set[str]] = {}
     for raw in project.get("dependencies", []):
@@ -460,14 +461,14 @@ def requested_extras(path: Path = ROOT / "pyproject.toml", env: dict | None = No
 
 def declared_anywhere(path: Path = ROOT / "pyproject.toml") -> set[str]:
     """Every distribution ``[project]`` declares (base + extras), markers NOT evaluated."""
-    project = tomllib.loads(path.read_text(encoding="utf-8"))["project"]
+    project = tomllib.loads(path.read_text(encoding="utf-8-sig"))["project"]
     raws = [*project.get("dependencies", []), *(r for reqs in project.get("optional-dependencies", {}).values()
                                                  for r in reqs)]
     return {_norm(_req(raw).name) for raw in raws} - {_norm(project["name"])}
 
 
 def _lock(path: Path = ROOT / "uv.lock") -> dict[str, dict]:
-    return {_norm(p["name"]): p for p in tomllib.loads(path.read_text(encoding="utf-8")).get("package", [])}
+    return {_norm(p["name"]): p for p in tomllib.loads(path.read_text(encoding="utf-8-sig")).get("package", [])}
 
 
 def _wheel_size(package: dict) -> int | None:
@@ -503,6 +504,40 @@ class Graph:
             if candidate and (_norm(candidate) in self.installed or _norm(candidate) in self.lock):
                 return _norm(candidate)
         return None
+
+    def dist_for_import(self, dotted: str) -> str | None:
+        """The distribution providing the import ``dotted``. A namespace top that several
+        distributions share (``azure``: azure-core, azure-identity) resolves by its next
+        component — the distribution whose files hold ``azure/identity`` — never by the
+        mapping's first entry, which shipped azure-core alone for ``import azure.identity``."""
+        top, _, rest = dotted.partition(".")
+        names = self.mapping.get(top) or []
+        if len(set(names)) > 1 and rest:
+            sub = rest.partition(".")[0]
+            for name in names:
+                if sub in self._subpackages(top, name):
+                    return _norm(name)
+        return self.dist_for_top(top)
+
+    def dists_for_sites(self, top: str, sites) -> set[str]:
+        """Every distribution the import ``sites`` of ``top`` reach (one per site's dotted
+        name); ``top`` alone when no site names it (a pinned module's eager import)."""
+        dists = {self.dist_for_import(site["dotted"]) for site in sites if site.get("dotted")}             or {self.dist_for_top(top)}
+        return {d for d in dists if d}
+
+    def _subpackages(self, top: str, name: str) -> set[str]:
+        """The names directly under ``top/`` among distribution ``name``'s installed files."""
+        cache = self.__dict__.setdefault("_subpackage_cache", {})
+        key = (top, _norm(name))
+        if key not in cache:
+            dist = self.installed.get(_norm(name))
+            subs = set()
+            for file in (dist.files or []) if dist is not None else []:
+                parts = str(file).replace("\\", "/").split("/")
+                if len(parts) > 1 and parts[0] == top:
+                    subs.add(parts[1].split(".")[0])
+            cache[key] = subs
+        return cache[key]
 
     def requires(self, name: str) -> list[str]:
         envs = [self.env, *({**self.env, "extra": e} for e in sorted(self.extras.get(name, ())))]
@@ -553,83 +588,7 @@ class Graph:
                 "installed": True, "native": native, "size_bytes": size}
 
 
-_BOOT_PROBE = "; ".join([
-    "import importlib, json, sys",
-    "[importlib.import_module(m) for m in sys.argv[1:]]",
-    "print(json.dumps(sorted({n.split('.')[0] for n in sys.modules})))",
-])
-
-
-def boot_tops(roots, first_party_tops) -> set[str]:
-    """Instrumented lower bound: third-party tops actually loaded by importing ``roots``."""
-    import subprocess
-
-    done = subprocess.run([sys.executable, "-c", _BOOT_PROBE, *roots], cwd=ROOT, capture_output=True,
-                          text=True, timeout=300, check=True)
-    loaded = json.loads(done.stdout.strip().splitlines()[-1])
-    return {t for t in loaded if t not in first_party_tops and t not in sys.stdlib_module_names
-            and not t.startswith("_")}
-
-
 # -- the closure --------------------------------------------------------------------------------------
-
-
-#: Asked in a child interpreter with the omitted imports made unfindable: the stand-in module's
-#: ``stand_in_modules()`` is registered in ``sys.modules`` and each dotted name is resolved on the
-#: module that is actually there (the longest registered prefix, then attributes).
-_STAND_IN_PROBE = r"""
-import importlib, json, sys
-root, blocked, stand_in, wanted = sys.argv[1], set(json.loads(sys.argv[2])), sys.argv[3], json.loads(sys.argv[4])
-sys.path.insert(0, root)
-
-class Absent:
-    def find_spec(self, name, path=None, target=None):
-        if name.split(".")[0] in blocked:
-            raise ModuleNotFoundError(f"omitted: {name}", name=name)
-
-sys.meta_path.insert(0, Absent())
-sys.modules.update(importlib.import_module(stand_in).stand_in_modules())
-
-def answers(dotted):
-    parts = dotted.split(".")
-    for i in range(len(parts), 0, -1):
-        head = sys.modules.get(".".join(parts[:i]))
-        if head is None:
-            continue
-        try:
-            for name in parts[i:]:
-                head = getattr(head, name)
-        except AttributeError:
-            return False
-        return True
-    return False
-
-print(json.dumps(sorted(d for d in wanted if answers(d))))
-"""
-
-
-def stand_in_answered(manifest, unguarded: dict[str, list[dict]]) -> dict[str, list[str]]:
-    """distribution -> the unguarded dotted names its row's ``stand_in`` answers at run time.
-
-    An omitted distribution may name a first-party ``stand_in`` module (the phone's ``openai``,
-    ``agent_runtime.provider_sdk_shim``) whose ``stand_in_modules()`` the profile's entry registers
-    before any import site runs. A site it answers is a seam proven in a child interpreter, never by
-    reading the stand-in's spelling: a name it lacks does not resolve there and stays refused."""
-    import subprocess
-
-    out: dict[str, list[str]] = {}
-    for row in manifest.omitted_distributions:
-        stand_in, sites = row.get("stand_in"), unguarded.get(row["distribution"]) or []
-        wanted = sorted({site["dotted"] for site in sites if site.get("dotted")})
-        if not stand_in or not wanted:
-            continue
-        done = subprocess.run(
-            [sys.executable, "-c", _STAND_IN_PROBE, str(ROOT), json.dumps(list(row["imports"])), stand_in,
-             json.dumps(wanted)], capture_output=True, text=True, timeout=300, cwd=ROOT)
-        if done.returncode != 0:
-            raise RuntimeError(f"stand-in probe failed for {stand_in}: {done.stderr[-2000:]}")
-        out[row["distribution"]] = json.loads(done.stdout.strip().splitlines()[-1])
-    return out
 
 
 def _dropped(manifest) -> dict[str, set[str]]:
@@ -676,7 +635,7 @@ print(json.dumps(failed))
 """
 
 
-def dropped_extra_failures(manifest, graph: "Graph", shipped: set[str]) -> list[str]:
+def dropped_extra_failures(manifest, graph: Graph, shipped: set[str]) -> list[str]:
     """``dist[extra] -> reason`` for each dropped extra whose shipped distribution does NOT import with
     the omitted distributions absent (an import error there is a phone that cannot start)."""
     import subprocess
@@ -699,7 +658,7 @@ def dropped_extra_failures(manifest, graph: "Graph", shipped: set[str]) -> list[
             out.append(f"{label}: not installed, so its import without the extra is unproven")
             continue
         done = subprocess.run([sys.executable, "-c", _DROPPED_EXTRA_PROBE, json.dumps(blocked), json.dumps(tops)],
-                              capture_output=True, text=True, timeout=300, cwd=ROOT)
+                              capture_output=True, text=True, timeout=300, cwd=ROOT, check=False)
         if done.returncode != 0:
             raise RuntimeError(f"dropped-extra probe failed for {label}: {done.stderr[-2000:]}")
         failed = json.loads(done.stdout.strip().splitlines()[-1])
@@ -790,14 +749,15 @@ class GraphFacts:
         self.direct: dict[str, list[str]] = {}
         self.unresolved = {}
         for top, via in walk.tops.items():
-            dist = self.graph.dist_for_top(top)
-            if dist is None:
+            dists = self.graph.dists_for_sites(top, walk.result.import_sites.get(top, ()))
+            if not dists:
                 self.unresolved[top] = via
-            else:
+            for dist in sorted(dists):
                 self.direct.setdefault(dist, via)
         self.not_for_target = declared_anywhere() - self.declared_base - set().union(*self.declared_extras.values())
-        unguarded = {self.graph.dist_for_top(top) for top, sites in walk.result.import_sites.items()
-                     if any(not site["guarded"] for site in sites)}
+        unguarded = set().union(*(self.graph.dists_for_sites(top, [site for site in sites if not site["guarded"]])
+                                  for top, sites in walk.result.import_sites.items()
+                                  if any(not site["guarded"] for site in sites)))
         unguarded |= {self.graph.dist_for_top(top) for top in walk.pinned_tops}
         self.guarded_only = set(self.direct) - unguarded
 
@@ -882,7 +842,7 @@ def closure(profile: str, *, boot: bool = True, extra_extras=(), target: str | N
 
     # Excludable: what the switched-off modules alone would add.
     everything = Walk(tuple(walk.roots) + tuple(walk.pruned), (), index, walk.first_party)
-    all_direct = {d for d in (graph.dist_for_top(t) for t in everything.tops) if d}
+    all_direct = set().union(*(graph.dists_for_sites(t, everything.import_sites.get(t, ())) for t in everything.tops))
     all_classes = classify({d: [] for d in all_direct}, facts.base, facts.extras, selected, walk.omitted)
     reachable = graph.closure(d for d, row in all_classes.items() if row["status"].startswith("ship"))
 

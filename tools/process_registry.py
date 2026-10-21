@@ -721,6 +721,19 @@ class ProcessRegistry(ProcessTerminationMixin, ProcessCheckpointMixin, ProcessOu
         self.on_output = None
         self.on_close = None
         self._heartbeat_thread: Optional[threading.Thread] = None
+        # fork seam: p10-b — lifecycle(phase, session) observers, fired after the checkpoint write.
+        self._lifecycle_listeners: list = []
+
+    def add_lifecycle_listener(self, listener) -> None:  # fork seam: p10-b
+        """Call ``listener(phase, session)`` on spawn ("started") and first finish ("finished")."""
+        self._lifecycle_listeners.append(listener)
+
+    def _notify_lifecycle(self, phase: str, session: ProcessSession) -> None:  # fork seam: p10-b
+        for listener in tuple(getattr(self, "_lifecycle_listeners", ())):
+            try:
+                listener(phase, session)
+            except Exception:
+                logger.debug("process lifecycle listener failed (%s)", phase, exc_info=True)
 
     # ── heartbeat ───────────────────────────────────────────────────────────
     def arm_heartbeat(self, session: ProcessSession, seconds: int) -> int:
@@ -1150,6 +1163,7 @@ class ProcessRegistry(ProcessTerminationMixin, ProcessCheckpointMixin, ProcessOu
             reader.start()
             self._running[session.id] = session
         self._write_checkpoint()
+        self._notify_lifecycle("started", session)  # fork seam: p10-b
 
     def _spawn_local_pty(self, session: ProcessSession, safe_command: str, env_vars: dict) -> ProcessSession:
         """PTY spawn for interactive CLI tools (Codex, Claude Code, REPLs).
@@ -1598,6 +1612,8 @@ class ProcessRegistry(ProcessTerminationMixin, ProcessCheckpointMixin, ProcessOu
     def _publish_finished(self, session: ProcessSession, was_running: bool) -> None:
         self._release_finished_handles(session)
         self._write_checkpoint()
+        if was_running:  # fork seam: p10-b
+            self._notify_lifecycle("finished", session)
         if was_running and session.notify_on_complete:
             notification = {
                 "type": "completion",

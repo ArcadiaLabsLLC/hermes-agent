@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from enum import StrEnum
 
-from .models import AgentPersona
+from .models import AgentPersona, AutonomyLevel  # AutonomyLevel lives beside its field
 
 __layer__ = "models"
 
@@ -24,12 +24,6 @@ class AgentRole(StrEnum):
     """
 
     PM = "pm"
-
-
-class AutonomyLevel(StrEnum):
-    PROPOSE_ONLY = "propose_only"
-    APPLY_WITH_REVIEW = "apply_with_review"
-    AUTONOMOUS = "autonomous"
 
 
 # Retired roles/personas are single-sourced in ``persona_lifecycle`` as
@@ -403,7 +397,7 @@ def all_registered_toolsets() -> list[str]:
     ``ToolRegistry.get_registered_toolset_names``.
     """
 
-    import model_tools  # noqa: F401 — populates the registry
+    import model_tools  # populates the registry
     from tools.registry import registry
 
     return [str(name) for name in registry.get_registered_toolset_names()]

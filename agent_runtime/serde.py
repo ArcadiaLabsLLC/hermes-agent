@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import tempfile
 from dataclasses import fields, is_dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from enum import Enum
-from functools import lru_cache, singledispatch
+from functools import lru_cache, singledispatch, cache
 from pathlib import Path
 from types import NoneType, UnionType
 from typing import Any, get_args, get_origin, get_type_hints
@@ -18,7 +19,7 @@ def to_jsonable(value: Any) -> Any:
     if is_dataclass(value):
         return {field.name: to_jsonable(getattr(value, field.name)) for field in fields(value)}
     if isinstance(value, datetime):
-        value = value.astimezone(timezone.utc)
+        value = value.astimezone(UTC)
         return value.isoformat(timespec="microseconds").replace("+00:00", "Z")
     if isinstance(value, Enum):
         return value.value
@@ -47,7 +48,7 @@ def upgrade(raw: dict[str, Any]) -> dict[str, Any]:
     return raw
 
 
-@lru_cache(maxsize=None)
+@cache
 def _dataclass_type_hints(cls: type[Any]) -> dict[str, Any]:
     return get_type_hints(cls)
 
@@ -59,7 +60,7 @@ def _coerce(annotation: Any, raw: Any) -> Any:
     origin = get_origin(annotation)
     args = get_args(annotation)
 
-    if origin is UnionType or origin is getattr(__import__("typing"), "Union"):
+    if origin is UnionType or origin is __import__("typing").Union:
         non_none = [arg for arg in args if arg is not NoneType]
         if raw is None:
             return None
@@ -226,7 +227,7 @@ def safe_int(value: Any) -> int | None:
 
     try:
         return int(value)
-    except Exception:  # noqa: BLE001 — a coercion answers None, it does not raise
+    except Exception:  # a coercion answers None, it does not raise
         return None
 
 
@@ -449,3 +450,20 @@ def is_hex(text: str, length: int) -> bool:
     accept an upper-case spelling of an id it will compare byte-for-byte).
     """
     return len(text) == length and all(ch in "0123456789abcdef" for ch in text)
+
+
+#: The fields a realm-sync content hash never sees: revision, timestamps and
+#: the writer. Timestamp-only differences are never sync conflicts.
+SYNC_HASH_EXCLUDE = frozenset({"revision", "created_at", "updated_at", "updated_by"})
+
+
+def sync_content_hash(entity: Any) -> str:
+    """Semantic content hash H(entity) over every field except
+    :data:`SYNC_HASH_EXCLUDE` — the one body behind ``board_content_hash`` and
+    ``office_content_hash``."""
+
+    payload = to_jsonable(entity)
+    if isinstance(payload, dict):
+        payload = {key: value for key, value in payload.items() if key not in SYNC_HASH_EXCLUDE}
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()

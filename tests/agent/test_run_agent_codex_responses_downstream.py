@@ -12,7 +12,7 @@ import sys
 
 import pytest
 
-from tests.agent.test_run_agent_codex_responses import (  # noqa: F401 — upstream names the moved test uses
+from tests.agent.test_run_agent_codex_responses import (  # upstream names the moved test uses
     _build_agent,
     _codex_request_kwargs,
 )

@@ -12,7 +12,7 @@ patching the module discovery reads. The fakes and the autouse
 from __future__ import annotations
 
 import providers
-from tests.providers.test_entry_point_discovery import (  # noqa: F401 — upstream names the moved tests use
+from tests.providers.test_entry_point_discovery import (  # upstream names the moved tests use
     _clear_provider_caches,
     _FakeEntryPoints,
     _FakeEP,

@@ -277,7 +277,7 @@ def test_the_instrument_is_inert_for_every_caller_but_a_create():
     with agent_create_phases.timed_create_subphase("wire_row_ms"):
         pass  # no recorder installed: nothing to record into, and no raise
 
-    with agent_create_phases.capture_create_subphases() as recorder:
+    with agent_create_phases.using_create_subphases(CreateSubphases()) as recorder:
         with agent_create_phases.timed_create_subphase("wire_row_ms"):
             pass
     assert "wire_row_ms" in recorder.snapshot()

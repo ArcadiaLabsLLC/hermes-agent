@@ -145,7 +145,7 @@ def _clipped_schema(node: Any) -> Any:
     return node
 
 
-def promoted_brief(target: Dict[str, Any]) -> Dict[str, Any]:
+def promoted_brief(target: dict[str, Any]) -> dict[str, Any]:
     """A promoted MCP tool's function body with its brief description and clipped parameters."""
     description = " ".join(str(target.get("description") or "").split())
     brief = _first_sentence(description)
@@ -159,7 +159,7 @@ def promoted_brief(target: Dict[str, Any]) -> Dict[str, Any]:
     return rewritten
 
 
-def _briefed(entry: Any) -> Optional[Dict[str, Any]]:
+def _briefed(entry: Any) -> Optional[dict[str, Any]]:
     """``entry`` with its brief description and first-sentence parameter prose, or None
     when it needs no rewrite. A :data:`KEEP_FULL_WIRE_DESCRIPTIONS` tool keeps its whole
     parameter prose; a promoted MCP tool keeps its own clip (:func:`promoted_brief`).
@@ -216,7 +216,7 @@ def _briefed_target(target: dict[str, Any]) -> Optional[dict[str, Any]]:
     return rewritten
 
 
-def brief_request_tools(request: Any) -> Optional[Dict[str, Any]]:
+def brief_request_tools(request: Any) -> Optional[dict[str, Any]]:
     """The provider kwargs with every tool collapsed to its one-line description (parameters
     untouched outside the promoted MCP brief), or None if unchanged."""
     if not isinstance(request, dict) or not isinstance(request.get("tools"), list):
@@ -231,14 +231,14 @@ def brief_request_tools(request: Any) -> Optional[Dict[str, Any]]:
     return {**request, "tools": tools} if changed else None
 
 
-def wire_tool_chars(tool_defs: Iterable[Any]) -> Dict[str, int]:
+def wire_tool_chars(tool_defs: Iterable[Any]) -> dict[str, int]:
     """``{name: chars}`` of each tool definition as the WIRE carries it: briefed, compact JSON.
 
     The measurement behind the prompt-surface receipt (lane h-prompt-tools S0) and the
     tool-visibility token figure; tokens are derived from it by upstream's chars/4 rule
     (``tools.tool_search_catalog.CHARS_PER_TOKEN``), never a tokenizer the venv lacks.
     A definition without a name is skipped."""
-    out: Dict[str, int] = {}
+    out: dict[str, int] = {}
     for entry in tool_defs or ():
         if not isinstance(entry, dict):
             continue

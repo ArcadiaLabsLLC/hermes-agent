@@ -77,7 +77,7 @@ FIRST_TURN_MODULES = (
     "agent.aux_accounting", "agent.relay_cwd", "agent.review_idle_queue", "agent.subagent_lifecycle",
     "nemo_relay", "hermes_cli.observability.relay_shared_metrics",
     "hermes_cli.observability.shared_metrics_send_config", "hermes_cli.moa_config",
-    "agent_runtime.persona_turn_binding", "agent_runtime.usage_ledger",
+    "agent_runtime.persona_turn_binding", "agent_runtime.usage_ledger", "agent_runtime.turn_outcome",
     "agent.title_generator", "agent_runtime.native_persistence", "tools.bot_mode_dm", "tools.mcp_tool_agent",
     "hermes_cli.build_info", "hermes_cli.lifecycle",
     "agent.opencode_affinity", "agent.plugin_stream_hooks", "agent.replay_cleanup",
@@ -94,6 +94,9 @@ FIRST_TURN_MODULES = (
     "hermes_cli.local_runtime.capabilities", "netrc",
     # ... and the effort receipt every provider dispatch logs (M2.05; the idle-box guard saw it, 2026-10-11).
     "agent_runtime.request_effort",
+    # ... and upstream's credential service-tier negotiation every request's fast-mode overrides
+    # import (`agent/fast_mode.py`; the idle-box guard saw it 10/10, 2026-10-18).
+    "agent.codex_service_tiers",
 )
 
 
@@ -163,8 +166,12 @@ def _warm_sdk_event_parse(agent: Any) -> None:
     import json
 
     import httpx
-    import openai
-    from openai.types.responses import ResponseStreamEvent
+
+    try:
+        import openai
+        from openai.types.responses import ResponseStreamEvent
+    except ImportError:  # no SDK (the phone profile omits it; the shim has no Stream): nothing to warm
+        return
 
     client = getattr(agent, "client", None)
     if not isinstance(client, openai.OpenAI):

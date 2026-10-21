@@ -11,7 +11,7 @@ from .._upstream_doors import pid_exists
 from ..builds.vocabulary import BUILD_REGISTRY_DIRNAME
 
 from .rows import bounded_operator_text
-from .vocabulary import PID_DEAD, PID_NO_BASELINE, PID_RECYCLED, PID_START_TIME_UNREADABLE, PID_VERIFIED, _CHECKPOINT_FILENAME, _MCP_JOBS_FILENAME, _STATE_DB_FILENAME
+from .vocabulary import PID_DEAD, PID_NO_BASELINE, PID_RECYCLED, PID_START_TIME_UNREADABLE, PID_VERIFIED, _CHECKPOINT_FILENAME, _MCP_JOBS_FILENAME, _STATE_DB_FILENAME, _TOOL_CALLS_FILENAME
 
 __layer__ = "stores"
 
@@ -60,8 +60,8 @@ def running_work_store_paths() -> tuple[Path, ...]:
     """The durable stores this projection reads — the ONE authority for them.
 
     Exported because the serve read-model cache must fingerprint exactly these
-    files: all four mutate with NO EventLog event (an MCP job binding or finishing
-    rewrites ``mcp_jobs.json``; a background process starting or
+    files: all of them mutate with NO EventLog event (an MCP job binding or finishing
+    rewrites ``mcp_jobs.json``; a long tool call's promotion or finish rewrites ``tool_calls.json``; a background process starting or
     exiting rewrites the checkpoint; a writer announcing a build rewrites its record
     under the ``builds/`` registry directory; a delegation dispatch/finalize writes
     ``async_delegations``), so without a stat the 20s cache would keep serving a
@@ -82,6 +82,7 @@ def running_work_store_paths() -> tuple[Path, ...]:
     return (
         head / _CHECKPOINT_FILENAME,
         head / _MCP_JOBS_FILENAME,
+        head / _TOOL_CALLS_FILENAME,
         head / BUILD_REGISTRY_DIRNAME,
         head / _STATE_DB_FILENAME,
     )
@@ -101,6 +102,42 @@ def build_registry_record_paths(directory: Path) -> list[Path]:
         return sorted(path for path in directory.glob("*.json") if path.is_file())
     except OSError:
         return []
+
+
+def background_work_homes() -> list[Path]:
+    """Every background-work home of this store root: the head home, then each profile's home.
+
+    The ONE authority the serve boot's long-call sweep walks
+    (``tools/long_tool_calls.py::sweep_orphaned_rows``): a promoted call writes under the home its
+    turn resolved, and a turn may run under any profile. De-duplicated by resolved path; a profile
+    root that cannot be listed contributes nothing.
+    """
+
+    homes: list[Path] = []
+    head, _ = _head_home()
+    if head is not None:
+        homes.append(head)
+    try:
+        from hermes_cli.profiles import get_profile_dir, list_profile_names
+
+        for name in list_profile_names():
+            try:
+                homes.append(Path(get_profile_dir(name)))
+            except Exception:
+                continue
+    except Exception:
+        pass
+    seen: set[str] = set()
+    unique: list[Path] = []
+    for home in homes:
+        try:
+            key = str(home.resolve())
+        except OSError:
+            key = str(home)
+        if key not in seen:
+            seen.add(key)
+            unique.append(home)
+    return unique
 
 
 def _pid_identity(pid: Any, expected_start: Any) -> tuple[bool, bool, str]:

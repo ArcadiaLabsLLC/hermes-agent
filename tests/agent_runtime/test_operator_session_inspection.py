@@ -125,3 +125,50 @@ def test_skills_use_the_named_profile_and_durable_session_evidence(placed_agent,
         turn_id="in-progress", state="running", elements=[])
     assert not inspect("skills", {**params, "operation": "history"})["result"]["historyComplete"]
     assert inspect("skills", {**targets[1], "operation": "history"})["result"]["loaded"] == []
+
+
+def test_memory_reads_the_named_profile_store_and_pending_writes_without_mutation(placed_agent, tmp_path, monkeypatch):  # health: allow F811 -- pytest injects the imported placed_agent fixture by parameter name
+    from tools import write_approval
+    from tools.memory_tool import ENTRY_DELIMITER
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    native_home = get_hermes_home()
+    personas = AgentStore()
+    source = personas.get(PERSONA)
+    targets = {}
+    for name, approval in (("alpha", True), ("beta", False)):
+        home = profiles._get_profiles_root() / name
+        (home / "memories").mkdir(parents=True)
+        (home / "config.yaml").write_text(json.dumps({"memory": {"write_approval": approval,
+            "memory_char_limit": 500}}), encoding="utf-8")
+        (home / "memories" / "MEMORY.md").write_text(ENTRY_DELIMITER.join([f"{name} fact one", f"{name} fact two"]),
+                                                     encoding="utf-8")
+        personas.save(replace(source, id=name, hermes_profile=name, include_profile_memory=name == "alpha"))
+        created = serve_rpc.handle_request(dict(jsonrpc="2.0", id="create", method="runtime.agent.create",
+            params=dict(persona_id=name, workspace_id=WORKSPACE, position=[2.0, 3.0], idempotency_key=name)))
+        assert "result" in created, created
+        targets[name] = target(created["result"]["persona_instance_id"], persona=name)
+    alpha_pending = profiles._get_profiles_root() / "alpha" / "pending" / "memory"
+    alpha_pending.mkdir(parents=True)
+    (alpha_pending / "p1.json").write_text(json.dumps({"id": "p1", "subsystem": "memory", "action": "add",
+        "summary": "add to MEMORY.md: likes tea", "origin": "background_review", "created_at": 1.0,
+        "payload": {"action": "add", "target": "memory", "content": "likes tea"}}), encoding="utf-8")
+    before = sorted(str(p) for p in profiles._get_profiles_root().rglob("*"))
+    alpha = inspect("memory", targets["alpha"])["result"]["memory"]
+    beta = inspect("memory", targets["beta"])["result"]["memory"]
+    assert alpha["on_lane"] is True and beta["on_lane"] is False
+    assert alpha["stores"][0] == {"target": "memory", "enabled": True,
+        "entries": ["alpha fact one", "alpha fact two"],
+        "char_count": len(ENTRY_DELIMITER.join(["alpha fact one", "alpha fact two"])), "char_limit": 500}
+    assert alpha["stores"][1]["target"] == "user" and alpha["stores"][1]["entries"] == []
+    assert beta["stores"][0]["entries"] == ["beta fact one", "beta fact two"]
+    assert alpha["write_approval"] == {"enabled": True, "pending": [{"id": "p1", "action": "add",
+        "summary": "add to MEMORY.md: likes tea", "origin": "background_review", "created_at": 1.0,
+        "target": "memory"}]}
+    assert beta["write_approval"] == {"enabled": False, "pending": []}
+    assert sorted(str(p) for p in profiles._get_profiles_root().rglob("*")) == before
+    assert write_approval.get_pending(write_approval.MEMORY, "p1") is None  # native home untouched
+    assert get_hermes_home() == native_home
+    refused = inspect("memory", {**targets["alpha"], "client_scope": OTHER})
+    assert refused["error"]["data"]["reason"] == "conversation_owner_changed"
+    assert "error" in inspect("memory", targets["alpha"], _device("read"))

@@ -13,6 +13,8 @@ import pytest
 
 from tests._downstream import registry_write_fence
 
+pytestmark = pytest.mark.gate
+
 
 def test_a_registry_write_is_refused_in_a_test_process(monkeypatch):
     monkeypatch.delenv("HERMES_E2E_WINDOWS_INSTALL", raising=False)

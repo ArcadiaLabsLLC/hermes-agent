@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from ..events import EventLog
-from ..worktree_age import DEFAULT_WORKTREE_MIN_AGE_SECONDS  # noqa: F401 — a leaf, so the parser reads it cheaply
+from ..worktree_age import DEFAULT_WORKTREE_MIN_AGE_SECONDS  # a leaf, so the parser reads it cheaply
 
 __layer__ = "stores"
 

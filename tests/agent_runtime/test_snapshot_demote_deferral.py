@@ -356,11 +356,11 @@ def test_an_unreadable_admitted_counter_reads_unknown_and_never_zero(
             sleeper=clock.sleep,
             clock=clock,
         )
-    line = [
+    line = next(
         r.getMessage()
         for r in caplog.records
         if "snapshot_build_deferred" in r.getMessage()
-    ][0]
+    )
     assert "admitted_at_exit=unknown" in line
 
 
@@ -579,20 +579,19 @@ def test_a_prewarm_that_stood_DOWN_recorded_no_construction(monkeypatch):
     """
 
     from agent_runtime import persona_chat_actor_prewarm as prewarm
+    from agent_runtime import persona_chat_continuity
 
-    monkeypatch.setattr(
-        prewarm, "_persona_chat_runtime_registry_present", lambda: True, raising=False
-    )
+    # The registry must be ON or the function answers ``registry_off`` before it ever
+    # reaches the yield (the earlier patch named a helper that no longer exists, so
+    # this test passed on ``registry_off`` without exercising the stand-down).
+    patch_where_bound(monkeypatch, persona_chat_continuity, "persona_chat_runtime_registry", lambda: object())
     from agent_runtime import profile_runner
 
     patch_where_bound(monkeypatch, profile_runner, "agent_runs_in_flight", lambda: 1)
     prewarm.reset_construction_spans_for_tests()
     try:
         outcome = prewarm.prewarm_chat_actor("chat-root-that-yields")
-        assert outcome in (
-            prewarm.OUTCOME_SKIPPED_TURN_ACTIVE,
-            prewarm.OUTCOME_REGISTRY_OFF,
-        )
+        assert outcome == prewarm.OUTCOME_SKIPPED_TURN_ACTIVE
         assert prewarm.overlapping_constructions(start=0.0, end=10**9) is None
     finally:
         prewarm.reset_construction_spans_for_tests()

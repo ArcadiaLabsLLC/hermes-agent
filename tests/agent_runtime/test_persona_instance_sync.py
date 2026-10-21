@@ -16,7 +16,7 @@ is the property H1 was scoped to have.
 from __future__ import annotations
 
 import dataclasses
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 
 import pytest
 from agent_runtime import yaml_io
@@ -200,7 +200,7 @@ def test_the_supersession_clock_travels_as_a_parseable_timestamp():
 
     from agent_runtime.serde import from_jsonable
 
-    issued = datetime(2026, 8, 31, 12, 0, 0, tzinfo=timezone.utc)
+    issued = datetime(2026, 8, 31, 12, 0, 0, tzinfo=UTC)
     body = project_persona_instance(
         _placement_instance(model="claude-x", provider="anthropic", model_override_issued_at=issued)
     )
@@ -492,7 +492,7 @@ def test_the_wire_value_of_every_shape_and_the_refusal_of_an_exotic_one():
 
     from agent_runtime.persona_instance_sync.projection import _wire_value
 
-    issued = datetime(2026, 8, 31, 12, 0, 0, tzinfo=timezone.utc)
+    issued = datetime(2026, 8, 31, 12, 0, 0, tzinfo=UTC)
     assert _wire_value(issued) == "2026-08-31T12:00:00.000000Z"
     assert _wire_value(("a", 1, None, True, 2.5)) == ["a", 1, None, True, 2.5]
     nested = _wire_value({"b": [issued], "a": {"d": 1, "c": (2,)}})

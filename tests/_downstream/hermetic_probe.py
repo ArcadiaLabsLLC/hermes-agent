@@ -30,6 +30,7 @@ def test_a_child_spawned_with_the_session_env():
     child = subprocess.run(
         [sys.executable, "-c", _CHILD], env=_SESSION_ENV, cwd=_REPO,
         capture_output=True, text=True, timeout=25,
+        check=False,
     )
     assert child.returncode == 0, child.stderr
     Path(_OUT).write_text(child.stdout.strip(), encoding="utf-8")

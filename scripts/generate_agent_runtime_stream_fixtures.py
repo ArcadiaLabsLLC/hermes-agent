@@ -70,7 +70,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 FIXTURE_ROOT = REPO_ROOT / "tests" / "fixtures" / "stream_frames"
 
-from scripts.stream_fixture_turn_frame import build_persona_chat_turn_frame  # noqa: E402
+from scripts.stream_fixture_turn_frame import build_persona_chat_turn_frame
+from datetime import UTC
 FIXED_TIME = "2026-07-16T12:00:00.000000Z"
 #: The frames :func:`main` builds and writes. Regenerating these reproduces the
 #: committed bytes on any machine (see the module docstring).
@@ -1068,7 +1069,7 @@ def _write_goldens() -> int:
         core = hydrate["core"]
         log = EventLog()
         first = Event(
-            ts=datetime(2026, 7, 16, 12, 0, 0, tzinfo=timezone.utc),
+            ts=datetime(2026, 7, 16, 12, 0, 0, tzinfo=UTC),
             type="state.reconciled",
             task_id="task_shape",
             run_id=None,

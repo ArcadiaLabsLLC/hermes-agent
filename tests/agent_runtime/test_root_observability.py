@@ -140,7 +140,7 @@ def test_active_profile_name_fallback_uses_the_canonical_marker_reader(
     ``Path.home()/.hermes/active_profile`` — the spelling that made
     ``agents --json``'s source_profile lie on native Windows."""
 
-    import agent_runtime.profile_context as profile_context
+    from agent_runtime import profile_context
 
     monkeypatch.delenv("HERMES_PROFILE", raising=False)
     # A HERMES_HOME that is NOT profile-shaped, so the fallback arm runs.

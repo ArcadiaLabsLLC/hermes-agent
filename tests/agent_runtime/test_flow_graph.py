@@ -362,7 +362,7 @@ def test_ingest_stores_doc_and_reports_owner(isolate_agent_runtime_root):
 
 
 def test_ingest_removed_node_strips_only_owner_edge(isolate_agent_runtime_root):
-    store, lead, dev, qa = _three_instances()
+    store, lead, _dev, qa = _three_instances()
     # A foreign parent set outside the map + a goal on qa.
     foreign = mint_free_floating("profile:foreign", store=store)
     ingest_flow_graph(

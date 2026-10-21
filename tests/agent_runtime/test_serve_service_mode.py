@@ -44,7 +44,7 @@ class _StdioPipe:
     def __init__(self) -> None:
         self._queue: queue.Queue = queue.Queue()
 
-    def __iter__(self) -> "_StdioPipe":
+    def __iter__(self) -> _StdioPipe:
         return self
 
     def __next__(self) -> str:
@@ -148,7 +148,7 @@ def _serve(**kwargs):
         if thread.is_alive():
             try:
                 _drain_over_socket(handle)
-            except Exception:  # noqa: BLE001 - teardown, never the assertion
+            except Exception:  # teardown, never the assertion
                 pass
         handle.pipe.close()
         thread.join(WAIT)
@@ -318,6 +318,7 @@ def test_the_detached_service_writes_nothing_more_to_the_starters_pipe():
                 "pid": handle.ready["pid"],
                 "boot_id": handle.ready["boot_id"],
                 "starter_pid": os.getppid(),
+                "namespace": "",  # RT-NAMESPACE-STAMP: every service-log line names its store; "" is the base root
             }
 
             # Work that WOULD have produced stdio frames on an attached serve.
@@ -481,7 +482,7 @@ def test_every_greeting_frame_and_the_registry_row_state_the_service_fields(serv
         # The contract integer is untouched: this is an added key.
         assert ready["ops"]["contract"] == serve_module.OPS_CONTRACT_VERSION
 
-        row = [r for r in _instances() if r.get("boot_id") == ready["boot_id"]][0]
+        row = next(r for r in _instances() if r.get("boot_id") == ready["boot_id"])
         assert row["service"] is service
         assert row["starter_pid"] == os.getppid()
 

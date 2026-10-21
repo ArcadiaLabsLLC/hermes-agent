@@ -91,14 +91,14 @@ def test_each_absent_name_carries_the_rule_that_moved_it(harness_lane):
     reasons = {name: row["reason"] for part in (receipt, receipt["mcp"])
                for state in ("eager", "deferred") for name, row in part[state].items()}
     assert reasons["todo_list"] == "curated_default_defer"
-    assert reasons["browser_vault_list"] == "persona_defer"
-    assert receipt["deferred"]["browser_vault_list"]["restorable_via"].endswith("chat_lane_defer_tools")
+    assert reasons["memory"] == "persona_defer"
+    assert receipt["deferred"]["memory"]["restorable_via"].endswith("chat_lane_defer_tools")
     assert reasons["agent_chat_open"] == "non_core_rule_defer", "R3: the fork's harness tools defer by upstream's rule"
     assert reasons[CAPTURE] == "mcp_defer"
     assert OPEN_APP_TAB in receipt["mcp"]["eager"] and reasons[OPEN_APP_TAB] == "promoted_eager"
     # Positive control: off the persona's list, the core tool is eager — the list moved it.
-    control = _surface(defer=tuple(n for n in NEKO_DEFER if n != "browser_vault_list"))
-    assert control["eager"]["browser_vault_list"] == {"reason": None}
+    control = _surface(defer=tuple(n for n in NEKO_DEFER if n != "memory"))
+    assert control["eager"]["memory"] == {"reason": None}
 
 
 def test_the_cost_layer_never_adds_a_name(harness_lane):
@@ -167,7 +167,7 @@ def test_tool_search_off_is_a_reason_not_a_silence(harness_lane):
     assert receipt["tool_search"] == "off"
     assert receipt["deferred"] == {} and receipt["mcp"]["deferred"] == {} and receipt["bridge"] == []
     eager = {**receipt["eager"], **receipt["mcp"]["eager"]}
-    for name in ("todo_list", "browser_vault_list", "agent_chat_open", CAPTURE):
+    for name in ("todo_list", "browser_vault", "agent_chat_open", CAPTURE):
         assert eager[name] == {"reason": "tool_search_off"}, name
     # Positive control: a tool no rule would defer is eager with no reason, off or not.
     assert receipt["eager"]["terminal"] == {"reason": None}

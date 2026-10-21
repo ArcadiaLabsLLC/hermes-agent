@@ -25,13 +25,15 @@ def run_refusing_verb(
     refusals: tuple[type[BaseException], ...],
     plain: tuple[type[BaseException], ...] = (),
     code: str = "invalid_payload",
+    stamp: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
 ) -> int:
     """Run ``action`` and print its ``kind`` envelope; exit 0.
 
     A ``refusals`` exception carries ``reason`` and ``detail`` and is rendered as
     ``"<reason>: <detail>"``; a ``plain`` one (an input-shape ``ValueError``, say)
     as its own text. Both exit with ``code``'s family. Any other exception is not
-    this runner's to translate and propagates.
+    this runner's to translate and propagates. ``stamp``, when given, finishes
+    the success envelope before it prints (a caller's ``attach_root_observability``).
     """
 
     try:
@@ -40,5 +42,6 @@ def run_refusing_verb(
         return emit_harness_error(exc, args=args, code=code, message=f"{exc.reason}: {exc.detail}")
     except plain as exc:
         return emit_harness_error(exc, args=args, code=code, message=str(exc))
-    _print_stage42(_object_envelope(kind, payload), args=args, default_output="json")
+    envelope = _object_envelope(kind, payload)
+    _print_stage42(stamp(envelope) if stamp else envelope, args=args, default_output="json")
     return 0

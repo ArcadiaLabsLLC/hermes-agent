@@ -274,7 +274,7 @@ def test_a_drain_whose_monitor_never_runs_is_ended_by_the_deadline_watchdog(monk
 
 @pytest.fixture
 def delivery_starts(monkeypatch):
-    import agent_runtime.dispatch_delivery as dispatch_delivery
+    from agent_runtime import dispatch_delivery
 
     calls: list[int] = []
     monkeypatch.setattr(

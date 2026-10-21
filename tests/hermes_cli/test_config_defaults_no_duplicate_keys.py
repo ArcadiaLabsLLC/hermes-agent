@@ -28,7 +28,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import hermes_cli.config_defaults as config_defaults
+from hermes_cli import config_defaults
 
 
 def _duplicate_keys(node: ast.Dict) -> list[str]:

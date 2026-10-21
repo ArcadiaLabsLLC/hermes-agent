@@ -64,11 +64,11 @@ def repo(tmp_path):
 _DEPS = dict(paths={T, "data/fix.txt"}, dirs={"listed"}, mods={"conftest.py", "pkg/__init__.py", "pkg/mod.py"})
 
 
-def _keyer(root: Path, store: "cache.GateStore", env=None, args=()) -> "cache.Keyer":
+def _keyer(root: Path, store: cache.GateStore, env=None, args=()) -> cache.Keyer:
     snap = cache.TreeSnapshot.take(root, bundled.scope._scope_git)
     fixed = cache.FixedInputs.collect(snap, list(args), env or {}, interp=["interp\tpinned"])
     deps = store.load_deps()
-    return cache.Keyer(snap, fixed, store.load_modsets({d for e in deps.values() for d in e.mods}))
+    return cache.Keyer(snap, fixed, store.load_modsets({d for e in deps.values() for d in e.digests}))
 
 
 def _green(root: Path, store, deps=None, env=None, *, gen=0) -> None:
@@ -119,6 +119,23 @@ def test_a_file_added_to_a_listed_directory_misses_and_an_unrelated_edit_does_no
     assert _reason(repo, store) == "changed"
 
 
+def test_an_import_listed_directory_keys_only_the_entries_a_tried_module_name_matches(repo, store):
+    """land/q2: one new file in scripts/ missed every green, because every record had
+    the import system's listing of scripts/ keyed whole. An import listing keys only
+    the entries whose stem is a name the process tried to import."""
+
+    deps = cache.FileDeps(**{k: set(v) for k, v in _DEPS.items()}, idirs={"pkg"},
+                          name_sets=[{"mod", "never_found", "pkg"}])
+    _green(repo, store, deps)
+    assert _reason(repo, store) == "hit"
+    _write(repo, "pkg/brand_new.py", "NEW = 1\n")  # no import asked for it
+    _commit(repo)
+    assert _reason(repo, store) == "hit", "a file no import names must not move the key"
+    _write(repo, "pkg/never_found.py", "NOW = 1\n")  # a name the process tried and did not find
+    _commit(repo)
+    assert _reason(repo, store) == "changed"
+
+
 def test_a_file_that_spawned_a_process_depends_on_every_tracked_file_but_docs_and_the_brain(repo, store):
     deps = cache.FileDeps(**{k: set(v) for k, v in _DEPS.items()}, spawn_other=1)
     _green(repo, store, deps)
@@ -141,8 +158,9 @@ def test_a_dirty_edit_misses_and_committing_it_unchanged_keeps_the_key(repo, sto
     assert _reason(repo, store) == "changed"
 
 
-@pytest.mark.parametrize("rel", ["uv.lock", "scripts/run_tests_bundled.py"])
+@pytest.mark.parametrize("rel", ["uv.lock", "scripts/run_tests_parallel.py", "scripts/_bundle_plugin/hermes_dep_record.py"])
 def test_the_interpreter_lock_and_the_runners_own_files_change_every_key(repo, store, rel):
+    """What builds a test process; the bundled runner's scheduling is not (r-fastgate, 2026-10-16)."""
     _green(repo, store)
     _write(repo, rel, "changed\n")
     _commit(repo)
@@ -237,7 +255,7 @@ def test_the_audit_samples_at_least_25_hits_and_its_seed_reproduces_the_sample()
     assert cache.audit_sample(hits[:10], 1) == hits[:10], "fewer hits than the minimum: every hit runs"
 
 
-def _gate_with_hits(repo: Path, store, tmp_path: Path, n: int) -> "gate_mod.GateRun":
+def _gate_with_hits(repo: Path, store, tmp_path: Path, n: int) -> gate_mod.GateRun:
     gate = gate_mod.GateRun(repo, store, tmp_path / "deps")
     gate.keyer = _keyer(repo, store)
     paths = [repo / f"tests/test_{i:03d}.py" for i in range(n)]
@@ -299,7 +317,7 @@ def test_a_sampled_hit_red_then_green_alone_is_flaky_not_a_defect_and_loses_its_
 # ── stage 4: the never-cache classes and the max age ────────────────────────
 
 
-def _writing_gate(repo: Path, store, tmp_path: Path) -> "gate_mod.GateRun":
+def _writing_gate(repo: Path, store, tmp_path: Path) -> gate_mod.GateRun:
     gate = gate_mod.GateRun(repo, store, tmp_path / "deps")
     gate.keyer = _keyer(repo, store)
     gate.collector.files[T] = cache.FileDeps(**{k: set(v) for k, v in _DEPS.items()})

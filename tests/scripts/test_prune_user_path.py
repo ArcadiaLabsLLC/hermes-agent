@@ -62,6 +62,7 @@ def test_the_pruner_drops_temp_homes_and_missing_dirs_and_keeps_the_rest(tmp_pat
         [powershell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
          "-File", str(probe), "-Pruner", str(PRUNER)],
         capture_output=True, text=True, timeout=60,
+        check=False,
     )
     assert run.returncode == 0, run.stdout + run.stderr
     out = json.loads(run.stdout.strip().splitlines()[-1])

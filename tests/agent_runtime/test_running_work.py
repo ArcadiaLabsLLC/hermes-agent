@@ -13,7 +13,7 @@ import json
 import os
 import time
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 from pathlib import Path
 
 import pytest
@@ -208,6 +208,7 @@ def test_with_no_explicit_head_both_sides_fall_back_to_the_ambient_home(
     assert running_work_store_paths() == (
         ambient / "processes.json",
         ambient / "mcp_jobs.json",
+        ambient / "tool_calls.json",
         ambient / "builds",
         ambient / "state.db",
     )
@@ -344,7 +345,7 @@ def _probe_frames(tmp_path, *, preimport: bool) -> list[dict]:
     if preimport:
         argv.append("--preimport")
     result = subprocess.run(
-        argv, cwd=root, env=env, capture_output=True, text=True, timeout=600
+        argv, cwd=root, env=env, capture_output=True, text=True, timeout=600, check=False
     )
     assert result.returncode == 0, result.stderr[-4000:]
     payload = [line for line in result.stdout.splitlines() if line.startswith("@@")]
@@ -457,7 +458,7 @@ def test_a_failed_live_enrichment_is_a_typed_field_not_prose(home, monkeypatch):
     """
 
     class _BrokenRegistry:
-        class process_registry:  # noqa: N801 - mirrors the real module attribute
+        class process_registry:  # mirrors the real module attribute
             @staticmethod
             def list_sessions():
                 raise TypeError("registry exploded")
@@ -901,6 +902,7 @@ def _cold_build_subprocess(cold_home):
         text=True,
         timeout=25,
         cwd=str(repo_root),
+        check=False,
     )
 
 
@@ -1137,7 +1139,7 @@ def test_a_chat_turn_ages_from_its_journal_stamp(home, monkeypatch):
     stamp from a dropped one.
     """
 
-    started = (datetime.now(timezone.utc) - timedelta(seconds=90)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    started = (datetime.now(UTC) - timedelta(seconds=90)).strftime("%Y-%m-%dT%H:%M:%SZ")
     monkeypatch.setattr(
         "agent_runtime.mission_chat_turns.reads.inflight_turn_rows",
         lambda: [{"turn_id": "turn-aged", "state": "executing", "started_at": started}],
@@ -1434,7 +1436,7 @@ def test_every_started_at_on_the_wire_carries_a_utc_offset(home, monkeypatch):
     assert parsed.tzinfo is not None
     assert parsed.utcoffset() == timedelta(0)
     # ...and it is the SAME instant the registry meant, not a relabelled one.
-    assert parsed == datetime(2026, 8, 3, 10, 0, 0).astimezone(timezone.utc)
+    assert parsed == datetime(2026, 8, 3, 10, 0, 0).astimezone(UTC)
 
 
 @pytest.mark.parametrize(
@@ -1471,6 +1473,7 @@ def test_store_paths_are_the_single_authority_the_serve_cache_fingerprints(home)
     assert running_work_store_paths() == (
         home / "processes.json",
         home / "mcp_jobs.json",
+        home / "tool_calls.json",
         home / "builds",
         home / "state.db",
     )
@@ -2104,7 +2107,7 @@ def test_cancelling_a_dispatch_nobody_here_supervises_goes_through_the_row(dispa
     """Recorded is not supervised: no process here holds its child, so the cancel
     is a durable request (D1.07, owner ruling a) — never a kill from here. A row
     that never started is settled by it; a started one answers ``cancel_requested``."""
-    import tools.agent_chat_dispatch  # noqa: F401 - the lane must be resident for the seam to answer
+    import tools.agent_chat_dispatch  # the lane must be resident for the seam to answer
     from agent_runtime.dispatch_store import get_dispatch, set_dispatch_owner
 
     queued = _record_dispatch()
@@ -2345,7 +2348,7 @@ def test_a_terminal_build_is_reclassified_in_place_and_counted_once(home):
 
 
 def test_an_announced_build_folds_its_mcp_job_row(home):
-    from agent_runtime.builds.registry import new_record, write_record
+    from tests.agent_runtime._build_rows_fixture import new_record, write_record
 
     started = _self_start_time()
     now = time.time()
@@ -2367,3 +2370,28 @@ def test_the_build_source_reports_three_sub_healths_and_the_detect_cost(home):
     source = build_running_work()["sources"]["build"]
     assert source["status"] == "ok" and set(source["sub"]) == {"agent", "announced", "detected"}
     assert {"scan_ms", "processes_examined", "candidates", "budget_ms"} <= set(source["sub"]["detected"])
+
+
+def test_background_work_homes_walks_head_and_every_profile(tmp_path, monkeypatch):
+    """The long-call boot sweep's one authority (RT-LONG-CALL-WAKE-LOST-ON-RESTART): the head home
+    first, then every profile home, each once; a profile that cannot resolve is skipped."""
+
+    from hermes_cli import profiles
+
+    from agent_runtime.running_work import background_work_homes
+
+    root = tmp_path / "root"
+    root.mkdir()
+    monkeypatch.setenv("HERMES_HOME", str(root))
+    monkeypatch.delenv("HERMES_HEAD_HOME", raising=False)
+    dirs = {"default": root, "alice": root / "profiles" / "alice", "bob": root / "profiles" / "bob"}
+
+    def profile_dir(name):
+        if name not in dirs:
+            raise ValueError(name)
+        return dirs[name]
+
+    monkeypatch.setattr(profiles, "list_profile_names", lambda: ["default", "alice", "broken", "bob"])
+    monkeypatch.setattr(profiles, "get_profile_dir", profile_dir)
+
+    assert background_work_homes() == [root, dirs["alice"], dirs["bob"]]

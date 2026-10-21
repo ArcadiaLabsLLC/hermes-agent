@@ -30,7 +30,6 @@ from agent_runtime.mcp_lane import (
     current_entry_point_lane,
     lane_registers_mcp,
     mcp_lane_requirement_failures,
-    set_entry_point_lane,
 )
 from tests.agent_runtime.persona_samples import sample_personas
 from agent_runtime.tool_visibility import ToolVisibilityOptions, resolve_tool_visibility
@@ -55,11 +54,9 @@ def _mcp_failures(visibility: dict) -> list[dict]:
 
 
 @pytest.fixture(autouse=True)
-def _clear_lane_pin():
-    # The lane pin is process-wide; never let one test's pin leak into the next.
-    set_entry_point_lane(None)
-    yield
-    set_entry_point_lane(None)
+def _clear_lane_label(monkeypatch):
+    # An inherited lane label would answer before argv inference does.
+    monkeypatch.delenv("HERMES_ENTRY_POINT_LANE", raising=False)
 
 
 # ── resolver behavior ───────────────────────────────────────────────────────
@@ -196,10 +193,10 @@ def test_lane_inference_refuses_to_guess():
     assert _lane_from_argv([]) == UNKNOWN_LANE
 
 
-def test_pinned_lane_wins_over_inference():
-    set_entry_point_lane(HARNESS_LANE)
+def test_the_env_label_wins_over_inference(monkeypatch):
+    monkeypatch.setenv("HERMES_ENTRY_POINT_LANE", HARNESS_LANE)
     assert current_entry_point_lane(["hermes", "chat"]) == HARNESS_LANE
-    set_entry_point_lane(None)
+    monkeypatch.delenv("HERMES_ENTRY_POINT_LANE")
     assert current_entry_point_lane(["hermes", "chat"]) == "chat"
 
 
@@ -348,8 +345,8 @@ def _upstream_lane_gate() -> tuple[set, dict]:
     """
 
     source = (_REPO_ROOT / "hermes_cli" / "main.py").read_text(encoding="utf-8")
-    commands = re.search(r"^_AGENT_COMMANDS = (\{.*?\})$", source, re.M)
-    subcommands = re.search(r"^_AGENT_SUBCOMMANDS = (\{.*?^\})$", source, re.M | re.S)
+    commands = re.search(r"^_AGENT_COMMANDS = (\{.*?\})$", source, re.MULTILINE)
+    subcommands = re.search(r"^_AGENT_SUBCOMMANDS = (\{.*?^\})$", source, re.MULTILINE | re.DOTALL)
     assert commands and subcommands, (
         "hermes_cli/main.py no longer spells the MCP-registration gate as "
         "_AGENT_COMMANDS/_AGENT_SUBCOMMANDS; re-derive agent_runtime.mcp_lane."

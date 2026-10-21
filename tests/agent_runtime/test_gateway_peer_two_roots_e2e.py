@@ -56,11 +56,13 @@ from pathlib import Path
 
 import pytest
 
-from tests.agent_runtime._serve_fixtures import (  # noqa: F401 — two_installs is a fixture
+from tests.agent_runtime._serve_fixtures import (  # two_installs is a fixture
     _Install,
     boot_together,
+    stop_together,
     two_installs,
 )
+from datetime import UTC
 
 #: Suite-speed Stage 4A's class mark: this file boots real serve/gateway CHILD
 #: processes. It selects nothing and skips nothing; it lets the runner's tail
@@ -336,7 +338,7 @@ def test_a_join_walks_past_an_unroutable_first_candidate_and_lands_on_the_second
     assert joined["endpoints"] == [{"host": "127.0.0.1", "port": a.gateway_port}]
 
 
-def _cache_row(install: "_Install", peer_install_id: str) -> dict:
+def _cache_row(install: _Install, peer_install_id: str) -> dict:
     """One row of an install's ``peers_cache.json``, read off its own disk."""
 
     path = install.root / "gateway" / "peers_cache.json"
@@ -458,7 +460,7 @@ _PERSONA_CONFIG = b"""agent_runtime:
 """
 
 
-def _seed_persona(install: "_Install") -> None:
+def _seed_persona(install: _Install) -> None:
     """Give one install an addressable agent, the way its own config would."""
 
     config = install.base / "home" / "config.yaml"
@@ -605,7 +607,7 @@ def test_introduce_on_b_join_on_a_and_the_device_half_redeems(two_installs):
     # ~30 days out, as a window rather than an equality.
     from datetime import datetime, timezone
 
-    lifetime = datetime.fromisoformat(a_row["expires_at"]) - datetime.now(timezone.utc)
+    lifetime = datetime.fromisoformat(a_row["expires_at"]) - datetime.now(UTC)
     assert 29 * 86400 < lifetime.total_seconds() <= 30 * 86400
 
     # ── the device half redeems against B, as a phone would ─────────────────
@@ -651,9 +653,7 @@ def test_introduce_on_b_join_on_a_and_the_device_half_redeems(two_installs):
 
 @_REAL_CHILD_SPAWN
 @pytest.mark.timeout(E2E_TEST_TIMEOUT_SECONDS)
-def test_a_peer_code_scoped_to_one_install_is_refused_to_any_other_on_the_wire(
-    two_installs, tmp_path
-):
+def test_a_peer_code_scoped_to_one_install_is_refused_to_any_other_on_the_wire(tmp_path):
     """R-S2-4's scoping, proved where it matters: over a real handshake.
 
     B mints for A. A THIRD install spends the code — and is refused with the
@@ -662,9 +662,9 @@ def test_a_peer_code_scoped_to_one_install_is_refused_to_any_other_on_the_wire(
     still redeem it, because A's operator did nothing wrong.
     """
 
-    a, b = two_installs
-    c = _Install("C", tmp_path / "c")
-    c.start()
+    # Three installs, booted side by side (the third used to boot after the pair).
+    a, b, c = (_Install(name, tmp_path / name.lower()) for name in "ABC")
+    boot_together([a, b, c])
     try:
         code, envelope, output = b.cli(
             "gateway", "introduce", "--for-install", a.ready["install"]["install_id"]
@@ -687,7 +687,7 @@ def test_a_peer_code_scoped_to_one_install_is_refused_to_any_other_on_the_wire(
         assert code == 0, output
         assert joined["peer_install_id"] == b.ready["install"]["install_id"]
     finally:
-        c.stop()
+        stop_together([a, b, c])
 
 
 @_REAL_CHILD_SPAWN
@@ -791,8 +791,7 @@ def test_the_roster_and_one_far_thread_cross_the_wire_on_real_serves(tmp_path):
             "unreachable",
         }
     finally:
-        a.stop()
-        b.stop()
+        stop_together([a, b])
 
 
 @_REAL_CHILD_SPAWN

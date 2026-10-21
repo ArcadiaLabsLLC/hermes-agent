@@ -19,12 +19,11 @@ from typing import Any
 from agent_runtime.call_authorization import TIER_CONSOLE
 from agent_runtime.serve_rpc.params import _text_param
 from agent_runtime.serve_rpc.protocol import (
-    DEFERRED,
     ERR_CONFLICT,
     ERR_HANDLER_FAILED,
     ERR_INVALID_PARAMS,
     RpcContext,
-    deferred_reply,
+    defer_or_inline,
     err,
     ok,
 )
@@ -68,7 +67,7 @@ def _default_model_answer(rid: Any, provider: str | None, model: str | None, req
             refusal.message or f"{METHOD_NAME} refused: {refusal.reason}",
             {"reason": refusal.reason, **refusal.data},
         )
-    except Exception as exc:  # noqa: BLE001 — class name only, never the message
+    except Exception as exc:  # class name only, never the message
         return err(
             rid,
             ERR_HANDLER_FAILED,
@@ -88,8 +87,4 @@ def _runtime_default_model_set(rid: Any, params: dict, context: RpcContext | Non
         return err(rid, ERR_INVALID_PARAMS, f"{METHOD_NAME} refused: provider_required", {"reason": "provider_required"})
     if model is None:
         return err(rid, ERR_INVALID_PARAMS, f"{METHOD_NAME} refused: model_required", {"reason": "model_required"})
-    build = lambda: _default_model_answer(rid, provider, model, requested_by)  # noqa: E731
-    spawn = None if context is None else context.spawn_reply
-    if spawn is not None and spawn(deferred_reply(rid, METHOD_NAME, build)):
-        return DEFERRED
-    return build()
+    return defer_or_inline(rid, METHOD_NAME, context, lambda: _default_model_answer(rid, provider, model, requested_by))

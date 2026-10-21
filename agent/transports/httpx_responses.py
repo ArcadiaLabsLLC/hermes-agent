@@ -26,7 +26,7 @@ __all__ = ["ResponsesResource"]
 class ResponsesResource:
     """``openai.OpenAI().responses``: ``create(**kwargs)`` -> ``Response`` or a stream of events."""
 
-    def __init__(self, client: "SdkFreeClient") -> None:
+    def __init__(self, client: SdkFreeClient) -> None:
         self._client = client
 
     def create(self, *, stream: bool = False, **kwargs: Any) -> Any:

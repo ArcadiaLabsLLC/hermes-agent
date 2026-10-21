@@ -66,13 +66,13 @@ _MAX_ROOTS = 32
 _lock = threading.Lock()
 _entries: dict[tuple[str, str], tuple[int, dict[str, Any]]] = {}
 #: key -> every claim of that root still in flight (h-section-dup: one per floor, not one per root)
-_inflight: dict[tuple[str, str], list["_Claim"]] = {}
+_inflight: dict[tuple[str, str], list[_Claim]] = {}
 
 
 class _Claim:
     """One claimed read: its position (``None`` while still standing aside) and its done event."""
 
-    __slots__ = ("key", "position", "done")
+    __slots__ = ("done", "key", "position")
 
     def __init__(self, key: tuple[str, str], position: int | None) -> None:
         self.key = key
@@ -86,7 +86,7 @@ class _Claim:
         return self.position is None or (floor is not None and self.position >= int(floor))
 
 
-def _covering(key: tuple[str, str], floor: int | None) -> "_Claim | None":
+def _covering(key: tuple[str, str], floor: int | None) -> _Claim | None:
     return next((claim for claim in _inflight.get(key, ()) if claim.covers(floor)), None)
 
 

@@ -54,7 +54,7 @@ import pytest
 
 from agent_runtime import mcp_admission as admission_module
 
-from tests.agent_runtime.test_mcp_admission_r2 import (  # noqa: F401 - fixtures
+from tests.agent_runtime.test_mcp_admission_r2 import (  # fixtures
     _FakeMcpTool,
     _LAUNCHER_QA_FULL_SURFACE,
     _registered_launcher_qa_tools,
@@ -152,7 +152,7 @@ def test_a_parked_server_is_woken_and_its_tools_are_registered(
     MCP tools while the reconnect it had just asked for was already landing.
     """
 
-    import tools.mcp_tool as mcp_tool
+    from tools import mcp_tool
     from agent_runtime.mcp_admission import _default_registrar
 
     parked = _ParkedServer("launcher_qa", _LAUNCHER_QA_FULL_SURFACE)
@@ -175,7 +175,7 @@ def test_the_wake_waits_for_a_reconnect_that_lands_late(monkeypatch, clean_regis
     exactly.
     """
 
-    import tools.mcp_tool as mcp_tool
+    from tools import mcp_tool
     from agent_runtime.mcp_admission import _default_registrar
 
     parked = _ParkedServer(
@@ -206,7 +206,7 @@ def test_a_server_that_will_not_wake_is_bounded_and_registers_nothing(
     not the budget this test exists to hold and made a whole-call wall flaky.
     """
 
-    import tools.mcp_tool as mcp_tool
+    from tools import mcp_tool
     from agent_runtime.mcp_admission import _default_registrar
     from agent_runtime.mcp_admission import transport
 
@@ -243,7 +243,7 @@ def test_a_live_server_is_not_nudged(monkeypatch, clean_registry):
     The 3-turn of the cycle must keep costing what it costs today.
     """
 
-    import tools.mcp_tool as mcp_tool
+    from tools import mcp_tool
     from agent_runtime.mcp_admission import _default_registrar
 
     warm = _ParkedServer("launcher_qa", _LAUNCHER_QA_FULL_SURFACE)

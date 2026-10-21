@@ -17,7 +17,7 @@ from enum import Enum
 __layer__ = "lanes"
 
 #: identity -> the live in-process worker holding it (dropped when it is collected).
-_IN_PROCESS: "weakref.WeakValueDictionary[tuple[int, float], object]" = weakref.WeakValueDictionary()
+_IN_PROCESS: weakref.WeakValueDictionary[tuple[int, float], object] = weakref.WeakValueDictionary()
 _GENERATION_LOCK = threading.Lock()
 _last_generation = 0.0
 
@@ -81,10 +81,13 @@ def observe_process_tree(root: tuple[int, float]) -> ProcessTreeEvidence:
     The spawn root remains the containment authority; child identity does not
     replace it. A partial enumeration cannot claim an aggregate RSS.
     """
-    import psutil
-
     def empty(status):
         return ProcessTreeEvidence(root, (), None, status)
+
+    try:
+        import psutil
+    except ImportError:  # the phone profile omits psutil: the tree cannot be read
+        return empty(TreeStatus.UNAVAILABLE)
 
     try:
         owner = psutil.Process(root[0])
@@ -130,7 +133,10 @@ def observe_process_tree(root: tuple[int, float]) -> ProcessTreeEvidence:
 
 def worker_ready_frame() -> dict:
     """The executing interpreter reports its own existing PID/create-time identity."""
-    import psutil
+    try:
+        import psutil
+    except ImportError as exc:  # only a worker child sends this frame; the phone runs none in a process
+        raise RuntimeError("worker_ready_frame needs psutil for the worker's create time") from exc
 
     return {"jsonrpc": "2.0", "method": WORKER_READY_METHOD,
             "params": {"worker_pid": os.getpid(), "worker_created": psutil.Process().create_time()}}

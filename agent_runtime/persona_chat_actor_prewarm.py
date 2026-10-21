@@ -267,7 +267,7 @@ class _ConstructionSpan:
 
     __slots__ = ("_started",)
 
-    def __enter__(self) -> "_ConstructionSpan":
+    def __enter__(self) -> _ConstructionSpan:
         global _constructed_any
         self._started = time.monotonic()
         with _span_lock:
@@ -636,7 +636,7 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
         profile=binding.hermes_profile,
         provider=runtime_provider,
         model=runtime_model,
-        api_mode=getattr(persona, "api_mode", None),
+        api_mode=model_selection.get("effective_api_mode"),
         reasoning_effort=(model_selection.get("chat_reasoning_effort")
                           or getattr(instance, "reasoning_effort", None)),
         terminal_envelope_scope=envelope_scope,
@@ -767,7 +767,7 @@ PRIORITY_BOOT = 1
 
 #: ``(priority, sequence, root)``; FIFO within a priority. An entry whose
 #: priority no longer matches ``_pending[root]`` was superseded by a promotion.
-_queue: "queue.PriorityQueue[tuple[int, int, str]]" = queue.PriorityQueue()
+_queue: queue.PriorityQueue[tuple[int, int, str]] = queue.PriorityQueue()
 _lock = threading.Lock()
 #: root -> the priority it is queued at (or running at, until the worker ends it).
 _pending: dict[str, int] = {}

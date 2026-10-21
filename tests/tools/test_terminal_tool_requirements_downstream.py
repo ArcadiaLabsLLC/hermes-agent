@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.tools.test_terminal_tool_requirements import (  # noqa: F401 — upstream autouse fixture
+from tests.tools.test_terminal_tool_requirements import (  # upstream autouse fixture
     _clear_caches,
 )
 

@@ -52,11 +52,6 @@
   },
   {
    "depth": 4,
-   "lines": 182,
-   "unit": "agent_runtime/profile_context.py|persona_profile_context"
-  },
-  {
-   "depth": 4,
    "lines": 166,
    "unit": "agent_runtime/profile_readiness.py|profile_readiness_for_persona"
   },
@@ -84,11 +79,6 @@
    "depth": 2,
    "lines": 173,
    "unit": "agent_runtime/skill_promotion.py|execute_promotion"
-  },
-  {
-   "depth": 2,
-   "lines": 181,
-   "unit": "hermes_cli/harness_parts/office.py|_cmd_office_actor_upsert"
   },
   {
    "depth": 4,

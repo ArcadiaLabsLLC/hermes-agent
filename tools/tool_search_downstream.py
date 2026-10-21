@@ -56,7 +56,7 @@ def parse_never_defer(never_defer_raw) -> tuple[str, ...]:
     return tuple(sorted(never_defer_names))
 
 
-def attach_hit_parameters(record: Dict[str, Any], index: int, params) -> None:
+def attach_hit_parameters(record: dict[str, Any], index: int, params) -> None:
     """Inline a top hit's ``parameters`` so the model can call it without a describe round."""
     if index >= _SEARCH_HIT_SCHEMA_TOP_N:
         return
@@ -178,7 +178,7 @@ def _registered_spelling(name: str, registered: frozenset) -> Optional[str]:
     return hits[0] if len(hits) == 1 else None
 
 
-def unmatched_never_defer(registry=None, config=None) -> Tuple[UnmatchedNeverDefer, ...]:
+def unmatched_never_defer(registry=None, config=None) -> tuple[UnmatchedNeverDefer, ...]:
     """Every never-defer name that matches no registered tool, after registration.
 
     A hardcoded MCP promotion is checked only once its server registered SOMETHING in this
@@ -194,7 +194,7 @@ def unmatched_never_defer(registry=None, config=None) -> Tuple[UnmatchedNeverDef
 
         config = load_config_readonly()
     registered = frozenset(registry.get_all_tool_names())
-    found: List[UnmatchedNeverDefer] = []
+    found: list[UnmatchedNeverDefer] = []
     for server, promoted in sorted(_MCP_NEVER_DEFER.items()):
         if registry.get_tool_names_for_toolset(f"mcp-{server}"):
             found += [UnmatchedNeverDefer(n, "hardcoded", _registered_spelling(n, registered))
@@ -207,7 +207,7 @@ def unmatched_never_defer(registry=None, config=None) -> Tuple[UnmatchedNeverDef
 _unmatched_warned: set = set()
 
 
-def warn_unmatched_never_defer(registry=None, config=None) -> Tuple[UnmatchedNeverDefer, ...]:
+def warn_unmatched_never_defer(registry=None, config=None) -> tuple[UnmatchedNeverDefer, ...]:
     """Log each :class:`UnmatchedNeverDefer` once per process at WARNING; returns all of them.
     Runs on every tool-definitions recomputation, i.e. after each MCP registration change."""
     found = unmatched_never_defer(registry, config)
@@ -236,8 +236,8 @@ DIRECT_CALL_RULE = (
 # Upstream's bridge refuses a ``tool_call`` that names a directly-listed tool and tells
 # the model to call it by name. On the chat lane that correction costs a full provider
 # round trip (a ~50K-token request, 4–16 s) for a call whose intent was unambiguous;
-# Amelia turn ``agent-chat-send-db7a2d34`` (2026-10-08) paid it for
-# ``launcher_generated_list`` while the same name sat in its eager list. Both vendors'
+# Amelia turn ``agent-chat-send-db7a2d34`` (2026-10-08) paid it for the Launcher's
+# generated-content list tool while the same name sat in its eager list. Both vendors'
 # native discovery dispatch a discovered tool by name through one door, so the fork
 # admits an in-scope eager name through the bridge and keeps upstream's correction for
 # the one case it is right about: an UNKNOWN name. Scope is the union the executor and
@@ -370,7 +370,7 @@ def mark_direct_hits(upstream):
     return dispatch_tool_search
 
 
-def tool_describe_schema() -> Dict[str, Any]:
+def tool_describe_schema() -> dict[str, Any]:
     """Return the fixed, always-available ``tool_describe`` schema.
 
     Injected into every resolved lane by ``model_tools`` independent of
@@ -408,7 +408,7 @@ def tool_describe_schema() -> Dict[str, Any]:
     }
 
 
-def ensure_tool_describe_present(tool_defs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def ensure_tool_describe_present(tool_defs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Ensure ``tool_describe`` is in the model-facing tool list.
 
     No-op when it is already present (e.g. tool-search deferral already injected

@@ -2098,6 +2098,7 @@
         "list",
         "migrate-home",
         "payload-contract",
+        "recolour",
         "reopen",
         "reroll-direction",
         "reroll-row",
@@ -2538,6 +2539,66 @@
         "harness",
         "characters",
         "payload-contract"
+      ],
+      "positionals": [],
+      "subcommands": []
+    },
+    "harness characters recolour": {
+      "exclusive_groups": [],
+      "options": {
+        "--draft": {
+          "action": "store",
+          "canonical": "--draft",
+          "choices": null,
+          "nargs": 1,
+          "required": true,
+          "type": null
+        },
+        "--from": {
+          "action": "store",
+          "canonical": "--from",
+          "choices": null,
+          "nargs": 1,
+          "required": true,
+          "type": null
+        },
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--to": {
+          "action": "store",
+          "canonical": "--to",
+          "choices": null,
+          "nargs": 1,
+          "required": true,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "characters",
+        "recolour"
       ],
       "positionals": [],
       "subcommands": []
@@ -5597,6 +5658,14 @@
           "required": false,
           "type": null
         },
+        "--file": {
+          "action": "append",
+          "canonical": "--file",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
         "--help": {
           "action": "help",
           "canonical": "--help",
@@ -5608,6 +5677,14 @@
         "--idempotency-key": {
           "action": "store",
           "canonical": "--idempotency-key",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--image": {
+          "action": "append",
+          "canonical": "--image",
           "choices": null,
           "nargs": 1,
           "required": false,

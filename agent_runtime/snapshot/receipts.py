@@ -248,11 +248,16 @@ def build_receipt_facts(snapshot: Any) -> dict[str, Any]:
         "build_ms": int(raw_build_ms) if isinstance(raw_build_ms, (int, float)) else None,
         "offset": int(raw_offset) if isinstance(raw_offset, (int, float)) else None,
         "sections_top": _sections_top(parity.get("sections_ms")),
+        # EVERY section, same order and format (RT-SECTIONS-TOP-PRINTS-THREE):
+        # the top three named a third of the build, and ``prompt_observability``,
+        # tied for the top slot, went unnamed by a whole programme.
+        "sections": _sections_top(parity.get("sections_ms"), limit=None),
     }
 
 
-def _sections_top(sections: Any, limit: int = 3) -> str:
-    """The ``limit`` most expensive build sections, as ``name:ms,name:ms``.
+def _sections_top(sections: Any, limit: int | None = 3) -> str:
+    """The ``limit`` most expensive build sections (``None``: all of them), as
+    ``name:ms,name:ms``.
 
     Sorted by cost descending, then by name, so consecutive boots of the same
     shape print the same string and a diff means the shape moved.
@@ -268,4 +273,4 @@ def _sections_top(sections: Any, limit: int = 3) -> str:
     if not rows:
         return "-"
     rows.sort(key=lambda row: (-row[1], row[0]))
-    return ",".join(f"{name}:{value}" for name, value in rows[:limit])
+    return ",".join(f"{name}:{value}" for name, value in (rows if limit is None else rows[:limit]))

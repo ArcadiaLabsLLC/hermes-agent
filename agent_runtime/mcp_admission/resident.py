@@ -71,7 +71,7 @@ class BudgetSlot:
     (``registration._metered_handler``).
     """
 
-    __slots__ = ("_lock", "_bindings")
+    __slots__ = ("_bindings", "_lock")
 
     def __init__(self) -> None:
         self._lock = threading.Lock()

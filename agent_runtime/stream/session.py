@@ -18,7 +18,7 @@ from ..state_patches.emit import delta_patches_enabled
 from .build import _SnapshotBuildJob, _batch_frames_with_liveness, _bounded_sleep, _build_with_liveness, _is_one_shot
 from .build_policy import _log_snapshot_build
 from .fingerprint import ScopeReading, scope_move_attribution, scope_reading
-from .frames import _append_state_reconciled, _resume_offset, batch_changes_chat_turn_presence, heartbeat_frame, hydrate_frame, running_work_frame
+from .frames import _append_state_reconciled, _resume_offset, batch_changes_running_work_presence, heartbeat_frame, hydrate_frame, running_work_frame
 from .vocabulary import DEFAULT_STREAM_CALLER, FRAME_HEARTBEAT, _DELTA_BATCH_CAP
 
 __layer__ = "lanes"
@@ -326,7 +326,19 @@ class StreamSession:
         # resumes from exactly that offset). A job without it would make every boot
         # wait for the prewarm and THEN pay a second full build.
         boot_job = _SnapshotBuildJob(caller=self.caller, accept_inflight=True, reason="hydrate")
-        for liveness in _build_with_liveness(
+        # These liveness frames are NOT counted toward ``emitted``, and this is the
+        # deliberate half of the ``max_frames`` decision. They are emitted while the
+        # FIRST content frame is still being built, so counting them would let a
+        # budget be spent before any core existed — a ``--max-frames 1`` request
+        # returning a heartbeat and no core. That is not hypothetical for the
+        # consumer: the launcher's forced-refresh lane
+        # (``mission_control_bridge.dart::_loadSnapshotFromStreamHydrate``, read
+        # 2026-08-18) scans stdout for a ``type == "hydrate"`` line and silently
+        # returns null when it finds none, so the refresh would no-op with no
+        # receipt. The budget counts CONTENT; the tail loop's own heartbeats
+        # below still count, because by then a core has been delivered and the
+        # consumer is being kept alive rather than kept waiting.
+        yield from _build_with_liveness(
             boot_job,
             # No applied core exists yet, so there is no position to advertise. See
             # ``heartbeat_frame``: liveness without a position must not be stamped 0.
@@ -336,20 +348,7 @@ class StreamSession:
             # ``_is_one_shot``. Suppressed rather than merely uncounted so the
             # frames a one-shot consumer sees stay exactly what it asked for.
             emit_liveness=not _is_one_shot(self.max_frames),
-        ):
-            # NOT counted toward ``emitted``, and this is the deliberate half of the
-            # ``max_frames`` decision. These frames are emitted while the FIRST
-            # content frame is still being built, so counting them would let a
-            # budget be spent before any core existed — a ``--max-frames 1`` request
-            # returning a heartbeat and no core. That is not hypothetical for the
-            # consumer: the launcher's forced-refresh lane
-            # (``mission_control_bridge.dart::_loadSnapshotFromStreamHydrate``, read
-            # 2026-08-18) scans stdout for a ``type == "hydrate"`` line and silently
-            # returns null when it finds none, so the refresh would no-op with no
-            # receipt. The budget counts CONTENT; the tail loop's own heartbeats
-            # below still count, because by then a core has been delivered and the
-            # consumer is being kept alive rather than kept waiting.
-            yield liveness
+        )
         if request_cancelled():
             return True
         return (yield from self.boot_hydrate(boot_job))
@@ -503,7 +502,7 @@ class StreamSession:
     def flush(self):
         """Ship the pending batch (with liveness while its core builds).
 
-        A batch that starts or ends a chat turn first ships the ``running_work`` section
+        A batch that starts or ends a chat turn or a terminal process first ships the ``running_work`` section
         on its own (:func:`running_work_frame`): the core below can take ten
         seconds or more, and presence must change without waiting for it.
         ONE per batch however many turns change, so a burst costs one
@@ -511,7 +510,7 @@ class StreamSession:
         not a delta: the budget counts cores, and this frame moves no position.
         """
 
-        if batch_changes_chat_turn_presence(self.pending):
+        if batch_changes_running_work_presence(self.pending):
             section_frame = running_work_frame(as_of_offset=self.offset)
             if section_frame is not None:
                 yield section_frame

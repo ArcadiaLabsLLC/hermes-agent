@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import ast
 import inspect
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 
 import pytest
 
@@ -46,7 +46,7 @@ def _instance(instance_id: str, **extra) -> dict:
     return row
 
 
-_NOW = datetime.now(timezone.utc)
+_NOW = datetime.now(UTC)
 
 
 PRODUCIBLE = {
@@ -146,7 +146,47 @@ def test_orphan_persona_instance_codes_are_producible(monkeypatch):
     assert "held_orphan_persona_instance" in produced
 
 
-COVERED = set(PRODUCIBLE) | {"orphaned_persona_instance", "held_orphan_persona_instance"}
+_UNPLACED_ID = "personainst_alice_agent_0001abcd"
+
+
+def _unplaced_frame(*, updated_at: datetime) -> dict:
+    """A workspace row whose only placement is ARCHIVED in its own office."""
+
+    return _runtime_on(
+        persona_instances={
+            "a": _instance(_UNPLACED_ID, workspace_id="w1", updated_at=updated_at.isoformat()),
+        },
+        offices={"w1": {"workspace_id": "w1", "actors": [], "actors_truncated": 0, "actors_unreadable": 0}},
+    )
+
+
+def _unplaced_codes(data: dict, evidence) -> set[str]:
+    return {
+        str(warning.get("code") or "")
+        for warning in _parity_warnings(data, office_evidence=evidence)
+    }
+
+
+def test_unplaced_persona_instance_codes_are_producible(monkeypatch):
+    """RT-SNAPSHOT-UNPLACED-INSTANCE: produced through the REAL classifier from
+    the build-only archived evidence; evidence that could not be read (``None``)
+    or was never supplied produces nothing."""
+
+    monkeypatch.setattr(snapshot_mod.envelope, "suspect_default_root", lambda *_a, **_k: False)
+    old = _unplaced_frame(updated_at=_NOW - timedelta(days=5))
+    assert "unplaced_persona_instance" in _unplaced_codes(old, {"w1": [_UNPLACED_ID]})
+    recent = _unplaced_frame(updated_at=_NOW)
+    assert "held_unplaced_persona_instance" in _unplaced_codes(recent, {"w1": [_UNPLACED_ID]})
+    assert "unplaced_persona_instance" not in _unplaced_codes(old, {"w1": None})
+    assert "unplaced_persona_instance" not in _codes(old)
+
+
+COVERED = set(PRODUCIBLE) | {
+    "orphaned_persona_instance",
+    "held_orphan_persona_instance",
+    "unplaced_persona_instance",
+    "held_unplaced_persona_instance",
+}
 
 
 def _declared_codes() -> set[str]:
@@ -161,6 +201,9 @@ def _declared_codes() -> set[str]:
         snapshot_mod._parity_warnings,
         snapshot_mod._board_parity_warnings,
         snapshot_mod._office_parity_warnings,
+        # The table's checks too: a code spelled in a PARITY_WARNINGS row was
+        # invisible to this walk until RT-SNAPSHOT-UNPLACED-INSTANCE.
+        *(check for _name, check in snapshot_mod.warnings.PARITY_WARNINGS),
     ):
         tree = ast.parse(inspect.getsource(func).lstrip())
         for node in ast.walk(tree):

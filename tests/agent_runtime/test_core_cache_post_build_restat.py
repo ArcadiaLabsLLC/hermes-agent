@@ -374,7 +374,7 @@ def test_an_unresolvable_set_refuses_to_refresh_rather_than_refreshing_nothing(
     """
 
     root = isolate_agent_runtime_root
-    _row, workspace = _seed_store(root)
+    _row, _workspace = _seed_store(root)
     key = core_cache.build_input_fingerprint()
     assert key is not None
     monkeypatch.setattr(core_cache.restat, "_self_perturbed_inputs", lambda: None)

@@ -268,6 +268,7 @@ def _run_import_probe(root: Path, argv: list[str]) -> dict:
         capture_output=True,
         text=True,
         timeout=600,
+        check=False,
     )
     assert proc.returncode == 0, (
         "importing hermes_cli.main must not terminate the process\n"
@@ -394,6 +395,7 @@ def test_the_published_launcher_applies_the_profile_flag(tmp_path):
     proc = subprocess.run(
         [sys.executable, "-I", "-c", probe, "-p", "alice", "mcp", "list"],
         env=env, capture_output=True, text=True, timeout=600,
+        check=False,
     )
     payloads = [line[len("PROBE"):] for line in proc.stdout.splitlines() if line.startswith("PROBE")]
     assert proc.returncode == 0 and payloads, f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"

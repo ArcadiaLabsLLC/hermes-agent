@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 
 import pytest
 from hermes_cli.harness_parts.persona import (
@@ -362,7 +362,7 @@ def test_a_stale_issued_at_is_superseded_not_applied(capsys):
     """
 
     _seed_persona(skills=["seeded-skill"])
-    newer = datetime.now(timezone.utc)
+    newer = datetime.now(UTC)
     older = newer - timedelta(seconds=45)
 
     assert _dispatch(_set_skills("qa", "--skill", "fresh", "--issued-at", newer.isoformat())) == 0
@@ -388,8 +388,8 @@ def test_the_skills_clock_is_independent_of_the_model_clock(capsys):
     """
 
     _seed_persona(skills=["seeded-skill"])
-    early = datetime.now(timezone.utc) - timedelta(seconds=60)
-    late = datetime.now(timezone.utc)
+    early = datetime.now(UTC) - timedelta(seconds=60)
+    late = datetime.now(UTC)
 
     assert _dispatch([
         "harness", "persona", "set-model", "qa",

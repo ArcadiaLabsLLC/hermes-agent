@@ -60,7 +60,7 @@ def test_the_timeouts_are_the_in_turn_budget_and_not_the_dispatch_lanes():
     assert PEER_READ_DIAL_TIMEOUT_SECONDS == 5.0
     assert PEER_READ_REPLY_TIMEOUT_SECONDS == 10.0
 
-    from agent_runtime.gateway_peers import dial_peer  # noqa: F401 - the sibling
+    from agent_runtime.gateway_peers import dial_peer  # the sibling
     from tools.agent_chat_dispatch import PEER_DIAL_TIMEOUT_SECONDS
 
     assert PEER_READ_DIAL_TIMEOUT_SECONDS < PEER_DIAL_TIMEOUT_SECONDS

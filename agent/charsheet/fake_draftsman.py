@@ -174,7 +174,7 @@ def square_image(direction, *, size_px: int = SQUARE_PX, glyph_px: int = SQUARE_
 # first, which is a red on a fixture rather than a batch that half-draws.
 
 #: ``1. Pose 1 (leftmost is pose 1), direction S: …`` — turnaround, in order.
-_TURNAROUND_SLOT = re.compile(r"^\d+\. Pose \d+ \(leftmost is pose 1\), direction ([A-Z]{1,2}):", re.M)
+_TURNAROUND_SLOT = re.compile(r"^\d+\. Pose \d+ \(leftmost is pose 1\), direction ([A-Z]{1,2}):", re.MULTILINE)
 
 #: ``LAYOUT: arrange the 6 frames in ONE horizontal row …`` — every strip.
 _LAYOUT_SLOTS = re.compile(r"LAYOUT: arrange the (\d+) (?:poses|frames) in ONE horizontal row")
@@ -337,7 +337,7 @@ def active_draftsman_name(env=None) -> str:
 #: One draftsman per process, and one scratch directory for it. Both are lazy:
 #: an unarmed runtime creates neither.
 _OUT_DIR: Path | None = None
-_INSTANCE: "FakeDraftsman | None" = None
+_INSTANCE: FakeDraftsman | None = None
 _INSTANCE_LOCK = threading.Lock()
 
 
@@ -359,7 +359,7 @@ def _out_dir() -> Path:
             root = Path(get_hermes_home()) / "tmp"
             root.mkdir(parents=True, exist_ok=True)
             _OUT_DIR = Path(tempfile.mkdtemp(prefix="fake-draftsman-", dir=str(root)))
-        except Exception:  # noqa: BLE001 - a scratch directory must never fail a run
+        except Exception:  # a scratch directory must never fail a run
             _OUT_DIR = Path(tempfile.mkdtemp(prefix="hermes-fake-draftsman-"))
     return _OUT_DIR
 

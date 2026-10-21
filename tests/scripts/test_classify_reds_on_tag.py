@@ -233,7 +233,7 @@ def test_main_prints_the_verdicts_and_leaves_no_worktree(clone, monkeypatch, cap
 
 
 def test_it_refuses_the_primary_checkout_and_a_neutral_dir_inside_a_checkout(clone, monkeypatch, capsys):
-    repo, neutral = clone
+    repo, _neutral = clone
     monkeypatch.chdir(repo)
     assert crt.main(["--tag", "v1", "--repo", str(repo), "--nodeid", "tests/test_a.py::test_red"]) == 2
     assert "refusing to run inside the primary checkout" in capsys.readouterr().err

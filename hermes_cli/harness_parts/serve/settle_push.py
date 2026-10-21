@@ -19,7 +19,7 @@ from hermes_cli.harness_parts.serve.manifest import _is_gateway
 
 __layer__ = "lanes"
 
-__all__ = ["SettlePush", "SETTLE_PUSH_TICK_SECONDS"]
+__all__ = ["SETTLE_PUSH_TICK_SECONDS", "SettlePush"]
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,8 @@ SETTLE_PUSH_TICK_SECONDS = 1.0
 SETTLE_ACKED_RETENTION_SECONDS = 7 * 24 * 3600.0
 _PRUNE_EVERY_SECONDS = 3600.0
 _SESSION_ID_FLAG = "--session-id"
+#: The one chat-turn verb a goal advances on (a steer joins a running turn; it is not one).
+_MESSAGE_VERB = "mission-chat message"
 
 
 def _argv_flag(argv: Any, flag: str) -> str | None:
@@ -41,13 +43,22 @@ def _argv_flag(argv: Any, flag: str) -> str | None:
     return None
 
 
+def _turn_args(argv: list[str]) -> dict[str, Any]:
+    """The direct send's argument namespace, persisted the way a queued send's is."""
+
+    from agent_runtime.chat_root_send_queue import persistable_args
+    from hermes_cli.harness_parts.serve.argv_lane import _build_harness_parser
+
+    return persistable_args(_build_harness_parser().parse_args(argv))
+
+
 class SettlePush:
     """The settle-push half of :class:`~hermes_cli.harness_parts.serve.session.ServeSession`."""
 
     def _settle_store_scope(self) -> Any:
         from agent_runtime.profile_context import process_home_scope
 
-        return process_home_scope(self.serve_request_home)
+        return process_home_scope(self.serve_request_home, head_home=getattr(self, "serve_head_home", None))
 
     def _record_turn_settle(self, request: Any, lines: Any, exit_code: int) -> None:
         """Durable BEFORE the exit frame; never raises (worker ``finally``)."""
@@ -80,6 +91,34 @@ class SettlePush:
             return
         if record is not None:
             self._wake_settle_pusher()
+            # This request's OWN first settle of a message (a replay's record names another request; a
+            # queued turn's settle is the runner's and never comes through here): the goal's turn.
+            if key[0] == _MESSAGE_VERB and record.request_id == str(request.rid) and record.session_id:
+                self._goal_after_direct_turn(request.argv, record, lines)
+
+    def _goal_after_direct_turn(self, argv: Any, record: Any, lines: Any) -> None:
+        """RT-GOAL-DIRECT-SEND-HOOK: a direct send reaches the goal's after-turn hook, OFF this worker.
+
+        The judge is a provider call; it never stands between a turn and its exit frame.
+        """
+
+        executor = getattr(self, "work_executor", None)
+        if executor is None:
+            return
+        from agent_runtime.chat_turn_settles import payload_from_result_lines
+
+        payload = payload_from_result_lines(list(lines or ()))
+        argv = list(argv or ())
+
+        def _run() -> None:
+            try:
+                with self._settle_store_scope():
+                    executor.direct_settled(record.session_id, record.client_message_id, record.exit_code,
+                                            payload, lambda: _turn_args(argv))
+            except Exception:
+                logger.warning("goal after-turn hook failed for a direct send", exc_info=True)
+
+        threading.Thread(target=_run, name="harness-serve-goal-after-turn", daemon=True).start()
 
     def _wake_settle_pusher(self) -> None:
         wake = getattr(self, "settle_wake", None)

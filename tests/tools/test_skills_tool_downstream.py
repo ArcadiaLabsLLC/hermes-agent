@@ -12,7 +12,7 @@ from tools.skills_tool import (
     skill_view,
 )
 
-from tests.tools.test_skills_tool import (  # noqa: F401 — upstream names the moved tests use
+from tests.tools.test_skills_tool import (  # upstream names the moved tests use
     _make_skill,
 )
 

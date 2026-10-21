@@ -31,15 +31,15 @@ from agent_runtime.snapshot.summaries import _safe_model_label, _safe_repo_scope
 __layer__ = "stores"
 
 __all__ = [
-    "parity_envelope",
     "_projection_age_ms",
     "_runtime_profile_identity",
     "_runtime_root_identity",
     "_snapshot_payload_size",
+    "parity_envelope",
 ]
 
 
-def parity_envelope(data, *, build_started, last_event, completeness, drop_samples, recent_events=None, sections_ms=None, build_start_position=None):
+def parity_envelope(data, *, build_started, last_event, completeness, drop_samples, recent_events=None, sections_ms=None, build_start_position=None, office_evidence=None):
     """The S0 observability envelope: provenance + completeness + parity warnings.
 
     Additive and self-describing — turns the snapshot's silent drops into reported
@@ -51,7 +51,7 @@ def parity_envelope(data, *, build_started, last_event, completeness, drop_sampl
     watermark = events_watermark(last_event_ts=last_ts, position=build_start_position)
     resolution = resolve_runtime()
     cfg = load_agent_runtime_config()
-    warnings = _parity_warnings(data)
+    warnings = _parity_warnings(data, office_evidence=office_evidence)
     warnings.extend(_event_summary_warnings(recent_events or []))
     if watermark.get("event_offset") is None:
         # The frame cannot date itself against the log. Riders must resync
@@ -127,7 +127,7 @@ def _projection_age_ms(last_event_ts) -> int | None:
             ts = last_event_ts
         else:
             text = str(last_event_ts)
-            ts = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            ts = datetime.fromisoformat(text)
         current = now()
         if ts.tzinfo is None:
             ts = ts.replace(tzinfo=current.tzinfo)

@@ -6,7 +6,7 @@ Same names, same bodies; the upstream file is byte-identical to upstream.
 from __future__ import annotations
 from agent import shell_hooks
 
-from tests.agent.test_shell_hooks import (  # noqa: F401 — upstream names the moved tests use
+from tests.agent.test_shell_hooks import (  # upstream names the moved tests use
     _reset_registration_state,
     _write_script,
 )

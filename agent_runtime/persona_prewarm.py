@@ -280,7 +280,7 @@ def warm_persona_memos(persona: Any) -> None:
 
 # ── the background worker ────────────────────────────────────────────────────
 
-_queue: "queue.Queue[Any]" = queue.Queue()
+_queue: queue.Queue[Any] = queue.Queue()
 _lock = threading.Lock()
 _pending: set[str] = set()
 _worker: threading.Thread | None = None

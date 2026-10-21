@@ -187,6 +187,11 @@ def _basename(token: str) -> str:
     return str(token).replace("\\", "/").rsplit("/", 1)[-1].lower()
 
 
+#: child-environment keys whose directory is where the child WRITES: the hermes
+#: home, and the two a PM-run ``uv`` writes through (its cache, the project venv)
+_STORE_ENV_KEYS = ("HERMES_HOME", "UV_CACHE_DIR", "UV_PROJECT_ENVIRONMENT")
+
+
 def _names_real_root(text: str, env) -> bool:
     if _REAL_ROOT is None:
         return False
@@ -195,14 +200,33 @@ def _names_real_root(text: str, env) -> bool:
         return True
     if not env:
         return False
-    home = env.get("HERMES_HOME")
-    if not home:
+    for key in _STORE_ENV_KEYS:
+        value = env.get(key)
+        if not value:
+            continue
+        try:
+            candidate = Path(value).resolve()
+        except Exception:
+            continue
+        if candidate == _REAL_ROOT or _REAL_ROOT in candidate.parents:
+            return True
+    return False
+
+
+def _is_provisioned_tool(token: str) -> bool:
+    """True when *token* is a binary PM provisioned under ``<root>/tools/<tool>/``.
+
+    Like an interpreter, the provisioned ``uv`` names a code install, not state:
+    hosted Windows run 38426498916 refused 264 ``<root>/tools/uv-*/uv.EXE lock``
+    spawns from the PM dependency tests. Only argv[0] qualifies, and only while
+    the child's cache, project venv and home stay off the store
+    (``_STORE_ENV_KEYS``); an argument naming the store is still refused.
+    """
+    if _REAL_ROOT is None:
         return False
-    try:
-        candidate = Path(home).resolve()
-    except Exception:
-        return False
-    return candidate == _REAL_ROOT or _REAL_ROOT in candidate.parents
+    tools = str(_REAL_ROOT / "tools").replace("\\", "/").lower() + "/"
+    path = str(token).strip("'\"").replace("\\", "/").lower()
+    return path.startswith(tools) and path[len(tools):].count("/") == 1
 
 
 def classify(cmd, env=None) -> str | None:
@@ -210,7 +234,7 @@ def classify(cmd, env=None) -> str | None:
     tokens = _tokens(cmd)
     if not tokens:
         return None
-    text = " ".join(tokens)
+    " ".join(tokens)
 
     # The backend arm is the live guard's own classifier (one owner: the inert
     # ``python -c`` rule and the code-word split live there, nowhere else).
@@ -277,7 +301,10 @@ def classify(cmd, env=None) -> str | None:
     # interpreter quoted inside a ``bash -lic '...'`` wrapper string, where the
     # token arrives as ``'<path>/python.exe'`` (v0.21.6 merge, 2026-10-10: 11
     # refusals across test_desktop_update_verify / test_completion_backlog).
-    store_text = " ".join(token for token in tokens if not _is_interpreter_token(token))
+    store_text = " ".join(
+        token for position, token in enumerate(tokens)
+        if not _is_interpreter_token(token) and not (position == 0 and _is_provisioned_tool(token))
+    )
     if _names_real_root(store_text, env):
         return (
             f"it would run hermes against the operator's REAL store ({_REAL_ROOT}). "
@@ -465,9 +492,9 @@ def real_root() -> Path | None:
 
 
 __all__ = [
-    "GatewayFenceViolation",
     "REAL_PAUSE_MARK",
     "REAL_ROOT_ENV",
+    "GatewayFenceViolation",
     "arm",
     "arm_permanently",
     "classify",

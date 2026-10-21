@@ -246,6 +246,12 @@ def test_the_receipt_reads_its_cost_off_the_envelope_the_build_built(
     assert receipts[1]["build_ms"] == "777"
     assert receipts[1]["offset"] == "8192"
     assert receipts[1]["sections_top"] == "prompt_observability:500,running_work:200,events:60"
+    # EVERY section rides ``sections=`` (RT-SECTIONS-TOP-PRINTS-THREE): the
+    # fourth, ``persona_chat``, is exactly what the top three hid.
+    assert receipts[0]["sections"] == (
+        "agents_readiness:3000,events:900,boards_offices:400,persona_chat:21"
+    )
+    assert receipts[1]["sections"] == "prompt_observability:500,running_work:200,events:60"
 
 
 def test_an_injected_store_build_is_attributed_but_prints_no_receipt(
@@ -757,11 +763,11 @@ def test_both_build_families_carry_this_process_pid(monkeypatch, build_log, buil
     # message, so a ``%(process)d`` on the formatter — the rejected alternative,
     # which re-shapes every line this runtime emits — would satisfy nothing
     # here.
-    assert " pid=" in [
+    assert " pid=" in next(
         record.getMessage()
         for record in build_log.records
         if record.getMessage().startswith(_CORE_PREFIX)
-    ][0]
+    )
 
 
 def test_the_pid_field_did_not_displace_the_fields_already_grepped(

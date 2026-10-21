@@ -101,8 +101,24 @@ def chat_lane_defer_tools(persona_id: str, cfg: AgentRuntimeConfig | None = None
     for key in (persona_id, *persona_id_aliases(persona_id)):
         raw = personas.get(key)
         if isinstance(raw, dict) and "chat_lane_defer_tools" in raw:
-            return _string_list(raw.get("chat_lane_defer_tools"))
+            return _fold_renamed_tools(_string_list(raw.get("chat_lane_defer_tools")))
     return []
+
+
+#: Tool names an upstream release folded into one tool, old -> new. A persona defer list
+#: written before the fold names the old tools; read literally it defers nothing and the
+#: folded tool rides eager. v0.22.2 folded the five vault verbs into ``browser_vault``.
+_FOLDED_TOOL_NAMES = dict.fromkeys(
+    ("browser_vault_list", "browser_vault_unlock", "browser_vault_fill",
+     "browser_vault_save_login", "browser_vault_enter_code"),
+    "browser_vault",
+)
+
+
+def _fold_renamed_tools(names: list[str]) -> list[str]:
+    """Map each pre-fold name to the tool that replaced it, first occurrence kept."""
+
+    return list(dict.fromkeys(_FOLDED_TOOL_NAMES.get(n, n) for n in names))
 
 
 def mission_chat_compaction_threshold_tokens(cfg: AgentRuntimeConfig | None = None) -> int:
@@ -288,3 +304,28 @@ def mission_chat_workdir(persona_id: str, cfg: AgentRuntimeConfig | None = None)
                 value, field=f"agent_runtime.personas.{key}.workdir"
             )
     return None
+
+
+#: ``agent_runtime.scheduler.max_parallel`` in the ROOT config: how many scheduled turns may be in flight.
+SCHEDULER_MAX_PARALLEL_KEY = ("agent_runtime", "scheduler", "max_parallel")
+
+
+def scheduler_max_parallel(default: int) -> int:
+    """The serve scheduler's cap on scheduled turns in flight; ``0`` is unlimited (dispatcher plan §2.3).
+
+    Harness-wide, so ROOT config only, read at call time (each tick). Absent, negative, a bool or not an
+    integer reads as ``default`` (the scheduler's built-in 4); a config fault reads as ``default`` too.
+    """
+
+    try:
+        from ..parse_cache import cached_yaml_file
+
+        node: Any = cached_yaml_file(harness_root_config_path(), default=None)
+        for key in SCHEDULER_MAX_PARALLEL_KEY:
+            node = node.get(key) if isinstance(node, dict) else None
+    except Exception:  # pragma: no cover - defensive; a config fault must not stop the scheduler
+        logger.debug("scheduler.max_parallel load failed; using the built-in cap", exc_info=True)
+        return default
+    if isinstance(node, bool) or not isinstance(node, int) or node < 0:
+        return default
+    return node

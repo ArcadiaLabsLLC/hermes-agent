@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+import functools
 import logging
 from typing import Any
 
@@ -103,6 +104,13 @@ def reasoning_capabilities(
             base["default_effort"] = None
             return ReasoningCapabilities(**base, state=ReasoningSupport.UNSUPPORTED, levels=(), source=source)
 
+        if _speaks_claude_messages(canonical, model, api_mode):
+            levels = anthropic_effort_levels(model)
+            if not levels:
+                base["default_effort"] = None
+            return ReasoningCapabilities(**base, levels=levels, source="runtime_transport",
+                                         state=ReasoningSupport.SUPPORTED if levels else ReasoningSupport.UNSUPPORTED)
+
         declared = declared_reasoning_efforts(provider, model, base_url)
         if declared is not None:
             levels, unrecognised = _levels(declared)
@@ -140,6 +148,46 @@ def reasoning_capabilities(
         # Capability inspection must not break the existing model/effort read path.
         logger.debug("Reasoning capability inspection unavailable", exc_info=True)
         return ReasoningCapabilities(**base, source="lookup_unavailable")
+
+
+def _speaks_claude_messages(provider: str, model: str, api_mode: str | None) -> bool:
+    """A Claude model on the Anthropic Messages wire (the given api_mode, else the provider's own)."""
+    from agent_runtime.model_api_mode import selected_api_mode
+
+    return "claude" in model.lower() and (api_mode or selected_api_mode(provider, model)) == "anthropic_messages"
+
+
+@functools.lru_cache(maxsize=64)
+def anthropic_effort_levels(model: str) -> tuple[str, ...]:
+    """The efforts the Anthropic adapter sends AS THEMSELVES for a Claude *model*, asked of the
+    adapter's own request builder (``agent/anthropic_adapter.py::build_anthropic_kwargs``) so the
+    report and the wire cannot drift: an adaptive level whose ``output_config.effort`` is itself
+    (``ultra``/``minimal`` collapse onto ``max``/``low``; ``xhigh`` becomes ``max`` on the 4.6
+    families), or a manual level whose ``budget_tokens`` is its own ``THINKING_BUDGET`` rung. ``none``
+    where "off" is honoured: an explicit disable or ``between_tools``, or a manual model, whose
+    omission is off. A mandatory-thinking family (Opus 5.5, Fable) has no ``none``; a pre-thinking
+    Haiku is sent no thinking at all, so it has no levels."""
+    from agent.anthropic_adapter import THINKING_BUDGET, build_anthropic_kwargs
+    from agent.reasoning_effort import EFFORT_LADDER
+
+    def sent(reasoning: dict) -> dict:
+        return build_anthropic_kwargs(model, [], None, None, reasoning)
+
+    levels, manual = [], False
+    for level in (rung for rung in EFFORT_LADDER if rung != "none"):
+        request = sent({"enabled": True, "effort": level})
+        thinking = request.get("thinking") or {}
+        if (request.get("output_config") or {}).get("effort") == level:
+            levels.append(level)
+        elif thinking.get("type") == "enabled" and thinking.get("budget_tokens") == THINKING_BUDGET.get(level):
+            levels.append(level)
+            manual = True
+    if not levels:
+        return ()
+    off = (sent({"enabled": False}).get("thinking") or {}).get("type")
+    if off in ("disabled", "between_tools") or (manual and off is None):
+        levels.insert(0, "none")
+    return tuple(levels)
 
 
 # ── provider-declared efforts (lane pb-r: moved out of the upstream ``agent/transports/codex.py``,

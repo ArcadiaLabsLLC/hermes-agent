@@ -21,6 +21,7 @@ removal path, not an edit to ``uninstall.py``.
 
 from __future__ import annotations
 
+import logging
 import ntpath
 
 try:  # pragma: no cover - platform gate
@@ -28,11 +29,9 @@ try:  # pragma: no cover - platform gate
 except ImportError:  # not on Windows
     winreg = None  # type: ignore
 
-try:
-    from hermes_logging import log_warn  # type: ignore
-except Exception:  # pragma: no cover - logging is best-effort here
-    def log_warn(msg: str) -> None:  # type: ignore
-        pass
+# ``hermes_logging`` never exported a ``log_warn``: the import this replaced always fell
+# through to a no-op, so a failed PATH write was silent.
+log_warn = logging.getLogger(__name__).warning
 
 _ENV_KEY = "Environment"
 
@@ -55,32 +54,6 @@ def _normalize_segment(entry: str) -> str:
     idempotence case adding a second `hermes` segment.
     """
     return ntpath.normcase(entry.rstrip("\\/"))
-
-
-def set_user_env(name: str, value: str) -> bool:
-    """Write ``name=value`` into HKCU\\Environment (User scope).
-
-    Preserves the existing registry value type (REG_EXPAND_SZ vs REG_SZ) when
-    the value already exists so unexpanded ``%VARS%`` are not flattened.
-    Returns True on success.
-    """
-    if winreg is None:
-        return False
-    try:
-        with winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER, _ENV_KEY, 0,
-            winreg.KEY_READ | winreg.KEY_WRITE,
-        ) as key:
-            value_type = winreg.REG_SZ
-            try:
-                _existing, value_type = winreg.QueryValueEx(key, name)
-            except FileNotFoundError:
-                value_type = winreg.REG_SZ
-            winreg.SetValueEx(key, name, 0, value_type, value)
-        return True
-    except OSError as e:
-        log_warn(f"Could not set User env {name}: {e}")
-        return False
 
 
 def add_user_path_entry(entry: str) -> bool:

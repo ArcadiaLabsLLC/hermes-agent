@@ -212,6 +212,7 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness characters compose](#hermes-harness-characters-compose)
 - [hermes harness characters auto](#hermes-harness-characters-auto)
 - [hermes harness characters reopen](#hermes-harness-characters-reopen)
+- [hermes harness characters recolour](#hermes-harness-characters-recolour)
 - [hermes harness characters add-state](#hermes-harness-characters-add-state)
 - [hermes harness characters sprite](#hermes-harness-characters-sprite)
 - [hermes harness characters payload-contract](#hermes-harness-characters-payload-contract)
@@ -3106,7 +3107,8 @@ usage: hermes harness mission-chat message [-h] --persona PERSONA_ID
                                            [--requested-by REQUESTED_BY]
                                            [--client-message-id CLIENT_MESSAGE_ID]
                                            [--idempotency-key IDEMPOTENCY_KEY] [--retry-of RETRY_OF]
-                                           [--stream] [--max-seconds MAX_SECONDS]
+                                           [--image IMAGES] [--file FILES] [--stream]
+                                           [--max-seconds MAX_SECONDS]
                                            [--compression-threshold-tokens COMPRESSION_THRESHOLD_TOKENS]
                                            [--compression-protect-first-n COMPRESSION_PROTECT_FIRST_N]
                                            [--compression-protect-last-n COMPRESSION_PROTECT_LAST_N]
@@ -3144,6 +3146,12 @@ options:
   --retry-of RETRY_OF   client_message_id of the interrupted or budget-exhausted turn of this chat
                         that this send re-runs (recorded as the turn's lineage; any other target is
                         refused chat_turn_retry_target_invalid)
+  --image IMAGES        A pasted image stored by runtime.chat.message, by reference
+                        (sha256:<hex>.png|.jpg); repeatable, at most 4; sent to a vision-capable
+                        model as an image part, refused vision_unsupported otherwise
+  --file FILES          A reviewed file stored by runtime.chat.message, by reference
+                        (sha256:<hex>.<ext>); repeatable, at most 8 (limits.files); staged for the
+                        agent as a FILE:<path> line it reads with read_file, never inlined
   --stream              Emit operator-chat deltas and the final payload as NDJSON
   --max-seconds MAX_SECONDS
                         Wall budget for this turn (default:
@@ -3961,10 +3969,10 @@ options:
 
 ```text
 usage: hermes harness characters [-h]
-                                 {start,list,backfill-home,migrate-home,status,thumb,base,turnaround,reroll-direction,approve-direction,rows,reroll-row,compose,auto,reopen,add-state,sprite,payload-contract} ...
+                                 {start,list,backfill-home,migrate-home,status,thumb,base,turnaround,reroll-direction,approve-direction,rows,reroll-row,compose,auto,reopen,recolour,add-state,sprite,payload-contract} ...
 
 positional arguments:
-  {start,list,backfill-home,migrate-home,status,thumb,base,turnaround,reroll-direction,approve-direction,rows,reroll-row,compose,auto,reopen,add-state,sprite,payload-contract}
+  {start,list,backfill-home,migrate-home,status,thumb,base,turnaround,reroll-direction,approve-direction,rows,reroll-row,compose,auto,reopen,recolour,add-state,sprite,payload-contract}
     start               Create a character draft at stage 'turnaround' (offline; generates nothing)
     list                List character drafts and installed characters
     backfill-home       Record `hermes_home` on library drafts that carry no home, and on no others.
@@ -4011,6 +4019,10 @@ positional arguments:
                         summary
     reopen              Reopen a composed draft for fixes (stage 'composed' → 'rows'); the installed
                         sheet stays until the next compose
+    recolour            Recolour ONE swatch of a composed draft's sheet and record it as a draft
+                        step (draft.json palette_ops). Exact: every pixel of that colour, alpha
+                        unchanged. The installed sheet and both palette.json copies are rewritten
+                        now, and every later compose replays the log in order
     add-state           Add ONE animation state to a draft at stage 'rows' (reopen a composed draft
                         first); the new rows start un-generated and no approved row is touched
     sprite              Return an installed character spritesheet payload
@@ -4261,6 +4273,20 @@ usage: hermes harness characters reopen [-h] --draft DRAFT [--json]
 options:
   -h, --help     show this help message and exit
   --draft DRAFT
+  --json
+```
+
+## hermes harness characters recolour
+
+```text
+usage: hermes harness characters recolour [-h] --draft DRAFT --from SOURCE --to TARGET [--json]
+
+options:
+  -h, --help     show this help message and exit
+  --draft DRAFT
+  --from SOURCE  The swatch to change, '#RRGGBB' or the palette's own '#RRGGBBff' spelling; it must
+                 be in the draft's palette
+  --to TARGET    The colour it becomes, '#RRGGBB' (or '#RRGGBBff')
   --json
 ```
 

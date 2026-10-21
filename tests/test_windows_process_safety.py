@@ -58,6 +58,7 @@ print("collection and supervisor probes passed")
         [sys.executable, "-c", script, str(Path(__file__).resolve().parents[1]), str(tmp_path)],
         capture_output=True, text=True, encoding="utf-8", timeout=45,
         creationflags=subprocess.CREATE_NO_WINDOW,
+        check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "collection and supervisor probes passed" in result.stdout

@@ -76,6 +76,11 @@ WORKDIR_SOURCE_WORKSPACE_AGENTS = "workspace_agents_file"
 WORKDIR_SOURCE_PERSONA_REPO_SCOPE = "persona_repo_scope"
 WORKDIR_SOURCE_USER_HOME = "user_home"
 WORKDIR_SOURCE_PROCESS_CWD = "process_cwd"
+#: A batch lane's worktree (dispatcher plan §2.2, B5): the run names it, it outranks the ladder.
+WORKDIR_SOURCE_RUN_OVERRIDE = "run_override"
+
+#: The turn argument a queued send carries its per-run workdir in (``work_store.persona_turn``).
+RUN_WORKDIR_ARG = "run_workdir"
 
 #: Why a requested path was refused. Typed rather than free text so the
 #: transition table is assertable.
@@ -313,6 +318,45 @@ def mission_chat_workdir_for_persona(
         primary_slot_path=primary_slot_path,
         home_fallback=_home_or_none(),
     )
+
+
+class RunWorkdirRefused(Exception):
+    """A run named its own workdir and this machine cannot use it: the turn is REFUSED, never re-grounded.
+
+    ``reason`` is a ``WORKDIR_REASON_*`` word. A batch lane's worktree that is gone must not fall back to the
+    persona's ladder, whose answer can be the operator's own checkout (RT-BATCH-RUN-WORKDIR-FAILS-OPEN).
+    """
+
+    def __init__(self, requested: str, reason: str) -> None:
+        super().__init__(f"run_workdir '{requested}' {reason}")
+        self.requested = requested
+        self.reason = reason
+
+
+def run_override_refusal(override: str | None) -> RunWorkdirRefused | None:
+    """The refusal a run's own workdir earns on this machine, or ``None`` (no override, or a usable one)."""
+
+    requested = str(override or "").strip()
+    if not requested:
+        return None
+    reason = _refusal(requested)
+    return None if reason is None else RunWorkdirRefused(requested, reason)
+
+
+def with_run_override(workdir: MissionChatWorkdir, override: str | None) -> MissionChatWorkdir:
+    """``workdir`` with a run's own directory on top (a batch lane runs in its worktree, plan §2.2 B5).
+
+    A real absolute directory wins over every rung. One that is not raises :class:`RunWorkdirRefused`:
+    unlike a configured workdir, a run's directory is never degraded to the ladder. No override: unchanged.
+    """
+
+    requested = str(override or "").strip()
+    if not requested:
+        return workdir
+    refused = run_override_refusal(requested)
+    if refused is not None:
+        raise refused
+    return MissionChatWorkdir(path=_resolved(requested), source=WORKDIR_SOURCE_RUN_OVERRIDE, issues=workdir.issues)
 
 
 def _home_or_none() -> str | None:

@@ -199,7 +199,7 @@ def build_relay_sender_marker(persona_id: str | None, instance_id: str | None) -
     return f"{RELAY_SENDER_FINISH_REASON_PREFIX}{persona}:{instance}"
 
 
-def parse_relay_sender_marker(value) -> "RelaySender | None":
+def parse_relay_sender_marker(value) -> RelaySender | None:
     """Decode a ``finish_reason`` value into a :class:`RelaySender`, or ``None``.
 
     Non-marker values (``None``, ``""``, ``"stop"``, ``"pre_trace_ack"``, any
@@ -289,7 +289,7 @@ def build_harness_delivery_marker(
     )
 
 
-def parse_harness_delivery_marker(value) -> "HarnessDeliveryOrigin | None":
+def parse_harness_delivery_marker(value) -> HarnessDeliveryOrigin | None:
     """Decode a ``finish_reason`` value into a :class:`HarnessDeliveryOrigin`.
 
     ``None`` for every non-marker value, so an operator row, a CLI send and a
@@ -313,3 +313,34 @@ def parse_harness_delivery_marker(value) -> "HarnessDeliveryOrigin | None":
         notify_operator=flag == "1",
         state=state or HARNESS_DELIVERY_UNKNOWN_STATE,
     )
+
+
+# ── Lens Episode origin attribution ─────────────────────────────────
+#
+# An Eternia Lens Episode's forged turn (agent_runtime.lens.trigger) opens a NEW
+# chat as a role="user" row no operator typed. Its own marker, for the delivery
+# marker's reason: nobody sent it — the watcher did — so there is no sending
+# persona to name. The one fact carried is WHICH Episode the turn answers; the
+# receipt (runtime.lens.receipt) holds the rest. Plan p10-agent-2026-10-19 §5.2.
+
+LENS_EPISODE_FINISH_REASON_PREFIX = "lens_episode:"
+
+
+@dataclass(frozen=True)
+class LensEpisodeMarker:
+    """Provenance decoded from a Lens marker; ``episode_id`` None when unreadable."""
+
+    episode_id: str | None = None
+
+
+def build_lens_episode_marker(episode_id: str | None) -> str:
+    """Shape: ``lens_episode:<episode_id>`` (the id segment empty when unknown)."""
+    return f"{LENS_EPISODE_FINISH_REASON_PREFIX}{(episode_id or '').strip()}"
+
+
+def parse_lens_episode_marker(value) -> LensEpisodeMarker | None:
+    """Decode a ``finish_reason`` value, or ``None`` for every non-Lens value."""
+    if not isinstance(value, str) or not value.startswith(LENS_EPISODE_FINISH_REASON_PREFIX):
+        return None
+    episode_id = value[len(LENS_EPISODE_FINISH_REASON_PREFIX):].strip()
+    return LensEpisodeMarker(episode_id=episode_id or None)

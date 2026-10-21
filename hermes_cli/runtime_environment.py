@@ -59,6 +59,16 @@ _PROVIDER_PACKAGE_REQUIREMENTS = {
     "bedrock": ["boto3"],
     "vertex": ["google-auth"],
 }
+# Provider -> {mode: DISTRIBUTIONS} a provider needs only in that one mode. Never
+# a hard requirement (an api-key Azure Foundry user never needs azure-identity),
+# so ``required_packages_for`` adds them only when the caller names the mode; the
+# dependency report (``agent_runtime.provider_dependencies``) names each one with
+# its ``needed_when`` so the Launcher can offer the provider pack that carries it.
+# A provider here is never also a key of the hard table above: the report keys
+# one row per provider.
+_PROVIDER_MODE_PACKAGE_REQUIREMENTS = {
+    "azure-foundry": {"entra_id": ["azure-identity"]},  # model.auth_mode: entra_id (agent/azure_identity_adapter.py)
+}
 _API_MODE_PACKAGE_REQUIREMENTS = {
     "codex_responses": ["openai"],
     "responses": ["openai"],
@@ -88,12 +98,20 @@ _COMPANION_DISTRIBUTIONS = {
 }
 
 
-def required_packages_for(*, provider: str | None = None, api_mode: str | None = None, model: str | None = None) -> list[str]:
+def required_packages_for(
+    *, provider: str | None = None, api_mode: str | None = None, model: str | None = None,
+    auth_mode: str | None = None,
+) -> list[str]:
+    """Distributions ``provider`` / ``api_mode`` cannot run without; ``auth_mode`` adds that mode's own."""
     packages: list[str] = []
     for key in (str(provider or "").lower(), str(api_mode or "").lower()):
         for package in _PROVIDER_PACKAGE_REQUIREMENTS.get(key, []) + _API_MODE_PACKAGE_REQUIREMENTS.get(key, []):
             if package not in packages:
                 packages.append(package)
+    modes = _PROVIDER_MODE_PACKAGE_REQUIREMENTS.get(str(provider or "").lower(), {})
+    for package in modes.get(str(auth_mode or "").lower(), []):
+        if package not in packages:
+            packages.append(package)
     if not packages and model and "codex" in str(model).lower():
         packages.append("openai")
     return packages
@@ -199,8 +217,11 @@ def _runtime_environment_status(packages: list[str]) -> RuntimeEnvironmentStatus
     return RuntimeEnvironmentStatus(executable=sys.executable, package_available=availability, issues=issues)
 
 
-def missing_runtime_packages_for(*, provider: str | None = None, api_mode: str | None = None, model: str | None = None) -> list[str]:
-    packages = required_packages_for(provider=provider, api_mode=api_mode, model=model)
+def missing_runtime_packages_for(
+    *, provider: str | None = None, api_mode: str | None = None, model: str | None = None,
+    auth_mode: str | None = None,
+) -> list[str]:
+    packages = required_packages_for(provider=provider, api_mode=api_mode, model=model, auth_mode=auth_mode)
     if not packages:
         return []
     status = runtime_environment_status(packages)

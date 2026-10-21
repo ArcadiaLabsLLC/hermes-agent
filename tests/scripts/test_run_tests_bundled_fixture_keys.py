@@ -178,7 +178,76 @@ def test_the_plan_line_states_the_expected_wall_before_the_run():
     assert "~10 min at -j 2" in line and "1 without a recorded time counted at 30s" in line
     wall, _line = plan.expected_wall({f"f{i}.py": 60.0 for i in range(80)}, 8, 30.0)
     assert wall == 600.0
-    assert plan.chain_split_hint(wall, ["tests/_downstream/conftest_plugin.py"]) is None
-    hint = plan.chain_split_hint(3 * 3600.0, ["tests/_downstream/conftest_plugin.py"])
-    assert hint and "land that change alone" in hint
-    assert plan.chain_split_hint(3 * 3600.0, []) is None
+
+
+# ── r-fastgate (owner ruling 2026-10-16): each file keys on the chain it loaded ──
+
+TABLE = "tests/_downstream/id_markers/table.py"
+_TABLE = '''import pytest
+
+_REASON = "red upstream"
+_NODES = (
+    "tests/other.py::test_x",
+)
+ROWS = {node: (pytest.mark.xfail(reason=_REASON),) for node in _NODES}
+EXTRA = {"tests/other.py::test_y": 1}
+'''
+
+
+def _table_key(root: Path) -> str:
+    snap = cache.TreeSnapshot.take(root, bundled.scope._scope_git)
+    fixed = cache.FixedInputs.collect(snap, [], {}, interp=["interp\tpinned"])
+    keyer = cache.Keyer(snap, fixed, {}, fixtures.Fingerprints(root, snap.blob, cache.git_blob_id))
+    deps = cache.FileDeps(paths={T}, mods={TABLE, CONF})
+    deps.merge_deps({"fx": ["used"], "own": []}, ())
+    return keyer.key_fresh(T, deps)
+
+
+def _edit_table(root: Path, old: str, new: str) -> None:
+    text = (root / TABLE).read_text(encoding="utf-8")
+    assert old in text
+    _write(root, TABLE, text.replace(old, new))
+
+
+@pytest.mark.parametrize("old,new", [
+    ('    "tests/other.py::test_x",\n', '    "tests/other.py::test_x",\n    "tests/third.py::test_z",\n'),
+    ('    "tests/other.py::test_x",\n', ""),
+    ('EXTRA = {"tests/other.py::test_y": 1}', 'EXTRA = {"tests/other.py::test_y": 2}'),
+], ids=["row-added", "row-retired", "dict-row-edited"])
+def test_a_table_row_naming_another_file_keeps_the_key(repo, old, new):
+    _write(repo, TABLE, _TABLE)
+    before = _table_key(repo)
+    _edit_table(repo, old, new)
+    assert _table_key(repo) == before, "a row for another file missed this one"
+
+
+@pytest.mark.parametrize("old,new", [
+    ('    "tests/other.py::test_x",\n', '    "tests/other.py::test_x",\n    "tests/test_t.py::test_ok",\n'),
+    ('EXTRA = {"tests/other.py::test_y": 1}', 'EXTRA = {"tests/other.py::test_y": 1, "tests/test_t.py": 1}'),
+    ('_REASON = "red upstream"', '_REASON = "red upstream at v2"'),
+], ids=["row-names-this-file", "dict-row-names-this-file", "core-edit"])
+def test_a_row_naming_this_file_or_a_core_edit_moves_the_key(repo, old, new):
+    _write(repo, TABLE, _TABLE)
+    before = _table_key(repo)
+    _edit_table(repo, old, new)
+    assert _table_key(repo) != before
+
+
+def test_the_rows_of_a_shape_are_split_by_the_file_they_name():
+    shape = fixtures.shape_of(_TABLE.encode())
+    assert sorted(shape.rows) == ["tests/other.py"]
+    assert shape.line(TABLE, (), "tests/test_t.py").endswith("\trows=")
+    assert not shape.line(TABLE, (), "tests/other.py").endswith("\trows=")
+
+
+@pytest.mark.parametrize("rel,moves", [
+    ("scripts/run_tests_bundled_plan.py", False),  # the runner's scheduling: which file runs where
+    ("scripts/test_bundles_unbundled.txt", False),
+    ("scripts/_bundle_plugin/hermes_dep_record.py", True),  # loaded into every test process
+    ("scripts/run_tests_parallel.py", True),  # builds every child's argv and environment
+])
+def test_only_what_builds_a_test_process_is_a_fixed_input(repo, rel, moves):
+    _write(repo, rel, "X = 1\n")
+    before = _key(repo)
+    _write(repo, rel, "X = 2\n")
+    assert (_key(repo) != before) is moves

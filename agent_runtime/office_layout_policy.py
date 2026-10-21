@@ -236,21 +236,6 @@ def next_free_slot(
     return slot_at(0, columns, lane_offset=lane)
 
 
-def next_free_slot_for_kind(actors: Iterable[Any], kind: Any) -> Point:
-    """The first free slot for a new item of ``kind``: its own folder's scan,
-    on its own lane's lattice.
-
-    The single entry point for "this placement was not aimed at the floor".
-    Both the folder scope and the lane offset are resolved here so no caller has
-    to do placement arithmetic.
-    """
-
-    lane = lane_offset_for_kind(kind)
-    return next_free_slot(
-        occupied_positions(actors, folder=folder_for_kind(kind)), lane_offset=lane
-    )
-
-
 # ── internals ────────────────────────────────────────────────────────────────
 
 

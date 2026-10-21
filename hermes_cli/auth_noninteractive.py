@@ -177,10 +177,7 @@ def set_key(
                 SOURCE_MANUAL,
                 load_pool,
             )
-            from hermes_cli.auth_commands import (
-                _api_key_default_label,
-                _provider_base_url,
-            )
+            from hermes_cli.auth_commands import _provider_base_url
 
             if not normalized.startswith(CUSTOM_POOL_PREFIX):
                 raise NonInteractiveAuthError(
@@ -189,9 +186,8 @@ def set_key(
                     code="no_key_var",
                 )
             pool = load_pool(normalized)
-            resolved_label = (label or "").strip() or _api_key_default_label(
-                len(pool.entries()) + 1
-            )
+            # Upstream's `auth add` default (it inlined its `_api_key_default_label`).
+            resolved_label = (label or "").strip() or f"api-key-{len(pool.entries()) + 1}"
             pool.add_entry(
                 PooledCredential(
                     provider=normalized,
@@ -249,7 +245,7 @@ def auth_set_key_command(args) -> int:
     except NonInteractiveAuthError as exc:
         print(json.dumps({"ok": False, "error": exc.reason, "code": exc.code}))
         return 1
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         # CLASS NAME ONLY. An exception raised anywhere on this path has had a
         # credential value in scope; its message is not safe to print.
         print(
@@ -267,7 +263,7 @@ def auth_set_key_command(args) -> int:
         # CPython gives no way to wipe a str's backing buffer — and the real
         # protection is that the value was never written anywhere but the
         # store.
-        secret = None  # noqa: F841
+        secret = None
 
     print(json.dumps(ack))
     return 0

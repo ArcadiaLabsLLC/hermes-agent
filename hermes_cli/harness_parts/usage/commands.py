@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from typing import Optional
 
 from agent_runtime.cli_format import emit_json
@@ -47,18 +47,18 @@ def build_account_usage(
     way (EG-6.1: fail-open, but never fail-silent)."""
     payload: dict = {
         "schema": USAGE_SCHEMA,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "active_provider": None,
         "lanes": [],
     }
     try:
         payload["active_provider"] = _resolve_active_provider_id()
-    except Exception as exc:  # noqa: BLE001 — named, not swallowed
+    except Exception as exc:  # named, not swallowed
         _stamp_usage_degraded(payload, "active_provider", exc)
     active_provider = payload["active_provider"]
     try:
         candidates, detect_failures = _detect_usage_candidates(only_provider)
-    except Exception as exc:  # noqa: BLE001 — named, not swallowed
+    except Exception as exc:  # named, not swallowed
         return _stamp_usage_degraded(payload, "detect", exc)
     if not candidates and not detect_failures:
         return payload
@@ -68,7 +68,7 @@ def build_account_usage(
             fetched = _fetch_usage_lanes(
                 candidates, active_provider=active_provider, timeout=timeout
             )
-        except Exception as exc:  # noqa: BLE001 — named, not swallowed
+        except Exception as exc:  # named, not swallowed
             fetched = []
             _stamp_usage_degraded(payload, "fetch", exc)
     # Merge the fetched lanes with the detector-failed ones, back into the stable
@@ -120,7 +120,7 @@ def _render_account_usage_human(payload: dict) -> None:
         return
     for lane in lanes:
         marker = " *" if lane.get("active") else ""
-        print("")
+        print()
         print(f"{lane.get('display_name') or lane.get('provider')}{marker}")
         if not lane.get("available"):
             print(f"  Unavailable: {lane.get('unavailable_reason') or 'no usage data'}")
@@ -137,7 +137,7 @@ def _render_account_usage_human(payload: dict) -> None:
         snapshot = AccountUsageSnapshot(
             provider=lane.get("provider") or "",
             source=lane.get("source") or "",
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
             plan=lane.get("plan"),
             windows=windows,
             details=tuple(lane.get("details") or []),
@@ -162,7 +162,7 @@ def _emit_usage_json(payload: dict) -> None:
     try:
         print(emit_json(payload))
         return
-    except Exception as exc:  # noqa: BLE001 — named on the fallback envelope
+    except Exception as exc:  # named on the fallback envelope
         serialize_error: BaseException = exc
     try:
         print(json.dumps(_empty_usage_envelope(("serialize", serialize_error))))
@@ -178,7 +178,7 @@ def _cmd_usage(args) -> int:
     timeout = float(getattr(args, "timeout", DEFAULT_USAGE_TIMEOUT) or DEFAULT_USAGE_TIMEOUT)
     try:
         payload = build_account_usage(only_provider=only_provider, timeout=timeout)
-    except Exception as exc:  # noqa: BLE001 — named on the fallback envelope
+    except Exception as exc:  # named on the fallback envelope
         payload = _empty_usage_envelope(("build", exc))
     # Stamped on the JSON exits only, and the human render is left alone: the
     # keys it prints are its own. An account whose credentials live under a

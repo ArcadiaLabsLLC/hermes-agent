@@ -290,3 +290,32 @@ def test_a_cursor_naming_a_departed_entry_restarts_at_the_top(home, monkeypatch)
         "a cursor pointing at an entry that has left the pool did not restart "
         f"cleanly at the top (got {first!r} then {second!r})"
     )
+
+
+# -- Gate 6 (h4-hotpath) -------------------------------------------------------
+
+
+def test_a_rotation_write_never_fsyncs_and_every_pick_still_reaches_disk(home, monkeypatch):
+    """The sidecar is written on every pooled pick, so it pays no fsync; a later pick still lands.
+
+    The sidecar is reconstructible (a damaged file starts empty), and the rename alone publishes
+    it to other processes, so the fsync bought nothing a reader can see (~4 ms a pick on Windows).
+    Killing mutation: restore ``os.fsync(handle.fileno())`` in
+    ``agent_runtime.auth_extensions._write_rotation_state_file`` — the first pick raises here.
+    """
+    import os
+
+    from agent.credential_pool import load_pool
+
+    def _no_fsync(fd):  # pragma: no cover - only runs under the mutation
+        raise AssertionError("the rotation sidecar write called os.fsync")
+
+    _seed(home, monkeypatch, [_entry(0, MARKER_A), _entry(1, MARKER_B)])
+    monkeypatch.setattr(os, "fsync", _no_fsync)
+
+    picks = [_selected_id(load_pool(PROVIDER).select()) for _ in range(3)]
+
+    # A change is still seen: each fresh load reads the cursor the previous pick wrote.
+    assert picks[0] != picks[1] and picks[2] == picks[0], picks
+    raw = json.loads(_rotation_path(home).read_text(encoding="utf-8"))
+    assert raw["providers"][PROVIDER]["last_selected_id"] == picks[2]

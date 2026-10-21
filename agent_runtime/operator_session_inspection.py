@@ -18,7 +18,7 @@ from .persona_chat_session import (
     _chat_effective_model_payload, _chat_model_override_from_config,
     _persona_chat_native_history, _persona_chat_native_tip, _session_model_config,
 )
-from .profile_context import persona_profile_scope, resolve_persona_profile
+from .profile_context import persona_profile_context, resolve_persona_profile
 
 __layer__ = "lanes"
 
@@ -91,7 +91,7 @@ def _operator_skill_document(persona: AgentPersona, params: dict[str, Any], *, c
     binding = resolve_persona_profile(persona)
     if binding.readiness != "ready":
         raise OperatorConversationRefused("profile_unavailable")
-    with persona_profile_scope(binding, runtime_root=paths.store_root()):
+    with persona_profile_context(binding, runtime_root=paths.store_root()):
         options = permission_options_for_chat(persona, session_id=params["session_id"])
         options = apply_chat_lane_tool_scope(persona, options, session_id=params["session_id"])
         visibility = resolve_tool_visibility(persona, options, include_readiness=False)
@@ -122,3 +122,41 @@ def _operator_skill_history(db: Any, session_id: str) -> dict[str, Any]:
                     for turn in mission_chat_turn_records(session_id=session_id))
     return {"loaded": skill_load_history(history),
             "historyComplete": not unsettled and not unsettled_chat_receipts(session_id)}
+
+
+_MEMORY_PENDING_KEYS = ("id", "action", "summary", "origin", "created_at")
+
+
+def inspect_operator_memory(params: dict[str, Any]) -> dict[str, Any]:
+    """What the conversation's persona remembers, read from its own profile home.
+
+    Read-only: no store mutation, no pending write applied or discarded. ``on_lane``
+    says whether this persona's turns load that memory at all
+    (``include_profile_memory``); the stores are read either way so a console can
+    show what a turn would see once it is switched on."""
+    with operator_session_read(params) as (instance, session):
+        persona = _inspection_persona(instance, load_agent_runtime_config())
+        binding = resolve_persona_profile(persona)
+        if binding.readiness != "ready":
+            raise OperatorConversationRefused("profile_unavailable")
+        with persona_profile_context(binding, runtime_root=paths.store_root()):
+            document = _memory_document()
+        return {**inspection_identity(params, session.owner),
+                "memory": {"on_lane": bool(persona.include_profile_memory), **document}}
+
+
+def _memory_document() -> dict[str, Any]:
+    from tools import write_approval
+    from tools.memory_tool import ENTRY_DELIMITER, load_on_disk_store
+
+    store = load_on_disk_store()
+    stores = [{"target": target, "enabled": store.target_enabled(target), "entries": list(entries),
+               "char_count": len(ENTRY_DELIMITER.join(entries)),
+               "char_limit": limit}
+              for target, entries, limit in (("memory", store.memory_entries, store.memory_char_limit),
+                                             ("user", store.user_entries, store.user_char_limit))]
+    pending = [{**{key: record.get(key) for key in _MEMORY_PENDING_KEYS},
+                "target": (record.get("payload") or {}).get("target")}
+               for record in write_approval.list_pending(write_approval.MEMORY)]
+    return {"stores": stores, "write_approval": {
+        "enabled": write_approval.write_approval_enabled(write_approval.MEMORY), "pending": pending}}

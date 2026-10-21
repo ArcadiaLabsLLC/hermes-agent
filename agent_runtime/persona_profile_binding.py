@@ -279,7 +279,7 @@ def _instance_rows_for_persona(persona_id: str, *, event_log: EventLog | None = 
             str(getattr(assignment, "persona_instance_id", "") or "")
             for assignment in PersonaAssignmentStore(event_log=event_log).find_active(persona_id=persona_id)
         }
-    except Exception as exc:  # noqa: BLE001 — fail CLOSED: this is a safety gate
+    except Exception as exc:  # fail CLOSED: this is a safety gate
         # An unreadable assignment store cannot prove nothing is in flight.
         # Degrading to "no active assignments" would silently weaken the guard
         # that stops a rebind from swapping the prompt+credentials out from
@@ -296,7 +296,7 @@ def _instance_rows_for_persona(persona_id: str, *, event_log: EventLog | None = 
             # ``_has_live_binding`` already fails soft internally; when it cannot
             # resolve the worker/run the raw pointer checks below still catch the
             # row, so the gate never opens on an unverifiable instance.
-            live = store._has_live_binding(instance)  # noqa: SLF001 — the rebind gate IS store maintenance
+            live = store._has_live_binding(instance)  # the rebind gate IS store maintenance
         except Exception:
             live = False
         rows.append(
@@ -385,12 +385,12 @@ def _persona_realm_artifacts(persona_id: str) -> list[dict[str, Any]]:
     realms: list[dict[str, Any]] = []
     try:
         catalog = RealmStore().list_all(include_archived=False)
-    except Exception as exc:  # noqa: BLE001 — a broken realm store must not block a rebind
+    except Exception as exc:  # a broken realm store must not block a rebind
         return [{"realm_id": None, "error": _safe_text(exc)}]
     for realm in catalog:
         try:
             artifacts = resolve_realm_sync_artifacts(realm.id)
-        except Exception as exc:  # noqa: BLE001 — report, never swallow
+        except Exception as exc:  # report, never swallow
             realms.append({"realm_id": realm.id, "name": getattr(realm, "name", None), "error": _safe_text(exc)})
             continue
         entries = [
@@ -554,7 +554,7 @@ def rebind_persona_profile(
         raise PersonaProfileRebindError("persona_not_persisted", "persona_id is required")
     try:
         persona = store.get(persona_id)
-    except Exception as exc:  # noqa: BLE001 — surface as a typed refusal
+    except Exception as exc:  # surface as a typed refusal
         raise PersonaProfileRebindError(
             "persona_not_persisted",
             f"agent bindings can only be moved on store-persisted agents; {persona_id} is not in the agent store",
@@ -764,7 +764,7 @@ def _cascade_instance_profiles(
             instance = store.get(instance_id)
             before = _clean(instance.profile_id)
             store.set_backing_profile(instance.id, target_profile)
-        except Exception as exc:  # noqa: BLE001 — one bad row must not strand the others
+        except Exception as exc:  # one bad row must not strand the others
             failed.append(
                 {
                     "persona_instance_id": instance_id,
@@ -898,11 +898,11 @@ __all__ = [
     "BUSY_LIVE_BINDING",
     "BUSY_NON_IDLE_STATE",
     "BUSY_TASK_BOUND",
-    "EffectiveBinding",
-    "PersonaProfileRebindError",
     "REBIND_EVENT_TYPE",
     "STATUS_APPLIED",
     "STATUS_PARTIALLY_APPLIED",
+    "EffectiveBinding",
+    "PersonaProfileRebindError",
     "binding_files",
     "binding_index",
     "instance_busy_reason",

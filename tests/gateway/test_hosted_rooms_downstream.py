@@ -10,7 +10,7 @@ import pytest
 from gateway import hosted_rooms as rooms
 from gateway import hosted_room_history_pins as pins
 
-from tests.gateway.test_hosted_rooms import (  # noqa: F401 — upstream names the moved tests use
+from tests.gateway.test_hosted_rooms import (  # upstream names the moved tests use
     USER,
     _append,
     _create,

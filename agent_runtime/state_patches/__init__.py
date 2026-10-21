@@ -186,7 +186,7 @@ indistinguishable from live ones.
 
 from __future__ import annotations
 
-from agent_runtime.state_patches.models import (  # noqa: F401 — the package's export floor
+from agent_runtime.state_patches.models import (  # the package's export floor
     CORRELATION_ID_KEY,
     CORRELATION_ID_MAX_LEN,
     FOLDABLE_PATCH_OPS,
@@ -208,7 +208,7 @@ from agent_runtime.state_patches.models import (  # noqa: F401 — the package's
     _PERSONA_INSTANCE_STORE_TO_WIRE,
     _UNRESOLVED,
 )
-from agent_runtime.state_patches.payload import (  # noqa: F401 — the package's export floor
+from agent_runtime.state_patches.payload import (  # the package's export floor
     _assemble,
     _is_oversize_marker,
     _oversize_marker,
@@ -217,13 +217,13 @@ from agent_runtime.state_patches.payload import (  # noqa: F401 — the package'
     office_actor_patch_id,
     office_patch_scope,
 )
-from agent_runtime.state_patches.emit import (  # noqa: F401 — the package's export floor
+from agent_runtime.state_patches.emit import (  # the package's export floor
     _root_config_fault,
     delta_patches_enabled,
     emit_scope_patch,
     emit_state_patch,
 )
-from agent_runtime.state_patches.persona_instance import (  # noqa: F401 — the package's export floor
+from agent_runtime.state_patches.persona_instance import (  # the package's export floor
     _persona_instance_wire_row,
     _resolve_persona_for,
     emit_persona_instance_create,
@@ -232,7 +232,7 @@ from agent_runtime.state_patches.persona_instance import (  # noqa: F401 — the
     project_persona_instance_full_wire_row,
     project_persona_instance_wire_fields,
 )
-from agent_runtime.state_patches.office import (  # noqa: F401 — the package's export floor
+from agent_runtime.state_patches.office import (  # the package's export floor
     _office_actor_unpublished,
     emit_office_actor_patch,
     emit_office_actor_refresh,

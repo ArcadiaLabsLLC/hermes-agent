@@ -82,10 +82,10 @@ def clean_subscribers():
     """The registry is process-global; a leaked subscriber would make the next
     test's "exactly one notification" assertion read someone else's frames."""
 
-    for key in list(PEER_DIRECTORY_SUBSCRIPTIONS._sinks):  # noqa: SLF001
+    for key in list(PEER_DIRECTORY_SUBSCRIPTIONS._sinks):
         PEER_DIRECTORY_SUBSCRIPTIONS.release(key)
     yield
-    for key in list(PEER_DIRECTORY_SUBSCRIPTIONS._sinks):  # noqa: SLF001
+    for key in list(PEER_DIRECTORY_SUBSCRIPTIONS._sinks):
         PEER_DIRECTORY_SUBSCRIPTIONS.release(key)
 
 
