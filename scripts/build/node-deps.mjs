@@ -66,9 +66,23 @@ function completedInstallMatches({ source, receipt, hiddenLock, key, nativeKey }
 }
 
 // An interrupted Windows update can leave a nested .bin that npm ci's own rmdir
-// cannot clear (ENOTEMPTY, #75584); only deleting node_modules recovers it. npm's
-// debug log names the code while stdio stays on the terminal, so give each run
-// its own logs dir and retry once only on that code. Other failures keep the tree.
+// cannot clear (ENOTEMPTY, #75584); only deleting node_modules recovers it. On
+// Windows a native binding another process still has loaded (a second node
+// holding lightningcss's .node) fails npm ci's unlink with EPERM; the holder is
+// usually transient, so wait and retry once with the tree kept, and if it still
+// fails, name the held path in the error (stdio stays on the terminal, so the
+// caller's exception is the only place the cause survives). npm's debug log
+// names the code, so give each run its own logs dir. Other failures keep the tree.
+const NPM_EPERM_RETRY_DELAY_MS = 2000
+
+function npmLogFailure(logsDir) {
+  const text = readdirSync(logsDir).map(name => readFileSync(join(logsDir, name), 'utf8')).join('\n')
+  if (text.includes('ENOTEMPTY')) return { code: 'ENOTEMPTY' }
+  if (!text.includes('EPERM')) return undefined
+  const path = text.match(/EPERM[^\n]*?'([^'\n]+)'/)?.[1] ?? text.match(/error path ([^\n]+)/)?.[1]?.trim()
+  return { code: 'EPERM', path: path || '<unnamed path>' }
+}
+
 function runNpmCi(node, npm, args, { source, env }) {
   const logsDir = mkdtempSync(join(tmpdir(), 'hermes-npm-logs-'))
   // Builders set CI=1, which turns npm's spinner off. Ask for it back: npm
@@ -78,14 +92,48 @@ function runNpmCi(node, npm, args, { source, env }) {
   try {
     run()
   } catch (error) {
-    const logged = readdirSync(logsDir).some(name => readFileSync(join(logsDir, name), 'utf8').includes('ENOTEMPTY'))
-    if (!logged) throw error
-    console.log('node-deps: npm ci hit ENOTEMPTY; removing node_modules and retrying once...')
-    rmSync(join(source, 'node_modules'), { recursive: true, force: true, maxRetries: 3 })
-    run()
+    const failure = npmLogFailure(logsDir)
+    if (failure?.code === 'ENOTEMPTY') {
+      console.log('node-deps: npm ci hit ENOTEMPTY; removing node_modules and retrying once...')
+      rmSync(join(source, 'node_modules'), { recursive: true, force: true, maxRetries: 3 })
+      run()
+    } else if (failure?.code === 'EPERM') {
+      console.log(`node-deps: npm ci hit EPERM on ${failure.path} (held open by another process?); retrying once...`)
+      for (const name of readdirSync(logsDir)) rmSync(join(logsDir, name), { force: true })
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, NPM_EPERM_RETRY_DELAY_MS)
+      try {
+        run()
+      } catch (retryError) {
+        const again = npmLogFailure(logsDir)
+        if (again?.code !== 'EPERM') throw retryError
+        throw new Error(`npm ci failed twice with EPERM: ${again.path} is held open by another process; `
+          + 'close that process and run the update again', { cause: retryError })
+      }
+    } else {
+      throw error
+    }
   } finally {
     rmSync(logsDir, { recursive: true, force: true })
   }
+}
+
+// npm writes these into every `npm run` child's environment: they name npm's own
+// identity and file locations, never what `npm ci` installs (npm's version is
+// keyed on its own). Keying on them made a launch from inside `npm run`, or with
+// a home npmrc, rekey an unchanged install and re-run npm ci, which fails EPERM
+// on Windows while a binding is loaded. cache/offline/prefer_offline never
+// change the installed tree either.
+const RECEIPT_IGNORED_NPM_CONFIG = new Set([
+  'cache', 'offline', 'prefer_offline',
+  'user_agent', 'npm_version', 'node_gyp', 'global_prefix', 'local_prefix', 'prefix',
+  'globalconfig', 'userconfig', 'init_module',
+])
+
+export function receiptConfig(env) {
+  return Object.entries(env)
+    .filter(([key]) => /^npm_config_/i.test(key)
+      && !RECEIPT_IGNORED_NPM_CONFIG.has(key.slice('npm_config_'.length).toLowerCase()))
+    .map(([key, value]) => [key.toLowerCase(), value]).sort()
 }
 
 /** Install the full requested workspace union in one strict, locked operation. */
@@ -130,8 +178,7 @@ export function prepareNodeDependencies({ source, workspaces, env = process.env,
   const inputs = createHash('sha256').update(JSON.stringify({
     node: process.versions.node, npm: npmVersion, platform: process.platform, arch: process.arch, args,
     // npm names are case-insensitive; Windows Python uppercases inherited keys.
-    config: Object.entries(env).filter(([key]) => /^npm_config_/i.test(key) && !/^npm_config_(cache|offline|prefer_offline)$/i.test(key))
-      .map(([key, value]) => [key.toLowerCase(), value]).sort(),
+    config: receiptConfig(env),
   }))
   const files = ['package-lock.json', '.npmrc', ...Object.keys(lock.packages)
     .filter(path => !path.split('/').includes('node_modules'))

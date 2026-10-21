@@ -588,9 +588,12 @@ def _prune_disbanded_rooms_locked(
         candidates.update(_room_ids(
             conn, """SELECT room_id FROM hosted_rooms
                      WHERE disbanded_at IS NOT NULL AND disbanded_at<=?""", (now - DISBANDED_ROOM_RETENTION_SECONDS,)))
-    candidates.update(_room_ids(
+    # A pinned tombstone takes no stock tombstone slot: counted there, 512 pins
+    # would purge every ordinary deleted chat on disband.
+    tombstones = [room_id for room_id in _room_ids(
         conn, """SELECT room_id FROM hosted_rooms WHERE disbanded_at IS NOT NULL
-                ORDER BY disbanded_at DESC, room_id ASC LIMIT -1 OFFSET ?""", (MAX_DISBANDED_ROOM_TOMBSTONES,)))
+                ORDER BY disbanded_at DESC, room_id ASC""", ()) if room_id not in pinned]
+    candidates.update(tombstones[MAX_DISBANDED_ROOM_TOMBSTONES:])
     candidates.difference_update(pinned)
     if max_gateway_event_bytes is not None:
         retained_bytes = _gateway_event_bytes(conn)
