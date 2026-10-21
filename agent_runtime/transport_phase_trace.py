@@ -46,6 +46,7 @@ from agent_runtime.conversation_observability import (
 )
 from agent_runtime.prewarmed_system_prompt import run_deferred_turn_persist, deferred_turn_persist_duration_ms
 from agent_runtime.send_window_receipt import SendWindow
+from agent_runtime.transport_dispatch_evidence import AttemptFact, note_attempt
 from agent_runtime.title_upgrade_defer import start_held_title_upgrade
 from agent_runtime.stream_gap_receipt import begin_send_window, begin_stream_gap_receipt
 
@@ -91,9 +92,13 @@ def phase_trace_for(
                     chained(event_name, info)
                 except Exception:
                     logger.debug("chained transport trace raised", exc_info=True)
+            # RT-PROVIDER-REQUEST-START: this attempt's request reached the hooked transport.
+            note_attempt(agent, AttemptFact.TRACED)
             step = TRACE_EVENT_STEPS.get(event_name)
             if step is not None:
                 _emit_phase_marker(agent, step)
+            if step == TRANSPORT_REQUEST_SENT_STEP:
+                note_attempt(agent, AttemptFact.SENT)
             if step == TRANSPORT_REQUEST_SENT_STEP and agent is not None:
                 # h-turn1-conn: the first turn's held persist writes, now that the request is out.
                 if run_deferred_turn_persist(agent) and window is not None:
@@ -125,6 +130,7 @@ def install_transport_phase_trace(agent: Any, client: Any) -> None:
             return
         setattr(http_client, _CLIENT_AGENT_ATTR, agent)
         if any(getattr(hook, _HOOK_MARK, False) for hook in hooks.get("request", ())):
+            note_attempt(agent, AttemptFact.HOOKED)  # the per-attempt fact the settle reads
             return
 
         def _on_request(request: Any) -> None:
@@ -140,6 +146,7 @@ def install_transport_phase_trace(agent: Any, client: Any) -> None:
         # httpx copies on assignment; rebuild the mapping (the served-model
         # capture in ``agent/served_model.py`` installs its hook the same way).
         http_client.event_hooks = {**hooks, "request": [*hooks.get("request", ()), _on_request]}
+        note_attempt(agent, AttemptFact.HOOKED)  # the per-attempt fact the settle reads
     except Exception:
         logger.debug("transport phase trace install skipped", exc_info=True)
 

@@ -98,6 +98,7 @@ class TurnCommit(_AdmitPhases, _RunPhases, _SettlePhases):
         # never read off ``turn_phases`` (that instrument decides nothing).
         self.provider_request_started = False
         self.provider_request_dispatched = False
+        self.transport_attempts = None
         # D2.04: the reply-less terminal turn this send re-runs, once admitted.
         self.retry_of: str | None = None
         self.terminal_outcome = None

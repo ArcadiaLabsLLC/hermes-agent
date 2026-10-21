@@ -583,6 +583,15 @@ PROVIDER_UNAVAILABLE_OUTCOME = TurnOutcome(
 )
 
 
+#: The outcome of a turn that crossed the boundary and whose hooked transport PROVED no request
+#: body left (RT-PROVIDER-REQUEST-START): the not-submitted kind, as ruled. It carries the
+#: hermes-authored ``provider_unavailable`` refusal block (status 0) so the journal settles it
+#: terminal (``provider_refused``: nothing ran, no turn-resolve, resend unblocked) exactly as
+#: D2.02's never-started turn does; ``outcome_unknown`` would demand an abandon for a request
+#: that provably never left.
+REQUEST_UNSENT_OUTCOME = TurnOutcome(ExecutionState.FAILED, ChatErrorKind.CHAT_TURN_NOT_SUBMITTED)
+
+
 def wall_budget_exceeded(exc: BaseException, *, provider_submitted: bool) -> bool:
     """Did ``exc`` end this turn on its declared WALL budget?
 
@@ -601,7 +610,7 @@ def wall_budget_exceeded(exc: BaseException, *, provider_submitted: bool) -> boo
 
 def classify_turn_failure(
     exc: BaseException, *, provider_submitted: bool, request_started: bool = True,
-    request_dispatched: bool | None = None
+    request_dispatched: bool | None = None, request_unsent: bool = False,
 ) -> TurnOutcome:
     """Name a failed mission-chat turn. Pure: reads ``exc``, writes nothing.
 
@@ -623,6 +632,12 @@ def classify_turn_failure(
     timing-mark read. When explicitly false, a typed ProviderNotConfiguredError
     (agent construction refused) can settle unavailable even after agent-ready.
     Generic failures retain uncertainty; true dispatch evidence always wins.
+
+    ``request_unsent`` is the POSITIVE "nothing left" fact (RT-PROVIDER-REQUEST-START, ruled
+    2026-10-21): every physical attempt rode a transport ``install_transport_phase_trace``
+    hooked, the hook saw it, and no request body was sent
+    (``transport_dispatch_evidence.TransportAttempts.proven_unsent``). Never inferred from an
+    absent ``request_sent``. It settles :data:`REQUEST_UNSENT_OUTCOME`.
     """
 
     from .provider_dependency_error import ProviderDependencyError
@@ -654,6 +669,15 @@ def classify_turn_failure(
         ):
             return replace(
                 PROVIDER_UNAVAILABLE_OUTCOME,
+                provider_refusal=ProviderRefusal(
+                    status_code=PROVIDER_UNAVAILABLE_STATUS_CODE,
+                    reason=PROVIDER_UNAVAILABLE_REASON,
+                    message=stripped_str(str(exc)),
+                ),
+            )
+        if request_dispatched is not True and request_unsent:
+            return replace(
+                REQUEST_UNSENT_OUTCOME,
                 provider_refusal=ProviderRefusal(
                     status_code=PROVIDER_UNAVAILABLE_STATUS_CODE,
                     reason=PROVIDER_UNAVAILABLE_REASON,
