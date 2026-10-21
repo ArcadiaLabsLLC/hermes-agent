@@ -18,7 +18,9 @@ def child_owner(install_id, scope, live) -> dict:
 def call_child(live, method: str, request: dict, *, write: bool) -> dict:
     """``live.peer.call`` with a worker's subagent refusal raised as a ``SubagentError``.
 
-    A write whose reply is lost is ``unknown`` (its outcome cannot be proven either way).
+    A write whose reply is lost is ``unknown`` (its outcome cannot be proven either way); a
+    write the worker refused with a typed ``reason`` (``eternia.skills.lend``'s
+    ``skills_not_loadable``) is that refusal, its data intact.
     """
     try:
         return live.peer.call(method, request)
@@ -26,7 +28,7 @@ def call_child(live, method: str, request: dict, *, write: bool) -> dict:
         reason = next((reason for reason, code in ERROR_CODES.items() if code == exc.native_code), None)
         if reason is not None:
             raise SubagentError(reason) from exc
-        if write:
+        if write and not (exc.native_data or {}).get("reason"):
             raise SubagentError(Refusal.UNKNOWN) from exc
         raise
 
