@@ -233,7 +233,12 @@ the message"). The door's own refusals (`file_unsupported` / `file_oversize` /
 `run.py` composes the request text as `with_file_lines(message, user_files)` and the
 mirrored user row from that same text (`MEDIA:` lines after), and the write-ahead record
 carries `pending_user_files` beside `pending_user_images`
-(`mission_chat_turns/records.py::_JOURNAL_PATH_LISTS`).
+(`mission_chat_turns/records.py::_JOURNAL_PATH_LISTS`). The retry is those lists' reader
+(RT-PENDING-ATTACHMENTS-NO-READER): a `retry_of` send with no attachments of its own
+re-attaches the retried record's stored images and files, each re-resolved by its stored name
+through its own store (`admit.py::_reattach_retried`); one that is gone refuses
+`attachment_missing` (admission family, `safe_details.missing` names the basenames) before the
+write-ahead. A retry that carries attachments keeps its own.
 
 **Inline relay admission uses the runtime head, not the sender's profile.**
 `hermes_cli/harness_parts/mission_chat_door_binding.py::_mission_chat_turn_via_cli`
