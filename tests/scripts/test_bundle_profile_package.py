@@ -238,6 +238,28 @@ def test_the_phone_targets_have_marker_environments():
     assert "ptyprocess" not in evaluate_markers(exported, ios)
 
 
+def test_a_phone_target_refuses_bake_with_and_names_its_python(monkeypatch, capsys, tmp_path: Path):
+    """S2: the phone interpreter is the host app's; the desktop lock's version and ``--bake-with`` are
+    desktop-only. Killing mutation: drop the ``bake_refused_phone_target`` refusal -> no SystemExit, red."""
+    import scripts.bundle_profile_package as pkg
+
+    monkeypatch.setattr(pkg, "module_index", lambda **_kw: {})
+    out = str(tmp_path / "core")
+    with pytest.raises(SystemExit):
+        pkg.main(["--profile", "bundled-phone", "--target", "ios_arm64", "--python-version", "3.14",
+                  "--bake-with", "python", "--out", out])
+    assert "bake_refused_phone_target: ios_arm64" in capsys.readouterr().err
+    with pytest.raises(SystemExit):
+        pkg.main(["--profile", "bundled-phone", "--target", "android_arm64", "--out", out])
+    assert "--python-version is required for the phone target android_arm64" in capsys.readouterr().err
+    seen: list = []
+    monkeypatch.setattr(pkg, "_build", lambda args, *_a: seen.append(args.python_version) or 0)
+    assert pkg.main(["--profile", "bundled-phone", "--target", "android_arm64", "--python-version", "3.14",
+                     "--out", out, "--no-serve-probe"]) == 0
+    assert pkg.main(["--target", "win32-x64", "--out", out, "--no-serve-probe"]) == 0  # desktop: the lock
+    assert seen == ["3.14", pkg.locked_python_version()]
+
+
 def test_a_profile_naming_a_target_the_packager_lacks_is_refused():
     from agent_runtime.bundle_profiles.manifest import (
         ProfileManifestError, load_profile, parse_manifest, validate_manifest)

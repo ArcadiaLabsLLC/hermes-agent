@@ -79,6 +79,7 @@ if str(ROOT) not in sys.path:
 from scripts.bundle_licenses import copy_first_party_licence, licence_problems, write_licence_records
 from scripts.bundle_profile_closure import _imports, _norm, _owner, module_index, profile_walk
 from agent_runtime.bundle_profiles.forced_tree import FORCED_TREE_DIR, sibling_modules
+from agent_runtime.bundle_profiles.manifest import PACKAGING_TARGETS
 from scripts.bundles.serve_probe import (
     named_timezone_problems, serve_import_problems, serve_import_table)
 from scripts.bundles.pool_install import install_pool as install_pool_into, remove_tree
@@ -840,8 +841,9 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--profile", default="bundled-desktop")
     parser.add_argument("--target", choices=sorted(TARGETS))
-    parser.add_argument("--python-version", default=locked_python_version(),
-                        help="target CPython (default: agent_runtime/bundle_profiles/interpreters.lock.json)")
+    parser.add_argument("--python-version", default=None,
+                        help="target CPython (default: agent_runtime/bundle_profiles/interpreters.lock.json; "
+                             "a phone target has no pin and must name it)")
     parser.add_argument("--out", type=Path)
     parser.add_argument("--stage", type=Path, help="pool directory (default: OUT.pool)")
     parser.add_argument("--reuse-stage", action="store_true", help="skip phase 1 if the stage exists")
@@ -859,6 +861,12 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     if args.no_serve_probe and args.python:
         parser.error("--no-serve-probe and --python contradict each other")
+    if args.target in PACKAGING_TARGETS:  # a phone: the host app embeds CPython, nothing here is pinned
+        if args.bake_with:
+            parser.error(f"bake_refused_phone_target: {args.target} bakes with the host app's interpreter")
+        if not args.python_version:
+            parser.error(f"--python-version is required for the phone target {args.target}")
+    args.python_version = args.python_version or locked_python_version()
 
     from agent_runtime.bundle_profiles.manifest import load_profile
 
