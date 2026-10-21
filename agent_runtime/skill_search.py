@@ -115,10 +115,10 @@ def skill_search(
         if include_installed or normalized_source == "installed":
             installed = [
                 skill
-                for skill in _st._find_all_skills()
+                for skill in _st.find_all_skills()
                 if _installed_skill_matches(skill, normalized_query)
             ]
-            for skill in _st._sort_skills(installed):
+            for skill in _st.sort_skills(installed):
                 compact = _compact_installed_skill_result(skill)
                 identifier = str(compact.get("identifier") or compact.get("name") or "")
                 if identifier in seen:
