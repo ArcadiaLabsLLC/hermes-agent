@@ -99,12 +99,9 @@ def _emit_actor_patch(
     state and should be loud about it, rather than a fold that quietly
     serves a number nobody can correct.
 
-    Cost of the count itself, named rather than discovered: the scan is a
-    directory glob plus a JSON parse per actor, on a mutation path. It is
-    bounded by the same 200-actor projection cap it is checking, and it runs
-    under a lock that already serializes office writes — the alternative (a
-    filename glob) would count unparseable files as members, which is the
-    wrong direction for this guard in the other direction.
+    The count is the upsert's ONE scan (RT-OFFICE-PATCH-LANE-SCANS-EVERY-UPSERT):
+    ``scan`` is handed in, already carrying ``actor``, when a pre-write consumer
+    took it, and only a caller that hands none pays the scan here.
 
     Best-effort like ``_emit`` beside it: a patch-lane fault must never take
     an office write down, and a missing patch is a missing PROMOTION — the
