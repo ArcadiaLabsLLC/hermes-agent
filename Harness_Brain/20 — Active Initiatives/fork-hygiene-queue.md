@@ -28,6 +28,10 @@ tags: [queue, program/fork-hygiene]
 
 - **`FH-MAIN-IMPORTER-REDS-1021` — main d087df7035 carries unrowed reds in the importer set of hermes_cli.config/tools/tui_gateway: test_models_relay_base_url.py (5), test_compaction_kill9.py (2), test_mcp_catalog.py::test_sha_ref_skips_branch_attempt, tests/e2e/core/upgrade/* (3 collection errors), test_gitspawn_config_injection.py timeout; flaky test_skill_commands.py::test_scan_never_publishes_a_partially_built_map and test_owned_process_cleanup.py timeouts** · fork suite · evidence: lane w1021i-hygiene base re-run (same reds on d087df7035 and 28f654079a) · READY 2026-10-21 · **TAKEN 2026-10-21 w1021j-tooling**
 
+## Filed on arrival — 2026-10-21 (lane w1021j-bundle)
+
+- **`FH-PKG-PLANNER-STALL-TEST-LOAD-FLAKE` — `test_a_stalled_planning_child_is_stopped_and_the_build_says_retryable`'s positive control uses stall=1s, and a loaded box starts the child after more than 1 s** · fork tests / `tests/scripts/test_bundle_profile_package.py` · evidence: w1021j-bundle final run, attempt 1 red `no progress for 1s (last: None)` · READY 2026-10-21: count the stall clock from the first progress line, or raise the control's stall
+
 ## Filed on arrival — 2026-10-21 (orchestrator review of lane w1021i-runtime)
 
 - **`FH-QA-FENCE-TEST-REAL-PUSH` — `tests/agent_runtime/work_store/test_writer.py::test_a_qa_namespace_never_pushes_to_a_network_remote` sets real network push URLs (github.com/acme/brain.git) and runs a real-git `recording` runner, so a regressed fence makes the suite attempt a real network push (the lane's unfenced control did, once); stub `push` in that test's runner so a regression reds without touching the network** · fork tests / work store · evidence `14456931d2` · READY 2026-10-21 · **TAKEN 2026-10-21 w1021j-work**

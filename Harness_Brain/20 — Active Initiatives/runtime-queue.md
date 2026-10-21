@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-21 (lane w1021j-bundle, branch `w1021j/bundle`)
+
+- **`RT-BUNDLED-PHONE-POOL` — the packager's pool installs the whole uv export for a phone target, so `--profile bundled-phone` never reaches verify** · fork / `scripts/bundle_profile_package.py::install_pool` / `export_requirements` · evidence: commit `83bf715c9d` body (omitted_distributions not dropped; psutil git pin unhashable; no phone wheels for cryptography, firecrawl-anydoc, httptools, jiter, markupsafe, pillow, watchfiles, resvg-py) · NEEDS PLAN 2026-10-21: a phone-scoped pool (closure-first, or an omitted-filtered export)
+
 ### Filed on arrival — 2026-10-21 (land w1021i)
 
 - **`RT-SEED-LINES-6-8-STRIKE` — door-fit seed lines 6 (`toolsets:` names an unregistered `eternia-persona` toolset) and 8 (`approvals.deny`: `hard_floor_command_classes()` is empty after R-2, so a static deny refuses what a grant allows) cannot be seeded as written** · fork / persona seed · plan `docs/agent-runtime-harness/planned/persona-create-seed-values-2026-10-15.md` § Amendment 2026-10-21 · BLOCKED 2026-10-21: owner decision — strike lines 6 and 8, or seed `toolsets: [harness_core]` and only ungranted classes re-seeded on every grant change? · Recommend: strike both
