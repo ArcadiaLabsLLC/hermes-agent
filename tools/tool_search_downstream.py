@@ -273,8 +273,8 @@ def admit_direct_in_resolve(upstream):
     which is the one the model actually needs.
     """
 
-    def resolve_underlying_call(args):
-        name, raw_args, err = upstream(args)
+    def resolve_underlying_call(args, session_tool_names=None):
+        name, raw_args, err = upstream(args, session_tool_names)
         if err is None:
             return name, raw_args, err
         from tools.connectors import is_connector_name
@@ -286,6 +286,8 @@ def admit_direct_in_resolve(upstream):
         candidate = entries[0]["name"]
         if is_connector_name(candidate) or not _is_registered_tool(candidate):
             return name, raw_args, err
+        if session_tool_names is not None and candidate not in set(session_tool_names):
+            return name, raw_args, err  # upstream scopes the call to the session's tools; so does the fork
         return candidate, entries[0]["arguments"], None
 
     resolve_underlying_call.__doc__ = (upstream.__doc__ or "") + "\n\nFork: a registered eager name is admitted, not refused (tool_search_downstream)."
