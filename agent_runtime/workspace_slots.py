@@ -311,9 +311,12 @@ def declare(workspace_id: str, slots: Any, *, issued_at: str, machine: str) -> d
     document["workspace_id"] = workspace_id
     write_document(workspace_id, document)
     from .persona_slots import drop_removed_slots
+    from .work_store.writer import drop_worktrees
 
-    # A removed slot leaves every assignment in the same write (build plan §3.3).
+    # A removed slot leaves every assignment in the same write (build plan §3.3), and Hermes's worktrees of it.
     dropped_from = drop_removed_slots(workspace_id, frozenset(tombstoned))
+    for name in tombstoned:
+        drop_worktrees(workspace_id, name)
     return {"document": document, "declared": sorted(declared), "tombstoned": sorted(tombstoned),
             "assignments_dropped": dropped_from}
 

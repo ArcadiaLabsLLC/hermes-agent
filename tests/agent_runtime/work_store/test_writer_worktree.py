@@ -96,3 +96,40 @@ def test_a_worktree_whose_checkout_was_recloned_is_recreated_once_with_a_receipt
     assert len(adds) == 2
     stale = [r.getMessage() for r in caplog.records if '"kind": "work.worktree_stale"' in r.getMessage()]
     assert len(stale) == 1 and '"slot": "brain"' in stale[0]
+
+
+def _registered(repo: Path) -> list[str]:
+    out = run_git(["worktree", "list", "--porcelain"], repo=repo).stdout
+    return [line for line in out.splitlines() if line.startswith("worktree ")]
+
+
+def test_retiring_the_default_brain_removes_its_worktree(workspace):
+    """W3. Killing mutation: skipping the prune leaves git a registered but missing worktree."""
+
+    from agent_runtime.work_store import default_brain
+    from agent_runtime.work_store.board import default_board
+
+    made = default_brain.ensure_default_brain(workspace, issued_at="2026-10-21T12:00:00+00:00")
+    worktree = Writer(made, machine_id="m1").sync()
+    assert worktree.is_dir() and len(_registered(made.checkout)) == 2
+    default_brain.retire_binding(workspace, into="hermes", at="2026-10-21T12:00:00+00:00", moved=[])
+    assert not worktree.exists() and len(_registered(made.checkout)) == 1
+    assert default_board(workspace) is None
+
+
+def test_a_tombstoned_slot_drops_its_worktrees(workspace, tmp_path):
+    """W3: ``declare`` tombstoning a slot removes every ``<slot>-<token>`` worktree and prunes the clone."""
+
+    from agent_runtime.work_store.board import declared_boards
+    from work_store_support import bind_here, declare_slots
+
+    root = brain_repo(tmp_path / "notes")
+    declare_slots(workspace, {"name": "notes", "repo": {"local": True, "default_branch": "main"}})
+    bind_here(workspace, notes=root)
+    (board,) = declared_boards(workspace)
+    worktree = Writer(board, machine_id="m1").sync()
+    keep = worktree.with_name("notesx-" + worktree.name.split("-")[1])  # another slot's name is never matched
+    keep.mkdir()
+    assert worktree.is_dir() and len(_registered(root)) == 2
+    declare_slots(workspace, issued_at="2026-10-21T12:00:00+00:00")
+    assert not worktree.exists() and len(_registered(root)) == 1 and keep.is_dir()

@@ -175,9 +175,15 @@ def _write_binding(workspace_id: str, record: dict[str, Any]) -> None:
 
 
 def retire_binding(workspace_id: str, *, into: str, at: str, moved: list[str]) -> None:
-    """The default brain's rows now live in slot ``into``; the board stops listing it."""
+    """The default brain's rows now live in slot ``into``; the board stops listing it, and Hermes's worktree of
+    it is removed (plan work-slot-roots-per-workspace-2026-10-21 W3)."""
+
+    from .writer import checkout_token, remove_worktree
 
     record = read_binding(workspace_id) or {}
+    root = Path(str(record["path"])) if record.get("path") else None
+    if root is not None and (root / ".git").exists():
+        remove_worktree(paths.work_worktree_dir(workspace_id, DEFAULT_BRAIN_SLOT, checkout_token(root)), repo=root)
     _write_binding(workspace_id, {**record, "retired_into": into, "retired_at": at, "moved": moved})
 
 

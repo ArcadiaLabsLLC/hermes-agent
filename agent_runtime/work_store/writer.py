@@ -44,7 +44,7 @@ from .models import OPERATOR
 from .reasons import Reason, WorkRefused
 
 __layer__ = "stores"
-__all__ = ["OPERATOR", "REPLAY_BUDGET", "Receipt", "RowOp", "Writer", "checkout_token"]
+__all__ = ["OPERATOR", "REPLAY_BUDGET", "Receipt", "RowOp", "Writer", "checkout_token", "drop_worktrees", "remove_worktree"]
 
 REPLAY_BUDGET = 8
 REQUEST_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,200}$")
@@ -104,6 +104,31 @@ def checkout_token(clone: Path, *, run: GitRun | None = None) -> str:
     if run is None:
         from ..git_cmd import run_git as run
     return hashlib.sha256(_common_dir(clone, run).encode("utf-8")).hexdigest()[:12]
+
+
+def remove_worktree(worktree: Path, *, repo: Path | None) -> None:
+    """Remove Hermes's worktree directory, then ``worktree prune`` on ``repo`` so git forgets it too."""
+
+    from ..git_cmd import run_git
+
+    if worktree.exists():
+        shutil.rmtree(worktree, ignore_errors=True)
+    if repo is not None and (repo / ".git").exists():
+        run_git(["worktree", "prune"], repo=repo, timeout=60, stdin=subprocess.DEVNULL)
+
+
+def drop_worktrees(workspace_id: str, slot: str) -> list[Path]:
+    """Every worktree of a tombstoned ``slot`` (``<slot>-<token>``, any checkout); pruned on the bound clone."""
+
+    from ..workspace_slots import bound_path
+
+    parent = paths.work_worktrees_dir(workspace_id)
+    pattern = re.compile(re.escape(paths.safe_path_token(slot)) + r"-[0-9a-f]{12}")
+    found = sorted(p for p in parent.iterdir() if pattern.fullmatch(p.name)) if parent.is_dir() else []
+    clone = bound_path(slot, workspace_id=workspace_id)
+    for worktree in found:
+        remove_worktree(worktree, repo=clone)
+    return found
 
 
 # ── step 5: the precondition each op needs, as a table ──────────────────────
