@@ -29,6 +29,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-21 (lane w1021h-rpc, branch `w1021h/rpc`)
+
+- **`RT-NATIVE-PEER-DROPS-ERROR-DATA` — NativePeer.call raises ConversationError with only native_code, so a worker refusal's data (eternia.skills.lend's skills_not_loadable + rejected_skills) never reaches runtime.conversation.skills.lend's caller** · fork / `agent_runtime/conversations/native_peer.py::call` · evidence `e1eea45389` (branch `w1021h/rpc`) · READY 2026-10-21
+- **`RT-PROVIDER-AUTH-MODE-CONFIGURE` — no RPC verb writes model.auth_mode: the only provider-configure door is argv `harness auth set-key` (stdin secret), and entra_id has no secret** · fork / provider configure · launcher MC-AZURE-IDENTITY-PACK · evidence `14773aad1c` (branch `w1021h/rpc`) · BLOCKED 2026-10-21: owner decision — which profile a mode write targets, and does it also select model.provider? · Recommend: runtime.provider.configure {provider, auth_mode, base_url?} on the bound provider home
+
 ### Filed on arrival — 2026-10-21 (lane w1021h-cli, branch `w1021h/cli`)
 
 - **`RT-RESOLUTION-HOME-DELEGATE-AFTER-MERGE` — after the v0.22.3 merge, `agent_runtime/resolution.py::_platform_default_hermes_home` calls upstream's env-pure `hermes_constants._platform_default_hermes_home(environ, user_home)` instead of restating it** · fork / `agent_runtime/resolution.py` · evidence `c1e905df98` (branch `w1021h/cli`) · BLOCKED 2026-10-21: upstream — v0.22.3's release merge into main (owner holds it on `integration/upstream-daily`)
@@ -544,6 +549,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 
 ## Seams
+
+### Filed on arrival — 2026-10-21 (lane w1021h-rpc, branch `w1021h/rpc`)
+
+- **`RT-WORKER-BOOT-PYDANTIC-CONTRACTS` — a desktop gateway/worker pays 1.1 s importing tui_gateway.contracts whatever imports it first: four fork worker modules declare_contracts() at register and rpc_dispatch validates every request through the pydantic registry, so a lazy methods_connectors_account saves 0 under the default tui_gateway.pydantic_contracts: true** · seam / turn latency · evidence: w1021h-rpc `-X importtime` (lazy account stub: contracts still 1.07 s via worker_subagents.install) · BLOCKED 2026-10-21: owner decision — workers validate with the generated catalog (the phone's shape validator), or keep pydantic and defer declarations to the first registry read? · Recommend: catalog in workers, pydantic kept in the suite
 
 ### Filed on arrival — 2026-10-16 (lane r-realm-lens, branch `q/r-realm-lens`)
 
