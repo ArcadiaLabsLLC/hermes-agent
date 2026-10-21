@@ -161,5 +161,5 @@ def _provider_from_config(home: Path, config: dict[str, Any], *, installing: Pat
 
 
 # Fork (ledger row `pm/plugins_state.py`): one parse per config content per process.
-from pm._fork_selection_memo import memoize_read_home_selection  # noqa: E402
+from pm._fork_selection_memo import memoize_read_home_selection
 read_home_selection = memoize_read_home_selection(read_home_selection)

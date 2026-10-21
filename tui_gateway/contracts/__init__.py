@@ -21,7 +21,7 @@ from . import (
     tools_commands,
     tools_mcp_plugins,
 )
-from agent_runtime.gateway import contracts_recovery  # noqa: F401  fork seam: registers the recovery.* contracts
+from agent_runtime.gateway import contracts_recovery  # fork seam: registers the recovery.* contracts
 from .base import JsonValue, Params, Payload, Result, WireEnum
 from .registry import EVENTS, METHODS, SERVER_REQUESTS
 

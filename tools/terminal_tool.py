@@ -1359,7 +1359,7 @@ def _degraded_result(e: EnvironmentConnectionError, task_id: Optional[str]) -> s
     }, ensure_ascii=False)
 
 
-from agent_runtime.terminal_policy import _harness_envelope_block, _harness_envelope_gate, _harness_network_block_reason, _harness_safety_block, _interactive_cli_guidance, _log_harness_blocked_attempt, _with_envelope_provenance, chat_container_scope, gated_terminal_call  # noqa: E402,F401 — fork
+from agent_runtime.terminal_policy import _harness_envelope_block, _harness_envelope_gate, _harness_network_block_reason, _harness_safety_block, _interactive_cli_guidance, _log_harness_blocked_attempt, _with_envelope_provenance, chat_container_scope, gated_terminal_call  # fork
 
 def terminal_tool(
     command: str,
@@ -1397,7 +1397,7 @@ def _terminal_tool_run(
     workdir: Optional[str] = None,
     pty: bool = False,
     notify_on_complete: bool = False,
-    watch_patterns: Optional[List[str]] = None,
+    watch_patterns: Optional[list[str]] = None,
     _host_local: bool = False,
     _completion_output_chars: int = 0,
     heartbeat: int = 0,

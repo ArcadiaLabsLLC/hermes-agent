@@ -127,7 +127,7 @@ def _config_from_loader(loader_name: str) -> ToolSearchConfig:
 load_config = functools.partial(_config_from_loader, "load_config")
 load_config_readonly = functools.partial(_config_from_loader, "load_config_readonly")  # no copy
 _profile_config_readonly = load_config_readonly  # fork: the bridge honours the turn's defer (tool_search_downstream)
-load_config_readonly = lambda: with_turn_defer(_profile_config_readonly())  # noqa: E731 — fork, additive
+load_config_readonly = lambda: with_turn_defer(_profile_config_readonly())  # fork, additive
 
 
 def _core_tool_names() -> frozenset[str]:
@@ -634,8 +634,8 @@ __all__ = [
 ]
 
 
-from tools.tool_search_downstream import attach_hit_parameters, direct_describe_defs, ensure_tool_describe_present, never_defer_tool_names, parse_never_defer, tool_describe_schema, with_turn_defer  # noqa: E402,F401 — fork
-from tools.tool_search_downstream import admit_direct_in_resolve, admit_direct_in_scope, mark_direct_hits  # noqa: E402 — fork
+from tools.tool_search_downstream import attach_hit_parameters, direct_describe_defs, ensure_tool_describe_present, never_defer_tool_names, parse_never_defer, tool_describe_schema, with_turn_defer  # fork
+from tools.tool_search_downstream import admit_direct_in_resolve, admit_direct_in_scope, mark_direct_hits  # fork
 resolve_underlying_call = admit_direct_in_resolve(resolve_underlying_call)  # fork, additive: an in-scope eager name is dispatched, not refused
 scoped_deferrable_names = admit_direct_in_scope(scoped_deferrable_names)  # fork, additive: the bridge's scope is deferred OR eager, in scope
 dispatch_tool_search = mark_direct_hits(dispatch_tool_search)  # fork, additive: eager hits reported as directly_available
