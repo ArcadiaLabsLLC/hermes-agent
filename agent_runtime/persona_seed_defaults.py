@@ -13,16 +13,27 @@ Only lines the plan settles without a further decision are in the table:
   then the global root's, which a persona profile borrows), so selection
   spreads without an ``auth.json`` write per select (#124193).
 
+* line 5 — ``skills.disabled`` gains every skill under the persona's search
+  roots whose frontmatter is incompatible with the ``mission_chat`` surface
+  (:func:`incompatible_skills`), so upstream's walkers hide what the fork's
+  ``skill_view`` would refuse. Plan § "Amendment 2026-10-21", stage S5.
+
 Line 3 is ruled out (owner 2026-10-21: creates stay profile-local and promote).
-Lines 4–6 and 8 are held in the plan's status section with the question each
+Lines 4, 6 and 8 are held in the plan's status section with the question each
 still needs answered; line 7 is "leave unset" and line 9 is not a hermes key.
 
-Rule of the writer: FILL IF ABSENT. A key an operator (or an earlier seed)
+Rule of the writer, lines 1–2: FILL IF ABSENT. A key an operator (or an earlier seed)
 already wrote is never overwritten, at any depth — a server whose ``env`` sets
 ``HERMES_HOME`` to anything keeps it, a provider with any strategy keeps it.
 Writes go through the round-trip YAML writer one key at a time, so comments,
 order and every other key survive. Fail-open per profile: a profile that will
 not read or write is reported, never raised.
+
+Rule of the writer, line 5: the sweep OWNS what it seeded and nothing else.
+``seed_receipt.json`` beside ``config.yaml`` records the names it added; each
+pass writes ``skills.disabled = (current − previously seeded) ∪ computed``, so an
+operator's entry survives, a skill that became compatible is released, and a
+name the operator already listed is never recorded as the seed's.
 
 Two callers: :func:`agent_runtime.persona_profiles.promote_profile_to_persona`
 (the fork's persona-mint door) seeds the new persona's profile at once, and
@@ -47,6 +58,14 @@ logger = logging.getLogger(__name__)
 MCP_HERMES_HOME_VALUE = "${HERMES_HOME}"
 #: Line 2's value: ``agent.credential_pool.STRATEGY_LEAST_USED``.
 POOL_STRATEGY_VALUE = "least_used"
+#: Line 5's question: the surface and mode a persona's chat turn runs with
+#: (``persona_runtime``'s ``AgentRunRequest``: ``skill_surface="mission_chat"``).
+PERSONA_SKILL_SURFACE = "mission_chat"
+PERSONA_ROOT_NODE_MODE = False
+#: The sidecar naming what the sweep seeded, beside ``config.yaml``.
+SEED_RECEIPT_NAME = "seed_receipt.json"
+SEED_RECEIPT_SCHEMA_VERSION = 1
+DISABLED_SKILLS_KEY = "skills.disabled"
 
 
 def _escape(segment: str) -> str:
@@ -103,8 +122,87 @@ def seed_writes(config: dict[str, Any], *, pooled_providers: Iterable[str]) -> l
     return writes
 
 
+def incompatible_skills(profile_home: Path | str) -> frozenset[str]:
+    """Names of the skills under ``profile_home``'s search roots that a persona's
+    chat turn cannot load (``skill_frontmatter_runtime_compatibility`` false for
+    ``mission_chat``, standard mode). ``HERMES_HOME`` is bound to the home for the
+    walk, context-locally; trusted project dirs are not a property of the home
+    and are left out. Upstream's ``ESSENTIAL_SKILLS`` are never named."""
+
+    from agent.skill_utils import ESSENTIAL_SKILLS, get_skill_search_roots, iter_skill_index_files
+
+    from .profile_context import process_home_scope
+    from .skill_resolution import skill_manifest_compatibility
+
+    names: set[str] = set()
+    walked = 0
+    with process_home_scope(Path(profile_home)):
+        for _tier, root in get_skill_search_roots(include_project=False):
+            if not Path(root).is_dir():
+                continue
+            for skill_md in iter_skill_index_files(Path(root), "SKILL.md"):
+                walked += 1
+                name, verdict = skill_manifest_compatibility(
+                    skill_md, surface=PERSONA_SKILL_SURFACE, root_node_mode=PERSONA_ROOT_NODE_MODE
+                )
+                if not verdict.get("compatible"):
+                    names.add(name)
+    found = frozenset(names - ESSENTIAL_SKILLS)
+    logger.info("persona_seed.line5 home=%s skills=%d incompatible=%d", profile_home, walked, len(found))
+    return found
+
+
+def _read_seed_receipt(home: Path) -> dict[str, Any]:
+    from .serde import read_json
+
+    path = home / SEED_RECEIPT_NAME
+    if not path.is_file():
+        return {}
+    loaded = read_json(path)
+    seeded = loaded.get("seeded") if isinstance(loaded, dict) else None
+    return seeded if isinstance(seeded, dict) else {}
+
+
+def disabled_skills_write(
+    current: Iterable[str], previously_seeded: Iterable[str], computed: Iterable[str]
+) -> tuple[list[str], list[str]]:
+    """``(skills.disabled, seeded)``: ``(current − previously seeded) ∪ computed``,
+    the operator's order kept, and the names the seed now owns — the computed ones
+    the operator did not already list."""
+
+    prior = set(previously_seeded)
+    kept = [name for name in current if name not in prior]
+    owned = sorted(set(computed) - set(kept))
+    return [*kept, *owned], owned
+
+
+def _seed_disabled_skills(home: Path, path: Path, config: dict[str, Any]) -> bool:
+    """Line 5: rewrite ``skills.disabled`` and the receipt; ``True`` when either moved."""
+
+    from agent.skill_utils import parse_config_string_list
+    from utils import atomic_json_write, atomic_roundtrip_yaml_update
+
+    skills = config.get("skills")
+    raw = skills.get("disabled") if isinstance(skills, dict) else None
+    current = parse_config_string_list(raw) if raw is not None else []
+    receipt = _read_seed_receipt(home)
+    previously = parse_config_string_list(receipt.get(DISABLED_SKILLS_KEY) or [])
+    disabled, owned = disabled_skills_write(current, previously, incompatible_skills(home))
+    moved = False
+    if disabled != current and (disabled or raw is not None):
+        atomic_roundtrip_yaml_update(path, DISABLED_SKILLS_KEY, disabled)
+        moved = True
+    if owned != sorted(previously):
+        atomic_json_write(
+            home / SEED_RECEIPT_NAME,
+            {"schema_version": SEED_RECEIPT_SCHEMA_VERSION, "seeded": {DISABLED_SKILLS_KEY: owned}},
+        )
+    return moved
+
+
 def seed_persona_profile(profile_home: Path | str) -> dict[str, Any]:
-    """Fill the table's absent keys in ``<profile_home>/config.yaml``."""
+    """Fill the table's absent keys in ``<profile_home>/config.yaml`` (lines 1–2)
+    and recompute the seed-owned part of ``skills.disabled`` (line 5)."""
 
     from utils import atomic_roundtrip_yaml_update
 
@@ -114,6 +212,8 @@ def seed_persona_profile(profile_home: Path | str) -> dict[str, Any]:
         writes = seed_writes(_read_config(path), pooled_providers=_pooled_providers(home))
         for key, value in writes:
             atomic_roundtrip_yaml_update(path, key, value)
+        if _seed_disabled_skills(home, path, _read_config(path)):
+            writes.append((DISABLED_SKILLS_KEY, None))
     except Exception as exc:  # fail-open per profile: a seed must never break persona create or startup
         logger.warning("persona_seed_failed path=%s error=%s", path, type(exc).__name__, exc_info=True)
         return {"path": str(path), "seeded": [], "error": type(exc).__name__}

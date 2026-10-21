@@ -775,6 +775,20 @@ def skill_frontmatter_runtime_compatibility(
         "load_policy": load_policy,
     }
 
+def skill_manifest_compatibility(
+    skill_md: Path, *, surface: str, root_node_mode: bool = False
+) -> tuple[str, dict[str, Any]]:
+    """``(name, verdict)`` for one ``SKILL.md`` on disk: the declared ``name`` (else
+    its directory's), and :func:`skill_frontmatter_runtime_compatibility` over its
+    cached frontmatter. The persona seed's line 5 asks this per skill."""
+
+    frontmatter = _cached_skill_frontmatter(skill_md)
+    name = str(frontmatter.get("name") or "").strip() or skill_md.parent.name
+    return name, skill_frontmatter_runtime_compatibility(
+        frontmatter, surface=surface, root_node_mode=root_node_mode
+    )
+
+
 def _cached_skill_frontmatter(skill_md: Path) -> dict[str, Any]:
     """mtime-cached frontmatter parse for a SKILL.md manifest.
 
