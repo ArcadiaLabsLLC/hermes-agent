@@ -271,6 +271,15 @@ five habits cost about 390 minutes a day.
   `tail` hides its own red.
 - **One heavy run at a time on this box.** Two contend for the same cores; a second landing racing
   the first costs both a re-merge and a second gate run.
+- **The bundled runner claims the launcher's machine-wide heavy-run slot** (owner ruling 2026-10-21,
+  `FORK-HERMES-TEST-ENTRY-POINTS`): `scripts/run_tests_bundled.py`, run as a script, holds one of the
+  slots of `EterniaLauncher/tool/heavy_run/slot_lock.dart` (default 2, `ETERNIA_HEAVY_SLOTS=off`
+  disables) for its whole run, and a run that finds them all busy WAITS and names each holder every
+  20 s — the cap working, not a hang. `scripts/run_tests_bundled_slot.py` speaks the Dart file
+  contract (`<machine temp>/eternia-heavy-slots/slot-<i>.lock`, OS lock on byte 0, JSON note from
+  byte 1); `_fork_test_env.sh` names the directory before TEMP moves to the test-tmp root. A child of
+  a holder (`ETERNIA_HEAVY_SLOT_HELD`), a runner a test spawned, `--cache-dry-run` and `-h` claim
+  nothing. The per-file `scripts/run_tests.sh` claims no slot.
 
 ## What a lane runs, and what it never runs
 - **A contract change runs the tests that pin it, and the producer names them** (owner ruling
