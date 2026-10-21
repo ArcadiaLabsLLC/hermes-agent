@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-21 (launcher landing land-w1021c)
+
+- **`RT-REVENDOR-LAUNCHER-CATALOG-WINDOWS-LIST` — re-vendor the launcher app-function catalog fixture: it still lists `launcher.windows.list`, which the launcher retired** · `tests/fixtures/launcher_app_functions_catalog.json` · source: launcher `tool/app_function_catalog.json` (retired at launcher d33c78081f, landed 718ce52747; 155 functions) · READY 2026-10-21
+
 ### Filed on arrival — 2026-10-21 (launcher plan lane w1021c-plan-mc)
 
 - **`RT-CONVERSATION-LIST-INSTANCE-FILTER` — `runtime.operator.conversation.list` accepts an optional `persona_instance_id` and filters on it before the page bound (and in the cursor scope tuple), so the launcher's per-agent saved-chat list can page the directory** · `agent_runtime/instance_history.py::_history_page` · consumer: launcher `MC-ONE-CONSOLE-INBOX` (plan `EterniaLauncher/docs/mission_control/planned/ONE_CONSOLE_INBOX_2026-10-21.md`) · READY 2026-10-21
