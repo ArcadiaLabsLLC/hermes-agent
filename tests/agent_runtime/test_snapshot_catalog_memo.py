@@ -22,7 +22,7 @@ def test_skill_catalog_memo_collapses_repeat_walks(monkeypatch):
         calls.append(1)
         return [{"name": "alpha", "description": "demo", "category": "skills"}]
 
-    monkeypatch.setattr(skills_tool, "_find_all_skills", fake_walk)
+    monkeypatch.setattr(skills_tool, "find_all_skills", fake_walk)
 
     first = po.skills_context.available_skills_context()
     second = po.skills_context.available_skills_context()
@@ -35,12 +35,12 @@ def test_skill_catalog_memo_collapses_repeat_walks(monkeypatch):
 def test_skill_catalog_memo_invalidates_when_walker_is_swapped(monkeypatch):
     """Identity keying: replacing the walker (monkeypatch, hot reload) must
     bypass the memo instantly — a warm memo never masks the swap."""
-    monkeypatch.setattr(skills_tool, "_find_all_skills", lambda **_: [
+    monkeypatch.setattr(skills_tool, "find_all_skills", lambda **_: [
         {"name": "alpha", "description": "", "category": "skills"},
     ])
     assert [row["name"] for row in po.skills_context.available_skills_context()] == ["alpha"]
 
-    monkeypatch.setattr(skills_tool, "_find_all_skills", lambda **_: [
+    monkeypatch.setattr(skills_tool, "find_all_skills", lambda **_: [
         {"name": "beta", "description": "", "category": "skills"},
     ])
     assert [row["name"] for row in po.skills_context.available_skills_context()] == ["beta"]
@@ -56,7 +56,7 @@ def test_skill_catalog_memo_expires_after_ttl(monkeypatch):
         calls.append(1)
         return [{"name": f"skill-{len(calls)}", "description": "", "category": "skills"}]
 
-    monkeypatch.setattr(skills_tool, "_find_all_skills", fake_walk)
+    monkeypatch.setattr(skills_tool, "find_all_skills", fake_walk)
     monkeypatch.setattr(po.skills_resolver, "_SKILL_CATALOG_TTL_SECONDS", 0.0)
 
     first = po.skills_context.available_skills_context()
@@ -80,7 +80,7 @@ def test_skill_catalog_memo_caches_empty_catalog(monkeypatch):
         calls.append(1)
         return []
 
-    monkeypatch.setattr(skills_tool, "_find_all_skills", fake_walk)
+    monkeypatch.setattr(skills_tool, "find_all_skills", fake_walk)
 
     po.skills_context.available_skills_context()
     po.skills_context.available_skills_context()

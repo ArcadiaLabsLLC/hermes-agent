@@ -244,13 +244,13 @@ class _Serve:
         self.walks: list[str] = []
         self.release_riders = threading.Event()
         self.riders_parked = threading.Semaphore(0)
-        real_walk = skills_tool._find_all_skills
+        real_walk = skills_tool.find_all_skills
 
         def counted_walk(*args, **kwargs):
             self.walks.append(threading.current_thread().name)
             return real_walk(*args, **kwargs)
 
-        monkeypatch.setattr(skills_tool, "_find_all_skills", counted_walk)
+        monkeypatch.setattr(skills_tool, "find_all_skills", counted_walk)
 
         def dispatch(argv: list[str]) -> int:
             if argv[1] == "stream":  # a hydrate rider, parked on a snapshot build

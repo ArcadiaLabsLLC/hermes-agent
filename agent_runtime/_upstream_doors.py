@@ -109,18 +109,18 @@ def compression_threshold_for_model(model: str, provider: str | None, *, allow_c
 
 
 def skills_walker():
-    """``tools.skills_tool._find_all_skills`` ITSELF, not a wrapper — read by
+    """``tools.skills_tool.find_all_skills`` ITSELF, not a wrapper — read by
     ``prompt_observability.skills_resolver``, whose installed-catalog memo keys
     on the walker's identity so a patched or reloaded walker invalidates it.
-    Held widening row (ruling Q7): publish ``find_all_skills``."""
-    from tools.skills_tool import _find_all_skills
+    Upstream published the name (the ruling-Q7 widening), so this reads a public door."""
+    from tools.skills_tool import find_all_skills
 
-    return _find_all_skills
+    return find_all_skills
 
 
 def skills_tool_inspection_doors():
-    """``tools.skills_tool``'s ``_find_all_skills``, ``_sort_skills``,
-    ``_skill_lookup_path_error``, ``_skill_search_dirs`` and ``_locate_skill`` ITSELF, in that
+    """``tools.skills_tool``'s ``find_all_skills``, ``sort_skills``,
+    ``skill_lookup_path_error``, ``skill_search_dirs`` and ``locate_skill`` ITSELF, in that
     order — read by ``skill_inspection.skill_inspection_reader`` (lane PF-3 moved the reader out
     of ``skills_tool.py``; it binds human inspection to the tool's own discovery and
     collision/trust gates, so a copy would be a second resolver). Held widening row: publish a
@@ -129,11 +129,11 @@ def skills_tool_inspection_doors():
     get_disabled_skill_names``, which ``tools.skills_tool._get_disabled_skill_names`` only
     delegates to (w3-turn, 2026-10-01)."""
     from tools.skills_tool import (
-        _find_all_skills, _locate_skill, _skill_lookup_path_error, _skill_search_dirs, _sort_skills,
+        find_all_skills, locate_skill, skill_lookup_path_error, skill_search_dirs, sort_skills,
     )
 
-    return (_find_all_skills, _sort_skills, _skill_lookup_path_error, _skill_search_dirs,
-            _locate_skill)
+    return (find_all_skills, sort_skills, skill_lookup_path_error, skill_search_dirs,
+            locate_skill)
 
 
 def skill_utils_raw_config_cache():
