@@ -264,6 +264,13 @@ def test_sql_readonly_reads_one_value_and_a_delete_never_reaches_sqlite(database
         _feed("sql_readonly", {"database": str(database), "query": "DELETE FROM jobs"})
     assert refused.value.code is WireRefusal.INVALID_STRING
 
+    pasted = "SELECT COUNT(*)\r\n\tFROM jobs\n\tWHERE state = 'failed'"  # RT-LENS-SQL-MULTILINE
+    multiline = _feed("sql_readonly", {"database": str(database), "query": pasted})
+    assert multiline["source"]["query"] == pasted and sql_readonly.read(multiline, headers={}).value == 2.0
+    with pytest.raises(WireError) as control:
+        _feed("sql_readonly", {"database": str(database), "query": "SELECT 1\x00"})
+    assert control.value.code is WireRefusal.INVALID_STRING, "only tab / LF / CR are admitted"
+
     planted = {**feed, "source": {**feed["source"], "query": "DELETE FROM jobs"}}
     assert sql_readonly.read(planted, headers={}).reason.value == "statement_refused"
     hidden = {**feed, "source": {**feed["source"],
