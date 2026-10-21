@@ -30,7 +30,7 @@ from __future__ import annotations
 import json
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
@@ -38,7 +38,13 @@ from typing import Any
 from utils import atomic_json_write
 
 from . import paths
-from .machine_roots import _ROOT_NAME_RE, MachineRoots, load_machine_roots, write_machine_roots
+from .machine_roots import (
+    _ROOT_NAME_RE,
+    MACHINE_ROOTS_SCHEMA_VERSION,
+    MachineRoots,
+    load_machine_roots,
+    write_machine_roots,
+)
 from .workspace_slot_recipe import text_carries_credential, url_carries_credential
 
 __layer__ = "stores"
@@ -355,10 +361,54 @@ def declare_one_slot(workspace_id: str, entry: Any, *, issued_at: str, machine: 
 # ── this machine's fill ──────────────────────────────────────────────────────
 
 
-def scoped_roots(*, refresh: bool = True) -> MachineRoots:
-    """The registry the slot readers use: ``workspace_roots`` is THE fill, keyed by workspace."""
+def scoped_roots(*, refresh: bool = True, migrate: bool = True) -> MachineRoots:
+    """The registry the slot readers use: ``workspace_roots`` is THE fill, keyed by workspace.
 
-    return load_machine_roots(refresh=refresh)
+    A legacy registry (schema 1, no ``workspace_roots``) is upgraded here, once, on the first slot
+    read — ``slot_census`` (detection, the board, the probe) and every ``bound_path`` reach it. With
+    ``migrate=False`` (the snapshot, which writes nothing) the upgraded view is answered unwritten.
+    """
+
+    current = load_machine_roots(refresh=refresh)
+    if current.schema_version >= MACHINE_ROOTS_SCHEMA_VERSION:
+        return current
+    scoped, ambiguous = _legacy_fills(current)
+    if not migrate:
+        return replace(current, workspace_roots=scoped)
+    write_machine_roots(dict(current.roots), workspace_roots=scoped, dry_run=False)
+    from .work_store import receipts
+
+    for entry in ambiguous:
+        receipts.emit("machine_roots.migration_ambiguous", **entry)
+    receipts.emit("machine_roots.migrated", workspaces=len(scoped), slots=sum(len(s) for s in scoped.values()))
+    return load_machine_roots(refresh=True)
+
+
+def _legacy_fills(current: MachineRoots) -> tuple[dict[str, dict[str, str]], list[dict[str, Any]]]:
+    """Each legacy ``roots.<slot>`` (a directory) as the fill of every workspace declaring that slot.
+
+    A name declared by several workspaces goes to the ones whose declared ``repo.clone_url`` matches the
+    checkout's ``origin``; the rest stay UNBOUND with a ``migration_ambiguous`` entry (never a guess).
+    """
+
+    from .workspace_slots_probe import origin_matches
+
+    claims: dict[str, list[tuple[str, dict[str, Any]]]] = {}
+    for workspace_id in realm_workspace_ids():
+        for name, slot in live_slots(load_document(workspace_id)).items():
+            if current.roots.get(name) and Path(current.roots[name]).is_dir():
+                claims.setdefault(name, []).append((workspace_id, slot))
+    scoped = {ws: dict(fills) for ws, fills in current.workspace_roots.items()}
+    ambiguous: list[dict[str, Any]] = []
+    for name, claimants in sorted(claims.items()):
+        path = current.roots[name]
+        won = [ws for ws, slot in claimants if len(claimants) == 1 or origin_matches(Path(path), slot)]
+        for workspace_id in won:
+            scoped.setdefault(workspace_id, {}).setdefault(name, path)
+        unbound = sorted(ws for ws, _ in claimants if ws not in won)
+        if unbound:
+            ambiguous.append({"slot": name, "workspaces": sorted(ws for ws, _ in claimants), "unbound": unbound})
+    return scoped, ambiguous
 
 
 def bound_path(slot: str, *, workspace_id: str) -> Path | None:
@@ -579,7 +629,7 @@ def snapshot_slots(workspace_id: str, *, machine: str | None) -> dict[str, Any]:
     document = load_document(workspace_id)
     mine = ((document.get("machines") or {}).get(machine) or {}) if machine else {}
     reported = mine.get("slots") or {}
-    roots = scoped_roots(refresh=False)
+    roots = scoped_roots(refresh=False, migrate=False)
     slots = {}
     for name in sorted(live_slots(document)):
         last = reported.get(name) or {}

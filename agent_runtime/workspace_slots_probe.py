@@ -71,6 +71,19 @@ def _normalize_remote(url: str) -> str:
     return text.lower().split("://", 1)[-1]
 
 
+def origin_matches(path: Path, slot: dict[str, Any], run: Runner | None = None) -> bool:
+    """True when the checkout at ``path`` has an ``origin`` matching the slot's declared ``repo.clone_url``."""
+
+    wanted = str((slot.get("repo") or {}).get("clone_url") or "")
+    if not wanted:
+        return False
+    try:
+        done = (run or _run)(["git", "-C", str(path), "remote", "get-url", "origin"])
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return done.returncode == 0 and _normalize_remote(done.stdout) == _normalize_remote(wanted)
+
+
 class _SlotProbe:
     """One slot's probes on this machine; collects the row and the unknowns."""
 
