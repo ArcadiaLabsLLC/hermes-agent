@@ -228,15 +228,15 @@ class Writer:
 
     def _ensure_worktree(self, clone: Path) -> None:
         self._git(["worktree", "prune"], repo=clone)
-        if (self.worktree / ".git").exists():
-            if self._common_dir(self.worktree) == self._common_dir(clone):
-                return
-            # Another checkout's worktree under this slot's name: the default brain and a declared slot
-            # ``brain`` adopted on a second machine share it until the move retires the default (p10-work §2.5).
+        if (self.worktree / ".git").exists() and self._common_dir(self.worktree) == self._common_dir(clone):
+            return
+        if self.worktree.exists():
+            # Keyed by its checkout, the directory can only be stale: git no longer reads it as a worktree
+            # of this checkout (the checkout was deleted or re-cloned in place).
+            receipts.emit("work.worktree_stale", slot=self.board.slot, path=str(self.worktree),
+                          workspace_id=self.board.workspace_id)
             shutil.rmtree(self.worktree)
             self._git(["worktree", "prune"], repo=clone)
-        if self.worktree.exists():
-            shutil.rmtree(self.worktree)
         self.worktree.parent.mkdir(parents=True, exist_ok=True)
         start = self.tip if self._git(["rev-parse", "-q", "--verify", self.tip], repo=clone).returncode == 0 else "HEAD"
         self._must(["worktree", "add", "-q", "--no-checkout", str(self.worktree), "-B", self.branch, start],

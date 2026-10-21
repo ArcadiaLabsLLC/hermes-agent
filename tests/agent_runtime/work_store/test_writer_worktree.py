@@ -71,3 +71,28 @@ def test_alternating_writes_over_two_checkouts_cut_exactly_two_worktrees(workspa
     for index, board in enumerate(boards):
         text = run_git(["show", f"main:{NOTE}"], repo=board.checkout).stdout
         assert all(f"`WT-{n:02d}`" in text for n in range(index, 10, 2))
+
+
+def test_a_worktree_whose_checkout_was_recloned_is_recreated_once_with_a_receipt(workspace, tmp_path, caplog):
+    """W2: the moved-checkout arm. Killing mutation: dropping the ``work.worktree_stale`` receipt."""
+
+    import logging
+    import os
+    import shutil
+    import stat
+
+    caplog.set_level(logging.INFO, logger="agent_runtime.work_store.receipts")
+    root = tmp_path / "brain"
+    board = local_board(workspace, brain_repo(root), is_default=False)
+    adds: list[list[str]] = []
+    first = Writer(board, machine_id="m1", run=counting(adds))
+    first.apply(append(1))
+    shutil.rmtree(root, onerror=lambda func, path, _exc: (os.chmod(path, stat.S_IWRITE), func(path)))
+    brain_repo(root)  # the same path, a new repository: the old worktree's admin dir is gone
+    second = Writer(board, machine_id="m1", run=counting(adds))
+    assert second.worktree == first.worktree
+    second.apply(append(2))
+    second.apply(append(3))
+    assert len(adds) == 2
+    stale = [r.getMessage() for r in caplog.records if '"kind": "work.worktree_stale"' in r.getMessage()]
+    assert len(stale) == 1 and '"slot": "brain"' in stale[0]
