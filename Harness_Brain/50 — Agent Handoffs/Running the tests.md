@@ -38,7 +38,7 @@ change can break, and nothing more. Nothing runs the whole tree.
 |---|---|---|---|
 | While writing code | a lane | `scripts/run_tests.sh <file>` | the one file; no cache |
 | While writing code (fast loop) | a lane or the owner | `scripts/run_tests_bundled.sh --affected` | the tests your edits can break; never a gate |
-| End of a lane | a lane | one `python -m pytest -q -p no:cacheprovider <files>` run over only the test files importing what it touched | its blast radius; no gates, no scopes |
+| End of a lane | a lane | one `python -m pytest -q -p no:cacheprovider <files>` run over only the test files importing what it touched, plus the two name census gates when it touched Python | its blast radius and its own new names; no other gates, no scopes |
 | Landing a batch | the landing session, once per batch, peers frozen | `scripts/run_tests_bundled.sh tests` (`--scope fork`) | fork files + the upstream files the change reaches, minus the skip list (unused features included, even when reached); cached greens skipped; a session-chain edit runs contract + sample |
 | Release merge | the release lane | `scripts/run_tests_bundled.sh --since-merge <sha> tests` | the same, over what the merge produced (a chain edit: contract + sample) |
 | Judging a red | anyone, quiet box | `scripts/run_tests_bundled.sh --confirm-red <file>` | that file alone on HEAD and on `origin/main` |
@@ -297,6 +297,14 @@ five habits cost about 390 minutes a day.
   wants parallelism names `scripts/run_tests.sh -j N <files>` (file paths only — a node id among
   its arguments runs nothing for the other files). A lane never runs the landing gate, the tooling
   gates, the docs gates or the contract dumps; those are the landing's job, once.
+- **One exception: a lane that touched Python adds the two name census gates to that same run** —
+  `tests/agent_runtime/test_duplicate_helper_bodies.py` and `tests/tooling/test_no_ladder_routing.py`
+  (~50–70 s each). They walk the whole fork, so no importer `grep` and no `--affected` run reaches
+  them from a new module, and only the lane can cheaply rename its own new names: two landings
+  (f9ef5d33aa; hermes 76a5a16158, land/w1020-estore) found a lane's NEW `_read` /
+  `_namespace_manifest` duplicate or NEW ladder only at the landing gate, each a fix-and-regate
+  cycle (`FH-LANE-RUNS-NEW-NAME-GATES`). A red there that `main` shares is compared by its `NEW` /
+  `GREW` lines, as § Calling a red pre-existing says, never fixed in passing.
 - **Launcher lanes and landings run `*_test.dart` files only.** A `grep -l` under `test/` also
   matches fixtures and helpers; on 2026-10-05 it handed `flutter test` the helper
   `detached_serve_starter.dart` and the run hung ten minutes. Filter the list to `_test.dart`.
