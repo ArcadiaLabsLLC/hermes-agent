@@ -83,6 +83,28 @@ def test_pinned_history_is_exempt_from_the_age_sweep(tmp_path):
         rooms.room_state(db, room_id="room-plain", include_disbanded=True)
 
 
+@pytest.mark.parametrize("pinned", [False, True])
+def test_pinned_tombstones_take_no_stock_tombstone_slot(tmp_path, monkeypatch, pinned):
+    db = tmp_path / "state.db"
+    monkeypatch.setattr(rooms, "MAX_DISBANDED_ROOM_TOMBSTONES", 1)
+    for room_id in ("room-plain", "room-kept"):
+        _create(db, room_id)
+    if pinned:
+        _pin(db, "room-kept")
+    _disband(db, room_id="room-plain", now=20)
+    _disband(db, room_id="room-kept", now=21)
+
+    # Unpinned (control): the cap keeps only the newest tombstone, room-kept.
+    # Pinned: room-kept is retained by its pin, so room-plain is the only stock
+    # tombstone and fits the cap of one.
+    assert rooms.room_state(db, room_id="room-kept", include_disbanded=True)["room_id"] == "room-kept"
+    if pinned:
+        assert rooms.room_state(db, room_id="room-plain", include_disbanded=True)["room_id"] == "room-plain"
+    else:
+        with pytest.raises(rooms.RoomNotFoundError):
+            rooms.room_state(db, room_id="room-plain", include_disbanded=True)
+
+
 def test_byte_budget_reclaims_unpinned_history_before_pinned_history(
     tmp_path,
     monkeypatch,
