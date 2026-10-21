@@ -29,6 +29,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-21 (launcher lane w1021e-mc-windows)
+
+- **`RT-LENS-DROP-DRAFT-VERB` — no verb drops only a sealed monitor's pending next-revision draft; `runtime.lens.retire` is the sole discard and ends the live monitor** · fork / Lens · `agent_runtime/lens/store.py::LensStore.create`, `agent_runtime/serve_rpc/lens.py` · launcher hides Discard on a next-revision review until it exists (`EterniaLauncher/lib/features/mission_control/lens/mission_lens_drafts_section.dart`) · READY 2026-10-21
+- **`RT-LENS-LIST-DRAFT-FLAG` — `runtime.lens.list` rows carry no draft flag, so a persona's `lens_propose` next revision of a SEALED monitor never appears in the launcher's "Proposed monitors" (it lists `state == draft` only)** · fork / Lens · `agent_runtime/serve_rpc/lens.py::_runtime_lens_list` · launcher half: list a sealed row with a pending draft under review (`EterniaLauncher/lib/features/mission_control/lens/mission_lens_drafts_section.dart`) · READY 2026-10-21
+
 ### Filed on arrival — 2026-10-21 (launcher landing land-w1021c)
 
 - **`RT-REVENDOR-LAUNCHER-CATALOG-WINDOWS-LIST` — re-vendor the launcher app-function catalog fixture: it still lists `launcher.windows.list`, which the launcher retired** · `tests/fixtures/launcher_app_functions_catalog.json` · source: launcher `EterniaLauncher/docs/embedded_hermes/generated/app_function_catalog.json` (retired at launcher d33c78081f, landed 718ce52747; 155 functions) · READY 2026-10-21
