@@ -512,6 +512,16 @@ class LensStore:
             rows = conn.execute(sql + " ORDER BY started_ms DESC, episode_id LIMIT ?", [*args, int(limit)]).fetchall()
         return [_receipt_json(row) for row in rows]
 
+    def receipt_rollups(self, monitor_id: str) -> list[dict[str, Any]]:
+        """The folded days of ``monitor_id``, newest first: ``{day, outcome, count}`` (``day`` UTC ms)."""
+
+        if not self.exists():
+            return []
+        with self._db() as conn:
+            rows = conn.execute("SELECT day_ms, outcome, count FROM receipt_rollups WHERE monitor_id = ? "
+                                "ORDER BY day_ms DESC, outcome", (monitor_id,)).fetchall()
+        return [{"day": day, "outcome": outcome, "count": count} for day, outcome, count in rows]
+
     def receipts_today(self, monitor_id: str, now: datetime) -> int:
         """Receipts that spent this monitor's ``daily_turn_cap`` on ``now``'s UTC day."""
 

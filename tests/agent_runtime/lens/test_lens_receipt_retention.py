@@ -9,6 +9,7 @@ Killing mutations (each red recorded in its stage's commit):
 * L1: fold AFTER the delete -> the rollup counts are empty; drop the ``state != 'active'``
   filter -> the old active Episode is deleted.
 * L2: raise ``RECEIPTS_FULL`` at the fence as before -> the Episode is never settled (owed forever).
+* L3: drop the ``rollups`` key from ``runtime.lens.receipts`` -> KeyError.
 """
 
 from __future__ import annotations
@@ -157,3 +158,23 @@ def test_still_full_settles_the_episode_with_no_receipt(monkeypatch, caplog):
     assert row["turn_id"] == "receipts_full"
     assert not needs_admission(Episode.from_json(row), NOW)  # settled: the next tick forges nothing
     assert f"[LensReceiptsFull] monitor=m2 episode={episode.id}" in caplog.text
+
+
+# --- L3 the wire --------------------------------------------------------------------
+
+
+def test_the_receipts_verb_carries_the_folded_days_for_a_monitor():
+    from agent_runtime import serve_rpc
+
+    store = LensStore()
+    _young_or_old(store, 2, NOW - timedelta(days=40))
+    fold_receipts(store, NOW)
+
+    def call(params):
+        return serve_rpc.handle_request({"jsonrpc": "2.0", "id": 1, "method": "runtime.lens.receipts",
+                                         "params": params})["result"]
+
+    day = to_ms(NOW - timedelta(days=40)) // 86_400_000 * 86_400_000
+    assert call({"monitor_id": "m1"})["rollups"] == [{"day": day, "outcome": "notified", "count": 2}]
+    assert call({"monitor_id": "m2"})["rollups"] == []
+    assert "rollups" not in call({})  # no monitor named: the reply is the receipts page alone
