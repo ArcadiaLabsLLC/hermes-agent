@@ -269,6 +269,16 @@ five habits cost about 390 minutes a day.
 - **Never pipe a heavy command through `tail` / `head`.** Redirect to a log file, capture the exit
   code UNPIPED (`; rc=$?; exit $rc`), read the log after. Under `pipefail` a gate piped through
   `tail` hides its own red.
+- **Every watcher has a bound** (owner ruling 2026-10-21, `FORK-ORPHAN-GREP-WATCHERS`). A log watcher
+  — `tail -f log | grep --line-buffered -E "exit=|DONE"` and kin — does not die with the session that
+  started it: 17 were found with dead parents on 2026-10-19 and three more by 2026-10-21, and one
+  `grep -rln … /` from a launcher session burned ~16,000 CPU-s and skewed a measured A/B. So a
+  watcher is either the Monitor tool's until-loop (it carries its own timeout) or wrapped in
+  `timeout <seconds>` no longer than the command it watches
+  (`timeout 900 tail -f "$log" | grep -m 1 --line-buffered -E "exit=|DONE"`); a search names a
+  directory, never `/` or a drive root. Bounding is the fix, not a periodic kill. A fork script that
+  follows a log carries the same bound in code (checked 2026-10-21: none under `scripts/` follows
+  one — `unattended_suite_run.ps1` reads `-Tail 40` once after its child exits).
 - **One heavy run at a time on this box.** Two contend for the same cores; a second landing racing
   the first costs both a re-merge and a second gate run.
 - **The bundled runner claims the launcher's machine-wide heavy-run slot** (owner ruling 2026-10-21,
