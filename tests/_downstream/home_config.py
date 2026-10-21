@@ -10,7 +10,8 @@ the chain, measured 2026-10-18). ``SessionDB`` pays two per open (``resolve_jour
 The file carries ONLY ``_config_version`` at the current ``DEFAULT_CONFIG`` value, so the
 merged config is exactly the defaults and ``migrate_config`` finds nothing to do (an empty
 ``{}`` reds ``test_config.py::test_migrate_reports_normalized_line_formatting`` with
-"Config version: 0 -> 50"). A test that writes its own ``config.yaml`` overwrites it; a test
+"Config version: 0 -> 50"). A test that writes its own ``config.yaml`` raw overwrites it (one
+that writes a partial one through ``atomic_config_write`` is refused: ``PARTIAL_WRITER_FILES``); a test
 that points ``HERMES_HOME`` at its own directory is untouched.
 
 ``hermes_cli.config`` is never imported for a test (import order is some tests' subject): a
@@ -43,11 +44,19 @@ BARE_HOME_FILES = frozenset({
     "tests/agent_runtime/test_root_config_hermetic.py",
 })
 
+#: Test files that write a PARTIAL ``config.yaml`` into the home through the lossless writer
+#: (``atomic_config_write``): the stamped ``_config_version`` is a setting their payload omits,
+#: so the writer refuses it ("would lose settings omitted by this write"). Upstream tests,
+#: untouched; they get the home bare, as upstream mints it (FH-MAIN-IMPORTER-REDS-1021).
+PARTIAL_WRITER_FILES = frozenset({
+    "tests/hermes_cli/test_models_relay_base_url.py",
+})
+
 
 @pytest.fixture(autouse=True)
 def _home_carries_a_config(request, _hermetic_environment):
     if Path(str(request.node.path)).as_posix().split("/tests/", 1)[-1] in {
-            name.split("tests/", 1)[1] for name in BARE_HOME_FILES}:
+            name.split("tests/", 1)[1] for name in BARE_HOME_FILES | PARTIAL_WRITER_FILES}:
         return
     config_module = sys.modules.get("hermes_cli.config")
     if config_module is None:
