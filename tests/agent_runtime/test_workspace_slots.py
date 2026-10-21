@@ -190,9 +190,22 @@ def test_an_unbound_slot_names_the_machines_that_bind_it(workspace):
 
     write_document(workspace, document)
     here = call("runtime.workspace.slots.show", {"workspace_id": workspace})["result"]["here"]["launcher"]
-    assert here["bound_here"] is False and here["path"] is None
+    assert here["bound_here"] is False and here["path"] is None and here["folder_missing"] is False
     [entry] = here["unknowns"]
     assert entry["kind"] == "slot_unbound_here" and "mach_far" in entry["evidence"] and "mach_none" not in entry["evidence"]
+
+
+def test_a_deleted_bound_folder_keeps_its_path_and_says_folder_missing(workspace, checkout):
+    """RT-SLOTS-SHOW-DROPS-MISSING-PATH: "folder missing" is not "not set up on this machine"."""
+
+    _declare(workspace, [_slot()])
+    call("runtime.workspace.slot.bind", {"workspace_id": workspace, "slot": "launcher", "path": str(checkout),
+                                         "issued_at": ISSUED})
+    here = call("runtime.workspace.slots.show", {"workspace_id": workspace})["result"]["here"]["launcher"]
+    assert (here["bound_here"], here["path"], here["folder_missing"]) == (True, str(checkout), False)
+    checkout.rename(checkout.with_name("launcher-gone"))
+    here = call("runtime.workspace.slots.show", {"workspace_id": workspace})["result"]["here"]["launcher"]
+    assert (here["bound_here"], here["path"], here["folder_missing"]) == (False, str(checkout), True)
 
 
 def test_no_count_limit_two_hundred_slots_round_trip(workspace):

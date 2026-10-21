@@ -5,25 +5,42 @@ from .model import ConversationError, digest
 __layer__ = "lanes"
 
 
+def child_owner(install_id, scope, live) -> dict:
+    """The worker-side owner of a route's children: ``owner_scope`` + ``worker_generation``.
+
+    The ONE derivation both ``eternia.subagents.*`` and the child address on
+    ``eternia.skills.*`` send, so a ``child_ref`` minted by a subagents read resolves on a skills call.
+    """
+    return {"owner_scope": digest([install_id, scope.key, live.route.id]),
+            "worker_generation": live.worker.generation}
+
+
+def call_child(live, method: str, request: dict, *, write: bool) -> dict:
+    """``live.peer.call`` with a worker's subagent refusal raised as a ``SubagentError``.
+
+    A write whose reply is lost is ``unknown`` (its outcome cannot be proven either way).
+    """
+    try:
+        return live.peer.call(method, request)
+    except ConversationError as exc:
+        reason = next((reason for reason, code in ERROR_CODES.items() if code == exc.native_code), None)
+        if reason is not None:
+            raise SubagentError(reason) from exc
+        if write:
+            raise SubagentError(Refusal.UNKNOWN) from exc
+        raise
+
+
 def inspect_children(install_id, scope, live, operation, params):
     validate_request(operation, params)
     identity = {"install_id": install_id, "session_id": live.route.id,
                 "client_scope": scope.client, "profile": scope.profile}
     request = {
         "session_id": live.native_id,
-        "owner_scope": digest([install_id, scope.key, live.route.id]),
-        "worker_generation": live.worker.generation,
+        **child_owner(install_id, scope, live),
         **{key: params[key] for key in (*COMMAND_PARAMS, "text", "host_ref", "paused") if key in params},
     }
-    try:
-        result = live.peer.call("eternia.subagents." + operation, request)
-    except ConversationError as exc:
-        reason = next((reason for reason, code in ERROR_CODES.items() if code == exc.native_code), None)
-        if reason is not None:
-            raise SubagentError(reason) from exc
-        if operation in WRITES:
-            raise SubagentError(Refusal.UNKNOWN) from exc
-        raise
+    result = call_child(live, "eternia.subagents." + operation, request, write=operation in WRITES)
     return {**result["data"], **identity}
 
 

@@ -72,6 +72,7 @@
     "runtime.conversation.send",
     "runtime.conversation.skills.detail",
     "runtime.conversation.skills.history",
+    "runtime.conversation.skills.lend",
     "runtime.conversation.skills.list",
     "runtime.conversation.stop",
     "runtime.conversation.subagents.capabilities",
@@ -437,6 +438,38 @@
       "session_id",
       "turn_id"
     ],
+    "runtime.conversation.skills.detail": [
+      "install_id",
+      "session_id",
+      "client_scope",
+      "profile",
+      "child_ref",
+      "skill_id"
+    ],
+    "runtime.conversation.skills.history": [
+      "install_id",
+      "session_id",
+      "client_scope",
+      "profile",
+      "child_ref"
+    ],
+    "runtime.conversation.skills.lend": [
+      "install_id",
+      "session_id",
+      "client_scope",
+      "profile",
+      "child_ref",
+      "skills",
+      "mode",
+      "request_id"
+    ],
+    "runtime.conversation.skills.list": [
+      "install_id",
+      "session_id",
+      "client_scope",
+      "profile",
+      "child_ref"
+    ],
     "runtime.conversation.subagents.capabilities": [
       "install_id",
       "session_id",
@@ -552,6 +585,14 @@
       "history_ref"
     ],
     "runtime.health": [],
+    "runtime.operator.conversation.list": [
+      "all_accounts",
+      "before",
+      "client_scope",
+      "install_id",
+      "limit",
+      "persona_instance_id"
+    ],
     "runtime.operator.conversation.subagents.capabilities": [
       "install_id",
       "workspace_id",
@@ -839,6 +880,7 @@
     "runtime.conversation.send": "console",
     "runtime.conversation.skills.detail": "console",
     "runtime.conversation.skills.history": "console",
+    "runtime.conversation.skills.lend": "console",
     "runtime.conversation.skills.list": "console",
     "runtime.conversation.stop": "console",
     "runtime.conversation.subagents.capabilities": "console",

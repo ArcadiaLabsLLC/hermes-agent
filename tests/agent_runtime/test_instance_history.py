@@ -87,3 +87,32 @@ def test_unowned_history_without_metadata_requires_all_accounts(placed_agent):
     assert row.get("client_scope") is None
     assert row["persona_instance_id"] == placed_agent["persona_instance_id"]
     assert row["available"]
+
+
+def test_instance_filter_precedes_page_bound_and_scopes_the_cursor(placed_agent):
+    """RT-CONVERSATION-LIST-INSTANCE-FILTER: a per-agent list pages the directory."""
+
+    instance = placed_agent["persona_instance_id"]
+    own = {create(placed_agent, f"own-{i}") for i in range(3)}
+    foreign = {create(placed_agent, f"foreign-{i}") for i in range(4)}
+    minted_only = create(placed_agent, "minted-only")
+    with closing(default_persona_session_db()) as db:
+        for session in foreign:
+            db._write_sql("UPDATE sessions SET model_config=json_set(model_config,'$.persona_instance_id',?)"
+                          " WHERE id=?", ("personainst_someone_else", session))
+        db._write_sql("UPDATE sessions SET model_config=json_remove(model_config,'$.persona_instance_id')"
+                      " WHERE id=?", (minted_only,))
+    page = read_history(limit=1, persona_instance_id=instance)["result"]
+    found = [row["session_id"] for row in page["conversations"]]
+    cursor = page["next_cursor"]
+    while cursor:
+        page = read_history(limit=1, persona_instance_id=instance, before=cursor)["result"]
+        found.extend(row["session_id"] for row in page["conversations"])
+        cursor = page["next_cursor"]
+    assert len(found) == len(set(found)) and set(found) == own | {minted_only}
+    other = read_history(persona_instance_id="personainst_someone_else")["result"]["conversations"]
+    assert {row["session_id"] for row in other} == foreign
+    cursor = read_history(limit=1, persona_instance_id=instance)["result"]["next_cursor"]
+    assert read_history(before=cursor)["error"]["data"]["reason"] == "invalid_history_cursor"
+    for bad in (7, "", "x" * 201):
+        assert read_history(persona_instance_id=bad)["error"]["data"]["reason"] == "invalid_history_query"

@@ -75,3 +75,15 @@ def test_the_vendor_script_normalizes_and_reports_the_delta():
     assert entry_delta(fixture["entries"], changed) == ["- launcher.b.x", "~ launcher.a.y (reach)"]
     with pytest.raises(ValueError):
         normalize_entries({"entries": [{"id": "launcher.a.y"}]})
+
+
+def test_the_vendor_script_keeps_a_null_guidance_and_the_exports_own_stamp():
+    """The Launcher's 2026-10-21 export writes ``guidance_sha256: null`` and stamps its own commit."""
+
+    raw = {"source_commit": "c" * 40, "exported_at": "2026-10-21", "entries": [
+        {"id": "launcher.a.y", "name": "launcher_a_y", "read_only": True, "always_loaded": False,
+         "reach": "localOnly", "guidance_sha256": None},
+    ]}
+    fixture = build_fixture(raw, "0" * 40)
+    assert fixture["source_commit"] == "c" * 40
+    assert fixture["entries"][0]["guidance_sha256"] is None

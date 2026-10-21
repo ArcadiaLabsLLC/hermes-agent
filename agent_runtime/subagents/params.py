@@ -18,3 +18,14 @@ METHOD_PARAMS = {
         ("runtime.operator.conversation.subagents.", _OPERATOR))
     for operation, required in REQUIRED_PARAMS.items()
 }
+
+#: ``runtime.conversation.skills.*``: the session's skills, or (``child_ref``, from a
+#: ``runtime.conversation.subagents.*`` read) a worker child's; ``lend`` writes a child's lend
+#: (``eternia.skills.lend``). Published so a client can tell a child read from a runtime that
+#: would silently answer the parent's catalog.
+SKILLS_OPERATIONS = ("list", "detail", "history", "lend")
+_SKILLS_EXTRA = {"list": (), "detail": ("skill_id",), "history": (), "lend": ("skills", "mode", "request_id")}
+METHOD_PARAMS.update({
+    "runtime.conversation.skills." + operation: (*_NATIVE, "child_ref", *_SKILLS_EXTRA[operation])
+    for operation in SKILLS_OPERATIONS
+})

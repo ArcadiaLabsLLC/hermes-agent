@@ -1,6 +1,6 @@
 {
-  "source_commit": "65cad4a996e234e1e35933a075f801929c3c707d",
-  "exported_at": "2026-10-19",
+  "source_commit": "c18cb2920a953f4a282c94250bdec63d5f5f0b4c",
+  "exported_at": "2026-10-21",
   "entries": [
     {
       "id": "launcher.account.open_section",
@@ -8,7 +8,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.account.status",
@@ -16,7 +16,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "pairedDevice",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.agent.model.list",
@@ -24,7 +24,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "pairedDevice",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.agent.model.set",
@@ -32,7 +32,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.agent.reasoning.set",
@@ -40,7 +40,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.agent.skills.list",
@@ -48,7 +48,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "pairedDevice",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.agent.skills.set",
@@ -56,7 +56,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.agent.speed.set",
@@ -64,7 +64,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.agent.usage.read",
@@ -72,7 +72,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "pairedDevice",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.agent_chat.attachment.close",
@@ -80,7 +80,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.agent_chat.attachment.copy_path",
@@ -88,7 +88,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.agent_chat.attachment.open",
@@ -96,7 +96,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.agent_chat.attachment.open_in_studio",
@@ -104,7 +104,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.agent_chat.attachment.reveal",
@@ -112,7 +112,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.agent_chat.close_tools",
@@ -120,7 +120,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.agent_chat.delete",
@@ -128,7 +128,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.agent_chat.list",
@@ -136,7 +136,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "pairedDevice",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.agent_chat.new",
@@ -144,7 +144,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.agent_chat.open",
@@ -152,7 +152,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.agent_chat.open_tools",
@@ -160,7 +160,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.agent_chat.send",
@@ -168,7 +168,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.agents.list",
@@ -176,7 +176,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "pairedDevice",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.app.about",
@@ -184,7 +184,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "pairedDevice",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.app.restart",
@@ -192,7 +192,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.audio.preview_cue",
@@ -200,7 +200,39 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.calendar.date.select",
+      "name": "launcher_calendar_date_select",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.calendar.navigate",
+      "name": "launcher_calendar_navigate",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.calendar.view.set",
+      "name": "launcher_calendar_view_set",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.calendar.week_start.set",
+      "name": "launcher_calendar_week_start_set",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
     },
     {
       "id": "launcher.communities.create",
@@ -208,7 +240,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.communities.join",
@@ -216,7 +248,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.communities.leave",
@@ -224,7 +256,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.communities.list",
@@ -232,7 +264,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "pairedDevice",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.communities.moderate",
@@ -240,7 +272,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.communities.open",
@@ -248,7 +280,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.communities.settings.set",
@@ -256,7 +288,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.connections.download_pack",
@@ -264,7 +296,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.connections.install_sdk",
@@ -272,7 +304,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.connections.list",
@@ -280,7 +312,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "pairedDevice",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.connections.open",
@@ -288,7 +320,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.education.course.enroll",
@@ -296,7 +328,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.education.course.install",
@@ -304,7 +336,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.education.course.open",
@@ -312,7 +344,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.education.course.open_section",
@@ -320,7 +352,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.education.course.open_source",
@@ -328,7 +360,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.education.course.remove",
@@ -336,7 +368,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.education.course.remove_with_lectures",
@@ -344,7 +376,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.education.course.resume",
@@ -352,7 +384,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.education.course.start",
@@ -360,7 +392,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.education.course.update.apply",
@@ -368,7 +400,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.education.course.update.dismiss",
@@ -376,7 +408,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.education.explore.list",
@@ -384,7 +416,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "pairedDevice",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.education.lesson.open",
@@ -392,7 +424,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.education.lesson.play_pause",
@@ -400,7 +432,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.education.lesson.seek_cue",
@@ -408,7 +440,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.education.lesson.source_toggle",
@@ -416,7 +448,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.education.library.list",
@@ -424,7 +456,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "pairedDevice",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.education.open_section",
@@ -432,7 +464,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.emulators.add",
@@ -440,7 +472,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.emulators.edit",
@@ -448,7 +480,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.emulators.list",
@@ -456,7 +488,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "pairedDevice",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.emulators.remove",
@@ -464,7 +496,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.emulators.remove_with_files",
@@ -472,7 +504,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.emulators.rescan",
@@ -480,7 +512,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.generated.create",
@@ -488,7 +520,7 @@
       "read_only": false,
       "always_loaded": true,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": "6a86ac5c2320aababb20945c43be783b14c38633bcd53b93da6039f9fe2ea794"
     },
     {
       "id": "launcher.generated.duplicate",
@@ -496,7 +528,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.generated.edit",
@@ -504,7 +536,7 @@
       "read_only": false,
       "always_loaded": true,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.generated.inspect",
@@ -512,7 +544,7 @@
       "read_only": true,
       "always_loaded": true,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.generated.list",
@@ -520,7 +552,7 @@
       "read_only": true,
       "always_loaded": true,
       "reach": "localOnly",
-      "guidance_sha256": "6e0db1e0afa42e08f32515d0362cce82b4e6421273bce53a48aea5e1380b40c9"
+      "guidance_sha256": "d7dd23c529bda7c77796e6f6a1e73cf85d1fb64395c3fac19fed80122d291a3e"
     },
     {
       "id": "launcher.generated.update",
@@ -528,7 +560,7 @@
       "read_only": false,
       "always_loaded": true,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.harness.installs.forget",
@@ -536,7 +568,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.harness.installs.list",
@@ -544,7 +576,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "pairedDevice",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.harness.installs.pair",
@@ -552,7 +584,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.harness.installs.reachable",
@@ -560,7 +592,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "pairedDevice",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.harness.installs.select",
@@ -568,7 +600,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.harness.installs.select_edition",
@@ -576,7 +608,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.harness.installs.unpair",
@@ -584,7 +616,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.harness.restart",
@@ -592,7 +624,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.library.cancel",
@@ -600,7 +632,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.library.close_details",
@@ -608,7 +640,23 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.library.details.set",
+      "name": "launcher_library_details_set",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.library.grouping.clear",
+      "name": "launcher_library_grouping_clear",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
     },
     {
       "id": "launcher.library.install",
@@ -616,7 +664,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.library.list",
@@ -624,7 +672,15 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "pairedDevice",
-      "guidance_sha256": ""
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.library.merge",
+      "name": "launcher_library_merge",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
     },
     {
       "id": "launcher.library.open_details",
@@ -632,7 +688,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.library.play",
@@ -640,7 +696,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.library.select",
@@ -648,7 +704,15 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.library.separate",
+      "name": "launcher_library_separate",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
     },
     {
       "id": "launcher.library.uninstall",
@@ -656,7 +720,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.library.update",
@@ -664,7 +728,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.library.view_mode.set",
@@ -672,7 +736,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.media.playback.state",
@@ -680,7 +744,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "pairedDevice",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.messaging.channel.open",
@@ -688,7 +752,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.messaging.composer.send",
@@ -696,7 +760,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.mission_control.agent.select",
@@ -704,7 +768,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.mission_control.command_bar.pin",
@@ -712,7 +776,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.mission_control.panel.close",
@@ -720,7 +784,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.mission_control.panel.open",
@@ -728,7 +792,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.navigation.open",
@@ -744,7 +808,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.navigation.state",
@@ -752,7 +816,7 @@
       "read_only": true,
       "always_loaded": true,
       "reach": "pairedDevice",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.news.lane.select",
@@ -760,7 +824,23 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.panel.close",
+      "name": "launcher_panel_close",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.panel.open",
+      "name": "launcher_panel_open",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
     },
     {
       "id": "launcher.posts.feed.select",
@@ -768,7 +848,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.posts.feed.show_new",
@@ -776,7 +856,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.posts.interests.set",
@@ -784,7 +864,23 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.profile.anchor.clear",
+      "name": "launcher_profile_anchor_clear",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.profile.anchor.set",
+      "name": "launcher_profile_anchor_set",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
     },
     {
       "id": "launcher.realm_sync.open",
@@ -792,7 +888,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.realm_sync.revert",
@@ -800,7 +896,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.realm_sync.status",
@@ -808,7 +904,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "pairedDevice",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.settings.get",
@@ -816,7 +912,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "pairedDevice",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.settings.open_section",
@@ -824,7 +920,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.settings.set",
@@ -832,7 +928,15 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.speech.engine_pack.ensure",
+      "name": "launcher_speech_engine_pack_ensure",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
     },
     {
       "id": "launcher.studio.character.open",
@@ -840,7 +944,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.studio.edit.redo",
@@ -848,7 +952,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.studio.edit.undo",
@@ -856,7 +960,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.studio.layer.list",
@@ -864,7 +968,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.studio.layer.select",
@@ -872,7 +976,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.studio.media.import",
@@ -880,7 +984,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.studio.playback.toggle",
@@ -888,7 +992,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.studio.project.create",
@@ -896,7 +1000,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.studio.project.list",
@@ -904,7 +1008,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.studio.project.open",
@@ -912,7 +1016,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.studio.project.save",
@@ -920,7 +1024,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.studio.state",
@@ -928,7 +1032,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.studio.view.fit",
@@ -936,7 +1040,23 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.ui.guide.show",
+      "name": "launcher_ui_guide_show",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": "ddd2283d57e9a18a00ba5a8d7b3d9e709537923f1c118feb0a85c321614a70db"
+    },
+    {
+      "id": "launcher.ui.guide.status",
+      "name": "launcher_ui_guide_status",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
     },
     {
       "id": "launcher.view.capture",
@@ -944,7 +1064,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.view.content_state",
@@ -952,7 +1072,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "pairedDevice",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.view.frame_capture",
@@ -960,7 +1080,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.view.render_profile",
@@ -968,7 +1088,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.view.scroll",
@@ -976,7 +1096,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.voice.invite.accept",
@@ -984,7 +1104,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.voice.invite.decline",
@@ -992,7 +1112,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.voice.leave",
@@ -1000,7 +1120,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.voice.share.sources",
@@ -1008,7 +1128,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.voice.share.start",
@@ -1016,7 +1136,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.voice.share.stop",
@@ -1024,7 +1144,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.voice.state",
@@ -1032,7 +1152,7 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "pairedDevice",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.window.display_scale.set",
@@ -1040,7 +1160,23 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.window.focus",
+      "name": "launcher_window_focus",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.window.layout",
+      "name": "launcher_window_layout",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
+      "guidance_sha256": null
     },
     {
       "id": "launcher.window.metrics",
@@ -1048,7 +1184,23 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "pairedDevice",
-      "guidance_sha256": ""
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.window.minimize",
+      "name": "launcher_window_minimize",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.window.place",
+      "name": "launcher_window_place",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
     },
     {
       "id": "launcher.window.resize",
@@ -1056,7 +1208,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.windows.bring_back",
@@ -1064,15 +1216,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
-    },
-    {
-      "id": "launcher.windows.list",
-      "name": "launcher_windows_list",
-      "read_only": true,
-      "always_loaded": false,
-      "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.windows.pop_out",
@@ -1080,7 +1224,15 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.world.camera.pose",
+      "name": "launcher_world_camera_pose",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
     },
     {
       "id": "launcher.world.contact_shading.set",
@@ -1088,7 +1240,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.world.level.rename",
@@ -1096,7 +1248,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.world.level.reset_unreadable",
@@ -1104,7 +1256,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.world.level.retry_load",
@@ -1112,7 +1264,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.world.level.save_as",
@@ -1120,7 +1272,7 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
     },
     {
       "id": "launcher.world.time_of_day.set",
@@ -1128,7 +1280,15 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
-      "guidance_sha256": ""
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.world.view_mode.set",
+      "name": "launcher_world_view_mode_set",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
     }
   ]
 }

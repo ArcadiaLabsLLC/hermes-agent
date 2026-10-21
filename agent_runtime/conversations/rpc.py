@@ -10,6 +10,7 @@ from agent_runtime.serve_rpc.protocol import defer_or_refuse
 from .binding import get_service
 from .model import ConversationError, Refusal, caller_scope, identifier
 from agent_runtime.subagents.model import OPERATIONS as SUBAGENT_OPERATIONS, SubagentError
+from agent_runtime.subagents.params import SKILLS_OPERATIONS
 
 __layer__ = "lanes"
 PREFIX = "runtime.conversation."
@@ -67,8 +68,7 @@ def _model(service, scope, params):
 
 
 def _skills(action, service, scope, params):
-    return service.skills(scope, identifier(params["session_id"]), action,
-                          identifier(params["skill_id"]) if action == "detail" else None)
+    return service.skills(scope, identifier(params["session_id"]), action, params)
 
 
 def _subagents(action, service, scope, params):
@@ -78,7 +78,7 @@ def _subagents(action, service, scope, params):
 OPERATIONS = {"open": _open, "send": _send, "read": _read_conversation, "stop": _stop,
               "history": _history, "inflight": _inflight,
               "respond": _respond, "facts": _facts, "model": _model,
-              **{"skills." + action: partial(_skills, action) for action in ("list", "detail", "history")},
+              **{"skills." + action: partial(_skills, action) for action in SKILLS_OPERATIONS},
               **{"subagents." + action: partial(_subagents, action) for action in SUBAGENT_OPERATIONS}}
 
 

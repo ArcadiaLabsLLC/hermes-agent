@@ -26,6 +26,7 @@ __all__ = [
     "_ensure_local_llama_methods",
     "_ensure_messaging_methods",
     "_ensure_work_methods",
+    "ensure_lazy_families",
     "manifest",
     "method",
     "method_names",
@@ -141,15 +142,31 @@ def _ensure_messaging_methods():
         register(method)
 
 
+#: The lazily registered verb families, in registration order. The ONE list both
+#: :func:`method_names` and ``dispatch.handle_request`` read (through
+#: :func:`ensure_lazy_families`), so a new family is one row here rather than a
+#: call copied into two sites that drift.
+_LAZY_FAMILIES: tuple[Callable[[], None], ...] = (
+    _ensure_local_llama_methods,
+    _ensure_discussion_methods,
+    _ensure_conversation_methods,
+    _ensure_work_methods,
+    _ensure_batch_methods,
+    _ensure_messaging_methods,
+)
+
+
+def ensure_lazy_families() -> None:
+    """Register every lazy verb family (each ``_ensure_*`` is idempotent)."""
+
+    for ensure in _LAZY_FAMILIES:
+        ensure()
+
+
 def method_names() -> list[str]:
     # Registration is lazy to keep imports one-directional and avoid eager
     # filesystem/process work on every client of the method manifest.
-    _ensure_local_llama_methods()
-    _ensure_discussion_methods()
-    _ensure_conversation_methods()
-    _ensure_work_methods()
-    _ensure_batch_methods()
-    _ensure_messaging_methods()
+    ensure_lazy_families()
     return sorted(_METHODS)
 
 
@@ -225,6 +242,7 @@ def manifest() -> dict[str, Any]:
     """
 
     from ..chat_turn import CHAT_TURN_METHOD_PARAMS
+    from ..instance_history import CONVERSATION_LIST_METHOD, CONVERSATION_LIST_METHOD_PARAMS
     from ..operator_files import files_limits
     from ..operator_message import operator_text_admission
     from ..persona_open_chat import OPEN_CHAT_METHOD, OPEN_CHAT_METHOD_PARAMS
@@ -240,6 +258,7 @@ def manifest() -> dict[str, Any]:
             name: list(keys) for name, keys in sorted({
                 **CHAT_TURN_METHOD_PARAMS,
                 OPEN_CHAT_METHOD: OPEN_CHAT_METHOD_PARAMS,
+                CONVERSATION_LIST_METHOD: CONVERSATION_LIST_METHOD_PARAMS,
                 **TWIN_METHOD_PARAMS,
                 **BOARD_METHOD_PARAMS,
                 **SUBAGENT_METHOD_PARAMS,
