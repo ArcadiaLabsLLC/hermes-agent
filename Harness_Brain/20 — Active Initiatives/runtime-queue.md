@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-20 (launcher landing land-w1020u review)
+
+- **`RT-SESSIONS-EXPORT-READ-ONLY` — `hermes sessions export` opens the SessionDB writable, because `export` is not in `_OBSERVATIONAL_DB_ACTIONS`; add it so the launcher's QA owner-chat export (launcher row `QA-OWNER-EXPORT-WRITABLE`) never opens the owner's store for writing** · `hermes_cli/sessions_cmd.py:1193` · consumer: launcher `tool/stagec_qa_mcp_server/lib/qa_hermes_namespace.dart` (owner-chat import, only when `ETERNIA_QA_IMPORT_SESSION` is set) · READY 2026-10-20
+
 ### Filed on arrival — 2026-10-20 (launcher lane w1020t-mc-slots)
 
 - **`RT-SLOTS-SHOW-DROPS-MISSING-PATH` — `runtime.workspace.slots.show` drops `path` and answers `bound_here: false` once a bound slot folder is deleted, so the launcher console cannot tell "folder missing" from "not set up on this machine" and its slot-folder-missing notice fires only in a race; keep the bound path and report a distinct missing state** · `agent_runtime/serve_rpc/workspace_slots.py::_slots_show` · consumer: launcher slot picker (`EterniaLauncher` lane w1020t-mc-slots, branch `wave/w1020t-mc-slots`) · READY 2026-10-20
