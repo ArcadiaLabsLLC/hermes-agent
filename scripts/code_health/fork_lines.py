@@ -45,7 +45,7 @@ def added_lines(unified0: str) -> dict[str, set[int]]:
     for line in unified0.splitlines():
         if line.startswith("+++ "):
             target = line[4:]
-            path = None if target == "/dev/null" else target[2:] if target.startswith("b/") else target
+            path = None if target == "/dev/null" else target.removeprefix("b/")
             if path is not None:
                 out.setdefault(path, set())
             continue
@@ -67,7 +67,7 @@ def _git(root: Path, env: dict[str, str] | None, *args: str) -> subprocess.Compl
 def _manifest(root: Path) -> tuple[str | None, frozenset[str]]:
     path = root / MANIFEST_REL
     try:
-        text = path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8-sig")
     except OSError as exc:
         raise ForkLinesUnavailable(f"no upstream manifest at {MANIFEST_REL.as_posix()}: {exc}") from exc
     base: str | None = None
@@ -128,7 +128,7 @@ class ForkLines:
                 lines[path] = frozenset(numbers)
         return cls(root=root, base=base, upstream=upstream, lines=lines)
 
-    def _rel(self, path: str | Path) -> str:
+    def relative(self, path: str | Path) -> str:
         candidate = Path(path)
         if candidate.is_absolute():
             for root in (self.root, self.root.resolve()):
@@ -141,13 +141,13 @@ class ForkLines:
 
     def owner(self, path: str | Path) -> str:
         """``fork`` (not an upstream file), ``seam`` (upstream file with fork lines) or ``upstream``."""
-        rel = self._rel(path)
+        rel = self.relative(path)
         if rel not in self.upstream:
             return "fork"
         return "seam" if self.lines.get(rel) else "upstream"
 
     def is_fork_line(self, path: str | Path, line: int) -> bool:
-        rel = self._rel(path)
+        rel = self.relative(path)
         if rel not in self.upstream:
             return True
         return line in self.lines.get(rel, frozenset())
