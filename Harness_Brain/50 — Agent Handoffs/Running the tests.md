@@ -426,8 +426,14 @@ above is something someone runs. `main` went red unreported twice because nobody
 2026-09-04). Fork CI is running again: [main run 38312372163](https://github.com/ArcadiaLabsLLC/hermes-agent/actions/runs/38312372163)
 passed on 2026-10-12. `fork-gates.yml` checks selected mutation claims, the tombstone registry and
 docket stage claims; it does not run the bundled landing suite. The upstream `ci.yaml` workflow
-was still disabled when checked. Verify the workflow, jobs and exact source SHA before treating a
-green run as evidence. `scripts/unattended_suite_run.ps1` is a report, never a gate.
+is ACTIVE on `main` and has not finished green once since 2026-09-26 (checked 2026-10-21, lane
+w1021h-tooling): its Python tests (now two slices, not eight), JS, Rust and Windows jobs ask for
+`ubuntu-latest-32-core` / `windows-latest-32-core` / `windows-latest-32-arm-core`, which the fork's
+organisation does not have, so they queue for a day; the queued run (39494050964, `79d3fa5754`)
+holds the `ci-refs/heads/main` concurrency group, and every later push's run waits and is cancelled
+by the next push. The jobs that do run on standard runners read 18 ruff (`UP006`/`RUF100`) and 2
+Windows-footgun findings on `main`. GitHub Issues are on, so `notify-main-red` can file once a run
+completes red. Verify the workflow, jobs and exact source SHA before treating a green run as evidence. `scripts/unattended_suite_run.ps1` is a report, never a gate.
 
 **When a contract dump reds, read the diff before regenerating.** A removed command, flag or payload
 key is a launcher button that now exits 2 or a stale default acted on; re-vendor the launcher's copy
