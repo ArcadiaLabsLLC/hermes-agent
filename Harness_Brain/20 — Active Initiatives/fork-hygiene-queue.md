@@ -24,6 +24,11 @@ tags: [queue, program/fork-hygiene]
 
 
 
+## Filed on arrival — 2026-10-21 (lane w1021h-tooling, branch `w1021h/tooling`)
+
+- **`FH-CI-MAIN-LARGE-RUNNER-QUEUE` — hermes CI on `main` never finishes: upstream's tests/JS/Rust/Windows jobs ask for `ubuntu-latest-32-core` / `windows-latest-32-core` / `windows-latest-32-arm-core`, which ArcadiaLabsLLC lacks; run 39494050964 (`79d3fa5754`) queued since 2026-10-20 holds `ci-refs/heads/main`, every later push pending → cancelled; 0 green in the last 200 runs** · fork CI · evidence `306a622a64` (branch `w1021h/tooling`) · BLOCKED 2026-10-21: owner decision — buy larger runners for the org, or carry a fork seam mapping the labels to standard runners (an upstream-footprint raise)? · Recommend: the seam, as a repository variable with upstream's label as default
+- **`FH-CI-MAIN-LINT-REDS` — `ruff enforcement (blocking)` reads 18 UP006/RUF100 on `main` (hermes_cli/config.py, tools/tool_search.py, tools/terminal_tool.py, tui_gateway/server.py, …) and `Windows footguns` 2 (bare read_text/write_text in hermes_cli/config.py)** · fork CI · run 39494050964 job 118955093529 · READY 2026-10-21
+
 ## Filed on arrival — 2026-10-20 (launcher orchestrator w1020r)
 
 - **`FORK-PARALLEL-MESSAGING-GATEWAY` — recorded parallel: the fork's persona messaging gateway (`agent_runtime/messaging/`, own Telegram transport over httpx) shadows upstream's `plugins/platforms/telegram/` + `gateway/platforms/base.py::BasePlatformAdapter` + `gateway/run.py::GatewayRunner`/`gateway/session.py::SessionStore`; not adopted because wrapping brings upstream's second session store and runner-private coupling, and re-admits 71 upstream test files (plan §2.2); retires if upstream exposes a session-store-free transport hook a persona turn can sit behind** · `docs/agent-runtime-harness/planned/p10-messaging-2026-10-19.md` §2.2 · `Harness_Brain/30 — Decisions/0015 — Upstream features the fork does not ship leave the suite and the boot path.md` · DEFERRED 2026-10-20: owner "sounds good persona system for our custom gateway is the way" — kept until upstream ships a transport-only hook; re-check at each upstream merge's supersession pass
