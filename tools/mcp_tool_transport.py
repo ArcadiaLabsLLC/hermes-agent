@@ -124,7 +124,7 @@ def _http_endpoint(server_name: str, config: dict) -> tuple[str, dict]:
     return url, headers
 
 
-def _stdio_launch(config: dict, server_name: str) -> tuple:
+def _stdio_launch(config: dict, server_name: str | None = None) -> tuple:
     """(command, env, cwd) a stdio child is spawned with, resolved in the current profile's scope."""
     command, env = _config._resolve_stdio_command(config["command"], _config._build_safe_env(config.get("env"), server_name=server_name, runtime_env=config.get("runtime_env")))
     # A stdio child inherits this process's cwd when none is configured. Hosted sessions (ACP,
