@@ -183,7 +183,7 @@ def report(
     stamp = time.time() if now is None else now
     slots = {}
     for name, slot in live_slots(document).items():
-        row = _SlotProbe(name, slot, slot_fill(workspace_id, name), run or _run, stamp).row(bound_path(name))
+        row = _SlotProbe(name, slot, slot_fill(workspace_id, name), run or _run, stamp).row(bound_path(name, workspace_id=workspace_id))
         if row["bound"] and name not in previous and name not in fresh_binds:
             row["adopted_existing_root"] = True
         slots[name] = row

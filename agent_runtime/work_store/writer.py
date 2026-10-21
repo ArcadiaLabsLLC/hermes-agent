@@ -185,7 +185,7 @@ class Writer:
 
         if self.board.brain_dir is None:
             raise WorkRefused(Reason.NO_BRAIN, self.board.slot)
-        clone = self.board.checkout or bound_path(self.board.slot)
+        clone = self.board.checkout or bound_path(self.board.slot, workspace_id=self.board.workspace_id)
         if clone is None or not (clone / ".git").exists():
             raise WorkRefused(Reason.SLOT_UNBOUND, self.board.slot)
         return clone

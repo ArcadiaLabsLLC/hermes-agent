@@ -305,7 +305,7 @@ def _adopt_declared_brain(workspace_id: str, root: Path, issued_at: str) -> Boar
     declared = live_slots(load_document(workspace_id)).get(DEFAULT_BRAIN_SLOT) or {}
     repo = declared.get("repo") or {}
     url, branch = repo.get("clone_url"), str(repo.get("default_branch") or "main")
-    here = bound_path(DEFAULT_BRAIN_SLOT)
+    here = bound_path(DEFAULT_BRAIN_SLOT, workspace_id=workspace_id)
     if not url or (here is not None and here.is_dir()) or (read_binding(workspace_id) or {}).get("remote_url") == url:
         return None
     target = root if not (root / ".git").exists() else root.with_name("brain-remote")

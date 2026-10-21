@@ -191,7 +191,7 @@ def clone_slot(workspace_id: str, slot: str, dest_path: str, *, issued_at: str, 
         raise SlotRefused(REASON_SLOT_NOT_DECLARED, f"{workspace_id} declares no slot {slot!r}")
     if (declared.get("repo") or {}).get("local") is True:
         raise SlotRefused(REASON_SLOT_LOCAL_ONLY, f"{slot} is a local slot with no clone URL; it lives on one machine")
-    held = bound_path(slot)
+    held = bound_path(slot, workspace_id=workspace_id)
     if held is not None and held.is_dir():
         raise SlotRefused(REASON_SLOT_ALREADY_BOUND, f"{slot} is bound here at {held}; Locate rebinds it")
     dest = Path(str(dest_path or "")).expanduser()
@@ -230,7 +230,7 @@ def run_step(workspace_id: str, slot: str, step_id: str, *, issued_at: str, regi
     if step["kind"] != STEP_COMMAND:
         raise SlotRefused(REASON_STEP_NOT_RUNNABLE, f"{step_id} is a derived {step['kind']} step; it is done by hand")
     cwd_slot = step.get("cwd_slot") or slot
-    path = bound_path(cwd_slot)
+    path = bound_path(cwd_slot, workspace_id=workspace_id)
     if cwd_slot not in live or path is None or not path.is_dir():
         raise SlotRefused(REASON_SLOT_UNBOUND_HERE, f"{cwd_slot} is not bound on this machine")
     overlay = overlay_for(SlotBinding(workspace_id, cwd_slot, str(path)))

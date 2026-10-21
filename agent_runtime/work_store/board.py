@@ -85,7 +85,7 @@ def brain_dir_of(root: Path | None, slot: dict[str, Any]) -> str | None:
 
 def _slot_board(workspace_id: str, name: str, slot: dict[str, Any], read_roots: Mapping[str, Path]) -> Board:
     repo = slot.get("repo") or {}
-    path = bound_path(name)
+    path = bound_path(name, workspace_id=workspace_id)
     bound_here = bool(path and path.is_dir())
     read_root = read_roots.get(name) or (path if bound_here else None)
     local = repo.get("local") is True

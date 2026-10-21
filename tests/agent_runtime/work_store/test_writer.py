@@ -62,7 +62,7 @@ def repo(tmp_path: Path, workspace: str) -> SimpleNamespace:
     other = tmp_path / "other"
     git("clone", "-q", str(origin), str(other), cwd=tmp_path)
     declare_slots(workspace, slot_decl("hermes"))
-    bind_here(hermes=clone)
+    bind_here(workspace, hermes=clone)
     board = next(b for b in boards(workspace) if b.slot == "hermes")
     return SimpleNamespace(ws=workspace, origin=origin, clone=clone, other=other, seed=seed, board=board)
 

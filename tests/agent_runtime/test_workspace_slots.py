@@ -374,3 +374,46 @@ def test_context_gate_round_trips_and_refuses_a_credential(workspace):
         with pytest.raises(SlotRefused) as refused:
             normalize_declaration({**entry, "context": {"gate": bad}})
         assert refused.value.reason == "invalid_declaration", bad
+
+
+# ── Slot roots per workspace (plan work-slot-roots-per-workspace-2026-10-21 R2) ──
+
+
+def _bare_dir(tmp_path, name):
+    target = tmp_path / "dirs" / name
+    target.mkdir(parents=True)
+    return target
+
+
+def test_two_workspaces_binding_one_slot_name_keep_their_own_paths(workspace, tmp_path):
+    """Killing mutation: ``bind`` writing ``roots[slot]`` as before — ws1 reads ws2's directory."""
+
+    from agent_runtime.workspace_slots import bind, bound_path, slot_census
+
+    other = WorkspaceStore().create(name="Slots two").id
+    one, two = _bare_dir(tmp_path, "one"), _bare_dir(tmp_path, "two")
+    for ws in (workspace, other):
+        _declare(ws, [_slot("brain")])
+    bind(workspace, "brain", str(one), issued_at=ISSUED)
+    bind(other, "brain", str(two), issued_at=ISSUED)
+    assert bound_path("brain", workspace_id=workspace) == one
+    assert bound_path("brain", workspace_id=other) == two
+    bound = {(slot.workspace_id, slot.slot): slot.path for slot in slot_census().bound}
+    assert bound[(workspace, "brain")] == one and bound[(other, "brain")] == two
+
+
+def test_a_bind_fills_the_config_root_only_when_it_is_absent(workspace, tmp_path):
+    """Killing mutation: the mirror overwriting ``roots[slot]`` repoints a config root an operator set."""
+
+    from agent_runtime.workspace_slots import bind
+
+    other = WorkspaceStore().create(name="Slots two").id
+    first, second = _bare_dir(tmp_path, "first"), _bare_dir(tmp_path, "second")
+    for ws in (workspace, other):
+        _declare(ws, [_slot("eternia_launcher")])
+    bind(workspace, "eternia_launcher", str(first), issued_at=ISSUED)
+    assert load_machine_roots(refresh=True).roots["eternia_launcher"] == str(first)
+    bind(other, "eternia_launcher", str(second), issued_at=ISSUED)
+    roots = load_machine_roots(refresh=True)
+    assert roots.roots["eternia_launcher"] == str(first)
+    assert roots.workspace_root(other, "eternia_launcher") == second
