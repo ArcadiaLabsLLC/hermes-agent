@@ -199,6 +199,33 @@ def test_lens_propose_previews_for_real_and_stores_a_draft_it_never_seals():
     assert store.get("proposed-status")["draft"] is None, "a proposal never writes over a monitor"
 
 
+def test_lens_propose_stops_at_the_proposal_cap_and_the_operator_still_creates():
+    """RT-LENS-PROPOSAL-CAPACITY: proposals never fill ``MAXIMUM_MONITORS``."""
+
+    import httpx
+
+    from agent_runtime.lens.store import MAXIMUM_PROPOSALS, LensStoreError
+    from agent_runtime.lens.tool import propose_monitor
+
+    store = LensStore()
+    client = _client(lambda request: httpx.Response(200, json={"latency": 1}))
+    for index in range(MAXIMUM_PROPOSALS):
+        propose_monitor({**_proposal(), "monitor_id": f"proposed-{index}"}, store=store, client=client,
+                        resolver=lambda host: PUBLIC)
+    with pytest.raises(LensStoreError) as full:
+        propose_monitor({**_proposal(), "monitor_id": "proposed-over"}, store=store, client=client,
+                        resolver=lambda host: PUBLIC)
+    assert full.value.code.value == "proposals_full"
+    operator = {**_proposal()["rule"]}
+    manifest = {"version": 1, "monitor_id": "operator", "persona_id": None,
+                "feeds": [{"version": 1, **_proposal()["feeds"][0]}], "rules": [{"version": 1, **operator}],
+                "automation": _proposal()["automation"]}
+    store.seal("proposed-0")
+    assert propose_monitor({**_proposal(), "monitor_id": "proposed-again"}, store=store, client=client,
+                           resolver=lambda host: PUBLIC)["state"] == "draft", "a sealed proposal frees its slot"
+    assert store.create(manifest)["state"] == "draft", "the operator's create is not a proposal"
+
+
 def test_lens_propose_previews_through_the_private_address_classifier():
     import httpx
 
