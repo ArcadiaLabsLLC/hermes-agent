@@ -44,6 +44,8 @@ REASON_CODES: dict[CourseRefusal, int] = {
     CourseRefusal.NOT_CHECKED_OUT: ERR_NOT_FOUND,
     CourseRefusal.URL_MISMATCH: ERR_CONFLICT,
     CourseRefusal.BRANCH_DIVERGED: ERR_CONFLICT,
+    CourseRefusal.PATH_INVALID: ERR_INVALID_PARAMS,
+    CourseRefusal.NOTHING_TO_COMMIT: ERR_CONFLICT,
 }
 
 
@@ -63,9 +65,37 @@ def _checkout(p: dict) -> dict:
     return {"course": receipt.course, "outcome": receipt.outcome, "branch": receipt.branch, "head": receipt.head}
 
 
+def _text(params: dict, key: str, *, required: bool = True) -> str | None:
+    raw = params.get(key)
+    if raw is None and not required:
+        return None
+    if not isinstance(raw, str) or not raw.strip():
+        raise CourseRefused(CourseRefusal.INVALID_REQUEST, f"{key} must be a non-blank string")
+    return raw
+
+
+def _commit(p: dict) -> dict:
+    """Params: ``credential``, ``persona_id``, ``persona_name`` (the commit author's name; default the id),
+    ``branch`` (the slug: the branch is ``agent/<persona_id>/<branch>``), ``message``, ``files``
+    (``{path: text}``), ``deletes`` (paths)."""
+    from agent_runtime.course_authoring import commit
+
+    files, deletes = p.get("files") or {}, p.get("deletes") or []
+    if not isinstance(files, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in files.items()):
+        raise CourseRefused(CourseRefusal.INVALID_REQUEST, "files must be an object of path -> text")
+    if not isinstance(deletes, list) or not all(isinstance(item, str) for item in deletes):
+        raise CourseRefused(CourseRefusal.INVALID_REQUEST, "deletes must be a list of paths")
+    credential = _credential(p)
+    receipt = commit(credential, persona_id=_text(p, "persona_id"), branch=_text(p, "branch"),
+                     message=_text(p, "message"), files=files, deletes=deletes,
+                     persona_name=_text(p, "persona_name", required=False))
+    return {"course": receipt.course, "branch": receipt.branch, "sha": receipt.sha, "files": list(receipt.files)}
+
+
 #: method name -> verb body. Registered by adding a row; the params each honours are on its body above.
 COURSE_METHODS: dict[str, Callable[[dict], dict]] = {
     "runtime.course.checkout": _checkout,
+    "runtime.course.commit": _commit,
 }
 
 _COURSE_VERB_LOCK = threading.Lock()

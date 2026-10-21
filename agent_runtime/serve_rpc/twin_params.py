@@ -60,6 +60,7 @@ REALM_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
 #: here because this is the ``models`` table the manifest reads without importing a lane.
 COURSE_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     "runtime.course.checkout": ("credential",),
+    "runtime.course.commit": ("branch", "credential", "deletes", "files", "message", "persona_id", "persona_name"),
 }
 
 #: Every twin family's rows, merged; the manifest publishes this.

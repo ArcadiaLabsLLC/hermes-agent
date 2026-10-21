@@ -208,6 +208,129 @@ def test_the_credential_reaches_no_receipt_log_reply_or_store_file(remote, caplo
 
 
 def _secret_free_extra_calls(remote: Path) -> list[dict]:
-    """The C2 verbs append their calls here (the same secret grep covers them)."""
+    """The C2 verb's calls, a success and a refusal (the same secret grep covers them)."""
 
-    return []
+    params = {"credential": _raw(_url(remote)), "persona_id": "p_ada", "persona_name": "Ada", "branch": "intro",
+              "message": "Add intro", "files": {"lessons/intro.md": "hello\n"}}
+    return [_rpc("runtime.course.commit", params),
+            _rpc("runtime.course.commit", {**params, "files": {"../escape.md": "x"}})]
+
+
+# ── C2: commit ───────────────────────────────────────────────────────────────
+
+
+def _commit(credential, run=run_git, **overrides):
+    kwargs = {"persona_id": "p_ada", "persona_name": "Ada Lovelace", "branch": "intro", "message": "Add intro",
+              "files": {"lessons/intro.md": "hello\n"}, "run": run, **overrides}
+    return course_authoring.commit(credential, **kwargs)
+
+
+def test_a_commit_lands_on_the_persona_branch_authored_by_the_persona_and_pushed(remote):
+    credential = _credential(_url(remote))
+    course_authoring.checkout(credential)
+    spy = Spy()
+
+    receipt = _commit(credential, run=spy, files={"lessons/intro.md": "hello\n", "lessons/deep/x.md": "x\n"},
+                      deletes=["lessons/01.md"])
+
+    branch = "agent/p_ada/intro"
+    assert receipt.branch == branch
+    assert receipt.files == ("lessons/01.md", "lessons/deep/x.md", "lessons/intro.md")
+    worktree = paths.course_worktrees_dir(COURSE) / paths.safe_path_token(branch)
+    assert (worktree / "lessons" / "intro.md").read_text(encoding="utf-8") == "hello\n"
+    assert not (worktree / "lessons" / "01.md").exists()
+    assert _git("rev-list", "--count", f"main..{branch}", cwd=remote) == "1"
+    assert _git("rev-parse", branch, cwd=remote) == receipt.sha
+    assert _git("log", "-1", "--format=%an <%ae>", branch, cwd=remote) == "Ada Lovelace <p_ada@eternia.agents>"
+    pushes = [args for args, _config in spy.named("push")]
+    assert pushes == [["push", "-u", "origin", branch]]
+    assert all(f"http.extraHeader=Authorization: {SECRET}" in config for _args, config in spy.named("push"))
+    assert not any(flag in args for args, _config in spy.calls for flag in ("--force", "-f", "--force-with-lease"))
+    assert _git("rev-parse", "main", cwd=remote) != receipt.sha  # the default branch never moves
+
+
+def test_a_second_commit_continues_the_branch(remote):
+    credential = _credential(_url(remote))
+    course_authoring.checkout(credential)
+    first = _commit(credential)
+    second = _commit(credential, files={"lessons/intro.md": "hello again\n"}, message="Revise intro")
+    assert _git("rev-parse", f"{second.sha}^", cwd=remote) == first.sha
+    assert _git("rev-parse", "agent/p_ada/intro", cwd=remote) == second.sha
+
+
+@pytest.mark.parametrize("bad", ["../x.md", "lessons/../../x.md", "/etc/x", "C:/x", ".git/config"])
+def test_a_path_leaving_the_repo_refuses(remote, bad):
+    credential = _credential(_url(remote))
+    course_authoring.checkout(credential)
+    with pytest.raises(CourseRefused) as caught:
+        _commit(credential, files={bad: "x"})
+    assert caught.value.reason is CourseRefusal.PATH_INVALID
+    assert not (paths.course_worktrees_dir(COURSE).parent / "x.md").exists()
+
+
+def test_a_diverged_pushed_branch_refuses_and_never_forces(remote, tmp_path):
+    credential = _credential(_url(remote))
+    course_authoring.checkout(credential)
+    _commit(credential)
+    rival = tmp_path / "rival"
+    _git("clone", "-q", str(remote), str(rival))
+    _git("checkout", "-q", "-b", "agent/p_ada/intro", "origin/main", cwd=rival)
+    (rival / "rival.md").write_text("rival\n", encoding="utf-8")
+    _git("add", "-A", cwd=rival)
+    _git("commit", "-q", "-m", "rival", cwd=rival)
+    _git("push", "-q", "--force", "origin", "agent/p_ada/intro", cwd=rival)  # the test's own git, not the verb's
+    spy = Spy()
+
+    with pytest.raises(CourseRefused) as caught:
+        _commit(credential, run=spy, files={"lessons/intro.md": "mine\n"})
+
+    assert caught.value.reason is CourseRefusal.BRANCH_DIVERGED
+    assert not any(flag in args for args, _config in spy.calls for flag in ("--force", "-f", "--force-with-lease"))
+    assert _git("log", "-1", "--format=%s", "agent/p_ada/intro", cwd=remote) == "rival"
+
+
+def test_a_rejected_push_is_course_branch_diverged(remote):
+    credential = _credential(_url(remote))
+    course_authoring.checkout(credential)
+
+    def rejecting(args, **kwargs):
+        if list(args[:1]) == ["push"]:
+            return subprocess.CompletedProcess(args, 1, "", " ! [rejected] agent/p_ada/intro (non-fast-forward)\n")
+        return run_git(args, **kwargs)
+
+    with pytest.raises(CourseRefused) as caught:
+        _commit(credential, run=rejecting)
+    assert caught.value.reason is CourseRefusal.BRANCH_DIVERGED
+
+
+def test_commit_before_checkout_refuses_not_checked_out(remote):
+    with pytest.raises(CourseRefused) as caught:
+        _commit(_credential(_url(remote)))
+    assert caught.value.reason is CourseRefusal.NOT_CHECKED_OUT
+
+
+def test_commit_refuses_a_realm_credential_and_an_unchanged_tree(remote):
+    with pytest.raises(CourseRefused) as caught:
+        _commit(_credential(_url(remote), realm_id="local:r1"))
+    assert caught.value.reason is CourseRefusal.SUBJECT_MISMATCH
+    credential = _credential(_url(remote))
+    clone = course_authoring.checkout(credential).path
+    same = (clone / "README.md").read_bytes().decode("utf-8")  # the bytes git checked out, EOLs and all
+    with pytest.raises(CourseRefused) as caught:
+        _commit(credential, files={"README.md": same})
+    assert caught.value.reason is CourseRefusal.NOTHING_TO_COMMIT
+
+
+def test_runtime_course_commit_answers_the_receipt_and_refuses_by_reason(remote):
+    raw = _raw(_url(remote))
+    _rpc("runtime.course.checkout", {"credential": raw})
+    params = {"credential": raw, "persona_id": "p_ada", "branch": "intro", "message": "Add intro",
+              "files": {"lessons/intro.md": "hello\n"}}
+    reply = _rpc("runtime.course.commit", params)
+    assert reply["result"]["branch"] == "agent/p_ada/intro"
+    assert reply["result"]["files"] == ["lessons/intro.md"]
+    assert _git("log", "-1", "--format=%an", "agent/p_ada/intro", cwd=remote) == "p_ada"
+    refused = _rpc("runtime.course.commit", {**params, "files": {"../x.md": "x"}})
+    assert refused["error"]["data"]["reason"] == "course_path_invalid"
+    refused = _rpc("runtime.course.commit", {**params, "files": ["not", "a", "map"]})
+    assert refused["error"]["data"]["reason"] == "invalid_request"
