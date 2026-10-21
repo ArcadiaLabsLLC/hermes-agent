@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-21 (lane w1021i-runtime, branch `w1021i/runtime`)
+
+- **`RT-BATCH-QA-NAMESPACE-PUSH-FENCE` — `agent_runtime/batch/lane_git.py` pushes `head:target` to `origin` with no QA-namespace fence; the Work writer's fence (`Writer._qa_fence`, `namespace.qa_namespace`) is the template** · fork / batch landing · evidence `14456931d2` (writer fence; lane_git is the second `push origin` site) · READY 2026-10-21
+
 ### Filed on arrival — 2026-10-21 (lane w1021h-daily, `integration/upstream-daily` `4ce03587da`)
 
 - **`RT-SKILL-VIEW-SOURCE-PATH` — `agent_runtime/skill_view_result.py` reads `payload["_source_path"]`, which skill_view never returns; every surface refusal/stamp is a no-op (5 + 1 tests red on the daily tip and pre-merge)** · fork / skill view · evidence: w1021h-daily test log (`test_skill_view_result`, `test_skills_tool_downstream`) · READY 2026-10-21 · **TAKEN 2026-10-21 w1021i-runtime**

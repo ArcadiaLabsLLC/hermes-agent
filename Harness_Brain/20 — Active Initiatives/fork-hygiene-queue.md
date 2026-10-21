@@ -24,6 +24,10 @@ tags: [queue, program/fork-hygiene]
 
 
 
+## Filed on arrival — 2026-10-21 (orchestrator review of lane w1021i-runtime)
+
+- **`FH-QA-FENCE-TEST-REAL-PUSH` — `tests/agent_runtime/work_store/test_writer.py::test_a_qa_namespace_never_pushes_to_a_network_remote` sets real network push URLs (github.com/acme/brain.git) and runs a real-git `recording` runner, so a regressed fence makes the suite attempt a real network push (the lane's unfenced control did, once); stub `push` in that test's runner so a regression reds without touching the network** · fork tests / work store · evidence `14456931d2` · READY 2026-10-21
+
 ## Filed on arrival — 2026-10-21 (lane w1021h-daily)
 
 - **`FH-DAILY-MERGE-BASE` — Merging upstream.md § Daily integration branch forces --merge-base=<last release tag> every day; after the first post-release daily that re-diffs absorbed upstream (560 vs 15 conflicts on 2026-10-21) — base = the upstream parent of the previous integrate commit until main merges a newer tag** · fork-hygiene / upstream sync · evidence: `0f3998e841` body (`integration/upstream-daily`) · READY 2026-10-21 · **TAKEN 2026-10-21 w1021i-hygiene**
