@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-21 (launcher plan lane w1021c-plan-mc)
+
+- **`RT-CONVERSATION-LIST-INSTANCE-FILTER` — `runtime.operator.conversation.list` accepts an optional `persona_instance_id` and filters on it before the page bound (and in the cursor scope tuple), so the launcher's per-agent saved-chat list can page the directory** · `agent_runtime/instance_history.py::_history_page` · consumer: launcher `MC-ONE-CONSOLE-INBOX` (plan `EterniaLauncher/docs/mission_control/planned/ONE_CONSOLE_INBOX_2026-10-21.md`) · READY 2026-10-21
+
 ### Filed on arrival — 2026-10-20 (launcher landing land-w1020u review)
 
 - **`RT-SESSIONS-EXPORT-READ-ONLY` — `hermes sessions export` opens the SessionDB writable, because `export` is not in `_OBSERVATIONAL_DB_ACTIONS`; add it so the launcher's QA owner-chat export (launcher row `QA-OWNER-EXPORT-WRITABLE`) never opens the owner's store for writing** · `hermes_cli/sessions_cmd.py:1193` · consumer: launcher `tool/stagec_qa_mcp_server/lib/qa_hermes_namespace.dart` (owner-chat import, only when `ETERNIA_QA_IMPORT_SESSION` is set) · READY 2026-10-20
