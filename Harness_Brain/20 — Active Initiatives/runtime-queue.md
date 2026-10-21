@@ -43,6 +43,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 - **`RT-RESOLUTION-HOME-DELEGATE-AFTER-MERGE` — after the v0.22.3 merge, `agent_runtime/resolution.py::_platform_default_hermes_home` calls upstream's env-pure `hermes_constants._platform_default_hermes_home(environ, user_home)` instead of restating it** · fork / `agent_runtime/resolution.py` · evidence `c1e905df98` (branch `w1021h/cli`) · BLOCKED 2026-10-21: upstream — v0.22.3's release merge into main (owner holds it on `integration/upstream-daily`)
 - **`RT-SEED-LINE4-UNBOUND-HOMES` — seeding `skills.external_dirs` (line 4) and deleting the shared-root carry in `agent/skill_utils.py` would drop the shared skills root from every home the persona sweep never seeds (root/head home, unbound profiles)** · fork / persona seed · plan `docs/agent-runtime-harness/planned/persona-create-seed-values-2026-10-15.md` § Build status · BLOCKED 2026-10-21: owner decision — seed every skill-reading home, or keep the carry for unbound homes? · Recommend: keep the carry for unbound homes
 
+### Filed on arrival — 2026-10-21 (launcher lane w1021f-qa-isolation)
+
+- **`RT-WORK-QA-NAMESPACE-PUSH-FENCE` — a `stagec-*` namespace's Work writer pushes a bound slot's commits to whatever `origin` the checkout names, including a network remote; refuse a network push from a QA namespace (the launcher now binds a scratch clone, launcher row `QA-SMOKE-NAMESPACE-REAL-BINDING`)** · `agent_runtime/work_store/writer.py` · READY 2026-10-21
+
 ### Filed on arrival — 2026-10-21 (launcher lane w1021e-mc-windows)
 
 - **`RT-LENS-DROP-DRAFT-VERB` — no verb drops only a sealed monitor's pending next-revision draft; `runtime.lens.retire` is the sole discard and ends the live monitor** · fork / Lens · `agent_runtime/lens/store.py::LensStore.create`, `agent_runtime/serve_rpc/lens.py` · launcher hides Discard on a next-revision review until it exists (`EterniaLauncher/lib/features/mission_control/lens/mission_lens_drafts_section.dart`) · READY 2026-10-21 · **TAKEN 2026-10-21 w1021h-lens**
