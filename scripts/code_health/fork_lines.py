@@ -64,7 +64,7 @@ def _git(root: Path, env: dict[str, str] | None, *args: str) -> subprocess.Compl
     )
 
 
-def _manifest(root: Path) -> tuple[str | None, frozenset[str]]:
+def _manifest_base_and_paths(root: Path) -> tuple[str | None, frozenset[str]]:
     path = root / MANIFEST_REL
     try:
         text = path.read_text(encoding="utf-8-sig")
@@ -109,7 +109,7 @@ class ForkLines:
     def load(cls, root: Path, base_ref: str | None = None,
              env: dict[str, str] | None = None) -> ForkLines:
         root = Path(root)
-        manifest_base, upstream = _manifest(root)
+        manifest_base, upstream = _manifest_base_and_paths(root)
         base = _resolve_base(root, env, base_ref, manifest_base)
         numstat = _git(root, env, "diff", "--numstat", "-z", "--no-renames", base)
         if numstat.returncode != 0:

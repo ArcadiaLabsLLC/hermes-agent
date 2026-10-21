@@ -66,7 +66,7 @@ def _fork_lines(cwd: Path, env: dict[str, str] | None) -> ForkLines | str:
         return _STATE.lines[key]
 
 
-def _kind(argv: list[str]) -> str | None:
+def _job_kind(argv: list[str]) -> str | None:
     if any(str(arg).endswith(_FOOTGUNS_SCRIPT) for arg in argv):
         return "footguns"
     if RUFF_ARGS[0] in argv and "check" in argv:
@@ -151,7 +151,7 @@ def _render_footguns(proc: subprocess.CompletedProcess[str], scope: ForkLines | 
 def filter_job(argv: list[str], cwd: Path, env: dict[str, str] | None,
                proc: subprocess.CompletedProcess[str]) -> subprocess.CompletedProcess[str]:
     """``proc`` with its upstream-line reds set aside; any other job is returned as is."""
-    kind = _kind([str(arg) for arg in argv])
+    kind = _job_kind([str(arg) for arg in argv])
     if kind is None:
         return proc
     scope: ForkLines | str = "--judge-all" if _STATE.judge_all else _fork_lines(Path(cwd), env)
