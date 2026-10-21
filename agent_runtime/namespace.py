@@ -46,6 +46,7 @@ __all__ = [
     "layout",
     "namespace_named",
     "namespace_stamp",
+    "qa_namespace",
     "store_identity",
     "validate_id",
 ]
@@ -91,6 +92,16 @@ def store_identity(env: Mapping[str, str] | None = None) -> dict[str, Any]:
 def namespace_named(env: Mapping[str, str] | None = None) -> bool:
     """True while this process runs in a namespace (``HERMES_NAMESPACE`` set and not ``base``)."""
     return namespace_stamp(env) != ""
+
+
+#: The Launcher's QA namespaces (``stagec-smoke``, ``stagec-*``): disposable, so never a writer to a
+#: network remote (RT-WORK-QA-NAMESPACE-PUSH-FENCE).
+QA_PREFIX = "stagec-"
+
+
+def qa_namespace(env: Mapping[str, str] | None = None) -> bool:
+    """True while this process runs in a Launcher QA namespace (``HERMES_NAMESPACE=stagec-*``)."""
+    return namespace_stamp(env).startswith(QA_PREFIX)
 
 
 def assert_namespace_isolation(resolution: Any, *, env: Mapping[str, str] | None = None) -> None:

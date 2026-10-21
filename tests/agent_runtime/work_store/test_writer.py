@@ -259,3 +259,23 @@ def test_history_names_the_deleting_commit_and_its_result(repo):
     assert ending["subject"].startswith("work: delete RT-A persona:pi_a")
     rows = parse_note(note_text(repo.other), slot="hermes", note=NOTE)
     assert [row.ref.id for row in rows] == ["RT-B"]
+
+
+def test_a_qa_namespace_never_pushes_to_a_network_remote(repo, monkeypatch):
+    """RT-WORK-QA-NAMESPACE-PUSH-FENCE: a ``stagec-*`` namespace writes through a local origin only.
+    Control: the same namespace's write through the fixture's local origin lands."""
+    from agent_runtime import namespace
+
+    assert namespace.qa_namespace({"HERMES_NAMESPACE": "stagec-smoke"})
+    assert not namespace.qa_namespace({"HERMES_NAMESPACE": "acct-0123456789abcdef"})
+    monkeypatch.setattr(namespace, "qa_namespace", lambda env=None: True)
+    assert Writer(repo.board, machine_id="m1").apply(op(Op.CLAIM)).pushed
+    before = git("rev-parse", "main", cwd=repo.origin).strip()
+    for url in ("https://github.com/acme/brain.git", "git@github.com:acme/brain.git", "relative/brain.git"):
+        git("remote", "set-url", "--push", "origin", url, cwd=repo.clone)
+        calls: list[list[str]] = []
+        with pytest.raises(WorkRefused) as refused:
+            Writer(repo.board, machine_id="m1", run=recording(calls)).apply(op(Op.RELEASE, rid=f"r-{len(url)}"))
+        assert refused.value.reason is Reason.PUSH_REFUSED, url
+        assert not any(call[:1] in (["push"], ["commit"]) for call in calls), url
+    assert git("rev-parse", "main", cwd=repo.origin).strip() == before
