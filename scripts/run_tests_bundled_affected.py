@@ -106,6 +106,9 @@ class Change:
     paths: set = field(default_factory=set)
     #: paths added or removed (they change a listed directory's names)
     churned: set = field(default_factory=set)
+    #: directories that themselves joined or left (every path under them churned): their
+    #: PARENT's listing changed too (FH-GATE-CACHE-WHOLE-TREE-FALSE-GREEN)
+    joined_dirs: set = field(default_factory=set)
 
 
 def _git_lines(repo_root: Path, *args: str) -> list[str]:
@@ -135,7 +138,32 @@ def change_set(repo_root: Path, since: Optional[str] = None) -> Change:
         rel = Path(rel.strip()).as_posix()
         out.paths.add(rel)
         out.churned.add(rel)
+    out.joined_dirs = joined_dirs(repo_root, out.churned)
     return out
+
+
+def joined_dirs(repo_root: Path, churned: Iterable[str]) -> set:
+    """The ancestors of churned paths that joined or left whole: gone from disk, or holding
+    no file on disk outside ``churned`` (a new package's directory). Stops climbing at the
+    first directory that holds anything else."""
+
+    churned = set(churned)
+    out: set = set()
+    for rel in churned:
+        d = rel.rsplit("/", 1)[0] if "/" in rel else "."
+        while d != "." and d not in out and _all_churned(repo_root, d, churned):
+            out.add(d)
+            d = d.rsplit("/", 1)[0] if "/" in d else "."
+    return out
+
+
+def _all_churned(repo_root: Path, d: str, churned: set) -> bool:
+    for top, dirs, files in os.walk(repo_root / d):
+        dirs[:] = [n for n in dirs if n != "__pycache__"]
+        for name in files:
+            if Path(top, name).relative_to(repo_root).as_posix() not in churned:
+                return False
+    return True
 
 
 # ── The static import graph ─────────────────────────────────────────────────
@@ -304,7 +332,14 @@ def select_affected(
         found = changed.intersection(paths)
         if found:
             digest_hits[digest] = found
-    churn_dirs = {(rel.rsplit("/", 1)[0] if "/" in rel else "."): rel for rel in change.churned}
+    churn_dirs = {}
+    for rel in sorted(change.churned):  # a path's directory, and every ancestor a whole new directory joined
+        d = rel
+        while True:
+            d = d.rsplit("/", 1)[0] if "/" in d else "."
+            churn_dirs.setdefault(d, rel)
+            if d not in change.joined_dirs:
+                break
     listing = _listing_counts(deps.values(), churn_dirs)
     churn_dirs = {d: rel for d, rel in churn_dirs.items() if listing.get(d, 0) <= SESSION_DIR_SHARE * len(deps)}
     churn_names = {rel.rsplit("/", 1)[-1].split(".", 1)[0].casefold(): rel for rel in change.churned}
