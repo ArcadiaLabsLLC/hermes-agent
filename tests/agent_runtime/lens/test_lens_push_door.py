@@ -515,10 +515,7 @@ def test_a_replayed_bearer_body_is_refused_within_the_ring_window():
 
 
 def test_a_bearer_route_needs_an_alertmanager_kind_and_a_local_bind():
-    import json
-
     from agent_runtime.lens.ingress import IngressListener
-    from agent_runtime.lens.ingress_routes import ingress_config_path
 
     store = _enabled()
     grafana = _rpc("runtime.lens.ingress.register", {"monitor_id": "pager", "kind": "grafana", "auth": "bearer"})
@@ -528,9 +525,6 @@ def test_a_bearer_route_needs_an_alertmanager_kind_and_a_local_bind():
     for host in ("0.0.0.0", "8.8.8.8"):
         refused = _rpc("runtime.lens.ingress.bind", {"host": host, "port": 47652})
         assert refused["error"]["data"]["detail"] == "bind_host_not_local"
-    ingress_config_path().write_text(json.dumps({"host": "0.0.0.0", "port": 47652}), encoding="utf-8")  # hand-edited
-    public = _rpc("runtime.lens.ingress.register", {"monitor_id": "pager", "kind": "alertmanager", "auth": "bearer"})
-    assert public["error"]["data"] == {"reason": "invalid_value", "detail": "bearer_needs_local_bind"}
     hmac_route = _rpc("runtime.lens.ingress.register", {"monitor_id": "pager", "kind": "alertmanager"})
     assert hmac_route["result"]["auth"] == "hmac"
 
@@ -572,3 +566,25 @@ def test_a_store_written_before_auth_reads_its_routes_as_hmac(tmp_path):
 
     [route] = LensStore(path).routes()
     assert route["auth"] == "hmac"
+
+
+def test_a_hand_edited_public_bind_reads_back_as_loopback_with_a_receipt(caplog):
+    """RT-LENS-INGRESS-BIND-UNCHECKED: ``lens/ingress.json`` is read through ``is_local_bind``, so a
+    hand-edited ``0.0.0.0`` (or a privileged port) never binds the door on every interface."""
+
+    import json
+    import logging
+
+    from agent_runtime.lens.ingress import IngressListener, ingress_state
+    from agent_runtime.lens.ingress_routes import DEFAULT_HOST, DEFAULT_PORT, ingress_address, ingress_config_path
+
+    caplog.set_level(logging.WARNING, logger="agent_runtime.lens")
+    ingress_config_path().parent.mkdir(parents=True, exist_ok=True)
+    ingress_config_path().write_text(json.dumps({"host": "192.168.1.5", "port": 48000}), encoding="utf-8")
+    assert ingress_address() == ("192.168.1.5", 48000), "a private bind the operator wrote stands"
+    for host, port in (("0.0.0.0", 47652), ("8.8.8.8", 47652), ("::", 47652), ("127.0.0.1", 80)):
+        ingress_config_path().write_text(json.dumps({"host": host, "port": port}), encoding="utf-8")  # hand-edited
+        assert ingress_address() == (DEFAULT_HOST, DEFAULT_PORT), host
+        assert IngressListener().host == DEFAULT_HOST
+        assert ingress_state()["host"] == DEFAULT_HOST
+    assert "lens ingress bind refused: host=0.0.0.0 port=47652 reason=not_local_bind" in caplog.text

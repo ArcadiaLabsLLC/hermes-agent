@@ -198,12 +198,18 @@ def checked_object(value: Any, required: Iterable[str], optional: Iterable[str] 
     return dict(value)
 
 
-def bounded_string(value: Any, *, maximum: int = 160, empty: bool = False) -> str:
+#: The control characters a MULTI-LINE text (``bounded_string(..., layout=True)``, a SQL
+#: statement) may carry: tab, line feed, carriage return. Every other one still refuses.
+LAYOUT_CHARACTERS = frozenset("\t\n\r")
+
+
+def bounded_string(value: Any, *, maximum: int = 160, empty: bool = False, layout: bool = False) -> str:
+    allowed = LAYOUT_CHARACTERS if layout else frozenset()
     if (
         not isinstance(value, str)
         or (not empty and not value)
         or len(value.encode("utf-8", "surrogatepass")) > maximum
-        or any(ord(ch) < 32 or 0xD800 <= ord(ch) <= 0xDFFF for ch in value)
+        or any((ord(ch) < 32 and ch not in allowed) or 0xD800 <= ord(ch) <= 0xDFFF for ch in value)
     ):
         raise WireError(WireRefusal.INVALID_STRING)
     return value

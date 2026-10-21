@@ -14,8 +14,9 @@ its mapping, its auth mode (``hmac`` | ``bearer``) and the credential reference 
 secret — never the secret; L3).
 
 Monitor lifecycle: ``create`` writes a DRAFT (a validated manifest, not yet
-running); ``seal`` freezes the draft as the next revision; ``enable`` / ``pause``
-switch polling of the sealed revision; ``retire`` stops it for good (its data
+running); ``seal`` freezes the draft as the next revision; ``drop_draft`` forgets a
+sealed monitor's pending next revision (the sealed one keeps running); ``enable`` /
+``pause`` switch polling of the sealed revision; ``retire`` stops it for good (its data
 stays). Capacity is refused, never made by eviction (W13): at most
 :data:`MAXIMUM_MONITORS` monitors that are not retired.
 
@@ -42,6 +43,10 @@ from .wire_value import WireError, WireRefusal, canonical_bytes
 __layer__ = "stores"
 
 MAXIMUM_MONITORS = 64
+#: The most never-sealed drafts that may stand when ``lens_propose`` adds one
+#: (``create(..., proposal=True)``): a persona can never fill :data:`MAXIMUM_MONITORS`
+#: with proposals, so the operator's own create keeps the rest.
+MAXIMUM_PROPOSALS = 8
 #: Receipts are refused past this many, never made room for by eviction (W13).
 MAXIMUM_RECEIPTS = 50_000
 #: Push-door routes are refused past this many (W13).
@@ -102,6 +107,8 @@ class StoreRefusal(str, Enum):
     ROUTES_FULL = "routes_full"
     #: ``lens_propose`` never writes over a monitor that already exists (L4.2).
     EXISTS = "monitor_exists"
+    #: ``lens_propose`` refused: :data:`MAXIMUM_PROPOSALS` never-sealed drafts already wait.
+    PROPOSALS_FULL = "proposals_full"
 
 
 #: The refusals a reader answers as "not found" (the rest are conflicts).
@@ -180,8 +187,11 @@ class LensStore:
         conn.row_factory = sqlite3.Row
         return conn.execute("SELECT * FROM monitors WHERE monitor_id = ?", (monitor_id,)).fetchone()
 
-    def create(self, manifest: Any) -> dict[str, Any]:
-        """Write ``manifest`` as the monitor's DRAFT (new, or over an existing draft)."""
+    def create(self, manifest: Any, *, proposal: bool = False) -> dict[str, Any]:
+        """Write ``manifest`` as the monitor's DRAFT (new, or over an existing draft).
+
+        ``proposal`` (``lens_propose``): a NEW monitor is also refused ``proposals_full`` while
+        :data:`MAXIMUM_PROPOSALS` never-sealed drafts stand, in the same transaction."""
 
         doc = read_manifest(manifest)
         with self._db() as conn:
@@ -190,6 +200,9 @@ class LensStore:
                 live = conn.execute("SELECT COUNT(*) FROM monitors WHERE state != ?", (MonitorState.RETIRED.value,))
                 if live.fetchone()[0] >= MAXIMUM_MONITORS:
                     raise LensStoreError(StoreRefusal.CAPACITY)
+                if proposal and conn.execute("SELECT COUNT(*) FROM monitors WHERE state = ? AND body IS NULL",
+                                             (MonitorState.DRAFT.value,)).fetchone()[0] >= MAXIMUM_PROPOSALS:
+                    raise LensStoreError(StoreRefusal.PROPOSALS_FULL)
                 conn.execute("INSERT INTO monitors (monitor_id, state, draft, updated_ms) VALUES (?, ?, ?, ?)",
                              (doc["monitor_id"], MonitorState.DRAFT.value, canonical_bytes(doc), _now_ms()))
             elif row["state"] == MonitorState.RETIRED.value:
@@ -207,6 +220,23 @@ class LensStore:
             sealed = seal_manifest(json.loads(row["draft"]), revision=int(row["revision"]) + 1)
             conn.execute("UPDATE monitors SET revision = ?, digest = ?, body = ?, draft = NULL, updated_ms = ? "
                          "WHERE monitor_id = ?", (sealed.revision, sealed.digest, sealed.body, _now_ms(), monitor_id))
+        return self.get(monitor_id)
+
+    def drop_draft(self, monitor_id: str) -> dict[str, Any]:
+        """Forget a SEALED monitor's pending next-revision draft; the sealed revision and its
+        state stand (``runtime.lens.draft.drop``). A monitor never sealed has nothing to fall
+        back to and is refused ``not_sealed`` — ``retire`` discards that proposal."""
+
+        with self._db() as conn:
+            row = self._required(conn, monitor_id)
+            if row["state"] == MonitorState.RETIRED.value:
+                raise LensStoreError(StoreRefusal.RETIRED)
+            if row["draft"] is None:
+                raise LensStoreError(StoreRefusal.NO_DRAFT)
+            if row["body"] is None:
+                raise LensStoreError(StoreRefusal.NOT_SEALED)
+            conn.execute("UPDATE monitors SET draft = NULL, updated_ms = ? WHERE monitor_id = ?",
+                         (_now_ms(), monitor_id))
         return self.get(monitor_id)
 
     def set_state(self, monitor_id: str, state: MonitorState) -> dict[str, Any]:

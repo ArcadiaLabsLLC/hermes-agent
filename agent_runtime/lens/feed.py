@@ -178,7 +178,10 @@ def kube_proxy_base_url(source: dict[str, Any]) -> str:
 
 
 def read_only_statement(value: Any) -> str:
-    text = bounded_string(value, maximum=4096)
+    """A ``sql_readonly`` statement: up to 4 KiB, beginning SELECT / WITH. It may span lines
+    (tab, LF and CR are admitted — a pasted query is multi-line); no other control character."""
+
+    text = bounded_string(value, maximum=4096, layout=True)
     require(READ_ONLY_STATEMENT.match(text) is not None, "statement", WireRefusal.INVALID_STRING)
     return text
 

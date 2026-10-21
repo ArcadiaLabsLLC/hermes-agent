@@ -199,6 +199,33 @@ def test_lens_propose_previews_for_real_and_stores_a_draft_it_never_seals():
     assert store.get("proposed-status")["draft"] is None, "a proposal never writes over a monitor"
 
 
+def test_lens_propose_stops_at_the_proposal_cap_and_the_operator_still_creates():
+    """RT-LENS-PROPOSAL-CAPACITY: proposals never fill ``MAXIMUM_MONITORS``."""
+
+    import httpx
+
+    from agent_runtime.lens.store import MAXIMUM_PROPOSALS, LensStoreError
+    from agent_runtime.lens.tool import propose_monitor
+
+    store = LensStore()
+    client = _client(lambda request: httpx.Response(200, json={"latency": 1}))
+    for index in range(MAXIMUM_PROPOSALS):
+        propose_monitor({**_proposal(), "monitor_id": f"proposed-{index}"}, store=store, client=client,
+                        resolver=lambda host: PUBLIC)
+    with pytest.raises(LensStoreError) as full:
+        propose_monitor({**_proposal(), "monitor_id": "proposed-over"}, store=store, client=client,
+                        resolver=lambda host: PUBLIC)
+    assert full.value.code.value == "proposals_full"
+    operator = {**_proposal()["rule"]}
+    manifest = {"version": 1, "monitor_id": "operator", "persona_id": None,
+                "feeds": [{"version": 1, **_proposal()["feeds"][0]}], "rules": [{"version": 1, **operator}],
+                "automation": _proposal()["automation"]}
+    store.seal("proposed-0")
+    assert propose_monitor({**_proposal(), "monitor_id": "proposed-again"}, store=store, client=client,
+                           resolver=lambda host: PUBLIC)["state"] == "draft", "a sealed proposal frees its slot"
+    assert store.create(manifest)["state"] == "draft", "the operator's create is not a proposal"
+
+
 def test_lens_propose_previews_through_the_private_address_classifier():
     import httpx
 
@@ -263,6 +290,13 @@ def test_sql_readonly_reads_one_value_and_a_delete_never_reaches_sqlite(database
     with pytest.raises(WireError) as refused:
         _feed("sql_readonly", {"database": str(database), "query": "DELETE FROM jobs"})
     assert refused.value.code is WireRefusal.INVALID_STRING
+
+    pasted = "SELECT COUNT(*)\r\n\tFROM jobs\n\tWHERE state = 'failed'"  # RT-LENS-SQL-MULTILINE
+    multiline = _feed("sql_readonly", {"database": str(database), "query": pasted})
+    assert multiline["source"]["query"] == pasted and sql_readonly.read(multiline, headers={}).value == 2.0
+    with pytest.raises(WireError) as control:
+        _feed("sql_readonly", {"database": str(database), "query": "SELECT 1\x00"})
+    assert control.value.code is WireRefusal.INVALID_STRING, "only tab / LF / CR are admitted"
 
     planted = {**feed, "source": {**feed["source"], "query": "DELETE FROM jobs"}}
     assert sql_readonly.read(planted, headers={}).reason.value == "statement_refused"

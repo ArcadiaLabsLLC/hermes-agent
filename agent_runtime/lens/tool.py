@@ -13,8 +13,9 @@ through ``harness_core``.
 * ``lens_propose {feeds, rule, automation, persona_id?, monitor_id?}``
   (:func:`propose_monitor`) — one real preview read per feed (``sources.preview_reads``:
   the transport classifier refuses a private address unless the feed opts in), then
-  the manifest is stored as a DRAFT of a NEW monitor (``store.create``). It never
-  seals and never enables: the operator's confirm in Mission Control
+  the manifest is stored as a DRAFT of a NEW monitor (``store.create``; refused
+  ``proposals_full`` while ``store.MAXIMUM_PROPOSALS`` never-sealed drafts wait, so
+  proposals never take the operator's capacity). It never seals and never enables: the operator's confirm in Mission Control
   (``runtime.lens.seal``) is the only way a proposal starts polling.
 
 The block is the forged user message. It stands on its own (the persona has no
@@ -227,7 +228,7 @@ def propose_monitor(args: Any, *, store: LensStore | None = None, client: Any = 
     else:
         raise LensStoreError(StoreRefusal.EXISTS)
     preview = preview_reads(manifest, client=client, resolver=resolver)
-    monitor = store.create(manifest)
+    monitor = store.create(manifest, proposal=True)
     return {"monitor_id": monitor_id, "state": monitor["state"], "sealed": False,
             "preview": [{"feed_id": feed_id, **result.to_json()} for feed_id, result in preview.items()],
             "confirm": "The operator seals this draft in Mission Control (runtime.lens.seal); nothing polls "
