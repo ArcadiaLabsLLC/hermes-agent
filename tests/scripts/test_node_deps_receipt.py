@@ -79,7 +79,7 @@ def checkout(tmp_path):
     def prepare(extra=None):
         env = {**base, **(extra or {})}
         return subprocess.run([NODE, str(driver), json.dumps(env), str(source)],
-                              capture_output=True, text=True, timeout=120)
+                              capture_output=True, text=True, timeout=120, check=False)
 
     def calls():
         path = state / "calls"
