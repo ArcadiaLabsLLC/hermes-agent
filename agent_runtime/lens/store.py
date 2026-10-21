@@ -26,6 +26,7 @@ stays). Capacity is refused, never made by eviction (W13): at most
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import threading
 from contextlib import contextmanager
@@ -47,6 +48,14 @@ MAXIMUM_MONITORS = 64
 #: (``create(..., proposal=True)``): a persona can never fill :data:`MAXIMUM_MONITORS`
 #: with proposals, so the operator's own create keeps the rest.
 MAXIMUM_PROPOSALS = 8
+#: The most of those one persona instance may hold (``create(..., proposer=...)``; the calling
+#: persona is the live turn's, never a wire key): one persona cannot take every proposal slot.
+MAXIMUM_PROPOSALS_PER_PERSONA = 3
+#: A proposal draft neither sealed nor edited by the operator for this long is retired
+#: (the lifecycle's own discard for a never-sealed monitor) on the next ``create``.
+PROPOSAL_TTL_MS = 7 * 24 * 60 * 60 * 1000
+#: The receipt an expiry leaves (observability is a log receipt, never a wire key).
+PROPOSALS_EXPIRED_RECEIPT = "[LensProposalsExpired] retired=%d ids=%s"
 #: Receipts are refused past this many, never made room for by eviction (W13).
 MAXIMUM_RECEIPTS = 50_000
 #: Push-door routes are refused past this many (W13).
@@ -57,6 +66,7 @@ MAXIMUM_RANGE_MS = 7 * 24 * 60 * 60 * 1000
 MAXIMUM_RANGE_ROWS = 10_000
 SERIES_SCHEMA = "lens-range-v1"
 _LOCK = threading.RLock()
+logger = logging.getLogger(__name__)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS monitors (
@@ -176,6 +186,7 @@ class LensStore:
                 conn.execute("PRAGMA journal_mode=WAL")
                 conn.executescript(_SCHEMA)
                 _add_route_auth(conn)
+                _add_proposal_columns(conn)
                 with conn:
                     yield conn
             finally:
@@ -187,29 +198,37 @@ class LensStore:
         conn.row_factory = sqlite3.Row
         return conn.execute("SELECT * FROM monitors WHERE monitor_id = ?", (monitor_id,)).fetchone()
 
-    def create(self, manifest: Any, *, proposal: bool = False) -> dict[str, Any]:
+    def create(self, manifest: Any, *, proposal: bool = False, proposer: str | None = None) -> dict[str, Any]:
         """Write ``manifest`` as the monitor's DRAFT (new, or over an existing draft).
 
         ``proposal`` (``lens_propose``): a NEW monitor is also refused ``proposals_full`` while
-        :data:`MAXIMUM_PROPOSALS` never-sealed drafts stand, in the same transaction."""
+        :data:`MAXIMUM_PROPOSALS` never-sealed drafts stand, or while ``proposer`` (the calling
+        persona instance, when the turn names one) holds :data:`MAXIMUM_PROPOSALS_PER_PERSONA`,
+        in the same transaction. Every create first retires the proposals older than
+        :data:`PROPOSAL_TTL_MS`; the operator's write over a proposal adopts it (no expiry)."""
 
         doc = read_manifest(manifest)
         with self._db() as conn:
+            _expire_proposals(conn, _now_ms())
             row = self._row(conn, doc["monitor_id"])
             if row is None:
                 live = conn.execute("SELECT COUNT(*) FROM monitors WHERE state != ?", (MonitorState.RETIRED.value,))
                 if live.fetchone()[0] >= MAXIMUM_MONITORS:
                     raise LensStoreError(StoreRefusal.CAPACITY)
-                if proposal and conn.execute("SELECT COUNT(*) FROM monitors WHERE state = ? AND body IS NULL",
-                                             (MonitorState.DRAFT.value,)).fetchone()[0] >= MAXIMUM_PROPOSALS:
-                    raise LensStoreError(StoreRefusal.PROPOSALS_FULL)
-                conn.execute("INSERT INTO monitors (monitor_id, state, draft, updated_ms) VALUES (?, ?, ?, ?)",
-                             (doc["monitor_id"], MonitorState.DRAFT.value, canonical_bytes(doc), _now_ms()))
+                if proposal:
+                    _proposal_room(conn, proposer)
+                conn.execute("INSERT INTO monitors (monitor_id, state, draft, updated_ms, proposed, proposed_by) "
+                             "VALUES (?, ?, ?, ?, ?, ?)",
+                             (doc["monitor_id"], MonitorState.DRAFT.value, canonical_bytes(doc), _now_ms(),
+                              int(proposal), proposer if proposal else None))
             elif row["state"] == MonitorState.RETIRED.value:
                 raise LensStoreError(StoreRefusal.RETIRED)
-            else:
+            elif proposal:
                 conn.execute("UPDATE monitors SET draft = ?, updated_ms = ? WHERE monitor_id = ?",
                              (canonical_bytes(doc), _now_ms(), doc["monitor_id"]))
+            else:  # the operator's write adopts a proposal: never expired, never a persona's share
+                conn.execute("UPDATE monitors SET draft = ?, updated_ms = ?, proposed = 0, proposed_by = NULL "
+                             "WHERE monitor_id = ?", (canonical_bytes(doc), _now_ms(), doc["monitor_id"]))
         return self.get(doc["monitor_id"])
 
     def seal(self, monitor_id: str) -> dict[str, Any]:
@@ -524,6 +543,45 @@ class LensStore:
 
 
 _ROUTE_COLUMNS = ("route_id", "monitor_id", "kind", "secret_ref", "mapping", "created_ms", "auth")
+
+
+def _add_proposal_columns(conn: sqlite3.Connection) -> None:
+    """A store written before RT-LENS-PROPOSAL-CAPACITY gains ``proposed`` / ``proposed_by``
+    (its drafts read as the operator's: never expired, never counted against a persona)."""
+
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(monitors)")}
+    if "proposed" not in columns:
+        conn.execute("ALTER TABLE monitors ADD COLUMN proposed INTEGER NOT NULL DEFAULT 0")
+    if "proposed_by" not in columns:
+        conn.execute("ALTER TABLE monitors ADD COLUMN proposed_by TEXT")
+
+
+#: A proposal still waiting for the operator: proposed, never sealed, not retired.
+_OPEN_PROPOSALS = "FROM monitors WHERE proposed = 1 AND body IS NULL AND state = 'draft'"
+
+
+def _proposal_room(conn: sqlite3.Connection, proposer: str | None) -> None:
+    """Refuse ``proposals_full`` when the global share or the proposer's own share is taken."""
+
+    drafts = conn.execute("SELECT COUNT(*) FROM monitors WHERE state = ? AND body IS NULL",
+                          (MonitorState.DRAFT.value,)).fetchone()[0]
+    if drafts >= MAXIMUM_PROPOSALS:
+        raise LensStoreError(StoreRefusal.PROPOSALS_FULL)
+    if proposer and conn.execute(f"SELECT COUNT(*) {_OPEN_PROPOSALS} AND proposed_by = ?",
+                                 (proposer,)).fetchone()[0] >= MAXIMUM_PROPOSALS_PER_PERSONA:
+        raise LensStoreError(StoreRefusal.PROPOSALS_FULL)
+
+
+def _expire_proposals(conn: sqlite3.Connection, now_ms: int) -> None:
+    """Retire every open proposal untouched for :data:`PROPOSAL_TTL_MS`."""
+
+    expired = [row[0] for row in conn.execute(f"SELECT monitor_id {_OPEN_PROPOSALS} AND updated_ms < ?",
+                                              (now_ms - PROPOSAL_TTL_MS,))]
+    if not expired:
+        return
+    conn.executemany("UPDATE monitors SET state = ?, updated_ms = ? WHERE monitor_id = ?",
+                     [(MonitorState.RETIRED.value, now_ms, monitor_id) for monitor_id in expired])
+    logger.info(PROPOSALS_EXPIRED_RECEIPT, len(expired), ",".join(expired[:16]))
 
 
 def _add_route_auth(conn: sqlite3.Connection) -> None:

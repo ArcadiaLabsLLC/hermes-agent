@@ -43,6 +43,7 @@ __all__ = [
     "interrupt_turn",
     "live_turn",
     "live_turn_view",
+    "persona_instance_of",
     "set_call_worker",
     "tool_finished",
     "tool_started",
@@ -194,6 +195,14 @@ def set_call_worker(turn_id: str | None, call_id: Any, tid: int) -> None:
         call = turn.calls.get(str(call_id or "").strip()) if turn is not None else None
         if call is not None:
             call.exec_tid = tid
+
+
+def persona_instance_of(agent: Any) -> str | None:
+    """The persona instance of the live turn running ``agent``, else None."""
+
+    with _lock:
+        return next((turn.persona_instance_id for turn in _turns.values()
+                     if turn.agent is agent and turn.persona_instance_id), None)
 
 
 def conversation_agents(session_id: str, persona_instance_id: str) -> tuple[Any, ...]:

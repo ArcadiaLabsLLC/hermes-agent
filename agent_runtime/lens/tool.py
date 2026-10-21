@@ -205,6 +205,17 @@ def _versioned(value: Any) -> Any:
     return {"version": 1, **value} if isinstance(value, dict) else value
 
 
+def _calling_persona() -> str | None:
+    """The persona instance whose live turn is calling (``live_turns``), else None (unattributed:
+    the global proposal cap alone applies). Read from the turn binding, never from the tool call."""
+
+    from agent_runtime.live_turns import persona_instance_of
+    from agent_runtime.persona_turn_binding import current_persona_turn_agent
+
+    agent = current_persona_turn_agent()
+    return persona_instance_of(agent) if agent is not None else None
+
+
 def propose_monitor(args: Any, *, store: LensStore | None = None, client: Any = None,
                     resolver: Any = None) -> dict[str, Any]:
     """``lens_propose``'s answer: the preview and the new DRAFT's id. Never seals (see the module)."""
@@ -228,7 +239,7 @@ def propose_monitor(args: Any, *, store: LensStore | None = None, client: Any = 
     else:
         raise LensStoreError(StoreRefusal.EXISTS)
     preview = preview_reads(manifest, client=client, resolver=resolver)
-    monitor = store.create(manifest, proposal=True)
+    monitor = store.create(manifest, proposal=True, proposer=_calling_persona())
     return {"monitor_id": monitor_id, "state": monitor["state"], "sealed": False,
             "preview": [{"feed_id": feed_id, **result.to_json()} for feed_id, result in preview.items()],
             "confirm": "The operator seals this draft in Mission Control (runtime.lens.seal); nothing polls "

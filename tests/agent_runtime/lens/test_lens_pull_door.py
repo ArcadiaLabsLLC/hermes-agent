@@ -350,3 +350,60 @@ def test_prometheus_through_kube_proxy_reads_the_service_proxy_on_loopback():
                     "/api/v1/query?query=up"]
     loopback = _feed("prometheus", {"base_url": "http://127.0.0.1:9090", "query": "up"})
     assert read_feed_source(loopback, client=_client(handler)).reason.value == "private_address_refused"
+
+
+def _propose_as(persona: str | None, monitor_id: str, store: LensStore) -> dict:
+    """``lens_propose`` from inside a live persona turn (``persona=None``: outside any turn)."""
+    from contextlib import ExitStack
+    from types import SimpleNamespace
+
+    import httpx
+
+    from agent_runtime.live_turns import live_turn
+    from agent_runtime.persona_turn_binding import bind_persona_turn_agent
+    from agent_runtime.lens.tool import propose_monitor
+
+    client = _client(lambda request: httpx.Response(200, json={"latency": 1}))
+    with ExitStack() as turn:
+        if persona is not None:
+            agent = SimpleNamespace()
+            turn.enter_context(live_turn(turn_id=f"t-{monitor_id}", session_id="s", persona_instance_id=persona,
+                                         agent=agent))
+            turn.enter_context(bind_persona_turn_agent(agent))
+        return propose_monitor({**_proposal(), "monitor_id": monitor_id}, store=store, client=client,
+                               resolver=lambda host: PUBLIC)
+
+
+def test_one_persona_cannot_take_every_proposal_slot():
+    """RT-LENS-PROPOSAL-CAPACITY, per persona: the calling persona is the live turn's (no wire key)."""
+    from agent_runtime.lens.store import MAXIMUM_PROPOSALS_PER_PERSONA, LensStoreError
+
+    store = LensStore()
+    for index in range(MAXIMUM_PROPOSALS_PER_PERSONA):
+        _propose_as("inst-a", f"a-{index}", store)
+    with pytest.raises(LensStoreError) as full:
+        _propose_as("inst-a", "a-over", store)
+    assert full.value.code.value == "proposals_full"
+    assert _propose_as("inst-b", "b-0", store)["state"] == "draft", "another persona keeps its share"
+    assert _propose_as(None, "unattributed", store)["state"] == "draft", "outside a turn: the global cap only"
+
+
+def test_an_untouched_proposal_expires_and_an_adopted_one_does_not(monkeypatch, caplog):
+    """RT-LENS-PROPOSAL-CAPACITY, expiry: a proposal the operator never sealed nor edited is retired."""
+    import logging
+
+    from agent_runtime.lens import store as lens_store
+
+    store = LensStore()
+    _propose_as("inst-a", "stale", store)
+    adopted = _propose_as("inst-a", "adopted", store)
+    store.create({**store.get("adopted")["draft"]})
+    assert adopted["monitor_id"] == "adopted"
+    later = lens_store._now_ms() + lens_store.PROPOSAL_TTL_MS + 1
+    monkeypatch.setattr(lens_store, "_now_ms", lambda: later)
+    with caplog.at_level(logging.INFO, logger=lens_store.__name__):
+        _propose_as("inst-a", "fresh", store)
+    assert store.get("stale")["state"] == MonitorState.RETIRED.value
+    assert store.get("adopted")["state"] == MonitorState.DRAFT.value
+    assert store.get("fresh")["state"] == MonitorState.DRAFT.value
+    assert "[LensProposalsExpired] retired=1 ids=stale" in caplog.text

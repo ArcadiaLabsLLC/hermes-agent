@@ -101,7 +101,8 @@ def register(method, ok, err) -> None:
                     return ok(rid, execute(operation, params, context.caller, context.launcher_request))
                 except ConversationError as exc:
                     return err(rid, 4090, "This conversation is unavailable.",
-                               {"reason": exc.reason, "native_code": exc.native_code})
+                               {"reason": exc.reason, "native_code": exc.native_code,
+                                **({"native_data": exc.native_data} if exc.native_data else {})})
                 except SubagentError as exc:
                     return err(rid, 4090, "Subagent inspection refused.", {"reason": exc.reason})
                 except (KeyError, TypeError, ValueError):
