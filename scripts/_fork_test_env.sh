@@ -119,6 +119,26 @@ fork_ensure_dev_deps() {
   "$PYTHON" "$REPO_ROOT/scripts/ensure_fork_dev_deps.py" || exit 1
 }
 
+# Fork (FORK-HERMES-TEST-ENTRY-POINTS, owner ruling 2026-10-21): the bundled runner
+# claims the launcher's machine-wide heavy-run slot (scripts/run_tests_bundled_slot.py),
+# whose directory is `<machine temp>/eternia-heavy-slots` — the temp the launcher's
+# Dart sees (TMP, then TEMP, on Windows; TMPDIR, then /tmp, elsewhere). Named here,
+# before fork_test_tmp_root points TEMP at the test-tmp root, or the runner would
+# claim a private slot set nobody else waits on. An explicit ETERNIA_HEAVY_SLOT_DIR wins.
+fork_heavy_slot_dir() {
+  [ -z "${ETERNIA_HEAVY_SLOT_DIR:-}" ] || return 0
+  local base
+  if command -v cygpath >/dev/null 2>&1; then
+    base="${TMP:-${TEMP:-}}"
+    [ -n "$base" ] || return 0
+    base="$(cygpath -u "$base")"
+    export ETERNIA_HEAVY_SLOT_DIR="$(cygpath -w "${base%/}/eternia-heavy-slots")"
+  else
+    base="${TMPDIR:-/tmp}"
+    export ETERNIA_HEAVY_SLOT_DIR="${base%/}/eternia-heavy-slots"
+  fi
+}
+
 # Fork (design sweep D3.08): the test-temp root is set ONCE, here, for the runner
 # and every child it spawns — the runner's own scratch (run_tests_parallel.py's
 # `hermes-pytest`) and the root conftest's `hermes-test-home-*` landed in %TEMP%
@@ -126,6 +146,7 @@ fork_ensure_dev_deps() {
 # beside the primary checkout of a worktree (the operator's X:\Eternia\test-tmp);
 # neither existing leaves today's behaviour.
 fork_test_tmp_root() {
+  fork_heavy_slot_dir
   if [ -z "${HERMES_TEST_TMP_ROOT:-}" ]; then
     _common_dir="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
     for _tmp_candidate in "$REPO_ROOT/../test-tmp" ${_common_dir:+"$_common_dir/../../test-tmp"}; do

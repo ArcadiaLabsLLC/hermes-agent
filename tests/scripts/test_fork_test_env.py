@@ -54,7 +54,10 @@ def test_run_tests_sources_the_door_and_the_shipped_list_holds_only_names():
         line.split("#", 1)[0].strip()
         for line in (REPO / "scripts" / "fork_test_env.txt").read_text(encoding="utf-8").splitlines()
     ]
-    assert [n for n in names if n] == ["HERMES_TEST_IDLE_BOX", "HERMES_TEST_BODY_PATCH_UNDO"]
+    assert [n for n in names if n] == [
+        "HERMES_TEST_IDLE_BOX", "HERMES_TEST_BODY_PATCH_UNDO",
+        "ETERNIA_HEAVY_SLOTS", "ETERNIA_HEAVY_SLOT_DIR", "ETERNIA_HEAVY_SLOT_HELD",  # the launcher's heavy-run slot
+    ]
 
 
 @pytest.mark.skipif(sys.platform == "win32" and not Path(BASH).is_file(), reason="Git Bash not installed")

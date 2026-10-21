@@ -106,6 +106,7 @@ vias = _load_sibling("run_tests_bundled_via")  # the typed via, first: every sib
 plan = _load_sibling("run_tests_bundled_plan")  # skip list, budget bundles, run ledger, known reds
 solo = _load_sibling("run_tests_bundled_solo")  # what one single-file process runs with (fast-gate §2)
 shard = _load_sibling("run_tests_bundled_shard")  # slow files split by node id on a tail-bound run (fast-gate §3)
+heavy_slot = _load_sibling("run_tests_bundled_slot")  # the launcher's machine-wide heavy-run slot
 
 
 # ── Membership ──────────────────────────────────────────────────────────────
@@ -936,5 +937,15 @@ def main(argv: Optional[list[str]] = None) -> int:
     return gate.report(result, _print_summary(result, files, repo_root, elapsed, args.jobs, cost))
 
 
+def _claims_a_heavy_slot(argv: list[str], environ) -> bool:
+    """A real run claims the launcher's machine-wide heavy-run slot (FORK-HERMES-TEST-ENTRY-POINTS);
+    help, a cache dry run and a runner a TEST spawned (it inherits ``PYTEST_CURRENT_TEST``: its
+    parent is already one run's worker) do not."""
+    return not ({"-h", "--help", "--cache-dry-run"} & set(argv)) and "PYTEST_CURRENT_TEST" not in environ
+
+
 if __name__ == "__main__":
+    if _claims_a_heavy_slot(sys.argv[1:], os.environ):
+        with heavy_slot.claimed(" ".join(["run_tests_bundled.py", *sys.argv[1:]])):
+            sys.exit(main())
     sys.exit(main())

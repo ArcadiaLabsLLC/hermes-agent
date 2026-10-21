@@ -2,3 +2,6 @@
 # One NAME per line; `#` starts the reason. Names only, never a glob, never a credential.
 HERMES_TEST_IDLE_BOX  # tests/_downstream/idle_box.py: the timing files run only on an idle box
 HERMES_TEST_BODY_PATCH_UNDO  # tests/_downstream/body_patch_scope.py: the call-end undo of a body's monkeypatch entries (on/off)
+ETERNIA_HEAVY_SLOTS  # scripts/run_tests_bundled_slot.py: the launcher's heavy-run slot count (off disables)
+ETERNIA_HEAVY_SLOT_DIR  # scripts/run_tests_bundled_slot.py: the slot directory, named before TEMP moves (_fork_test_env.sh)
+ETERNIA_HEAVY_SLOT_HELD  # scripts/run_tests_bundled_slot.py: a parent already holds a slot (re-entrancy)
