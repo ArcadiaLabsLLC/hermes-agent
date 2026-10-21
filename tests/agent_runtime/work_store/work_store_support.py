@@ -34,10 +34,13 @@ def checkout(root: Path, brain: str | None = "Harness_Brain", rows: str = "") ->
     return root
 
 
-def bind_here(**slots: Path) -> None:
-    roots = dict(load_machine_roots(refresh=True).roots)
-    roots.update({name: str(path) for name, path in slots.items()})
-    write_machine_roots(roots, dry_run=False)
+def bind_here(workspace_id: str, **slots: Path) -> None:
+    """This machine fills ``slots`` for ``workspace_id`` (``workspace_roots``, the per-workspace fill)."""
+
+    current = load_machine_roots(refresh=True)
+    scoped = {ws: dict(fills) for ws, fills in current.workspace_roots.items()}
+    scoped.setdefault(workspace_id, {}).update({name: str(path) for name, path in slots.items()})
+    write_machine_roots(dict(current.roots), workspace_roots=scoped, dry_run=False)
 
 
 def declare_slots(workspace_id: str, *decls: dict, issued_at: str = ISSUED) -> None:

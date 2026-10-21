@@ -1253,7 +1253,8 @@ it already had moves its rows in through the normal move.
 
 The write path (plan §5), in six lines:
 
-1. hermes keeps its OWN worktree of each slot's clone (`<store_root>/work/<ws>/worktrees/<slot>`, branch
+1. hermes keeps its OWN worktree of each slot's clone (`<store_root>/work/<ws>/worktrees/<slot>-<checkout token>`,
+   keyed by the clone's git common dir so two boards over one checkout share it and two checkouts never collide; branch
    `work/<machine_id>`, `--no-checkout` + a sparse checkout of the brain folder); the operator's index and
    tree are never touched.
 2. Each write fetches the tip, `reset --hard`s the worktree to it, and replays by `request_id` when the

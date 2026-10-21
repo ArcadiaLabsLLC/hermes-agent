@@ -408,3 +408,33 @@ def test_the_default_brain_is_green_without_a_subprocess(repo):
     assert (receipt.command, receipt.exit_code, receipt.summary) == (GATE_NONE, 0, "no code to test: brain-only slot")
     assert waiting.state is BatchState.AWAITING_APPROVAL
     assert d.approve(WS, batch.id).state is BatchState.LANDED
+
+
+def test_a_qa_namespace_landing_never_pushes_to_a_network_remote(tmp_path, monkeypatch):
+    """RT-BATCH-QA-NAMESPACE-PUSH-FENCE: ``push_ff`` asks ``namespace.qa_blocked_push_url`` first. Every git call is
+    a stub (``push`` included), so a regressed fence reds here without a network push. Killing mutation: drop the
+    fence from ``push_ff`` -> the network URLs reach the stubbed ``push`` and this goes red."""
+
+    from agent_runtime import namespace
+
+    calls: list[list[str]] = []
+    push_url = {"value": ""}
+
+    def stub(args, **kwargs):
+        calls.append(list(args))
+        stdout = push_url["value"] + "\n" if args[:2] == ["remote", "get-url"] else ""
+        return subprocess.CompletedProcess(args, 0, stdout, "")
+
+    monkeypatch.setattr(namespace, "qa_namespace", lambda env=None: True)
+    site = Site("hermes", Clone(tmp_path / "clone"), tmp_path / "wt", "land/B", "origin/main")
+    for url in ("https://github.com/acme/brain.git", "git@github.com:acme/brain.git", "relative/brain.git", ""):
+        push_url["value"] = url
+        calls.clear()
+        with pytest.raises(WorkRefused) as refused:
+            LaneGit(run=stub).push_ff(site, "abc123")
+        assert refused.value.reason is Reason.PUSH_REFUSED and "github" not in refused.value.detail, url
+        assert not any(call[:1] == ["push"] for call in calls), url
+    push_url["value"] = str(tmp_path / "origin.git")  # control: a local origin lands
+    calls.clear()
+    LaneGit(run=stub).push_ff(site, "abc123")
+    assert ["push", "-q", "origin", "abc123:refs/heads/main"] in calls

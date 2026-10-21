@@ -374,3 +374,105 @@ def test_context_gate_round_trips_and_refuses_a_credential(workspace):
         with pytest.raises(SlotRefused) as refused:
             normalize_declaration({**entry, "context": {"gate": bad}})
         assert refused.value.reason == "invalid_declaration", bad
+
+
+# ── Slot roots per workspace (plan work-slot-roots-per-workspace-2026-10-21 R2) ──
+
+
+def _bare_dir(tmp_path, name):
+    target = tmp_path / "dirs" / name
+    target.mkdir(parents=True)
+    return target
+
+
+def test_two_workspaces_binding_one_slot_name_keep_their_own_paths(workspace, tmp_path):
+    """Killing mutation: ``bind`` writing ``roots[slot]`` as before — ws1 reads ws2's directory."""
+
+    from agent_runtime.workspace_slots import bind, bound_path, slot_census
+
+    other = WorkspaceStore().create(name="Slots two").id
+    one, two = _bare_dir(tmp_path, "one"), _bare_dir(tmp_path, "two")
+    for ws in (workspace, other):
+        _declare(ws, [_slot("brain")])
+    bind(workspace, "brain", str(one), issued_at=ISSUED)
+    bind(other, "brain", str(two), issued_at=ISSUED)
+    assert bound_path("brain", workspace_id=workspace) == one
+    assert bound_path("brain", workspace_id=other) == two
+    bound = {(slot.workspace_id, slot.slot): slot.path for slot in slot_census().bound}
+    assert bound[(workspace, "brain")] == one and bound[(other, "brain")] == two
+
+
+def test_a_bind_fills_the_config_root_only_when_it_is_absent(workspace, tmp_path):
+    """Killing mutation: the mirror overwriting ``roots[slot]`` repoints a config root an operator set."""
+
+    from agent_runtime.workspace_slots import bind
+
+    other = WorkspaceStore().create(name="Slots two").id
+    first, second = _bare_dir(tmp_path, "first"), _bare_dir(tmp_path, "second")
+    for ws in (workspace, other):
+        _declare(ws, [_slot("eternia_launcher")])
+    bind(workspace, "eternia_launcher", str(first), issued_at=ISSUED)
+    assert load_machine_roots(refresh=True).roots["eternia_launcher"] == str(first)
+    bind(other, "eternia_launcher", str(second), issued_at=ISSUED)
+    roots = load_machine_roots(refresh=True)
+    assert roots.roots["eternia_launcher"] == str(first)
+    assert roots.workspace_root(other, "eternia_launcher") == second
+
+
+# ── The one-time legacy migration (plan work-slot-roots-per-workspace-2026-10-21 R3) ──
+
+
+def _receipts(caplog, kind):
+    return [json.loads(r.getMessage()) for r in caplog.records
+            if r.name == "agent_runtime.work_store.receipts" and f'"kind": "{kind}"' in r.getMessage()]
+
+
+def _legacy_registry(roots):
+    from agent_runtime.machine_roots import machine_roots_registry_paths
+
+    target = machine_roots_registry_paths()[0]
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps({"schema_version": 1, "roots": roots}), encoding="utf-8")
+    machine_roots_cache_clear()
+    return target
+
+
+def test_a_legacy_root_migrates_once_to_the_workspace_declaring_it(workspace, checkout, caplog):
+    import logging
+
+    from agent_runtime.workspace_slots import slot_census
+
+    caplog.set_level(logging.INFO, logger="agent_runtime.work_store.receipts")
+    _declare(workspace, [_slot("brain")])
+    target = _legacy_registry({"brain": str(checkout)})
+    assert [(s.workspace_id, s.slot, s.path) for s in slot_census().bound] == [(workspace, "brain", checkout)]
+    written = json.loads(target.read_text(encoding="utf-8"))
+    assert written["schema_version"] == 2 and written["workspace_roots"] == {workspace: {"brain": str(checkout)}}
+    assert written["roots"] == {"brain": str(checkout)}  # the config namespace is kept as it was
+    [receipt] = _receipts(caplog, "machine_roots.migrated")
+    assert (receipt["workspaces"], receipt["slots"]) == (1, 1)
+    slot_census()
+    assert len(_receipts(caplog, "machine_roots.migrated")) == 1  # once
+
+
+def test_an_ambiguous_legacy_root_binds_only_the_workspace_whose_origin_matches(workspace, checkout, caplog):
+    """Killing mutation: migrating an ambiguous name to the FIRST workspace binds the non-matching one."""
+
+    import logging
+
+    from agent_runtime.workspace_slots import bound_path, realm_workspace_ids
+
+    caplog.set_level(logging.INFO, logger="agent_runtime.work_store.receipts")
+    other = WorkspaceStore().create(name="Slots two").id
+    _declare(workspace, [_slot("brain")])
+    _declare(other, [_slot("brain")])
+    first = next(ws for ws in realm_workspace_ids() if ws in (workspace, other))
+    mismatched = first  # the first claimant is the wrong one, so "first wins" is caught
+    matched = other if first == workspace else workspace
+    _declare(mismatched, [_slot("brain", repo={"clone_url": "https://example.com/other.git"})], issued_at=LATER)
+    _legacy_registry({"brain": str(checkout)})
+    assert bound_path("brain", workspace_id=matched) == checkout
+    assert bound_path("brain", workspace_id=mismatched) is None
+    [entry] = _receipts(caplog, "machine_roots.migration_ambiguous")
+    assert entry["slot"] == "brain" and entry["unbound"] == [mismatched]
+    assert sorted(entry["workspaces"]) == sorted([workspace, other])

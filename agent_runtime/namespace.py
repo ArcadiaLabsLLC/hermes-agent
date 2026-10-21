@@ -15,7 +15,8 @@ dict lookup and returns.
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping
+import re
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from hermes_cli._namespace_bootstrap import (
@@ -46,6 +47,7 @@ __all__ = [
     "layout",
     "namespace_named",
     "namespace_stamp",
+    "qa_blocked_push_url",
     "qa_namespace",
     "store_identity",
     "validate_id",
@@ -102,6 +104,24 @@ QA_PREFIX = "stagec-"
 def qa_namespace(env: Mapping[str, str] | None = None) -> bool:
     """True while this process runs in a Launcher QA namespace (``HERMES_NAMESPACE=stagec-*``)."""
     return namespace_stamp(env).startswith(QA_PREFIX)
+
+
+#: A remote that is a filesystem path: ``file://``, a drive path, an absolute path. Anything else is a
+#: network remote — over-approximated, so a relative path is refused too (the safe direction).
+_LOCAL_REMOTE = re.compile(r"(?i)^(file://|[a-z]:[\\/]|[\\/])")
+
+
+def qa_blocked_push_url(push_url: Callable[[], str], env: Mapping[str, str] | None = None) -> str | None:
+    """THE QA push fence (RT-WORK-QA-NAMESPACE-PUSH-FENCE): in a QA namespace, the push URL when it is not a
+    local path (the push must be refused), else None. ``push_url`` is read only inside a QA namespace.
+
+    Every ``push origin`` site asks this before pushing: the Work writer and the batch landing (``lane_git``).
+    """
+
+    if not qa_namespace(env):
+        return None
+    url = str(push_url() or "").strip()
+    return None if _LOCAL_REMOTE.match(url) else url
 
 
 def assert_namespace_isolation(resolution: Any, *, env: Mapping[str, str] | None = None) -> None:

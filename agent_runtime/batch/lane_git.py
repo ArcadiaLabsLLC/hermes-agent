@@ -194,13 +194,20 @@ class LaneGit:
         return head
 
     def push_ff(self, site: Site, head: str) -> None:
-        """``head`` onto the default branch, fast-forward only (never ``--force``)."""
+        """``head`` onto the default branch, fast-forward only (never ``--force``); a QA namespace pushes to a
+        local origin only (``namespace.qa_blocked_push_url``, RT-BATCH-QA-NAMESPACE-PUSH-FENCE)."""
+
+        from ..namespace import qa_blocked_push_url
 
         target = f"refs/heads/{site.clone.default_branch}"
         if site.clone.local:
             old = self._must(["rev-parse", target], Reason.BRANCH_MISSING, site.clone.path).strip()
             self._must(["update-ref", target, head, old], Reason.PUSH_REFUSED, site.clone.path)
             return
+        url = qa_blocked_push_url(
+            lambda: str(self._git(["remote", "get-url", "--push", "origin"], site.worktree).stdout or ""))
+        if url is not None:  # no URL in the detail: a push URL can carry a credential
+            raise WorkRefused(Reason.PUSH_REFUSED, "a QA namespace pushes to a local origin only")
         self._must(["push", "-q", "origin", f"{head}:{target}"], Reason.PUSH_REFUSED, site.worktree)
 
 

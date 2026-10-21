@@ -412,3 +412,52 @@ def test_realm_sync_refuses_a_publish_that_would_include_the_registry(tmp_path):
     with pytest.raises(realm_sync.RealmSyncError) as excinfo:
         realm_sync._assert_no_secret_artifacts([artifact])
     assert excinfo.value.code == "sync_secret_excluded"
+
+
+# ── Workspace-scoped slot roots (plan work-slot-roots-per-workspace-2026-10-21 R1) ──
+
+
+def test_registry_round_trips_both_maps_and_a_none_write_keeps_the_scoped_map(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HERMES_HOME", str(home))
+    machine_roots_cache_clear()
+
+    scoped = {"ws_one": {"brain": str(tmp_path / "one")}, "ws_two": {"brain": str(tmp_path / "two")}}
+    result = write_machine_roots({"eternia_launcher": str(tmp_path)}, workspace_roots=scoped, dry_run=False)
+    payload = json.loads(Path(result["path"]).read_text(encoding="utf-8"))
+    assert payload["schema_version"] == 2 and payload["workspace_roots"] == scoped
+    loaded = load_machine_roots(refresh=True)
+    assert loaded.workspace_roots == scoped and loaded.schema_version == 2
+    assert loaded.workspace_root("ws_two", "brain") == tmp_path / "two"
+    assert "brain" not in loaded.roots
+
+    # ``harness roots set`` writes roots only: the scoped map is kept, never dropped.
+    write_machine_roots({"other": str(tmp_path)}, dry_run=False)
+    assert load_machine_roots(refresh=True).workspace_roots == scoped
+
+
+def test_a_legacy_registry_loads_with_no_workspace_roots(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / MACHINE_ROOTS_FILENAME).write_text(
+        json.dumps({"schema_version": 1, "roots": {"brain": str(tmp_path)}}), encoding="utf-8")
+    monkeypatch.setenv("HERMES_HOME", str(home))
+    machine_roots_cache_clear()
+
+    loaded = load_machine_roots(refresh=True)
+    assert loaded.workspace_roots == {} and loaded.schema_version == 1
+    assert loaded.roots == {"brain": str(tmp_path)} and loaded.issues == ()
+    # A roots-only write of a legacy file stays legacy, so the slot read still migrates it.
+    write_machine_roots({"brain": str(tmp_path)}, dry_run=False)
+    assert load_machine_roots(refresh=True).schema_version == 1
+
+
+def test_root_token_expansion_ignores_workspace_roots(tmp_path):
+    """Killing mutation: ``_resolve_root`` falling back to ``workspace_roots`` resolves this token."""
+
+    roots = MachineRoots(roots={}, workspace_roots={"ws_one": {"brain": str(tmp_path)}})
+    issues = path_token_issues("${roots.brain}/x", roots=roots)
+    assert [issue.code for issue in issues] == [ISSUE_UNBOUND_ROOT]
+    with pytest.raises(MachineRootError):
+        expand_config_paths("${roots.brain}", roots=roots)

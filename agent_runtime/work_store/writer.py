@@ -2,7 +2,7 @@
 
 Every write is a :class:`RowOp` found by ID and applied as ONE line edit (``grammar.apply``); no
 textual merge, ``rebase``, ``pull`` or ``stash`` ever runs. The worktree lives under
-``paths.work_worktree_dir(ws, slot)`` on branch ``work/<machine_id>``, cut ``--no-checkout`` with a
+``paths.work_worktree_dir(ws, slot, checkout_token(clone))`` on branch ``work/<machine_id>``, cut ``--no-checkout`` with a
 non-cone sparse checkout of the brain folder, so the operator's checkout (its index and its tree)
 is never touched. Steps, in the §5 table's numbering:
 
@@ -24,6 +24,7 @@ A local slot (the default brain) has no remote: steps 2 and 8 become a local tip
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import shutil
@@ -43,15 +44,12 @@ from .models import OPERATOR
 from .reasons import Reason, WorkRefused
 
 __layer__ = "stores"
-__all__ = ["OPERATOR", "REPLAY_BUDGET", "Receipt", "RowOp", "Writer"]
+__all__ = ["OPERATOR", "REPLAY_BUDGET", "Receipt", "RowOp", "Writer", "checkout_token", "drop_worktrees", "remove_worktree"]
 
 REPLAY_BUDGET = 8
 REQUEST_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,200}$")
 _NON_FAST_FORWARD = ("! [rejected]", "fetch first", "non-fast-forward", "[remote rejected] (cannot lock ref")
 _CREDENTIAL = re.compile(r"://[^/@\s]+@")
-#: A remote that is a filesystem path: ``file://``, a drive path, an absolute path. Anything else is a
-#: network remote — over-approximated, so a relative path is refused too (the safe direction).
-_LOCAL_REMOTE = re.compile(r"(?i)^(file://|[a-z]:[\\/]|[\\/])")
 
 
 @dataclass(frozen=True)
@@ -83,6 +81,51 @@ class Receipt:
 
 def _tail(text: str | None) -> str:
     return _CREDENTIAL.sub("://***@", str(text or "").strip())[-200:]
+
+
+GitRun = Callable[..., subprocess.CompletedProcess[str]]
+
+
+def _common_dir(repo: Path, run: GitRun) -> str:
+    """The repository's git common dir, realpath'd and normcase'd (``?<repo>`` when git cannot say)."""
+
+    done = run(["rev-parse", "--path-format=absolute", "--git-common-dir"], repo=repo, encoding="utf-8",
+               errors="replace", timeout=120, stdin=subprocess.DEVNULL)
+    text = str(done.stdout or "").strip() if done.returncode == 0 else ""
+    return os.path.normcase(os.path.realpath(text)) if text else f"?{repo}"
+
+
+def checkout_token(clone: Path, *, run: GitRun | None = None) -> str:
+    """The first 12 hex of sha256 of the checkout's common dir: the key of Hermes's worktree of it."""
+
+    if run is None:
+        from ..git_cmd import run_git as run
+    return hashlib.sha256(_common_dir(clone, run).encode("utf-8")).hexdigest()[:12]
+
+
+def remove_worktree(worktree: Path, *, repo: Path | None) -> None:
+    """Remove Hermes's worktree directory, then ``worktree prune`` on ``repo`` so git forgets it too."""
+
+    from ..git_cmd import run_git
+
+    if worktree.exists():
+        shutil.rmtree(worktree, ignore_errors=True)
+    if repo is not None and (repo / ".git").exists():
+        run_git(["worktree", "prune"], repo=repo, timeout=60, stdin=subprocess.DEVNULL)
+
+
+def drop_worktrees(workspace_id: str, slot: str) -> list[Path]:
+    """Every worktree of a tombstoned ``slot`` (``<slot>-<token>``, any checkout); pruned on the bound clone."""
+
+    from ..workspace_slots import bound_path
+
+    parent = paths.work_worktrees_dir(workspace_id)
+    pattern = re.compile(re.escape(paths.safe_path_token(slot)) + r"-[0-9a-f]{12}")
+    found = sorted(p for p in parent.iterdir() if pattern.fullmatch(p.name)) if parent.is_dir() else []
+    clone = bound_path(slot, workspace_id=workspace_id)
+    for worktree in found:
+        remove_worktree(worktree, repo=clone)
+    return found
 
 
 # ── step 5: the precondition each op needs, as a table ──────────────────────
@@ -150,7 +193,7 @@ class Writer:
         self.board = board
         self.machine_id = machine_id
         self.branch = f"work/{machine_id}"
-        self.worktree = paths.work_worktree_dir(board.workspace_id, board.slot)
+        self._worktree: Path | None = None
         self.stale = False
         self._run = run
         self._now = now or (lambda: datetime.now(UTC))
@@ -158,6 +201,15 @@ class Writer:
         self._tip_sha: str | None = None
 
     # ── the git door ─────────────────────────────────────────────────────
+
+    @property
+    def worktree(self) -> Path:
+        """Hermes's worktree of this board's checkout, keyed by that checkout (known once the clone is)."""
+
+        if self._worktree is None:
+            self._clone()
+        assert self._worktree is not None
+        return self._worktree
 
     @property
     def tip(self) -> str:
@@ -185,27 +237,28 @@ class Writer:
 
         if self.board.brain_dir is None:
             raise WorkRefused(Reason.NO_BRAIN, self.board.slot)
-        clone = self.board.checkout or bound_path(self.board.slot)
+        clone = self.board.checkout or bound_path(self.board.slot, workspace_id=self.board.workspace_id)
         if clone is None or not (clone / ".git").exists():
             raise WorkRefused(Reason.SLOT_UNBOUND, self.board.slot)
+        if self._worktree is None:
+            token = checkout_token(clone, run=self._run)
+            self._worktree = paths.work_worktree_dir(self.board.workspace_id, self.board.slot, token)
         return clone
 
     def _common_dir(self, repo: Path) -> str:
-        done = self._git(["rev-parse", "--path-format=absolute", "--git-common-dir"], repo=repo)
-        text = str(done.stdout or "").strip() if done.returncode == 0 else ""
-        return os.path.normcase(os.path.realpath(text)) if text else f"?{repo}"
+        return _common_dir(repo, self._run)
 
     def _ensure_worktree(self, clone: Path) -> None:
         self._git(["worktree", "prune"], repo=clone)
-        if (self.worktree / ".git").exists():
-            if self._common_dir(self.worktree) == self._common_dir(clone):
-                return
-            # Another checkout's worktree under this slot's name: the default brain and a declared slot
-            # ``brain`` adopted on a second machine share it until the move retires the default (p10-work §2.5).
+        if (self.worktree / ".git").exists() and self._common_dir(self.worktree) == self._common_dir(clone):
+            return
+        if self.worktree.exists():
+            # Keyed by its checkout, the directory can only be stale: git no longer reads it as a worktree
+            # of this checkout (the checkout was deleted or re-cloned in place).
+            receipts.emit("work.worktree_stale", slot=self.board.slot, path=str(self.worktree),
+                          workspace_id=self.board.workspace_id)
             shutil.rmtree(self.worktree)
             self._git(["worktree", "prune"], repo=clone)
-        if self.worktree.exists():
-            shutil.rmtree(self.worktree)
         self.worktree.parent.mkdir(parents=True, exist_ok=True)
         start = self.tip if self._git(["rev-parse", "-q", "--verify", self.tip], repo=clone).returncode == 0 else "HEAD"
         self._must(["worktree", "add", "-q", "--no-checkout", str(self.worktree), "-B", self.branch, start],
@@ -234,14 +287,17 @@ class Writer:
         Checked before any commit, against the push URL git would use (``pushurl`` included); the
         Launcher binds a QA namespace to a scratch clone whose ``origin`` is a local path.
         """
-        from ..namespace import qa_namespace
+        from ..namespace import qa_blocked_push_url
 
-        if self.board.local or not qa_namespace():
+        if self.board.local:
             return
-        done = self._git(["remote", "get-url", "--push", "origin"], repo=clone)
-        url = str(done.stdout or "").strip() if done.returncode == 0 else ""
-        if not _LOCAL_REMOTE.match(url):
+        url = qa_blocked_push_url(lambda: self._push_url(clone))
+        if url is not None:
             raise WorkRefused(Reason.PUSH_REFUSED, f"a QA namespace pushes to a local origin only, not {_tail(url) or 'none'}")
+
+    def _push_url(self, clone: Path) -> str:
+        done = self._git(["remote", "get-url", "--push", "origin"], repo=clone)
+        return str(done.stdout or "").strip() if done.returncode == 0 else ""
 
     def _dirty(self) -> bool:
         return bool(self._must(["status", "--porcelain"], Reason.WORKTREE_DIRTY, repo=self.worktree).strip())
