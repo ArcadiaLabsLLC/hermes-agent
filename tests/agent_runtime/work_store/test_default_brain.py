@@ -370,3 +370,22 @@ def test_create_brain_promote_is_the_manual_door(workspace, host):
     assert reply["board"]["slot"] == "brain" and reply["receipt"]["promote"] is True
     again = work_store.create_brain(scope, {"request_id": "r-3", "promote": True}, "operator")
     assert again["promotion"]["outcome"] == "already"
+
+
+def test_two_workspaces_promoting_keep_their_own_brain(workspace, host):
+    """RT-SLOT-ROOT-NAME-GLOBAL (plan work-slot-roots-per-workspace-2026-10-21 R4): each promotion binds slot
+    ``brain`` for its own workspace. Killing mutation: ``bind`` writing the global ``roots.brain`` — the second
+    promotion repoints the first workspace's board at the second workspace's brain."""
+
+    from agent_runtime.store import WorkspaceStore
+
+    other = WorkspaceStore().create(name="Second workspace").id
+    default_brain.ensure_default_brain(workspace, issued_at=LATER)
+    default_brain.ensure_default_brain(other, issued_at=LATER)
+    assert len(host.created) == 2
+    for ws in (workspace, other):
+        assert _record(ws)["declaration"] == {"state": "declared"}
+        assert workspace_slots.bound_path("brain", workspace_id=ws) == paths.default_brain_dir(ws)
+        (declared,) = [b for b in board.declared_boards(ws) if b.slot == "brain"]
+        assert declared.read_root == paths.default_brain_dir(ws) and board.has_brain_here(declared)
+        assert board.default_board(ws) is None
