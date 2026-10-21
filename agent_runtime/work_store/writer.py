@@ -50,9 +50,6 @@ REPLAY_BUDGET = 8
 REQUEST_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,200}$")
 _NON_FAST_FORWARD = ("! [rejected]", "fetch first", "non-fast-forward", "[remote rejected] (cannot lock ref")
 _CREDENTIAL = re.compile(r"://[^/@\s]+@")
-#: A remote that is a filesystem path: ``file://``, a drive path, an absolute path. Anything else is a
-#: network remote — over-approximated, so a relative path is refused too (the safe direction).
-_LOCAL_REMOTE = re.compile(r"(?i)^(file://|[a-z]:[\\/]|[\\/])")
 
 
 @dataclass(frozen=True)
@@ -290,14 +287,17 @@ class Writer:
         Checked before any commit, against the push URL git would use (``pushurl`` included); the
         Launcher binds a QA namespace to a scratch clone whose ``origin`` is a local path.
         """
-        from ..namespace import qa_namespace
+        from ..namespace import qa_blocked_push_url
 
-        if self.board.local or not qa_namespace():
+        if self.board.local:
             return
-        done = self._git(["remote", "get-url", "--push", "origin"], repo=clone)
-        url = str(done.stdout or "").strip() if done.returncode == 0 else ""
-        if not _LOCAL_REMOTE.match(url):
+        url = qa_blocked_push_url(lambda: self._push_url(clone))
+        if url is not None:
             raise WorkRefused(Reason.PUSH_REFUSED, f"a QA namespace pushes to a local origin only, not {_tail(url) or 'none'}")
+
+    def _push_url(self, clone: Path) -> str:
+        done = self._git(["remote", "get-url", "--push", "origin"], repo=clone)
+        return str(done.stdout or "").strip() if done.returncode == 0 else ""
 
     def _dirty(self) -> bool:
         return bool(self._must(["status", "--porcelain"], Reason.WORKTREE_DIRTY, repo=self.worktree).strip())
