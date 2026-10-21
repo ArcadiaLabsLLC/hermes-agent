@@ -689,6 +689,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Upstream-owned
 
+### Filed on arrival — 2026-10-21 (lane w1021j-tooling, branch `w1021j/tooling`)
+
+- **`UP-E2E-UPGRADE-PWD-IMPORT` — `tests/e2e/core/upgrade/_helpers.py` does `import pwd` at module scope, so all 36 upgrade e2e files cannot collect on Windows (pure tag v0.22.2 too); the fork skips them by 36 skip-list rows** · upstream tests · evidence: `b5d761fdfa` (branch `w1021j/tooling`; classify_reds_on_tag 36/36 UPSTREAM_COLLECT_ERROR) · DEFERRED 2026-10-21: the 36 skip-list rows carry it; the only fix is upstream's (guard the import), offered as an idle `up/` branch if upstream ever asks
+
 ### Filed on arrival — 2026-10-18 (land w8)
 
 

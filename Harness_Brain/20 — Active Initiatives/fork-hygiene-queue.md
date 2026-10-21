@@ -28,6 +28,10 @@ tags: [queue, program/fork-hygiene]
 
 - **`FH-MAIN-IMPORTER-REDS-1021` — main d087df7035 carries unrowed reds in the importer set of hermes_cli.config/tools/tui_gateway: test_models_relay_base_url.py (5), test_compaction_kill9.py (2), test_mcp_catalog.py::test_sha_ref_skips_branch_attempt, tests/e2e/core/upgrade/* (3 collection errors), test_gitspawn_config_injection.py timeout; flaky test_skill_commands.py::test_scan_never_publishes_a_partially_built_map and test_owned_process_cleanup.py timeouts** · fork suite · evidence: lane w1021i-hygiene base re-run (same reds on d087df7035 and 28f654079a) · READY 2026-10-21 · **TAKEN 2026-10-21 w1021j-tooling**
 
+## Filed on arrival — 2026-10-21 (lane w1021j-tooling)
+
+- **`FH-CODE-HEALTH-CLI-HOOK-TIMEOUT` — `tests/scripts/test_code_health_cli.py::test_hooks_run_with_msys_path_conversion_disabled` times out (30 s pytest-timeout) alone on HEAD and on origin/main 3587b15155: four hook-driven scripts/check snapshot runs in one test** · fork suite · evidence: lane w1021j-tooling `run_tests_bundled.sh --confirm-red` verdict pre-existing · READY 2026-10-21
+
 ## Filed on arrival — 2026-10-21 (lane w1021j-bundle)
 
 - **`FH-PKG-PLANNER-STALL-TEST-LOAD-FLAKE` — `test_a_stalled_planning_child_is_stopped_and_the_build_says_retryable`'s positive control uses stall=1s, and a loaded box starts the child after more than 1 s** · fork tests / `tests/scripts/test_bundle_profile_package.py` · evidence: w1021j-bundle final run, attempt 1 red `no progress for 1s (last: None)` · READY 2026-10-21: count the stall clock from the first progress line, or raise the control's stall
