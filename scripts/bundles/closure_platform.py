@@ -25,25 +25,42 @@ def _platform_value(node: ast.expr, env: dict) -> str | None:
     return None
 
 
+def _not_truth(test: ast.UnaryOp, env: dict) -> bool | None:
+    if not isinstance(test.op, ast.Not):
+        return None
+    inner = _platform_truth(test.operand, env)
+    return None if inner is None else not inner
+
+
+def _compare_truth(test: ast.Compare, env: dict) -> bool | None:
+    if not (len(test.ops) == 1 and isinstance(test.ops[0], (ast.Eq, ast.NotEq))
+            and isinstance(test.comparators[0], ast.Constant) and isinstance(test.comparators[0].value, str)):
+        return None
+    value = _platform_value(test.left, env)
+    if value is None:
+        return None
+    return (value == test.comparators[0].value) == isinstance(test.ops[0], ast.Eq)
+
+
+def _startswith_truth(test: ast.Call, env: dict) -> bool | None:
+    if not (isinstance(test.func, ast.Attribute) and test.func.attr == "startswith"
+            and len(test.args) == 1 and isinstance(test.args[0], ast.Constant) and isinstance(test.args[0].value, str)):
+        return None
+    value = _platform_value(test.func.value, env)
+    return None if value is None else value.startswith(test.args[0].value)
+
+
+#: Branch-test node type -> the rule that reads it as a platform test.
+_TRUTH_BY_NODE = {ast.UnaryOp: _not_truth, ast.Compare: _compare_truth, ast.Call: _startswith_truth}
+
+
 def _platform_truth(test: ast.expr, env: dict) -> bool | None:
     """Whether a branch test on the platform holds for the target; None when it is not one.
 
     ``os.name == "nt"``, ``sys.platform != "win32"``, ``platform.system() == "Windows"``,
     ``sys.platform.startswith("win")`` and their ``not``."""
-    if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
-        inner = _platform_truth(test.operand, env)
-        return None if inner is None else not inner
-    if (isinstance(test, ast.Compare) and len(test.ops) == 1 and isinstance(test.ops[0], (ast.Eq, ast.NotEq))
-            and isinstance(test.comparators[0], ast.Constant) and isinstance(test.comparators[0].value, str)):
-        value = _platform_value(test.left, env)
-        if value is None:
-            return None
-        return (value == test.comparators[0].value) == isinstance(test.ops[0], ast.Eq)
-    if (isinstance(test, ast.Call) and isinstance(test.func, ast.Attribute) and test.func.attr == "startswith"
-            and len(test.args) == 1 and isinstance(test.args[0], ast.Constant) and isinstance(test.args[0].value, str)):
-        value = _platform_value(test.func.value, env)
-        return None if value is None else value.startswith(test.args[0].value)
-    return None
+    rule = _TRUTH_BY_NODE.get(type(test))
+    return None if rule is None else rule(test, env)
 
 
 def _terminates(body: list[ast.stmt]) -> bool:
