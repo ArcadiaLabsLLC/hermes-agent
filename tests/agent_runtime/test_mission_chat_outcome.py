@@ -69,6 +69,8 @@ CHAT_ERROR_KIND_WIRE = {
     "IMAGE_INVALID": "image_invalid",
     "VISION_UNSUPPORTED": "vision_unsupported",
     "FILE_INVALID": "file_invalid",
+    # RT-PENDING-ATTACHMENTS-NO-READER: a retry's re-attached file is no longer stored.
+    "ATTACHMENT_MISSING": "attachment_missing",
     "UNKNOWN_CHAT_SESSION": "unknown_chat_session",
     "FOREIGN_CHAT_SESSION": "foreign_chat_session",
     "CHAT_BUSY": "chat_busy",

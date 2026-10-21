@@ -462,7 +462,7 @@ class _AdmitPhases:
         target_state = safe_assignment_token((target or {}).get("state")) or None
         if target_state in TERMINAL_TURN_MARKERS:
             self.retry_of = retry_of
-            return None
+            return self._reattach_retried(target, retry_of)
         data = {
             "ok": False,
             "capability_id": "mission.chat.message",
@@ -480,6 +480,48 @@ class _AdmitPhases:
         }
         _mission_chat_emit(self.args, data)
         return 2
+
+    def _reattach_retried(self, target: Mapping[str, Any], retry_of: str) -> int | None:
+        """RT-PENDING-ATTACHMENTS-NO-READER: a retry sent with no attachments re-attaches the retried turn's.
+
+        The write-ahead record keeps the stored paths (``pending_user_images`` / ``pending_user_files``);
+        each is re-resolved by its stored NAME through its own store's resolver (content-addressed,
+        contained under the store, sidecar-checked), never as a bare path. A file that is gone refuses
+        the retry ``attachment_missing``: silently dropping one changes what the persona is asked.
+        A retry that carries its own attachments keeps them (the operator changed the send).
+        """
+
+        from pathlib import PurePath
+
+        from agent_runtime import operator_files, operator_images
+
+        if getattr(self, "user_image_paths", ()) or getattr(self, "user_files", ()):
+            return None
+        images, files, missing = [], [], []
+        for kind, resolver, sink in (
+            ("pending_user_images", operator_images.resolve_refs, images),
+            ("pending_user_files", operator_files.resolve_refs, files),
+        ):
+            for stored in target.get(kind) or []:
+                name = PurePath(str(stored)).name
+                try:
+                    sink.extend(resolver([f"sha256:{name}"]))
+                except (operator_images.OperatorImagesInvalid, operator_files.OperatorFilesInvalid):
+                    missing.append(name)
+        if missing:
+            _mission_chat_emit(self.args, {
+                "ok": False, "capability_id": "mission.chat.message", "execution_state": ExecutionState.REJECTED,
+                "error_kind": ChatErrorKind.ATTACHMENT_MISSING, "persona_instance_id": self.instance.id,
+                "persona_id": self.normalized_persona, "session_id": self.session_id,
+                "root_chat_session_id": self.session_id, "client_message_id": self.client_message_id,
+                "retry_of": retry_of, "safe_details": {"missing": missing},
+                "error": "the retried turn's attachments are no longer stored: " + ", ".join(missing),
+                "next_expected": "send the message again with the files attached; nothing was run",
+            })
+            return 2
+        self.user_image_paths = tuple(str(path) for path in images)
+        self.user_files = tuple(files)
+        return None
 
     def _admit_run_workdir(self) -> int | None:
         """A run's own ``run_workdir`` (a batch lane's worktree) that this machine cannot use REFUSES the turn.
