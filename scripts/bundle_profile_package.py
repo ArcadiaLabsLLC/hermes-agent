@@ -103,6 +103,13 @@ TARGETS: dict[str, tuple[str, dict[str, str]]] = {
     "linux-arm64": ("aarch64-unknown-linux-gnu",
                     {"sys_platform": "linux", "platform_system": "Linux", "os_name": "posix",
                      "platform_machine": "aarch64"}),
+    # The phones (manifest.PACKAGING_TARGETS): no interpreter pin — the host app embeds CPython.
+    "android_arm64": ("aarch64-linux-android",
+                      {"sys_platform": "android", "platform_system": "Android", "os_name": "posix",
+                       "platform_machine": "aarch64"}),
+    "ios_arm64": ("arm64-apple-ios",
+                  {"sys_platform": "ios", "platform_system": "iOS", "os_name": "posix",
+                   "platform_machine": "arm64"}),
 }
 
 #: Path components that never ship, first- or third-party.

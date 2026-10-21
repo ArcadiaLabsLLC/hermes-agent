@@ -218,6 +218,37 @@ def test_markers_are_evaluated_for_the_target_not_by_uv():
     assert "nemo-relay" not in linux and "ptyprocess==0.7.0" in linux
 
 
+def test_the_phone_targets_have_marker_environments():
+    """RT-BUNDLED-PHONE-PROFILE S1: ``--profile bundled-phone --target android_arm64`` was a KeyError in
+    ``marker_env``; the profile's ``packaging.targets`` was read by the gate, never by the packager.
+
+    Killing mutation: drop the ``android_arm64`` row from ``TARGETS`` -> KeyError, red."""
+    from agent_runtime.bundle_profiles.manifest import PACKAGING_TARGETS
+    from scripts.bundle_profile_package import TARGETS
+
+    android = marker_env("android_arm64", "3.14")
+    assert android["sys_platform"] == "android" and android["platform_system"] == "Android"
+    assert android["platform_machine"] == "aarch64" and android["python_full_version"] == "3.14.0"
+    ios = marker_env("ios_arm64", "3.14.7")
+    assert ios["sys_platform"] == "ios" and ios["platform_machine"] == "arm64"
+    assert TARGETS["android_arm64"][0] == "aarch64-linux-android" and TARGETS["ios_arm64"][0] == "arm64-apple-ios"
+    assert set(PACKAGING_TARGETS) <= set(TARGETS)
+    exported = "ptyprocess==0.7.0 ; sys_platform == 'android' \\\n    --hash=sha256:bb\n"
+    assert "ptyprocess==0.7.0" in evaluate_markers(exported, android)
+    assert "ptyprocess" not in evaluate_markers(exported, ios)
+
+
+def test_a_profile_naming_a_target_the_packager_lacks_is_refused():
+    from agent_runtime.bundle_profiles.manifest import (
+        ProfileManifestError, load_profile, parse_manifest, validate_manifest)
+
+    phone = load_profile("bundled-phone")
+    assert set(phone.packaging_targets) == {"android_arm64", "ios_arm64"}  # positive control: it validates
+    data = {"schema_version": 1, "profile": "watch", "packaging": {"targets": ["watchos_arm64"]}}
+    with pytest.raises(ProfileManifestError, match="watchos_arm64"):
+        validate_manifest(parse_manifest(data, validate=False))
+
+
 def test_the_engine_pack_path_file_adds_only_installed_packs(tmp_path: Path, monkeypatch):
     import os
     import sys
