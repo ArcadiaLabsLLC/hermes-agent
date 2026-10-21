@@ -17,14 +17,17 @@ create — HERMES seeds them, not the launcher" (owner, 2026-10-03).
   which is what reaches a profile upstream created).
 - **S1 + S2 — built for lines 1 and 2** (fill-if-absent, round-trip writer, fail-open).
 - **Held, with the question each needs:**
-  - Line 3 — OWNER: `skills.create_dir` = the shared root makes `skill_manage` write
-    agent-authored skills straight into the root realm sync publishes, past the
-    hash-guarded promotion door (`agent_runtime/skill_promotion.py`, "the ONE guarded
-    door"). Recommend: do not seed it; new skills stay profile-local and promote.
-  - Line 4 — sequencing: the shared root is already a search root through the fork's
-    tier in `agent/skill_utils.py::get_skill_search_roots`; seeding `external_dirs` only
-    pays when that carry is deleted (S3), and before then lists the root twice. Seed it in
-    the S3 commit that deletes the carry.
+  - Line 3 — **RULED 2026-10-21 (owner): not seeded.** Creates stay profile-local and
+    promote through the hash-guarded door (`agent_runtime/skill_promotion.py`).
+  - Line 4 — sequencing, and a question (lane w1021h-cli, 2026-10-21): the shared root is
+    already a search root through the fork's tier in
+    `agent/skill_utils.py::get_skill_search_roots`; seeding `external_dirs` only pays when
+    that carry is deleted (S3), and before then lists the root twice. The carry also serves
+    every home the seed never reaches: the sweep fills persona-BOUND profiles only, so the
+    root/head home and any unbound profile would lose the shared root when the carry goes.
+    Needs: either the seed reaches every home that reads skills, or the carry stays for
+    unbound homes. The value would be home-relative (`external_dirs` entries resolve against
+    `HERMES_HOME`), never an absolute path.
   - Line 5 — DESIGN: nothing computes a placement's surface-incompatible skill set; only
     `agent_runtime/skill_view_result.py` refuses per call.
   - Line 6 — DESIGN: no `eternia-persona` toolset is registered (the lane composite is
