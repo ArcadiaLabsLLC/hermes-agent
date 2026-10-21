@@ -156,12 +156,16 @@ def verify_signature(headers: Any, body: bytes, secret: str, now: datetime) -> t
     return None, nonce
 
 
+#: An ``Authorization`` header's scheme (case-insensitive, RFC 7235) -> the route auth it proves.
+AUTHORIZATION_SCHEMES: dict[str, IngressAuth] = {"bearer": IngressAuth.BEARER}
+
+
 def verify_bearer(headers: Any, body: bytes, secret: str, now: datetime) -> tuple[IngressRefusal | None, str]:
     """``(refusal or None, nonce)`` for a bearer route: the header must carry the route's secret.
     The nonce is the body's digest (the replay ring's key)."""
 
     scheme, _, token = (_header(headers, "Authorization") or "").partition(" ")
-    if scheme.lower() != "bearer" or not hmac.compare_digest(token.strip().encode("utf-8", "replace"),
+    if AUTHORIZATION_SCHEMES.get(scheme.lower()) is not IngressAuth.BEARER or not hmac.compare_digest(token.strip().encode("utf-8", "replace"),
                                                              secret.encode("utf-8")):
         return IngressRefusal.BAD_SIGNATURE, ""
     return None, "body:" + hashlib.sha256(body).hexdigest()
