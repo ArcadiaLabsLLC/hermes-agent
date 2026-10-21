@@ -963,3 +963,43 @@ tests/hermes_cli/test_systemd_optional_directives.py · unused: upstream's gatew
 tests/hermes_cli/test_systemd_replace_dropin.py · unused: upstream's gateway system service (ADR 0015) · e6899c8090
 tests/hermes_cli/test_systemd_watchdog_unit.py · unused: upstream's gateway system service (ADR 0015) · e6899c8090
 tests/hermes_cli/test_uninstall_gateway_service.py · unused: upstream's gateway system service (ADR 0015) · e6899c8090
+
+# upstream: tests/e2e/core/upgrade/_helpers.py does `import pwd` at module scope (every file imports it), so every
+# file under tests/e2e/core/upgrade fails to collect on Windows (ModuleNotFoundError: pwd), on the pure tag
+# v0.22.2 too (scripts/classify_reds_on_tag.py, 36/36 UPSTREAM_COLLECT_ERROR; FH-MAIN-IMPORTER-REDS-1021, 2026-10-21)
+tests/e2e/core/upgrade/git/test_foreign_state.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/git/test_hostile_commit.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/git/test_hostile_lock.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/git/test_hostile_pause.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/git/test_hostile_post.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/git/test_local_modifications.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/git/test_partial_clone.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/git/test_shallow_install.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/git/test_truthful_outcome.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/handoff/test_handoff_from_head.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/handoff/test_handoff_from_n1.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/handoff/test_update_network_failure.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/hosts/test_hostile_pause_record.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/hosts/test_libc_musl.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/hosts/test_path_shapes.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/hosts/test_paths.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/hosts/test_paths_symlinked.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/hosts/test_permissions.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/network/test_mirrors.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/network/test_offline_and_flaky.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/network/test_proxy_only_egress.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/network/test_release_channel_records.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/pm/test_configured_features.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/pm/test_gateway_install_force.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/pm/test_generation_gc.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/pm/test_interpreter_hygiene.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/pm/test_interrupted_update.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/pm/test_restart_generations.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/pm/test_stamps_and_doctor.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/test_config_roundtrip_properties.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/test_fresh_process_entrypoints.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/test_install_fresh.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/test_profile_update_cron.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/test_update_userstate_import.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/test_update_userstate_realistic.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
+tests/e2e/core/upgrade/test_upgrade_path.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · d923a5eb48
