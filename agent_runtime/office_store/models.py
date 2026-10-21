@@ -225,6 +225,22 @@ class ActorScan(NamedTuple):
 
         return self.unreadable_files.total
 
+    def with_written(self, actor: OfficeActor) -> ActorScan:
+        """This scan as it reads once ``actor`` is on disk — the upsert's ONE scan,
+        carried past its own write (RT-OFFICE-PATCH-LANE-SCANS-EVERY-UPSERT).
+
+        ``actor`` replaces the row with its ``actor_key`` or joins the set, sorted
+        by key as ``OfficeStore.scan_actors`` sorts. ``unreadable_files`` is kept
+        as it was: a write that replaced an undecodable file of the same key
+        leaves that file counted, which over-reports, the direction that demotes
+        the patch lane to ``refresh`` rather than folding a short projection.
+        """
+
+        others = [row for row in self.actors if row.actor_key != actor.actor_key]
+        return ActorScan(
+            sorted([*others, actor], key=lambda row: row.actor_key), self.unreadable_files
+        )
+
 
 #: The one word an outcome that simply WORKED is spelled with. Failures are
 #: ``<verb>_failed:<ExceptionClass>`` — the class, never the message, the same

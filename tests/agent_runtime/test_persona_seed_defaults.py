@@ -116,3 +116,76 @@ def test_the_startup_sweep_seeds_every_bound_profile_once(bundled_persona_profil
     assert [row["path"] for row in report["profiles"]] == [str(home / "config.yaml")]
     assert report["profiles"][0]["seeded"] == ["mcp_servers.files\\.local.env.HERMES_HOME"]
     assert seed_all_persona_profiles(personas)["profiles"] == []
+
+
+# ── line 5: skills.disabled over mission_chat compatibility (plan § Amendment 2026-10-21, S5) ──
+
+
+def _skill(home, name: str, surfaces: str) -> None:
+    skill_dir = home / "skills" / name
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    (skill_dir / "SKILL.md").write_text(
+        f"---\nname: {name}\ndescription: d\nmetadata:\n  hermes:\n    surfaces: [{surfaces}]\n---\nbody\n",
+        encoding="utf-8",
+    )
+
+
+def _disabled(home) -> list:
+    loaded = yaml_io.load((home / "config.yaml").read_text(encoding="utf-8")) or {}
+    return list((loaded.get("skills") or {}).get("disabled") or [])
+
+
+def test_line5_hides_the_incompatible_skill_keeps_the_operator_entry_and_releases_on_compat(
+    bundled_persona_profiles,
+):
+    """KILLING MUTATIONS: write ``current ∪ computed`` (never release) -> the release step
+    reds; drop the sidecar (the writer owns the whole list, ``disabled = computed``) ->
+    the operator's ``foo`` is dropped on the second sweep -> red."""
+
+    from agent_runtime.persona_seed_defaults import SEED_RECEIPT_NAME, seed_persona_profile
+    from utils import atomic_roundtrip_yaml_update
+
+    home = _profile("qa", body="model:\n  default: m\n", pooled=())
+    _skill(home, "cli-only", "cli")
+    _skill(home, "chat-ok", "mission_chat")
+
+    first = seed_persona_profile(home)
+
+    assert first["error"] is None
+    assert _disabled(home) == ["cli-only"]
+    receipt = json.loads((home / SEED_RECEIPT_NAME).read_text(encoding="utf-8"))
+    assert receipt == {"schema_version": 1, "seeded": {"skills.disabled": ["cli-only"]}}
+
+    atomic_roundtrip_yaml_update(home / "config.yaml", "skills.disabled", ["cli-only", "foo"])
+    seed_persona_profile(home)
+    assert sorted(_disabled(home)) == ["cli-only", "foo"]
+
+    _skill(home, "cli-only", "mission_chat")  # now compatible
+    seed_persona_profile(home)
+    assert _disabled(home) == ["foo"]
+    receipt = json.loads((home / SEED_RECEIPT_NAME).read_text(encoding="utf-8"))
+    assert receipt["seeded"] == {"skills.disabled": []}
+
+
+def test_line5_never_claims_a_name_the_operator_already_listed(bundled_persona_profiles):
+    from agent_runtime.persona_seed_defaults import seed_persona_profile
+
+    home = _profile("qa", body="skills:\n  disabled: [cli-only]\n", pooled=())
+    _skill(home, "cli-only", "cli")
+
+    seed_persona_profile(home)
+    _skill(home, "cli-only", "mission_chat")
+    seed_persona_profile(home)
+
+    assert _disabled(home) == ["cli-only"], "the operator's own entry was released as if seeded"
+
+
+def test_line5_resolves_the_home_at_call_time_not_the_ambient_one(bundled_persona_profiles):
+    from agent_runtime.persona_seed_defaults import incompatible_skills
+
+    qa = _profile("qa", body="model:\n  default: m\n", pooled=())
+    other = _profile("backend-dev", body="model:\n  default: m\n", pooled=())
+    _skill(qa, "cli-only", "cli")
+
+    assert "cli-only" in incompatible_skills(qa)
+    assert "cli-only" not in incompatible_skills(other)

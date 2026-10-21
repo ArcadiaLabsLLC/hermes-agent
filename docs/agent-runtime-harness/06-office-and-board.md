@@ -175,8 +175,11 @@ actor-upsert`), so the word cannot carry an agent placement past the fence; an u
 `actor_kind_invalid` (-32602). A `desk_` prefix test was rejected as a gate that proves only a
 spelling. Until the launcher sends the field (`MC-DESK-ACTOR-KIND-FURNITURE`), a desk write keeps
 paying exactly one fence scan (`test_office_store.py::test_a_generic_desk_write_pays_the_CLASS_KEY_scan_and_only_that_one`).
-The write's post-write patch lane (`office_store/patches.py`) spends its own scan on every upsert;
-that one is not this fence's.
+An upsert reads the actor directory ONCE (`actor_writes.py::upsert_actor`, 2026-10-21): when the
+fence or the unaimed placement needs the set, the one scan is taken before the write and handed,
+as `ActorScan.with_written(actor)`, to the patch lane (`office_store/patches.py::_emit_actor_patch`);
+otherwise — a furniture write — the patch lane takes it after the write
+(`test_office_store_scan_count.py`).
 
 A fourth, `_guard_duplicate_desk`, sat between the conflict guard and the
 tombstone fence until **2026-09-18**. It is gone — see "The desk fence,
