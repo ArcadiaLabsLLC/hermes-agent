@@ -20,6 +20,19 @@ class InstanceHistoryRefused(ValueError):
     pass
 
 
+#: The keys ``runtime.operator.conversation.list`` honours, published in the serve
+#: manifest's ``params`` block (``serve_rpc.registry.manifest``) so a client can tell
+#: an honoured ``persona_instance_id`` filter from a runtime that would ignore it.
+#: Pinned by ``tests/agent_runtime/serve_rpc_manifest.expected.json`` and
+#: ``tests/agent_runtime/test_instance_history.py``.
+CONVERSATION_LIST_METHOD = "runtime.operator.conversation.list"
+CONVERSATION_LIST_METHOD_PARAMS = (
+    "all_accounts", "before", "client_scope", "install_id", "limit", "persona_instance_id",
+)
+
+_INSTANCE_ID_LIMIT = 200
+
+
 def list_instance_conversations(params: dict) -> dict:
     if not params.get("install_id"):
         raise InstanceHistoryRefused("installation_required")
@@ -34,7 +47,11 @@ def list_instance_conversations(params: dict) -> dict:
         raise InstanceHistoryRefused("invalid_history_query")
     if owner is None and not all_accounts:
         raise InstanceHistoryRefused("client_scope_required")
-    scope = (params["install_id"], owner, all_accounts)
+    instance_id = params.get("persona_instance_id")
+    if instance_id is not None and (not isinstance(instance_id, str) or not instance_id
+                                    or len(instance_id) > _INSTANCE_ID_LIMIT):
+        raise InstanceHistoryRefused("invalid_history_query")
+    scope = (params["install_id"], owner, all_accounts, instance_id)
     before = _history_position(params.get("before"), scope)
     db = chat_session_scope.open_chat_session_db(access=chat_session_scope.SessionDbAccess.READ)
     if db is None:
@@ -42,7 +59,8 @@ def list_instance_conversations(params: dict) -> dict:
             raise InstanceHistoryRefused("session_db_unavailable")
         return {"conversations": [], "next_cursor": None}
     with closing(db):
-        raw = _history_page(db, owner=None if all_accounts else owner, before=before, limit=limit)
+        raw = _history_page(db, owner=None if all_accounts else owner, instance_id=instance_id,
+                            before=before, limit=limit)
         visible = raw[:limit]
         scan = PersonaInstanceStore().scan_all()
         if scan.unreadable:
@@ -73,6 +91,13 @@ def _project_instance_history(db, raw, instances, install_id):
     return row
 
 
+def _minted_session_glob(instance_id):
+    """GLOB for ``persona_chat_<instance>_<12 hex>`` (``chat_session_owner_instance_id``)."""
+
+    escaped = "".join(f"[{ch}]" if ch in "*?[" else ch for ch in instance_id)
+    return "persona_chat_" + escaped + "_" + "[0-9a-fA-F]" * 12
+
+
 def _history_position(value, scope):
     if value is None:
         return None
@@ -80,24 +105,31 @@ def _history_position(value, scope):
         if not isinstance(value, str) or len(value) > 1024:
             raise ValueError()
         row = json.loads(value)
-        if (not isinstance(row, list) or len(row) != 5 or tuple(row[:3]) != scope
-                or type(row[3]) not in (int, float) or not math.isfinite(row[3])
-                or not isinstance(row[4], str) or not row[4]):
+        width = len(scope)
+        if (not isinstance(row, list) or len(row) != width + 2 or tuple(row[:width]) != scope
+                or type(row[width]) not in (int, float) or not math.isfinite(row[width])
+                or not isinstance(row[width + 1], str) or not row[width + 1]):
             raise ValueError()
-        return row[3], row[4]
+        return row[width], row[width + 1]
     except (ValueError, TypeError) as exc:
         raise InstanceHistoryRefused("invalid_history_cursor") from exc
 
 
-def _history_page(db, *, owner, before, limit):
+def _history_page(db, *, owner, instance_id=None, before, limit):
     # SessionDB has no metadata predicate on list_sessions_rich. Use its pooled
-    # read boundary; owner filtering must precede the page bound, not follow it.
+    # read boundary; owner AND instance filtering must precede the page bound,
+    # not follow it. The instance predicate mirrors _project_instance_history:
+    # the model_config's persona_instance_id, else the owner minted into the id.
     clauses = ["source=?", "hidden=0", "(model_config IS NULL OR json_valid(model_config))",
                "COALESCE(json_extract(model_config,'$.mission_chat_root_id'),id)=id"]
     args = [PERSONA_CHAT_SESSION_SOURCE]
     if owner is not None:
         clauses.append("json_extract(model_config,'$.client_scope')=?")
         args.append(owner)
+    if instance_id is not None:
+        clauses.append("(json_extract(model_config,'$.persona_instance_id')=? OR "
+                       "(COALESCE(json_extract(model_config,'$.persona_instance_id'),'')='' AND id GLOB ?))")
+        args.extend([instance_id, _minted_session_glob(instance_id)])
     if before is not None:
         clauses.append("(started_at,id)<(?,?)")
         args.extend(before)

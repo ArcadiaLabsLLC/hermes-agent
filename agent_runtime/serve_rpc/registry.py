@@ -242,6 +242,7 @@ def manifest() -> dict[str, Any]:
     """
 
     from ..chat_turn import CHAT_TURN_METHOD_PARAMS
+    from ..instance_history import CONVERSATION_LIST_METHOD, CONVERSATION_LIST_METHOD_PARAMS
     from ..operator_files import files_limits
     from ..operator_message import operator_text_admission
     from ..persona_open_chat import OPEN_CHAT_METHOD, OPEN_CHAT_METHOD_PARAMS
@@ -257,6 +258,7 @@ def manifest() -> dict[str, Any]:
             name: list(keys) for name, keys in sorted({
                 **CHAT_TURN_METHOD_PARAMS,
                 OPEN_CHAT_METHOD: OPEN_CHAT_METHOD_PARAMS,
+                CONVERSATION_LIST_METHOD: CONVERSATION_LIST_METHOD_PARAMS,
                 **TWIN_METHOD_PARAMS,
                 **BOARD_METHOD_PARAMS,
                 **SUBAGENT_METHOD_PARAMS,

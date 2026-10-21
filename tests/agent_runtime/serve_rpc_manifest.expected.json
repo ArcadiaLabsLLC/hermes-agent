@@ -551,6 +551,14 @@
       "history_ref"
     ],
     "runtime.health": [],
+    "runtime.operator.conversation.list": [
+      "all_accounts",
+      "before",
+      "client_scope",
+      "install_id",
+      "limit",
+      "persona_instance_id"
+    ],
     "runtime.operator.conversation.subagents.capabilities": [
       "install_id",
       "workspace_id",
