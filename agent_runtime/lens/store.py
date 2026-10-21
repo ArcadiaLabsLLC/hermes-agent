@@ -9,6 +9,8 @@ Tables: ``monitors`` (state, the sealed body + digest + revision, the open draft
 ``reason``), ``rollups`` (one row per feed-minute, written by retention),
 ``episodes`` (the Episode JSON by id), ``receipts`` (one per Episode the exit
 door admitted: the forged turn's identity, outcome and artifacts; stage L2),
+``receipt_rollups`` (receipts older than ``retention.RECEIPT_RETENTION``, folded to a
+count per monitor, UTC day and outcome),
 ``ingress_routes`` (one per push-door route: the monitor it writes, its body kind,
 its mapping, its auth mode (``hmac`` | ``bearer``) and the credential reference of its
 secret — never the secret; L3).
@@ -92,6 +94,9 @@ CREATE TABLE IF NOT EXISTS receipts (
   started_ms INTEGER NOT NULL, finished_ms INTEGER, outcome TEXT NOT NULL,
   artifact_handles TEXT NOT NULL DEFAULT '[]', files TEXT NOT NULL DEFAULT '[]', tool_admission TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS receipts_by_monitor ON receipts (monitor_id, started_ms);
+CREATE TABLE IF NOT EXISTS receipt_rollups (
+  monitor_id TEXT NOT NULL, day_ms INTEGER NOT NULL, outcome TEXT NOT NULL, count INTEGER NOT NULL,
+  PRIMARY KEY (monitor_id, day_ms, outcome));
 CREATE TABLE IF NOT EXISTS ingress_routes (
   route_id TEXT PRIMARY KEY, monitor_id TEXT NOT NULL, kind TEXT NOT NULL, secret_ref TEXT NOT NULL,
   mapping TEXT NOT NULL, created_ms INTEGER NOT NULL, auth TEXT NOT NULL DEFAULT 'hmac');
