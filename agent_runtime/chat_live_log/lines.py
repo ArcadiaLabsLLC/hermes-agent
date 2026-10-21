@@ -90,19 +90,11 @@ def _logical_client_key(value: Any) -> str:
         return token
 
 
-def _backfilled_delivery_fields(message: dict[str, Any]) -> dict[str, str]:
-    """Mirror-vocabulary origin fields for a row read back from the projection.
+def _backfilled_lens_fields(message: dict[str, Any]) -> dict[str, str]:
+    return _lens_fields(message.get("lens_episode_id"))
 
-    The live path decodes the finish_reason marker directly
-    (:func:`_relay_sender_fields`); backfill only ever sees the already-typed
-    projection row, so this is the second and last place the two vocabularies
-    meet. Keyed on the typed kind, never on prose.
-    """
 
-    from ..persona_chat_history.vocabulary import PERSONA_HARNESS_DELIVERY_KIND
-
-    if _safe_token(message.get("kind"), limit=64) != PERSONA_HARNESS_DELIVERY_KIND:
-        return {}
+def _backfilled_harness_fields(message: dict[str, Any]) -> dict[str, str]:
     fields: dict[str, str] = {"origin": "harness_delivery"}
     dispatch_id = _safe_token(message.get("delivery_dispatch_id"), limit=200)
     if dispatch_id:
@@ -115,21 +107,83 @@ def _backfilled_delivery_fields(message: dict[str, Any]) -> dict[str, str]:
     return fields
 
 
+def _backfilled_delivery_fields(message: dict[str, Any]) -> dict[str, str]:
+    """Mirror-vocabulary origin fields for a row read back from the projection.
+
+    The live path decodes the finish_reason marker directly
+    (:func:`_relay_sender_fields`); backfill only ever sees the already-typed
+    projection row, so this is the second and last place the two vocabularies
+    meet. Keyed on the typed kind (one table), never on prose.
+    """
+
+    from ..persona_chat_history.vocabulary import (
+        PERSONA_HARNESS_DELIVERY_KIND,
+        PERSONA_LENS_EPISODE_KIND,
+    )
+
+    by_kind = {
+        PERSONA_HARNESS_DELIVERY_KIND: _backfilled_harness_fields,
+        PERSONA_LENS_EPISODE_KIND: _backfilled_lens_fields,
+    }
+    translate = by_kind.get(_safe_token(message.get("kind"), limit=64))
+    return {} if translate is None else translate(message)
+
+
+def _lens_fields(episode_id: Any) -> dict[str, str]:
+    """A Lens Episode's forged opening row: the watcher sent it, never the operator."""
+
+    from ..persona_chat_history.vocabulary import PERSONA_LENS_EPISODE_KIND
+
+    fields: dict[str, str] = {"origin": PERSONA_LENS_EPISODE_KIND}
+    token = _safe_token(episode_id, limit=200)
+    if token:
+        fields["episode_id"] = token
+    return fields
+
+
+def _delivery_marker_fields(delivery: Any) -> dict[str, str]:
+    fields: dict[str, str] = {"origin": "harness_delivery"}
+    if delivery.dispatch_id:
+        fields["dispatch_id"] = _safe_token(delivery.dispatch_id, limit=200)
+    # `or "unknown"` to match the backfill path exactly. The two
+    # vocabularies are deliberately identical — that is what makes a
+    # backfilled line and a live one indistinguishable to a consumer — so a
+    # fallback on one side and not the other is a real divergence, however
+    # unreachable it looks today.
+    fields["dispatch_state"] = _safe_token(delivery.state, limit=40) or "unknown"
+    if delivery.notify_operator:
+        fields["notify_operator"] = "1"
+    return fields
+
+
+def _lens_marker_fields(lens: Any) -> dict[str, str]:
+    return _lens_fields(lens.episode_id)
+
+
+def _sender_marker_fields(sender: Any) -> dict[str, str]:
+    fields: dict[str, str] = {}
+    if sender.persona_id:
+        fields["relay_sender_persona_id"] = _safe_token(sender.persona_id, limit=160)
+    if sender.instance_id:
+        fields["relay_sender_instance_id"] = _safe_token(sender.instance_id, limit=160)
+    return fields
+
+
 def _relay_sender_fields(relay_marker: Any) -> dict[str, str]:
     """Origin fields for an incoming row, decoded from its finish_reason marker.
 
-    Two non-operator origins ride that one column, and BOTH are invisible in the
+    Three non-operator origins ride that one column, and ALL are invisible in the
     mirror without this. A relayed teammate message reads as the operator — the
     attribution defect the conversation projection carries ``relay_sender_*`` to
-    avoid — and a forged dispatch DELIVERY reads as the operator too, which is
-    worse here than in the UI: the mirror's whole purpose is machine
-    consumption, and a head agent grepping a teammate's thread would attribute
-    the runtime's own delivery to the human, with nothing in the line to say
-    otherwise.
+    avoid — and a forged dispatch DELIVERY or a Lens Episode's forged opening row
+    reads as the operator too, which is worse here than in the UI: the mirror's
+    whole purpose is machine consumption, and a head agent grepping a teammate's
+    thread would attribute the runtime's own message to the human, with nothing
+    in the line to say otherwise.
 
-    Kept as ONE helper over one column rather than two: the marker vocabularies
-    are mutually exclusive by construction (``relay_policy`` owns both), so a
-    second call site would only create a chance for them to disagree.
+    Kept as ONE helper over one column rather than three: the marker vocabularies
+    are mutually exclusive by construction (``relay_policy`` owns them all), so
+    the decoders are one table tried in order, the first that parses wins.
     """
 
     if not relay_marker:
@@ -137,34 +191,22 @@ def _relay_sender_fields(relay_marker: Any) -> dict[str, str]:
     try:
         from ..relay_policy import (
             parse_harness_delivery_marker,
+            parse_lens_episode_marker,
             parse_relay_sender_marker,
         )
 
-        delivery = parse_harness_delivery_marker(relay_marker)
-        sender = None if delivery is not None else parse_relay_sender_marker(relay_marker)
+        decoders = (
+            (parse_harness_delivery_marker, _delivery_marker_fields),
+            (parse_lens_episode_marker, _lens_marker_fields),
+            (parse_relay_sender_marker, _sender_marker_fields),
+        )
+        for parse, fields_of in decoders:
+            decoded = parse(relay_marker)
+            if decoded is not None:
+                return fields_of(decoded)
     except Exception:  # pragma: no cover - defensive
         return {}
-    if delivery is not None:
-        fields: dict[str, str] = {"origin": "harness_delivery"}
-        if delivery.dispatch_id:
-            fields["dispatch_id"] = _safe_token(delivery.dispatch_id, limit=200)
-        # `or "unknown"` to match the backfill path exactly. The two
-        # vocabularies are deliberately identical — that is what makes a
-        # backfilled line and a live one indistinguishable to a consumer — so a
-        # fallback on one side and not the other is a real divergence, however
-        # unreachable it looks today.
-        fields["dispatch_state"] = _safe_token(delivery.state, limit=40) or "unknown"
-        if delivery.notify_operator:
-            fields["notify_operator"] = "1"
-        return fields
-    if sender is None:
-        return {}
-    fields = {}
-    if sender.persona_id:
-        fields["relay_sender_persona_id"] = _safe_token(sender.persona_id, limit=160)
-    if sender.instance_id:
-        fields["relay_sender_instance_id"] = _safe_token(sender.instance_id, limit=160)
-    return fields
+    return {}
 
 
 def _safe_session_token(value: Any) -> str:
