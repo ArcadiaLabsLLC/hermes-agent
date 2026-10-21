@@ -238,6 +238,18 @@ def test_the_phone_targets_have_marker_environments():
     assert "ptyprocess" not in evaluate_markers(exported, ios)
 
 
+def test_a_requirement_with_no_hash_lines_keeps_no_continuation():
+    """S3's first phone run (android_arm64): uv.lock pins ``psutil @ git+…`` for ``sys_platform ==
+    'android'`` on one line with no hashes; the kept head got a trailing backslash that swallowed the
+    next requirement (uv: "Expected end of input or `;`, found `p`").
+    Killing mutation: always append the continuation -> red."""
+    exported = ("psutil @ git+https://github.com/giampaolo/psutil.git@380bd2b ; sys_platform == 'android'\n"
+                "ptyprocess==0.7.0 ; sys_platform != 'win32' \\\n    --hash=sha256:bb\n")
+    kept = evaluate_markers(exported, marker_env("android_arm64", "3.14")).splitlines()
+    assert kept[0] == "psutil @ git+https://github.com/giampaolo/psutil.git@380bd2b"
+    assert kept[1] == "ptyprocess==0.7.0 \\" and kept[2] == "    --hash=sha256:bb"
+
+
 def test_a_phone_target_refuses_bake_with_and_names_its_python(monkeypatch, capsys, tmp_path: Path):
     """S2: the phone interpreter is the host app's; the desktop lock's version and ``--bake-with`` are
     desktop-only. Killing mutation: drop the ``bake_refused_phone_target`` refusal -> no SystemExit, red."""

@@ -190,7 +190,7 @@ def evaluate_markers(requirements: str, env: dict[str, str]) -> str:
             return
         head, _, marker = block[0].rstrip(" \\").partition(" ; ")
         if not marker or Marker(marker).evaluate(env):
-            kept.append(head.strip() + " \\")
+            kept.append(head.strip() + (" \\" if len(block) > 1 else ""))  # a URL pin has no hash lines
             kept.extend(block[1:])
         block.clear()
 
