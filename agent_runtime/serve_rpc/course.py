@@ -101,7 +101,7 @@ COURSE_METHODS: dict[str, Callable[[dict], dict]] = {
 _COURSE_VERB_LOCK = threading.Lock()
 
 
-def _answer(rid: Any, body: Callable[[dict], dict], params: Any) -> dict:
+def _course_reply(rid: Any, body: Callable[[dict], dict], params: Any) -> dict:
     try:
         with _COURSE_VERB_LOCK:
             return ok(rid, body(params if isinstance(params, dict) else {}))
@@ -110,14 +110,14 @@ def _answer(rid: Any, body: Callable[[dict], dict], params: Any) -> dict:
         return err(rid, REASON_CODES.get(exc.reason, ERR_HANDLER_FAILED), str(exc), data)
 
 
-def _register(name: str, body: Callable[[dict], dict]) -> None:
+def _register_course_verb(name: str, body: Callable[[dict], dict]) -> None:
     @method(name, tier=TIER_CONSOLE)
     def _handler(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
-        return defer_or_inline(rid, name, context, lambda: _answer(rid, body, params))
+        return defer_or_inline(rid, name, context, lambda: _course_reply(rid, body, params))
 
     _handler.__name__ = "_runtime_" + name.removeprefix("runtime.").replace(".", "_")
     _handler.__doc__ = f"``{name}`` — see :mod:`agent_runtime.course_authoring`."
 
 
 for _name, _body in COURSE_METHODS.items():
-    _register(_name, _body)
+    _register_course_verb(_name, _body)
