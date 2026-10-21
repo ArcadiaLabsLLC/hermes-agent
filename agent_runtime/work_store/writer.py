@@ -2,7 +2,7 @@
 
 Every write is a :class:`RowOp` found by ID and applied as ONE line edit (``grammar.apply``); no
 textual merge, ``rebase``, ``pull`` or ``stash`` ever runs. The worktree lives under
-``paths.work_worktree_dir(ws, slot)`` on branch ``work/<machine_id>``, cut ``--no-checkout`` with a
+``paths.work_worktree_dir(ws, slot, checkout_token(clone))`` on branch ``work/<machine_id>``, cut ``--no-checkout`` with a
 non-cone sparse checkout of the brain folder, so the operator's checkout (its index and its tree)
 is never touched. Steps, in the §5 table's numbering:
 
@@ -24,6 +24,7 @@ A local slot (the default brain) has no remote: steps 2 and 8 become a local tip
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import shutil
@@ -43,7 +44,7 @@ from .models import OPERATOR
 from .reasons import Reason, WorkRefused
 
 __layer__ = "stores"
-__all__ = ["OPERATOR", "REPLAY_BUDGET", "Receipt", "RowOp", "Writer"]
+__all__ = ["OPERATOR", "REPLAY_BUDGET", "Receipt", "RowOp", "Writer", "checkout_token"]
 
 REPLAY_BUDGET = 8
 REQUEST_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,200}$")
@@ -83,6 +84,26 @@ class Receipt:
 
 def _tail(text: str | None) -> str:
     return _CREDENTIAL.sub("://***@", str(text or "").strip())[-200:]
+
+
+GitRun = Callable[..., subprocess.CompletedProcess[str]]
+
+
+def _common_dir(repo: Path, run: GitRun) -> str:
+    """The repository's git common dir, realpath'd and normcase'd (``?<repo>`` when git cannot say)."""
+
+    done = run(["rev-parse", "--path-format=absolute", "--git-common-dir"], repo=repo, encoding="utf-8",
+               errors="replace", timeout=120, stdin=subprocess.DEVNULL)
+    text = str(done.stdout or "").strip() if done.returncode == 0 else ""
+    return os.path.normcase(os.path.realpath(text)) if text else f"?{repo}"
+
+
+def checkout_token(clone: Path, *, run: GitRun | None = None) -> str:
+    """The first 12 hex of sha256 of the checkout's common dir: the key of Hermes's worktree of it."""
+
+    if run is None:
+        from ..git_cmd import run_git as run
+    return hashlib.sha256(_common_dir(clone, run).encode("utf-8")).hexdigest()[:12]
 
 
 # ── step 5: the precondition each op needs, as a table ──────────────────────
@@ -150,7 +171,7 @@ class Writer:
         self.board = board
         self.machine_id = machine_id
         self.branch = f"work/{machine_id}"
-        self.worktree = paths.work_worktree_dir(board.workspace_id, board.slot)
+        self._worktree: Path | None = None
         self.stale = False
         self._run = run
         self._now = now or (lambda: datetime.now(UTC))
@@ -158,6 +179,15 @@ class Writer:
         self._tip_sha: str | None = None
 
     # ── the git door ─────────────────────────────────────────────────────
+
+    @property
+    def worktree(self) -> Path:
+        """Hermes's worktree of this board's checkout, keyed by that checkout (known once the clone is)."""
+
+        if self._worktree is None:
+            self._clone()
+        assert self._worktree is not None
+        return self._worktree
 
     @property
     def tip(self) -> str:
@@ -188,12 +218,13 @@ class Writer:
         clone = self.board.checkout or bound_path(self.board.slot, workspace_id=self.board.workspace_id)
         if clone is None or not (clone / ".git").exists():
             raise WorkRefused(Reason.SLOT_UNBOUND, self.board.slot)
+        if self._worktree is None:
+            token = checkout_token(clone, run=self._run)
+            self._worktree = paths.work_worktree_dir(self.board.workspace_id, self.board.slot, token)
         return clone
 
     def _common_dir(self, repo: Path) -> str:
-        done = self._git(["rev-parse", "--path-format=absolute", "--git-common-dir"], repo=repo)
-        text = str(done.stdout or "").strip() if done.returncode == 0 else ""
-        return os.path.normcase(os.path.realpath(text)) if text else f"?{repo}"
+        return _common_dir(repo, self._run)
 
     def _ensure_worktree(self, clone: Path) -> None:
         self._git(["worktree", "prune"], repo=clone)

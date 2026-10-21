@@ -720,10 +720,18 @@ def default_brain_dir(workspace_id: str) -> Path:
     return work_workspace_dir(workspace_id) / "brain"
 
 
-def work_worktree_dir(workspace_id: str, slot: str) -> Path:
-    """Hermes's own worktree of a slot's checkout (§5) — under ``worktrees/``, never inside the default brain."""
+def work_worktrees_dir(workspace_id: str) -> Path:
+    return work_workspace_dir(workspace_id) / "worktrees"
 
-    return work_workspace_dir(workspace_id) / "worktrees" / safe_path_token(slot)
+
+def work_worktree_dir(workspace_id: str, slot: str, checkout_token: str) -> Path:
+    """Hermes's own worktree of a slot's checkout (§5), keyed by the CHECKOUT it is cut from.
+
+    ``<slot>-<checkout_token>`` (``work_store.writer.checkout_token``): two boards over one checkout
+    share it, two checkouts never collide (plan work-slot-roots-per-workspace-2026-10-21 §2).
+    """
+
+    return work_worktrees_dir(workspace_id) / f"{safe_path_token(slot)}-{safe_path_token(checkout_token)}"
 
 
 def work_runs_dir(workspace_id: str) -> Path:
