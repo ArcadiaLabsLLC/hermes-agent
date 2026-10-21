@@ -165,17 +165,27 @@ def _fetch_picker_live_models(
 _picker_prewarm_done = _threading.Event()
 
 
-def _credential_pool_is_usable(provider: str, *, raw_pool_present: bool = False, for_picker: bool = False) -> bool:
+def _credential_pool_is_usable(provider: str, *, raw_pool_present: bool = False, for_picker: bool = False,
+                               pool_snapshot: Optional[dict] = None) -> bool:
     """Whether *provider* has a credential that can be selected now.
 
     Legacy opaque ``auth.json`` pool values that do not deserialize into ``PooledCredential``
     stay visible (``raw_pool_present``); a real pool's availability is authoritative — an
     all-exhausted/dead pool is not authenticated. ``for_picker`` (human-facing pickers) also
     accepts a pool whose entries are all in cooldown: a rate-limited provider is not a signed-out
-    one, and limits are per-model for many providers, so another model may still work."""
+    one, and limits are per-model for many providers, so another model may still work.
+    ``pool_snapshot``: the picker build's per-build memo (provider -> pool), so each provider's
+    pool is loaded once per build rather than once per row that asks — every ``load_pool`` re-reads
+    ``auth.json``, the pool, env and dotenv. The memoised pool is the same object, so entries the
+    first load healed are what later rows see."""
     try:
         from agent.credential_pool import load_pool
-        pool = load_pool(provider)
+        key = (provider or "").strip().lower()
+        pool = pool_snapshot.get(key) if pool_snapshot is not None else None
+        if pool is None:
+            pool = load_pool(provider)
+            if pool_snapshot is not None:
+                pool_snapshot[key] = pool
         if pool.has_credentials():
             return for_picker or pool.has_available()
     except Exception:
@@ -314,21 +324,22 @@ def _auth_store_has_provider(*keys: str) -> bool:
         return False
 
 
-def _raw_pool_usable(hermes_id: str, *, for_picker: bool = False) -> bool:
+def _raw_pool_usable(hermes_id: str, *, for_picker: bool = False, pool_snapshot: Optional[dict] = None) -> bool:
     """Section-1 pool check: only consult the pool when auth.json lists a raw entry."""
     try:
         from hermes_cli.auth import _load_auth_store
         store = _load_auth_store()
         if store and store.get("credential_pool", {}).get(hermes_id):
-            return _credential_pool_is_usable(hermes_id, raw_pool_present=True, for_picker=for_picker)
+            return _credential_pool_is_usable(hermes_id, raw_pool_present=True, for_picker=for_picker,
+                                              pool_snapshot=pool_snapshot)
     except Exception:
         pass
     return False
 
 
-def _pool_usable(slug: str, *, for_picker: bool = False) -> bool:
+def _pool_usable(slug: str, *, for_picker: bool = False, pool_snapshot: Optional[dict] = None) -> bool:
     try:
-        return _credential_pool_is_usable(slug, for_picker=for_picker)
+        return _credential_pool_is_usable(slug, for_picker=for_picker, pool_snapshot=pool_snapshot)
     except Exception as exc:
         logger.debug("Credential pool check failed for %s: %s", slug, exc)
         return False
@@ -718,6 +729,9 @@ class _PickerBuild:
     builtin_endpoints: set = field(default_factory=set)
     # (display_name, base_url) pairs from section 3 so section 4 skips overlapping rows.
     section3_pairs: set = field(default_factory=set)
+    # provider -> CredentialPool, loaded once per build: ~94 rows ask per open, each a full
+    # auth.json + pool + env + dotenv read without it.
+    pool_snapshot: dict = field(default_factory=dict)
 
     @property
     def current_provider_norm(self) -> str:
@@ -839,7 +853,8 @@ def _lap_builtin_rows(b: _PickerBuild, data: dict, user_providers: dict) -> None
     for hermes_id, mdev_id, pconfig, env_vars in _iter_builtin_candidates(data, b.excluded, b.seen_slugs):
         # Per-profile scope, never raw os.environ: a secondary profile's picker otherwise listed the
         # LAUNCH profile's env-keyed providers and hid its own .env-keyed ones.
-        if not (_any_env(env_vars, _scoped_key_env) or _raw_pool_usable(hermes_id, for_picker=b.for_picker)):
+        if not (_any_env(env_vars, _scoped_key_env)
+                or _raw_pool_usable(hermes_id, for_picker=b.for_picker, pool_snapshot=b.pool_snapshot)):
             continue
         model_ids = _live_or_curated_ids(hermes_id, b.curated, non_blocking=b.non_blocking_catalogs)
         # A providers.<built-in>.models block extends the discovered catalog; section 3 cannot
@@ -880,7 +895,7 @@ def _overlay_has_creds(b: _PickerBuild, pid: str, hermes_slug: str, overlay) -> 
         # Full auto-seeding pool check catches external stores (Codex CLI ~/.codex/auth.json)
         # not yet in auth.json.
         try:
-            if _credential_pool_is_usable(hermes_slug, for_picker=b.for_picker):
+            if _credential_pool_is_usable(hermes_slug, for_picker=b.for_picker, pool_snapshot=b.pool_snapshot):
                 has_creds = True
         except Exception as exc:
             logger.debug("Credential pool check failed for %s: %s", hermes_slug, exc)
@@ -959,7 +974,8 @@ def _lap_canonical_rows(b: _PickerBuild) -> None:
             sib_vars = set(sib.api_key_env_vars) if sib else set()
             if lit and lit <= sib_vars < set(cp_config.api_key_env_vars) and cp.slug != b.current_provider:
                 continue
-        has_creds = has_creds or _auth_store_has_provider(cp.slug) or _pool_usable(cp.slug, for_picker=b.for_picker) or (
+        has_creds = has_creds or _auth_store_has_provider(cp.slug) or _pool_usable(
+            cp.slug, for_picker=b.for_picker, pool_snapshot=b.pool_snapshot) or (
             _is_aws_sdk(cp_config) and _has_aws_sdk_creds_for_listing(cp.slug, b.current_provider))
         if not has_creds and cp_config is not None and cp_config.auth_type == "external_process":
             # Subprocess-backed providers own their auth; the binary resolving is the credential
