@@ -230,6 +230,7 @@ class GPTPersonaRuntime:
                     enabled_toolsets=list(lane_bundle.enabled_toolsets),
                     blocked_tool_names=list(lane_bundle.blocked_tool_names),
                     chat_lane_defer_tools=list(lane_bundle.defer_tools),
+                    disabled_toolsets=list(lane_bundle.disabled_toolsets) or None,  # the bundled edition's
                     quiet_mode=True,
                     # Respect the persona's workspace-context opt-in. Isolated
                     # personas get repo context through skills or explicit reads.

@@ -218,6 +218,71 @@ def test_markers_are_evaluated_for_the_target_not_by_uv():
     assert "nemo-relay" not in linux and "ptyprocess==0.7.0" in linux
 
 
+def test_the_phone_targets_have_marker_environments():
+    """RT-BUNDLED-PHONE-PROFILE S1: ``--profile bundled-phone --target android_arm64`` was a KeyError in
+    ``marker_env``; the profile's ``packaging.targets`` was read by the gate, never by the packager.
+
+    Killing mutation: drop the ``android_arm64`` row from ``TARGETS`` -> KeyError, red."""
+    from agent_runtime.bundle_profiles.manifest import PACKAGING_TARGETS
+    from scripts.bundle_profile_package import TARGETS
+
+    android = marker_env("android_arm64", "3.14")
+    assert android["sys_platform"] == "android" and android["platform_system"] == "Android"
+    assert android["platform_machine"] == "aarch64" and android["python_full_version"] == "3.14.0"
+    ios = marker_env("ios_arm64", "3.14.7")
+    assert ios["sys_platform"] == "ios" and ios["platform_machine"] == "arm64"
+    assert TARGETS["android_arm64"][0] == "aarch64-linux-android" and TARGETS["ios_arm64"][0] == "arm64-apple-ios"
+    assert set(PACKAGING_TARGETS) <= set(TARGETS)
+    exported = "ptyprocess==0.7.0 ; sys_platform == 'android' \\\n    --hash=sha256:bb\n"
+    assert "ptyprocess==0.7.0" in evaluate_markers(exported, android)
+    assert "ptyprocess" not in evaluate_markers(exported, ios)
+
+
+def test_a_requirement_with_no_hash_lines_keeps_no_continuation():
+    """S3's first phone run (android_arm64): uv.lock pins ``psutil @ git+…`` for ``sys_platform ==
+    'android'`` on one line with no hashes; the kept head got a trailing backslash that swallowed the
+    next requirement (uv: "Expected end of input or `;`, found `p`").
+    Killing mutation: always append the continuation -> red."""
+    exported = ("psutil @ git+https://github.com/giampaolo/psutil.git@380bd2b ; sys_platform == 'android'\n"
+                "ptyprocess==0.7.0 ; sys_platform != 'win32' \\\n    --hash=sha256:bb\n")
+    kept = evaluate_markers(exported, marker_env("android_arm64", "3.14")).splitlines()
+    assert kept[0] == "psutil @ git+https://github.com/giampaolo/psutil.git@380bd2b"
+    assert kept[1] == "ptyprocess==0.7.0 \\" and kept[2] == "    --hash=sha256:bb"
+
+
+def test_a_phone_target_refuses_bake_with_and_names_its_python(monkeypatch, capsys, tmp_path: Path):
+    """S2: the phone interpreter is the host app's; the desktop lock's version and ``--bake-with`` are
+    desktop-only. Killing mutation: drop the ``bake_refused_phone_target`` refusal -> no SystemExit, red."""
+    import scripts.bundle_profile_package as pkg
+
+    monkeypatch.setattr(pkg, "module_index", lambda **_kw: {})
+    out = str(tmp_path / "core")
+    with pytest.raises(SystemExit):
+        pkg.main(["--profile", "bundled-phone", "--target", "ios_arm64", "--python-version", "3.14",
+                  "--bake-with", "python", "--out", out])
+    assert "bake_refused_phone_target: ios_arm64" in capsys.readouterr().err
+    with pytest.raises(SystemExit):
+        pkg.main(["--profile", "bundled-phone", "--target", "android_arm64", "--out", out])
+    assert "--python-version is required for the phone target android_arm64" in capsys.readouterr().err
+    seen: list = []
+    monkeypatch.setattr(pkg, "_build", lambda args, *_a: seen.append(args.python_version) or 0)
+    assert pkg.main(["--profile", "bundled-phone", "--target", "android_arm64", "--python-version", "3.14",
+                     "--out", out, "--no-serve-probe"]) == 0
+    assert pkg.main(["--target", "win32-x64", "--out", out, "--no-serve-probe"]) == 0  # desktop: the lock
+    assert seen == ["3.14", pkg.locked_python_version()]
+
+
+def test_a_profile_naming_a_target_the_packager_lacks_is_refused():
+    from agent_runtime.bundle_profiles.manifest import (
+        ProfileManifestError, load_profile, parse_manifest, validate_manifest)
+
+    phone = load_profile("bundled-phone")
+    assert set(phone.packaging_targets) == {"android_arm64", "ios_arm64"}  # positive control: it validates
+    data = {"schema_version": 1, "profile": "watch", "packaging": {"targets": ["watchos_arm64"]}}
+    with pytest.raises(ProfileManifestError, match="watchos_arm64"):
+        validate_manifest(parse_manifest(data, validate=False))
+
+
 def test_the_engine_pack_path_file_adds_only_installed_packs(tmp_path: Path, monkeypatch):
     import os
     import sys

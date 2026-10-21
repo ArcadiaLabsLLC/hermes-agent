@@ -110,3 +110,38 @@ def skills_catalog(rid, params, context=None):
         result = skills_catalog_by_hash(p["content_hash"], materialize=build_snapshot)
         return {"hash": p["content_hash"], "found": result is not None, "skills": result or []}
     return _operation(rid, params, context, "runtime.skills.catalog", read)
+
+
+def _toolset_approve(params):
+    """Grant or revoke one persona's opt-in to a bundled-disabled toolset (``agent_runtime/bundled_toolsets``).
+
+    The bundled edition writes the record; the Developer Edition answers ``edition_not_bundled``. A typed
+    refusal is ``data.reason``; the reply carries the persona's ``toolset_approvals`` after the write."""
+    import logging
+
+    from agent_runtime import bundled_toolsets as bt
+    from agent_runtime.store import AgentStore
+    for key in ("persona_id", "toolset"):
+        _console_text(params, key, required=True)
+    _console_text(params, "reason")
+    if params.get("mode") not in tuple(bt.Mode):
+        raise ValueError("mode")
+    try:
+        persona = AgentStore().get(params["persona_id"])
+    except (FileNotFoundError, KeyError):
+        return {"ok": False, "reason": "persona_not_found", "persona_id": params["persona_id"]}
+    home = bt.persona_home(persona)
+    try:
+        bt.write_approval(home, params["toolset"], mode=params["mode"], reason=params.get("reason") or "",
+                          granted_by="operator")
+    except bt.ToolsetApprovalRefused as refused:
+        return {"ok": False, "reason": refused.reason.value, "toolset": params["toolset"]}
+    logging.getLogger(__name__).info("persona.toolset_approved persona_id=%s toolset=%s mode=%s",
+                                     params["persona_id"], params["toolset"], params["mode"])
+    return {"persona_id": params["persona_id"], "toolset": params["toolset"], "mode": params["mode"],
+            "toolset_approvals": [str(row["toolset"]) for row in bt.read_approvals(home)]}
+
+
+@method("runtime.persona.toolset.approve", tier=TIER_CONSOLE)
+def toolset_approve(rid, params, context=None):
+    return _operation(rid, params, context, "runtime.persona.toolset.approve", _toolset_approve)

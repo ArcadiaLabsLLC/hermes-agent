@@ -22,10 +22,14 @@ def test_every_bundle_target_equals_pms_python_pin():
         assert artifact == pm_python["artifacts"][target], target
 
 
-def test_every_packaging_target_has_an_interpreter():
+def test_every_desktop_packaging_target_has_an_interpreter():
+    """A phone target (manifest.PACKAGING_TARGETS) is the host app's interpreter: never pinned here."""
+    from agent_runtime.bundle_profiles.manifest import PACKAGING_TARGETS
     from scripts.bundle_profile_package import TARGETS
 
-    assert set(_load(LOCK)["artifacts"]) == set(TARGETS)
+    pinned = set(_load(LOCK)["artifacts"])
+    assert not pinned & set(PACKAGING_TARGETS), "a phone target must never carry an interpreter pin"
+    assert pinned == set(TARGETS) - set(PACKAGING_TARGETS)
 
 
 def test_the_pinned_minor_is_one_the_dependency_lock_resolves():

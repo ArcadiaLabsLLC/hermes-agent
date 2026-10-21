@@ -72,6 +72,13 @@ KEYS_READ_OUTSIDE_DEFAULTS = {
 }
 
 
+#: The targets a profile may name in ``packaging.targets``: the phones (CPython's own mobile platforms,
+#: the interpreter the host app embeds). A desktop profile names none — it ships the installer's
+#: interpreter (``interpreters.lock.json``). ``scripts/bundle_profile_package.TARGETS`` carries a row for
+#: each (``tests/scripts/test_bundle_profile_package.py`` pins it); this module never imports the packager.
+PACKAGING_TARGETS = ("android_arm64", "ios_arm64")
+
+
 class ProfileManifestError(ValueError):
     """The manifest names something Hermes does not have, or is malformed."""
 
@@ -270,6 +277,9 @@ def validate_manifest(manifest: ProfileManifest) -> None:
     )
     if bad_keys:
         raise ProfileManifestError(f"config keys Hermes does not read: {bad_keys}")
+    unknown_targets = [t for t in manifest.packaging_targets if t not in PACKAGING_TARGETS]
+    if unknown_targets:
+        raise ProfileManifestError(f"packaging.targets names no packager target: {unknown_targets}")
     if manifest.refused_routes.paths and not manifest.refused_routes.feature:
         raise ProfileManifestError("refused_routes.feature must name the switched-off feature")
 
