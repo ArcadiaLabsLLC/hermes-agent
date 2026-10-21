@@ -2964,7 +2964,7 @@ def test_prompt_observability_reports_redaction_safe_available_skill_catalog(
 
     monkeypatch.setattr(
         skills_tool,
-        "_find_all_skills",
+        "find_all_skills",
         lambda: [
             {
                 "name": "deep-audit",
