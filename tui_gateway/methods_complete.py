@@ -5,6 +5,7 @@ bodies reference server globals bare (``_ok``, ``_err``, ``_sessions``, ...).
 """
 
 from .method_ctx import HandlerRegistry, bind_module
+from agent_runtime.credential_pool_snapshot import credential_pool_snapshot  # fork seam: picker pool snapshot (RT-PICKER-AUTH-REREAD)
 
 _registry = HandlerRegistry()
 method = _registry.method
@@ -360,6 +361,7 @@ def _model_skew_err(rid) -> dict | None:
 @method("model.options")
 @_profile_scoped
 @_catch(5033)
+@credential_pool_snapshot()  # fork seam: inside the profile scope, one load_pool per provider per build
 def _(rid, params: dict) -> dict:
     skew = _model_skew_err(rid)
     if skew is not None:

@@ -243,7 +243,11 @@ def _runtime_lens_receipts(rid: Any, params: dict, context: RpcContext | None = 
         params_ = params or {}
         monitor_id = None if params_.get("monitor_id") is None else _monitor_id(params_)
         limit = bounded_int(params_.get("limit", 32), minimum=1, maximum=MAXIMUM_RECEIPTS_PAGE)
-        return {"receipts": _store().receipts(monitor_id=monitor_id, limit=limit)}
+        store = _store()
+        reply: dict = {"receipts": store.receipts(monitor_id=monitor_id, limit=limit)}
+        if monitor_id is not None:  # the days retention folded (RT-LENS-RECEIPT-RETENTION L3)
+            reply["rollups"] = store.receipt_rollups(monitor_id)
+        return reply
 
     return _lens_call(rid, body)
 

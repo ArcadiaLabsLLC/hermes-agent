@@ -175,6 +175,10 @@ class ChatErrorKind(StrEnum):
     #: A reviewed-file reference names no stored file (``agent_runtime.operator_files``);
     #: the native lane's ``Refusal.FILE_INVALID`` spelling, so one client branch reads both.
     FILE_INVALID = "file_invalid"
+    #: A ``retry_of`` send with no attachments of its own re-attaches the retried turn's stored
+    #: images/files; one of them is no longer stored. ``safe_details.missing`` names the basenames
+    #: (RT-PENDING-ATTACHMENTS-NO-READER). Refused before the write-ahead: nothing ran.
+    ATTACHMENT_MISSING = "attachment_missing"
 
     # -- chat-root ownership / concurrency -----------------------------------
     UNKNOWN_CHAT_SESSION = "unknown_chat_session"
@@ -235,6 +239,7 @@ ADMISSION_ERROR_KINDS = frozenset(
         ChatErrorKind.IMAGE_INVALID,
         ChatErrorKind.VISION_UNSUPPORTED,
         ChatErrorKind.FILE_INVALID,
+        ChatErrorKind.ATTACHMENT_MISSING,
     }
 )
 CHAT_ROOT_ERROR_KINDS = frozenset(
