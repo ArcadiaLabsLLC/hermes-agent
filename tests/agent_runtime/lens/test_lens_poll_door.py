@@ -315,6 +315,25 @@ def test_the_lifecycle_verbs_draft_seal_enable_pause_retire():
                                                                                "detail": "surprise"}
 
 
+def test_draft_drop_forgets_only_a_sealed_monitors_next_revision():
+    """RT-LENS-DROP-DRAFT-VERB: the next revision under review is discarded without ending the
+    live monitor (``retire`` was the only discard)."""
+
+    _call("runtime.lens.create", {"manifest": _manifest()})
+    assert _call("runtime.lens.draft.drop", {"monitor_id": "status"})["error"]["data"]["reason"] == "not_sealed"
+    _call("runtime.lens.seal", {"monitor_id": "status"})
+    _call("runtime.lens.enable", {"monitor_id": "status"})
+    assert _call("runtime.lens.draft.drop", {"monitor_id": "status"})["error"]["data"]["reason"] == "no_draft"
+    revised = _manifest(_feed(interval_ms=10_000))
+    assert _call("runtime.lens.create", {"manifest": revised})["result"]["draft"]["feeds"][0]["interval_ms"] == 10_000
+
+    dropped = _call("runtime.lens.draft.drop", {"monitor_id": "status"})["result"]
+    assert dropped["draft"] is None and dropped["state"] == "enabled"
+    assert dropped["sealed"]["revision"] == 1 and dropped["sealed"]["manifest"]["feeds"][0]["interval_ms"] == 5000
+    assert _call("runtime.lens.seal", {"monitor_id": "status"})["error"]["data"]["reason"] == "no_draft"
+    assert _call("runtime.lens.draft.drop", {"monitor_id": "nope"})["error"]["data"]["reason"] == "monitor_not_found"
+
+
 def test_preview_reads_and_writes_nothing():
     reply = _call("runtime.lens.preview", {"manifest": _manifest(_feed(credential_ref="absent"))})
     assert reply["result"]["feeds"] == [{"feed_id": "api", "status": "unavailable", "number": None,

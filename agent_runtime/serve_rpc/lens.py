@@ -10,6 +10,9 @@ verb                   params -> result
 list                   {} -> {monitors, feed_kinds}
 create                 {manifest} -> monitor (the manifest becomes its DRAFT)
 seal                   {monitor_id} -> monitor (draft frozen as the next revision)
+draft.drop             {monitor_id} -> monitor (a SEALED monitor's pending next-revision draft
+                       is forgotten; the sealed revision and its state stand. ``no_draft``
+                       without one, ``not_sealed`` for a never-sealed proposal: retire it)
 enable / pause         {monitor_id} -> monitor (polling of the sealed revision on / off)
 retire                 {monitor_id} -> monitor (stopped for good; its data stays)
 get                    {monitor_id} -> monitor + credentials: [{feed_id, ref, set, rotated_at}]
@@ -110,6 +113,11 @@ def _runtime_lens_create(rid: Any, params: dict, context: RpcContext | None = No
 @method("runtime.lens.seal", tier=TIER_CONSOLE)
 def _runtime_lens_seal(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     return _lens_call(rid, lambda: _store().seal(_monitor_id(params)))
+
+
+@method("runtime.lens.draft.drop", tier=TIER_CONSOLE)
+def _runtime_lens_draft_drop(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    return _lens_call(rid, lambda: _store().drop_draft(_monitor_id(params)))
 
 
 def _state_verb(state_name: str) -> Callable[..., dict]:
