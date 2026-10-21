@@ -242,11 +242,31 @@ class ConversationService:
                 raise ConversationError(Refusal.UNKNOWN)
             return confirmed
 
-    def skills(self, scope: ConversationScope, session_id: str, operation: str,
-               skill_id: str | None = None) -> dict:
-        with self._session(scope, session_id) as live:
-            return live.peer.call("eternia.skills." + operation,
-                {"session_id": live.native_id, "skill_id": skill_id})["data"]
+    def skills(self, scope: ConversationScope, session_id: str, operation: str, params: dict | None = None) -> dict:
+        """``eternia.skills.<operation>`` on the session, or on the child ``child_ref`` names.
+
+        A child address is completed here with the route's ``owner_scope`` + ``worker_generation``
+        (``subagents.child_owner``); ``lend`` always addresses a child and is a write.
+        """
+        from .subagents import call_child, child_owner
+
+        params = params or {}
+        child_ref = params.get("child_ref")
+        addressed = child_ref is not None or operation == "lend"
+        request: dict = {"session_id": None, "skill_id": None}
+        if operation == "detail":
+            request["skill_id"] = identifier(params["skill_id"])
+        if operation == "lend":
+            if not isinstance(params["skills"], list) or params.get("mode", "lend") not in ("lend", "revoke"):
+                raise ConversationError(Refusal.INVALID_REQUEST)
+            request.update(skills=params["skills"], mode=params.get("mode", "lend"),
+                           request_id=identifier(params["request_id"]))
+        with self._session(scope, session_id, existing_only=addressed) as live:
+            request["session_id"] = live.native_id
+            if not addressed:
+                return live.peer.call("eternia.skills." + operation, request)["data"]
+            request.update(child_owner(self.install_id, scope, live), child_ref=identifier(child_ref))
+            return call_child(live, "eternia.skills." + operation, request, write=operation == "lend")["data"]
 
     def _admit(self) -> None:
         if self._draining:

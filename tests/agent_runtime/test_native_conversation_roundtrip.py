@@ -116,7 +116,7 @@ def run_profile_a_b_a(tmp_path, compute, shared):
             assert terminal[-1]["text"] == "Local native answer"
             catalog = service.skills(scope, sid, "list")
             assert any(row["id"] == f"review-{profile}" for row in catalog["skills"])
-            detail = service.skills(scope, sid, "detail", f"review-{profile}")
+            detail = service.skills(scope, sid, "detail", {"skill_id": f"review-{profile}"})
             assert f"Read only {profile}." in detail["skill"]["content"]
             deadline = time.monotonic() + 10
             while service.skills(scope, sid, "history") != {"loaded": [], "historyComplete": True}:
