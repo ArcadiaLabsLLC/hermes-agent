@@ -24,6 +24,10 @@ tags: [queue, program/fork-hygiene]
 
 
 
+## Filed on arrival — 2026-10-21 (lane w1021h-daily)
+
+- **`FH-DAILY-MERGE-BASE` — Merging upstream.md § Daily integration branch forces --merge-base=<last release tag> every day; after the first post-release daily that re-diffs absorbed upstream (560 vs 15 conflicts on 2026-10-21) — base = the upstream parent of the previous integrate commit until main merges a newer tag** · fork-hygiene / upstream sync · evidence: `0f3998e841` body (`integration/upstream-daily`) · READY 2026-10-21
+
 ## Filed on arrival — 2026-10-21 (lane w1021h-tooling, branch `w1021h/tooling`)
 
 - **`FH-CI-MAIN-LARGE-RUNNER-QUEUE` — hermes CI on `main` never finishes: upstream's tests/JS/Rust/Windows jobs ask for `ubuntu-latest-32-core` / `windows-latest-32-core` / `windows-latest-32-arm-core`, which ArcadiaLabsLLC lacks; run 39494050964 (`79d3fa5754`) queued since 2026-10-20 holds `ci-refs/heads/main`, every later push pending → cancelled; 0 green in the last 200 runs** · fork CI · evidence `306a622a64` (branch `w1021h/tooling`) · BLOCKED 2026-10-21: owner decision — buy larger runners for the org, or carry a fork seam mapping the labels to standard runners (an upstream-footprint raise)? · Recommend: the seam, as a repository variable with upstream's label as default
