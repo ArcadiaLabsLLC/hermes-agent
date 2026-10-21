@@ -22,6 +22,7 @@ from agent_runtime.office_store.models import (
     MAX_ITEMS_PER_ACTOR,
     ActorKind,
     ActorKindMismatch,
+    ActorScan,
     OfficePositionPolicy,
 )
 from agent_runtime.office_store.normalize import (
@@ -140,10 +141,17 @@ def upsert_actor(
         # they all ran before any store call — and inside the lock because
         # the predicate reads the ledger and the live actor set, which a
         # concurrent writer can move between a caller's read and this write.
-        store._guard_class_keyed_write(wsid, payload, allow_class_key=allow_class_key)
+        #
+        # ONE actor scan per upsert (RT-OFFICE-PATCH-LANE-SCANS-EVERY-UPSERT),
+        # taken here when a pre-write consumer needs it and threaded to the
+        # fence, the unaimed placement and the patch lane; otherwise the patch
+        # lane takes it after the write. Either way the directory is read once.
+        pre_write = _needs_pre_write_scan(payload, unaimed=position_policy is not None, allow_class_key=allow_class_key)
+        scan = store.scan_actors(wsid) if pre_write else None
+        store._guard_class_keyed_write(wsid, payload, allow_class_key=allow_class_key, scan=scan)
         store._guard_no_conflict(wsid, actor_key)
         if position_policy is not None:
-            items = _place_unaimed(store, wsid, request, position_policy)
+            items = _place_unaimed(request, position_policy, scan)
         # The DESK fence stood here, between the conflict guard and the
         # archive read, until 2026-09-18. It is gone with the invariant it
         # enforced (see the note at the top of this module): a desk is
@@ -191,7 +199,12 @@ def upsert_actor(
         _write_actor(actor)
         _forget_resurrected_key(surface, actor_key, archived_path, ts=ts)
         _emit_upserted(
-            store, actor, created=existing is None, item_count=len(items), correlation_id=correlation_id
+            store,
+            actor,
+            created=existing is None,
+            item_count=len(items),
+            correlation_id=correlation_id,
+            scan=None if scan is None else scan.with_written(actor),
         )
     return store.get_actor(wsid, actor_key)
 
@@ -267,11 +280,26 @@ class ActorUpsert:
         return cls(wsid, persona_id, raw_instance, actor_key, tuple(raw_items), items, backing_profile, actor_kind)
 
 
+def _needs_pre_write_scan(payload: dict[str, Any], *, unaimed: bool, allow_class_key: bool) -> bool:
+    """Does a consumer BEFORE the write read the actor set? The unaimed lane's
+    policy always does; the class-key fence does for a class-keyed payload it
+    is not told to skip (over-approximated: it may short-circuit on a
+    surface-less workspace, and the scan is then the patch lane's anyway)."""
+
+    if unaimed:
+        return True
+    if allow_class_key:
+        return False
+    from ..office_class_key_guard import is_class_keyed_payload
+
+    return is_class_keyed_payload(payload)
+
+
 def _place_unaimed(
-    store: OfficeStore, wsid: str, request: ActorUpsert, position_policy: OfficePositionPolicy
+    request: ActorUpsert, position_policy: OfficePositionPolicy, scan: ActorScan | None
 ) -> list[OfficeItem]:
     """The unaimed item, normalized at the point the policy chooses — called
-    with ``office_lock`` held."""
+    with ``office_lock`` held, against the upsert's one scan."""
     # M10, closed. The scan and the write are now under ONE
     # acquisition of ``office_lock``, so no concurrent create can
     # land between them and take the slot this one is about to
@@ -282,7 +310,7 @@ def _place_unaimed(
         _normalize_item(
             request.raw_items[0],
             persona_id=request.persona_id,
-            position=position_policy(store.scan_actors(wsid)),
+            position=position_policy(scan),
         )
     ]
 
@@ -356,8 +384,12 @@ def _emit_upserted(
     created: bool,
     item_count: int,
     correlation_id: str | None,
+    scan: ActorScan | None = None,
 ) -> None:
-    """The patch and the domain event of one upsert, with ``office_lock`` held."""
+    """The patch and the domain event of one upsert, with ``office_lock`` held.
+
+    ``scan`` is the upsert's one scan already carrying ``actor``, or ``None``
+    when no pre-write consumer took one (the patch lane then takes it)."""
     # INSIDE the lock, and from the actor object just written — see
     # _emit_actor_patch for why both halves of that are load-bearing.
     #
@@ -365,7 +397,7 @@ def _emit_upserted(
     # resurrection re-add is created=True because the row is missing from
     # the client's list, which is the only question the fold's
     # insert-on-absent asks.
-    store._emit_actor_patch(actor, created=created, correlation_id=correlation_id)
+    store._emit_actor_patch(actor, created=created, correlation_id=correlation_id, scan=scan)
     store._emit(
         "office.actor.upserted",
         correlation_id,

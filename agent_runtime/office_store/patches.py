@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 from agent_runtime.models import OfficeActor, OfficeSurface
 
 if TYPE_CHECKING:
+    from agent_runtime.office_store.models import ActorScan
     from agent_runtime.office_store.store import OfficeStore
 
 __layer__ = "stores"
@@ -27,7 +28,12 @@ __all__ = [
 
 
 def _emit_actor_patch(
-    store: OfficeStore, actor: OfficeActor, *, created: bool, correlation_id: str | None = None
+    store: OfficeStore,
+    actor: OfficeActor,
+    *,
+    created: bool,
+    correlation_id: str | None = None,
+    scan: ActorScan | None = None,
 ) -> None:
     """Emit the S7-A ``office_actor`` patch for one actor write.
 
@@ -110,7 +116,8 @@ def _emit_actor_patch(
         from ..office_models import MAX_OFFICE_ACTORS_PROJECTED
         from ..state_patches.office import emit_office_actor_patch, emit_office_actor_refresh
 
-        scan = store.scan_actors(actor.workspace_id)
+        if scan is None:
+            scan = store.scan_actors(actor.workspace_id)
         if scan.unreadable or len(scan.actors) > MAX_OFFICE_ACTORS_PROJECTED:
             emit_office_actor_refresh(
                 store.event_log,

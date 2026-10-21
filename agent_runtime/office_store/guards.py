@@ -15,6 +15,7 @@ from agent_runtime.models import OfficeActor
 from agent_runtime.office_store.normalize import _normalize_actor_persona_ref
 
 if TYPE_CHECKING:
+    from agent_runtime.office_store.models import ActorScan
     from agent_runtime.office_store.store import OfficeStore
 
 __layer__ = "stores"
@@ -78,7 +79,14 @@ def _guard_archived_actor(
     )
 
 
-def _guard_class_keyed_write(store: OfficeStore, workspace_id: str, payload: dict[str, Any], *, allow_class_key: bool) -> None:
+def _guard_class_keyed_write(
+    store: OfficeStore,
+    workspace_id: str,
+    payload: dict[str, Any],
+    *,
+    allow_class_key: bool,
+    scan: ActorScan | None = None,
+) -> None:
     """THE class-key fence for ``upsert_actor`` — one fence, at the store.
 
     Hoisted here from its four callers (Plan EG-6.6). It used to be called
@@ -115,7 +123,7 @@ def _guard_class_keyed_write(store: OfficeStore, workspace_id: str, payload: dic
         refusal_message,
     )
 
-    collision = class_key_collision(store, workspace_id, payload)
+    collision = class_key_collision(store, workspace_id, payload, scan=scan)
     if collision is None:
         return
     raise ClassKeyedPlacementRefused(refusal_message(collision), safe_details=collision)

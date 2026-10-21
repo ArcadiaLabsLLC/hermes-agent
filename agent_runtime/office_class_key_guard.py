@@ -113,7 +113,7 @@ def is_class_keyed_payload(payload: Any) -> bool:
     return not str(payload.get("persona_instance_id") or "").strip()
 
 
-def class_key_collision(store: Any, workspace_id: str, payload: dict) -> dict | None:
+def class_key_collision(store: Any, workspace_id: str, payload: dict, *, scan: Any = None) -> dict | None:
     """Would this class-keyed payload undo the re-key migration? ``None`` if not.
 
     Read-only against the store, but NOT total: it raises
@@ -124,6 +124,9 @@ def class_key_collision(store: Any, workspace_id: str, payload: dict) -> dict | 
     A workspace with no office surface — the create-from-template destination,
     the overwhelmingly common legitimate case — can never collide and
     short-circuits before any directory scan.
+
+    ``scan`` is the caller's ``ActorScan`` of this workspace taken under the same
+    lock (``upsert_actor``'s one scan per upsert); ``None`` scans here.
     """
 
     # The store owns id normalization; re-deriving it here is exactly the drift
@@ -163,7 +166,8 @@ def class_key_collision(store: Any, workspace_id: str, payload: dict) -> dict | 
         # predicate — and the duplicate placement landed under the actor nobody
         # could read. There is no honest partial answer here: an item id can only
         # be proven ABSENT by reading every actor that might hold it.
-        scan = store.scan_actors(workspace_id)
+        if scan is None:
+            scan = store.scan_actors(workspace_id)
         if scan.unreadable:
             raise ActorsUnreadable(
                 f"actors_unreadable:{workspace_id} ({scan.unreadable} of "
