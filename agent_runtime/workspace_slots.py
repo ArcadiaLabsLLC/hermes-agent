@@ -388,6 +388,10 @@ def show(workspace_id: str) -> dict[str, Any]:
 
     ``here.<slot>.fill`` is the fill's non-secret shape (``workspace_slot_env.fill_shape``):
     env key names, tool paths, PATH head, ``.env``, venv — never an env value; null when unset.
+
+    ``bound_here`` is true only when the bound folder exists. ``path`` is the bound root
+    whenever this machine binds the slot, and ``folder_missing`` says the root is bound but
+    its folder is gone — distinct from never set up here (``path`` null).
     """
 
     import time
@@ -400,7 +404,8 @@ def show(workspace_id: str) -> dict[str, Any]:
     for name in live_slots(document):
         path = bound_path(name)
         bound_here = bool(path and path.is_dir())
-        row = {"bound_here": bound_here, "path": str(path) if bound_here else None, "unknowns": [],
+        row = {"bound_here": bound_here, "path": str(path) if path else None,
+               "folder_missing": bool(path) and not bound_here, "unknowns": [],
                "fill": fill_shape(workspace_id, name)}
         if not bound_here:
             index = UnknownsIndex()
