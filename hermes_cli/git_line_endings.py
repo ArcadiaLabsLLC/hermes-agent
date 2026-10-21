@@ -51,7 +51,9 @@ def _cache_key(env: Mapping[str, str]) -> tuple:
     )
 
 
-def _read(env: Mapping[str, str]) -> list[tuple[str, str]]:
+def _read(env: Mapping[str, str]) -> list[tuple[str, str]] | None:
+    """The effective pairs, or ``None`` when a probe ran but returned no text output (a
+    substituted ``subprocess.run`` in a test): that answer adds nothing and is not cached."""
     probe_env = {k: v for k, v in env.items()
                  if k != "GIT_CONFIG_PARAMETERS" and not k.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"))}
     probe_env.pop("GIT_CONFIG_COUNT", None)
@@ -69,6 +71,8 @@ def _read(env: Mapping[str, str]) -> list[tuple[str, str]]:
             continue
         if proc.returncode != 0:
             continue
+        if not isinstance(getattr(proc, "stdout", None), str):
+            return None
         for record in proc.stdout.split("\0"):
             key, _, value = record.partition("\n")
             key, value = key.strip().lower(), value.strip().lower()
@@ -83,5 +87,8 @@ def user_line_ending_overrides(base_env: Mapping[str, str] | None = None) -> lis
     key = _cache_key(env)
     cached = _cache.get(key)
     if cached is None:
-        cached = _cache[key] = _read(env)
+        cached = _read(env)
+        if cached is None:
+            return []
+        _cache[key] = cached
     return list(cached)
