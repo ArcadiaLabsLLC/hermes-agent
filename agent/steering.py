@@ -97,8 +97,15 @@ def insert_pending_steer_rows(messages: list, index: int, text: str) -> None:
     messages[index:index] = pending_steer_rows(text)
 
 
-def requeue_pending_steer(existing: str | None, text: str) -> PendingSteer:
-    """A drained batch precedes new arrivals; plain text retains append semantics."""
-    if isinstance(text, PendingSteer) and existing:
-        return join_pending_steer(text, existing)
-    return join_pending_steer(existing, text)
+def join_steer_texts(texts) -> str | None:
+    """The steer buffer's value for its parts, in order: their newline join, as a ``PendingSteer``
+    keeping each input's provenance. A part whose text is not already stripped would change the
+    join's value, so that buffer stays the plain join (``_steer_parts`` compares against it)."""
+    texts = [text for text in texts if text]
+    joined = None
+    for text in texts:
+        joined = join_pending_steer(joined, text)
+    if joined is None:
+        return None
+    plain = "\n".join(texts)
+    return joined if joined == plain else plain
