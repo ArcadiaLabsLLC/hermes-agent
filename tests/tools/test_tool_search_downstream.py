@@ -291,7 +291,10 @@ class TestBridgeDispatch:
     def test_tool_describe_does_not_regrant_excluded_core_tool(self):
         from tools.tool_search import dispatch_tool_describe
         result = json.loads(dispatch_tool_describe({"names": ["session_search"]}, current_tool_defs=[]))
-        assert "session_search" not in result.get("tools", {}) and result["not_found"] == ["session_search"]
+        # Not regranted: upstream now reports a core tool this session cannot reach under "errors"
+        # (unavailable) instead of "not_found"; either way it is never described.
+        assert "session_search" not in result.get("tools", {})
+        assert result.get("not_found") == ["session_search"] or "session_search" in result.get("errors", {})
 
     def test_tool_describe_unknown_tool_errors(self):
         from tools.tool_search import dispatch_tool_describe
