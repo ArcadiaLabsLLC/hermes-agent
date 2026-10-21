@@ -11,6 +11,7 @@ __layer__ = "models"
 __all__ = [
     "CHARACTERS_METHOD_PARAMS",
     "CHAT_VERB_METHOD_PARAMS",
+    "COURSE_METHOD_PARAMS",
     "HEALTH_METHOD_PARAMS",
     "REALM_METHOD_PARAMS",
     "TWIN_METHOD_PARAMS",
@@ -53,6 +54,13 @@ REALM_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     "runtime.realm.sync.resolve": ("dry_run", "key", "realm_id", "take", "yes"),
     "runtime.realm.sync.revert": ("all", "dry_run", "items", "realm_id", "to", "yes"),
     "runtime.realm.sync.status": ("credential", "realm_id"),
+}
+
+#: ``runtime.course.*`` (``serve_rpc/course.py``) — method-lane-only, no argv twin; listed
+#: here because this is the ``models`` table the manifest reads without importing a lane.
+COURSE_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
+    "runtime.course.checkout": ("credential",),
+    "runtime.course.commit": ("branch", "credential", "deletes", "files", "message", "persona_id", "persona_name"),
 }
 
 #: Every twin family's rows, merged; the manifest publishes this.

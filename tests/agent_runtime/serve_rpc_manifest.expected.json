@@ -88,6 +88,8 @@
     "runtime.conversation.subagents.stop",
     "runtime.conversation.subagents.tail",
     "runtime.conversation.subagents.tree",
+    "runtime.course.checkout",
+    "runtime.course.commit",
     "runtime.default_model.set",
     "runtime.discussion.capabilities",
     "runtime.discussion.preset.delete",
@@ -585,6 +587,18 @@
       "child_ref",
       "history_ref"
     ],
+    "runtime.course.checkout": [
+      "credential"
+    ],
+    "runtime.course.commit": [
+      "branch",
+      "credential",
+      "deletes",
+      "files",
+      "message",
+      "persona_id",
+      "persona_name"
+    ],
     "runtime.health": [],
     "runtime.operator.conversation.list": [
       "all_accounts",
@@ -897,6 +911,8 @@
     "runtime.conversation.subagents.stop": "console",
     "runtime.conversation.subagents.tail": "console",
     "runtime.conversation.subagents.tree": "console",
+    "runtime.course.checkout": "console",
+    "runtime.course.commit": "console",
     "runtime.default_model.set": "console",
     "runtime.discussion.capabilities": "read",
     "runtime.discussion.preset.delete": "console",

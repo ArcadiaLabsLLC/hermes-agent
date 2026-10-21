@@ -49,6 +49,15 @@ MIGRATION_REGISTRY: tuple[dict[str, Any], ...] = (
         "reason": "epoch 1 is the store shape the guard was introduced over; every older namespace reads it",
         "pins_sha256": "f4ecdffef54e3dcde754394adeaa4a6ae694f41b0de97b5f8edaad2030288aef",
     },
+    {
+        "id": "course-checkouts-dir",
+        "date": "2026-10-21",
+        "store": "all",
+        "breaking": False,
+        "reason": "additive: paths.course_dir / course_checkout_dir / course_worktrees_dir under a new "
+                  "top-level courses/ (git course clones); no existing path moves, an older edition never reads it",
+        "pins_sha256": "a79581ac1ebbd865f268c67c1488d502de738fd9309ed7bbefd741a9a51286ea",
+    },
 )
 
 #: ``1 + count(breaking entries)`` — ``tests/agent_runtime/test_store_epoch_gate.py`` holds it to that.
