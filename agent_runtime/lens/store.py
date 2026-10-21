@@ -32,6 +32,7 @@ import logging
 import sqlite3
 import threading
 from contextlib import contextmanager
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone, UTC
 from enum import Enum
 from pathlib import Path
@@ -58,8 +59,12 @@ MAXIMUM_PROPOSALS_PER_PERSONA = 3
 PROPOSAL_TTL_MS = 7 * 24 * 60 * 60 * 1000
 #: The receipt an expiry leaves (observability is a log receipt, never a wire key).
 PROPOSALS_EXPIRED_RECEIPT = "[LensProposalsExpired] retired=%d ids=%s"
-#: Receipts are refused past this many, never made room for by eviction (W13).
+#: The receipts fence (W13): at it, ``save_receipt`` folds the expired receipts inline first
+#: (``retention.fold_receipts``); still full, the Episode is SETTLED with ``turn_id``
+#: ``receipts_full`` and no receipt row, so it is never owed forever.
 MAXIMUM_RECEIPTS = 50_000
+#: The log receipt a fence refusal leaves (observability is a log receipt, never a wire key).
+RECEIPTS_FULL_RECEIPT = "[LensReceiptsFull] monitor=%s episode=%s"
 #: Push-door routes are refused past this many (W13).
 MAXIMUM_ROUTES = 64
 #: The longest range one series read may span (the raw window is 24 h; rollups cover 7 d).
@@ -414,9 +419,7 @@ class LensStore:
 
     def save_episode(self, episode: Episode) -> None:
         with self._db() as conn:
-            conn.execute("INSERT OR REPLACE INTO episodes VALUES (?, ?, ?, ?, ?, ?)",
-                         (episode.id, episode.monitor_id, episode.rule_id, episode.ordinal, episode.state.value,
-                          json.dumps(episode.to_json(), sort_keys=True)))
+            _write_episode(conn, episode)
 
     def episodes(self, *, monitor_id: str | None = None, states: tuple[str, ...] | None = None,
                  limit: int = 256) -> list[dict[str, Any]]:
@@ -442,21 +445,32 @@ class LensStore:
 
     def save_receipt(self, receipt: dict[str, Any], *, episode: Episode | None = None) -> bool:
         """Insert ``receipt`` (and ``episode``, in the SAME transaction). False when the
-        Episode already has one: a receipt is written once, so a turn is forged once."""
+        Episode already has one: a receipt is written once, so a turn is forged once.
+
+        At :data:`MAXIMUM_RECEIPTS` the expired receipts are folded first (``now`` is the
+        receipt's own ``started_ms``, the door's clock); still full, False with ``episode``
+        settled as ``turn_id`` ``receipts_full`` and no receipt row."""
 
         row = _receipt_row(receipt)
-        with self._db() as conn:
-            if conn.execute("SELECT 1 FROM receipts WHERE episode_id = ?", (row[0],)).fetchone() is not None:
-                return False
-            if conn.execute("SELECT COUNT(*) FROM receipts").fetchone()[0] >= MAXIMUM_RECEIPTS:
-                raise LensStoreError(StoreRefusal.RECEIPTS_FULL)
-            conn.execute(f"INSERT INTO receipts ({', '.join(_RECEIPT_COLUMNS)}) VALUES "
-                         f"({', '.join('?' * len(_RECEIPT_COLUMNS))})", row)
-            if episode is not None:
-                conn.execute("INSERT OR REPLACE INTO episodes VALUES (?, ?, ?, ?, ?, ?)",
-                             (episode.id, episode.monitor_id, episode.rule_id, episode.ordinal, episode.state.value,
-                              json.dumps(episode.to_json(), sort_keys=True)))
-        return True
+        for folded in (False, True):
+            with self._db() as conn:
+                if conn.execute("SELECT 1 FROM receipts WHERE episode_id = ?", (row[0],)).fetchone() is not None:
+                    return False
+                if conn.execute("SELECT COUNT(*) FROM receipts").fetchone()[0] < MAXIMUM_RECEIPTS:
+                    conn.execute(f"INSERT INTO receipts ({', '.join(_RECEIPT_COLUMNS)}) VALUES "
+                                 f"({', '.join('?' * len(_RECEIPT_COLUMNS))})", row)
+                    if episode is not None:
+                        _write_episode(conn, episode)
+                    return True
+                if folded:
+                    if episode is not None:
+                        _write_episode(conn, replace(episode, turn_id=StoreRefusal.RECEIPTS_FULL.value))
+                    logger.warning(RECEIPTS_FULL_RECEIPT, row[1], row[0])
+                    return False
+            from .retention import fold_receipts
+
+            fold_receipts(self, from_ms(int(row[_RECEIPT_COLUMNS.index("started_ms")])))
+        return False
 
     def finish_receipt(self, episode_id: str, *, outcome: str, finished_ms: int, session_id: str | None = None,
                        artifact_handles: list[dict[str, Any]] = (), files: list[dict[str, Any]] = ()) -> dict[str, Any]:
@@ -600,6 +614,12 @@ def _route_json(row: tuple[Any, ...]) -> dict[str, Any]:
     out = dict(zip(_ROUTE_COLUMNS, row))
     out["mapping"] = json.loads(out["mapping"])
     return out
+
+
+def _write_episode(conn: sqlite3.Connection, episode: Episode) -> None:
+    conn.execute("INSERT OR REPLACE INTO episodes VALUES (?, ?, ?, ?, ?, ?)",
+                 (episode.id, episode.monitor_id, episode.rule_id, episode.ordinal, episode.state.value,
+                  json.dumps(episode.to_json(), sort_keys=True)))
 
 
 def _receipt_row(receipt: dict[str, Any]) -> tuple[Any, ...]:

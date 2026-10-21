@@ -8,10 +8,12 @@ Killing mutations (each red recorded in its stage's commit):
 
 * L1: fold AFTER the delete -> the rollup counts are empty; drop the ``state != 'active'``
   filter -> the old active Episode is deleted.
+* L2: raise ``RECEIPTS_FULL`` at the fence as before -> the Episode is never settled (owed forever).
 """
 
 from __future__ import annotations
 
+import logging
 from collections import Counter
 from datetime import datetime, timedelta, UTC
 
@@ -100,3 +102,58 @@ def test_the_newest_episode_of_a_rule_is_kept_so_no_ordinal_is_reused():
     assert fold_receipts(store, NOW).episodes_deleted == 1
     assert [row["ordinal"] for row in store.episodes()] == [2]
     assert store.latest_episode("m1", "cpu_hot").ordinal == 2
+
+
+# --- L2 the fence -------------------------------------------------------------------
+
+
+def _young_or_old(store: LensStore, count: int, at: datetime) -> None:
+    for ordinal in range(1, count + 1):
+        episode = _episode("m1", ordinal, at, EpisodeState.RESOLVED)
+        assert store.save_receipt({"episode_id": episode.id, "monitor_id": "m1", "turn_id": "notified",
+                                   "started_ms": to_ms(at), "outcome": "notified", "tool_admission": "full"},
+                                  episode=episode)
+
+
+def _owed(ordinal: int = 99) -> tuple[Episode, dict]:
+    episode = _episode("m2", ordinal, NOW, EpisodeState.ACTIVE)
+    turn_id = f"lens-episode-{episode.id}"
+    return episode, {"episode_id": episode.id, "monitor_id": "m2", "turn_id": turn_id, "started_ms": to_ms(NOW),
+                     "outcome": ReceiptOutcome.FORGING.value, "tool_admission": "full"}
+
+
+def test_at_the_fence_expired_receipts_make_room(monkeypatch):
+    from dataclasses import replace
+
+    from agent_runtime.lens import store as store_module
+
+    monkeypatch.setattr(store_module, "MAXIMUM_RECEIPTS", 3)
+    store = LensStore()
+    _young_or_old(store, 3, NOW - timedelta(days=31))
+    episode, receipt = _owed()
+
+    assert store.save_receipt(receipt, episode=replace(episode, turn_id=receipt["turn_id"])) is True
+    assert [r["episode_id"] for r in store.receipts()] == [episode.id]
+
+
+def test_still_full_settles_the_episode_with_no_receipt(monkeypatch, caplog):
+    from dataclasses import replace
+
+    from agent_runtime.lens import store as store_module
+    from agent_runtime.lens.episode import needs_admission
+
+    monkeypatch.setattr(store_module, "MAXIMUM_RECEIPTS", 3)
+    store = LensStore()
+    _young_or_old(store, 3, NOW - timedelta(days=2))
+    episode, receipt = _owed()
+    store.save_episode(episode)
+    assert needs_admission(episode, NOW)
+
+    with caplog.at_level(logging.WARNING, logger="agent_runtime.lens.store"):
+        assert store.save_receipt(receipt, episode=replace(episode, turn_id=receipt["turn_id"])) is False
+
+    assert not store.has_receipt(episode.id)
+    [row] = [r for r in store.episodes() if r["id"] == episode.id]
+    assert row["turn_id"] == "receipts_full"
+    assert not needs_admission(Episode.from_json(row), NOW)  # settled: the next tick forges nothing
+    assert f"[LensReceiptsFull] monitor=m2 episode={episode.id}" in caplog.text

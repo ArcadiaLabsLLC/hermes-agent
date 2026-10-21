@@ -49,7 +49,7 @@ from datetime import datetime, timedelta, UTC
 
 import pytest
 
-from agent_runtime.lens.store import LensStore, LensStoreError, ReceiptOutcome, StoreRefusal, to_ms
+from agent_runtime.lens.store import LensStore, ReceiptOutcome, to_ms
 
 T0 = datetime(2026, 10, 19, 12, tzinfo=UTC)
 EPISODE_A = "a" * 64
@@ -127,15 +127,15 @@ def test_an_unknown_receipt_is_not_found_and_a_malformed_id_is_refused():
 
 
 def test_receipts_past_the_budget_are_refused(monkeypatch):
+    """The fence holds (RT-LENS-RECEIPT-RETENTION L2): no second row, answered False, never raised."""
     from agent_runtime.lens import store as store_module
 
     monkeypatch.setattr(store_module, "MAXIMUM_RECEIPTS", 1)
     store = LensStore()
     store.save_receipt(_receipt())
 
-    with pytest.raises(LensStoreError) as caught:
-        store.save_receipt(_receipt(EPISODE_B))
-    assert caught.value.code is StoreRefusal.RECEIPTS_FULL
+    assert store.save_receipt(_receipt(EPISODE_B)) is False
+    assert [r["episode_id"] for r in store.receipts()] == [EPISODE_A]
 
 
 # --- L2.2 provenance --------------------------------------------------------------
