@@ -18,7 +18,7 @@ import pytest
 
 from hermes_cli import plugins as plugins_mod
 from hermes_cli import plugins_declared_cli_cache as cache_mod
-from hermes_cli import plugins_manifest_cli_commands as declared_mod
+from hermes_cli import plugins_declared_cli as declared_mod
 
 pytestmark = pytest.mark.gate
 

@@ -3331,22 +3331,10 @@ def _advertise_agent_env() -> None:
 
 
 def _attach_plugin_cli_command(subparsers, cmd_info) -> None:
-    """Register one plugin-provided command from its descriptor: top-level, or under the built-in
-    named by ``cmd_info["parent"]``."""
-    if cmd_info.get("parent"):
-        from hermes_cli.plugins_manifest_cli_commands import builtin_verb_subparsers
-        subparsers = builtin_verb_subparsers(subparsers, cmd_info["parent"], _BUILTIN_SUBCOMMANDS)
-        if subparsers is None:
-            raise ValueError(f"CLI command parent {cmd_info['parent']!r} is not a built-in command with sub-verbs")
-    plugin_parser = subparsers.add_parser(
-        cmd_info["name"],
-        help=cmd_info["help"],
-        description=cmd_info.get("description", ""),
-        formatter_class=__import__("argparse").RawDescriptionHelpFormatter,
-    )
-    cmd_info["setup_fn"](plugin_parser)
-    if cmd_info.get("handler_fn") is not None:
-        plugin_parser.set_defaults(func=cmd_info["handler_fn"])
+    """Register one plugin-provided command (see ``main_plugin_cli.attach_plugin_cli_command``)."""
+    from hermes_cli.main_plugin_cli import attach_plugin_cli_command
+
+    attach_plugin_cli_command(subparsers, cmd_info, _BUILTIN_SUBCOMMANDS)
 
 
 def _register_plugin_cli_commands(subparsers) -> None:
@@ -3356,8 +3344,10 @@ def _register_plugin_cli_commands(subparsers) -> None:
     Full discovery is skipped when the invocation targets a known built-in or a declared command
     — eagerly importing every bundled plugin module costs 500-650ms.
     """
-    from hermes_cli.plugins_manifest_cli_commands import attach_declared_cli_command
-    if attach_declared_cli_command(subparsers, _BUILTIN_SUBCOMMANDS, _attach_plugin_cli_command):
+    from hermes_cli.main_plugin_cli import attach_declared_plugin_cli_command, declared_cli_command_argv
+
+    key = declared_cli_command_argv(subparsers, _BUILTIN_SUBCOMMANDS)
+    if key is not None and attach_declared_plugin_cli_command(subparsers, key, _BUILTIN_SUBCOMMANDS):
         return
     if not _plugin_cli_discovery_needed():
         return

@@ -37,7 +37,6 @@ from hermes_cli.config import load_config_readonly
 from hermes_cli.middleware import VALID_MIDDLEWARE
 from hermes_cli.plugin_capabilities import plugin_capability_granted
 from hermes_cli.relay_plugin_cutover import RELAY_PLUGINS_CONFIG_ENV, legacy_relay_plugin_keys
-from hermes_cli.plugins_manifest_cli_commands import cli_command_key  # fork: register_cli_command parent
 # Sibling modules' names are re-exported here (origin) so plugins and tests keep one import path.
 from hermes_cli.plugins_manifest import (
     _CONFIG_SCHEMA_TYPES, SUPPORTED_MANIFEST_VERSION, PluginManifest, _portable_skill_namespace,
@@ -62,6 +61,7 @@ from hermes_cli.plugins_dispatch import (
     RenderedPluginSystemPromptSection, _EventSubscription, format_system_prompt_sections,
     is_valid_system_prompt_section_id,
 )
+from hermes_cli.plugins_declared_cli import cli_command_key, discover_declared_cli_commands
 from hermes_cli.plugins_ledger import PluginLedgerMixin, PluginRegistration
 from hermes_cli.plugins_state import (
     PluginState, _locked_plugin_state, _nested_plugin_mapping, _nested_plugin_value,
@@ -637,20 +637,16 @@ class PluginContext:
         self, name: str, help: str, setup_fn: Callable, handler_fn: Callable | None = None,
         description: str = "", parent: str | None = None,
     ) -> PluginRegistration:
-        """Register a CLI subcommand (``hermes <name> ...``). *setup_fn* receives the argparse
-        subparser; *handler_fn* becomes ``set_defaults(func=...)``.
-
-        *parent* attaches it under a built-in command instead (``hermes <parent> <name> ...``).
-        Built-in commands skip plugin discovery, so a parented command is reachable only when
-        ``plugin.yaml`` also declares it (``cli_commands: [{name, parent}]``)."""
+        """Register a CLI subcommand (``hermes <name> ...``; with *parent*, ``hermes <parent> <name> ...``,
+        reachable only when ``plugin.yaml`` declares it, since built-ins skip plugin discovery).
+        *setup_fn* receives the argparse subparser; *handler_fn* becomes ``set_defaults(func=...)``."""
         entry = {
             "name": name, "help": help, "description": description, "setup_fn": setup_fn,
             "handler_fn": handler_fn, "plugin": self.manifest.name, "plugin_key": self.plugin_id,
             "parent": parent or None,
         }
-        key = cli_command_key(name, parent)
-        return self._register_entry("cli_command", key, self._manager._cli_commands, entry,
-                                    "Plugin %s registered CLI command: %s", key)
+        return self._register_entry("cli_command", cli_command_key(name, parent), self._manager._cli_commands,
+                                    entry, "Plugin %s registered CLI command: %s", cli_command_key(name, parent))
 
     @_serialized_replacement
     def register_command(

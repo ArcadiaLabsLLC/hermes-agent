@@ -579,32 +579,26 @@
         "hermes_cli/main.py": {
           "mode": "lines",
           "fragments": [
-            "def _builtin_verb_subparsers(subparsers, parent: str):\n    \"\"\"The sub-verb action of built-in command ``parent`` (``auth`` → its ``add``/``list``/...), or None.\"\"\"\n    parent_parser = subparsers.choices.get(parent) if parent in _BUILTIN_SUBCOMMANDS else None\n    actions = getattr(parent_parser, \"_actions\", ())\n    return next((a for a in actions if isinstance(a, argparse._SubParsersAction)), None)\n\n",
-            "    \"\"\"Register one plugin-provided command from its descriptor: top-level, or under the built-in\n    named by ``cmd_info[\"parent\"]``.\"\"\"\n    if cmd_info.get(\"parent\"):\n        subparsers = _builtin_verb_subparsers(subparsers, cmd_info[\"parent\"])\n        if subparsers is None:\n            raise ValueError(f\"CLI command parent {cmd_info['parent']!r} is not a built-in command with sub-verbs\")",
-            "def _declared_cli_command_argv(subparsers) -> str | None:\n    \"\"\"The ``cli_command_key`` argv could name as a manifest-declared plugin command, else None: an\n    unknown first token (``hermes <verb>``) or an unknown sub-verb of a built-in (``hermes auth\n    <verb>``). Known built-in verbs return None and pay nothing.\"\"\"\n    from hermes_cli._parser import command_argv\n\n    args = command_argv(sys.argv[1:])\n    if not args:\n        return None\n    if args[0] not in _BUILTIN_SUBCOMMANDS:\n        return args[0]\n    verbs = _builtin_verb_subparsers(subparsers, args[0])\n    if verbs is None or len(args) < 2 or args[1] in verbs.choices:\n        return None\n    return f\"{args[0]} {args[1]}\"\n\n\ndef _attach_declared_plugin_cli_command(subparsers, key: str) -> bool:\n    \"\"\"Attach the ``plugin.yaml``-declared command spelled ``key``, importing only its plugin.\n\n    Found by reading manifests, never by importing plugins; ``key`` comes from\n    :func:`_declared_cli_command_argv`, so it never shadows a built-in. False when nothing declares\n    ``key`` or it failed to attach.\n    \"\"\"\n    log = logging.getLogger(__name__)\n    try:\n        from hermes_cli.plugins import cli_command_key, discover_declared_cli_commands\n\n        commands = discover_declared_cli_commands()\n    except Exception as exc:\n        log.warning(\"Declared plugin CLI scan failed: %s\", exc)\n        return False\n    for cmd_info in commands:\n        if cli_command_key(cmd_info[\"name\"], cmd_info[\"parent\"]) != key:\n            continue\n        try:\n            _attach_plugin_cli_command(subparsers, cmd_info)\n        except Exception as exc:\n            log.warning(\"Plugin CLI command %r failed to attach: %s\", key, exc)\n            return False\n        return True\n    return False\n\n",
+            "    \"\"\"Register one plugin-provided command (see ``main_plugin_cli.attach_plugin_cli_command``).\"\"\"\n    from hermes_cli.main_plugin_cli import attach_plugin_cli_command\n\n    attach_plugin_cli_command(subparsers, cmd_info, _BUILTIN_SUBCOMMANDS)",
             "    \"\"\"Register plugin-provided commands (each plugin builds its own argparse tree).",
             "    A manifest-declared command named by argv attaches first and imports only its own plugin.\n    Full discovery is skipped when the invocation targets a known built-in or a declared command\n    — eagerly importing every bundled plugin module costs 500-650ms.",
-            "    key = _declared_cli_command_argv(subparsers)\n    if key is not None and _attach_declared_plugin_cli_command(subparsers, key):\n        return",
+            "    from hermes_cli.main_plugin_cli import attach_declared_plugin_cli_command, declared_cli_command_argv\n\n    key = declared_cli_command_argv(subparsers, _BUILTIN_SUBCOMMANDS)\n    if key is not None and attach_declared_plugin_cli_command(subparsers, key, _BUILTIN_SUBCOMMANDS):\n        return",
             "        from hermes_cli.plugins import cli_command_key, discover_plugins, get_plugin_manager",
             "            if cli_command_key(cmd_info[\"name\"], cmd_info.get(\"parent\")) not in seen_plugin_commands:",
             "    # Last, so a plugin command can attach under any built-in (``parent=``).\n    _register_plugin_cli_commands(subparsers)"
           ],
-          "reason": "All current PR added blocks; independent fork additions preserved. Context and removed lines require manual review."
+          "reason": "All current PR added blocks: the attach delegate and the argv-first declared pass call hermes_cli/main_plugin_cli.py, the PR's own module, adopted 2026-10-21 (owner ruling). Independent fork additions preserved; context and removed lines require manual review."
         },
         "hermes_cli/plugins.py": {
           "mode": "lines",
           "fragments": [
+            "from hermes_cli.plugins_declared_cli import cli_command_key, discover_declared_cli_commands",
             "        description: str = \"\", parent: str | None = None,",
-            "        subparser; *handler_fn* becomes ``set_defaults(func=...)``.\n\n        *parent* attaches it under a built-in command instead (``hermes <parent> <name> ...``).\n        Built-in commands skip plugin discovery, so a parented command is reachable only when\n        ``plugin.yaml`` also declares it (``cli_commands: [{name, parent}]``).\"\"\"",
+            "        \"\"\"Register a CLI subcommand (``hermes <name> ...``; with *parent*, ``hermes <parent> <name> ...``,\n        reachable only when ``plugin.yaml`` declares it, since built-ins skip plugin discovery).\n        *setup_fn* receives the argparse subparser; *handler_fn* becomes ``set_defaults(func=...)``.\"\"\"",
             "            \"parent\": parent or None,",
-            "        key = cli_command_key(name, parent)\n        return self._register_entry(\"cli_command\", key, self._manager._cli_commands, entry,\n                                    \"Plugin %s registered CLI command: %s\", key)",
-            "def cli_command_key(name: str, parent: str | None = None) -> str:\n    \"\"\"``PluginManager._cli_commands`` key: the argv spelling, ``\"<parent> <name>\"`` or ``\"<name>\"``.\"\"\"\n    return f\"{parent} {name}\" if parent else name\n\n",
-            "    manager = get_plugin_manager()",
-            "        manager._load_plugin(manifest)",
-            "\n\ndef discover_declared_cli_commands() -> List[Dict[str, Any]]:\n    \"\"\"CLI commands declared in ``plugin.yaml`` ``cli_commands:``, found WITHOUT importing any plugin.\n\n    One ``register_cli_command``-shaped descriptor per row, for every directory manifest discovery\n    would load (same precedence and enable gate; ``HERMES_SAFE_MODE`` yields nothing). Each\n    ``setup_fn`` materialises only its own plugin, so running a declared command costs one plugin\n    import instead of :func:`discover_plugins`. Entry-point plugins have no manifest to read and\n    keep the discovery path.\n    \"\"\"\n    if _env_enabled(\"HERMES_SAFE_MODE\"):\n        return []\n    winners = {manifest_key(m): m for m in collect_directory_manifests()}",
-            "    commands: List[Dict[str, Any]] = []\n    for plugin_key, manifest in winners.items():\n        if gate_manifest(manifest, disabled, enabled).action not in (\"load\", \"load_now\"):\n            continue\n        for row in manifest.cli_commands:\n            key = cli_command_key(row[\"name\"], row[\"parent\"])\n            commands.append({\n                **row, \"parent\": row[\"parent\"] or None, \"help\": row[\"help\"] or manifest.description or \"\",\n                \"handler_fn\": None, \"plugin\": manifest.name, \"plugin_key\": plugin_key,\n                \"setup_fn\": lambda parser, _m=manifest, _k=key: _materialize_declared_cli_command(_m, _k, parser),\n            })\n    return commands\n"
+            "        return self._register_entry(\"cli_command\", cli_command_key(name, parent), self._manager._cli_commands,\n                                    entry, \"Plugin %s registered CLI command: %s\", cli_command_key(name, parent))"
           ],
-          "reason": "Reviewed parented CLI descriptors and registration; fork readonly config, transient unload and extracted parser independently retained."
+          "reason": "Reviewed parented CLI descriptors, registration and the plugins_declared_cli re-export; the PR's health FILE_LINES marker is not carried (the fork's ceiling rules differ); fork readonly config and transient unload live in plugins_declared_cli.py."
         },
         "hermes_cli/plugins_manifest.py": {
           "mode": "lines",
@@ -614,6 +608,24 @@
             "    \"\"\"``{name, help, description, parent}`` from a cli_commands item; None when a name is invalid.\n\n    ``parent`` names a built-in command the verb attaches under (``hermes <parent> <name>``); empty\n    for a top-level ``hermes <name>``.\n    \"\"\"\n    if not isinstance(item, Mapping):\n        return None\n    name, parent = item.get(\"name\"), item.get(\"parent\") or \"\"\n    if not all(isinstance(v, str) and _CLI_COMMAND_NAME_RE.fullmatch(v) for v in (name, parent or \"x\")):\n        return None\n    return {\"name\": name, \"help\": str(item.get(\"help\") or \"\"),\n            \"description\": str(item.get(\"description\") or \"\"), \"parent\": parent}\n\n"
           ],
           "reason": "Reviewed name/parent validation and returned descriptor moved into fork-owned cli_command_entry; facade metadata/field wiring independently retained."
+        },
+        "hermes_cli/main_plugin_cli.py": {
+          "mode": "symbols",
+          "symbols": [
+            "builtin_verb_subparsers",
+            "attach_plugin_cli_command",
+            "declared_cli_command_argv",
+            "attach_declared_plugin_cli_command"
+          ]
+        },
+        "hermes_cli/plugins_declared_cli.py": {
+          "mode": "lines",
+          "fragments": [
+            "def cli_command_key(name: str, parent: str | None = None) -> str:\n    \"\"\"``PluginManager._cli_commands`` key: the argv spelling, ``\"<parent> <name>\"`` or ``\"<name>\"``.\"\"\"\n    return f\"{parent} {name}\" if parent else name",
+            "        manager._load_plugin(manifest)",
+            "def discover_declared_cli_commands() -> list[dict[str, Any]]:\n    \"\"\"CLI commands declared in ``plugin.yaml`` ``cli_commands:``, found WITHOUT importing any plugin.\n\n    One ``register_cli_command``-shaped descriptor per row, for every directory manifest discovery\n    would load (same precedence and enable gate; ``HERMES_SAFE_MODE`` yields nothing). Each\n    ``setup_fn`` materialises only its own plugin, so running a declared command costs one plugin\n    import instead of ``discover_plugins``. Entry-point plugins have no manifest to read and\n    keep the discovery path."
+          ],
+          "reason": "PR-added module adopted by the fork 2026-10-21 (owner ruling): key spelling, one-plugin materialisation and the declared scan's contract. Fork-only: the transient load/unload, the fingerprint cache (plugins_declared_cli_cache.py) and the single readonly config read; descriptor rows moved into _declared_descriptors."
         }
       },
       "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
