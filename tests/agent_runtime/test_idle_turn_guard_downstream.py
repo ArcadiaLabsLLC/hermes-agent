@@ -8,7 +8,7 @@ three warm turns, then an idle pause past every TTL memo the turn window reads a
 pool's ``keepalive_expiry``, then one turn. The after-idle turn must
 
 * rebuild no memo between its anchor and ``request_sent`` -- no skill-catalog walk on any thread
-  (``skills_tool._find_all_skills``), no runtime re-resolve (``resolve_runtime_provider``), no
+  (``skills_tool.find_all_skills``), no runtime re-resolve (``resolve_runtime_provider``), no
   ``skill-catalog-refresh`` thread started, no idle keep-warm ``HEAD``;
 * ride a pooled connection (``send_window_receipt conn=reused``) although its actor's pre-connect
   record is dropped (h-idle-socket: live, the chat typed in was never pre-connected), and every
@@ -136,7 +136,7 @@ def test_the_first_turn_after_an_idle_pause_rebuilds_no_memo_and_rides_a_warm_so
     monkeypatch.setattr(idle_turn_keeper, "KEEPER_MAX_TICKS", 100)
     monkeypatch.setattr(openai_responses, "_handler_for", guard._keepalive_handler_for)
     monkeypatch.setattr(provider_preconnect, "_is_loopback", lambda host: False)
-    real_walk = skills_tool._find_all_skills
+    real_walk = skills_tool.find_all_skills
     real_head = provider_preconnect.refresh_idle_connection
 
     def head(agent):
@@ -165,7 +165,7 @@ def test_the_first_turn_after_an_idle_pause_rebuilds_no_memo_and_rides_a_warm_so
             windows.note("skill catalog walk")
             return real_walk(*args, **kwargs)
 
-        monkeypatch.setattr(skills_tool, "_find_all_skills", walk)
+        monkeypatch.setattr(skills_tool, "find_all_skills", walk)
         sent: dict[int, int] = {}
         try:
             assert serve.run("open-1", [

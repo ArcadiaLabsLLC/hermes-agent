@@ -483,7 +483,7 @@ def _schedule_skill_catalog_refresh(walker, stale_rows: list) -> None:
 
 def _installed_skill_catalog() -> list:
     """Memo keyed on BOTH the TTL and the walker's identity: a monkeypatched
-    or hot-reloaded `skills_tool._find_all_skills` invalidates the memo
+    or hot-reloaded `skills_tool.find_all_skills` invalidates the memo
     immediately instead of being masked for a TTL window. Past the TTL it
     answers stale and refreshes off-thread (see the block comment above)."""
 

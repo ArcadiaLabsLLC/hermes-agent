@@ -76,7 +76,7 @@ def test_a_first_turn_with_a_concurrent_build_waits_on_no_catalog_walk(
             release.wait(3.0)
         return [{"name": "alpha", "description": "", "category": "skills"}]
 
-    monkeypatch.setattr(skills_tool, "_find_all_skills", gated_walk)
+    monkeypatch.setattr(skills_tool, "find_all_skills", gated_walk)
     skills_resolver._installed_skill_catalog()  # warm, as the serve's boot leaves it
     skills_resolver._skill_catalog_memo["at"] = time.monotonic() - 60.0  # TTL lapsed
 

@@ -2934,7 +2934,7 @@ def test_queue_skill_rejects_missing_skill_without_pending_state(
 
     from tools import skills_tool
 
-    monkeypatch.setattr(skills_tool, "_find_all_skills", list)
+    monkeypatch.setattr(skills_tool, "find_all_skills", list)
 
     code = chat_coordinator._cmd_mission_chat_queue_skill(
         SimpleNamespace(
