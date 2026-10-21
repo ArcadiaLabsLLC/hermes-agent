@@ -697,11 +697,11 @@ registry.register(
     check_fn=check_skills_requirements, emoji="📚")
 
 
-def _runtime_skill_dirs() -> List[Path]:
+def _runtime_skill_dirs() -> list[Path]:
     """Canonical registry with the patchable active profile root first."""
 
     dirs = [_skills_dir(), *get_all_skills_dirs()[1:]]
-    result: List[Path] = []
+    result: list[Path] = []
     seen: set[Path] = set()
     for path in dirs:
         key = path.expanduser().absolute()

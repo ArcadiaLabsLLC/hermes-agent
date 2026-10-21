@@ -31,7 +31,7 @@ from agent_runtime.transport_phase_trace import install_transport_phase_trace
 
 
 class _Ok(BaseHTTPRequestHandler):
-    def do_POST(self) -> None:  # noqa: N802 - stdlib name
+    def do_POST(self) -> None:  # stdlib name
         self.rfile.read(int(self.headers.get("Content-Length") or 0))
         self.send_response(200)
         self.send_header("Content-Length", "2")

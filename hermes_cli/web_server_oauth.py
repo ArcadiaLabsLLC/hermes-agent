@@ -147,7 +147,7 @@ _OAUTH_STATUS_FNS = {
     "anthropic": _anthropic_oauth_status,
     "claude-code": _claude_code_only_status,
 }
-_OAUTH_PROVIDER_CATALOG: tuple[Dict[str, Any], ...] = tuple(
+_OAUTH_PROVIDER_CATALOG: tuple[dict[str, Any], ...] = tuple(
     {**row, "status_fn": _OAUTH_STATUS_FNS.get(row["id"])} for row in OAUTH_FLOW_OVERRIDES
 )
 _oauth_sessions: dict[str, dict[str, Any]] = {}

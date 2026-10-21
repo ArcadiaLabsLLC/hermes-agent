@@ -54,7 +54,7 @@ def test_a_serve_process_never_logs_an_httpx_request_url(tmp_path: Path) -> None
     repo_root = Path(__file__).resolve().parents[2]
     done = subprocess.run(
         [sys.executable, "-c", _CHILD], cwd=repo_root, env=env, capture_output=True,
-        text=True, encoding="utf-8", timeout=180,
+        text=True, encoding="utf-8", timeout=180, check=False,
     )
     assert done.returncode == 0, done.stderr[-2000:]
 

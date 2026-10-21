@@ -56,7 +56,7 @@ def _manifest(home: Path) -> dict:
 
 def test_the_developer_edition_reads_the_store_the_bundled_edition_moved_its_login_into(home: Path):
     store = FakeHostSecureStore()  # one OS store, as DPAPI is one per user
-    factory = lambda _blob_dir: store  # noqa: E731
+    factory = lambda _blob_dir: store
     (home / "auth.json").write_text(json.dumps(SECRET), encoding="utf-8")
     _edition(home, bundled=False)
     assert desktop_binding.bind_desktop_host_store(store_factory=factory) is None  # nothing set it yet
