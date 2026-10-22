@@ -8,10 +8,10 @@ source (``tests/<pkg>/test_<mod>.py`` → ``<pkg>/<mod>.py``) changed, it import
 a changed module, a ``conftest.py`` above it changed, or a path of the session
 chain every process loads changed (``scripts/run_tests_bundled_chain.py``,
 fast-gate §5: the root ``conftest.py``, the plugin chain, pytest's config) — by
-the chain's contract (``tests/tooling/test_session_chain_contract*.py``) plus a
-sample, at an ordinary landing and at a release merge alike (owner rulings
-2026-10-16 and 2026-10-17, ADR 0016: no whole-tree run, ever). The change is
-``git diff --name-only <--since>...HEAD`` (default ``origin/main``) plus
+the chain's contract (``tests/tooling/test_session_chain_contract*.py``) and every
+fork-owned ``pytest.mark.gate`` file plus a sample, at an ordinary landing and
+at a release merge alike (owner rulings 2026-10-16 and 2026-10-17, ADR 0016:
+no whole-tree run, ever). The change is ``git diff --name-only <--since>...HEAD`` (default ``origin/main``) plus
 working-tree edits; after a release merge it is ``--since-merge <merge>``
 (``merge_change``: what the merge itself produced, plus what came after it,
 less each conftest whose standing fork hunk the merge left unchanged). ``full`` is
@@ -38,8 +38,10 @@ from pathlib import Path
 from typing import Iterable, List, Optional, Sequence, Tuple
 
 try:  # imported as ``scripts.run_tests_bundled_scope`` (the tests)
+    from scripts import gate_mark
     from scripts import run_tests_bundled_chain as chain
 except ImportError:  # loaded by the runner: ``scripts/`` is sys.path[0]
+    import gate_mark
     import run_tests_bundled_chain as chain
 
 
@@ -344,9 +346,9 @@ def select_scope(
     2026-10-17, ADR 0016 — at a landing and a release merge alike) reaches no file by itself, not even through a chain conftest's directory
     rule. The fork-owned files then run only as the inherited ones do — touched,
     convention source, a conftest above, an importer of a changed module — bar the
-    chain's contract, which always runs; ``chain`` takes the smallest file (ties by
-    path) of every test folder the selection would otherwise leave empty, fork and
-    inherited alike."""
+    chain's contract and every fork-owned gate (``_kept_while_sampling``), which
+    always run; ``chain`` takes the smallest file (ties by path) of every test folder
+    the selection would otherwise leave empty, fork and inherited alike."""
 
     named_real = {Path(p).resolve() for p in named}
     changed_modules = {m for m in (module_of(rel) for rel in changed) if m}
@@ -365,7 +367,7 @@ def select_scope(
             sel.skipped_red.append(path)
         elif rel in idle_box:
             (sel.named if real in named_real else sel.idle_box).append(path)
-        elif rel not in inherited and (not sampling or fnmatch.fnmatchcase(rel, CHAIN_CONTRACT_GLOB)):
+        elif rel not in inherited and (not sampling or _kept_while_sampling(rel, real)):
             sel.fork_only.append(path)
         elif real in named_real:
             sel.named.append(path)
@@ -390,6 +392,16 @@ def select_scope(
 
 #: the chain's contract: what a change to a file every test loads must keep (owner ruling 2026-10-16)
 CHAIN_CONTRACT_GLOB = "tests/tooling/test_session_chain_contract*.py"
+
+
+def _kept_while_sampling(rel: str, real: Path) -> bool:
+    """A fork file a chain sample still runs whole: the chain's contract, and every
+    ``pytest.mark.gate`` file (``scripts/gate_mark.py``). A gate proves a property of
+    the tree, not of the files a change reaches, so import reach never selects it
+    (FH-SCOPE-FORK-DROPS-SOURCE-GATES: land/w1021j's chain-only scope dropped all of
+    them and missed three gate reds)."""
+
+    return fnmatch.fnmatchcase(rel, CHAIN_CONTRACT_GLOB) or gate_mark.carries_gate_mark(real)
 
 
 def _sample_folders(sel: ScopeSelection, repo_root: Path, size_of) -> None:
@@ -462,9 +474,11 @@ def select_for_run(args, files: list[Path], repo_root: Path, roots: list[Path], 
             flush=True,
         )
         if chain.chain_changed(changed):  # the contract and a sample, landing and release merge alike (ADR 0016)
-            contract = [p for p in sel.selected if fnmatch.fnmatchcase(_rel_posix(p, repo_root), CHAIN_CONTRACT_GLOB)]
-            print(f"  chain: contract + sample — {len(contract)} contract file(s) + {len(sel.chain)} sample(s), one per "
-                  f"folder nothing else reached; {', '.join(chain.chain_changed(changed))}", flush=True)
+            contract = [p for p in sel.fork_only if fnmatch.fnmatchcase(_rel_posix(p, repo_root), CHAIN_CONTRACT_GLOB)]
+            gates = len(sel.fork_only) - len(contract)
+            print(f"  chain: contract + gates + sample — {len(contract)} contract file(s) + {gates} gate file(s) + "
+                  f"{len(sel.chain)} sample(s), one per folder nothing else reached; "
+                  f"{', '.join(chain.chain_changed(changed))}", flush=True)
     for path in sel.skipped_red:  # a run says what it did not run, and why
         rel = _rel_posix(path, repo_root)
         print(f"  skipped (upstream skip list; name the file to run it): {rel}  # {skip_rows[rel].why}")

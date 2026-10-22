@@ -9,9 +9,10 @@ a row (a new gate without one reds here). Every test file the page names carries
 mark, not a list of directories: a gate written in ``tests/agent_runtime/`` joins it
 the moment it is marked.
 
-The mark is the module-level ``pytestmark`` of a fork file, or a file-level row in
-``tests/_downstream/id_markers/fork_marks.py`` for an upstream file (which takes no
-edit), read here through ``ids_marked``.
+The mark is the module-level ``pytestmark`` of a fork file, read by
+``scripts/gate_mark.py`` (the one reader; the bundled scope asks it too), or a
+file-level row in ``tests/_downstream/id_markers/fork_marks.py`` for an upstream
+file (which takes no edit), read here through ``ids_marked``.
 
 Killing mutations (2026-10-18): delete the ``test_no_ladder_routing.py`` row ->
 ``test_every_enumerated_gate_has_a_row`` red; rename a named path to
@@ -31,9 +32,8 @@ from pathlib import Path
 
 import pytest
 
-from scripts import source_cache
+from scripts.gate_mark import GATE_MARK, carries_gate_mark, module_marks as _module_marks
 from tests._downstream.id_markers import ids_marked
-from tests._downstream.id_markers.reasons import GATE_MARK
 
 pytestmark = pytest.mark.gate
 
@@ -47,17 +47,6 @@ def _named() -> set[str]:
     return {p for p in _NAMED.findall(PAGE.read_text(encoding="utf-8")) if "*" not in p}
 
 
-def _module_marks(tree: ast.Module) -> set[str]:
-    """Mark names in the module-level ``pytestmark`` (``pytest.mark.<name>``, alone or listed)."""
-    names: set[str] = set()
-    for node in tree.body:
-        if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "pytestmark" for t in node.targets):
-            for sub in ast.walk(node.value):
-                if isinstance(sub, ast.Attribute) and isinstance(sub.value, ast.Attribute) and sub.value.attr == "mark":
-                    names.add(sub.attr)
-    return names
-
-
 def _marked(root: Path = REPO) -> set[str]:
     """Every tracked test file carrying the ``gate`` mark, by its ``pytestmark`` or by an id row."""
     out = subprocess.run(["git", "ls-files", "-z", "--", "tests"], cwd=root, capture_output=True, check=True)
@@ -66,10 +55,7 @@ def _marked(root: Path = REPO) -> set[str]:
         if not (rel.endswith(".py") and Path(rel).name.startswith("test_")):
             continue
         path = root / rel
-        if not path.is_file() or f"mark.{GATE_MARK}" not in source_cache.source(path):
-            continue
-        tree = source_cache.tree(path)
-        if tree is not None and GATE_MARK in _module_marks(tree):
+        if path.is_file() and carries_gate_mark(path):
             marked.add(rel)
     return marked
 
