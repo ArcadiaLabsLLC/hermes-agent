@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-10-22",
   "base": "d923a5eb48",
-  "files": 234,
-  "deleted_lines": 1057,
+  "files": 235,
+  "deleted_lines": 1058,
   "heavy": 1,
   "reasons": [
     {
@@ -1082,6 +1082,21 @@
         "heavy": 1
       },
       "reason": "picker auth-store memo seam (RT-PICKER-AUTH-DIRECT-READS): +3 additive lines in hermes_cli/model_switch_providers.py, files 233→234; retires with up/picker-pool-snapshot",
+      "owner_ruling": "2026-10-21, owner: fork-first — upstream fixes ship on the fork with a prepared up/ branch held idle (RULED 2026-10-21 rows, 5e3946fc33)"
+    },
+    {
+      "change": "land/w1022d: lane guard (tools/self_repo_guard.py)",
+      "before": {
+        "files": 234,
+        "deleted_lines": 1057,
+        "heavy": 1
+      },
+      "after": {
+        "files": 235,
+        "deleted_lines": 1058,
+        "heavy": 1
+      },
+      "reason": "self-repo guard Windows path seam (RT-SELF-REPO-GUARD-WINDOWS-PATHS): +1/-1 in tools/self_repo_guard.py::_shell_words_at via tools/path_identity.py::shell_path_operand; retires with up/self-repo-guard-windows-paths",
       "owner_ruling": "2026-10-21, owner: fork-first — upstream fixes ship on the fork with a prepared up/ branch held idle (RULED 2026-10-21 rows, 5e3946fc33)"
     }
   ]
