@@ -97,6 +97,11 @@ FIRST_TURN_MODULES = (
     # ... and upstream's credential service-tier negotiation every request's fast-mode overrides
     # import (`agent/fast_mode.py`; the idle-box guard saw it 10/10, 2026-10-18).
     "agent.codex_service_tiers",
+    # Upstream v0.22.4's turn path: image replay, the session contract / cron reads, tool-output
+    # limits and hook-output spill, and the fork's steer buffer now reached through upstream's
+    # ticketed steer parts (the counts guard saw all six on turn 0 at the release merge, 2026-10-22).
+    "agent.image_replay", "agent.steering", "gateway.session_contract", "gateway.session_cron",
+    "tools.hook_output_spill", "tools.tool_output_limits",
 )
 
 
