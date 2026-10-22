@@ -51,6 +51,9 @@ _MAX_RECURSION = 4
 # git global options that consume the next argument (-C/--work-tree/-c are acted on).
 _GIT_GLOBAL_OPTIONS_WITH_ARG = frozenset(
     {"-C", "-c", "--work-tree", "--git-dir", "--namespace", "--exec-path"})
+_DRIVE_PATH_RE = re.compile(r"[A-Za-z]:[\\/]")
+_MSYS_DRIVE_PATH_RE = re.compile(r"/([A-Za-z])/(.*)", re.DOTALL)
+_PATH_OPTION_HEAD_RE = re.compile(r"-C|--[A-Za-z][A-Za-z-]*=")
 
 
 @dataclass
@@ -94,6 +97,27 @@ def _executable_name(value: str) -> str:
     return Path(value.replace("\\", "/")).name.removesuffix(".exe").lower()
 
 
+def _shell_path_operand(raw_word: str) -> str | None:
+    """The drive path a raw shell word hands its command, with forward slashes, else None.
+    Word deobfuscation drops backslashes, so ``cd "C:\\a\\b"`` would read as a missing ``C:ab``
+    and the command would be judged against the session cwd. Unquote like bash (backslashes
+    survive inside quotes), then answer for a drive-absolute path or, on Windows, its Git-Bash
+    spelling ``/c/...`` (optionally behind ``-C`` / ``--opt=``). Expansions answer None."""
+    try:
+        tokens = shlex.split(raw_word, posix=True)
+    except ValueError:
+        return None
+    if len(tokens) != 1 or "$" in tokens[0] or "`" in tokens[0]:
+        return None
+    head_match = _PATH_OPTION_HEAD_RE.match(tokens[0])
+    head = head_match.group(0) if head_match else ""
+    path = tokens[0][len(head):]
+    if _DRIVE_PATH_RE.match(path):
+        return head + path.replace("\\", "/")
+    msys = _MSYS_DRIVE_PATH_RE.fullmatch(path) if os.name == "nt" and "\\" not in path else None
+    return f"{head}{msys.group(1).upper()}:/{msys.group(2)}" if msys else None
+
+
 def _shell_words_at(command: str, start: int) -> list[str]:
     """Deobfuscated words of the simple command at ``start`` (stops at a newline, a redirection
     or a trailing ``# comment``; max 64). The fd prefix of ``2>/dev/null`` / ``2>&1`` belongs to
@@ -106,7 +130,7 @@ def _shell_words_at(command: str, start: int) -> list[str]:
                 _is_shell_comment_start(command, word_start)) or (
                 raw_word.isdigit() and command[word_end : word_end + 1] in ("<", ">")):
             break
-        words.append(_deobfuscate_shell_word_for_detection(raw_word))
+        words.append(_shell_path_operand(raw_word) or _deobfuscate_shell_word_for_detection(raw_word))
         cursor = word_end
     return words
 

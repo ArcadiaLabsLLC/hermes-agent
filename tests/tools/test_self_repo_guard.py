@@ -1,5 +1,6 @@
 """Tests for tools/self_repo_guard.py — the running-source-checkout git guard."""
 
+import os
 import subprocess
 
 import pytest
@@ -415,3 +416,49 @@ class TestBlockMessageGuidance:
         hit, msg = _detect("git rebase origin/main", repo, repo)
         assert hit is True
         assert str(home / "scratch") in msg
+
+
+@pytest.mark.skipif(os.name != "nt", reason="drive-letter and Git-Bash spellings are Windows shapes")
+class TestWindowsPathSpellings:
+    """A ``cd`` / ``-C`` target spelled with backslashes or as Git-Bash ``/x/...`` must be read
+    the way the shell hands it to git, not judged against the session cwd."""
+
+    @staticmethod
+    def _msys(path):
+        drive, rest = path.as_posix().split(":", 1)
+        return f"/{drive.lower()}{rest}"
+
+    @pytest.fixture
+    def other(self, tmp_path):
+        path = tmp_path / "Other Repo"
+        path.mkdir()
+        return path.resolve()
+
+    @pytest.mark.parametrize("shape", [
+        'cd "{back}" && git merge --ff-only origin/main',
+        'cd "{back}"; git merge --ff-only origin/main',
+        "cd '{back}' && git rebase origin/main",
+        'git -C "{back}" merge --ff-only origin/main',
+        'cd "{msys}" && git rebase origin/main',
+        'cd "{fwd}" && git merge --ff-only origin/main',
+    ])
+    def test_git_in_another_repo_passes(self, repo, other, shape):
+        command = shape.format(back=str(other), fwd=other.as_posix(), msys=self._msys(other))
+        hit, _ = _detect(command, repo, repo)
+        assert hit is False
+
+    @pytest.mark.parametrize("shape", [
+        'cd "{back}" && git merge origin/main',
+        'git -C "{back}" merge origin/main',
+        'git --work-tree="{back}" merge origin/main',
+        "cd {msys} && git rebase origin/main",
+        'cd "{fwd}" && git merge origin/main',
+    ])
+    def test_git_aimed_at_the_checkout_is_blocked_in_every_spelling(self, repo, other, shape):
+        command = shape.format(back=str(repo), fwd=repo.as_posix(), msys=self._msys(repo))
+        hit, _ = _detect(command, other, repo)
+        assert hit is True
+
+    def test_backslash_git_executable_is_still_git(self, repo):
+        hit, _ = _detect(r'"C:\Program Files\Git\cmd\git.exe" merge origin/main', repo, repo)
+        assert hit is True
