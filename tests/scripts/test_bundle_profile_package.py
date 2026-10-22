@@ -630,9 +630,12 @@ def _build_stubs(monkeypatch, tmp_path: Path, packs: dict):
     monkeypatch.setattr(pkg, "write_pack", write_pack)
     monkeypatch.setattr(pkg, "verify_bundle", lambda *a, **k: [])
     monkeypatch.setattr(pkg, "verify_pack", lambda *a, **k: [])
+    from agent_runtime.bundle_profiles.manifest import PoolScope
+
     args = SimpleNamespace(reuse_stage=True, target="win32-x64", python_version="3.14.7", out=tmp_path / "core",
-                           bake_with=None, uv="uv", offline=False)
-    manifest = SimpleNamespace(profile="p", packaging_extras=(), packaging_packs=packs, packaging_plugins=())
+                           bake_with=None, uv="uv", offline=False, seed_sites=[tmp_path / "seed"])
+    manifest = SimpleNamespace(profile="p", packaging_extras=(), packaging_packs=packs, packaging_plugins=(),
+                               packaging_pool=PoolScope.EXPORT)
     (tmp_path / "core.pool").mkdir()
     return pkg, args, manifest, calls, written
 
@@ -692,3 +695,60 @@ def test_a_stalled_planning_child_is_stopped_and_the_build_says_retryable(monkey
                      "--no-serve-probe"]) == pkg.EXIT_RETRYABLE
     out = capsys.readouterr().out
     assert "RETRYABLE: closure planning child no progress" in out and "phase total:" in out
+
+
+_EXPORT = ("a-dist==1 \\\n    --hash=sha256:aa\n"
+           "b-dist==1 \\\n    --hash=sha256:bb\n"
+           "c-dist==1 \\\n    --hash=sha256:cc\n")
+
+
+def _pool_stubs(monkeypatch, tmp_path: Path, scope, seed_answer: dict, pool_answer=None):
+    """``_build`` from phase pool on: the export and the install stubbed, the seed child answering
+    ``seed_answer`` and the pool child ``pool_answer`` (default: the ``_build_stubs`` answer)."""
+    from agent_runtime.bundle_profiles.manifest import PoolScope
+
+    pkg, args, manifest, calls, _written = _build_stubs(monkeypatch, tmp_path, {"pk": ("x",)})
+    stubbed = pkg.distribution_plans
+    installed: list = []
+
+    def plans(profile, jobs, target, python_version, **kw):
+        if jobs[0][0] == args.seed_sites:
+            calls.append(["seed", *[sorted(selections) for _sites, selections in jobs]])
+            return [{key: (set(seed_answer[key]), []) for key in jobs[0][1]}]
+        if pool_answer is not None:
+            calls.append([sorted(selections) for _sites, selections in jobs])
+            return [{key: (set(pool_answer[key]), []) for key in selections} for _sites, selections in jobs]
+        return stubbed(profile, jobs, target, python_version, **kw)
+
+    monkeypatch.setattr(pkg, "distribution_plans", plans)
+    monkeypatch.setattr(pkg, "export_requirements", lambda extras, uv="uv": _EXPORT)
+    monkeypatch.setattr(pkg, "install_pool", lambda text, stage, *a: installed.append(text))
+    args.reuse_stage = False
+    manifest.packaging_pool = getattr(PoolScope, scope)
+    return pkg, args, manifest, calls, installed
+
+
+def test_a_closure_pool_installs_only_the_seed_plan_s_union(monkeypatch, capsys, tmp_path: Path):
+    """Plan bundled-phone-pool-2026-10-22 S3: under ``PoolScope.CLOSURE`` one seed planning child runs
+    before phase pool, and the pool installs the union of every selection's ``needed`` (core + each
+    engine pack), nothing else from the export. Under ``EXPORT`` the pool is the whole export and no
+    seed child starts.
+
+    Killing mutation: ignore ``manifest.packaging_pool`` and always select -> the EXPORT case reds
+    (the seed child ran)."""
+    pkg, args, manifest, calls, installed = _pool_stubs(
+        monkeypatch, tmp_path, "CLOSURE", {"": {"a-dist"}, "pk": {"a-dist", "b-dist"}})
+    assert pkg._build(args, manifest, {}, tmp_path / "core.pool", None) == 0
+    assert calls[0] == ["seed", ["", "pk"]]
+    assert "a-dist==1" in installed[0] and "b-dist==1" in installed[0] and "c-dist" not in installed[0]
+    out = capsys.readouterr().out
+    assert [line.split(":")[0] for line in out.splitlines() if line.startswith("phase ")][:3] == [
+        "phase seed plan", "phase pool", "phase plan"]
+    assert "pool scope: closure — 2 of 3 export blocks (seed: " in out
+
+    (tmp_path / "export").mkdir()
+    pkg, args, manifest, calls, installed = _pool_stubs(monkeypatch, tmp_path / "export", "EXPORT",
+                                                        {"": {"a-dist"}, "pk": {"a-dist"}})
+    assert pkg._build(args, manifest, {}, tmp_path / "export" / "core.pool", None) == 0
+    assert installed == [_EXPORT] and calls == [[["", "pk"]], [[""], ["", "pk"]]]
+    assert "pool scope" not in capsys.readouterr().out
