@@ -535,7 +535,6 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
     from . import paths
     from .chat_lane_bundle import chat_lane_bundle
     from .config import load_agent_runtime_config
-    from .mcp_admission import LANE_MISSION_CHAT
     from .mission_chat_turn_context import (
         mission_chat_runtime_signature_components,
         mission_chat_runtime_signature_digests,
@@ -543,12 +542,11 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
     )
     from .models import apply_instance_model_overrides
     from .persona_chat_durability import default_persona_session_db
-    from .persona_runtime import PERSONA_CHAT_SCRATCH_SOURCE
+    from .persona_runtime import PERSONA_CHAT_SCRATCH_SOURCE, mission_chat_envelope_scope
     from .persona_chat_continuity import persona_chat_runtime_registry
     from .profile_context import resolve_persona_profile
     from .profile_runner import AgentRunRequest, ProfileAgentRunner
     from .provider_health import assert_provider_health_for_persona
-    from .terminal_envelope import scope_for_persona as terminal_envelope_scope_for_persona
 
     if instance is None:
         instance = _instance_for_root(root)
@@ -623,13 +621,7 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
     native_revision = _persona_chat_native_revision(session_db, root)
 
     lane_bundle = chat_lane_bundle(persona, session_id=root)
-    envelope_scope = terminal_envelope_scope_for_persona(
-        persona,
-        lane=LANE_MISSION_CHAT,
-        session_id=root,
-        runtime_root=paths.store_root(),
-        permission_mode=lane_bundle.permission_mode,
-    )
+    envelope_scope = mission_chat_envelope_scope(persona, root, lane_bundle)
 
     request = AgentRunRequest(
         prewarm_only=True,

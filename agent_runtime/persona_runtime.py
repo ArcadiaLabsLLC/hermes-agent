@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import paths
-from .chat_lane_bundle import chat_lane_bundle
+from .chat_lane_bundle import ChatLaneBundle, chat_lane_bundle
 from .cache_routing import persona_cache_scope_id
 from .chat_lane_skill_index import chat_lane_index_skills
 from .mcp_admission import LANE_MISSION_CHAT
@@ -21,7 +21,7 @@ from .mission_chat_prompts import (
 from .mission_chat_workdir import MissionChatWorkdir, mission_chat_workdir_for_persona
 from .profile_context import resolve_persona_profile
 from .provider_health import assert_provider_health_for_persona
-from .terminal_envelope import scope_for_persona as terminal_envelope_scope_for_persona
+from .terminal_envelope import TerminalEnvelopeScope, scope_for_persona as terminal_envelope_scope_for_persona
 from .profile_runner import (
     AgentRunRequest,
     AgentRunResult,
@@ -181,32 +181,11 @@ class GPTPersonaRuntime:
             workdir = mission_chat_workdir_for_persona(
                 persona, workspace_agents_path=workspace_agents_path, primary_slot_path=primary_slot_path
             )
-        # Lane/role identity for the terminal safety envelope. Bound for the
-        # WHOLE run so envelope enforcement on this lane is deterministic and
-        # operator-governed instead of keyed on whether the persona happens to
-        # bind a Hermes profile (the historical fail-open/fail-closed split —
-        # see agent_runtime/terminal_envelope.py). Carrying the runtime root on
-        # the scope also means the decision receipt lands even for a persona
-        # that never exports HERMES_AGENT_RUNTIME_ROOT.
-        #
-        # Note how G6 and this slice compose: the workdir above puts a REAL repo
-        # in front of the terminal tool, which is exactly what makes the envelope
-        # gate load-bearing rather than theoretical — a grounded turn can now
-        # actually reach a git remote.
-        #
-        # The scope also carries this turn's PERMISSION MODE (operator ruling
-        # 2026-08-09): an unbounded run is granted the grantable command classes
-        # by mode rather than by a per-role config stanza, and every such command
-        # still writes a receipt naming the mode. Stamped from the same resolve
-        # the schema plane used, so "what tools the turn has" and "what commands
-        # it may run" cannot come from two different answers.
-        envelope_scope = terminal_envelope_scope_for_persona(
-            persona,
-            lane=LANE_MISSION_CHAT,
-            session_id=perm_session_id,
-            runtime_root=paths.store_root(),
-            permission_mode=lane_bundle.permission_mode,
-        )
+        # Lane/role identity for the terminal safety envelope, bound for the
+        # WHOLE run (see :func:`mission_chat_envelope_scope`). The workdir above
+        # puts a REAL repo in front of the terminal tool, which is what makes the
+        # envelope gate load-bearing rather than theoretical (G6).
+        envelope_scope = mission_chat_envelope_scope(persona, perm_session_id, lane_bundle)
         from .workspace_slot_overlay import slot_env_scope
         trace_sink = _chat_trace_sink(
             session_id=perm_session_id,
@@ -333,6 +312,35 @@ def turn_provider_model(
     provider = provider_override or persona.provider or default_provider
     model = model_override or persona.model or default_model or ""
     return provider, model
+
+
+def mission_chat_envelope_scope(
+    persona: AgentPersona, session_id: str | None, lane_bundle: ChatLaneBundle
+) -> TerminalEnvelopeScope:
+    """The terminal-envelope scope of one Mission Control chat turn — the send
+    path's and the prewarm's ONE construction, so the actor a prewarm builds and
+    the turn that reuses it are scoped by the same answer."""
+    # Lane/role identity for the terminal safety envelope. Bound for the
+    # WHOLE run so envelope enforcement on this lane is deterministic and
+    # operator-governed instead of keyed on whether the persona happens to
+    # bind a Hermes profile (the historical fail-open/fail-closed split —
+    # see agent_runtime/terminal_envelope.py). Carrying the runtime root on
+    # the scope also means the decision receipt lands even for a persona
+    # that never exports HERMES_AGENT_RUNTIME_ROOT.
+    #
+    # The scope also carries this turn's PERMISSION MODE (operator ruling
+    # 2026-08-09): an unbounded run is granted the grantable command classes
+    # by mode rather than by a per-role config stanza, and every such command
+    # still writes a receipt naming the mode. Stamped from the same resolve
+    # the schema plane used, so "what tools the turn has" and "what commands
+    # it may run" cannot come from two different answers.
+    return terminal_envelope_scope_for_persona(
+        persona,
+        lane=LANE_MISSION_CHAT,
+        session_id=session_id,
+        runtime_root=paths.store_root(),
+        permission_mode=lane_bundle.permission_mode,
+    )
 
 
 def _assert_turn_provider_health(persona: AgentPersona, provider: str, model: str) -> None:
