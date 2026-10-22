@@ -32,7 +32,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 ### Filed on arrival — 2026-10-22 (land w1022b)
 
 - **`RT-PHONE-SKILLS-NONE-MARKED` — no tracked skill names `platforms: [android|ios]`, so the phone bundle ships zero skills** · fork / `agent_runtime/bundle_profiles/bundled-phone.yaml` skill_platforms · evidence: commit `016de8a203` body · BLOCKED 2026-10-22: owner decision — which skills does a phone ship? · Recommend: mark the chat-path skills `platforms: [..., ios, android]` in one lane
-- **`RT-PACKAGER-CEILING-800` — `scripts/bundle_profile_package.py` sits at exactly 800 code lines; the next change cannot land** · fork / `scripts/bundle_profile_package.py` · evidence: commits `ff362cf400`, `8dfc0fdfec` · READY 2026-10-22: split the plan/verify phases into `scripts/bundles/` (one MOVE commit) · **TAKEN 2026-10-22 w1022c-packager**
 
 ### Filed on arrival — 2026-10-22 (land w1022a)
 
