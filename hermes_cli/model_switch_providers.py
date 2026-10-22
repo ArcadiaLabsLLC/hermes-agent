@@ -312,11 +312,13 @@ def _iter_builtin_candidates(models_dev_data: dict, excluded: set, seen: set):
             yield hermes_id, mdev_id, pconfig, env_vars
 
 
-def _auth_store_has_provider(*keys: str) -> bool:
-    """True when ``auth.json`` has a ``providers`` entry under any of *keys*."""
+def _auth_store_has_provider(*keys: str, store: Optional[dict] = None) -> bool:
+    """True when ``auth.json`` has a ``providers`` entry under any of *keys*. ``store``: the picker
+    build's one read of ``auth.json`` (``_PickerBuild.loaded_auth_store``); ``None`` reads it now."""
     try:
-        from hermes_cli.auth import _load_auth_store
-        store = _load_auth_store()
+        if store is None:
+            from hermes_cli.auth import _load_auth_store
+            store = _load_auth_store()
         providers_store = store.get("providers", {})
         return bool(store and any(k in providers_store for k in keys))
     except Exception as exc:
@@ -324,11 +326,13 @@ def _auth_store_has_provider(*keys: str) -> bool:
         return False
 
 
-def _raw_pool_usable(hermes_id: str, *, for_picker: bool = False, pool_snapshot: Optional[dict] = None) -> bool:
+def _raw_pool_usable(hermes_id: str, *, for_picker: bool = False, pool_snapshot: Optional[dict] = None,
+                     store: Optional[dict] = None) -> bool:
     """Section-1 pool check: only consult the pool when auth.json lists a raw entry."""
     try:
-        from hermes_cli.auth import _load_auth_store
-        store = _load_auth_store()
+        if store is None:
+            from hermes_cli.auth import _load_auth_store
+            store = _load_auth_store()
         if store and store.get("credential_pool", {}).get(hermes_id):
             return _credential_pool_is_usable(hermes_id, raw_pool_present=True, for_picker=for_picker,
                                               pool_snapshot=pool_snapshot)
@@ -732,6 +736,20 @@ class _PickerBuild:
     # provider -> CredentialPool, loaded once per build: ~94 rows ask per open, each a full
     # auth.json + pool + env + dotenv read without it.
     pool_snapshot: dict = field(default_factory=dict)
+    # auth.json, read once per build for the read-only presence probes (~116 rows ask per open).
+    auth_store: Optional[dict] = None
+
+    def loaded_auth_store(self) -> dict:
+        """The build's one read of ``auth.json`` for ``_auth_store_has_provider`` / ``_raw_pool_usable``
+        (read-only: nothing in the build writes through it). A failed read answers ``{}``."""
+        if self.auth_store is None:
+            try:
+                from hermes_cli.auth import _load_auth_store
+                self.auth_store = _load_auth_store() or {}
+            except Exception:  # the probes' own boundary: an unreadable store lists no auth.json rows
+                logger.debug("Auth store read failed for the picker build", exc_info=True)
+                self.auth_store = {}
+        return self.auth_store
 
     @property
     def current_provider_norm(self) -> str:
@@ -854,7 +872,8 @@ def _lap_builtin_rows(b: _PickerBuild, data: dict, user_providers: dict) -> None
         # Per-profile scope, never raw os.environ: a secondary profile's picker otherwise listed the
         # LAUNCH profile's env-keyed providers and hid its own .env-keyed ones.
         if not (_any_env(env_vars, _scoped_key_env)
-                or _raw_pool_usable(hermes_id, for_picker=b.for_picker, pool_snapshot=b.pool_snapshot)):
+                or _raw_pool_usable(hermes_id, for_picker=b.for_picker, pool_snapshot=b.pool_snapshot,
+                                    store=b.loaded_auth_store())):
             continue
         model_ids = _live_or_curated_ids(hermes_id, b.curated, non_blocking=b.non_blocking_catalogs)
         # A providers.<built-in>.models block extends the discovered catalog; section 3 cannot
@@ -890,7 +909,7 @@ def _overlay_has_creds(b: _PickerBuild, pid: str, hermes_slug: str, overlay) -> 
             logger.debug("External-process check failed for %s: %s", pid, exc)
     # Auth store / credential pool cover OAuth providers AND api_key providers that also support
     # OAuth (anthropic via Claude Code credential files).
-    has_creds = has_creds or _auth_store_has_provider(pid, hermes_slug)
+    has_creds = has_creds or _auth_store_has_provider(pid, hermes_slug, store=b.loaded_auth_store())
     if not has_creds:
         # Full auto-seeding pool check catches external stores (Codex CLI ~/.codex/auth.json)
         # not yet in auth.json.
@@ -974,7 +993,7 @@ def _lap_canonical_rows(b: _PickerBuild) -> None:
             sib_vars = set(sib.api_key_env_vars) if sib else set()
             if lit and lit <= sib_vars < set(cp_config.api_key_env_vars) and cp.slug != b.current_provider:
                 continue
-        has_creds = has_creds or _auth_store_has_provider(cp.slug) or _pool_usable(
+        has_creds = has_creds or _auth_store_has_provider(cp.slug, store=b.loaded_auth_store()) or _pool_usable(
             cp.slug, for_picker=b.for_picker, pool_snapshot=b.pool_snapshot) or (
             _is_aws_sdk(cp_config) and _has_aws_sdk_creds_for_listing(cp.slug, b.current_provider))
         if not has_creds and cp_config is not None and cp_config.auth_type == "external_process":
