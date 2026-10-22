@@ -1,7 +1,7 @@
 {
   "pins": {
-    "hermes_state_common.SCHEMA_SQL.sha256": "e56a0193af74808a2cda28166562ab6c50479915d269a0bc09d5e59f234a2966",
-    "hermes_state_common.SCHEMA_VERSION": 31,
+    "hermes_state_common.SCHEMA_SQL.sha256": "abe1cb3853f0567a4c533be14f5b268dc58e87093ccacfef9c002e804f61d1d9",
+    "hermes_state_common.SCHEMA_VERSION": 32,
     "migrations.CURRENT_RUNTIME_SCHEMA_VERSION": 1,
     "mission_chat_phases.TURN_RECORD_SCHEMA_VERSION": 3,
     "models.schema_version_defaults": {

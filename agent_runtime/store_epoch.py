@@ -69,6 +69,17 @@ MIGRATION_REGISTRY: tuple[dict[str, Any], ...] = (
                   "stale-worktree receipt; nothing is lost or misread",
         "pins_sha256": "446e0d76d5fdf603281ad3f747e1febc813ad6d7d625ffbe6f60e6af5ed5ebd7",
     },
+    {
+        "id": "upstream-v0.22.4-state-schema-32",
+        "date": "2026-10-22",
+        "store": "state.db",
+        "breaking": False,
+        "reason": "upstream v0.22.4 (#140315) bumps hermes_state SCHEMA_VERSION 31 -> 32 with no data migration: "
+                  "the runtime_epoch / session_admissions / worker_executions / worker_receipts tables and three "
+                  "columns are additive (executescript + _reconcile_columns on every writable open), and an older "
+                  "edition only upgrades a lower schema_version, never refuses a higher one",
+        "pins_sha256": "5b78d48e0911dd5107d144a6afda04a68463a92db5760b4f2b8bcf914ffd4dab",
+    },
 )
 
 #: ``1 + count(breaking entries)`` — ``tests/agent_runtime/test_store_epoch_gate.py`` holds it to that.
