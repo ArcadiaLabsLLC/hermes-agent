@@ -108,10 +108,13 @@ fork's root `conftest.py`, `tests/conftest.py`, anything under `tests/_downstrea
 every test process. On an ordinary landing such a change reaches no file by itself: the gate runs
 `tests/tooling/test_session_chain_contract.py` (one test per promise those files make — home isolation,
 env scrub, process-state reset, the timeout, the `test-tmp` root, the dependency recorder, the root
-conftest's git lock), the files fork-owned or inherited that the rest of the change reaches (touched,
+conftest's git lock), every fork-owned `pytest.mark.gate` file (a gate proves a property of the tree,
+not of what a change reaches; `scripts/gate_mark.py` is the one reader of the mark, the gate directory
+asks it too), the files fork-owned or inherited that the rest of the change reaches (touched,
 source, conftest, importer), and the smallest file of every test folder nothing else reached, and prints
-`chain: contract + sample — N contract file(s) + M sample(s)`. On land/q2 (9 chain paths) that is 333 files
-where the whole tree was 6,675. A new promise the chain makes
+`chain: contract + gates + sample — N contract file(s) + G gate file(s) + M sample(s)`. On land/q2 (9 chain
+paths) that was 333 files where the whole tree was 6,675; on 2026-10-22 the gates add 72 files (land/w1021j's
+chain-only scope ran none of them and missed three gate reds: FH-SCOPE-FORK-DROPS-SOURCE-GATES). A new promise the chain makes
 gets its test there, with its killing mutation. The release merge (`--since-merge`) treats a chain path
 the same way: contract + sample, never every file; an interaction no promise names is caught by a promise
 added when it is found, not by a whole-tree backstop.

@@ -199,6 +199,62 @@ def test_the_skip_list_wins_over_the_sample(tmp_path):
                                           "tests/third/test_fork_unreached.py"]
 
 
+
+# ── FH-SCOPE-FORK-DROPS-SOURCE-GATES: a chain sample keeps every fork gate ──
+
+
+def test_a_chain_sample_keeps_every_fork_gate_and_samples_the_rest(tmp_path):
+    files = _sample_tree(tmp_path)
+    gate = tmp_path / "tests/third/test_fork_gate.py"
+    gate.write_text("import pytest\npytestmark = [pytest.mark.timeout(9), pytest.mark.gate]\n", encoding="utf-8")
+    not_module_level = tmp_path / "tests/third/test_fork_marked_test.py"
+    not_module_level.write_text("import pytest\n\n@pytest.mark.gate\ndef test_x():\n    pass\n", encoding="utf-8")
+    files += [gate, not_module_level]
+
+    sel = bundled.select_scope(files, tmp_path, _SAMPLE_INHERITED, {"conftest.py"})
+
+    assert _rels(tmp_path, sel.fork_only) == ["tests/third/test_fork_gate.py",
+                                              "tests/tooling/test_session_chain_contract.py"], (
+        "the contract and every module-level gate, not every fork file")
+    assert "tests/third/test_fork_marked_test.py" in _rels(tmp_path, sel.excluded + sel.chain)
+
+
+#: the three gates land/w1021j's chain-only scope dropped (its gate.log: chain
+#: ``tests/_downstream/home_config.py``; all three red on main, none selected)
+_W1021J_MISSED = (
+    "tests/agent_runtime/test_s56_runtime_config_reader_gate.py",
+    "tests/scripts/test_mutation_claims_still_anchor.py",
+    "tests/tooling/test_function_legibility_floor.py",
+)
+
+
+def test_the_real_tree_chain_only_scope_runs_the_gates_land_w1021j_missed(monkeypatch):
+    """Every real fork test file, under land/w1021j's chain-only change. The
+    fork/gate decision precedes import reach, so reach answers nothing here (it
+    would parse ~1,200 files to say so).
+
+    Killing mutation: ``_kept_while_sampling`` answers the contract glob alone
+    (the pre-fix rule) -> all three are absent from ``fork_only``."""
+
+    import subprocess
+
+    repo = Path(bundled.__file__).resolve().parents[1]
+    listed = subprocess.run(["git", "ls-files", "-z", "--", "tests"], cwd=repo, capture_output=True, check=True)
+    files = [repo / rel for rel in listed.stdout.decode("utf-8").split("\0")
+             if rel.endswith(".py") and Path(rel).name.startswith("test_") and (repo / rel).is_file()]
+    inherited = scope.load_manifest(repo / "tests/fixtures/upstream_manifest.txt")
+    files = [path for path in files if path.relative_to(repo).as_posix() not in inherited]
+    monkeypatch.setattr(scope, "imported_modules", lambda path, rel: frozenset())
+
+    sel = bundled.select_scope(files, repo, inherited, {"tests/_downstream/home_config.py"},
+                               size_of=lambda rel: 0)
+
+    fork_only = set(_rels(repo, sel.fork_only))
+    assert set(_W1021J_MISSED) <= fork_only, sorted(set(_W1021J_MISSED) - fork_only)
+    assert "tests/tooling/test_session_chain_contract.py" in fork_only
+    assert len(fork_only) < len(files), "a sample, never every fork file"
+
+
 # ── ADR 0016: --scope full and --since-merge never run the whole tree ──
 
 
@@ -243,7 +299,7 @@ def test_since_merge_treats_a_chain_path_as_contract_plus_sample(tmp_path, capsy
     assert _rels(repo, sel.fork_only) == ["tests/tooling/test_session_chain_contract.py"], "never every fork file"
     assert _rels(repo, sel.chain) == ["tests/pkg/test_a.py"], "one sample for the folder nothing else reached"
     assert _rels(repo, sel.excluded) == ["tests/pkg/test_b.py", "tests/tooling/test_other.py"]
-    assert "contract + sample" in capsys.readouterr().out
+    assert "contract + gates + sample — 1 contract file(s) + 0 gate file(s) + 1 sample(s)" in capsys.readouterr().out
 
 
 def test_scope_features_runs_every_file_but_the_skip_list_and_full_still_refuses(tmp_path, capsys):
