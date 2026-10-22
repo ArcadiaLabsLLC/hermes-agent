@@ -25,7 +25,7 @@ def test_every_bundle_target_equals_pms_python_pin():
 def test_every_desktop_packaging_target_has_an_interpreter():
     """A phone target (manifest.PACKAGING_TARGETS) is the host app's interpreter: never pinned here."""
     from agent_runtime.bundle_profiles.manifest import PACKAGING_TARGETS
-    from scripts.bundle_profile_package import TARGETS
+    from scripts.bundles.targets import TARGETS
 
     pinned = set(_load(LOCK)["artifacts"])
     assert not pinned & set(PACKAGING_TARGETS), "a phone target must never carry an interpreter pin"

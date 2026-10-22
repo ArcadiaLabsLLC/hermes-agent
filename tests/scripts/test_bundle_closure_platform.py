@@ -9,7 +9,7 @@ import ast
 import textwrap
 
 from scripts import bundle_profile_closure as closure
-from scripts.bundle_profile_package import marker_env
+from scripts.bundles.targets import marker_env
 from scripts.bundles.closure_platform import dead_for_target
 
 SOURCE = textwrap.dedent('''

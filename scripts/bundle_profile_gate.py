@@ -385,9 +385,9 @@ def spawn_seams(manifest, findings: list[dict], index: dict[str, Path], *,
 def forced_tree_seams(manifest, walk, index: dict[str, Path], answered=()) -> list[str]:
     """The pinned modules (not already ``answered``) that the packager's plan ships in the sibling
     tree: present on the phone, resolvable once the embedded entry mounts the tree, and out of the
-    directory scans' reach. Read from the plan (``scripts/bundle_profile_package.py``), never
+    directory scans' reach. Read from the plan (``scripts/bundles/plan.py``), never
     restated here — a module the plan keeps in ``app/``, or a profile without the tree, stays pinned."""
-    from scripts.bundle_profile_package import _with_parents, forced_modules, forced_tree_plan
+    from scripts.bundles.plan import _with_parents, forced_modules, forced_tree_plan
 
     loaded = forced_modules(walk, index)
     sibling = forced_tree_plan(manifest, _with_parents(set(walk.kept) | loaded, index), loaded)

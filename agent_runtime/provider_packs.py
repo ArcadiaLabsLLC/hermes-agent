@@ -42,7 +42,7 @@ __all__ = [
     "pack_for_extra",
 ]
 
-#: The packager's record beside ``app/`` (``scripts/bundle_profile_package.BUNDLE_MANIFEST``).
+#: The packager's record beside ``app/`` (``scripts/bundles/bundle_files.BUNDLE_MANIFEST``).
 BUNDLE_RECORD = "bundle-manifest.json"
 #: The packager's record at an engine pack's root (``…PACK_MANIFEST``).
 PACK_RECORD = "engine-pack.json"

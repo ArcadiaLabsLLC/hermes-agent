@@ -108,7 +108,7 @@ def test_the_walk_enters_a_kept_modules_enclosing_packages_when_asked(tmp_path):
 
 
 def test_a_skill_ships_to_a_phone_only_when_its_frontmatter_names_a_phone(tmp_path):
-    from scripts.bundle_profile_package import skill_ships
+    from scripts.bundles.bundle_files import skill_ships
 
     for name, platforms in (("marked", "[linux, android]"), ("unmarked", None)):
         skill = tmp_path / "skills" / "cat" / name

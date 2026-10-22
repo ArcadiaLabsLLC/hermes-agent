@@ -428,10 +428,9 @@ def _stage_phone_wheel(dest: Path) -> tuple[str, ...]:
     from agent_runtime.bundle_profiles.forced_tree import FORCED_TREE_DIR
     from agent_runtime.bundle_profiles.manifest import load_profile
     from scripts.bundle_profile_closure import profile_walk
-    from scripts.bundle_profile_package import (
-        BUILD_SHA_FILE, Plan, _with_parents, bake_dir, first_party_files, forced_modules, forced_tree_plan,
-        split_forced_tree, tracked_files,
-    )
+    from scripts.bundle_profile_package import bake_dir, first_party_files, split_forced_tree
+    from scripts.bundles.bundle_files import BUILD_SHA_FILE, tracked_files
+    from scripts.bundles.plan import Plan, _with_parents, forced_modules, forced_tree_plan
 
     manifest = load_profile("bundled-phone")
     walk, index = profile_walk(manifest, parents=True)

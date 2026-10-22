@@ -1,7 +1,7 @@
 """The phone's forced tree: switched-off code the wheel ships where no directory scan looks.
 
 Owner ruling 2026-09-30 (option (1), phone-gate-to-zero plan lane G6). The packager's
-forced set (``scripts/bundle_profile_package.first_party_plan``) is switched-off code that
+forced set (``scripts/bundles/plan.first_party_plan``) is switched-off code that
 kept code imports unguarded, so it must ship — but upstream finds tools and plugins by
 DIRECTORY SCAN (``tools/registry.py::discover_builtin_tools`` globs ``tools/*.py`` and
 ``tools/*/tool.py``; the plugin loader walks ``plugins/``), and a scan that sees a shipped

@@ -166,7 +166,7 @@ def test_the_cpu_speech_pack_keeps_only_what_the_numpy_preprocessors_read():
     """Mutation: widen the onnx-asr globs to ``preprocessors/data/*`` -> the positive controls go
     red (``fbanks.npz`` holds both engines' mel filterbanks; the 16 kHz resamplers load at model
     start); drop the ``whisper*`` entry -> the Whisper graphs ship unused."""
-    from scripts.bundle_profile_package import _excluded
+    from scripts.bundles.bundle_files import _excluded
 
     excluded = load_profile(PROFILE).excluded_data
     for dropped in ("nemo128.onnx", "whisper80.onnx", "whisper128_conv.onnx"):
