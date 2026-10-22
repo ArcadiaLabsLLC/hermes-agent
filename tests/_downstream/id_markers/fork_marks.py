@@ -239,6 +239,27 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # under load (release lane rel-0222-reds).
     "tests/scripts/install/test_install_clone_throttle_fallback.py::"
     "test_clone_failure_reason_carries_gits_own_error": (pytest.mark.timeout(120),),
+    # Upstream's scripts/check CLI tests drive real git hooks and checker children; each child
+    # costs 6-9 s on this box, so several outrun the 30 s cap alone. Measured alone with
+    # --timeout=0, 2026-10-22 (lane w1022a-tests, FH-CODE-HEALTH-CLI-HOOK-TIMEOUT): msys hooks
+    # 102.4 s, pre-push 99.7 s, npm tooling failure 63.5 s, venv hooks 43.9 s, staged health
+    # 39.9 / 34.7 s. Each bound is about twice its measurement.
+    **{
+        f"tests/scripts/test_code_health_cli.py::{test}": (pytest.mark.timeout(bound),)
+        for test, bound in (
+            ("test_hooks_run_with_msys_path_conversion_disabled", 240),
+            ("test_pre_push_judges_a_checker_branch_pushed_from_an_older_checkout", 240),
+            ("test_tooling_failure_exits_2_without_a_traceback", 150),
+            ("test_hooks_prefer_the_repo_virtualenv_over_path_python", 120),
+            ("test_staged_health_ignores_unstaged_policy_and_engine", 120),
+        )
+    },
+    # Upstream's GitSpawn index-probe test ends with an ls-remote and a fetch --unshallow to
+    # ssh://git@example.invalid; each waits out the host's name lookup (13.3 s for one
+    # ls-remote on this box). 49.4 s alone with --timeout=0, 2026-10-22 (lane w1022a-tests,
+    # FH-MAIN-IMPORTER-REDS-1021).
+    "tests/security/test_gitspawn_config_injection.py::"
+    "test_index_reading_probes_and_kanban_gc_git_are_safe": (pytest.mark.timeout(120),),
     # Lane h10-fhrest (2026-09-29): _apply_tui_python_env runs shutil.which("") for an
     # unset HERMES_PYTHON, which stats every PATH directory; a developer PATH that
     # carries a real hermes home's bin trips the home-I/O guard. Upstream PR candidate:

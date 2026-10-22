@@ -353,7 +353,8 @@ def split_forced_tree(rels: list[str], sibling: set[str], index: dict[str, Path]
 CORE = ""
 #: The planning child reports progress (its step and its parse count) every
 #: :data:`PROGRESS_INTERVAL_SECONDS`; it is stopped when that report has not changed for
-#: :data:`PLAN_STALL_SECONDS`, or when it has run :data:`PLAN_TIMEOUT_SECONDS` in all. Both stops
+#: :data:`PLAN_STALL_SECONDS` (counted from its FIRST report: interpreter start-up on a loaded box is
+#: not standing still), or when it has run :data:`PLAN_TIMEOUT_SECONDS` in all. Both stops
 #: are RETRYABLE (exit :data:`EXIT_RETRYABLE`): a slow child on a busy machine still parses, so it
 #: is never stopped for being slow, only for standing still. Sized from the 2026-10-16
 #: measurement in ``docs/agent-runtime-harness/04-boot-and-lifecycle.md`` (the bundled-desktop build).
@@ -392,10 +393,11 @@ print(json.dumps({"jobs": out, "counts": closure_script.COUNTS}))
 
 def _run_planner(cmd: list[str], stall: float, cap: float) -> str:
     """Run the planning child; stdout on success. :class:`PlanStalled` when its progress report
-    stops changing for ``stall`` seconds or it runs ``cap`` seconds; CalledProcessError on a crash."""
+    stops changing for ``stall`` seconds (from its first one) or it runs ``cap`` seconds;
+    CalledProcessError on a crash."""
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
                             stdin=subprocess.DEVNULL)
-    seen = {"token": None, "at": time.monotonic()}
+    seen = {"token": None, "at": None}  # the stall clock starts at the first progress line
     tail: deque[str] = deque(maxlen=40)
     out: list[str] = []
 
@@ -419,7 +421,8 @@ def _run_planner(cmd: list[str], stall: float, cap: float) -> str:
         except subprocess.TimeoutExpired:
             pass
         now = time.monotonic()
-        why = (f"no progress for {stall:.0f}s (last: {seen['token']})" if now - seen["at"] > stall else
+        stalled = seen["at"] is not None and now - seen["at"] > stall
+        why = (f"no progress for {stall:.0f}s (last: {seen['token']})" if stalled else
                f"ran past its {cap:.0f}s cap (last: {seen['token']})" if now - started > cap else None)
         if why and proc.poll() is None:
             proc.kill()
