@@ -28,6 +28,7 @@ import copy
 import dataclasses
 import re
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -79,6 +80,17 @@ KEYS_READ_OUTSIDE_DEFAULTS = {
 PACKAGING_TARGETS = ("android_arm64", "ios_arm64")
 
 
+class PoolScope(Enum):
+    """What the packager's pool phase installs (``packaging.pool``; plan bundled-phone-pool-2026-10-22 §2).
+
+    ``EXPORT``: the whole ``uv export`` of core + extras (the desktop: every base dependency has a wheel).
+    ``CLOSURE``: only the distributions the profile's import closure needs (a phone profile omits base
+    dependencies, and several of them have no phone wheel)."""
+
+    EXPORT = "export"
+    CLOSURE = "closure"
+
+
 class ProfileManifestError(ValueError):
     """The manifest names something Hermes does not have, or is malformed."""
 
@@ -128,6 +140,8 @@ class ProfileManifest:
     #: ship the forced set's scanned-package modules under the sibling root the embedded entry mounts
     #: (``agent_runtime/bundle_profiles/forced_tree.py``), never under the scanned ``tools/`` / ``plugins/``
     packaging_forced_sibling_tree: bool = False
+    #: what the packager's pool phase installs (:class:`PoolScope`); absent = the whole export
+    packaging_pool: PoolScope = PoolScope.EXPORT
 
 
 def manifest_path(profile: str) -> Path:
@@ -198,6 +212,16 @@ def _reasons(value: Any, where: str) -> dict[str, str]:
     return value
 
 
+def _pool_scope(value: Any) -> PoolScope:
+    if value is None:
+        return PoolScope.EXPORT
+    try:
+        return PoolScope(value)
+    except ValueError:
+        raise ProfileManifestError(
+            f"packaging.pool must be one of {', '.join(s.value for s in PoolScope)}: got {value!r}") from None
+
+
 def parse_manifest(data: Any, *, validate: bool = True) -> ProfileManifest:
     """Build a :class:`ProfileManifest` from parsed YAML."""
     data = _mapping(data, "manifest")
@@ -238,6 +262,7 @@ def parse_manifest(data: Any, *, validate: bool = True) -> ProfileManifest:
         packaging_skill_platforms=_strings(packaging.get("skill_platforms"), "packaging.skill_platforms"),
         admitted_native=_reasons(packaging.get("admitted_native"), "packaging.admitted_native"),
         packaging_forced_sibling_tree=_manifest_flag(packaging.get("forced_sibling_tree"), "packaging.forced_sibling_tree"),
+        packaging_pool=_pool_scope(packaging.get("pool")),
     )
     if validate:
         validate_manifest(manifest)
