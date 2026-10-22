@@ -35,7 +35,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-21 (lane w1021j-bundle, branch `w1021j/bundle`)
 
-- **`RT-BUNDLED-PHONE-POOL` — the packager's pool installs the whole uv export for a phone target, so `--profile bundled-phone` never reaches verify** · fork / `scripts/bundle_profile_package.py::install_pool` / `export_requirements` · evidence: commit `83bf715c9d` body (omitted_distributions not dropped; psutil git pin unhashable; no phone wheels for cryptography, firecrawl-anydoc, httptools, jiter, markupsafe, pillow, watchfiles, resvg-py) · READY 2026-10-22: plan `bundled-phone-pool-2026-10-22.md` (5 stages, closure-first; iOS through S5 now; Android S5 waits on `RT-PHONE-PILLOW-ANDROID`)
+- **`RT-BUNDLED-PHONE-POOL` — the packager's pool installs the whole uv export for a phone target, so `--profile bundled-phone` never reaches verify** · fork / `scripts/bundle_profile_package.py::install_pool` / `export_requirements` · evidence: commit `83bf715c9d` body (omitted_distributions not dropped; psutil git pin unhashable; no phone wheels for cryptography, firecrawl-anydoc, httptools, jiter, markupsafe, pillow, watchfiles, resvg-py) · READY 2026-10-22: plan `bundled-phone-pool-2026-10-22.md` (5 stages, closure-first; iOS through S5 now; Android S5 waits on `RT-PHONE-PILLOW-ANDROID`) · **TAKEN 2026-10-22 w1022b-phone**
 
 ### Filed on arrival — 2026-10-21 (land w1021i)
 
@@ -938,4 +938,4 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-22 (launcher wave w1022a-mc-chat)
 
-- **`RT-PERSONA-TOOLSET-APPROVALS-READ` — the launcher's per-agent shell/code/browser toggle (launcher MC-PERSONA-SHELL-OPT-IN) has no read: `runtime.persona.toolset.approve` is write-only and its reply is the one place `toolset_approvals` appears; add a console-tier read (persona_id → the opt-in toolsets this edition offers, each granted or not, plus `edition_not_bundled`) so the toggle can show its state before a write** · `agent_runtime/serve_rpc/console_operations.py::_toolset_approve` · READY 2026-10-22
+- **`RT-PERSONA-TOOLSET-APPROVALS-READ` — the launcher's per-agent shell/code/browser toggle (launcher MC-PERSONA-SHELL-OPT-IN) has no read: `runtime.persona.toolset.approve` is write-only and its reply is the one place `toolset_approvals` appears; add a console-tier read (persona_id → the opt-in toolsets this edition offers, each granted or not, plus `edition_not_bundled`) so the toggle can show its state before a write** · `agent_runtime/serve_rpc/console_operations.py::_toolset_approve` · READY 2026-10-22 · **TAKEN 2026-10-22 w1022b-toolset**
