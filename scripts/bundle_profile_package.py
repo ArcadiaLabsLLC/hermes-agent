@@ -63,6 +63,7 @@ import os
 import shutil
 import subprocess
 import sys
+import sysconfig
 import tempfile
 import threading
 import time
@@ -79,10 +80,11 @@ if str(ROOT) not in sys.path:
 from scripts.bundle_licenses import copy_first_party_licence, licence_problems, write_licence_records
 from scripts.bundle_profile_closure import _imports, _norm, _owner, module_index, profile_walk
 from agent_runtime.bundle_profiles.forced_tree import FORCED_TREE_DIR, sibling_modules
-from agent_runtime.bundle_profiles.manifest import PACKAGING_TARGETS
+from agent_runtime.bundle_profiles.manifest import PACKAGING_TARGETS, PoolScope
 from scripts.bundles.serve_probe import (
     named_timezone_problems, serve_import_problems, serve_import_table)
 from scripts.bundles.pool_install import install_pool as install_pool_into, remove_tree
+from scripts.bundles.requirement_blocks import closure_requirements, render, requirement_blocks, seed_union
 
 #: pm/lock.json target name -> (uv --python-platform, PEP 508 marker environment)
 TARGETS: dict[str, tuple[str, dict[str, str]]] = {
@@ -180,28 +182,7 @@ def evaluate_markers(requirements: str, env: dict[str, str]) -> str:
     (measured 2026-09-28, uv 0.11.14), so ``nemo-relay``'s Windows arm silently
     dropped out of the pool. :func:`marker_env` is the one target authority.
     """
-    from packaging.markers import Marker
-
-    kept: list[str] = []
-    block: list[str] = []
-
-    def flush() -> None:
-        if not block:
-            return
-        head, _, marker = block[0].rstrip(" \\").partition(" ; ")
-        if not marker or Marker(marker).evaluate(env):
-            kept.append(head.strip() + (" \\" if len(block) > 1 else ""))  # a URL pin has no hash lines
-            kept.extend(block[1:])
-        block.clear()
-
-    for line in requirements.splitlines():
-        if line.startswith((" ", "\t")):
-            block.append(line)
-        elif line.strip() and not line.startswith("#"):
-            flush()
-            block.append(line)
-    flush()
-    return "\n".join(kept) + "\n"
+    return render([block for block in requirement_blocks(requirements) if block.holds(env)], marker=False)
 
 
 def install_pool(requirements: str, stage: Path, target: str, python_version: str,
@@ -473,6 +454,13 @@ def pack_selections(manifest, packs=None) -> dict[str, tuple[str, ...]]:
     return {CORE: (), **{pack: tuple(manifest.packaging_packs[pack]) for pack in names}}
 
 
+def pool_selection(manifest, seed_sites: list[Path], target: str, python_version: str) -> tuple[set[str], list[str]]:
+    """``PoolScope.CLOSURE``: the union of every selection's ``needed`` (core and each engine pack), planned
+    over a SEED site whose installed metadata maps import names to distributions, and the refusals.
+    Phase ``plan`` re-plans over the installed pool, so a seed that mis-maps a name is a red there."""
+    return seed_union(distribution_plans(manifest.profile, [(seed_sites, pack_selections(manifest))], target, python_version)[0])
+
+
 def pack_from_plans(plans: dict, pack: str) -> tuple[set[str], list[str]]:
     """An engine pack: what its selection ships and the core's does not (``plans``: one job's answer)."""
     core, refused = plans[CORE]
@@ -611,9 +599,9 @@ def resource_problems(app_files: set[str], tracked: list[str], resources: tuple[
     problems = []
     cache: dict = {}
     for resource in resources:
-        wanted = {rel for rel in tracked if _in_resource(rel, (resource,)) and _resource_file(rel, excluded)
-                  and (not rel.startswith("skills/") or skill_ships(rel, skill_platforms, _cache=cache))}
-        if not wanted:
+        named = {rel for rel in tracked if _in_resource(rel, (resource,)) and _resource_file(rel, excluded)}
+        wanted = {rel for rel in named if not rel.startswith("skills/") or skill_ships(rel, skill_platforms, _cache=cache)}
+        if not named:  # a resource naming nothing is a typo; a platform filter selecting no skill is not
             problems.append(f"resource selects no tracked file: {resource}")
         for rel in sorted(wanted - app_files):
             problems.append(f"missing resource file ({resource}): app/{rel}")
@@ -852,6 +840,8 @@ def main(argv=None) -> int:
     parser.add_argument("--reuse-stage", action="store_true", help="skip phase 1 if the stage exists")
     parser.add_argument("--offline", action="store_true")
     parser.add_argument("--uv", default=os.environ.get("UV", "uv"))
+    parser.add_argument("--seed-site", type=Path, action="append", dest="seed_sites", help="pool: closure's "
+                        "seed plan site (repeatable; default: this interpreter's purelib, synced from the lock)")
     parser.add_argument("--bake-with", type=Path, help="target interpreter to compile bytecode with")
     parser.add_argument("--verify", type=Path, help="only verify an existing bundle directory")
     parser.add_argument("--verify-pack", type=Path, help="only verify an engine pack (with --verify's core)")
@@ -870,6 +860,7 @@ def main(argv=None) -> int:
         if not args.python_version:
             parser.error(f"--python-version is required for the phone target {args.target}")
     args.python_version = args.python_version or locked_python_version()
+    args.seed_sites = args.seed_sites or [Path(sysconfig.get_paths()["purelib"])]
 
     from agent_runtime.bundle_profiles.manifest import load_profile
 
@@ -908,15 +899,27 @@ def main(argv=None) -> int:
 
 
 def _build(args, manifest, index, stage: Path, probe_python) -> int:
+    selected = None  # the seed plan's union: PoolScope.CLOSURE, and only when this run builds the pool
     if not (args.reuse_stage and stage.is_dir()):
         pack_extras = tuple(e for extras in manifest.packaging_packs.values() for e in extras)
+        if manifest.packaging_pool is PoolScope.CLOSURE:
+            with phase("seed plan"):
+                selected, refused = pool_selection(manifest, args.seed_sites, args.target, args.python_version)
         with phase("pool"):
-            install_pool(export_requirements((*manifest.packaging_extras, *pack_extras), args.uv), stage,
-                         args.target, args.python_version, args.uv, args.offline)
+            requirements = export_requirements((*manifest.packaging_extras, *pack_extras), args.uv)
+            if selected is not None:  # a refusal returns before any install (phase plan would raise the same)
+                requirements, problems, receipt = closure_requirements(
+                    requirements, selected, refused, marker_env(args.target, args.python_version), args.seed_sites)
+                print("\n".join([receipt, *problems]), flush=True)
+                if problems:
+                    return 1
+            install_pool(requirements, stage, args.target, args.python_version, args.uv, args.offline)
     with phase("plan"):  # the core and every engine pack: one child, one walk
         built = distribution_plans(manifest.profile, [([stage], pack_selections(manifest))], args.target,
                                    args.python_version)[0]
         plan = make_plan(manifest, stage, args.target, args.python_version, index=index, distributions=built[CORE])
+    if selected is not None:  # the pool plan proves the seed: a dist the seed missed is `plan.missing` below
+        print(f"pool: seed plan {len(selected)} dists, pool plan {len(seed_union(built)[0])} dists", flush=True)
     if plan.missing or plan.refusals:
         for name in sorted(plan.missing):
             print(f"the closure needs {name}; the pool does not hold it")

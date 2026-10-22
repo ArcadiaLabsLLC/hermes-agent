@@ -250,6 +250,41 @@ def test_a_requirement_with_no_hash_lines_keeps_no_continuation():
     assert kept[1] == "ptyprocess==0.7.0 \\" and kept[2] == "    --hash=sha256:bb"
 
 
+_THREE_BLOCKS = ("idna==3.19 \\\n    --hash=sha256:cc\n"
+                 "Markdown-It-Py==4.0.0 ; python_full_version >= '3.10' \\\n    --hash=sha256:dd \\\n"
+                 "    --hash=sha256:ee\n"
+                 "psutil @ git+https://github.com/giampaolo/psutil.git@380bd2b ; sys_platform == 'android'\n")
+
+
+def test_requirement_blocks_are_typed_by_their_normalised_distribution_name():
+    from scripts.bundles.requirement_blocks import requirement_blocks
+
+    blocks = requirement_blocks(_THREE_BLOCKS)
+    assert [b.name for b in blocks] == ["idna", "markdown-it-py", "psutil"]
+    assert blocks[1].marker == "python_full_version >= '3.10'"
+    assert blocks[1].hashes == ("    --hash=sha256:dd \\", "    --hash=sha256:ee")
+    assert blocks[2].head == "psutil @ git+https://github.com/giampaolo/psutil.git@380bd2b" and not blocks[2].hashes
+
+
+def test_a_selection_keeps_only_named_blocks_and_refuses_a_selected_hashless_pin():
+    """Plan bundled-phone-pool-2026-10-22 S2: a closure pool installs only the blocks the closure
+    names, markers and hashes intact (``evaluate_markers`` still applies after); a selected block
+    with no hash lines is refused by name instead of failing inside uv's ``--require-hashes``; an
+    unselected hashless block is never judged.
+
+    Killing mutation: drop the hash check in ``select_blocks`` -> the refusal assertion reds."""
+    from scripts.bundles.requirement_blocks import requirement_blocks, select_blocks
+
+    blocks = requirement_blocks(_THREE_BLOCKS)
+    text, refused = select_blocks(blocks, {"idna", "markdown_it_py"})
+    assert text == ("idna==3.19 \\\n    --hash=sha256:cc\n"
+                    "Markdown-It-Py==4.0.0 ; python_full_version >= '3.10' \\\n    --hash=sha256:dd \\\n"
+                    "    --hash=sha256:ee\n") and refused == []
+    assert evaluate_markers(text, marker_env("ios_arm64", "3.14")).startswith("idna==3.19 \\\n")
+    _text, refused = select_blocks(blocks, {"idna", "psutil"})
+    assert refused == ["pool_pin_unhashed: psutil @ git+https://github.com/giampaolo/psutil.git@380bd2b"]
+
+
 def test_a_phone_target_refuses_bake_with_and_names_its_python(monkeypatch, capsys, tmp_path: Path):
     """S2: the phone interpreter is the host app's; the desktop lock's version and ``--bake-with`` are
     desktop-only. Killing mutation: drop the ``bake_refused_phone_target`` refusal -> no SystemExit, red."""
@@ -322,6 +357,16 @@ def test_a_named_timezone_resolves_only_from_a_site_holding_tzdata(tmp_path: Pat
 SKILLS = "docs/agent-runtime-harness/harness-skills"
 TRACKED = [f"{SKILLS}/harness-qa-verdict/SKILL.md", f"{SKILLS}/harness-qa-verdict/references/x.md",
            "docs/other.md", "skills/a/SKILL.md"]
+
+
+def test_a_platform_filter_selecting_no_skill_is_not_a_typo_d_resource():
+    """RT-BUNDLED-PHONE-POOL S5 (ios_arm64): the first phone build to reach verify failed
+    ``resource selects no tracked file: skills`` -- no tracked skill names a phone platform yet, so the
+    ``skill_platforms`` filter ships none. The check catches a resource naming NO tracked file; a
+    filter narrowing a real resource to zero is the profile's declared outcome.
+    Killing mutation: test the filtered set (``if not wanted``) -> the phone case reds."""
+    assert resource_problems(set(), TRACKED, ("skills",), {}, ("ios", "android")) == []
+    assert resource_problems(set(), TRACKED, ("skilz",), {}, ("ios",)) == ["resource selects no tracked file: skilz"]
 
 
 def test_a_nested_resource_ships_file_for_file_or_verify_names_the_gap():
@@ -595,9 +640,12 @@ def _build_stubs(monkeypatch, tmp_path: Path, packs: dict):
     monkeypatch.setattr(pkg, "write_pack", write_pack)
     monkeypatch.setattr(pkg, "verify_bundle", lambda *a, **k: [])
     monkeypatch.setattr(pkg, "verify_pack", lambda *a, **k: [])
+    from agent_runtime.bundle_profiles.manifest import PoolScope
+
     args = SimpleNamespace(reuse_stage=True, target="win32-x64", python_version="3.14.7", out=tmp_path / "core",
-                           bake_with=None, uv="uv", offline=False)
-    manifest = SimpleNamespace(profile="p", packaging_extras=(), packaging_packs=packs, packaging_plugins=())
+                           bake_with=None, uv="uv", offline=False, seed_sites=[tmp_path / "seed"])
+    manifest = SimpleNamespace(profile="p", packaging_extras=(), packaging_packs=packs, packaging_plugins=(),
+                               packaging_pool=PoolScope.EXPORT)
     (tmp_path / "core.pool").mkdir()
     return pkg, args, manifest, calls, written
 
@@ -657,3 +705,80 @@ def test_a_stalled_planning_child_is_stopped_and_the_build_says_retryable(monkey
                      "--no-serve-probe"]) == pkg.EXIT_RETRYABLE
     out = capsys.readouterr().out
     assert "RETRYABLE: closure planning child no progress" in out and "phase total:" in out
+
+
+_EXPORT = ("a-dist==1 \\\n    --hash=sha256:aa\n"
+           "b-dist==1 \\\n    --hash=sha256:bb\n"
+           "c-dist==1 \\\n    --hash=sha256:cc\n")
+
+
+def _pool_stubs(monkeypatch, tmp_path: Path, scope, seed_answer: dict, pool_answer=None):
+    """``_build`` from phase pool on: the export and the install stubbed, the seed child answering
+    ``seed_answer`` and the pool child ``pool_answer`` (default: the ``_build_stubs`` answer)."""
+    from agent_runtime.bundle_profiles.manifest import PoolScope
+
+    pkg, args, manifest, calls, _written = _build_stubs(monkeypatch, tmp_path, {"pk": ("x",)})
+    stubbed = pkg.distribution_plans
+    installed: list = []
+
+    def plans(profile, jobs, target, python_version, **kw):
+        if jobs[0][0] == args.seed_sites:
+            calls.append(["seed", *[sorted(selections) for _sites, selections in jobs]])
+            return [{key: (set(seed_answer[key]), []) for key in jobs[0][1]}]
+        if pool_answer is not None:
+            calls.append([sorted(selections) for _sites, selections in jobs])
+            return [{key: (set(pool_answer[key]), []) for key in selections} for _sites, selections in jobs]
+        return stubbed(profile, jobs, target, python_version, **kw)
+
+    monkeypatch.setattr(pkg, "distribution_plans", plans)
+    monkeypatch.setattr(pkg, "export_requirements", lambda extras, uv="uv": _EXPORT)
+    monkeypatch.setattr(pkg, "install_pool", lambda text, stage, *a: installed.append(text))
+    args.reuse_stage = False
+    manifest.packaging_pool = getattr(PoolScope, scope)
+    return pkg, args, manifest, calls, installed
+
+
+def test_a_closure_pool_installs_only_the_seed_plan_s_union(monkeypatch, capsys, tmp_path: Path):
+    """Plan bundled-phone-pool-2026-10-22 S3: under ``PoolScope.CLOSURE`` one seed planning child runs
+    before phase pool, and the pool installs the union of every selection's ``needed`` (core + each
+    engine pack), nothing else from the export. Under ``EXPORT`` the pool is the whole export and no
+    seed child starts.
+
+    Killing mutation: ignore ``manifest.packaging_pool`` and always select -> the EXPORT case reds
+    (the seed child ran)."""
+    pkg, args, manifest, calls, installed = _pool_stubs(
+        monkeypatch, tmp_path, "CLOSURE", {"": {"a-dist"}, "pk": {"a-dist", "b-dist"}})
+    assert pkg._build(args, manifest, {}, tmp_path / "core.pool", None) == 0
+    assert calls[0] == ["seed", ["", "pk"]]
+    assert "a-dist==1" in installed[0] and "b-dist==1" in installed[0] and "c-dist" not in installed[0]
+    out = capsys.readouterr().out
+    assert [line.split(":")[0] for line in out.splitlines() if line.startswith("phase ")][:3] == [
+        "phase seed plan", "phase pool", "phase plan"]
+    assert "pool scope: closure — 2 of 3 export blocks (seed: " in out
+
+    (tmp_path / "export").mkdir()
+    pkg, args, manifest, calls, installed = _pool_stubs(monkeypatch, tmp_path / "export", "EXPORT",
+                                                        {"": {"a-dist"}, "pk": {"a-dist"}})
+    assert pkg._build(args, manifest, {}, tmp_path / "export" / "core.pool", None) == 0
+    assert installed == [_EXPORT] and calls == [[["", "pk"]], [[""], ["", "pk"]]]
+    assert "pool scope" not in capsys.readouterr().out
+
+
+def test_the_pool_plan_proves_the_seed_a_dist_the_seed_missed_ends_the_build(monkeypatch, capsys, tmp_path: Path):
+    """Plan bundled-phone-pool-2026-10-22 S4: the seed plan only chooses what the pool installs;
+    phase plan re-plans over the installed pool and stays the authority. A seed answering
+    ``{a-dist}`` while the pool plan needs ``{a-dist, d-dist}`` ends the build red, and the receipt
+    names both counts.
+
+    Killing mutation: skip the ``plan.missing`` check when ``packaging_pool is CLOSURE`` -> exit 0, red."""
+    import scripts.bundle_profile_package as pkg
+
+    _pkg, args, manifest, _calls, _installed = _pool_stubs(
+        monkeypatch, tmp_path, "CLOSURE", {"": {"a-dist"}, "pk": {"a-dist"}},
+        pool_answer={"": {"a-dist", "d-dist"}, "pk": {"a-dist", "d-dist"}})
+    monkeypatch.setattr(pkg, "make_plan", lambda manifest, site, target, pv, index=None, distributions=None:
+                        _plan(set(), distributions[0], missing=distributions[0] - {"a-dist"}))
+    assert pkg._build(args, manifest, {}, tmp_path / "core.pool", None) == 1
+    out = capsys.readouterr().out
+    assert "pool: seed plan 1 dists, pool plan 2 dists" in out
+    assert "the closure needs d-dist; the pool does not hold it" in out

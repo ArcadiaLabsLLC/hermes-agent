@@ -117,6 +117,9 @@ packaging:
     - model_tools
   # No optional extras: phones call providers over raw HTTP (architecture §6), never an SDK.
   extras: []
+  # The pool installs only the closure's distributions, not the whole export: several base dependencies
+  # have no phone wheel (docs/agent-runtime-harness/planned/bundled-phone-pool-2026-10-22.md).
+  pool: closure
   # Compiled distributions the gate admits (architecture §6: small, ships for both platforms,
   # no pure alternative). CPython's own ssl / sqlite3 are the interpreter, not distributions.
   admitted_native:

@@ -335,3 +335,17 @@ def test_the_model_download_gate_refuses_to_install_over_a_renamed_route(monkeyp
     monkeypatch.setattr(model_downloads, "MODEL_DOWNLOAD_ROUTES", model_downloads.MODEL_DOWNLOAD_ROUTES | {"/api/local-models/gone"})
     with pytest.raises(RouteGateError, match="name no mounted route"):
         model_downloads.gate_model_download_routes(FastAPI())
+
+
+def test_the_pool_scope_is_an_enum_the_phone_declares_and_the_desktop_defaults():
+    """Plan bundled-phone-pool-2026-10-22 S1: ``packaging.pool`` says what the packager's pool phase
+    installs. The phone installs its closure, the desktop the whole export (absent = EXPORT), and a
+    value outside the Enum is refused naming it.
+
+    Killing mutation: read ``packaging.pool`` as a bare string -> the ``is PoolScope.CLOSURE`` red."""
+    from agent_runtime.bundle_profiles.manifest import PoolScope
+
+    assert load_profile("bundled-phone").packaging_pool is PoolScope.CLOSURE
+    assert load_profile("bundled-desktop").packaging_pool is PoolScope.EXPORT
+    with pytest.raises(ProfileManifestError, match="packaging.pool must be one of export, closure: got 'everything'"):
+        parse_manifest({"schema_version": 1, "profile": "p", "packaging": {"pool": "everything"}}, validate=False)
