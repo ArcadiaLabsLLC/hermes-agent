@@ -161,8 +161,8 @@ per line, and dispatch into the **existing** harness argparse tree unchanged:
 would, including the harness error-envelope contract — argv arrives verbatim as
 the bridge already builds it, which keeps the per-call CLI fallback
 byte-identical to the served path. **`ready` is a BOOT frame, not a request
-frame** — classified as boot in the protocol block (`serve.py:20`) and emitted
-exactly once per process, at `:1663-1664`. What rides a REQUEST is `line` × N,
+frame** — classified as boot in the protocol block (`serve.py`) and emitted
+exactly once per process, at its single emit site. What rides a REQUEST is `line` × N,
 `exit` and `stderr` (`:31-37`), plus a typed `error` frame when argv parsing or
 dispatch fails (`:1346`, `:1355`). Handlers `print()` directly and streaming
 turns emit deltas live, so stdout/stderr are swapped once for contextvar-dispatching
@@ -1306,10 +1306,10 @@ Rules, all in `agent_runtime/patch_coverage.py`:
   (`accepted_fold_entities`, `:380`): one producer fans every frame to every
   subscriber, so a promotion must be safe for everyone in the room.
 - **The accepted set is echoed, not assumed** — on the `subscribed` ack
-  (`serve.py:2737`) and again on the hydrate (`agent_runtime/stream/build_policy.py::log_stream_attach`). A client can be
+  (`serve.py`) and again on the hydrate (`agent_runtime/stream/build_policy.py::log_stream_attach`). A client can be
   honoured for strictly less than it asked for.
 - **A malformed declaration is REFUSED**, not read as absent (`subscribe_denied`
-  / `invalid_fold_entities`, `serve.py:2633-2639`) — a client that meant to
+  / `invalid_fold_entities`, `serve.py`) — a client that meant to
   narrow and was silently widened back would get patches it cannot fold.
 - A batch naming any undeclared entity is demoted IN FULL to a core-bearing
   frame; there is no partial patch frame (`_batch_frames_with_liveness`,
@@ -1362,7 +1362,7 @@ existed the log named none of them:
 
 | Caller | `op` / `purpose` | Site |
 |---|---|---|
-| socket/stdio op lane | `subscribe` / `stream_lane` | `serve.py:5426-5428` |
+| socket/stdio op lane | `subscribe` / `stream_lane` | `serve.py` |
 | RPC office lane | `runtime.office.subscribe` / `office_patch` | `serve_office_subscriptions.py:902` |
 | argv CLI | `harness_stream` / `cli_stream` | `runtime_commands.py:669-670` |
 
@@ -1397,7 +1397,7 @@ workspace id that failed the private "id under `<workspace_id>/`" restatement
 becomes a resync notification; an UNKNOWN frame type takes the same branch
 deliberately. Drops are typed, never silent: a subscriber outrunning its bounded
 buffer gets `subscription_dropped` naming which of the two bounds tripped —
-frame count or bytes — then is unsubscribed (`serve.py:5393`).
+frame count or bytes — then is unsubscribed (`serve.py`).
 
 ## 7. The PUSH-vs-RPC boundary, and the fork boundary
 
@@ -1408,7 +1408,7 @@ launcher gating on `subscribe_lanes`. The call half deliberately mirrors
 `tui_gateway`'s JSON-RPC 2.0 shape and error codes rather than minting a third
 convention, and sits BESIDE the argv lane: a frame is claimed by the method lane
 only when it names `jsonrpc` or `method`, neither of which an argv request has
-ever carried (`serve.py:151-156`).
+ever carried (`serve.py`).
 
 **A CLI verb reaches the live serve through ONE route** (cli-serve-route plan,
 2026-10-16): `agent_runtime/serve_socket/cli_route.py::relay_argv` dials the
@@ -1657,11 +1657,11 @@ counters of the session lineage, not quota and not per turn.
   `EterniaLauncher/docs/archive/mission_control/universal-remote-gateway.md` and
   [archive/remote-gateway.md](archive/remote-gateway.md), the hermes-half
   pointer.
-- **`serve.py:105` says the RPC registry holds "currently eight" methods; ten
+- **`serve.py` says the RPC registry holds "currently eight" methods; ten
   are registered.** That same docstring warns "a docstring that copies a
   register starts lying the first time the register moves" — it has.
 - **Two module docstrings cite doc paths that moved into `archive/`** —
-  `delivery_directive.py:8` → `delivery-directive.md`, `serve.py:9` →
+  `delivery_directive.py:8` → `delivery-directive.md`, `serve.py` →
   `harness-serve-design.md`. Both pointers are dangling.
 - **`tests/fixtures/stream_frames/README.md` describes thirteen of its fourteen
   pinned files** — `patch_office_actor.json` has no row in the origin table.
