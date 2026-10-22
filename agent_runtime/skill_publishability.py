@@ -54,7 +54,7 @@ time on every inventory row, so the affordance is suppressed *and* the action is
 refused — never one without the other.
 
 Bundled-state detection reuses ``tools.skills_sync``'s own primitives
-(``_dir_hash`` for the manifest's MD5 contract, ``_read_skill_name`` for the
+(``dir_hash`` for the manifest's MD5 contract, ``read_skill_name`` for the
 frontmatter-name key it records) rather than re-deriving them: a private copy of
 a hash algorithm that must agree with a manifest written elsewhere is a silent
 mis-classification waiting to happen. If those primitives ever move, the import
@@ -174,7 +174,7 @@ class SkillPublishability:
 
 
 def _sync_primitives():
-    """Return ``(_dir_hash, _read_skill_name)`` from :mod:`tools.skills_sync`.
+    """Return ``(dir_hash, read_skill_name)`` (:mod:`tools.skills_sync`, :mod:`tools.skill_usage`).
 
     Imported lazily and by name so the manifest's hash contract and its
     frontmatter-name key can never drift from a private copy here. Returns
@@ -258,7 +258,7 @@ def read_bundled_manifest(manifest_path: Path) -> dict[str, str]:
 
 
 def _cached_dir_hash(package_dir: Path) -> str | None:
-    """``tools.skills_sync._dir_hash`` with an mtime+size invalidation cache.
+    """``tools.skills_sync.dir_hash`` with an mtime+size invalidation cache.
 
     The digest is byte-identical to the uncached call; the cache only skips
     re-reading files whose ``(relpath, mtime_ns, size)`` stamp is unchanged —
@@ -422,7 +422,7 @@ def classify_installer_ownership(package_dir: Path) -> PromotionRefusal | None:
     """Classify ``package_dir`` as installer-owned, or ``None`` when it is not.
 
     Pristine vs edited is decided by comparing the package's current
-    ``_dir_hash`` against the origin hash the manifest recorded at the last
+    ``dir_hash`` against the origin hash the manifest recorded at the last
     sync — the SAME test ``tools.skills_sync`` itself uses to decide what an
     update may overwrite. Both are refusals; they are distinct codes because the
     remediation differs: a pristine copy is a pure duplicate of what the

@@ -269,7 +269,7 @@ def test_the_baseline_holds_no_entry_that_is_no_longer_an_offender() -> None:
 def test_agent_runtime_never_imports_a_frozen_root_constant_from_tools() -> None:
     """``agent_runtime`` is immune by construction — keep it that way.
 
-    ``skill_publishability`` imports only ``_dir_hash`` / ``_read_skill_name``
+    ``skill_publishability`` imports only ``dir_hash`` / ``read_skill_name``
     (pure helpers) and derives every skills root itself, which is why no
     fork-owned call-time accessor is warranted: there is no fork-side reader for
     it to fix. A new import of the frozen names would change that silently.
@@ -470,7 +470,7 @@ def test_recover_renamed_skill_follows_the_live_profile(switched_profile) -> Non
     dest = live_root / "new" / "widget"
 
     moved = skills_sync._recover_renamed_skill(
-        skills_sync._SyncState(manifest={"widget": skills_sync._dir_hash(candidate)}, quiet=True),
+        skills_sync._SyncState(manifest={"widget": skills_sync.dir_hash(candidate)}, quiet=True),
         "widget",
         dest,
     )
@@ -496,7 +496,7 @@ def test_backfill_optional_provenance_follows_the_live_profile(
     monkeypatch.setattr(skills_sync, "_get_optional_dir", lambda: optional_dir)
 
     installed = _write_skill(live_root, "mlops/vector-databases/widget", "widget")
-    assert skills_sync._dir_hash(installed) == skills_sync._dir_hash(source)
+    assert skills_sync.dir_hash(installed) == skills_sync.dir_hash(source)
 
     assert skills_sync._backfill_optional_provenance(quiet=True) == ["widget"]
 

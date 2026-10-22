@@ -324,12 +324,13 @@ def iter_named_profile_dirs():
 
 
 def skills_sync_primitives():
-    """``(tools.skills_sync._dir_hash, tools.skills_sync._read_skill_name)`` ITSELF —
-    read by ``skill_publishability._sync_primitives``, which fails closed on any
-    import error. Raises what the import raises."""
-    from tools.skills_sync import _dir_hash, _read_skill_name
+    """``(tools.skills_sync.dir_hash, tools.skill_usage.read_skill_name)`` ITSELF (upstream's
+    published names since v0.22.3) — read by ``skill_publishability._sync_primitives``, which
+    fails closed on any import error. Raises what the import raises."""
+    from tools.skill_usage import read_skill_name
+    from tools.skills_sync import dir_hash
 
-    return _dir_hash, _read_skill_name
+    return dir_hash, read_skill_name
 
 
 def looks_like_help_or_version_command(command: str) -> bool:

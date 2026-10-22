@@ -935,22 +935,6 @@
       },
       "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
-    "129698": {
-      "head_ref": "origin/widen/skills",
-      "reviewed_head": "378e425744ee51e315698229b85d44c38b12c9f9",
-      "base_ref": "upstream/main",
-      "files": {
-        "tools/skills_sync.py": {
-          "mode": "deferred",
-          "reason": "Future skills public-reader widening; not adopted and newest version needs tiered roots absent fork."
-        },
-        "tools/skills_tool.py": {
-          "mode": "deferred",
-          "reason": "Future skills public-reader widening; not adopted and newest version needs tiered roots absent fork."
-        }
-      },
-      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
-    },
     "129700": {
       "head_ref": "origin/widen/pet",
       "reviewed_head": "67493374e837e3e1a0c4e6af474934301da6ebd6",

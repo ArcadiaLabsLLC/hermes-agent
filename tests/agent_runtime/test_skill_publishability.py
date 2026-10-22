@@ -89,7 +89,7 @@ def _seed_bundled(slug: str, *, body: str = "# Bundled\n", name: str | None = No
     """Materialize an installer-owned package: the package plus a manifest entry
     recording its CURRENT content hash (i.e. pristine, straight from the
     installer)."""
-    from tools.skills_sync import _dir_hash
+    from tools.skills_sync import dir_hash as _dir_hash
 
     root = _profile_skills()
     pkg = _write_package(root, slug, body=body, name=name)
