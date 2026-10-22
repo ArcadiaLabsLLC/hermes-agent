@@ -1501,7 +1501,7 @@
       "symbol": "upsert_actor",
       "operator": "resolve-slot-outside-office-lock",
       "find": "    items = request.items\n    if not dry_run:",
-      "replace": "    items = _place_unaimed(store, wsid, request, position_policy) if position_policy else request.items\n    position_policy = None\n    if not dry_run:",
+      "replace": "    items = _place_unaimed(request, position_policy, store.scan_actors(wsid)) if position_policy else request.items\n    position_policy = None\n    if not dry_run:",
       "test": [
         "{python}",
         "-m",
