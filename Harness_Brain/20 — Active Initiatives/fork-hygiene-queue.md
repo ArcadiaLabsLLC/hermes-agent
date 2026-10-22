@@ -24,10 +24,11 @@ tags: [queue, program/fork-hygiene]
 
 
 
-## Filed on arrival — 2026-10-22 (land w1022c)
 
-- **`FH-SCOPE-FORK-DROPS-SOURCE-GATES` — under a session-chain change `--scope fork` runs fork files only by import reach, so every whole-tree `pytest.mark.gate` file (73) drops out; land/w1021j missed 3 gate reds this way** · fork / `scripts/run_tests_bundled_scope.py::select_scope` · evidence: land-w1021j gate.log (chain: `tests/_downstream/home_config.py`; 0 of 489 cached; the three gates absent), lane w1022c-reds report · READY 2026-10-22: while sampling, keep `pytest.mark.gate` fork files in `fork_only` the way `CHAIN_CONTRACT_GLOB` already is; record the killing mutation · **TAKEN 2026-10-22 w1022d-tooling**
-- **`FH-HH10-PLACEMENT-CLAIM-KILLS-BY-TYPEERROR` — mutation claim `hh10-the-placement-read-leaves-the-lock-again` still anchors, but its replacement calls the old 4-argument `_place_unaimed`, so it kills only through a TypeError, not the behaviour it names** · fork / `tests/fixtures/mutation_claims.json` · evidence: lane w1022c-reds `437885654f` · READY 2026-10-22: rewrite the replacement to the 3-argument call that reads outside the lock, and confirm its named test is the one that kills it · **TAKEN 2026-10-22 w1022d-tooling**
+
+## Filed on arrival — 2026-10-22 (land w1022d)
+
+- **`FH-LEDGER-COUNT-DRIFT-1022` — `scripts/upstream_footprint.py --ledger` regenerates different add/delete counts for 5 ledger rows on main (e.g. `tools/environments/local.py` 7 → 13) that no lane re-derived** · fork / `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md` · evidence: lane w1022d-guard 2026-10-22 · READY 2026-10-22: re-derive the 5 rows, read each new hunk, and give each a reviewed reason
 
 ## Filed on arrival — 2026-10-22 (land w1022a)
 
