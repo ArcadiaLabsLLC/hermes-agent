@@ -458,8 +458,7 @@ def pool_selection(manifest, seed_sites: list[Path], target: str, python_version
     """``PoolScope.CLOSURE``: the union of every selection's ``needed`` (core and each engine pack), planned
     over a SEED site whose installed metadata maps import names to distributions, and the refusals.
     Phase ``plan`` re-plans over the installed pool, so a seed that mis-maps a name is a red there."""
-    return seed_union(distribution_plans(manifest.profile, [(seed_sites, pack_selections(manifest))], target,
-                                         python_version)[0])
+    return seed_union(distribution_plans(manifest.profile, [(seed_sites, pack_selections(manifest))], target, python_version)[0])
 
 
 def pack_from_plans(plans: dict, pack: str) -> tuple[set[str], list[str]]:
@@ -900,25 +899,27 @@ def main(argv=None) -> int:
 
 
 def _build(args, manifest, index, stage: Path, probe_python) -> int:
+    selected = None  # the seed plan's union: PoolScope.CLOSURE, and only when this run builds the pool
     if not (args.reuse_stage and stage.is_dir()):
         pack_extras = tuple(e for extras in manifest.packaging_packs.values() for e in extras)
-        if closure_pool := manifest.packaging_pool is PoolScope.CLOSURE:
+        if manifest.packaging_pool is PoolScope.CLOSURE:
             with phase("seed plan"):
                 selected, refused = pool_selection(manifest, args.seed_sites, args.target, args.python_version)
         with phase("pool"):
             requirements = export_requirements((*manifest.packaging_extras, *pack_extras), args.uv)
-            if closure_pool:  # a refusal returns before any install (phase plan would raise the same)
-                requirements, problems, kept = closure_requirements(requirements, selected, refused,
-                                                                    marker_env(args.target, args.python_version))
-                print(f"pool scope: closure — {kept} (seed: {', '.join(map(str, args.seed_sites))})", flush=True)
+            if selected is not None:  # a refusal returns before any install (phase plan would raise the same)
+                requirements, problems, receipt = closure_requirements(
+                    requirements, selected, refused, marker_env(args.target, args.python_version), args.seed_sites)
+                print("\n".join([receipt, *problems]), flush=True)
                 if problems:
-                    print("\n".join(problems))
                     return 1
             install_pool(requirements, stage, args.target, args.python_version, args.uv, args.offline)
     with phase("plan"):  # the core and every engine pack: one child, one walk
         built = distribution_plans(manifest.profile, [([stage], pack_selections(manifest))], args.target,
                                    args.python_version)[0]
         plan = make_plan(manifest, stage, args.target, args.python_version, index=index, distributions=built[CORE])
+    if selected is not None:  # the pool plan proves the seed: a dist the seed missed is `plan.missing` below
+        print(f"pool: seed plan {len(selected)} dists, pool plan {len(seed_union(built)[0])} dists", flush=True)
     if plan.missing or plan.refusals:
         for name in sorted(plan.missing):
             print(f"the closure needs {name}; the pool does not hold it")

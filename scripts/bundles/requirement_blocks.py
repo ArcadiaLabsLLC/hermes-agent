@@ -68,12 +68,13 @@ def seed_union(plans: dict[str, tuple[set[str], list[str]]]) -> tuple[set[str], 
     return set().union(*(needed for needed, _ in plans.values())), [r for _, refused in plans.values() for r in refused]
 
 
-def closure_requirements(requirements: str, names: set[str], refused: list[str],
-                         env: dict[str, str]) -> tuple[str, list[str], str]:
+def closure_requirements(requirements: str, names: set[str], refused: list[str], env: dict[str, str],
+                         seed_sites) -> tuple[str, list[str], str]:
     """``PoolScope.CLOSURE``'s pool: the export's blocks whose marker holds for ``env``, narrowed to
-    ``names`` -> (the requirements text, every problem line, ``"<kept> of <blocks> export blocks"``).
+    ``names`` -> (the requirements text, every problem line, the ``pool scope:`` receipt line).
     Markers are evaluated BEFORE selecting, so another platform's hashless pin is never judged."""
     blocks = [block for block in requirement_blocks(requirements) if block.holds(env)]
     text, unhashed = select_blocks(blocks, names)
     problems = [*(f"closure refusal: {line}" for line in refused), *unhashed]
-    return text, problems, f"{len(requirement_blocks(text))} of {len(blocks)} export blocks"
+    kept = f"{len(requirement_blocks(text))} of {len(blocks)} export blocks"
+    return text, problems, f"pool scope: closure — {kept} (seed: {', '.join(map(str, seed_sites))})"

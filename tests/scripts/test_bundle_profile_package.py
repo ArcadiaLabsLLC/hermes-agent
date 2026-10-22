@@ -752,3 +752,23 @@ def test_a_closure_pool_installs_only_the_seed_plan_s_union(monkeypatch, capsys,
     assert pkg._build(args, manifest, {}, tmp_path / "export" / "core.pool", None) == 0
     assert installed == [_EXPORT] and calls == [[["", "pk"]], [[""], ["", "pk"]]]
     assert "pool scope" not in capsys.readouterr().out
+
+
+def test_the_pool_plan_proves_the_seed_a_dist_the_seed_missed_ends_the_build(monkeypatch, capsys, tmp_path: Path):
+    """Plan bundled-phone-pool-2026-10-22 S4: the seed plan only chooses what the pool installs;
+    phase plan re-plans over the installed pool and stays the authority. A seed answering
+    ``{a-dist}`` while the pool plan needs ``{a-dist, d-dist}`` ends the build red, and the receipt
+    names both counts.
+
+    Killing mutation: skip the ``plan.missing`` check when ``packaging_pool is CLOSURE`` -> exit 0, red."""
+    import scripts.bundle_profile_package as pkg
+
+    _pkg, args, manifest, _calls, _installed = _pool_stubs(
+        monkeypatch, tmp_path, "CLOSURE", {"": {"a-dist"}, "pk": {"a-dist"}},
+        pool_answer={"": {"a-dist", "d-dist"}, "pk": {"a-dist", "d-dist"}})
+    monkeypatch.setattr(pkg, "make_plan", lambda manifest, site, target, pv, index=None, distributions=None:
+                        _plan(set(), distributions[0], missing=distributions[0] - {"a-dist"}))
+    assert pkg._build(args, manifest, {}, tmp_path / "core.pool", None) == 1
+    out = capsys.readouterr().out
+    assert "pool: seed plan 1 dists, pool plan 2 dists" in out
+    assert "the closure needs d-dist; the pool does not hold it" in out
