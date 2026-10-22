@@ -148,6 +148,18 @@ def test_the_core_record_carries_the_interpreter_and_the_first_party_app(tmp_pat
     assert licence_problems(tmp_path, set()) == []
 
 
+def test_a_phone_core_record_has_no_interpreter_row(tmp_path: Path):
+    """RT-BUNDLED-PHONE-POOL S5 (ios_arm64): with the pool fixed the build reached phase copy and died in
+    ``interpreter_row`` (``KeyError: 'ios_arm64'``) — a phone embeds the host app's CPython, and
+    ``interpreters.lock.json`` pins none. Killing mutation: always add ``interpreter_row`` -> KeyError, red."""
+    (tmp_path / "site-packages").mkdir()
+    (tmp_path / "app").mkdir()
+    for target in ("ios_arm64", "android_arm64"):
+        record = write_licence_records(tmp_path, "core", set(), target, "c0ffee" * 7, core=True, wheels={})
+        assert [r["kind"] for r in record["components"]] == ["first-party"]
+        assert licence_problems(tmp_path, set()) == []
+
+
 # -- vetted licence texts for wheels that ship none ----------------------------------------------
 
 

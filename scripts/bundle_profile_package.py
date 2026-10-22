@@ -599,9 +599,9 @@ def resource_problems(app_files: set[str], tracked: list[str], resources: tuple[
     problems = []
     cache: dict = {}
     for resource in resources:
-        wanted = {rel for rel in tracked if _in_resource(rel, (resource,)) and _resource_file(rel, excluded)
-                  and (not rel.startswith("skills/") or skill_ships(rel, skill_platforms, _cache=cache))}
-        if not wanted:
+        named = {rel for rel in tracked if _in_resource(rel, (resource,)) and _resource_file(rel, excluded)}
+        wanted = {rel for rel in named if not rel.startswith("skills/") or skill_ships(rel, skill_platforms, _cache=cache)}
+        if not named:  # a resource naming nothing is a typo; a platform filter selecting no skill is not
             problems.append(f"resource selects no tracked file: {resource}")
         for rel in sorted(wanted - app_files):
             problems.append(f"missing resource file ({resource}): app/{rel}")

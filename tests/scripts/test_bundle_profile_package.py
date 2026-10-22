@@ -359,6 +359,16 @@ TRACKED = [f"{SKILLS}/harness-qa-verdict/SKILL.md", f"{SKILLS}/harness-qa-verdic
            "docs/other.md", "skills/a/SKILL.md"]
 
 
+def test_a_platform_filter_selecting_no_skill_is_not_a_typo_d_resource():
+    """RT-BUNDLED-PHONE-POOL S5 (ios_arm64): the first phone build to reach verify failed
+    ``resource selects no tracked file: skills`` -- no tracked skill names a phone platform yet, so the
+    ``skill_platforms`` filter ships none. The check catches a resource naming NO tracked file; a
+    filter narrowing a real resource to zero is the profile's declared outcome.
+    Killing mutation: test the filtered set (``if not wanted``) -> the phone case reds."""
+    assert resource_problems(set(), TRACKED, ("skills",), {}, ("ios", "android")) == []
+    assert resource_problems(set(), TRACKED, ("skilz",), {}, ("ios",)) == ["resource selects no tracked file: skilz"]
+
+
 def test_a_nested_resource_ships_file_for_file_or_verify_names_the_gap():
     """``--verify`` holds a repo-relative ``packaging.resources`` entry (the harness skills
     ``agent_runtime.skill_install`` reads from ``app/docs/...``) to every tracked file under it."""
