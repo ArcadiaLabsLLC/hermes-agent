@@ -56,10 +56,10 @@ class ApiCallVerdict:
 
 
 def should_stream(agent: Any) -> bool:
-    """Streaming is preferred even without consumers (stale-stream / read-timeout health
-    checks); disabled on provider signal, ACP providers (``acp://`` scheme or an
-    external-process provider profile), MoA without a display consumer, or Mock clients in
-    tests (SimpleNamespace, not stream iterators).
+    """Prefer streaming for liveness even without display consumers (stale-stream /
+    read-timeout health checks). Process providers must opt in (``supports_streaming``);
+    ACP transports, explicit session/provider disables, MoA without a display consumer and
+    Mock clients in tests stay non-streaming.
 
     ``agent`` is the live ``AIAgent`` making the call: this reads ``_disable_streaming``,
     ``base_url``, ``provider`` and ``client`` and calls ``_has_stream_consumers()``. Hook
@@ -69,9 +69,16 @@ def should_stream(agent: Any) -> bool:
     if getattr(agent, "_disable_streaming", False):
         return False
     _base = str(agent.base_url or "").lower()
+    if _base.startswith(("acp://", "acp+tcp://")):
+        return False
+    from providers import get_provider_profile
     from hermes_cli.runtime_provider_backends import _is_external_process_provider
 
-    if _base.startswith(("acp://", "acp+tcp://")) or _is_external_process_provider(agent.provider):
+    profile = get_provider_profile(agent.provider)
+    streaming = getattr(profile, "supports_streaming", None)
+    if streaming is False:
+        return False
+    if _is_external_process_provider(agent.provider) and streaming is not True:
         return False
     if not agent._has_stream_consumers():
         if agent.provider == "moa":
