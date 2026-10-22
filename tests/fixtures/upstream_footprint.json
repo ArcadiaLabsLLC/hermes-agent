@@ -1,7 +1,7 @@
 {
-  "measured_at": "2026-10-21",
+  "measured_at": "2026-10-22",
   "base": "d923a5eb48",
-  "files": 233,
+  "files": 234,
   "deleted_lines": 1057,
   "heavy": 1,
   "reasons": [
@@ -1068,6 +1068,21 @@
       },
       "reason": "Three new upstream files carry fork edits (sessions_cmd.py: RT-SESSIONS-EXPORT-READ-ONLY; codex_app_server.py: RT-WIN-CONSOLE-FLASH-CODEX-SWITCH; node-deps.mjs: RT-NODE-DEPS-LAUNCH-TIME) and the deleted lines rise 1035 -> 1057 (main.py +9, plugins.py +1 adopting #128648's shape, node-deps.mjs +10, hosted_rooms.py +2 for RT-DISCUSSION-PIN-BYTE-BUDGET). Each is an upstream fix shipped on the fork with an up/ branch held idle.",
       "owner_ruling": "2026-10-21, owner: upstream fixes ship on the fork with a prepared up/ branch held idle (RULED 2026-10-21 rows, 5e3946fc33)"
+    },
+    {
+      "change": "land/w1022a: lane upstream (hermes_cli/model_switch_providers.py)",
+      "before": {
+        "files": 233,
+        "deleted_lines": 1057,
+        "heavy": 1
+      },
+      "after": {
+        "files": 234,
+        "deleted_lines": 1057,
+        "heavy": 1
+      },
+      "reason": "picker auth-store memo seam (RT-PICKER-AUTH-DIRECT-READS): +3 additive lines in hermes_cli/model_switch_providers.py, files 233→234; retires with up/picker-pool-snapshot",
+      "owner_ruling": "2026-10-21, owner: fork-first — upstream fixes ship on the fork with a prepared up/ branch held idle (RULED 2026-10-21 rows, 5e3946fc33)"
     }
   ]
 }
