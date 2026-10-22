@@ -64,3 +64,20 @@ def test_load_pool_reads_auth_once_per_provider_inside_a_scope(monkeypatch):
     unscoped = [load_pool("openrouter") for _ in range(20)]
     assert len(reads) >= 20 * per_load
     assert unscoped[0] is not unscoped[1]
+
+
+def test_the_picker_auth_probes_read_auth_once_inside_a_scope(monkeypatch):
+    """RT-PICKER-AUTH-DIRECT-READS: the two read-only probes share one store read per build."""
+    from hermes_cli.model_switch_providers import _auth_store_has_provider, _raw_pool_usable
+
+    reads = _counting_auth_reads(monkeypatch)
+    with credential_pool_snapshot():
+        for slug in ("openrouter", "anthropic", "nous", "zai") * 5:
+            _auth_store_has_provider(slug)
+            _raw_pool_usable(f"no-raw-pool-{slug}")
+    assert len(reads) == 1
+    reads.clear()
+    for slug in ("openrouter", "anthropic"):
+        _auth_store_has_provider(slug)
+        _raw_pool_usable(f"no-raw-pool-{slug}")
+    assert len(reads) == 4  # outside a scope every probe reads, as upstream does
