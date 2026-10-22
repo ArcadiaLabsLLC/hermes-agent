@@ -115,8 +115,8 @@ def skill_search(query: str, source: str = "all", limit: int = 10,
             return len(results) >= capped
 
         if include_installed or source == "installed":
-            from tools.skills_tool import _find_all_skills, _sort_skills
-            for skill in _sort_skills([s for s in _find_all_skills() if _installed_matches(s, query)]):
+            from tools.skills_tool import find_all_skills, sort_skills
+            for skill in sort_skills([s for s in find_all_skills() if _installed_matches(s, query)]):
                 if _add(_installed_row(skill)):
                     break
         if source != "installed" and len(results) < capped:
