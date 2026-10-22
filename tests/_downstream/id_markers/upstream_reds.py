@@ -38,7 +38,7 @@ __layer__ = "models"
 #: (XFAIL) there, and the XPASS, platform-skipped and upstream-deleted rows were removed.
 #: The `_up_red_skip` rows (process-killers) and the install.ps1 suite row (it writes the
 #: user PATH unfenced, D3.15) were not run and carry no stamp.
-QUALIFIED = "CPython 3.14.5 / SQLite 3.50.4 (2026-10-15)"
+QUALIFIED = "CPython 3.14.7 / SQLite 3.53.1 (2026-10-22)"
 
 _up_red = functools.partial(_up_red_unqualified, qualified=QUALIFIED)
 
@@ -668,9 +668,6 @@ if _WIN:
         ),
         "tests/hermes_cli/test_sandbox_image_switch.py::test_pending_reads_a_bound_terminal_scope_not_the_launch_env": (
             _up_red("the pending-switch read returns None on this host; cause not settled (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
-        ),
-        "tests/tools/test_bot_desktop_placement.py::test_forward_port_carries_bytes_both_ways_through_the_exec_stream": (
-            _up_red("the forwarded socket is reset (WinError 10054) before the echo returns (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
         ),
         "tests/tools/test_computer_use.py::TestCuaEnvironmentScrubbing::test_cua_session_sanitizes_provider_env_vars": (
             _up_red("no expected safe variable survives the scrub on this host (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),

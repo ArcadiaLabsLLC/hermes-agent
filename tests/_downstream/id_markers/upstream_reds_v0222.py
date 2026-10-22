@@ -21,9 +21,7 @@ __layer__ = "models"
 _REASON = "red on pure upstream tag v0.22.2 d923a5eb48 on Windows (2026-10-15 release merge)"
 
 _NODES = (
-        'tests/gateway/test_process_cmdline_source.py::test_psutil_answers_without_forking_ps',
         'tests/scripts/desktop_update/test_desktop_update_windows_marker.py::test_script_killed_right_after_spawning_the_update_leaves_a_live_marker',
-        'tests/test_scratch_dir.py::test_prune_records_removals_and_kills_in_scratch_prune_log',
         'tests/hermes_cli/test_install_state.py::test_gateway_service_definitions_name_their_homes',
         'tests/tools/test_connector_files.py::test_a_docker_path_is_read_through_its_volume_mount',
 )

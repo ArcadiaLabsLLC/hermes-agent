@@ -116,8 +116,6 @@
   "agent_runtime/_upstream_doors.py|tools.mcp_tool|_MCP_AVAILABLE",
   "agent_runtime/_upstream_doors.py|tools.mcp_tool|_lock",
   "agent_runtime/_upstream_doors.py|tools.mcp_tool|_servers",
-  "agent_runtime/_upstream_doors.py|tools.skills_sync|_dir_hash",
-  "agent_runtime/_upstream_doors.py|tools.skills_sync|_read_skill_name",
   "agent_runtime/_upstream_doors.py|tools.terminal_tool_guards|_looks_like_help_or_version_command",
   "agent_runtime/_upstream_doors.py|tools.terminal_tool_guards|_strip_quotes",
   "agent_runtime/_upstream_doors.py|tools.transcription_local|_join_confident_segments",
