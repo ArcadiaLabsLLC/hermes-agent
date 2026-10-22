@@ -253,7 +253,7 @@ def shell_path_operand(raw_word: str) -> Optional[str]:
     """The drive path a raw shell word hands its command, spelled with forward slashes, or None.
 
     A detector that collapses shell quoting for COMMAND words drops every backslash, so
-    ``cd "X:\a\b"`` reached the self-repo guard as ``X:ab`` — a relative path that does not
+    ``cd "X:\\a\\b"`` reached the self-repo guard as ``X:ab`` — a relative path that does not
     exist — and the command was judged against the session's cwd instead of ``X:/a/b``
     (RT-SELF-REPO-GUARD-WINDOWS-PATHS). This unquotes the word the way bash does (backslashes
     survive inside single and double quotes; unquoted, the shell itself eats them) and answers
