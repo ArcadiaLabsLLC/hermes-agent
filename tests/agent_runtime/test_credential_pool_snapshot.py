@@ -30,8 +30,8 @@ def test_the_memo_is_per_hermes_home(tmp_path, monkeypatch):
 
 
 def _counting_auth_reads(monkeypatch):
-    import agent.credential_pool as credential_pool
-    import hermes_cli.auth as auth
+    from agent import credential_pool
+    from hermes_cli import auth
 
     reads = []
     real = auth._load_auth_store

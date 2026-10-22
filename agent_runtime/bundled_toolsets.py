@@ -21,7 +21,7 @@ import json
 import logging
 import sys
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -189,7 +189,7 @@ def write_approval(home: Path, toolset: str, *, mode: Mode | str, reason: str = 
 
     rows = [row for row in read_approvals(home) if row.get("toolset") != toolset]
     if mode is Mode.GRANT:
-        rows.append({"toolset": toolset, "granted_at": datetime.now(timezone.utc).isoformat(),
+        rows.append({"toolset": toolset, "granted_at": datetime.now(UTC).isoformat(),
                      "granted_by": granted_by, "edition": "bundled", "build": build_stamp().commit or "",
                      "reason": str(reason or "")[:REASON_MAX]})
     record = {"schema_version": SCHEMA_VERSION, "approvals": rows}

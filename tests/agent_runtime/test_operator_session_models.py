@@ -430,14 +430,14 @@ PICKER_AUTH_READS_BAR = 120
 
 
 def test_a_picker_open_reads_auth_json_once_per_provider_pool(placed_agent, catalog, monkeypatch):
-    import agent.credential_pool as credential_pool
-    import hermes_cli.auth as auth
+    from agent import credential_pool
+    from hermes_cli import auth
 
     params = target(placed_agent["persona_instance_id"])
     assert "result" in inspect("models", params)  # warm the catalog; the count is the steady open
     reads = []
     real = auth._load_auth_store
-    counted = lambda *a, **k: reads.append(1) or real(*a, **k)  # noqa: E731
+    counted = lambda *a, **k: reads.append(1) or real(*a, **k)
     monkeypatch.setattr(auth, "_load_auth_store", counted)
     monkeypatch.setattr(credential_pool, "_load_auth_store", counted)  # imported by name there
     assert "result" in inspect("models", params)

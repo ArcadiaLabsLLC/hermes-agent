@@ -45,7 +45,7 @@ NO_LIVE_GATEWAY_MARK = "requires_no_live_gateway"
 #: A file the gate directory (``docs/agent-runtime-harness/11-gate-directory.md``) lists;
 #: spelled in ``scripts/gate_mark.py``, the one reader of it (the gate directory's
 #: enumeration and the bundled scope's chain sample both ask it), and re-exported here.
-from scripts.gate_mark import GATE_MARK  # noqa: E402
+from scripts.gate_mark import GATE_MARK
 
 _PATH_SPELLING = (
     "upstream interpolates a Windows tmp_path into a JSON string literal "

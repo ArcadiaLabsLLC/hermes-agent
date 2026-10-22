@@ -26,7 +26,7 @@ COURSE = "crs_42"
 
 def _git(*args: str, cwd: Path | None = None) -> str:
     done = subprocess.run(["git", "-c", "user.name=seed", "-c", "user.email=seed@test.invalid",
-                           "-c", "commit.gpgsign=false", *args], cwd=cwd, capture_output=True, text=True)
+                           "-c", "commit.gpgsign=false", *args], cwd=cwd, capture_output=True, text=True, check=False)
     assert done.returncode == 0, done.stderr
     return done.stdout.strip()
 
