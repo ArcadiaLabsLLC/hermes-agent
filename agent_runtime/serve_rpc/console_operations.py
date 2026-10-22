@@ -112,6 +112,15 @@ def skills_catalog(rid, params, context=None):
     return _operation(rid, params, context, "runtime.skills.catalog", read)
 
 
+def _toolset_persona(params):
+    """The persona ``params["persona_id"]`` names, or ``None`` when the store has none."""
+    from agent_runtime.store import AgentStore
+    try:
+        return AgentStore().get(params["persona_id"])
+    except (FileNotFoundError, KeyError):
+        return None
+
+
 def _toolset_approve(params):
     """Grant or revoke one persona's opt-in to a bundled-disabled toolset (``agent_runtime/bundled_toolsets``).
 
@@ -120,15 +129,13 @@ def _toolset_approve(params):
     import logging
 
     from agent_runtime import bundled_toolsets as bt
-    from agent_runtime.store import AgentStore
     for key in ("persona_id", "toolset"):
         _console_text(params, key, required=True)
     _console_text(params, "reason")
     if params.get("mode") not in tuple(bt.Mode):
         raise ValueError("mode")
-    try:
-        persona = AgentStore().get(params["persona_id"])
-    except (FileNotFoundError, KeyError):
+    persona = _toolset_persona(params)
+    if persona is None:
         return {"ok": False, "reason": "persona_not_found", "persona_id": params["persona_id"]}
     home = bt.persona_home(persona)
     try:
@@ -145,3 +152,23 @@ def _toolset_approve(params):
 @method("runtime.persona.toolset.approve", tier=TIER_CONSOLE)
 def toolset_approve(rid, params, context=None):
     return _operation(rid, params, context, "runtime.persona.toolset.approve", _toolset_approve)
+
+
+def _toolset_list(params):
+    """The opt-in toolsets this edition offers one persona, each granted or not (the approve verb's read).
+
+    The Developer Edition offers none and says so with ``edition_not_bundled: true``; an unknown persona
+    is the approve verb's ``persona_not_found`` refusal."""
+    from agent_runtime import bundled_toolsets as bt
+    _console_text(params, "persona_id", required=True)
+    persona = _toolset_persona(params)
+    if persona is None:
+        return {"ok": False, "reason": "persona_not_found", "persona_id": params["persona_id"]}
+    bundled = bt.edition_bundled()
+    offers = bt.toolset_offers(bt.persona_home(persona)) if bundled else ()
+    return {"persona_id": params["persona_id"], "edition_not_bundled": not bundled, "toolsets": list(offers)}
+
+
+@method("runtime.persona.toolset.list", tier=TIER_CONSOLE)
+def toolset_list(rid, params, context=None):
+    return _operation(rid, params, context, "runtime.persona.toolset.list", _toolset_list)

@@ -151,6 +151,17 @@ def approved_toolsets(home: Path, profile: Any) -> tuple[str, ...]:
         if refusal(str(row["toolset"]), profile, check_shipped=False) is None))
 
 
+def toolset_offers(home: Path) -> tuple[dict, ...]:
+    """The opt-in toolsets the bundled profile offers, each ``{toolset, granted}`` for ``home``'s record.
+
+    A toolset the profile disables but an agent may not opt into (no platform, not shipped) is not
+    offered; ``granted`` is :func:`approved_toolsets`' answer, so a hand-edited row reads as not granted."""
+    profile = bundled_profile()
+    granted = set(approved_toolsets(home, profile))
+    return tuple({"toolset": name, "granted": name in granted}
+                 for name in profile.disabled_toolsets if refusal(name, profile) is None)
+
+
 def bundled_disabled_toolsets(persona: Any) -> tuple[str, ...]:
     """The request's ``disabled_toolsets``: the bundled profile's list minus the persona's opt-ins."""
     if not edition_bundled():
