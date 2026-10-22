@@ -25,12 +25,12 @@ C:/Users/beast/.venvs/hermes-test/Scripts/python.exe -m pytest <file> -q --tb=sh
 | `tests/gateway/test_complete_path_at_filter.py::test_remote_backend_completion_lists_the_backend_not_the_host` | The fake backend runs the gateway's POSIX listing script through `subprocess.run(shell=True)`. On Windows that is `cmd.exe`, so the listing comes back empty (`[]`). Windows-only. | file run, 3 failed |
 | `…::test_remote_backend_completion_expands_tilde_on_the_backend` | same | same |
 | `…::test_remote_backend_completion_speaks_posix_from_a_windows_host` | same | same |
-| `tests/tools/test_bot_retry_policy.py::test_deliver_retries_same_argv_on_transient_failure` | The fake delivery transport never answers, so the reply is `''`. The CLI argv resolves to `hermes.EXE` on Windows. Same family as the bot-relay node below. | file run, 4 failed |
-| `…::test_deliver_retries_once_on_context_overflow` | same | same |
-| `…::test_deliver_never_retries_auth_failure` | same (`'error' not in {'result': {'reply': ''}}`) | same |
-| `…::test_deliver_retry_reads_the_stream_the_cli_writes_and_resumes_the_persisted_row` | same | same |
-| `tests/tui_gateway/test_bot_relay_methods.py::test_deliver_validates_profile_and_runs_transport` | `assert 'hermes.EXE' in ('hermes', 'hermes.exe')`. The basename match is case-sensitive, but Windows PATHEXT casing gives `hermes.EXE`. | file run, 2 failed |
-| `…::test_reported_turn_still_lingering_at_the_cap_is_booked_from_its_latest_report_not_killed` | `subprocess.TimeoutExpired` at the test's 2 s cap. A Windows interpreter cold start is slower than that. | same |
+| `tests/tools/test_bot_retry_policy.py::test_deliver_retries_same_argv_on_transient_failure` (deleted upstream at v0.22.4) | The fake delivery transport never answers, so the reply is `''`. The CLI argv resolves to `hermes.EXE` on Windows. Same family as the bot-relay node below. | file run, 4 failed |
+| `…::test_deliver_retries_once_on_context_overflow` (deleted upstream at v0.22.4) | same | same |
+| `…::test_deliver_never_retries_auth_failure` (deleted upstream at v0.22.4) | same (`'error' not in {'result': {'reply': ''}}`) | same |
+| `…::test_deliver_retry_reads_the_stream_the_cli_writes_and_resumes_the_persisted_row` (deleted upstream at v0.22.4) | same | same |
+| `tests/tui_gateway/test_bot_relay_methods.py::test_deliver_validates_profile_and_runs_transport` (deleted upstream at v0.22.4) | `assert 'hermes.EXE' in ('hermes', 'hermes.exe')`. The basename match is case-sensitive, but Windows PATHEXT casing gives `hermes.EXE`. | file run, 2 failed |
+| `…::test_reported_turn_still_lingering_at_the_cap_is_booked_from_its_latest_report_not_killed` (deleted upstream at v0.22.4) | `subprocess.TimeoutExpired` at the test's 2 s cap. A Windows interpreter cold start is slower than that. | same |
 | `tests/tui_gateway/test_display_methods.py::test_install_worker_keeps_the_requested_profile_scope` | `ModuleNotFoundError: fcntl`. POSIX-only. | file run, 2 failed |
 | `…::test_install_sudo_card_ignores_a_client_supplied_session_id` | same | same |
 | `tests/tui_gateway/test_display_watch.py::test_screen_started_or_stopped_by_another_process_is_broadcast_as_status` | Path compared case-sensitively (`c:\users\…` vs `C:\Users\…`). Windows-only. | file run, 1 failed |

@@ -86,7 +86,8 @@ def test_ordinary_native_teardown_releases_replay_identity_too(owner):
     event_replay._stamp_event({"method": "event", "params": {
         "session_id": "live", "type": "message.delta", "payload": {"text": "old"}}})
     server._teardown_popped_session(server._pop_session_by_id("live"))
-    assert "live" not in event_replay._replay_next_seq
+    # Upstream's forget_session (v0.22.4) frees the ring and keeps the seq for late frames.
+    assert "live" in event_replay._replay_forgotten
     assert not event_replay.events_since("live", 0)
 
 
@@ -96,7 +97,8 @@ def test_retirement_releases_replay_not_transcript_or_execution_evidence(owner):
         "session_id": "live", "type": "message.delta", "payload": {"text": "word"}}})
     assert retire() == {"status": "retired"}
     assert "live" not in server._sessions
-    assert "live" not in event_replay._replay_next_seq
+    assert "live" in event_replay._replay_forgotten
+    assert not event_replay.events_since("live", 0)
     assert db.get_messages("stored")[0]["content"] == "preserve me"
     restored = {"session_key": "stored", "history_lock": threading.RLock()}
     assert session_execution.snapshot(restored, "execution")["status"] == "complete"
