@@ -32,6 +32,6 @@ def test_extra_dir_skill_is_found_writable_and_excluded_names_skipped(tmp_path, 
     assert [p.parent.name for p in iter_skill_index_files(extra.resolve(), "SKILL.md")] == ["demo"]
     assert normalize_skill_lookup_name(str(demo)) == "tools/demo"
 
-    from tools.skills_tool import _find_all_skills
-    names = {s["name"] for s in _find_all_skills(skip_disabled=True)}
+    from tools.skills_tool import find_all_skills
+    names = {s["name"] for s in find_all_skills(skip_disabled=True)}
     assert "demo" in names and "pending" not in names
