@@ -175,9 +175,15 @@ def _write_binding(workspace_id: str, record: dict[str, Any]) -> None:
 
 
 def retire_binding(workspace_id: str, *, into: str, at: str, moved: list[str]) -> None:
-    """The default brain's rows now live in slot ``into``; the board stops listing it."""
+    """The default brain's rows now live in slot ``into``; the board stops listing it, and Hermes's worktree of
+    it is removed (plan work-slot-roots-per-workspace-2026-10-21 W3)."""
+
+    from .writer import checkout_token, remove_worktree
 
     record = read_binding(workspace_id) or {}
+    root = Path(str(record["path"])) if record.get("path") else None
+    if root is not None and (root / ".git").exists():
+        remove_worktree(paths.work_worktree_dir(workspace_id, DEFAULT_BRAIN_SLOT, checkout_token(root)), repo=root)
     _write_binding(workspace_id, {**record, "retired_into": into, "retired_at": at, "moved": moved})
 
 
@@ -305,7 +311,7 @@ def _adopt_declared_brain(workspace_id: str, root: Path, issued_at: str) -> Boar
     declared = live_slots(load_document(workspace_id)).get(DEFAULT_BRAIN_SLOT) or {}
     repo = declared.get("repo") or {}
     url, branch = repo.get("clone_url"), str(repo.get("default_branch") or "main")
-    here = bound_path(DEFAULT_BRAIN_SLOT)
+    here = bound_path(DEFAULT_BRAIN_SLOT, workspace_id=workspace_id)
     if not url or (here is not None and here.is_dir()) or (read_binding(workspace_id) or {}).get("remote_url") == url:
         return None
     target = root if not (root / ".git").exists() else root.with_name("brain-remote")

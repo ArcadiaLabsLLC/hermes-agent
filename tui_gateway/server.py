@@ -2182,7 +2182,7 @@ from . import (
     methods_display as _methods_display, methods_display_watch as _methods_display_watch,
     methods_onboarding as _methods_onboarding, methods_i18n as _methods_i18n, methods_machine as _methods_machine,
     methods_shared_metrics as _methods_shared_metrics, methods_plugin_catalog as _methods_plugin_catalog)
-from agent_runtime import gateway_extensions as _gateway_extensions  # noqa: E402
+from agent_runtime import gateway_extensions as _gateway_extensions
 _gateway_extensions.prepare(sys.modules[__name__])
 
 for _m in (

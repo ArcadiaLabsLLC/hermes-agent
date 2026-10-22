@@ -110,6 +110,13 @@ if _WIN:
             _posix_only("POSIX change-time premise; win32 st_ctime is creation time and "
                         "os.utime never moves it"),
         ),
+        # Lane w1022a-tests (2026-10-22, FH-MAIN-IMPORTER-REDS-1021): upstream's C4 kill -9 test
+        # kills its child with os.kill(pid, signal.SIGKILL) and pins returncode == -SIGKILL;
+        # Windows has no signal.SIGKILL. Red alone on an idle box and on pure tag v0.22.4.
+        "tests/e2e/core/compaction/test_compaction_kill9.py::"
+        "test_kill9_mid_compaction_leaves_state_consistent_and_resumable": (
+            _posix_only("signal.SIGKILL; the test kills its child mid-compaction with it"),
+        ),
         "tests/hermes_cli/test_relaunch.py::TestRelaunch::test_calls_execvp": (
             pytest.mark.skip(reason=_POSIX_ONLY),
         ),

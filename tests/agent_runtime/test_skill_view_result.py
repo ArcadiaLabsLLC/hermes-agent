@@ -124,3 +124,26 @@ def test_a_direct_caller_in_a_lane_is_served(tmp_path):
         served = json.loads(skill_view("root-only"))
     assert served["success"] is True
     assert not set(_STAMPS) & set(served)
+
+
+def test_the_refusal_holds_without_upstreams_internal_source_path(tmp_path):
+    """RT-SKILL-VIEW-SOURCE-PATH: upstream 7dcb1b4cfdb stopped returning ``_source_path``;
+    the SKILL.md is found from ``skill_dir`` (a view) or upstream's own lookup (a linked file)."""
+    from tools.skills_tool import skill_view
+
+    skill_dir = _make_skill(tmp_path, "root-only", frontmatter_extra=_ROOT_ONLY)
+    (skill_dir / "references").mkdir()
+    (skill_dir / "references" / "api.md").write_text("# api\n")
+    with patch("tools.skills_tool.SKILLS_DIR", tmp_path):
+        for file_path in (None, "references/api.md"):
+            raw = {k: v for k, v in json.loads(skill_view("root-only", file_path=file_path)).items()
+                   if k != "_source_path"}
+            args = {"name": "root-only", **({"file_path": file_path} if file_path else {})}
+            with skill_runtime_scope(surface="mission_chat"):
+                out = transform_skill_view_result(tool_name="skill_view", args=args, result=json.dumps(raw))
+            assert json.loads(out)["reason"] == "surface_not_supported", file_path
+        with skill_runtime_scope(surface="mission_worker", root_node_mode=True):
+            raw = {k: v for k, v in json.loads(skill_view("root-only")).items() if k != "_source_path"}
+            served = json.loads(transform_skill_view_result(
+                tool_name="skill_view", args={"name": "root-only"}, result=json.dumps(raw)))
+    assert served["resolution_status"] == "resolved" and len(served["content_hash"]) == 64

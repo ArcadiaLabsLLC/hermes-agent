@@ -51,6 +51,7 @@ from agent_runtime.prompt_observability import (
 )
 from agent_runtime.skill_root_freshness import TurnRootRegistries
 from agent_runtime.tool_turn_history import persist_tool_turn_actual
+from agent_runtime.transport_dispatch_evidence import begin_turn_attempts
 from ..chat_admission import (
     _prewarm_constructions_overlapped,
     _registry_probe_rounds,
@@ -411,6 +412,9 @@ class _RunPhases:
         # it.
         turn_phases = self.turn_phases
         turn_phases.mark("agent_ready")
+        # Per-attempt transport evidence (RT-PROVIDER-REQUEST-START): the settle reads
+        # "nothing left" only off it, never off an absent `request_sent`.
+        self.transport_attempts = begin_turn_attempts(agent)
         turn_phases.count_delta("registry_probe_rounds", _registry_probe_rounds())
         turn_phases.count_delta("visibility_bundle_builds", _visibility_bundle_builds())
         try:

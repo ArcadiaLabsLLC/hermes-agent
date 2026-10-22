@@ -10,9 +10,12 @@ Two things the fork used to write inside ``tools/skills_tool.py::skill_view`` an
 * three additive fields on a served filesystem skill: ``resolution_status``,
   ``source_kind`` and ``content_hash``.
 
-The frontmatter is read from the SKILL.md the result names (upstream's own
-``_source_path`` field, or the plugin registry's public ``find_plugin_skill``) with
-upstream's public ``agent.skill_utils.parse_frontmatter``. This covers the MODEL path
+The frontmatter is read from the SKILL.md the result was served from: the result's
+``skill_dir``, else upstream's own lookup run again through the skills-tool door
+(``_upstream_doors.skills_tool_inspection_doors``: search dirs + locate — a linked-file view
+names no directory), or the plugin registry's public ``find_plugin_skill`` — with upstream's
+public ``agent.skill_utils.parse_frontmatter``. Upstream 7dcb1b4cfdb dropped the internal
+``_source_path`` field this used to read (RT-SKILL-VIEW-SOURCE-PATH). This covers the MODEL path
 only: a direct in-process ``skill_view`` caller sees the skill (plugin-fit §4 Q3). A
 result this cannot read (not JSON, a failure, no path) is left alone.
 """
@@ -43,16 +46,23 @@ def _skill_md(args: dict, payload: dict) -> tuple[Path | None, bool]:
             found = None
         if found is not None:
             return Path(found), True
-    source = payload.get("_source_path")
-    if not isinstance(source, str) or not source:
+    skill_dir = payload.get("skill_dir")
+    if not args.get("file_path") and isinstance(skill_dir, str) and skill_dir:
+        manifest = Path(skill_dir) / "SKILL.md"
+        if manifest.is_file():
+            return manifest, False
+    if not name or ":" in name:
         return None, False
-    path = Path(source)
-    file_path = args.get("file_path")
-    if file_path:  # a linked-file view: _source_path is the file, the skill is above it
-        for _ in Path(str(file_path)).parts:
-            path = path.parent
-        path = path / "SKILL.md"
-    return path, False
+    from agent_runtime._upstream_doors import skills_tool_inspection_doors
+
+    *_catalog, search_dirs, locate = skills_tool_inspection_doors()
+    try:
+        roots, _active = search_dirs()
+        error, _dir, skill_md = locate(name, None, roots)
+    except Exception:
+        logger.debug("skill_view source lookup failed for %s", name, exc_info=True)
+        return None, False
+    return (None if error is not None or skill_md is None else Path(skill_md)), False
 
 
 def _frontmatter(skill_md: Path) -> dict:

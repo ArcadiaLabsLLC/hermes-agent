@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import secrets
 from datetime import datetime, UTC
 from enum import Enum
@@ -50,11 +51,15 @@ from .wire_value import WireError, WireRefusal, bounded_string, checked_object, 
 
 __layer__ = "lanes"
 
+logger = logging.getLogger(__name__)
+
 SECRET_PREFIX = "whsec_"
 ROUTE_PATH_PREFIX = "/lens/"
 DEFAULT_HOST = "127.0.0.1"
 #: The listener's port when no bind was written (a fixed port, so a configured webhook survives a restart).
 DEFAULT_PORT = 47652
+#: The ports ``ingress.bind`` writes and ``ingress_address`` reads back (never a privileged one).
+MINIMUM_PORT, MAXIMUM_PORT = 1024, 65535
 #: The most feeds one generic route may write, and alert names one alert route may name.
 MAXIMUM_MAPPED = 32
 
@@ -92,13 +97,23 @@ def ingress_config_path() -> Path:
 
 
 def ingress_address() -> tuple[str, int]:
-    """``(host, port)`` the listener binds: the written bind, else loopback on :data:`DEFAULT_PORT`."""
+    """``(host, port)`` the listener binds: the written bind, else loopback on :data:`DEFAULT_PORT`.
+
+    The file is read through the same check ``ingress.bind`` writes with: a host that is
+    not loopback or private (:func:`is_local_bind` — a hand-edited ``0.0.0.0``), or a port
+    outside ``1024..65535``, is never bound; the read falls back to the default and logs the
+    receipt ``lens ingress bind refused``."""
 
     try:
         document = json.loads(ingress_config_path().read_text(encoding="utf-8"))
-        return str(document["host"]), int(document["port"])
+        host, port = str(document["host"]), int(document["port"])
     except (OSError, ValueError, KeyError, TypeError):
         return DEFAULT_HOST, DEFAULT_PORT
+    if is_local_bind(host) and MINIMUM_PORT <= port <= MAXIMUM_PORT:
+        return host, port
+    logger.warning("lens ingress bind refused: host=%s port=%s reason=not_local_bind fallback=%s:%s",
+                   host, port, DEFAULT_HOST, DEFAULT_PORT)
+    return DEFAULT_HOST, DEFAULT_PORT
 
 
 def is_local_bind(host: str) -> bool:

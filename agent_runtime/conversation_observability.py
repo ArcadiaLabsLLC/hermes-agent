@@ -188,6 +188,9 @@ def time_provider_dispatch(
         return next_call()
     meta = {"api_call_count": api_call_count, "api_mode": api_mode, "provider": provider, "model": model}
     streaming = _dispatch_streams(agent)
+    from agent_runtime.transport_dispatch_evidence import open_attempt
+
+    open_attempt(agent)  # RT-PROVIDER-REQUEST-START: one physical attempt's transport facts
     _emit_request_assembled_marker(agent, **meta)
     started = time.perf_counter()
     status = "failed"

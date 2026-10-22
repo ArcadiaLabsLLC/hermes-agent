@@ -57,6 +57,8 @@ schedule                 lanes   ``runtime.schedule.arm/disarm/list`` (the serve
                                  scheduler; ``work_store/serve_scheduler.py``)
 realm                    lanes   ``runtime.realm.sync.*`` / ``.skills.*`` /
                                  ``.agents.*`` / ``.adopt`` (the realm argv twins)
+course                   lanes   ``runtime.course.*`` (agent authoring on a git
+                                 course; ``agent_runtime/course_authoring.py``)
 characters               lanes   ``runtime.characters.list/status/thumb/sprite/recolour``
                                  (the character-sheet read twins; recolour writes)
 settles                  lanes   ``runtime.settles.list/rearm`` (the settle-push
@@ -112,6 +114,7 @@ from agent_runtime.serve_rpc import (
     chat_goal,
     schedule,
     realm,
+    course,
     client,
     characters,
     settles,

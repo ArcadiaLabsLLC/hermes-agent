@@ -643,6 +643,7 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
         mcp_admission=lane_bundle.admission,
         enabled_toolsets=list(lane_bundle.enabled_toolsets),
         blocked_tool_names=list(lane_bundle.blocked_tool_names),
+        disabled_toolsets=list(lane_bundle.disabled_toolsets) or None,  # the bundled edition's
         quiet_mode=True,
         skip_context_files=not bool(getattr(persona, "include_core_context_files", False)),
         skip_memory=not bool(getattr(persona, "include_profile_memory", False)),

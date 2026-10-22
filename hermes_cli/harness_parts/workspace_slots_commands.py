@@ -1,7 +1,7 @@
 """``hermes harness workspace slots``: the argv mirror of the repo-slot RPC doors (build plan §3.4).
 
 Every verb calls the store function the ``runtime.workspace.slots.*`` / ``.slot.*`` method
-calls; this module holds no rule of its own. ``bind`` writes ``roots.<slot>`` through
+calls; this module holds no rule of its own. ``bind`` writes ``workspace_roots.<ws>.<slot>`` through
 ``write_machine_roots`` exactly as ``harness roots set`` does.
 """
 

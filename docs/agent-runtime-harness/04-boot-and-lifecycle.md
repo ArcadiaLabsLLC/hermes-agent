@@ -222,7 +222,7 @@ through subprocesses after recording that the originally specified assertion was
 
 **The declared-command scan** (`RT-HARNESS-ARGV-MANIFEST-SCAN`, 2026-10-19). Every `hermes harness …`
 process — each CLI call, each serve boot, each test child — runs
-`hermes_cli/plugins_manifest_cli_commands.py::discover_declared_cli_commands` to find the manifest that
+`hermes_cli/plugins_declared_cli.py::discover_declared_cli_commands` to find the manifest that
 declares `harness`. It no longer parses every `plugin.yaml` to do so: a fingerprint cache at
 `<HERMES_HOME>/cache/declared_cli_commands.json` (`hermes_cli/plugins_declared_cli_cache.py`, the home
 resolved at call time) keys the declaring winners on an over-approximating stat enumeration of every

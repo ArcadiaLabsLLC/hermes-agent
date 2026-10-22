@@ -418,3 +418,27 @@ def test_a_chat_effort_cannot_change_unsettled_work(placed_agent, catalog):
         reply = effort(params, "low")
     assert reply["error"]["data"]["reason"] == "conversation_busy", reply
     assert stored(params) == before
+
+
+#: auth.json reads per picker open, ratcheted (RT-PICKER-AUTH-REREAD, lane w1021j-chat, 2026-10-21):
+#: 327 before the credential-pool snapshot scope, 235 with it (95 load_pool calls collapse to one load
+#: per distinct provider). Lane w1022a-upstream (RT-PICKER-AUTH-DIRECT-READS, 2026-10-22): 116-120 once
+#: the same scope memoises upstream's read-only probes ``model_switch_providers._auth_store_has_provider``
+#: (93) / ``_raw_pool_usable`` (23) to one read per build. The rest are the distinct-provider pool loads
+#: (``read_credential_pool`` ~57, ``_seed_from_singletons``) and a handful of others. Never raise it.
+PICKER_AUTH_READS_BAR = 120
+
+
+def test_a_picker_open_reads_auth_json_once_per_provider_pool(placed_agent, catalog, monkeypatch):
+    import agent.credential_pool as credential_pool
+    import hermes_cli.auth as auth
+
+    params = target(placed_agent["persona_instance_id"])
+    assert "result" in inspect("models", params)  # warm the catalog; the count is the steady open
+    reads = []
+    real = auth._load_auth_store
+    counted = lambda *a, **k: reads.append(1) or real(*a, **k)  # noqa: E731
+    monkeypatch.setattr(auth, "_load_auth_store", counted)
+    monkeypatch.setattr(credential_pool, "_load_auth_store", counted)  # imported by name there
+    assert "result" in inspect("models", params)
+    assert 0 < len(reads) <= PICKER_AUTH_READS_BAR, len(reads)

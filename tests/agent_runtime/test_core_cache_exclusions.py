@@ -235,6 +235,7 @@ def test_the_exclusion_set_agrees_with_the_constants_its_writers_own(
         "serve_registry.SERVE_INSTANCES_DIRNAME": serve_registry.SERVE_INSTANCES_DIRNAME,
         "paths.DELETED_ARCHIVE_DIRNAME": paths.DELETED_ARCHIVE_DIRNAME,
         "paths.DERIVED_CACHE_DIRNAME": paths.DERIVED_CACHE_DIRNAME,
+        "paths.COURSES_DIRNAME": paths.COURSES_DIRNAME,
     }
     missing = sorted(
         f"{symbol} ({value!r})"

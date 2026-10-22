@@ -360,11 +360,14 @@ def check_codex_binary(
     codex_bin: str = "codex", min_version: tuple[int, int, int] = MIN_CODEX_VERSION
 ) -> tuple[bool, str]:
     """Verify codex CLI is installed and meets minimum version. Returns (ok, message)."""
+    from hermes_cli._subprocess_compat import windows_hide_flags  # fork RT-WIN-CONSOLE-FLASH-CODEX-SWITCH
+
     try:
         proc = subprocess.run(
             [codex_bin, "--version"], capture_output=True, text=True, encoding='utf-8', errors='replace',
             timeout=10, stdin=subprocess.DEVNULL,
             check=False,
+            creationflags=windows_hide_flags(),  # fork: a windowless serve's probe opened a console
         )
     except FileNotFoundError:
         return False, f"codex CLI not found at {codex_bin!r}. Install with: npm i -g @openai/codex"

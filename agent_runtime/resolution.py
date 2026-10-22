@@ -201,11 +201,20 @@ def _default_hermes_root(env: Mapping[str, str]) -> Path:
 
 
 def _platform_default_hermes_home(env: Mapping[str, str]) -> Path:
+    """``hermes_constants._get_platform_default_hermes_home`` over ``env`` instead of ``os.environ``.
+
+    The same rule, suffix included (FH-RUNTIME-HOME-DEFAULT-DUPLICATE: without
+    ``HERMES_DATA_DIR_SUFFIX`` the store root defaulted beside a different home than every
+    other reader). The authority reads only the process environment; this module resolves
+    over a passed mapping, so it restates the rule and a parity test pins the two together
+    (``tests/agent_runtime/test_resolution_home_default_downstream.py``).
+    """
+    suffix = str(env.get("HERMES_DATA_DIR_SUFFIX") or "")
     if sys.platform == "win32":
         local_appdata = str(env.get("LOCALAPPDATA") or "").strip()
         base = Path(local_appdata).expanduser() if local_appdata else Path.home() / "AppData" / "Local"
-        return base / "hermes"
-    return Path.home() / ".hermes"
+        return base / ("hermes" + suffix)
+    return Path.home() / (".hermes" + suffix)
 
 
 # S54 took ``_normalized_path`` with ``assert_pinned``, its only caller.

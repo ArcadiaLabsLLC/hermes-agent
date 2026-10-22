@@ -74,11 +74,12 @@ class PeerCore:
             self.write({"jsonrpc": "2.0", "id": rid, "method": method, "params": params})
             response = future.result(timeout=timeout)
             if "error" in response:
-                code = response["error"].get("code")
+                code, data = response["error"].get("code"), response["error"].get("data")
                 if code == 4130:
                     raise ConversationError(Refusal.RESPONSE_TOO_LARGE)
                 raise ConversationError(Refusal.NATIVE_REFUSAL,
-                                        native_code=code if type(code) is int else None)
+                                        native_code=code if type(code) is int else None,
+                                        native_data=data if isinstance(data, dict) else None)
             result = response.get("result")
             if not isinstance(result, dict):
                 raise ConversationError(Refusal.NATIVE_REFUSAL)

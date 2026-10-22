@@ -1,7 +1,7 @@
 """Fingerprint cache for the declared-command scan (``RT-HARNESS-ARGV-MANIFEST-SCAN``).
 
 Every ``hermes harness …`` process runs
-:func:`hermes_cli.plugins_manifest_cli_commands.discover_declared_cli_commands`, which parses EVERY
+:func:`hermes_cli.plugins_declared_cli.discover_declared_cli_commands`, which parses EVERY
 directory ``plugin.yaml`` to find the one or two that declare ``cli_commands``. This module lets a
 process skip that parse when no manifest file the upstream walk could read has changed:
 

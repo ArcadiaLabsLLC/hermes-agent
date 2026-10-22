@@ -2298,7 +2298,7 @@ def _merge_managed_overlay(expanded: dict[str, Any]) -> tuple[dict[str, Any], An
 
 def _load_config_cache_hit(
     path_key: str, cache_sig: Any, *, require_writable: bool = False,
-) -> Optional[Dict[str, Any]]:
+) -> Optional[dict[str, Any]]:
     """Lookup: the cached expanded config for ``path_key`` if its signature equals
     ``cache_sig`` AND every ``${VAR}`` it was expanded against still has the same value, else
     ``None``. Signatures matching is not enough: a load before load_hermes_dotenv() would otherwise
@@ -2605,7 +2605,7 @@ def _read_env_lines(env_path: Path) -> list:
     tolerance (Notepad adds one)."""
     from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
     if _host_secrets.is_view(env_path):
-        return _sanitize_env_lines(env_path.read_text("utf-8-sig", "replace").splitlines(keepends=True))
+        return _sanitize_env_lines(env_path.read_text(encoding="utf-8-sig", errors="replace").splitlines(keepends=True))
     with open(env_path, encoding="utf-8-sig", errors="replace") as f:
         return _sanitize_env_lines(f.readlines())
 
@@ -2659,7 +2659,7 @@ def _write_env_lines(env_path: Path, lines: list, *, preserve_mode: bool) -> Non
     letting ``_secure_file`` tighten to 0600; a new file is always secured."""
     from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
     if _host_secrets.is_view(env_path):
-        return _host_secrets.write_text(env_path.path, "".join(lines))
+        return _host_secrets.write_text(env_path.path, "".join(lines))  # windows-footgun: ok — secret_files.write_text always encodes UTF-8
     original_mode = None
     try:
         original_mode = stat.S_IMODE(env_path.stat().st_mode) if preserve_mode else None

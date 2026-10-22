@@ -148,6 +148,15 @@ class _SettlePhases:
             },
         )
 
+    def _transport_proven_unsent(self) -> bool:
+        """Every physical attempt rode a hooked, traced transport and none sent a body; logs the receipt."""
+
+        attempts = self.transport_attempts
+        if attempts is None:
+            return False
+        attempts.log_receipt(self.stream_emitter.turn_id)
+        return attempts.proven_unsent()
+
     def _settle_failure(self, exc) -> int:
         """A raised run: settle it as the typed terminal state it is, and say so."""
 
@@ -170,6 +179,8 @@ class _SettlePhases:
             request_dispatched=(
                 self.provider_request_dispatched or stream_emitter.provider_first_byte_seen
             ),
+            # RT-PROVIDER-REQUEST-START (ruled 2026-10-21): positive "nothing left" evidence only.
+            request_unsent=self._transport_proven_unsent(),
         )
         wall_budget_exceeded = (
             turn_outcome.execution_state is ExecutionState.BUDGET_EXHAUSTED

@@ -147,6 +147,37 @@ def test_a_new_file_selects_a_walker_of_its_directory_but_not_its_siblings(tmp_p
     assert T_DIRECT not in sel.picks and sel.picks[new].why == "edited"
 
 
+def test_a_file_in_a_new_directory_selects_a_walker_of_the_directory_it_joined(tmp_path):
+    """FH-GATE-CACHE-WHOLE-TREE-FALSE-GREEN: a lane's new package (``agent_runtime/<new>/x.py``)
+    changes ``agent_runtime/``'s names, which a census gate (``test_duplicate_helper_bodies``)
+    listed; only the new directory's own listing was churned, so the gate went unselected."""
+
+    store = cache.GateStore(tmp_path / "gate")
+    new = "agent_runtime/new_pkg/instances.py"
+    store.write_deps({  # one walker among ordinary files: agent_runtime/ is no session-wide listing
+        T_OTHER: cache.FileDeps(paths={T_OTHER}, dirs={"agent_runtime"}),
+        T_DIRECT: cache.FileDeps(paths={T_DIRECT}), T_FAR: cache.FileDeps(paths={T_FAR}),
+    }, "run-1")
+    change = affected.Change({new}, {new}, {"agent_runtime/new_pkg"})
+    sel = affected.select_affected(
+        [T_OTHER, T_DIRECT, T_FAR], change, store.load_deps(), store.load_modsets(), affected.ImportGraph({}),
+    )
+
+    assert sel.picks[T_OTHER].why == f"lists agent_runtime/ ({new} added or removed)"
+
+
+def test_joined_dirs_climbs_only_through_directories_the_change_brought_whole(tmp_path):
+    (tmp_path / "pkg" / "new" / "deeper").mkdir(parents=True)
+    (tmp_path / "pkg" / "old.py").write_text("", encoding="utf-8")
+    (tmp_path / "pkg" / "new" / "deeper" / "x.py").write_text("", encoding="utf-8")
+    (tmp_path / "pkg" / "new" / "__pycache__").mkdir()
+    (tmp_path / "pkg" / "new" / "__pycache__" / "x.pyc").write_text("", encoding="utf-8")
+
+    assert affected.joined_dirs(tmp_path, {"pkg/new/deeper/x.py"}) == {"pkg/new/deeper", "pkg/new"}
+    assert affected.joined_dirs(tmp_path, {"pkg/gone/y.py"}) == {"pkg/gone"}  # left whole: gone from disk
+    assert affected.joined_dirs(tmp_path, {"pkg/new2.py"}) == set()
+
+
 def test_a_source_walker_is_counted_not_run_and_a_data_file_it_opened_selects_it(tmp_path):
     store = cache.GateStore(tmp_path / "gate")
     store.write_deps({

@@ -233,7 +233,12 @@ the message"). The door's own refusals (`file_unsupported` / `file_oversize` /
 `run.py` composes the request text as `with_file_lines(message, user_files)` and the
 mirrored user row from that same text (`MEDIA:` lines after), and the write-ahead record
 carries `pending_user_files` beside `pending_user_images`
-(`mission_chat_turns/records.py::_JOURNAL_PATH_LISTS`).
+(`mission_chat_turns/records.py::_JOURNAL_PATH_LISTS`). The retry is those lists' reader
+(RT-PENDING-ATTACHMENTS-NO-READER): a `retry_of` send with no attachments of its own
+re-attaches the retried record's stored images and files, each re-resolved by its stored name
+through its own store (`admit.py::_reattach_retried`); one that is gone refuses
+`attachment_missing` (admission family, `safe_details.missing` names the basenames) before the
+write-ahead. A retry that carries attachments keeps its own.
 
 **Inline relay admission uses the runtime head, not the sender's profile.**
 `hermes_cli/harness_parts/mission_chat_door_binding.py::_mission_chat_turn_via_cli`
@@ -364,6 +369,17 @@ request that rode a pooled connection — the absence is the reuse receipt. All 
 first-mark-wins (a tool loop's later dispatches move nothing) and ride the terminal `timing` block
 as `<mark>_ms`. The handler also folds `context_native_history_ms` (the per-turn SessionDB lineage
 reload) into `profile_timing` beside the context sub-spans.
+
+**"Nothing left" is a per-attempt fact (RT-PROVIDER-REQUEST-START, ruled 2026-10-21).** An absent
+`request_sent` proves nothing on a path with no hook (Bedrock's boto3, the Codex app-server). So
+`agent_runtime/transport_dispatch_evidence.py` keeps one ledger per turn on the agent (opened at
+agent-ready): `time_provider_dispatch` opens an attempt per physical dispatch, the hook
+`install_transport_phase_trace` installs notes `hooked`, its trace notes `traced` on any httpcore
+event and `sent` on `request_sent`. Only when every attempt was hooked and traced and none sent
+does a raised turn after the boundary settle `chat_turn_not_submitted` — carrying the
+hermes-authored `provider_unavailable` refusal block so the journal settles it terminal
+(`provider_refused`, no turn-resolve); anything less keeps `outcome_unknown`. Receipt:
+`turn_transport_evidence turn=… attempts=… hooked=… traced=… sent=… unsent_proven=…`.
 
 `request_assembled` landed 2026-08-22 (`785a35beae`) and splits the old "provider" span:
 `provider_request_started → request_assembled` is hermes assembly, `request_assembled →

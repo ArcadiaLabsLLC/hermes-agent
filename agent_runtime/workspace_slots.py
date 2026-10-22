@@ -5,16 +5,19 @@ Plan ``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md`` §3
 A WORKSPACE declares named **repo slots** (``launcher``, ``backend``, ``hermes``) — the
 portable identity that travels with the realm: clone URL, default branch, the toolchain
 and the environment KEYS it expects, its context files. Each MACHINE fills each slot: the
-local PATH (a machine root, ``roots.<slot>``, through the existing single write site
-``write_machine_roots``) and the environment (``workspace_slot_env``), both private and
-never synced, but ACCOUNTED FOR in this document's ``machines.<id>`` block — set /
-missing / unknown per key, never a value and never a path.
+local PATH (a workspace-scoped machine root, ``workspace_roots.<workspace>.<slot>``, through
+the existing single write site ``write_machine_roots``) and the environment
+(``workspace_slot_env``), both private and never synced, but ACCOUNTED FOR in this
+document's ``machines.<id>`` block — set / missing / unknown per key, never a value and
+never a path.
 
-**One idea, not three.** A slot's machine fill IS a machine root: binding slot
-``launcher`` writes ``roots.launcher``, so every ``${roots.launcher}`` token and every
-``repo_scope: "${roots.launcher}"`` keeps resolving, and a root an operator bound by hand
-before any workspace declared the name is ADOPTED as the fill (``adopted_existing_root``
-in the first report, call 8g).
+**The fill is per workspace** (plan ``work-slot-roots-per-workspace-2026-10-21.md``): two
+workspaces that both declare ``brain`` bind two paths. Binding slot ``launcher`` also FILLS
+``roots.launcher`` when that config root is unbound (never repoints it), so a
+``${roots.launcher}`` token keeps resolving. A legacy registry's ``roots.<slot>`` is migrated
+into ``workspace_roots`` once (``scoped_roots``), which is how a root an operator bound by
+hand before any workspace declared the name is ADOPTED as the fill
+(``adopted_existing_root`` in the first report, call 8g).
 
 **No hard limits anywhere** (owner refinement 2026-10-04): no cap on slots, keys, tools or
 machines. The document lives at ``paths.workspace_slots_path`` (``store/workspace_slots/
@@ -27,7 +30,7 @@ from __future__ import annotations
 import json
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
@@ -35,7 +38,13 @@ from typing import Any
 from utils import atomic_json_write
 
 from . import paths
-from .machine_roots import _ROOT_NAME_RE, load_machine_roots, write_machine_roots
+from .machine_roots import (
+    _ROOT_NAME_RE,
+    MACHINE_ROOTS_SCHEMA_VERSION,
+    MachineRoots,
+    load_machine_roots,
+    write_machine_roots,
+)
 from .workspace_slot_recipe import text_carries_credential, url_carries_credential
 
 __layer__ = "stores"
@@ -302,9 +311,12 @@ def declare(workspace_id: str, slots: Any, *, issued_at: str, machine: str) -> d
     document["workspace_id"] = workspace_id
     write_document(workspace_id, document)
     from .persona_slots import drop_removed_slots
+    from .work_store.writer import drop_worktrees
 
-    # A removed slot leaves every assignment in the same write (build plan §3.3).
+    # A removed slot leaves every assignment in the same write (build plan §3.3), and Hermes's worktrees of it.
     dropped_from = drop_removed_slots(workspace_id, frozenset(tombstoned))
+    for name in tombstoned:
+        drop_worktrees(workspace_id, name)
     return {"document": document, "declared": sorted(declared), "tombstoned": sorted(tombstoned),
             "assignments_dropped": dropped_from}
 
@@ -352,15 +364,76 @@ def declare_one_slot(workspace_id: str, entry: Any, *, issued_at: str, machine: 
 # ── this machine's fill ──────────────────────────────────────────────────────
 
 
-def bound_path(slot: str) -> Path | None:
-    """The machine root of the slot's name, when bound (the root IS the fill)."""
+def scoped_roots(*, refresh: bool = True, migrate: bool = True) -> MachineRoots:
+    """The registry the slot readers use: ``workspace_roots`` is THE fill, keyed by workspace.
 
-    value = load_machine_roots(refresh=True).roots.get(slot)
-    return Path(value) if value else None
+    A legacy registry (schema 1, no ``workspace_roots``) is upgraded here, once, on the first slot
+    read — ``slot_census`` (detection, the board, the probe) and every ``bound_path`` reach it. With
+    ``migrate=False`` (the snapshot, which writes nothing) the upgraded view is answered unwritten.
+    """
+
+    current = load_machine_roots(refresh=refresh)
+    if current.schema_version >= MACHINE_ROOTS_SCHEMA_VERSION:
+        return current
+    scoped, ambiguous = _legacy_fills(current)
+    if not migrate:
+        return replace(current, workspace_roots=scoped)
+    write_machine_roots(dict(current.roots), workspace_roots=scoped, dry_run=False)
+    from .work_store import receipts
+
+    for entry in ambiguous:
+        receipts.emit("machine_roots.migration_ambiguous", **entry)
+    receipts.emit("machine_roots.migrated", workspaces=len(scoped), slots=sum(len(s) for s in scoped.values()))
+    return load_machine_roots(refresh=True)
+
+
+def _legacy_fills(current: MachineRoots) -> tuple[dict[str, dict[str, str]], list[dict[str, Any]]]:
+    """Each legacy ``roots.<slot>`` (a directory) as the fill of every workspace declaring that slot.
+
+    A name declared by several workspaces goes to the ones whose declared ``repo.clone_url`` matches the
+    checkout's ``origin``; the rest stay UNBOUND with a ``migration_ambiguous`` entry (never a guess).
+    """
+
+    from .workspace_slots_probe import origin_matches
+
+    claims: dict[str, list[tuple[str, dict[str, Any]]]] = {}
+    for workspace_id in realm_workspace_ids():
+        for name, slot in live_slots(load_document(workspace_id)).items():
+            if current.roots.get(name) and Path(current.roots[name]).is_dir():
+                claims.setdefault(name, []).append((workspace_id, slot))
+    scoped = {ws: dict(fills) for ws, fills in current.workspace_roots.items()}
+    ambiguous: list[dict[str, Any]] = []
+    for name, claimants in sorted(claims.items()):
+        path = current.roots[name]
+        won = [ws for ws, slot in claimants if len(claimants) == 1 or origin_matches(Path(path), slot)]
+        for workspace_id in won:
+            scoped.setdefault(workspace_id, {}).setdefault(name, path)
+        unbound = sorted(ws for ws, _ in claimants if ws not in won)
+        if unbound:
+            ambiguous.append({"slot": name, "workspaces": sorted(ws for ws, _ in claimants), "unbound": unbound})
+    return scoped, ambiguous
+
+
+def bound_path(slot: str, *, workspace_id: str) -> Path | None:
+    """The workspace's fill of ``slot`` on this machine, when bound (``workspace_roots[ws][slot]``)."""
+
+    return scoped_roots().workspace_root(workspace_id, slot)
+
+
+def _write_fill(workspace_id: str, slot: str, path: str) -> None:
+    """THE slot fill write: ``workspace_roots[ws][slot]``, plus the fill-only config mirror."""
+
+    current = scoped_roots()
+    roots = dict(current.roots)
+    scoped = {ws: dict(slots) for ws, slots in current.workspace_roots.items()}
+    scoped.setdefault(workspace_id, {})[slot] = path
+    # The one-way mirror: a config token ``${roots.<slot>}`` keeps resolving; it is never repointed.
+    roots.setdefault(slot, path)
+    write_machine_roots(roots, workspace_roots=scoped, dry_run=False)
 
 
 def bind(workspace_id: str, slot: str, path: str, *, issued_at: str) -> dict[str, Any]:
-    """Bind ``slot`` on THIS machine: write ``roots.<slot>`` through the single write site.
+    """Bind ``slot`` on THIS machine for ``workspace_id`` through the single write site (:func:`_write_fill`).
 
     A checkout whose remote does not match the declaration still binds (call 8c): the
     report carries ``checkout: remote_mismatch`` as a typed warning.
@@ -373,9 +446,7 @@ def bind(workspace_id: str, slot: str, path: str, *, issued_at: str) -> dict[str
         raise SlotRefused(REASON_INVALID_PATH, "a slot binds an ABSOLUTE local path")
     if not target.is_dir():
         raise SlotRefused(REASON_PATH_NOT_FOUND, f"{target} is not a directory on this machine")
-    roots = dict(load_machine_roots(refresh=True).roots)
-    roots[slot] = str(target)
-    write_machine_roots(roots, dry_run=False)
+    _write_fill(workspace_id, slot, str(target))
     from .workspace_slots_probe import report
 
     row = report(workspace_id, fresh_binds=frozenset({slot}))["slots"].get(slot, {})
@@ -388,6 +459,10 @@ def show(workspace_id: str) -> dict[str, Any]:
 
     ``here.<slot>.fill`` is the fill's non-secret shape (``workspace_slot_env.fill_shape``):
     env key names, tool paths, PATH head, ``.env``, venv — never an env value; null when unset.
+
+    ``bound_here`` is true only when the bound folder exists. ``path`` is the bound root
+    whenever this machine binds the slot, and ``folder_missing`` says the root is bound but
+    its folder is gone — distinct from never set up here (``path`` null).
     """
 
     import time
@@ -398,9 +473,10 @@ def show(workspace_id: str) -> dict[str, Any]:
     document = load_document(workspace_id)
     here = {}
     for name in live_slots(document):
-        path = bound_path(name)
+        path = bound_path(name, workspace_id=workspace_id)
         bound_here = bool(path and path.is_dir())
-        row = {"bound_here": bound_here, "path": str(path) if bound_here else None, "unknowns": [],
+        row = {"bound_here": bound_here, "path": str(path) if path else None,
+               "folder_missing": bool(path) and not bound_here, "unknowns": [],
                "fill": fill_shape(workspace_id, name)}
         if not bound_here:
             index = UnknownsIndex()
@@ -454,13 +530,13 @@ class SlotCensus:
 def slot_census() -> SlotCensus:
     declared = 0
     bound: list[BoundSlot] = []
-    roots = load_machine_roots(refresh=True).roots
+    roots = scoped_roots()
     for workspace_id in realm_workspace_ids():
         for name in live_slots(load_document(workspace_id)):
             declared += 1
-            value = roots.get(name)
-            if value and Path(value).is_dir():
-                bound.append(BoundSlot(workspace_id, name, Path(value)))
+            value = roots.workspace_root(workspace_id, name)
+            if value is not None and value.is_dir():
+                bound.append(BoundSlot(workspace_id, name, value))
     return SlotCensus(declared, tuple(bound))
 
 
@@ -501,6 +577,7 @@ __all__ = [
     "live_slots",
     "load_document",
     "machine_id",
+    "scoped_roots",
     "show",
     "slot_census",
     "slot_for_path",
@@ -555,11 +632,11 @@ def snapshot_slots(workspace_id: str, *, machine: str | None) -> dict[str, Any]:
     document = load_document(workspace_id)
     mine = ((document.get("machines") or {}).get(machine) or {}) if machine else {}
     reported = mine.get("slots") or {}
-    roots = load_machine_roots().roots
+    roots = scoped_roots(refresh=False, migrate=False)
     slots = {}
     for name in sorted(live_slots(document)):
         last = reported.get(name) or {}
-        root = roots.get(name)
-        slots[name] = {"bound_here": bool(root) and Path(root).is_dir(),
+        root = roots.workspace_root(workspace_id, name)
+        slots[name] = {"bound_here": root is not None and root.is_dir(),
                        "status": last.get("status"), "checkout": last.get("checkout")}
     return {"slots": slots, "reported_at": mine.get("reported_at") or None}

@@ -38,6 +38,9 @@ Every lane, every peer session (`ListAgents`), the live serve and the gate share
 - **Quiet-box lanes**: a lane that JUDGES a timeout or a flake runs only when nothing heavy is running —
   under load anything times out, and the lane "fixes" the machine. Check first:
   `wmic cpu get loadpercentage` and the python process count.
+- **Search with `git grep -n <pattern> -- <paths>` or the Grep tool, never `grep -rn` over the tree**, and wait
+  for a background command's completion notice instead of an `until grep …; do sleep` loop. In the launcher on
+  2026-10-21, slow `grep -r` searches cost lanes 279 minutes and polling loops 280.
 - A lane runs its tests with `-j 4` at most while other lanes are live. `-j` is `scripts/run_tests.sh`'s
   flag; never write `-n` in a brief (the test venv has no pytest-xdist).
 
@@ -69,7 +72,12 @@ Every lane, every peer session (`ListAgents`), the live serve and the gate share
 
 ## 5. Landing a batch (one landing lane at a time)
 
-1. Wait until every lane of the batch has reported. A lane that finishes later joins the next batch.
+1. Start when the first few lanes report; do not wait for the last one. Keep ONE landing agent and one
+   `land/<batch>` worktree for the whole batch, and hand it each next group of branches with `SendMessage`.
+   Each group is merged and its lanes' touched tests run at once, so conflicts and reds are found while the
+   other lanes are still working. The gate (step 4) still runs once, after the last branch is merged. In the
+   launcher's three end-of-wave landings on 2026-10-21, merging took two minutes and the remaining hour was
+   one agent working one step at a time through about 250 tool calls.
 2. Merge the branches into `land/<batch>` (a worktree beside the clone). Two conflict classes recur and
    have scripts: sorted one-entry-per-line lists (the grandfathered fixture) take the sorted union; the
    footprint ledger takes, per row, the side that changed it against the merge base. Validate JSON
@@ -80,7 +88,12 @@ Every lane, every peer session (`ListAgents`), the live serve and the gate share
    plus a sample, at a landing and at a release merge alike; nothing runs the whole tree (owner rulings 2026-10-16 and 2026-10-17, [[0016 — No whole-tree run, ever]]). Never gate before the last lane is merged, and
    never restart the gate because a peer landed — Phase B paid three ~75-minute passes for both.
 5. Triage each named red with `scripts/run_tests_bundled.sh --confirm-red <file>` (pre-existing / load /
-   caused); fix a caused red (`fix(<lane>):`), red-before/green-after in the body. Regenerate generated files a move touched
+   caused). A caused red that one lane's change explains goes back to THAT lane: the landing names the lane and
+   stops. The orchestrator revives that lane with `SendMessage` (same agent, same context), and the lane fixes the
+   red on its own branch (`fix(<lane>):`, red-before/green-after in the body), in parallel with the other lanes'
+   fixes. The landing re-merges and re-runs only the failing files. The landing itself fixes only a red that
+   needs two lanes' changes to appear. In the launcher's land-w1021e, about eight of ten fix commits were one
+   lane's own red, fixed one at a time by an agent that had not written the code. Regenerate generated files a move touched
    (`scripts/gen_gateway_contracts.py`).
 6. Push `HEAD:main` (fast-forward), send **"main open"**, delete the landed rows, update memory.
 

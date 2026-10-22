@@ -1890,4 +1890,4 @@ def restart() -> None:
             "Gateway restart did not produce a running gateway process. "
             "Check logs/gateway.log and run `hermes gateway status`."
         )
-from hermes_cli.gateway_windows_launcher import GatewayWrapperNotPinned, _assert_named_profile_wrapper_is_pinned, installed_launcher_interpreter, launcher_interpreter  # noqa: E402,F401 — fork
+from hermes_cli.gateway_windows_launcher import GatewayWrapperNotPinned, _assert_named_profile_wrapper_is_pinned, installed_launcher_interpreter, launcher_interpreter  # fork

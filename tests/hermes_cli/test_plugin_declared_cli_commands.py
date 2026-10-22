@@ -19,7 +19,7 @@ import pytest
 
 import hermes_cli.main as main_mod
 from hermes_cli import plugins as plugins_mod
-from hermes_cli import plugins_manifest_cli_commands as declared_mod
+from hermes_cli import plugins_declared_cli as declared_mod
 
 
 def _write_plugin(root, name, marker_dir):
@@ -190,7 +190,7 @@ def test_a_built_in_verb_skips_the_declared_scan(monkeypatch):
         scans.append(1)
         return real()
 
-    monkeypatch.setattr(declared_mod, "discover_declared_cli_commands", counting)
+    monkeypatch.setattr("hermes_cli.plugins.discover_declared_cli_commands", counting)
     _calls, _parser, subparsers = _parse_under(["gateway", "status"], monkeypatch)
     assert scans == [] and "harness" not in subparsers.choices
 

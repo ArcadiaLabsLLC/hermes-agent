@@ -78,3 +78,20 @@ def test_crlf_checkout_reads_clean_to_the_isolated_status(user_config, tmp_path)
     status = subprocess.run(["git", "status", "--porcelain"], cwd=repo, capture_output=True, text=True,
                             env=noninteractive_git_env(), check=True)
     assert status.stdout == ""
+
+
+def test_a_substituted_runner_without_output_adds_nothing_and_is_not_cached(user_config, monkeypatch):
+    """Upstream tests replace ``subprocess.run`` with a fake whose result has no ``stdout``
+    (``test_mcp_catalog.py::TestGitInstallShaRef``); the probe runs inside their git calls. It
+    must answer "no overrides" for that call and leave the real answer to the next one."""
+    system, _ = user_config
+    _config(system, "[core]\n\tautocrlf = true\n")
+
+    class _NoOutput:
+        returncode = 0
+
+    real_run = subprocess.run
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: _NoOutput())
+    assert git_line_endings.user_line_ending_overrides() == []
+    monkeypatch.setattr(subprocess, "run", real_run)
+    assert git_line_endings.user_line_ending_overrides() == [("core.autocrlf", "true")]

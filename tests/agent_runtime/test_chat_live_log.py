@@ -474,6 +474,26 @@ def test_a_delivered_result_is_typed_in_the_mirror(tmp_path, monkeypatch):
     assert "relay_sender_persona_id" not in row
 
 
+def test_a_lens_episode_row_is_typed_in_the_mirror_live_and_backfilled(tmp_path, monkeypatch):
+    """RT-LENS-LIVE-LOG-MARKER: a forged Lens opening row never reads as the operator."""
+
+    from agent_runtime.chat_live_log.lines import _backfilled_delivery_fields
+
+    monkeypatch.setenv("HERMES_HEAD_HOME", str(tmp_path))
+    record_chat_message(
+        session_id="persona_chat_s1",
+        role="user",
+        text="[LENS EPISODE — status · slow · #1]",
+        client_message_id="lens-episode-ep1",
+        relay_marker="lens_episode:ep1",
+    )
+    row = _messages(chat_live_log_path("persona_chat_s1"))[0]
+    assert (row["origin"], row["episode_id"]) == ("lens_episode", "ep1")
+    assert "relay_sender_persona_id" not in row and "dispatch_id" not in row
+    backfilled = _backfilled_delivery_fields({"kind": "lens_episode", "lens_episode_id": "ep1"})
+    assert backfilled == {"origin": "lens_episode", "episode_id": "ep1"}, "a backfilled line matches a live one"
+
+
 def test_dedupe_survives_rotation_across_a_generation_boundary(tmp_path, monkeypatch):
     """FOLLOW-UP 6. A rotation empties the live file's tail; a fresh process
     must not re-append a resend whose line now lives in the ``.1`` sibling."""

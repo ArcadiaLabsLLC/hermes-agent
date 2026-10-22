@@ -72,6 +72,7 @@
     "runtime.conversation.send",
     "runtime.conversation.skills.detail",
     "runtime.conversation.skills.history",
+    "runtime.conversation.skills.lend",
     "runtime.conversation.skills.list",
     "runtime.conversation.stop",
     "runtime.conversation.subagents.capabilities",
@@ -87,6 +88,8 @@
     "runtime.conversation.subagents.stop",
     "runtime.conversation.subagents.tail",
     "runtime.conversation.subagents.tree",
+    "runtime.course.checkout",
+    "runtime.course.commit",
     "runtime.default_model.set",
     "runtime.discussion.capabilities",
     "runtime.discussion.preset.delete",
@@ -126,6 +129,7 @@
     "runtime.lens.artifact",
     "runtime.lens.create",
     "runtime.lens.credential.set",
+    "runtime.lens.draft.drop",
     "runtime.lens.enable",
     "runtime.lens.episodes",
     "runtime.lens.fold",
@@ -251,6 +255,7 @@
     "runtime.persona.permission.set",
     "runtime.persona.prewarm",
     "runtime.persona.set_model",
+    "runtime.persona.toolset.approve",
     "runtime.prefab.clear",
     "runtime.prefab.get",
     "runtime.prefab.list",
@@ -436,6 +441,38 @@
       "session_id",
       "turn_id"
     ],
+    "runtime.conversation.skills.detail": [
+      "install_id",
+      "session_id",
+      "client_scope",
+      "profile",
+      "child_ref",
+      "skill_id"
+    ],
+    "runtime.conversation.skills.history": [
+      "install_id",
+      "session_id",
+      "client_scope",
+      "profile",
+      "child_ref"
+    ],
+    "runtime.conversation.skills.lend": [
+      "install_id",
+      "session_id",
+      "client_scope",
+      "profile",
+      "child_ref",
+      "skills",
+      "mode",
+      "request_id"
+    ],
+    "runtime.conversation.skills.list": [
+      "install_id",
+      "session_id",
+      "client_scope",
+      "profile",
+      "child_ref"
+    ],
     "runtime.conversation.subagents.capabilities": [
       "install_id",
       "session_id",
@@ -550,7 +587,27 @@
       "child_ref",
       "history_ref"
     ],
+    "runtime.course.checkout": [
+      "credential"
+    ],
+    "runtime.course.commit": [
+      "branch",
+      "credential",
+      "deletes",
+      "files",
+      "message",
+      "persona_id",
+      "persona_name"
+    ],
     "runtime.health": [],
+    "runtime.operator.conversation.list": [
+      "all_accounts",
+      "before",
+      "client_scope",
+      "install_id",
+      "limit",
+      "persona_instance_id"
+    ],
     "runtime.operator.conversation.subagents.capabilities": [
       "install_id",
       "workspace_id",
@@ -838,6 +895,7 @@
     "runtime.conversation.send": "console",
     "runtime.conversation.skills.detail": "console",
     "runtime.conversation.skills.history": "console",
+    "runtime.conversation.skills.lend": "console",
     "runtime.conversation.skills.list": "console",
     "runtime.conversation.stop": "console",
     "runtime.conversation.subagents.capabilities": "console",
@@ -853,6 +911,8 @@
     "runtime.conversation.subagents.stop": "console",
     "runtime.conversation.subagents.tail": "console",
     "runtime.conversation.subagents.tree": "console",
+    "runtime.course.checkout": "console",
+    "runtime.course.commit": "console",
     "runtime.default_model.set": "console",
     "runtime.discussion.capabilities": "read",
     "runtime.discussion.preset.delete": "console",
@@ -892,6 +952,7 @@
     "runtime.lens.artifact": "console",
     "runtime.lens.create": "console",
     "runtime.lens.credential.set": "console",
+    "runtime.lens.draft.drop": "console",
     "runtime.lens.enable": "console",
     "runtime.lens.episodes": "console",
     "runtime.lens.fold": "console",
@@ -1017,6 +1078,7 @@
     "runtime.persona.permission.set": "console",
     "runtime.persona.prewarm": "read",
     "runtime.persona.set_model": "console",
+    "runtime.persona.toolset.approve": "console",
     "runtime.prefab.clear": "console",
     "runtime.prefab.get": "console",
     "runtime.prefab.list": "console",

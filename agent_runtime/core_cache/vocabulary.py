@@ -14,6 +14,7 @@ from typing import Mapping
 
 from agent_runtime.dispatch_delivery.vocabulary import DRAIN_STATE_FILENAME
 from agent_runtime.paths import (
+    COURSES_DIRNAME,
     DELETED_ARCHIVE_DIRNAME,
     DERIVED_CACHE_DIRNAME,
     OFFICE_ARCHIVE_DIRNAME,
@@ -398,6 +399,9 @@ _EXCLUDED_STORE_ENTRIES = frozenset(
         # which is why its argument is a different (and easier) one — see the
         # second block below.
         OFFICE_ARCHIVE_DIRNAME,
+        # Git course checkouts (``course_authoring``): a clone and its worktrees,
+        # rewritten by every fetch and commit, read by no projection.
+        COURSES_DIRNAME,
     }
 )
 

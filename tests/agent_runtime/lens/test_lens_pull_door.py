@@ -199,6 +199,33 @@ def test_lens_propose_previews_for_real_and_stores_a_draft_it_never_seals():
     assert store.get("proposed-status")["draft"] is None, "a proposal never writes over a monitor"
 
 
+def test_lens_propose_stops_at_the_proposal_cap_and_the_operator_still_creates():
+    """RT-LENS-PROPOSAL-CAPACITY: proposals never fill ``MAXIMUM_MONITORS``."""
+
+    import httpx
+
+    from agent_runtime.lens.store import MAXIMUM_PROPOSALS, LensStoreError
+    from agent_runtime.lens.tool import propose_monitor
+
+    store = LensStore()
+    client = _client(lambda request: httpx.Response(200, json={"latency": 1}))
+    for index in range(MAXIMUM_PROPOSALS):
+        propose_monitor({**_proposal(), "monitor_id": f"proposed-{index}"}, store=store, client=client,
+                        resolver=lambda host: PUBLIC)
+    with pytest.raises(LensStoreError) as full:
+        propose_monitor({**_proposal(), "monitor_id": "proposed-over"}, store=store, client=client,
+                        resolver=lambda host: PUBLIC)
+    assert full.value.code.value == "proposals_full"
+    operator = {**_proposal()["rule"]}
+    manifest = {"version": 1, "monitor_id": "operator", "persona_id": None,
+                "feeds": [{"version": 1, **_proposal()["feeds"][0]}], "rules": [{"version": 1, **operator}],
+                "automation": _proposal()["automation"]}
+    store.seal("proposed-0")
+    assert propose_monitor({**_proposal(), "monitor_id": "proposed-again"}, store=store, client=client,
+                           resolver=lambda host: PUBLIC)["state"] == "draft", "a sealed proposal frees its slot"
+    assert store.create(manifest)["state"] == "draft", "the operator's create is not a proposal"
+
+
 def test_lens_propose_previews_through_the_private_address_classifier():
     import httpx
 
@@ -264,6 +291,13 @@ def test_sql_readonly_reads_one_value_and_a_delete_never_reaches_sqlite(database
         _feed("sql_readonly", {"database": str(database), "query": "DELETE FROM jobs"})
     assert refused.value.code is WireRefusal.INVALID_STRING
 
+    pasted = "SELECT COUNT(*)\r\n\tFROM jobs\n\tWHERE state = 'failed'"  # RT-LENS-SQL-MULTILINE
+    multiline = _feed("sql_readonly", {"database": str(database), "query": pasted})
+    assert multiline["source"]["query"] == pasted and sql_readonly.read(multiline, headers={}).value == 2.0
+    with pytest.raises(WireError) as control:
+        _feed("sql_readonly", {"database": str(database), "query": "SELECT 1\x00"})
+    assert control.value.code is WireRefusal.INVALID_STRING, "only tab / LF / CR are admitted"
+
     planted = {**feed, "source": {**feed["source"], "query": "DELETE FROM jobs"}}
     assert sql_readonly.read(planted, headers={}).reason.value == "statement_refused"
     hidden = {**feed, "source": {**feed["source"],
@@ -316,3 +350,60 @@ def test_prometheus_through_kube_proxy_reads_the_service_proxy_on_loopback():
                     "/api/v1/query?query=up"]
     loopback = _feed("prometheus", {"base_url": "http://127.0.0.1:9090", "query": "up"})
     assert read_feed_source(loopback, client=_client(handler)).reason.value == "private_address_refused"
+
+
+def _propose_as(persona: str | None, monitor_id: str, store: LensStore) -> dict:
+    """``lens_propose`` from inside a live persona turn (``persona=None``: outside any turn)."""
+    from contextlib import ExitStack
+    from types import SimpleNamespace
+
+    import httpx
+
+    from agent_runtime.live_turns import live_turn
+    from agent_runtime.persona_turn_binding import bind_persona_turn_agent
+    from agent_runtime.lens.tool import propose_monitor
+
+    client = _client(lambda request: httpx.Response(200, json={"latency": 1}))
+    with ExitStack() as turn:
+        if persona is not None:
+            agent = SimpleNamespace()
+            turn.enter_context(live_turn(turn_id=f"t-{monitor_id}", session_id="s", persona_instance_id=persona,
+                                         agent=agent))
+            turn.enter_context(bind_persona_turn_agent(agent))
+        return propose_monitor({**_proposal(), "monitor_id": monitor_id}, store=store, client=client,
+                               resolver=lambda host: PUBLIC)
+
+
+def test_one_persona_cannot_take_every_proposal_slot():
+    """RT-LENS-PROPOSAL-CAPACITY, per persona: the calling persona is the live turn's (no wire key)."""
+    from agent_runtime.lens.store import MAXIMUM_PROPOSALS_PER_PERSONA, LensStoreError
+
+    store = LensStore()
+    for index in range(MAXIMUM_PROPOSALS_PER_PERSONA):
+        _propose_as("inst-a", f"a-{index}", store)
+    with pytest.raises(LensStoreError) as full:
+        _propose_as("inst-a", "a-over", store)
+    assert full.value.code.value == "proposals_full"
+    assert _propose_as("inst-b", "b-0", store)["state"] == "draft", "another persona keeps its share"
+    assert _propose_as(None, "unattributed", store)["state"] == "draft", "outside a turn: the global cap only"
+
+
+def test_an_untouched_proposal_expires_and_an_adopted_one_does_not(monkeypatch, caplog):
+    """RT-LENS-PROPOSAL-CAPACITY, expiry: a proposal the operator never sealed nor edited is retired."""
+    import logging
+
+    from agent_runtime.lens import store as lens_store
+
+    store = LensStore()
+    _propose_as("inst-a", "stale", store)
+    adopted = _propose_as("inst-a", "adopted", store)
+    store.create({**store.get("adopted")["draft"]})
+    assert adopted["monitor_id"] == "adopted"
+    later = lens_store._now_ms() + lens_store.PROPOSAL_TTL_MS + 1
+    monkeypatch.setattr(lens_store, "_now_ms", lambda: later)
+    with caplog.at_level(logging.INFO, logger=lens_store.__name__):
+        _propose_as("inst-a", "fresh", store)
+    assert store.get("stale")["state"] == MonitorState.RETIRED.value
+    assert store.get("adopted")["state"] == MonitorState.DRAFT.value
+    assert store.get("fresh")["state"] == MonitorState.DRAFT.value
+    assert "[LensProposalsExpired] retired=1 ids=stale" in caplog.text

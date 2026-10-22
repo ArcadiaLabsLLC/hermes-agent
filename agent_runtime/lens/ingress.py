@@ -55,8 +55,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable
 
 from .ingress_mappings import IngressError, IngressRefusal, ingest
-from .ingress_routes import (ROUTE_PATH_PREFIX, SECRET_PREFIX, IngressAuth, ingress_address, ingress_config_path,
-                             is_local_bind, route_url)
+from .ingress_routes import (MAXIMUM_PORT, MINIMUM_PORT, ROUTE_PATH_PREFIX, SECRET_PREFIX, IngressAuth,
+                             ingress_address, ingress_config_path, is_local_bind, route_url)
 from .sources.transport import ReadReason
 from .store import LensStore, LensStoreError
 from .wire_value import WireError, WireRefusal, bounded_int
@@ -156,12 +156,16 @@ def verify_signature(headers: Any, body: bytes, secret: str, now: datetime) -> t
     return None, nonce
 
 
+#: An ``Authorization`` header's scheme (case-insensitive, RFC 7235) -> the route auth it proves.
+AUTHORIZATION_SCHEMES: dict[str, IngressAuth] = {"bearer": IngressAuth.BEARER}
+
+
 def verify_bearer(headers: Any, body: bytes, secret: str, now: datetime) -> tuple[IngressRefusal | None, str]:
     """``(refusal or None, nonce)`` for a bearer route: the header must carry the route's secret.
     The nonce is the body's digest (the replay ring's key)."""
 
     scheme, _, token = (_header(headers, "Authorization") or "").partition(" ")
-    if scheme.lower() != "bearer" or not hmac.compare_digest(token.strip().encode("utf-8", "replace"),
+    if AUTHORIZATION_SCHEMES.get(scheme.lower()) is not IngressAuth.BEARER or not hmac.compare_digest(token.strip().encode("utf-8", "replace"),
                                                              secret.encode("utf-8")):
         return IngressRefusal.BAD_SIGNATURE, ""
     return None, "body:" + hashlib.sha256(body).hexdigest()
@@ -394,7 +398,7 @@ def bind_ingress(host: Any, port: Any) -> dict[str, Any]:
 
     from utils import atomic_json_write
 
-    address = (read_bind_host(host), bounded_int(port, minimum=1024, maximum=65535))
+    address = (read_bind_host(host), bounded_int(port, minimum=MINIMUM_PORT, maximum=MAXIMUM_PORT))
     path = ingress_config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     atomic_json_write(path, {"host": address[0], "port": address[1]}, indent=2, sort_keys=True)

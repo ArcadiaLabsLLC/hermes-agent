@@ -46,8 +46,10 @@ def shipped() -> set[str]:
 
 
 #: Bundled-disabled toolsets whose tool modules SHIP ("present but off": switched off, yet forced into
-#: the plan), so only ``agent.disabled_toolsets`` in the shared ``config.yaml`` refuses them. A ratchet
-#: that may only shrink — row RT-NAMESPACE-SHARED-CONFIG-SHELL-FAMILY (owner decision pending).
+#: the plan). Held by the request seam: the bundled edition's chat request carries the profile's
+#: ``toolsets.disabled`` (``agent_runtime/bundled_toolsets.py``; tests/agent_runtime/
+#: test_persona_runtime_toolsets.py), so the shared ``config.yaml`` no longer decides. The modules still
+#: ship; a ratchet that may only shrink.
 CONFIG_ONLY = frozenset({"terminal", "code_execution", "browser", "browser-use"})
 
 

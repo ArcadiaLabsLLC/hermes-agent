@@ -59,7 +59,10 @@ logger = logging.getLogger(__name__)
 
 
 MACHINE_ROOTS_FILENAME = "machine_roots.json"
-MACHINE_ROOTS_SCHEMA_VERSION = 1
+MACHINE_ROOTS_SCHEMA_VERSION = 2
+#: A registry written before workspace-scoped slot roots (no ``workspace_roots`` map): upgraded once by
+#: ``workspace_slots`` on its first read (plan work-slot-roots-per-workspace-2026-10-21 §2).
+MACHINE_ROOTS_LEGACY_SCHEMA_VERSION = 1
 
 # ``${roots.<name>}`` — the logical-root token.
 ROOT_TOKEN_RE = re.compile(r"\$\{roots\.([^}]*)\}")
@@ -161,9 +164,18 @@ class MachineRoots:
     roots: dict[str, str] = dataclass_field(default_factory=dict)
     sources: tuple[str, ...] = ()
     issues: tuple[PathTokenIssue, ...] = ()
+    #: A slot's machine fill PER WORKSPACE: ``{workspace_id: {slot: abs path}}``. Never read by the
+    #: ``${roots.<name>}`` expansion — config tokens name machine facts, slot binds are per workspace.
+    workspace_roots: Mapping[str, Mapping[str, str]] = dataclass_field(default_factory=dict)
+    #: The write target's schema: ``MACHINE_ROOTS_LEGACY_SCHEMA_VERSION`` while it has no ``workspace_roots``.
+    schema_version: int = MACHINE_ROOTS_SCHEMA_VERSION
 
     def get(self, name: str) -> Path | None:
         raw = self.roots.get(name)
+        return Path(raw) if raw else None
+
+    def workspace_root(self, workspace_id: str, slot: str) -> Path | None:
+        raw = (self.workspace_roots.get(workspace_id) or {}).get(slot)
         return Path(raw) if raw else None
 
     def names(self) -> list[str]:
@@ -173,6 +185,7 @@ class MachineRoots:
         return {
             "schema_version": MACHINE_ROOTS_SCHEMA_VERSION,
             "roots": {name: self.roots[name] for name in sorted(self.roots)},
+            "workspace_roots": _sorted_workspace_roots(self.workspace_roots),
             "sources": list(self.sources),
             "issues": [issue.row() for issue in self.issues],
         }
@@ -275,21 +288,60 @@ def load_machine_roots(*, refresh: bool = False) -> MachineRoots:
         if cached is not None:
             return cached
     roots: dict[str, str] = {}
+    scoped: dict[str, dict[str, str]] = {}
     sources: list[str] = []
     issues: list[PathTokenIssue] = []
-    for path in paths:
+    schema = MACHINE_ROOTS_SCHEMA_VERSION
+    for index, path in enumerate(paths):
         parsed, parse_issues = _read_registry_file(path)
         issues.extend(parse_issues)
         if parsed is None:
             continue
         sources.append(str(path))
-        roots.update(parsed)
-    resolved = MachineRoots(roots=roots, sources=tuple(sources), issues=tuple(issues))
+        roots.update(parsed.roots)
+        for workspace_id, slots in parsed.workspace_roots.items():
+            scoped.setdefault(workspace_id, {}).update(slots)
+        if index == 0 and not parsed.scoped:
+            schema = MACHINE_ROOTS_LEGACY_SCHEMA_VERSION
+    resolved = MachineRoots(roots=roots, sources=tuple(sources), issues=tuple(issues), workspace_roots=scoped,
+                            schema_version=schema)
     _roots_cache[key] = resolved
     return resolved
 
 
-def _read_registry_file(path: Path) -> tuple[dict[str, str] | None, list[PathTokenIssue]]:
+@dataclass(frozen=True, slots=True)
+class _RegistryFile:
+    roots: dict[str, str]
+    workspace_roots: dict[str, dict[str, str]]
+    #: The file carries a ``workspace_roots`` object (schema 2), even an empty one.
+    scoped: bool
+
+
+def _sorted_workspace_roots(scoped: Mapping[str, Mapping[str, str]]) -> dict[str, dict[str, str]]:
+    return {ws: {slot: str(scoped[ws][slot]) for slot in sorted(scoped[ws])} for ws in sorted(scoped) if scoped[ws]}
+
+
+def _read_workspace_roots(node: Any, path: Path, issues: list[PathTokenIssue]) -> dict[str, dict[str, str]]:
+    """``workspace_roots``: a workspace key round-trips ``paths.safe_path_token``; a slot key is a root name."""
+
+    from .paths import safe_path_token
+
+    parsed: dict[str, dict[str, str]] = {}
+    for workspace_id, slots in (node or {}).items() if isinstance(node, dict) else ():
+        key = str(workspace_id or "").strip()
+        if not key or safe_path_token(key) != key or not isinstance(slots, dict):
+            issues.append(PathTokenIssue(code=ISSUE_INVALID_REGISTRY, root_name=key,
+                                         summary=f"Workspace roots key '{key}' is not a workspace id ({path})",
+                                         fix_hint="Re-bind the workspace's slots through Locate."))
+            continue
+        inner, inner_issues = _read_roots_node(slots, path)
+        issues.extend(inner_issues)
+        if inner:
+            parsed[key] = inner
+    return parsed
+
+
+def _read_registry_file(path: Path) -> tuple[_RegistryFile | None, list[PathTokenIssue]]:
     if not path.is_file():
         return None, []
     try:
@@ -308,9 +360,16 @@ def _read_registry_file(path: Path) -> tuple[dict[str, str] | None, list[PathTok
             PathTokenIssue(
                 code=ISSUE_INVALID_REGISTRY,
                 summary=f"Machine root registry has no 'roots' object: {path}",
-                fix_hint=f"Rewrite {path} as {{\"schema_version\": 1, \"roots\": {{...}}}}.",
+                fix_hint=f"Rewrite {path} as {{\"schema_version\": 2, \"roots\": {{...}}}}.",
             )
         ]
+    parsed, issues = _read_roots_node(node, path)
+    scoped = "workspace_roots" in payload
+    workspace_roots = _read_workspace_roots(payload.get("workspace_roots"), path, issues) if scoped else {}
+    return _RegistryFile(parsed, workspace_roots, scoped), issues
+
+
+def _read_roots_node(node: Mapping[str, Any], path: Path) -> tuple[dict[str, str], list[PathTokenIssue]]:
     parsed: dict[str, str] = {}
     issues: list[PathTokenIssue] = []
     for name, value in node.items():
@@ -340,9 +399,17 @@ def _read_registry_file(path: Path) -> tuple[dict[str, str] | None, list[PathTok
     return parsed, issues
 
 
+def _held_workspace_roots(target: Path) -> dict[str, dict[str, str]] | None:
+    """The target file's own ``workspace_roots`` (None: a legacy file or no file — nothing to keep)."""
+
+    held, _ = _read_registry_file(target)
+    return held.workspace_roots if held is not None and held.scoped else None
+
+
 def write_machine_roots(
     roots: Mapping[str, str],
     *,
+    workspace_roots: Mapping[str, Mapping[str, str]] | None = None,
     dry_run: bool,
     path: Path | None = None,
 ) -> dict[str, Any]:
@@ -355,10 +422,15 @@ def write_machine_roots(
     """
 
     target = Path(path) if path is not None else machine_roots_registry_paths()[0]
-    payload = {
-        "schema_version": MACHINE_ROOTS_SCHEMA_VERSION,
+    # ``None`` keeps what the file has; a file that never carried the map stays legacy (schema 1) so
+    # its roots are still migrated into ``workspace_roots`` on the next slot read.
+    scoped = _held_workspace_roots(target) if workspace_roots is None else workspace_roots
+    payload: dict[str, Any] = {
+        "schema_version": MACHINE_ROOTS_SCHEMA_VERSION if scoped is not None else MACHINE_ROOTS_LEGACY_SCHEMA_VERSION,
         "roots": {str(name): str(value) for name, value in sorted(roots.items())},
     }
+    if scoped is not None:
+        payload["workspace_roots"] = _sorted_workspace_roots(scoped)
     after = json.dumps(payload, indent=2, sort_keys=True) + "\n"
     try:
         before = target.read_text(encoding="utf-8") if target.is_file() else ""

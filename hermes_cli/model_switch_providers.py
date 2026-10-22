@@ -16,6 +16,7 @@ from typing import Any, List, Optional
 from agent.command_token_source import build_command_token_provider, materialize_probe_api_key
 from hermes_cli.providers import custom_provider_aliases, custom_provider_slug, get_label
 from utils import base_url_host_matches
+from agent_runtime import credential_pool_snapshot as _fork_pool_snapshot  # fork seam: picker auth-store memo (RT-PICKER-AUTH-DIRECT-READS)
 
 # Log-record parity with the origin module.
 logger = logging.getLogger("hermes_cli.model_switch")
@@ -306,6 +307,7 @@ def _auth_store_has_provider(*keys: str) -> bool:
     """True when ``auth.json`` has a ``providers`` entry under any of *keys*."""
     try:
         from hermes_cli.auth import _load_auth_store
+        _load_auth_store = _fork_pool_snapshot.memo_auth_reader(_load_auth_store)  # fork seam: one read per picker build
         store = _load_auth_store()
         providers_store = store.get("providers", {})
         return bool(store and any(k in providers_store for k in keys))
@@ -318,6 +320,7 @@ def _raw_pool_usable(hermes_id: str, *, for_picker: bool = False) -> bool:
     """Section-1 pool check: only consult the pool when auth.json lists a raw entry."""
     try:
         from hermes_cli.auth import _load_auth_store
+        _load_auth_store = _fork_pool_snapshot.memo_auth_reader(_load_auth_store)  # fork seam: one read per picker build
         store = _load_auth_store()
         if store and store.get("credential_pool", {}).get(hermes_id):
             return _credential_pool_is_usable(hermes_id, raw_pool_present=True, for_picker=for_picker)

@@ -71,6 +71,19 @@ def _normalize_remote(url: str) -> str:
     return text.lower().split("://", 1)[-1]
 
 
+def origin_matches(path: Path, slot: dict[str, Any], run: Runner | None = None) -> bool:
+    """True when the checkout at ``path`` has an ``origin`` matching the slot's declared ``repo.clone_url``."""
+
+    wanted = str((slot.get("repo") or {}).get("clone_url") or "")
+    if not wanted:
+        return False
+    try:
+        done = (run or _run)(["git", "-C", str(path), "remote", "get-url", "origin"])
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return done.returncode == 0 and _normalize_remote(done.stdout) == _normalize_remote(wanted)
+
+
 class _SlotProbe:
     """One slot's probes on this machine; collects the row and the unknowns."""
 
@@ -183,7 +196,7 @@ def report(
     stamp = time.time() if now is None else now
     slots = {}
     for name, slot in live_slots(document).items():
-        row = _SlotProbe(name, slot, slot_fill(workspace_id, name), run or _run, stamp).row(bound_path(name))
+        row = _SlotProbe(name, slot, slot_fill(workspace_id, name), run or _run, stamp).row(bound_path(name, workspace_id=workspace_id))
         if row["bound"] and name not in previous and name not in fresh_binds:
             row["adopted_existing_root"] = True
         slots[name] = row

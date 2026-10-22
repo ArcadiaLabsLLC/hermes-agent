@@ -27,8 +27,10 @@ class Refusal(StrEnum):
 
 
 class ConversationError(ValueError):
-    def __init__(self, reason: Refusal, *, native_code: int | None = None):
-        self.reason, self.native_code = reason, native_code
+    def __init__(self, reason: Refusal, *, native_code: int | None = None, native_data: dict | None = None):
+        # native_data: the worker's own JSON-RPC ``error.data`` (its typed refusal), carried to
+        # the caller's error reply (RT-NATIVE-PEER-DROPS-ERROR-DATA).
+        self.reason, self.native_code, self.native_data = reason, native_code, native_data
         super().__init__(reason.value)
 
 

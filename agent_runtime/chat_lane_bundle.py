@@ -320,6 +320,9 @@ class ChatLaneBundle:
     #: applied by ``agent_runtime.chat_lane_defer``). Part of the tool contract, so a
     #: changed list moves the resident actor's signature and the actor is rebuilt.
     defer_tools: tuple[str, ...] = ()
+    #: The bundled edition's request-level disables (``agent_runtime.bundled_toolsets``): the profile's
+    #: ``toolsets.disabled`` minus the persona's approved opt-ins; ``()`` on the Developer Edition.
+    disabled_toolsets: tuple[str, ...] = ()
 
     def capability(self) -> dict[str, Any]:
         return copy.deepcopy(self._capability)
@@ -454,7 +457,9 @@ def chat_lane_bundle_key_material(
         lane = str(current_entry_point_lane() or "")
     except Exception:  # pragma: no cover - current_entry_point_lane never raises
         lane = ""
-    return {
+    from .bundled_toolsets import bundled_disabled_toolsets
+
+    material = {
         "contract": BUNDLE_CONTRACT_REVISION,
         "persona_revision": _revision(persona),
         "session": str(session_id or ""),
@@ -474,6 +479,10 @@ def chat_lane_bundle_key_material(
         "entry_point_lane": lane,
         "registry_content": registry_content_revision(),
     }
+    bundled_disabled = bundled_disabled_toolsets(persona)
+    if bundled_disabled:  # the bundled edition only: a grant moves the key (the Developer key is unchanged)
+        material["bundled_disabled_toolsets"] = list(bundled_disabled)
+    return material
 
 
 def chat_lane_bundle_key(persona: Any, permission: Any, *, session_id: str | None) -> str:
@@ -557,6 +566,9 @@ def _build_bundle(
     )
     blocked = tuple(_blocked_tool_names_for_chat(persona, session_id=session_id))
     defer = tuple(sorted(set(chat_lane_defer_tools(str(getattr(persona, "id", "") or "")))))
+    from .bundled_toolsets import bundled_disabled_toolsets
+
+    disabled = bundled_disabled_toolsets(persona)
     # The tool contract IS these three lists — composed here, once, so the actor's
     # reuse key and the request the actor is built from are literally the same
     # answer, not two equal ones.
@@ -565,6 +577,8 @@ def _build_bundle(
         "blocked_tool_names": list(blocked),
         "chat_lane_defer_tools": list(defer),
     }
+    if disabled:  # the bundled edition's disables are part of the contract: a grant rebuilds the actor
+        tool_contract["disabled_toolsets"] = list(disabled)
     permission_state = permission_state_for_chat(persona, session_id=session_id)
 
     # Every degradation is RECORDED, not only counted into ``complete``. See
@@ -611,6 +625,7 @@ def _build_bundle(
         complete=not degraded,
         degraded=tuple(degraded),
         defer_tools=defer,
+        disabled_toolsets=disabled,
     )
 
 

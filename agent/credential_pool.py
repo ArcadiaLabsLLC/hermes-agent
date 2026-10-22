@@ -6,6 +6,7 @@ from agent.credential_pool_admin import CredentialPoolAdminMixin
 from agent.credential_pool_model_cooldowns import CredentialPoolModelCooldownMixin, model_cooldown_until
 from agent_runtime.pool_rotation import PoolRotationMixin, PoolRotationCursor
 from agent.credential_pool_timestamps import _parse_absolute_timestamp
+from agent_runtime import credential_pool_snapshot as _fork_pool_snapshot  # fork seam: picker pool snapshot (RT-PICKER-AUTH-REREAD)
 
 import logging
 import os
@@ -3018,6 +3019,8 @@ def _seed_custom_pool(pool_key: str, entries: list[PooledCredential]) -> tuple[b
 
 def load_pool(provider: str) -> CredentialPool:
     provider = (provider or "").strip().lower()
+    if (memo := _fork_pool_snapshot.snapshot_get(provider)) is not None:  # fork seam: one load per provider
+        return memo  # inside a picker build's snapshot scope (agent_runtime/credential_pool_snapshot.py)
     if provider in SINGLE_USE_REFRESH_POOL_PROVIDERS:
         # One-time heal for installs that forked this grant across profiles
         # before the clone-strip / root write-through existed (#100339).
@@ -3090,4 +3093,5 @@ def load_pool(provider: str) -> CredentialPool:
             owns_provider = _profile_owns_pool_provider(provider)
         if not owns_provider:
             pool._borrowed_root_ids = set(disk_ids)
+    _fork_pool_snapshot.snapshot_put(provider, pool)  # fork seam: no-op outside a snapshot scope
     return pool

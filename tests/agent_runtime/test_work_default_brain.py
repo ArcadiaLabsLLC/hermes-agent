@@ -45,9 +45,10 @@ def repo_with_brain(root: Path) -> tuple[Path, Path]:
 def bind(ws: str, **clones: Path) -> None:
     declare(ws, [{"name": name, "repo": {"clone_url": f"https://example.invalid/{name}.git", "default_branch": "main"}}
                  for name in clones], issued_at="2026-10-18T13:00:00+00:00", machine="test-machine")
-    roots = dict(load_machine_roots(refresh=True).roots)
-    roots.update({name: str(path) for name, path in clones.items()})
-    write_machine_roots(roots, dry_run=False)
+    current = load_machine_roots(refresh=True)
+    scoped = {key: dict(fills) for key, fills in current.workspace_roots.items()}
+    scoped.setdefault(ws, {}).update({name: str(path) for name, path in clones.items()})
+    write_machine_roots(dict(current.roots), workspace_roots=scoped, dry_run=False)
 
 
 def commits(origin: Path) -> int:

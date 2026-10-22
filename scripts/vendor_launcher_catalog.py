@@ -31,14 +31,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 FIXTURE = ROOT / "tests" / "fixtures" / "launcher_app_functions_catalog.json"
 
-#: The fixture's per-entry keys, in order, and the type each must carry.
-ENTRY_FIELDS: dict[str, type] = {
+#: The fixture's per-entry keys, in order, and the type(s) each must carry. The Launcher
+#: exports ``guidance_sha256: null`` for an entry with no guidance text (since its
+#: 2026-10-21 export).
+ENTRY_FIELDS: dict[str, type | tuple[type, ...]] = {
     "id": str,
     "name": str,
     "read_only": bool,
     "always_loaded": bool,
     "reach": str,
-    "guidance_sha256": str,
+    "guidance_sha256": (str, type(None)),
 }
 
 
@@ -56,7 +58,8 @@ def normalize_entries(raw: object) -> list[dict]:
         for field, kind in ENTRY_FIELDS.items():
             value = entry.get(field)
             if not isinstance(value, kind):
-                raise ValueError(f"entry {index} ({entry.get('id')!r}): {field} is not a {kind.__name__}")
+                names = "/".join(k.__name__ for k in (kind if isinstance(kind, tuple) else (kind,)))
+                raise ValueError(f"entry {index} ({entry.get('id')!r}): {field} is not a {names}")
             kept[field] = value
         if kept["id"] in out:
             raise ValueError(f"entry id {kept['id']!r} appears twice")
@@ -87,6 +90,11 @@ def launcher_head(checkout: Path) -> str:
 
 
 def build_fixture(raw: object, source_commit: str) -> dict:
+    """The fixture; an export that stamps its own 40-hex ``source_commit`` keeps it."""
+
+    stamped = raw.get("source_commit") if isinstance(raw, dict) else None
+    if isinstance(stamped, str) and len(stamped) == 40:
+        source_commit = stamped
     exported_at = raw.get("exported_at") if isinstance(raw, dict) else None
     if not isinstance(exported_at, str) or not exported_at:
         exported_at = datetime.now(UTC).date().isoformat()

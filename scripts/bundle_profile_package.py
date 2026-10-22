@@ -79,6 +79,7 @@ if str(ROOT) not in sys.path:
 from scripts.bundle_licenses import copy_first_party_licence, licence_problems, write_licence_records
 from scripts.bundle_profile_closure import _imports, _norm, _owner, module_index, profile_walk
 from agent_runtime.bundle_profiles.forced_tree import FORCED_TREE_DIR, sibling_modules
+from agent_runtime.bundle_profiles.manifest import PACKAGING_TARGETS
 from scripts.bundles.serve_probe import (
     named_timezone_problems, serve_import_problems, serve_import_table)
 from scripts.bundles.pool_install import install_pool as install_pool_into, remove_tree
@@ -103,6 +104,13 @@ TARGETS: dict[str, tuple[str, dict[str, str]]] = {
     "linux-arm64": ("aarch64-unknown-linux-gnu",
                     {"sys_platform": "linux", "platform_system": "Linux", "os_name": "posix",
                      "platform_machine": "aarch64"}),
+    # The phones (manifest.PACKAGING_TARGETS): no interpreter pin — the host app embeds CPython.
+    "android_arm64": ("aarch64-linux-android",
+                      {"sys_platform": "android", "platform_system": "Android", "os_name": "posix",
+                       "platform_machine": "aarch64"}),
+    "ios_arm64": ("arm64-apple-ios",
+                  {"sys_platform": "ios", "platform_system": "iOS", "os_name": "posix",
+                   "platform_machine": "arm64"}),
 }
 
 #: Path components that never ship, first- or third-party.
@@ -182,7 +190,7 @@ def evaluate_markers(requirements: str, env: dict[str, str]) -> str:
             return
         head, _, marker = block[0].rstrip(" \\").partition(" ; ")
         if not marker or Marker(marker).evaluate(env):
-            kept.append(head.strip() + " \\")
+            kept.append(head.strip() + (" \\" if len(block) > 1 else ""))  # a URL pin has no hash lines
             kept.extend(block[1:])
         block.clear()
 
@@ -345,7 +353,8 @@ def split_forced_tree(rels: list[str], sibling: set[str], index: dict[str, Path]
 CORE = ""
 #: The planning child reports progress (its step and its parse count) every
 #: :data:`PROGRESS_INTERVAL_SECONDS`; it is stopped when that report has not changed for
-#: :data:`PLAN_STALL_SECONDS`, or when it has run :data:`PLAN_TIMEOUT_SECONDS` in all. Both stops
+#: :data:`PLAN_STALL_SECONDS` (counted from its FIRST report: interpreter start-up on a loaded box is
+#: not standing still), or when it has run :data:`PLAN_TIMEOUT_SECONDS` in all. Both stops
 #: are RETRYABLE (exit :data:`EXIT_RETRYABLE`): a slow child on a busy machine still parses, so it
 #: is never stopped for being slow, only for standing still. Sized from the 2026-10-16
 #: measurement in ``docs/agent-runtime-harness/04-boot-and-lifecycle.md`` (the bundled-desktop build).
@@ -384,10 +393,11 @@ print(json.dumps({"jobs": out, "counts": closure_script.COUNTS}))
 
 def _run_planner(cmd: list[str], stall: float, cap: float) -> str:
     """Run the planning child; stdout on success. :class:`PlanStalled` when its progress report
-    stops changing for ``stall`` seconds or it runs ``cap`` seconds; CalledProcessError on a crash."""
+    stops changing for ``stall`` seconds (from its first one) or it runs ``cap`` seconds;
+    CalledProcessError on a crash."""
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
                             stdin=subprocess.DEVNULL)
-    seen = {"token": None, "at": time.monotonic()}
+    seen = {"token": None, "at": None}  # the stall clock starts at the first progress line
     tail: deque[str] = deque(maxlen=40)
     out: list[str] = []
 
@@ -411,7 +421,8 @@ def _run_planner(cmd: list[str], stall: float, cap: float) -> str:
         except subprocess.TimeoutExpired:
             pass
         now = time.monotonic()
-        why = (f"no progress for {stall:.0f}s (last: {seen['token']})" if now - seen["at"] > stall else
+        stalled = seen["at"] is not None and now - seen["at"] > stall
+        why = (f"no progress for {stall:.0f}s (last: {seen['token']})" if stalled else
                f"ran past its {cap:.0f}s cap (last: {seen['token']})" if now - started > cap else None)
         if why and proc.poll() is None:
             proc.kill()
@@ -833,8 +844,9 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--profile", default="bundled-desktop")
     parser.add_argument("--target", choices=sorted(TARGETS))
-    parser.add_argument("--python-version", default=locked_python_version(),
-                        help="target CPython (default: agent_runtime/bundle_profiles/interpreters.lock.json)")
+    parser.add_argument("--python-version", default=None,
+                        help="target CPython (default: agent_runtime/bundle_profiles/interpreters.lock.json; "
+                             "a phone target has no pin and must name it)")
     parser.add_argument("--out", type=Path)
     parser.add_argument("--stage", type=Path, help="pool directory (default: OUT.pool)")
     parser.add_argument("--reuse-stage", action="store_true", help="skip phase 1 if the stage exists")
@@ -852,6 +864,12 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     if args.no_serve_probe and args.python:
         parser.error("--no-serve-probe and --python contradict each other")
+    if args.target in PACKAGING_TARGETS:  # a phone: the host app embeds CPython, nothing here is pinned
+        if args.bake_with:
+            parser.error(f"bake_refused_phone_target: {args.target} bakes with the host app's interpreter")
+        if not args.python_version:
+            parser.error(f"--python-version is required for the phone target {args.target}")
+    args.python_version = args.python_version or locked_python_version()
 
     from agent_runtime.bundle_profiles.manifest import load_profile
 

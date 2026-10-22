@@ -17,14 +17,17 @@ create — HERMES seeds them, not the launcher" (owner, 2026-10-03).
   which is what reaches a profile upstream created).
 - **S1 + S2 — built for lines 1 and 2** (fill-if-absent, round-trip writer, fail-open).
 - **Held, with the question each needs:**
-  - Line 3 — OWNER: `skills.create_dir` = the shared root makes `skill_manage` write
-    agent-authored skills straight into the root realm sync publishes, past the
-    hash-guarded promotion door (`agent_runtime/skill_promotion.py`, "the ONE guarded
-    door"). Recommend: do not seed it; new skills stay profile-local and promote.
-  - Line 4 — sequencing: the shared root is already a search root through the fork's
-    tier in `agent/skill_utils.py::get_skill_search_roots`; seeding `external_dirs` only
-    pays when that carry is deleted (S3), and before then lists the root twice. Seed it in
-    the S3 commit that deletes the carry.
+  - Line 3 — **RULED 2026-10-21 (owner): not seeded.** Creates stay profile-local and
+    promote through the hash-guarded door (`agent_runtime/skill_promotion.py`).
+  - Line 4 — sequencing, and a question (lane w1021h-cli, 2026-10-21): the shared root is
+    already a search root through the fork's tier in
+    `agent/skill_utils.py::get_skill_search_roots`; seeding `external_dirs` only pays when
+    that carry is deleted (S3), and before then lists the root twice. The carry also serves
+    every home the seed never reaches: the sweep fills persona-BOUND profiles only, so the
+    root/head home and any unbound profile would lose the shared root when the carry goes.
+    Needs: either the seed reaches every home that reads skills, or the carry stays for
+    unbound homes. The value would be home-relative (`external_dirs` entries resolve against
+    `HERMES_HOME`), never an absolute path.
   - Line 5 — DESIGN: nothing computes a placement's surface-incompatible skill set; only
     `agent_runtime/skill_view_result.py` refuses per call.
   - Line 6 — DESIGN: no `eternia-persona` toolset is registered (the lane composite is
@@ -94,6 +97,84 @@ place personas are created.
 - **S3 — retire carries** each line makes redundant, per door-fit's Actions
   (close the PR/issue, delete the carry) — one commit per carry, footprint
   ledger updated.
+
+## Amendment 2026-10-21 — lines 5, 6 and 8: the design gaps, planned (lane w1021i-plans)
+
+Row `RT-SEED-DOOR-FIT-PARTIAL`. Read 2026-10-21 against `origin/main` d087df7035. Line 3 is RULED not
+seeded; line 4 is `RT-SEED-LINE4-UNBOUND-HOMES`; lines 1–2 are landed. What follows is each held line
+planned from the code, in the `persona_seed_defaults.py` writer S0 named (mint + startup sweep).
+
+### Line 5 — `skills.disabled`: the computation exists per skill; the set is a walk over it
+
+- **What is true:** `agent_runtime/skill_resolution.py::skill_frontmatter_runtime_compatibility(frontmatter,
+  *, surface, root_node_mode)` is the one predicate (`skill_view_result.py` refuses per call with it;
+  the index applies frontmatter `session_platforms` only). A persona's chat turn runs with
+  `skill_surface="mission_chat"`, `skill_root_node_mode=False` (`persona_runtime.py`'s
+  `AgentRunRequest`). Upstream reads `skills.disabled` ∪ `skills.platform_disabled.<platform>` in
+  `agent/skill_utils.py::get_disabled_skill_names` (minus `ESSENTIAL_SKILLS`), from the profile's
+  `config.yaml`, in BOTH walkers. The roots a persona sees are `get_skill_search_roots()` under its
+  bound profile home (call-time `HERMES_HOME`, the `profile_home` context the sweep already enters).
+- `Decided (plan):` **`persona_seed_defaults.incompatible_skills(home) -> frozenset[str]`:** walk every
+  `SKILL.md` under the persona's search roots, parse frontmatter (`skill_view_result._frontmatter`'s
+  reader, moved beside it), keep the names whose compatibility for `surface="mission_chat",
+  root_node_mode=False` is false. Cost: one frontmatter read per skill, under the sweep that already
+  parses each persona's `config.yaml`; recorded in the sweep receipt (`persona_seed.line5 {persona,
+  skills, incompatible}`).
+- `Decided (plan):` **the sweep OWNS the computed subset and never the operator's.** The writer
+  gains a sidecar beside `config.yaml` — `seed_receipt.json` `{schema_version: 1, seeded: {"skills.disabled":
+  [...]}}`, written by `seed_persona_profile` through `utils.atomic_json_write` — and on each sweep writes
+  `skills.disabled = (current − previously seeded) ∪ freshly computed` — an operator entry survives,
+  a skill that became compatible is released, a new incompatible shared skill is hidden on the next
+  boot. Lines 1–2 stay fill-if-absent and record nothing in the sidecar. The two callers today are the
+  mint (`persona_profiles.promote_profile_to_persona` → `seed_persona_profile`) and the plugin's startup
+  sweep (`seed_all_persona_profiles`); the office placement door (`office_store/actor_writes.upsert_actor`'s
+  persona arm, via the same `seed_persona_profile(home)` call) is the third, so a placement change
+  recomputes without a restart.
+- **Stage S5 test** (`tests/agent_runtime/test_persona_seed_defaults.py`): a home with one
+  mission-chat-incompatible skill and one compatible → `skills.disabled == [incompatible]`; an operator
+  entry `foo` set before the sweep survives a second sweep; marking the skill compatible releases it.
+  Killing mutations: write `current ∪ computed` (never release) → the "released" test reds; drop the
+  sidecar → the operator entry is dropped on the second sweep → red.
+
+### Line 6 — `toolsets:`: no `eternia-persona` toolset exists, and any seed re-labels every persona
+
+- **What is true:** the lane composite is `harness_core` (`agent_runtime/harness_toolset.py`);
+  `persona_profiles.declared_lane_toolsets` resolves an absent / upstream-default `toolsets:` to the
+  typed `lane_default` and anything else to `profile_config` verbatim; `tool-diff` shows the source.
+  Door-fit #123979's remaining residue is upstream's `add_to_toolset`; its "seed the profile list"
+  action assumed a persona toolset by that name, which was never registered.
+- **The seed buys nothing the lane default does not already give**, and costs the typed distinction:
+  after a seed every persona reads `profile_config`, and an operator can no longer tell a declared list
+  from a seeded one. Registering `eternia-persona` as an alias of `harness_core` only to seed it is a
+  second name for one composite (one owner per helper).
+- **Open ruling** · Line 6: strike it (the lane default IS the persona toolset, typed), or seed
+  `toolsets: [harness_core]` and teach `declared_lane_toolsets` to classify exactly that list as
+  `lane_default`? · Recommend: **strike**; door-fit #123979 keeps its `add_to_toolset` residue
+  unchanged and the row's line-6 gap closes as "not seeded, by design".
+
+### Line 8 — `approvals.deny`: the envelope has no static glob form, by construction
+
+- **What is true:** the envelope is four command CLASSES (`terminal_envelope/classes.py`: `git_push`,
+  `destructive_git`, `recursive_delete`, `network_egress`, each a regex row mirrored from
+  `tools/terminal_tool.py::_HARNESS_BLOCK_PATTERNS`, the network class with a localhost allowlist) lifted
+  per role and per lane by operator GRANTS (`grants.py::resolve_terminal_envelope_grants`, governed lane
+  `mission_chat` only). `decision.py::hard_floor_command_classes()` is EMPTY after ruling R-2: every
+  class is grantable. Upstream's `approvals.deny` is fnmatch globs over the command string, checked in
+  `tools/approval.py::_user_deny_block` BEFORE yolo, mode=off, the allowlist and the container path —
+  "never bypassable" by design.
+- So a seeded `approvals.deny` would refuse what a grant allows (the row's own sentence), for every
+  class, and cannot express the network allowlist at all. Door-fit §Actions asked the owner exactly this
+  ("static or runtime envelope; then close"); the code answers: runtime.
+- **Open ruling** · Line 8: strike it (the envelope stays the fork's carry; #123977's PR stands for
+  runtime envelopes), or seed only classes an operator has NOT granted for the persona's role, re-seeded
+  on every grant change (a static mirror of a dynamic table — two write paths for one decision)? ·
+  Recommend: **strike**; record on door-fit #123977 "envelope is runtime, not static — seed closed,
+  PR stands".
+
+### Status after this amendment
+
+Line 5: READY with the stage above. Lines 6 and 8: BLOCKED owner decision (recommendations: strike
+both). No other line of this plan changes.
 
 ## Blast radius
 

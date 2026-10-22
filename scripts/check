@@ -6,6 +6,7 @@ profile-archive and blob-size guards that CI runs in workflows of their own.
     python scripts/check                # everything, against the merge-base with origin/main
     python scripts/check --only health  # just the code-health ratchet
     python scripts/check --staged       # judge the index (the pre-commit hook runs this)
+    python scripts/check --judge-all    # fork seam: ruff/footgun reds on upstream lines judged too
     python scripts/check --commit REV   # judge one commit (the pre-push hook runs this)
     python scripts/check --install-hook [pre-commit|pre-push]   # run it automatically
     python scripts/check --uninstall-hook
@@ -40,6 +41,8 @@ sys.path.insert(0, str(REPO))
 
 from scripts.code_health import gitio  # noqa: E402
 from scripts.code_health.ruff_runner import resolve_ruff  # noqa: E402
+# fork seam (FORK-SEAM-LINE-LINT): ruff and footguns judge fork lines only, see fork_scope.
+from scripts.code_health import fork_scope  # noqa: E402
 
 _HOOK_MARK = "# hermes-agent scripts/check hook"
 # Hooks are shared by every worktree of the clone, so the checked-out branch decides nothing:
@@ -130,6 +133,7 @@ def _run(job: _Job) -> tuple[int, str]:
         job.argv, cwd=job.cwd, env=job.env, capture_output=True, text=True, encoding="utf-8",
         errors="replace", stdin=subprocess.DEVNULL, timeout=900, check=False,
     )
+    proc = fork_scope.filter_job(job.argv, job.cwd, job.env, proc)  # fork seam: fork lines only
     return proc.returncode, (proc.stdout + proc.stderr).strip()
 
 
@@ -176,6 +180,7 @@ def _jobs(names: list[str], base: str | None, head: str | None,
             jobs[name] = _Job(argv, root, env)
         elif name == "ruff":
             jobs[name] = _Job([*resolve_ruff(root), "check", "."], root, env)
+            jobs[name].argv += fork_scope.RUFF_ARGS  # fork seam: rendered by fork_scope
         else:
             # The ratchet reads both sides from git. It runs from `root` like every other job, so
             # in a snapshot its engine, rules and policy files (profile_scope_patterns.json, the
@@ -261,8 +266,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--install-hook", nargs="?", const="pre-commit", choices=sorted(_HOOKS),
                         help="run on every commit (default) or every push")
     parser.add_argument("--uninstall-hook", action="store_true", help="remove our git hooks")
+    parser.add_argument("--judge-all", action="store_true",  # fork seam: a merge lane's verdict
+                        help="judge ruff and footgun reds on upstream-owned lines too")
     args = parser.parse_args(argv)
     args.only = _selected(parser, args.only)
+    fork_scope.configure(judge_all=args.judge_all)  # fork seam
     if args.install_hook:
         return install_hook(args.install_hook)
     if args.uninstall_hook:
@@ -283,6 +291,7 @@ def main(argv: list[str] | None = None) -> int:
         if code != 0 or name == "health":
             label = "failed" if code != 0 else "ok"
             print(f"\n=== {name} ({label}) ===\n{output.rstrip()}")
+    fork_scope.report_unjudged()  # fork seam: upstream reds are printed, never judged
     status = "FAILED: " + ", ".join(failed) if failed else "ok"
     print(f"\nscripts/check: {len(results)} checks, {status}")
     return 1 if failed else 0

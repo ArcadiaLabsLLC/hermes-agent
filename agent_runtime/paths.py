@@ -226,6 +226,28 @@ def realm_sync_root() -> Path:
     return store_root() / REALM_SYNC_DIRNAME
 
 
+#: Git course checkouts (realm-course-subject-authoring plan §2): one clone per course per machine, never a
+#: slot and never a realm. Named here so the core cache's exclusion list imports it — a course's tree and
+#: its ``.git`` are no projection input, and a commit there must not cold the read model.
+COURSES_DIRNAME = "courses"
+
+
+def course_dir(course_public_id: str) -> Path:
+    return store_root() / COURSES_DIRNAME / safe_path_token(course_public_id)
+
+
+def course_checkout_dir(course_public_id: str) -> Path:
+    """``<store_root>/courses/<token>/repo`` — the course's clone at its default branch."""
+
+    return course_dir(course_public_id) / "repo"
+
+
+def course_worktrees_dir(course_public_id: str) -> Path:
+    """Beside the clone: one worktree per authoring branch (``course_authoring.commit``)."""
+
+    return course_dir(course_public_id) / "worktrees"
+
+
 def board_baseline_path(realm_id: str) -> Path:
     # realm-sync baseline sidecar; NEVER synced, NEVER published
     return realm_sync_root() / safe_path_token(realm_id) / "board_baseline.json"
@@ -720,10 +742,18 @@ def default_brain_dir(workspace_id: str) -> Path:
     return work_workspace_dir(workspace_id) / "brain"
 
 
-def work_worktree_dir(workspace_id: str, slot: str) -> Path:
-    """Hermes's own worktree of a slot's checkout (§5) — under ``worktrees/``, never inside the default brain."""
+def work_worktrees_dir(workspace_id: str) -> Path:
+    return work_workspace_dir(workspace_id) / "worktrees"
 
-    return work_workspace_dir(workspace_id) / "worktrees" / safe_path_token(slot)
+
+def work_worktree_dir(workspace_id: str, slot: str, checkout_token: str) -> Path:
+    """Hermes's own worktree of a slot's checkout (§5), keyed by the CHECKOUT it is cut from.
+
+    ``<slot>-<checkout_token>`` (``work_store.writer.checkout_token``): two boards over one checkout
+    share it, two checkouts never collide (plan work-slot-roots-per-workspace-2026-10-21 §2).
+    """
+
+    return work_worktrees_dir(workspace_id) / f"{safe_path_token(slot)}-{safe_path_token(checkout_token)}"
 
 
 def work_runs_dir(workspace_id: str) -> Path:

@@ -209,7 +209,7 @@ def _db_flush_scan_start(agent, messages: list[dict]) -> int:
     return scan_start
 
 
-def _db_flush_row(agent, msg: Dict, is_current_turn_user: bool, msg_idx: int = 0) -> dict[str, Any]:
+def _db_flush_row(agent, msg: dict, is_current_turn_user: bool, msg_idx: int = 0) -> dict[str, Any]:
     """Build the session-db row for ``msg``, applying the persist override to THIS row only."""
     role = msg.get("role", "unknown")
     content = msg.get("content")

@@ -66,7 +66,7 @@ def test_ensure_is_idempotent(workspace):
 
 def test_a_workspace_with_a_brain_slot_gets_none(workspace, tmp_path):
     declare_slots(workspace, slot_decl("hermes"))
-    bind_here(hermes=checkout(tmp_path / "hermes"))
+    bind_here(workspace, hermes=checkout(tmp_path / "hermes"))
     got = default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
     assert got.slot == "hermes"
     assert "brain" not in load_document(workspace)["slots"]
@@ -179,12 +179,15 @@ def _record(ws) -> dict:
     return json.loads(board.binding_path(ws).read_text(encoding="utf-8"))
 
 
-def _unbind_brain() -> None:
+def _unbind_brain(ws) -> None:
     from agent_runtime.machine_roots import load_machine_roots, write_machine_roots
 
-    roots = dict(load_machine_roots(refresh=True).roots)
+    current = load_machine_roots(refresh=True)
+    roots = dict(current.roots)
     roots.pop("brain", None)
-    write_machine_roots(roots, dry_run=False)
+    scoped = {key: dict(fills) for key, fills in current.workspace_roots.items()}
+    scoped.get(ws, {}).pop("brain", None)
+    write_machine_roots(roots, workspace_roots=scoped, dry_run=False)
 
 
 def _commit_row(repo, row_id: str, *, push: bool) -> None:
@@ -204,7 +207,7 @@ def _become_a_second_machine(ws, tmp_path) -> None:
     board.binding_path(ws).unlink()
     paths.default_brain_dir(ws).rename(tmp_path / "machine-one-brain")
     shutil.rmtree(paths.work_workspace_dir(ws) / "worktrees", ignore_errors=True)
-    _unbind_brain()
+    _unbind_brain(ws)
 
 
 def test_promotion_creates_a_private_repo_pushes_and_declares_the_slot_in_a_no_realm_workspace(workspace, host):
@@ -219,7 +222,7 @@ def test_promotion_creates_a_private_repo_pushes_and_declares_the_slot_in_a_no_r
     assert sorted(workspace_slots.live_slots(load_document(workspace))) == ["brain", "tools"]
     slot = workspace_slots.live_slots(load_document(workspace))["brain"]
     assert slot["repo"]["clone_url"] == record["remote_url"] and slot["context"]["brain_dir"] == default_brain.QUEUE_DIR
-    assert workspace_slots.bound_path("brain") == root
+    assert workspace_slots.bound_path("brain", workspace_id=workspace) == root
     assert board.default_board(workspace) is None
     listed = [b for b in board.boards(workspace) if b.slot == "brain"]
     assert len(listed) == 1 and board.has_brain_here(listed[0]) and not listed[0].is_default
@@ -249,7 +252,7 @@ def test_promotion_in_a_server_bound_realm_stages_the_declaration(workspace, hos
     declare_slots(workspace, record["declaration"]["slot"], issued_at=LATER)
     assert default_brain.ensure_default_brain(workspace, issued_at=LATER).slot == "brain"
     assert _record(workspace)["declaration"] == {"state": "declared"}
-    assert workspace_slots.bound_path("brain") == paths.default_brain_dir(workspace)
+    assert workspace_slots.bound_path("brain", workspace_id=workspace) == paths.default_brain_dir(workspace)
     assert [b.slot for b in board.boards(workspace)] == ["brain"]
 
 
@@ -306,7 +309,7 @@ def test_second_machine_adopts_the_declared_remote_instead_of_creating_a_brain(w
     _become_a_second_machine(workspace, tmp_path)
     made = default_brain.ensure_default_brain(workspace, issued_at=LATER)
     root = paths.default_brain_dir(workspace)
-    assert made.slot == "brain" and not made.is_default and workspace_slots.bound_path("brain") == root
+    assert made.slot == "brain" and not made.is_default and workspace_slots.bound_path("brain", workspace_id=workspace) == root
     assert host.created == [default_brain.brain_repo_name(workspace)]  # no second repo
     assert _git(root, "config", "--get", "remote.origin.url").strip() == url
     assert "work: default brain" not in _git(root, "log", "-1", "--format=%s")
@@ -367,3 +370,22 @@ def test_create_brain_promote_is_the_manual_door(workspace, host):
     assert reply["board"]["slot"] == "brain" and reply["receipt"]["promote"] is True
     again = work_store.create_brain(scope, {"request_id": "r-3", "promote": True}, "operator")
     assert again["promotion"]["outcome"] == "already"
+
+
+def test_two_workspaces_promoting_keep_their_own_brain(workspace, host):
+    """RT-SLOT-ROOT-NAME-GLOBAL (plan work-slot-roots-per-workspace-2026-10-21 R4): each promotion binds slot
+    ``brain`` for its own workspace. Killing mutation: ``bind`` writing the global ``roots.brain`` — the second
+    promotion repoints the first workspace's board at the second workspace's brain."""
+
+    from agent_runtime.store import WorkspaceStore
+
+    other = WorkspaceStore().create(name="Second workspace").id
+    default_brain.ensure_default_brain(workspace, issued_at=LATER)
+    default_brain.ensure_default_brain(other, issued_at=LATER)
+    assert len(host.created) == 2
+    for ws in (workspace, other):
+        assert _record(ws)["declaration"] == {"state": "declared"}
+        assert workspace_slots.bound_path("brain", workspace_id=ws) == paths.default_brain_dir(ws)
+        (declared,) = [b for b in board.declared_boards(ws) if b.slot == "brain"]
+        assert declared.read_root == paths.default_brain_dir(ws) and board.has_brain_here(declared)
+        assert board.default_board(ws) is None

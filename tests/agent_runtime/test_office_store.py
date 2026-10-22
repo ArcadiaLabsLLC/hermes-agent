@@ -581,57 +581,71 @@ def _furniture_payload(desk_ids: tuple[str, ...], *, kind: str = "desk") -> dict
     }
 
 
-def _counting_fence_scans(monkeypatch) -> list[str]:
-    """``scan_actors`` calls made INSIDE the class-key fence (``_guard_class_keyed_write``).
+def _counting_upsert_scans(monkeypatch) -> list[str]:
+    """Every ``scan_actors`` call, tagged ``pre`` / ``post`` the actor-file write.
 
-    Scoped to the fence because the write's patch lane (``office_store/patches.py``)
-    spends its own post-write scan on every upsert, furniture or not; that one is
-    not this row's to remove.
+    Since RT-OFFICE-PATCH-LANE-SCANS-EVERY-UPSERT an upsert reads the directory
+    ONCE: before the write when a pre-write consumer (the class-key fence, the
+    unaimed placement) needs it, and then threaded to the patch lane; else after
+    the write, by the patch lane. So the fence's cost shows as WHERE the one scan
+    falls, not as a second scan.
     """
     from agent_runtime.office_store import OfficeStore as _Store
+    from agent_runtime.office_store import actor_writes
 
     calls: list[str] = []
-    inside = [False]
-    real_scan, real_guard = _Store.scan_actors, _Store._guard_class_keyed_write
+    real_scan, real_write = _Store.scan_actors, actor_writes._write_actor
 
     def counting(self, workspace_id, *a, **k):
-        if inside[0]:
-            calls.append(workspace_id)
+        calls.append("pre")
         return real_scan(self, workspace_id, *a, **k)
 
-    def guard(self, *a, **k):
-        inside[0] = True
-        try:
-            return real_guard(self, *a, **k)
-        finally:
-            inside[0] = False
+    def write(actor):
+        calls.append("write")
+        return real_write(actor)
 
     monkeypatch.setattr(_Store, "scan_actors", counting)
-    monkeypatch.setattr(_Store, "_guard_class_keyed_write", guard)
+    monkeypatch.setattr(actor_writes, "_write_actor", write)
     return calls
 
 
+def _scan_phases(calls: list[str]) -> list[str]:
+    """``["pre", "write", "pre"]`` -> ``["pre", "post"]``: each scan, by side of the write."""
+    phases, written = [], False
+    for call in calls:
+        if call == "write":
+            written = True
+        else:
+            phases.append("post" if written else "pre")
+    return phases
+
+
 def test_a_furniture_desk_write_pays_no_scan(monkeypatch):
-    """T1: ``actor_kind: "furniture"`` leaves the class-key fence — its ``scan_actors`` is not paid.
+    """T1: ``actor_kind: "furniture"`` leaves the class-key fence — no PRE-write scan.
+
+    Either shape reads the directory exactly once (the patch lane's count); the
+    furniture word moves that one scan after the write, where no fence reads it.
 
     KILLING MUTATION: drop the furniture arm in
-    ``office_class_key_guard.is_class_keyed_payload`` -> one scan -> red.
-    Positive control: the SAME desks without the word pay exactly one scan.
+    ``office_class_key_guard.is_class_keyed_payload`` -> the scan is taken
+    pre-write -> red. Positive control: the SAME desks without the word scan
+    once, pre-write.
     """
 
     ws = _make_workspace()
     store = OfficeStore()
     store.ensure_surface(ws, created_by="seed")
-    scans = _counting_fence_scans(monkeypatch)
+    scans = _counting_upsert_scans(monkeypatch)
 
     placed = store.upsert_actor(ws, _furniture_payload(("desk_aaaaaaaa", "desk_aaaaaaab")))
 
-    assert scans == []
+    assert _scan_phases(scans) == ["post"]
     assert placed.actor_key == "desk_aaaaaaaa" and len(placed.items) == 2
     default_shape = _furniture_payload(("desk_bbbbbbbb", "desk_bbbbbbbc"))
     del default_shape["actor_kind"]
+    scans.clear()
     store.upsert_actor(ws, default_shape)
-    assert scans == [ws]
+    assert _scan_phases(scans) == ["pre"]
 
 
 def test_furniture_carrying_an_agent_item_is_refused_and_authors_nothing():
@@ -1900,7 +1914,7 @@ def test_a_fence_refusal_authors_no_office_either(monkeypatch):
     ws = _make_workspace()
     store = OfficeStore()
 
-    def _always_refuses(self, workspace_id, payload, *, allow_class_key):
+    def _always_refuses(self, workspace_id, payload, *, allow_class_key, scan=None):
         raise ClassKeyedPlacementRefused(
             "class_key_collision", safe_details={"workspace_id": workspace_id}
         )

@@ -1927,8 +1927,10 @@ kind, mapping?, auth?}`:
   accepted once more. Only `kind: alertmanager` may take bearer (`BEARER_KINDS`; `bearer_not_for_kind`),
   and only while the bind is loopback or private (`is_local_bind`): register refuses
   `bearer_needs_local_bind`, `ingress.bind` refuses every public or unspecified host for every route
-  (`bind_host_not_local`), and a listener whose bind is not local (a hand-edited `lens/ingress.json`)
-  answers a bearer route 403 `bearer_public_bind`.
+  (`bind_host_not_local`), a hand-edited `lens/ingress.json` naming a host that is not local (or a port
+  outside `1024..65535`) is read back as loopback on the default port with the log receipt
+  `lens ingress bind refused` (`ingress_routes.ingress_address`), and a listener constructed on a bind that
+  is not local answers a bearer route 403 `bearer_public_bind`.
 
 Every route on the wire (`register`, `list`, `revoke`) carries `auth` and `weaker` (`true` for bearer: the
 secret travels on every request); the Console labels a weaker route. The secret is in `register`'s answer

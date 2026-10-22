@@ -38,7 +38,7 @@ change can break, and nothing more. Nothing runs the whole tree.
 |---|---|---|---|
 | While writing code | a lane | `scripts/run_tests.sh <file>` | the one file; no cache |
 | While writing code (fast loop) | a lane or the owner | `scripts/run_tests_bundled.sh --affected` | the tests your edits can break; never a gate |
-| End of a lane | a lane | one `python -m pytest -q -p no:cacheprovider <files>` run over only the test files importing what it touched | its blast radius; no gates, no scopes |
+| End of a lane | a lane | one `python -m pytest -q -p no:cacheprovider <files>` run over only the test files importing what it touched, plus the two name census gates when it touched Python | its blast radius and its own new names; no other gates, no scopes |
 | Landing a batch | the landing session, once per batch, peers frozen | `scripts/run_tests_bundled.sh tests` (`--scope fork`) | fork files + the upstream files the change reaches, minus the skip list (unused features included, even when reached); cached greens skipped; a session-chain edit runs contract + sample |
 | Release merge | the release lane | `scripts/run_tests_bundled.sh --since-merge <sha> tests` | the same, over what the merge produced (a chain edit: contract + sample) |
 | Judging a red | anyone, quiet box | `scripts/run_tests_bundled.sh --confirm-red <file>` | that file alone on HEAD and on `origin/main` |
@@ -58,7 +58,7 @@ against HEAD plus untracked files (`--since REF` adds `REF...HEAD`). It runs: ea
 file whose latest record names a changed path — a module its process imported AND its own static imports
 reach within two hops (a recorded module set is the whole process's: 4,847 of 6,733 records named
 `agent_runtime/locks.py`), a non-`.py` file it opened itself, a non-session directory it listed that a path
-joined or left; for a changed path no record names, the `--scope fork` reach rules; the chain's contract
+joined or left (a path inside a whole new directory joins every ancestor that directory joined: a lane's new package reaches `test_duplicate_helper_bodies`, which lists `agent_runtime/`, `FH-GATE-CACHE-WHOLE-TREE-FALSE-GREEN`); for a changed path no record names, the `--scope fork` reach rules; the chain's contract
 when a chain path changed. An ALL-sentinel file (it spawned an unrecorded program) runs only when a code
 path changed and its imports reach it. A file tied only by a `.py` it opened (a whole-tree source walker) is counted in the header, never run. The skip and idle-box lists win; nothing is cached, sampled or
 audited; `--cache-dry-run` lists without running; `--fail-fast` runs edited → direct importers → the rest
@@ -269,8 +269,27 @@ five habits cost about 390 minutes a day.
 - **Never pipe a heavy command through `tail` / `head`.** Redirect to a log file, capture the exit
   code UNPIPED (`; rc=$?; exit $rc`), read the log after. Under `pipefail` a gate piped through
   `tail` hides its own red.
+- **Every watcher has a bound** (owner ruling 2026-10-21, `FORK-ORPHAN-GREP-WATCHERS`). A log watcher
+  — `tail -f log | grep --line-buffered -E "exit=|DONE"` and kin — does not die with the session that
+  started it: 17 were found with dead parents on 2026-10-19 and three more by 2026-10-21, and one
+  `grep -rln … /` from a launcher session burned ~16,000 CPU-s and skewed a measured A/B. So a
+  watcher is either the Monitor tool's until-loop (it carries its own timeout) or wrapped in
+  `timeout <seconds>` no longer than the command it watches
+  (`timeout 900 tail -f "$log" | grep -m 1 --line-buffered -E "exit=|DONE"`); a search names a
+  directory, never `/` or a drive root. Bounding is the fix, not a periodic kill. A fork script that
+  follows a log carries the same bound in code (checked 2026-10-21: none under `scripts/` follows
+  one — `unattended_suite_run.ps1` reads `-Tail 40` once after its child exits).
 - **One heavy run at a time on this box.** Two contend for the same cores; a second landing racing
   the first costs both a re-merge and a second gate run.
+- **The bundled runner claims the launcher's machine-wide heavy-run slot** (owner ruling 2026-10-21,
+  `FORK-HERMES-TEST-ENTRY-POINTS`): `scripts/run_tests_bundled.py`, run as a script, holds one of the
+  slots of `EterniaLauncher/tool/heavy_run/slot_lock.dart` (default 2, `ETERNIA_HEAVY_SLOTS=off`
+  disables) for its whole run, and a run that finds them all busy WAITS and names each holder every
+  20 s — the cap working, not a hang. `scripts/run_tests_bundled_slot.py` speaks the Dart file
+  contract (`<machine temp>/eternia-heavy-slots/slot-<i>.lock`, OS lock on byte 0, JSON note from
+  byte 1); `_fork_test_env.sh` names the directory before TEMP moves to the test-tmp root. A child of
+  a holder (`ETERNIA_HEAVY_SLOT_HELD`), a runner a test spawned, `--cache-dry-run` and `-h` claim
+  nothing. The per-file `scripts/run_tests.sh` claims no slot.
 
 ## What a lane runs, and what it never runs
 - **A contract change runs the tests that pin it, and the producer names them** (owner ruling
@@ -288,6 +307,14 @@ five habits cost about 390 minutes a day.
   wants parallelism names `scripts/run_tests.sh -j N <files>` (file paths only — a node id among
   its arguments runs nothing for the other files). A lane never runs the landing gate, the tooling
   gates, the docs gates or the contract dumps; those are the landing's job, once.
+- **One exception: a lane that touched Python adds the two name census gates to that same run** —
+  `tests/agent_runtime/test_duplicate_helper_bodies.py` and `tests/tooling/test_no_ladder_routing.py`
+  (~50–70 s each). They walk the whole fork, so no importer `grep` and no `--affected` run reaches
+  them from a new module, and only the lane can cheaply rename its own new names: two landings
+  (f9ef5d33aa; hermes 76a5a16158, land/w1020-estore) found a lane's NEW `_read` /
+  `_namespace_manifest` duplicate or NEW ladder only at the landing gate, each a fix-and-regate
+  cycle (`FH-LANE-RUNS-NEW-NAME-GATES`). A red there that `main` shares is compared by its `NEW` /
+  `GREW` lines, as § Calling a red pre-existing says, never fixed in passing.
 - **Launcher lanes and landings run `*_test.dart` files only.** A `grep -l` under `test/` also
   matches fixtures and helpers; on 2026-10-05 it handed `flutter test` the helper
   `detached_serve_starter.dart` and the run hung ten minutes. Filter the list to `_test.dart`.
@@ -399,8 +426,14 @@ above is something someone runs. `main` went red unreported twice because nobody
 2026-09-04). Fork CI is running again: [main run 38312372163](https://github.com/ArcadiaLabsLLC/hermes-agent/actions/runs/38312372163)
 passed on 2026-10-12. `fork-gates.yml` checks selected mutation claims, the tombstone registry and
 docket stage claims; it does not run the bundled landing suite. The upstream `ci.yaml` workflow
-was still disabled when checked. Verify the workflow, jobs and exact source SHA before treating a
-green run as evidence. `scripts/unattended_suite_run.ps1` is a report, never a gate.
+is ACTIVE on `main` and has not finished green once since 2026-09-26 (checked 2026-10-21, lane
+w1021h-tooling): its Python tests (now two slices, not eight), JS, Rust and Windows jobs ask for
+`ubuntu-latest-32-core` / `windows-latest-32-core` / `windows-latest-32-arm-core`, which the fork's
+organisation does not have, so they queue for a day; the queued run (39494050964, `79d3fa5754`)
+holds the `ci-refs/heads/main` concurrency group, and every later push's run waits and is cancelled
+by the next push. The jobs that do run on standard runners read 18 ruff (`UP006`/`RUF100`) and 2
+Windows-footgun findings on `main`. GitHub Issues are on, so `notify-main-red` can file once a run
+completes red. Verify the workflow, jobs and exact source SHA before treating a green run as evidence. `scripts/unattended_suite_run.ps1` is a report, never a gate.
 
 **When a contract dump reds, read the diff before regenerating.** A removed command, flag or payload
 key is a launcher button that now exits 2 or a stale default acted on; re-vendor the launcher's copy

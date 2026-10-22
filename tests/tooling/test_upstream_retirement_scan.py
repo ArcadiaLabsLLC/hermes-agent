@@ -95,6 +95,7 @@ def test_a_module_that_exports_into_its_own_namespace_is_never_judged_by_parse()
     assert scan.bound_names(ast.parse("for _m in parts:\n    _m.register(sys.modules[__name__])\n")) is None
 
 
+@pytest.mark.timeout(300)  # parses ~2,500 fork files and their tag modules: 28 s alone on a loaded box, over addopts' 30
 def test_no_fork_file_references_an_upstream_name_the_merged_tag_lacks():
     pins = scan.Pins(tag=scan.manifest_base())
     found = scan.scan(["imports"], pins)["imports"]

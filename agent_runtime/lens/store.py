@@ -9,13 +9,16 @@ Tables: ``monitors`` (state, the sealed body + digest + revision, the open draft
 ``reason``), ``rollups`` (one row per feed-minute, written by retention),
 ``episodes`` (the Episode JSON by id), ``receipts`` (one per Episode the exit
 door admitted: the forged turn's identity, outcome and artifacts; stage L2),
+``receipt_rollups`` (receipts older than ``retention.RECEIPT_RETENTION``, folded to a
+count per monitor, UTC day and outcome),
 ``ingress_routes`` (one per push-door route: the monitor it writes, its body kind,
 its mapping, its auth mode (``hmac`` | ``bearer``) and the credential reference of its
 secret — never the secret; L3).
 
 Monitor lifecycle: ``create`` writes a DRAFT (a validated manifest, not yet
-running); ``seal`` freezes the draft as the next revision; ``enable`` / ``pause``
-switch polling of the sealed revision; ``retire`` stops it for good (its data
+running); ``seal`` freezes the draft as the next revision; ``drop_draft`` forgets a
+sealed monitor's pending next revision (the sealed one keeps running); ``enable`` /
+``pause`` switch polling of the sealed revision; ``retire`` stops it for good (its data
 stays). Capacity is refused, never made by eviction (W13): at most
 :data:`MAXIMUM_MONITORS` monitors that are not retired.
 
@@ -25,9 +28,11 @@ stays). Capacity is refused, never made by eviction (W13): at most
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import threading
 from contextlib import contextmanager
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone, UTC
 from enum import Enum
 from pathlib import Path
@@ -42,8 +47,24 @@ from .wire_value import WireError, WireRefusal, canonical_bytes
 __layer__ = "stores"
 
 MAXIMUM_MONITORS = 64
-#: Receipts are refused past this many, never made room for by eviction (W13).
+#: The most never-sealed drafts that may stand when ``lens_propose`` adds one
+#: (``create(..., proposal=True)``): a persona can never fill :data:`MAXIMUM_MONITORS`
+#: with proposals, so the operator's own create keeps the rest.
+MAXIMUM_PROPOSALS = 8
+#: The most of those one persona instance may hold (``create(..., proposer=...)``; the calling
+#: persona is the live turn's, never a wire key): one persona cannot take every proposal slot.
+MAXIMUM_PROPOSALS_PER_PERSONA = 3
+#: A proposal draft neither sealed nor edited by the operator for this long is retired
+#: (the lifecycle's own discard for a never-sealed monitor) on the next ``create``.
+PROPOSAL_TTL_MS = 7 * 24 * 60 * 60 * 1000
+#: The receipt an expiry leaves (observability is a log receipt, never a wire key).
+PROPOSALS_EXPIRED_RECEIPT = "[LensProposalsExpired] retired=%d ids=%s"
+#: The receipts fence (W13): at it, ``save_receipt`` folds the expired receipts inline first
+#: (``retention.fold_receipts``); still full, the Episode is SETTLED with ``turn_id``
+#: ``receipts_full`` and no receipt row, so it is never owed forever.
 MAXIMUM_RECEIPTS = 50_000
+#: The log receipt a fence refusal leaves (observability is a log receipt, never a wire key).
+RECEIPTS_FULL_RECEIPT = "[LensReceiptsFull] monitor=%s episode=%s"
 #: Push-door routes are refused past this many (W13).
 MAXIMUM_ROUTES = 64
 #: The longest range one series read may span (the raw window is 24 h; rollups cover 7 d).
@@ -52,6 +73,7 @@ MAXIMUM_RANGE_MS = 7 * 24 * 60 * 60 * 1000
 MAXIMUM_RANGE_ROWS = 10_000
 SERIES_SCHEMA = "lens-range-v1"
 _LOCK = threading.RLock()
+logger = logging.getLogger(__name__)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS monitors (
@@ -77,6 +99,9 @@ CREATE TABLE IF NOT EXISTS receipts (
   started_ms INTEGER NOT NULL, finished_ms INTEGER, outcome TEXT NOT NULL,
   artifact_handles TEXT NOT NULL DEFAULT '[]', files TEXT NOT NULL DEFAULT '[]', tool_admission TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS receipts_by_monitor ON receipts (monitor_id, started_ms);
+CREATE TABLE IF NOT EXISTS receipt_rollups (
+  monitor_id TEXT NOT NULL, day_ms INTEGER NOT NULL, outcome TEXT NOT NULL, count INTEGER NOT NULL,
+  PRIMARY KEY (monitor_id, day_ms, outcome));
 CREATE TABLE IF NOT EXISTS ingress_routes (
   route_id TEXT PRIMARY KEY, monitor_id TEXT NOT NULL, kind TEXT NOT NULL, secret_ref TEXT NOT NULL,
   mapping TEXT NOT NULL, created_ms INTEGER NOT NULL, auth TEXT NOT NULL DEFAULT 'hmac');
@@ -102,6 +127,8 @@ class StoreRefusal(str, Enum):
     ROUTES_FULL = "routes_full"
     #: ``lens_propose`` never writes over a monitor that already exists (L4.2).
     EXISTS = "monitor_exists"
+    #: ``lens_propose`` refused: :data:`MAXIMUM_PROPOSALS` never-sealed drafts already wait.
+    PROPOSALS_FULL = "proposals_full"
 
 
 #: The refusals a reader answers as "not found" (the rest are conflicts).
@@ -169,6 +196,7 @@ class LensStore:
                 conn.execute("PRAGMA journal_mode=WAL")
                 conn.executescript(_SCHEMA)
                 _add_route_auth(conn)
+                _add_proposal_columns(conn)
                 with conn:
                     yield conn
             finally:
@@ -180,23 +208,37 @@ class LensStore:
         conn.row_factory = sqlite3.Row
         return conn.execute("SELECT * FROM monitors WHERE monitor_id = ?", (monitor_id,)).fetchone()
 
-    def create(self, manifest: Any) -> dict[str, Any]:
-        """Write ``manifest`` as the monitor's DRAFT (new, or over an existing draft)."""
+    def create(self, manifest: Any, *, proposal: bool = False, proposer: str | None = None) -> dict[str, Any]:
+        """Write ``manifest`` as the monitor's DRAFT (new, or over an existing draft).
+
+        ``proposal`` (``lens_propose``): a NEW monitor is also refused ``proposals_full`` while
+        :data:`MAXIMUM_PROPOSALS` never-sealed drafts stand, or while ``proposer`` (the calling
+        persona instance, when the turn names one) holds :data:`MAXIMUM_PROPOSALS_PER_PERSONA`,
+        in the same transaction. Every create first retires the proposals older than
+        :data:`PROPOSAL_TTL_MS`; the operator's write over a proposal adopts it (no expiry)."""
 
         doc = read_manifest(manifest)
         with self._db() as conn:
+            _expire_proposals(conn, _now_ms())
             row = self._row(conn, doc["monitor_id"])
             if row is None:
                 live = conn.execute("SELECT COUNT(*) FROM monitors WHERE state != ?", (MonitorState.RETIRED.value,))
                 if live.fetchone()[0] >= MAXIMUM_MONITORS:
                     raise LensStoreError(StoreRefusal.CAPACITY)
-                conn.execute("INSERT INTO monitors (monitor_id, state, draft, updated_ms) VALUES (?, ?, ?, ?)",
-                             (doc["monitor_id"], MonitorState.DRAFT.value, canonical_bytes(doc), _now_ms()))
+                if proposal:
+                    _proposal_room(conn, proposer)
+                conn.execute("INSERT INTO monitors (monitor_id, state, draft, updated_ms, proposed, proposed_by) "
+                             "VALUES (?, ?, ?, ?, ?, ?)",
+                             (doc["monitor_id"], MonitorState.DRAFT.value, canonical_bytes(doc), _now_ms(),
+                              int(proposal), proposer if proposal else None))
             elif row["state"] == MonitorState.RETIRED.value:
                 raise LensStoreError(StoreRefusal.RETIRED)
-            else:
+            elif proposal:
                 conn.execute("UPDATE monitors SET draft = ?, updated_ms = ? WHERE monitor_id = ?",
                              (canonical_bytes(doc), _now_ms(), doc["monitor_id"]))
+            else:  # the operator's write adopts a proposal: never expired, never a persona's share
+                conn.execute("UPDATE monitors SET draft = ?, updated_ms = ?, proposed = 0, proposed_by = NULL "
+                             "WHERE monitor_id = ?", (canonical_bytes(doc), _now_ms(), doc["monitor_id"]))
         return self.get(doc["monitor_id"])
 
     def seal(self, monitor_id: str) -> dict[str, Any]:
@@ -207,6 +249,23 @@ class LensStore:
             sealed = seal_manifest(json.loads(row["draft"]), revision=int(row["revision"]) + 1)
             conn.execute("UPDATE monitors SET revision = ?, digest = ?, body = ?, draft = NULL, updated_ms = ? "
                          "WHERE monitor_id = ?", (sealed.revision, sealed.digest, sealed.body, _now_ms(), monitor_id))
+        return self.get(monitor_id)
+
+    def drop_draft(self, monitor_id: str) -> dict[str, Any]:
+        """Forget a SEALED monitor's pending next-revision draft; the sealed revision and its
+        state stand (``runtime.lens.draft.drop``). A monitor never sealed has nothing to fall
+        back to and is refused ``not_sealed`` — ``retire`` discards that proposal."""
+
+        with self._db() as conn:
+            row = self._required(conn, monitor_id)
+            if row["state"] == MonitorState.RETIRED.value:
+                raise LensStoreError(StoreRefusal.RETIRED)
+            if row["draft"] is None:
+                raise LensStoreError(StoreRefusal.NO_DRAFT)
+            if row["body"] is None:
+                raise LensStoreError(StoreRefusal.NOT_SEALED)
+            conn.execute("UPDATE monitors SET draft = NULL, updated_ms = ? WHERE monitor_id = ?",
+                         (_now_ms(), monitor_id))
         return self.get(monitor_id)
 
     def set_state(self, monitor_id: str, state: MonitorState) -> dict[str, Any]:
@@ -360,9 +419,7 @@ class LensStore:
 
     def save_episode(self, episode: Episode) -> None:
         with self._db() as conn:
-            conn.execute("INSERT OR REPLACE INTO episodes VALUES (?, ?, ?, ?, ?, ?)",
-                         (episode.id, episode.monitor_id, episode.rule_id, episode.ordinal, episode.state.value,
-                          json.dumps(episode.to_json(), sort_keys=True)))
+            _write_episode(conn, episode)
 
     def episodes(self, *, monitor_id: str | None = None, states: tuple[str, ...] | None = None,
                  limit: int = 256) -> list[dict[str, Any]]:
@@ -388,21 +445,32 @@ class LensStore:
 
     def save_receipt(self, receipt: dict[str, Any], *, episode: Episode | None = None) -> bool:
         """Insert ``receipt`` (and ``episode``, in the SAME transaction). False when the
-        Episode already has one: a receipt is written once, so a turn is forged once."""
+        Episode already has one: a receipt is written once, so a turn is forged once.
+
+        At :data:`MAXIMUM_RECEIPTS` the expired receipts are folded first (``now`` is the
+        receipt's own ``started_ms``, the door's clock); still full, False with ``episode``
+        settled as ``turn_id`` ``receipts_full`` and no receipt row."""
 
         row = _receipt_row(receipt)
-        with self._db() as conn:
-            if conn.execute("SELECT 1 FROM receipts WHERE episode_id = ?", (row[0],)).fetchone() is not None:
-                return False
-            if conn.execute("SELECT COUNT(*) FROM receipts").fetchone()[0] >= MAXIMUM_RECEIPTS:
-                raise LensStoreError(StoreRefusal.RECEIPTS_FULL)
-            conn.execute(f"INSERT INTO receipts ({', '.join(_RECEIPT_COLUMNS)}) VALUES "
-                         f"({', '.join('?' * len(_RECEIPT_COLUMNS))})", row)
-            if episode is not None:
-                conn.execute("INSERT OR REPLACE INTO episodes VALUES (?, ?, ?, ?, ?, ?)",
-                             (episode.id, episode.monitor_id, episode.rule_id, episode.ordinal, episode.state.value,
-                              json.dumps(episode.to_json(), sort_keys=True)))
-        return True
+        for folded in (False, True):
+            with self._db() as conn:
+                if conn.execute("SELECT 1 FROM receipts WHERE episode_id = ?", (row[0],)).fetchone() is not None:
+                    return False
+                if conn.execute("SELECT COUNT(*) FROM receipts").fetchone()[0] < MAXIMUM_RECEIPTS:
+                    conn.execute(f"INSERT INTO receipts ({', '.join(_RECEIPT_COLUMNS)}) VALUES "
+                                 f"({', '.join('?' * len(_RECEIPT_COLUMNS))})", row)
+                    if episode is not None:
+                        _write_episode(conn, episode)
+                    return True
+                if folded:
+                    if episode is not None:
+                        _write_episode(conn, replace(episode, turn_id=StoreRefusal.RECEIPTS_FULL.value))
+                    logger.warning(RECEIPTS_FULL_RECEIPT, row[1], row[0])
+                    return False
+            from .retention import fold_receipts
+
+            fold_receipts(self, from_ms(int(row[_RECEIPT_COLUMNS.index("started_ms")])))
+        return False
 
     def finish_receipt(self, episode_id: str, *, outcome: str, finished_ms: int, session_id: str | None = None,
                        artifact_handles: list[dict[str, Any]] = (), files: list[dict[str, Any]] = ()) -> dict[str, Any]:
@@ -443,6 +511,16 @@ class LensStore:
         with self._db() as conn:
             rows = conn.execute(sql + " ORDER BY started_ms DESC, episode_id LIMIT ?", [*args, int(limit)]).fetchall()
         return [_receipt_json(row) for row in rows]
+
+    def receipt_rollups(self, monitor_id: str) -> list[dict[str, Any]]:
+        """The folded days of ``monitor_id``, newest first: ``{day, outcome, count}`` (``day`` UTC ms)."""
+
+        if not self.exists():
+            return []
+        with self._db() as conn:
+            rows = conn.execute("SELECT day_ms, outcome, count FROM receipt_rollups WHERE monitor_id = ? "
+                                "ORDER BY day_ms DESC, outcome", (monitor_id,)).fetchall()
+        return [{"day": day, "outcome": outcome, "count": count} for day, outcome, count in rows]
 
     def receipts_today(self, monitor_id: str, now: datetime) -> int:
         """Receipts that spent this monitor's ``daily_turn_cap`` on ``now``'s UTC day."""
@@ -496,6 +574,45 @@ class LensStore:
 _ROUTE_COLUMNS = ("route_id", "monitor_id", "kind", "secret_ref", "mapping", "created_ms", "auth")
 
 
+def _add_proposal_columns(conn: sqlite3.Connection) -> None:
+    """A store written before RT-LENS-PROPOSAL-CAPACITY gains ``proposed`` / ``proposed_by``
+    (its drafts read as the operator's: never expired, never counted against a persona)."""
+
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(monitors)")}
+    if "proposed" not in columns:
+        conn.execute("ALTER TABLE monitors ADD COLUMN proposed INTEGER NOT NULL DEFAULT 0")
+    if "proposed_by" not in columns:
+        conn.execute("ALTER TABLE monitors ADD COLUMN proposed_by TEXT")
+
+
+#: A proposal still waiting for the operator: proposed, never sealed, not retired.
+_OPEN_PROPOSALS = "FROM monitors WHERE proposed = 1 AND body IS NULL AND state = 'draft'"
+
+
+def _proposal_room(conn: sqlite3.Connection, proposer: str | None) -> None:
+    """Refuse ``proposals_full`` when the global share or the proposer's own share is taken."""
+
+    drafts = conn.execute("SELECT COUNT(*) FROM monitors WHERE state = ? AND body IS NULL",
+                          (MonitorState.DRAFT.value,)).fetchone()[0]
+    if drafts >= MAXIMUM_PROPOSALS:
+        raise LensStoreError(StoreRefusal.PROPOSALS_FULL)
+    if proposer and conn.execute(f"SELECT COUNT(*) {_OPEN_PROPOSALS} AND proposed_by = ?",
+                                 (proposer,)).fetchone()[0] >= MAXIMUM_PROPOSALS_PER_PERSONA:
+        raise LensStoreError(StoreRefusal.PROPOSALS_FULL)
+
+
+def _expire_proposals(conn: sqlite3.Connection, now_ms: int) -> None:
+    """Retire every open proposal untouched for :data:`PROPOSAL_TTL_MS`."""
+
+    expired = [row[0] for row in conn.execute(f"SELECT monitor_id {_OPEN_PROPOSALS} AND updated_ms < ?",
+                                              (now_ms - PROPOSAL_TTL_MS,))]
+    if not expired:
+        return
+    conn.executemany("UPDATE monitors SET state = ?, updated_ms = ? WHERE monitor_id = ?",
+                     [(MonitorState.RETIRED.value, now_ms, monitor_id) for monitor_id in expired])
+    logger.info(PROPOSALS_EXPIRED_RECEIPT, len(expired), ",".join(expired[:16]))
+
+
 def _add_route_auth(conn: sqlite3.Connection) -> None:
     """A store written before routes carried ``auth`` gains the column; its routes read ``hmac``."""
 
@@ -507,6 +624,12 @@ def _route_json(row: tuple[Any, ...]) -> dict[str, Any]:
     out = dict(zip(_ROUTE_COLUMNS, row))
     out["mapping"] = json.loads(out["mapping"])
     return out
+
+
+def _write_episode(conn: sqlite3.Connection, episode: Episode) -> None:
+    conn.execute("INSERT OR REPLACE INTO episodes VALUES (?, ?, ?, ?, ?, ?)",
+                 (episode.id, episode.monitor_id, episode.rule_id, episode.ordinal, episode.state.value,
+                  json.dumps(episode.to_json(), sort_keys=True)))
 
 
 def _receipt_row(receipt: dict[str, Any]) -> tuple[Any, ...]:

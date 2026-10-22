@@ -533,7 +533,11 @@ def test_the_advertisement_grew_and_no_contract_integer_moved():
 # ── byte parity against argv ``harness stream`` ──────────────────────────────
 
 
-def test_the_hub_lane_delivers_the_argv_streams_frames_byte_for_byte():
+#: The lens watcher's state as the goldens record it (no poller ran in the generator).
+_PINNED_WATCHER = {"running": False, "since_ms": None, "last_tick_ms": None}
+
+
+def test_the_hub_lane_delivers_the_argv_streams_frames_byte_for_byte(monkeypatch):
     """The contract test: ONE producer's frames, reachable two ways.
 
     Both lanes run CONCURRENTLY over the same event log, which is what makes the
@@ -550,6 +554,13 @@ def test_the_hub_lane_delivers_the_argv_streams_frames_byte_for_byte():
     that it normalizes away a real divergence.
     """
 
+    # The lens watcher (``lens.poller.WATCHER``) is process memory each build reads at its own
+    # instant, and the stdio serve starts the poller: a first tick between the two lanes' builds
+    # would diverge ``running``/``since_ms``/``last_tick_ms`` though neither lane did anything
+    # different (FORK-STREAM-PARITY-WATCHER-RACE). Pinned at the one read every build folds.
+    monkeypatch.setattr(
+        "agent_runtime.lens.snapshot_fold.watcher_state", lambda: dict(_PINNED_WATCHER)
+    )
     _seed_events(2)
     argv_frames: list[dict] = []
     argv_error: list[BaseException] = []

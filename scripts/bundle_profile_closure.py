@@ -60,6 +60,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from scripts.bundles.closure_platform import dead_for_target
 from scripts.bundles.closure_probes import boot_tops, stand_in_answered
 from scripts.bundles.closure_report import _mib, render_markdown
 
@@ -261,7 +262,8 @@ def _imports(path: Path, module: str, is_pkg: bool) -> tuple:
 
     Parsed once per process per file version (:data:`_IMPORTS_CACHE`)."""
     stat = path.stat()
-    key = (str(path), stat.st_mtime_ns, stat.st_size, module, is_pkg)
+    platform = tuple(TARGET_ENV.get(k) for k in ("os_name", "sys_platform", "platform_system"))
+    key = (str(path), stat.st_mtime_ns, stat.st_size, module, is_pkg, platform)
     rows = _IMPORTS_CACHE.get(key)
     if rows is None:
         COUNTS["parses"] += 1
@@ -270,7 +272,8 @@ def _imports(path: Path, module: str, is_pkg: bool) -> tuple:
 
 
 def _parse_imports(path: Path, module: str, is_pkg: bool):
-    """Yield :func:`_imports`'s rows from one parse of ``path``."""
+    """Yield :func:`_imports`'s rows from one parse of ``path``; an import a platform branch makes
+    unreachable on :data:`TARGET_ENV` is not yielded."""
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", SyntaxWarning)
@@ -282,8 +285,11 @@ def _parse_imports(path: Path, module: str, is_pkg: bool):
         if isinstance(stmt, (ast.If, ast.Try)):
             top_level.update(id(n) for n in ast.walk(stmt))
     guarded = _guarded_ids(tree)
+    dead = dead_for_target(tree, TARGET_ENV)
     package = module if is_pkg else module.rpartition(".")[0]
     for node in ast.walk(tree):
+        if id(node) in dead:
+            continue
         eager, safe, line = id(node) in top_level, id(node) in guarded, getattr(node, "lineno", 0)
         if isinstance(node, ast.Import):
             for alias in node.names:

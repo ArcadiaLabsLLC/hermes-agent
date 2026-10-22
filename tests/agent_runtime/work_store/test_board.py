@@ -15,7 +15,7 @@ ROWS = (
 
 def test_boards_one_per_live_bound_slot_with_brain_dir_discovered(workspace, tmp_path):
     declare_slots(workspace, slot_decl("hermes"), slot_decl("launcher"))
-    bind_here(hermes=checkout(tmp_path / "hermes", rows=ROWS), launcher=checkout(tmp_path / "launcher", brain="Launcher_Brain"))
+    bind_here(workspace, hermes=checkout(tmp_path / "hermes", rows=ROWS), launcher=checkout(tmp_path / "launcher", brain="Launcher_Brain"))
     found = {b.slot: b for b in board.boards(workspace)}
     assert sorted(found) == ["hermes", "launcher"]
     assert found["hermes"].brain_dir == "Harness_Brain/20 — Active Initiatives"
@@ -29,7 +29,7 @@ def test_pinned_brain_dir_wins_over_discovery(workspace, tmp_path):
     declare_slots(workspace, slot_decl("hermes", brain_dir="Pinned_Brain/20 — Active Initiatives"))
     root = checkout(tmp_path / "hermes", rows=ROWS)
     checkout(root, brain="Pinned_Brain", rows="- **`PIN-1` — pinned** · READY 2026-10-18\n")
-    bind_here(hermes=root)
+    bind_here(workspace, hermes=root)
     (only,) = board.boards(workspace)
     assert only.brain_dir == "Pinned_Brain/20 — Active Initiatives"
     assert [r.ref.id for r in board.rows(workspace)] == ["PIN-1"]
@@ -37,7 +37,7 @@ def test_pinned_brain_dir_wins_over_discovery(workspace, tmp_path):
 
 def test_a_slot_without_a_brain_lists_as_no_brain(workspace, tmp_path):
     declare_slots(workspace, slot_decl("thirdparty"))
-    bind_here(thirdparty=checkout(tmp_path / "thirdparty", brain=None))
+    bind_here(workspace, thirdparty=checkout(tmp_path / "thirdparty", brain=None))
     (only,) = board.boards(workspace)
     assert only.bound_here and only.brain_dir is None
     assert board.notes(only) == [] and board.rows(workspace) == []
@@ -46,7 +46,7 @@ def test_a_slot_without_a_brain_lists_as_no_brain(workspace, tmp_path):
 
 def test_rows_keyed_slot_id_never_collide_across_repos(workspace, tmp_path):
     declare_slots(workspace, slot_decl("hermes"), slot_decl("launcher"))
-    bind_here(hermes=checkout(tmp_path / "hermes", rows=ROWS),
+    bind_here(workspace, hermes=checkout(tmp_path / "hermes", rows=ROWS),
               launcher=checkout(tmp_path / "launcher", brain="Launcher_Brain", rows=ROWS))
     keys = [(r.ref.slot, r.ref.id) for r in board.rows(workspace)]
     assert len(keys) == len(set(keys)) == 6
@@ -60,7 +60,7 @@ def test_rows_keyed_slot_id_never_collide_across_repos(workspace, tmp_path):
 
 def test_ready_excludes_taken(workspace, tmp_path):
     declare_slots(workspace, slot_decl("hermes"))
-    bind_here(hermes=checkout(tmp_path / "hermes", rows=ROWS))
+    bind_here(workspace, hermes=checkout(tmp_path / "hermes", rows=ROWS))
     assert [r.ref.id for r in board.ready(workspace)] == ["RT-A"]
 
 

@@ -126,7 +126,7 @@ def show_instance_slots(instance_id: str) -> dict[str, Any]:
     declared = live_slots(load_document(instance.workspace_id)) if instance.workspace_id else {}
     rows = []
     for name in instance.assigned_slots or []:
-        path = bound_path(name) if name in declared else None
+        path = bound_path(name, workspace_id=instance.workspace_id) if name in declared else None
         bound = bool(path and path.is_dir())
         status = "bound" if bound else ("unbound_here" if name in declared else "not_declared")
         rows.append({"name": name, "bound_here": bound, "path": str(path) if bound else None, "status": status})
@@ -236,7 +236,7 @@ def load_slot_context(instance: Any) -> SlotContext | None:
     receipts: list[dict[str, Any]] = []
     bound: list[tuple[str, str]] = []
     for slot in assigned:
-        path = bound_path(slot) if slot in declared else None
+        path = bound_path(slot, workspace_id=workspace_id) if slot in declared else None
         if path is None or not path.is_dir():
             receipts.append(_unbound_receipt(slot, document) if slot in declared else
                             {"slot": slot, "label": slot, "kind": "workspace_context", "included": False,

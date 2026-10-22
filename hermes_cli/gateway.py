@@ -5688,7 +5688,7 @@ def _gateway_command_inner(args):
         handler(args)
 
 
-from hermes_cli.gateway_downstream import ManagedPythonUnavailable, _detect_venv_dir, _emit_gateway_home_receipt, _posix_uid_or_zero, _venv_interpreter, resolve_managed_python  # noqa: E402,F401 — fork
+from hermes_cli.gateway_downstream import ManagedPythonUnavailable, _detect_venv_dir, _emit_gateway_home_receipt, _posix_uid_or_zero, _venv_interpreter, resolve_managed_python  # fork
 
 
 def _pm_runtime_venv_dir(project_root: Path | None = None) -> Path | None:
