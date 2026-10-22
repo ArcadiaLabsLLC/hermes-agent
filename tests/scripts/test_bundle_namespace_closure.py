@@ -4,7 +4,7 @@ and omits its Developer Edition half (row RT-NAMESPACE-SEED-HIRED-INSTANCES).
 Players run the bundled edition, never the Developer Edition (owner 2026-10-19, plan §2.7): a
 bundle without the resolver ignores ``HERMES_NAMESPACE`` and every launcher profile writes the base
 root, and without ``hermes namespace probe`` the launcher's pre-spawn check cannot tell. The proof is
-the packager's own plan (``scripts/bundle_profile_package.py::first_party_plan``) over the real
+the packager's own plan (``scripts/bundles/plan.py::first_party_plan``) over the real
 profile — what the bundle ships — not a read of the YAML.
 """
 
@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 
 from agent_runtime.bundle_profiles.manifest import load_profile
-from scripts.bundle_profile_package import first_party_plan
+from scripts.bundles.plan import first_party_plan
 
 NAMESPACE_MODULES = {
     "hermes_cli._namespace_bootstrap",  # the resolver main.py runs before any hermes import

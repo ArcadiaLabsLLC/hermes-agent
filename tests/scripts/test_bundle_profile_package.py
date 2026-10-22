@@ -13,18 +13,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from scripts.bundle_profile_package import (
-    Dist,
-    Plan,
-    compare,
-    evaluate_markers,
-    first_party_plan,
-    marker_env,
-    named_timezone_problems,
-    resource_problems,
-    serve_import_problems,
-    serve_import_table,
-)
+from scripts.bundle_profile_package import evaluate_markers
+from scripts.bundles.bundle_files import Dist
+from scripts.bundles.plan import Plan, first_party_plan
+from scripts.bundles.serve_probe import named_timezone_problems, serve_import_problems, serve_import_table
+from scripts.bundles.targets import marker_env
+from scripts.bundles.verify import compare, resource_problems
 
 
 def _dist(name, files):
@@ -224,7 +218,7 @@ def test_the_phone_targets_have_marker_environments():
 
     Killing mutation: drop the ``android_arm64`` row from ``TARGETS`` -> KeyError, red."""
     from agent_runtime.bundle_profiles.manifest import PACKAGING_TARGETS
-    from scripts.bundle_profile_package import TARGETS
+    from scripts.bundles.targets import TARGETS
 
     android = marker_env("android_arm64", "3.14")
     assert android["sys_platform"] == "android" and android["platform_system"] == "Android"
@@ -322,7 +316,7 @@ def test_the_engine_pack_path_file_adds_only_installed_packs(tmp_path: Path, mon
     import os
     import sys
 
-    from scripts.bundle_profile_package import ENGINE_PACKS_ENV, ENGINE_PACKS_PTH_LINE
+    from scripts.bundles.bundle_files import ENGINE_PACKS_ENV, ENGINE_PACKS_PTH_LINE
 
     pack, missing = tmp_path / "speech" / "site-packages", tmp_path / "absent" / "site-packages"
     pack.mkdir(parents=True)
@@ -412,7 +406,7 @@ def test_verify_names_a_missing_skill_script():
 
 
 def test_a_shipped_skill_script_is_not_counted_as_a_module(tmp_path):
-    from scripts.bundle_profile_package import app_module_names
+    from scripts.bundles.verify import app_module_names
 
     for rel in ("skills/p/docx/scripts/render.py", "pkg/__init__.py", "pkg/mod.py"):
         (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
@@ -450,7 +444,9 @@ def test_the_phone_wheel_ships_what_its_registries_and_plugin_loader_import():
     from agent_runtime.bundle_profiles.manifest import load_profile
     from hermes_cli import plugins as plugin_context
     from scripts.bundle_profile_closure import ROOT, profile_walk
-    from scripts.bundle_profile_package import _with_parents, first_party_files, tracked_files
+    from scripts.bundle_profile_package import first_party_files
+    from scripts.bundles.bundle_files import tracked_files
+    from scripts.bundles.plan import _with_parents
 
     manifest = load_profile("bundled-phone")
     walk, index = profile_walk(manifest, parents=True)
@@ -496,7 +492,7 @@ def test_only_a_profile_that_asks_for_the_forced_tree_gets_one():
     """The desktop profile does not set ``packaging.forced_sibling_tree``: its plan has no sibling tree,
     so its bundle is laid out exactly as before. Positive control: the same inputs with the flag set."""
     from agent_runtime.bundle_profiles.manifest import load_profile
-    from scripts.bundle_profile_package import forced_tree_plan
+    from scripts.bundles.plan import forced_tree_plan
 
     assert load_profile("bundled-desktop", validate=False).packaging_forced_sibling_tree is False
     assert load_profile("bundled-phone", validate=False).packaging_forced_sibling_tree is True
@@ -682,6 +678,7 @@ def test_a_stalled_planning_child_is_stopped_and_the_build_says_retryable(monkey
     import sys
 
     import scripts.bundle_profile_package as pkg
+    import scripts.bundles.plan as planner
 
     frozen = ("import sys, time\n"
               "while True:\n    print('progress walk parses=7', file=sys.stderr, flush=True); time.sleep(0.1)\n")
@@ -689,20 +686,20 @@ def test_a_stalled_planning_child_is_stopped_and_the_build_says_retryable(monkey
               "time.sleep(2)\n"
               "for n in range(30):\n    print(f'progress walk parses={n}', file=sys.stderr, flush=True); time.sleep(0.1)\n"
               "print('answer')\n")
-    with pytest.raises(pkg.PlanStalled, match="no progress for 1s"):
-        pkg._run_planner([sys.executable, "-c", frozen], stall=1, cap=20)
-    assert pkg._run_planner([sys.executable, "-c", moving], stall=1, cap=20).strip() == "answer"
+    with pytest.raises(planner.PlanStalled, match="no progress for 1s"):
+        planner._run_planner([sys.executable, "-c", frozen], stall=1, cap=20)
+    assert planner._run_planner([sys.executable, "-c", moving], stall=1, cap=20).strip() == "answer"
 
     _pkg, _args, manifest, _calls, _written = _build_stubs(monkeypatch, tmp_path, {})
 
     def stalled(*_a, **_k):
-        raise pkg.PlanStalled("closure planning child no progress for 300s (last: progress walk parses=7)")
+        raise planner.PlanStalled("closure planning child no progress for 300s (last: progress walk parses=7)")
 
     monkeypatch.setattr(pkg, "distribution_plans", stalled)
     monkeypatch.setattr(pkg, "module_index", lambda **_kw: {})
     monkeypatch.setattr("agent_runtime.bundle_profiles.manifest.load_profile", lambda _name: manifest)
     assert pkg.main(["--target", "win32-x64", "--out", str(tmp_path / "core"), "--reuse-stage",
-                     "--no-serve-probe"]) == pkg.EXIT_RETRYABLE
+                     "--no-serve-probe"]) == planner.EXIT_RETRYABLE
     out = capsys.readouterr().out
     assert "RETRYABLE: closure planning child no progress" in out and "phase total:" in out
 

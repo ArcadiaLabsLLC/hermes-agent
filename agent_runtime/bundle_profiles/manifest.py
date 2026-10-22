@@ -75,7 +75,7 @@ KEYS_READ_OUTSIDE_DEFAULTS = {
 
 #: The targets a profile may name in ``packaging.targets``: the phones (CPython's own mobile platforms,
 #: the interpreter the host app embeds). A desktop profile names none — it ships the installer's
-#: interpreter (``interpreters.lock.json``). ``scripts/bundle_profile_package.TARGETS`` carries a row for
+#: interpreter (``interpreters.lock.json``). ``scripts/bundles/targets.TARGETS`` carries a row for
 #: each (``tests/scripts/test_bundle_profile_package.py`` pins it); this module never imports the packager.
 PACKAGING_TARGETS = ("android_arm64", "ios_arm64")
 

@@ -32,12 +32,12 @@ Phases:
    module-level first-party imports; every third-party import is resolved to
    the distribution that owns that module path in the pool, and requirements
    are followed with the TARGET's markers. The core and EVERY engine pack are planned by one
-   child interpreter over one walk (:func:`distribution_plans`); a pack is what its selection
+   child interpreter over one walk (``scripts/bundles/plan.py``); a pack is what its selection
    ships and the core's does not.
 3. **Copy** — tracked first-party files only (``git ls-files``); each needed
    distribution's RECORD files minus ``__pycache__``, test directories and the
    manifest's ``packaging.excluded_data``.
-4. **Verify** — :func:`verify_bundle` recomputes the plan from the source tree
+4. **Verify** — ``scripts/bundles/verify.py`` recomputes the plan from the source tree
    and the bundle's OWN metadata and fails on anything extra or missing (plan
    D4: the bundle matches its manifest). The build exits non-zero on a problem.
 
@@ -56,84 +56,34 @@ Usage::
 from __future__ import annotations
 
 import argparse
-import ast
-import fnmatch
 import json
 import os
 import shutil
 import subprocess
 import sys
 import sysconfig
-import tempfile
-import threading
 import time
-import warnings
-from collections import deque
 from contextlib import contextmanager
-from dataclasses import dataclass, field
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.bundle_licenses import copy_first_party_licence, licence_problems, write_licence_records
-from scripts.bundle_profile_closure import _imports, _norm, _owner, module_index, profile_walk
-from agent_runtime.bundle_profiles.forced_tree import FORCED_TREE_DIR, sibling_modules
+from scripts.bundle_licenses import copy_first_party_licence, write_licence_records
+from scripts.bundle_profile_closure import module_index
+from agent_runtime.bundle_profiles.forced_tree import FORCED_TREE_DIR
 from agent_runtime.bundle_profiles.manifest import PACKAGING_TARGETS, PoolScope
-from scripts.bundles.serve_probe import (
-    named_timezone_problems, serve_import_problems, serve_import_table)
+from scripts.bundles.bundle_files import (
+    BAKED_MARKER, BUILD_SHA_FILE, BUNDLE_MANIFEST, ENGINE_PACKS_ENV, ENGINE_PACKS_PTH, ENGINE_PACKS_PTH_LINE,
+    PACK_MANIFEST, Dist, _data_file, _excluded, _in_resource, _is_noise, _is_test, _resource_file, read_site,
+    skill_ships, tracked_files)
+from scripts.bundles.plan import (
+    CORE, EXIT_RETRYABLE, Plan, PlanStalled, distribution_plans, make_plan, pack_from_plans, pack_selections)
 from scripts.bundles.pool_install import install_pool as install_pool_into, remove_tree
 from scripts.bundles.requirement_blocks import closure_requirements, render, requirement_blocks, seed_union
-
-#: pm/lock.json target name -> (uv --python-platform, PEP 508 marker environment)
-TARGETS: dict[str, tuple[str, dict[str, str]]] = {
-    "win32-x64": ("x86_64-pc-windows-msvc",
-                  {"sys_platform": "win32", "platform_system": "Windows", "os_name": "nt",
-                   "platform_machine": "AMD64"}),
-    "win32-arm64": ("aarch64-pc-windows-msvc",
-                    {"sys_platform": "win32", "platform_system": "Windows", "os_name": "nt",
-                     "platform_machine": "ARM64"}),
-    "darwin-arm64": ("aarch64-apple-darwin",
-                     {"sys_platform": "darwin", "platform_system": "Darwin", "os_name": "posix",
-                      "platform_machine": "arm64"}),
-    "darwin-x64": ("x86_64-apple-darwin",
-                   {"sys_platform": "darwin", "platform_system": "Darwin", "os_name": "posix",
-                    "platform_machine": "x86_64"}),
-    "linux-x64": ("x86_64-unknown-linux-gnu",
-                  {"sys_platform": "linux", "platform_system": "Linux", "os_name": "posix",
-                   "platform_machine": "x86_64"}),
-    "linux-arm64": ("aarch64-unknown-linux-gnu",
-                    {"sys_platform": "linux", "platform_system": "Linux", "os_name": "posix",
-                     "platform_machine": "aarch64"}),
-    # The phones (manifest.PACKAGING_TARGETS): no interpreter pin — the host app embeds CPython.
-    "android_arm64": ("aarch64-linux-android",
-                      {"sys_platform": "android", "platform_system": "Android", "os_name": "posix",
-                       "platform_machine": "aarch64"}),
-    "ios_arm64": ("arm64-apple-ios",
-                  {"sys_platform": "ios", "platform_system": "iOS", "os_name": "posix",
-                   "platform_machine": "arm64"}),
-}
-
-#: Path components that never ship, first- or third-party.
-TEST_DIRS = {"tests", "test", "testing_data"}
-NOISE_DIRS = {"__pycache__"}
-NOISE_SUFFIXES = (".pyc", ".pyo")
-BUNDLE_MANIFEST = "bundle-manifest.json"
-BAKED_MARKER = ".hermes-baked-pycache"
-#: ``agent_runtime.build_stamp``'s baked stamp, read beside the package when no git is consulted.
-BUILD_SHA_FILE = ".hermes_build_sha"
-#: Core site-packages file that adds every installed engine pack to the import path at start.
-#: ``site`` runs a .pth line that starts with ``import``; a missing directory is skipped, so
-#: no pack means the engine's imports fail and its provider reports unavailable.
-ENGINE_PACKS_ENV = "HERMES_ENGINE_PACKS"
-ENGINE_PACKS_PTH = "hermes-engine-packs.pth"
-ENGINE_PACKS_PTH_LINE = (
-    f"import os, site; [site.addsitedir(p) for p in os.environ.get({ENGINE_PACKS_ENV!r}, '').split(os.pathsep) "
-    "if p and os.path.isdir(p)]\n")
-#: Files the packaging step itself writes into a site-packages (owned by no distribution).
-PACKAGER_FILES = {ENGINE_PACKS_PTH}
-PACK_MANIFEST = "engine-pack.json"
+from scripts.bundles.targets import TARGETS, marker_env
+from scripts.bundles.verify import verify_bundle, verify_jobs, verify_pack
 
 
 #: ``(phase, seconds)`` in run order: every build prints one ``phase <name>: <s>s`` line per phase and
@@ -151,14 +101,6 @@ def phase(name: str):
         seconds = time.perf_counter() - start
         PHASE_TIMES.append((name, seconds))
         print(f"phase {name}: {seconds:.1f}s", flush=True)
-
-
-def marker_env(target: str, python_version: str) -> dict[str, str]:
-    _, env = TARGETS[target]
-    full = python_version if python_version.count(".") >= 2 else f"{python_version}.0"
-    return {**env, "python_version": ".".join(full.split(".")[:2]), "python_full_version": full,
-            "implementation_name": "cpython", "platform_python_implementation": "CPython",
-            "platform_release": "", "platform_version": "", "extra": ""}
 
 
 # -- phase 1: the pool -----------------------------------------------------------------------
@@ -207,114 +149,14 @@ def install_pool(requirements: str, stage: Path, target: str, python_version: st
     install_pool_into(command, stage, cwd=ROOT)
 
 
-# -- distribution facts from a site directory ------------------------------------------------
+def pool_selection(manifest, seed_sites: list[Path], target: str, python_version: str) -> tuple[set[str], list[str]]:
+    """``PoolScope.CLOSURE``: the union of every selection's ``needed`` (core and each engine pack), planned
+    over a SEED site whose installed metadata maps import names to distributions, and the refusals.
+    Phase ``plan`` re-plans over the installed pool, so a seed that mis-maps a name is a red there."""
+    return seed_union(distribution_plans(manifest.profile, [(seed_sites, pack_selections(manifest))], target, python_version)[0])
 
 
-@dataclass
-class Dist:
-    name: str
-    version: str
-    info: str  # dist-info directory name
-    files: list[str]  # site-relative RECORD paths inside the site directory
-
-
-def read_site(site: Path) -> dict[str, Dist]:
-    """Every ``*.dist-info`` under ``site`` -> :class:`Dist` (normalized name key)."""
-    import csv
-    from email.parser import HeaderParser
-
-    dists: dict[str, Dist] = {}
-    for info in sorted(site.glob("*.dist-info")):
-        meta = HeaderParser().parsestr((info / "METADATA").read_text(encoding="utf-8-sig", errors="replace"))
-        files: list[str] = []
-        record = info / "RECORD"
-        if record.is_file():
-            with record.open(encoding="utf-8", newline="") as handle:
-                files = [row[0].replace("\\", "/") for row in csv.reader(handle) if row]
-        files = [f for f in files if not f.startswith("../") and not f.startswith("/")]
-        dist = Dist(name=_norm(meta["Name"]), version=meta["Version"], info=info.name, files=files)
-        dists[dist.name] = dist
-    return dists
-
-
-# -- phase 2: the plan -----------------------------------------------------------------------
-
-
-@dataclass
-class Plan:
-    profile: str
-    target: str
-    python_version: str
-    first_party: set[str]  # dotted first-party modules shipped
-    pinned: set[str]  # switched-off modules shipped because kept code imports them unguarded
-    distributions: set[str]  # normalized names: the closure's "needed" set
-    missing: set[str] = field(default_factory=set)  # needed, but the site does not hold it
-    refusals: list[str] = field(default_factory=list)  # the closure's own packaging refusals
-    #: the ``pinned`` modules shipped under ``<bundle>/phone_forced/`` instead of ``app/``
-    #: (``packaging.forced_sibling_tree``; :mod:`agent_runtime.bundle_profiles.forced_tree`)
-    sibling: set[str] = field(default_factory=set)
-
-
-def _eager_first_party_closure(start: set[str], index: dict[str, Path]) -> set[str]:
-    """Modules loaded by importing ``start``: follow MODULE-LEVEL first-party imports only."""
-    done: set[str] = set()
-    queue = deque(m for m in start if m in index)
-    while queue:
-        module = queue.popleft()
-        if module in done:
-            continue
-        done.add(module)
-        # Importing a.b.c runs a/__init__ and a/b/__init__ first.
-        parts = module.split(".")
-        queue.extend(p for p in (".".join(parts[:i]) for i in range(1, len(parts)))
-                     if p in index and p not in done)
-        path = index[module]
-        for dotted, eager, _guarded, _line in _imports(path, module, path.name == "__init__.py"):
-            owner = _owner(dotted, index)
-            if eager and owner and owner not in done:
-                queue.append(owner)
-    return done
-
-
-def _with_parents(modules: set[str], index: dict[str, Path]) -> set[str]:
-    out = set(modules)
-    for module in modules:
-        parts = module.split(".")
-        out.update(p for p in (".".join(parts[:i]) for i in range(1, len(parts))) if p in index)
-    return out
-
-
-def first_party_plan(manifest, index: dict[str, Path] | None = None) -> tuple[set[str], set[str], dict]:
-    """-> (modules to ship, switched-off modules shipped anyway, the index).
-
-    The closure's own walk (:func:`profile_walk`) keeps what the roots and
-    bundled plugins reach. A switched-off module is shipped too when kept code
-    imports it UNGUARDED — at module level (``pinned``) or lazily
-    (``unguarded_into_pruned``): omitting it turns that line into a runtime
-    ImportError, so the feature stays off by its switch and its code ships.
-    Each shipped module brings the modules it imports at module level.
-    """
-    # ``parents``: every kept module's enclosing packages are shipped, and importing the module
-    # RUNS their ``__init__`` — so the walk must follow those imports too. Without it
-    # ``tools/agent_chat/__init__`` (``from . import detached, schemas, send``) shipped while the
-    # siblings it imports did not, and ``agent_runtime.serve_rpc`` failed to import in the bundle.
-    result, index = profile_walk(manifest, index, parents=True)
-    loaded = forced_modules(result, index)
-    return _with_parents(result.kept | loaded, index), loaded, index
-
-
-def forced_modules(walk, index: dict[str, Path]) -> set[str]:
-    """The switched-off modules a walk's kept code forces into the bundle (see :func:`first_party_plan`)."""
-    forced = set(walk.pinned) | {row["target"] for row in walk.unguarded_into_pruned}
-    return _eager_first_party_closure(forced, index) - walk.kept
-
-
-def forced_tree_plan(manifest, first_party: set[str], pinned: set[str]) -> set[str]:
-    """The forced modules the profile ships in the sibling tree (empty unless it asks for one)."""
-    if not getattr(manifest, "packaging_forced_sibling_tree", False):
-        return set()
-    return sibling_modules(pinned, first_party - pinned)
-
+# -- phase 3: copy ---------------------------------------------------------------------------
 
 def split_forced_tree(rels: list[str], sibling: set[str], index: dict[str, Path],
                       root: Path = ROOT) -> tuple[list[str], list[str]]:
@@ -328,211 +170,6 @@ def split_forced_tree(rels: list[str], sibling: set[str], index: dict[str, Path]
     for rel in rels:
         (tree if rel in files or rel.startswith(package_dirs) else app).append(rel)
     return app, tree
-
-
-#: The selection key of the core bundle itself (its own extras, no engine pack).
-CORE = ""
-#: The planning child reports progress (its step and its parse count) every
-#: :data:`PROGRESS_INTERVAL_SECONDS`; it is stopped when that report has not changed for
-#: :data:`PLAN_STALL_SECONDS` (counted from its FIRST report: interpreter start-up on a loaded box is
-#: not standing still), or when it has run :data:`PLAN_TIMEOUT_SECONDS` in all. Both stops
-#: are RETRYABLE (exit :data:`EXIT_RETRYABLE`): a slow child on a busy machine still parses, so it
-#: is never stopped for being slow, only for standing still. Sized from the 2026-10-16
-#: measurement in ``docs/agent-runtime-harness/04-boot-and-lifecycle.md`` (the bundled-desktop build).
-PROGRESS_INTERVAL_SECONDS = 5
-PLAN_STALL_SECONDS = 300
-PLAN_TIMEOUT_SECONDS = 1800
-#: ``EX_TEMPFAIL``: the build did not fail on its inputs; the same inputs may pass on a quieter box.
-EXIT_RETRYABLE = 75
-
-
-class PlanStalled(RuntimeError):
-    """The planning child stood still (or ran past its cap): retryable, never a verdict on the inputs."""
-
-
-_DISTRIBUTION_DRIVER = r"""
-import json, sys, threading, time
-root, jobs, profile, env, interval = (sys.argv[1], json.loads(sys.argv[2]), sys.argv[3], json.loads(sys.argv[4]),
-                                      float(sys.argv[5]))
-base_path = list(sys.path)
-sys.path[:0] = [*jobs[0]["sites"], root]
-import scripts.bundle_profile_closure as closure_script
-from agent_runtime.bundle_profiles.manifest import load_profile
-closure_script.TARGET_ENV.clear()
-closure_script.TARGET_ENV.update(env)
-step = ["walk"]
-def beat():
-    while True:
-        print(f"progress {step[0]} parses={closure_script.COUNTS['parses']}", file=sys.stderr, flush=True)
-        time.sleep(interval)
-threading.Thread(target=beat, daemon=True).start()
-out = closure_script.plan_jobs(load_profile(profile, validate=False), jobs, closure_script.TARGET_ENV, root=root,
-                               base_path=base_path, progress=lambda name: step.__setitem__(0, name))
-print(json.dumps({"jobs": out, "counts": closure_script.COUNTS}))
-"""
-
-
-def _run_planner(cmd: list[str], stall: float, cap: float) -> str:
-    """Run the planning child; stdout on success. :class:`PlanStalled` when its progress report
-    stops changing for ``stall`` seconds (from its first one) or it runs ``cap`` seconds;
-    CalledProcessError on a crash."""
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
-                            stdin=subprocess.DEVNULL)
-    seen = {"token": None, "at": None}  # the stall clock starts at the first progress line
-    tail: deque[str] = deque(maxlen=40)
-    out: list[str] = []
-
-    def read_err() -> None:
-        for line in proc.stderr:
-            line = line.rstrip("\n")
-            if line.startswith("progress "):
-                if line != seen["token"]:
-                    seen["token"], seen["at"] = line, time.monotonic()
-            else:
-                tail.append(line)
-
-    readers = [threading.Thread(target=read_err, daemon=True),
-               threading.Thread(target=lambda: out.append(proc.stdout.read()), daemon=True)]
-    for reader in readers:
-        reader.start()
-    started = time.monotonic()
-    while proc.poll() is None:
-        try:
-            proc.wait(timeout=1)
-        except subprocess.TimeoutExpired:
-            pass
-        now = time.monotonic()
-        stalled = seen["at"] is not None and now - seen["at"] > stall
-        why = (f"no progress for {stall:.0f}s (last: {seen['token']})" if stalled else
-               f"ran past its {cap:.0f}s cap (last: {seen['token']})" if now - started > cap else None)
-        if why and proc.poll() is None:
-            proc.kill()
-            proc.wait()
-            raise PlanStalled(f"closure planning child {why}")
-    for reader in readers:
-        reader.join()
-    stdout = "".join(out)
-    if proc.returncode != 0:
-        raise subprocess.CalledProcessError(proc.returncode, cmd, stdout, "\n".join(tail))
-    return stdout
-
-
-def distribution_plans(profile: str, jobs, target: str, python_version: str, *,
-                       stall: float = PLAN_STALL_SECONDS, cap: float = PLAN_TIMEOUT_SECONDS
-                       ) -> list[dict[str, tuple[set[str], list[str]]]]:
-    """``jobs``: ``[(sites, {key: extras})]`` -> per job ``{key: (the distributions it ships, refusals)}``.
-
-    The closure script is the one authority for what ships (its declaration-
-    aware model: base dependencies, the manifest's extras — plus a selection's
-    extras for an engine pack — and omissions). ONE child interpreter answers
-    every job: one walk of the profile (each file parsed once), then per job the
-    distribution metadata of ITS ``sites`` alone (``-I -S``: the pool's or the
-    bundle's own), with the target environment set to ``target``, writing no
-    bytecode into them (``-B``).
-    """
-    payload = [{"sites": [str(site) for site in sites], "selections": {k: list(v) for k, v in selections.items()}}
-               for sites, selections in jobs]
-    cmd = [sys.executable, "-I", "-S", "-B", "-c", _DISTRIBUTION_DRIVER, str(ROOT), json.dumps(payload), profile,
-           json.dumps(marker_env(target, python_version)), str(PROGRESS_INTERVAL_SECONDS)]
-    out = json.loads(_run_planner(cmd, stall, cap).strip().splitlines()[-1])
-    counts = out["counts"]
-    print(f"closure plan: {len(jobs)} site set(s), "
-          f"{sum(len(selections) for _, selections in jobs)} selection(s), {counts['walks']} walk(s), "
-          f"{counts['parses']} file(s) parsed", flush=True)
-    return [{key: (set(plan["needed"]), plan["refusals"]) for key, plan in job.items()} for job in out["jobs"]]
-
-
-def distribution_plan(profile: str, sites: list[Path], target: str, python_version: str,
-                      extra_extras=()) -> tuple[set[str], list[str]]:
-    """-> (the distributions the closure ships, its refusals): one selection, see :func:`distribution_plans`."""
-    return distribution_plans(profile, [(sites, {CORE: tuple(extra_extras)})], target, python_version)[0][CORE]
-
-
-def pack_selections(manifest, packs=None) -> dict[str, tuple[str, ...]]:
-    """The core's selection plus one per engine pack (``packs``: a subset; default every pack)."""
-    names = manifest.packaging_packs if packs is None else packs
-    return {CORE: (), **{pack: tuple(manifest.packaging_packs[pack]) for pack in names}}
-
-
-def pool_selection(manifest, seed_sites: list[Path], target: str, python_version: str) -> tuple[set[str], list[str]]:
-    """``PoolScope.CLOSURE``: the union of every selection's ``needed`` (core and each engine pack), planned
-    over a SEED site whose installed metadata maps import names to distributions, and the refusals.
-    Phase ``plan`` re-plans over the installed pool, so a seed that mis-maps a name is a red there."""
-    return seed_union(distribution_plans(manifest.profile, [(seed_sites, pack_selections(manifest))], target, python_version)[0])
-
-
-def pack_from_plans(plans: dict, pack: str) -> tuple[set[str], list[str]]:
-    """An engine pack: what its selection ships and the core's does not (``plans``: one job's answer)."""
-    core, refused = plans[CORE]
-    full, refused_full = plans[pack]
-    return full - core, [*refused, *refused_full]
-
-
-def make_plan(manifest, site: Path, target: str, python_version: str,
-              index: dict[str, Path] | None = None,
-              distributions: tuple[set[str], list[str]] | None = None) -> Plan:
-    """The CORE bundle: the profile's closure with its own extras (no engine pack). ``distributions``:
-    the core's answer from a :func:`distribution_plans` run over ``site``, when the caller has one."""
-    first_party, loaded, _ = first_party_plan(manifest, index)
-    needed, refused = distributions or distribution_plan(manifest.profile, [site], target, python_version)
-    return Plan(profile=manifest.profile, target=target, python_version=python_version,
-                first_party=first_party, pinned=loaded, distributions=needed,
-                missing=needed - set(read_site(site)), refusals=refused,
-                sibling=forced_tree_plan(manifest, first_party, loaded))
-
-
-def pack_distributions(manifest, pack: str, sites: list[Path], target: str,
-                       python_version: str) -> tuple[set[str], list[str]]:
-    """An engine pack: what the closure ships WITH the pack's extras and the core does not."""
-    plans = distribution_plans(manifest.profile, [(sites, pack_selections(manifest, [pack]))], target,
-                               python_version)[0]
-    return pack_from_plans(plans, pack)
-
-
-# -- phase 3: copy ---------------------------------------------------------------------------
-
-
-def tracked_files(root: Path = ROOT) -> list[str]:
-    done = subprocess.run(["git", "-C", str(root), "ls-files", "-z"], capture_output=True,
-                          check=True, timeout=120)
-    return [p for p in done.stdout.decode("utf-8").split("\0") if p]
-
-
-def _is_noise(rel: str) -> bool:
-    parts = rel.split("/")
-    return bool(NOISE_DIRS.intersection(parts)) or rel.endswith(NOISE_SUFFIXES)
-
-
-def _is_test(rel: str) -> bool:
-    return bool(TEST_DIRS.intersection(rel.split("/")[:-1]))
-
-
-def skill_ships(rel: str, skill_platforms: tuple[str, ...], root: Path = ROOT,
-                 _cache: dict | None = None) -> bool:
-    """Does a file under ``skills/`` ship? Always, unless the profile names ``skill_platforms``:
-    then only when its skill's ``SKILL.md`` frontmatter ``platforms:`` names one of them — the
-    existing per-skill OS switch (``agent.skill_utils``), read by the same parser. A file outside
-    any skill directory (a category README) ships only for an unfiltered profile."""
-    if not skill_platforms:
-        return True
-    from agent.skill_utils import parse_frontmatter
-
-    cache = _cache if _cache is not None else {}
-    parts = rel.split("/")
-    for i in range(len(parts) - 1, 0, -1):
-        skill_dir = "/".join(parts[:i])
-        if skill_dir not in cache:
-            md = root / skill_dir / "SKILL.md"
-            if not md.is_file():
-                cache[skill_dir] = None
-            else:
-                front, _ = parse_frontmatter(md.read_text(encoding="utf-8-sig"))
-                listed = front.get("platforms") or []
-                listed = listed if isinstance(listed, list) else [listed]
-                cache[skill_dir] = {str(p).strip().lower() for p in listed}
-        if cache[skill_dir] is not None:
-            return bool(cache[skill_dir] & {p.lower() for p in skill_platforms})
-    return False
 
 
 def first_party_files(plan: Plan, index: dict[str, Path], tracked: list[str],
@@ -573,47 +210,6 @@ def first_party_files(plan: Plan, index: dict[str, Path], tracked: list[str],
     return sorted(rels)
 
 
-def _data_file(rel: str, excluded: dict[str, str]) -> bool:
-    """A tracked non-module file the packager may ship (package data or a resource)."""
-    return not (rel.endswith(".py") or _is_noise(rel) or _is_test(rel) or _excluded(f"app/{rel}", excluded))
-
-
-def _resource_file(rel: str, excluded: dict[str, str]) -> bool:
-    """A tracked file under a resource that ships. Unlike package data, a ``.py`` ships: a
-    skill's ``scripts/*.py`` are files the skill runs, never modules the closure imports
-    (terminal / code_execution are present-but-off features, and present-off code ships)."""
-    return not (_is_noise(rel) or _is_test(rel) or _excluded(f"app/{rel}", excluded))
-
-
-def _in_resource(rel: str, resources: tuple[str, ...]) -> bool:
-    """``rel`` lies under a ``packaging.resources`` entry: a top-level resource
-    (``skills``) or a repo-relative directory (``docs/agent-runtime-harness/harness-skills``,
-    the harness skills :mod:`agent_runtime.skill_install` copies at serve start)."""
-    return any(rel.startswith(resource.rstrip("/") + "/") for resource in resources)
-
-
-def resource_problems(app_files: set[str], tracked: list[str], resources: tuple[str, ...],
-                      excluded: dict[str, str], skill_platforms: tuple[str, ...] = ()) -> list[str]:
-    """Every ``packaging.resources`` entry ships, file for file, what the packager selects for it
-    (``skills/`` narrowed by the profile's ``skill_platforms``, as :func:`first_party_files` does)."""
-    problems = []
-    cache: dict = {}
-    for resource in resources:
-        named = {rel for rel in tracked if _in_resource(rel, (resource,)) and _resource_file(rel, excluded)}
-        wanted = {rel for rel in named if not rel.startswith("skills/") or skill_ships(rel, skill_platforms, _cache=cache)}
-        if not named:  # a resource naming nothing is a typo; a platform filter selecting no skill is not
-            problems.append(f"resource selects no tracked file: {resource}")
-        for rel in sorted(wanted - app_files):
-            problems.append(f"missing resource file ({resource}): app/{rel}")
-    return problems
-
-
-def _excluded(rel: str, excluded: dict[str, str]) -> bool:
-    """``rel`` is bundle-root-relative (``app/...``, ``site-packages/...``)."""
-    return any(rel == pattern or rel.startswith(pattern.rstrip("/") + "/") or fnmatch.fnmatch(rel, pattern)
-               for pattern in excluded)
-
-
 def dist_files(dist: Dist, excluded: dict[str, str]) -> list[str]:
     return [f for f in dist.files
             if not _is_noise(f) and not _is_test(f) and not _excluded(f"site-packages/{f}", excluded)]
@@ -650,31 +246,6 @@ def write_pack(manifest, pack: str, names: set[str], dists: dict[str, Dist], sta
     (out / PACK_MANIFEST).write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     write_licence_records(out, pack, names, target, commit, core=False)
     return record
-
-
-def verify_jobs(core_dir: Path, packs: list[tuple[str, Path]], manifest) -> list:
-    """:func:`distribution_plans` jobs that re-plan a built core and its packs from their OWN
-    metadata: the core over its site-packages, each pack over its own plus the core's."""
-    core_site = core_dir / "site-packages"
-    return [([core_site], {CORE: ()}),
-            *(([pack_dir / "site-packages", core_site], pack_selections(manifest, [pack])) for pack, pack_dir in packs)]
-
-
-def verify_pack(pack_dir: Path, core_dir: Path, manifest, plans: dict | None = None) -> list[str]:
-    """The pack holds exactly what the closure ships with its extras and the core bundle lacks.
-    ``plans``: this pack's job from a :func:`verify_jobs` run, when the caller has one."""
-    record = json.loads((pack_dir / PACK_MANIFEST).read_text(encoding="utf-8-sig"))
-    site, core_site = pack_dir / "site-packages", core_dir / "site-packages"
-    if plans is None:
-        names, refused = pack_distributions(manifest, record["pack"], [site, core_site], record["target"],
-                                            record["python_version"])
-    else:
-        names, refused = pack_from_plans(plans, record["pack"])
-    plan = Plan(profile=manifest.profile, target=record["target"], python_version=record["python_version"],
-                first_party=set(), pinned=set(), distributions=names, refusals=refused)
-    site_files = {p.relative_to(site).as_posix() for p in site.rglob("*") if p.is_file()}
-    return compare(plan, set(), read_site(site), site_files, manifest.excluded_data,
-                   baked=(pack_dir / BAKED_MARKER).is_file()) + licence_problems(pack_dir, names)
 
 
 def write_bundle(plan: Plan, manifest, dists: dict[str, Dist], stage: Path, out: Path,
@@ -719,93 +290,6 @@ def write_bundle(plan: Plan, manifest, dists: dict[str, Dist], stage: Path, out:
     (out / BUNDLE_MANIFEST).write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     write_licence_records(out, "core", plan.distributions, plan.target, commit, core=True)
     return record
-
-
-# -- phase 4: verify (plan D4) ---------------------------------------------------------------
-
-
-def compare(plan: Plan, app_modules: set[str], site_dists: dict[str, Dist], site_files: set[str],
-            excluded: dict[str, str], baked: bool = False, app_files: set[str] = frozenset(),
-            tree_modules: set[str] = frozenset()) -> list[str]:
-    """Every way the bundle differs from its plan, one line each (empty = matches). ``app_modules``
-    are the modules under ``app/``, ``tree_modules`` those under the sibling tree."""
-    problems = [f"closure refuses the profile's packaging: {line}" for line in plan.refusals]
-    for module in sorted(app_modules & plan.sibling):
-        problems.append(f"forced module under the scanned app tree (the plan puts it in {FORCED_TREE_DIR}/): {module}")
-    for module in sorted(tree_modules - plan.sibling):
-        problems.append(f"module in {FORCED_TREE_DIR}/ the plan does not put there: {module}")
-    app_modules = app_modules | tree_modules
-    for module in sorted(app_modules - plan.first_party):
-        problems.append(f"extra first-party module (outside the closure): {module}")
-    for module in sorted(plan.first_party - app_modules):
-        problems.append(f"missing first-party module (the closure needs it): {module}")
-    for name in sorted(set(site_dists) - plan.distributions):
-        problems.append(f"extra distribution (outside the closure): {name}")
-    for name in sorted((plan.distributions - set(site_dists)) | plan.missing):
-        problems.append(f"missing distribution (the closure needs it): {name}")
-    owned = {f for d in site_dists.values() for f in d.files}
-    for rel in sorted(site_files):
-        if rel.split("/")[0].endswith(".dist-info"):
-            continue
-        if _is_noise(rel):
-            if not baked:
-                problems.append(f"bytecode noise in site-packages: {rel}")
-        elif _is_test(rel):
-            problems.append(f"test file in site-packages: {rel}")
-        elif _excluded(f"site-packages/{rel}", excluded):
-            problems.append(f"excluded data shipped: site-packages/{rel}")
-        elif rel not in owned and rel not in PACKAGER_FILES:
-            problems.append(f"file owned by no bundled distribution: {rel}")
-    for rel in sorted(app_files):
-        if _is_noise(rel):
-            if not baked:
-                problems.append(f"bytecode noise in app: {rel}")
-        elif _is_test(rel):
-            problems.append(f"test file in app: {rel}")
-        elif _excluded(f"app/{rel}", excluded):
-            problems.append(f"excluded data shipped: app/{rel}")
-    return problems
-
-
-def app_module_names(app: Path, plugins=(), resources: tuple[str, ...] = ()) -> set[str]:
-    """The bundle's modules, named by the same indexer the walk uses. A resource's ``.py``
-    (a skill script) is a shipped file, not a module, so it is not compared to the closure."""
-    return {name for name, path in module_index(app, plugins=plugins).items()
-            if not _in_resource(path.relative_to(app).as_posix(), resources)}
-
-
-def verify_bundle(out: Path, manifest, index: dict[str, Path] | None = None,
-                  python: Path | str | None = sys.executable,
-                  distributions: tuple[set[str], list[str]] | None = None) -> list[str]:
-    """Recompute the plan from the source tree and the bundle's OWN site-packages; compare.
-    Then import the serve entrypoints with ``python`` (the bundle's interpreter), from the bundle alone;
-    ``python=None`` skips that probe (a cross-target build on a host with no target interpreter).
-    ``distributions``: the core's answer from a :func:`verify_jobs` run, when the caller has one."""
-    record = json.loads((out / BUNDLE_MANIFEST).read_text(encoding="utf-8-sig"))
-    site, app = out / "site-packages", out / "app"
-    plan = make_plan(manifest, site, record["target"], record["python_version"], index=index,
-                     distributions=distributions)
-    site_files = {p.relative_to(site).as_posix() for p in site.rglob("*") if p.is_file()}
-    app_files = {p.relative_to(app).as_posix() for p in app.rglob("*") if p.is_file()}
-    app_modules = app_module_names(app, manifest.packaging_plugins, manifest.packaging_resources)
-    tree = out / FORCED_TREE_DIR
-    tree_modules = set(module_index(tree, plugins=manifest.packaging_plugins)) if tree.is_dir() else set()
-    tree_files = {p.relative_to(tree).as_posix() for p in tree.rglob("*") if p.is_file()} if tree.is_dir() else set()
-    problems = compare(plan, app_modules, read_site(site), site_files, manifest.excluded_data,
-                       baked=(out / BAKED_MARKER).is_file(), app_files=app_files | tree_files,
-                       tree_modules=tree_modules)
-    problems += licence_problems(out, plan.distributions)
-    problems += resource_problems(app_files, tracked_files(), manifest.packaging_resources,
-                                  manifest.excluded_data, manifest.packaging_skill_platforms)
-    packs = {name: list(extras) for name, extras in manifest.packaging_packs.items()}
-    if record.get("packs", {}) != packs:
-        problems.append(f"bundle-manifest.json packs {record.get('packs', {})} != the profile's {packs}")
-    if record["target"].startswith("win32"):  # other targets read the system zone database
-        problems += named_timezone_problems(site)
-    index = index if index is not None else module_index(plugins=manifest.packaging_plugins)
-    if python is not None:
-        problems += serve_import_problems(out, plan.first_party, index, record["python_version"], python)
-    return problems
 
 
 def bake_dir(directory: Path, python: Path) -> None:

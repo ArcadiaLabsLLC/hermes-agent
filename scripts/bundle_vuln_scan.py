@@ -86,8 +86,8 @@ def pins_from_bundles(dirs: list[Path]) -> dict[str, str]:
 
 def exported_pins(profile: str, target: str | None, uv: str = "uv") -> dict[str, str]:
     from agent_runtime.bundle_profiles.manifest import load_profile
-    from scripts.bundle_profile_package import (evaluate_markers, export_requirements, locked_python_version,
-                                                marker_env)
+    from scripts.bundle_profile_package import evaluate_markers, export_requirements, locked_python_version
+    from scripts.bundles.targets import marker_env
 
     manifest = load_profile(profile)
     pack_extras = tuple(e for extras in manifest.packaging_packs.values() for e in extras)

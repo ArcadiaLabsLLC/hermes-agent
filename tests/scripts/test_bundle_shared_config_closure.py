@@ -39,7 +39,7 @@ def _handler_module(handler) -> str:
 
 @pytest.fixture(scope="module")
 def shipped() -> set[str]:
-    from scripts.bundle_profile_package import first_party_plan
+    from scripts.bundles.plan import first_party_plan
 
     modules, _forced, _index = first_party_plan(load_profile("bundled-desktop"))
     return modules

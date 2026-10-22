@@ -799,7 +799,7 @@ class GraphFacts:
 
 def plan_jobs(manifest, jobs, env: dict, *, root: Path = ROOT, base_path: list[str] | None = None,
               index: dict[str, Path] | None = None, progress=None) -> list[dict[str, dict]]:
-    """The packager's planning (``scripts/bundle_profile_package.distribution_plans``), in process.
+    """The packager's planning (``scripts/bundles/plan.distribution_plans``), in process.
 
     ``jobs``: ``[{"sites": [dir…], "selections": {key: [extra…]}}]``. ONE walk of ``manifest``
     (:class:`WalkFacts`); then per job the distribution metadata of its ``sites`` alone — they lead
