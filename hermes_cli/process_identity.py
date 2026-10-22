@@ -73,7 +73,10 @@ def process_birth(proc) -> float:
     Other platforms keep ``create_time()``: Linux and Windows apply no per-process reference.
     Raises ``psutil.Error`` like ``create_time()``.
     """
-    import psutil
+    try:
+        import psutil
+    except ImportError:  # like every other psutil site here: a wheel without psutil reads the plain start
+        return float(proc.create_time())
     if getattr(psutil, "MACOS", False):
         platform_proc = getattr(proc, "_proc", None)
         if platform_proc is not None:

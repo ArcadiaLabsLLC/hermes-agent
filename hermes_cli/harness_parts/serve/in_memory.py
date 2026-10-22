@@ -49,6 +49,12 @@ import threading
 from pathlib import Path
 from typing import Any, Callable, Iterator, MutableMapping
 
+from agent_runtime.loop_tool_lifecycles import EARLY, ensure_lifecycle_placeholders
+
+# Before the state registry: its import reaches the turn context (upstream v0.22.4), which imports
+# ``agent.lsp.deferred``; the phone wheel ships no language server (the rest wait for ``start``).
+ensure_lifecycle_placeholders(EARLY)
+
 import hermes_state_registry  # see below
 from hermes_cli.harness_parts.serve.session import serve_loop
 from hermes_cli.harness_parts.serve.shell import EmbeddedShell

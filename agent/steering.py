@@ -10,7 +10,10 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from agent.prompt_builder import steer_user_row
-from tools.process_registry_notifications import TimelineNotification
+try:
+    from tools.process_registry_notifications import TimelineNotification
+except ImportError:  # a wheel without the process registry (phone) has no timeline notification
+    TimelineNotification = ()  # isinstance(x, ()) is False
 
 
 @dataclass(frozen=True)

@@ -55,7 +55,7 @@ from typing import Any
 from .module_presence import is_lifecycle_placeholder, shipped
 
 __layer__ = "lanes"
-__all__ = ["BROWSER_CLOUD", "BROWSER_LIFECYCLE", "COMPUTER_USE_TOOL", "DELEGATE_TOOL", "FILE_TOOLS", "TERMINAL_LIFECYCLE", "LifecycleNotShipped",
+__all__ = ["BROWSER_CLOUD", "BROWSER_LIFECYCLE", "COMPUTER_USE_TOOL", "DELEGATE_TOOL", "EARLY", "FILE_TOOLS", "TERMINAL_LIFECYCLE", "LifecycleNotShipped",
            "ensure_lifecycle_placeholders", "is_lifecycle_placeholder", "not_shipped", "shipped"]
 
 TERMINAL_LIFECYCLE = "tools.terminal_tool_lifecycle"
@@ -72,6 +72,8 @@ VAULT_BACKENDS = "agent.vault_backends"
 VAULT_BACKENDS_BASE = "agent.vault_backends.base"
 VAULT_UNLOCK = "agent.vault_backends.unlock"
 VAULT_STORE = "agent.vault_store"
+LSP = "agent.lsp"
+LSP_DEFERRED = "agent.lsp.deferred"
 
 
 class LifecycleNotShipped(RuntimeError):
@@ -113,6 +115,10 @@ def _not_managed(provider: Any = None, base_url: Any = None, *_args: Any, **_kwa
 
 def _no_callback(*_args: Any, **_kwargs: Any) -> None:
     return None
+
+
+def _no_lsp_verdicts(agent: Any, *_args: Any, **_kwargs: Any) -> list:
+    return []
 
 
 def not_shipped(module: str, name: str):
@@ -162,6 +168,11 @@ _LOOP_NAMES: dict[str, dict[str, Any]] = {
     VAULT_BACKENDS: _loud(VAULT_BACKENDS, "enabled_backends", "backend_for_handle"),
     VAULT_BACKENDS_BASE: _loud(VAULT_BACKENDS_BASE, "external_backend_classes", "is_installed"),
     VAULT_STORE: _loud(VAULT_STORE, "get_vault_store"),
+    # Language servers (upstream v0.22.4): the tool executor and the turn context import
+    # ``agent.lsp.deferred`` at module level to forward late verdicts on edits, and the turn end
+    # settles them. With no language server shipped there is no check running and no verdict.
+    LSP: {},
+    LSP_DEFERRED: {"forward_to_agent": _no_callback, "settle_for_agent": _no_lsp_verdicts},
 }
 
 #: module -> the module whose presence decides it, when that is its switched-off PACKAGE: probing the
@@ -171,13 +182,23 @@ _PRESENCE: dict[str, str] = {
     LOCAL_RUNTIME_CAPABILITIES: "hermes_cli.local_runtime",
     VAULT_BACKENDS_BASE: VAULT_BACKENDS,
     VAULT_UNLOCK: VAULT_BACKENDS,
+    LSP_DEFERRED: LSP,
 }
 
 
-def ensure_lifecycle_placeholders() -> tuple[str, ...]:
-    """Register a placeholder for each loop lifecycle module not installed; returns those placed."""
+#: The placeholders an importer outside ``tools`` / ``plugins`` needs before the embedded entry's
+#: ``start()`` mounts the forced tree: upstream v0.22.4's ``hermes_state_common`` reaches
+#: ``agent.turn_context`` (and its ``agent.lsp.deferred`` import) at module import.
+EARLY = (LSP, LSP_DEFERRED)
+
+
+def ensure_lifecycle_placeholders(modules: tuple[str, ...] | None = None) -> tuple[str, ...]:
+    """Register a placeholder for each loop lifecycle module not installed (only *modules*, when
+    given); returns those placed."""
     placed = []
     for module, names in _LOOP_NAMES.items():
+        if modules is not None and module not in modules:
+            continue
         if module in sys.modules or shipped(_PRESENCE.get(module, module)):
             continue
         stand_in = _LifecyclePlaceholder(module, f"Placeholder: {module} is not shipped in this installation.")

@@ -2,7 +2,7 @@
   "measured_at": "2026-10-22",
   "base": "4d04303818",
   "files": 235,
-  "deleted_lines": 1028,
+  "deleted_lines": 1031,
   "heavy": 1,
   "reasons": [
     {
@@ -1112,6 +1112,21 @@
         "heavy": 1
       },
       "reason": "session stream failed path flushes worker events before its error frame (PR #137460 remainder): +1 line in gateway/platforms/api_server.py after v0.22.4's flush() superseded the rest of the carry; retires when upstream flushes on the failed path",
+      "owner_ruling": "2026-10-22, owner: release merge of v0.22.4 and its push approved (\"approve all\", 5500db5f07)"
+    },
+    {
+      "change": "rel-v0224: phone psutil guards on v0.22.4's new sites (hermes_cli/process_identity.py, hermes_constants_scratch.py)",
+      "before": {
+        "files": 235,
+        "deleted_lines": 1028,
+        "heavy": 1
+      },
+      "after": {
+        "files": 235,
+        "deleted_lines": 1031,
+        "heavy": 1
+      },
+      "reason": "v0.22.4 added three bare `import psutil` sites (process_identity.process_birth; hermes_constants_scratch._registered_live_pids / _owned_by_hermes); the phone wheel omits psutil and tests/scripts/test_bundle_profile_gate.py requires every kept site ImportError-guarded, so each gets the same guard the existing sites carry (+3 deleted lines); retires with the psutil-guard PR (#129412)",
       "owner_ruling": "2026-10-22, owner: release merge of v0.22.4 and its push approved (\"approve all\", 5500db5f07)"
     }
   ]

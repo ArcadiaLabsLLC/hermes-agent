@@ -183,7 +183,10 @@ def _registered_live_pids(home: Path) -> set[int]:
     point and MCP helper, ``hermes_cli.process_identity``) and the background-process checkpoint
     (``tools.process_registry``, ``processes.json``). A recorded start time that no longer
     matches is a reused pid, not ownership."""
-    import psutil
+    try:
+        import psutil
+    except ImportError:  # fork: a profile without psutil (the phone) has no registered process to read
+        return set()
 
     from hermes_cli.process_identity import spawner_is_dead
     from hermes_constants import get_default_hermes_root
@@ -226,7 +229,10 @@ def _owned_by_hermes(proc, registered: set[int]) -> bool:
     """Registered itself, or a descendant of a live registered process (a background shell's
     child). An orphan whose spawning shell is gone was reparented away from that lineage, so
     it is not owned and is still reaped."""
-    import psutil
+    try:
+        import psutil
+    except ImportError:  # fork: a profile without psutil (the phone) has no lineage to walk
+        return False
 
     try:
         # pid 1 is excluded as an ancestor: a Hermes running as a container init adopts every orphan.
