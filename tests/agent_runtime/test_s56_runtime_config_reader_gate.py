@@ -95,14 +95,12 @@ EXCLUDED_FUNCTIONS = frozenset(
 #: ships on the wire and governs nothing, and here is why we keep it".
 #: Adding a field without a reader and without an entry here fails the gate.
 REPORT_ONLY: dict[str, str] = {
-    "schema_version": (
-        "wire/version metadata, not a knob: effective_config_summary stamps it and "
-        "operators read it off the frame; no code branches on its value."
-    ),
-    # NOTE: ``store_root`` and ``personas`` were candidates here and are NOT
-    # listed, because the scan DOES resolve them: both names are read as
-    # attributes elsewhere in production. The over-collecting resolver is why —
-    # see its docstring. Listing them would have made two live-enough fields
+    # NOTE: ``store_root``, ``personas`` and ``schema_version`` were candidates
+    # here and are NOT listed, because the scan DOES resolve them: each name is
+    # read as an attribute elsewhere in production (``schema_version`` through
+    # its namesake ``MachineRoots.schema_version`` in
+    # ``workspace_slots.py::scoped_roots``). The over-collecting resolver is
+    # why — see its docstring. Listing them would have made live-enough fields
     # look like declared debt.
 }
 
