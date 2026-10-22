@@ -29,13 +29,18 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-22 (land w1022b)
+
+- **`RT-PHONE-SKILLS-NONE-MARKED` — no tracked skill names `platforms: [android|ios]`, so the phone bundle ships zero skills** · fork / `agent_runtime/bundle_profiles/bundled-phone.yaml` skill_platforms · evidence: commit `016de8a203` body · BLOCKED 2026-10-22: owner decision — which skills does a phone ship? · Recommend: mark the chat-path skills `platforms: [..., ios, android]` in one lane
+- **`RT-PACKAGER-CEILING-800` — `scripts/bundle_profile_package.py` sits at exactly 800 code lines; the next change cannot land** · fork / `scripts/bundle_profile_package.py` · evidence: commits `ff362cf400`, `8dfc0fdfec` · READY 2026-10-22: split the plan/verify phases into `scripts/bundles/` (one MOVE commit)
+
 ### Filed on arrival — 2026-10-22 (land w1022a)
 
 - **`RT-PHONE-PILLOW-ANDROID` — the phone closure needs Pillow on both targets and no Pillow release ships an Android wheel, so the Android phone bundle cannot finish (iOS has a wheel)** · fork / phone bundle · plan `docs/agent-runtime-harness/planned/bundled-phone-pool-2026-10-22.md` § Open rulings · BLOCKED 2026-10-22: owner decision — a fork-built Android Pillow wheel pinned by URL and hash (BeeWare mobile-forge recipe), or omit Pillow on Android only (a marker on omitted rows + guarding the unguarded sites; weaker image prep on one phone)? · Recommend: the fork-built wheel
 
 ### Filed on arrival — 2026-10-21 (lane w1021j-bundle, branch `w1021j/bundle`)
 
-- **`RT-BUNDLED-PHONE-POOL` — the packager's pool installs the whole uv export for a phone target, so `--profile bundled-phone` never reaches verify** · fork / `scripts/bundle_profile_package.py::install_pool` / `export_requirements` · evidence: commit `83bf715c9d` body (omitted_distributions not dropped; psutil git pin unhashable; no phone wheels for cryptography, firecrawl-anydoc, httptools, jiter, markupsafe, pillow, watchfiles, resvg-py) · READY 2026-10-22: plan `bundled-phone-pool-2026-10-22.md` (5 stages, closure-first; iOS through S5 now; Android S5 waits on `RT-PHONE-PILLOW-ANDROID`) · **TAKEN 2026-10-22 w1022b-phone**
+- **`RT-BUNDLED-PHONE-POOL` — the packager's pool installs the whole uv export for a phone target, so `--profile bundled-phone` never reaches verify** · fork / `scripts/bundle_profile_package.py::install_pool` / `export_requirements` · evidence: commit `83bf715c9d` body (omitted_distributions not dropped; psutil git pin unhashable; no phone wheels for cryptography, firecrawl-anydoc, httptools, jiter, markupsafe, pillow, watchfiles, resvg-py) · BLOCKED 2026-10-22: another lane — `RT-PHONE-PILLOW-ANDROID` (S1–S4 and iOS S5 landed: ios_arm64 verify 0 problems, 28 dists, 87M unpacked; Android S5 waits on the Pillow ruling)
 
 ### Filed on arrival — 2026-10-21 (land w1021i)
 
@@ -935,7 +940,3 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ## Filed on arrival — 2026-10-20 (launcher plan: edition switch and the shared namespace store, `EterniaLauncher` `9185222120`)
 
 - **`RT-NAMESPACE-ADOPT` — `hermes namespace adopt --from-dir <dir> [<id>…] [--dry-run]`: Developer Edition only (`_developer_edition_only`), module `agent_runtime/namespace_adopt.py` excluded from the bundle closure beside `namespace_seed`; per manifest-valid namespace: refuse busy (either side) and an existing target, `os.replace` on one volume else copy+verify(count,sizes)+remove, manifest gains `adopted_from`/`adopted_at`** · fork / `hermes_cli/namespace_cmd.py`, `agent_runtime/bundle_profiles/bundled-desktop.yaml` · plan §5 · mutation: adopt a busy namespace → the busy test reds · RULED 2026-10-20: owner — move once, Developer-Edition-only, nothing ships to release; then (Q1) "default should be appdata indeed with an override to where it is now", so nothing moves · DEFERRED 2026-10-20: not needed while `ETERNIA_HERMES_NAMESPACES_DIR` keeps an existing store in place (launcher `MC-OWNER-NAMESPACES-ADOPT`); re-enter if a developer must physically move a store
-
-## Filed on arrival — 2026-10-22 (launcher wave w1022a-mc-chat)
-
-- **`RT-PERSONA-TOOLSET-APPROVALS-READ` — the launcher's per-agent shell/code/browser toggle (launcher MC-PERSONA-SHELL-OPT-IN) has no read: `runtime.persona.toolset.approve` is write-only and its reply is the one place `toolset_approvals` appears; add a console-tier read (persona_id → the opt-in toolsets this edition offers, each granted or not, plus `edition_not_bundled`) so the toggle can show its state before a write** · `agent_runtime/serve_rpc/console_operations.py::_toolset_approve` · READY 2026-10-22 · **TAKEN 2026-10-22 w1022b-toolset**
