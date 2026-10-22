@@ -26,6 +26,10 @@ tags: [queue, program/fork-hygiene]
 
 
 
+## Filed on arrival — 2026-10-22 (release merge rel-v0224)
+
+- **`FH-DAILY-DROPS-PHONE-SEAM-1022` — integration/upstream-daily's merge of origin/main (`520f48b4a9`) lost `agent/auxiliary_managed_local.py`'s phone-wheel `shipped()` seam; the release merge kept main's side, so the next daily must too** · fork-hygiene / daily branch · evidence `520f48b4a9` vs `8faf4f7c7a`, rel-v0224 report · READY 2026-10-22
+
 ## Filed on arrival — 2026-10-22 (land w1022d)
 
 - **`FH-LEDGER-COUNT-DRIFT-1022` — `scripts/upstream_footprint.py --ledger` regenerates different add/delete counts for 5 ledger rows on main (e.g. `tools/environments/local.py` 7 → 13) that no lane re-derived** · fork / `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md` · evidence: lane w1022d-guard 2026-10-22 · READY 2026-10-22: re-derive the 5 rows, read each new hunk, and give each a reviewed reason
