@@ -108,6 +108,11 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # a real hang fails that assertion instead of killing the file's process.
     "tests/scripts/test_run_tests_parallel.py::"
     "test_isolation_retry_keeps_the_scaled_timeout_and_counts_skips": (pytest.mark.timeout(180),),
+    # Two v0.22.4 tests that run a real gateway turn in a child process under its own bound (130 s,
+    # 180 s): 43-46 s and 37 s green alone on the merge, 2026-10-22, so the runner's 30 s default
+    # killed them (green on the pure tag, whose runner has no default). Each sits above its child bound.
+    "tests/gateway/test_session_policy.py::test_launch_policy_reaches_real_turn_runner": (pytest.mark.timeout(150),),
+    "tests/gateway/test_session_policy.py::test_ordinary_daemon_cli_launch_policy": (pytest.mark.timeout(200),),
     # MCF-66: reads the real ~/.claude/.credentials.json via the fixture's
     # redirected Path.home() (gate: tests/test_claude_code_credentials_file_gate.py).
     "tests/hermes_cli/test_codex_cli_model_picker.py::"

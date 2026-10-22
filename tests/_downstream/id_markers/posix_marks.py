@@ -132,6 +132,11 @@ if _WIN:
         "test_subprocess_path_includes_termux_fallback_dirs": (
             _posix_only("clears the env to HOME only; Windows Path.home() needs USERPROFILE"),
         ),
+        "tests/hermes_cli/test_update_system_dashboard_unit.py::"
+        "test_desktop_handoffs_add_the_gateway_hint_only_when_gateways_are_blamed": (
+            _posix_only("runs posix.sh in a bare `bash`, which on Windows is WSL; the live-system guard "
+                        "blocks it (a v0.22.4 test, green on the pure tag only where bash is Git's)"),
+        ),
         **{
             f"tests/tools/test_find_shell.py::TestFindShellPrefersUserShell::{test}": (
                 _posix_only("$SHELL is read only on _find_shell's non-Windows arm"),
