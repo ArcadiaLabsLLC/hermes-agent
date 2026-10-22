@@ -1,7 +1,7 @@
 {
   "measured_at": "2026-10-22",
   "base": "4d04303818",
-  "files": 234,
+  "files": 235,
   "deleted_lines": 1028,
   "heavy": 1,
   "reasons": [
@@ -1098,6 +1098,21 @@
       },
       "reason": "self-repo guard Windows path seam (RT-SELF-REPO-GUARD-WINDOWS-PATHS): +1/-1 in tools/self_repo_guard.py::_shell_words_at via tools/path_identity.py::shell_path_operand; retires with up/self-repo-guard-windows-paths",
       "owner_ruling": "2026-10-21, owner: fork-first — upstream fixes ship on the fork with a prepared up/ branch held idle (RULED 2026-10-21 rows, 5e3946fc33)"
+    },
+    {
+      "change": "rel-v0224: fix(merge) f0d4756010 carried (gateway/platforms/api_server.py)",
+      "before": {
+        "files": 234,
+        "deleted_lines": 1028,
+        "heavy": 1
+      },
+      "after": {
+        "files": 235,
+        "deleted_lines": 1028,
+        "heavy": 1
+      },
+      "reason": "session stream failed path flushes worker events before its error frame (PR #137460 remainder): +1 line in gateway/platforms/api_server.py after v0.22.4's flush() superseded the rest of the carry; retires when upstream flushes on the failed path",
+      "owner_ruling": "2026-10-22, owner: release merge of v0.22.4 and its push approved (\"approve all\", 5500db5f07)"
     }
   ]
 }
