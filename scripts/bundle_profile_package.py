@@ -83,6 +83,7 @@ from agent_runtime.bundle_profiles.manifest import PACKAGING_TARGETS
 from scripts.bundles.serve_probe import (
     named_timezone_problems, serve_import_problems, serve_import_table)
 from scripts.bundles.pool_install import install_pool as install_pool_into, remove_tree
+from scripts.bundles.requirement_blocks import render, requirement_blocks
 
 #: pm/lock.json target name -> (uv --python-platform, PEP 508 marker environment)
 TARGETS: dict[str, tuple[str, dict[str, str]]] = {
@@ -180,28 +181,7 @@ def evaluate_markers(requirements: str, env: dict[str, str]) -> str:
     (measured 2026-09-28, uv 0.11.14), so ``nemo-relay``'s Windows arm silently
     dropped out of the pool. :func:`marker_env` is the one target authority.
     """
-    from packaging.markers import Marker
-
-    kept: list[str] = []
-    block: list[str] = []
-
-    def flush() -> None:
-        if not block:
-            return
-        head, _, marker = block[0].rstrip(" \\").partition(" ; ")
-        if not marker or Marker(marker).evaluate(env):
-            kept.append(head.strip() + (" \\" if len(block) > 1 else ""))  # a URL pin has no hash lines
-            kept.extend(block[1:])
-        block.clear()
-
-    for line in requirements.splitlines():
-        if line.startswith((" ", "\t")):
-            block.append(line)
-        elif line.strip() and not line.startswith("#"):
-            flush()
-            block.append(line)
-    flush()
-    return "\n".join(kept) + "\n"
+    return render([block for block in requirement_blocks(requirements) if block.holds(env)], marker=False)
 
 
 def install_pool(requirements: str, stage: Path, target: str, python_version: str,

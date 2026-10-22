@@ -250,6 +250,41 @@ def test_a_requirement_with_no_hash_lines_keeps_no_continuation():
     assert kept[1] == "ptyprocess==0.7.0 \\" and kept[2] == "    --hash=sha256:bb"
 
 
+_THREE_BLOCKS = ("idna==3.19 \\\n    --hash=sha256:cc\n"
+                 "Markdown-It-Py==4.0.0 ; python_full_version >= '3.10' \\\n    --hash=sha256:dd \\\n"
+                 "    --hash=sha256:ee\n"
+                 "psutil @ git+https://github.com/giampaolo/psutil.git@380bd2b ; sys_platform == 'android'\n")
+
+
+def test_requirement_blocks_are_typed_by_their_normalised_distribution_name():
+    from scripts.bundles.requirement_blocks import requirement_blocks
+
+    blocks = requirement_blocks(_THREE_BLOCKS)
+    assert [b.name for b in blocks] == ["idna", "markdown-it-py", "psutil"]
+    assert blocks[1].marker == "python_full_version >= '3.10'"
+    assert blocks[1].hashes == ("    --hash=sha256:dd \\", "    --hash=sha256:ee")
+    assert blocks[2].head == "psutil @ git+https://github.com/giampaolo/psutil.git@380bd2b" and not blocks[2].hashes
+
+
+def test_a_selection_keeps_only_named_blocks_and_refuses_a_selected_hashless_pin():
+    """Plan bundled-phone-pool-2026-10-22 S2: a closure pool installs only the blocks the closure
+    names, markers and hashes intact (``evaluate_markers`` still applies after); a selected block
+    with no hash lines is refused by name instead of failing inside uv's ``--require-hashes``; an
+    unselected hashless block is never judged.
+
+    Killing mutation: drop the hash check in ``select_blocks`` -> the refusal assertion reds."""
+    from scripts.bundles.requirement_blocks import requirement_blocks, select_blocks
+
+    blocks = requirement_blocks(_THREE_BLOCKS)
+    text, refused = select_blocks(blocks, {"idna", "markdown_it_py"})
+    assert text == ("idna==3.19 \\\n    --hash=sha256:cc\n"
+                    "Markdown-It-Py==4.0.0 ; python_full_version >= '3.10' \\\n    --hash=sha256:dd \\\n"
+                    "    --hash=sha256:ee\n") and refused == []
+    assert evaluate_markers(text, marker_env("ios_arm64", "3.14")).startswith("idna==3.19 \\\n")
+    _text, refused = select_blocks(blocks, {"idna", "psutil"})
+    assert refused == ["pool_pin_unhashed: psutil @ git+https://github.com/giampaolo/psutil.git@380bd2b"]
+
+
 def test_a_phone_target_refuses_bake_with_and_names_its_python(monkeypatch, capsys, tmp_path: Path):
     """S2: the phone interpreter is the host app's; the desktop lock's version and ``--bake-with`` are
     desktop-only. Killing mutation: drop the ``bake_refused_phone_target`` refusal -> no SystemExit, red."""
