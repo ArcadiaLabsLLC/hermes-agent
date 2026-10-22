@@ -141,13 +141,7 @@ def upsert_actor(
         # they all ran before any store call — and inside the lock because
         # the predicate reads the ledger and the live actor set, which a
         # concurrent writer can move between a caller's read and this write.
-        #
-        # ONE actor scan per upsert (RT-OFFICE-PATCH-LANE-SCANS-EVERY-UPSERT),
-        # taken here when a pre-write consumer needs it and threaded to the
-        # fence, the unaimed placement and the patch lane; otherwise the patch
-        # lane takes it after the write. Either way the directory is read once.
-        pre_write = _needs_pre_write_scan(payload, unaimed=position_policy is not None, allow_class_key=allow_class_key)
-        scan = store.scan_actors(wsid) if pre_write else None
+        scan = _pre_write_scan(store, wsid, payload, unaimed=position_policy is not None, allow_class_key=allow_class_key)
         store._guard_class_keyed_write(wsid, payload, allow_class_key=allow_class_key, scan=scan)
         store._guard_no_conflict(wsid, actor_key)
         if position_policy is not None:
@@ -197,15 +191,8 @@ def upsert_actor(
         # reentrant and this frame already holds it.
         surface = store._ensure_surface_locked(wsid, created_by=updated_by)
         _write_actor(actor)
-        _forget_resurrected_key(surface, actor_key, archived_path, ts=ts)
-        _emit_upserted(
-            store,
-            actor,
-            created=existing is None,
-            item_count=len(items),
-            correlation_id=correlation_id,
-            scan=None if scan is None else scan.with_written(actor),
-        )
+        _settle_written(store, surface, actor, actor_key, created=existing is None, archived_path=archived_path,
+                        ts=ts, item_count=len(items), correlation_id=correlation_id, scan=scan)
     return store.get_actor(wsid, actor_key)
 
 
@@ -295,6 +282,18 @@ def _needs_pre_write_scan(payload: dict[str, Any], *, unaimed: bool, allow_class
     return is_class_keyed_payload(payload)
 
 
+def _pre_write_scan(
+    store: OfficeStore, wsid: str, payload: dict[str, Any], *, unaimed: bool, allow_class_key: bool
+) -> ActorScan | None:
+    """The upsert's one actor scan when a consumer BEFORE the write reads it, else ``None``."""
+    # ONE actor scan per upsert (RT-OFFICE-PATCH-LANE-SCANS-EVERY-UPSERT),
+    # taken here when a pre-write consumer needs it and threaded to the
+    # fence, the unaimed placement and the patch lane; otherwise the patch
+    # lane takes it after the write. Either way the directory is read once.
+    pre_write = _needs_pre_write_scan(payload, unaimed=unaimed, allow_class_key=allow_class_key)
+    return store.scan_actors(wsid) if pre_write else None
+
+
 def _place_unaimed(
     request: ActorUpsert, position_policy: OfficePositionPolicy, scan: ActorScan | None
 ) -> list[OfficeItem]:
@@ -375,6 +374,32 @@ def _forget_resurrected_key(surface: OfficeSurface, actor_key: str, archived_pat
         surface.updated_at = ts
         _write_surface(surface)
     archived_path.unlink(missing_ok=True)
+
+
+def _settle_written(
+    store: OfficeStore,
+    surface: OfficeSurface,
+    actor: OfficeActor,
+    actor_key: str,
+    *,
+    created: bool,
+    archived_path: Path,
+    ts: Any,
+    item_count: int,
+    correlation_id: str | None,
+    scan: ActorScan | None,
+) -> None:
+    """After the actor file is written, with ``office_lock`` held: the ledger
+    forgets a resurrected key, then the patch and the domain event go out."""
+    _forget_resurrected_key(surface, actor_key, archived_path, ts=ts)
+    _emit_upserted(
+        store,
+        actor,
+        created=created,
+        item_count=item_count,
+        correlation_id=correlation_id,
+        scan=None if scan is None else scan.with_written(actor),
+    )
 
 
 def _emit_upserted(
