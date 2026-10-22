@@ -247,7 +247,7 @@ def manifest() -> dict[str, Any]:
     from ..operator_message import operator_text_admission
     from ..persona_open_chat import OPEN_CHAT_METHOD, OPEN_CHAT_METHOD_PARAMS
     from .board import BOARD_METHOD_PARAMS
-    from .twin_params import COURSE_METHOD_PARAMS, TWIN_METHOD_PARAMS
+    from .twin_params import COURSE_METHOD_PARAMS, PERSONA_TOOLSET_METHOD_PARAMS, TWIN_METHOD_PARAMS
     from ..subagents.params import METHOD_PARAMS as SUBAGENT_METHOD_PARAMS
 
     return {
@@ -261,6 +261,7 @@ def manifest() -> dict[str, Any]:
                 CONVERSATION_LIST_METHOD: CONVERSATION_LIST_METHOD_PARAMS,
                 **TWIN_METHOD_PARAMS,
                 **COURSE_METHOD_PARAMS,
+                **PERSONA_TOOLSET_METHOD_PARAMS,
                 **BOARD_METHOD_PARAMS,
                 **SUBAGENT_METHOD_PARAMS,
             }.items())

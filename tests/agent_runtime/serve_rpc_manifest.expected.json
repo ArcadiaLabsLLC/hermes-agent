@@ -256,6 +256,7 @@
     "runtime.persona.prewarm",
     "runtime.persona.set_model",
     "runtime.persona.toolset.approve",
+    "runtime.persona.toolset.list",
     "runtime.prefab.clear",
     "runtime.prefab.get",
     "runtime.prefab.list",
@@ -785,6 +786,15 @@
       "install_id",
       "client_scope"
     ],
+    "runtime.persona.toolset.approve": [
+      "mode",
+      "persona_id",
+      "reason",
+      "toolset"
+    ],
+    "runtime.persona.toolset.list": [
+      "persona_id"
+    ],
     "runtime.realm.adopt": [
       "credential",
       "dry_run",
@@ -1079,6 +1089,7 @@
     "runtime.persona.prewarm": "read",
     "runtime.persona.set_model": "console",
     "runtime.persona.toolset.approve": "console",
+    "runtime.persona.toolset.list": "console",
     "runtime.prefab.clear": "console",
     "runtime.prefab.get": "console",
     "runtime.prefab.list": "console",

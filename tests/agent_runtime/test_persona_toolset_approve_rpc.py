@@ -56,3 +56,51 @@ def test_a_refused_toolset_and_a_bad_mode_are_typed(home, monkeypatch):
     _edition(monkeypatch, True)
     assert _call("grant", "discord")["error"]["data"]["reason"] == "toolset_no_platform"
     assert _call("allow")["error"]["code"] == ERR_INVALID_PARAMS
+
+
+# ``runtime.persona.toolset.list`` — the approve verb's read (RT-PERSONA-TOOLSET-APPROVALS-READ).
+# Killing mutation: answer ``granted`` from the profile's list instead of the record -> the not-granted test reds.
+
+
+def _list(persona_id: str = "neko") -> dict:
+    return rpc.toolset_list("r", {"persona_id": persona_id})
+
+
+def _offer(reply: dict, toolset: str = "terminal") -> dict:
+    return next(row for row in reply["result"]["toolsets"] if row["toolset"] == toolset)
+
+
+def test_list_reports_a_granted_toolset(home, monkeypatch):
+    _edition(monkeypatch, True)
+    _call("grant")
+    reply = _list()
+    assert reply["result"]["edition_not_bundled"] is False and reply["result"]["persona_id"] == "neko"
+    assert _offer(reply) == {"toolset": "terminal", "granted": True}
+    assert method_tier("runtime.persona.toolset.list") == "console"
+
+
+def test_list_reports_an_offered_toolset_not_granted(home, monkeypatch):
+    _edition(monkeypatch, True)
+    reply = _list()
+    assert _offer(reply) == {"toolset": "terminal", "granted": False}
+    assert "discord" not in {row["toolset"] for row in reply["result"]["toolsets"]}  # no platform: not offered
+    assert not any(row["granted"] for row in reply["result"]["toolsets"])
+
+
+def test_list_on_the_developer_edition_offers_nothing(home, monkeypatch):
+    _edition(monkeypatch, False)
+    assert _list()["result"] == {"persona_id": "neko", "edition_not_bundled": True, "toolsets": []}
+
+
+def test_list_for_an_unknown_persona_is_refused(home, monkeypatch):
+    from agent_runtime.store import AgentStore
+
+    def missing(self, pid):
+        raise KeyError(pid)
+
+    _edition(monkeypatch, True)
+    monkeypatch.setattr(AgentStore, "get", missing)
+    reply = _list("ghost")
+    assert reply["error"]["code"] == ERR_CONFLICT
+    assert reply["error"]["data"]["reason"] == "persona_not_found"
+    assert _list("")["error"]["code"] == ERR_INVALID_PARAMS

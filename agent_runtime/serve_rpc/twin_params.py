@@ -12,6 +12,7 @@ __all__ = [
     "CHARACTERS_METHOD_PARAMS",
     "CHAT_VERB_METHOD_PARAMS",
     "COURSE_METHOD_PARAMS",
+    "PERSONA_TOOLSET_METHOD_PARAMS",
     "HEALTH_METHOD_PARAMS",
     "REALM_METHOD_PARAMS",
     "TWIN_METHOD_PARAMS",
@@ -61,6 +62,12 @@ REALM_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
 COURSE_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     "runtime.course.checkout": ("credential",),
     "runtime.course.commit": ("branch", "credential", "deletes", "files", "message", "persona_id", "persona_name"),
+}
+
+#: ``runtime.persona.toolset.*`` (``serve_rpc/console_operations.py``) — method-lane-only, no argv twin.
+PERSONA_TOOLSET_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
+    "runtime.persona.toolset.approve": ("mode", "persona_id", "reason", "toolset"),
+    "runtime.persona.toolset.list": ("persona_id",),
 }
 
 #: Every twin family's rows, merged; the manifest publishes this.
