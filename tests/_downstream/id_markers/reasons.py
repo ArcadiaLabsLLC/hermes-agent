@@ -43,8 +43,9 @@ SPAWNS_GATEWAY_LOOKALIKE_MARK = "spawns_gateway_lookalike"
 #: process table and needs it to hold no hermes gateway (``pytest_runtest_setup``).
 NO_LIVE_GATEWAY_MARK = "requires_no_live_gateway"
 #: A file the gate directory (``docs/agent-runtime-harness/11-gate-directory.md``) lists;
-#: ``tests/tooling/test_gate_directory_current.py`` enumerates the files that carry it.
-GATE_MARK = "gate"
+#: spelled in ``scripts/gate_mark.py``, the one reader of it (the gate directory's
+#: enumeration and the bundled scope's chain sample both ask it), and re-exported here.
+from scripts.gate_mark import GATE_MARK  # noqa: E402
 
 _PATH_SPELLING = (
     "upstream interpolates a Windows tmp_path into a JSON string literal "
