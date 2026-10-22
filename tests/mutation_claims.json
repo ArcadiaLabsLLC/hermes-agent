@@ -1455,8 +1455,8 @@
       "path": "agent_runtime/office_store/actor_writes.py",
       "symbol": "_place_unaimed",
       "operator": "discard-resolved-slot",
-      "find": "            position=position_policy(store.scan_actors(wsid)),",
-      "replace": "            position=(position_policy(store.scan_actors(wsid)) and (0.0, 0.0)),",
+      "find": "            position=position_policy(scan),",
+      "replace": "            position=(position_policy(scan) and (0.0, 0.0)),",
       "test": [
         "{python}",
         "-m",
@@ -1470,8 +1470,8 @@
       "path": "agent_runtime/office_store/actor_writes.py",
       "symbol": "_place_unaimed",
       "operator": "unwrap-scan-at-the-seam",
-      "find": "position=position_policy(store.scan_actors(wsid)),",
-      "replace": "position=position_policy(store.scan_actors(wsid).actors),",
+      "find": "position=position_policy(scan),",
+      "replace": "position=position_policy(scan.actors),",
       "test": [
         "{python}",
         "-m",
