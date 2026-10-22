@@ -1001,3 +1001,4 @@ tests/e2e/core/upgrade/test_profile_update_cron.py · upstream: the whole file f
 tests/e2e/core/upgrade/test_update_userstate_import.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · 4d04303818
 tests/e2e/core/upgrade/test_update_userstate_realistic.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · 4d04303818
 tests/e2e/core/upgrade/test_upgrade_path.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · 4d04303818
+tests/tui_gateway/test_multi_client_fanout.py::test_overflow_closes_only_the_slow_peer_and_healthy_keeps_streaming · upstream: nondeterministic on the pure tag v0.22.4 (pass then red; classify_reds_on_tag 2026-10-22) · 4d04303818

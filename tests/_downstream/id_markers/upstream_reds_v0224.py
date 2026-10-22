@@ -19,6 +19,7 @@ _REASON = "red on pure upstream tag v0.22.4 4d04303818 on Windows (2026-10-22 re
 _NODES = (
         'tests/agent/lsp/test_client_e2e.py::test_reader_failure_retires_client_and_rejects_later_work[clean_eof]',
         'tests/test_live_system_guard_self_test.py::test_host_gateway_start_blocked_but_container_exec_allowed',
+        'tests/gateway/test_session_policy.py::test_launch_options_reach_the_owner_frozen_and_hooks_consented',
         'tests/agent/test_memory_provider_caller_profile.py::test_call_from_another_profiles_scope_is_refused',
         'tests/agent/test_memory_provider_caller_profile.py::test_lifecycle_hooks_from_another_profiles_scope_are_refused',
         'tests/agent/test_memory_provider_caller_profile.py::test_multiplexed_call_with_no_known_profile_is_refused',
