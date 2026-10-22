@@ -422,10 +422,11 @@ def test_a_chat_effort_cannot_change_unsettled_work(placed_agent, catalog):
 
 #: auth.json reads per picker open, ratcheted (RT-PICKER-AUTH-REREAD, lane w1021j-chat, 2026-10-21):
 #: 327 before the credential-pool snapshot scope, 235 with it (95 load_pool calls collapse to one load
-#: per distinct provider). The rest are direct ``_load_auth_store`` reads in upstream's
-#: ``model_switch_providers._auth_store_has_provider`` (93) / ``_raw_pool_usable`` (23), which the
-#: pool memo does not cover. Lower this when they move; never raise it.
-PICKER_AUTH_READS_BAR = 240
+#: per distinct provider). Lane w1022a-upstream (RT-PICKER-AUTH-DIRECT-READS, 2026-10-22): 116-120 once
+#: the same scope memoises upstream's read-only probes ``model_switch_providers._auth_store_has_provider``
+#: (93) / ``_raw_pool_usable`` (23) to one read per build. The rest are the distinct-provider pool loads
+#: (``read_credential_pool`` ~57, ``_seed_from_singletons``) and a handful of others. Never raise it.
+PICKER_AUTH_READS_BAR = 120
 
 
 def test_a_picker_open_reads_auth_json_once_per_provider_pool(placed_agent, catalog, monkeypatch):
