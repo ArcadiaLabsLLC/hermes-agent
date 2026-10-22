@@ -78,11 +78,13 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 from typing import Optional
 
 __all__ = [
     "denotes_same_file",
     "posix_match_forms",
+    "shell_path_operand",
     "windows_spelling_of_msys_path",
 ]
 
@@ -93,6 +95,12 @@ __all__ = [
 _MSYS_DRIVE_PATH = re.compile(r"/([A-Za-z])/(.+)", re.DOTALL)
 
 _IS_WINDOWS = os.name == "nt"
+
+#: A Windows drive-absolute path, either separator.
+_DRIVE_PATH = re.compile(r"[A-Za-z]:[\\/]")
+
+#: The attached-option head a path operand may carry (``-C<dir>``, ``--work-tree=<dir>``).
+_PATH_OPTION_HEAD = re.compile(r"-C|--[A-Za-z][A-Za-z-]*=")
 
 
 def posix_match_forms(path: str) -> tuple[str, ...]:
@@ -239,3 +247,31 @@ def denotes_same_file(a: str, b: str) -> bool:
     if right is None:
         return False
     return left == right
+
+
+def shell_path_operand(raw_word: str) -> Optional[str]:
+    """The drive path a raw shell word hands its command, spelled with forward slashes, or None.
+
+    A detector that collapses shell quoting for COMMAND words drops every backslash, so
+    ``cd "X:\a\b"`` reached the self-repo guard as ``X:ab`` — a relative path that does not
+    exist — and the command was judged against the session's cwd instead of ``X:/a/b``
+    (RT-SELF-REPO-GUARD-WINDOWS-PATHS). This unquotes the word the way bash does (backslashes
+    survive inside single and double quotes; unquoted, the shell itself eats them) and answers
+    only for a drive-absolute path or, on Windows, its Git-Bash spelling ``/x/…`` — optionally
+    behind an attached option head (``-C``, ``--work-tree=``). Anything carrying an expansion
+    (``$``, a backtick) is not a literal path and answers None, as does every other word.
+    """
+    try:
+        tokens = shlex.split(raw_word, posix=True)
+    except ValueError:
+        return None
+    if len(tokens) != 1 or "$" in tokens[0] or "`" in tokens[0]:
+        return None
+    word = tokens[0]
+    head_match = _PATH_OPTION_HEAD.match(word)
+    head = head_match.group(0) if head_match else ""
+    path = word[len(head):]
+    if _DRIVE_PATH.match(path):
+        return head + path.replace("\\", "/")
+    native = windows_spelling_of_msys_path(path)
+    return head + native.replace("\\", "/") if native else None
