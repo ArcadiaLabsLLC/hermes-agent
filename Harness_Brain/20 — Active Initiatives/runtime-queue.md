@@ -551,6 +551,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams
 
+### Filed on arrival — 2026-10-22 (upstream PR audit, lanes up-audit-a/b/c/open)
+
+- **`RT-LEDGER-SKILL-SEARCH-PR-132423` — the footprint ledger's `tools/skills_tool.py` row omits #132423 (OPEN, continues closed #37552), the upstream candidate that would retire the plugin's `skill_search` register_tool** · seam / `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md` · evidence `gh pr view 132423` (OPEN), `plugins/eternia-harness/__init__.py::_handle_skill_search` · READY 2026-10-22
+
 ### Filed on arrival — 2026-10-21 (lane w1021h-daily, `integration/upstream-daily` `4ce03587da`)
 
 - **`RT-UPSTREAM-DOORS-SKILLS-PUBLISHED` — upstream published find_all_skills/sort_skills/locate_skill/skill_lookup_path_error/skill_search_dirs (ruling-Q7 widening done); retire the held widening ledger row and carry the daily `3e885680e5`/`df1c808a27` at the v0.22.3 release merge** · seam / `agent_runtime/_upstream_doors.py` · evidence `3e885680e5` (`integration/upstream-daily`) · BLOCKED 2026-10-21: upstream — v0.22.3's release merge into main (owner holds it on `integration/upstream-daily`)
