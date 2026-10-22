@@ -24,6 +24,10 @@ tags: [queue, program/fork-hygiene]
 
 
 
+## Filed on arrival — 2026-10-22 (land w1022b)
+
+- **`FH-MAIN-REDS-1022-W1021J` — main carries 3 gate reds that wave w1021j landed and its own landing gate (land/w1021j, 489 files) did not catch: office S2 `322c7055f7` moved `_place_unaimed` out from under the hh10 mutation claims and made `office_store/actor_writes.py::upsert_actor` a NEW legibility-floor breach; bundled B2 `6b71ebd7f7` grew `persona_chat_actor_prewarm.py::_prepare` 161→162 and `persona_runtime.py::GPTPersonaRuntime.mission_chat_reply` 257→258; the s56 ledger entry `schema_version` now has a reader** · fork / `tests/scripts/test_mutation_claims_still_anchor.py`, `tests/tooling/test_function_legibility_floor.py`, `tests/agent_runtime/test_s56_runtime_config_reader_gate.py` · evidence: land-w1022b `--confirm-red` (red alone on HEAD and origin/main 8faf4f7c7a); `git log` attribution 2026-10-22 · READY 2026-10-22: re-anchor the hh10 claims, lift `upsert_actor` and the two grown functions under the floor, drop the stale s56 entry; then find why land/w1021j's gate selected none of the three gates (a cached-green drift gate is a CACHE AUDIT defect, `Running the tests.md`)
+
 ## Filed on arrival — 2026-10-22 (land w1022a)
 
 - **`FH-UP-PR-128649-CERTIFI-ROTATION` — PR #128649 (shared TLS platform context) cannot take upstream/main 81a55437f3: it returns `_shared_context(None)` whenever truststore is installed, skipping upstream's new `_default_verify()` certifi re-resolve, so 4 of upstream's new certifi-rotation tests in `tests/agent/test_ssl_verify.py` fail (they pass on upstream alone); the branch is untouched** · fork / upstream PR branches · evidence: lane upr-1 2026-10-22 · BLOCKED 2026-10-22: owner decision — rework the PR to run upstream's certifi re-resolve before sharing the context, or close it? · Recommend: rework it
