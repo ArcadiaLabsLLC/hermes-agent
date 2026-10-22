@@ -39,7 +39,7 @@ MODELS = {
     'ClarifyRequestParams': {'extra': 'forbid', 'fields': {'session_id': None, 'questions': {'model': 'ClarifyQuestion', 'arity': 'list'}, 'answers': None}, 'names': {'session_id': 'session_id', 'questions': 'questions', 'answers': 'answers'}, 'required': ['session_id', 'questions']},
     'ClarifyResult': {'extra': 'forbid', 'fields': {'answers': None, 'outcome': None}, 'names': {'answers': 'answers', 'outcome': 'outcome'}, 'required': []},
     'CliExecParams': {'extra': 'forbid', 'fields': {'argv': None, 'timeout': None, 'profile': None}, 'names': {'argv': 'argv', 'timeout': 'timeout', 'profile': 'profile'}, 'required': ['argv']},
-    'ClientCapabilitiesParams': {'extra': 'forbid', 'fields': {'server_requests': None}, 'names': {'server_requests': 'server_requests'}, 'required': []},
+    'ClientCapabilitiesParams': {'extra': 'forbid', 'fields': {'server_requests': None, 'desktop_local': None}, 'names': {'server_requests': 'server_requests', 'desktop_local': 'desktop_local'}, 'required': []},
     'ClipboardPasteParams': {'extra': 'forbid', 'fields': {'session_id': None, 'profile': None}, 'names': {'session_id': 'session_id', 'profile': 'profile'}, 'required': ['session_id']},
     'CommandDispatchParams': {'extra': 'forbid', 'fields': {'name': None, 'arg': None, 'session_id': None, 'profile': None}, 'names': {'name': 'name', 'arg': 'arg', 'session_id': 'session_id', 'profile': 'profile'}, 'required': ['name']},
     'CommandResolveParams': {'extra': 'forbid', 'fields': {'name': None, 'profile': None}, 'names': {'name': 'name', 'profile': 'profile'}, 'required': []},
