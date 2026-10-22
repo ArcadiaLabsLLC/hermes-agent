@@ -625,10 +625,12 @@ def test_a_stalled_planning_child_is_stopped_and_the_build_says_retryable(monkey
     """The closure step must not turn load into a hard failure (runtime-queue row, 2026-10-15): the
     child is stopped only when its progress report stands still, and the build exits
     ``EXIT_RETRYABLE`` with a ``RETRYABLE:`` line. Positive control: a child that keeps reporting
-    NEW progress for longer than the stall window finishes and is read.
+    NEW progress for longer than the stall window finishes and is read, and so does one whose
+    first report comes later than the stall window (start-up on a loaded box is not a stall).
 
-    Killing mutation: reset the stall clock on any progress line, not only a changed one -> the
-    frozen child is stopped by the cap instead and the "no progress" assertion reds."""
+    Killing mutations: reset the stall clock on any progress line, not only a changed one -> the
+    frozen child is stopped by the cap instead and the "no progress" assertion reds; start the
+    stall clock at spawn -> the late-starting child is stopped ``(last: None)``."""
     import sys
 
     import scripts.bundle_profile_package as pkg
@@ -636,6 +638,7 @@ def test_a_stalled_planning_child_is_stopped_and_the_build_says_retryable(monkey
     frozen = ("import sys, time\n"
               "while True:\n    print('progress walk parses=7', file=sys.stderr, flush=True); time.sleep(0.1)\n")
     moving = ("import sys, time\n"
+              "time.sleep(2)\n"
               "for n in range(30):\n    print(f'progress walk parses={n}', file=sys.stderr, flush=True); time.sleep(0.1)\n"
               "print('answer')\n")
     with pytest.raises(pkg.PlanStalled, match="no progress for 1s"):
