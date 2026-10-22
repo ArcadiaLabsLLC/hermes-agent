@@ -24,23 +24,10 @@ tags: [queue, program/fork-hygiene]
 
 
 
-## Filed on arrival — 2026-10-21 (lane w1021i-hygiene)
+## Filed on arrival — 2026-10-22 (land w1022a)
 
-- **`FH-MAIN-IMPORTER-REDS-1021` — main d087df7035 carries unrowed reds in the importer set of hermes_cli.config/tools/tui_gateway: test_models_relay_base_url.py (5), test_compaction_kill9.py (2), test_mcp_catalog.py::test_sha_ref_skips_branch_attempt, tests/e2e/core/upgrade/* (3 collection errors), test_gitspawn_config_injection.py timeout; flaky test_skill_commands.py::test_scan_never_publishes_a_partially_built_map and test_owned_process_cleanup.py timeouts** · fork suite · evidence: lane w1021i-hygiene base re-run (same reds on d087df7035 and 28f654079a) · READY 2026-10-21: left after land/w1021j — tests/e2e/core/compaction/test_compaction_kill9.py: red on an idle box (both kill9 nodes); tests/security/test_gitspawn_config_injection.py: timeout on an idle box (pre-existing by --confirm-red on 9f8a6ee903); test_owned_process_cleanup.py and tests/agent/test_skill_commands.py green alone · **TAKEN 2026-10-22 w1022a-tests**
-
-## Filed on arrival — 2026-10-22 (upstream PR audit, lanes up-audit-a/b/c/open)
-
-- **`FH-UP-BRANCH-MIDDLEWARE-CHAIN-RETIRE` — local `up/middleware-request-chain` is dead: #128643 landed upstream as `f67d490f71` (in v0.22.2)** · fork / `up/*` branches · evidence `f67d490f71`, PR #128643 closing comment · READY 2026-10-22 · **TAKEN 2026-10-22 w1022a-upstream**
-- **`FH-LEDGER-CLOSED-CARRIES` — `upstream-footprint-ledger.md` § Carried PRs says #121218/#121220/#121221/#121222 are fork-kept carries; the fork holds zero lines of them (upstream absorbed them in bd258480d3/3c08d16ba7/92686159d1/8b7eae99ef, all in v0.22.2)** · fork hygiene / footprint ledger · evidence: `git diff v0.22.2 origin/main` is empty on every file those PRs touched (up-audit-b 2026-10-22) · READY 2026-10-22: rewrite the paragraph to "absorbed or superseded upstream by v0.22.2; nothing carried", and check #121241/#121244/#121246 the same way · **TAKEN 2026-10-22 w1022a-upstream**
-- **`FH-UP-PR-BRANCHES-STALE-V0223` — 14 open upstream PRs no longer apply to upstream/main `81a55437f3` (v0.22.3 changed the same code): #123977, #124190, #124194, #124195, #124210, #125261, #128648, #128649, #128843, #129695, #129702, #129704, #131904, #132423; #129702's `should_stream` motive is partly superseded by upstream's `ProviderProfile.supports_streaming`** · fork / `up/*` and PR branches · evidence: up-audit-open 2026-10-22 (no open PR absorbed; no maintainer comments) · DEFERRED 2026-10-22: the PR branches stay idle while upstream is not taking them (owner 2026-10-21); refresh a branch only when upstream asks, and re-decide #129702 then
-
-## Filed on arrival — 2026-10-21 (lane w1021j-tooling)
-
-- **`FH-CODE-HEALTH-CLI-HOOK-TIMEOUT` — `tests/scripts/test_code_health_cli.py::test_hooks_run_with_msys_path_conversion_disabled` times out (30 s pytest-timeout) alone on HEAD and on origin/main 3587b15155: four hook-driven scripts/check snapshot runs in one test** · fork suite · evidence: lane w1021j-tooling `run_tests_bundled.sh --confirm-red` verdict pre-existing · READY 2026-10-21 · **TAKEN 2026-10-22 w1022a-tests**
-
-## Filed on arrival — 2026-10-21 (lane w1021j-bundle)
-
-- **`FH-PKG-PLANNER-STALL-TEST-LOAD-FLAKE` — `test_a_stalled_planning_child_is_stopped_and_the_build_says_retryable`'s positive control uses stall=1s, and a loaded box starts the child after more than 1 s** · fork tests / `tests/scripts/test_bundle_profile_package.py` · evidence: w1021j-bundle final run, attempt 1 red `no progress for 1s (last: None)` · READY 2026-10-21: count the stall clock from the first progress line, or raise the control's stall · **TAKEN 2026-10-22 w1022a-tests**
+- **`FH-UP-PR-128649-CERTIFI-ROTATION` — PR #128649 (shared TLS platform context) cannot take upstream/main 81a55437f3: it returns `_shared_context(None)` whenever truststore is installed, skipping upstream's new `_default_verify()` certifi re-resolve, so 4 of upstream's new certifi-rotation tests in `tests/agent/test_ssl_verify.py` fail (they pass on upstream alone); the branch is untouched** · fork / upstream PR branches · evidence: lane upr-1 2026-10-22 · BLOCKED 2026-10-22: owner decision — rework the PR to run upstream's certifi re-resolve before sharing the context, or close it? · Recommend: rework it
+- **`FH-TEST-CHILD-PYTHON-SPAWN-COST` — under the fork runner a `sys.executable scripts/check` child costs 6–9 s (`test_unknown_or_empty_selector_is_a_usage_error` 6.5–8.9 s, vs 1.0 s for `scripts/check --help` outside the runner), so the scripts/check CLI file ranged 103–592 s alone and needs per-test bounds** · fork suite · evidence: lane w1022a-tests junit times 2026-10-22, commit `5b2bbf4c57` body · NEEDS PLAN 2026-10-22: measure child start-up inside vs outside the runner (env, temp root, guards) before raising any more bounds
 
 ## Filed on arrival — 2026-10-21 (lane w1021h-tooling, branch `w1021h/tooling`)
 
