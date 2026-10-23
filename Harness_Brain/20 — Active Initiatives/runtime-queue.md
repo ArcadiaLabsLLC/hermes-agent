@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-23 (TODO / Work connection audit)
+
+- **`RT-TODO-REJECTED-WRITE-PROJECTION` — A rejected todo_list write replaces Agent Console's displayed plan with the rejected input** · fork / TODO trace projection · evidence: `agent_runtime/profile_runner/tool_payloads.py::_todo_state_payload` falls back to invocation.todos when the result is an error; `_tool_finished_payload` attaches that snapshot even on failure, while `tools/todo_tool.py::TodoStore.write` retains the previous list · reproduced 2026-10-23 on `3253190455`: empty content is rejected, store keeps item existing, projected todo_state instead contains item rejected with (no description) · emit only accepted authoritative checklist state; regression: rejected writes leave the prior plan intact in live and persisted lanes, explicit successful empty still clears it · READY 2026-10-23
+
 ### Filed on arrival — 2026-10-22 (land w1022b)
 
 - **`RT-PHONE-SKILLS-NONE-MARKED` — no tracked skill names `platforms: [android|ios]`, so the phone bundle ships zero skills** · fork / `agent_runtime/bundle_profiles/bundled-phone.yaml` skill_platforms · evidence: commit `016de8a203` body · RULED 2026-10-22: owner — mark the chat-path skills `platforms: [..., ios, android]` in one lane · READY 2026-10-22
