@@ -120,6 +120,34 @@ def synced(workspace_id: str, *, stale_ok: bool = False, slot: str | None = None
                   any(writer.stale for writer in writers.values()))
 
 
+def observed(workspace_id: str, *, slot: str | None = None) -> Synced:
+    """An OBSERVATION read (RT-WORK-OBSERVATION-READ): the boards as hermes's worktrees hold them now.
+
+    No ``normalize_default_brain``, no ``Writer.sync`` (no worktree add, fetch, reset or clean), no row
+    write: a board is read from its existing worktree only, and one without a worktree is listed with no
+    queues. ``stale`` is true unless every read worktree sits at its local tip; a remote tip is never
+    fetched here, so "not stale" means "at the last fetched tip", never "at the remote".
+    """
+
+    writers: dict[str, Writer] = {}
+    stale = False
+    for board in boards_store.boards(workspace_id):
+        if not (board.bound_here and board.brain_dir and slot in (None, board.slot)):
+            continue
+        writer = writer_for(board)
+        try:
+            present = (writer.worktree / ".git").exists()
+        except WorkRefused:
+            present = False
+        if not present:
+            stale = True
+            continue
+        writers[board.slot] = writer
+        stale = stale or not writer.at_tip()
+    roots = {name: writer.worktree for name, writer in writers.items()}
+    return Synced(boards_store.boards(workspace_id, read_roots=roots), writers, stale)
+
+
 def _view_board(view: Synced, slot: Any) -> Board:
     board = next((b for b in view.boards if b.slot == slot), None)
     if board is None or not board.bound_here:
@@ -225,7 +253,8 @@ def board_wire(board: Board, writer: Writer | None) -> dict[str, Any]:
     return {"slot": board.slot, "label": "Work" if board.is_default else board.slot, "brain_dir": board.brain_dir,
             "bound_here": board.bound_here, "local": board.local,
             "is_default": board.is_default, "default_branch": board.default_branch,
-            "committed_at": writer.note_committed_at(board.brain_dir) if writer and board.brain_dir else None}
+            "committed_at": writer.note_committed_at(board.brain_dir) if writer and board.brain_dir else None,
+            "readable": writer is not None}
 
 
 def _row_now(writer: Writer, ref: RowRef) -> Row | None:
@@ -257,7 +286,8 @@ def list_work(scope, params, *, context=None):
     if params.get("view", "all") not in ("all", "conversation") or (
             params.get("view") == "conversation" and context is None):
         raise WorkRefused(Reason.INVALID)
-    view = synced(scope.workspace_id, stale_ok=params.get("stale_ok") is True)
+    view = (observed(scope.workspace_id) if params.get("observe") is True
+            else synced(scope.workspace_id, stale_ok=params.get("stale_ok") is True))
     keep = _row_filter(params, context)
     slot = params.get("slot")
     listed = [b for b in view.boards if slot is None or b.slot == slot]
@@ -283,7 +313,8 @@ def _queues(board: Board, writer: Writer | None, keep, context) -> list[dict[str
 
 def inspect(scope, params, *, context=None):
     task_id = text(params.get("task_id"))
-    view = synced(scope.workspace_id, slot=params.get("slot"), stale_ok=params.get("stale_ok") is True)
+    view = (observed(scope.workspace_id, slot=params.get("slot")) if params.get("observe") is True
+            else synced(scope.workspace_id, slot=params.get("slot"), stale_ok=params.get("stale_ok") is True))
     board = _view_board(view, params.get("slot"))
     writer = view.writers[board.slot]
     row = find(boards_store.rows(scope.workspace_id, slot=board.slot, read_roots=view.read_roots), task_id)

@@ -310,6 +310,13 @@ class Writer:
                 raise WorkRefused(Reason.WORKTREE_DIRTY, self.board.slot)
         self._tip_sha = self._must(["rev-parse", "HEAD"], Reason.BRANCH_MISSING, repo=self.worktree).strip()
 
+    def at_tip(self) -> bool:
+        """Read-only: the existing worktree's HEAD is the local tip (no fetch, no reset)."""
+
+        head = self._git(["rev-parse", "-q", "--verify", "HEAD"], repo=self.worktree)
+        tip = self._git(["rev-parse", "-q", "--verify", self.tip], repo=self.worktree)
+        return head.returncode == 0 and tip.returncode == 0 and head.stdout.strip() == tip.stdout.strip()
+
     def sync(self, *, stale_ok: bool = False) -> Path:
         """Steps 0–3: the worktree at the tip; ``stale`` is set when a tolerated fetch failed."""
 

@@ -36,6 +36,9 @@ _WRITES = {"start": store.start, "assign": store.assign, "claim": store.claim, "
            "set_status": store.set_status, "done": store.done, "create_brain": store.create_brain,
            "lend_skills": _lend_skills}
 _READS = {"list": store.list_work, "inspect": store.inspect}
+#: The operations that take ``observe: true`` — a read with no provisioning, normalization, promotion,
+#: worktree sync or row write (RT-WORK-OBSERVATION-READ); advertised as ``capabilities.observe``.
+OBSERVE_OPERATIONS = ("capabilities", "list", "inspect")
 
 
 def execute(operation, params, caller):
@@ -45,7 +48,7 @@ def execute(operation, params, caller):
     if not install:
         raise WorkRefused(Reason.UNAVAILABLE)
     if operation == "capabilities":
-        return _work_capabilities(install)
+        return _work_capabilities(install, observe=params.get("observe") is True)
     if operation != "context":
         _require_git()
     return _scoped_work_request(operation, params, caller, install)
@@ -116,11 +119,32 @@ def _default_brain_state(workspace_id):
         return {"state": "unavailable", "reason": Reason.UNAVAILABLE.value}
 
 
-def _work_capabilities(install):
+def _observed_brain_state(workspace_id):
+    """``capabilities{observe: true}.default_brain.<ws>``: the same words, read without acting.
+
+    No creation, promotion or move (RT-WORK-OBSERVATION-READ). What the lifecycle WOULD do next is said
+    as its own word: ``missing`` (a full read would create the default brain) and ``move_pending`` (a
+    full read would move its rows into the bound repo brain).
+    """
+    from agent_runtime.work_store.board import declared_boards, default_board, needs_default_brain
+    from agent_runtime.work_store.default_brain import remote_state
+
+    try:
+        live = default_board(workspace_id) is not None
+        if not needs_default_brain(declared_boards(workspace_id)):
+            return {"state": "move_pending"} if live else _worded(remote_state(workspace_id), "absent")
+        return _worded(remote_state(workspace_id), "present") if live else {"state": "missing"}
+    except (NotFound, FileNotFoundError, KeyError, ValueError, OSError):
+        return {"state": "unavailable", "reason": Reason.UNAVAILABLE.value}
+
+
+def _work_capabilities(install, *, observe=False):
     ids = workspace_ids()
+    brain_state = _observed_brain_state if observe else _default_brain_state
     return {"version": VERSION, "install_id": install, "execution_identity_guard": True, "chat_scopes": True,
+            "observe": list(OBSERVE_OPERATIONS),
             "owners": [WorkScope(install, ws).wire(_workspace_label(ws)) for ws in ids],
-            "default_brain": {ws: _default_brain_state(ws) for ws in ids},
+            "default_brain": {ws: brain_state(ws) for ws in ids},
             "limitations": list(LIMITATIONS)}
 
 
