@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-24 (launcher lane w1024q-mc)
+
+- **`RT-LENS-SNAPSHOT-SECTION-NO-PUSH-ON-STORE-WRITE` — find whether a Lens store write (an Episode opened by a pushed alert, a monitor sealed) triggers any push-lane snapshot update; live, the snapshot's `lens` section stayed at 3 monitors / no open Episode after both (the launcher panel now re-reads `runtime.lens.fold` on open, launcher `MC-LENS-PANEL-STALE-EPISODES`)** · `agent_runtime/snapshot/sections.py` · evidence `EterniaLauncher/docs/stages/qa-reboot/LIVEQA_W1023P_live_2026-10-24.md` §QA-LENS-ROUTE-SECRET-HANDOFF · READY 2026-10-24
+
 ### Filed on arrival — 2026-10-23 (TODO / Work connection audit)
 
 - **`RT-TODO-REJECTED-WRITE-PROJECTION` — A rejected todo_list write replaces Agent Console's displayed plan with the rejected input** · fork / TODO trace projection · evidence: `agent_runtime/profile_runner/tool_payloads.py::_todo_state_payload` falls back to invocation.todos when the result is an error; `_tool_finished_payload` attaches that snapshot even on failure, while `tools/todo_tool.py::TodoStore.write` retains the previous list · reproduced 2026-10-23 on `3253190455`: empty content is rejected, store keeps item existing, projected todo_state instead contains item rejected with (no description) · emit only accepted authoritative checklist state; regression: rejected writes leave the prior plan intact in live and persisted lanes, explicit successful empty still clears it · READY 2026-10-23
