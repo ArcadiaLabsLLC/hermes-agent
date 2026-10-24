@@ -60,7 +60,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-21 (lane w1021h-cli, branch `w1021h/cli`)
 
-- **`RT-RESOLUTION-HOME-DELEGATE-AFTER-MERGE` — after the v0.22.3 merge, `agent_runtime/resolution.py::_platform_default_hermes_home` calls upstream's env-pure `hermes_constants._platform_default_hermes_home(environ, user_home)` instead of restating it** · fork / `agent_runtime/resolution.py` · evidence `c1e905df98` (branch `w1021h/cli`) · READY 2026-10-22: v0.22.4 merged at `97c9dc496f` · **TAKEN 2026-10-24 w1024t-hermes**
 
 ### Filed on arrival — 2026-10-21 (launcher lane w1021f-qa-isolation)
 

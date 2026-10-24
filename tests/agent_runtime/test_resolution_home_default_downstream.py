@@ -30,3 +30,18 @@ def test_the_suffix_is_read_from_the_mapping_not_the_process(monkeypatch):
     monkeypatch.delenv("HERMES_DATA_DIR_SUFFIX", raising=False)
     env = {**os.environ, "HERMES_DATA_DIR_SUFFIX": "-dev"}
     assert resolution._platform_default_hermes_home(env).name in {"hermes-dev", ".hermes-dev"}
+
+
+def test_the_runtime_default_home_delegates_to_the_env_pure_authority(monkeypatch):
+    """RT-RESOLUTION-HOME-DELEGATE-AFTER-MERGE: one rule, upstream's — not a parity-pinned copy.
+    Killing mutation: restore the restated body in ``resolution._platform_default_hermes_home`` -> red."""
+    seen = []
+
+    def authority(environ, user_home):
+        seen.append(environ)
+        return hermes_constants.Path("sentinel-home")
+
+    monkeypatch.setattr(hermes_constants, "_platform_default_hermes_home", authority)
+    env = {"HERMES_DATA_DIR_SUFFIX": "-x"}
+    assert resolution._platform_default_hermes_home(env) == hermes_constants.Path("sentinel-home")
+    assert seen == [env]
