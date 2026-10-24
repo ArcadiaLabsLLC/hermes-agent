@@ -28,6 +28,10 @@ create — HERMES seeds them, not the launcher" (owner, 2026-10-03).
     Needs: either the seed reaches every home that reads skills, or the carry stays for
     unbound homes. The value would be home-relative (`external_dirs` entries resolve against
     `HERMES_HOME`), never an absolute path.
+    **RULED 2026-10-22 (owner): line 4 is not seeded; the shared-root carry in
+    `agent/skill_utils.py` stays for the homes the sweep never seeds** (root/head home, unbound
+    profiles). Recorded 2026-10-24, lane w1024t-hermes, row `RT-SEED-LINE4-UNBOUND-HOMES`; no
+    code change, and S3's line-4 carry retirement is off the table.
   - Line 5 — DESIGN: nothing computes a placement's surface-incompatible skill set; only
     `agent_runtime/skill_view_result.py` refuses per call.
   - Line 6 — DESIGN: no `eternia-persona` toolset is registered (the lane composite is
@@ -175,6 +179,12 @@ planned from the code, in the `persona_seed_defaults.py` writer S0 named (mint +
 
 Line 5: READY with the stage above. Lines 6 and 8: BLOCKED owner decision (recommendations: strike
 both). No other line of this plan changes.
+
+**RULED 2026-10-22 (owner): lines 6 and 8 are struck** (recorded 2026-10-24, lane w1024t-hermes, row
+`RT-SEED-LINES-6-8-STRIKE`). Line 6: not seeded, by design — the lane default (`harness_core`,
+`declared_lane_toolsets` → `lane_default`) is the persona toolset; door-fit #123979 keeps its
+`add_to_toolset` residue. Line 8: not seeded — the envelope is runtime (classes + grants), not a static
+`approvals.deny`; door-fit #123977's PR stands for runtime envelopes. No code changes.
 
 ## Blast radius
 

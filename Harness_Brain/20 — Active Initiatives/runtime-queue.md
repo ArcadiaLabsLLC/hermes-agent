@@ -41,11 +41,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-22 (land w1022b)
 
-- **`RT-PHONE-SKILLS-NONE-MARKED` — no tracked skill names `platforms: [android|ios]`, so the phone bundle ships zero skills** · fork / `agent_runtime/bundle_profiles/bundled-phone.yaml` skill_platforms · evidence: commit `016de8a203` body · RULED 2026-10-22: owner — mark the chat-path skills `platforms: [..., ios, android]` in one lane · READY 2026-10-22 · **TAKEN 2026-10-24 w1024t-hermes**
+- **`RT-PHONE-SKILLS-NONE-MARKED` — no tracked skill names `platforms: [android|ios]`, so the phone bundle ships zero skills** · fork / `agent_runtime/bundle_profiles/bundled-phone.yaml` skill_platforms · evidence: commit `016de8a203` body · RULED 2026-10-22: owner — mark the chat-path skills `platforms: [..., ios, android]` in one lane · BLOCKED 2026-10-24: owner decision — every tracked skill is upstream-owned (`skills/*/SKILL.md`; the fork carries none), so the ruled marking is an in-place upstream edit the fork rule forbids; carry the frontmatter edits, or a seam? · Recommend: a fork seam — `bundled-phone.yaml` names the phone skill set (`skill_names:`) and `agent/skill_utils.py::skill_matches_platform` admits a named skill on android/ios through one fork hook; offer the `platforms:` marker upstream as a separate PR
 
 ### Filed on arrival — 2026-10-22 (land w1022a)
 
-- **`RT-PHONE-PILLOW-ANDROID` — the phone closure needs Pillow on both targets and no Pillow release ships an Android wheel, so the Android phone bundle cannot finish (iOS has a wheel)** · fork / phone bundle · plan `docs/agent-runtime-harness/planned/bundled-phone-pool-2026-10-22.md` § Open rulings · RULED 2026-10-22: owner — a fork-built Android Pillow wheel (BeeWare mobile-forge recipe) pinned by URL and hash, psutil's Android pin shape; Pillow stays 12.3.0 · READY 2026-10-22 · **TAKEN 2026-10-24 w1024t-hermes**
+- **`RT-PHONE-PILLOW-ANDROID` — the phone closure needs Pillow on both targets and no Pillow release ships an Android wheel, so the Android phone bundle cannot finish (iOS has a wheel)** · fork / phone bundle · plan `docs/agent-runtime-harness/planned/bundled-phone-pool-2026-10-22.md` § Open rulings · RULED 2026-10-22: owner — a fork-built Android Pillow wheel (BeeWare mobile-forge recipe) pinned by URL and hash, psutil's Android pin shape; Pillow stays 12.3.0 · BLOCKED 2026-10-24: owner decision — the pin needs a URL, i.e. a published wheel (mobile-forge builds on Linux/macOS with the Android NDK, not this Windows box): where is it built and hosted? · Recommend: a manual-dispatch workflow on a standard `ubuntu-latest` runner builds it with mobile-forge and attaches it to a fork release `pillow-android-12.3.0`; the lock pins that asset URL + sha256
 
 ### Filed on arrival — 2026-10-21 (lane w1021j-bundle, branch `w1021j/bundle`)
 
@@ -53,7 +53,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-21 (land w1021i)
 
-- **`RT-SEED-LINES-6-8-STRIKE` — door-fit seed lines 6 (`toolsets:` names an unregistered `eternia-persona` toolset) and 8 (`approvals.deny`: `hard_floor_command_classes()` is empty after R-2, so a static deny refuses what a grant allows) cannot be seeded as written** · fork / persona seed · plan `docs/agent-runtime-harness/planned/persona-create-seed-values-2026-10-15.md` § Amendment 2026-10-21 · RULED 2026-10-22: owner — strike lines 6 and 8 from the seed plan · READY 2026-10-22: record the strike in `persona-create-seed-values-2026-10-15.md` § Amendment 2026-10-21 · **TAKEN 2026-10-24 w1024t-hermes**
 - **`RT-COURSE-AUTHORING-RULINGS` — course authoring stage C3 needs two owner answers: who hands the persona the course credential during a turn, and whether the course installation token may open a PR (the App has contents+metadata only)** · fork / course authoring · plan `docs/agent-runtime-harness/planned/realm-course-subject-authoring-2026-10-21.md` · RULED 2026-10-22: owner — the Launcher hands the course credential inline (hermes holds no player bearer); yes, add `pull_requests: write` to eternia-server-realms · BLOCKED 2026-10-22: owner sitting — grant `pull_requests: write` on the eternia-server-realms GitHub App (C3 ships behind `pull_request_not_permitted` meanwhile)
 
 ### Filed on arrival — 2026-10-21 (lane w1021h-rpc, branch `w1021h/rpc`)
@@ -63,7 +62,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 ### Filed on arrival — 2026-10-21 (lane w1021h-cli, branch `w1021h/cli`)
 
 - **`RT-RESOLUTION-HOME-DELEGATE-AFTER-MERGE` — after the v0.22.3 merge, `agent_runtime/resolution.py::_platform_default_hermes_home` calls upstream's env-pure `hermes_constants._platform_default_hermes_home(environ, user_home)` instead of restating it** · fork / `agent_runtime/resolution.py` · evidence `c1e905df98` (branch `w1021h/cli`) · READY 2026-10-22: v0.22.4 merged at `97c9dc496f` · **TAKEN 2026-10-24 w1024t-hermes**
-- **`RT-SEED-LINE4-UNBOUND-HOMES` — seeding `skills.external_dirs` (line 4) and deleting the shared-root carry in `agent/skill_utils.py` would drop the shared skills root from every home the persona sweep never seeds (root/head home, unbound profiles)** · fork / persona seed · plan `docs/agent-runtime-harness/planned/persona-create-seed-values-2026-10-15.md` § Build status · RULED 2026-10-22: owner — keep the shared-root carry in `agent/skill_utils.py` for homes the sweep never seeds; line 4 is not seeded · READY 2026-10-22: record the ruling in the seed plan; no code change · **TAKEN 2026-10-24 w1024t-hermes**
 
 ### Filed on arrival — 2026-10-21 (launcher lane w1021f-qa-isolation)
 
