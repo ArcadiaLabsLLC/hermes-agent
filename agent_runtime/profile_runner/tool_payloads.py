@@ -413,6 +413,11 @@ def _todo_state_payload(tool_name: str | None, result: Any, invocation: Any) -> 
 
     if (tool_name or "").lower() not in {"todo", "todo_list"}:
         return None
+    if _todo_write_rejected(result):
+        # RT-TODO-REJECTED-WRITE-PROJECTION: a refused write leaves the store's
+        # previous list in place, so the invocation's todos are NOT the plan.
+        # Absent (never the rejected input) keeps the console's prior plan.
+        return None
     todos = _todo_items_from(result)
     if todos is None:
         todos = _todo_items_from(invocation)
@@ -456,6 +461,20 @@ def _collapse_todo_ws(value: Any) -> str:
     reloaded turn-store element carry byte-identical todo text (T9c)."""
 
     return " ".join(str(value or "").replace("\x00", " ").split())
+
+
+def _todo_write_rejected(result: Any) -> bool:
+    """The todo tool refused the write: its result is a ``tool_error`` mapping
+    (``{"error": ...}``) carrying no list. ``TodoStore.write`` leaves the prior
+    list untouched on that path, so nothing about the plan changed."""
+
+    value: Any = result
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            return False
+    return isinstance(value, dict) and bool(value.get("error")) and not isinstance(value.get("todos"), list)
 
 
 def _todo_items_from(source: Any) -> list[Any] | None:
