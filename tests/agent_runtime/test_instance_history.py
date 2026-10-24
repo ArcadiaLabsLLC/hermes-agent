@@ -116,3 +116,37 @@ def test_instance_filter_precedes_page_bound_and_scopes_the_cursor(placed_agent)
     assert read_history(before=cursor)["error"]["data"]["reason"] == "invalid_history_cursor"
     for bad in (7, "", "x" * 201):
         assert read_history(persona_instance_id=bad)["error"]["data"]["reason"] == "invalid_history_query"
+
+
+def test_persona_filter_precedes_page_bound_and_survives_an_instance_restamp(placed_agent):
+    """RT-CONVERSATION-LIST-PERSONA-FILTER: membership is persona-wide, not the bind stamp."""
+
+    own = {create(placed_agent, f"persona-own-{i}") for i in range(2)}
+    restamped = create(placed_agent, "persona-restamped")
+    unstamped = create(placed_agent, "persona-unstamped")
+    foreign = {create(placed_agent, f"persona-foreign-{i}") for i in range(3)}
+    with closing(default_persona_session_db()) as db:
+        db._write_sql("UPDATE sessions SET model_config=json_set(model_config,'$.persona_instance_id',?)"
+                      " WHERE id=?", ("personainst_rebound_elsewhere", restamped))
+        db._write_sql("UPDATE sessions SET model_config=json_remove(model_config,'$.persona_id')"
+                      " WHERE id=?", (unstamped,))
+        for session in foreign:
+            db._write_sql("UPDATE sessions SET model_config=json_set(model_config,'$.persona_id',?)"
+                          " WHERE id=?", ("someone_else", session))
+    page = read_history(limit=1, persona_id=PERSONA)["result"]
+    found = [row["session_id"] for row in page["conversations"]]
+    cursor = page["next_cursor"]
+    while cursor:
+        page = read_history(limit=1, persona_id=PERSONA, before=cursor)["result"]
+        found.extend(row["session_id"] for row in page["conversations"])
+        cursor = page["next_cursor"]
+    assert len(found) == len(set(found)) and set(found) == own | {restamped, unstamped}
+    # Positive control: the instance stamp alone would have dropped the re-stamped chat.
+    by_instance = read_history(persona_instance_id=placed_agent["persona_instance_id"])["result"]
+    assert restamped not in {row["session_id"] for row in by_instance["conversations"]}
+    other = read_history(persona_id="someone_else")["result"]["conversations"]
+    assert {row["session_id"] for row in other} == foreign
+    cursor = read_history(limit=1, persona_id=PERSONA)["result"]["next_cursor"]
+    assert read_history(before=cursor)["error"]["data"]["reason"] == "invalid_history_cursor"
+    for bad in (7, "", "x" * 201):
+        assert read_history(persona_id=bad)["error"]["data"]["reason"] == "invalid_history_query"

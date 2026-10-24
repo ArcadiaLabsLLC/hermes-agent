@@ -607,6 +607,7 @@
       "client_scope",
       "install_id",
       "limit",
+      "persona_id",
       "persona_instance_id"
     ],
     "runtime.operator.conversation.subagents.capabilities": [
