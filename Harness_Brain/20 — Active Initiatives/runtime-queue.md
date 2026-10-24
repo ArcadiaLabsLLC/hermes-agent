@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-24 (Projects repository TODO audit)
+
+- **`RT-WORK-OBSERVATION-READ` — Define an observation-only mode for existing Work discovery/list/inspect before passive Projects TODO previews consume them** · `agent_runtime/work/service.py::_default_brain_state` creates/promotes/normalizes default brains during capabilities; `agent_runtime/work/store.py::synced` normalizes rows before list/inspect and can commit/push them · preserve Work's ruled automatic lifecycle; the proposed Projects reader must reuse WorkScope, board discovery and row projection without invoking provisioning, normalization, promotion or row writes; fetching into Hermes-owned worktrees may remain explicit · NEEDS PLAN 2026-10-24: capability negotiation, owner-checked read mode, honest stale/absent results and mutation tests proving zero logical writes across capabilities/list/inspect
+
 ### Filed on arrival — 2026-10-24 (launcher lane w1024q-mc)
 
 - **`RT-LENS-SNAPSHOT-SECTION-NO-PUSH-ON-STORE-WRITE` — find whether a Lens store write (an Episode opened by a pushed alert, a monitor sealed) triggers any push-lane snapshot update; live, the snapshot's `lens` section stayed at 3 monitors / no open Episode after both (the launcher panel now re-reads `runtime.lens.fold` on open, launcher `MC-LENS-PANEL-STALE-EPISODES`)** · `agent_runtime/snapshot/sections.py` · evidence `EterniaLauncher/docs/stages/qa-reboot/LIVEQA_W1023P_live_2026-10-24.md` §QA-LENS-ROUTE-SECRET-HANDOFF · READY 2026-10-24
