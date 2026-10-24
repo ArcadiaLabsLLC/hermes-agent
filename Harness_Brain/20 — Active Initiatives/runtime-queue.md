@@ -32,6 +32,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 ### Filed on arrival — 2026-10-23 (TODO / Work connection audit)
 
 - **`RT-TODO-REJECTED-WRITE-PROJECTION` — A rejected todo_list write replaces Agent Console's displayed plan with the rejected input** · fork / TODO trace projection · evidence: `agent_runtime/profile_runner/tool_payloads.py::_todo_state_payload` falls back to invocation.todos when the result is an error; `_tool_finished_payload` attaches that snapshot even on failure, while `tools/todo_tool.py::TodoStore.write` retains the previous list · reproduced 2026-10-23 on `3253190455`: empty content is rejected, store keeps item existing, projected todo_state instead contains item rejected with (no description) · emit only accepted authoritative checklist state; regression: rejected writes leave the prior plan intact in live and persisted lanes, explicit successful empty still clears it · READY 2026-10-23
+- **`RT-CONVERSATION-LIST-PERSONA-FILTER` — `runtime.operator.conversation.list` accepts an optional `persona_id` and filters on it before the page bound (and in the cursor scope tuple); the instance filter of `7fda71a808` keys on the re-stamped `model_config.persona_instance_id`** · `agent_runtime/instance_history.py::_history_page` · consumer: launcher `MC-ONE-CONSOLE-INBOX` (plan `EterniaLauncher/docs/mission_control/planned/ONE_CONSOLE_INBOX_2026-10-21.md` D3 amended) · READY 2026-10-23
 
 ### Filed on arrival — 2026-10-22 (land w1022b)
 
