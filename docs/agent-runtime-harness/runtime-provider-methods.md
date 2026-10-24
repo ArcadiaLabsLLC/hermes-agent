@@ -22,6 +22,7 @@ moving `RPC_CONTRACT_VERSION`.
 | `runtime.provider.signin.cancel` | console | `login_id` | kills the child |
 | `runtime.provider.refresh` | console | `provider`; `credential?` (index, id or label) | `hermes auth refresh` (`auth_refresh_command`) |
 | `runtime.provider.signout` | console | `provider` | `hermes auth logout` (`auth_logout_command`) |
+| `runtime.provider.configure` | console | `provider`, `auth_mode`; `base_url?` | `agent_runtime/provider_account.py::provider_configure`: writes `model.provider`, `model.auth_mode` (and `model.base_url`) on the bound provider home's `config.yaml` through the round-trip YAML writer — only a provider `PROVIDER_AUTH_MODES` declares, only a declared mode, no secret (a `needs_key` mode is keyed through `auth set-key`); it selects the provider because the mode is read only for the selected one |
 | `runtime.provider.dependency.install` | console | `provider` | `agent_runtime/provider_dependencies.py`: `uv pip install` of the provider's one extra into this runtime's environment; `pm` sync (new generation) only on a resolver conflict |
 | `runtime.provider.pack.activate` | console | `site_packages` (absolute) | `agent_runtime/provider_packs.py`: `site.addsitedir` of an unpacked provider pack this bundle built (its `engine-pack.json` names a pack in `bundle-manifest.json` `packs`, same commit), so the SDK imports without a restart |
 
@@ -43,6 +44,7 @@ table (`HermesProviderMethod.timeoutFor`).
 | `runtime.provider.usage` | every usage fetch in `agent/account_usage.py` is an HTTP call with `timeout=15.0`; Nous reads `hermes_cli/nous_account.py` with `timeout=8` | 20 s |
 | `runtime.provider.refresh` | `hermes auth refresh`: token endpoint calls under upstream's HTTP timeouts; no single bound, and a lost reply leaves the outcome unknown | 30 s |
 | `runtime.provider.signout` | `hermes auth logout`: as refresh | 30 s |
+| `runtime.provider.configure` | up to three round-trip YAML writes of one local file | 10 s |
 | `runtime.provider.signin.begin` | spawns the login child and answers in state `starting` without waiting on it | 15 s |
 | `runtime.provider.list` | local files, plus — only for a credential in cooldown — upstream's throttled Codex quota probe (`_probe_codex_quota_restored`, `timeout=10.0`, after an expired-token refresh) | 30 s |
 | `runtime.provider.signin.poll` | in-memory session read | 10 s |
@@ -79,6 +81,11 @@ api-key Foundry turn is never refused for it). The mode table is
 restart_required}`. `outcome` ∈ `installed`, `already_installed`;
 `environment` ∈ `existing` (in place: live for this runtime) or `new` (a new
 environment generation: `restart_required: true`).
+
+**configure** — `{contract, provider, auth_mode, base_url, needs_key, written: [key…]}`; refusals
+`provider_required`, `auth_mode_required`, `auth_mode_unsupported` (the provider has one implicit
+mode), `auth_mode_unknown` (+ `auth_modes`), `base_url_invalid` (not http(s)), `configure_failed`
+(+ the exception class).
 
 **pack.activate** — `{contract, pack, site_packages, activated}`; `activated: false`
 when the pack was already on the import path.

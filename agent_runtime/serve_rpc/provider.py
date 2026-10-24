@@ -36,6 +36,7 @@ __layer__ = "lanes"
 
 __all__ = [
     "PROVIDER_CONTRACT",
+    "_runtime_provider_configure",
     "_runtime_provider_dependency_install",
     "_runtime_provider_list",
     "_runtime_provider_pack_activate",
@@ -53,6 +54,10 @@ PROVIDER_CONTRACT = 1
 
 #: The longest pasted authorization code accepted (Anthropic's is ~100 chars).
 MAX_CODE_CHARS = 2048
+
+#: Provider refusals that name a bad request rather than a failed operation.
+_INVALID_PARAM_REASONS = frozenset({"provider_unknown", "auth_mode_unsupported", "auth_mode_unknown",
+                                    "base_url_invalid"})
 
 _FAMILY_CODES = {"invalid_params": ERR_INVALID_PARAMS, "conflict": ERR_CONFLICT, "not_found": ERR_NOT_FOUND}
 
@@ -80,7 +85,7 @@ def _answer(rid: Any, method_name: str, work: Callable[[], dict]) -> dict:
     except SignInRefused as refusal:
         return _refused(rid, method_name, refusal.reason, _FAMILY_CODES[refusal.code], **refusal.data)
     except ProviderRefused as refusal:
-        code = ERR_INVALID_PARAMS if refusal.reason == "provider_unknown" else ERR_HANDLER_FAILED
+        code = ERR_INVALID_PARAMS if refusal.reason in _INVALID_PARAM_REASONS else ERR_HANDLER_FAILED
         return _refused(rid, method_name, refusal.reason, code, refusal.message, **refusal.data)
     except Exception as exc:  # class name only, never the message
         return _failed(rid, method_name, exc)
@@ -230,3 +235,22 @@ def _runtime_provider_signout(rid: Any, params: dict, context: RpcContext | None
         return refusal
     return _off_reader(rid, "runtime.provider.signout", context,
                        lambda: provider_account.provider_signout(provider))
+
+
+@method("runtime.provider.configure", tier=TIER_CONSOLE)
+def _runtime_provider_configure(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """Set a multi-mode provider's ``model.auth_mode`` on the bound provider home.
+    Params: ``provider``, ``auth_mode``; ``base_url`` optional. Selects the provider."""
+    from agent_runtime import provider_account
+
+    provider, refusal = _provider_or_refuse(rid, "runtime.provider.configure", params)
+    if refusal is not None:
+        return refusal
+    auth_mode = _text_param(params, "auth_mode")
+    if auth_mode is None:
+        return _refused(rid, "runtime.provider.configure", "auth_mode_required", ERR_INVALID_PARAMS)
+    base_url = params.get("base_url")
+    if base_url is not None and not isinstance(base_url, str):
+        return _refused(rid, "runtime.provider.configure", "base_url_invalid", ERR_INVALID_PARAMS)
+    return _answer(rid, "runtime.provider.configure",
+                   lambda: provider_account.provider_configure(provider, auth_mode.lower(), base_url))

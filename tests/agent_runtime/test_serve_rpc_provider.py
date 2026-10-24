@@ -330,6 +330,7 @@ def test_every_provider_method_is_registered_with_its_tier():
         "runtime.provider.signin.complete": "console", "runtime.provider.signin.cancel": "console",
         "runtime.provider.refresh": "console", "runtime.provider.signout": "console",
         "runtime.provider.dependency.install": "console", "runtime.provider.pack.activate": "console",
+        "runtime.provider.configure": "console",
     }
 
 
@@ -367,3 +368,47 @@ def test_the_contract_publishes_a_reply_budget_for_every_provider_method():
     registered = {name for name in registry.method_names() if name.startswith("runtime.provider.")}
     assert registered  # positive control: the family is registered
     assert sorted(name for name, _ in rows) == sorted(registered)
+
+
+def _configure(params):
+    return family._runtime_provider_configure(1, params)
+
+
+def test_configure_writes_auth_mode_and_selects_the_provider_on_the_bound_home(monkeypatch, tmp_path):
+    """RT-PROVIDER-AUTH-MODE-CONFIGURE. Killing mutation: drop ``model.provider`` from the writes ->
+    the runtime resolver never reads the mode (it reads ``auth_mode`` only for the selected provider), red."""
+    from agent_runtime import provider_account
+
+    home = tmp_path / "provider-home"
+    home.mkdir()
+    (home / "config.yaml").write_text(
+        "# keep me\nmodel:\n  default: gpt-5.5\n  provider: openrouter\n", encoding="utf-8")
+    monkeypatch.setattr(provider_account, "_configure_home", lambda: home)
+
+    result = _result(_configure({"provider": "azure-foundry", "auth_mode": "entra_id",
+                                 "base_url": "https://x.services.ai.azure.com/models/"}))
+
+    assert (result["auth_mode"], result["needs_key"], result["base_url"]) == (
+        "entra_id", False, "https://x.services.ai.azure.com/models")
+    text = (home / "config.yaml").read_text(encoding="utf-8")
+    assert "# keep me" in text
+    from agent_runtime import yaml_io
+    model = yaml_io.load(text)["model"]
+    assert model == {"default": "gpt-5.5", "provider": "azure-foundry", "auth_mode": "entra_id",
+                     "base_url": "https://x.services.ai.azure.com/models"}
+    from hermes_cli.runtime_provider import _config_base_url_for_provider
+    assert _config_base_url_for_provider(model, "azure-foundry") == "https://x.services.ai.azure.com/models"
+
+
+def test_configure_refuses_an_undeclared_provider_or_mode_and_writes_nothing(monkeypatch, tmp_path):
+    from agent_runtime import provider_account
+
+    monkeypatch.setattr(provider_account, "_configure_home", lambda: tmp_path)
+    cases = [({"provider": "openrouter", "auth_mode": "api_key"}, "auth_mode_unsupported"),
+             ({"provider": "azure-foundry", "auth_mode": "password"}, "auth_mode_unknown"),
+             ({"provider": "azure-foundry"}, "auth_mode_required"),
+             ({"provider": "azure-foundry", "auth_mode": "api_key", "base_url": "ftp://x"}, "base_url_invalid")]
+    for params, reason in cases:
+        error = _error(_configure(params))
+        assert (error["code"], error["data"]["reason"]) == (ERR_INVALID_PARAMS, reason)
+    assert not (tmp_path / "config.yaml").exists()

@@ -57,7 +57,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-21 (lane w1021h-rpc, branch `w1021h/rpc`)
 
-- **`RT-PROVIDER-AUTH-MODE-CONFIGURE` — no RPC verb writes model.auth_mode: the only provider-configure door is argv `harness auth set-key` (stdin secret), and entra_id has no secret** · fork / provider configure · launcher MC-AZURE-IDENTITY-PACK · evidence `14773aad1c` (branch `w1021h/rpc`) · RULED 2026-10-22: owner — `runtime.provider.configure {provider, auth_mode, base_url?}` on the bound provider home · READY 2026-10-22 · **TAKEN 2026-10-24 w1024t-hermes**
 
 ### Filed on arrival — 2026-10-21 (lane w1021h-cli, branch `w1021h/cli`)
 

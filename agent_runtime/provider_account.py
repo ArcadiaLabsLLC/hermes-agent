@@ -141,3 +141,54 @@ def provider_signout(provider: str) -> dict:
     except Exception as exc:  # class name only, never the message
         raise ProviderRefused("signout_failed", type(exc).__name__, provider=provider) from None
     return {"provider": provider, "was_signed_in": was, "signed_in": _signed_in(provider)}
+
+
+#: ``runtime.provider.configure``'s writes, in order, on the bound provider home's ``config.yaml``.
+#: ``model.auth_mode`` and ``model.base_url`` are read only while ``model.provider`` names that
+#: provider (``hermes_cli/runtime_provider_backends.py``), so the write selects it too: a mode
+#: written beside another provider would be a setting nothing reads.
+CONFIGURE_KEYS = ("model.provider", "model.auth_mode", "model.base_url")
+
+
+def _configure_home():
+    from hermes_constants import get_hermes_home
+
+    from .provider_credentials import bound_provider_home
+
+    return bound_provider_home() or get_hermes_home().resolve()
+
+
+def provider_configure(provider: str, auth_mode: str, base_url: str | None = None) -> dict:
+    """Write ``model.auth_mode`` (and ``model.base_url``) for a multi-mode provider (RULED 2026-10-22).
+
+    Only a provider ``PROVIDER_AUTH_MODES`` declares, and only one of its declared modes. No secret is
+    taken: a mode that ``needs_key`` is configured here and keyed through ``auth set-key``. One key at a
+    time through the round-trip YAML writer, so comments and every other key survive.
+    """
+    from hermes_cli.provider_login_catalog import PROVIDER_AUTH_MODES
+    from utils import atomic_roundtrip_yaml_update
+
+    modes = {mode: needs_key for mode, _label, needs_key in PROVIDER_AUTH_MODES.get(provider, ())}
+    if not modes:
+        raise ProviderRefused("auth_mode_unsupported", provider=provider)
+    if auth_mode not in modes:
+        raise ProviderRefused("auth_mode_unknown", provider=provider, auth_modes=sorted(modes))
+    url = (base_url or "").strip().rstrip("/") or None
+    if url is not None and not url.lower().startswith(("https://", "http://")):
+        raise ProviderRefused("base_url_invalid", provider=provider)
+    home = _configure_home()
+    path = home / "config.yaml"
+    values = {"model.provider": provider, "model.auth_mode": auth_mode}
+    if url is not None:
+        values["model.base_url"] = url
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if not path.exists():
+            path.write_text("", encoding="utf-8")
+        for key in CONFIGURE_KEYS:
+            if key in values:
+                atomic_roundtrip_yaml_update(path, key, values[key])
+    except Exception as exc:  # class name only
+        raise ProviderRefused("configure_failed", type(exc).__name__, provider=provider) from None
+    return {"provider": provider, "auth_mode": auth_mode, "base_url": url, "needs_key": modes[auth_mode],
+            "written": [key for key in CONFIGURE_KEYS if key in values]}
