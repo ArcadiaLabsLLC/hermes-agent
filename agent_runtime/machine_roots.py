@@ -770,6 +770,14 @@ def _freeze(value: Any) -> Any:
     return value
 
 
+#: The persona seed's line 1 value for ``mcp_servers.<s>.env.HERMES_HOME``
+#: (interpolated by ``_load_mcp_config`` from ``os.environ``). Defined HERE, the
+#: lower layer, so the canonical template and the seed writer
+#: (:mod:`agent_runtime.persona_seed_defaults`, which imports it) name one value:
+#: a seeded profile matches the template with zero drift by construction
+#: (RT-MCP-TEMPLATE-VS-SEED-HERMES-HOME).
+MCP_HERMES_HOME_VALUE = "${HERMES_HOME}"
+
 CANONICAL_LAUNCHER_QA_MCP_SERVER: Mapping[str, Any] = _freeze(
     {
         "command": (
@@ -788,6 +796,7 @@ CANONICAL_LAUNCHER_QA_MCP_SERVER: Mapping[str, Any] = _freeze(
                 r"${roots.eternia_launcher}\docs\stages\qa-reboot\scripts"
                 r"\Capture-StageCWindowScreenshot.ps1"
             ),
+            "HERMES_HOME": MCP_HERMES_HOME_VALUE,
         },
         "platforms": ["windows"],
         "sampling": {"enabled": False},

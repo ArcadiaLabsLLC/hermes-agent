@@ -189,3 +189,25 @@ def test_line5_resolves_the_home_at_call_time_not_the_ambient_one(bundled_person
 
     assert "cli-only" in incompatible_skills(qa)
     assert "cli-only" not in incompatible_skills(other)
+
+
+def test_a_freshly_seeded_profile_matches_the_canonical_mcp_template(bundled_persona_profiles):
+    """RT-MCP-TEMPLATE-VS-SEED-HERMES-HOME: the seed's line 1 and the readiness
+    template name one ``env.HERMES_HOME``, so seeding never manufactures drift."""
+
+    from agent_runtime.machine_roots import canonical_mcp_server_yaml, mcp_server_template_issues
+    from agent_runtime.persona_seed_defaults import seed_persona_profile
+
+    block = "\n".join(
+        line for line in canonical_mcp_server_yaml("launcher_qa").splitlines() if "HERMES_HOME" not in line
+    )
+    home = _profile("qa", body="mcp_servers:\n" + block + "\n", pooled=())
+
+    unseeded = yaml_io.load((home / "config.yaml").read_text(encoding="utf-8"))["mcp_servers"]
+    before = mcp_server_template_issues(unseeded)
+    assert len(before) == 1 and "env.HERMES_HOME: missing" in before[0].summary  # positive control
+
+    assert seed_persona_profile(home)["seeded"] == ["mcp_servers.launcher_qa.env.HERMES_HOME"]
+
+    seeded = yaml_io.load((home / "config.yaml").read_text(encoding="utf-8"))["mcp_servers"]
+    assert mcp_server_template_issues(seeded) == []
