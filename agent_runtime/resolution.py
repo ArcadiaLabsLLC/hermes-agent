@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -200,15 +201,20 @@ def _default_hermes_root(env: Mapping[str, str]) -> Path:
 
 
 def _platform_default_hermes_home(env: Mapping[str, str]) -> Path:
-    """The platform default home that ``env`` names — upstream's env-pure rule, not a restatement.
+    """``hermes_constants._get_platform_default_hermes_home`` over ``env`` instead of ``os.environ``.
 
-    ``hermes_constants._platform_default_hermes_home(environ, user_home)`` (v0.22.3+) is the one
-    authority, ``HERMES_DATA_DIR_SUFFIX`` included (FH-RUNTIME-HOME-DEFAULT-DUPLICATE,
-    RT-RESOLUTION-HOME-DELEGATE-AFTER-MERGE); this module only hands it the mapping it resolves over.
+    The same rule, suffix included (FH-RUNTIME-HOME-DEFAULT-DUPLICATE: without
+    ``HERMES_DATA_DIR_SUFFIX`` the store root defaulted beside a different home than every
+    other reader). The authority reads only the process environment; this module resolves
+    over a passed mapping, so it restates the rule and a parity test pins the two together
+    (``tests/agent_runtime/test_resolution_home_default_downstream.py``).
     """
-    from hermes_constants import _platform_default_hermes_home as platform_default
-
-    return platform_default(env, Path.home)
+    suffix = str(env.get("HERMES_DATA_DIR_SUFFIX") or "")
+    if sys.platform == "win32":
+        local_appdata = str(env.get("LOCALAPPDATA") or "").strip()
+        base = Path(local_appdata).expanduser() if local_appdata else Path.home() / "AppData" / "Local"
+        return base / ("hermes" + suffix)
+    return Path.home() / (".hermes" + suffix)
 
 
 # S54 took ``_normalized_path`` with ``assert_pinned``, its only caller.
