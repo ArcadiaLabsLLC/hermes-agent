@@ -1,0 +1,136 @@
+name: Fork — Pillow Android wheel
+
+# RT-PHONE-PILLOW-ANDROID (owner ruling 2026-10-22): no Pillow release publishes an Android wheel,
+# and the phone closure needs Pillow on both targets. This builds Pillow 12.3.0 (the version uv.lock
+# pins for every target) for CPython 3.14 / android arm64-v8a and publishes it as an asset of the
+# fork release `pillow-android-12.3.0`; pyproject.toml then pins that asset by URL with its sha256 in
+# uv.lock — the shape psutil's Android pin has (plan
+# docs/agent-runtime-harness/planned/bundled-phone-pool-2026-10-22.md §5.1).
+#
+# The ruling named BeeWare's mobile-forge; its README documents iOS only ("currently only tested for
+# iOS") and the project is semi-retired, so this uses cibuildwheel's Android platform (Linux x86_64
+# hosts, the runner's Android SDK) on Pillow's own sdist instead. Pillow's cibuildwheel config has no
+# Android arm, so its iOS shape is followed: no vendored raqm/imagequant, platform guessing off, and
+# the two required libraries supplied by root: libjpeg-turbo built STATIC with the NDK (nothing extra
+# to ship), zlib from the NDK sysroot (Android's system libz).
+#
+# Manual dispatch only; run it once per Pillow version. A re-run with the release present fails at
+# the release step rather than replacing a wheel a lock already pins.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pillow_version:
+        description: Pillow version (must equal uv.lock's pin)
+        default: "12.3.0"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fork-pillow-android-wheel
+  cancel-in-progress: false
+
+env:
+  PILLOW_VERSION: ${{ inputs.pillow_version }}
+  LIBJPEG_TURBO_VERSION: "3.1.2"
+  ANDROID_API_LEVEL: "24"
+
+jobs:
+  build:
+    name: Pillow ${{ inputs.pillow_version }} cp314 android arm64-v8a
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      - name: Fetch Pillow's sdist from PyPI
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip download --no-deps --no-binary :all: "pillow==${PILLOW_VERSION}" -d sdist
+          tar -xzf sdist/pillow-${PILLOW_VERSION}.tar.gz
+          sha256sum sdist/*.tar.gz | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Build libjpeg-turbo (static) and stage zlib from the NDK sysroot
+        shell: bash
+        run: |
+          set -euo pipefail
+          NDK="${ANDROID_NDK_LATEST_HOME:?the runner image provides the NDK}"
+          SYSROOT="$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+          PREFIX="$RUNNER_TEMP/android-deps"
+          curl -fsSL -o jt.tar.gz \
+            "https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/${LIBJPEG_TURBO_VERSION}/libjpeg-turbo-${LIBJPEG_TURBO_VERSION}.tar.gz"
+          sha256sum jt.tar.gz | tee -a "$GITHUB_STEP_SUMMARY"
+          tar -xzf jt.tar.gz
+          cmake -S "libjpeg-turbo-${LIBJPEG_TURBO_VERSION}" -B jt-build -G "Unix Makefiles" \
+            -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM="android-${ANDROID_API_LEVEL}" \
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DENABLE_SHARED=OFF -DENABLE_STATIC=ON -DWITH_TURBOJPEG=OFF \
+            -DCMAKE_INSTALL_PREFIX="$PREFIX" -DCMAKE_INSTALL_LIBDIR=lib
+          cmake --build jt-build -j"$(nproc)"
+          cmake --install jt-build
+          cp "$SYSROOT/usr/include/zlib.h" "$SYSROOT/usr/include/zconf.h" "$PREFIX/include/"
+          cp "$SYSROOT/usr/lib/aarch64-linux-android/${ANDROID_API_LEVEL}/libz.so" "$PREFIX/lib/"
+          echo "DEPS_PREFIX=$PREFIX" >> "$GITHUB_ENV"
+
+      - name: Build the wheel with cibuildwheel
+        shell: bash
+        env:
+          CIBW_PLATFORM: android
+          CIBW_ARCHS: arm64_v8a
+          CIBW_BUILD: cp314-*
+          CIBW_BUILD_FRONTEND: build
+          # Pillow's before-all builds desktop/iOS dependencies; the step above supplies Android's.
+          CIBW_BEFORE_ALL: "true"
+          CIBW_CONFIG_SETTINGS: "raqm=disable imagequant=disable platform-guessing=disable"
+          CIBW_ENVIRONMENT: JPEG_ROOT=${{ env.DEPS_PREFIX }} ZLIB_ROOT=${{ env.DEPS_PREFIX }} ANDROID_API_LEVEL=${{ env.ANDROID_API_LEVEL }}
+          # An arm64 wheel cannot run on this x86_64 host's emulator; the check step below inspects it.
+          CIBW_TEST_SKIP: "*"
+        run: |
+          set -euo pipefail
+          python -m pip install "cibuildwheel>=3.2,<4"
+          python -m cibuildwheel --output-dir wheelhouse "pillow-${PILLOW_VERSION}"
+
+      - name: Check the wheel
+        id: wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          WHEEL=$(ls wheelhouse/pillow-${PILLOW_VERSION}-cp314-cp314-android_*_arm64_v8a.whl)
+          python - "$WHEEL" <<'PY'
+          import sys, zipfile
+          names = zipfile.ZipFile(sys.argv[1]).namelist()
+          core = [n for n in names if n.startswith("PIL/_imaging.") and n.endswith(".so")]
+          assert core, f"no PIL/_imaging extension in {sys.argv[1]}"
+          print("\n".join(sorted(n for n in names if n.endswith(".so"))))
+          PY
+          unzip -q -o "$WHEEL" 'PIL/_imaging.*.so' -d check
+          NEEDED=$(readelf -d check/PIL/_imaging.*.so | grep NEEDED || true)
+          echo "$NEEDED"
+          if echo "$NEEDED" | grep -q libjpeg; then echo "libjpeg must be linked statically" >&2; exit 1; fi
+          SHA=$(sha256sum "$WHEEL" | cut -d' ' -f1)
+          echo "path=$WHEEL" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          printf '`%s` sha256 `%s`\n' "$(basename "$WHEEL")" "$SHA" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pillow-android-${{ inputs.pillow_version }}
+          path: wheelhouse/*.whl
+
+      - name: Publish the fork release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WHEEL: ${{ steps.wheel.outputs.path }}
+          SHA: ${{ steps.wheel.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          gh release create "pillow-android-${PILLOW_VERSION}" "$WHEEL" --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --title "Pillow ${PILLOW_VERSION} for Android (fork build)" \
+            --notes "Pillow ${PILLOW_VERSION}, CPython 3.14, android arm64-v8a, API ${ANDROID_API_LEVEL}; built by .github/workflows/fork-pillow-android-wheel.yml (RT-PHONE-PILLOW-ANDROID). sha256 ${SHA}. Pin: pillow @ <this asset URL> ; sys_platform == 'android'."
