@@ -252,3 +252,40 @@ def test_the_server_context_is_the_stdlib_class_under_an_injected_truststore(tmp
         assert ssl.SSLContext is truststore.SSLContext  # still injected afterwards
     finally:
         truststore.extract_from_ssl()
+
+
+def test_concurrent_first_mints_produce_one_identity(tmp_path, monkeypatch):
+    """RT-GATEWAY-CERT-MINT-RACE: eight concurrent first users mint ONE pair; every caller is ok.
+
+    Killing mutation: drop the ``store_lock`` re-read in ``ensure_certificate`` -> several callers
+    mint (``minted`` > 1) and the fingerprints disagree.
+    """
+    import threading
+    import time
+
+    from agent_runtime import gateway_tls
+
+    real_mint = gateway_tls._mint
+
+    def slow_mint(*args, **kwargs):
+        time.sleep(0.2)  # widen the absent -> written window every racer would fall into
+        return real_mint(*args, **kwargs)
+
+    monkeypatch.setattr(gateway_tls, "_mint", slow_mint)
+    barrier = threading.Barrier(8)
+    results = []
+
+    def first_use():
+        barrier.wait()
+        results.append(gateway_tls.ensure_certificate(tmp_path))
+
+    threads = [threading.Thread(target=first_use) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=60)
+
+    assert len(results) == 8 and all(result.ok for result in results), [r.state for r in results]
+    assert [result.state for result in results].count(gateway_tls.STATE_MINTED) == 1
+    assert len({result.fingerprint for result in results}) == 1
+    assert gateway_tls.read_certificate(tmp_path).fingerprint == results[0].fingerprint

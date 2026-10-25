@@ -119,6 +119,11 @@ __all__ = [
 CERTIFICATE_FILENAME = "tls_cert.pem"
 PRIVATE_KEY_FILENAME = "tls_key.pem"
 
+#: The lock file that serialises a first mint across processes, beside the pair.
+MINT_LOCK_FILENAME = "tls_mint.lock"
+#: A mint is one EC keygen and two small writes; ten seconds is contention, not work.
+MINT_LOCK_TIMEOUT_SECONDS = 10.0
+
 #: See the module docstring — a fingerprint-pinned certificate is not made safer
 #: by expiring, and an expiry it cannot renew is a lockout with a date on it.
 VALIDITY_DAYS = 3650
@@ -226,7 +231,23 @@ def ensure_certificate(
         # value. An operator reads the typed reason and decides.
         return existing
     try:
-        return _mint(store_root, common_name=common_name)
+        # RT-GATEWAY-CERT-MINT-RACE: concurrent first users (four `gateway peers join` on a fresh
+        # runtime) each saw `absent`; on Windows the losers' replace failed `permission_denied`, and
+        # an interleaving could pair one process's key with another's certificate. ONE minter per
+        # root: re-read under a cross-process lock, mint only if still absent.
+        from .locks import HarnessLockUnavailable
+        from .store_file_io import store_lock
+
+        lock = gateway_dir(store_root) / MINT_LOCK_FILENAME
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with store_lock(lock, timeout_seconds=MINT_LOCK_TIMEOUT_SECONDS):
+                again = read_certificate(store_root)
+                if again.ok or not again.state.endswith(":absent"):
+                    return again
+                return _mint(store_root, common_name=common_name)
+        except HarnessLockUnavailable:
+            return _error(store_root, "mint_contended")
     except ImportError:
         # `cryptography` is a declared dependency (pyproject pins 48.0.1, pulled
         # in by PyJWT[crypto] anyway), so this arm is a broken install rather
