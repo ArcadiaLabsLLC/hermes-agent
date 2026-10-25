@@ -55,10 +55,13 @@ _EVENT_KINDS_BY_ACTOR = {
     "user": frozenset({"message.user"}), "member": frozenset({"message.member"}),
     "gateway": frozenset({
         "member.unavailable", "room.activity", "room.stop_requested", "turn.deferred", "turn.reassigned",
-        "turn.cancelled", "turn.failed", "turn.settled", "turn.started", "history.compare_chunk"}),
+        "turn.cancelled", "turn.failed", "turn.settled", "turn.started"}),
     "system": frozenset({
         "authority.claimed", "authority.lost", "room.created", "room.disbanded", "room.members_changed", "room.renamed"
     })}
+# Fork archive seam: historical Compare chunks use the existing gateway journal
+# authority. They never become user/member messages or schedulable room input.
+_EVENT_KINDS_BY_ACTOR["gateway"] |= frozenset({"history.compare_chunk"})
 _OPTIONAL_ACTOR_FIELDS = (
     ("display_name", MAX_ACTOR_LABEL_CHARS), ("profile", MAX_ACTOR_ID_CHARS), ("connection_id", MAX_ACTOR_ID_CHARS))
 _ACTOR_FIELDS = frozenset({"kind", "id", *(field for field, _ in _OPTIONAL_ACTOR_FIELDS)})
