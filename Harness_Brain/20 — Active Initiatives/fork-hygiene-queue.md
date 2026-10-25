@@ -547,3 +547,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-20 (parent session)
 
+## Filed on arrival — 2026-10-25 (lane w1024t-hermes2)
+
+- **`FH-TESTS-CROSS-DRIVE-WORKTREE` — from a worktree on `C:` with the test tmp root on `X:`, `tests/scripts/test_pick_release_tags.py` (2: bash is handed `C:\wt\…\pick-release-tags.sh` with backslashes, which bash strips) and `tests/scripts/test_run_tests_parallel_downstream.py::test_non_timeout_failure_still_retries_in_pool` (`ValueError: path is on mount 'X:', start on mount 'C:'`) red; both assume the checkout and tmp share a drive / a POSIX path** · fork tests · evidence: lane w1024t-hermes2 landing run 2026-10-25 (`scripts/run_tests.sh tests/scripts` from `C:/wt/w1024t-hermes2`) · READY 2026-10-25
