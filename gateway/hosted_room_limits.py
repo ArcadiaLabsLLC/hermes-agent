@@ -100,13 +100,22 @@ def _conclude(room, events, discussion, active, decision) -> _discussion.Discuss
     member = next((m for m in active if m.member_id == member_id), None)
     if member is None:
         return decide("settled", "conclusion_member_unavailable")
+    from gateway.hosted_room_task_input import MAX_TASK_INPUT_EVENTS, validate_task_input
+
     _, messages, _ = _discussion._thread_messages(events, discussion)
-    seen = max(e.seq for e in messages)
-    prompt = _discussion._build_prompt(room=room, member=member, messages=messages, watermark=0,
+    # J2 A2: the conclusion's input is ALWAYS frozen (a late member message must not break its
+    # deterministic reconstruction) and bounded to the last MAX_TASK_INPUT_EVENTS messages.
+    w0 = messages[-MAX_TASK_INPUT_EVENTS - 1].seq if len(messages) > MAX_TASK_INPUT_EVENTS else 0
+    delta, attachments = _discussion._bounded_task_delta(messages, watermark=w0, member=member)
+    if not delta:
+        return decide("settled", "conclusion_empty")
+    seen = delta[-1].seq
+    prompt = _discussion._build_prompt(room=room, member=member, messages=messages, watermark=w0,
         seen_through_seq=seen, active_members=active, conclusion=True)
     return decide("task", "conclusion_turn", task=_discussion._make_task_plan(room=room,
         discussion_event=discussion, member=member, member_index=0,
-        round_index=room.limits.max_rounds, seen_through_seq=seen, prompt=prompt))
+        round_index=room.limits.max_rounds, seen_through_seq=seen, prompt=prompt, attachments=attachments,
+        input_context=validate_task_input({"watermark": w0, "event_seqs": [e.seq for e in delta]})))
 
 
 def task_round_index(identity: driver.TaskIdentity, *, limits: DiscussionLimits | None = None) -> int:

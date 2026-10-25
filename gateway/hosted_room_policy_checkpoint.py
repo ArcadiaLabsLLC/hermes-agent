@@ -113,6 +113,8 @@ class HostedRoomPolicyCheckpoint:
         if type(max_active_events) is not int or not MAX_ACTIVE_POLICY_EVENTS <= max_active_events <= 1024:
             raise ValueError("invalid active policy event budget")
         self.max_active_events = max_active_events
+        # fork (J2 A3): the transcript bound follows the instance's budget, not the module default.
+        self.max_transcript_events = MAX_THREAD_TRANSCRIPT_EVENTS * (max_active_events + 2)
         self.db_path = Path(db_path)
         with self._transaction() as conn:
             for ddl in _SCHEMA_DDL:
@@ -166,8 +168,8 @@ class HostedRoomPolicyCheckpoint:
         if len(active_rows) > self.max_active_events:
             raise RuntimeError(bound_error)
         rows = conn.execute(_TRANSCRIPT_EVENTS_SQL,
-                            (room_id, thread_id, room_id, thread_id, room_id, MAX_TRANSCRIPT_POLICY_EVENTS + 1)).fetchall()
-        if len(rows) > MAX_TRANSCRIPT_POLICY_EVENTS:
+                            (room_id, thread_id, room_id, thread_id, room_id, self.max_transcript_events + 1)).fetchall()
+        if len(rows) > self.max_transcript_events:
             raise RuntimeError("thread policy transcript exceeded its bound")
         events_by_seq = {
             int(event["seq"]): event

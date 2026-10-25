@@ -84,3 +84,39 @@ def test_active_policy_event_budget_refuses_values_it_cannot_honour(tmp_path, va
     # projection; above the ceiling it would unbound a per-turn read.
     with pytest.raises(ValueError, match="invalid active policy event budget"):
         checkpoint.HostedRoomPolicyCheckpoint(tmp_path / "state.db", max_active_events=value)
+
+
+def test_the_transcript_bound_follows_the_instance_budget(tmp_path):
+    """J2 A3 (RT-J2-HOSTED-ROOM-LIMITS): a raised active budget raises the transcript bound with it.
+
+    Killing mutation: keep ``MAX_TRANSCRIPT_POLICY_EVENTS`` in ``_discussion_events``'s comparison ->
+    the 256-budget instance raises "thread policy transcript exceeded its bound".
+    """
+    db = tmp_path / "state.db"
+    latest_seq = _room(db)
+    raised = checkpoint.HostedRoomPolicyCheckpoint(db, max_active_events=256)
+    raised.snapshot(room_id="room-1", latest_seq=latest_seq)  # the schema, and the stock transcript
+    assert raised.max_transcript_events == checkpoint.MAX_THREAD_TRANSCRIPT_EVENTS * 258
+    over_default = checkpoint.MAX_TRANSCRIPT_POLICY_EVENTS + 10  # over 1584, under 6192
+    conn = raised._connect()
+    try:
+        template = conn.execute("SELECT * FROM hosted_room_events WHERE room_id='room-1' AND seq=?",
+                                (latest_seq,)).fetchone()
+        for offset in range(1, over_default + 1):
+            seq = latest_seq + offset
+            conn.execute("INSERT INTO hosted_room_events (room_id, seq, event_id, kind, actor_json, authority_epoch,"
+                         " payload_json, created_at) VALUES (?, ?, ?, 'turn.started', ?, ?, ?, ?)",
+                         ("room-1", seq, f"turn-{offset}", template["actor_json"], template["authority_epoch"],
+                          template["payload_json"], template["created_at"]))
+            conn.execute("INSERT INTO hosted_room_policy_transcript (room_id, thread_id, seq, kind) "
+                         "VALUES ('room-1', 'thread-1', ?, 'turn.started')", (seq,))
+        conn.commit()
+        events = raised._discussion_events(conn, room_id="room-1", thread_id="thread-1",
+                                           discussion_event_id="no-active-rows", bound_error="active bound")
+        assert len(events) > checkpoint.MAX_TRANSCRIPT_POLICY_EVENTS
+        stock = checkpoint.HostedRoomPolicyCheckpoint(db)  # positive control: the default bound still holds
+        with pytest.raises(RuntimeError, match="thread policy transcript exceeded its bound"):
+            stock._discussion_events(conn, room_id="room-1", thread_id="thread-1",
+                                     discussion_event_id="no-active-rows", bound_error="active bound")
+    finally:
+        conn.close()
