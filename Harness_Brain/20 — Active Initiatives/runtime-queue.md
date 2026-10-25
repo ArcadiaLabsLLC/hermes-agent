@@ -689,7 +689,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-23 (seam lane S45, Stage 4/5/6 inventories)
 
-- **`RT-UPSTREAM-TEST-INPLACE-EDITS` — 177 of the 252 upstream test files the fork edits hold in-place edits, not fork tests. Stage 5's MOVE lanes cannot retire them, and its `[up-fp] files −242` target is not reachable (MOVE ceiling 28)** · `seams / tests` · these need a disposition pass (a batched portability/hermeticity PR upstream, or carry with a reason) before Stage 5's gate means anything. Evidence: the same note §1.1–§1.3 · filed by lane S45 2026-09-23 · RULED 2026-09-23 owner: upstream, separate PRs per fix class; never carried · RULED 2026-10-10 owner: no re-file; drop each carry upstream now covers, keep the rest with a ledger reason, re-count at the next release merge · READY 2026-10-22: v0.22.4 merged at `97c9dc496f` · **TAKEN 2026-10-25 w1025a-hermes**
 
 ### Standing
 
