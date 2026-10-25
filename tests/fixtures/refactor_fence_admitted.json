@@ -23,5 +23,10 @@
   "commit": "9bdad4ac0cac054867192a82a7c31659917a0a83",
   "path": "scripts/run_tests_parallel.py",
   "reason": "deletes a caller-less FORK alias (_split_discovery_roots) from the upstream runner, restoring upstream's bytes there; the crossing shrinks the footprint, it does not widen it (h10-fhrel dead-code row)"
+ },
+ {
+  "commit": "37e0cccc2cec0c513bd5bfa048ee883c854b36ae",
+  "path": "tui_gateway/compute_host.py",
+  "reason": "RT-NATIVE-CONVERSATION-RECOVERY MOVE A (design-sweep-d2 D2.09): moves the FORK's observe handler and turn-start gates out of the upstream compute host into agent_runtime/gateway; the crossing shrinks the fork's hunks there (ledger added 58 -> 36), it does not widen them"
  }
 ]
