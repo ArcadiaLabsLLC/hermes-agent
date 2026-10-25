@@ -29,9 +29,15 @@ The turn goes through the one mission-chat door
 (:func:`agent_runtime.mission_chat_door.run_mission_chat_turn`), as a dispatch
 delivery's does (``dispatch_delivery/forge.py::forge_delivery_turn``): a NEW chat
 titled ``<monitor> · <rule> · #<n>``, under the manifest's ``persona_id``, with
-Lens provenance (``lens/provenance.py``) and the Episode's idempotency key. Tool
-admission is the persona's full set until ``RT-LENS-FORGED-TURN-TOOL-ADMISSION``
-lands; the receipt says so (``tool_admission: full``).
+Lens provenance (``lens/provenance.py``) and the Episode's idempotency key.
+
+**Tool admission is read-only** (owner RULED 2026-10-22, ``RT-LENS-FORGED-TURN-TOOL-ADMISSION``):
+nobody attends a forged turn, so the chat is minted FIRST — through the open-chat door, keyed by the
+Episode — and held at ``read_only`` in the session-scoped permission store
+(``tool_permissions.ChatToolPermissionStore``) before the turn runs on it; the turn's tool surface
+then blocks every mutating tool (``READ_ONLY_BLOCKS``) and keeps the read-only ones, the lens tools
+among them. The receipt says so (``tool_admission: read_only``); a receipt that ran no turn says
+``none``.
 """
 
 from __future__ import annotations
@@ -58,7 +64,10 @@ __layer__ = "lanes"
 logger = logging.getLogger(__name__)
 
 TICK_SECONDS = 1.0
-TOOL_ADMISSION_FULL = "full"
+TOOL_ADMISSION_READ_ONLY = "read_only"
+#: A receipt that forged no turn (notified, capped, skipped, refused before the turn).
+TOOL_ADMISSION_NONE = "none"
+_PERMISSION_SOURCE = "lens"
 #: The evidence window is halved this many times before the turn goes without it.
 _EVIDENCE_SHRINKS = 12
 
@@ -71,23 +80,60 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+def _open_episode_chat(persona_id: str, episode: Episode) -> tuple[str | None, dict[str, Any]]:
+    """Mint the Episode's own chat (never selected over the operator's), titled, held ``read_only``.
+
+    ``(session_id, {})`` or ``(None, refusal payload)``. Keyed by the Episode, so a restart that finds the
+    ``forging`` receipt and re-enters here answers the same root rather than a second one.
+    """
+
+    from ..persona_chat_durability import default_persona_session_db
+    from ..persona_open_chat import perform_persona_instance_open_chat
+    from ..tool_permissions import ChatToolPermissionStore
+    from ..permission_modes import PERMISSION_MODE_READ_ONLY
+
+    outcome = perform_persona_instance_open_chat({
+        "persona_id": persona_id, "new_session": True,
+        "idempotency_key": f"{lens_client_message_id(episode.id)}:chat",
+        "requested_by": lens_requested_by(episode.id, episode.monitor_id),
+    }, select_session=False)
+    if outcome.refusal is not None:
+        return None, {"ok": False, "error_kind": str((outcome.refusal.data or {}).get("reason") or "open_chat_refused")}
+    session_id = str((outcome.result or {}).get("session_id") or "")
+    if not session_id:
+        return None, {"ok": False, "error_kind": "open_chat_refused"}
+    ChatToolPermissionStore().set(persona_id=persona_id, session_id=session_id, mode=PERMISSION_MODE_READ_ONLY,
+                                  reason=f"unattended Lens investigate turn ({episode.id})", source=_PERMISSION_SOURCE)
+    session_db = default_persona_session_db()
+    try:
+        session_db.set_session_title(session_id, episode_title(episode))
+    except Exception:  # a title is navigation, never a reason to skip the turn
+        logger.debug("lens episode chat %s kept its default title", session_id, exc_info=True)
+    finally:
+        getattr(session_db, "close", lambda: None)()
+    return session_id, {}
+
+
 def forge_episode_turn(*, manifest: dict[str, Any], episode: Episode, message: str,
                        max_seconds: float | None = None) -> tuple[bool, dict[str, Any] | None]:
-    """Run the Episode's turn as a real mission-chat turn in a NEW titled chat. ``(ok, payload)``."""
+    """Run the Episode's turn as a real mission-chat turn in its own read-only chat. ``(ok, payload)``."""
 
     from ..config import mission_chat_default_max_seconds
     from ..mission_chat_door import run_mission_chat_turn
 
+    # One new chat per Episode: a storm never splices into an operator's conversation.
+    session_id, refused = _open_episode_chat(manifest["persona_id"], episode)
+    if session_id is None:
+        return False, refused
     args = SimpleNamespace(
         persona_id=manifest["persona_id"],
         persona_instance_id=None,
-        session_id=None,
+        session_id=session_id,
         clarify_token=None,
-        # One new chat per Episode: a storm never splices into an operator's conversation.
-        new_session=True,
+        new_session=False,
         task_id=None,
         goal_id=None,
-        title=episode_title(episode),
+        title=None,
         message=message,
         provider=None,
         model=None,
@@ -184,7 +230,7 @@ class LensForge:
 
         receipt = {"episode_id": episode.id, "monitor_id": episode.monitor_id, "turn_id": outcome.split(":")[0],
                    "started_ms": to_ms(now), "finished_ms": to_ms(now), "outcome": outcome,
-                   "tool_admission": TOOL_ADMISSION_FULL}
+                   "tool_admission": TOOL_ADMISSION_NONE}
         saved = store.save_receipt(receipt, episode=replace(episode, turn_id=receipt["turn_id"]))
         return outcome if saved else None
 
@@ -199,7 +245,7 @@ class LensForge:
         turn_id = lens_client_message_id(episode.id)
         receipt = {"episode_id": episode.id, "monitor_id": episode.monitor_id, "turn_id": turn_id,
                    "started_ms": to_ms(now), "outcome": ReceiptOutcome.FORGING.value,
-                   "tool_admission": TOOL_ADMISSION_FULL}
+                   "tool_admission": TOOL_ADMISSION_READ_ONLY}
         # BEFORE the turn, with the Episode's turn_id, in one transaction: the once-only guarantee.
         if not store.save_receipt(receipt, episode=replace(episode, turn_id=turn_id)):
             return None

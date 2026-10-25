@@ -258,7 +258,24 @@ class _Door:
         self.calls.append(args)
         if self.during is not None:
             self.during(args)
-        args.payload_sink({"ok": True, "reply": self.reply, "session_id": f"persona_chat_qa_{len(self.calls)}"})
+        args.payload_sink({"ok": True, "reply": self.reply, "session_id": args.session_id})
+        return 0
+
+
+class _OpenChat:
+    """A fake open-chat handler: mints a durable, default-titled root per idempotency key."""
+
+    def __init__(self) -> None:
+        self.calls: list = []
+        self.roots: dict[str, str] = {}
+
+    def __call__(self, args) -> int:
+        from agent_runtime.persona_chat_durability import ensure_durable_persona_chat_root
+
+        self.calls.append(args)
+        root = self.roots.setdefault(args.idempotency_key, f"persona_chat_qa_{len(self.roots) + 1}")
+        ensure_durable_persona_chat_root(root, persona_id=args.persona_id, title="QA chat")
+        args.payload_sink({"ok": True, "session_id": root, "persona_instance_id": "qa"})
         return 0
 
 
@@ -266,10 +283,13 @@ class _Door:
 def door():
     from agent_runtime import mission_chat_door
 
-    bound = _Door()
+    bound, opener = _Door(), _OpenChat()
+    bound.opener = opener
     mission_chat_door.bind_mission_chat_turn(bound)
+    mission_chat_door.bind_open_chat(opener)
     yield bound
     mission_chat_door.bind_mission_chat_turn(None)
+    mission_chat_door.bind_open_chat(None)
 
 
 def _armed(manifest: dict, *ordinals: int, state=None) -> LensStore:
@@ -301,16 +321,54 @@ def test_an_investigate_episode_forges_one_titled_turn_with_lens_provenance(door
 
     [args] = door.calls
     episode_id = _episode(1).id
-    assert (args.persona_id, args.new_session, args.title) == ("qa", True, "status · cpu_hot · #1")
+    [opened] = door.opener.calls
+    assert (opened.persona_id, opened.new_session, opened.select_session) == ("qa", True, False)
+    assert opened.idempotency_key == f"lens-episode-{episode_id}:chat"
+    assert (args.persona_id, args.new_session, args.session_id) == ("qa", False, "persona_chat_qa_1")
     assert (args.requested_by, args.client_message_id) == (
         f"lens-episode:{episode_id}:status", f"lens-episode-{episode_id}")
     assert args.relay_chain == [] and args.intent_hint == "chat" and args.json is True
     assert "[LENS EPISODE — status · cpu_hot · #1]" in args.message
     receipt = store.receipt(episode_id)
     assert (receipt["outcome"], receipt["session_id"], receipt["tool_admission"]) == (
-        "forged", "persona_chat_qa_1", "full")
+        "forged", "persona_chat_qa_1", "read_only")
+    from agent_runtime.persona_chat_durability import default_persona_session_db
+
+    assert default_persona_session_db().get_session_title("persona_chat_qa_1") == "status · cpu_hot · #1"
     assert _episode_row(store)["turn_id"] == f"lens-episode-{episode_id}"
     assert _forge().tick() == [] and len(door.calls) == 1
+
+
+def test_the_forged_turn_runs_on_a_chat_already_held_read_only(door):
+    from agent_runtime.tool_permissions import ChatToolPermissionStore
+
+    _armed(_monitor())
+    seen = {}
+
+    def during(args):
+        record = ChatToolPermissionStore().get(persona_id="qa", session_id=args.session_id)
+        seen["mode"] = None if record is None else record.mode
+        # Positive control: the same store, a chat the forge did not open, holds no restriction.
+        seen["other"] = ChatToolPermissionStore().get(persona_id="qa", session_id="persona_chat_qa_other")
+
+    door.during = during
+    assert _forge().tick() == ["forged"]
+    assert seen == {"mode": "read_only", "other": None}
+
+
+def test_a_refused_open_forges_no_turn(door):
+    from agent_runtime import mission_chat_door
+
+    store = _armed(_monitor())
+
+    def refusing(args):
+        args.payload_sink({"ok": False, "error_kind": "retired_persona_instance", "error": "retired"})
+        return 2
+
+    mission_chat_door.bind_open_chat(refusing)
+    assert _forge().tick() == ["forge_failed:retired_persona_instance"]
+    assert door.calls == []
+    assert store.receipt(_episode(1).id)["tool_admission"] == "read_only"
 
 
 def test_the_same_episode_never_forges_two_turns(door):
