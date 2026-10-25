@@ -71,7 +71,12 @@ def attach_hit_parameters(record: dict[str, Any], index: int, params) -> None:
 #: Fork tools that stay in the direct tool list. ``skill_search`` is the eternia-harness plugin's tool
 #: (toolset ``skills``); upstream defers every plugin tool, and it used to stay eager only by being
 #: named in upstream's core list in ``toolsets.py`` (moved here, lane h11-fp 2026-09-29).
-_BUILTIN_NEVER_DEFER = frozenset({"agent_chat_send", "agent_chat_dispatches", "skill_search"})
+#: The Mission Board tools ride with them (``RT-BOARD-TOOLS-NOT-EVIDENT``): the runtime HUD tells an agent a
+#: board exists (``runtime_hud.hud`` "- Board: …"), and a told agent must SEE how — never find the tools
+#: only after a ``tool_search``. They are every tool registered into the ``board`` toolset
+#: (``tests/tools/test_board_tools_ride_eager_downstream.py`` holds the two sets equal).
+BOARD_TOOLS = frozenset({"board_card_add", "board_cards"})
+_BUILTIN_NEVER_DEFER = frozenset({"agent_chat_send", "agent_chat_dispatches", "skill_search"}) | BOARD_TOOLS
 
 #: MCP promotions, keyed by the server that produces them and spelled as that server EXPOSES each
 #: tool. The registered name is derived below by the registry's own naming function — never typed by
