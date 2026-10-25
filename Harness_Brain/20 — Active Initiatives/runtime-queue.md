@@ -948,7 +948,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-22 (land w1022d)
 
-- **`RT-CHAT-STEER-POSITION-ON-ACCEPT` — the `runtime.chat.steer` method-lane result carries no `turn_id`/`turn_seq`, though the argv ack spreads `input_position()` into its JSON (`mission_chat_steer.py`), so the launcher can only estimate where a live steer sits until settle (launcher `MC-STEER-BUBBLE-DOCKED-AT-TURN-END`, landed with a live-edge estimate); return the position on the result or emit a stream frame when the steer is taken** · `agent_runtime/serve_rpc/chat.py::_runtime_chat_steer` · `agent_runtime/mission_chat_steer.py` · READY 2026-10-22 · **TAKEN 2026-10-25 w1025a-hermes**
 
 ## Filed on arrival — 2026-10-23 (launcher lane w1023l-mc)
 
