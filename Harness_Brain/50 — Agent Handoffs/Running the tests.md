@@ -318,6 +318,11 @@ five habits cost about 390 minutes a day.
   `_namespace_manifest` duplicate or NEW ladder only at the landing gate, each a fix-and-regate
   cycle (`FH-LANE-RUNS-NEW-NAME-GATES`). A red there that `main` shares is compared by its `NEW` /
   `GREW` lines, as § Calling a red pre-existing says, never fixed in passing.
+- **A lane that touched an upstream-owned file adds the footprint gate to that same run** —
+  `tests/scripts/test_upstream_footprint.py`. It reads the diff against upstream, not imports, so
+  no importer `grep` reaches it and `scripts/run_tests.sh tests/tooling` does not run it; an edit
+  that raised the footprint passed the tooling lane and landed red on `main` (`74e5ad1125`, repaired
+  `623fa5f23f`). A pre-push brief that names `tests/tooling` names `tests/scripts` beside it.
 - **Launcher lanes and landings run `*_test.dart` files only.** A `grep -l` under `test/` also
   matches fixtures and helpers; on 2026-10-05 it handed `flutter test` the helper
   `detached_serve_starter.dart` and the run hung ten minutes. Filter the list to `_test.dart`.
