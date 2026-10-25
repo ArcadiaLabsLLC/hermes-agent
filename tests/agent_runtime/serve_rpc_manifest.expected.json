@@ -629,7 +629,8 @@
       "install_id",
       "limit",
       "persona_id",
-      "persona_instance_id"
+      "persona_instance_id",
+      "legacy_route_id"
     ],
     "runtime.operator.conversation.subagents.capabilities": [
       "install_id",

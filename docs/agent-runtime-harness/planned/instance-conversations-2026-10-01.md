@@ -459,3 +459,19 @@ open. Ruff and the diff whitespace check passed. These are runtime receipts, not
 that Intelligence's legacy migration UI or Compare/profile Discussion adoption
 has landed. Those consumers, unmatched local recovery records, live migration,
 matched latency and global worker/store retirement remain step 5 work.
+
+### Resolving adopted source links — October 25
+
+The existing account-scoped native conversation directory now accepts an exact
+`legacy_route_id` filter and returns its applied value. It filters canonical
+origin metadata before pagination; a newer unrelated chat cannot hide an older
+adoption. The projected origin exposes only its route and profile. Cursor scope
+includes the filter, retaining account and installation isolation. No lookup
+store or alternate transcript is added.
+
+Removing the SQL origin predicate made the absent-route regression return an
+unrelated conversation (`migration-origin-filter-red.log`). Restored, the five
+migration, directory and dispatch files passed 144 tests; the strengthened
+pre-pagination case creates a newer unrelated native root through the public
+RPC and passed with the twelve migration tests (`migration-origin-prelimit.log`).
+This is the runtime contract for Launcher reopen integration, not its live proof.

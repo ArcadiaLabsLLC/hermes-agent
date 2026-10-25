@@ -30,7 +30,7 @@ class InstanceHistoryRefused(ValueError):
 CONVERSATION_LIST_METHOD = "runtime.operator.conversation.list"
 CONVERSATION_LIST_METHOD_PARAMS = (
     "all_accounts", "before", "client_scope", "install_id", "limit", "persona_id",
-    "persona_instance_id",
+    "persona_instance_id", "legacy_route_id",
 )
 
 _INSTANCE_ID_LIMIT = 200
@@ -55,13 +55,17 @@ def list_instance_conversations(params: dict) -> dict:
                                     or len(instance_id) > _INSTANCE_ID_LIMIT):
         raise InstanceHistoryRefused("invalid_history_query")
     persona_id = _requested_persona(params.get("persona_id"))
-    scope = (params["install_id"], owner, all_accounts, instance_id, persona_id)
+    legacy_route = params.get("legacy_route_id")
+    if legacy_route is not None and (not isinstance(legacy_route, str) or not legacy_route
+                                     or len(legacy_route) > 512):
+        raise InstanceHistoryRefused("invalid_history_query")
+    scope = (params["install_id"], owner, all_accounts, instance_id, persona_id, legacy_route)
     before = _history_position(params.get("before"), scope)
     db = chat_session_scope.open_chat_session_db(access=chat_session_scope.SessionDbAccess.READ)
     if db is None:
         if chat_session_scope.chat_session_store_exists():
             raise InstanceHistoryRefused("session_db_unavailable")
-        return {"conversations": [], "next_cursor": None}
+        return {"conversations": [], "next_cursor": None, "legacy_route_id": legacy_route}
     with closing(db):
         scan = PersonaInstanceStore().scan_all()
         if scan.unreadable:
@@ -70,14 +74,14 @@ def list_instance_conversations(params: dict) -> dict:
         persona = None if persona_id is None else (persona_id, sorted(
             instance.id for instance in scan.instances if instance.persona_id == persona_id))
         raw = _history_page(db, owner=None if all_accounts else owner, instance_id=instance_id,
-                            persona=persona, before=before, limit=limit)
+                            persona=persona, legacy_route=legacy_route, before=before, limit=limit)
         visible = raw[:limit]
         rows = [_project_instance_history(db, item, instances, params["install_id"]) for item in visible]
     cursor = None
     if len(raw) > limit:
         last = visible[-1]
         cursor = json.dumps([*scope, last["started_at"], last["id"]], separators=(",", ":"))
-    return {"conversations": rows, "next_cursor": cursor}
+    return {"conversations": rows, "next_cursor": cursor, "legacy_route_id": legacy_route}
 
 
 def _project_instance_history(db, raw, instances, install_id):
@@ -94,6 +98,9 @@ def _project_instance_history(db, raw, instances, install_id):
     if row["messages"]:
         row["last_message_preview"] = row["messages"][-1]["text"][:180]
     row.pop("messages")
+    origin = config.get("legacy_conversation")
+    if isinstance(origin, dict):
+        row["legacy_conversation"] = {key: origin.get(key) for key in ("route_id", "profile")}
     return row
 
 
@@ -145,7 +152,7 @@ def _history_position(value, scope):
         raise InstanceHistoryRefused("invalid_history_cursor") from exc
 
 
-def _history_page(db, *, owner, instance_id=None, persona=None, before, limit):
+def _history_page(db, *, owner, instance_id=None, persona=None, legacy_route=None, before, limit):
     # SessionDB has no metadata predicate on list_sessions_rich. Use its pooled
     # read boundary; owner, instance AND persona filtering must precede the page
     # bound, not follow it. Both predicates mirror _project_instance_history: the
@@ -158,6 +165,9 @@ def _history_page(db, *, owner, instance_id=None, persona=None, before, limit):
     if owner is not None:
         clauses.append("json_extract(model_config,'$.client_scope')=?")
         args.append(owner)
+    if legacy_route is not None:
+        clauses.append("json_extract(model_config,'$.legacy_conversation.route_id')=?")
+        args.append(legacy_route)
     if instance_id is not None:
         clause, values = _instance_clause(instance_id)
         clauses.append(clause)

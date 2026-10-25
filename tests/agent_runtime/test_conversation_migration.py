@@ -69,6 +69,31 @@ def selected(instance_id):
     return instance.session_id, instance.default_chat_session_id
 
 
+def test_directory_resolves_adopted_source_before_paging_and_with_account_isolation(legacy):
+    _, _, params, _, _ = legacy
+    result = migrate(legacy)
+    newer = serve_rpc.handle_request({"jsonrpc": "2.0", "id": "newer",
+        "method": "runtime.agent.conversation.create", "params": {
+            "install_id": params["install_id"], "client_scope": OWNER,
+            "persona_id": PERSONA, "persona_instance_id": params["persona_instance_id"],
+            "idempotency_key": "newer-unrelated"}})
+    assert "result" in newer, newer
+    assert newer["result"]["session_id"] != result["session_id"]
+    def query(**changes):
+        return serve_rpc.handle_request({"jsonrpc": "2.0", "id": "lookup",
+            "method": "runtime.operator.conversation.list", "params": {
+                "install_id": params["install_id"], "client_scope": OWNER,
+                "legacy_route_id": params["session_id"], "limit": 1, **changes}})
+    own = query()["result"]
+    assert own["legacy_route_id"] == params["session_id"] and own["next_cursor"] is None
+    row, = own["conversations"]
+    assert row["session_id"] == result["session_id"]
+    assert row["legacy_conversation"] == {"route_id": params["session_id"], "profile": "default"}
+    assert query(client_scope=OTHER)["result"]["conversations"] == []
+    assert query(legacy_route_id="absent")["result"]["conversations"] == []
+    assert query(legacy_route_id=17)["error"]["data"]["reason"] == "invalid_history_query"
+
+
 def test_import_is_atomic_retry_stable_owned_and_keeps_compression_history(legacy):
     service, scope, params, factory, home = legacy
     before = selected(params["persona_instance_id"])
