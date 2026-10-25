@@ -28,7 +28,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-10-22 (release merge rel-v0224)
 
-- **`FH-DAILY-DROPS-PHONE-SEAM-1022` — integration/upstream-daily's merge of origin/main (`520f48b4a9`) lost `agent/auxiliary_managed_local.py`'s phone-wheel `shipped()` seam; the release merge kept main's side, so the next daily must too** · fork-hygiene / daily branch · evidence `520f48b4a9` vs `8faf4f7c7a`, rel-v0224 report · READY 2026-10-22 · **TAKEN 2026-10-24 w1024t-hermes**
 
 ## Filed on arrival — 2026-10-22 (land w1022d)
 
