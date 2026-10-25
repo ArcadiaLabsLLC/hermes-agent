@@ -31,7 +31,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-10-22 (land w1022d)
 
-- **`FH-LEDGER-COUNT-DRIFT-1022` — `scripts/upstream_footprint.py --ledger` regenerates different add/delete counts for 5 ledger rows on main (e.g. `tools/environments/local.py` 7 → 13) that no lane re-derived** · fork / `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md` · evidence: lane w1022d-guard 2026-10-22 · READY 2026-10-22: re-derive the 5 rows, read each new hunk, and give each a reviewed reason · **TAKEN 2026-10-24 w1024t-hermes**
 
 ## Filed on arrival — 2026-10-22 (land w1022a)
 
