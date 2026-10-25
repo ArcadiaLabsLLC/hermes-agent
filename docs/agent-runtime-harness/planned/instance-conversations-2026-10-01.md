@@ -1,8 +1,9 @@
 # Instance conversation convergence
 
 Status: IN PROGRESS — native Direct/Discussion execution, permissions, rich
-input and Direct adoption have passed Launcher live checks. Legacy group
-adoption and matched cold/warm latency still precede worker retirement.
+input, Direct, profile-group and saved Compare adoption have passed Launcher
+live checks. Matched first-send/follow-up latency is recorded below. Launcher
+worker/local-writer retirement is undergoing final cutover validation.
 Foundation-only boundaries below are historical checkpoints.
 
 ## Foundation landing boundary, October 2
@@ -559,3 +560,59 @@ under Profile-group live migration, continuation and restart.
 
 Local Compare adoption, matched production-provider latency and final worker
 retirement remain active; this receipt closes the profile-group live prerequisite.
+
+
+### Saved Compare acceptance and caller ownership — October 25
+
+The real saved Compare exposed a caller-identity mismatch hidden by the original
+fixture: Discussion actor ids and local conversation caller ids use different
+representations. `8a4dcf0719` derives the source caller only from authenticated
+RPC context through the existing `caller_actor` helper. Both prepare and finish
+check that owner; no request field can select it. The regression exercises the
+registered public handler with the distinct identities and rejects a different
+source caller. Restoring the incorrect Discussion actor made the public-handler
+case fail with `conversation_unavailable`; restored, 26 focused checks passed.
+`7001f3409b` expresses the Compare archive event as an additive gateway seam and
+restores the upstream deletion ceiling; 19 footprint/import checks passed.
+The staged Ruff failure in the separately landed worker-catalog boot test is
+recorded by `FH-WORKER-CATALOG-BOOT-RUFF-CHECK`, not attributed to this change.
+
+With Launcher `ea94e99692` and socket-verified runtime `7001f3409b`, the original
+two-member GPT-6 Luna Compare was adopted into
+`discussion-96b4627b53d40fda2e0e60af`. Its 3,981-byte revision-18 archive had SHA-256
+`0d5513422fb4ed1d53bda9d4deeef90aaa2ab23f0e8b8bbfe50dbb83a8e29513`.
+The initial import had no execution tasks or commands. Both native members then
+recalled `COMPARE_COBALT_20261025` without that marker in the continuation
+prompt, using their imported model choices and default Compare mode. Actual
+instance default-chat pointers remained unchanged. Public log pages were read
+to exhaustion (the archive page cap is three events); both replies and settled
+tasks were confirmed. Stop paused the room and an idle drain reported zero
+pending requests. A new serve boot and Launcher reopened the canonical run via
+the original saved link with all seven pre-Stop events byte-for-byte equal,
+plus the Stop event. The original encrypted copy remained available read-only.
+
+### Matched provider latency prerequisite — October 25
+
+The final pair used runtime `7001f3409b`, the same QA account, base profile,
+OpenAI Codex GPT-6 Luna, Windows QA Debug configuration, and identical prompts.
+The legacy observer is isolated on the QA-only Launcher branch at `5afe61ca56`;
+it is never merged into production. It counts answer text, excluding progress
+and thinking text. Removing that distinction made its named regression fail.
+Launcher `ea94e99692` supplied the native samples. No heavy test/build ran while
+measuring. Model choice and initial connection preparation are outside the
+send timer; this measures the first send in a new empty conversation and its
+follow-up, not cold-provider-process startup. Each cell is one observation.
+
+| Lane / turn | Enqueue to admission | Enqueue to first answer paint | Enqueue to settlement |
+| --- | ---: | ---: | ---: |
+| Profile worker / first | 574 ms | 5,475 ms | 5,481 ms |
+| Native Console / first | 149 ms | 2,444 ms | 2,851 ms |
+| Profile worker / follow-up | 586 ms | 6,500 ms | 6,505 ms |
+| Native Console / follow-up | 11 ms | 3,936 ms | 5,550 ms |
+
+The first native send built one runtime bundle; the follow-up built none.
+Provider wait varies, so these samples qualify the observed cutover rather
+than establish a statistical speedup. Earlier measurements that counted
+progress as answer text, or used a different runtime build, are excluded.
+The Launcher acceptance note retains exact turn ids, timing logs and reviewed
+captures. Final retirement is owned by the same claimed cutover lane.
