@@ -528,3 +528,18 @@ with effective provider None (`group-model-migration-red.log`). Restored, the
 three migration/group/model files passed 50 tests (`group-model-migration-green.log`).
 This fixes import behavior; the previously imported QA group still requires an
 explicit native model choice, and fresh-import live acceptance remains pending.
+
+### Idle restart after native Discussion Stop — October 25
+
+Live qualification found that a restarted QA window could still attach to an
+older serve: paused native rooms held `drain_if_idle` indefinitely. Discussion
+idleness now recognizes a paused room only after both its command queue and
+unresolved execution owners are empty. Open native rooms retain their existing
+between-rounds fence; no forceful restart is introduced.
+
+The real room/serve admission regression separately holds a pending command and
+an unresolved task, then proves a settled Stop admits the drain. Reverting the
+paused verdict failed with pending_count 1 (`group-idle-red.log`); restored, 23
+serve-idle/profile-group/migration tests passed (`group-idle-green.log`).
+Qualification must inspect the socket hello build, since a launcher process
+restart and a filesystem build stamp do not prove the shared serve reloaded.

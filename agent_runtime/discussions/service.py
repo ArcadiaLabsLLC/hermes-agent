@@ -119,21 +119,23 @@ class DiscussionService:
     def _pending_runs(self) -> list[dict[str, Any]]:
         """Owned runs that may still schedule work; caller holds ``_lock``.
 
-        Every owned run counts except a SETTLED profile group. A discussion room
-        between rounds stays pending — that is the admission fence.
+        A paused room with no pending or unresolved work cannot schedule another
+        turn. Open native rooms still hold the fence between rounds.
         """
-        return [run for run in self.runs.owned() if not self._settled_group(run)]
+        return [run for run in self.runs.owned() if not self._quiescent_run(run)]
 
-    def _settled_group(self, run: Mapping[str, Any]) -> bool:
-        """An open profile group with nothing to do, decided by the planner itself.
+    def _quiescent_run(self, run: Mapping[str, Any]) -> bool:
+        """A paused room, or an open profile group with no planned work.
 
         Never inferred from an empty task list: a queued command, a live or
         unresolved task, or a planner decision of ``task`` keeps the group
         pending; an unreadable room cannot prove idle.
         """
-        if "group" not in (run.get("initial") or {}) or run["phase"] != "open":
-            return False
         if self.runs.pending(run["run_id"]) or self.state.unresolved(run["run_id"]):
+            return False
+        if run["phase"] == "paused":
+            return True
+        if "group" not in (run.get("initial") or {}) or run["phase"] != "open":
             return False
         try:
             decision = self._plan(run, self.state.room(run))

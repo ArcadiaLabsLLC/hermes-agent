@@ -11,7 +11,9 @@ from hermes_cli.harness_parts.serve.handle_message import MessageHandling
 from hermes_cli.harness_parts.serve.manifest import ops_manifest
 from hermes_cli.harness_parts.serve.session import ServeSession
 from tests.agent_runtime.conversation_support import WorkerFactory
-from tests.agent_runtime.test_discussion_runtime import engine, begin
+from tests.agent_runtime.test_discussion_runtime import engine, begin, command, settled, wait_until
+
+__all__ = ["engine"]  # Export the imported pytest fixture for this module's tests.
 
 
 @pytest.fixture
@@ -98,6 +100,26 @@ def test_open_discussion_blocks_maintenance_between_rounds(rig, engine):
     assert (request(rig)["reason"], request(rig)["held_by"]) == ("busy", "discussion")
     assert owner.capabilities()["accepting"]
     assert session._busy_frame()["work"] == 1
+
+
+def test_paused_native_discussion_allows_update_only_after_every_owner_settles(rig, engine, monkeypatch):
+    session, owner, *_ = rig
+    service = engine[0]
+    session.discussion_owner = service
+    run = begin(service)
+    wait_until(lambda: settled(service, run))
+    command(service, run, "stop")
+    wait_until(lambda: service.runs.get(run["run_id"])["phase"] == "paused")
+    assert service.pending_count() == 0
+    # Each hold must work alone, including during crash recovery of a paused room.
+    with monkeypatch.context() as m:
+        m.setattr(service.runs, "pending", lambda *_: [{"command_key": "queued"}])
+        assert request(rig)["held_by"] == "discussion"
+    with monkeypatch.context() as m:
+        m.setattr(service.state, "unresolved", lambda *_: True)
+        assert request(rig)["held_by"] == "discussion"
+    assert request(rig)["event"] == "draining"
+    assert not service.accepting and not owner.capabilities()["accepting"]
 
 
 def test_unreadable_owner_is_not_idle(rig, monkeypatch):
