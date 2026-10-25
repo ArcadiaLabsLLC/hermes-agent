@@ -59,6 +59,7 @@
   "gateway/hosted_room_history_pins.py|gateway.hosted_rooms|_transaction",
   "gateway/hosted_room_limits.py|gateway.hosted_room_discussion|_TERMINAL_EVENT_KINDS",
   "gateway/hosted_room_limits.py|gateway.hosted_room_discussion|_TURN_ID_RE",
+  "gateway/hosted_room_limits.py|gateway.hosted_room_discussion|_bounded_task_delta",
   "gateway/hosted_room_limits.py|gateway.hosted_room_discussion|_build_prompt",
   "gateway/hosted_room_limits.py|gateway.hosted_room_discussion|_identifier",
   "gateway/hosted_room_limits.py|gateway.hosted_room_discussion|_make_task_plan",
