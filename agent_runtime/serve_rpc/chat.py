@@ -14,6 +14,7 @@ from agent_runtime.serve_rpc.registry import method
 __layer__ = "lanes"
 
 __all__ = [
+    "_runtime_agent_conversation_create",
     "_runtime_chat_message",
     "_runtime_chat_steer",
     "_runtime_persona_instance_open_chat",
@@ -75,6 +76,29 @@ def _runtime_persona_instance_open_chat(
     integer moves only when an existing method's shape changes incompatibly.
     """
 
+    return _open_chat_request(rid, params, context)
+
+
+@method("runtime.agent.conversation.create", tier=TIER_CONSOLE)
+def _runtime_agent_conversation_create(
+    rid: Any, params: dict, context: RpcContext | None = None,
+) -> dict:
+    """Create an account-owned chat without selecting it on the Mission Control instance.
+
+    The native mint, durable root, replay receipt and prewarm are the same as
+    open-chat; only the explicit pointer-selection intent differs.
+    """
+    from agent_runtime.persona_open_chat import CREATE_CONVERSATION_METHOD_PARAMS
+    from agent_runtime.serve_rpc.protocol import ERR_INVALID_PARAMS
+
+    required = ("persona_id", "persona_instance_id", "client_scope", "install_id")
+    missing_identity = any(not isinstance(params.get(key), str) or not params[key].strip() for key in required)
+    if set(params) - set(CREATE_CONVERSATION_METHOD_PARAMS) or missing_identity:
+        return err(rid, ERR_INVALID_PARAMS, "An independent conversation requires its owner and creation parameters.")
+    return _open_chat_request(rid, {**params, "new_session": True}, context, select_session=False)
+
+
+def _open_chat_request(rid: Any, params: dict, context: RpcContext | None, *, select_session: bool = True) -> dict:
     from agent_runtime.launcher_app_functions import (
         bind_launcher_link,
         launcher_link_of,
@@ -89,7 +113,8 @@ def _runtime_persona_instance_open_chat(
     )
     try:
         outcome = perform_persona_instance_open_chat(
-            params, caller=context.caller if context is not None else None
+            params, caller=context.caller if context is not None else None,
+            select_session=select_session,
         )
     finally:
         reset_launcher_link(link_token)

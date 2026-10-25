@@ -30,6 +30,7 @@
     "runtime.admission.release",
     "runtime.admission.reserve",
     "runtime.admission.status",
+    "runtime.agent.conversation.create",
     "runtime.agent.create",
     "runtime.agent.directory",
     "runtime.agent.retire",
@@ -328,6 +329,15 @@
     "runtime.workspace.use"
   ],
   "params": {
+    "runtime.agent.conversation.create": [
+      "persona_id",
+      "persona_instance_id",
+      "idempotency_key",
+      "client_scope",
+      "install_id",
+      "requested_by",
+      "correlation_id"
+    ],
     "runtime.board.card.add": [
       "assignee",
       "board_id",
@@ -865,6 +875,7 @@
     "runtime.admission.release": "console",
     "runtime.admission.reserve": "console",
     "runtime.admission.status": "read",
+    "runtime.agent.conversation.create": "console",
     "runtime.agent.create": "console",
     "runtime.agent.directory": "console",
     "runtime.agent.retire": "console",

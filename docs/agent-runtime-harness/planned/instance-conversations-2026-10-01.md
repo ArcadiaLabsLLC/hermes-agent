@@ -359,3 +359,27 @@ answer for 30 seconds. Native authentication can instead change profile or share
 resolved answer, but cannot detect a change hidden by that existing memo. The
 runtime queue tracks auth-owner-aware invalidation and a sign-out/rotation test;
 no live sign-out failure or account leak is claimed here.
+
+## Independent creation correction — October 25
+
+The Launcher live check found that its ordinary New gesture still used
+`runtime.persona.instance.open_chat` with `new_session=true`, which deliberately
+selects the minted root on Mission Control's instance. Independent creation now
+has the console-authorized `runtime.agent.conversation.create` method. It requires
+an exact install, persona, instance, account digest and idempotency key, and calls
+the existing open-chat implementation with pointer selection disabled.
+
+The existing mint receipt persists that intent. A key cannot cross between
+selecting and independent creation; old receipts retain selecting semantics.
+Both operations share durable SessionDB roots, owner checks, retry recovery and
+prewarm. No second transcript store or minting service was added. The response's
+`selection_requested` distinguishes intent from the current `selected` fact.
+
+The focused RPC/owner/mint/door checks pass (57 assertions collected as tests),
+as do both name-census files. The new tests exercise distinct roots, exact-owner
+validation, read/send admission, explicit later selection, retry, retirement and
+console authorization against real stores. Forcing selection fails
+`test_creation_retry_and_send_keep_cockpit_selection`; removing the receipt's
+intent comparison fails `test_mint_key_cannot_change_selection_intent`. Both
+mutations were restored. Full provider execution and desktop requalification
+remain part of the cutover; admission alone does not prove their behavior.

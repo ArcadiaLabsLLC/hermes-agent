@@ -54,6 +54,7 @@ from .serde import stripped_str
 __layer__ = "lanes"
 
 __all__ = [
+    "CREATE_CONVERSATION_METHOD",
     "OPEN_CHAT_METHOD",
     "PersonaOpenChatOutcome",
     "PersonaOpenChatRefusal",
@@ -80,6 +81,12 @@ OPEN_CHAT_METHOD_PARAMS = (
     "persona_id", "persona_instance_id", "session_id", "new_session",
     "kill_active", "idempotency_key", "client_message_id", "requested_by",
     "correlation_id", "install_id", "client_scope",
+)
+
+CREATE_CONVERSATION_METHOD = "runtime.agent.conversation.create"
+CREATE_CONVERSATION_METHOD_PARAMS = (
+    "persona_id", "persona_instance_id", "idempotency_key", "client_scope", "install_id",
+    "requested_by", "correlation_id",
 )
 
 
@@ -228,7 +235,7 @@ def _open_chat_args(
 
 
 def perform_persona_instance_open_chat(
-    params: dict, *, caller: Any | None = None
+    params: dict, *, caller: Any | None = None, select_session: bool = True
 ) -> PersonaOpenChatOutcome:
     """The method lane's door onto ``harness persona instance open-chat``.
 
@@ -297,6 +304,7 @@ def perform_persona_instance_open_chat(
         )
 
     args = _open_chat_args(params, persona_id, owner, caller)
+    args.select_session = select_session
 
     # Through the mission-chat door's open-chat slot (lane W3-B), never the
     # CLI namespace: the door installs ``args.payload_sink`` and hands back the

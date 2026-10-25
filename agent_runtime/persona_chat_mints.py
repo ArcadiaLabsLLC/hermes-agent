@@ -43,6 +43,7 @@ class PersonaChatMintReceipt:
     created_at: str
     updated_at: str
     client_scope: str | None = None
+    select_session: bool = True
     idempotent_replay: bool = False
 
     @property
@@ -73,6 +74,7 @@ def reserve_persona_chat_mint(
     persona_instance_id: str,
     session_id: str,
     client_scope: str | None = None,
+    select_session: bool = True,
 ) -> Iterator[PersonaChatMintTransaction]:
     """Reserve or replay one server-minted chat root.
 
@@ -100,6 +102,7 @@ def reserve_persona_chat_mint(
                         persona_id=persona_id,
                         persona_instance_id=persona_instance_id,
                         client_scope=owner,
+                        select_session=select_session,
                     )
                     receipt = replace(receipt, idempotent_replay=True)
                 else:
@@ -113,6 +116,7 @@ def reserve_persona_chat_mint(
                         created_at=timestamp,
                         updated_at=timestamp,
                         client_scope=owner,
+                        select_session=select_session,
                     )
                     _write_receipt(receipt)
                 yield PersonaChatMintTransaction(receipt)
@@ -152,6 +156,7 @@ def _read_receipt(path, *, digest: str) -> PersonaChatMintReceipt:
             created_at=str(raw["created_at"]),
             updated_at=str(raw["updated_at"]),
             client_scope=validate_client_scope(raw.get("client_scope")),
+            select_session=_selection_policy(raw),
         )
         if not all(
             (
@@ -176,17 +181,26 @@ def _read_receipt(path, *, digest: str) -> PersonaChatMintReceipt:
         ) from exc
 
 
+def _selection_policy(raw: dict) -> bool:
+    value = raw.get("select_session", True)
+    if not isinstance(value, bool):
+        raise ValueError("invalid selection policy")
+    return value
+
+
 def _validate_scope(
     receipt: PersonaChatMintReceipt,
     *,
     persona_id: str,
     persona_instance_id: str,
     client_scope: str | None,
+    select_session: bool,
 ) -> None:
     if (
         receipt.persona_id == persona_id
         and receipt.persona_instance_id == persona_instance_id
         and receipt.client_scope == client_scope
+        and receipt.select_session == select_session
     ):
         return
     raise PersonaChatMintError(
@@ -205,6 +219,7 @@ def _write_receipt(receipt: PersonaChatMintReceipt) -> None:
             "persona_instance_id": receipt.persona_instance_id,
             "session_id": receipt.session_id,
             "state": receipt.state,
+            "select_session": receipt.select_session,
             "created_at": receipt.created_at,
             "updated_at": receipt.updated_at,
             **({"client_scope": receipt.client_scope} if receipt.client_scope is not None else {}),

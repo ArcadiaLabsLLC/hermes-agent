@@ -245,7 +245,8 @@ def manifest() -> dict[str, Any]:
     from ..instance_history import CONVERSATION_LIST_METHOD, CONVERSATION_LIST_METHOD_PARAMS
     from ..operator_files import files_limits
     from ..operator_message import operator_text_admission
-    from ..persona_open_chat import OPEN_CHAT_METHOD, OPEN_CHAT_METHOD_PARAMS
+    from ..persona_open_chat import (OPEN_CHAT_METHOD, OPEN_CHAT_METHOD_PARAMS,
+                                     CREATE_CONVERSATION_METHOD, CREATE_CONVERSATION_METHOD_PARAMS)
     from .board import BOARD_METHOD_PARAMS
     from .twin_params import COURSE_METHOD_PARAMS, PERSONA_TOOLSET_METHOD_PARAMS, TWIN_METHOD_PARAMS
     from ..subagents.params import METHOD_PARAMS as SUBAGENT_METHOD_PARAMS
@@ -258,6 +259,7 @@ def manifest() -> dict[str, Any]:
             name: list(keys) for name, keys in sorted({
                 **CHAT_TURN_METHOD_PARAMS,
                 OPEN_CHAT_METHOD: OPEN_CHAT_METHOD_PARAMS,
+                CREATE_CONVERSATION_METHOD: CREATE_CONVERSATION_METHOD_PARAMS,
                 CONVERSATION_LIST_METHOD: CONVERSATION_LIST_METHOD_PARAMS,
                 **TWIN_METHOD_PARAMS,
                 **COURSE_METHOD_PARAMS,

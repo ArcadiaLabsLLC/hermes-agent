@@ -439,6 +439,7 @@ def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_sc
             persona_instance_id=target_instance_id,
             session_id=persona_chat_session_id_for(target_instance_id),
             client_scope=getattr(args, "client_scope", None),
+            select_session=getattr(args, "select_session", True),
         ) as mint:
             receipt = mint.receipt
             if receipt.bound:
@@ -486,7 +487,8 @@ def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_sc
         "add_instance": False,
         "new_session": True,
         "selected": selected,
-        "superseded": not selected,
+        "selection_requested": receipt.select_session,
+        "superseded": receipt.select_session and not selected,
         "idempotent_replay": receipt.idempotent_replay,
         "mint_receipt_state": receipt.state,
         **({"client_scope": receipt.client_scope} if receipt.client_scope is not None else {}),
@@ -513,7 +515,7 @@ def _require_replayed_root_owner(receipt) -> None:
 
 
 def _publish_minted_root(args, *, store, mint, current, persona_id: str, target_instance_id: str):
-    """Make a fresh mint's root durable, select it, and mark the mint bound.
+    """Make a fresh mint's root durable, apply its selection intent, and bind it.
 
     Returns ``(instance, receipt)``, or the exit code of the refusal it emitted.
     """
@@ -523,6 +525,14 @@ def _publish_minted_root(args, *, store, mint, current, persona_id: str, target_
     # instance's selected chat. If SessionDB is temporarily
     # unavailable the reserved receipt survives and retry reuses the
     # same root instead of creating a duplicate conversation.
+    try:
+        store.assert_bindable(
+            persona_id=persona_id, persona_instance_id=target_instance_id,
+            session_id=receipt.session_id,
+        )
+    except RetiredPersonaInstanceError as exc:
+        _emit_persona_verb_payload(args, _retired_persona_instance_payload(exc))
+        return 2
     try:
         with closing(_default_persona_session_db()) as session_db:
             _ensure_persona_chat_session(
@@ -549,6 +559,8 @@ def _publish_minted_root(args, *, store, mint, current, persona_id: str, target_
         }
         _emit_persona_verb_payload(args, data)
         return 2
+    if not receipt.select_session:
+        return store.get(target_instance_id), mint.mark_bound()
     try:
         instance = store.open_chat(
             persona_id=persona_id,
