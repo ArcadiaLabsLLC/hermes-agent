@@ -35,7 +35,6 @@ tags: [queue, program/fork-hygiene]
 ## Filed on arrival — 2026-10-22 (land w1022a)
 
 - **`FH-UP-PR-128649-CERTIFI-ROTATION` — PR #128649 (shared TLS platform context) cannot take upstream/main 81a55437f3: it returns `_shared_context(None)` whenever truststore is installed, skipping upstream's new `_default_verify()` certifi re-resolve, so 4 of upstream's new certifi-rotation tests in `tests/agent/test_ssl_verify.py` fail (they pass on upstream alone); the branch is untouched** · fork / upstream PR branches · evidence: lane upr-1 2026-10-22 · RULED 2026-10-22: owner — rework #128649 so upstream's `_default_verify()` certifi re-resolve runs before the shared context is handed out; then merge upstream/main into the branch · READY 2026-10-22 · **TAKEN 2026-10-24 w1024t-hermes**
-- **`FH-TEST-CHILD-PYTHON-SPAWN-COST` — under the fork runner a `sys.executable scripts/check` child costs 6–9 s (`test_unknown_or_empty_selector_is_a_usage_error` 6.5–8.9 s, vs 1.0 s for `scripts/check --help` outside the runner), so the scripts/check CLI file ranged 103–592 s alone and needs per-test bounds** · fork suite · evidence: lane w1022a-tests junit times 2026-10-22, commit `5b2bbf4c57` body · NEEDS PLAN 2026-10-22: measure child start-up inside vs outside the runner (env, temp root, guards) before raising any more bounds · **TAKEN 2026-10-24 w1024t-hermes**
 
 ## Filed on arrival — 2026-10-21 (lane w1021h-tooling, branch `w1021h/tooling`)
 
