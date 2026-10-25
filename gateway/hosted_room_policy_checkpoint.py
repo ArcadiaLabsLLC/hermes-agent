@@ -167,9 +167,10 @@ class HostedRoomPolicyCheckpoint:
             (room_id, discussion_event_id, self.max_active_events + 1)).fetchall()
         if len(active_rows) > self.max_active_events:
             raise RuntimeError(bound_error)
+        MAX_TRANSCRIPT_POLICY_EVENTS = self.max_transcript_events  # fork (J2 A3): the instance's bound, additive
         rows = conn.execute(_TRANSCRIPT_EVENTS_SQL,
-                            (room_id, thread_id, room_id, thread_id, room_id, self.max_transcript_events + 1)).fetchall()
-        if len(rows) > self.max_transcript_events:
+                            (room_id, thread_id, room_id, thread_id, room_id, MAX_TRANSCRIPT_POLICY_EVENTS + 1)).fetchall()
+        if len(rows) > MAX_TRANSCRIPT_POLICY_EVENTS:
             raise RuntimeError("thread policy transcript exceeded its bound")
         events_by_seq = {
             int(event["seq"]): event
