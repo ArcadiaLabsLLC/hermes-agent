@@ -65,6 +65,20 @@ def _inspection_persona(instance: PersonaInstance, config: AgentRuntimeConfig) -
     return persona
 
 
+def inspect_operator_permissions(params: dict[str, Any]) -> dict[str, Any]:
+    """Read the existing permission authority without activating a chat or consuming a grant."""
+    from .tool_permissions import permission_state_for_chat
+
+    with operator_session_read(params) as (instance, session):
+        persona = _inspection_persona(instance, load_agent_runtime_config())
+        binding = resolve_persona_profile(persona)
+        if binding.readiness != "ready":
+            raise OperatorConversationRefused("profile_unavailable")
+        with persona_profile_context(binding, runtime_root=paths.store_root()):
+            facts = permission_state_for_chat(persona, session_id=params["session_id"])
+        return {**inspection_identity(params, session.owner), "permission_state": facts}
+
+
 def inspect_operator_skills(params: dict[str, Any]) -> dict[str, Any]:
     operation = params.get("operation")
     if operation not in ("list", "detail", "history"):

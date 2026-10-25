@@ -222,6 +222,15 @@ all. It applies and discards nothing; staging approval is a later write verb.
 `test_operator_session_inspection` proves profile isolation, the pending projection, no
 file created and the owner refusal.
 
+`runtime.operator.conversation.permissions` uses those same exact-target and
+owner checks, then resolves `permission_state` through
+`tool_permissions.permission_state_for_chat` inside the owning profile scope.
+It reports the selected native chat's effective mode, blocked tools, expiry and
+remaining turns. It neither activates the chat nor consumes a bounded grant;
+the existing permission writer remains the sole mutation path.
+`test_operator_session_permissions` covers two chats on one instance, foreign
+owner/install refusals, and unchanged grants, transcript and default pointer.
+
 ## 1. Send admission — the turn's identity and its thread
 
 **Attachments are admitted before the turn runs.** `chat_turn_commit/admit.py` resolves

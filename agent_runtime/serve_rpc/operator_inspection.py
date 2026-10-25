@@ -4,7 +4,7 @@ import json
 from agent_runtime.call_authorization import TIER_CONSOLE
 from agent_runtime.operator_conversation import OperatorConversationRefused
 from agent_runtime.operator_session_inspection import (
-    inspect_operator_memory, inspect_operator_settings, inspect_operator_skills,
+    inspect_operator_memory, inspect_operator_settings, inspect_operator_skills, inspect_operator_permissions,
 )
 from agent_runtime.operator_session_models import operator_model_facts, operator_selected_model_facts, select_operator_model
 from agent_runtime.operator_session_controls import (
@@ -46,6 +46,12 @@ def settings(rid, params: dict, context: RpcContext | None = None):
 def skills(rid, params: dict, context: RpcContext | None = None):
     return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.skills",
                                inspect_operator_skills)
+
+
+@method("runtime.operator.conversation.permissions", tier=TIER_CONSOLE)
+def permissions(rid, params: dict, context: RpcContext | None = None):
+    return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.permissions",
+                               inspect_operator_permissions)
 
 
 @method("runtime.operator.conversation.models", tier=TIER_CONSOLE)
