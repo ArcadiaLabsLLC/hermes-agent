@@ -1,8 +1,8 @@
 {
-  "measured_at": "2026-10-24",
+  "measured_at": "2026-10-25",
   "base": "4d04303818",
   "files": 237,
-  "deleted_lines": 1035,
+  "deleted_lines": 1041,
   "heavy": 1,
   "reasons": [
     {
@@ -1158,6 +1158,21 @@
       },
       "reason": "carry of deferred upstream PR #128649: its tests (shared-context identity + positive control); retire when the PR lands",
       "owner_ruling": "2026-10-24 · Harness_Brain/20 — Active Initiatives/fork-hygiene-queue.md FH-UP-PR-128649-CERTIFI-ROTATION (owner: \"defer prs but make sure the code needed is on our main\")"
+    },
+    {
+      "change": "RT-SELF-REPO-GUARD-VAR-AND-GITDIR-TARGETS (tools/self_repo_guard.py)",
+      "before": {
+        "files": 237,
+        "deleted_lines": 1035,
+        "heavy": 1
+      },
+      "after": {
+        "files": 237,
+        "deleted_lines": 1041,
+        "heavy": 1
+      },
+      "reason": "Prepared idle branch up/self-repo-guard-windows-paths (owner 2026-10-21: upstream takes no PRs; fix fork-first). RT-SELF-REPO-GUARD-WINDOWS-PATHS (lane w1022d-guard): _shell_words_at hands a word through tools/path_identity.py::shell_path_operand first, so a backslash or Git-Bash /x/… cd / -C / --work-tree target keeps the path the shell hands git. RT-SELF-REPO-GUARD-VAR-AND-GITDIR-TARGETS (lane w1024t-hermes2, PR deferred: FH-DEFER-PR-SELF-REPO-GUARD-VARS): $VAR / ${VAR} in a cd / -C / --work-tree target expands from earlier statements' assignments then os.environ (never the same statement's prefix) or is refused as UNRESOLVED naming the word; the expansion, scoped shell variables and the refusal live in the fork seam tools/self_repo_guard_vars.py, the upstream file keeps one import, two added lines in _find_mutation and the expand_target calls at the cd / -C / --work-tree sites. Retires with the deferred PR",
+      "owner_ruling": "2026-10-24 · Harness_Brain/20 — Active Initiatives/runtime-queue.md RT-SELF-REPO-GUARD-VAR-AND-GITDIR-TARGETS (owner: \"defer prs but make sure the code needed is on our main\")"
     }
   ]
 }

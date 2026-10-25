@@ -15,7 +15,8 @@ from tools.approval_detection import (
     _bash_exec_payload, _deobfuscate_shell_word_for_detection, _iter_shell_command_starts,
     _is_shell_comment_start, _read_shell_word, _scan_shell)
 from tools.path_identity import shell_path_operand  # fork: RT-SELF-REPO-GUARD-WINDOWS-PATHS
-from tools.self_repo_guard_vars import expand_target, is_unresolved, unresolved_message, unresolved_operation  # fork: RT-SELF-REPO-GUARD-VAR-AND-GITDIR-TARGETS
+from tools.self_repo_guard_vars import (  # fork: RT-SELF-REPO-GUARD-VAR-AND-GITDIR-TARGETS
+    ShellVars, expand_target, is_unresolved, unresolved_message, unresolved_operation)
 
 # bisect drives repeated checkouts of the running root — the exact skew hazard guarded here.
 _WORKTREE_MUTATIONS = frozenset({
@@ -195,7 +196,7 @@ def _cd_target(executable: str, args: list[str], cwd: Path, env: dict[str, str] 
     index = _consume_options(args, 0)
     if index >= len(args) or args[index] == "-":
         return None
-    target = _resolve(expand_target(args[index], env or {}), cwd)
+    target = _resolve(expand_target(args[index], {} if env is None else env), cwd)
     return target if target.is_dir() or is_unresolved(target) else None
 
 
@@ -521,6 +522,7 @@ def _find_mutation(command: str, cwd: Path, root: Path, depth: int = 0) -> str |
     # cwd per subshell scope; `cd` applies to the NEXT command only via `&&`, `;`, newline.
     cwd_by_scope: dict[tuple[int, ...], Path] = {(): cwd}
     pending_cd: dict[tuple[int, ...], Path] = {}
+    shell_vars = ShellVars()  # fork: RT-SELF-REPO-GUARD-VAR-AND-GITDIR-TARGETS
     for start in starts:
         scope = scopes[start]
         cwd_by_scope.setdefault(scope, cwd_by_scope.get(scope[:-1], cwd))
@@ -528,6 +530,7 @@ def _find_mutation(command: str, cwd: Path, root: Path, depth: int = 0) -> str |
         if pending is not None and _operator_before(masked_command, start) in {"&&", ";", "\n"}:
             cwd_by_scope[scope] = pending
         env, executable, args = _command_parts(_shell_words_at(masked_command, start))
+        env = shell_vars.bind(scope, env, executable, args)  # fork: $VAR targets expand as the shell will
         if executable is None:
             continue
         current_dir = cwd_by_scope[scope]
