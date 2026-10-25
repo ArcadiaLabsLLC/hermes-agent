@@ -73,6 +73,7 @@ class ConversationService:
                     "facts": self._facts(route, recovered["recovery"], inventory), **recovered}
 
     def _attach(self, route, *, created: bool) -> LiveConversation:
+        self.store.require_executable(route)
         receipt = self.store.latest(route)
         if (receipt and receipt.state in UNSETTLED and
                 execution_possible(route.worker_pid, route.worker_created)):
@@ -116,6 +117,20 @@ class ConversationService:
         if self.profile_home(scope.profile).resolve(strict=True) != Path(route.home):
             raise ConversationError(Refusal.WRONG_OWNER)
         return route
+
+    def migrate(self, scope: ConversationScope, session_id: str, params: dict) -> dict:
+        from .migration import migrate_conversation, migration_target
+
+        route = self._owned_route(scope, session_id)
+        target = migration_target(scope, params)
+        with self._bindings.quiesce(route) as retired:
+            if (not retired and self.store.migration_target(route) is None and self.store.has_turns(route)
+                    and execution_possible(route.worker_pid, route.worker_created)):
+                raise ConversationError(Refusal.BUSY)
+            with self._lock:
+                self._admit()
+                self.store.reserve_migration(route, target.persona_id, target.id)
+            return migrate_conversation(self, scope, route, target)
 
     def subagents(self, scope: ConversationScope, session_id: str, operation: str, params: dict) -> dict:
         from .subagents import inspect_children, inspect_settings_route

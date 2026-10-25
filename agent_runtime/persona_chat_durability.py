@@ -140,6 +140,25 @@ def default_persona_session_db():
         raise PersonaChatPersistenceError("session_db_acquire", exc) from exc
 
 
+def persona_chat_ownership(
+    session_id: str, persona_id: str | None, *, client_scope: str | None = None,
+    independent: bool = False,
+) -> dict:
+    """The ownership metadata used by both fresh roots and imported history."""
+    try:
+        normalized_persona = normalize_persona_or_template_id(persona_id or "persona")
+    except Exception:
+        normalized_persona = safe_assignment_token(persona_id) or "persona"
+    ownership = {"source": PERSONA_CHAT_SESSION_SOURCE, "persona_id": normalized_persona}
+    if owner_instance_id := chat_session_owner_instance_id(session_id):
+        ownership["persona_instance_id"] = owner_instance_id
+    if client_scope is not None:
+        ownership["client_scope"] = validate_client_scope(client_scope)
+    if independent:
+        ownership["independent_conversation"] = True
+    return ownership
+
+
 def ensure_persona_chat_session(
     *,
     session_db,
@@ -154,21 +173,7 @@ def ensure_persona_chat_session(
         return persona_chat_persistence_failed(
             "session_create", None, required=required
         )
-    try:
-        normalized_persona = normalize_persona_or_template_id(persona_id or "persona")
-    except Exception:
-        normalized_persona = safe_assignment_token(persona_id) or "persona"
-    owner_instance_id = chat_session_owner_instance_id(session_id)
-    ownership = {
-        "source": PERSONA_CHAT_SESSION_SOURCE,
-        "persona_id": normalized_persona,
-    }
-    if owner_instance_id:
-        ownership["persona_instance_id"] = owner_instance_id
-    if client_scope is not None:
-        ownership["client_scope"] = validate_client_scope(client_scope)
-    if independent:
-        ownership["independent_conversation"] = True
+    ownership = persona_chat_ownership(session_id, persona_id, client_scope=client_scope, independent=independent)
     try:
         if client_scope is not None and (existing := session_db.get_session(session_id)) is not None:
             require_session_owner(existing, client_scope)
@@ -177,7 +182,7 @@ def ensure_persona_chat_session(
             source=PERSONA_CHAT_SESSION_SOURCE,
             model=None,
             model_config=ownership,
-            system_prompt=f"Mission Control persona chat for {normalized_persona}",
+            system_prompt=f"Mission Control persona chat for {ownership['persona_id']}",
         )
         if client_scope is not None:
             require_session_owner(session_db.get_session(session_id), client_scope)
@@ -257,5 +262,6 @@ __all__ = [
     "default_persona_session_db",
     "ensure_durable_persona_chat_root",
     "ensure_persona_chat_session",
+    "persona_chat_ownership",
     "persona_chat_persistence_failed",
 ]

@@ -250,6 +250,7 @@ def manifest() -> dict[str, Any]:
     from .board import BOARD_METHOD_PARAMS
     from .twin_params import COURSE_METHOD_PARAMS, PERSONA_TOOLSET_METHOD_PARAMS, TWIN_METHOD_PARAMS
     from ..subagents.params import METHOD_PARAMS as SUBAGENT_METHOD_PARAMS
+    from ..conversations.model import MIGRATE_METHOD, MIGRATE_PARAMS
 
     return {
         "contract": RPC_CONTRACT_VERSION,
@@ -266,6 +267,7 @@ def manifest() -> dict[str, Any]:
                 **PERSONA_TOOLSET_METHOD_PARAMS,
                 **BOARD_METHOD_PARAMS,
                 **SUBAGENT_METHOD_PARAMS,
+                MIGRATE_METHOD: MIGRATE_PARAMS,
             }.items())
         },
         "limits": {"operator_text": operator_text_admission(), "files": files_limits()},

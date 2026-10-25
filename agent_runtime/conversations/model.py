@@ -9,6 +9,9 @@ from typing import Any
 
 __layer__ = "models"
 
+MIGRATE_METHOD = "runtime.conversation.migrate"
+MIGRATE_PARAMS = ("install_id", "client_scope", "profile", "session_id", "persona_id", "persona_instance_id")
+
 
 class Refusal(StrEnum):
     INVALID_REQUEST = "invalid_request"
@@ -24,6 +27,7 @@ class Refusal(StrEnum):
     FILE_UNSUPPORTED = "file_unsupported"
     FILE_OVERSIZE = "file_oversize"
     FILE_INVALID = "file_invalid"
+    MIGRATED = "conversation_migrated"
 
 
 class ConversationError(ValueError):

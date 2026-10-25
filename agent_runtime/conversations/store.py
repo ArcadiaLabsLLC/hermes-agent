@@ -34,6 +34,9 @@ class ConversationStore:
                 WHERE state IN ('dispatching','running','unknown')""")
             db.execute("""CREATE INDEX IF NOT EXISTS conversation_execution
                 ON conversation_turns(conversation_id,execution_id)""")
+            db.execute("""CREATE TABLE IF NOT EXISTS conversation_migrations (
+                conversation_id TEXT PRIMARY KEY, persona_id TEXT NOT NULL,
+                persona_instance_id TEXT NOT NULL)""")
 
     def connect(self):
         return open_db(self.path, db_label="native conversation receipts", synchronous_full=True)
@@ -73,6 +76,7 @@ class ConversationStore:
     def admit(self, route: ConversationRoute, turn_id: str, payload: dict) -> tuple[TurnReceipt, bool]:
         signature = digest(payload)
         with transaction(self.connect(), immediate=True) as db:
+            self._require_executable(db, route.id)
             prior = db.execute("SELECT * FROM conversation_turns WHERE conversation_id=? AND turn_id=?",
                                (route.id, turn_id)).fetchone()
             if prior is not None:
@@ -132,9 +136,16 @@ class ConversationStore:
             return db.execute("SELECT 1 FROM conversation_turns WHERE conversation_id=? LIMIT 1",
                               (route.id,)).fetchone() is not None
 
+    def turn_receipts(self, route: ConversationRoute) -> list[dict]:
+        with closing(self.connect()) as db:
+            return [dict(row) for row in db.execute(
+                "SELECT turn_id,state,cancel_requested FROM conversation_turns WHERE conversation_id=? ORDER BY rowid",
+                (route.id,)).fetchall()]
+
     def replace_unused(self, route: ConversationRoute, native_id: str) -> ConversationRoute:
         """Replace a lost empty native session; never change a dispatched route."""
         with transaction(self.connect(), immediate=True) as db:
+            self._require_executable(db, route.id)
             if db.execute("SELECT 1 FROM conversation_turns WHERE conversation_id=? LIMIT 1",
                           (route.id,)).fetchone():
                 raise ConversationError(Refusal.UNKNOWN)
@@ -144,7 +155,9 @@ class ConversationStore:
 
     def unsettled(self) -> list[TurnReceipt]:
         with closing(self.connect()) as db:
-            rows = db.execute("SELECT * FROM conversation_turns WHERE state IN (?,?,?)", UNSETTLED).fetchall()
+            rows = db.execute("""SELECT t.* FROM conversation_turns t WHERE state IN (?,?,?)
+                AND NOT EXISTS (SELECT 1 FROM conversation_migrations m WHERE m.conversation_id=t.conversation_id)""",
+                              UNSETTLED).fetchall()
         return [_receipt(row) for row in rows]
 
     def worker(self, route: ConversationRoute, pid: int, created: float) -> None:
@@ -156,7 +169,41 @@ class ConversationStore:
         with closing(self.connect()) as db:
             return [dict(row) for row in db.execute("""SELECT t.turn_id,r.worker_pid,r.worker_created
                 FROM conversation_turns t JOIN conversation_routes r ON r.id=t.conversation_id
-                WHERE t.state IN (?,?,?)""", UNSETTLED).fetchall()]
+                WHERE t.state IN (?,?,?) AND NOT EXISTS
+                (SELECT 1 FROM conversation_migrations m WHERE m.conversation_id=t.conversation_id)""",
+                                                  UNSETTLED).fetchall()]
+
+    @staticmethod
+    def _require_executable(db, conversation_id: str) -> None:
+        if db.execute("SELECT 1 FROM conversation_migrations WHERE conversation_id=?",
+                      (conversation_id,)).fetchone():
+            raise ConversationError(Refusal.MIGRATED)
+
+    def require_executable(self, route: ConversationRoute) -> None:
+        with closing(self.connect()) as db:
+            self._require_executable(db, route.id)
+
+    def migration_target(self, route: ConversationRoute) -> tuple[str, str] | None:
+        with closing(self.connect()) as db:
+            row = db.execute("SELECT persona_id,persona_instance_id FROM conversation_migrations "
+                             "WHERE conversation_id=?", (route.id,)).fetchone()
+        return tuple(row) if row is not None else None
+
+    def reserve_migration(self, route: ConversationRoute, persona_id: str, instance_id: str) -> None:
+        """Fence old sends durably before importing; retries cannot retarget the route."""
+        with transaction(self.connect(), immediate=True) as db:
+            prior = db.execute("SELECT persona_id,persona_instance_id FROM conversation_migrations "
+                               "WHERE conversation_id=?", (route.id,)).fetchone()
+            if prior is not None:
+                if tuple(prior) != (persona_id, instance_id):
+                    raise ConversationError(Refusal.CONFLICT)
+                return
+            # UNKNOWN is preserved after the caller proves its worker is gone.
+            # A new dispatch racing the snapshot must still refuse this fence.
+            if db.execute("SELECT 1 FROM conversation_turns WHERE conversation_id=? AND state IN (?,?)",
+                          (route.id, TurnState.DISPATCHING, TurnState.RUNNING)).fetchone():
+                raise ConversationError(Refusal.UNKNOWN)
+            db.execute("INSERT INTO conversation_migrations VALUES(?,?,?)", (route.id, persona_id, instance_id))
 
 
 def _receipt(row) -> TurnReceipt:

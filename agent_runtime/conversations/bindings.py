@@ -76,6 +76,24 @@ class Bindings:
         if live is not None:
             live.receive(frame)
 
+    @contextmanager
+    def quiesce(self, route):
+        """Retire only this idle binding and exclude a concurrent reattachment."""
+        with self._gate(route.id):
+            with self._lock:
+                entry = self._entries.get(route.id)
+                if entry is not None and entry.users:
+                    raise ConversationError(Refusal.BUSY)
+            if entry is not None and not entry.live.peer.alive:
+                with self._lock:
+                    self._forget(entry)
+                self._release(entry.live)
+                entry = None
+            retired = entry is not None and self._retire(entry)
+            if entry is not None and not retired:
+                raise ConversationError(Refusal.BUSY)
+            yield retired
+
     def lost(self, generation):
         with self._lock:
             sessions = [live for (owner, _), live in self._sessions.items() if owner == generation]

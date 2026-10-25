@@ -67,6 +67,10 @@ def _model(service, scope, params):
                                 save_default=save_default)
 
 
+def _migrate(service, scope, params):
+    return service.migrate(scope, identifier(params["session_id"]), params)
+
+
 def _skills(action, service, scope, params):
     return service.skills(scope, identifier(params["session_id"]), action, params)
 
@@ -77,7 +81,7 @@ def _subagents(action, service, scope, params):
 
 OPERATIONS = {"open": _open, "send": _send, "read": _read_conversation, "stop": _stop,
               "history": _history, "inflight": _inflight,
-              "respond": _respond, "facts": _facts, "model": _model,
+              "respond": _respond, "facts": _facts, "model": _model, "migrate": _migrate,
               **{"skills." + action: partial(_skills, action) for action in SKILLS_OPERATIONS},
               **{"subagents." + action: partial(_subagents, action) for action in SUBAGENT_OPERATIONS}}
 

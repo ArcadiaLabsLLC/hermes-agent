@@ -426,3 +426,36 @@ peer settings and preserved default-chat selection. The nine-file model, wire
 and boundary batch passed 84 tests (`discussion-native-model-gates.log`). This
 corrects the prerequisite; final desktop acceptance and step 5 retirement gates
 remain open.
+
+### Profile transcript adoption — October 25
+
+`runtime.conversation.migrate` is the console-authorized, execution-bound door
+from one existing account/profile route to an explicitly selected instance.
+The instance must still use that profile. The route owner validates its stored
+home, quiesces only its own binding and durably fences new worker sends before
+import. A live or unverifiable execution refuses migration. A proven-dead
+unknown outcome remains unknown in the receipt and imported provenance; it is
+never replayed or counted as active work after the fence.
+
+The existing persona-chat mint receipt reserves the independent root. The public
+SessionDB importer copies the donor's compression segments atomically, retaining
+inactive and compacted message flags, and the native Console continues that
+history. The donor and cockpit selection are unchanged. Exact-session permission
+records retain their expiration and remaining turns. A lost acknowledgement
+reuses the root, later native permission edits survive retries, and deleted
+history cannot be resurrected. No parallel transcript or mint authority exists.
+
+The 52-file affected batch passed 644 tests (`migration-scoped.log`). Removing
+the admission fence in `ConversationStore.admit` made the migration regression
+fail with `DID NOT RAISE ConversationError` (`migration-send-fence-red.log`);
+the guard was restored. The final six-file focused run passed 58 tests, covering
+the subsequent permission and active-work accounting refinements. The fork gate
+ran 1,270 files: 13,344 passed, 17 failed, one collection error and 53 skipped.
+Six failures were the shared manifest expectation missing the new migration and
+previously published permission method; regenerating that one reviewed fixture
+made all four named migration/manifest files pass (141 tests). The other eleven
+failures and collection error match `FH-CUTOVER-BASELINE-REDS`; their queue remains
+open. Ruff and the diff whitespace check passed. These are runtime receipts, not a claim
+that Intelligence's legacy migration UI or Compare/profile Discussion adoption
+has landed. Those consumers, unmatched local recovery records, live migration,
+matched latency and global worker/store retirement remain step 5 work.

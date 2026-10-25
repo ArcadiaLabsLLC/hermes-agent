@@ -66,6 +66,7 @@
     "runtime.conversation.facts",
     "runtime.conversation.history",
     "runtime.conversation.inflight",
+    "runtime.conversation.migrate",
     "runtime.conversation.model",
     "runtime.conversation.open",
     "runtime.conversation.read",
@@ -216,6 +217,7 @@
     "runtime.operator.conversation.model.facts",
     "runtime.operator.conversation.model.select",
     "runtime.operator.conversation.models",
+    "runtime.operator.conversation.permissions",
     "runtime.operator.conversation.read",
     "runtime.operator.conversation.redo.apply",
     "runtime.operator.conversation.redo.available",
@@ -452,6 +454,14 @@
       "reason",
       "session_id",
       "turn_id"
+    ],
+    "runtime.conversation.migrate": [
+      "install_id",
+      "client_scope",
+      "profile",
+      "session_id",
+      "persona_id",
+      "persona_instance_id"
     ],
     "runtime.conversation.skills.detail": [
       "install_id",
@@ -911,6 +921,7 @@
     "runtime.conversation.facts": "console",
     "runtime.conversation.history": "console",
     "runtime.conversation.inflight": "console",
+    "runtime.conversation.migrate": "console",
     "runtime.conversation.model": "console",
     "runtime.conversation.open": "console",
     "runtime.conversation.read": "console",
@@ -1061,6 +1072,7 @@
     "runtime.operator.conversation.model.facts": "console",
     "runtime.operator.conversation.model.select": "console",
     "runtime.operator.conversation.models": "console",
+    "runtime.operator.conversation.permissions": "console",
     "runtime.operator.conversation.read": "console",
     "runtime.operator.conversation.redo.apply": "console",
     "runtime.operator.conversation.redo.available": "console",
