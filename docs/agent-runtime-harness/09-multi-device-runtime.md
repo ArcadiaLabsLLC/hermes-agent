@@ -260,6 +260,20 @@ common path but `.gitattributes`; any other common path refuses
 credentials never adopt. Acceptance:
 `tests/agent_runtime/test_realm_sync_local_remote.py`.
 
+A `course:<course_public_id>` credential (the backend's git-course
+clone credential, `CredentialSubject.COURSE`) authors a course and nothing
+else: `realm_sync` refuses it, and the three `runtime.course.*` verbs
+(`agent_runtime/course_authoring.py`, console tier, credential inline per call)
+refuse every other subject `credential_subject_mismatch`. `checkout` clones
+into `<store_root>/courses/<id>/repo`, `commit` pushes one commit on
+`agent/<persona_id>/<slug>` from a worktree beside it (never forced), and
+`pull_request` opens — or answers the already-open — PR on github.com; until
+the course App carries `pull_requests: write` GitHub answers 403 and the verb
+refuses `pull_request_not_permitted`. The credential rides `-c` pairs and the
+REST `Authorization` header only — never `.git/config`, a receipt or a log.
+Plan: `docs/agent-runtime-harness/planned/realm-course-subject-authoring-2026-10-21.md`.
+Acceptance: `tests/agent_runtime/test_course_authoring.py`.
+
 ## Invariants
 
 1. **Unqualified is local, forever.** A chat target with no `/` never reaches

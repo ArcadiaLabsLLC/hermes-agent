@@ -1,7 +1,9 @@
 """Agent authoring on a git course: the course's checkout, and commits on an authoring branch.
 
-Plan: ``docs/agent-runtime-harness/planned/realm-course-subject-authoring-2026-10-21.md`` (stages C1–C2;
-C3, the pull request, waits on ``RT-COURSE-AUTHORING-RULINGS``).
+Plan: ``docs/agent-runtime-harness/planned/realm-course-subject-authoring-2026-10-21.md`` (stages C1–C3).
+C3's pull request needs ``pull_requests: write`` on the course App (``RT-COURSE-AUTHORING-RULINGS``); until
+the App carries it GitHub answers 403 and the verb refuses ``pull_request_not_permitted`` — the branch is
+pushed, and the author opens the PR by hand.
 
 **A course is a checkout under the store root, never a slot and never a realm.**
 ``paths.course_checkout_dir(course_public_id)`` holds one clone per course per machine; authoring branches
@@ -15,7 +17,8 @@ Only a COURSE credential is admitted (``credential_subject_mismatch`` otherwise)
 author a course, and ``realm_sync`` already refuses a course credential.
 
 Receipts (``work_store.receipts.emit``; no envelope keys): ``course.checkout {course, outcome, branch}``,
-``course.commit {course, branch, sha, files}``. RPC: ``serve_rpc/course.py``.
+``course.commit {course, branch, sha, files}``, ``course.pull_request {course, branch, number}``.
+RPC: ``serve_rpc/course.py``.
 """
 
 from __future__ import annotations
@@ -40,10 +43,12 @@ __all__ = [
     "CommitReceipt",
     "CourseRefusal",
     "CourseRefused",
+    "PullRequestReceipt",
     "admit",
     "checkout",
     "commit",
     "parse_credential",
+    "pull_request",
 ]
 
 _TAIL = 400
@@ -71,6 +76,10 @@ class CourseRefusal(StrEnum):
     NOTHING_TO_COMMIT = "course_nothing_to_commit"
     COMMIT_FAILED = "commit_failed"
     PUSH_FAILED = "push_failed"
+    HOST_UNSUPPORTED = "git_host_unsupported"
+    PR_NOT_PERMITTED = "pull_request_not_permitted"
+    BRANCH_NOT_PUSHED = "course_branch_not_pushed"
+    PR_FAILED = "pull_request_failed"
 
 
 class CourseRefused(ValueError):
@@ -95,6 +104,15 @@ class CommitReceipt:
     branch: str
     sha: str
     files: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class PullRequestReceipt:
+    course: str
+    branch: str
+    number: int
+    html_url: str
+    existing: bool
 
 
 #: ``git_remote_adopt.AdoptRefused.reason`` -> the course refusal it is.
@@ -364,3 +382,86 @@ def commit(credential: RealmSyncCredential, *, persona_id: str, branch: str, mes
     _push(git, worktree, full)
     emit("course.commit", course=course, branch=full, sha=sha, files=touched)
     return CommitReceipt(course, full, sha, tuple(touched))
+
+
+# ── C3: the pull request ─────────────────────────────────────────────────────
+
+_GITHUB_REMOTE = re.compile(r"^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?/?$")
+_PR_TITLE_LIMIT = 256
+_PR_BODY_LIMIT = 60_000
+#: GitHub statuses that mean "the installation token may not open a PR here": the App lacks
+#: ``pull_requests: write`` (403), or the token cannot see the repo at all (404).
+_NOT_PERMITTED = (401, 403, 404)
+
+#: ``(method, path, authorization, body) -> (status, json)`` — ``git_host_account.github_request``'s shape.
+Request = Callable[..., "tuple[int, object]"]
+
+
+def _github_repo(git_url: str) -> tuple[str, str]:
+    """``(owner, repo)`` of a GitHub HTTPS remote; any other host refuses ``git_host_unsupported``."""
+
+    found = _GITHUB_REMOTE.match(str(git_url or "").strip())
+    if not found:
+        raise CourseRefused(CourseRefusal.HOST_UNSUPPORTED, "the course remote is not a github.com HTTPS remote")
+    return found.group(1), found.group(2)
+
+
+def _github_request() -> Request:
+    from .git_host_account import github_request
+
+    return github_request
+
+
+def _refused_status(status: int, verb: str) -> CourseRefused:
+    if status in _NOT_PERMITTED:
+        return CourseRefused(CourseRefusal.PR_NOT_PERMITTED,
+                             f"GitHub answered {status} to {verb}; the course App needs pull_requests: write")
+    if status == 422:
+        return CourseRefused(CourseRefusal.BRANCH_NOT_PUSHED,
+                             "GitHub refused the pull request (422): push the branch with a commit first")
+    return CourseRefused(CourseRefusal.PR_FAILED, f"GitHub answered {status} to {verb}")
+
+
+def pull_request(credential: RealmSyncCredential, *, persona_id: str, branch: str, title: str, body: str = "",
+                 base: str | None = None, request: Request | None = None) -> PullRequestReceipt:
+    """Open — or answer the already-open — pull request for ``agent/<persona_id>/<branch>``.
+
+    ``base`` is the course's default branch (``checkout`` records it as ``origin/HEAD``) unless given. An open
+    PR whose head is the branch is answered without a POST (``existing``). The credential's
+    ``git_authorization`` is the ``Authorization`` header and never reaches the receipt, a refusal or a log.
+    """
+
+    from .work_store.receipts import emit
+
+    course = admit(credential)
+    full = f"agent/{_segment(persona_id, 'persona_id')}/{_segment(branch, 'branch')}"
+    heading = " ".join(str(title or "").split())[:_PR_TITLE_LIMIT]
+    if not heading:
+        raise CourseRefused(CourseRefusal.INVALID_REQUEST, "title is required")
+    owner, repo_name = _github_repo(credential.git_url)
+    if base is None:
+        repo = paths.course_checkout_dir(course)
+        if not (repo / ".git").exists():
+            raise CourseRefused(CourseRefusal.NOT_CHECKED_OUT, "check the course out first")
+        base = _origin_head(_Git(credential, run_git), repo)
+    call = request or _github_request()
+    authorization = credential.git_authorization
+    pulls = f"/repos/{owner}/{repo_name}/pulls"
+    try:
+        admit(credential)
+        status, found = call("GET", f"{pulls}?state=open&head={owner}:{full}", authorization)
+        if status != 200 or not isinstance(found, list):
+            raise _refused_status(status, "the open-PR lookup")
+        if found:
+            hit = found[0]
+            emit("course.pull_request", course=course, branch=full, number=int(hit["number"]))
+            return PullRequestReceipt(course, full, int(hit["number"]), str(hit.get("html_url") or ""), True)
+        admit(credential)
+        status, made = call("POST", pulls, authorization,
+                            {"title": heading, "head": full, "base": base, "body": str(body or "")[:_PR_BODY_LIMIT]})
+    except OSError as exc:
+        raise CourseRefused(CourseRefusal.PR_FAILED, f"GitHub unreachable: {type(exc).__name__}") from None
+    if status != 201 or not isinstance(made, dict) or not isinstance(made.get("number"), int):
+        raise _refused_status(status, "the pull request")
+    emit("course.pull_request", course=course, branch=full, number=made["number"])
+    return PullRequestReceipt(course, full, made["number"], str(made.get("html_url") or ""), False)

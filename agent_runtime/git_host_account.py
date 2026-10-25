@@ -88,7 +88,16 @@ def _github_user_agent() -> str:
 
 def _request(method: str, path: str, authorization: str, body: dict[str, Any] | None = None,
              *, timeout: float = _TIMEOUT_S) -> tuple[int, dict[str, Any]]:
-    """``(status, json body)``; an HTTP error status is returned, a network failure raises ``OSError``."""
+    """``(status, json object)``: :func:`github_request` with a non-object body read as ``{}``."""
+
+    status, payload = github_request(method, path, authorization, body, timeout=timeout)
+    return status, payload if isinstance(payload, dict) else {}
+
+
+def github_request(method: str, path: str, authorization: str, body: dict[str, Any] | None = None,
+                   *, timeout: float = _TIMEOUT_S) -> tuple[int, Any]:
+    """``(status, json body)`` — an object or a list, ``{}`` when the body is not JSON; an HTTP error status
+    is returned, a network failure raises ``OSError``. The authorization is a header, never logged."""
 
     data = json.dumps(body).encode("utf-8") if body is not None else None
     request = urllib.request.Request(API + path, data=data, method=method, headers={
@@ -103,7 +112,7 @@ def _request(method: str, path: str, authorization: str, body: dict[str, Any] | 
         payload = json.loads(raw.decode("utf-8") or "{}")
     except ValueError:
         payload = {}
-    return status, payload if isinstance(payload, dict) else {}
+    return status, payload if isinstance(payload, (dict, list)) else {}
 
 
 def connected_github(timeout: float = _TIMEOUT_S) -> GitHubAccount | None:

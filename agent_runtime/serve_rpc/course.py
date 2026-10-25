@@ -46,6 +46,9 @@ REASON_CODES: dict[CourseRefusal, int] = {
     CourseRefusal.BRANCH_DIVERGED: ERR_CONFLICT,
     CourseRefusal.PATH_INVALID: ERR_INVALID_PARAMS,
     CourseRefusal.NOTHING_TO_COMMIT: ERR_CONFLICT,
+    CourseRefusal.HOST_UNSUPPORTED: ERR_CONFLICT,
+    CourseRefusal.PR_NOT_PERMITTED: ERR_CONFLICT,
+    CourseRefusal.BRANCH_NOT_PUSHED: ERR_CONFLICT,
 }
 
 
@@ -92,10 +95,26 @@ def _commit(p: dict) -> dict:
     return {"course": receipt.course, "branch": receipt.branch, "sha": receipt.sha, "files": list(receipt.files)}
 
 
+def _pull_request(p: dict) -> dict:
+    """Params: ``credential``, ``persona_id``, ``branch`` (the slug, as on ``commit``), ``title``, ``body``.
+    ``existing`` is true when the branch already had an open PR (answered, never duplicated)."""
+    from agent_runtime.course_authoring import pull_request
+
+    body = p.get("body")
+    if body is not None and not isinstance(body, str):
+        raise CourseRefused(CourseRefusal.INVALID_REQUEST, "body must be a string")
+    credential = _credential(p)
+    receipt = pull_request(credential, persona_id=_text(p, "persona_id"), branch=_text(p, "branch"),
+                           title=_text(p, "title"), body=body or "")
+    return {"course": receipt.course, "branch": receipt.branch, "number": receipt.number,
+            "html_url": receipt.html_url, "existing": receipt.existing}
+
+
 #: method name -> verb body. Registered by adding a row; the params each honours are on its body above.
 COURSE_METHODS: dict[str, Callable[[dict], dict]] = {
     "runtime.course.checkout": _checkout,
     "runtime.course.commit": _commit,
+    "runtime.course.pull_request": _pull_request,
 }
 
 _COURSE_VERB_LOCK = threading.Lock()

@@ -6,7 +6,7 @@
 Cross-repo: backend `eternia-backend/docs/architecture/planned/education-git-course-lane.md` Stage 5
 (item 5 "agent authoring … nothing new on the backend beyond item 1"); launcher sheet
 `EterniaLauncher/docs/education/planned/GIT_COURSE_STAGE5_STUDIO_SHEET_2026-10-19.md` §2 item 8.
-**Status:** IMPLEMENTATION-READY (design lane w1021i-plans). One doc, no code.
+**Status:** C1–C3 verbs and C4 SHIPPED (`runtime.course.checkout` / `.commit` / `.pull_request`, lane w1025a-hermes 2026-10-25); the persona-facing `course_pull_request` tool and its per-turn credential cache are row `RT-COURSE-AUTHORING-PERSONA-TOOL` (how the inline credential reaches a turn without riding the worker argv is unplanned). Designed by lane w1021i-plans.
 **Measured / read:** 2026-10-21 against hermes `origin/main` d087df7035; both sibling docs read in place.
 
 Row: `RT-REALM-COURSE-SUBJECT` (runtime-queue § Fork-owned). The parse half is on main (1e7a55248b):

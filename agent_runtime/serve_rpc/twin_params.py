@@ -62,6 +62,7 @@ REALM_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
 COURSE_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     "runtime.course.checkout": ("credential",),
     "runtime.course.commit": ("branch", "credential", "deletes", "files", "message", "persona_id", "persona_name"),
+    "runtime.course.pull_request": ("body", "branch", "credential", "persona_id", "title"),
 }
 
 #: ``runtime.persona.toolset.*`` (``serve_rpc/console_operations.py``) — method-lane-only, no argv twin.

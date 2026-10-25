@@ -334,3 +334,102 @@ def test_runtime_course_commit_answers_the_receipt_and_refuses_by_reason(remote)
     assert refused["error"]["data"]["reason"] == "course_path_invalid"
     refused = _rpc("runtime.course.commit", {**params, "files": ["not", "a", "map"]})
     assert refused["error"]["data"]["reason"] == "invalid_request"
+
+
+# ── C3: pull request ─────────────────────────────────────────────────────────
+
+GITHUB_URL = "https://github.com/eternia-courses/crs-42.git"
+
+
+class FakeGitHub:
+    """``git_host_account.github_request``'s shape; records every call, answers from ``open`` / ``status``."""
+
+    def __init__(self, *, open_prs=(), post_status=201, get_status=200) -> None:
+        self.calls: list[tuple[str, str, str, dict | None]] = []
+        self.open_prs, self.post_status, self.get_status = list(open_prs), post_status, get_status
+
+    def __call__(self, method, path, authorization, body=None, **_kwargs):
+        self.calls.append((method, path, authorization, body))
+        if method == "GET":
+            return self.get_status, self.open_prs if self.get_status == 200 else {"message": "no"}
+        if self.post_status == 201:
+            return 201, {"number": 7, "html_url": "https://github.com/eternia-courses/crs-42/pull/7"}
+        return self.post_status, {"message": "Resource not accessible by integration"}
+
+    def posts(self) -> list[tuple[str, str, str, dict | None]]:
+        return [call for call in self.calls if call[0] == "POST"]
+
+
+def _pr(credential, github, **over):
+    params = {"persona_id": "p_ada", "branch": "intro", "title": "Add the intro", "body": "Why: …",
+              "base": "main", "request": github, **over}
+    return course_authoring.pull_request(credential, **params)
+
+
+def test_a_pull_request_posts_head_and_base_with_the_credential_as_authorization():
+    github = FakeGitHub()
+    receipt = _pr(_credential(GITHUB_URL), github)
+
+    assert (receipt.number, receipt.existing, receipt.branch) == (7, False, "agent/p_ada/intro")
+    lookup, post = github.calls
+    assert lookup[:2] == ("GET", "/repos/eternia-courses/crs-42/pulls?state=open&head=eternia-courses:agent/p_ada/intro")
+    assert post[:2] == ("POST", "/repos/eternia-courses/crs-42/pulls")
+    assert post[3] == {"title": "Add the intro", "head": "agent/p_ada/intro", "base": "main", "body": "Why: …"}
+    assert {call[2] for call in github.calls} == {SECRET}
+    assert SECRET not in repr(receipt)
+
+
+def test_an_open_pull_request_for_the_branch_is_answered_without_a_post():
+    github = FakeGitHub(open_prs=[{"number": 3, "html_url": "https://github.com/eternia-courses/crs-42/pull/3"}])
+    receipt = _pr(_credential(GITHUB_URL), github)
+
+    assert (receipt.number, receipt.existing) == (3, True)
+    assert github.posts() == []
+    # Positive control: the same call with no open PR does post.
+    assert _pr(_credential(GITHUB_URL), FakeGitHub()).existing is False
+
+
+@pytest.mark.parametrize("status", [403, 404])
+def test_github_refusing_the_app_is_pull_request_not_permitted(status):
+    with pytest.raises(CourseRefused) as caught:
+        _pr(_credential(GITHUB_URL), FakeGitHub(post_status=status))
+    assert caught.value.reason is CourseRefusal.PR_NOT_PERMITTED
+    assert SECRET not in str(caught.value)
+
+
+def test_a_pull_request_refuses_another_host_and_another_subject_before_any_request(remote):
+    github = FakeGitHub()
+    with pytest.raises(CourseRefused) as caught:
+        _pr(_credential(_url(remote)), github)
+    assert caught.value.reason is CourseRefusal.HOST_UNSUPPORTED
+    with pytest.raises(CourseRefused) as caught:
+        _pr(_credential(GITHUB_URL, realm_id="local:r1"), github)
+    assert caught.value.reason is CourseRefusal.SUBJECT_MISMATCH
+    assert github.calls == []
+
+
+def test_the_base_defaults_to_the_checked_out_default_branch(remote):
+    course_authoring.checkout(_credential(_url(remote)))
+    github = FakeGitHub()
+    _pr(_credential(GITHUB_URL), github, base=None)
+    assert github.posts()[0][3]["base"] == "main"
+
+
+def test_runtime_course_pull_request_answers_the_receipt_and_refuses_by_reason(monkeypatch):
+    from agent_runtime import git_host_account
+
+    github = FakeGitHub()
+    monkeypatch.setattr(git_host_account, "github_request", github)
+    course_authoring.paths.course_checkout_dir(COURSE)  # no clone: base must come from a checkout
+    params = {"credential": _raw(GITHUB_URL), "persona_id": "p_ada", "branch": "intro", "title": "Add the intro"}
+    refused = _rpc("runtime.course.pull_request", params)
+    assert refused["error"]["data"]["reason"] == "course_not_checked_out"
+    monkeypatch.setattr(course_authoring, "_origin_head", lambda _git, _repo: "main")
+    (course_authoring.paths.course_checkout_dir(COURSE) / ".git").mkdir(parents=True)
+    reply = _rpc("runtime.course.pull_request", params)
+    assert reply["result"] == {"course": COURSE, "branch": "agent/p_ada/intro", "number": 7,
+                               "html_url": "https://github.com/eternia-courses/crs-42/pull/7", "existing": False}
+    github.post_status = 403
+    refused = _rpc("runtime.course.pull_request", {**params, "branch": "other"})
+    assert refused["error"]["data"]["reason"] == "pull_request_not_permitted"
+    assert SECRET not in json.dumps(refused)
