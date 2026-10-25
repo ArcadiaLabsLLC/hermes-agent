@@ -33,9 +33,25 @@ def choices(inventory: dict) -> dict[str, tuple[str, str]]:
     return result
 
 
+def _inventory_provider(provider, model, inventory: dict):
+    """The inventory's id for a session's ``info.provider`` (RT-MODEL-SELECT-CUSTOM-PROVIDER-UNCONFIRMED).
+
+    A Custom-endpoint choice is keyed ``custom:<slug>`` (:func:`provider_id`), but the session's
+    runtime reports the canonical ``custom`` — so a selected custom model never confirmed and every
+    pick answered ``unknown``. Map ``custom`` to the ONE user-defined provider offering ``model``;
+    with none or several, the provider stays as reported (ambiguity is not guessed away).
+    """
+    if provider != "custom" or not model:
+        return provider
+    matches = {provider_id(row) for row in inventory.get("providers", ())
+               if row.get("is_user_defined") and model in (row.get("models") or ())}
+    return matches.pop() if len(matches) == 1 else provider
+
+
 def facts(conversation_id: str, snapshot: dict, inventory: dict) -> dict:
     info = snapshot.get("info") or {}
-    provider, model = info.get("provider"), info.get("model")
+    model = info.get("model")
+    provider = _inventory_provider(info.get("provider"), model, inventory)
     current = model_key(provider, model) if provider and model else None
     offered = choices(inventory)
     labels = {provider_id(row): row.get("name") or row["slug"]

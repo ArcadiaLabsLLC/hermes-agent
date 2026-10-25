@@ -239,6 +239,11 @@ class ConversationService:
             confirmed = self.facts(scope, session_id)
             if (confirmed["current_model_id"] != model_id or
                     (save_default and confirmed["default_model_id"] != model_id)):
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "model select unconfirmed: requested=%s current=%s default=%s save_default=%s",
+                    model_id, confirmed.get("current_model_id"), confirmed.get("default_model_id"), save_default)
                 raise ConversationError(Refusal.UNKNOWN)
             return confirmed
 

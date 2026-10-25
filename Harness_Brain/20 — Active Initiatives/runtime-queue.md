@@ -957,7 +957,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-23 (launcher lane w1023l-mc)
 
-- **`RT-MODEL-SELECT-CUSTOM-PROVIDER-UNCONFIRMED` — picking a Custom-endpoint model in a native profile conversation (launcher AI › Chat, `qa-fixture`) always fails: `ConversationService.select_model` answers `Refusal.UNKNOWN` when the re-read `current_model_id` differs from the requested choice, and logs neither id; the choice keys the endpoint as `custom:<slug>` (`custom_provider_slug`) while `session.recover`'s `info.provider` is likely `custom`** · `hermes-agent/agent_runtime/conversations/service.py::select_model` · `hermes-agent/agent_runtime/session_model_catalog.py::facts` · evidence `eternia_launcher/docs/stages/qa-reboot/LIVEQA_W1023K_live-13_2026-10-23.md` · READY 2026-10-23 · **TAKEN 2026-10-24 w1024t-hermes**
 
 ## Filed on arrival — 2026-10-24 (launcher session, owner report: yellow readiness text on every agent)
 
