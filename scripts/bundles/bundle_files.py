@@ -8,6 +8,7 @@ The one owner of the file rules the copy phase (the packager) and the verify pha
 from __future__ import annotations
 
 import fnmatch
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -79,11 +80,13 @@ def _is_test(rel: str) -> bool:
 
 
 def skill_ships(rel: str, skill_platforms: tuple[str, ...], root: Path = ROOT,
-                 _cache: dict | None = None) -> bool:
+                 _cache: dict | None = None, skill_names: tuple[str, ...] = ()) -> bool:
     """Does a file under ``skills/`` ship? Always, unless the profile names ``skill_platforms``:
     then only when its skill's ``SKILL.md`` frontmatter ``platforms:`` names one of them — the
-    existing per-skill OS switch (``agent.skill_utils``), read by the same parser. A file outside
-    any skill directory (a category README) ships only for an unfiltered profile."""
+    existing per-skill OS switch (``agent.skill_utils``), read by the same parser — or its
+    frontmatter ``name:`` is one of the profile's ``skill_names`` (the shipped copy is then
+    marked for those platforms, :func:`mark_skill_platforms`). A file outside any skill directory
+    (a category README) ships only for an unfiltered profile."""
     if not skill_platforms:
         return True
     from agent.skill_utils import parse_frontmatter
@@ -98,12 +101,56 @@ def skill_ships(rel: str, skill_platforms: tuple[str, ...], root: Path = ROOT,
                 cache[skill_dir] = None
             else:
                 front, _ = parse_frontmatter(md.read_text(encoding="utf-8-sig"))
-                listed = front.get("platforms") or []
-                listed = listed if isinstance(listed, list) else [listed]
-                cache[skill_dir] = {str(p).strip().lower() for p in listed}
+                cache[skill_dir] = ({p.lower() for p in _platforms(front)}, str(front.get("name") or "").strip())
         if cache[skill_dir] is not None:
-            return bool(cache[skill_dir] & {p.lower() for p in skill_platforms})
+            listed, name = cache[skill_dir]
+            return bool(listed & {p.lower() for p in skill_platforms}) or name in skill_names
     return False
+
+
+def _platforms(front: dict) -> list[str]:
+    listed = front.get("platforms") or []
+    return [str(p).strip() for p in (listed if isinstance(listed, list) else [listed])]
+
+
+_PLATFORMS_KEY = re.compile(r"^platforms:[^\n]*\n(?:[ \t]+-[^\n]*\n)*", re.MULTILINE)
+
+
+def mark_skill_platforms(text: str, skill_platforms: tuple[str, ...]) -> str:
+    """``SKILL.md`` text whose frontmatter ``platforms:`` also names ``skill_platforms``
+    (RT-PHONE-SKILLS-NONE-MARKED): what a profile's ``skill_names`` ship as, so upstream's run-time
+    per-skill OS switch (``agent.skill_utils.skill_matches_platform``) shows the skill on those
+    platforms with no edit to the tracked file or to upstream code. A skill with no ``platforms:``
+    already matches every OS and is returned unchanged. Raises when the rewrite does not parse
+    back to the union — the bundle then fails loudly rather than shipping a hidden skill."""
+    from agent.skill_utils import parse_frontmatter
+
+    listed = _platforms(parse_frontmatter(text)[0])
+    missing = [p for p in skill_platforms if p.lower() not in {x.lower() for x in listed}]
+    if not listed or not missing:
+        return text
+    head_end = text.index("\n---", 3) + 1
+    union = [*listed, *missing]
+    head, count = _PLATFORMS_KEY.subn(lambda _m: f"platforms: [{', '.join(union)}]\n", text[:head_end], count=1)
+    marked = head + text[head_end:]
+    if count != 1 or [p.lower() for p in _platforms(parse_frontmatter(marked)[0])] != [p.lower() for p in union]:
+        raise ValueError(f"cannot mark the skill's platforms {listed} with {missing}")
+    return marked
+
+
+def mark_named_skill(shipped: Path, skill_platforms: tuple[str, ...], skill_names: tuple[str, ...]) -> bool:
+    """The copy phase's half: a shipped ``SKILL.md`` whose ``name:`` the profile lists is rewritten
+    by :func:`mark_skill_platforms`; any other file is left as copied. -> whether it was rewritten."""
+    if not skill_names or shipped.name != "SKILL.md":
+        return False
+    from agent.skill_utils import parse_frontmatter
+
+    text = shipped.read_text(encoding="utf-8-sig")
+    if str(parse_frontmatter(text)[0].get("name") or "").strip() not in skill_names:
+        return False
+    marked = mark_skill_platforms(text, skill_platforms)
+    shipped.write_text(marked, encoding="utf-8", newline="")
+    return marked != text
 
 
 def _data_file(rel: str, excluded: dict[str, str]) -> bool:

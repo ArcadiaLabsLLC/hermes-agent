@@ -77,7 +77,7 @@ from agent_runtime.bundle_profiles.manifest import PACKAGING_TARGETS, PoolScope
 from scripts.bundles.bundle_files import (
     BAKED_MARKER, BUILD_SHA_FILE, BUNDLE_MANIFEST, ENGINE_PACKS_ENV, ENGINE_PACKS_PTH, ENGINE_PACKS_PTH_LINE,
     PACK_MANIFEST, Dist, _data_file, _excluded, _in_resource, _is_noise, _is_test, _resource_file, read_site,
-    skill_ships, tracked_files)
+    mark_named_skill, skill_ships, tracked_files)
 from scripts.bundles.plan import (
     CORE, EXIT_RETRYABLE, Plan, PlanStalled, distribution_plans, make_plan, pack_from_plans, pack_selections)
 from scripts.bundles.pool_install import install_pool as install_pool_into, remove_tree
@@ -174,7 +174,7 @@ def split_forced_tree(rels: list[str], sibling: set[str], index: dict[str, Path]
 
 def first_party_files(plan: Plan, index: dict[str, Path], tracked: list[str],
                       resources: tuple[str, ...], excluded: dict[str, str] | None = None,
-                      skill_platforms: tuple[str, ...] = ()) -> list[str]:
+                      skill_platforms: tuple[str, ...] = (), skill_names: tuple[str, ...] = ()) -> list[str]:
     """Repo-relative files: shipped modules, their packages' data files, and resources."""
     tracked_set = set(tracked)
     skill_cache: dict = {}
@@ -195,7 +195,7 @@ def first_party_files(plan: Plan, index: dict[str, Path], tracked: list[str],
         parts = rel.split("/")
         if _in_resource(rel, resources):
             if _resource_file(rel, excluded or {}) and (
-                    parts[0] != "skills" or skill_ships(rel, skill_platforms, _cache=skill_cache)):
+                    parts[0] != "skills" or skill_ships(rel, skill_platforms, _cache=skill_cache, skill_names=skill_names)):
                 rels.add(rel)
             continue
         if not _data_file(rel, excluded or {}):
@@ -255,10 +255,11 @@ def write_bundle(plan: Plan, manifest, dists: dict[str, Dist], stage: Path, out:
     app, site = out / "app", out / "site-packages"
     tracked = tracked_files()
     rels = first_party_files(plan, index, tracked, manifest.packaging_resources, manifest.excluded_data,
-                             manifest.packaging_skill_platforms)
+                             manifest.packaging_skill_platforms, manifest.packaging_skill_names)
     app_rels, tree_rels = split_forced_tree(rels, plan.sibling, index)
     for rel in app_rels:
         _copy_file(ROOT / rel, app / rel)
+        mark_named_skill(app / rel, manifest.packaging_skill_platforms, manifest.packaging_skill_names)
     for rel in tree_rels:
         _copy_file(ROOT / rel, out / FORCED_TREE_DIR / rel)
     from scripts.build.agent import write_metadata

@@ -135,6 +135,10 @@ class ProfileManifest:
     #: when non-empty, a skill ships only if its ``platforms:`` frontmatter names one of these —
     #: the existing per-skill OS switch, so a phone ships only skills marked for phones
     packaging_skill_platforms: tuple[str, ...] = ()
+    #: skills (frontmatter ``name:``) that also ship under ``packaging_skill_platforms``, their
+    #: shipped ``SKILL.md`` marked for those platforms (RT-PHONE-SKILLS-NONE-MARKED: upstream's
+    #: tracked skills name desktop OSes only, and the fork does not edit them)
+    packaging_skill_names: tuple[str, ...] = ()
     #: compiled (non-pure-Python) distribution -> why the profile gate admits it
     admitted_native: Mapping[str, str] = dataclasses.field(default_factory=dict)
     #: ship the forced set's scanned-package modules under the sibling root the embedded entry mounts
@@ -260,6 +264,7 @@ def parse_manifest(data: Any, *, validate: bool = True) -> ProfileManifest:
                                            "packaging.placeholder_distributions"),
         packaging_targets=_strings(packaging.get("targets"), "packaging.targets"),
         packaging_skill_platforms=_strings(packaging.get("skill_platforms"), "packaging.skill_platforms"),
+        packaging_skill_names=_strings(packaging.get("skill_names"), "packaging.skill_names"),
         admitted_native=_reasons(packaging.get("admitted_native"), "packaging.admitted_native"),
         packaging_forced_sibling_tree=_manifest_flag(packaging.get("forced_sibling_tree"), "packaging.forced_sibling_tree"),
         packaging_pool=_pool_scope(packaging.get("pool")),

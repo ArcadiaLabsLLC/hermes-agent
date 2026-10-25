@@ -11,29 +11,39 @@ import json
 import sys
 from pathlib import Path
 
+from agent.skill_utils import parse_frontmatter
 from agent_runtime.bundle_profiles.forced_tree import FORCED_TREE_DIR
 from scripts.bundle_licenses import licence_problems
 from scripts.bundle_profile_closure import module_index
 from scripts.bundles.bundle_files import (
     BAKED_MARKER, BUNDLE_MANIFEST, PACK_MANIFEST, PACKAGER_FILES, Dist, _excluded, _in_resource, _is_noise,
-    _is_test, _resource_file, read_site, skill_ships, tracked_files)
+    _is_test, _platforms, _resource_file, read_site, skill_ships, tracked_files)
 from scripts.bundles.plan import CORE, Plan, make_plan, pack_distributions, pack_from_plans, pack_selections
 from scripts.bundles.serve_probe import named_timezone_problems, serve_import_problems
 
 
 def resource_problems(app_files: set[str], tracked: list[str], resources: tuple[str, ...],
-                      excluded: dict[str, str], skill_platforms: tuple[str, ...] = ()) -> list[str]:
+                      excluded: dict[str, str], skill_platforms: tuple[str, ...] = (),
+                      skill_names: tuple[str, ...] = (), app_dir: Path | None = None) -> list[str]:
     """Every ``packaging.resources`` entry ships, file for file, what the packager selects for it
-    (``skills/`` narrowed by the profile's ``skill_platforms``, as :func:`first_party_files` does)."""
+    (``skills/`` narrowed by the profile's ``skill_platforms`` and ``skill_names``, as
+    :func:`first_party_files` does); with ``app_dir``, every shipped ``SKILL.md`` under a platform
+    filter names one of those platforms, so the run-time OS switch shows it."""
     problems = []
     cache: dict = {}
     for resource in resources:
         named = {rel for rel in tracked if _in_resource(rel, (resource,)) and _resource_file(rel, excluded)}
-        wanted = {rel for rel in named if not rel.startswith("skills/") or skill_ships(rel, skill_platforms, _cache=cache)}
+        wanted = {rel for rel in named if not rel.startswith("skills/")
+                  or skill_ships(rel, skill_platforms, _cache=cache, skill_names=skill_names)}
         if not named:  # a resource naming nothing is a typo; a platform filter selecting no skill is not
             problems.append(f"resource selects no tracked file: {resource}")
         for rel in sorted(wanted - app_files):
             problems.append(f"missing resource file ({resource}): app/{rel}")
+    shipped_skills = sorted(rel for rel in app_files if rel.startswith("skills/") and rel.endswith("/SKILL.md"))
+    for rel in shipped_skills if app_dir is not None and skill_platforms else ():
+        listed = {p.lower() for p in _platforms(parse_frontmatter((app_dir / rel).read_text(encoding="utf-8-sig"))[0])}
+        if listed and not listed & {p.lower() for p in skill_platforms}:
+            problems.append(f"shipped skill hidden on {list(skill_platforms)}: app/{rel} names {sorted(listed)}")
     return problems
 
 
@@ -134,7 +144,8 @@ def verify_bundle(out: Path, manifest, index: dict[str, Path] | None = None,
                        tree_modules=tree_modules)
     problems += licence_problems(out, plan.distributions)
     problems += resource_problems(app_files, tracked_files(), manifest.packaging_resources,
-                                  manifest.excluded_data, manifest.packaging_skill_platforms)
+                                  manifest.excluded_data, manifest.packaging_skill_platforms,
+                                  manifest.packaging_skill_names, app)
     packs = {name: list(extras) for name, extras in manifest.packaging_packs.items()}
     if record.get("packs", {}) != packs:
         problems.append(f"bundle-manifest.json packs {record.get('packs', {})} != the profile's {packs}")

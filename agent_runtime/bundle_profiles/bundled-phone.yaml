@@ -170,6 +170,18 @@ packaging:
   skill_platforms:
     - android
     - ios
+  # The phone's chat-path skills (owner 2026-10-22, RT-PHONE-SKILLS-NONE-MARKED): text-in /
+  # text-out guidance that needs no shell, file tool or cron. Every tracked skill is upstream's and
+  # names desktop OSes only, so these ship with their bundled SKILL.md's `platforms:` extended by
+  # the list above (scripts/bundles/bundle_files.py::mark_skill_platforms) — the tracked files and
+  # upstream's run-time switch stay untouched. Names are frontmatter `name:`.
+  skill_names:
+    - humanizer
+    - songwriting-and-ai-music
+    - email-inbox-triage
+    - document-to-action-items
+    - meeting-action-items
+    - weekly-review-planning
   resources:
     - skills
     - locales
