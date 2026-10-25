@@ -231,6 +231,13 @@ the existing permission writer remains the sole mutation path.
 `test_operator_session_permissions` covers two chats on one instance, foreign
 owner/install refusals, and unchanged grants, transcript and default pointer.
 
+Restored image turns may carry native image-hint and screenshot markers after
+their injected envelopes. `persona_chat_history.operator_envelopes` separates
+only that media suffix before applying the existing strict envelope readers,
+then retains the media markers in the display text. Ordinary trailing prose is
+not stripped and persisted messages are unchanged. The regression is covered by
+`test_operator_attachment_history`, including multiple images and legacy MEDIA lines.
+
 ## 1. Send admission — the turn's identity and its thread
 
 **Attachments are admitted before the turn runs.** `chat_turn_commit/admit.py` resolves

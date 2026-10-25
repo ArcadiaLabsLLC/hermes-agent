@@ -23,10 +23,7 @@ from ..mission_chat_turns.reads import (
 from ..mission_chat_turns.states import TERMINAL_TURN_STATES
 from ..serde import safe_assignment_text, safe_assignment_token
 from ..relay_policy import parse_harness_delivery_marker, parse_lens_episode_marker, parse_relay_sender_marker
-from ..runtime_hud.envelopes import (
-    extract_runtime_context_envelope,
-    extract_skill_preload_envelope,
-)
+from .operator_envelopes import strip_operator_envelopes
 from ..transcript_order import TURN_SEQ_OPERATOR, TURN_SEQ_TERMINAL
 from .markers import (
     _carry_run_budget,
@@ -187,12 +184,7 @@ class _OperatorCurator:
         return None
 
     def strip_envelopes(self, raw_content: Any) -> tuple[Any, Any, Any]:
-        # Composition order is message · skill_preload · runtime_context,
-        # so strip the end-anchored HUD envelope first; the skill-preload
-        # envelope is end-anchored on the remainder.
-        raw_content, runtime_context = extract_runtime_context_envelope(raw_content)
-        raw_content, skill_preload = extract_skill_preload_envelope(raw_content)
-        return raw_content, runtime_context, skill_preload
+        return strip_operator_envelopes(raw_content)
 
     def on_visible(self, state: CurationState, ctx: RowContext) -> None:
         return None
