@@ -700,7 +700,7 @@ landing gate `scripts/run_tests_bundled.sh tests` once for the batch (`Running t
 ## D2.08 = L2.26 — Instance-conversation cutover remainder
 
 **Verdict: PROGRAM-EXISTS.** Plan:
-`docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md`, § "Remaining before
+`docs/agent-runtime-harness/archive/instance-conversations-2026-10-01.md`, § "Remaining before
 cutover" (the foundation landed 2026-10-02; the resident-identity repair and native model
 controls landed 2026-10-03). Next stage, in the plan's words: rich model/skills/context/
 attachment and recovery parity with the Direct transport, then the neutral Launcher

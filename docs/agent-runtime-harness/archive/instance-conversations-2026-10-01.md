@@ -1,10 +1,17 @@
+> **ARCHIVED 2026-10-25 — executed.** The paired native conversation cutover
+> is complete; runtime changes landed through `7001f3409b` and Launcher
+> retirement was qualified at `79ddc5a670`. Current runtime ownership remains
+> in [the chat-turn lane](../05-chat-turn-lane.md).
+
 # Instance conversation convergence
 
-Status: IN PROGRESS — native Direct/Discussion execution, permissions, rich
-input, Direct, profile-group and saved Compare adoption have passed Launcher
-live checks. Matched first-send/follow-up latency is recorded below. Launcher
-worker/local-writer retirement is undergoing final cutover validation.
-Foundation-only boundaries below are historical checkpoints.
+Status: EXECUTED — native Direct/Discussion execution, exact-chat permissions,
+rich input, Direct/profile-group/Compare migration and restart, and matched
+provider latency are qualified. Launcher `79ddc5a670` retired its profile-worker
+execution and local transcript writers; final native send, saved Compare reopen,
+original read-only history and permission refresh passed in the rebuilt app.
+Runtime caller qualification landed `8a4dcf0719`; footprint correction landed
+`7001f3409b`. The older foundation boundaries below are historical checkpoints.
 
 ## Foundation landing boundary, October 2
 
@@ -75,7 +82,7 @@ Qualification must cover owner mismatch/replay, fresh versus existing sessions,
 simultaneous non-spatial rooms, preserved table claims, recovery and exact Stop.
 Launcher capabilities must retain parity before its profile-only route is retired.
 
-Client plan: `EterniaLauncher/docs/companion/planned/INSTANCE_CONVERSATIONS_2026-10-01.md`.
+Client plan: `EterniaLauncher/docs/archive/companion/INSTANCE_CONVERSATIONS_2026-10-01.md`.
 
 ## Native foundation checkpoint
 
@@ -487,7 +494,7 @@ GPT-6 Luna exchanges into an independent instance chat. The read-only permission
 survived, a new provider continuation recalled the earlier marker, and cockpit
 default pointers were unchanged. Fresh Launcher `27c8a01822` reopened that same
 root through its original source link after restart. The receipt and capture
-names live in `EterniaLauncher/docs/companion/planned/AGENT_CHAT_UNIFICATION_AUDIT_2026-10-02.md`.
+names live in `EterniaLauncher/docs/archive/companion/AGENT_CHAT_UNIFICATION_AUDIT_2026-10-02.md`.
 This closes Direct adoption/reopen acceptance, not legacy group migration,
 matched latency or global worker retirement.
 
@@ -555,7 +562,7 @@ a new serve boot and Launcher reopened the same canonical history. The original
 source-scope read returned identical events, members, tasks and commands, with
 no replay. Earlier attempts against the stale loaded serve are not acceptance
 evidence. Full capture names and qualifications are in
-`EterniaLauncher/docs/companion/planned/AGENT_CHAT_UNIFICATION_AUDIT_2026-10-02.md`
+`EterniaLauncher/docs/archive/companion/AGENT_CHAT_UNIFICATION_AUDIT_2026-10-02.md`
 under Profile-group live migration, continuation and restart.
 
 Local Compare adoption, matched production-provider latency and final worker
@@ -616,3 +623,17 @@ than establish a statistical speedup. Earlier measurements that counted
 progress as answer text, or used a different runtime build, are excluded.
 The Launcher acceptance note retains exact turn ids, timing logs and reviewed
 captures. Final retirement is owned by the same claimed cutover lane.
+
+
+## Final paired cutover — October 25
+
+The Launcher final receipt is
+`EterniaLauncher/docs/archive/companion/AGENT_CHAT_UNIFICATION_AUDIT_2026-10-02.md`.
+Its clean QA build `79ddc5a670` reopened the migrated Compare and original copy,
+sent and received `FINAL_CONSOLE_CUTOVER_20261025` through native Direct, and
+refreshed exact-chat permission changes back to their original runtime default.
+The authenticated socket reported loaded commit `7001f3409b`, clean source,
+code tree `117b36aabf197555929a07ac765657ddbde8e9a1`, and matching dependency
+lock. This lane's later Hermes changes are documentation only. The cutover
+claim `RT-INSTANCE-CONVERSATION-CUTOVER` closes; the executed plan is archived.
+The prior unrelated `FH-WORKER-CATALOG-BOOT-RUFF-CHECK` remains separately queued.

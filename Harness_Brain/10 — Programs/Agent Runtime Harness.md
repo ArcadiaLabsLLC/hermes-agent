@@ -15,11 +15,11 @@ Shared service authority does not mean a shared conversation identity.
 
 `operator_stop_cursor::` 2026-10-06 — [Stop audit](../../docs/downstream/operator-stop-audit-2026-10-06.md): console admission scope joined by exact native journal evidence; read-only terminal confirmation added. Live cancellation latency remains unmeasured.
 
-`identity_cursor::` 2026-10-02 — [Instance-conversation foundation](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md)
+`identity_cursor::` 2026-10-02 — [Instance-conversation foundation](../../docs/agent-runtime-harness/archive/instance-conversations-2026-10-01.md)
 records opaque account ownership, native directory and exact-session inspection.
 Transport cutover and latency qualification remain separate; the worker stays.
 
-`resident_cursor::` 2026-10-03 — [Identity repair](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md#resident-identity-repair-october-3)
+`resident_cursor::` 2026-10-03 — [Identity repair](../../docs/agent-runtime-harness/archive/instance-conversations-2026-10-01.md#resident-identity-repair-october-3)
 separates session bookkeeping from actor identity and applies resolved-client
 invalidation to every provider. Native probe reuses both warm actors; rollout
 and live qualification remain separate. The matched loopback sample averages

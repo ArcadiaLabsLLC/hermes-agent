@@ -361,7 +361,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Owner asks — 2026-10-02 (agent chat is ONE surface; filed by the launcher orchestrator)
 
-- The launcher half of the same ruling (the Agent Console becomes the one chat widget, rendered with Intelligence's materials; `EterniaLauncher/docs/companion/planned/AGENT_CHAT_UNIFICATION_AUDIT_2026-10-02.md`) changes NO hermes method: `runtime.chat.*` and `perform_chat_turn` are the surviving chat lane; the `tui_gateway` worker is the lane that goes. Work on the worker's lifecycle beyond keeping it alive until the cutover is upstream work (the cold-start hello carry under Upstream-owned), not cutover work.
+- The launcher half of the same ruling (the Agent Console becomes the one chat widget, rendered with Intelligence's materials; `EterniaLauncher/docs/archive/companion/AGENT_CHAT_UNIFICATION_AUDIT_2026-10-02.md`) changes NO hermes method: `runtime.chat.*` and `perform_chat_turn` are the surviving chat lane; the `tui_gateway` worker is the lane that goes. Work on the worker's lifecycle beyond keeping it alive until the cutover is upstream work (the cold-start hello carry under Upstream-owned), not cutover work.
 
 ### Filed on arrival — 2026-10-02 (orchestrator, live MCP check)
 
@@ -371,7 +371,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Owner asks — 2026-10-01 (instance conversations)
 
-- **`RT-INSTANCE-CONVERSATION-CUTOVER` — Instance-conversation cutover remainder:** native Direct/Discussion, rich input, permissions and Direct migration/reopen are qualified; profile-group adoption/restart is live-qualified; finish local Compare adoption and matched live latency before retiring the profile worker. · `fork / runtime` · [Plan](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md#foundation-landing-boundary-october-2) · designed in `docs/agent-runtime-harness/planned/design-sweep-d2-2026-10-10.md` § D2.08 (the instance-conversations plan owns it) · READY 2026-10-25 · **TAKEN 2026-10-24 codex-intelligence-cutover**
 
 ### Owner asks — 2026-10-01 (Eternia Lens in hermes)
 
