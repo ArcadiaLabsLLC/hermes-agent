@@ -420,9 +420,6 @@ def register(ctx) -> None:
     from agent_runtime.running_work.process_presence import install_process_presence
 
     install_process_presence()  # RT-EMIT-RUNNING-WORK-CHAT: process spawn/exit -> running_work events
-    from agent_runtime.skill_config_cache import install_bounded_skill_config_cache
-
-    install_bounded_skill_config_cache()  # one parsed config.yaml per persona home, not one per process
     from agent_runtime.guardrail_mcp_names import add_registry_spelled_filesystem_reads
 
     add_registry_spelled_filesystem_reads()  # the no-progress guard reads mcp__filesystem__* names

@@ -29,10 +29,10 @@ class TestBatchedDescribe:
         assert result["tools"][name]["parameters"] == tool_def["function"]["parameters"]
         hidden = json.loads(dispatch_tool_describe(
             {"names": [name]}, current_tool_defs=[], config=ToolSearchConfig.from_raw({})))
-        # Wording is upstream's ``not_deferrable_error``; the fork's shape (details when the
-        # tool IS in the assembly, the rejection only when it is not) is what is asserted.
-        assert hidden["errors"][name] == (
-            f"'{name}' is a directly-listed tool, not a deferred one. "
-            "Call it directly instead of via tool_call."
-        )
+        # Wording is upstream's ``not_deferrable_error`` (read from it, never retyped); the fork's
+        # shape (details when the tool IS in the assembly, the rejection only when it is not) is
+        # what is asserted.
+        from tools.tool_search_validation import not_deferrable_error
+
+        assert hidden["errors"][name] == not_deferrable_error(name, session_tool_names=[])
         assert name not in result.get("not_found", [])

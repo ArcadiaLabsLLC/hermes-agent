@@ -7,7 +7,6 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
-- **`FH-CUTOVER-BASELINE-REDS` — Repair the ten pre-existing files exposed by the October 25 native-conversation landing gate.** Exact unchanged-main witness `ee7080549076ee8cc591eb90eb41389065516030`: 11 failed tests and one collection error, same per-file counts as the cutover branch; `tests/agent_runtime/test_bundle_profiles.py`, `tests/agent_runtime/test_skill_config_cache.py`, `tests/agent_runtime/work_store/test_default_brain.py`, `tests/gateway/test_session_stream_order.py`, `tests/hermes_cli/test_gateway_downstream.py`, `tests/hermes_cli/test_sessions_export_read_only_downstream.py`, `tests/scripts/test_run_tests_parallel_downstream.py`, `tests/test_env_gap_registry.py`, `tests/test_no_frozen_hermes_home.py`, `tests/tools/test_tool_search_multiquery_downstream.py`. Both runs use the bundled runner and the same locked Python 3.14 test environment; no skip or ceiling change. · READY 2026-10-25 · **TAKEN 2026-10-25 w1025a-hermes**
 
 
 
@@ -548,5 +547,4 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-25 (lane w1024t-hermes2)
 
-- **`FH-TESTS-CROSS-DRIVE-WORKTREE` — `tests/scripts/test_pick_release_tags.py` (2 tests) reds from a worktree on `C:`: the test hands bash `str(script)` with backslashes, which bash strips (`C:wtw1024t-hermes2scriptssandboxpick-release-tags.sh: No such file`); pass a POSIX path (`as_posix()`)** · CORRECTED 2026-10-25 lane w1025a-hermes: `as_posix()` alone still reds — bare `bash` in `subprocess.run` resolves to System32's WSL launcher (CreateProcess searches System32 before PATH), which cannot see `C:/wt/…`; the fork answer is `tests/conftest.py::real_bash`, but the file is upstream-owned (`ba78364593`, upstream author) so the fix is an upstream PR in the Windows-bash-resolution fix class (`RT-UPSTREAM-TEST-INPLACE-EDITS` ruling: upstream, never carried) · fork tests · evidence: lane w1024t-hermes2 landing run 2026-10-25 from `C:/wt/w1024t-hermes2` (`tests/scripts/test_run_tests_parallel_downstream.py` reds there too — already under `FH-CUTOVER-BASELINE-REDS`) · BLOCKED 2026-10-25: upstream — PR to NousResearch/hermes-agent resolving Git for Windows' bash in `tests/scripts/test_pick_release_tags.py` (not opened: an upstream PR is the owner's to send)
 

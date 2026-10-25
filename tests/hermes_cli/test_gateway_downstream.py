@@ -86,7 +86,7 @@ def test_command_matches_profile_home_uses_path_boundary():
 def test_run_gateway_windows_foreground_keeps_ctrl_c_enabled(monkeypatch):
     calls = []
 
-    def fake_start_gateway(*, replace, verbosity, force=False):
+    def fake_start_gateway(*, replace, verbosity, force=False, idle_exit=False):
         calls.append((replace, verbosity))
         return object()
 
@@ -116,7 +116,7 @@ def test_run_gateway_windows_foreground_keeps_ctrl_c_enabled(monkeypatch):
 def test_run_gateway_windows_detached_absorbs_console_controls(monkeypatch):
     calls = []
 
-    def fake_start_gateway(*, replace, verbosity, force=False):
+    def fake_start_gateway(*, replace, verbosity, force=False, idle_exit=False):
         calls.append((replace, verbosity))
         return object()
 

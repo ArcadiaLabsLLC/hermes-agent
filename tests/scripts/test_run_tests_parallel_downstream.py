@@ -474,3 +474,20 @@ def test_a_run_once_file_red_is_never_re_run_and_the_bundled_runner_runs_it_alon
     from scripts import run_tests_bundled as bundled
 
     assert "tests/scripts/test_install_ps1_path_fence_downstream.py" in bundled.unbundled_files(tmp_path / "none.txt")
+
+
+def test_run_once_answers_no_for_a_file_on_another_drive(monkeypatch) -> None:
+    """A probe under a temp root on another drive than the checkout has no repo-relative
+    name (``os.path.relpath`` raises across Windows drives), so it is not on the list."""
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2] / "scripts"))
+    import _fork_runner
+
+    listed = frozenset({"tests/listed_test.py"})
+    listed_file = _fork_runner.RUN_ONCE_LIST.parent.parent / "tests" / "listed_test.py"
+    assert _fork_runner.run_once(listed_file, listed) is True  # positive control: same list, same call
+
+    def cross_drive(path, start=None):
+        raise ValueError("path is on mount 'X:', start on mount 'C:'")
+
+    monkeypatch.setattr(_fork_runner.os.path, "relpath", cross_drive)
+    assert _fork_runner.run_once(listed_file, listed) is False

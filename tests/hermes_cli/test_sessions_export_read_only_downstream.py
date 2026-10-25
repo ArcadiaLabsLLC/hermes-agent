@@ -28,7 +28,7 @@ def test_export_opens_the_store_read_only_and_still_exports(monkeypatch, tmp_pat
     with hermes_state.SessionDB(db_path=db_path) as seed:
         seed.create_session("sess-export-ro", source="cli")
         seed.append_message("sess-export-ro", "user", "hello export")
-    monkeypatch.setattr(hermes_state, "_default_db_path", lambda: db_path)
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))  # cmd_sessions opens <home>/state.db by path
 
     opened: list[bool] = []
     real = hermes_state.SessionDB
@@ -49,7 +49,7 @@ def test_export_on_a_fresh_profile_creates_no_store(monkeypatch, tmp_path, capsy
     import hermes_state
 
     db_path = tmp_path / "state.db"
-    monkeypatch.setattr(hermes_state, "_default_db_path", lambda: db_path)
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))  # cmd_sessions opens <home>/state.db by path
     sessions_cmd.cmd_sessions(_export_args())
     assert "No sessions found." in capsys.readouterr().out
     assert not db_path.exists()

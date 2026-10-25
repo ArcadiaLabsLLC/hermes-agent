@@ -45,7 +45,10 @@ def run_once(file: Path, listed: frozenset[str] | None = None) -> bool:
     listed = run_once_list() if listed is None else listed
     if not listed:
         return False
-    rel = Path(os.path.relpath(_abs(file), RUN_ONCE_LIST.parent.parent)).as_posix()
+    try:
+        rel = Path(os.path.relpath(_abs(file), RUN_ONCE_LIST.parent.parent)).as_posix()
+    except ValueError:  # another drive than the checkout: no repo-relative name, so not listed
+        return False
     return rel in listed
 
 
