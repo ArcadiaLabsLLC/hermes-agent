@@ -6,12 +6,19 @@ aliases before that loop, and register installs fork owners afterward.
 
 __layer__ = "lanes"
 
+from agent_runtime.gateway.contract_seam import catalog_forced_in_this_process
+
 
 # The optional handler modules are module-level guarded imports: that shape is the
 # bundle profile's seam (``scripts/bundle_profile_closure._imports`` reads eager +
 # guarded as "not pinned"); a lazy import inside ``prepare`` would read as the phone
 # turn reaching into code its wheel does not ship.
 try:
+    if catalog_forced_in_this_process():
+        # A conversation worker (agent_runtime.conversations.worker_entry) reads the generated catalog:
+        # the serve forwards it no connectors.* method, and methods_connectors_account would import
+        # pydantic's whole contract package at module level (RT-WORKER-BOOT-PYDANTIC-CONTRACTS).
+        raise ImportError("connector RPCs are served by the serve, not by a catalog worker")
     from tui_gateway import methods_connectors as _methods_connectors
     from tui_gateway import methods_connectors_account as _methods_connectors_account
 except ImportError:  # fork seam: phone wheel — the connectors RPCs (pydantic contracts) are not shipped

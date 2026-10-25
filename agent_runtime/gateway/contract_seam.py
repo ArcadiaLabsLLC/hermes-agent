@@ -26,11 +26,32 @@ __layer__ = "policy"
 
 from types import ModuleType
 
-__all__ = ["contract_registry", "pydantic_contracts_enabled", "registry"]
+__all__ = ["catalog_forced_in_this_process", "contract_registry", "pydantic_contracts_enabled", "registry",
+           "use_catalog_in_this_process"]
+
+_catalog_forced = False
+
+
+def use_catalog_in_this_process() -> None:
+    """Read the generated catalog in this process whatever the profile says (owner 2026-10-22,
+    RT-WORKER-BOOT-PYDANTIC-CONTRACTS): a desktop conversation worker validates its wire with the
+    phone's shape validator, so its boot never imports pydantic's contract package (~1.1 s).
+    ``validate_params`` returns params unchanged on both registries, so the swap is behaviour-
+    identical for the methods a worker serves. Call it before ``tui_gateway.server`` is imported:
+    :mod:`agent_runtime.gateway_extensions` reads :func:`catalog_forced_in_this_process` at import."""
+    global _catalog_forced
+    _catalog_forced = True
+
+
+def catalog_forced_in_this_process() -> bool:
+    return _catalog_forced
 
 
 def pydantic_contracts_enabled() -> bool:
-    """``tui_gateway.pydantic_contracts`` — off in a profile that ships no pydantic."""
+    """``tui_gateway.pydantic_contracts`` — off in a profile that ships no pydantic, and in a
+    process that called :func:`use_catalog_in_this_process`."""
+    if _catalog_forced:
+        return False
     from hermes_cli.config_switches import config_switch
 
     return config_switch("tui_gateway", "pydantic_contracts", default=True)

@@ -47,6 +47,9 @@ def exit_without_finalization(clean: list[bool]) -> None:
 def main() -> None:
     import atexit
 
+    from agent_runtime.gateway.contract_seam import use_catalog_in_this_process
+
+    use_catalog_in_this_process()  # before any tui_gateway import (RT-WORKER-BOOT-PYDANTIC-CONTRACTS)
     clean: list[bool] = []
     atexit.register(exit_without_finalization, clean)
     own_protocol_input()
