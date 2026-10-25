@@ -41,7 +41,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-22 (land w1022b)
 
-- **`RT-PHONE-SKILLS-NONE-MARKED` — no tracked skill names `platforms: [android|ios]`, so the phone bundle ships zero skills** · fork / `agent_runtime/bundle_profiles/bundled-phone.yaml` skill_platforms · evidence: commit `016de8a203` body · RULED 2026-10-22: owner — mark the chat-path skills `platforms: [..., ios, android]` in one lane · BLOCKED 2026-10-24: owner decision — every tracked skill is upstream-owned (`skills/*/SKILL.md`; the fork carries none), so the ruled marking is an in-place upstream edit the fork rule forbids; carry the frontmatter edits, or a seam? · Recommend: a fork seam — `bundled-phone.yaml` names the phone skill set (`skill_names:`) and `agent/skill_utils.py::skill_matches_platform` admits a named skill on android/ios through one fork hook; offer the `platforms:` marker upstream as a separate PR · **TAKEN 2026-10-24 w1024t-hermes2**
 
 ### Filed on arrival — 2026-10-22 (land w1022a)
 
@@ -958,3 +957,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-24 (launcher session, owner report: yellow readiness text on every agent)
 
+## Filed on arrival — 2026-10-25 (lane w1024t-hermes2)
+
+- **`RT-PHONE-SWITCHED-OFF-DEAD-PLATFORM-MODULES` — `bundled-phone.yaml` `switched_off_modules` still names `gateway.platforms.bluebubbles` / `qqbot` / `signal*` / `weixin` / …, which upstream moved under `plugins/platforms/` (v0.22.4), so `test_packaging_modules_name_real_modules[bundled-phone]` is red on `origin/main` `6aab9ef520` and the phone's switch-off list no longer switches those adapters off** · fork / phone bundle · evidence: `tests/agent_runtime/test_bundle_profiles.py::test_packaging_modules_name_real_modules` (red on main, lane w1024t-hermes2 2026-10-25) · READY 2026-10-25
