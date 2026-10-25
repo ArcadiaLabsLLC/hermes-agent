@@ -76,9 +76,12 @@ def conversation_route_id(scope: ConversationScope, key: str) -> str:
     return "conversation-" + digest([scope.key, key])
 
 
+def caller_actor(caller) -> str:
+    return digest({"kind": caller.kind, "device": caller.device_id})
+
+
 def caller_scope(caller, client: str, profile: str) -> ConversationScope:
-    return ConversationScope(digest({"kind": caller.kind, "device": caller.device_id}),
-                             identifier(client), identifier(profile))
+    return ConversationScope(caller_actor(caller), identifier(client), identifier(profile))
 
 
 @dataclass(frozen=True, slots=True)

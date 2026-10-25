@@ -4,6 +4,7 @@ from __future__ import annotations
 from .contract import command_body
 from .member_models import member_models
 from .room_owner import require_room_owner
+from .run_values import DiscussionError
 from .compare_import import prepare_compare, resolve_compare, append_compare, finish_compare
 
 __layer__ = "lanes"
@@ -59,14 +60,18 @@ _READS_AND_STARTS = {"get": _get,
                     "member_model": lambda s, p, a: member_models(s, p, select=True),
                     "start": _start, "start_room": _start_room, "start_group": _start_group, "respond": _respond,
                     "migrate_group": _migrate_group,
-                    "prepare_compare": prepare_compare, "resolve_compare": resolve_compare,
-                    "append_compare": append_compare, "finish_compare": finish_compare}
+                    "resolve_compare": resolve_compare, "append_compare": append_compare}
+_SOURCE_IMPORTS = {"prepare_compare": prepare_compare, "finish_compare": finish_compare}
 
 
-def execute_run(service, action, params, actor_id, *, account_access=True):
+def execute_run(service, action, params, actor_id, *, account_access=True, conversation_actor_id=None):
     if "run_id" in params:
         require_room_owner(service.runs.get(params["run_id"], params["workspace_id"]), params.get("client_scope"),
                            account_access=account_access)
+    if importer := _SOURCE_IMPORTS.get(action):
+        if conversation_actor_id is None:
+            raise DiscussionError("conversation_owner_changed")
+        return importer(service, params, actor_id, conversation_actor_id)
     if catalog := _CATALOG_READS.get(action):
         return catalog(service, params, account_access)
     handler = _READS_AND_STARTS.get(action)

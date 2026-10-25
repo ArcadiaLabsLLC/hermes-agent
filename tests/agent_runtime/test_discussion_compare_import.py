@@ -35,7 +35,8 @@ def source_archive(a, *, empty=False, padding=0):
 
 
 def rpc(a, op, *, owner=OWNER, **fields):
-    return execute(a.service, "run." + op, {"workspace_id": WORKSPACE, "client_scope": owner, **fields}, actor_id="operator")
+    return execute(a.service, "run." + op, {"workspace_id": WORKSPACE, "client_scope": owner, **fields},
+                   actor_id="operator", conversation_actor_id="operator")
 
 
 def upload(a, source, raw):
@@ -134,6 +135,6 @@ def test_prepare_recovers_room_creation_and_cannot_fork_same_source_into_another
     seed_workspace_record("ws_other_compare")
     with pytest.raises(DiscussionError, match="migration target changed"):
         execute(a.service, "run.prepare_compare", {"workspace_id": "ws_other_compare", "client_scope": OWNER,
-            "source": source}, actor_id="operator")
+            "source": source}, actor_id="operator", conversation_actor_id="operator")
     assert rpc(a, "finish_compare", run_id=recovered["run_id"])["run"]["phase"] == "paused"
     assert not a.native_calls and not sends(a.factory)

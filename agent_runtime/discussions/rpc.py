@@ -16,7 +16,7 @@ from .run_rpc import execute_run
 from .run_store import DiscussionError, digest
 from .service import DiscussionService, get_service
 from .profile_groups import group_scope, is_group_scope
-from agent_runtime.conversations.model import ConversationError
+from agent_runtime.conversations.model import ConversationError, caller_actor
 from .app_functions import requesting_launcher
 from agent_runtime.call_authorization import authorize_call, TIER_CONSOLE
 
@@ -34,7 +34,7 @@ _CONTEXT_READS = {
 
 
 def execute(service: DiscussionService, operation: str, raw: Any, *, actor_id: str,
-            account_access: bool = True) -> dict[str, Any]:
+            account_access: bool = True, conversation_actor_id: str | None = None) -> dict[str, Any]:
     params = validate_params(operation, raw)
     if "workspace_id" in params:
         scope = params["workspace_id"]
@@ -52,7 +52,8 @@ def execute(service: DiscussionService, operation: str, raw: Any, *, actor_id: s
     family, action = operation.split(".", 1)
     if family in {"table", "preset"}:
         return execute_definition(service, family, action, params)
-    return execute_run(service, action, params, actor_id, account_access=account_access)
+    return execute_run(service, action, params, actor_id, account_access=account_access,
+                       conversation_actor_id=conversation_actor_id)
 
 
 def register(method, ok, err) -> None:
@@ -64,6 +65,7 @@ def register(method, ok, err) -> None:
                 actor_id = "console-" + digest({"kind": context.caller.kind, "device": context.caller.device_id})[:24]
                 with requesting_launcher(context.launcher_request):
                     result = execute(get_service(), operation, params, actor_id=actor_id,
+                        conversation_actor_id=caller_actor(context.caller),
                         account_access=authorize_call(TIER_CONSOLE, context.caller, method=PREFIX + operation).ok)
                 return ok(rid, {"contract_version": CONTRACT_VERSION, **result})
             except DefinitionError as exc:

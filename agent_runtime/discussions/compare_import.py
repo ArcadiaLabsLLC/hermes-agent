@@ -60,7 +60,7 @@ def _targets(service, source, workspace, owner, actor_id):
     return conversations, result
 
 
-def prepare_compare(service, params, actor_id):
+def prepare_compare(service, params, actor_id, conversation_actor_id):
     owner, source, workspace = _owner(params), params["source"], params["workspace_id"]
     with service._lock, service.context.scope():
         if not service.accepting:
@@ -72,7 +72,7 @@ def prepare_compare(service, params, actor_id):
             if previous["initial"]["compare_import"]["state"] == "pending":
                 _ensure_history_room(service, previous)
             return {"run": previous}
-        _targets(service, source, workspace, owner, actor_id)
+        _targets(service, source, workspace, owner, conversation_actor_id)
         refs = tuple(ParticipantRef.parse(row["participant"]) for row in source["members"])
         spec = RoomSpec(source["name"], refs, DiscussionSettings(1, True, False, None))
         initial = {"discussion": spec.to_dict(), "client_scope": owner,
@@ -100,7 +100,7 @@ def append_compare(service, params, actor_id):
         return {"run": run}
 
 
-def finish_compare(service, params, actor_id):
+def finish_compare(service, params, actor_id, conversation_actor_id):
     with service._lock, service.context.scope():
         if not service.accepting:
             raise DiscussionError("runtime_stopping")
@@ -109,7 +109,7 @@ def finish_compare(service, params, actor_id):
             return {"run": run}
         archive.read_archive(service, run)
         source = run["initial"]["compare_import"]["source"]
-        conversations, targets = _targets(service, source, run["workspace_id"], _owner(params), actor_id)
+        conversations, targets = _targets(service, source, run["workspace_id"], _owner(params), conversation_actor_id)
         sessions = {}
         for member in service.runs.members(run["run_id"]):
             row, scope, target = targets[member["member_id"]]
@@ -119,5 +119,5 @@ def finish_compare(service, params, actor_id):
                     {"persona_id": target.persona_id, "persona_instance_id": target.id})["session_id"]
             service.context.ensure_session(run, {**member, "session_id": session})
             sessions[member["member_id"]] = session
-        _targets(service, source, run["workspace_id"], _owner(params), actor_id)
+        _targets(service, source, run["workspace_id"], _owner(params), conversation_actor_id)
         return {"run": store.complete(service.runs, run, sessions)}
