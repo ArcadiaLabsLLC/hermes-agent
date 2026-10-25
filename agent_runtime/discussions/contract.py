@@ -6,6 +6,7 @@ from .definitions import CAPACITIES, TableStyle, DefinitionError, ParticipantRef
 from .run_store import text
 from .room_definition import RoomSpec, ROOM_MEMBER_LIMIT
 from .profile_groups import ProfileGroupSpec
+from .group_migration_values import member_targets
 import json
 from gateway.hosted_room_message_intent import MessageResponse
 
@@ -37,6 +38,7 @@ METHODS: dict[str, tuple[str, tuple[str, ...], tuple[str, ...]]] = {
     "run.member_model": ("console", ("workspace_id", "run_id", "member_id", "model_id"), ("save_default",)),
     "run.start": ("console", ("workspace_id", "table_id", "expect_revision", "idempotency_key", "topic"), ()),
     "run.start_room": ("console", ("workspace_id", "spec", "idempotency_key", "topic"), ()),
+    "run.migrate_group": ("console", ("workspace_id", "run_id", "client_scope", "expect_revision", "target_workspace_id", "members"), ()),
     "run.start_group": ("console", ("workspace_id", "client_scope", "spec", "idempotency_key"), ()),
     "run.respond": ("console", ("workspace_id", "run_id", "expect_revision", "idempotency_key",
                                  "task_id", "generation", "native_id", "request_id", "result"), ()),
@@ -73,7 +75,7 @@ def validate_params(method: str, value: Any) -> dict[str, Any]:
 
 
 def _identities(result):
-    for key in ("workspace_id", "table_id", "preset_id", "run_id", "idempotency_key", "member_id", "task_id", "native_id", "client_scope", "request_id"):
+    for key in ("workspace_id", "target_workspace_id", "table_id", "preset_id", "run_id", "idempotency_key", "member_id", "task_id", "native_id", "client_scope", "request_id"):
         if key in result:
             result[key] = identifier(result[key], key)
     if "after" in result and result["after"] is not None:
@@ -113,7 +115,7 @@ def _answer(value):
 
 
 _FIELD_READERS = {"participant": lambda v: ParticipantRef.parse(v).to_dict(),
-                  "response": _response, "result": _answer}
+                  "response": _response, "result": _answer, "members": member_targets}
 _SPEC_READERS = {"run.start_room": RoomSpec.parse, "run.start_group": ProfileGroupSpec.parse}
 
 
@@ -134,7 +136,7 @@ def contract_descriptor() -> dict[str, Any]:
                     for name, (tier, required, optional) in sorted(METHODS.items())},
         "features": {"local_instances": True, "same_profile_instances": True, "presets": True,
                      "message_response_policy": True,
-                     "profile_groups": True,
+                     "profile_groups": True, "group_migration": True,
                      "group_models": True,
                      "instance_models": True,
                      "scheduled_conclusion": True,

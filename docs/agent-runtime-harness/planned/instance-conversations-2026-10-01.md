@@ -489,3 +489,25 @@ root through its original source link after restart. The receipt and capture
 names live in `EterniaLauncher/docs/companion/planned/AGENT_CHAT_UNIFICATION_AUDIT_2026-10-02.md`.
 This closes Direct adoption/reopen acceptance, not legacy group migration,
 matched latency or global worker retirement.
+
+### Profile-group adoption on the existing room — October 25
+
+`runtime.discussion.run.migrate_group` adopts a paused, account-owned profile
+group using an explicit instance choice for every member. It validates the
+original profile/home and current instance binding, then records a cutover intent
+on the existing run. Each member reuses Direct's canonical import and mint
+receipt. The final SQLite transaction changes all member execution bindings and
+the workspace together; public event/member IDs, command history, attempt
+receipts and cockpit defaults stay intact. The original scope remains a verified
+read/retry alias on that same run record. Adoption remains paused and sends no
+turn. An interrupted import fences new commands and resumes the same roots.
+
+Three behavioral tests exercise real route/room/SessionDB stores, native
+continuation through the existing executor, wrong account/profile refusal,
+empty members, lost completion and service restart. Removing the pending-cutover
+command fence failed the retry test (`group-migration-fence-red.log`); restored.
+The focused three-file batch passed 21 tests; ten affected runtime, recovery,
+model, refusal and RPC-manifest files passed 169 (`group-migration-final.log`).
+All twelve staged lint checks pass; their first run caught an existing unused
+`noqa: F401` in the hosted-room conclusion test, removed without changing behavior.
+Launcher selection and live migration acceptance are still pending.

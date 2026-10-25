@@ -8,7 +8,7 @@ from dataclasses import replace
 from gateway import hosted_room_discussion as policy
 from gateway import hosted_rooms
 from tests.gateway.test_hosted_room_discussion import (
-    GATEWAY_ID, LOCAL_PROFILES, ROOM_ID, _append_publication, _events, room_db,  # noqa: F401
+    GATEWAY_ID, LOCAL_PROFILES, ROOM_ID, _append_publication, _events, room_db,
 )
 
 

@@ -14,10 +14,13 @@ __layer__ = "stores"
 
 def read_run_record(conn: sqlite3.Connection, run_id: str, workspace_id: str | None = None) -> dict[str, Any]:
     row = conn.execute("SELECT * FROM mc_discussion_runs WHERE run_id=?", (run_id,)).fetchone()
-    if row is None or (workspace_id is not None and row["workspace_id"] != workspace_id):
+    if row is None:
         raise DiscussionError("run_not_found")
     result = dict(row)
     result["initial"] = json.loads(result.pop("initial_json"))
+    if workspace_id is not None and workspace_id not in (
+            result["workspace_id"], result["initial"].get("legacy_group", {}).get("workspace_id")):
+        raise DiscussionError("run_not_found")
     result.pop("request_digest")
     return result
 

@@ -47,11 +47,17 @@ def _respond(service, params, _actor_id):
     return service.respond(params)
 
 
+def _migrate_group(service, params, actor_id):
+    from .group_migration import migrate_group
+    return migrate_group(service, params, actor_id)
+
+
 _CATALOG_READS = {"active": _active, "list": _list}
 _READS_AND_STARTS = {"get": _get,
                     "member_models": lambda s, p, a: member_models(s, p),
                     "member_model": lambda s, p, a: member_models(s, p, select=True),
-                    "start": _start, "start_room": _start_room, "start_group": _start_group, "respond": _respond}
+                    "start": _start, "start_room": _start_room, "start_group": _start_group, "respond": _respond,
+                    "migrate_group": _migrate_group}
 
 
 def execute_run(service, action, params, actor_id, *, account_access=True):
