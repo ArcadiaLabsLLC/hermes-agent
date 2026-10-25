@@ -25,7 +25,10 @@ bounded event projections, not provider credentials or raw diagnostics.
 
 Provider access follows the service's captured auth owner; tools, skills and
 history stay profile-scoped. Model facts expose provider labels, current/default
-model IDs, `can_save_model_default` and `model_selection_required`. The `.model`
+model IDs, `can_save_model_default` and `model_selection_required`;
+`runtime.operator.conversation.models` also carries `image_input_mode` (`native`: the model sees an
+attached image; `text`: an auxiliary vision model describes it first; null: no model resolved), the
+turn's own `decide_image_input_mode` under the persona's profile config. The `.model`
 operation changes only the session unless `save_default: true` is explicit;
 both identities must be confirmed before success. Existing config/model and
 compute owners perform the write. [Shared-provider evidence](../downstream/shared-provider-authority-2026-09-29.md).

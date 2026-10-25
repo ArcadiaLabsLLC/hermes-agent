@@ -68,10 +68,11 @@ def _selected_model(instance, choice: str) -> tuple[str, str, str]:
 def operator_model_facts(params: dict) -> dict:
     from hermes_cli.config import is_managed
 
-    with operator_session_read(params) as (instance, _):
-        inventory = operator_model_inventory(instance)
     settings = inspect_operator_settings(params)
     model = settings["model"]
+    with operator_session_read(params) as (instance, _):
+        inventory = operator_model_inventory(instance)
+        image_mode = _image_input_mode(instance, model["effective_provider"], model["effective_model"])
     effort = {"reasoning_effort": model["effective_reasoning_effort"],
               "reasoning_effort_source": model["reasoning_effort_source"],
               "reasoning_capabilities": model["reasoning_capabilities"]}
@@ -85,7 +86,25 @@ def operator_model_facts(params: dict) -> dict:
         "default_affects_inherited_sessions": True,
         "can_reset_model_override": True,
         "model_is_default": model["model_is_default"], **effort,
+        "image_input_mode": image_mode,
     }}
+
+
+#: ``facts.image_input_mode``: how the turn's model takes an attached image (RT-CONV-MODELS-IMAGE-INPUT):
+#: ``native`` (the model sees it), ``text`` (an auxiliary vision model describes it first), or ``None``
+#: when no model is resolved. The same ``decide_image_input_mode`` the turn itself runs, under the
+#: persona's profile config.
+def _image_input_mode(instance, provider, model) -> str | None:
+    from agent.image_routing import decide_image_input_mode
+    from hermes_cli.config import load_config_readonly
+
+    if not provider or not model:
+        return None
+    try:
+        with _model_profile(instance):
+            return decide_image_input_mode(str(provider), str(model), load_config_readonly())
+    except OperatorConversationRefused:
+        return None
 
 
 def operator_selected_model_facts(params: dict) -> dict:
