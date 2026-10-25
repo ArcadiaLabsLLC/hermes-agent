@@ -581,7 +581,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-10-15 (door PR lanes doors-a, doors-b)
 
-- **`RT-J2-HOSTED-ROOM-LIMITS` — J2 hosted-room limits: Half A (A2 conclusion on `_bounded_task_delta` with an always-frozen `input_context`, A3 per-instance transcript bound) LANDED 2026-10-24 (lane w1024t-hermes); what is left is Half B, the J2a/J2b/B0 upstream PRs (branches prepared, idle)** · seams · `docs/agent-runtime-harness/planned/hosted-room-j2-limits-2026-10-16.md` (q-j2 `ab0eb8a6d89`, recommendations taken) · BLOCKED 2026-10-24: owner decision — open the prepared J2a / J2b upstream PRs now (the plan keeps them idle until the owner opens them)? · Recommend: open J2a first, then J2b; on acceptance `gateway/hosted_room_limits.py` retires with the four S3 ledger rows · **TAKEN 2026-10-24 w1024t-hermes2**
 - **`RT-DOORS-SHEET-C-PART-B` — Doors sheet §C part B (gh/Qwen `adopt_external_logins` bug fix) has no prepared branch; part A shipped as `feat/secret-file-store` (634f2ab083)** · seams · doors-a lane report 2026-10-15; sheet on `h-doors-2` §C · build a branch from upstream/main with a body in `pr-bodies` · RULED 2026-10-16: owner — "pr branches should remain idle" while upstream is not taking the owner's PRs · DEFERRED 2026-10-18: build the part B branch from the then-current upstream release when upstream takes the owner's PRs again — owner 2026-10-16 deferral
 
 
