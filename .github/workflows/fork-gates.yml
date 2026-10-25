@@ -150,3 +150,69 @@ jobs:
           uv run python -m pytest -q -p no:cacheprovider
           tests/agent_runtime/test_tombstone_registry.py
           tests/test_docket_stage_claims.py
+
+  # The fork's suite, on GitHub's standard runners (owner, 2026-10-25,
+  # FH-CI-MAIN-LARGE-RUNNER-QUEUE): upstream's tests.yml asks for runner labels
+  # the fork's organisation does not have, so a run queued on it held
+  # `ci-refs/heads/main` for days and cancelled every later push. Zero upstream
+  # footprint: this job carries the validated scope, and the owner disables
+  # upstream's ci.yaml for the fork in the repository's Actions settings.
+  # The scope is the "validated suite" block of docs/downstream-development.md
+  # plus the two tooling lanes; tests/ci/test_fork_suite_on_standard_runners.py
+  # holds the paths below equal to that block.
+  validated-suite:
+    name: Validated suite (${{ matrix.os }})
+    if: github.event_name == 'push'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # 8.2.0
+        with:
+          version: "0.9.28"
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+
+      - name: Install test environment
+        uses: ./.github/actions/retry
+        with:
+          command: uv sync --locked --python 3.14 --extra all --group dev
+
+      - name: Point the runner at the synced interpreter
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            echo "HERMES_PYTHON=$GITHUB_WORKSPACE/.venv/Scripts/python.exe" >> "$GITHUB_ENV"
+          else
+            echo "HERMES_PYTHON=$GITHUB_WORKSPACE/.venv/bin/python" >> "$GITHUB_ENV"
+          fi
+
+      - name: Validated suite
+        run: scripts/run_tests.sh tests/agent_runtime tests/hermes_cli tests/hermes_state
+        env:
+          HERMES_TEST_WORKERS: 4
+          HERMES_TEST_FILE_TIMEOUT: 600
+          OPENROUTER_API_KEY: ""
+          OPENAI_API_KEY: ""
+          NOUS_API_KEY: ""
+
+      - name: Tooling lanes
+        if: success() || failure()
+        run: scripts/run_tests.sh tests/tooling tests/scripts
+        env:
+          HERMES_TEST_WORKERS: 4
+          HERMES_TEST_FILE_TIMEOUT: 600
+
+      - name: Check the checkout is clean
+        uses: ./.github/actions/check-clean-worktree
