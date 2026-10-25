@@ -372,7 +372,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Owner asks — 2026-10-01 (instance conversations)
 
-- **`RT-INSTANCE-CONVERSATION-CUTOVER` — Instance-conversation cutover remainder:** qualify rich input/activity, recovery and live latency before retiring the profile worker; identity/account/directory/inspection foundation lands separately. · `fork / runtime` · [Plan](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md#foundation-landing-boundary-october-2) · designed in `docs/agent-runtime-harness/planned/design-sweep-d2-2026-10-10.md` § D2.08 (the instance-conversations plan owns it) · BLOCKED 2026-10-16: owner sitting — the qualification's live latency half on the owner's serve
+- **`RT-INSTANCE-CONVERSATION-CUTOVER` — Instance-conversation cutover remainder:** qualify rich input/activity, recovery and live latency before retiring the profile worker; identity/account/directory/inspection foundation lands separately. · `fork / runtime` · [Plan](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md#foundation-landing-boundary-october-2) · designed in `docs/agent-runtime-harness/planned/design-sweep-d2-2026-10-10.md` § D2.08 (the instance-conversations plan owns it) · BLOCKED 2026-10-16: owner sitting — the qualification's live latency half on the owner's serve · **TAKEN 2026-10-24 codex-intelligence-cutover**
 
 ### Owner asks — 2026-10-01 (Eternia Lens in hermes)
 
