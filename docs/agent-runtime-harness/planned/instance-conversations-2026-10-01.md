@@ -511,3 +511,20 @@ model, refusal and RPC-manifest files passed 169 (`group-migration-final.log`).
 All twelve staged lint checks pass; their first run caught an existing unused
 `noqa: F401` in the hosted-room conclusion test, removed without changing behavior.
 Launcher selection and live migration acceptance are still pending.
+
+### Persisted model selection during adoption — October 25
+
+The live profile-group import preserved its public events and member identities,
+but the next Send opened model selection instead of submitting: gateway session
+rows persist model/provider at the top level, while native Console execution
+reads the chat override contract. Direct and group adoption now translate that
+selection at their shared import boundary, including the latest compression
+segment and reasoning effort. Provider credentials/endpoints are resolved by the
+existing provider owner; instance defaults and donor history remain unchanged.
+
+The regression uses real SessionDB imports and both native settings inspection
+and the next-turn model resolver. Removing the translated override made it fail
+with effective provider None (`group-model-migration-red.log`). Restored, the
+three migration/group/model files passed 50 tests (`group-model-migration-green.log`).
+This fixes import behavior; the previously imported QA group still requires an
+explicit native model choice, and fresh-import live acceptance remains pending.

@@ -60,8 +60,7 @@ def _adopted_segments(segments, route, instance, owner, root, receipts):
     adopted = []
     for index, row in enumerate(segments):
         session_id = ids[row["id"]]
-        raw_config = row.get("model_config") or {}
-        config = json.loads(raw_config) if isinstance(raw_config, str) else dict(raw_config)
+        config = _adopted_model_config(row, selection=segments[-1] if index == 0 else row)
         ownership = persona_chat_ownership(session_id, instance.persona_id, client_scope=owner, independent=True)
         provenance = {"route_id": route.id, "profile": route.profile, "session_id": row["id"],
                       "turns": receipts}
@@ -74,6 +73,38 @@ def _adopted_segments(segments, route, instance, owner, root, receipts):
                         "title": f"{row.get('title') or 'Imported conversation'} ({session_id[-12:]})"
                                  if index == 0 else None})
     return adopted
+
+
+def _adopted_model_config(row, *, selection):
+    """Translate the donor's persisted selection into the native chat tier.
+
+    Gateway history stores its last selection at the top level. Native chats
+    deliberately read their own override contract, so copying those bytes alone
+    silently loses the choice. Endpoints and credentials are resolved by the
+    existing provider owner, never transplanted as an execution override.
+    """
+    from hermes_state import SessionDB
+    from agent_runtime.persona_chat_session import (
+        _CHAT_MODEL_OVERRIDE_CONFIG_KEY, _chat_model_override_from_config, _chat_reasoning_effort,
+    )
+
+    raw = row.get("model_config") or {}
+    config = json.loads(raw) if isinstance(raw, str) else dict(raw)
+    if _CHAT_MODEL_OVERRIDE_CONFIG_KEY not in config:
+        raw_selection = selection.get("model_config") or {}
+        chosen = json.loads(raw_selection) if isinstance(raw_selection, str) else raw_selection
+        route = SessionDB.session_gateway_runtime(selection)
+        reasoning = chosen.get("reasoning_config") or {}
+        candidate = {_CHAT_MODEL_OVERRIDE_CONFIG_KEY: {
+            "model": selection.get("model") or chosen.get("model"), "provider": route.get("provider"),
+            "reasoning_effort": _chat_reasoning_effort(reasoning.get("effort"))
+                if isinstance(reasoning, dict) else None,
+            "source": "profile_migration",
+        }}
+        override = _chat_model_override_from_config(candidate)
+        if override is not None:
+            config[_CHAT_MODEL_OVERRIDE_CONFIG_KEY] = override
+    return config
 
 
 def persona_child_id(root, source_id):

@@ -69,6 +69,37 @@ def selected(instance_id):
     return instance.session_id, instance.default_chat_session_id
 
 
+def test_imported_choice_is_used_by_native_inspection_and_next_turn_without_changing_defaults(legacy):
+    from agent_runtime.operator_session_inspection import inspect_operator_settings
+    from agent_runtime.persona_chat_session import _chat_model_override_from_config, _session_model_config
+    from tests.agent_runtime.test_operator_session_models import next_turn
+
+    _, _, params, factory, home = legacy
+    before = PersonaInstanceStore().get(params["persona_instance_id"])
+    with closing(SessionDB(db_path=home / "state.db")) as db:
+        db.update_session_meta("legacy-root", json.dumps({"provider": "anthropic"}), "earlier-model")
+        db.update_session_meta("legacy-tip", json.dumps({"provider": "openai-codex",
+            "reasoning_config": {"effort": "high"}}), "gpt-6-luna")
+        donor = db.export_session_lineage("legacy-root", include_inactive=True)
+    result = migrate(legacy)
+    target = {**params, "session_id": result["session_id"], "workspace_id": result["workspace_id"]}
+    effective = inspect_operator_settings(target)["model"]
+    assert effective["effective_provider"] == "openai-codex"
+    assert effective["effective_model"] == "gpt-6-luna"
+    assert effective["effective_reasoning_effort"] == "high"
+    admitted = next_turn(target)
+    assert admitted["effective_provider"] == "openai-codex"
+    assert admitted["effective_model"] == "gpt-6-luna"
+    with closing(default_persona_session_db()) as db:
+        override = _chat_model_override_from_config(_session_model_config(db, result["session_id"]))
+        assert override["provider"] == "openai-codex" and override["model"] == "gpt-6-luna"
+        assert override["source"] == "profile_migration"
+    assert PersonaInstanceStore().get(params["persona_instance_id"]) == before
+    assert factory.workers == []
+    with closing(SessionDB(db_path=home / "state.db", read_only=True)) as db:
+        assert db.export_session_lineage("legacy-root", include_inactive=True) == donor
+
+
 def test_directory_resolves_adopted_source_before_paging_and_with_account_isolation(legacy):
     _, _, params, _, _ = legacy
     result = migrate(legacy)
