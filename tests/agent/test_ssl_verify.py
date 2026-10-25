@@ -27,7 +27,7 @@ def no_ca_env(monkeypatch):
 def test_missing_explicit_bundle_falls_back_to_the_platform_store(tmp_path, caplog, no_ca_env):
     missing = str(tmp_path / "nope.pem")
 
-    assert resolve_httpx_verify(ca_bundle=missing) is True
+    assert resolve_httpx_verify(ca_bundle=missing) is resolve_httpx_verify()
     assert "does not exist" in caplog.text
 
 
@@ -313,7 +313,7 @@ def test_replaced_install_environment_re_resolves_certifi_in_place(tmp_path, mon
     with caplog.at_level(logging.WARNING, logger="agent.ssl_verify"):
         verify = resolve_httpx_verify()
 
-    assert verify is True  # httpx's own default, now backed by a bundle that exists
+    assert verify is resolve_httpx_verify()  # one shared answer, backed by a bundle that exists
     with httpx.Client(verify=verify) as client:  # the construction that raised FileNotFoundError
         assert _client_ssl_context(client).verify_mode == ssl.CERT_REQUIRED
     # The repair reaches certifi itself, not just this call's return value: httpx
@@ -349,8 +349,9 @@ def test_rotation_repair_and_warning_happen_once(tmp_path, monkeypatch, caplog, 
     monkeypatch.setattr(ssl_verify, "_reload_certifi_bundle", counting_reload)
 
     with caplog.at_level(logging.WARNING, logger="agent.ssl_verify"):
+        first = ssl_verify.resolve_httpx_verify()
         for _ in range(5):
-            assert ssl_verify.resolve_httpx_verify() is True
+            assert ssl_verify.resolve_httpx_verify() is first
             ssl_verify.requests_verify()
 
     assert len(reloads) == 1
@@ -528,3 +529,30 @@ def test_platform_store_bundle_survives_an_unwritable_home(tmp_path, monkeypatch
     monkeypatch.setattr(ssl_verify, "_PLATFORM_STORE_BUNDLE", None)
     monkeypatch.setattr(ssl_verify, "_stdlib_ssl_context_class", lambda: _StoreWithACert)
     assert ssl_verify._platform_store_bundle() is None
+
+
+def test_platform_store_is_one_shared_context_under_truststore(monkeypatch, no_ca_env):
+    """With truststore in force every default caller gets the SAME context, so httpx
+    does not build a new SSLContext per transport (~30 ms each) — and it keeps
+    ``verify=True``'s trust: certifi's bundle on top of the platform store."""
+    import ssl
+
+    import certifi
+
+    from agent import ssl_verify
+
+    monkeypatch.setattr(ssl_verify, "_installed", True)
+    monkeypatch.setattr(ssl_verify, "_CA_CONTEXTS", {})
+
+    first = resolve_httpx_verify()
+    assert isinstance(first, ssl.SSLContext)
+    assert resolve_httpx_verify(base_url="https://example.invalid") is first
+    assert first is ssl_verify._CA_CONTEXTS[(str(Path(certifi.where()).resolve()), True)]
+
+
+def test_platform_store_stays_httpx_default_without_truststore(monkeypatch, no_ca_env):
+    """Positive control: without truststore httpx keeps its own default trust."""
+    from agent import ssl_verify
+
+    monkeypatch.setattr(ssl_verify, "_installed", False)
+    assert resolve_httpx_verify() is True

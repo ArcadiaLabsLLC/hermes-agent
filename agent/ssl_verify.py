@@ -340,4 +340,11 @@ def resolve_httpx_verify(
     # proxy environment handling remains enabled.
     if os.environ.get("SSL_CERT_FILE") or os.environ.get("SSL_CERT_DIR"):
         return _shared_context(None)
-    return _default_verify()
+    if not _installed:
+        return _default_verify()
+    # Under truststore hand every caller ONE context with ``verify=True``'s trust —
+    # certifi's bundle on top of the platform store — because ``verify=True`` makes
+    # httpx build a fresh SSLContext per transport (~30 ms each). The bundle is
+    # resolved first, so a certifi rotation is still repaired process-wide.
+    bundle = certifi_bundle_path()
+    return _shared_context(str(Path(bundle).resolve()), union=True) if bundle else _shared_context(None)
