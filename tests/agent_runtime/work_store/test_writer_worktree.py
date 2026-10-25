@@ -133,3 +133,30 @@ def test_a_tombstoned_slot_drops_its_worktrees(workspace, tmp_path):
     assert worktree.is_dir() and len(_registered(root)) == 2
     declare_slots(workspace, issued_at="2026-10-21T12:00:00+00:00")
     assert not worktree.exists() and len(_registered(root)) == 1 and keep.is_dir()
+
+
+def test_two_workspaces_over_one_checkout_each_get_a_worktree(workspace, tmp_path):
+    """RT-WORK-LIST-WORKTREE-REUSE: a second worktree of one checkout no longer collides on the branch.
+
+    Killing mutation: ``branch`` back to ``work/<machine_id>`` for every worktree -> the second sync
+    refuses ``worktree_failed`` ("... is already checked out at ...").
+    """
+    root = brain_repo(tmp_path / "shared")
+    first = Writer(local_board(workspace, root, is_default=True), machine_id="m1")
+    second = Writer(local_board(workspace + "-other", root, is_default=True), machine_id="m1")
+    assert first.apply(append(1)).commit
+    assert second.apply(append(2)).commit  # its own worktree, its own branch
+    assert first.worktree != second.worktree and first.branch != second.branch
+    text = run_git(["show", f"main:{NOTE}"], repo=root).stdout
+    assert "`WT-01`" in text and "`WT-02`" in text
+
+
+def test_a_worktree_cut_on_the_old_shared_branch_name_still_writes(workspace, tmp_path):
+    """A worktree made before the per-worktree branch keeps its old branch; a write still lands (push sends HEAD)."""
+    root = brain_repo(tmp_path / "legacy")
+    writer = Writer(local_board(workspace, root, is_default=True), machine_id="m1")
+    writer.worktree.parent.mkdir(parents=True, exist_ok=True)
+    run_git(["worktree", "add", "-q", "--no-checkout", str(writer.worktree), "-B", "work/m1", "main"], repo=root)
+    run_git(["sparse-checkout", "set", "--no-cone", f"/{writer.brain_root}/"], repo=writer.worktree)
+    assert writer.apply(append(3)).commit
+    assert "`WT-03`" in run_git(["show", f"main:{NOTE}"], repo=root).stdout

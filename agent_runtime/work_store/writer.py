@@ -2,7 +2,7 @@
 
 Every write is a :class:`RowOp` found by ID and applied as ONE line edit (``grammar.apply``); no
 textual merge, ``rebase``, ``pull`` or ``stash`` ever runs. The worktree lives under
-``paths.work_worktree_dir(ws, slot, checkout_token(clone))`` on branch ``work/<machine_id>``, cut ``--no-checkout`` with a
+``paths.work_worktree_dir(ws, slot, checkout_token(clone))`` on its own branch ``work/<machine_id>.<workspace>.<worktree name>``, cut ``--no-checkout`` with a
 non-cone sparse checkout of the brain folder, so the operator's checkout (its index and its tree)
 is never touched. Steps, in the §5 table's numbering:
 
@@ -192,7 +192,6 @@ class Writer:
             from ..git_cmd import run_git as run
         self.board = board
         self.machine_id = machine_id
-        self.branch = f"work/{machine_id}"
         self._worktree: Path | None = None
         self.stale = False
         self._run = run
@@ -210,6 +209,20 @@ class Writer:
             self._clone()
         assert self._worktree is not None
         return self._worktree
+
+    @property
+    def branch(self) -> str:
+        """This worktree's own local branch: ``work/<machine>.<workspace>.<slot>-<token>``.
+
+        ONE branch per worktree (RT-WORK-LIST-WORKTREE-REUSE): it used to be ``work/<machine>`` for every
+        worktree of a clone, so a second worktree of the same checkout — another workspace binding it,
+        or a worktree left at the pre-epoch ``worktrees/<slot>`` path — refused ``worktree add -B`` with
+        "already checked out" and ``runtime.work.list`` answered ``worktree_failed``. Local only: a push
+        sends ``HEAD``, so a worktree cut on an older name keeps working.
+        """
+
+        name = f"work/{self.machine_id}.{paths.safe_path_token(self.board.workspace_id)}.{self.worktree.name}"
+        return re.sub(r"\.{2,}", ".", name)  # a ref name never holds ".."
 
     @property
     def tip(self) -> str:
@@ -446,7 +459,7 @@ class Writer:
         if self.board.local:
             ref = f"refs/heads/{self.board.default_branch}"
             return self._git(["update-ref", ref, commit, self._tip_sha or ""], repo=self.worktree).returncode == 0
-        done = self._git(["push", "-q", "origin", f"{self.branch}:{self.board.default_branch}"], repo=self.worktree)
+        done = self._git(["push", "-q", "origin", f"HEAD:{self.board.default_branch}"], repo=self.worktree)
         if done.returncode == 0:
             return True
         if any(marker in str(done.stderr) for marker in _NON_FAST_FORWARD):
