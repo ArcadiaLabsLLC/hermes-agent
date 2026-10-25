@@ -15,6 +15,7 @@ from tools.approval_detection import (
     _bash_exec_payload, _deobfuscate_shell_word_for_detection, _iter_shell_command_starts,
     _is_shell_comment_start, _read_shell_word, _scan_shell)
 from tools.path_identity import shell_path_operand  # fork: RT-SELF-REPO-GUARD-WINDOWS-PATHS
+from tools.self_repo_guard_vars import expand_target, is_unresolved, unresolved_message, unresolved_operation  # fork: RT-SELF-REPO-GUARD-VAR-AND-GITDIR-TARGETS
 
 # bisect drives repeated checkouts of the running root — the exact skew hazard guarded here.
 _WORKTREE_MUTATIONS = frozenset({
@@ -187,15 +188,15 @@ def _operator_before(command: str, start: int) -> str | None:
     return "\n" if "\n" in command[len(head):start] else None
 
 
-def _cd_target(executable: str, args: list[str], cwd: Path) -> Path | None:
+def _cd_target(executable: str, args: list[str], cwd: Path, env: dict[str, str] | None = None) -> Path | None:
     """Directory a ``cd``/``pushd`` would land in (existing dirs only), else None."""
     if _executable_name(executable) not in {"cd", "pushd"}:
         return None
     index = _consume_options(args, 0)
     if index >= len(args) or args[index] == "-":
         return None
-    target = _resolve(args[index], cwd)
-    return target if target.is_dir() else None
+    target = _resolve(expand_target(args[index], env or {}), cwd)
+    return target if target.is_dir() or is_unresolved(target) else None
 
 
 def _shell_script_arg(args: list[str]) -> str | None:
@@ -395,14 +396,14 @@ def _git_target_and_subcommand(
                                   if arg.startswith(o) and len(arg) > len(o)), (None, None))
             index += 1
         if option == "-C" and value is not None:
-            target = _resolve(value, target)
+            target = _resolve(expand_target(value, env), target)
         elif option and option.startswith("--work-tree") and value is not None:
             work_tree = value
         elif option == "-c" and value is not None:
             _record_alias(value, aliases)  # only alias.* overrides matter; others are ignored
     explicit_work_tree = work_tree or env.get("GIT_WORK_TREE")
     if explicit_work_tree:
-        target = _resolve(explicit_work_tree, target)
+        target = _resolve(expand_target(explicit_work_tree, env), target)
     return target, args[index].lower() if index < len(args) else None, args[index + 1 :], aliases
 
 
@@ -461,6 +462,8 @@ def _inspect_git(
         return None
     if subcommand == "worktree":  # names its victim as an argument: the cwd check does not apply
         return _inspect_git_worktree(sub_args, target, root)
+    if is_unresolved(target):
+        return unresolved_operation(f"git {subcommand}", target) if _mutates_worktree(subcommand, sub_args) else None
     if not _is_within(target, root):
         return None
     if _mutates_worktree(subcommand, sub_args):
@@ -528,7 +531,7 @@ def _find_mutation(command: str, cwd: Path, root: Path, depth: int = 0) -> str |
         if executable is None:
             continue
         current_dir = cwd_by_scope[scope]
-        if (cd_target := _cd_target(executable, args, current_dir)) is not None:
+        if (cd_target := _cd_target(executable, args, current_dir, env)) is not None:
             pending_cd[scope] = cd_target
         elif (inspect := _INSPECTORS.get(_executable_name(executable))) and (
                 operation := inspect(executable, args, current_dir, env, root, depth)):
@@ -555,6 +558,8 @@ def detect_self_repo_git_mutation(
 
 
 def _block_message(operation: str, root: Path) -> str:
+    if (unresolved := unresolved_message(operation, root)) is not None:
+        return unresolved
     hermes_home = os.environ.get("HERMES_HOME", "").strip()
     scratch = (Path(hermes_home).expanduser() if hermes_home else Path.home() / ".hermes") / "scratch"
     return (
