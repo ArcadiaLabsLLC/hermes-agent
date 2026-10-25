@@ -265,13 +265,14 @@ class ComputeHost:
                 if session.get("running"):
                     self._reply("turn.error", sid, request_id, message="session busy")
                     return
-                if not host_turn_adopted(self, server, sid, request_id, session, frame):
+                if not host_turn_adopted(self, server._emit, sid, request_id, session, frame):
                     return
                 session.update(running=True, _turn_cancel_requested=False, last_active=time.time())
                 server._start_inflight_turn(session, inflight)
                 turn_started_at = time.time()
             self._reply("turn.started", sid, request_id, started_ns=now_ns())
-            if not host_turn_persisted(self, server, sid, request_id, session, frame, text):
+            if not host_turn_persisted(self, server._emit, server._persist_session_row_for_submit,
+                                       sid, request_id, session, frame, text):
                 return
             with contextlib.suppress(Exception):
                 server._ensure_session_db_row(session)

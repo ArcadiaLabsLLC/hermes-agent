@@ -183,26 +183,28 @@ def adopt(session: dict, record: dict | None) -> bool:
     return not evidence["cancel_requested"]
 
 
-def host_turn_adopted(host, server, sid: str, request_id: str, session: dict, frame: dict) -> bool:
+def host_turn_adopted(host, emit, sid: str, request_id: str, session: dict, frame: dict) -> bool:
     """A compute-host turn start adopts the parent's execution record (under the history lock); a
-    record it cannot adopt ends the turn interrupted. False = the host already replied."""
+    record it cannot adopt ends the turn interrupted. ``emit`` is the gateway's event emitter, handed
+    in by the host (the upstream file keeps its own private reads). False = the host already replied."""
     if adopt(session, frame.get("native_execution")):
         return True
     from tui_gateway.compute_host import now_ns
-    server._emit("message.complete", sid, {"text": "", "status": "interrupted"})
+    emit("message.complete", sid, {"text": "", "status": "interrupted"})
     host._reply("turn.end", sid, request_id, interrupted=True, ended_ns=now_ns())
     return False
 
 
-def host_turn_persisted(host, server, sid: str, request_id: str, session: dict, frame: dict, text) -> bool:
-    """A native execution's user row is durable before its turn runs; a refused write ends the turn
-    with the refusal. False = the host already replied."""
+def host_turn_persisted(host, emit, persist, sid: str, request_id: str, session: dict, frame: dict,
+                        text) -> bool:
+    """A native execution's user row is durable (``persist``, the gateway's submit-row writer) before
+    its turn runs; a refused write ends the turn with the refusal. False = the host already replied."""
     if not session.get("native_execution"):
         return True
-    refusal = server._persist_session_row_for_submit(request_id, session, text, frame.get("display_kind"))
+    refusal = persist(request_id, session, text, frame.get("display_kind"))
     if refusal is None:
         return True
     message = refusal["error"]["message"]
-    server._emit("message.complete", sid, {"text": message, "status": "error"})
+    emit("message.complete", sid, {"text": message, "status": "error"})
     host._reply("turn.error", sid, request_id, message=message)
     return False
