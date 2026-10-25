@@ -30,6 +30,7 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-10-25 (lane w1025a-hermes)
 
+- **`FH-HELPER-NAMES-DISCUSSIONS-NEW` — `tests/agent_runtime/test_duplicate_helper_bodies.py` is red on `main`: two NEW private-name collisions from the discussions landing (`_owner`: `agent_runtime/discussions/compare_import.py` + `scripts/bundle_profile_closure.py`; `_prepare`: `agent_runtime/discussions/group_migration.py` joins `locks.py` / `persona_chat_actor_prewarm.py`, leaving that row STALE); rename the two new helpers to say what they do, never add rows** · `agent_runtime/discussions/compare_import.py` · `agent_runtime/discussions/group_migration.py` · evidence: lane w1025a-hermes gate run from `C:/wt/w1025a-hermes` on `5128c65a6a` (`W0-G3 helper names: 2 NEW, 0 GREW, 1 STALE`) · READY 2026-10-25
 - **`FH-LEGIBILITY-DISCUSSION-BINDINGS-GREW` — `tests/tooling/test_function_legibility_floor.py` is red on `main`: `DiscussionService.bindings` grew [24, 5] -> [26, 5] at `36f0267e57` (adopt local Compare history); split the function or shrink it back under its grandfathered size, never raise the floor** · `agent_runtime/discussions/service.py::DiscussionService.bindings` · evidence: lane w1025a-hermes `scripts/run_tests.sh tests/tooling tests/scripts` from `C:/wt/w1025a-hermes` at `3713407a80`, `W0-G7 legibility floor: 0 NEW, 1 GREW, 0 STALE` · READY 2026-10-25
 
 ## Filed on arrival — 2026-10-22 (release merge rel-v0224)
