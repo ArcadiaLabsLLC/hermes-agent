@@ -1,6 +1,9 @@
 # Instance conversation convergence
 
-Status: foundation-only landing; Launcher parity is required before cutover.
+Status: IN PROGRESS — native Direct/Discussion execution, permissions, rich
+input and Direct adoption have passed Launcher live checks. Legacy group
+adoption and matched cold/warm latency still precede worker retirement.
+Foundation-only boundaries below are historical checkpoints.
 
 ## Foundation landing boundary, October 2
 
@@ -475,3 +478,14 @@ migration, directory and dispatch files passed 144 tests; the strengthened
 pre-pagination case creates a newer unrelated native root through the public
 RPC and passed with the twelve migration tests (`migration-origin-prelimit.log`).
 This is the runtime contract for Launcher reopen integration, not its live proof.
+
+### Desktop Direct adoption qualification — October 25
+
+Launcher `dbaf1dff3f` with Harness `016dd1b0d5` migrated two real base-profile
+GPT-6 Luna exchanges into an independent instance chat. The read-only permission
+survived, a new provider continuation recalled the earlier marker, and cockpit
+default pointers were unchanged. Fresh Launcher `27c8a01822` reopened that same
+root through its original source link after restart. The receipt and capture
+names live in `EterniaLauncher/docs/companion/planned/AGENT_CHAT_UNIFICATION_AUDIT_2026-10-02.md`.
+This closes Direct adoption/reopen acceptance, not legacy group migration,
+matched latency or global worker retirement.
