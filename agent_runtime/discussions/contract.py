@@ -136,6 +136,7 @@ def contract_descriptor() -> dict[str, Any]:
                      "message_response_policy": True,
                      "profile_groups": True,
                      "group_models": True,
+                     "instance_models": True,
                      "scheduled_conclusion": True,
                      "non_spatial_discussions": True,
                      "account_owned_rooms": True, "empty_instance_rooms": True,

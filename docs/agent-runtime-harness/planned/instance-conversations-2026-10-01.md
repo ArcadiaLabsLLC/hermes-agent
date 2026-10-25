@@ -407,3 +407,22 @@ reproduce on unchanged main `ee7080549076ee8cc591eb90eb41389065516030` with the
 same locked test interpreter; tracked as `FH-CUTOVER-BASELINE-REDS`. No failure
 was skipped or baseline raised. Desktop requalification, migration and matched
 production latency remain open; the loopback result is functional evidence.
+
+### Native Discussion model controls — October 25
+
+The desktop group check exposed a remaining profile-only model-control gate.
+Native room members now delegate model inspection and selection to the existing
+operator-session owner. The reference comes from the authorized durable member,
+including its exact session and actual instance placement; a non-spatial room
+does not move that placement. The room admission lock and pending-task check
+compose with the model owner's native session lease. No worker is opened and
+no failed message is resent. The additive `instance_models` capability lets
+clients distinguish this support from legacy profile-group model controls.
+
+Both native-room regressions failed on the old unsupported gate
+(`discussion-instance-models-red.log`). Restored checks exercise real session
+and instance stores, foreign-account refusal, unsettled-turn refusal, separate
+peer settings and preserved default-chat selection. The nine-file model, wire
+and boundary batch passed 84 tests (`discussion-native-model-gates.log`). This
+corrects the prerequisite; final desktop acceptance and step 5 retirement gates
+remain open.
