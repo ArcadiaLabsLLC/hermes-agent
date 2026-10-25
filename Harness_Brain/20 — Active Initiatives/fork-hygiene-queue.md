@@ -28,6 +28,10 @@ tags: [queue, program/fork-hygiene]
 
 
 
+## Filed on arrival — 2026-10-25 (lane w1025a-hermes)
+
+- **`FH-LEGIBILITY-DISCUSSION-BINDINGS-GREW` — `tests/tooling/test_function_legibility_floor.py` is red on `main`: `DiscussionService.bindings` grew [24, 5] -> [26, 5] at `36f0267e57` (adopt local Compare history); split the function or shrink it back under its grandfathered size, never raise the floor** · `agent_runtime/discussions/service.py::DiscussionService.bindings` · evidence: lane w1025a-hermes `scripts/run_tests.sh tests/tooling tests/scripts` from `C:/wt/w1025a-hermes` at `3713407a80`, `W0-G7 legibility floor: 0 NEW, 1 GREW, 0 STALE` · READY 2026-10-25
+
 ## Filed on arrival — 2026-10-22 (release merge rel-v0224)
 
 
