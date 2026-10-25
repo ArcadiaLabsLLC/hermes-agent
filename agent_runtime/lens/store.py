@@ -23,6 +23,13 @@ stays). Capacity is refused, never made by eviction (W13): at most
 :data:`MAXIMUM_MONITORS` monitors that are not retired.
 
 ``HERMES_HOME`` is resolved when a store is constructed, never at import.
+
+Events (``decision_contract_registry``): every low-churn transition — a monitor's draft written,
+sealed or dropped, or its state switched; an Episode opened or changing state; a receipt written or
+settled — appends ``lens.monitor.changed`` / ``lens.episode.changed`` / ``lens.receipt.changed``
+AFTER its transaction commits, so the stream (gated on the EventLog watermark) refreshes the
+snapshot's ``lens`` section. Observations, rollups and an active Episode's ``last_seen`` /
+``count`` ticks emit nothing: they land every poll.
 """
 
 from __future__ import annotations
@@ -181,8 +188,19 @@ def _now_ms() -> int:
 
 
 class LensStore:
-    def __init__(self, path: Path | None = None) -> None:
+    def __init__(self, path: Path | None = None, *, event_log: Any = None) -> None:
         self.path = Path(path) if path is not None else default_path()
+        self._event_log = event_log
+
+    def _changed(self, event_type: str, **payload: Any) -> None:
+        """Append one Lens transition event; never raises (``store_events.emit_store_event``)."""
+
+        from ..events import EventLog
+        from ..store_events import emit_store_event
+
+        if self._event_log is None:
+            self._event_log = EventLog()
+        emit_store_event(self._event_log, event_type, payload, domain="lens")
 
     def exists(self) -> bool:
         return self.path.is_file()
@@ -239,6 +257,7 @@ class LensStore:
             else:  # the operator's write adopts a proposal: never expired, never a persona's share
                 conn.execute("UPDATE monitors SET draft = ?, updated_ms = ?, proposed = 0, proposed_by = NULL "
                              "WHERE monitor_id = ?", (canonical_bytes(doc), _now_ms(), doc["monitor_id"]))
+        self._changed("lens.monitor.changed", monitor_id=doc["monitor_id"], change="draft")
         return self.get(doc["monitor_id"])
 
     def seal(self, monitor_id: str) -> dict[str, Any]:
@@ -249,6 +268,7 @@ class LensStore:
             sealed = seal_manifest(json.loads(row["draft"]), revision=int(row["revision"]) + 1)
             conn.execute("UPDATE monitors SET revision = ?, digest = ?, body = ?, draft = NULL, updated_ms = ? "
                          "WHERE monitor_id = ?", (sealed.revision, sealed.digest, sealed.body, _now_ms(), monitor_id))
+        self._changed("lens.monitor.changed", monitor_id=monitor_id, change="sealed", revision=sealed.revision)
         return self.get(monitor_id)
 
     def drop_draft(self, monitor_id: str) -> dict[str, Any]:
@@ -266,6 +286,7 @@ class LensStore:
                 raise LensStoreError(StoreRefusal.NOT_SEALED)
             conn.execute("UPDATE monitors SET draft = NULL, updated_ms = ? WHERE monitor_id = ?",
                          (_now_ms(), monitor_id))
+        self._changed("lens.monitor.changed", monitor_id=monitor_id, change="draft_dropped")
         return self.get(monitor_id)
 
     def set_state(self, monitor_id: str, state: MonitorState) -> dict[str, Any]:
@@ -277,6 +298,7 @@ class LensStore:
                 raise LensStoreError(StoreRefusal.NOT_SEALED)
             conn.execute("UPDATE monitors SET state = ?, updated_ms = ? WHERE monitor_id = ?",
                          (state.value, _now_ms(), monitor_id))
+        self._changed("lens.monitor.changed", monitor_id=monitor_id, change="state", state=state.value)
         return self.get(monitor_id)
 
     def _required(self, conn: sqlite3.Connection, monitor_id: str) -> sqlite3.Row:
@@ -418,8 +440,17 @@ class LensStore:
         return None if row is None else Episode.from_json(json.loads(row[0]))
 
     def save_episode(self, episode: Episode) -> None:
+        """Upsert the Episode; an event only when it is new or its state moved (never a ``last_seen`` tick)."""
+
         with self._db() as conn:
+            moved = _episode_state_moves(conn, episode)
             _write_episode(conn, episode)
+        if moved:
+            self._episode_changed(episode)
+
+    def _episode_changed(self, episode: Episode) -> None:
+        self._changed("lens.episode.changed", monitor_id=episode.monitor_id, episode_id=episode.id,
+                      state=episode.state.value, rule_id=episode.rule_id, ordinal=episode.ordinal)
 
     def episodes(self, *, monitor_id: str | None = None, states: tuple[str, ...] | None = None,
                  limit: int = 256) -> list[dict[str, Any]]:
@@ -453,20 +484,27 @@ class LensStore:
 
         row = _receipt_row(receipt)
         for folded in (False, True):
+            inserted = moved = False
             with self._db() as conn:
                 if conn.execute("SELECT 1 FROM receipts WHERE episode_id = ?", (row[0],)).fetchone() is not None:
                     return False
                 if conn.execute("SELECT COUNT(*) FROM receipts").fetchone()[0] < MAXIMUM_RECEIPTS:
                     conn.execute(f"INSERT INTO receipts ({', '.join(_RECEIPT_COLUMNS)}) VALUES "
                                  f"({', '.join('?' * len(_RECEIPT_COLUMNS))})", row)
+                    moved = episode is not None and _episode_state_moves(conn, episode)
                     if episode is not None:
                         _write_episode(conn, episode)
-                    return True
-                if folded:
+                    inserted = True
+                elif folded:
                     if episode is not None:
                         _write_episode(conn, replace(episode, turn_id=StoreRefusal.RECEIPTS_FULL.value))
                     logger.warning(RECEIPTS_FULL_RECEIPT, row[1], row[0])
                     return False
+            if inserted:  # after the commit: a reader woken by the event sees the row
+                self._receipt_changed(receipt)
+                if moved:
+                    self._episode_changed(episode)
+                return True
             from .retention import fold_receipts
 
             fold_receipts(self, from_ms(int(row[_RECEIPT_COLUMNS.index("started_ms")])))
@@ -484,7 +522,13 @@ class LensStore:
                  json.dumps(list(files), sort_keys=True), episode_id)).rowcount
         if not updated:
             raise LensStoreError(StoreRefusal.RECEIPT_NOT_FOUND)
-        return self.receipt(episode_id)
+        settled = self.receipt(episode_id)
+        self._receipt_changed(settled)
+        return settled
+
+    def _receipt_changed(self, receipt: dict[str, Any]) -> None:
+        self._changed("lens.receipt.changed", monitor_id=receipt["monitor_id"], episode_id=receipt["episode_id"],
+                      outcome=receipt["outcome"])
 
     def receipt(self, episode_id: str) -> dict[str, Any]:
         with self._db() as conn:
@@ -624,6 +668,13 @@ def _route_json(row: tuple[Any, ...]) -> dict[str, Any]:
     out = dict(zip(_ROUTE_COLUMNS, row))
     out["mapping"] = json.loads(out["mapping"])
     return out
+
+
+def _episode_state_moves(conn: sqlite3.Connection, episode: Episode) -> bool:
+    """True for a new Episode or one whose stored state differs (the transitions a reader sees)."""
+
+    row = conn.execute("SELECT state FROM episodes WHERE id = ?", (episode.id,)).fetchone()
+    return row is None or row[0] != episode.state.value
 
 
 def _write_episode(conn: sqlite3.Connection, episode: Episode) -> None:

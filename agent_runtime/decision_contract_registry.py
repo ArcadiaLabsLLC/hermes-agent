@@ -320,6 +320,14 @@ _EVENT_CONTRACTS: dict[str, EventContract] = {
     "board.card.restored": EventContract("board.card.restored", "Board card restored", ("board_id", "card_id"), ("column_id",)),
     "board.card.conflict_resolved": EventContract("board.card.conflict_resolved", "Board card sync conflict resolved", ("board_id", "card_id", "take"), ("revision",)),
     "board.rebalanced": EventContract("board.rebalanced", "Board column order keys rebalanced", ("board_id", "column_id"), ("card_count",)),
+    # Lens store transitions (RT-LENS-SNAPSHOT-SECTION-NO-PUSH-ON-STORE-WRITE): a monitor's
+    # lifecycle, an Episode opening or changing state, a receipt written or settled. They move the
+    # EventLog watermark the stream is gated on, so the snapshot's ``lens`` section refreshes on the
+    # write; feed reads (every poll) and an active Episode's last_seen ticks emit NOTHING — they
+    # would demote a full core per poll (the 2026-08-21 reconcile storm).
+    "lens.monitor.changed": EventContract("lens.monitor.changed", "Lens monitor changed", ("monitor_id", "change"), ("state", "revision")),
+    "lens.episode.changed": EventContract("lens.episode.changed", "Lens episode changed", ("monitor_id", "episode_id", "state"), ("rule_id", "ordinal")),
+    "lens.receipt.changed": EventContract("lens.receipt.changed", "Lens receipt changed", ("monitor_id", "episode_id", "outcome"), ()),
     # Mission Office events — the OfficeStore chokepoint emits one on EVERY
     # mutation (same standing store rule as boards; realm-synced the same way).
     # See EterniaLauncher docs/archive/mission_control/2026-08-22-pre-consolidation/OFFICE_LAYOUT_REALM_SYNC_PLAN_2026-07-17.md.

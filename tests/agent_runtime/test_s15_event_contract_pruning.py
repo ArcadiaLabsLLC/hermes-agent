@@ -265,7 +265,11 @@ REMOVED_EVENT_TYPES = frozenset(
 # / ``running_work.process_ended``, a terminal background process entering / leaving the
 # running set (``agent_runtime.running_work.process_presence``). Red at 68 on that commit
 # and moved deliberately.
-SURVIVING_EVENT_COUNT = 70
+# 73 (lane w1025a-hermes, 2026-10-25, RT-LENS-SNAPSHOT-SECTION-NO-PUSH-ON-STORE-WRITE):
+# ``lens.monitor.changed`` / ``lens.episode.changed`` / ``lens.receipt.changed``, the Lens store's
+# low-churn transitions (``agent_runtime.lens.store.LensStore._changed``). Red at 70 on that commit
+# and moved deliberately.
+SURVIVING_EVENT_COUNT = 73
 
 
 def test_the_unemittable_event_types_are_no_longer_registered():

@@ -39,7 +39,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-24 (launcher lane w1024q-mc)
 
-- **`RT-LENS-SNAPSHOT-SECTION-NO-PUSH-ON-STORE-WRITE` — a Lens store write never moves the push lane: `lens.sqlite3` emits no EventLog event and is in none of the watchdog fingerprint families, so the snapshot `lens` section refreshes only when something else rebuilds the core (live: 3 monitors / no open Episode after both writes; the launcher panel re-reads `runtime.lens.fold` on open, launcher `MC-LENS-PANEL-STALE-EPISODES`)** · `agent_runtime/snapshot/sections.py::SnapshotFrameBuild.lens` · `agent_runtime/stream/fingerprint.py::scope_reading` · `agent_runtime/lens/store.py` · evidence `EterniaLauncher/docs/stages/qa-reboot/LIVEQA_W1023P_live_2026-10-24.md` §QA-LENS-ROUTE-SECRET-HANDOFF · found 2026-10-24 lane w1024t-hermes · NEEDS PLAN 2026-10-24: evented low-churn transitions (episode open/close, monitor seal/enable) vs a fingerprint family — every feed read writes `latest`, so a raw sqlite family would demote a full core per poll (the 2026-08-21 reconcile storm); and whether the `lens` section gets its own patch overlay · **TAKEN 2026-10-25 w1025a-hermes**
 
 ### Filed on arrival — 2026-10-23 (TODO / Work connection audit)
 
