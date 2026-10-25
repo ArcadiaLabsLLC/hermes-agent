@@ -29,6 +29,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-25 (lane w1025a-hermes)
+
+- **`RT-CHAT-ROOT-MINT-ONE-DOOR` — refactor: a TITLED chat root can only be minted inside the turn handler's mint branch (`chat_turn_message.py`, which titles it) or by open-chat (`chat_open.py::_cmd_persona_instance_open_new_chat`, which cannot), so a caller that needs the root BEFORE its turn — the Lens forge, which must set a permission on it — mints through open-chat and re-titles after (`agent_runtime/lens/trigger.py::_open_episode_chat`); one `mint_chat_root(persona_id, idempotency_key, title, select)` door in `agent_runtime` that both handlers and the forge call retires the second path** · `hermes_cli/harness_parts/persona/chat_turn_message.py` · `hermes_cli/harness_parts/persona/chat_open.py` · `agent_runtime/lens/trigger.py::_open_episode_chat` · READY 2026-10-25
+- **`RT-REBIND-SEAMS-NO-POSITIVE-CONTROL` — refactor class: a fork seam that REBINDS an upstream module attribute keeps working only while upstream still calls through it, and nothing checks that: `agent_runtime/skill_config_cache.py` rebound `skill_utils._RAW_CONFIG_CACHE` to a dict whose `clear()` evicted, upstream stopped calling `clear()` before an insert (`932b20df09`), and the carry sat inert until its own test reddened at a release merge (deleted in `ffa9579945`); every `_upstream_doors` door that hands back a module + attribute name to rebind needs a positive control that upstream's call still reaches the rebound object** · `agent_runtime/_upstream_doors.py` · `tests/tooling/test_no_silent_package_patches.py` · READY 2026-10-25
+
 ### Filed on arrival — 2026-10-24 (Projects repository TODO audit)
 
 
