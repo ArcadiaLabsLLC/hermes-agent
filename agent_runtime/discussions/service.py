@@ -133,7 +133,7 @@ class DiscussionService:
         """
         if self.runs.pending(run["run_id"]) or self.state.unresolved(run["run_id"]):
             return False
-        if run["phase"] == "paused":
+        if run["phase"] == "paused" or run["initial"].get("compare_import", {}).get("state") == "pending":
             return True
         if "group" not in (run.get("initial") or {}) or run["phase"] != "open":
             return False
@@ -199,6 +199,8 @@ class DiscussionService:
             result = []
             for run in self.runs.owned():
                 try:
+                    if run["initial"].get("compare_import", {}).get("state") == "pending":
+                        continue
                     if run["phase"] == "initializing":
                         self.state.initialize(run)
                     elif run["phase"] == "ending":

@@ -55,7 +55,7 @@ _EVENT_KINDS_BY_ACTOR = {
     "user": frozenset({"message.user"}), "member": frozenset({"message.member"}),
     "gateway": frozenset({
         "member.unavailable", "room.activity", "room.stop_requested", "turn.deferred", "turn.reassigned",
-        "turn.cancelled", "turn.failed", "turn.settled", "turn.started"}),
+        "turn.cancelled", "turn.failed", "turn.settled", "turn.started", "history.compare_chunk"}),
     "system": frozenset({
         "authority.claimed", "authority.lost", "room.created", "room.disbanded", "room.members_changed", "room.renamed"
     })}

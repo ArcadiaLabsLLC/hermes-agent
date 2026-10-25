@@ -113,7 +113,8 @@ class RunStore:
                     raise DiscussionError("idempotency_conflict")
                 return False
             _expect_run(run, expect_revision)
-            if run["initial"].get("group_migration", {}).get("state") == "pending":
+            if any(run["initial"].get(key, {}).get("state") == "pending"
+                   for key in ("group_migration", "compare_import")):
                 raise DiscussionError("migration_in_progress")
             if run["phase"] in {"ended", "failed"} or (run["phase"] == "initializing" and operation != "end"):
                 raise DiscussionError("run_not_editable", phase=run["phase"])

@@ -4,6 +4,7 @@ from __future__ import annotations
 from .contract import command_body
 from .member_models import member_models
 from .room_owner import require_room_owner
+from .compare_import import prepare_compare, resolve_compare, append_compare, finish_compare
 
 __layer__ = "lanes"
 
@@ -57,7 +58,9 @@ _READS_AND_STARTS = {"get": _get,
                     "member_models": lambda s, p, a: member_models(s, p),
                     "member_model": lambda s, p, a: member_models(s, p, select=True),
                     "start": _start, "start_room": _start_room, "start_group": _start_group, "respond": _respond,
-                    "migrate_group": _migrate_group}
+                    "migrate_group": _migrate_group,
+                    "prepare_compare": prepare_compare, "resolve_compare": resolve_compare,
+                    "append_compare": append_compare, "finish_compare": finish_compare}
 
 
 def execute_run(service, action, params, actor_id, *, account_access=True):

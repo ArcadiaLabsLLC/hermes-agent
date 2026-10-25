@@ -178,6 +178,13 @@ class RoomState:
         if type(limit) is not int or not 1 <= limit <= 200:
             raise DiscussionError("invalid_limit")
         run = self.runs.get(run_id, workspace_id)
+        # Imported archives use bounded chunks; a normal page of 100 chunks
+        # exceeds the serve socket frame budget. Once past them, use normal paging.
+        imported = run["initial"].get("compare_import")
+        if imported is not None:
+            from .compare_archive import chunk_count
+            if since_seq <= chunk_count(imported["source"]) + 1:
+                limit = min(limit, 3)
         try:
             page = rooms.read_events(self.db_path, room_id=run_id, since_seq=since_seq, limit=limit, include_disbanded=True)
             room_error = None

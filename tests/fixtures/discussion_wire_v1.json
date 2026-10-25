@@ -136,6 +136,17 @@
           "client_scope"
         ]
       },
+      "runtime.discussion.run.append_compare": {
+        "tier": "console",
+        "required": [
+          "workspace_id",
+          "client_scope",
+          "run_id",
+          "index",
+          "data"
+        ],
+        "optional": []
+      },
       "runtime.discussion.run.end": {
         "tier": "console",
         "required": [
@@ -147,6 +158,15 @@
         "optional": [
           "client_scope"
         ]
+      },
+      "runtime.discussion.run.finish_compare": {
+        "tier": "console",
+        "required": [
+          "workspace_id",
+          "client_scope",
+          "run_id"
+        ],
+        "optional": []
       },
       "runtime.discussion.run.get": {
         "tier": "read",
@@ -186,13 +206,48 @@
       },
       "runtime.discussion.run.member_model": {
         "tier": "console",
-        "required": ["workspace_id", "run_id", "member_id", "model_id"],
-        "optional": ["save_default", "client_scope"]
+        "required": [
+          "workspace_id",
+          "run_id",
+          "member_id",
+          "model_id"
+        ],
+        "optional": [
+          "save_default",
+          "client_scope"
+        ]
       },
       "runtime.discussion.run.member_models": {
         "tier": "console",
-        "required": ["workspace_id", "run_id", "member_id"],
-        "optional": ["client_scope"]
+        "required": [
+          "workspace_id",
+          "run_id",
+          "member_id"
+        ],
+        "optional": [
+          "client_scope"
+        ]
+      },
+      "runtime.discussion.run.migrate_group": {
+        "tier": "console",
+        "required": [
+          "workspace_id",
+          "run_id",
+          "client_scope",
+          "expect_revision",
+          "target_workspace_id",
+          "members"
+        ],
+        "optional": []
+      },
+      "runtime.discussion.run.prepare_compare": {
+        "tier": "console",
+        "required": [
+          "workspace_id",
+          "client_scope",
+          "source"
+        ],
+        "optional": []
       },
       "runtime.discussion.run.remove": {
         "tier": "console",
@@ -206,6 +261,15 @@
         "optional": [
           "client_scope"
         ]
+      },
+      "runtime.discussion.run.resolve_compare": {
+        "tier": "console",
+        "required": [
+          "workspace_id",
+          "client_scope",
+          "source_id"
+        ],
+        "optional": []
       },
       "runtime.discussion.run.respond": {
         "tier": "console",
@@ -393,6 +457,8 @@
       "presets": true,
       "message_response_policy": true,
       "profile_groups": true,
+      "group_migration": true,
+      "compare_import": true,
       "group_models": true,
       "instance_models": true,
       "scheduled_conclusion": true,
