@@ -774,12 +774,14 @@ def _cmd_mission_chat_message(args) -> int:
         # Provenance decided in ONE place (owner id + observer kind from the
         # same serve-request fact) — see _mission_chat_lease_provenance for the
         # two diagnostic lies this line used to tell.
+        from agent_runtime.auxiliary_chat import independent_chat_scope
+
         lease_owner_id, lease_observer_kind = _mission_chat_lease_provenance()
         with persona_chat_root_lease(
             session_id,
             owner_id=safe_assignment_token(lease_owner_id),
             observer_kind=lease_observer_kind,
-        ):
+        ), independent_chat_scope(session_db, persona_instance_id, session_id):
             exit_code = _mission_chat_commit_turn(plan, deferred, presence)
     except PersonaChatBusyError as exc:
         # "The root is busy" is not one answer, it is four — and which one it is

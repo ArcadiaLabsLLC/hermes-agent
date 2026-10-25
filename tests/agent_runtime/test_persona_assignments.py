@@ -1983,6 +1983,11 @@ class _TranscriptDB:
     def close(self):
         return None
 
+    def get_session_model_config_value(self, session_id, key, default=None):
+        raw = (self.get_session(session_id) or {}).get("model_config")
+        config = json.loads(raw) if isinstance(raw, str) else raw
+        return (config or {}).get(key, default)
+
     def create_session(self, session_id, source, **kwargs):
         self.sessions.setdefault(session_id, {"source": source, **kwargs})
         self.messages.setdefault(session_id, [])

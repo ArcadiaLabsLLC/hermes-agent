@@ -542,6 +542,7 @@ def _publish_minted_root(args, *, store, mint, current, persona_id: str, target_
                 title=f"{current.display_name} chat",
                 required=True,
                 client_scope=receipt.client_scope,
+                independent=not receipt.select_session,
             )
     except PersonaChatPersistenceError as exc:
         data = {

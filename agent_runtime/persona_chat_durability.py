@@ -148,6 +148,7 @@ def ensure_persona_chat_session(
     title: str | None = None,
     required: bool = False,
     client_scope: str | None = None,
+    independent: bool = False,
 ) -> bool:
     if session_db is None or not session_id:
         return persona_chat_persistence_failed(
@@ -166,6 +167,8 @@ def ensure_persona_chat_session(
         ownership["persona_instance_id"] = owner_instance_id
     if client_scope is not None:
         ownership["client_scope"] = validate_client_scope(client_scope)
+    if independent:
+        ownership["independent_conversation"] = True
     try:
         if client_scope is not None and (existing := session_db.get_session(session_id)) is not None:
             require_session_owner(existing, client_scope)

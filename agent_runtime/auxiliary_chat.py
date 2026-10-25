@@ -6,7 +6,7 @@ instance row they read before an operator selected a different chat.
 """
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, Iterator
@@ -39,6 +39,16 @@ def auxiliary_chat(instance_id: str, session_id: str) -> Iterator[None]:
 def is_auxiliary_chat(instance_id: str | None, session_id: str | None) -> bool:
     scope = _SCOPE.get()
     return scope is not None and (scope.instance_id, scope.session_id) == (instance_id, session_id)
+
+
+def independent_chat_scope(session_db, instance_id: str, session_id: str):
+    """Use the existing non-selecting turn scope for a native independent root.
+
+    The mint stamps this fact in SessionDB. A caller-supplied flag cannot enable
+    it, and the same scope covers admission, execution and finalization.
+    """
+    independent = session_db.get_session_model_config_value(session_id, "independent_conversation", False)
+    return auxiliary_chat(instance_id, session_id) if independent is True else nullcontext()
 
 
 def safe_auxiliary_result(value: Any) -> dict[str, Any] | None:

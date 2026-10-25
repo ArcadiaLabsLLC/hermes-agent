@@ -1136,6 +1136,9 @@ class _DispatchTranscriptDB:
         self.messages.setdefault(session_id, [])
         return session_id
 
+    def get_session_model_config_value(self, session_id, key, default=None):
+        return self.session_meta(session_id).get(key, default)
+
     def get_session(self, session_id):
         session = self.sessions.get(session_id)
         if session is None:

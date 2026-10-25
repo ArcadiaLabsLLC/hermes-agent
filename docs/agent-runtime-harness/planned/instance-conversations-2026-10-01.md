@@ -383,3 +383,27 @@ console authorization against real stores. Forcing selection fails
 intent comparison fails `test_mint_key_cannot_change_selection_intent`. Both
 mutations were restored. Full provider execution and desktop requalification
 remain part of the cutover; admission alone does not prove their behavior.
+
+### Completed-turn correction — October 25
+
+The first actual provider turn exposed a second pointer writer: turn admission
+and finalization selected the independent root even though creation did not.
+Independent mints now stamp their mode in the existing SessionDB metadata. The
+native send owner uses the existing exact-instance auxiliary scope for the whole
+commit, including admission and finalization. Discussion turns already use that
+scope; there is no second execution engine or competing instance-write policy.
+
+The permanent serve/loopback-provider test completes three native turns with
+production-default actor reuse disabled, checks the cockpit pointer during and
+after each turn, then retries creation with the original key. Removing the scope
+fails that test on its first real turn; restoration passes. The affected run
+covered 76 files; its remaining failures were three partial SessionDB fixtures
+missing the metadata reader, now completed. The final 17-file repaired set passes
+187 tests. Ruff passes for the production and native peer files.
+
+The earlier full fork gate covered 1,265 files: 14,608 passed, 11 failed, one
+collection error and 56 skipped. The same ten failed files and per-file counts
+reproduce on unchanged main `ee7080549076ee8cc591eb90eb41389065516030` with the
+same locked test interpreter; tracked as `FH-CUTOVER-BASELINE-REDS`. No failure
+was skipped or baseline raised. Desktop requalification, migration and matched
+production latency remain open; the loopback result is functional evidence.

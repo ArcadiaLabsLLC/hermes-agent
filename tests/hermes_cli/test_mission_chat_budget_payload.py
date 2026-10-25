@@ -123,6 +123,11 @@ class _TranscriptDB:
         self.messages.setdefault(session_id, [])
         return session_id
 
+    def get_session_model_config_value(self, session_id, key, default=None):
+        raw = (self.get_session(session_id) or {}).get("model_config")
+        config = json.loads(raw) if isinstance(raw, str) else raw
+        return (config or {}).get(key, default)
+
     def get_session(self, session_id):
         session = self.sessions.get(session_id)
         if session is None:
