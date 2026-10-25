@@ -957,4 +957,3 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-25 (lane w1024t-hermes2)
 
-- **`RT-PHONE-SWITCHED-OFF-DEAD-PLATFORM-MODULES` — `bundled-phone.yaml` `switched_off_modules` still names `gateway.platforms.bluebubbles` / `qqbot` / `signal*` / `weixin` / …, which upstream moved under `plugins/platforms/` (v0.22.4), so `test_packaging_modules_name_real_modules[bundled-phone]` is red on `origin/main` `6aab9ef520` and the phone's switch-off list no longer switches those adapters off** · fork / phone bundle · evidence: `tests/agent_runtime/test_bundle_profiles.py::test_packaging_modules_name_real_modules` (red on main, lane w1024t-hermes2 2026-10-25; the file is one of `FH-CUTOVER-BASELINE-REDS`'s ten — this row is its cause) · READY 2026-10-25 · **TAKEN 2026-10-25 w1025a-hermes**

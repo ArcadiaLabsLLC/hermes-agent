@@ -293,26 +293,15 @@ packaging:
     - gateway.platforms.api_server_run_idempotency
     - gateway.platforms.api_server_runs
     - gateway.platforms.api_server_turn_boundary
-    - gateway.platforms.bluebubbles
     - gateway.platforms.media_cache
     - gateway.platforms.msgraph_webhook
-    - gateway.platforms.qqbot
     - gateway.platforms.shared_ingress
-    - gateway.platforms.signal
-    - gateway.platforms.signal_format
-    - gateway.platforms.signal_rate_limit
     - gateway.platforms.tcp_site
     - gateway.platforms.webhook
     - gateway.platforms.webhook_coalesce
     - gateway.platforms.webhook_filters
-    - gateway.platforms.weixin
-    - gateway.platforms.whatsapp_cloud
     - gateway.platforms.whatsapp_common
-    - gateway.platforms.yuanbao
-    - gateway.platforms.yuanbao_media
-    - gateway.platforms.yuanbao_proto
-    - gateway.platforms.yuanbao_sticker
-    - plugins.platforms
+    - plugins.platforms             # every messaging adapter upstream moved under plugins/platforms/ (v0.22.4)
     # pydantic (pydantic-core is Rust): the gateway's pydantic contract models — the in-process gateway
     # reads the generated catalog through agent_runtime/gateway/contract_seam.py — the connectors account RPCs
     # (a seam in tui_gateway/server.py), the connectors gateway/portal wire clients, MCP device OAuth.
