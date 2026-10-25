@@ -743,6 +743,20 @@ directory (not in `upstream/main`): `tui_gateway/session_execution.py` (the exec
 So: seven files get smaller by MOVE; four need upstream doors and are PR rows in the ledger,
 not lanes. The ~15-file count in the row includes the fork-only modules themselves.
 
+**Landed 2026-10-25 (lane w1025a-hermes).** MOVE A moved `_handle_observe`'s body
+(`session_recovery.handle_observe` + `OBSERVABLE_METHODS`) and the turn-start adopt / persist
+gates (`session_execution.host_turn_adopted` / `host_turn_persisted`) out of `compute_host.py`
+(ledger added 58 → 36). Not moved, on purpose: `compute_host_bridge._answer_compute_host_request`
+reads six of the bridge's module privates (`_compute_host_request_session`, `_sessions`,
+`_session_uses_compute_host`, `_get_compute_host_supervisor`, `_history_lock`,
+`_open_request_matches`), so a move trades footprint for private reads — it rides the
+"answer acknowledgement result" door PR. MOVE B is moot: upstream now calls `forget_session`
+itself, and the two fork calls left in `session_lifecycle.py` (`close_app_functions`,
+`discard_history`) sit in different functions (teardown vs popped teardown), already one call
+each. What remains is the PR cluster: `methods_session.py` (`observe_only` on `session.resume`),
+`event_replay.py` (a replay checkpoint API), `server_requests.py` + `compute_host_bridge.py`
+(the answer acknowledgement result), `rpc_dispatch.py` (queued RPC work holds retirement).
+
 ### Stages (one MOVE commit each, no CHANGE)
 
 | lane | files | done-test | killing mutation |

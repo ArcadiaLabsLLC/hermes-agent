@@ -6,6 +6,31 @@ from agent_runtime.gateway import session_execution
 from agent_runtime.gateway.recovery_history import checkpoint, history_page
 
 
+#: The read methods a compute-host child answers on its ``observe`` frame (``ComputeHost._handle_observe``).
+OBSERVABLE_METHODS = frozenset({
+    "session.recover", "session.recovery.history", "session.recovery.inflight",
+    "eternia.subagents.capabilities", "eternia.subagents.list", "eternia.subagents.tail",
+    "eternia.subagents.receipt", "eternia.subagents.spawning",
+    "session.events.since", "session.retire"})
+
+
+def handle_observe(host, frame: dict) -> None:
+    """The child's ``observe`` frame: one allowed read, answered ``observe.ack`` under the host's transport."""
+    def body(server, sid, request_id):
+        method = frame.get("method")
+        if method not in OBSERVABLE_METHODS:
+            raise ValueError("Unsupported observation")
+        response = server.handle_request({"jsonrpc": "2.0", "id": request_id,
+            "method": method, "params": {**(frame.get("params") or {}), "session_id": sid}})
+        host._reply("observe.ack", sid, request_id, response=response)
+    from tui_gateway.transport import bind_transport, reset_transport
+    token = bind_transport(host._transport)
+    try:
+        host._guarded(frame, "observe.error", body)
+    finally:
+        reset_transport(token)
+
+
 def recover(server, sid, session, execution_id=None):
     with session["history_lock"]:
         state = server._live_session_payload(sid, session, omit_messages=True)

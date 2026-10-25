@@ -235,23 +235,8 @@ class ComputeHost:
         self._guarded(frame, "respond.error", body)
 
     def _handle_observe(self, frame: dict[str, Any]) -> None:
-        def body(server, sid, request_id):
-            method = frame.get("method")
-            if method not in {"session.recover", "session.recovery.history", "session.recovery.inflight",
-                              "eternia.subagents.capabilities", "eternia.subagents.list", "eternia.subagents.tail",
-                              "eternia.subagents.receipt",
-                              "eternia.subagents.spawning",
-                              "session.events.since", "session.retire"}:
-                raise ValueError("Unsupported observation")
-            response = server.handle_request({"jsonrpc": "2.0", "id": request_id,
-                "method": method, "params": {**(frame.get("params") or {}), "session_id": sid}})
-            self._reply("observe.ack", sid, request_id, response=response)
-        from tui_gateway.transport import bind_transport, reset_transport
-        token = bind_transport(self._transport)
-        try:
-            self._guarded(frame, "observe.error", body)
-        finally:
-            reset_transport(token)
+        from agent_runtime.gateway.session_recovery import handle_observe
+        handle_observe(self, frame)
 
     def _run_real_turn(self, frame: dict[str, Any]) -> None:
         sid = str(frame.get("sid") or "")
@@ -270,7 +255,7 @@ class ComputeHost:
             server._install_borrowed_lease(sid, session, frame)
             text = frame["text"] if "text" in frame else frame.get("prompt", "")
             inflight = frame["text"] if "text" in frame else frame.get("prompt")
-            from agent_runtime.gateway.session_execution import adopt, control
+            from agent_runtime.gateway.session_execution import control, host_turn_adopted, host_turn_persisted
             with control(session), session["history_lock"]:
                 queued_gen = frame.get("queued_prompt_generation")
                 current_gen = int(session.get("_queued_prompt_generation", 0))
@@ -280,21 +265,14 @@ class ComputeHost:
                 if session.get("running"):
                     self._reply("turn.error", sid, request_id, message="session busy")
                     return
-                if not adopt(session, frame.get("native_execution")):
-                    server._emit("message.complete", sid, {"text": "", "status": "interrupted"})
-                    self._reply("turn.end", sid, request_id, interrupted=True, ended_ns=now_ns())
+                if not host_turn_adopted(self, server, sid, request_id, session, frame):
                     return
                 session.update(running=True, _turn_cancel_requested=False, last_active=time.time())
                 server._start_inflight_turn(session, inflight)
                 turn_started_at = time.time()
             self._reply("turn.started", sid, request_id, started_ns=now_ns())
-            if session.get("native_execution"):
-                refusal = server._persist_session_row_for_submit(request_id, session, text, frame.get("display_kind"))
-                if refusal is not None:
-                    message = refusal["error"]["message"]
-                    server._emit("message.complete", sid, {"text": message, "status": "error"})
-                    self._reply("turn.error", sid, request_id, message=message)
-                    return
+            if not host_turn_persisted(self, server, sid, request_id, session, frame, text):
+                return
             with contextlib.suppress(Exception):
                 server._ensure_session_db_row(session)
                 # #85303: the parent's prompt.submit reopened this row before dispatching here (or
