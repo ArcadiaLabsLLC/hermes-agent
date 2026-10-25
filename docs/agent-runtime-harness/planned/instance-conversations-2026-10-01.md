@@ -543,3 +543,19 @@ paused verdict failed with pending_count 1 (`group-idle-red.log`); restored, 23
 serve-idle/profile-group/migration tests passed (`group-idle-green.log`).
 Qualification must inspect the socket hello build, since a launcher process
 restart and a filesystem build stamp do not prove the shared serve reloaded.
+
+### Profile-group desktop acceptance — October 25
+
+Launcher `a642650088` and socket-verified serve `6aab9ef520` completed a fresh
+profile-group import with two real GPT-6 Luna workers, preserved public events,
+member identities, model choices and actual default-chat pointers. Both native
+members then answered in Compare mode. A settled Stop admitted `drain_if_idle`;
+a new serve boot and Launcher reopened the same canonical history. The original
+source-scope read returned identical events, members, tasks and commands, with
+no replay. Earlier attempts against the stale loaded serve are not acceptance
+evidence. Full capture names and qualifications are in
+`EterniaLauncher/docs/companion/planned/AGENT_CHAT_UNIFICATION_AUDIT_2026-10-02.md`
+under Profile-group live migration, continuation and restart.
+
+Local Compare adoption, matched production-provider latency and final worker
+retirement remain active; this receipt closes the profile-group live prerequisite.
