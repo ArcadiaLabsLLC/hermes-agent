@@ -40,7 +40,7 @@ def _boot(tmp_path, catalog: bool) -> list[str]:
     env = {**os.environ, "HERMES_HOME": str(tmp_path / "home"), "PYTHONIOENCODING": "utf-8"}
     report = tmp_path / f"boot-{catalog}.txt"
     out = subprocess.run([sys.executable, "-c", BOOT.format(root=str(ROOT), catalog=catalog, report=str(report))],
-                         cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8", timeout=180)
+                         cwd=ROOT, env=env, check=False, capture_output=True, text=True, encoding="utf-8", timeout=180)
     assert out.returncode == 0, out.stderr[-2000:]
     return report.read_text(encoding="utf-8").splitlines()
 
