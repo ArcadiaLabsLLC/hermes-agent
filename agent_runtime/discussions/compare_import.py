@@ -16,7 +16,7 @@ from .run_values import DiscussionError, digest, member_id
 __layer__ = "lanes"
 
 
-def _owner(params):
+def _request_owner(params):
     try:
         owner = client_scope(params.get("client_scope"))
     except ConversationOwnerError as exc:
@@ -32,7 +32,7 @@ def _key(source_id, owner):
 
 def _owned(service, params, actor_id):
     run = service.runs.get(params["run_id"], params["workspace_id"])
-    if room_client_scope(run) != _owner(params) or run["actor_id"] != actor_id:
+    if room_client_scope(run) != _request_owner(params) or run["actor_id"] != actor_id:
         raise DiscussionError("conversation_owner_changed")
     if "compare_import" not in run["initial"]:
         raise DiscussionError("compare_import_required")
@@ -40,7 +40,7 @@ def _owned(service, params, actor_id):
 
 
 def resolve_compare(service, params, actor_id):
-    run = store.find(service.runs, _owner(params), actor_id, params["source_id"])
+    run = store.find(service.runs, _request_owner(params), actor_id, params["source_id"])
     return {"run": run}
 
 
@@ -61,7 +61,7 @@ def _targets(service, source, workspace, owner, actor_id):
 
 
 def prepare_compare(service, params, actor_id, conversation_actor_id):
-    owner, source, workspace = _owner(params), params["source"], params["workspace_id"]
+    owner, source, workspace = _request_owner(params), params["source"], params["workspace_id"]
     with service._lock, service.context.scope():
         if not service.accepting:
             raise DiscussionError("runtime_stopping")
@@ -109,7 +109,7 @@ def finish_compare(service, params, actor_id, conversation_actor_id):
             return {"run": run}
         archive.read_archive(service, run)
         source = run["initial"]["compare_import"]["source"]
-        conversations, targets = _targets(service, source, run["workspace_id"], _owner(params), conversation_actor_id)
+        conversations, targets = _targets(service, source, run["workspace_id"], _request_owner(params), conversation_actor_id)
         sessions = {}
         for member in service.runs.members(run["run_id"]):
             row, scope, target = targets[member["member_id"]]
@@ -119,5 +119,5 @@ def finish_compare(service, params, actor_id, conversation_actor_id):
                     {"persona_id": target.persona_id, "persona_instance_id": target.id})["session_id"]
             service.context.ensure_session(run, {**member, "session_id": session})
             sessions[member["member_id"]] = session
-        _targets(service, source, run["workspace_id"], _owner(params), conversation_actor_id)
+        _targets(service, source, run["workspace_id"], _request_owner(params), conversation_actor_id)
         return {"run": store.complete(service.runs, run, sessions)}

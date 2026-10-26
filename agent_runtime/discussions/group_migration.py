@@ -20,7 +20,7 @@ from . import group_migration_store as store
 __layer__ = "lanes"
 
 
-def _prepare(service, run, intent, conversations):
+def _resolve_migration_members(service, run, intent, conversations):
     members = service.runs.members(run["run_id"])
     targets = {row["member_id"]: row["participant"] for row in intent["members"]}
     if set(targets) != {m["member_id"] for m in members}:
@@ -63,7 +63,7 @@ def migrate_group(service, params, actor_id):
             raise DiscussionError("profile_group_required")
         service.context.workspace(intent["target_workspace_id"])
         conversations = service.executions.profiles.turns.conversations()
-        members, resolved = _prepare(service, run, intent, conversations)
+        members, resolved = _resolve_migration_members(service, run, intent, conversations)
         run = store.reserve(service.runs, run, intent, params["expect_revision"])
         adopted = {}
         for member in members:
@@ -80,7 +80,7 @@ def migrate_group(service, params, actor_id):
         group = run["initial"]["group"]
         spec = RoomSpec(group["name"], refs, DiscussionSettings.parse(group["settings"]))
         # Revalidate every mutable binding after import before switching execution.
-        _prepare(service, run, intent, conversations)
+        _resolve_migration_members(service, run, intent, conversations)
         for member in members:
             target = adopted[member["member_id"]]
             service.context.ensure_session({**run, "initial": {"client_scope": owner}},
