@@ -85,7 +85,7 @@ def chat_turn_reservations_dir() -> Path:
     cannot answer because the journal's first write happens inside the chat-root
     lease, after the worker is already running.
     """
-    return store_root() / "chat_turn_reservations"
+    return store_root() / CHAT_TURN_RESERVATIONS_DIRNAME
 
 
 def chat_turn_reservation_path(key_digest: str) -> Path:
@@ -98,7 +98,7 @@ def chat_turn_settles_dir() -> Path:
     Not a turn-outcome authority (the journal is): a delivery outbox for the
     serve's ``turn_settled`` push (``chat_turn_settles``).
     """
-    return store_root() / "chat_turn_settles"
+    return store_root() / CHAT_TURN_SETTLES_DIRNAME
 
 
 def chat_turn_settle_path(settle_id: str) -> Path:
@@ -230,6 +230,15 @@ def realm_sync_root() -> Path:
 #: slot and never a realm. Named here so the core cache's exclusion list imports it — a course's tree and
 #: its ``.git`` are no projection input, and a commit there must not cold the read model.
 COURSES_DIRNAME = "courses"
+
+#: The chat lane's ACCEPT receipts and settle-push outbox, and Work's
+#: machine-local tree. Named so the core cache's exclusion sets import them
+#: (RT-CORE-CACHE-INPUT-FAMILIES): the first two are rewritten on every turn and
+#: read by no projection section; under the third only git's own ``.git``
+#: bookkeeping is excluded.
+CHAT_TURN_RESERVATIONS_DIRNAME = "chat_turn_reservations"
+CHAT_TURN_SETTLES_DIRNAME = "chat_turn_settles"
+WORK_DIRNAME = "work"
 
 
 def course_dir(course_public_id: str) -> Path:
@@ -736,7 +745,7 @@ def slot_worktrees_path(workspace_id: str, slot: str) -> Path:
 def work_dir() -> Path:
     """Work's machine-local state (plan ``work-on-markdown-2026-10-18.md`` §4): never synced."""
 
-    return store_root() / "work"
+    return store_root() / WORK_DIRNAME
 
 
 def work_workspace_dir(workspace_id: str) -> Path:

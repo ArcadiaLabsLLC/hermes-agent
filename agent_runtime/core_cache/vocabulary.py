@@ -14,11 +14,14 @@ from typing import Mapping
 
 from agent_runtime.dispatch_delivery.vocabulary import DRAIN_STATE_FILENAME
 from agent_runtime.paths import (
+    CHAT_TURN_RESERVATIONS_DIRNAME,
+    CHAT_TURN_SETTLES_DIRNAME,
     COURSES_DIRNAME,
     DELETED_ARCHIVE_DIRNAME,
     DERIVED_CACHE_DIRNAME,
     OFFICE_ARCHIVE_DIRNAME,
     REALM_SYNC_DIRNAME,
+    WORK_DIRNAME,
     SERVE_AUTH_TOKEN_FILENAME,
     SERVE_INSTANCES_DIRNAME,
     SOCKET_LOCK_FILENAME,
@@ -402,8 +405,45 @@ _EXCLUDED_STORE_ENTRIES = frozenset(
         # Git course checkouts (``course_authoring``): a clone and its worktrees,
         # rewritten by every fetch and commit, read by no projection.
         COURSES_DIRNAME,
+        # The chat lane's per-turn families (RT-CORE-CACHE-INPUT-FAMILIES) —
+        # see the block below for the reader audit.
+        CHAT_TURN_RESERVATIONS_DIRNAME,
+        CHAT_TURN_SETTLES_DIRNAME,
     }
 )
+
+
+#: WHY ``chat_turn_reservations/`` AND ``chat_turn_settles/`` ARE EXCLUDED
+#: (RT-CORE-CACHE-INPUT-FAMILIES, 2026-10-26).
+#:
+#: **WHAT THEY COST.** Between the 2026-10-20 seed and 2026-10-25 the live
+#: namespace logged 7 ``reason=fingerprint_mismatch`` misses; their ``diff=``
+#: paths were ``chat_turn_reservations`` 16, ``chat_turn_settles`` 4 (and the
+#: two below). Both families are rewritten on EVERY chat turn — an ACCEPT
+#: receipt per ``runtime.chat.message``, a settle record per settled turn until
+#: the launcher acks it — so no boot's key could survive one turn.
+#:
+#: **THE READER AUDIT** (re-run it; do not trust this transcript)::
+#:
+#:     grep -rn "unsettled_chat_receipts\|read_chat_turn_receipt\|list_settles\|read_settle" agent_runtime/ hermes_cli/ | grep -v tests
+#:     grep -rln "work_store\|operator_history\|operator_session\|operator_conversation\." agent_runtime/snapshot/
+#:
+#: Every reader is an RPC or turn-lane reader (``operator_conversation``,
+#: ``operator_history``, ``operator_session_*``, ``operator_execution``,
+#: ``peer_chat_cancel``, ``serve.operator_interrupt``, ``work_store.persona_turn``)
+#: and the snapshot package imports none of them. The runtime half is
+#: ``tests/agent_runtime/test_core_cache_input_families.py``: a real
+#: ``build_snapshot`` over a store seeded with both families opens no file in
+#: either, beside a positive control that the same spy does see the build's
+#: real reads.
+#:
+#: **WHAT WOULD MAKE THIS WRONG.** A projection section that surfaces queued or
+#: unsettled turns from these files. Whoever adds that reader removes the
+#: exclusion in the SAME commit.
+#:
+#: ``realm_sync_state/<realm>.json`` (1 of the 7) is deliberately NOT here: the
+#: realm rows read it (``realm_sync.read_realm_sync_sidecar``), so its change is
+#: a real input change and the miss it caused was correct.
 
 
 #: WHY ``deleted_archive/`` IS EXCLUDED, WRITTEN WHERE THE EXCLUSION LIVES.
@@ -655,6 +695,13 @@ _EXCLUDED_STORE_ENTRIES = frozenset(
 _EXCLUDED_NESTED_STORE_NAMES: Mapping[str, frozenset[str]] = MappingProxyType(
     {
         REALM_SYNC_DIRNAME: frozenset({".git"}),
+        # RT-CORE-CACHE-INPUT-FAMILIES: Work's default brains and slot
+        # worktrees are git checkouts (``work/<ws>/brain/.git``, a worktree's
+        # ``.git`` file); 9 changed paths across the 7 misses were their git
+        # bookkeeping (``.git/FETCH_HEAD``). The snapshot package does not import
+        # ``work_store`` at all, and Decision 7 forbids the build git; the
+        # brain's NOTES stay in the closure — only the literal ``.git`` goes.
+        WORK_DIRNAME: frozenset({".git"}),
     }
 )
 

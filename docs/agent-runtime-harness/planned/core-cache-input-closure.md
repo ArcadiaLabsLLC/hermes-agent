@@ -228,6 +228,24 @@ The families in today's firings are the 2026-08-23 chat-turn sidecar family plus
 `gateway/peers_cache.json` and `chat_turn_reservations/*.json`. The per-family reader
 audit this plan demands is still owed; nothing is excluded on this reading.
 
+## 2026-10-26 — the per-family reader audit, done for the 2026-10-25 families
+
+Row `RT-CORE-CACHE-INPUT-FAMILIES` (lane w1025b-h-stream). The four families in the live
+`fingerprint_mismatch` diffs of 2026-10-20..25, ruled one by one:
+
+- `chat_turn_reservations/` (16) and `chat_turn_settles/` (4) — **excluded** (top level).
+  Every reader is an RPC or turn-lane reader; the snapshot package imports none of them.
+  The argument and the grep are at `core_cache.vocabulary._EXCLUDED_STORE_ENTRIES`.
+- `work/**/.git` (9) — **excluded** (nested, the IC-1 mechanism): Work's default brains and
+  slot worktrees are git checkouts; the snapshot package does not import `work_store`, and
+  the brain's notes stay in the closure.
+- `realm_sync_state/<realm>.json` (1) — **kept**: the realm rows read it, so that miss was a
+  real input change.
+
+Runtime half: `tests/agent_runtime/test_core_cache_input_families.py` (a real `build_snapshot`
+opens no file in the three families, beside a positive control). Field half still owed: the
+next week's `fingerprint_mismatch` census.
+
 ## The gate to open this
 
 - ~~Every candidate exclusion has a named reader audit proving nothing in

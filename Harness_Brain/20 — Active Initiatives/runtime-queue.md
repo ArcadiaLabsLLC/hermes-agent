@@ -526,7 +526,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Snapshot build latency on Windows — filed 2026-09-08
 
-- **`RT-CORE-CACHE-INPUT-FAMILIES` — Between boots the core cache misses on turn- and worker-written families in its input closure: `chat_turn_reservations` (16 of 30 changed paths), workspace git internals under `work/ws_*` (9, e.g. `.git/FETCH_HEAD`), `chat_turn_settles` (4), `realm_sync_state` (1); audit which snapshot section reads each and drop the unread ones from the fingerprint** · runtime / snapshot · `agent_runtime/core_cache/__init__.py` · plan `docs/agent-runtime-harness/planned/core-cache-input-closure.md` IC-4 · evidence: live namespace agent.log 2026-10-20..25 (`docs/agent-runtime-harness/planned/live-sitting-results-2026-10-25.md` § RT-CORE-CACHE-WRITES-BUILD) · red-first: a reservations write leaves the fingerprint unchanged once the family is dropped · READY 2026-10-25 · **TAKEN 2026-10-25 w1025b-h-stream**
 
 
 ### Harness CLI and the doctor — 2026-08-30 / 2026-09-02 hand-backs, 2026-09-12 skill sync
