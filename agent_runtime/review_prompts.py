@@ -76,12 +76,21 @@ def remaining_push(prompt: str) -> list[str]:
     return [marker for marker in _PUSH_MARKERS if marker in prompt]
 
 
-def harness_review_prompts() -> tuple[str, str]:
-    """``(skill, combined)`` — upstream's two skill-bearing prompts with the push cut."""
-    from agent_runtime._upstream_doors import background_review_prompts
+def _upstream_prompts(agent: Any = None) -> tuple[str, str]:
+    """Upstream's two skill-bearing prompts, read off the agent's CLASS (upstream's door: AIAgent
+    exposes them as class attributes), so an override already set on the instance is never re-cut."""
+    owner = type(agent) if agent is not None else None
+    if owner is None or not isinstance(getattr(owner, "_SKILL_REVIEW_PROMPT", None), str):
+        from run_agent import AIAgent
 
+        owner = AIAgent
+    return owner._SKILL_REVIEW_PROMPT, owner._COMBINED_REVIEW_PROMPT
+
+
+def harness_review_prompts(agent: Any = None) -> tuple[str, str]:
+    """``(skill, combined)`` — upstream's two skill-bearing prompts with the push cut."""
     derived = []
-    for base in background_review_prompts():
+    for base in _upstream_prompts(agent):
         for old, new in PUSH_CUTS:
             base = base.replace(old, new)
         derived.append(base + VERIFIABLE_CLAIMS_BLOCK)
@@ -117,7 +126,7 @@ def arm_review_prompts(agent: Any) -> None:
     """Set the per-agent skill and combined review overrides for the turn in flight."""
     if agent is None:
         return
-    skill, combined = harness_review_prompts()
+    skill, combined = harness_review_prompts(agent)
     block = timings_block(_turn_timing_rows(agent))
     agent._SKILL_REVIEW_PROMPT = skill + block
     agent._COMBINED_REVIEW_PROMPT = combined + block

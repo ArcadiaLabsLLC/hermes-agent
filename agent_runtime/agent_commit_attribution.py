@@ -23,7 +23,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-__layer__ = "policy"
+__layer__ = "lanes"  # reads the live-turn registry (stores)
 __all__ = ["INSTANCE_TRAILER", "TURN_TRAILER", "attribute_commits", "with_commit_trailers"]
 
 INSTANCE_TRAILER = "Agent-Instance"
