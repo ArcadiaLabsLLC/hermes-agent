@@ -150,6 +150,7 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness mission-chat queue-skill](#hermes-harness-mission-chat-queue-skill)
 - [hermes harness mission-chat steer](#hermes-harness-mission-chat-steer)
 - [hermes harness mission-chat turn-resolve](#hermes-harness-mission-chat-turn-resolve)
+- [hermes harness mission-chat audit](#hermes-harness-mission-chat-audit)
 - [hermes harness mission-chat clarify-tickets](#hermes-harness-mission-chat-clarify-tickets)
 - [hermes harness mission-chat dispatch](#hermes-harness-mission-chat-dispatch)
 - [hermes harness mission-chat dispatch redeliver](#hermes-harness-mission-chat-dispatch-redeliver)
@@ -3078,14 +3079,16 @@ options:
 
 ```text
 usage: hermes harness mission-chat [-h]
-                                   {message,queue-skill,steer,turn-resolve,clarify-tickets,dispatch} ...
+                                   {message,queue-skill,steer,turn-resolve,audit,clarify-tickets,dispatch} ...
 
 positional arguments:
-  {message,queue-skill,steer,turn-resolve,clarify-tickets,dispatch}
+  {message,queue-skill,steer,turn-resolve,audit,clarify-tickets,dispatch}
     message             Send one Mission Control chat turn through the normal Hermes profile context
     queue-skill         Load a skill on the next Mission Control chat turn
     steer               Steer an active streamed Mission Control chat turn
     turn-resolve        Resolve an uncertain turn or dismiss an interruption
+    audit               Audit a persona instance's or chat's turns: tool calls, files, worktrees,
+                        commits, model and tokens
     clarify-tickets     Clarify-token adoption readout: live tickets with state/age/session binding,
                         and the bound_via histogram
     dispatch            Operate the agent-to-agent dispatch delivery queue
@@ -3236,6 +3239,23 @@ options:
   --turn-id TURN_ID
   --persona-instance-id PERSONA_INSTANCE_ID
   --action {abandon,dismiss}
+  --json
+```
+
+## hermes harness mission-chat audit
+
+```text
+usage: hermes harness mission-chat audit [-h] [--persona-instance-id PERSONA_INSTANCE_ID]
+                                         [--session-id SESSION_ID] [--turn-id TURN_ID]
+                                         [--limit LIMIT] [--json]
+
+options:
+  -h, --help            show this help message and exit
+  --persona-instance-id PERSONA_INSTANCE_ID
+  --session-id SESSION_ID
+                        A chat's root or active session id
+  --turn-id TURN_ID
+  --limit LIMIT         Turns, newest first (clamped 1..200)
   --json
 ```
 

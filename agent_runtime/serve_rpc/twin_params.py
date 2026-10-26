@@ -30,10 +30,11 @@ CHARACTERS_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
 #: ``runtime.health`` (``serve_rpc/health.py``) takes none and refuses any.
 HEALTH_METHOD_PARAMS: dict[str, tuple[str, ...]] = {"runtime.health": ()}
 
-#: The five chat-family twins (``serve_rpc/chat_verbs.py``); ``requested_by`` is
+#: The six chat-family twins (``serve_rpc/chat_verbs.py``); ``requested_by`` is
 #: read by ``chat_verbs.door.caller_requester`` before the transport's device.
 CHAT_VERB_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     "runtime.chat.queue_skill": ("persona_id", "persona_instance_id", "session_id", "skill", "skills"),
+    "runtime.chat.turn_audit": ("limit", "persona_instance_id", "session_id", "turn_id"),
     "runtime.chat.turn.resolve": (
         "action", "client_message_id", "persona_instance_id", "reason", "session_id", "turn_id"),
     "runtime.persona.chat.delete": ("persona_id", "persona_instance_id", "requested_by", "session_id"),

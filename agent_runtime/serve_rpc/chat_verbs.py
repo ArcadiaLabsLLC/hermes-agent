@@ -42,6 +42,7 @@ __layer__ = "lanes"
 __all__ = [
     "REFUSAL_CODES",
     "_runtime_chat_queue_skill",
+    "_runtime_chat_turn_audit",
     "_runtime_chat_turn_resolve",
     "_runtime_persona_chat_delete",
     "_runtime_persona_chat_history",
@@ -202,3 +203,23 @@ def _runtime_persona_chat_content(rid: Any, params: dict, context: RpcContext | 
     from agent_runtime.persona_chat_history.content import read_chat_content
 
     return row_reply(rid, read_chat_content(_params(params)), "content")
+
+
+@method("runtime.chat.turn_audit", tier=TIER_CONSOLE)
+def _runtime_chat_turn_audit(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """``harness mission-chat audit`` — see :mod:`agent_runtime.chat_verbs.turn_audit`. Console tier:
+    it hands back commands and paths. Params: ``persona_instance_id`` / ``session_id`` / ``turn_id``
+    (one required), ``limit`` (int, clamped 1..200)."""
+    from agent_runtime.chat_verbs.turn_audit import turn_audit
+
+    params = _params(params)
+    limit = params.get("limit")
+    if limit is not None and (isinstance(limit, bool) or not isinstance(limit, int)):
+        return _invalid(rid, "turn_audit", "limit is an integer")
+    row = turn_audit(
+        persona_instance_id=params.get("persona_instance_id"),
+        session_id=params.get("session_id"),
+        turn_id=params.get("turn_id"),
+        limit=limit,
+    )
+    return row_reply(rid, row, "turn_audit")

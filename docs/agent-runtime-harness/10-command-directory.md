@@ -155,6 +155,14 @@ hermes harness persona chat history --session-id SESSION_ID --json
 hermes harness mission-chat steer --session-id SESSION_ID --client-message-id UNIQUE_REQUEST_ID --message "Limit this to inspection; do not edit." --json
 ```
 
+Audit what an instance's turns did — every tool call (command, exit, duration, timed out),
+files written, worktrees and branches, commits, model and tokens — and which namespace and
+machine answered (**READ**; RPC twin `runtime.chat.turn_audit`):
+
+```bash
+hermes harness mission-chat audit --persona-instance-id INSTANCE_ID --limit 5 --json
+```
+
 **Launcher counterpart:** Agent Console / Operator Channel. These are the operator
 CLI doors to the canonical chat lane. In-model agents use `agent_chat_send` when
 available, not a new subprocess. [Chat turn lane](05-chat-turn-lane.md) owns the contract.

@@ -38,6 +38,7 @@ from agent_runtime.turn_outcome import (
     TURN_OUTCOME_SCHEMA,
     TURN_OUTCOME_TEXT_LIMIT,
 )
+from agent_runtime.turn_usage import TURN_USAGE_KEY, safe_turn_usage
 
 __layer__ = "policy"
 
@@ -424,6 +425,10 @@ def _safe_journal_metadata(value: Any) -> dict[str, Any]:
     turn_outcome = safe_turn_outcome(value.get(TURN_OUTCOME_KEY))
     if turn_outcome is not None:
         result[TURN_OUTCOME_KEY] = turn_outcome
+    # Provider tokens per turn and per call (RT-TURN-RECORD-USAGE, agent_runtime.turn_usage).
+    usage = safe_turn_usage(value.get(TURN_USAGE_KEY))
+    if usage is not None:
+        result[TURN_USAGE_KEY] = usage
     for key in (
         "provider_submitted",
         "native_committed",

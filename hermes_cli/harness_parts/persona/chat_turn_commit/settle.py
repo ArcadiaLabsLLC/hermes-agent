@@ -43,6 +43,7 @@ from agent_runtime.prompt_observability import slim_chat_final_observability
 from agent_runtime.run_budget import turn_run_budget_metadata
 from agent_runtime.states import WorkerSessionState
 from agent_runtime.turn_outcome import VERDICT_FAILED
+from agent_runtime.turn_usage import TURN_USAGE_KEY, turn_usage_block
 from ..chat_events import (
     _mission_chat_emit,
     _publish_persona_chat_metadata_event,
@@ -613,6 +614,8 @@ class _SettlePhases:
                 "native_revision": self.native_revision,
                 **dict(getattr(self.chat_result, "reasoning_window", None) or {}),
                 **({MISSION_CHAT_TURN_OUTCOME_KEY: turn_outcome} if turn_outcome is not None else {}),
+                # Provider tokens (RT-TURN-RECORD-USAGE); absent when the runner reported none.
+                **({TURN_USAGE_KEY: usage} if (usage := turn_usage_block(self.chat_result)) else {}),
             },
         )
         if isinstance(turn_outcome, dict):

@@ -5385,6 +5385,7 @@
       ],
       "positionals": [],
       "subcommands": [
+        "audit",
         "clarify-tickets",
         "dispatch",
         "message",
@@ -5392,6 +5393,74 @@
         "steer",
         "turn-resolve"
       ]
+    },
+    "harness mission-chat audit": {
+      "exclusive_groups": [],
+      "options": {
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--limit": {
+          "action": "store",
+          "canonical": "--limit",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": "int"
+        },
+        "--persona-instance-id": {
+          "action": "store",
+          "canonical": "--persona-instance-id",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--session-id": {
+          "action": "store",
+          "canonical": "--session-id",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--turn-id": {
+          "action": "store",
+          "canonical": "--turn-id",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "mission-chat",
+        "audit"
+      ],
+      "positionals": [],
+      "subcommands": []
     },
     "harness mission-chat clarify-tickets": {
       "exclusive_groups": [],

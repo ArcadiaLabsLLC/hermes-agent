@@ -483,6 +483,16 @@ def add_mission_chat(subs) -> None:
     mission_chat_resolve.add_argument("--action", choices=list(TurnResolution), required=True)
     mission_chat_resolve.add_argument("--json", action="store_true")
     mission_chat_resolve.set_defaults(func=chat_tickets_commands._cmd_mission_chat_turn_resolve)
+    # RT-TURN-AUDIT-ENTRY: what a persona's turns did, read from the turn journal (read-only).
+    mission_chat_audit = mission_chat_subs.add_parser(
+        "audit", help="Audit a persona instance's or chat's turns: tool calls, files, worktrees, commits, model and tokens"
+    )
+    mission_chat_audit.add_argument("--persona-instance-id", default=None)
+    mission_chat_audit.add_argument("--session-id", default=None, help="A chat's root or active session id")
+    mission_chat_audit.add_argument("--turn-id", default=None)
+    mission_chat_audit.add_argument("--limit", type=int, default=20, help="Turns, newest first (clamped 1..200)")
+    mission_chat_audit.add_argument("--json", action="store_true")
+    mission_chat_audit.set_defaults(func=chat_tickets_commands._cmd_mission_chat_audit)
     # Read-only adoption readout for the clarify-token binding. Registered with
     # the NON-mutating stage42 args on purpose: it never mints, settles, or
     # sweeps, so it has no --dry-run to honor and nothing to confirm. Whether

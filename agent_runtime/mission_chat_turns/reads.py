@@ -193,3 +193,24 @@ def inflight_turn_rows() -> list[dict[str, Any]]:
             str(item.get("client_message_id") or ""),
         ),
     )
+
+
+def all_mission_chat_turn_records() -> list[dict[str, Any]]:
+    """Every turn record across every session file, bounded and safe (the audit read).
+
+    RT-TURN-AUDIT-ENTRY: ``chat_verbs.turn_audit`` filters these by persona instance or chat. A
+    session file's stem is a one-way digest, so the filter runs on record metadata, never on file
+    names. Read-only; a torn or unreadable file is skipped, never repaired.
+    """
+
+    _migrate_legacy_if_present()
+    rows: list[dict[str, Any]] = []
+    for path in _iter_session_files():
+        for message_key, record in _read_session_map(path).items():
+            if not isinstance(record, dict):
+                continue
+            safe_key = safe_assignment_text(message_key, limit=240)
+            safe = _safe_record(record, client_message_id=safe_key) if safe_key else None
+            if safe is not None:
+                rows.append(safe)
+    return rows
