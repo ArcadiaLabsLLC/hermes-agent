@@ -183,3 +183,38 @@ root (`--namespace base`, read-only; Mission Control no longer reads it, only th
 there): 47 rows — 44 `completed`, 2 `cancelled`, **1 `queued`**. The 15 non-terminal rows of the
 2026-09-04 census did not come across in the 2026-10-20 seed; nothing in the live store blocks the
 retirement.
+
+## Batch C — `agent_runtime.mission_chat.lean_operative_rules` on (22:24–22:30)
+
+Flag set in the namespace ROOT config with `hermes --profile default config set …` (the knob reads
+the root config only), serve drained (`serve connect --drain` → `drain_complete`, old serve exited,
+`29380.ended.json reason=drained`, inside 8 s of the request) and restarted (pid 34320); afterwards
+`config unset` and the file is back to its bytes except `_config_version: 50 → 51`, which the `set`
+verb bumped.
+
+**R4 A/B (`RT-CHAT-TURN-22K-TOKENS`) — DONE.** Same persona, model and effort, first turn "hi":
+
+| arm | system chars (foundation / Mission Control / volatile) | first-turn `in=` |
+|---|---|---|
+| OFF (A1) | 25,634 (4,856 / 11,626 / 9,154) | 17,388 |
+| ON (C1) | 18,892 (4,853 / 4,881 / 9,154) | 15,293 |
+
+ON cuts the Mission Control section by 6,745 chars and the first turn by 2,095 tokens (12%). Neko
+kept the threading rules with the flag on: it answered both teammates in their threads and looked for
+a `clarify_token` each time, without calling `tool_describe` on `agent_chat_send`.
+
+**Clarify check (`RT-LEAN-OPERATIVE-RULES`) — could not pass, for a reason outside the flag.** Two
+attempts (C2 → Launcher Dev, codex; C3 → Base, anthropic), each told to call its `clarify` tool.
+`agent_chat_send` was promoted to a background dispatch both times. Dev asked in plain text. Base
+DID call `clarify` (`tool clarify completed`, 22:29:01), but the `BACKGROUND DISPATCH COMPLETE`
+delivery handed Neko only `--- THEIR REPLY --- Which colour should the throwaway test badge be: blue
+or green?` — no `clarify_request`, no `clarify_token`, no choices. Neko answered "green" by thread,
+as the rules say to when there is no token. The token never reached the asking agent: row
+`RT-DISPATCH-DELIVERY-DROPS-CLARIFY`. Turns: 3 operator turns on chat `…8fc0db3c1397` plus 4 relay
+deliveries to Neko and 4 teammate turns.
+
+## RT-SEND-PREP-FIXES-LIVE-PROOF — part (a) read
+
+On every warm CLI turn of the sitting the receipt reads `tool_form_receipt source=unchanged
+publishes=0 pin_written=0 names=24 json_bytes=42172` and `turn_context_receipt … mcp_refresh_ms=0`.
+Parts (b) and (c) are timing reads and wait for an idle box.
