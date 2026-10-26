@@ -124,7 +124,27 @@ def stamp_in_future(text: Any, *, now: float | None = None) -> bool:
 
 
 def machine_id() -> str:
-    """This machine's key in ``machines.<id>``: the gateway install id of this store root."""
+    """This machine's key in ``machines.<id>``: the PC's machine id (RT-MACHINE-ID), minted once.
+
+    Not the store root's install id — that names one namespace and a reseed re-mints it, which is
+    how a workspace's only report came to sit under a dead id (RT-SLOT-MACHINE-ID-IS-NAMESPACE-INSTALL).
+    Each report carries the namespace it came from as a field (:func:`report_namespace`).
+    """
+
+    from .machine_identity import MachineIdentityUnavailable, ensure_machine_id
+
+    try:
+        return ensure_machine_id()
+    except MachineIdentityUnavailable as exc:
+        raise SlotRefused(REASON_MACHINE_UNIDENTIFIED, exc.state) from exc
+
+
+def install_id() -> str:
+    """The gateway install id of this store root — per NAMESPACE (ruling 3), minted on first use.
+
+    The Work writer's commit identity and branch prefix: two namespaces on one PC cut worktrees of
+    one shared clone, so their branch names must differ, which the machine id would not give.
+    """
 
     from .gateway_identity import ensure_install_identity
 
@@ -132,6 +152,37 @@ def machine_id() -> str:
     if not identity.ok or not identity.install_id:
         raise SlotRefused(REASON_MACHINE_UNIDENTIFIED, identity.state)
     return str(identity.install_id)
+
+
+def legacy_machine_key() -> str | None:
+    """The pre-RT-MACHINE-ID ``machines`` key this namespace reported under (its install id), unminted."""
+
+    from .gateway_identity import read_install_identity
+
+    identity = read_install_identity(paths.store_root())
+    return str(identity.install_id) if identity.ok and identity.install_id else None
+
+
+def report_namespace() -> str:
+    """The namespace a report is written from: ``HERMES_NAMESPACE``, ``base`` for the base root."""
+
+    from hermes_cli._namespace_bootstrap import BASE_ID, namespace_stamp
+
+    return namespace_stamp() or BASE_ID
+
+
+def rekey_legacy_report(document: dict[str, Any], me: str, legacy: str | None) -> bool:
+    """Move this namespace's report from its install-id key to the machine id, once. True when moved.
+
+    Idempotent: nothing moves when the machine key already holds a report or there is no legacy one.
+    Another namespace's install-id key is left alone — only the namespace that wrote it can say so.
+    """
+
+    machines = document.setdefault("machines", {})
+    if not legacy or legacy == me or legacy not in machines or me in machines:
+        return False
+    machines[me] = machines.pop(legacy)
+    return True
 
 
 # ── the document ─────────────────────────────────────────────────────────────
@@ -576,7 +627,11 @@ __all__ = [
     "declare_one_slot",
     "live_slots",
     "load_document",
+    "install_id",
+    "legacy_machine_key",
     "machine_id",
+    "rekey_legacy_report",
+    "report_namespace",
     "scoped_roots",
     "show",
     "slot_census",
@@ -613,10 +668,9 @@ def require_publish_right(workspace_id: str, credential: Any = None) -> None:
 def known_machine_id() -> str | None:
     """This machine's ``machines.<id>`` key WITHOUT minting one — the snapshot path writes nothing."""
 
-    from .gateway_identity import read_install_identity
+    from .machine_identity import read_machine_id
 
-    identity = read_install_identity(paths.store_root())
-    return str(identity.install_id) if identity.ok and identity.install_id else None
+    return read_machine_id()
 
 
 def snapshot_slots(workspace_id: str, *, machine: str | None) -> dict[str, Any]:
@@ -630,7 +684,9 @@ def snapshot_slots(workspace_id: str, *, machine: str | None) -> dict[str, Any]:
     """
 
     document = load_document(workspace_id)
-    mine = ((document.get("machines") or {}).get(machine) or {}) if machine else {}
+    machines = document.get("machines") or {}
+    # Until this namespace reports again its last report may still sit under its install id.
+    mine = (machines.get(machine) if machine else None) or machines.get(legacy_machine_key() or "") or {}
     reported = mine.get("slots") or {}
     roots = scoped_roots(refresh=False, migrate=False)
     slots = {}

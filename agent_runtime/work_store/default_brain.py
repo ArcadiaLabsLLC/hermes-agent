@@ -45,8 +45,8 @@ from ..workspace_slots import (
     SlotRefused,
     bound_path,
     live_slots,
+    install_id,
     load_document,
-    machine_id,
     stamp_epoch,
 )
 from . import receipts
@@ -156,12 +156,13 @@ def _commit_skeleton(root: Path, workspace_id: str, machine: str) -> None:
 
 
 def this_machine() -> str:
-    """This machine's id (the commit identity), refused ``machine_identity_unavailable`` as a Work refusal;
+    """This namespace's install id (the commit identity and branch prefix — per namespace, so two namespaces
+    on one PC never cut one branch name of a shared clone; RT-MACHINE-ID), refused ``machine_identity_unavailable`` as a Work refusal;
     the one owner of that wrapper (the batch dispatcher, the serve scheduler and ``work.store.writer_for``
     read it). Whether git is shipped is the lanes caller's check."""
 
     try:
-        return machine_id()
+        return install_id()
     except SlotRefused as exc:
         raise WorkRefused(Reason.MACHINE_UNIDENTIFIED, exc.detail or REASON_MACHINE_UNIDENTIFIED) from exc
 

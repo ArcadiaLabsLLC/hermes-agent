@@ -107,6 +107,8 @@ _CHECKOUTS = frozenset({CHECKOUT_MATCHES, CHECKOUT_REMOTE_MISMATCH, CHECKOUT_NOT
 _PROBES = frozenset({PROBE_SET, PROBE_MISSING, PROBE_UNKNOWN})
 _ROW_KEYS = frozenset({"status", "bound", "checkout", "tools", "env_keys", "dotenv", "unknowns", "adopted_existing_root"})
 _VERSION_RE = re.compile(r"^\d+\.\d+(?:\.\d+)?$")
+#: A report's ``namespace`` field: a namespace id (``hermes_cli._namespace_bootstrap`` charset) or ``base``.
+_NAMESPACE_FIELD_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,47}")
 _KEY_RE = re.compile(r"^[A-Za-z0-9_.+-]{1,64}$")
 
 #: A label a refusal may print as-is: an identifier with no ``=``, no ``://``, no space — so no
@@ -300,10 +302,17 @@ def _held_report_row(row: Any, now: float) -> dict[str, Any]:
 
 
 def _held_machine(entry: Any, now: float, refused: list[dict[str, str]], label: str) -> dict[str, Any]:
-    """Another machine's whole entry, ``{reported_at, slots}``, or :class:`_ReportRefused`."""
+    """Another machine's whole entry, ``{reported_at, slots[, namespace]}``, or :class:`_ReportRefused`.
 
-    if (not isinstance(entry, dict) or set(entry) != {"reported_at", "slots"} or not isinstance(entry["slots"], dict)
+    ``namespace`` (RT-MACHINE-ID) is the namespace the report was written from: an id, or ``base``.
+    """
+
+    if (not isinstance(entry, dict) or not {"reported_at", "slots"} <= set(entry) <= {"reported_at", "slots", "namespace"}
+            or not isinstance(entry["slots"], dict)
             or not isinstance(entry["reported_at"], str) or stamp_epoch(entry["reported_at"]) is None):
+        raise _ReportRefused()
+    namespace = entry.get("namespace")
+    if namespace is not None and not (isinstance(namespace, str) and _NAMESPACE_FIELD_RE.fullmatch(namespace)):
         raise _ReportRefused()
     if stamp_in_future(entry["reported_at"], now=now):
         raise _ReportRefused(REASON_STAMP_IN_FUTURE)
@@ -315,7 +324,7 @@ def _held_machine(entry: Any, now: float, refused: list[dict[str, str]], label: 
             slots[name] = _held_report_row(entry["slots"][name], now)
         except _ReportRefused as exc:
             refused.append({"machine": label, "slot": _label(name), "reason": exc.reason})
-    return {"reported_at": entry["reported_at"], "slots": slots}
+    return {"reported_at": entry["reported_at"], **({"namespace": namespace} if namespace else {}), "slots": slots}
 
 
 def _held_machines(raw: Any, *, me: str | None, now: float, refused: list[dict[str, str]]) -> dict[str, Any]:

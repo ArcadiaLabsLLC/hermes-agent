@@ -30,7 +30,17 @@ from typing import Any, Callable
 from .builds.unknowns import UNKNOWN_SLOT_PROBE_UNKNOWN, UnknownsIndex
 from .workspace_slot_env import SlotFill, slot_fill
 from .workspace_slot_recipe import READY_UNKNOWN, READY_YES, readiness
-from .workspace_slots import _now_iso, bound_path, live_slots, load_document, machine_id, write_document
+from .workspace_slots import (
+    _now_iso,
+    bound_path,
+    legacy_machine_key,
+    live_slots,
+    load_document,
+    machine_id,
+    rekey_legacy_report,
+    report_namespace,
+    write_document,
+)
 
 __layer__ = "stores"
 
@@ -192,6 +202,7 @@ def report(
 
     me = machine_id()
     document = load_document(workspace_id)
+    rekey_legacy_report(document, me, legacy_machine_key())
     previous = ((document.get("machines") or {}).get(me) or {}).get("slots") or {}
     stamp = time.time() if now is None else now
     slots = {}
@@ -200,7 +211,7 @@ def report(
         if row["bound"] and name not in previous and name not in fresh_binds:
             row["adopted_existing_root"] = True
         slots[name] = row
-    entry = {"reported_at": _now_iso(), "slots": slots}
+    entry = {"reported_at": _now_iso(), "namespace": report_namespace(), "slots": slots}
     document.setdefault("machines", {})[me] = entry
     write_document(workspace_id, document)
     return {"machine": me, **entry}
