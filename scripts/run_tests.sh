@@ -187,6 +187,7 @@ echo "  (TZ=UTC LANG=C.UTF-8 PYTHONHASHSEED=0; clean env)"
 cd "$REPO_ROOT"
 
 fork_real_root_fence
+fork_seed_heavy_durations "$SCRIPT_DIR/fork_heavy_test_files.txt" "$REPO_ROOT/test_durations.json" || exit 2
 # Fork (Git Bash / MSYS / WSL): a native-Windows "$PYTHON" (…/Scripts/python.exe)
 # cannot open a POSIX-style /x/... or /mnt/x/... script path, so translate the
 # runner path to the spelling Windows itself uses before exec'ing.

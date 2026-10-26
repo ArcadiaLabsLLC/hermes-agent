@@ -223,3 +223,37 @@ fork_real_root_fence() {
   fi
   fork_refuse_live_home_interpreter
 }
+
+# Fork (FH-TOOLING-LANE-TIMEOUTS-ICON-INSTALL, 2026-10-25): upstream's runner gives a file
+# max(flat cap, 3 x its last CLEAN duration) from the gitignored test_durations.json, so a
+# file that never once passed inside the flat 300 s cap never earns a duration and times out
+# forever as "no tests ran" — a real red there is invisible. scripts/fork_heavy_test_files.txt
+# names each such file with a MEASURED clean wall (`path seconds  # where measured`); this
+# seeds the cache with it, absent keys only, so a real measurement is never lowered.
+fork_seed_heavy_durations() {
+  local list="$1" cache="$2"
+  [ -f "$list" ] || return 0
+  "$PYTHON" - "$list" "$cache" <<'PY' || return 2
+import json, re, sys
+from pathlib import Path
+listing, cache = Path(sys.argv[1]), Path(sys.argv[2])
+seeds = {}
+for number, raw in enumerate(listing.read_text(encoding="utf-8").splitlines(), 1):
+    line = raw.split("#", 1)[0].strip()
+    if not line:
+        continue
+    match = re.fullmatch(r"(tests/\S+\.py)\s+(\d+(?:\.\d+)?)", line)
+    if not match:
+        sys.exit(f"error: {listing}:{number}: expected `tests/<file>.py <seconds>`: {raw}")
+    seeds[str(Path(match.group(1)))] = float(match.group(2))  # the runner keys by str(Path): OS separators
+try:
+    data = json.loads(cache.read_text(encoding="utf-8-sig")) if cache.is_file() else {}
+except (OSError, ValueError):
+    data = {}
+added = {key: value for key, value in seeds.items() if key not in data}
+if added:
+    data.update(added)
+    cache.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print("▶ seeded heavy-file durations: " + ", ".join(sorted(added)))
+PY
+}

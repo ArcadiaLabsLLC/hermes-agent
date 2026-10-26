@@ -1,0 +1,6 @@
+# Files whose clean wall exceeds the runner's flat 300 s file cap under load, so they never
+# earn a durations-cache entry and time out as "no tests ran" (FH-TOOLING-LANE-TIMEOUTS-ICON-INSTALL).
+# `tests/<file>.py <seconds>` — a MEASURED clean wall; the runner then allows 3x. Seeded into the
+# gitignored test_durations.json only when the file has no entry (scripts/_fork_test_env.sh).
+tests/scripts/test_icon_flavors.py 281  # 12 passed alone, 2026-10-25 lane w1025b-h-misc (generate fixture 159 s setup)
+tests/scripts/install/test_install_ps1_native_calls.py 171  # 5 passed alone, 2026-10-25 lane w1025b-h-misc

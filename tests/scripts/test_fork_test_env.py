@@ -113,3 +113,42 @@ def test_run_tests_calls_both_moved_policies():
     door = (REPO / "scripts" / "_fork_test_env.sh").read_text(encoding="utf-8")
     fence = door[door.index("fork_real_root_fence() {"):]
     assert fence.index("REAL_HERMES_ROOT=") < fence.index("fork_refuse_live_home_interpreter")
+
+
+def _seed(tmp_path: Path, listing: str, cache_text: str | None) -> tuple[subprocess.CompletedProcess, Path]:
+    lst = tmp_path / "heavy.txt"
+    lst.write_text(listing, encoding="utf-8", newline="\n")
+    cache = tmp_path / "test_durations.json"
+    if cache_text is not None:
+        cache.write_text(cache_text, encoding="utf-8")
+    door = (REPO / "scripts" / "_fork_test_env.sh").as_posix()
+    python = Path(sys.executable).as_posix()
+    script = f'PYTHON="{python}"; . "{door}"; fork_seed_heavy_durations "{lst.as_posix()}" "{cache.as_posix()}"'
+    return subprocess.run([BASH, "-c", script], capture_output=True, text=True, timeout=60, check=False), cache
+
+
+@pytest.mark.skipif(sys.platform == "win32" and not Path(BASH).is_file(), reason="Git Bash not installed")
+def test_a_heavy_file_gets_its_measured_duration_and_a_real_one_is_never_lowered(tmp_path):
+    """FH-TOOLING-LANE-TIMEOUTS-ICON-INSTALL: the runner allows 3x a cached CLEAN wall, so a file that
+    never passed inside the flat cap needs a seeded one. The key is the runner's own spelling,
+    ``str(Path)``; an entry already there (a real measurement) is the positive control: it stays."""
+    import json
+
+    own = str(Path("tests/scripts/test_own.py"))
+    proc, cache = _seed(tmp_path, "# why\ntests/scripts/test_heavy.py 281  # measured\ntests/scripts/test_own.py 999\n",
+                        json.dumps({own: 12.5}))
+    assert proc.returncode == 0, proc.stderr
+    assert json.loads(cache.read_text(encoding="utf-8")) == {
+        own: 12.5, str(Path("tests/scripts/test_heavy.py")): 281.0}
+    bad, _ = _seed(tmp_path, "tests/scripts/test_heavy.py soon\n", None)
+    assert bad.returncode == 2 and "expected" in bad.stderr
+
+
+def test_the_runner_reads_the_seeded_key_spelling():
+    """The seed is only worth anything if upstream's runner looks the file up by the same key."""
+    from scripts.run_tests_parallel import _effective_file_timeout
+
+    key = str(Path("tests/scripts/test_icon_flavors.py"))
+    assert _effective_file_timeout(REPO / key, REPO, 300.0, {key: 281.0}) == 843.0
+    listed = (REPO / "scripts" / "fork_heavy_test_files.txt").read_text(encoding="utf-8")
+    assert "tests/scripts/test_icon_flavors.py" in listed and "test_install_ps1_native_calls.py" in listed
