@@ -43,6 +43,10 @@ Read in this order for a full picture; each stands alone for its own territory.
 
 ## planned/ — designed, not implemented
 
+- [Agent Console follow-up suggestions](planned/console-next-prompt-2026-10-26.md)
+  — pinned next-prompt reuse audit, persona safeguards, false-default global
+  settings, API map, options and bounded-load acceptance; planning only, gated by
+  `RT-NEXT-PROMPT-DECISIONS` in the runtime queue.
 - [Naming and address map](planned/naming-and-address-map-2026-10-25.md) — machine, install,
   namespace, agent profile, persona instance, realm workspace and repo slot as one typed address;
   the as-built map verified 2026-10-25 and the owner's rulings; design only, not shipped.

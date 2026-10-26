@@ -8,6 +8,12 @@ tags: [program/mission-control, program]
 
 # Mission Control (runtime side)
 
+`next_prompt_cursor::` 2026-10-26 — Planning only: [next-prompt reuse audit and
+cross-repo plan](../../docs/agent-runtime-harness/planned/console-next-prompt-2026-10-26.md)
+maps false-default Harness global settings, preserved persona authority, API
+connections and bounded-load proof. Five runtime rows start at
+`RT-NEXT-PROMPT-DECISIONS`; implementation is not authorized yet.
+
 `history_review_cursor::` 2026-10-14 — Old Console history review reconciled
 against the landed owners; missing safety coverage and private-API seam record
 added. Dispatch cancellation preserves the owning lane's verdict through RPC.
