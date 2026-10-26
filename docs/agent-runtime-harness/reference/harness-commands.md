@@ -92,6 +92,10 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness skills promote](#hermes-harness-skills-promote)
 - [hermes harness skills delete](#hermes-harness-skills-delete)
 - [hermes harness skills restore](#hermes-harness-skills-restore)
+- [hermes harness skills pending](#hermes-harness-skills-pending)
+- [hermes harness skills pending list](#hermes-harness-skills-pending-list)
+- [hermes harness skills pending approve](#hermes-harness-skills-pending-approve)
+- [hermes harness skills pending reject](#hermes-harness-skills-pending-reject)
 - [hermes harness prompt-context](#hermes-harness-prompt-context)
 - [hermes harness prompt-context show](#hermes-harness-prompt-context-show)
 - [hermes harness board](#hermes-harness-board)
@@ -1666,10 +1670,10 @@ options:
 
 ```text
 usage: hermes harness skills [-h]
-                             {inventory,link-external,catalog,publishable,inbox,promote,delete,restore} ...
+                             {inventory,link-external,catalog,publishable,inbox,promote,delete,restore,pending} ...
 
 positional arguments:
-  {inventory,link-external,catalog,publishable,inbox,promote,delete,restore}
+  {inventory,link-external,catalog,publishable,inbox,promote,delete,restore,pending}
     inventory           Typed snapshot of the shared skill catalog, per-persona grants, and per-
                         realm publish/drift state
     link-external       Link the shared skills root into external harnesses (~/.claude, ~/.codex)
@@ -1685,6 +1689,8 @@ positional arguments:
                         record a tombstone so a member's surviving copy cannot republish it
     restore             Lift ONE realm's skill tombstone (un-tombstone only — re-admitting the BYTES
                         is `skills promote`, and the receipt names the archived copy)
+    pending             Staged skill writes (a background review's write to a SHARED skill) across
+                        every profile: list, approve, reject
 
 options:
   -h, --help            show this help message and exit
@@ -1831,6 +1837,61 @@ options:
   -q, --quiet
   --no-color
   --fields FIELDS
+```
+
+## hermes harness skills pending
+
+```text
+usage: hermes harness skills pending [-h] {list,approve,reject} ...
+
+positional arguments:
+  {list,approve,reject}
+    list                List every staged skill write with its profile, id, summary and diff
+    approve             Apply one staged write (upstream's replay under its profile's home); the
+                        record is dropped only when it applied
+    reject              Drop one staged write unapplied
+
+options:
+  -h, --help            show this help message and exit
+```
+
+## hermes harness skills pending list
+
+```text
+usage: hermes harness skills pending list [-h] [--profile PROFILE] [--json]
+
+options:
+  -h, --help         show this help message and exit
+  --profile PROFILE  Only this profile (default: every profile of the namespace)
+  --json
+```
+
+## hermes harness skills pending approve
+
+```text
+usage: hermes harness skills pending approve [-h] --profile PROFILE [--json] id
+
+positional arguments:
+  id                 The pending id `pending list` prints
+
+options:
+  -h, --help         show this help message and exit
+  --profile PROFILE  The profile the write is staged in
+  --json
+```
+
+## hermes harness skills pending reject
+
+```text
+usage: hermes harness skills pending reject [-h] --profile PROFILE [--json] id
+
+positional arguments:
+  id                 The pending id `pending list` prints
+
+options:
+  -h, --help         show this help message and exit
+  --profile PROFILE  The profile the write is staged in
+  --json
 ```
 
 ## hermes harness prompt-context

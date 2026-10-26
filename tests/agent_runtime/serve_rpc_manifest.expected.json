@@ -301,6 +301,9 @@
     "runtime.settles.list",
     "runtime.settles.rearm",
     "runtime.skills.catalog",
+    "runtime.skills.pending.approve",
+    "runtime.skills.pending.list",
+    "runtime.skills.pending.reject",
     "runtime.speech.load",
     "runtime.speech.recognize.begin",
     "runtime.speech.recognize.cancel",
@@ -894,6 +897,17 @@
       "credential",
       "realm_id"
     ],
+    "runtime.skills.pending.approve": [
+      "id",
+      "profile"
+    ],
+    "runtime.skills.pending.list": [
+      "profile"
+    ],
+    "runtime.skills.pending.reject": [
+      "id",
+      "profile"
+    ],
     "runtime.work.capabilities": [
       "observe"
     ],
@@ -1204,6 +1218,9 @@
     "runtime.settles.list": "console",
     "runtime.settles.rearm": "console",
     "runtime.skills.catalog": "read",
+    "runtime.skills.pending.approve": "console",
+    "runtime.skills.pending.list": "console",
+    "runtime.skills.pending.reject": "console",
     "runtime.speech.load": "console",
     "runtime.speech.recognize.begin": "console",
     "runtime.speech.recognize.cancel": "console",

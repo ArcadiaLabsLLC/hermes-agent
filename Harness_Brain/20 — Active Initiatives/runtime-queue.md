@@ -54,7 +54,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-25 (owner's Neko trial audit, turn `agent-chat-send-4743c92d-af53-4bbb-ab40-5438eaa74895`)
 
-- **`RT-REVIEW-STAGED-SKILL-DOOR` — a background review's write to a shared skill is now staged in the AGENT PROFILE's `pending/skills/` (upstream's write-approval store), and the only door onto it is upstream's interactive `/skills pending|diff|approve|reject` run under that profile's home: there is no `hermes harness` verb or RPC that lists the staged writes across an account's agents, so the owner cannot see or approve them from Mission Control** · `agent_runtime/review_skill_gate.py::review_shared_skill_write` · a read-and-act pair (`runtime.skills.pending.list` / `.approve` / `.reject`, argv twins) over every profile of the namespace, replaying through `tools.skill_manager_tool.apply_skill_pending`; the launcher's view is its own row · READY 2026-10-26 · **TAKEN 2026-10-26 w1026a-h-a**
 
 ### Filed on arrival — 2026-10-24 (Projects repository TODO audit)
 

@@ -65,6 +65,8 @@ settles                  lanes   ``runtime.settles.list/rearm`` (the settle-push
                                  outbox's operator verbs)
 lens                     lanes   ``runtime.lens.*`` (Eternia Lens; code under
                                  ``agent_runtime/lens/``)
+skills_pending           lanes   ``runtime.skills.pending.list/approve/reject`` (staged
+                                 skill writes; ``agent_runtime/review_skill_pending.py``)
 =======================  ======  ================================================
 
 Each verb family registers its handlers on import; the family import below is
@@ -119,6 +121,7 @@ from agent_runtime.serve_rpc import (
     characters,
     settles,
     lens,
+    skills_pending,
 )
 from agent_runtime.serve_rpc.protocol import (
     DEFERRED,

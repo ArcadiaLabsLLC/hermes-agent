@@ -18,6 +18,7 @@ office_commands = lazy_module("hermes_cli.harness_parts.office")
 prompt_context_commands = lazy_module("hermes_cli.harness_parts.prompt_context_commands")
 skills_commands = lazy_module("hermes_cli.harness_parts.skills_commands")
 skills_promotion_commands = lazy_module("hermes_cli.harness_parts.skills_promotion_commands")
+skills_pending_commands = lazy_module("hermes_cli.harness_parts.skills_pending_commands")
 
 __layer__ = "wiring"
 __all__ = [
@@ -173,6 +174,27 @@ def add_skills(subs) -> None:
     skills_restore_cmd.add_argument("--realm", dest="realm", required=True, help="Realm id whose ledger entry is lifted (a tombstone is per-realm truth; there is no all-realms restore)")
     _add_stage42_global_args(skills_restore_cmd)
     skills_restore_cmd.set_defaults(func=skills_promotion_commands._cmd_skills_restore)
+
+    # RT-REVIEW-STAGED-SKILL-DOOR: argv twin of runtime.skills.pending.*.
+    skills_pending_cmd = skills_subs.add_parser(
+        "pending",
+        help="Staged skill writes (a background review's write to a SHARED skill) across every profile: list, approve, reject",
+    )
+    pending_subs = skills_pending_cmd.add_subparsers(dest="skills_pending_command", required=True)
+    pending_list = pending_subs.add_parser("list", help="List every staged skill write with its profile, id, summary and diff")
+    pending_list.add_argument("--profile", default=None, help="Only this profile (default: every profile of the namespace)")
+    pending_list.add_argument("--json", action="store_true")
+    pending_list.set_defaults(func=skills_pending_commands._cmd_skills_pending_list)
+    for verb, func, verb_help in (
+        ("approve", skills_pending_commands._cmd_skills_pending_approve,
+         "Apply one staged write (upstream's replay under its profile's home); the record is dropped only when it applied"),
+        ("reject", skills_pending_commands._cmd_skills_pending_reject, "Drop one staged write unapplied"),
+    ):
+        pending_verb = pending_subs.add_parser(verb, help=verb_help)
+        pending_verb.add_argument("id", help="The pending id `pending list` prints")
+        pending_verb.add_argument("--profile", required=True, help="The profile the write is staged in")
+        pending_verb.add_argument("--json", action="store_true")
+        pending_verb.set_defaults(func=func)
 
 
 def add_prompt_context(subs) -> None:
