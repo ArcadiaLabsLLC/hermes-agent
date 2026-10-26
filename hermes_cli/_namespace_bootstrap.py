@@ -51,7 +51,13 @@ from pathlib import Path
 ENV = "HERMES_NAMESPACE"
 DIR_ENV = "HERMES_NAMESPACES_DIR"
 LAUNCHER_ENV = "HERMES_LAUNCHER_SPAWNED"
+#: How THIS process reached its namespace (``env`` | ``argv`` | ``active-file``) — exported for children.
 SOURCE_ENV = "HERMES_NAMESPACE_SOURCE"
+#: What KIND of namespace it is, which only the launcher knows (RT-NAMESPACE-ORIGIN, naming map ruling 2):
+#: ``account`` (the signed-in account's) or ``launcher-profile`` (an ``ETERNIA_PROFILE`` sandbox / QA store).
+ORIGIN_ENV = "HERMES_NAMESPACE_ORIGIN"
+ORIGIN_ACCOUNT, ORIGIN_LAUNCHER_PROFILE = "account", "launcher-profile"
+ORIGINS = (ORIGIN_ACCOUNT, ORIGIN_LAUNCHER_PROFILE)
 DEPENDENCY_ENV = "HERMES_DEPENDENCY_ROOT"
 FLAG = "--namespace"
 BASE_ID = "base"
@@ -86,6 +92,17 @@ def namespace_kind(ns_id: str) -> str:
     if ACCOUNT_ID.fullmatch(ns_id):
         return KIND_ACCOUNT
     return KIND_ACCOUNT_SANDBOX if ACCOUNT_SANDBOX_ID.fullmatch(ns_id) else KIND_PROFILE
+
+
+def inferred_origin(ns_id: str) -> str:
+    """The origin an id's FORM implies, for a manifest written before the launcher handed one in."""
+    return ORIGIN_LAUNCHER_PROFILE if namespace_kind(ns_id) == KIND_PROFILE else ORIGIN_ACCOUNT
+
+
+def namespace_origin(manifest: Mapping[str, object] | None, ns_id: str) -> str:
+    """The namespace's recorded ``origin``; the id-form inference only when none is recorded."""
+    recorded = manifest.get("origin") if isinstance(manifest, Mapping) else None
+    return recorded if recorded in ORIGINS else inferred_origin(ns_id)
 
 
 def sandbox_account(ns_id: str) -> str | None:
@@ -124,6 +141,7 @@ class Reason(StrEnum):
     MEMORIES_NOT_ACCOUNT = "namespace_memories_not_account"
     INSTANCE_NOT_REBASED = "namespace_instance_not_rebased"
     DEV_ONLY = "namespace_dev_only"
+    INVALID_ORIGIN = "namespace_invalid_origin"
     EPOCH_NEWER = "namespace_epoch_newer"
     EPOCH_CONSENT_REQUIRED = "namespace_epoch_consent_required"
 
@@ -467,24 +485,53 @@ def store_epoch_module():
     return module
 
 
-def ensure_manifest(item: Layout) -> bool:
+def requested_origin(env: Mapping[str, str]) -> str | None:
+    """``HERMES_NAMESPACE_ORIGIN`` as handed in, ``None`` when unset; any other word refuses."""
+    raw = str(env.get(ORIGIN_ENV) or "").strip()
+    if not raw:
+        return None
+    if raw not in ORIGINS:
+        raise NamespaceRefused(Reason.INVALID_ORIGIN, f"{ORIGIN_ENV}={raw!r}; want one of {', '.join(ORIGINS)}")
+    return raw
+
+
+def ensure_manifest(item: Layout, origin: str | None = None) -> bool:
     """Write ``namespace.json`` on first resolve; True when this call created it.
 
     A new store is stamped at creation with this build's epoch (RT-STORE-EPOCH): it was shaped by
-    this build, so no consent is ever asked for it.
+    this build, so no consent is ever asked for it. It records ``origin`` (RT-NAMESPACE-ORIGIN): the
+    one the launcher handed in, else the id form's. A manifest written before ``origin`` existed gets
+    it once, the same way; a recorded origin is never rewritten.
     """
     if item.manifest_path.is_file():
+        _backfill_origin(item, origin)
         return False
     item.root.mkdir(parents=True, exist_ok=True)
     epoch = store_epoch_module()
     record = {"schema": SCHEMA, "id": item.id, "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
-              "epoch": epoch.epoch_block()}
+              "epoch": epoch.epoch_block(), "origin": origin or inferred_origin(item.id)}
     try:
         with open(item.manifest_path, "x", encoding="utf-8") as handle:
             json.dump(record, handle, indent=2, sort_keys=True)
     except FileExistsError:
         return False
     return True
+
+
+def _backfill_origin(item: Layout, origin: str | None) -> None:
+    try:
+        record = json.loads(item.manifest_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return  # an unreadable manifest is the epoch guard's to judge, never rewritten here
+    if not isinstance(record, dict) or record.get("origin") in ORIGINS:
+        return
+    record["origin"] = origin or inferred_origin(item.id)
+    tmp = item.manifest_path.with_suffix(".json.origin.tmp")
+    try:
+        tmp.write_text(json.dumps(record, indent=2, sort_keys=True), encoding="utf-8")
+        os.replace(tmp, item.manifest_path)
+    except OSError:
+        tmp.unlink(missing_ok=True)
 
 
 def apply_cli_namespace(argv: list[str] | None = None, environ: MutableMapping[str, str] | None = None) -> CliResolution:
@@ -497,7 +544,7 @@ def apply_cli_namespace(argv: list[str] | None = None, environ: MutableMapping[s
     try:
         res = resolve_cli(args, target)
         if res.layout is not None:
-            ensure_manifest(res.layout)
+            ensure_manifest(res.layout, requested_origin(target))
     except NamespaceRefused as exc:
         sys.stderr.write(json.dumps(exc.payload()) + "\n")
         sys.stderr.flush()

@@ -35,15 +35,16 @@ from pathlib import Path
 from typing import Any
 
 from hermes_cli._namespace_bootstrap import (
-    ACCOUNT_ID,
     BASE_ID,
     MANIFEST_NAME,
+    ORIGIN_ACCOUNT,
     STORE_DIRNAME,
     Layout,
     NamespaceRefused,
     Reason,
     ensure_manifest,
     layout,
+    namespace_origin,
     sandbox_account,
     validate_id,
 )
@@ -258,7 +259,8 @@ def seed(target_id: str, source: str, env: Mapping[str, str], *, dry_run: bool =
     """
     item = layout(target_id, env)
     owner = sandbox_account(item.id)
-    if with_memories and not (ACCOUNT_ID.fullmatch(item.id) or owner):
+    # RT-NAMESPACE-ORIGIN: the recorded origin decides "account", the id form only when none is recorded.
+    if with_memories and namespace_origin(_namespace_manifest(item), item.id) != ORIGIN_ACCOUNT:
         raise NamespaceRefused(Reason.MEMORIES_NOT_ACCOUNT,
                                f"--with-memories seeds only an account namespace (acct-<16 hex>) or its sandbox "
                                f"(acct-<16 hex>-dev), not {item.id!r}")

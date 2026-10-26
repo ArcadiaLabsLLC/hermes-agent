@@ -33,6 +33,7 @@ from hermes_cli._namespace_bootstrap import (
     base_root,
     layout,
     namespace_kind,
+    namespace_origin,
     namespaces_dir,
     validate_id,
 )
@@ -170,7 +171,9 @@ def reset(ns_id: str, env: Mapping[str, str]) -> dict[str, Any]:
     _rm(socket_lock_path(item.store_root))
     if item.store_root.is_dir() and not any(item.store_root.iterdir()):
         item.store_root.rmdir()
-    _write_manifest(item, restamped({"schema": 1, "id": item.id, "created_at": _now(), "reset_at": _now()}))
+    origin = namespace_origin(_namespace_manifest(item), item.id)  # a reset keeps what kind of namespace it is
+    _write_manifest(item, restamped({"schema": 1, "id": item.id, "created_at": _now(), "reset_at": _now(),
+                                     "origin": origin}))
     return {"ok": True, "verb": "reset", "id": item.id, "root": str(item.root)}
 
 
@@ -180,8 +183,9 @@ def delete(ns_id: str, env: Mapping[str, str]) -> dict[str, Any]:
     item = existing_namespace(ns_id, env)
     with _exclusive(item):
         _empty_keeping_lock(item)
+    origin = namespace_origin(_namespace_manifest(item), item.id)
     _rm(item.root)
-    return {"ok": True, "verb": "delete", "id": item.id, "root": str(item.root)}
+    return {"ok": True, "verb": "delete", "id": item.id, "origin": origin, "root": str(item.root)}
 
 
 def _namespace_bytes(root: Path) -> int:
@@ -219,7 +223,8 @@ def list_namespaces(env: Mapping[str, str]) -> dict[str, Any]:
         if manifest is None:
             continue
         rows.append({
-            "id": item.id, "kind": namespace_kind(item.id), "root": str(item.root),
+            "id": item.id, "kind": namespace_kind(item.id), "origin": namespace_origin(manifest, item.id),
+            "root": str(item.root),
             "size_bytes": _namespace_bytes(item.root), "last_serve_at": _last_serve(item), "busy": busy_reason(item),
             "created_at": manifest.get("created_at"), "seeded_from": manifest.get("seeded_from"),
         })
