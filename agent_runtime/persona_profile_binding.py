@@ -236,7 +236,6 @@ def instance_busy_reason(
     row: Mapping[str, Any],
     *,
     live_binding: bool = False,
-    assignment_in_flight: bool = False,
 ) -> str | None:
     """PURE: the typed reason this persona-instance row is in flight, or None.
 
@@ -250,7 +249,7 @@ def instance_busy_reason(
         return BUSY_LIVE_BINDING
     if _clean(row.get("active_run_id")):
         return BUSY_ACTIVE_RUN
-    if assignment_in_flight or _clean(row.get("current_assignment_id")):
+    if _clean(row.get("current_assignment_id")):
         return BUSY_ASSIGNMENT_IN_FLIGHT
     if _clean(row.get("current_task_id")):
         return BUSY_TASK_BOUND
@@ -269,26 +268,11 @@ def _instance_rows_for_persona(persona_id: str, *, event_log: EventLog | None = 
     one row ``ensure_for_persona`` heals.
     """
 
-    from .persona_assignments import PersonaAssignmentStore, PersonaInstanceStore
+    from .persona_assignments import PersonaInstanceStore
     from .serde import to_jsonable
 
     store = PersonaInstanceStore(event_log=event_log)
     instances = [item for item in store.list_all() if str(getattr(item, "persona_id", "") or "") == persona_id]
-    try:
-        active_assignment_instance_ids = {
-            str(getattr(assignment, "persona_instance_id", "") or "")
-            for assignment in PersonaAssignmentStore(event_log=event_log).find_active(persona_id=persona_id)
-        }
-    except Exception as exc:  # fail CLOSED: this is a safety gate
-        # An unreadable assignment store cannot prove nothing is in flight.
-        # Degrading to "no active assignments" would silently weaken the guard
-        # that stops a rebind from swapping the prompt+credentials out from
-        # under a running assignment, so refuse instead.
-        raise PersonaProfileRebindError(
-            "assignment_store_unreadable",
-            f"cannot verify in-flight assignments for {persona_id}: {_safe_text(exc)}",
-            details={"persona_id": persona_id},
-        ) from exc
     rows: list[dict[str, Any]] = []
     for instance in instances:
         raw = to_jsonable(instance)
@@ -306,11 +290,7 @@ def _instance_rows_for_persona(persona_id: str, *, event_log: EventLog | None = 
                 "mode": instance.mode,
                 "profile_id": instance.profile_id,
                 "state": _state_text(raw.get("state")),
-                "busy_reason": instance_busy_reason(
-                    raw,
-                    live_binding=live,
-                    assignment_in_flight=instance.id in active_assignment_instance_ids,
-                ),
+                "busy_reason": instance_busy_reason(raw, live_binding=live),
             }
         )
     return sorted(rows, key=lambda row: row["persona_instance_id"])

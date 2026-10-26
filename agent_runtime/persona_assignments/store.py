@@ -56,8 +56,8 @@ __all__ = [
 ]
 
 
-# S70 removed ``PersonaAssignmentSpec`` with the assignment MINT side (see the
-# note above ``PersonaAssignmentStore``). The spec's one production consumer was
+# S70 removed ``PersonaAssignmentSpec`` with the assignment MINT side (the rest
+# of the store went at RT-FULL-PERSONAASSIGNMENTSTORE, 2026-10-25). The spec's one production consumer was
 # ``create_or_resume``, whose one caller was the retired free-floating queue
 # verb chain.
 

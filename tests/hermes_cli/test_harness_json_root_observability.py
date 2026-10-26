@@ -138,13 +138,12 @@ LEDGER: dict[str, str] = {
         "_cmd_persona_list", "_cmd_persona_show", "_cmd_persona_tool_diff",
         # the profile:<name> branch of tool_diff (w1015b-con-x, 7c6d1e1fce6)
         "_cmd_profile_permission_preview",
-        "_cmd_persona_permission_set", "_cmd_persona_assignments",
-        "_cmd_persona_assignment_task_id_migration",
+        "_cmd_persona_permission_set",
         "_cmd_persona_instance_create", "_cmd_persona_instance_open_chat",
         "_cmd_persona_instance_open_new_chat", "_cmd_persona_chat_delete",
         "_cmd_mission_chat_steer", "_cmd_mission_chat_queue_skill",
         "_cmd_mission_chat_clarify_tickets", "_cmd_mission_chat_turn_resolve",
-        "_cmd_persona_instance_close", "_cmd_persona_instance_retire",
+        "_cmd_persona_instance_retire",
         "_cmd_persona_instance_repair_steering", "_cmd_persona_instance_steer",
         "_cmd_persona_instance_return_summary", "_cmd_persona_instance_update_profile",
         "_cmd_persona_instance_set_model", "_cmd_persona_set_model",
@@ -181,10 +180,6 @@ LEDGER.update(
         # wrong root is a turn in a session the operator can name, never an
         # empty success. Its steer / queue-skill / turn-resolve siblings are above.
         "_cmd_mission_chat_message": "chat send: the ack names the session the turn ran in",
-        # Emits through chat_target._close_free_floating_assignments, the body it
-        # shares with _cmd_persona_instance_close (above): nothing to close is a
-        # refusal (ok: false, exit 2), never an empty success.
-        "_cmd_persona_instance_archive": "an empty answer is a refusal (ok: false), not ok: true",
     }
 )
 LEDGER.update(
@@ -352,7 +347,7 @@ def test_the_scan_sees_the_known_emitters():
     """Positive control for the graph half: one handler per route to the JSON
     root — ``_print_stage42``, ``emit_operation_result`` (its only emitter), a
     named seam (``_characters_emit``), a shared helper body
-    (``_close_free_floating_assignments``) and the stream line
+    (``_run_slot_verb``) and the stream line
     (``emit_json_line``). If resolution breaks, these go quiet first."""
 
     handlers = _handlers()
@@ -360,7 +355,7 @@ def test_the_scan_sees_the_known_emitters():
         "_cmd_board_card_add",
         "_cmd_persona_permission_set",
         "_cmd_characters_list",
-        "_cmd_persona_instance_archive",
+        "_cmd_persona_slots_set",
         "_cmd_characters_auto",
     ):
         assert handlers.get(name, {}).get("emits"), f"{name!r} should be detected as emitting JSON"

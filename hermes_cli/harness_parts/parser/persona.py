@@ -62,7 +62,7 @@ def _add_persona_slots_verbs(persona_subs) -> None:
 
 
 def _add_persona_read_verbs(persona_subs) -> None:
-    """``hermes harness persona list / show / tool-diff / permission / assignments / migrate-assignment-task-ids``."""
+    """``hermes harness persona list / show / tool-diff / permission``."""
     persona_list = persona_subs.add_parser("list", help="List durable persona instances")
     persona_list.add_argument("--json", action="store_true")
     persona_list.set_defaults(func=inspect_commands._cmd_persona_list)
@@ -151,19 +151,6 @@ def _add_persona_read_verbs(persona_subs) -> None:
     persona_permission_set.add_argument("--expires-at", default=None)
     persona_permission_set.add_argument("--json", action="store_true")
     persona_permission_set.set_defaults(func=inspect_commands._cmd_persona_permission_set)
-    persona_assignments = persona_subs.add_parser("assignments", help="List persona assignments")
-    persona_assignments.add_argument("--persona", dest="persona_id", default=None)
-    persona_assignments.add_argument("--json", action="store_true")
-    persona_assignments.set_defaults(func=inspect_commands._cmd_persona_assignments)
-    persona_assignment_task_id_migration = persona_subs.add_parser(
-        "migrate-assignment-task-ids",
-        help="Archive pre-retirement persona assignments whose task_id is non-null",
-    )
-    persona_assignment_task_id_migration.add_argument("--dry-run", action="store_true")
-    persona_assignment_task_id_migration.add_argument("--json", action="store_true")
-    persona_assignment_task_id_migration.set_defaults(
-        func=inspect_commands._cmd_persona_assignment_task_id_migration
-    )
 
 
 def _add_persona_chat_and_model_verbs(persona_subs) -> None:
@@ -221,7 +208,7 @@ def _add_persona_instance_verbs(persona_subs) -> None:
 
 
 def _add_persona_instance_lifecycle_verbs(persona_instance_subs) -> None:
-    """``hermes harness persona instance create / open-chat / close / archive / retire``."""
+    """``hermes harness persona instance create / open-chat / retire``."""
     persona_instance_create = persona_instance_subs.add_parser("create", help="Create an Agent Profile (operator chat channel) or an additional placement-backed instance (--add-instance); requires --display-name")
     persona_instance_create.add_argument("--persona", dest="persona_id", required=True)
     persona_instance_create.add_argument("--title", required=True, help="Fallback display name when --display-name is empty (launcher wire-compat)")
@@ -270,19 +257,8 @@ def _add_persona_instance_lifecycle_verbs(persona_instance_subs) -> None:
     # forever; the advertised `run-once` follow-up verb never existed), and its
     # `--auto-run` variant was a second, parallel turn authority. Messaging an
     # instance is `harness mission-chat message`.
-    persona_instance_close = persona_instance_subs.add_parser("close", help="Cancel residual free-floating assignment rows for one persona instance (maintenance; the lane that minted them is retired)")
-    persona_instance_close.add_argument("persona_instance_id")
-    persona_instance_close.add_argument("--reason", required=True)
-    persona_instance_close.add_argument("--requested-by", default="cli")
-    _add_coordinator_permission_args(persona_instance_close)
-    persona_instance_close.add_argument("--json", action="store_true")
-    persona_instance_close.set_defaults(func=instance_commands._cmd_persona_instance_close)
-    persona_instance_archive = persona_instance_subs.add_parser("archive", help="Complete residual free-floating assignment rows for one persona instance (maintenance; the lane that minted them is retired)")
-    persona_instance_archive.add_argument("persona_instance_id")
-    persona_instance_archive.add_argument("--reason", default="archived residual free-floating assignment row")
-    persona_instance_archive.add_argument("--requested-by", default="cli")
-    persona_instance_archive.add_argument("--json", action="store_true")
-    persona_instance_archive.set_defaults(func=instance_commands._cmd_persona_instance_archive)
+    # `close` / `archive` (residual free-floating assignment settle) are retired with
+    # the assignment store (RT-FULL-PERSONAASSIGNMENTSTORE, 2026-10-25).
     # D4. `delete` is an argparse ALIAS, not a second parser: one parser object,
     # so the two spellings cannot drift in flags, help, or handler — which is
     # the failure mode a copied `add_parser` would have had, and the operator

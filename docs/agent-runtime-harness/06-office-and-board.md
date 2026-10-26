@@ -766,9 +766,9 @@ operator-facing shape §0 of the actor-lifecycle wave was opened about. The seco
 was never a fact about the retire: it existed only so the first guard's NEGATIVE
 could not be read off an enumeration that had silently skipped a row, so it
 retires with what it was protecting rather than surviving as a fence over
-nothing. The residual rows are UNTOUCHED — read paths retire, stored bytes do not
-— and `harness persona assignments` / `harness persona instance close` remain the
-settle path.
+nothing. The residual rows were left untouched then; the store itself and its settle
+verbs retired on 2026-10-25 (RT-FULL-PERSONAASSIGNMENTSTORE), its rows archived byte for
+byte into `persona_assignments_archive/retired_store/` at plugin load.
 
 **Retiring the same id twice is an ANSWER, not an error — and idempotent is not
 INERT (D2, 2026-08-27).** The second call replays the ack with `already_retired:

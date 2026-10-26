@@ -408,6 +408,17 @@ def retire_legacy_harness_blocks() -> None:
         logging.getLogger(__name__).warning("harness legacy-key retirement failed", exc_info=True)
 
 
+def retire_persona_assignment_store() -> None:
+    """RT-FULL-PERSONAASSIGNMENTSTORE: the retired assignment store's residual rows move,
+    bytes intact, into ``persona_assignments_archive/retired_store/`` with a report."""
+    try:
+        from agent_runtime.persona_assignments import retire_persona_assignment_store as retire
+
+        retire()
+    except Exception:  # a failed migration must not take plugin load down
+        logging.getLogger(__name__).warning("persona assignment store retirement failed", exc_info=True)
+
+
 def migrate_legacy_office_schema() -> None:
     """Owner rule 2026-09-18 (old schema: delete and report): the one-shot office
     cleanups in ``agent_runtime.office_legacy_migration.STEPS``, once per store."""
@@ -453,6 +464,7 @@ def register(ctx) -> None:
         retire_legacy_harness_blocks()
         seed_persona_profile_defaults()
     migrate_legacy_office_schema()  # a store migration, not a config.yaml rewrite
+    retire_persona_assignment_store()  # a store migration too: archive the retired store's rows
     from agent_runtime.harness_toolset import ensure_harness_core
 
     ensure_harness_core()  # the persona lane's composite, through upstream's create_custom_toolset

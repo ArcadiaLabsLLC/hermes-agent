@@ -10,7 +10,7 @@ from dataclasses import replace
 from typing import Any
 
 from agent_runtime.agent_create_phases import timed_create_subphase
-from agent_runtime.models import AgentPersona, PersonaAssignment, PersonaInstance
+from agent_runtime.models import AgentPersona, PersonaInstance
 from agent_runtime.persona_assignments.identity import _display_name_for_template
 from agent_runtime.persona_profiles import declared_lane_toolsets, effective_toolsets
 from agent_runtime.serde import safe_assignment_token
@@ -36,7 +36,6 @@ __all__ = [
     "_persona_instance_is_active_lane",
     "_profile_visibility_persona",
     "active_persona_instance_agent_summaries",
-    "persona_assignment_summary",
     "persona_instance_summary",
     "persona_instance_tool_detail",
     "persona_instance_visibility_ref",
@@ -402,41 +401,3 @@ def _profile_visibility_persona(
         hermes_profile=profile_id or None,
         skills=list(instance.skill_overrides or []),
     )
-
-
-def persona_assignment_summary(assignment: PersonaAssignment) -> dict[str, Any]:
-    return {
-        "agent_profile_id": assignment.persona_instance_id,
-        "assignment_id": assignment.id,
-        "persona_instance_id": assignment.persona_instance_id,
-        "persona_id": assignment.persona_id,
-        "kind": assignment.kind,
-        "state": assignment.state,
-        "title": assignment.title,
-        "message": assignment.message,
-        "task_id": assignment.task_id,
-        "goal_id": assignment.goal_id,
-        "stage_id": assignment.stage_id,
-        "operation_id": assignment.operation_id,
-        "repo_bundle_id": assignment.repo_bundle_id,
-        "repo": assignment.repo,
-        "affected_paths": list(assignment.affected_paths or []),
-        "proof_targets": list(assignment.proof_targets or []),
-        "acceptance": list(assignment.acceptance or []),
-        "non_goals": list(assignment.non_goals or []),
-        "allowed_decisions": list(assignment.allowed_decisions or []),
-        "allowed_tools": list(assignment.allowed_tools or []),
-        "run_ids": list(assignment.run_ids or []),
-        "proof_ids": list(assignment.proof_ids or []),
-        "context_receipt_ids": list(assignment.context_receipt_ids or []),
-        "evidence_kind": assignment.evidence_kind,
-        "production_proof_eligible": bool(assignment.production_proof_eligible),
-        "archive_scope": assignment.archive_scope,
-        "client_message_id": assignment.client_message_id,
-        "created_by": assignment.created_by,
-        "created_at": assignment.created_at,
-        "updated_at": assignment.updated_at,
-        "completed_at": assignment.completed_at,
-        "last_error": assignment.last_error,
-        "signal_hash": assignment.signal_hash,
-    }

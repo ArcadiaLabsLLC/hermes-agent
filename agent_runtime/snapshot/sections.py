@@ -453,8 +453,8 @@ class SnapshotFrameBuild:
         # (``6bf48ba26``) and keeps a test asserting that a payload still carrying
         # it puts nothing on an instance. A projection whose sole consumer pins its
         # own indifference is not a contract, it is a cost — and the store read was
-        # a directory walk on every build. ``harness persona assignments --json`` is
-        # the surviving reader for residual rows.
+        # a directory walk on every build. The store itself is retired since
+        # (RT-FULL-PERSONAASSIGNMENTSTORE, 2026-10-25).
         self.completeness = {
             "persona_chat_history": self.history_accountant.summary(),
             "persona_chat_trace": self.trace_accountant.summary(),

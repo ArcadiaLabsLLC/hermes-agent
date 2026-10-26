@@ -12,7 +12,6 @@ from agent_runtime.models import Event, PersonaInstance
 from agent_runtime.serde import from_jsonable
 from agent_runtime.persona_assignments import (
     CHAT_BINDING_CLEARED_REASON_DELETED,
-    PersonaAssignmentStore,
     PersonaInstanceStore,
     normalize_persona_or_template_id as _normalize_cli_persona_or_template_id,
     personas_equal,
@@ -215,7 +214,6 @@ def _cmd_persona_chat_delete(args) -> int:
         return 2
 
     instance_store = PersonaInstanceStore()
-    assignment_store = PersonaAssignmentStore()
     cleared_bindings: list[str] = []
     registry = persona_chat_runtime_registry()
     if registry is not None:
@@ -226,7 +224,6 @@ def _cmd_persona_chat_delete(args) -> int:
         cleanup_vm(session_id, force_remove=True)
     except Exception:
         pass
-    closed_assignment_ids: list[str] = []
     # Unbind EVERY instance still pointing at the session that was just deleted —
     # on either pointer, and regardless of which identity was named on the
     # request. Ownership was already enforced above (a foreign request is refused
@@ -242,23 +239,6 @@ def _cmd_persona_chat_delete(args) -> int:
         }
         if not bound_here:
             continue
-
-        assignment_id = safe_assignment_token(getattr(instance, "current_assignment_id", None))
-        if assignment_id:
-            try:
-                assignment = assignment_store.get(assignment_id)
-                if (
-                    assignment.evidence_kind == "free_floating"
-                    and assignment.state not in {"completed", "blocked", "cancelled"}
-                ):
-                    closed = assignment_store.complete(
-                        assignment.id,
-                        state="cancelled",
-                        error=f"deleted persona chat session {session_id}",
-                    )
-                    closed_assignment_ids.append(closed.id)
-            except Exception:
-                pass
 
         # One write path for every unbind (delete verb + reconcile sweep): it
         # nulls only the pointers that name THIS session, demotes the mode, and
@@ -297,7 +277,6 @@ def _cmd_persona_chat_delete(args) -> int:
                     "session_id": session_id,
                     "deleted_session": deleted_session,
                     "cleared_bindings": cleared_bindings,
-                    "closed_assignment_ids": closed_assignment_ids,
                     "requested_by": safe_assignment_text(getattr(args, "requested_by", None), limit=120) or "cli",
                 },
             )
@@ -311,7 +290,6 @@ def _cmd_persona_chat_delete(args) -> int:
         "deleted_session": deleted_session,
         "cleared_bindings": cleared_bindings,
         "cleared_binding_count": len(cleared_bindings),
-        "closed_assignment_ids": closed_assignment_ids,
         "next_expected": "refresh Harness snapshot; deleted persona chat should be absent and active bindings should be cleared",
     }
     _emit_persona_verb_payload(args, data, plain=f"deleted persona chat {session_id}")

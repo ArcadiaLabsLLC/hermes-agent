@@ -158,22 +158,6 @@
    "site": "hermes_cli/charsheet_payload_contract.py|_boolean_paths|isinstance|value"
   },
   {
-   "arms": 1,
-   "site": "hermes_cli/harness_parts/persona/chat_delete.py|_cmd_persona_chat_delete|vocab|blocked"
-  },
-  {
-   "arms": 1,
-   "site": "hermes_cli/harness_parts/persona/chat_delete.py|_cmd_persona_chat_delete|vocab|completed"
-  },
-  {
-   "arms": 1,
-   "site": "hermes_cli/harness_parts/persona/chat_target.py|_close_free_floating_assignments|vocab|blocked"
-  },
-  {
-   "arms": 1,
-   "site": "hermes_cli/harness_parts/persona/chat_target.py|_close_free_floating_assignments|vocab|completed"
-  },
-  {
    "arms": 7,
    "site": "hermes_cli/harness_support.py|_error_code_for_exception|isinstance|exc"
   },

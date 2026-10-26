@@ -697,8 +697,6 @@ def persona_instance_path(persona_instance_id: str) -> Path:
     return persona_instances_dir() / f"{safe_path_token(persona_instance_id)}.json"
 
 
-def persona_assignment_path(assignment_id: str) -> Path:
-    return persona_assignments_dir() / f"{safe_path_token(assignment_id)}.json"
 
 
 # S57 removed ``repo_bundle_path`` with ``RepoBundleStore.get``. Round 2 then

@@ -478,8 +478,8 @@ hazards are listed in `proof.md`.
 
 ## Preserving runtime evidence
 
-- Archive-never-delete, **including the verb named `delete`**. `board card archive`/`restore`,
-  `persona instance archive`, and `persona instance delete` (alias of `retire`) all archive
+- Archive-never-delete, **including the verb named `delete`**. `board card archive`/`restore`
+  and `persona instance delete` (alias of `retire`) all archive
   and preserve chat history; `office actor-remove`/`actor-restore` does the same for
   placements. There is no hard-delete path you should be reaching for — see the delete-lane
   notes under the QA ruling for what a deleted actor's 4090 `actor_archived` obliges a

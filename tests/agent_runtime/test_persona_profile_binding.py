@@ -192,7 +192,6 @@ def test_binding_index_reports_the_config_store_disagreement(profiles, monkeypat
         # instance busy.
         ({"state": "idle", "active_worker_session_id": "ws_1"}, {}, None),
         ({"state": "idle", "current_assignment_id": "as_1"}, {}, BUSY_ASSIGNMENT_IN_FLIGHT),
-        ({"state": "idle"}, {"assignment_in_flight": True}, BUSY_ASSIGNMENT_IN_FLIGHT),
         ({"state": "idle", "current_task_id": "task_1"}, {}, BUSY_TASK_BOUND),
         ({"state": "running"}, {}, BUSY_NON_IDLE_STATE),
         ({"state": WorkerSessionState.WAITING_ON_TOOL}, {}, BUSY_NON_IDLE_STATE),
@@ -575,49 +574,6 @@ def test_binding_index_covers_store_only_personas(profiles):
     assert "widget" in index
     assert index["widget"].store_row_present is True
     assert index["widget"].effective_profile == "alpha"
-
-
-def test_unreadable_assignment_store_fails_closed(profiles, monkeypatch):
-    """A safety gate that cannot verify must refuse, not assume "nothing running"."""
-
-    from agent_runtime.persona_assignments import PersonaAssignmentStore
-
-    _seed(_persona())
-
-    def _boom(self, **kwargs):
-        raise OSError("assignment store unreadable")
-
-    monkeypatch.setattr(PersonaAssignmentStore, "find_active", _boom)
-    before = _store_bytes()
-
-    with pytest.raises(PersonaProfileRebindError) as excinfo:
-        rebind_persona_profile("widget", profile="beta")
-
-    assert excinfo.value.code == "assignment_store_unreadable"
-    assert _store_bytes() == before
-
-
-def test_an_active_assignment_blocks_the_rebind(profiles, monkeypatch):
-    from agent_runtime.persona_assignments import PersonaAssignmentStore
-
-    _seed(_persona())
-
-    class _Assignment:
-        persona_instance_id = "personainst_widget_agent_bbb"
-
-    monkeypatch.setattr(PersonaAssignmentStore, "find_active", lambda self, **kwargs: [_Assignment()])
-
-    with pytest.raises(PersonaProfileRebindError) as excinfo:
-        rebind_persona_profile("widget", profile="beta")
-
-    assert excinfo.value.code == "instances_busy"
-    assert excinfo.value.details["busy_instances"] == [
-        {
-            "persona_instance_id": "personainst_widget_agent_bbb",
-            "reason": BUSY_ASSIGNMENT_IN_FLIGHT,
-            "state": "idle",
-        }
-    ]
 
 
 def test_a_no_op_rebind_writes_nothing_and_emits_nothing(profiles):

@@ -1,5 +1,5 @@
 """Whole-roster reads that must say what they could not read: the scan results
-(``PersonaInstanceScan`` / ``PersonaAssignmentScan``), the typed refusal an arm
+(``PersonaInstanceScan``), the typed refusal an arm
 spends when rows are unreadable, the process-wide unreadable-row ledger, and the
 session-presence probe the chat-binding repair reads.
 """
@@ -10,13 +10,12 @@ import threading
 from pathlib import Path
 from typing import Any, NamedTuple
 
-from agent_runtime.models import PersonaAssignment, PersonaInstance
+from agent_runtime.models import PersonaInstance
 from agent_runtime.persona_assignments.vocabulary import PERSONA_ROWS_UNREADABLE
 
 __layer__ = "stores"
 
 __all__ = [
-    "PersonaAssignmentScan",
     "PersonaInstanceScan",
     "PersonaScanRefusal",
     "_note_unreadable_instance_row",
@@ -76,21 +75,6 @@ class PersonaInstanceScan(NamedTuple):
     instances: list[PersonaInstance]
     #: How many ``*.json`` rows in the instances directory existed and did not
     #: decode. NEVER folded into ``instances`` and never silently zero.
-    unreadable: int
-
-
-class PersonaAssignmentScan(NamedTuple):
-    """What a persona-assignment scan FOUND, beside what it could not read.
-
-    The assignment twin of :class:`PersonaInstanceScan`. Its one reader that
-    ACTED on the count — the retire guard — left with AX2; what remains reads
-    the count to report it, so ``unreadable`` is display evidence rather than a
-    write fence here.
-    """
-
-    assignments: list[PersonaAssignment]
-    #: How many ``*.json`` rows in the assignments directory existed and did not
-    #: decode. NEVER folded into ``assignments`` and never silently zero.
     unreadable: int
 
 

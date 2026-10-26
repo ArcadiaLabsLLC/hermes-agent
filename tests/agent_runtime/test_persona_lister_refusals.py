@@ -27,7 +27,6 @@ from agent_runtime import paths
 from agent_runtime.errors import PersonaInstancesUnreadable, WorkspaceDeleteBlocked
 from agent_runtime.persona_assignments import (
     PERSONA_ROWS_UNREADABLE,
-    PersonaAssignmentStore,
     PersonaInstanceStore,
 )
 
@@ -240,31 +239,6 @@ def test_retire_succeeds_on_a_clean_store(isolate_agent_runtime_root):
     store = PersonaInstanceStore()
     instance = _instance("retire_clean_agent_1")
     result = store.retire(instance.id, reason="placement deleted")
-    assert result["persona_instance_id"] == instance.id
-    assert not paths.persona_instance_path(instance.id).exists()
-
-
-def test_a_retire_no_longer_reads_the_assignment_store_at_all(
-    isolate_agent_runtime_root, monkeypatch
-):
-    """The strongest form of the removal: the read is GONE, not merely tolerated.
-
-    A retire that still scanned and swallowed the fault would pass the gate
-    above and would have quietly re-acquired the fail-open arm ML-15 removed.
-    Exploding the scan proves the call site left rather than grew an
-    ``except``.
-    """
-
-    store = PersonaInstanceStore()
-    instance = _instance("retire_faulted_agent_1")
-
-    def _explode(self):
-        raise AssertionError("the retire must not scan the assignment store")
-
-    monkeypatch.setattr(PersonaAssignmentStore, "scan_all", _explode)
-
-    result = store.retire(instance.id, reason="placement deleted")
-
     assert result["persona_instance_id"] == instance.id
     assert not paths.persona_instance_path(instance.id).exists()
 

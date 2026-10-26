@@ -177,8 +177,8 @@ def _build_status_in_runtime_scope(run_store: RunStore | None = None, incident_s
     # the snapshot's. `harness status` was never the launcher's contract
     # boundary — the two consumers read `runtime_health` / `agents` by name —
     # and this block was a second projection of a store nothing reads,
-    # re-listing every row on every status call. `harness persona assignments
-    # --json` is the reader that survives.
+    # re-listing every row on every status call. The store itself is retired
+    # since (RT-FULL-PERSONAASSIGNMENTSTORE, 2026-10-25).
     data["parity"] = parity_envelope(
         data,
         build_started=_build_started,

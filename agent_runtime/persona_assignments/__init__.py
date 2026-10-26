@@ -1,8 +1,8 @@
 """The persona-assignment package — the package map (program rule 16).
 
 Entry points (what calls in): ``PersonaInstanceStore`` (the roster store every
-persona lane reads and writes), ``PersonaAssignmentStore`` (the assignment
-READ/CLOSE side), and the identity helpers most of the tree takes —
+persona lane reads and writes), ``retire_persona_assignment_store`` (the
+retired assignment store's one-shot archive), and the identity helpers most of the tree takes —
 ``canonical_persona_instance_id``, ``persona_instance_id_for``,
 ``persona_chat_session_id_for``, ``persona_instance_display_name``,
 ``normalize_persona_id``, ``safe_assignment_token`` / ``safe_assignment_text``
@@ -32,14 +32,14 @@ chat_binding    stores  open / refuse / clear / roll back a chat binding
 profile_writes  stores  ``update_profile`` / ``set_backing_profile``
 store           stores  ``PersonaInstanceStore``: rows, mint, events, bindings
 lookups         stores  identity answers that read the roster
-assignments     stores  ``PersonaAssignmentStore`` + the task-id migration
+assignments     stores  archives the retired assignment store's residual rows
 ==============  ======  ========================================================
 
 The assignment state sets and ``ACTIVE_LANE_STATES`` live in
 ``agent_runtime.states``, beside the worker states they overlap.
 
 Stores written: ``paths.persona_instances_dir()`` (instance rows),
-``paths.persona_assignments_dir()`` (assignment rows), the ``*_retire`` archive
+``paths.persona_assignments_archive_dir()`` (the retired assignment rows), the ``*_retire`` archive
 batches and their receipts, and the event log.
 
 Every name an importer takes from ``agent_runtime.persona_assignments`` is
@@ -101,7 +101,6 @@ from agent_runtime.persona_assignments.identity import (
 
 from agent_runtime.persona_assignments.summary import (
     active_persona_instance_agent_summaries,
-    persona_assignment_summary,
     persona_instance_summary,
     persona_instance_tool_detail,
     PERSONA_INSTANCE_VISIBILITY_FIELDS,
@@ -110,7 +109,6 @@ from agent_runtime.persona_assignments.summary import (
 )
 
 from agent_runtime.persona_assignments.scan import (
-    PersonaAssignmentScan,
     PersonaInstanceScan,
     PersonaScanRefusal,
 )
@@ -136,8 +134,7 @@ from agent_runtime.persona_assignments.lookups import (
 )
 
 from agent_runtime.persona_assignments.assignments import (
-    migrate_retired_persona_assignment_task_ids,
-    PersonaAssignmentStore,
+    retire_persona_assignment_store,
 )
 
 __layer__ = "stores"
@@ -150,8 +147,6 @@ __all__ = [
     "PERSONA_ROWS_UNREADABLE",
     "RETIRE_RECEIPTS_DIRNAME",
     "TERMINAL_ASSIGNMENT_STATES",
-    "PersonaAssignmentScan",
-    "PersonaAssignmentStore",
     "PersonaInstanceRetireError",
     "PersonaInstanceScan",
     "PersonaInstanceStore",
@@ -171,10 +166,8 @@ __all__ = [
     "chat_session_owner_persona",
     "is_canonical_persona_channel",
     "looks_like_persona_instance_id",
-    "migrate_retired_persona_assignment_task_ids",
     "normalize_persona_id",
     "normalize_persona_or_template_id",
-    "persona_assignment_summary",
     "persona_chat_session_id_for",
     "persona_id_from_instance_id",
     "persona_instance_display_name",
@@ -185,6 +178,7 @@ __all__ = [
     "persona_instance_visibility_ref",
     "personas_equal",
     "resolve_default_chat_session_id_for_instance",
+    "retire_persona_assignment_store",
     "resolve_tool_visibility",
     "retire_receipt_path",
     "retired_persona_instance_ids",

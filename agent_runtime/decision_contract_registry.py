@@ -242,7 +242,7 @@ _EVENT_CONTRACTS: dict[str, EventContract] = {
     # Summary fields are the two keys the verb always passes; the three list/
     # actor fields are details. The persona rides the Event envelope's
     # persona_id column, not the payload.
-    "persona_chat.deleted": EventContract("persona_chat.deleted", "Persona chat session deleted", ("session_id", "deleted_session"), ("cleared_bindings", "closed_assignment_ids", "requested_by")),
+    "persona_chat.deleted": EventContract("persona_chat.deleted", "Persona chat session deleted", ("session_id", "deleted_session"), ("cleared_bindings", "requested_by")),
     "persona_instance.profile_updated": EventContract("persona_instance.profile_updated", "Persona instance runtime profile updated", ("persona_instance_id",), ("persona_id", "display_name", "current_chat_goal", "goal_id", "skill_overrides", "provider", "model", "api_mode", "requested_by")),
     "persona_assignment.created": EventContract("persona_assignment.created", "Persona assignment created", ("assignment_id", "persona_instance_id", "kind"), ("state",)),
     "persona_assignment.closed": EventContract("persona_assignment.closed", "Persona assignment closed", ("assignment_id", "state"), ("kind",)),

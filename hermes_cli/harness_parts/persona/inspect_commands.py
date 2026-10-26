@@ -16,11 +16,7 @@ from agent_runtime.mcp_admission import LANE_MISSION_CHAT, resolve_mcp_admission
 from agent_runtime.mcp_lane import HARNESS_LANE
 from agent_runtime.mission_chat_workdir import mission_chat_workdir_for_persona
 from agent_runtime.persona_assignments import (
-    PersonaAssignmentStore,
     PersonaInstanceStore,
-    migrate_retired_persona_assignment_task_ids,
-    normalize_persona_id as _normalize_cli_persona_id,
-    persona_assignment_summary,
     persona_instance_summary,
 )
 from agent_runtime.chat_lane_bundle import chat_lane_capability_drops
@@ -39,8 +35,6 @@ from .chat_target import _persona_by_id
 
 __layer__ = "lanes"
 __all__ = [
-    "_cmd_persona_assignment_task_id_migration",
-    "_cmd_persona_assignments",
     "_cmd_persona_instance_detail",
     "_cmd_persona_list",
     "_cmd_persona_permission_set",
@@ -98,7 +92,6 @@ def _cmd_persona_show(args) -> int:
         data = {"ok": False, "error": f"persona instance not found: {value}"}
         print(emit_json(data) if args.json else data["error"])
         return 2
-    assignments = PersonaAssignmentStore().list_for_persona(instance.persona_id)
     data = {
         "ok": True,
         "persona_instance": persona_instance_summary(
@@ -106,7 +99,6 @@ def _cmd_persona_show(args) -> int:
             personas_by_id.get(str(getattr(instance, "persona_id", "") or "")),
             roster=ensure_persisted_personas,
         ),
-        "assignments": [persona_assignment_summary(item) for item in assignments[-25:]],
     }
     if args.json:
         print(emit_json(data))
@@ -412,40 +404,6 @@ def _cmd_persona_permission_set(args) -> int:
     else:
         print(f"{record.persona_id}: {record.session_id} mode={record.mode}")
     return 0
-
-
-def _cmd_persona_assignments(args) -> int:
-    store = PersonaAssignmentStore()
-    if args.persona_id:
-        assignments = store.list_for_persona(_normalize_cli_persona_id(args.persona_id))
-    else:
-        assignments = store.list_all()
-    data = {
-        "ok": True,
-        "assignments": [persona_assignment_summary(item) for item in assignments],
-    }
-    if args.json:
-        print(emit_json(data))
-    else:
-        for item in data["assignments"]:
-            print(f"{item['assignment_id']}: {item['persona_id']} {item['kind']} state={item['state']} task={item['task_id'] or '-'}")
-    return 0
-
-
-def _cmd_persona_assignment_task_id_migration(args) -> int:
-    data = migrate_retired_persona_assignment_task_ids(
-        dry_run=bool(getattr(args, "dry_run", False))
-    )
-    if args.json:
-        print(emit_json(data))
-    else:
-        mode = "preview" if data["dry_run"] else "apply"
-        print(
-            f"assignment task-id migration {mode}: scanned={data['scanned']} "
-            f"eligible={data['eligible']} archived={data['archived']} "
-            f"held={len(data['held'])}"
-        )
-    return 0 if data["ok"] else 2
 
 
 def _cmd_persona_instance_detail(args) -> int:

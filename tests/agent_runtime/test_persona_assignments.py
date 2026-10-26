@@ -29,7 +29,7 @@ from agent_runtime.config import AgentRuntimeConfig
 from agent_runtime import paths
 from agent_runtime.tool_permissions import default_permission_mode
 from agent_runtime.events import EventLog
-from agent_runtime.models import AgentPersona, AgentRun, PersonaAssignment, PersonaInstance
+from agent_runtime.models import AgentPersona, AgentRun, PersonaInstance
 
 Task = SimpleNamespace
 from agent_runtime.mission_chat_turns import (
@@ -40,7 +40,6 @@ from agent_runtime.mission_chat_turns import (
 )
 from agent_runtime.persona_assignments import (
     ACTIVE_ASSIGNMENT_STATES,
-    PersonaAssignmentStore,
     PersonaInstanceStore,
     persona_chat_session_id_for,
     persona_instance_summary,
@@ -404,77 +403,6 @@ def test_scope_pointers_default_none_for_unscoped_lanes(isolate_agent_runtime_ro
 # store.
 
 
-def _seed_assignment(
-    *,
-    persona_id: str,
-    kind: str = "free_floating_message",
-    state: str = "queued",
-    persona_instance_id: str | None = None,
-    evidence_kind: str = "free_floating",
-    archive_scope: str = "assignment",
-    production_proof_eligible: bool = False,
-    client_message_id: str | None = None,
-) -> PersonaAssignment:
-    from agent_runtime.models import PersonaAssignment
-
-    ts = now()
-    assignment = PersonaAssignment(
-        id=f"assign_{uuid.uuid4().hex[:12]}",
-        persona_instance_id=persona_instance_id or persona_instance_id_for(persona_id),
-        persona_id=persona_id,
-        kind=kind,
-        state=state,
-        title=f"{persona_id} residual assignment",
-        message="historical row",
-        created_by="test",
-        created_at=ts,
-        updated_at=ts,
-        evidence_kind=evidence_kind,
-        production_proof_eligible=production_proof_eligible,
-        archive_scope=archive_scope,
-        client_message_id=client_message_id,
-    )
-    atomic_json_write(
-        paths.persona_assignment_path(assignment.id),
-        to_jsonable(assignment),
-        indent=2,
-        sort_keys=True,
-    )
-    return assignment
-
-
-def test_seeded_diagnostic_assignment_summary_marks_not_production_proof(isolate_agent_runtime_root):
-    assignment = _seed_assignment(
-        persona_id="qa",
-        kind="diagnostic",
-        evidence_kind="diagnostic",
-        archive_scope="task",
-    )
-
-    summary = PersonaAssignmentStore().get(assignment.id)
-    rendered = __import__("agent_runtime.persona_assignments", fromlist=["persona_assignment_summary"]).persona_assignment_summary(summary)
-    assert rendered["evidence_kind"] == "diagnostic"
-    assert rendered["production_proof_eligible"] is False
-    assert rendered["archive_scope"] == "task"
-
-
-def test_assignment_complete_is_idempotent_for_same_terminal_state(isolate_agent_runtime_root):
-    store = PersonaAssignmentStore()
-    assignment = _seed_assignment(
-        persona_id="neko_supervisor",
-        kind="diagnostic",
-        evidence_kind="diagnostic",
-        archive_scope="task",
-    )
-
-    first = store.complete(assignment.id, state="completed")
-    second = store.complete(assignment.id, state="completed")
-
-    events = [event for event in EventLog().tail(20) if event.type == "persona_assignment.closed"]
-    assert first.completed_at == second.completed_at
-    assert [event.payload["assignment_id"] for event in events] == [assignment.id]
-
-
 def test_status_and_snapshot_expose_persona_instances_unconditionally(monkeypatch, isolate_agent_runtime_root):
     cfg = _assignment_config()
     monkeypatch.setattr("agent_runtime.status.load_agent_runtime_config", lambda: cfg)
@@ -597,7 +525,7 @@ def test_persona_instance_create_without_display_name_refuses_and_mints_nothing(
     assert payload["ok"] is False
     assert "free-floating assignment lane is retired" in payload["error"]
     assert "mission-chat message" in payload["next_expected"]
-    assert PersonaAssignmentStore().list_for_persona("dev") == []
+    assert not list(paths.persona_assignments_dir().glob("*.json"))
     assert PersonaInstanceStore().list_all() == []
     assert RunStore().list_all() == []
 
@@ -872,7 +800,7 @@ def test_persona_instance_open_chat_binds_old_chat_without_ticking(
     assert instance.session_id == "chat_old_123"
     assert instance.current_task_id is None
     assert instance.active_run_id is None
-    assert PersonaAssignmentStore().list_all() == []
+    assert not list(paths.persona_assignments_dir().glob("*.json"))
     assert RunStore().list_all() == []
     assert session_db.get_session(instance.session_id) is not None
     assert session_db.get_session_title(instance.session_id) == f"{instance.display_name} chat"
@@ -1970,7 +1898,7 @@ def test_snapshot_preserves_open_chat_and_emits_history(monkeypatch, isolate_age
     # The tail is gone from the frame; the eviction is flagged, never silent.
     assert pointer["messages"] == []
     assert pointer["messages_evicted"] is True
-    assert PersonaAssignmentStore().list_all() == []
+    assert not list(paths.persona_assignments_dir().glob("*.json"))
     assert RunStore().list_all() == []
 
 
@@ -4294,108 +4222,6 @@ def test_snapshot_prompt_observability_builds_profile_instance_context(
     )
 
 
-def test_persona_instance_close_cli_closes_only_free_floating_assignment(monkeypatch, isolate_agent_runtime_root):
-    from argparse import Namespace
-
-    cfg = _assignment_config()
-    monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
-    # S70: nothing can mint an assignment any more; seed the residual row the
-    # close verb exists to settle.
-    assignment = _seed_assignment(persona_id="dev")
-    instance_store = PersonaInstanceStore()
-    instance = instance_store.ensure_for_persona(_persona("dev"))
-    instance.mode = "free_floating"
-    instance.current_assignment_id = assignment.id
-    instance_store.update(instance)
-
-    code = instance_commands._cmd_persona_instance_close(
-        Namespace(
-            persona_instance_id=assignment.persona_instance_id,
-            reason="operator closed sandbox",
-            requested_by="test",
-            json=True,
-        )
-    )
-
-    assert code == 0
-    closed = PersonaAssignmentStore().get(assignment.id)
-    assert closed.state == "cancelled"
-    assert closed.last_error == "operator closed sandbox"
-    instance = PersonaInstanceStore().get(assignment.persona_instance_id)
-    assert instance.mode == "configured"
-    assert instance.current_assignment_id is None
-
-
-def test_coordinator_close_own_spawned_instance_with_scope(monkeypatch, isolate_agent_runtime_root):
-    from argparse import Namespace
-
-    cfg = _assignment_config()
-    monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
-    assignment = _seed_assignment(persona_id="dev")
-    instance_store = PersonaInstanceStore()
-    instance = instance_store.ensure_for_persona(_persona("dev"))
-    instance.mode = "free_floating"
-    instance.current_assignment_id = assignment.id
-    instance.spawned_by = "neko_supervisor"
-    instance_store.update(instance)
-
-    code = instance_commands._cmd_persona_instance_close(
-        Namespace(
-            persona_instance_id=assignment.persona_instance_id,
-            reason="coordinator closed own child",
-            requested_by="coordinator:neko_supervisor",
-            coordinator_id="neko_supervisor",
-            coordinator_max_spawns=0,
-            coordinator_spawns_used=0,
-            coordinator_may_kill_own=True,
-            coordinator_no_kill_own=None,
-            coordinator_may_kill_others=None,
-            json=True,
-        )
-    )
-
-    assert code == 0
-    assert PersonaAssignmentStore().get(assignment.id).state == "cancelled"
-
-
-def test_coordinator_close_operator_placed_instance_needs_confirm(monkeypatch, capsys, isolate_agent_runtime_root):
-    from argparse import Namespace
-
-    cfg = _assignment_config()
-    monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
-    assignment = _seed_assignment(persona_id="dev")
-    instance_store = PersonaInstanceStore()
-    instance = instance_store.ensure_for_persona(_persona("dev"))
-    instance.mode = "free_floating"
-    instance.current_assignment_id = assignment.id
-    instance.spawned_by = "operator"
-    instance_store.update(instance)
-
-    code = instance_commands._cmd_persona_instance_close(
-        Namespace(
-            persona_instance_id=assignment.persona_instance_id,
-            reason="coordinator tried closing operator placement",
-            requested_by="coordinator:neko_supervisor",
-            coordinator_id="neko_supervisor",
-            coordinator_max_spawns=0,
-            coordinator_spawns_used=0,
-            coordinator_may_kill_own=True,
-            coordinator_no_kill_own=None,
-            coordinator_may_kill_others=True,
-            json=True,
-        )
-    )
-
-    assert code == 2
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["status"] == "needs_operator_confirm"
-    assert payload["reason"] == "operator_placed_target"
-    assert PersonaAssignmentStore().get(assignment.id).state == "queued"
-
-
 def test_profile_persona_instance_summary_includes_tool_visibility(isolate_agent_runtime_root):
     instance = PersonaInstance(
         id="personainst_profile_alice",
@@ -4933,38 +4759,6 @@ def test_retire_refuses_active_run_binding(isolate_agent_runtime_root):
     assert excinfo.value.code == "instance_active"
     assert excinfo.value.detail["active_run_id"] == run.id
     assert paths.persona_instance_path(instance.id).exists()
-
-
-def test_a_residual_active_assignment_no_longer_blocks_a_retire(isolate_agent_runtime_root):
-    """AX2: the ``assignment_active`` guard is GONE, and its row is left alone.
-
-    Two facts, and the second is why this is not simply "a guard was deleted".
-    The retire now completes over a residual active assignment — nothing can
-    mint one (S70 took the store's mint side) and nothing consumes one (the
-    2026-07-30 chat-only purge took the lane that did), so the guard fenced an
-    orphaning with no runtime left to orphan while making a placement
-    undeletable on any store still carrying legacy residue.
-
-    And the row SURVIVES on disk. Read paths retire; stored bytes do not. A
-    retire that swept the assignment away would be the silent data loss the
-    launcher's preserved-path installer rows exist to prevent, and the operator's
-    settle verbs (``harness persona assignments``, ``persona instance close``)
-    still have to be able to see it.
-    """
-
-    from agent_runtime import paths
-
-    store = PersonaInstanceStore()
-    instance = _placement_instance()
-    assignment = _seed_assignment(persona_id="dev", persona_instance_id=instance.id)
-    assert assignment.state in ACTIVE_ASSIGNMENT_STATES
-
-    result = store.retire(instance.id)
-
-    assert result["persona_instance_id"] == instance.id
-    assert not paths.persona_instance_path(instance.id).exists()
-    assert paths.persona_assignment_path(assignment.id).exists()
-    assert PersonaAssignmentStore().get(assignment.id).state == assignment.state
 
 
 def test_retire_refuses_missing_instance(isolate_agent_runtime_root):

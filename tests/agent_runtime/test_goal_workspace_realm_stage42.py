@@ -9,7 +9,6 @@ from types import SimpleNamespace
 
 Task = SimpleNamespace
 from agent_runtime.persona_assignments import (
-    PersonaAssignmentStore,
     PersonaInstanceStore,
 )
 from agent_runtime.runtime_instances import GoalRuntimeInstanceStore, runtime_instances_summary

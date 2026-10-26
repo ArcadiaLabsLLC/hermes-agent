@@ -1,4 +1,4 @@
-"""Persona resolution and the mission-chat target decision; auto-title and free-floating assignment closes.
+"""Persona resolution and the mission-chat target decision; auto-title.
 
 Separate because every verb that names a persona resolves it through
 ``_persona_by_id`` / ``_resolve_mission_chat_persona_id``.
@@ -13,7 +13,6 @@ from agent_runtime.config import ensure_persisted_personas
 from agent_runtime.models import AgentPersona, AutonomyLevel
 from agent_runtime.persona_assignments import (
     PERSONA_INSTANCE_ID_PREFIX,
-    PersonaAssignmentStore,
     PersonaInstanceStore,
     normalize_persona_id as _normalize_cli_persona_id,
     safe_assignment_text,
@@ -26,7 +25,6 @@ from agent_runtime.personas import profile_persona_resolution
 
 __layer__ = "stores"
 __all__ = [
-    "_close_free_floating_assignments",
     "_display_name_for_profile",
     "_maybe_auto_title_persona_chat",
     "_mission_chat_bare_persona_target",
@@ -131,66 +129,6 @@ def _maybe_auto_title_persona_chat(*, session_db, session_id: str, user_message:
         )
     except Exception:
         return
-
-
-def _close_free_floating_assignments(persona_instance_id: str, *, reason: str, json_output: bool, terminal_state: str) -> int:
-    # Function-local, like the rest of this file.
-    from agent_runtime.mission_chat_outcome import (
-        FinalizationWarning,
-        FinalizationWarningKind,
-    )
-
-    normalized_instance = safe_assignment_token(persona_instance_id)
-    store = PersonaAssignmentStore()
-    matches = [
-        item
-        for item in store.list_all()
-        if item.persona_instance_id == normalized_instance
-        and item.evidence_kind == "free_floating"
-        and item.state not in {"completed", "blocked", "cancelled"}
-    ]
-    if not matches:
-        data = {"ok": False, "error": f"no active free-floating assignments for {persona_instance_id}"}
-        print(emit_json(data) if json_output else data["error"])
-        return 2
-    closed = [store.complete(item.id, state=terminal_state, error=reason) for item in matches]
-    finalization_warnings: list[FinalizationWarning] = []
-    try:
-        instance_store = PersonaInstanceStore()
-        instance = instance_store.get(normalized_instance)
-        if instance.current_assignment_id in {item.id for item in closed}:
-            instance.current_assignment_id = None
-            instance.mode = "configured"
-            instance_store.update(instance)
-    except Exception as instance_commit_exc:
-        # Third copy of the same swallow. The assignments ARE closed by this
-        # point, so a failure here leaves the instance pointing at work that no
-        # longer exists — reported, not hidden.
-        finalization_warnings.append(
-            FinalizationWarning(
-                kind=FinalizationWarningKind.INSTANCE_STATE_COMMIT_FAILED,
-                detail=type(instance_commit_exc).__name__,
-                step="clear_instance_assignment",
-            )
-        )
-    data = {
-        "ok": True,
-        "persona_instance_id": normalized_instance,
-        "closed_assignment_ids": [item.id for item in closed],
-        "state": terminal_state,
-        "production_proof_eligible": False,
-        **(
-            {
-                "finalization_warnings": [
-                    warning.as_dict() for warning in finalization_warnings
-                ]
-            }
-            if finalization_warnings
-            else {}
-        ),
-    }
-    print(emit_json(data) if json_output else f"closed {len(closed)} free-floating assignments for {normalized_instance}")
-    return 0
 
 
 def _mission_chat_target_decision(

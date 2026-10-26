@@ -70,7 +70,6 @@ LIVE_PAYLOADS = {
         "session_id": "persona_chat_personainst_dev_live",
         "deleted_session": True,
         "cleared_bindings": ["personainst_dev_live"],
-        "closed_assignment_ids": [],
         "requested_by": "cli",
     },
     # delivery_directive.py reap_orphan_worktrees

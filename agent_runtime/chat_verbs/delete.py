@@ -17,7 +17,7 @@ __all__ = ["delete_persona_chat"]
 def delete_persona_chat(params: dict, *, caller: Any | None = None) -> dict:
     """Params: ``session_id`` (required); ``persona_id``, ``persona_instance_id``,
     ``requested_by``. Row: ``session_id``, ``deleted_session``,
-    ``cleared_bindings``, ``cleared_binding_count``, ``closed_assignment_ids``.
+    ``cleared_bindings``, ``cleared_binding_count``.
     Refusals: ``foreign_chat_session``, ``chat_busy``,
     ``chat_session_db_unavailable``, ``status: not_found``."""
     from ..mission_chat_door import CHAT_DELETE_VERB

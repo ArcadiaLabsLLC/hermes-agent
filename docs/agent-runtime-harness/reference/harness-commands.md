@@ -124,8 +124,6 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness persona tool-diff](#hermes-harness-persona-tool-diff)
 - [hermes harness persona permission](#hermes-harness-persona-permission)
 - [hermes harness persona permission set](#hermes-harness-persona-permission-set)
-- [hermes harness persona assignments](#hermes-harness-persona-assignments)
-- [hermes harness persona migrate-assignment-task-ids](#hermes-harness-persona-migrate-assignment-task-ids)
 - [hermes harness persona chat](#hermes-harness-persona-chat)
 - [hermes harness persona chat delete](#hermes-harness-persona-chat-delete)
 - [hermes harness persona chat history](#hermes-harness-persona-chat-history)
@@ -134,8 +132,6 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness persona instance](#hermes-harness-persona-instance)
 - [hermes harness persona instance create](#hermes-harness-persona-instance-create)
 - [hermes harness persona instance open-chat](#hermes-harness-persona-instance-open-chat)
-- [hermes harness persona instance close](#hermes-harness-persona-instance-close)
-- [hermes harness persona instance archive](#hermes-harness-persona-instance-archive)
 - [hermes harness persona instance retire](#hermes-harness-persona-instance-retire) — aliases: `delete`
 - [hermes harness persona instance steer](#hermes-harness-persona-instance-steer)
 - [hermes harness persona instance repair-steering](#hermes-harness-persona-instance-repair-steering)
@@ -2369,19 +2365,16 @@ options:
 
 ```text
 usage: hermes harness persona [-h]
-                              {list,show,tool-diff,permission,assignments,migrate-assignment-task-ids,chat,set-model,set-skills,instance,slots} ...
+                              {list,show,tool-diff,permission,chat,set-model,set-skills,instance,slots} ...
 
 positional arguments:
-  {list,show,tool-diff,permission,assignments,migrate-assignment-task-ids,chat,set-model,set-skills,instance,slots}
+  {list,show,tool-diff,permission,chat,set-model,set-skills,instance,slots}
     list                List durable persona instances
     show                Show one durable persona instance
     tool-diff           Show resolved model tools and blocked tools for one persona
     permission          Restrict (or clear a restriction on) one chat session's tool permissions.
                         The runtime default is the standing posture — this is the temporary
                         narrowing lane, not an escalation ritual.
-    assignments         List persona assignments
-    migrate-assignment-task-ids
-                        Archive pre-retirement persona assignments whose task_id is non-null
     chat                Manage durable persona chat sessions
     set-model           Persist a persona's default provider/model (profile-default lane; future
                         instances inherit it)
@@ -2494,28 +2487,6 @@ options:
   --json
 ```
 
-## hermes harness persona assignments
-
-```text
-usage: hermes harness persona assignments [-h] [--persona PERSONA_ID] [--json]
-
-options:
-  -h, --help            show this help message and exit
-  --persona PERSONA_ID
-  --json
-```
-
-## hermes harness persona migrate-assignment-task-ids
-
-```text
-usage: hermes harness persona migrate-assignment-task-ids [-h] [--dry-run] [--json]
-
-options:
-  -h, --help  show this help message and exit
-  --dry-run
-  --json
-```
-
 ## hermes harness persona chat
 
 ```text
@@ -2610,17 +2581,13 @@ options:
 
 ```text
 usage: hermes harness persona instance [-h]
-                                       {create,open-chat,close,archive,retire,delete,steer,repair-steering,return-summary,update-profile,set-model} ...
+                                       {create,open-chat,retire,delete,steer,repair-steering,return-summary,update-profile,set-model} ...
 
 positional arguments:
-  {create,open-chat,close,archive,retire,delete,steer,repair-steering,return-summary,update-profile,set-model}
+  {create,open-chat,retire,delete,steer,repair-steering,return-summary,update-profile,set-model}
     create              Create an Agent Profile (operator chat channel) or an additional placement-
                         backed instance (--add-instance); requires --display-name
     open-chat           Bind a persona instance to a durable chat session without ticking
-    close               Cancel residual free-floating assignment rows for one persona instance
-                        (maintenance; the lane that minted them is retired)
-    archive             Complete residual free-floating assignment rows for one persona instance
-                        (maintenance; the lane that minted them is retired)
     retire (delete)     Delete (end-of-life) a placement-backed persona instance: archive its row
                         (chat history preserved)
     steer               Re-route a persona instance's living-graph wiring (Stage 77 steering edge;
@@ -2744,58 +2711,6 @@ options:
                         Require confirmation even for own-spawned instances
   --coordinator-may-kill-others
                         Allow killing non-operator instances spawned by another coordinator
-  --json
-```
-
-## hermes harness persona instance close
-
-```text
-usage: hermes harness persona instance close [-h] --reason REASON [--requested-by REQUESTED_BY]
-                                             [--coordinator-id COORDINATOR_ID]
-                                             [--coordinator-max-spawns COORDINATOR_MAX_SPAWNS]
-                                             [--coordinator-spawns-used COORDINATOR_SPAWNS_USED]
-                                             [--coordinator-may-kill-own]
-                                             [--coordinator-no-kill-own]
-                                             [--coordinator-may-kill-others] [--json]
-                                             persona_instance_id
-
-positional arguments:
-  persona_instance_id
-
-options:
-  -h, --help            show this help message and exit
-  --reason REASON
-  --requested-by REQUESTED_BY
-  --coordinator-id COORDINATOR_ID
-                        Coordinator persona id when --requested-by is coordinator; coordinator:<id>
-                        carries it inline
-  --coordinator-max-spawns COORDINATOR_MAX_SPAWNS
-                        In-scope create/spawn grant for this coordinator action
-  --coordinator-spawns-used COORDINATOR_SPAWNS_USED
-                        Create/spawn actions already used in this coordinator scope
-  --coordinator-may-kill-own
-                        Allow killing instances spawned by this coordinator
-  --coordinator-no-kill-own
-                        Require confirmation even for own-spawned instances
-  --coordinator-may-kill-others
-                        Allow killing non-operator instances spawned by another coordinator
-  --json
-```
-
-## hermes harness persona instance archive
-
-```text
-usage: hermes harness persona instance archive [-h] [--reason REASON] [--requested-by REQUESTED_BY]
-                                               [--json]
-                                               persona_instance_id
-
-positional arguments:
-  persona_instance_id
-
-options:
-  -h, --help            show this help message and exit
-  --reason REASON
-  --requested-by REQUESTED_BY
   --json
 ```
 

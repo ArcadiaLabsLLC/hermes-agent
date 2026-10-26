@@ -1,4 +1,4 @@
-"""Persona-instance verbs: close, archive, retire, repair-steering, steer, return-summary, update-profile.
+"""Persona-instance verbs: retire, repair-steering, steer, return-summary, update-profile.
 
 Separate because they act on one placed instance and its steering edges.
 """
@@ -24,48 +24,17 @@ from .chat_coordinator import (
     _coordinator_confirm_payload,
     _coordinator_scope_from_args,
 )
-from .chat_target import _close_free_floating_assignments, _persona_by_id
+from .chat_target import _persona_by_id
 from .lifecycle_commands import _agent_retire_outcome
 
 __layer__ = "lanes"
 __all__ = [
-    "_cmd_persona_instance_archive",
-    "_cmd_persona_instance_close",
     "_cmd_persona_instance_repair_steering",
     "_cmd_persona_instance_retire",
     "_cmd_persona_instance_return_summary",
     "_cmd_persona_instance_steer",
     "_cmd_persona_instance_update_profile",
 ]
-
-
-def _cmd_persona_instance_close(args) -> int:
-    cfg = load_agent_runtime_config()
-    coordinator_id = _coordinator_actor_id(args)
-    if coordinator_id:
-        try:
-            target = PersonaInstanceStore().get(args.persona_instance_id)
-            persona = _persona_by_id(cfg, target.persona_id)
-        except Exception:
-            target = None
-            persona = None
-        scope = _coordinator_scope_from_args(args, cfg, persona)
-        auth = review_coordinator_budget(
-            "persona.instance.close",
-            scope,
-            target,
-            actor=coordinator_id,
-            coordinator_id=coordinator_id,
-        )
-        if not auth.ok:
-            data = _coordinator_confirm_payload("persona.instance.close", coordinator_id, auth)
-            print(emit_json(data) if args.json else data["status"])
-            return 2
-    return _close_free_floating_assignments(args.persona_instance_id, reason=args.reason, json_output=args.json, terminal_state="cancelled")
-
-
-def _cmd_persona_instance_archive(args) -> int:
-    return _close_free_floating_assignments(args.persona_instance_id, reason=args.reason, json_output=args.json, terminal_state="completed")
 
 
 def _cmd_persona_instance_retire(args) -> int:

@@ -106,33 +106,14 @@ def test_the_surviving_runtime_block_still_answers_its_own_question():
         assert frame["persona_instance_runtime"] == {"enabled": True}
 
 
-def test_neither_producer_opens_the_assignment_store_any_more(monkeypatch):
-    """The strongest form: the READ is gone, not merely its projection.
-
-    Emitting no key while still walking the directory would leave the whole cost
-    this stage was about — a store scan on every snapshot build and every
-    ``harness status`` — and nothing above would notice.
-    """
-
-    from agent_runtime import persona_assignments
-
-    def _explode(self):
-        raise AssertionError("no wire producer may scan the assignment store")
-
-    monkeypatch.setattr(persona_assignments.PersonaAssignmentStore, "scan_all", _explode)
-
-    _seed_persona()
-    assert build_snapshot()["agents"]
-    assert build_status()["agents"] is not None
-
-
 def test_the_instance_row_keeps_the_assignment_pointer_the_launcher_parses():
     """``current_assignment_id`` survives the block that used to explain it.
 
     S70 kept this field with the reason "Launcher roster fold against the
     persona_assignments block". That fold is gone — but the field is not
     orphaned by it: the launcher parses ``current_assignment_id`` straight onto
-    ``MissionAgentInstance``, and hermes' settle verbs write it. The reason
+    ``MissionAgentInstance``, and hermes' settle verbs wrote it (retired with the store,
+    RT-FULL-PERSONAASSIGNMENTSTORE). The reason
     changed; the verdict did not, and recording that here is what stops the next
     pruner from cutting it on a stale justification.
     """
