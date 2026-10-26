@@ -966,4 +966,3 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-25 (launcher lane w1025a-comp)
 
-- **`RT-WORK-OBSERVE-MANIFEST-PARAMS` — a passive Work reader cannot learn `capabilities.observe` without calling `runtime.work.capabilities`, which an older runtime answers by provisioning; publish `observe` for `runtime.work.capabilities` / `runtime.work.list` / `runtime.work.inspect` in the rpc manifest `params` block so a client gates on the greeting before its first call** · `agent_runtime/serve_rpc/registry.py` · launcher `COMP-PROJECTS-TODO-PREVIEW-OBSERVE` waits on it · READY 2026-10-25 · **TAKEN 2026-10-25 w1025b-h-misc**

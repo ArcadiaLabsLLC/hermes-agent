@@ -13,7 +13,17 @@ from dataclasses import dataclass
 from agent_runtime.work_store.reasons import Reason, WorkRefused
 
 __layer__ = "models"
-__all__ = ["OPERATIONS", "Reason", "WorkRefused", "WorkScope", "fingerprint", "text"]
+__all__ = ["OPERATIONS", "READ_METHOD_PARAMS", "Reason", "WorkRefused", "WorkScope", "fingerprint", "text"]
+
+#: The keys the three READ methods honour, published in the rpc manifest's ``params`` block so a passive
+#: reader sees ``observe`` in the greeting before its first call (RT-WORK-OBSERVE-MANIFEST-PARAMS: an older
+#: runtime answers ``capabilities`` by provisioning). Sorted; ``service`` / ``store`` / ``context`` read them.
+_SCOPED = ("client_scope", "conversation", "install_id", "owner")
+READ_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
+    "runtime.work.capabilities": ("observe",),
+    "runtime.work.inspect": tuple(sorted((*_SCOPED, "observe", "slot", "stale_ok", "task_id"))),
+    "runtime.work.list": tuple(sorted((*_SCOPED, "assignee", "observe", "slot", "stale_ok", "status", "view"))),
+}
 
 #: What an owner advertises on the wire (``capabilities`` / ``context`` are not owner operations).
 OPERATIONS = ("inspect", "start", "assign", "claim", "release", "set_status", "done", "create_brain", "lend_skills")

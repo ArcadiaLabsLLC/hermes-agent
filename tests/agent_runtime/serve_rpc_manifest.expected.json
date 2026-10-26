@@ -893,6 +893,31 @@
     "runtime.realm.sync.status": [
       "credential",
       "realm_id"
+    ],
+    "runtime.work.capabilities": [
+      "observe"
+    ],
+    "runtime.work.inspect": [
+      "client_scope",
+      "conversation",
+      "install_id",
+      "observe",
+      "owner",
+      "slot",
+      "stale_ok",
+      "task_id"
+    ],
+    "runtime.work.list": [
+      "assignee",
+      "client_scope",
+      "conversation",
+      "install_id",
+      "observe",
+      "owner",
+      "slot",
+      "stale_ok",
+      "status",
+      "view"
     ]
   },
   "tiers": {

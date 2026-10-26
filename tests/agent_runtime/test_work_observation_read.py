@@ -120,3 +120,51 @@ def test_only_a_literal_true_observes(value):
     ws = _workspace()
     caps = service.execute("capabilities", {"observe": value}, STDIO_OWNER)
     assert caps["default_brain"][ws]["state"] == "created"
+
+
+class _Recording(dict):
+    """A params mapping that remembers every key a handler reads, by any spelling."""
+
+    def __init__(self, values):
+        super().__init__(values)
+        self.asked: set[str] = set()
+
+    def get(self, key, default=None):  # type: ignore[override]
+        self.asked.add(key)
+        return super().get(key, default)
+
+    def __getitem__(self, key):
+        self.asked.add(key)
+        return super().__getitem__(key)
+
+    def __contains__(self, key):
+        self.asked.add(key)
+        return super().__contains__(key)
+
+
+def test_the_manifest_publishes_observe_and_every_key_the_read_methods_honour():
+    """RT-WORK-OBSERVE-MANIFEST-PARAMS: a passive reader gates on the greeting before its first call.
+    The recorded reads are the positive control: a key a handler honours that the manifest does not
+    publish reds, so the published tuples cannot drift behind the handlers."""
+    from agent_runtime import serve_rpc
+
+    ws = _workspace()
+    caps = service.execute("capabilities", {}, STDIO_OWNER)
+    scope = _scope(caps, ws)
+    task_id = service.execute("start", {**scope, "request_id": "request-m", "title": "Review"},
+                              STDIO_OWNER)["task"]["id"]
+    published = serve_rpc.manifest()["params"]
+    (board,) = service.execute("list", {**scope, "observe": True}, STDIO_OWNER)["boards"]
+    calls = {"capabilities": {"observe": True},
+             "list": {**scope, "observe": True, "conversation": None, "status": None, "assignee": None,
+                      "view": "all", "stale_ok": False, "slot": None},
+             "inspect": {**scope, "observe": True, "task_id": task_id, "stale_ok": False,
+                         "slot": board["slot"]}}
+    for operation, values in calls.items():
+        values.pop("conversation", None)  # a conversation needs a live chat; its key is still recorded below
+        keys = set(published["runtime.work." + operation])
+        assert "observe" in keys
+        for observe in (True, False):  # each arm reads its own keys (stale_ok only off the observe path)
+            recorded = _Recording({**values, "observe": observe})
+            service.execute(operation, recorded, STDIO_OWNER)
+            assert recorded.asked <= keys, (operation, observe, recorded.asked - keys)
