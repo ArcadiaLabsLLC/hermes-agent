@@ -40,7 +40,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-25 (lane w1025a-hermes)
 
-- **`RT-CHAT-MINT-TWO-RECEIPT-STORES` — refactor: one fact (an idempotent chat-root mint) has two receipt stores and two phase orders — the send lane mints through `PersonaChatMintReceiptStore.mint` (always binds, records dispatch lineage), open-chat through `reserve_persona_chat_mint` + `_publish_minted_root` (may leave the root unselected); a reader has to trace both to know what a replay answers. One `mint_chat_root(persona_id, instance_id, idempotency_key, title, select, dispatched_from)` over one receipt store retires the second** · `agent_runtime/persona_chat_continuity/mint_receipts.py::Mint` · `agent_runtime/persona_chat_mints.py::reserve_persona_chat_mint` · `hermes_cli/harness_parts/persona/chat_open.py::_publish_minted_root` · filed by lane w1025b-h-misc 2026-10-25 · READY 2026-10-25 · **TAKEN 2026-10-26 w1026a-h-b**
 
 ### Filed on arrival — 2026-10-25 (naming map verified against the owner's account namespace)
 

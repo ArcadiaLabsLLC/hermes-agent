@@ -306,7 +306,7 @@ def test_omitted_session_routes_through_the_default_resolver():
         "the omitted-session path must resolve the target's default chat session "
         "before using the canonical server-mint fallback"
     )
-    assert "mint" in calls
+    assert "mint_chat_root" in calls
 
 
 def test_handler_no_longer_mints_a_fresh_session_per_send():

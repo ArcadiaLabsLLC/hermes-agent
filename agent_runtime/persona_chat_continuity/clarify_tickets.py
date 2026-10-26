@@ -52,7 +52,7 @@ class PersonaChatClarifyTicketStore:
     owns the binding now.
 
     A sidecar keyed store, deliberately NOT session meta:
-    :meth:`PersonaChatMintReceiptStore.mint` writes meta WHOLESALE
+    :func:`mint_chat_root` writes meta WHOLESALE
     (``update_session_meta(root, json.dumps(meta))``), which is exactly why
     ``640131e8c`` had to add carry-forward logic for ``_dispatched_from``. A
     ticket parked in meta would be erased by the next mint against that root.

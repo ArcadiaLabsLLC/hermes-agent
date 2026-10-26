@@ -473,7 +473,7 @@ def retired_instance_archive_path(
     method instead of re-deriving it.
 
     It exists because ``open_chat`` answers the question only by RAISING,
-    and by then a caller like ``PersonaChatMintReceiptStore.mint`` has
+    and by then a caller like ``mint_chat_root`` has
     already created a titled session row. A refusal decidable without
     writing anything must be decidable WITHOUT writing anything.
 

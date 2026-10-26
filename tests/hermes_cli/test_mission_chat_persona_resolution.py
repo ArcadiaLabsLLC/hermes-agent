@@ -139,7 +139,7 @@ def _send_capturing_bind(monkeypatch, capsys, *extra):
 
     The spy calls the REAL ``open_chat`` — the sibling-steal guard has to
     genuinely evaluate, since it is the thing that refused live — and then ends
-    the turn before the model plumbing runs. ``PersonaChatMintReceiptStore.mint``
+    the turn before the model plumbing runs. ``mint_chat_root``
     also binds through ``open_chat`` (that is the mint chokepoint, one write
     path); only the SEND's bind carries ``default_display_name``, so that is the
     call the sentinel ends on.

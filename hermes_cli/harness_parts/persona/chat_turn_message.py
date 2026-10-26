@@ -33,9 +33,11 @@ from agent_runtime.persona_assignments import (
 )
 from agent_runtime.persona_chat_continuity import (
     PersonaChatBusyError,
-    PersonaChatMintReceiptStore,
+    mint_chat_root,
     persona_chat_root_lease,
 )
+from agent_runtime.conversation_owner import ConversationOwnerError
+from agent_runtime.persona_chat_mints import PersonaChatMintError
 from agent_runtime.persona_chat_durability import (
     PersonaChatPersistenceError,
     default_persona_session_db as _default_persona_session_db,
@@ -629,7 +631,7 @@ def _cmd_mission_chat_message(args) -> int:
                     or persona_thread_title
                 )
             try:
-                receipt = PersonaChatMintReceiptStore().mint(
+                minted = mint_chat_root(
                     instance_store=instance_store,
                     session_db=session_db,
                     persona_id=normalized_persona,
@@ -699,7 +701,24 @@ def _cmd_mission_chat_message(args) -> int:
                 }
                 _mission_chat_emit(args, data)
                 return 2
-            session_id = str(receipt["root_chat_session_id"])
+            except (PersonaChatMintError, ConversationOwnerError) as exc:
+                # The shared mint's receipt refusals (a malformed or
+                # scope-conflicting idempotency key, a busy mint lock, a
+                # replayed root that is gone or owned elsewhere) — typed, never
+                # a traceback. The open-chat lane speaks the same codes.
+                data = {
+                    "ok": False,
+                    "capability_id": "mission.chat.message",
+                    "execution_state": ExecutionState.FAILED,
+                    "error_kind": getattr(exc, "code", None) or getattr(exc, "reason", None),
+                    "error": safe_assignment_text(str(exc), limit=400),
+                    "persona_id": normalized_persona,
+                    "persona_instance_id": persona_instance_id,
+                    "next_expected": "correct the idempotency key or retry the message",
+                }
+                _mission_chat_emit(args, data)
+                return 2
+            session_id = minted.session_id
             session_established = session_established_payload(
                 dispatch_decision,
                 fresh=True,
@@ -710,7 +729,7 @@ def _cmd_mission_chat_message(args) -> int:
                 # become this very thread — reporting it here would claim "A
                 # superseded A", and reporting nothing would lose the real
                 # predecessor the first pass established.
-                predecessor_session_id=(receipt.get("dispatched_from") or {}).get(
+                predecessor_session_id=minted.dispatched_from.get(
                     "predecessor_chat_session_id"
                 ),
             )

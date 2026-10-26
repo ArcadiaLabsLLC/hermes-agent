@@ -229,7 +229,7 @@ def assert_bindable(
 
     This exists because ``open_chat`` answers "may this bind happen?" only by
     RAISING at the end of whatever the caller already did. For
-    :meth:`PersonaChatMintReceiptStore.mint` that end came after a session row
+    :func:`mint_chat_root` that end came after a session row
     had been created, meta written and a title set — so a dispatch to a target
     that could never be served left a permanent titled thread in Mission
     Control, and the refusal arrived one durable write too late. A refusal
@@ -565,7 +565,7 @@ def rollback_chat_root_bind(
     """Undo an :meth:`open_chat` bind whose transcript row never landed.
 
     The EARLY-BIND ordering in
-    :meth:`PersonaChatMintReceiptStore.mint` is deliberate — the bind is the
+    :func:`mint_chat_root` is deliberate — the bind is the
     step that proves the target still live, so it must precede the first
     SESSION-visible write (see the comment there; a retire landing mid-lane
     would otherwise leave a titled thread for a dead placement). The cost of
@@ -683,7 +683,7 @@ def create_operator_chat(
     instance_id = persona_instance_id_for(normalized_persona)
     root = session_id or persona_chat_session_id_for(instance_id)
     # Refusals FIRST, durable writes second — the ordering
-    # ``PersonaChatMintReceiptStore.mint`` already learned. Persisting the
+    # ``mint_chat_root`` already learned. Persisting the
     # root before the bind is checked would leave a titled Mission Control
     # thread behind every retirement/sibling-steal refusal; ``open_chat``
     # re-asserts this, so the pre-flight only moves the answer earlier.

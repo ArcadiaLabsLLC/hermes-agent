@@ -392,7 +392,7 @@ would be inherited by every subprocess a handler spawns, which is a different qu
 ## Stage 5 — the hygiene sweeps
 
 **Orphaned turns** (`orphaned_turn_sweep_ms`, `serve.py` →
-`agent_runtime/persona_chat_continuity/mint_receipts.py::PersonaChatMintReceiptStore`). A native turn holds the OS-backed root lease for
+`agent_runtime/persona_chat_continuity/lease.py::repair_orphaned_chat_turns`). A native turn holds the OS-backed root lease for
 its entire execution and the kernel releases it when the holder dies, so "in-flight record AND
 acquirable lease" is proof the turn can no longer settle itself; a session whose lease is HELD is
 a live turn in another process and is skipped. It runs BEFORE `ready` — the first hydrate is only

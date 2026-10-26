@@ -17,7 +17,7 @@ from agent_runtime.persona_chat_continuity import (
     CLARIFY_TICKET_TTL_SECONDS,
     PersonaChatBusyError,
     PersonaChatClarifyTicketStore,
-    PersonaChatMintReceiptStore,
+    mint_chat_root,
     PersonaChatRuntimeRegistry,
     current_tool_execution_scope,
     initialize_persona_chat_runtime_registry,
@@ -75,38 +75,88 @@ def test_03_multiple_roots_repoint_only_the_default(isolate_agent_runtime_root):
 def test_04_mint_same_key_replays_same_root(isolate_agent_runtime_root, tmp_path):
     db = SessionDB(tmp_path / "state.db")
     store = PersonaInstanceStore()
-    receipts = PersonaChatMintReceiptStore()
-    one = receipts.mint(instance_store=store, session_db=db, persona_id="dev", persona_instance_id="personainst_dev", idempotency_key="same")
-    two = receipts.mint(instance_store=store, session_db=db, persona_id="dev", persona_instance_id="personainst_dev", idempotency_key="same")
-    assert one["root_chat_session_id"] == two["root_chat_session_id"]
+    one = mint_chat_root(instance_store=store, session_db=db, persona_id="dev", persona_instance_id="personainst_dev", idempotency_key="same")
+    two = mint_chat_root(instance_store=store, session_db=db, persona_id="dev", persona_instance_id="personainst_dev", idempotency_key="same")
+    assert one.session_id == two.session_id
 
 
 def test_05_mint_different_keys_create_different_roots(isolate_agent_runtime_root, tmp_path):
     db = SessionDB(tmp_path / "state.db")
     store = PersonaInstanceStore()
-    receipts = PersonaChatMintReceiptStore()
-    one = receipts.mint(instance_store=store, session_db=db, persona_id="dev", persona_instance_id="personainst_dev", idempotency_key="one", title="Dev chat")
-    two = receipts.mint(instance_store=store, session_db=db, persona_id="dev", persona_instance_id="personainst_dev", idempotency_key="two", title="Dev chat")
-    assert one["root_chat_session_id"] != two["root_chat_session_id"]
-    assert db.get_session_title(one["root_chat_session_id"]) != db.get_session_title(two["root_chat_session_id"])
+    one = mint_chat_root(instance_store=store, session_db=db, persona_id="dev", persona_instance_id="personainst_dev", idempotency_key="one", title="Dev chat")
+    two = mint_chat_root(instance_store=store, session_db=db, persona_id="dev", persona_instance_id="personainst_dev", idempotency_key="two", title="Dev chat")
+    assert one.session_id != two.session_id
+    assert db.get_session_title(one.session_id) != db.get_session_title(two.session_id)
 
 
-def test_06_reserved_mint_receipt_survives_retry(isolate_agent_runtime_root, tmp_path):
+def _mint_receipt_path(key):
+    import hashlib
+
+    from agent_runtime import paths
+
+    return paths.persona_chat_mint_receipt_path(hashlib.sha256(key.encode("utf-8")).hexdigest())
+
+
+def test_06_a_legacy_reserved_receipt_seeds_the_retry(isolate_agent_runtime_root, tmp_path):
+    """A send reserved under the RETIRED second store resumes its root after the upgrade."""
+    from agent_runtime.persona_chat_continuity.mint_receipts import legacy_mint_receipt_path
+
     db = SessionDB(tmp_path / "state.db")
     store = PersonaInstanceStore()
-    receipts = PersonaChatMintReceiptStore()
-    path = receipts._path("personainst_dev", "reserved")
+    path = legacy_mint_receipt_path("personainst_dev", "reserved")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"root_chat_session_id": "persona_chat_reserved", "state": "reserved"}), encoding="utf-8")
-    replay = receipts.mint(instance_store=store, session_db=db, persona_id="dev", persona_instance_id="personainst_dev", idempotency_key="reserved")
-    assert replay["root_chat_session_id"] == "persona_chat_reserved"
-    assert replay["state"] == "completed"
+    replay = mint_chat_root(instance_store=store, session_db=db, persona_id="dev", persona_instance_id="personainst_dev", idempotency_key="reserved")
+    assert replay.session_id == "persona_chat_reserved"
+    assert replay.state == "bound"
+
+
+def test_06b_send_and_open_chat_mints_share_one_receipt_store(isolate_agent_runtime_root, tmp_path):
+    """RT-CHAT-MINT-TWO-RECEIPT-STORES: one key, one receipt, whichever lane minted it.
+
+    The send lane (dispatch lineage, selected) and open-chat (unselected) used
+    to keep separate receipt stores, so the same key answered two roots. Now an
+    open-chat replay of a send-minted key resolves the SAME root — and refuses a
+    different selection policy as the scope conflict it is."""
+    from agent_runtime.persona_chat_mints import PersonaChatMintError
+
+    db = SessionDB(tmp_path / "state.db")
+    store = PersonaInstanceStore()
+    sent = mint_chat_root(instance_store=store, session_db=db, persona_id="dev",
+                          persona_instance_id="personainst_dev", idempotency_key="shared",
+                          dispatched_from={"requested_by_session": "persona_chat_sender"})
+    receipt = json.loads(_mint_receipt_path("shared").read_text(encoding="utf-8"))
+    assert receipt["session_id"] == sent.session_id
+    assert receipt["state"] == "bound"
+    replay = mint_chat_root(instance_store=store, session_db=db, persona_id="dev",
+                            persona_instance_id="personainst_dev", idempotency_key="shared")
+    assert replay.session_id == sent.session_id
+    assert replay.idempotent_replay is True
+    assert replay.dispatched_from == {"requested_by_session": "persona_chat_sender"}
+    with pytest.raises(PersonaChatMintError) as excinfo:
+        mint_chat_root(instance_store=store, session_db=db, persona_id="dev",
+                       persona_instance_id="personainst_dev", idempotency_key="shared",
+                       select=False)
+    assert excinfo.value.code == "idempotency_conflict"
+
+
+def test_06c_a_bound_replay_never_moves_the_pointer_back(isolate_agent_runtime_root, tmp_path):
+    db = SessionDB(tmp_path / "state.db")
+    store = PersonaInstanceStore()
+    first = mint_chat_root(instance_store=store, session_db=db, persona_id="dev",
+                           persona_instance_id="personainst_dev", idempotency_key="first")
+    second = mint_chat_root(instance_store=store, session_db=db, persona_id="dev",
+                            persona_instance_id="personainst_dev", idempotency_key="second")
+    replay = mint_chat_root(instance_store=store, session_db=db, persona_id="dev",
+                            persona_instance_id="personainst_dev", idempotency_key="first")
+    assert replay.session_id == first.session_id
+    assert store.get("personainst_dev").default_chat_session_id == second.session_id
 
 
 def test_07_mint_stamps_exact_owner_metadata(isolate_agent_runtime_root, tmp_path):
     db = SessionDB(tmp_path / "state.db")
-    receipt = PersonaChatMintReceiptStore().mint(instance_store=PersonaInstanceStore(), session_db=db, persona_id="dev", persona_instance_id="personainst_dev", idempotency_key="owner")
-    meta = json.loads(db.get_session(receipt["root_chat_session_id"])["model_config"])
+    receipt = mint_chat_root(instance_store=PersonaInstanceStore(), session_db=db, persona_id="dev", persona_instance_id="personainst_dev", idempotency_key="owner")
+    meta = json.loads(db.get_session(receipt.session_id)["model_config"])
     assert meta["persona_instance_id"] == "personainst_dev"
 
 
@@ -1173,7 +1223,7 @@ def test_mint_refuses_a_retired_target_before_its_first_durable_write(
     placement, archived = _retired_placement(store)
 
     with pytest.raises(RetiredPersonaInstanceError) as excinfo:
-        PersonaChatMintReceiptStore().mint(
+        mint_chat_root(
             instance_store=store,
             session_db=db,
             persona_id="dev",
@@ -1206,7 +1256,7 @@ def test_mint_for_a_live_target_is_untouched_by_the_retirement_precondition(
     store = PersonaInstanceStore()
     _retired_placement(store)  # a tombstone exists, for a DIFFERENT id
 
-    receipt = PersonaChatMintReceiptStore().mint(
+    receipt = mint_chat_root(
         instance_store=store,
         session_db=db,
         persona_id="dev",
@@ -1215,8 +1265,8 @@ def test_mint_for_a_live_target_is_untouched_by_the_retirement_precondition(
         title="Dev chat",
     )
 
-    root = receipt["root_chat_session_id"]
-    assert receipt["state"] == "completed"
+    root = receipt.session_id
+    assert receipt.state == "bound"
     assert db.get_session(root) is not None
     assert store.get("personainst_dev").default_chat_session_id == root
 
@@ -1261,7 +1311,7 @@ def test_a_flaky_tombstone_probe_cannot_escape_the_mint_lane_untyped(
     ), "failing open must not be silent"
 
     # …and the lane that used to traceback now runs to completion.
-    receipt = PersonaChatMintReceiptStore().mint(
+    receipt = mint_chat_root(
         instance_store=store,
         session_db=db,
         persona_id="dev",
@@ -1270,7 +1320,7 @@ def test_a_flaky_tombstone_probe_cannot_escape_the_mint_lane_untyped(
         title="Dev chat",
     )
 
-    assert db.get_session(receipt["root_chat_session_id"]) is not None
+    assert db.get_session(receipt.session_id) is not None
 
 
 def test_a_retire_that_lands_mid_mint_still_leaves_no_titled_thread(
@@ -1313,7 +1363,7 @@ def test_a_retire_that_lands_mid_mint_still_leaves_no_titled_thread(
     store.armed = True
 
     with pytest.raises(RetiredPersonaInstanceError):
-        PersonaChatMintReceiptStore().mint(
+        mint_chat_root(
             instance_store=store,
             session_db=db,
             persona_id="dev",
@@ -1348,7 +1398,7 @@ def test_the_mint_binds_before_it_creates_the_session_row(
             order.append("title")
             return super().set_session_title(*args, **kwargs)
 
-    PersonaChatMintReceiptStore().mint(
+    mint_chat_root(
         instance_store=_OrderedStore(),
         session_db=_OrderedDB(tmp_path / "state.db"),
         persona_id="dev",
@@ -1380,7 +1430,7 @@ def test_the_mint_refusal_names_its_target_the_way_every_other_refusal_does(
     placement, archived = _retired_placement(store)
 
     with pytest.raises(RetiredPersonaInstanceError) as excinfo:
-        PersonaChatMintReceiptStore().mint(
+        mint_chat_root(
             instance_store=store,
             session_db=db,
             persona_id="dev",
@@ -1443,7 +1493,7 @@ def test_a_transcript_write_that_fails_retracts_the_bind_it_was_ordered_behind(
     db = _RefusingDB(tmp_path / "state.db")
 
     with pytest.raises(PersonaChatPersistenceError) as excinfo:
-        PersonaChatMintReceiptStore().mint(
+        mint_chat_root(
             instance_store=store,
             session_db=db,
             persona_id="dev",
@@ -1501,9 +1551,8 @@ def test_a_retraction_restores_the_pointer_the_instance_already_had(
 
     db = _SecondWriteFailsDB(tmp_path / "state.db")
     store = PersonaInstanceStore()
-    receipts = PersonaChatMintReceiptStore()
 
-    first = receipts.mint(
+    first = mint_chat_root(
         instance_store=store,
         session_db=db,
         persona_id="dev",
@@ -1511,12 +1560,12 @@ def test_a_retraction_restores_the_pointer_the_instance_already_had(
         idempotency_key="first",
         title="Dev chat",
     )
-    good_root = first["root_chat_session_id"]
+    good_root = first.session_id
     assert store.get("personainst_dev").default_chat_session_id == good_root
 
     db.fail = True
     with pytest.raises(PersonaChatPersistenceError):
-        receipts.mint(
+        mint_chat_root(
             instance_store=store,
             session_db=db,
             persona_id="dev",
@@ -1554,10 +1603,9 @@ def test_a_same_key_retry_after_a_failed_mint_still_resolves_the_same_root(
 
     db = _FirstWriteFailsDB(tmp_path / "state.db")
     store = PersonaInstanceStore()
-    receipts = PersonaChatMintReceiptStore()
 
     with pytest.raises(PersonaChatPersistenceError):
-        receipts.mint(
+        mint_chat_root(
             instance_store=store,
             session_db=db,
             persona_id="dev",
@@ -1566,12 +1614,10 @@ def test_a_same_key_retry_after_a_failed_mint_still_resolves_the_same_root(
             title="Dev chat",
         )
 
-    reserved = json.loads(
-        receipts._path("personainst_dev", "retried").read_text(encoding="utf-8")
-    )
+    reserved = json.loads(_mint_receipt_path("retried").read_text(encoding="utf-8"))
     assert reserved["state"] == "reserved"
 
-    replay = receipts.mint(
+    replay = mint_chat_root(
         instance_store=store,
         session_db=db,
         persona_id="dev",
@@ -1580,12 +1626,12 @@ def test_a_same_key_retry_after_a_failed_mint_still_resolves_the_same_root(
         title="Dev chat",
     )
 
-    assert replay["root_chat_session_id"] == reserved["root_chat_session_id"]
-    assert replay["state"] == "completed"
-    assert db.get_session(replay["root_chat_session_id"]) is not None
+    assert replay.session_id == reserved["session_id"]
+    assert replay.state == "bound"
+    assert db.get_session(replay.session_id) is not None
     assert (
         PersonaInstanceStore().get("personainst_dev").default_chat_session_id
-        == replay["root_chat_session_id"]
+        == replay.session_id
     )
 
 
@@ -1619,9 +1665,8 @@ def test_a_retraction_never_reverts_a_pointer_another_lane_moved(
 
     db = _HijackingDB(tmp_path / "state.db")
     store = PersonaInstanceStore()
-    receipts = PersonaChatMintReceiptStore()
 
-    receipts.mint(
+    mint_chat_root(
         instance_store=store,
         session_db=db,
         persona_id="dev",
@@ -1638,7 +1683,7 @@ def test_a_retraction_never_reverts_a_pointer_another_lane_moved(
     db.hijack = True
 
     with pytest.raises(PersonaChatPersistenceError):
-        receipts.mint(
+        mint_chat_root(
             instance_store=store,
             session_db=db,
             persona_id="dev",
@@ -1696,7 +1741,7 @@ def test_a_retracted_fresh_mint_does_not_leave_a_chat_mode_with_no_chat(
     db = _RefusingDB(tmp_path / "state.db")
 
     with pytest.raises(PersonaChatPersistenceError):
-        PersonaChatMintReceiptStore().mint(
+        mint_chat_root(
             instance_store=store,
             session_db=db,
             persona_id="dev",
@@ -1740,9 +1785,8 @@ def test_a_retracted_rebind_restores_the_mode_it_found_not_a_flat_demotion(
 
     db = _SecondWriteFailsDB(tmp_path / "state.db")
     store = PersonaInstanceStore()
-    receipts = PersonaChatMintReceiptStore()
 
-    first = receipts.mint(
+    first = mint_chat_root(
         instance_store=store,
         session_db=db,
         persona_id="dev",
@@ -1750,12 +1794,12 @@ def test_a_retracted_rebind_restores_the_mode_it_found_not_a_flat_demotion(
         idempotency_key="first",
         title="Dev chat",
     )
-    good_root = first["root_chat_session_id"]
+    good_root = first.session_id
     assert PersonaInstanceStore().get("personainst_dev").mode == "chat"
 
     db.fail = True
     with pytest.raises(PersonaChatPersistenceError):
-        receipts.mint(
+        mint_chat_root(
             instance_store=store,
             session_db=db,
             persona_id="dev",
@@ -1797,7 +1841,7 @@ def test_the_retraction_tells_connected_clients_the_mode_moved_too(
     db = _RefusingDB(tmp_path / "state.db")
 
     with pytest.raises(PersonaChatPersistenceError):
-        PersonaChatMintReceiptStore().mint(
+        mint_chat_root(
             instance_store=store,
             session_db=db,
             persona_id="dev",

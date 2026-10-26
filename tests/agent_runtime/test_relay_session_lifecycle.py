@@ -2094,18 +2094,18 @@ def test_a_retired_target_is_refused_before_the_mint_lane_is_ever_entered(
     failure: this ``mint`` cannot be called without failing the test.
     """
 
-    from agent_runtime.persona_chat_continuity import PersonaChatMintReceiptStore
+    from agent_runtime.persona_chat_continuity.mint_receipts import Mint
 
     db = _install_dispatch_handler_doubles(monkeypatch)
     retired_id, archive_path = _retire_a_placement()
 
-    def _never_reached(self, **kwargs):
+    def _never_reached(self, *args, **kwargs):
         raise AssertionError(
             "the dispatch lane entered the mint for a retired target — the "
             "pre-mint refusal is no longer doing the work"
         )
 
-    monkeypatch.setattr(PersonaChatMintReceiptStore, "mint", _never_reached)
+    monkeypatch.setattr(Mint, "run", _never_reached)
 
     refusal = _refused(
         capsys,

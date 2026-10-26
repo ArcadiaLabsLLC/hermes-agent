@@ -19,9 +19,10 @@ this map is ``stores`` because the highest layer it re-exports is ``stores``.
       lease.py             stores   the chat-root lease + the scopes a turn holds
                                     (tool_execution_scope, chat_root_session_key_scope),
                                     repair_orphaned_chat_turns
-      mint_receipts.py     stores   PersonaChatMintReceiptStore and its Mint phases
-                                    (precondition -> receipt -> early bind -> session ->
-                                    meta -> title -> commit; retract), _atomic_json
+      mint_receipts.py     stores   mint_chat_root, the ONE chat-root mint, and its Mint
+                                    phases over persona_chat_mints' receipt (precondition
+                                    -> reserve -> early bind -> session -> meta -> title
+                                    -> mark bound; retract), _atomic_json
       clarify_tickets.py   stores   CLARIFY_* words and PersonaChatClarifyTicketStore
       clarify_index.py     stores   ClarifyTicketIndex: the store's by-session pointer
                                     index (lookup/add/drop/rebuild/sweep), expired()
@@ -30,7 +31,7 @@ this map is ``stores`` because the highest layer it re-exports is ``stores``.
 
     entry point                                          opens
     persona_chat_root_lease / repair_orphaned_chat_turns lease
-    PersonaChatMintReceiptStore.mint                     mint_receipts (Mint)
+    mint_chat_root                                       mint_receipts (Mint)
     safe_native_history / native_wire_row                wire -> bounds
     bound_composed_user_content                          bounds
     PersonaChatClarifyTicketStore.*                      clarify_tickets -> clarify_index
@@ -76,7 +77,7 @@ from .lease import (
     repair_orphaned_chat_turns,
     tool_execution_scope,
 )
-from .mint_receipts import PERSONA_CHAT_SESSION_SOURCE, Mint, PersonaChatMintReceiptStore, _atomic_json
+from .mint_receipts import PERSONA_CHAT_SESSION_SOURCE, Mint, MintedChatRoot, _atomic_json, mint_chat_root
 from .runtime_registry import (
     RESIDENT_SIGNATURE_DIFF_RECEIPT,
     RUNTIME_STATES,
@@ -128,9 +129,9 @@ __all__ = [
     "ClarifyTicketIndex",
     "ContentBoundNote",
     "Mint",
+    "MintedChatRoot",
     "PersonaChatBusyError",
     "PersonaChatClarifyTicketStore",
-    "PersonaChatMintReceiptStore",
     "PersonaChatRuntimeRegistry",
     "ResidentPersonaChatRuntime",
     "WireBoundaryRow",
@@ -142,6 +143,7 @@ __all__ = [
     "current_tool_execution_scope",
     "initialize_persona_chat_runtime_registry",
     "lease",
+    "mint_chat_root",
     "mint_receipts",
     "native_history_revision",
     "native_lineage_summary",

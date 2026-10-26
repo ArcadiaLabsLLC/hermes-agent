@@ -342,7 +342,7 @@ default thread.
 **The pre-mint gate.** The mint is the turn's first durable side effect: a titled session row, plus
 a repoint of the instance's default-thread pointer once `open_chat` binds it. So every refusal
 decidable from `args` alone, plus a read-only retired-target pre-flight, is evaluated first
-(`:2368-2379`). The mint is idempotent through `PersonaChatMintReceiptStore().mint` (`:2397-2412`),
+(`:2368-2379`). The mint is idempotent through `agent_runtime/persona_chat_continuity/mint_receipts.py::mint_chat_root` — the ONE mint open-chat also calls, over `persona_chat_mints`' one receipt store —
 keyed on the caller's `idempotency_key` or `send:<client_message_id>`. Two typed refusals escape it:
 `RetiredPersonaInstanceError` (`:2413-2428`) and `PersonaChatPersistenceError` (`:2429+`, the
 bind-landed/transcript-didn't case, which retracts the bind rather than returning a root that
