@@ -67,3 +67,5 @@ Canonical `--confirm-red` runs against 105174e2bc establish the CLI dump, stale
 PersonaAssignmentStore tombstones, coverage-claim references, store-epoch pins and
 JSON-root-observability failures as pre-existing. They are tracked together in
 FORK-NEXT-PROMPT-BASE-CONTRACTS, separate from the duplicate-helper row.
+
+The two registered-event emitter/retired-consumer assertions also fail on base 105174e2bc (`--confirm-red`: pre-existing). All remaining broad-run failures are either repaired feature regressions or verified base failures, not unexplained exemptions. Runtime implementation commits: c546882468 and 8dffb5cf04. The follow-up changes were checked with the explicit affected files; the entire broad suite was not rerun.
