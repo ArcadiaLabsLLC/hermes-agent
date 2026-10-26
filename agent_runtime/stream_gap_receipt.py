@@ -73,6 +73,13 @@ TEXT_DELTA_TYPE = "response.output_text.delta"
 FUNCTION_ARGS_DELTA_TYPE = "response.function_call_arguments.delta"
 REASONING_SUMMARY_DELTA_TYPE = "response.reasoning_summary_text.delta"
 TERMINAL_TYPES = frozenset({"response.completed", "response.incomplete", "response.failed"})
+#: The anthropic Messages stream's vocabulary (RT-ANTHROPIC-STREAM-RECEIPT-ABANDONED):
+#: its deltas are typed on ``event.delta.type``, its terminal event is
+#: ``message_stop`` and its cumulative ``usage.output_tokens`` rides
+#: ``message_delta``. Folded onto the Codex roles in :func:`_event_role`.
+ANTHROPIC_DELTA_TYPE = "content_block_delta"
+ANTHROPIC_USAGE_TYPE = "message_delta"
+ANTHROPIC_TERMINAL_TYPE = "message_stop"
 STALL_INTERVAL_S = 0.01
 #: The ``run.progress`` step of the ONE stored event that carries a turn's
 #: reasoning counts (``ChatProgressSink.record_reasoning_usage``); the trace
@@ -96,6 +103,39 @@ def _field(obj: Any, name: str) -> Any:
     if value is None and isinstance(obj, dict):
         value = obj.get(name)
     return value
+
+
+def _event_role(event: Any) -> tuple[str, str | None, str]:
+    """``(kind, role, delta_text)`` for one parsed event of either wire.
+
+    ``role`` is ``text`` (reply text), ``args`` (a tool call's arguments),
+    ``reasoning`` (a reasoning summary or an anthropic thinking delta),
+    ``terminal`` or ``None``. The kind counted in ``kinds=`` keeps the delta's
+    own type on the anthropic wire (``content_block_delta.text_delta``), where
+    the event type alone would fold every delta into one bucket.
+    """
+
+    kind = str(_field(event, "type") or "?")
+    if kind == TEXT_DELTA_TYPE:
+        return kind, "text", str(_field(event, "delta") or "")
+    if kind == FUNCTION_ARGS_DELTA_TYPE:
+        return kind, "args", ""
+    if kind == REASONING_SUMMARY_DELTA_TYPE:
+        return kind, "reasoning", str(_field(event, "delta") or "")
+    if kind in TERMINAL_TYPES or kind == ANTHROPIC_TERMINAL_TYPE:
+        return kind, "terminal", ""
+    if kind == ANTHROPIC_DELTA_TYPE:
+        delta = _field(event, "delta")
+        delta_type = str(_field(delta, "type") or "?") if delta is not None else "?"
+        named = f"{kind}.{delta_type}"
+        if delta_type == "text_delta":
+            return named, "text", str(_field(delta, "text") or "")
+        if delta_type == "input_json_delta":
+            return named, "args", ""
+        if delta_type == "thinking_delta":
+            return named, "reasoning", str(_field(delta, "thinking") or "")
+        return named, None, ""
+    return kind, None, ""
 
 
 class _StallProbe:
@@ -182,16 +222,18 @@ class StreamGapReceipt:
     # -- parse side --------------------------------------------------------
     def on_event(self, event: Any) -> None:
         now = self.clock()
-        kind = str(_field(event, "type") or "?")
-        text = kind == TEXT_DELTA_TYPE and bool(_field(event, "delta"))
-        if kind == REASONING_SUMMARY_DELTA_TYPE:
-            self.reasoning_summary_chars += len(str(_field(event, "delta") or ""))
-        if self.reply_at is None and self.first_event_at is not None and (
-                kind == FUNCTION_ARGS_DELTA_TYPE or text):
+        kind, role, delta_text = _event_role(event)
+        text = role == "text" and bool(delta_text)
+        if role == "reasoning":
+            self.reasoning_summary_chars += len(delta_text)
+        if self.reply_at is None and self.first_event_at is not None and (role == "args" or text):
             self.reply_at = now
-        if kind in TERMINAL_TYPES:
+        if kind == ANTHROPIC_USAGE_TYPE:
+            self._read_usage(event)
+        if role == "terminal":
             self.terminal_at = now
-            self._read_usage(_field(event, "response"))
+            if kind != ANTHROPIC_TERMINAL_TYPE:
+                self._read_usage(_field(event, "response"))
         if self.text_at is not None:
             return
         lag_ms = None if self.last_chunk_at is None else max(0.0, (now - self.last_chunk_at) * 1000.0)
@@ -441,7 +483,12 @@ def begin_stream_gap_receipt(agent: Any, client: Any) -> None:
 
 
 def observe_stream_event(agent: Any, event: Any) -> None:
-    """Record one parsed SSE event; log the receipt on the terminal event. Never raises."""
+    """Record one parsed SSE event; log the receipt on the terminal event. Never raises.
+
+    Called from both wires' consume loops: the Codex Responses loop
+    (``agent/codex_runtime.py``) and the anthropic Messages loop
+    (``agent/chat_completion_helpers.py``), one fork seam each.
+    """
 
     try:
         receipt = getattr(agent, _AGENT_ATTR, None)
@@ -452,8 +499,7 @@ def observe_stream_event(agent: Any, event: Any) -> None:
         if send is not None and send.first_event_at is not None and not send.logged:
             send.finish(request_id=getattr(agent, "_current_api_request_id", None),
                         model=getattr(agent, "model", None))
-        kind = _field(event, "type")
-        if kind in TERMINAL_TYPES:
+        if _event_role(event)[1] == "terminal":
             tally = getattr(agent, _TURN_ATTR, None)
             if isinstance(tally, TurnReasoning) and not receipt.logged:
                 tally.fold(receipt)
