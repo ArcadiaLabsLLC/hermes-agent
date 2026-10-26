@@ -53,6 +53,36 @@ def _audit_git_argv(segment: str) -> list[str] | None:
     return rest[index:]
 
 
+def _worktree_change(args: list[str], exit_code: int | None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """``git worktree add|remove …``: the worktree row and the branch ``-b`` created, if any."""
+
+    positional, branch, index = [], None, 1
+    while index < len(args):
+        token = args[index]
+        if token in _WORKTREE_VALUE_OPTS and index + 1 < len(args):
+            branch = args[index + 1] if token in {"-b", "-B", "--orphan"} else branch
+            index += 2
+            continue
+        if not token.startswith("-"):
+            positional.append(token)
+        index += 1
+    worktrees = [{"op": args[0], "path": positional[0], "exit_code": exit_code}] if positional else []
+    branches = [{"op": "create", "name": branch, "exit_code": exit_code}] if branch else []
+    return worktrees, branches
+
+
+def _branch_changes(verb: str, args: list[str], exit_code: int | None) -> list[dict[str, Any]]:
+    """``checkout -b`` / ``switch -c`` create a branch; ``branch -d|-D`` deletes them."""
+
+    if verb in {"checkout", "switch"}:
+        flags = {"-b", "-B"} if verb == "checkout" else {"-c", "-C"}
+        return [{"op": "create", "name": args[index + 1], "exit_code": exit_code}
+                for index, token in enumerate(args[:-1]) if token in flags]
+    if verb == "branch" and args and args[0] in {"-d", "-D", "--delete"}:
+        return [{"op": "delete", "name": name, "exit_code": exit_code} for name in args[1:] if not name.startswith("-")]
+    return []
+
+
 def _git_changes(command: str, exit_code: int | None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """The ``(worktrees, branches)`` one terminal command created or removed."""
 
@@ -64,28 +94,11 @@ def _git_changes(command: str, exit_code: int | None) -> tuple[list[dict[str, An
             continue
         verb, args = argv[0], argv[1:]
         if verb == "worktree" and args and args[0] in {"add", "remove"}:
-            op, positional, branch, index = args[0], [], None, 1
-            while index < len(args):
-                token = args[index]
-                if token in _WORKTREE_VALUE_OPTS and index + 1 < len(args):
-                    if token in {"-b", "-B", "--orphan"}:
-                        branch = args[index + 1]
-                    index += 2
-                    continue
-                if not token.startswith("-"):
-                    positional.append(token)
-                index += 1
-            if positional:
-                worktrees.append({"op": op, "path": positional[0], "exit_code": exit_code})
-            if branch:
-                branches.append({"op": "create", "name": branch, "exit_code": exit_code})
-        elif verb in {"checkout", "switch"}:
-            for index, token in enumerate(args[:-1]):
-                if token in ({"-b", "-B"} if verb == "checkout" else {"-c", "-C"}):
-                    branches.append({"op": "create", "name": args[index + 1], "exit_code": exit_code})
-        elif verb == "branch" and args and args[0] in {"-d", "-D", "--delete"}:
-            branches.extend({"op": "delete", "name": name, "exit_code": exit_code}
-                            for name in args[1:] if not name.startswith("-"))
+            made, named = _worktree_change(args, exit_code)
+            worktrees.extend(made)
+            branches.extend(named)
+        else:
+            branches.extend(_branch_changes(verb, args, exit_code))
     return worktrees, branches
 
 
