@@ -402,7 +402,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Owner asks — 2026-10-01 (Eternia Lens in hermes)
 
-- **`RT-ETERNIA-LENS-L2-L4` — Eternia Lens L2–L4 (exit door, push door, pull door) are built and on main (b05ccafe29); each owes one live proof on the owner's serve** · fork / runtime · plan `docs/agent-runtime-harness/planned/p10-agent-2026-10-19.md` §5 · RULED 2026-10-19: owner — persona_id required at seal for investigate; L3's listener in-serve · RULED 2026-10-25: owner — an agent runs this sitting on this PC · LIVE 2026-10-25: L2 forged and L3 signed 202/409 proven (`docs/agent-runtime-harness/planned/live-sitting-results-2026-10-25.md`) · BLOCKED 2026-10-25: owner decision — L4 needs a persona's profile toolsets set to [harness_core, lens]; may a lane set it on qa for the one turn and revert it? · Recommend: yes, on qa, reverted in the same sitting
+- **`RT-ETERNIA-LENS-L2-L4` — Eternia Lens L2–L4 (exit door, push door, pull door) are built and on main (b05ccafe29); each owes one live proof on the owner's serve** · fork / runtime · plan `docs/agent-runtime-harness/planned/p10-agent-2026-10-19.md` §5 · RULED 2026-10-19: owner — persona_id required at seal for investigate; L3's listener in-serve · RULED 2026-10-25: owner — an agent runs this sitting on this PC · LIVE 2026-10-25: L2 forged and L3 signed 202/409 proven (`docs/agent-runtime-harness/planned/live-sitting-results-2026-10-25.md`) · RULED 2026-10-25: owner standing instruction "go with recommended" — L4 proof may set the qa persona's profile toolsets to [harness_core, lens] for the one turn and revert in the same sitting · READY 2026-10-25
 
 
 ### Filed on arrival — 2026-10-01 (lane w3-turn)
@@ -906,7 +906,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ### Filed on arrival — 2026-10-18 (lane q-stale, branch `q/q-stale`)
 
 
-- **`RT-WHETHER-UPSTREAM-POST-TURN` — Whether upstream's post-turn `agent/background_review.py` fork runs on persona turns is unmeasured: `turn_finalizer` spawns it when `_should_review_memory` or `_should_review_skills` (10 tool iterations and `skill_manage` on the lane) holds, and no fork site passes `skip_background_review`** · fork / memory · prep-cost class; the read half landed as `runtime.operator.conversation.memory` (lane r-wire, 2026-10-18) · lane: count review spawns over ten live persona turns from a receipt, then rule `skip_background_review` per persona · RULED 2026-10-25: owner — an agent runs this sitting on this PC · LIVE 2026-10-25: 41 persona turns, 6 heavy, 2 background reviews (both skill, ~180k cache-read tokens each), 0 memory reviews (`docs/agent-runtime-harness/planned/live-sitting-results-2026-10-25.md`) · BLOCKED 2026-10-25: owner decision — set skip_background_review for any persona? · Recommend: leave it on everywhere; it fired twice in 41 turns, only after 19+ tool-iteration Neko turns, and wrote skills both times
 
 ### Filed on arrival — 2026-10-18 (lane r-product, branch `q/r-product`)
 
