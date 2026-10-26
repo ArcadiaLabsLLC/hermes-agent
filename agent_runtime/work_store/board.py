@@ -26,9 +26,15 @@ from .. import paths
 from ..workspace_slots import bound_path, live_slots, load_document
 from .grammar import Row, Status, is_queue, parse_note
 
+#: The personal board's reserved Work id (RT-GENERAL-TODO-G1, plan ``general-todo-2026-10-25.md`` §2.2):
+#: one per operator per namespace, a machine-local default brain under ``work/personal/`` that never
+#: gets a remote and is never a realm workspace (realm workspace ids are ``ws_*``).
+PERSONAL_BOARD_ID = "personal"
+
 __layer__ = "stores"
 __all__ = [
     "BINDING_FILE",
+    "PERSONAL_BOARD_ID",
     "DEFAULT_BRAIN_QUEUE_DIR",
     "DEFAULT_BRAIN_SLOT",
     "Board",

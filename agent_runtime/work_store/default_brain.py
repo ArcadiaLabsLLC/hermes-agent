@@ -51,6 +51,7 @@ from ..workspace_slots import (
 )
 from . import receipts
 from .board import (
+    PERSONAL_BOARD_ID,
     DEFAULT_BRAIN_QUEUE_DIR,
     DEFAULT_BRAIN_SLOT,
     Board,
@@ -239,6 +240,8 @@ def promote_default_brain(workspace_id: str, *, issued_at: str) -> dict[str, Any
     from ..git_host_account import GitHostRefused, connected_github, create_private_repo
     from ..git_remote_adopt import AdoptRefused, adopt_remote
 
+    if workspace_id == PERSONAL_BOARD_ID:
+        raise WorkRefused(Reason.INVALID, "the personal board is machine-local and never gets a remote")
     record = read_binding(workspace_id)
     if record is None or record.get("retired_into"):
         raise WorkRefused(Reason.NO_BRAIN, "no live default brain to promote")
@@ -277,6 +280,8 @@ def _auto_promote(workspace_id: str, issued_at: str) -> None:
 
     from ..git_host_account import connected_github
 
+    if workspace_id == PERSONAL_BOARD_ID:
+        return  # machine-local by contract: never in a repo, never promoted
     record = read_binding(workspace_id)
     if record is None or record.get("retired_into") or record.get("remote_url") or _refused_recently(record):
         return

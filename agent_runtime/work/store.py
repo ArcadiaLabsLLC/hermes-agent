@@ -272,23 +272,27 @@ def _task(writer: Writer, ref: RowRef, context) -> dict[str, Any] | None:
 # ── reads ──────────────────────────────────────────────────────────────────
 
 
-def _row_filter(params: Mapping[str, Any], context):
+def _row_filter(params: Mapping[str, Any], context, assignees: frozenset[str] | None = None):
     status = params.get("status")
-    token = _assignee_token(params["assignee"]) if params.get("assignee") is not None else None
+    if assignees is None and params.get("assignee") is not None:
+        assignees = frozenset({_assignee_token(params["assignee"])})
     in_view = params.get("view", "all") == "conversation"
     return lambda row: ((status is None or status_word(row) == status)
-                        and (token is None or (row.assignee is not None and row.assignee.token == token))
+                        and (assignees is None or (row.assignee is not None and row.assignee.token in assignees))
                         and (not in_view or bool(context and context.assignee and row.taken
                                                  and row.taken.who == context.assignee)))
 
 
-def list_work(scope, params, *, context=None):
+def list_work(scope, params, *, context=None, assignees: frozenset[str] | None = None):
+    """One owner's boards, grouped board -> queue -> rows; ``assignees`` overrides ``params.assignee``
+    with a SET of tokens (the agent view's instance id and its persona id, ``work.service``)."""
+
     if params.get("view", "all") not in ("all", "conversation") or (
             params.get("view") == "conversation" and context is None):
         raise WorkRefused(Reason.INVALID)
     view = (observed(scope.workspace_id) if params.get("observe") is True
             else synced(scope.workspace_id, stale_ok=params.get("stale_ok") is True))
-    keep = _row_filter(params, context)
+    keep = _row_filter(params, context, assignees)
     slot = params.get("slot")
     listed = [b for b in view.boards if slot is None or b.slot == slot]
     return {"boards": [{**board_wire(b, view.writers.get(b.slot)),

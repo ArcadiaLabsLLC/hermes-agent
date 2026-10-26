@@ -2,7 +2,7 @@
 
 **Owner domain:** transport and wire ([03-transport-and-wire.md](../03-transport-and-wire.md) § Native Work
 methods), the office and board ([06-office-and-board.md](../06-office-and-board.md) § The board).
-**Status:** RULED 2026-10-25 (lane w1025b-h-misc, by the wave brief's "go with recommendations"); build rows
+**Status:** RULED 2026-10-25 (lane w1025b-h-misc, by the wave brief's "go with recommendations"); G1 and G2 BUILT 2026-10-26 (lane w1026a-h-b); build rows
 filed in §5. **Read:** hermes `origin/main` `eed79e6933` — `agent_runtime/work/` (`WorkScope`, the five
 `runtime.work.*` methods), `agent_runtime/work_store/` (the default brain, `normalize_default_brain`), and
 the naming spec [naming-and-address-map-2026-10-25.md](naming-and-address-map-2026-10-25.md) § The board.

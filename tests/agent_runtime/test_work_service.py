@@ -50,7 +50,8 @@ def test_capabilities_lists_one_owner_per_workspace_and_creates_the_default_brai
     caps = work.caps
     assert caps["version"] == 2 and caps["chat_scopes"] is True
     owner = next(row for row in caps["owners"] if row["workspace_id"] == work.ws)
-    assert owner == {"owner": WorkScope(caps["install_id"], work.ws).owner, "workspace_id": work.ws, "label": "Desk",
+    assert owner == {"owner": WorkScope(caps["install_id"], work.ws).owner, "workspace_id": work.ws,
+                     "kind": "workspace", "label": "Desk",
                      "operations": ["inspect", "start", "assign", "claim", "release", "set_status", "done",
                                     "create_brain", "lend_skills"]}
     assert len({row["owner"] for row in caps["owners"]}) == len(caps["owners"])
@@ -233,3 +234,84 @@ def test_lend_skills_unions_and_revoke_differences_through_the_writer(work, monk
     with pytest.raises(WorkRefused) as bad:
         call(work, "lend_skills", request_id="l6", skills=["x"], mode="borrow", **where)
     assert bad.value.reason is Reason.INVALID
+
+
+# ── the general todo: the personal board and the agent view (plan general-todo-2026-10-25 §2.2) ──
+
+
+def _personal(work):
+    owner = next(row for row in work.caps["owners"] if row["kind"] == "personal")
+    return SimpleNamespace(scope={**work.scope, "owner": owner["owner"]}, owner=owner)
+
+
+def test_the_personal_board_is_one_more_owner_with_its_own_machine_local_brain(work):
+    """RT-GENERAL-TODO-G1. Mutation: drop the personal scope from ``service.scopes`` -> no ``personal``
+    owner in ``capabilities`` and a personal-owner call refuses ``work_owner_changed``."""
+    caps = work.caps
+    assert caps["board_kinds"] == ["workspace", "personal", "agent"]
+    personal = _personal(work)
+    assert personal.owner["workspace_id"] == "personal" and personal.owner["label"] == "Personal"
+    assert personal.owner["owner"] not in {row["owner"] for row in caps["owners"] if row["kind"] == "workspace"}
+    assert caps["personal_board"] == {"state": "created"}
+    assert (paths.default_brain_dir("personal") / ".git").is_dir()
+    assert service.execute("capabilities", {}, STDIO_OWNER)["personal_board"] == {"state": "present"}
+    task = service.execute("start", {**personal.scope, "request_id": "p1", "title": "Call the dentist"},
+                           STDIO_OWNER)["task"]
+    listed = service.execute("list", {**personal.scope, "kind": "personal"}, STDIO_OWNER)
+    assert [row["id"] for row in rows_of(listed)] == [task["id"]]
+    assert rows_of(call(work, "list")) == []  # the workspace's board never sees the personal row
+    with pytest.raises(WorkRefused) as wrong_kind:
+        service.execute("list", {**personal.scope, "kind": "workspace"}, STDIO_OWNER)
+    assert wrong_kind.value.reason is Reason.INVALID
+
+
+def test_the_personal_board_is_never_promoted_to_a_remote(work, monkeypatch):
+    """Machine-local by contract, even on a machine whose GitHub account answers. Mutation: drop the
+    ``PERSONAL_BOARD_ID`` refusal in ``default_brain.promote_default_brain`` -> a private repo is created
+    for it (the ``_auto_promote`` guard is the cheap early exit in front of it)."""
+    from agent_runtime import git_host_account
+    from agent_runtime.work_store import default_brain
+
+    created = []
+    monkeypatch.setattr(git_host_account, "connected_github", lambda *a, **k: object())
+    monkeypatch.setattr(git_host_account, "create_private_repo",
+                        lambda account, name: created.append(name) or "https://example.invalid/r.git")
+    default_brain.ensure_default_brain("personal", issued_at="2026-10-26T00:00:00")
+    assert created == []
+    with pytest.raises(WorkRefused) as refused:
+        default_brain.promote_default_brain("personal", issued_at="2026-10-26T00:00:00")
+    assert refused.value.reason is Reason.INVALID and created == []
+
+
+def test_an_agents_todo_is_a_view_over_every_board_it_can_see(work):
+    """RT-GENERAL-TODO-G2. Rows assigned to the instance OR its persona, on its workspace's boards and the
+    personal board; another agent's rows never. Mutation: drop ``instance.persona_id`` from the tokens in
+    ``service._agent_reach`` -> the persona-assigned row leaves the view."""
+    from agent_runtime.persona_assignments import PersonaInstanceStore
+
+    alice, bob = mint_free_floating("alice"), mint_free_floating("bob")
+    personal = _personal(work)
+    on_ws = start(work, "a1", title="Workspace task", assignee=f"persona:{alice.id}")["task"]["id"]
+    to_persona = start(work, "a2", title="Any alice", assignee=f"persona:{alice.persona_id}")["task"]["id"]
+    start(work, "b1", title="Bob task", assignee=f"persona:{bob.id}")
+    start(work, "n1", title="Nobody")
+    mine = service.execute("start", {**personal.scope, "request_id": "a3", "title": "Personal for alice",
+                                     "assignee": f"persona:{alice.id}"}, STDIO_OWNER)["task"]["id"]
+    view = service.execute("list", {**work.scope, "kind": "agent", "assignee": f"persona:{alice.id}"}, STDIO_OWNER)
+    assert view["kind"] == "agent" and view["assignee"] == f"persona:{alice.id}"
+    assert set(view["assignees"]) == {alice.id, alice.persona_id}
+    ids = {row["id"] for owner in view["owners"] for board in owner["boards"] for queue in board["queues"]
+           for row in queue["rows"]}
+    assert ids == {on_ws, to_persona, mine}
+    assert {owner["kind"] for owner in view["owners"]} == {"workspace", "personal"}
+    # Placed in ANOTHER workspace, the same instance sees only that workspace's boards and the personal one.
+    store = PersonaInstanceStore()
+    row = store.get(alice.id)
+    row.workspace_id = "ws_elsewhere"
+    store.update(row)
+    placed = service.execute("list", {**work.scope, "kind": "agent", "assignee": f"persona:{alice.id}"},
+                             STDIO_OWNER)
+    assert [owner["kind"] for owner in placed["owners"]] == ["personal"]
+    with pytest.raises(WorkRefused) as no_one:
+        service.execute("list", {**work.scope, "kind": "agent"}, STDIO_OWNER)
+    assert no_one.value.reason is Reason.INVALID
