@@ -33,5 +33,25 @@
   "commit": "b5885046489ba0ce0ab759e81a4c2156f2f0d924",
   "path": "agent/turn_api_request.py",
   "reason": "RT-REMOVE-H-TURN1-A5: deletes the eight fork-seam stamp lines, returning the file to upstream bytes (footprint 237 -> 236); no upstream line changes"
+ },
+ {
+  "commit": "490d81e1ed3e40fee8894b4a8f8e30ec64cf7d2c",
+  "path": "agent/chat_completion_helpers.py",
+  "reason": "restores upstream's bytes: removes the seam the RT-ANTHROPIC-STREAM-RECEIPT-ABANDONED commit added (moved onto the fork's transport hook), lowering the footprint (w1025b-h-stream)"
+ },
+ {
+  "commit": "490d81e1ed3e40fee8894b4a8f8e30ec64cf7d2c",
+  "path": "hermes_cli/boot_bootstrap.py",
+  "reason": "restores upstream's bytes: removes the seam the RT-VAULT-COMMIT-HOME-MAINTENANCE commit added; the carry moved to an additive seam beside the caller (w1025b-h-stream)"
+ },
+ {
+  "commit": "490d81e1ed3e40fee8894b4a8f8e30ec64cf7d2c",
+  "path": "gateway/run.py",
+  "reason": "an additive 2-line carry_install_identity seam before maybe_run_boot_bootstrap, re-homed from boot_bootstrap.py so the footprint does not rise (RT-VAULT-COMMIT-HOME-MAINTENANCE, w1025b-h-stream)"
+ },
+ {
+  "commit": "490d81e1ed3e40fee8894b4a8f8e30ec64cf7d2c",
+  "path": "hermes_cli/main.py",
+  "reason": "an additive 2-line carry_install_identity seam before maybe_run_boot_bootstrap, re-homed from boot_bootstrap.py so the footprint does not rise (RT-VAULT-COMMIT-HOME-MAINTENANCE, w1025b-h-stream)"
  }
 ]
