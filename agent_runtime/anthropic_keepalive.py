@@ -20,8 +20,21 @@ headers and auth per request). One fork seam calls it in
 ``agent/client_lifecycle.py::_create_request_anthropic_client``, before the
 client is cached and traced.
 
+**The SDK client is built once per key per process (RT-ANTHROPIC-CLIENT-BUILT-PER-TURN,
+2026-10-26).** Warm turns reused the connection but still paid ``client_built_ms`` 79-113
+(Dev on openai-codex: 4): every new agent constructed ``anthropic.Anthropic`` -- whose
+constructor builds its own ``httpx.Client`` and SSL context -- only for the swap above to
+throw that client away. :func:`adopt_keepalive_http_client` records one TEMPLATE per
+``_request_anthropic_client_key``, and :func:`pooled_anthropic_client` hands each later build
+``template.copy(http_client=<a new keep-alive view>)``: the constructor with ``http_client`` given builds no client and no SSL
+context (0.2 ms against ~30 ms idle, measured 2026-10-26). Each agent still owns its own
+client object and its own ``httpx.Client`` view, so one agent's teardown ``close()`` cannot
+close a stranger's; the template itself is never handed out.
+
 **What it does not do.** Bedrock clients (their own signing transport), the
-SDK-free client (``agent.provider_sdks: false``) and any client whose
+SDK-free client (``agent.provider_sdks: false``), an Entra ID bearer-provider key (a
+callable credential: its ``httpx.Client`` carries the per-request auth hook, and swapping it
+would send the placeholder token) and any client whose
 ``_client`` is not a plain SDK-built ``httpx.Client`` are left alone. Fail-open:
 a failure leaves the SDK's own client in place, which is the old behaviour.
 """
@@ -29,6 +42,7 @@ a failure leaves the SDK's own client in place, which is the old behaviour.
 from __future__ import annotations
 
 import logging
+import threading
 from typing import Any
 
 __layer__ = "policy"
@@ -58,7 +72,7 @@ def adopt_keepalive_http_client(client: Any, key: Any) -> bool:
     """
 
     try:
-        if not isinstance(key, tuple) or not key or key[0] != "direct":
+        if not _poolable_key(key):
             return False
         if getattr(client, _ADOPTED_ATTR, False) or not _is_sdk_anthropic_client(client):
             return False
@@ -75,6 +89,7 @@ def adopt_keepalive_http_client(client: Any, key: Any) -> bool:
             return False
         client._client = shared
         setattr(client, _ADOPTED_ATTR, True)
+        _record_template(client, key)
         try:
             own.close()  # never used: built by the SDK's constructor a moment ago
         except Exception:
@@ -85,4 +100,60 @@ def adopt_keepalive_http_client(client: Any, key: Any) -> bool:
         return False
 
 
-__all__ = ["ANTHROPIC_DEFAULT_BASE_URL", "adopt_keepalive_http_client"]
+def _poolable_key(key: Any) -> bool:
+    """A direct key with a STATIC string credential. A callable (Entra ID bearer provider)
+    rides its own hook-carrying ``httpx.Client`` and is never moved."""
+
+    return (isinstance(key, tuple) and len(key) > 1 and key[0] == "direct"
+            and isinstance(key[1], str))
+
+
+#: One adopted template per ``_request_anthropic_client_key``; bounded, oldest evicted.
+_TEMPLATES: dict[tuple, Any] = {}
+_TEMPLATES_LOCK = threading.Lock()
+_MAX_TEMPLATES = 8
+
+
+def _copy_onto_pool(source: Any, key: tuple) -> Any | None:
+    """``source.copy`` onto a fresh keep-alive view: no SDK-built client, no SSL context. None on failure."""
+
+    try:
+        from agent.process_bootstrap import build_keepalive_http_client
+
+        base_url = str(key[2] or "").strip() if len(key) > 2 else ""
+        view = build_keepalive_http_client(base_url or ANTHROPIC_DEFAULT_BASE_URL)
+        if view is None:
+            return None
+        copied = source.copy(http_client=view)
+        setattr(copied, _ADOPTED_ATTR, True)
+        return copied
+    except Exception:
+        logger.debug("anthropic template copy skipped", exc_info=True)
+        return None
+
+
+def pooled_anthropic_client(key: Any) -> Any | None:
+    """A copy of this process's adopted template for ``key``, or None (build as usual). Never raises.
+
+    The fork seam at the top of ``agent/client_lifecycle.py::_build_anthropic_client_for_key``
+    returns it in place of a fresh SDK construction; the first build for a key is adopted by
+    :func:`adopt_keepalive_http_client`, which records the template."""
+
+    if not _poolable_key(key):
+        return None
+    with _TEMPLATES_LOCK:
+        template = _TEMPLATES.get(key)
+    return _copy_onto_pool(template, key) if template is not None else None
+
+
+def _record_template(client: Any, key: tuple) -> None:
+    fresh = _copy_onto_pool(client, key)
+    if fresh is None:
+        return
+    with _TEMPLATES_LOCK:
+        while len(_TEMPLATES) >= _MAX_TEMPLATES:
+            _TEMPLATES.pop(next(iter(_TEMPLATES)))
+        _TEMPLATES[key] = fresh
+
+
+__all__ = ["ANTHROPIC_DEFAULT_BASE_URL", "adopt_keepalive_http_client", "pooled_anthropic_client"]

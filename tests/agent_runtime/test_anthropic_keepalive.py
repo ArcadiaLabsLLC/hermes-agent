@@ -109,3 +109,53 @@ def test_an_anthropic_prewarm_opens_its_connection(keepalive_server):
     client = agent._create_request_anthropic_client(reason="turn")
     assert client._client is http
     agent._close_request_anthropic_client(client, reason="stream_request_complete")
+
+
+def test_a_second_agent_copies_the_template_instead_of_constructing_the_sdk(keepalive_server, monkeypatch):
+    """RT-ANTHROPIC-CLIENT-BUILT-PER-TURN: live 2026-10-26, warm Neko turns paid
+    ``client_built_ms`` 79-113 constructing ``anthropic.Anthropic`` per turn.
+
+    Named sabotage: drop ``_record_template`` from ``adopt_keepalive_http_client``
+    -> the second agent constructs the SDK again (``built == 2``)."""
+
+    import agent.anthropic_adapter as adapter
+
+    base = f"http://127.0.0.1:{keepalive_server.server_address[1]}"
+    built = []
+    real = adapter.build_anthropic_client
+
+    def counting(*args, **kwargs):
+        built.append(args)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(adapter, "build_anthropic_client", counting)
+    first_agent, second_agent = _agent(base), _agent(base)
+    first = first_agent._create_request_anthropic_client(reason="turn")
+    assert len(built) == 1
+    second = second_agent._create_request_anthropic_client(reason="turn")
+    assert len(built) == 1, "the second agent constructed the SDK client again"
+    assert second is not first and second._client is not first._client
+    assert second.default_headers == first.default_headers and second.api_key == first.api_key
+
+    assert first._client.get(f"{base}/v1/ping").status_code == 404
+    opened = keepalive_server.connections
+    # One agent's teardown close cannot close the other's client.
+    first_agent._close_cached_request_anthropic_client(reason="teardown")
+    assert second._client.get(f"{base}/v1/ping").status_code == 404
+    assert keepalive_server.connections == opened
+
+
+def test_an_entra_bearer_provider_key_is_never_pooled():
+    """A callable credential's ``httpx.Client`` carries the per-request auth hook;
+    moving it onto the pool would send the placeholder token."""
+
+    import anthropic
+
+    from agent_runtime.anthropic_keepalive import adopt_keepalive_http_client, pooled_anthropic_client
+
+    key = ("direct", lambda: "jwt", "https://example.services.ai.azure.com/anthropic", 600.0, False)
+    client = anthropic.Anthropic(auth_token="entra-id-bearer-via-http-hook", base_url=key[2])
+    own = client._client
+    assert adopt_keepalive_http_client(client, key) is False
+    assert client._client is own
+    assert pooled_anthropic_client(key) is None

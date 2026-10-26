@@ -511,6 +511,8 @@ class ClientLifecycleMixin:
         return anthropic_route_is_oauth(getattr(self, "_anthropic_base_url", None), token, provider=self.provider)
 
     def _build_anthropic_client_for_key(self, key: tuple) -> Any:
+        from agent_runtime.anthropic_keepalive import pooled_anthropic_client  # fork seam: RT-ANTHROPIC-CLIENT-BUILT-PER-TURN
+        if (pooled := pooled_anthropic_client(key)) is not None: return pooled  # fork seam: copy, no SDK construction
         from agent.anthropic_adapter import build_anthropic_bedrock_client, build_anthropic_client
         if key[0] == "bedrock":
             return build_anthropic_bedrock_client(key[1])

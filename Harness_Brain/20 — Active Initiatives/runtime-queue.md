@@ -34,7 +34,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-26 (lane w1025b-hlive, live sitting)
 
-- **`RT-ANTHROPIC-CLIENT-BUILT-PER-TURN` — warm anthropic turns now reuse the connection (`conn=reused`, no `tls_done`) but still construct a fresh `anthropic.Anthropic` SDK client per request before `adopt_keepalive_http_client` swaps its httpx client: `client_built_ms` 79 / 94 / 113 on three Neko turns against Dev's (openai-codex) 4 — cache the adopted SDK client per `_request_anthropic_client_key` the way the OpenAI lane does** · fork / chat turn · `agent_runtime/anthropic_keepalive.py::adopt_keepalive_http_client` · evidence: live 2026-10-26 02:01, turns `w1025b-hlive-N1..N3` (`docs/agent-runtime-harness/planned/live-sitting-results-2026-10-25.md` § 2026-10-26) · READY 2026-10-26 · **TAKEN 2026-10-26 w1026a-h-a**
 
 ### Filed on arrival — 2026-10-25 (lane w1025a-hermes)
 
