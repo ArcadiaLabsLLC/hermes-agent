@@ -1,6 +1,6 @@
 """Lens source credentials: opaque references resolved from a fork-owned 0600 file.
 
-Launcher plan ``EterniaLauncher/docs/companion/planned/MONITORING_CREDENTIALS_SEPARATION_2026-10-15.md``
+Launcher plan ``EterniaLauncher/docs/companion/subsystems/MONITORING_CREDENTIALS_SEPARATION_2026-10-15.md``
 S2 as amended by the owner ruling of 2026-10-18 (``RT-LENS-CREDENTIAL-PREVIEW``),
 and Lens plan W12:
 
@@ -9,8 +9,8 @@ and Lens plan W12:
   (:func:`credentials_path`). They are NOT in the hermes credential pool: upstream's
   dashboard lists every pool slice with a token preview, and the Lens ruling is
   write-only — set / not set / rotated, never any part of the value.
-* Scope is the PERSONA HOME (the serve's ``HERMES_HOME``, resolved at call time): the
-  file lives under the home, so a second persona never sees the first's password.
+* Scope is the runtime HEAD HOME, resolved at call time through ``lens_root()``:
+  persona tools and the serve resolve the same file; separate head homes remain isolated.
 * Write-only from the outside: :func:`set_credential` writes, :func:`credential_status`
   reports set / rotated-at, and only :func:`resolve_credential` returns the value —
   to a source, per read, in-process. Nothing here logs, returns or stores a value

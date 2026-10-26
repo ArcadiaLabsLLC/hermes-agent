@@ -1,22 +1,16 @@
 # Eternia Lens — the program cut into lanes (design)
 
-Status: PLAN — written 2026-10-15; owner approval owed for the CUT (the design
-itself is owner-approved: all four §6 rulings accepted 2026-10-02). Row:
-runtime-queue, "Build Eternia Lens as a fork-owned plugin …". Source of truth
-for WHAT is built: [eternia-lens-in-hermes.md](eternia-lens-in-hermes.md)
-(§3 contract, §4 cuts, §5 stages). This note only says HOW it is cut into
-landings and what changed in the tree since 2026-10-02.
+Status (reconciled 2026-10-26): CORE LANES BUILT; L4 LIVE ACCEPTANCE OPEN. The five runtime stages and the Launcher painter/authoring controls are on main. L1/L2/L3 passed live; the successful L4 read is the remaining core acceptance row `RT-ETERNIA-LENS-L2-L4`. The [Lens plan](eternia-lens-in-hermes.md#current-implementation-and-queue-coverage) owns the implemented scope and pointers to separately queued extensions. This file preserves the 2026-10-15 lane cut; its old baseline and approval questions below are historical, not current blockers.
 
 ## In plain English
 
 Lens watches the user's own systems (HTTP endpoints, Prometheus, databases),
 and when a rule trips — "CPU over 90 for five minutes" — it opens an Episode
-and starts one chat turn of the chosen agent with the evidence attached. The
-design is approved; it was never started because it was dropped into row
-batches where it does not fit. This cut makes it five program lanes, one stage
+and starts one chat turn of the chosen agent with the evidence attached. At the 2026-10-15 design sitting it had not started because it had been dropped into row
+batches where it did not fit; the stages have since landed. This cut makes it five program lanes, one stage
 each, with the launcher's read-only panel paired to the stage that feeds it.
 
-## Re-verified against `origin/main` 428e2b0dd09
+## Historical baseline against `origin/main` 428e2b0dd09 (2026-10-15)
 
 - Still absent: `agent_runtime/lens/`, `plugins/eternia-lens/` — greenfield.
 - Fork plugin precedent exists: `plugins/eternia-harness/`.
@@ -27,7 +21,7 @@ each, with the launcher's read-only panel paired to the stage that feeds it.
 - Push door seam: `hermes_cli/plugins.py::register_platform` (l.785).
 - New since the plan: source credentials are settled as **hermes credential
   pool, write-only from the Launcher, scoped per persona home** — proposed in
-  `EterniaLauncher/docs/companion/planned/MONITORING_CREDENTIALS_SEPARATION_2026-10-15.md`
+  `EterniaLauncher/docs/companion/subsystems/MONITORING_CREDENTIALS_SEPARATION_2026-10-15.md`
   (owner approval owed there too); L1 below depends on that ruling.
 
 ## The cut
@@ -45,7 +39,7 @@ Rules every lane inherits (from the plan): no upstream file edited; no file over
 800 lines; nothing new in `pyproject.toml` for L0–L3; RPC first, argv only where
 free (CLI contract fixture re-dumped if an argv mirror lands).
 
-## Owner decisions (recommendation first)
+## Historical owner decisions (superseded by the built stages)
 
 1. **Approve the cut** as five hermes lanes plus one paired launcher lane, run
    sequentially (each depends on the last). Recommend yes.

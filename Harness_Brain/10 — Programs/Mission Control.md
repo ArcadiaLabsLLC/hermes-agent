@@ -8,6 +8,8 @@ tags: [program/mission-control, program]
 
 # Mission Control (runtime side)
 
+`lens_cursor::` 2026-10-26 — Lens implementation, live acceptance and remaining plan extensions reconciled; the domain queues own outstanding work. [Scope and queue pointers](../../docs/agent-runtime-harness/planned/eternia-lens-in-hermes.md#current-implementation-and-queue-coverage).
+
 `history_review_cursor::` 2026-10-14 — Old Console history review reconciled
 against the landed owners; missing safety coverage and private-API seam record
 added. Dispatch cancellation preserves the owning lane's verdict through RPC.

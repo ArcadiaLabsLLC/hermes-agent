@@ -1,13 +1,13 @@
-# Planned — Lens receipts: retention folds the ledger, the budget stays a fence — 2026-10-21
+# Executed plan — Lens receipts: retention folds the ledger, the budget stays a fence — 2026-10-21
 
-**Owner domain:** Lens (`eternia-lens-in-hermes.md` §3 retention; [p10-agent-2026-10-19.md](p10-agent-2026-10-19.md) §5 L2.1
+**Owner domain:** Lens (`eternia-lens-in-hermes.md` §3 retention; [p10-agent-2026-10-19.md](../planned/p10-agent-2026-10-19.md) §5 L2.1
 receipts).
-**Status:** IMPLEMENTATION-READY (design lane w1021i-plans). One doc, no code.
+**Status: BUILT ON MAIN 2026-10-21**, stages `61e98c9894`, `a2c894a501`, `b9920f49ae`. Archived 2026-10-26; current store/retention contract: [runtime data](../02-runtime-data-and-shapes.md#lens-state-and-retention). Launcher folded-day viewing also shipped (`5ef4733b29`); no implementation row remains for this executed plan.
 **Measured / read:** 2026-10-21 against hermes `origin/main` d087df7035.
 
-Row: `RT-LENS-RECEIPT-RETENTION` (runtime-queue § Fork-owned).
+Former row: `RT-LENS-RECEIPT-RETENTION` (closed by the implementation). W14's optional richer lifecycle is separately tracked by `RT-LENS-ARTIFACT-LIFECYCLE`.
 
-## 1. What is true today (file::symbol)
+## 1. Pre-build baseline (file::symbol)
 
 - `lens/store.py`: `MAXIMUM_RECEIPTS = 50_000` ("refused past this many, never made room for by
   eviction (W13)"); `save_receipt` counts the table and raises `LensStoreError(RECEIPTS_FULL)` at the

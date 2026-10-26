@@ -1047,3 +1047,11 @@ against current code in this pass:
   · [EG0_2_RECEIPTS_2026-08-17.md](archive/2026-08-22-pre-consolidation/EG0_2_RECEIPTS_2026-08-17.md)
   · [MISSION_CONTROL_ENTERPRISE_PLAN_2026-08-17.md](archive/2026-08-22-pre-consolidation/MISSION_CONTROL_ENTERPRISE_PLAN_2026-08-17.md)
   · [MISSION_CONTROL_LEDGER_REFACTOR_PLAN_2026-08-17.md](archive/2026-08-22-pre-consolidation/MISSION_CONTROL_LEDGER_REFACTOR_PLAN_2026-08-17.md)
+
+## Lens state and retention
+
+`agent_runtime/lens/store.py::LensStore` owns one WAL database at `<head home>/lens/lens.sqlite3` for manifests/drafts, observations, minute rollups, Episodes, receipts and ingress routes. `bcacd6935a` makes persona tools and RPC/poller use the same head-home store. Source credentials resolve separately through `lens/credentials.py::credentials_path` to `<head home>/lens/credentials.json`, not the upstream pool; only presence/rotation is returned externally.
+
+`lens/retention.py::apply_retention` keeps 24 h raw observations and 7 d minute rollups. `fold_receipts` folds receipts older than 30 d into per-monitor/day/outcome counts, deletes old non-active Episodes and collects their artifact folders after the transaction. At the receipt budget `store.py::save_receipt` folds first; a still-full store settles the Episode with the `receipts_full` sentinel rather than retrying it forever. Built `61e98c9894`, `a2c894a501`, `b9920f49ae`; the [executed retention design](archive/lens-receipt-retention-2026-10-21.md) preserves the original tests and decisions. This does not add per-monitor retention, report supersession or export.
+
+Remaining Lens work routes through [the open plan](planned/eternia-lens-in-hermes.md#current-implementation-and-queue-coverage) and the domain queues.
