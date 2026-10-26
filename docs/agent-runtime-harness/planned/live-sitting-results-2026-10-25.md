@@ -151,3 +151,35 @@ The serve did not drain or restart (pid 29380 kept serving; `serve connect --pro
 `home maintenance: code changed to 4053e64a90ec, running steps` — both keyed on the COMMIT (row
 `RT-VAULT-COMMIT-HOME-MAINTENANCE`). The Launcher's `[MissionServe] drain` half needs the Launcher
 open.
+
+## RT-CORE-CACHE-WRITES-BUILD — DONE (families named)
+
+Live namespace `agent.log` since the 2026-10-20 seed: 70 `snapshot_core_cache_write ok=true`
+against 37 cache reads — **9 served from cache** (8 `stale=true` at boot, each followed by a rebuild,
+and one fresh serve: 22:08:35 `core_source=cache caller=cli inputs=2536`), 28 `rebuilt`. So the cache
+does serve now; the "never once" was the old base root. The reads happen at process boot, and the
+misses are: `reason=build_stamp_mismatch` **29** (every code update — the stamp is the build, by
+design) and `reason=fingerprint_mismatch` **7**, whose `diff=` paths group by family as
+`chat_turn_reservations` 16, `work/ws_default` 6 and `work/ws_testv4_afb811` 3 (workspace git
+internals such as `.git/FETCH_HEAD`), `chat_turn_settles` 4, `realm_sync_state` 1. Those turn- and
+worker-written families are what breaks convergence between boots; whether a snapshot section reads
+any of them is the follow-up's audit (row `RT-CORE-CACHE-INPUT-FAMILIES`).
+
+## RT-WHETHER-UPSTREAM-POST-TURN — measured; owner rules
+
+Receipt: upstream's `agent.background_review: Background review complete: thread=bg-review …` line,
+one per spawn, in each persona's profile log. Over every persona turn in the live namespace since
+2026-10-19 (the six turns of this sitting included): **41 turns** (neko 39, alice 1, launcher-qa 1),
+**6 heavy** (≥ 10 tool iterations, all Neko), **2 spawns** — both skill reviews (`result=skill`),
+after the 19- and 23-tool-turn Neko turns of 2026-10-22 10:25 and 2026-10-25 19:35; 3 calls each,
+out 1,742 / 3,390 tokens, cache_read 215,089 / 148,098. Zero memory reviews. The sitting's six light
+turns spawned none. That sample stands in for the plan's ten fresh turns (two heavy): it already
+holds six heavy turns, so no extra credits were spent on it.
+
+## RT-FULL-PERSONAASSIGNMENTSTORE — census
+
+`hermes harness persona assignments --json` on the live namespace store: **0 rows**. The old base
+root (`--namespace base`, read-only; Mission Control no longer reads it, only the alice gateway runs
+there): 47 rows — 44 `completed`, 2 `cancelled`, **1 `queued`**. The 15 non-terminal rows of the
+2026-09-04 census did not come across in the 2026-10-20 seed; nothing in the live store blocks the
+retirement.
