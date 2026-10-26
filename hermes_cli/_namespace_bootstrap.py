@@ -34,6 +34,21 @@ The rules, each pinned by ``tests/hermes_cli/test_namespace_bootstrap.py``:
   OS has long paths enabled.
 
 Unset ``HERMES_NAMESPACE`` in a launcher-spawned process touches nothing: no env write, no file read.
+
+"base" names three different things (row ``RT-THREE-BASES``, naming map
+``docs/agent-runtime-harness/planned/naming-and-address-map-2026-10-25.md``); code, logs and docs qualify which:
+
+* ``base-root`` — the install's own data root (:data:`BASE_ID`, :func:`base_root`; ``namespace:base`` in an
+  address). It holds an install — code, environments, ``namespace-active.json`` — and, after a seed, only
+  superseded copies (``SEEDED_INTO.json``). It is NOT a namespace.
+* ``agent-profile:base`` — the ``profiles/base`` agent profile (:data:`BASE_PROFILE`, ``Layout.head_home``):
+  the launcher's serve runs under it (``HERMES_HEAD_HOME``), and today it holds EVERY persona instance's chat
+  ``state.db``. Why: the 2026-07-27 split read — CLI turns minted transcripts into their own profile's
+  ``state.db`` while the cockpit read ``profiles/base``, so one head was pinned for every chat
+  (``agent_runtime/chat_session_scope.py``). Ruling 4 moves each chat head to its own agent profile
+  (``RT-CHAT-HEAD-PER-PROFILE``).
+* ``persona-instance:base`` — the ``personainst_base`` persona instance, the only seeded agent: an agent
+  you chat with, which happens to run on ``agent-profile:base``.
 """
 
 from __future__ import annotations
@@ -60,6 +75,7 @@ ORIGIN_ACCOUNT, ORIGIN_LAUNCHER_PROFILE = "account", "launcher-profile"
 ORIGINS = (ORIGIN_ACCOUNT, ORIGIN_LAUNCHER_PROFILE)
 DEPENDENCY_ENV = "HERMES_DEPENDENCY_ROOT"
 FLAG = "--namespace"
+#: ``base-root``: the reserved id naming the install's own data root — never a namespace.
 BASE_ID = "base"
 DIRNAME = "hermes-namespaces"
 MANIFEST_NAME = "namespace.json"
@@ -68,6 +84,7 @@ SCHEMA = 1
 #: ``namespace-active.json`` schemas read: 1 ``{schema, namespace}``; 2 adds ``namespaces_dir`` (the shared
 #: folder the launcher hands both editions — RT-NAMESPACE-ACTIVE-RECORD-DIR).
 ACTIVE_RECORD_SCHEMAS = (1, 2)
+#: ``agent-profile:base``: the head profile every namespace's serve runs under (not the base-root).
 BASE_PROFILE = "base"
 STORE_DIRNAME = "agent-runtime"
 #: Explicit paths a namespaced process may carry only when they lie inside the namespace.
@@ -330,7 +347,7 @@ def _active_record(base: Path) -> dict[str, str] | None:
     except NamespaceRefused as exc:
         raise NamespaceRefused(Reason.ACTIVE_RECORD_INVALID, f"{path}: {exc.detail}") from exc
     if ns_id == BASE_ID:
-        raise NamespaceRefused(Reason.ACTIVE_RECORD_INVALID, f"{path}: the active record cannot name 'base'")
+        raise NamespaceRefused(Reason.ACTIVE_RECORD_INVALID, f"{path}: the active record cannot name 'base' (the base-root, not a namespace)")
     return {"namespace": ns_id, **({"namespaces_dir": folder} if schema == 2 else {})}
 
 

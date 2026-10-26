@@ -30,6 +30,13 @@ sessions that existed only in ``profiles/alice/state.db``; the cockpit — readi
 ``profiles/base/state.db`` — listed only the older bindings whose sessions
 happened to live there.
 
+Why chat history lives in ``agent-profile:base`` and not in the chat's own agent profile: this split
+read. One head had to be pinned for every chat so the write lane and the read lane opened the same
+``state.db``, and the Launcher already named ``profiles/base``; nothing per-agent was decided. That is
+the ``agent-profile:base`` of the three "base"s (``hermes_cli/_namespace_bootstrap.py`` docstring,
+row RT-THREE-BASES — not the base-root, and not ``persona-instance:base``). Naming-map ruling 4 moves
+each persona instance's chat head to its own agent profile (``RT-CHAT-HEAD-PER-PROFILE``).
+
 The fix is to give the shared runtime root a **recorded head pointer**. The
 process that legitimately knows the operator head (``harness serve``, which the
 Launcher always starts with an explicit ``HERMES_HEAD_HOME``) publishes it once

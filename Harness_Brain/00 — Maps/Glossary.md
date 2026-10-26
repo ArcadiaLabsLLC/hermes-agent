@@ -36,6 +36,8 @@ Fork vocabulary. Upstream terms (session, gateway platform, tool, skill, profile
 | **Validated scope** | `tests/agent_runtime tests/hermes_cli tests/hermes_state` through `scripts/run_tests.sh` — the suite the 8-worker ruling was proven on. Whole-tree is a different, unvalidated scope (~142 environmental reds). |
 | **Contract dump** | A generated fixture of a cross-repo surface (`hermes_cli_contract.json`, `charsheet_payload_contract.json`); the repo that MOVED is the repo that goes red. |
 | **Profile / `HERMES_HOME`** | Upstream's per-profile home; the fork resolves it at call time. `profiles/base` is the live launcher runtime's home. |
+| **"base" — always qualified** | Three things (`RT-THREE-BASES`): **base-root** — the install's own data root (`BASE_ID`), not a namespace, superseded after a seed (`SEEDED_INTO.json`); **agent-profile:base** — `profiles/base`, the serve's head profile, which today holds every persona instance's chat `state.db` (why: `agent_runtime/chat_session_scope.py`); **persona-instance:base** — `personainst_base`, the seeded agent. The address form is `namespace:base` for the base-root (`agent_runtime/address.py`). |
+| **Machine id / install id** | One machine id per PC, `<namespaces folder>/machine-id.json` (`agent_runtime/machine_identity.py`), keys slot reports; the install id (`gateway/install.json`) is per namespace and is the Work writer's commit identity. |
 | **Store root** | `HERMES_AGENT_RUNTIME_ROOT` — the harness's own state (`X:/Eternia/.hermes/agent-runtime` here). |
 | **Lane** | A worktree + one builder + one brief; lands one MOVE and one CHANGE commit. |
 | **Grandfathered unit** | A file over the 800-code-line ceiling, listed with its count; the list only shrinks. 41 on 2026-09-21. |
