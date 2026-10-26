@@ -310,6 +310,29 @@ def test_the_method_row_is_the_argv_verbs_row_key_for_key(placed_agent, capsys):
     }
 
 
+def test_a_titled_new_session_is_titled_by_the_mint(placed_agent):
+    """RT-CHAT-ROOT-MINT-ONE-DOOR: a caller that needs its root before its turn
+    (the Lens forge) names the title AT the mint, so no second write re-titles
+    it after. Two mints, two titles: a constant written by the mint cannot pass.
+    (An untitled mint cannot serve as the control here — SessionDB titles are
+    unique and the placement's own root already holds ``QA Agent chat``.)"""
+
+    from agent_runtime.persona_chat_durability import default_persona_session_db
+
+    instance_id = placed_agent["persona_instance_id"]
+    base = {"persona_id": PERSONA, "persona_instance_id": instance_id, "new_session": True}
+    titled = _call({**base, "idempotency_key": "titled", "title": "status · cpu_hot · #1"})["result"]
+    other = _call({**base, "idempotency_key": "other", "title": "status · disk_full · #2"},
+                  rid="oc-other")["result"]
+
+    session_db = default_persona_session_db()
+    try:
+        assert session_db.get_session_title(titled["session_id"]) == "status · cpu_hot · #1"
+        assert session_db.get_session_title(other["session_id"]) == "status · disk_full · #2"
+    finally:
+        getattr(session_db, "close", lambda: None)()
+
+
 def test_the_same_idempotency_key_twice_mints_one_root_and_replays_it(placed_agent):
     """The CLI's own reservation, reached through the method lane rather than
     duplicated by it: a second key for one fact is the drift R-C2 exists to

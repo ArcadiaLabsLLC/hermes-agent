@@ -206,6 +206,9 @@ def _open_chat_args(
         # SEND lane and on ``persona instance create``. Both are accepted, in
         # that order, so one client vocabulary reaches one CLI flag.
         idempotency_key=_first_text(params, "idempotency_key", "client_message_id"),
+        # The fresh root's title, written by the mint itself (ignored on a
+        # replay and on a continuation, which mint nothing).
+        title=_first_text(params, "title"),
         # Provenance, defaulted from what the TRANSPORT proved. ``"cli"`` is the
         # argparse default this verb has always had, kept for a caller with no
         # device identity so the two doors do not answer with different words.
@@ -241,7 +244,8 @@ def perform_persona_instance_open_chat(
 
     Params: ``persona_id`` (required); ``persona_instance_id``, ``session_id``,
     ``new_session``, ``kill_active``, ``idempotency_key`` (alias
-    ``client_message_id``), ``requested_by``, ``correlation_id`` (all optional).
+    ``client_message_id``), ``title``, ``requested_by``, ``correlation_id`` (all
+    optional).
 
     Result: the CLI's own success row, verbatim — including the two keys the
     launcher's bridge reads (``session_id`` and ``persona_instance_id``), plus

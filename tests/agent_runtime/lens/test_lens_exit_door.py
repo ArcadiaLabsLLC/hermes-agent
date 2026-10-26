@@ -263,7 +263,7 @@ class _Door:
 
 
 class _OpenChat:
-    """A fake open-chat handler: mints a durable, default-titled root per idempotency key."""
+    """A fake open-chat handler: mints a durable root per idempotency key, titled by ``args.title`` like the real mint."""
 
     def __init__(self) -> None:
         self.calls: list = []
@@ -274,7 +274,7 @@ class _OpenChat:
 
         self.calls.append(args)
         root = self.roots.setdefault(args.idempotency_key, f"persona_chat_qa_{len(self.roots) + 1}")
-        ensure_durable_persona_chat_root(root, persona_id=args.persona_id, title="QA chat")
+        ensure_durable_persona_chat_root(root, persona_id=args.persona_id, title=args.title or "QA chat")
         args.payload_sink({"ok": True, "session_id": root, "persona_instance_id": "qa"})
         return 0
 
@@ -324,6 +324,7 @@ def test_an_investigate_episode_forges_one_titled_turn_with_lens_provenance(door
     [opened] = door.opener.calls
     assert (opened.persona_id, opened.new_session, opened.select_session) == ("qa", True, False)
     assert opened.idempotency_key == f"lens-episode-{episode_id}:chat"
+    assert opened.title == "status · cpu_hot · #1"
     assert (args.persona_id, args.new_session, args.session_id) == ("qa", False, "persona_chat_qa_1")
     assert (args.requested_by, args.client_message_id) == (
         f"lens-episode:{episode_id}:status", f"lens-episode-{episode_id}")

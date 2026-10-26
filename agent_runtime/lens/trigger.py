@@ -87,15 +87,16 @@ def _open_episode_chat(persona_id: str, episode: Episode) -> tuple[str | None, d
     ``forging`` receipt and re-enters here answers the same root rather than a second one.
     """
 
-    from ..persona_chat_durability import default_persona_session_db
     from ..persona_open_chat import perform_persona_instance_open_chat
     from ..tool_permissions import ChatToolPermissionStore
     from ..permission_modes import PERMISSION_MODE_READ_ONLY
 
+    # Titled BY the mint (one door), never re-titled after it.
     outcome = perform_persona_instance_open_chat({
         "persona_id": persona_id, "new_session": True,
         "idempotency_key": f"{lens_client_message_id(episode.id)}:chat",
         "requested_by": lens_requested_by(episode.id, episode.monitor_id),
+        "title": episode_title(episode),
     }, select_session=False)
     if outcome.refusal is not None:
         return None, {"ok": False, "error_kind": str((outcome.refusal.data or {}).get("reason") or "open_chat_refused")}
@@ -104,13 +105,6 @@ def _open_episode_chat(persona_id: str, episode: Episode) -> tuple[str | None, d
         return None, {"ok": False, "error_kind": "open_chat_refused"}
     ChatToolPermissionStore().set(persona_id=persona_id, session_id=session_id, mode=PERMISSION_MODE_READ_ONLY,
                                   reason=f"unattended Lens investigate turn ({episode.id})", source=_PERMISSION_SOURCE)
-    session_db = default_persona_session_db()
-    try:
-        session_db.set_session_title(session_id, episode_title(episode))
-    except Exception:  # a title is navigation, never a reason to skip the turn
-        logger.debug("lens episode chat %s kept its default title", session_id, exc_info=True)
-    finally:
-        getattr(session_db, "close", lambda: None)()
     return session_id, {}
 
 

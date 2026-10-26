@@ -539,7 +539,10 @@ def _publish_minted_root(args, *, store, mint, current, persona_id: str, target_
                 session_db=session_db,
                 session_id=receipt.session_id,
                 persona_id=persona_id,
-                title=f"{current.display_name} chat",
+                # A caller that needs the root BEFORE its turn (the Lens forge)
+                # names it here, at the mint, rather than re-titling after.
+                title=(safe_assignment_text(getattr(args, "title", None), limit=120)
+                       or f"{current.display_name} chat"),
                 required=True,
                 client_scope=receipt.client_scope,
                 independent=not receipt.select_session,
