@@ -658,7 +658,8 @@ instance family's pattern rather than beside it:
 
 ## The board
 
-Workspace-scoped kanban, and **planning state only**: "Cards are planning
+The **Mission Board**, one per realm workspace, and **planning state only** (it is not
+upstream's `kanban.db`, which keeps its own name; naming map ruling 8): "Cards are planning
 state. They do not carry or mutate mission records"
 (`agent_runtime/board_store/__init__.py:3-7`). `Board` / `BoardColumn` / `BoardCard`
 are at `models.py:135` / `:92` / `:108`. `BoardStore` is the single write

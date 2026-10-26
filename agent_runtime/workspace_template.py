@@ -4,7 +4,7 @@
 workspace's authored STRUCTURE into a freshly created workspace:
 
 - ``office``   — Mission Office folder taxonomy + active actor placements
-- ``board``    — the default kanban board's active cards
+- ``board``    — the default Mission Board's active cards
 - ``agents``   — the workspace agent roster (consumed at create time)
 - ``settings`` — isolation / max lanes / default blueprint (create time)
 

@@ -23,7 +23,7 @@ Fork vocabulary. Upstream terms (session, gateway platform, tool, skill, profile
 | **Core cache** | The fingerprint-keyed persisted core so boot reads a cached core instead of building one (12 s → 0.9 s). |
 | **Stream / fold** | The frame stream to the launcher and the negotiated folding of entities into batches; patch frames carry deltas. |
 | **Office / actor / surface** | The spatial scene: an actor is a placed persona in a workspace surface; office verbs ride the RPC lane. |
-| **Board** | The mission board (cards, columns, idempotent replay). Its lane is not yet migrated. |
+| **Mission Board** | Ours: one per realm workspace (`agent_runtime/models.py` `Board`, `agent-runtime/boards/`) — cards, columns, idempotent replay, planning state only; where the brains' TODO is shown. Never "kanban": that is upstream's `kanban.db` board, which keeps its name. Its lane is not yet migrated. |
 | **Realm / workspace** | A realm binds a server + git-backed sync of non-source artifacts; a workspace is the operator's scope inside it. Realm sync = publish / pull / skill inbox. |
 | **Install / runtime / paired device / peer** | The multi-device entities (canon 09): one runtime per machine, paired by account grant, dialable addresses, cross-install chat. |
 | **Receipt** | A log line or file that PROVES a stage happened (boot timeline, `ready` frame, `[MissionChatTiming]`). Observability contract: receipts, never new envelope keys. |

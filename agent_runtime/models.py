@@ -276,7 +276,10 @@ class BoardCard:
 
 @dataclass(slots=True)
 class Board:
-    """A workspace-scoped kanban board (def + ordered columns + card ledger).
+    """The Mission Board: one per realm workspace (def + ordered columns + card ledger).
+
+    Ours, and not upstream's ``kanban.db`` collaboration board, which keeps its own name (naming map
+    ruling 8, ``docs/agent-runtime-harness/planned/naming-and-address-map-2026-10-25.md`` § The board).
 
     The default board id is deterministic (``board_default_<workspace_id>``) so
     two machines converge on it. ``archived_card_ids`` is the resurrection-guard
