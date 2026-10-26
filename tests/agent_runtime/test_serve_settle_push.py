@@ -352,3 +352,36 @@ def test_a_host_that_does_not_answer_the_owner_question_fails_loudly():
 
     with pytest.raises(NotImplementedError, match="_another_serve_owns_this_root"):
         _Host()._push_due_settles()
+
+
+# ── RT-SETTLE-CLI-SEND-NO-SESSION: a plain-text send's settle names its turn and minted root ──
+
+
+def _plain_new_session_turn(argv):
+    """The real emit seam, as a CLI send WITHOUT ``--json`` runs it: the reply printed as plain text."""
+    from types import SimpleNamespace
+
+    from hermes_cli.harness_parts.persona.chat_events import _mission_chat_emit
+
+    _mission_chat_emit(
+        SimpleNamespace(json=False, stream=False),
+        {"ok": True, "session_id": "sess-minted-9", "root_chat_session_id": "sess-minted-9",
+         "turn_id": "cm-plain-1", "reply": "hello there"},
+        plain="hello there",
+    )
+    return 0
+
+
+# Mutation: drop ``note_turn_payload(data)`` from ``_mission_chat_emit`` (or read only the
+# stdout tail in ``_record_turn_settle``) -> the settle records turn_id and session_id null.
+def test_a_plain_new_session_send_settles_with_its_turn_and_minted_root():
+    argv = ["harness", "mission-chat", "message", "--new-session", "--client-message-id", "cm-plain-1", "hi"]
+    with running_serve(dispatch=_plain_new_session_turn) as handle:
+        with client(handle, name="launcher") as (connection, _hello):
+            connection.send({"id": "turn-plain", "argv": argv})
+            line = _read_until(connection, "line")
+            assert line["line"] == "hello there"  # no JSON reached stdout
+            assert _read_until(connection, "exit")["code"] == 0
+            record = read_settle(settle_id_for("sess-minted-9", "cm-plain-1"))
+    assert record is not None
+    assert (record.session_id, record.turn_id) == ("sess-minted-9", "cm-plain-1")

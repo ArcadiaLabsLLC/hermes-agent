@@ -60,11 +60,17 @@ class SettlePush:
 
         return process_home_scope(self.serve_request_home, head_home=getattr(self, "serve_head_home", None))
 
-    def _record_turn_settle(self, request: Any, lines: Any, exit_code: int) -> None:
-        """Durable BEFORE the exit frame; never raises (worker ``finally``)."""
+    def _record_turn_settle(self, request: Any, lines: Any, exit_code: int, *, payload: Any = None) -> None:
+        """Durable BEFORE the exit frame; never raises (worker ``finally``).
+
+        ``payload`` is the turn's own terminal payload when the handler handed it over
+        (``chat_turn_settles.capture_turn_payload``); the stdout tail is read only without one,
+        since a send without ``--json`` prints no JSON line (RT-SETTLE-CLI-SEND-NO-SESSION).
+        """
 
         try:
             from agent_runtime.chat_turn_settles import (
+                outcome_from_payload,
                 outcome_from_result_lines,
                 record_settle,
             )
@@ -79,7 +85,8 @@ class SettlePush:
                     session_id=_argv_flag(request.argv, _SESSION_ID_FLAG),
                     request_id=request.rid,
                     exit_code=exit_code,
-                    outcome=outcome_from_result_lines(list(lines or ())),
+                    outcome=(outcome_from_payload(payload) if isinstance(payload, dict)
+                             else outcome_from_result_lines(list(lines or ()))),
                     recorded_by=self.boot_id,
                 )
         except Exception:
@@ -94,9 +101,9 @@ class SettlePush:
             # This request's OWN first settle of a message (a replay's record names another request; a
             # queued turn's settle is the runner's and never comes through here): the goal's turn.
             if key[0] == _MESSAGE_VERB and record.request_id == str(request.rid) and record.session_id:
-                self._goal_after_direct_turn(request.argv, record, lines)
+                self._goal_after_direct_turn(request.argv, record, lines, payload=payload)
 
-    def _goal_after_direct_turn(self, argv: Any, record: Any, lines: Any) -> None:
+    def _goal_after_direct_turn(self, argv: Any, record: Any, lines: Any, *, payload: Any = None) -> None:
         """RT-GOAL-DIRECT-SEND-HOOK: a direct send reaches the goal's after-turn hook, OFF this worker.
 
         The judge is a provider call; it never stands between a turn and its exit frame.
@@ -107,7 +114,8 @@ class SettlePush:
             return
         from agent_runtime.chat_turn_settles import payload_from_result_lines
 
-        payload = payload_from_result_lines(list(lines or ()))
+        if not isinstance(payload, dict):
+            payload = payload_from_result_lines(list(lines or ()))
         argv = list(argv or ())
 
         def _run() -> None:

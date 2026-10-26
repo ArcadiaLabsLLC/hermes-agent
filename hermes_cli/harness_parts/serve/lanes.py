@@ -104,6 +104,7 @@ class _RunState:
         "served_from_cache",
         "settle_capturing",
         "sink",
+        "turn_payload",
     )
 
     def __init__(self, sink: Any, cache_key: Any) -> None:
@@ -117,6 +118,8 @@ class _RunState:
         #: A chat turn this worker OWNS (not a duplicate refused by the claim):
         #: its stdout tail is mirrored so its settle can be recorded and pushed.
         self.settle_capturing = False
+        #: The turn's terminal payload, handed over by the handler (``capture_turn_payload``).
+        self.turn_payload: list | None = None
 
 
 class ArgvLanes:
@@ -159,7 +162,14 @@ class ArgvLanes:
                 self.stdout_proxy.begin_capture(request.rid, keep_last=RESULT_TAIL_LINES)
                 state.settle_capturing = True
             try:
-                self._execute_request(request, state)
+                if claim_key is not None:
+                    from agent_runtime.chat_turn_settles import capture_turn_payload
+
+                    with capture_turn_payload() as payloads:
+                        state.turn_payload = payloads
+                        self._execute_request(request, state)
+                else:
+                    self._execute_request(request, state)
             finally:
                 self.turn_claims.release(claim_key, request.key)
                 if link_token is not None:
@@ -403,7 +413,8 @@ class ArgvLanes:
             # Settle push: durable BEFORE the exit frame and before the inflight
             # pop, for the receipt's reason above. Never raises.
             self._record_turn_settle(
-                request, self.stdout_proxy.end_capture(request.rid), state.code
+                request, self.stdout_proxy.end_capture(request.rid), state.code,
+                payload=(state.turn_payload or [None])[-1],
             )
         if state.capturing:
             self.read_cache.put(
