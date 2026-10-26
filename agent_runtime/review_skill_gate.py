@@ -45,7 +45,7 @@ _REPLAY_KEYS = ("action", "name", "content", "category", "file_path", "file_cont
                 "old_string", "new_string", "replace_all", "absorbed_into", "operations")
 
 
-def _shared_package(name: Any, shared_root: Path) -> Path | None:
+def _shared_package_dir(name: Any, shared_root: Path) -> Path | None:
     from agent_runtime._upstream_doors import skill_manage_target
 
     if not isinstance(name, str) or not name.strip():
@@ -59,7 +59,7 @@ def _shared_package(name: Any, shared_root: Path) -> Path | None:
         return None
 
 
-def _targets(args: dict[str, Any]) -> list[tuple[str, str]]:
+def _write_targets(args: dict[str, Any]) -> list[tuple[str, str]]:
     operations = args.get("operations")
     if isinstance(operations, list):
         return [(str(op.get("action") or ""), str(op.get("name") or args.get("name") or ""))
@@ -67,7 +67,7 @@ def _targets(args: dict[str, Any]) -> list[tuple[str, str]]:
     return [(str(args.get("action") or ""), str(args.get("name") or ""))]
 
 
-def _snapshot(package: Path, shared_root: Path) -> Path | None:
+def _keep_prior_package(package: Path, shared_root: Path) -> Path | None:
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     destination = shared_root / ".archive" / f"{package.name}-{stamp}-{uuid.uuid4().hex[:6]}-{PRE_REVIEW_SUFFIX}"
     try:
@@ -91,8 +91,8 @@ def review_shared_skill_write(tool_name: Any, args: Any) -> dict[str, Any] | Non
 
     shared_root = get_shared_skills_dir()
     packages = {
-        package for action, name in _targets(args) if action in REVIEW_GATED_ACTIONS
-        for package in [_shared_package(name, shared_root)] if package is not None
+        package for action, name in _write_targets(args) if action in REVIEW_GATED_ACTIONS
+        for package in [_shared_package_dir(name, shared_root)] if package is not None
     }
     if not packages:
         return None
@@ -103,7 +103,7 @@ def review_shared_skill_write(tool_name: Any, args: Any) -> dict[str, Any] | Non
                          **{key: str(payload.get(key) or "")
                             for key in ("content", "file_path", "old_string", "new_string")})
     record = wa.stage_write(wa.SKILLS, payload, summary=f"[shared] {gist}", origin="background_review")
-    kept = [str(path) for path in (_snapshot(package, shared_root) for package in sorted(packages)) if path]
+    kept = [str(path) for path in (_keep_prior_package(package, shared_root) for package in sorted(packages)) if path]
     logger.info("review_skill_gate staged=%s skills=%s kept=%s", record["id"],
                 ",".join(sorted(package.name for package in packages)), len(kept))
     return {"action": "block", "message": (
