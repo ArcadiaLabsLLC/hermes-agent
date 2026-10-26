@@ -1,3 +1,7 @@
+> Historical design and audit, archived after the owner authorized implementation on 2026-10-26.
+> Runtime/UI facts now live in chat/transport/lifecycle canon; qualification notes distinguish tested behavior from remaining live evidence.
+> The original deferral language below is historical, not a current implementation hold.
+
 # Agent Console follow-up suggestions: audit and implementation plan
 
 Status: **PLANNED — not implemented or authorized to execute.** Date: 2026-10-26.
@@ -6,7 +10,7 @@ settings, no invented confirmations, preserve the persona system, identify optio
 and API connections, and queue the work in its owning repositories.
 
 This is the canonical cross-repository design. The Launcher implementation map is
-`EterniaLauncher/docs/mission_control/planned/CONSOLE_NEXT_PROMPT_2026-10-26.md`.
+`EterniaLauncher/docs/mission_control/archive/CONSOLE_NEXT_PROMPT_2026-10-26.md`.
 Work/status belongs only in the two domain queues. The retained hold row
 `RT-NEXT-PROMPT-DECISIONS` defers implementation; this document is not permission to
 install a plugin, enable generation, change live configuration, or start a lane.

@@ -1969,3 +1969,37 @@ then a steer (`Skills lent: …` / `Skills no longer lent: …`). Reply `{target
 row carries `skills_lent`. The record lives as long as its child: the dispatch drain's orphan cadence
 (`dispatch_delivery/drain.py::sweep_skill_lends`) and every lend drop a record whose child this process no
 longer registers, and another process's record once that process is dead.
+
+## Optional Console follow-up suggestions
+
+`agent_runtime/serve_rpc/console_suggestions.py` advertises contract 1 through the
+existing authenticated Console method lane. `runtime.console_suggestions.settings`
+owns `get`, `set`, `subscribe`, `unsubscribe`; `runtime.operator.conversation.suggestions`
+owns `read`, `subscribe`, `unsubscribe`, `dismiss`. Each family pushes `.changed`
+notifications through the existing connection. The Launcher uses the same notification
+dispatcher on local serve and paired LAN routes; an older manifest has no capability.
+
+Settings require `install_id`; writes use `expected_revision` and only changed fields:
+`enabled`, `max_context_messages`, `cooldown_seconds`, `auxiliary_override` (null resets
+provider/model/base_url while preserving the host's other task policy). The sole writer
+is `hermes_cli.plugins_state.update_plugin_configuration`, with managed-key enforcement
+and atomic config locking. Defaults are false / 4 / 3. Missing, malformed or invalid
+configuration never enables generation; invalid optional tuning remains repairable.
+
+Chat methods use the existing exact operator subject: install, workspace (nullable),
+persona, instance, session and client_scope. Native membership and account ownership
+are checked before context/inference. Disabled read/subscribe returns without history,
+cache initialization or worker startup. Settings metadata subscriptions survive disable.
+Invalid arguments use -32602; stale identity/revision uses 4090 with a sanitized reason.
+
+Responses carry `contract`, exact subject, `policy_epoch` and state. A ready entry has
+`entry_id`, `entry_revision`, `source_turn_id`, `source_revision`, and free-form `text`.
+A durable generation failure uses `unavailable`, the same identity, and a sanitized
+auth/rate_limit/timeout/storage/provider reason without draft text. Usage includes the
+actual resolved provider/model and token/cost facts from the host facade, separately
+from the primary turn. Dismiss compares entry id/revision, and is idempotent.
+
+Subscription replies establish sequence zero; client buffers pre-ack pushes and applies
+the newest complete snapshot. Coalesced notifications intentionally permit sequence gaps:
+each is a complete state, not a delta. Reconnect creates a fresh authorized subscription.
+Use always performs a fresh exact-source read before the existing draft owner inserts.

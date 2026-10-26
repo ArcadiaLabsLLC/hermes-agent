@@ -1271,7 +1271,7 @@ operator's text.
 
 ## Open rows
 
-- [Optional Console follow-up suggestions](planned/console-next-prompt-2026-10-26.md)
+- [Optional Console follow-up suggestions](archive/console-next-prompt-2026-10-26.md)
   audits next-prompt reuse after durable settlement, preserving persona ownership.
   False-default global settings, scoped RPC and resource budgets are proposed,
   not built; `RT-NEXT-PROMPT-DECISIONS` gates the runtime queue's five slices.
@@ -1365,3 +1365,26 @@ The source install selects provider extras in
 `EterniaLauncher/lib/features/mission_control/data/install/hermes_install_manifest.dart`;
 PM's `[all]` intentionally excludes opt-in provider SDKs. The bundled desktop
 profile separately declares Anthropic and retains its explicit provider exclusions.
+
+## Opt-in follow-up drafts
+
+The Eternia Harness plugin registers `console_next_prompt` with the manager-owned
+`PluginContext.register_auxiliary_task`; generation calls `ctx.llm.complete(task=...)`.
+No override uses the existing auxiliary routing, auth, fallback, timeout and usage path.
+An optional `auxiliary.console_next_prompt` route does not change main/persona models.
+`plugins.entries.eternia-harness.settings.console_suggestions_enabled` defaults false.
+
+The service binds the head home explicitly, clears ambient projected config and persona
+runtime-main overrides, and never starts a persona to generate a suggestion. Context comes
+from the native owner/session reader, bounded message tail and committed journal pairs.
+Active root leases, uncommitted latest input, structured clarification and synthetic delivery
+origins are ineligible. The existing curation/redaction removes runtime/skill envelopes;
+attachment paths/bodies are not loaded. The configured 2–10 message window uses whole pairs.
+
+Pinned next-prompt helpers retain contextual free-form replies, latest-user language,
+short non-Latin output and code-bearing text. Exact sentinels, actual placeholders and
+over-160-code-point output are rejected; there is no intent whitelist or question template.
+The prompt discourages fabricated user actions/results/approvals, not a semantic guarantee.
+MIT attribution for upstream c200200d6678dc6b093bab03c2e00a4f5a5043ed ships through
+the existing license-files/bundle manifest. The upstream Desktop plugin is not installed
+as a second runtime owner. [Qualification](../downstream/console-next-prompt-2026-10-26.md).

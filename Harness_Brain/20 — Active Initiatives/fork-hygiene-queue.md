@@ -560,3 +560,7 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 ## Filed on arrival — 2026-10-25 (lane w1024t-hermes2)
 
 
+
+## Filed on arrival — 2026-10-26 (next-prompt landing baseline)
+
+- **`FORK-NEXT-PROMPT-BASE-CONTRACTS` — Reconcile existing CLI/parser, retired PersonaAssignmentStore tombstones, coverage claims, store-epoch path pins and JSON root-observability census drift with their owning changes; preserve each gate rather than exempt it** · fork / suite · `tests/hermes_cli/test_cli_contract_dump.py`, `tests/agent_runtime/test_tombstone_registry.py`, `tests/test_coverage_claims_resolve.py`, `tests/agent_runtime/test_store_epoch_gate.py`, `tests/hermes_cli/test_harness_json_root_observability.py` · next-prompt landing confirms the same failing nodes on base 105174e2bc; evidence `docs/downstream/console-next-prompt-2026-10-26.md` · READY 2026-10-26

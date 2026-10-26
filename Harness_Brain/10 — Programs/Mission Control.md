@@ -10,13 +10,7 @@ tags: [program/mission-control, program]
 
 `lens_cursor::` 2026-10-26 — Lens implementation, live acceptance and remaining plan extensions reconciled; the domain queues own outstanding work. [Scope and queue pointers](../../docs/agent-runtime-harness/planned/eternia-lens-in-hermes.md#current-implementation-and-queue-coverage).
 
-`next_prompt_cursor::` 2026-10-26 — Planning only: [next-prompt reuse audit and
-cross-repo plan](../../docs/agent-runtime-harness/planned/console-next-prompt-2026-10-26.md)
-§1.2 records final parity/gap findings F1–F8: optional tuning, additive draft use,
-native actions, host timeouts, cleanup, scoped routing and durable attempt fences.
-Contextual free-form suggestions and existing auxiliary routing remain selected;
-global Settings > Eternia Harness stays off by default and personas are preserved.
-Five runtime rows start at `RT-NEXT-PROMPT-DECISIONS`; implementation is deferred.
+`next_prompt_cursor::` 2026-10-26 — Implemented optional free-form Console drafts through existing auxiliary routing and native owners. Global Settings > Eternia Harness remains off by default; personas are unchanged. [Qualification and remaining live evidence](../../docs/downstream/console-next-prompt-2026-10-26.md).
 
 `history_review_cursor::` 2026-10-14 — Old Console history review reconciled
 against the landed owners; missing safety coverage and private-API seam record

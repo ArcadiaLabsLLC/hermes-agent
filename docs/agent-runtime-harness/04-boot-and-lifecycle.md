@@ -889,3 +889,24 @@ Nothing below is implemented. Each links to a plan carrying its own evidence and
 There is no `## Unverified carry-forward` section: every claim above cites a `path:line`, a named
 function, or a quoted live receipt. Archived claims that could not be re-verified in today's code
 were dropped rather than carried.
+
+## Console suggestion lifecycle
+
+`ConsoleSuggestions` is lazy and serve-owned. One metadata-only settings read on the
+existing liveness cadence notices external config edits. Enabled, visible conversations
+share one existing StreamHub observer; the last detach/disable releases it. A dropped
+observer clears entries and reconnects through that cadence, without a separate event tail.
+Foreground turn start invalidates entries; post-settlement/root-release schedules work.
+
+One scheduler holds at most 32 pending subjects and two actual synchronous facade calls,
+one per exact root. Disable/navigation discards publication but never frees a provider slot
+before its call returns. A slow host route retains host timeout/retry/fallback policy;
+there is no feature-specific 15-second cutoff. Notification delivery is bounded/coalesced
+off the foreground turn. No per-hidden-chat timer or draft-change generation exists.
+
+The derived store is `<head>/state/console_suggestions.sqlite3`, separate from chat and
+persona state. A transaction claims subject + source turn/revision + settings revision
+before dispatch. At most 256 text payloads live for 24 hours; 4,096 content-free attempt
+receipts last seven days. A full receipt store refuses new work rather than evicting dedup
+evidence. Uncertain crashed dispatches are not retried. Native chat deletion removes its
+derived rows within the existing ownership/lease admission, before canonical deletion.
