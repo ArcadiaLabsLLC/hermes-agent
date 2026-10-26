@@ -69,3 +69,5 @@ JSON-root-observability failures as pre-existing. They are tracked together in
 FORK-NEXT-PROMPT-BASE-CONTRACTS, separate from the duplicate-helper row.
 
 The two registered-event emitter/retired-consumer assertions also fail on base 105174e2bc (`--confirm-red`: pre-existing). All remaining broad-run failures are either repaired feature regressions or verified base failures, not unexplained exemptions. Runtime implementation commits: c546882468 and 8dffb5cf04. The follow-up changes were checked with the explicit affected files; the entire broad suite was not rerun.
+
+Paired Launcher implementation: 2082f311b4 plus dd0e80e109, rebased onto d4b799f634. Combined Harness goldens were regenerated after the rebase; the rebased codec/settings/draft/search run passed 29 tests. Runtime landed on main at 3021ee627f, and its primary checkout was fast-forwarded without touching the unrelated web build directory.
