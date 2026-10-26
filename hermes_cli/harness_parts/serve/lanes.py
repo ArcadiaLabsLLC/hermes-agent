@@ -122,6 +122,33 @@ class _RunState:
         self.turn_payload: list | None = None
 
 
+def _tag_worker_session(request: Any) -> None:
+    """A pooled worker's log ``[session]`` tag is THIS request's (RT-SERVE-LOG-SESSION-TAG-LEAK).
+
+    ``hermes_logging``'s tag is thread-local and nothing cleared it between requests, so a turn's
+    admission lines (``chat_turn_effort``, ``context_build_receipt``) carried the PREVIOUS turn's
+    session until the agent set its own. A chat turn is tagged with its ``--session-id`` (the root
+    it names) at admission; any other request, or a ``--new-session`` turn, starts untagged. Reset at
+    the START of every request, so this is the one chokepoint: whatever a request leaves on the thread
+    is overwritten before the next one logs.
+    """
+
+    from hermes_logging import clear_session_context, set_session_context
+
+    argv = [str(item) for item in getattr(request, "argv", None) or ()]
+    session = None
+    if getattr(request, "is_chat_turn", False):
+        for index, item in enumerate(argv):
+            if item == "--session-id" and index + 1 < len(argv):
+                session = argv[index + 1] or None
+            elif item.startswith("--session-id="):
+                session = item.split("=", 1)[1] or None
+    if session:
+        set_session_context(session)
+    else:
+        clear_session_context()
+
+
 class ArgvLanes:
     """The pool half of :class:`~hermes_cli.harness_parts.serve.session.ServeSession`."""
 
@@ -137,6 +164,7 @@ class ArgvLanes:
         # which leaves the contextvar unset and the proxy on stdout — the
         # pre-socket path, unchanged.
         sink_token = _request_sink.set(request.sink)
+        _tag_worker_session(request)
         accepted = request.accepted
         if accepted is not None:
             accepted.started = request.started_monotonic
