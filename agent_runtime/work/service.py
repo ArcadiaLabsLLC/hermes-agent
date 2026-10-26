@@ -207,8 +207,9 @@ def _scoped_work_request(operation, params, caller, install):
             raise WorkRefused(Reason.INVALID)
         return {"version": VERSION, "install_id": install, **context.wire()}
     kind = params.get("kind")
-    if kind == KIND_AGENT and operation == "list":
-        return {"version": VERSION, "install_id": install, **_agent_view(params, context, install)}
+    view = _KIND_VIEWS.get((kind, operation))
+    if view is not None:
+        return {"version": VERSION, "install_id": install, **view(params, context, install)}
     if kind is not None and kind not in (KIND_WORKSPACE, KIND_PERSONAL):
         raise WorkRefused(Reason.INVALID, "kind is workspace | personal (agent: list only)")
     owner = text(params.get("owner"))
@@ -279,3 +280,7 @@ def _agent_view(params, context, install):
     return {"kind": KIND_AGENT, "assignee": f"persona:{token}", "assignees": sorted(tokens), "owners": owners,
             "read_at": store._now().isoformat(timespec="seconds"),
             "stale": any(owner.get("stale") or "refused" in owner for owner in owners)}
+
+
+#: ``(kind, operation)`` pairs answered as a VIEW over every owner instead of one owner's board.
+_KIND_VIEWS = {(KIND_AGENT, "list"): _agent_view}

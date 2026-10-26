@@ -630,94 +630,14 @@ def _cmd_mission_chat_message(args) -> int:
                     or derive_dispatch_title(getattr(args, "message", None))
                     or persona_thread_title
                 )
-            try:
-                minted = mint_chat_root(
-                    instance_store=instance_store,
-                    session_db=session_db,
-                    persona_id=normalized_persona,
-                    persona_instance_id=persona_instance_id,
-                    idempotency_key=(
-                        safe_assignment_text(getattr(args, "idempotency_key", None), limit=240)
-                        or f"send:{client_message_id}"
-                    ),
-                    title=mint_title,
-                    dispatched_from={
-                        "predecessor_chat_session_id": existing_root,
-                        "requested_by_session": requested_by_session,
-                    },
-                )
-            except RetiredPersonaInstanceError as exc:
-                # What this handler guarantees is the TYPE. An unhandled raise
-                # here was the untyped traceback the operator saw instead of a
-                # refusal.
-                #
-                # What reaches it: a target already retired when the mint began
-                # (a caller that skipped the pre-flight above by another road,
-                # or a `retire` that landed in the gap between the pre-flight
-                # and the mint), AND a `retire` that lands inside the mint lane
-                # itself. Both now arrive with nothing left behind: the mint
-                # asserts bindability before its first durable write and BINDS
-                # before its first session-visible one, so a refusal from either
-                # point precedes the titled row that used to survive it.
-                data = _retired_persona_instance_payload(exc)
-                # Pre-lease refusal, same as the pre-flight arm above — durably
-                # recorded via `_publish_persona_chat_send_refused_event`. No
-                # `session_id` yet: the mint that would have established one
-                # never completed.
-                _publish_persona_chat_send_refused_event(
-                    session_id=session_id,
-                    client_message_id=client_message_id,
-                    persona_id=normalized_persona,
-                    persona_instance_id=persona_instance_id,
-                    error_kind=ChatErrorKind.RETIRED_PERSONA_INSTANCE,
-                )
-                _mission_chat_emit(args, data)
-                return 2
-            except PersonaChatPersistenceError as exc:
-                # The mint's OTHER typed refusal, and the newer one: the bind
-                # landed and the transcript row did not, so the mint retracted
-                # the bind and reports the failure rather than returning a root
-                # that dereferences nowhere. Same frame the commit phase below
-                # emits for the sticky lane — one ``chat_session_persist_failed``
-                # vocabulary for "the transcript store would not take it",
-                # whichever end of the lane hit it. Without this arm the typed
-                # error is merely a better-named traceback.
-                #
-                # No ``session_id``: the whole point is that this turn never
-                # established one. The receipt stays RESERVED, so a retry with
-                # the same idempotency key resolves the same root and completes.
-                data = {
-                    "ok": False,
-                    "capability_id": "mission.chat.message",
-                    "execution_state": ExecutionState.FAILED,
-                    "error_kind": ChatErrorKind.CHAT_SESSION_PERSIST_FAILED,
-                    "persistence_operation": exc.operation,
-                    "error": str(exc),
-                    "persona_id": normalized_persona,
-                    "persona_instance_id": persona_instance_id,
-                    "next_expected": (
-                        "restore canonical persona chat transcript storage and retry the message"
-                    ),
-                }
-                _mission_chat_emit(args, data)
-                return 2
-            except (PersonaChatMintError, ConversationOwnerError) as exc:
-                # The shared mint's receipt refusals (a malformed or
-                # scope-conflicting idempotency key, a busy mint lock, a
-                # replayed root that is gone or owned elsewhere) — typed, never
-                # a traceback. The open-chat lane speaks the same codes.
-                data = {
-                    "ok": False,
-                    "capability_id": "mission.chat.message",
-                    "execution_state": ExecutionState.FAILED,
-                    "error_kind": getattr(exc, "code", None) or getattr(exc, "reason", None),
-                    "error": safe_assignment_text(str(exc), limit=400),
-                    "persona_id": normalized_persona,
-                    "persona_instance_id": persona_instance_id,
-                    "next_expected": "correct the idempotency key or retry the message",
-                }
-                _mission_chat_emit(args, data)
-                return 2
+            minted, refused = _mint_send_root(
+                args, instance_store=instance_store, session_db=session_db,
+                normalized_persona=normalized_persona, persona_instance_id=persona_instance_id,
+                client_message_id=client_message_id, session_id=session_id, mint_title=mint_title,
+                existing_root=existing_root, requested_by_session=requested_by_session,
+            )
+            if refused is not None:
+                return refused
             session_id = minted.session_id
             session_established = session_established_payload(
                 dispatch_decision,
@@ -833,6 +753,105 @@ def _cmd_mission_chat_message(args) -> int:
     # code is decided, and a decoration failure may not change it.
     _run_deferred_tail(deferred, session_db=session_db)
     return exit_code
+
+
+def _mint_send_root(args, *, instance_store, session_db, normalized_persona, persona_instance_id,
+                    client_message_id, session_id, mint_title, existing_root, requested_by_session):
+    """The send lane's fresh-root mint through the ONE mint (``mint_chat_root``), its typed refusals
+    emitted here: ``(minted, None)``, or ``(None, exit_code)`` once the refusal frame is out."""
+    from agent_runtime.mission_chat_outcome import ChatErrorKind, ExecutionState
+
+    try:
+        minted = mint_chat_root(
+            instance_store=instance_store,
+            session_db=session_db,
+            persona_id=normalized_persona,
+            persona_instance_id=persona_instance_id,
+            idempotency_key=(
+                safe_assignment_text(getattr(args, "idempotency_key", None), limit=240)
+                or f"send:{client_message_id}"
+            ),
+            title=mint_title,
+            dispatched_from={
+                "predecessor_chat_session_id": existing_root,
+                "requested_by_session": requested_by_session,
+            },
+        )
+    except RetiredPersonaInstanceError as exc:
+        # What this handler guarantees is the TYPE. An unhandled raise
+        # here was the untyped traceback the operator saw instead of a
+        # refusal.
+        #
+        # What reaches it: a target already retired when the mint began
+        # (a caller that skipped the pre-flight above by another road,
+        # or a `retire` that landed in the gap between the pre-flight
+        # and the mint), AND a `retire` that lands inside the mint lane
+        # itself. Both now arrive with nothing left behind: the mint
+        # asserts bindability before its first durable write and BINDS
+        # before its first session-visible one, so a refusal from either
+        # point precedes the titled row that used to survive it.
+        data = _retired_persona_instance_payload(exc)
+        # Pre-lease refusal, same as the pre-flight arm above — durably
+        # recorded via `_publish_persona_chat_send_refused_event`. No
+        # `session_id` yet: the mint that would have established one
+        # never completed.
+        _publish_persona_chat_send_refused_event(
+            session_id=session_id,
+            client_message_id=client_message_id,
+            persona_id=normalized_persona,
+            persona_instance_id=persona_instance_id,
+            error_kind=ChatErrorKind.RETIRED_PERSONA_INSTANCE,
+        )
+        _mission_chat_emit(args, data)
+        return None, 2
+    except PersonaChatPersistenceError as exc:
+        # The mint's OTHER typed refusal, and the newer one: the bind
+        # landed and the transcript row did not, so the mint retracted
+        # the bind and reports the failure rather than returning a root
+        # that dereferences nowhere. Same frame the commit phase below
+        # emits for the sticky lane — one ``chat_session_persist_failed``
+        # vocabulary for "the transcript store would not take it",
+        # whichever end of the lane hit it. Without this arm the typed
+        # error is merely a better-named traceback.
+        #
+        # No ``session_id``: the whole point is that this turn never
+        # established one. The receipt stays RESERVED, so a retry with
+        # the same idempotency key resolves the same root and completes.
+        data = {
+            "ok": False,
+            "capability_id": "mission.chat.message",
+            "execution_state": ExecutionState.FAILED,
+            "error_kind": ChatErrorKind.CHAT_SESSION_PERSIST_FAILED,
+            "persistence_operation": exc.operation,
+            "error": str(exc),
+            "persona_id": normalized_persona,
+            "persona_instance_id": persona_instance_id,
+            "next_expected": (
+                "restore canonical persona chat transcript storage and retry the message"
+            ),
+        }
+        _mission_chat_emit(args, data)
+        return None, 2
+    except (PersonaChatMintError, ConversationOwnerError) as exc:
+        # The shared mint's receipt refusals (a malformed or
+        # scope-conflicting idempotency key, a busy mint lock, a
+        # replayed root that is gone or owned elsewhere) — typed, never
+        # a traceback. The open-chat lane speaks the same codes.
+        data = {
+            "ok": False,
+            "capability_id": "mission.chat.message",
+            "execution_state": ExecutionState.FAILED,
+            "error_kind": getattr(exc, "code", None) or getattr(exc, "reason", None),
+            "error": safe_assignment_text(str(exc), limit=400),
+            "persona_id": normalized_persona,
+            "persona_instance_id": persona_instance_id,
+            "next_expected": "correct the idempotency key or retry the message",
+        }
+        _mission_chat_emit(args, data)
+        return None, 2
+    return minted, None
+
+
 
 
 def _run_deferred_tail(deferred, *, session_db=None) -> None:
