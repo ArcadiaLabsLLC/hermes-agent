@@ -401,7 +401,10 @@ def refresh_process_connection() -> str:
     if http is None:
         from agent.process_bootstrap import build_keepalive_http_client
 
-        http = build_keepalive_http_client(url)
+        from agent_runtime.pool_verify import turn_pool_verify
+
+        # The turn's own verify, or this HEAD warms a pool the turn never checks out.
+        http = build_keepalive_http_client(url, verify=turn_pool_verify(url))
         if http is None:
             return STATUS_NO_CLIENT
         with _IDLE_TARGETS_LOCK:

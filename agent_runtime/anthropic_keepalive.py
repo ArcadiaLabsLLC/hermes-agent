@@ -86,7 +86,10 @@ def adopt_keepalive_http_client(client: Any, key: Any) -> bool:
         base_url = str(key[2] or "").strip() if len(key) > 2 else ""
         from agent.process_bootstrap import build_keepalive_http_client
 
-        shared = build_keepalive_http_client(base_url or ANTHROPIC_DEFAULT_BASE_URL)
+        from agent_runtime.pool_verify import turn_pool_verify
+
+        url = base_url or ANTHROPIC_DEFAULT_BASE_URL
+        shared = build_keepalive_http_client(url, verify=turn_pool_verify(url))
         if shared is None:
             return False
         client._client = shared
@@ -131,7 +134,10 @@ def _copy_onto_pool(source: Any, key: tuple) -> Any | None:
         from agent.process_bootstrap import build_keepalive_http_client
 
         base_url = str(key[2] or "").strip() if len(key) > 2 else ""
-        view = build_keepalive_http_client(base_url or ANTHROPIC_DEFAULT_BASE_URL)
+        from agent_runtime.pool_verify import turn_pool_verify
+
+        url = base_url or ANTHROPIC_DEFAULT_BASE_URL
+        view = build_keepalive_http_client(url, verify=turn_pool_verify(url))
         if view is None:
             return None
         copied = source.copy(http_client=view)

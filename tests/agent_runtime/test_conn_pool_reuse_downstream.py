@@ -165,13 +165,15 @@ def test_the_first_turn_rides_the_preconnected_connection(server, monkeypatch):
 def test_consecutive_turns_ride_one_connection_across_the_title_call(server, monkeypatch):
     import openai
 
-    from agent.auxiliary_client import _CodexCompletionsAdapter
+    from agent.auxiliary_client import _CodexCompletionsAdapter, _openai_http_client_kwargs
 
     agent = _agent(server)
     assert _preconnect(monkeypatch, agent) == "404"
+    # The title client is built the way the auxiliary lane builds it in production
+    # (``_openai_http_client_kwargs``: the resolved ``verify``, so the same pool as the turn).
     title = _CodexCompletionsAdapter(
         openai.OpenAI(api_key="test-key", base_url=_base(server), max_retries=0,
-                      http_client=process_bootstrap.build_keepalive_http_client(_base(server))),
+                      **_openai_http_client_kwargs(_base(server))),
         MODEL,
     )
     opened = len(server.connections)
@@ -200,3 +202,23 @@ def test_a_prewarmed_first_turn_finds_the_spinner_catalog_warm(server):
     home = i18n._current_home()
     assert (home, i18n.get_language()) in i18n._catalog_cache, "the warm-up left the spinner catalog cold"
     assert agent.run_conversation("hi").get("final_response") == "hi"
+
+
+@pytest.mark.timeout(120)
+def test_the_idle_keeper_warms_the_connection_the_next_turn_checks_out(server, monkeypatch):
+    """FH-CONN-POOL-TITLE-CALL-RED: since the shared-truststore carry (``212458ec8d``) a
+    keep-alive client built with the default ``verify=True`` keys a DIFFERENT pool than the
+    turn's resolved ``SSLContext``, so the keeper's ``HEAD`` opened a connection no turn used.
+
+    Named sabotage: build the keeper's client without ``verify=turn_pool_verify(url)`` in
+    ``provider_preconnect.refresh_process_connection`` -> the keeper opens a new connection."""
+
+    agent = _agent(server)
+    assert _preconnect(monkeypatch, agent) == "404"
+    assert agent.run_conversation("turn 0").get("final_response") == "hi"
+    provider_preconnect.remember_process_target(agent)
+    opened = len(server.connections)
+    assert provider_preconnect.refresh_process_connection() == "404"
+    assert len(server.connections) == opened, f"the keeper opened its own connection: {server.requests}"
+    assert agent.run_conversation("turn 1").get("final_response") == "hi"
+    assert len(server.connections) == opened, server.requests
