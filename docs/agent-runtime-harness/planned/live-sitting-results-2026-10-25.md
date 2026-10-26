@@ -338,3 +338,77 @@ restart (above); both real restarts drained clean: `serve connect --drain` → `
 **RT-HARNESS-SERVE-COLD-BOOT — not run.** Three warm-disk boots today: `interpreter_ms` 4,967 /
 6,750 / 3,482 (`interpreter_boot` 2,200 / 3,025 / 1,541, `main_import` 440 / 607 / 298, `dispatch`
 2,326 / 3,116 / 1,642). The D1.06 protocol needs a disk-cold boot, i.e. a reboot.
+
+## 2026-10-26 — lane w1025b-hlive (owner serve pid 32236, code `9e86122bdd`)
+
+Setup as found: the orchestrator had fast-forwarded the live checkout to `9e86122bdd`, run pm install and
+restarted the owner serve (pid 32236, boot `9d48ed7b…`, namespace `acct-26858805fff7de3b`); the alice
+gateway (`--namespace base --profile alice gateway run`) up throughout. Build lanes were running on the
+box: no figure below is an idle-box timing. `runtime.*` methods were called over the serve's loopback
+socket as a `local_console` caller, as on 10-25. Turns: 3 Neko + 2 qa, all CLI (`mission-chat message`).
+
+### RT-ANTHROPIC-CONN-PER-TURN — DONE
+
+- Prewarm (serve boot, 01:52:44): `persona_chat_actor_prewarm_connect host=api.anthropic.com status=404
+  kept=2 elapsed_ms=155` and `persona_chat_actor_prewarm_first_turn root=…07c76f93_09d5bc310b97 …
+  connect_ms=155` — the anthropic prewarm now opens a connection (10-25: `connect_ms=absent`).
+- Three Neko turns on that root, 02:01:08–02:01:43 (`w1025b-hlive-N1..N3`, `claude-opus-5-5`):
+  `observe turn-timing --check --last 3` → warm `conn reusedx2` **PASS**; N2/N3 `send_window_receipt …
+  conn=reused`, no `tls_done`. N1 (first turn after boot, 8.5 min after the prewarm) read `conn=new`,
+  `tls_done_ms=90`: the prewarm keep-warm stopped at `refresh=8` (01:55:04), so a first turn more than
+  ~2 min after boot handshakes; the post-turn `persona_chat_idle_keepwarm` resumes after each turn.
+- Still per turn: `client_built_ms` 79 / 94 / 113 (Dev on openai-codex: 4) — the SDK client is constructed
+  every request and only its httpx client is swapped for the pool's (row `RT-ANTHROPIC-CLIENT-BUILT-PER-TURN`).
+- Seen in passing: the anthropic `send_window_receipt` lines now read `end=event` (10-25: every one
+  `end=abandoned`). `send_prep_total` 432 / 546 warm under load (budget 400) — not judged, loaded box.
+
+### RT-ETERNIA-LENS-L2-L4 — L4: the door admits and answers, against the wrong store
+
+- `launcher-qa` (the `qa` persona's profile) toolsets before: `[hermes-cli]` (declared `harness_core`,
+  `lane_default`; `lens` in `undeclared_registered_toolsets`). 02:03:12
+  `hermes --profile launcher-qa config set toolsets "[harness_core, lens]"` → `persona tool-diff qa`:
+  declared `[harness_core, lens]` (`profile_config`), `lens` effective, `lens_read` present.
+- One turn, 02:03:50 (`w1025b-hlive-L4`, chat `persona_chat_personainst_qa_6d0f33f106a1`, the L2 Episode
+  chat): the agent called `lens_read {monitor: w1025a_proof}` (110 ms) and got `monitor_not_found`.
+  `runtime.lens.latest {monitor_id: w1025a_proof}` on the serve answers `api` = 97.0, seq 7, http 200.
+  Cause: `LensStore()` defaults to `get_hermes_home()/lens/lens.sqlite3`; inside the turn that is the
+  persona's home, so the tool opened — and created, 02:04 — an empty
+  `profiles/launcher-qa/lens/lens.sqlite3`, while the poller and every `runtime.lens.*` method use
+  `profiles/base/lens/` (row `RT-LENS-READ-PERSONA-HOME`; `lens_propose` would draft into the same wrong
+  store). The created file was left in place (outside this lane's worktree).
+- Reverted 02:04:39: `config set toolsets "[hermes-cli]"`; the file is byte-identical (`cmp`) to the copy
+  taken just before the set (sha256 `e517b635…`); `tool-diff qa` → declared `harness_core`
+  `lane_default`, `lens` back in `undeclared_registered_toolsets`. Not this lane's change, recorded: the
+  first CLI process under `--profile launcher-qa` after the code update (a `config get`, 02:02:53)
+  migrated the file `_config_version 50 → 51` and wrote `config.yaml.bak-20261026T060253Z`.
+
+### RT-SAFETY-BLOCK-LIVE-READ — not measured: the chat the turn ran on admits no terminal
+
+- One qa turn, 02:07:58 (`w1025b-hlive-SB1`, same Episode chat), asking for
+  `git -C X:/Eternia/hermes-agent checkout HEAD -- README.md` (a no-op on the clean checkout if it ever
+  ran). The agent answered "the terminal tool is unavailable on this QA lane" without a tool call. The
+  turn's prompt context (`ctx_d92f7aca9b304a78`): 15 final tools, `toolsets_dropped [terminal, browser,
+  vision, code_execution]` — a Lens-forged chat keeps its `read_only` admission for operator follow-ups.
+  (`persona tool-diff qa` lists `terminal` eager: it reads the persona, not the chat.) Live checkout
+  unchanged (`9e86122bdd`, clean). The read needs one turn on a qa chat that is not a Lens Episode chat.
+
+### RT-REALM-SYNCED-LEVEL-REVERT — DONE
+
+Realm `cf6d244d-…` ("test realm"), workspace `ws_testv4_afb811`. Before: `realm sync status` → `state
+in_sync`, `last_publish 2026-10-25T23:14:24`, `last_pull null`, `store_drift.items []`, `levels_changed 0`
+(the publish is the baseline; `remote_check_error: sync_auth_failed` stays, and revert is local-only).
+`runtime.level.get` → sha256 `7f64a8da…`, 359 bytes. 02:11:26 `runtime.level.set` with
+`expect_sha256 7f64a8da…`, one edit (`environment.deathZ -20.0 → -21.0`) → `changed: true`, sha `e28d79b2…`.
+Status: one drift item `{family: level, container: ws_testv4_afb811, item_key: ws_testv4_afb811, kind:
+changed}`, `levels_changed 1`, `levels.unpublished 1`. `runtime.realm.sync.revert {items:
+[level:ws_testv4_afb811:ws_testv4_afb811], dry_run: true}` → `reverted_to_upstream` (dry); then with
+`yes: true` → `reverted 1, refused 0`. After: `runtime.level.get` sha `7f64a8da…`, document byte-identical
+to the before read; status `items []`, `levels_changed 0`, `levels.unpublished 0`.
+
+### RT-REALM-SYNC-REVERT-TAKES — DONE (measured: the revert itself is instant)
+
+Same revert, method lane (the launcher's binding): client wall 572 ms (dry run 527 ms) against 541 ms
+for a no-op `runtime.lens.list` from the same client — Python start, imports and the hello are ~540 ms of
+it, so the revert's own server-side cost is ~30 ms (on a loaded box). The `realm sync status` CLI over
+the argv lane read 5.6 s, the cold-start cost the 10-02 measurement named. The slowness the owner saw
+was the argv CLI cold start; the method lane retires it, and nothing in the revert needs cutting.
