@@ -46,6 +46,10 @@ Read in this order for a full picture; each stands alone for its own territory.
 - [Naming and address map](planned/naming-and-address-map-2026-10-25.md) — machine, install,
   namespace, agent profile, persona instance, realm workspace and repo slot as one typed address;
   the as-built map verified 2026-10-25 and the owner's rulings; design only, not shipped.
+- [Chat head per agent profile](planned/chat-head-per-profile-2026-10-26.md),
+  [chat folder in the namespace](planned/chat-folder-in-namespace-2026-10-26.md) and
+  [machine roots' two halves](planned/machine-roots-two-halves-2026-10-26.md) — the build plans for
+  naming-map rulings 4, 5 and 6; ruled, not shipped.
 - [Local llama Hermes — Agent Console implementation plan](planned/local-llama-agent-console.md)
   — runtime-owned llama.cpp lifecycle, model presets, provider routing, and
   Launcher controls over the existing RPC bridge; design only, not shipped.
