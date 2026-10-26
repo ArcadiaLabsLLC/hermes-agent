@@ -996,3 +996,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-25 (launcher lane w1025a-comp)
 
+## Filed on arrival — 2026-10-26 (launcher session: first Linux install of the Developer Edition)
+
+- **`RT-PM-EXTRA-SKIPS-TOOLS` — `pm install --extra …` installs no tools, then fails its own PATH check, so every fresh install the launcher runs dies at "Build the Eternia Harness environment"** · `pm/cli.py::cmd_install` — `names = args.names if args.names or extras else source_install_packages(...)` leaves `names` empty whenever an extra is passed, so `tool_roots([])` is `[]` (a bare install resolves `ffmpeg, node, npm, python, ripgrep`); `activate(allow_incomplete=True)` then reports all four missing and returns 1. The launcher always passes extras (`EterniaLauncher` `lib/features/harness/data/install/hermes_install_manifest.dart::kHermesEnvironmentInstallArgs`). Seen 2026-10-26 on a fresh Ubuntu 24.04 install; the store held only `python` and `uv`. Line from `3e256363a4`; a machine whose store already held the tools would never see it. Fix shape: extras widen the venv selection and never narrow the tool closure (`names = args.names or source_install_packages(...)`), with a test that `install --extra all` on an empty store publishes the bare closure · READY 2026-10-26
