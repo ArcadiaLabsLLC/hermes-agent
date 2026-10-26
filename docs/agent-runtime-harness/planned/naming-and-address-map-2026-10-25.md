@@ -128,6 +128,13 @@ queue notes of every repo slot the realm workspace binds (`runtime.work.list`; p
 meant to be displayed in the mission board". "Todo" in code means only that brain-backed work; upstream's
 `todo` toolset (an agent's in-session task list) and upstream's `kanban.db` keep their upstream names.
 
+The Mission Board is a VIEW, not the authority. The brains' TODO is served by hermes' Work verbs
+(`runtime.work.*`), which the Projects TODO preview in Intelligence already reads too; the owner's future
+general todo system will be shown in the Mission Board and on other surfaces beyond Mission Control (owner,
+2026-10-25), so it gets one authority behind those verbs and every surface reads it — none owns it. Its
+design is `RT-GENERAL-TODO-PLAN`; chat todolists (the messaging `todolist` content, backend-owned) are a
+different thing and keep their own name.
+
 ## Rows
 
 Hermes `runtime-queue.md`, 2026-10-25: `RT-NAMING-ADDRESS-VALUE`, `RT-MACHINE-ID`, `RT-NAMESPACE-ORIGIN`,
