@@ -92,6 +92,7 @@ from agent_runtime.mission_chat_turns.journal import (
     transition_mission_chat_turn,
 )
 from agent_runtime.mission_chat_turns.reads import (
+    all_mission_chat_turn_records,
     inflight_chat_session_roots,
     inflight_turn_rows,
     mission_chat_turn_elements,
@@ -131,6 +132,7 @@ __all__ = [
     "mission_chat_turn_elements",
     "mission_chat_turn_record",
     "mission_chat_turn_records",
+    "all_mission_chat_turn_records",
     "next_turn_state",
     "persist_mission_chat_turn",
     "resolve_mission_chat_turn",

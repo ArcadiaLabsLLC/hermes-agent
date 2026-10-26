@@ -61,6 +61,7 @@
     "runtime.chat.queue_skill",
     "runtime.chat.steer",
     "runtime.chat.turn.resolve",
+    "runtime.chat.turn_audit",
     "runtime.client.capabilities",
     "runtime.conversation.capabilities",
     "runtime.conversation.facts",
@@ -458,6 +459,12 @@
       "client_message_id",
       "persona_instance_id",
       "reason",
+      "session_id",
+      "turn_id"
+    ],
+    "runtime.chat.turn_audit": [
+      "limit",
+      "persona_instance_id",
       "session_id",
       "turn_id"
     ],
@@ -930,6 +937,7 @@
     "runtime.chat.queue_skill": "console",
     "runtime.chat.steer": "console",
     "runtime.chat.turn.resolve": "console",
+    "runtime.chat.turn_audit": "console",
     "runtime.client.capabilities": "console",
     "runtime.conversation.capabilities": "console",
     "runtime.conversation.facts": "console",

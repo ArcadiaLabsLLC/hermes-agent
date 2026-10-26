@@ -21,6 +21,7 @@ from hermes_cli.harness_support import _list_envelope, _print_stage42, _sort_row
 
 __layer__ = "lanes"
 __all__ = [
+    "_cmd_mission_chat_audit",
     "_cmd_mission_chat_clarify_tickets",
     "_cmd_mission_chat_dispatch_redeliver",
     "_cmd_mission_chat_turn_resolve",
@@ -287,3 +288,36 @@ def _cmd_mission_chat_turn_resolve(args) -> int:
         return 2
     print(emit_json(data) if args.json else "abandoned ambiguous chat turn")
     return 0 if data["ok"] else 2
+
+
+def _cmd_mission_chat_audit(args) -> int:
+    """The argv door; the read is ``agent_runtime.chat_verbs.turn_audit``."""
+    from agent_runtime.chat_verbs.turn_audit import turn_audit
+
+    data = turn_audit(
+        persona_instance_id=getattr(args, "persona_instance_id", None),
+        session_id=getattr(args, "session_id", None),
+        turn_id=getattr(args, "turn_id", None),
+        limit=getattr(args, "limit", None),
+    )
+    if not data["ok"]:
+        print(emit_json(data) if args.json else data["error"])
+        return 2
+    if args.json:
+        print(emit_json(data))
+        return 0
+    ns = data["namespace"]
+    print(f"namespace {ns['kind']} {ns['id']} on {ns['machine']['install_id'] or ns['machine']['state']}"
+          f" ({ns['store_root']}) — {data['count']} of {data['total']} turn(s)")
+    for turn in data["turns"]:
+        usage = turn["usage"] or {}
+        print(f"{turn['started_at'] or '?'} {turn['turn_id']} {turn['state']} "
+              f"wall={turn['wall_seconds']}s tools={len(turn['tool_calls'])} "
+              f"model={usage.get('model') or '?'} in={usage.get('input_tokens')} out={usage.get('output_tokens')}")
+        for call in turn["tool_calls"]:
+            flag = " TIMED OUT" if call["timed_out"] else ""
+            print(f"  {call['name']} exit={call['exit_code']} {call['duration_ms']}ms{flag} {call['command'] or call['args'] or ''}"[:240])
+        for key in ("files_written", "worktrees", "branches", "commits"):
+            for row in turn[key]:
+                print(f"  {key}: {row}"[:240])
+    return 0

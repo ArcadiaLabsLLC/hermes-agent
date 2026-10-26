@@ -27,6 +27,7 @@ from hermes_cli._namespace_bootstrap import (
     Reason,
     base_root,
     layout,
+    namespace_kind,
     namespace_stamp,
     validate_id,
 )
@@ -45,6 +46,7 @@ __all__ = [
     "assert_namespace_isolation",
     "install_stamp",
     "layout",
+    "namespace_kind",
     "namespace_named",
     "namespace_stamp",
     "qa_blocked_push_url",
