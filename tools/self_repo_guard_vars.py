@@ -123,12 +123,25 @@ def unresolved_operation(operation: str, target: Path) -> UnresolvedOperation:
     return marked
 
 
+#: The phrase only the unresolved-variable refusal carries; :func:`block_class` reads it.
+UNRESOLVED_PHRASE = "whose variable is not set in the command or the environment"
+#: RT-SAFETY-BLOCK-CLASS-FIELD: a blocked terminal result is one of these two.
+BLOCK_FIXABLE = "fixable"
+BLOCK_FINAL = "final"
+
+
+def block_class(error_text: object) -> str:
+    """``fixable`` for the unresolved-variable refusal (respell the target and run again), ``final``
+    for every other self-repo block (the command would rewrite the live checkout)."""
+    return BLOCK_FIXABLE if isinstance(error_text, str) and UNRESOLVED_PHRASE in error_text else BLOCK_FINAL
+
+
 def unresolved_message(operation: str, root: Path) -> str | None:
     """The refusal for an :class:`UnresolvedOperation`, else ``None`` (the guard's own text)."""
     if not isinstance(operation, UnresolvedOperation):
         return None
     return (
-        f"Blocked: `{operation}` targets `{operation.target}`, whose variable is not set in the "
-        f"command or the environment, so it cannot be told apart from Hermes's live source "
+        f"Blocked: `{operation}` targets `{operation.target}`, {UNRESOLVED_PHRASE}, "
+        f"so it cannot be told apart from Hermes's live source "
         f"checkout ({root}). Spell the directory out, or assign the variable in an earlier "
         f"statement of the same command (`VAR=/path; git -C \"$VAR\" …`).")

@@ -113,6 +113,12 @@ def render_tool_guidance(session_info) -> str:
     # line per offered tool present in this session: the rule, the tool brief
     # and any skill then derive from one text the host owns.
     lines.extend(app_function_guidance_lines(tools))
+    # RT-SAFETY-BLOCK-CLASS-FIELD: what each block_class asks of the model -- on the T6b wire only,
+    # like the fixed lines, so a session without `tool_describe` keeps upstream's exact prompt bytes.
+    if "terminal" in tools and "tool_describe" in tools:
+        from agent_runtime.terminal_block_class import SAFETY_BLOCK_GUIDANCE
+
+        lines.append(SAFETY_BLOCK_GUIDANCE)
     return "\n".join(lines)
 
 
@@ -339,6 +345,13 @@ def skill_view_result(**kwargs):
     return transform_skill_view_result(**kwargs)
 
 
+def terminal_block_result(**kwargs):
+    """``transform_tool_result`` hook: a blocked terminal result says ``block_class`` (fixable / final)."""
+    from agent_runtime.terminal_block_class import classify_terminal_block
+
+    return classify_terminal_block(**kwargs)
+
+
 def record_usage_ledger_row(**kwargs):
     """``post_api_request`` hook: one per-call usage row for a bound persona-turn ledger."""
     from agent_runtime.usage_ledger import on_post_api_request
@@ -493,6 +506,7 @@ def register(ctx) -> None:
 
     install_stream_observers(ctx.register_hook)
     ctx.register_hook("transform_tool_result", skill_view_result)
+    ctx.register_hook("transform_tool_result", terminal_block_result)
     ctx.register_hook("pre_gateway_dispatch", answer_queue_status)
     # Joins the built-in `skills` toolset by registry membership: a platform bundle reaches it through
     # `skills` (hermes_cli.tools_config._get_platform_tools maps a bundle onto its member toolsets), and
