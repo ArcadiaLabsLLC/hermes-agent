@@ -2,7 +2,7 @@
 
 Upstream calls ``agent.status_callback(kind, text)`` (``agent/status_output.py``,
 ``agent/conversation_compression.py``). The fork's timing receipts (``init_observability``,
-``conversation_observability``, ``codex_observability``, ``request_build_timing``) are one dict
+``conversation_observability``, ``codex_observability``) are one dict
 each. They used to be handed to the same callback, so every upstream surface's callback (CLI,
 gateway, TUI, api_server) received dicts it does not read — the TUI's ``_agent_status_update``
 stringified one into a ``status.update`` kind. A receipt now goes ONLY to a :class:`ReceiptSink`

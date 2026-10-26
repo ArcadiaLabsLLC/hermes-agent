@@ -25,7 +25,6 @@ import pytest
 
 from agent import process_bootstrap
 from agent_runtime import provider_preconnect
-from agent_runtime.receipt_sink import ReceiptSink
 
 MODEL = "gpt-5.6-luna"
 
@@ -187,24 +186,17 @@ def test_consecutive_turns_ride_one_connection_across_the_title_call(server, mon
 
 
 @pytest.mark.timeout(120)
-def test_a_prewarmed_first_turn_has_no_lead_in(server):
+def test_a_prewarmed_first_turn_finds_the_spinner_catalog_warm(server):
+    # The lead-in stamp this test once read (h-turn1 A5) is retired (RT-REMOVE-H-TURN1-A5,
+    # live read 2026-10-25: first-turn laps 9 ms, equal to warm turns); the warm cache is the claim.
     from agent import i18n
     from agent_runtime.first_turn_warmup import PREWARM_FIRST_TURN_WARMUP_MS, warm_first_turn_paths
 
-    values: list[dict] = []
-
-    def _status(payload):
-        if isinstance(payload, dict) and isinstance(payload.get("timing_values"), dict):
-            values.append(payload["timing_values"])
-
-    agent = _agent(server, status_callback=ReceiptSink(_status))
+    agent = _agent(server)
     i18n.reset_language_cache()
     timing: dict = {}
     warm_first_turn_paths(agent, timing)
     assert isinstance(timing.get(PREWARM_FIRST_TURN_WARMUP_MS), int)
     home = i18n._current_home()
     assert (home, i18n.get_language()) in i18n._catalog_cache, "the warm-up left the spinner catalog cold"
-
-    agent.run_conversation("hi")
-    lead_in = [v["conversation_request_lead_in_ms"] for v in values if "conversation_request_lead_in_ms" in v]
-    assert lead_in and lead_in[0] < 100, lead_in
+    assert agent.run_conversation("hi").get("final_response") == "hi"

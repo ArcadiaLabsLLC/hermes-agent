@@ -1,10 +1,17 @@
 {
   "measured_at": "2026-10-25",
   "base": "4d04303818",
-  "files": 237,
+  "files": 236,
   "deleted_lines": 1041,
   "heavy": 1,
   "reasons": [
+    {
+      "change": "RT-REMOVE-H-TURN1-A5 (lane w1025b-h-misc): the h-turn1 A5 request-build stamps removed (live read 2026-10-25: first-turn laps 9 ms, equal to warm turns)",
+      "files": "237 -> 236: agent/turn_api_request.py back to upstream bytes",
+      "deleted_lines": "1041 -> 1041: the hunk only added lines; heavy unchanged",
+      "reason": "The stamps were a temporary diagnostic the owner kept against the DOORS-A ruling until the first-turn build_api_request cost was named; the 2026-10-25 live sitting read it at 9 ms, so agent_runtime/request_build_timing.py and its seam lines are deleted.",
+      "owner_ruling": "2026-10-25 · docs/agent-runtime-harness/planned/live-sitting-results-2026-10-25.md § Timing batch (RT-REMOVE-H-TURN1-A5: go)"
+    },
     {
       "change": "Owner-requested conversation approval and speed controls",
       "grandfathered": true,

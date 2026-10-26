@@ -309,7 +309,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 
 
-- **`RT-REMOVE-H-TURN1-A5` — Remove the h-turn1 A5 stamps from upstream `agent/turn_api_request.py` (8 lines marked `# fork seam: h-turn1 A5`) once the first-turn `build_api_request` cost is fixed — owner kept them 2026-10-05 as a TEMPORARY diagnostic against the 2026-09-29 DOORS-A ruling (`bfee7eb896`); the file returns to upstream bytes and the footprint fixture drops by one** · seam / `agent/turn_api_request.py` · evidence: `lane/h-turn1-tail` `4b49ff114b` · the cost row was folded into this one at 11dedd066f6; the 8 stamp lines are still in `agent/turn_api_request.py` · RULED 2026-10-25: owner — an agent runs this sitting on this PC · LIVE 2026-10-25: first-turn laps 9 ms, equal to warm turns — go (`docs/agent-runtime-harness/planned/live-sitting-results-2026-10-25.md` § Timing batch) · READY 2026-10-25 · **TAKEN 2026-10-25 w1025b-h-misc**
 
 
 

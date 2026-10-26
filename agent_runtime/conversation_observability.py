@@ -135,11 +135,6 @@ def _emit_phase_marker(agent: Any, step: str) -> None:
 
     if step not in CONVERSATION_MARKER_STEPS:
         return
-    if step == CONVERSATION_PREFLIGHT_DONE_STEP:
-        # h-turn1 A5: the request-build split's ``lead_in`` starts here.
-        from agent_runtime.request_build_timing import note_preflight_done
-
-        note_preflight_done(agent)
     callback = agent_receipt_callback(agent)
     if callback is None:
         return
