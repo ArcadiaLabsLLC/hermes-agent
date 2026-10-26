@@ -334,20 +334,71 @@ def _prewarm_read_model_snapshot_in_worker() -> None:
     test) never starts a process.
     """
 
+    bound = False
     try:
         from agent_runtime.snapshot_worker.executor import bind
 
-        bind()
+        bound = bool(bind())
     except Exception:
         import logging as _logging
 
         _logging.getLogger(__name__).warning(
             "snapshot worker bind failed; building in process", exc_info=True
         )
+    if bound:
+        # RT-PREWARM-BUILD-AGENTS-READINESS-COLD S1: the cold build now runs in the
+        # WORKER's interpreter, so this process's own one-time costs (tool and
+        # plugin imports, ~3-5 s cold) no longer contend with it for a GIL and
+        # need not wait 5-13 s behind it — a turn sent in that window paid them
+        # itself (live 2026-10-25 P1: send-prep 7,723 ms, cpu 7,390). In process
+        # (no worker) the order stays sequential, for the reason below.
+        _start_concurrent_provider_warm()
     _prewarm_read_model_snapshot()
 
 
+#: The provider warm started beside a worker-bound build, joined by the
+#: sequential step that would otherwise have run it (so the actor prewarm still
+#: starts only after it, the order ``_prewarm_persona_chat_actors`` relies on).
+_CONCURRENT_PROVIDER_WARM: dict[str, Any] = {"thread": None}
+
+
+def _reset_concurrent_provider_warm_for_tests() -> None:
+    _CONCURRENT_PROVIDER_WARM["thread"] = None
+
+
+def _register_concurrent_provider_warm_state() -> None:
+    from agent_runtime.process_state import register_process_state
+
+    register_process_state(
+        __name__, _reset_concurrent_provider_warm_for_tests, holds=("_CONCURRENT_PROVIDER_WARM",)
+    )
+
+
+_register_concurrent_provider_warm_state()
+
+
+def _start_concurrent_provider_warm() -> None:
+    import threading
+
+    if _CONCURRENT_PROVIDER_WARM["thread"] is not None:
+        return
+    thread = threading.Thread(target=_provider_warm_steps, name="harness-serve-provider-warm", daemon=True)
+    _CONCURRENT_PROVIDER_WARM["thread"] = thread
+    thread.start()
+
+
 def _prewarm_provider_runtime() -> None:
+    """The sequential provider-warm step: join the concurrent warm when the
+    worker-bound prewarm started one, else run the warm here."""
+
+    thread = _CONCURRENT_PROVIDER_WARM["thread"]
+    if thread is not None:
+        thread.join()
+        return
+    _provider_warm_steps()
+
+
+def _provider_warm_steps() -> None:
     """Best-effort warmup of the per-process one-time costs a chat turn pays.
 
     Runs on a daemon thread right after the ready frame. Each step is
