@@ -452,10 +452,17 @@ def install_harness_skills_at_boot() -> str:
     starts carrying a stale package and says so. Every failed result is named on
     the caller's log lane.
 
+    WHICH ROOT. The destination is this process's own ``get_shared_skills_dir()``:
+    a namespaced serve's ``HERMES_HOME`` lies inside its namespace, so it writes
+    that namespace's ``shared/skills`` and never the base root a ``git pull``
+    hook repaired (RT-SKILL-INSTALL-TARGETS-BASE-ROOT). The summary names the
+    root it wrote, so the log says which namespace was repaired.
+
     Returns the one-line summary; raising is not part of the contract.
     """
 
     from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
+    from agent_runtime.profile_home import get_shared_skills_dir
     from agent_runtime.skill_install import (
         HARNESS_SKILLS,
         install_harness_skills,
@@ -473,6 +480,7 @@ def install_harness_skills_at_boot() -> str:
     summary = (
         f"harness serve: skill install — {len(results)} package(s), "
         f"{len(changed)} refreshed, {len(failed)} failed"
+        f" | into: {get_shared_skills_dir()}"
     )
     if changed:
         summary += f" | refreshed: {', '.join(sorted(set(changed)))}"

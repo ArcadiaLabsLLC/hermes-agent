@@ -218,3 +218,33 @@ def test_cmd_serve_wires_the_real_installer(monkeypatch):
         == 0
     )
     assert seen["skill_install"] is install_harness_skills_at_boot
+
+
+def test_a_namespaced_boot_installs_into_its_namespace_not_the_base_root(tmp_path, monkeypatch):
+    """RT-SKILL-INSTALL-TARGETS-BASE-ROOT: the boot repair reaches the root the agents READ.
+
+    Real installer, real path resolution: a serve whose ``HERMES_HOME`` is a profile inside an
+    account namespace writes that namespace's ``shared/skills``, leaves the base root alone, and
+    the summary names the root it wrote.
+    """
+
+    from agent_runtime import config as runtime_config
+    from agent_runtime.skill_install import HARNESS_SKILLS
+
+    base = tmp_path / "base"
+    namespace = tmp_path / "namespaces" / "acct-0123456789abcdef"
+    for root in (base, namespace):
+        (root / "profiles" / "neko").mkdir(parents=True)
+        (root / "config.yaml").write_text("{}\n", encoding="utf-8")
+    monkeypatch.delenv("HERMES_SHARED_SKILLS", raising=False)
+    monkeypatch.setenv("HERMES_HOME", str(namespace / "profiles" / "neko"))
+    patch_where_bound(monkeypatch, runtime_config, "load_agent_runtime_config", lambda: object())
+    patch_where_bound(monkeypatch, runtime_config, "ensure_persisted_personas", lambda _cfg: [])
+
+    summary = install_harness_skills_at_boot()
+
+    skill = sorted(HARNESS_SKILLS)[0]
+    assert (namespace / "shared" / "skills" / skill / "SKILL.md").is_file()
+    assert not (base / "shared").exists()
+    assert f"into: {namespace / 'shared' / 'skills'}" in summary
+    assert "0 failed" in summary
