@@ -6,13 +6,13 @@ next CLI cleared 195 ``__pycache__`` directories and logged ``home
 maintenance: code changed … running steps`` — both keyed on the COMMIT, while
 the serve's identity is the code tree that excludes ``Harness_Brain/``.
 
-Real git repositories, real sweep, real ``run_boot_bootstrap``; each arm has a
-positive control (a ``.py`` commit still sweeps / still runs the steps).
+Real git repositories, real sweep, real ``run_boot_bootstrap`` behind the fork
+carry the boot paths call first; each arm has a positive control (a ``.py``
+commit still sweeps / still runs the steps).
 
 Named sabotage: drop the ``_code_tree_unchanged`` early return in
-``_bytecode_sweep`` (the vault arm sweeps); drop the
-``carry_identity_if_code_unchanged`` seam in ``boot_bootstrap`` (the vault arm
-runs the steps).
+``_bytecode_sweep`` (the vault arm sweeps); make ``carry_install_identity``
+return False (the vault arm runs the steps).
 """
 
 from __future__ import annotations
@@ -112,6 +112,11 @@ def test_home_maintenance_keys_on_the_code_tree(repo, tmp_path, monkeypatch, hea
 
     monkeypatch.setattr(post_update, "run_steps", _steps)
 
+    # The boot paths' order (hermes_cli/main.py, gateway/run.py): the fork carry,
+    # then upstream's own maintenance call.
+    from agent_runtime.boot_code_identity import carry_install_identity
+
+    carry_install_identity(root)
     boot_bootstrap.run_boot_bootstrap(root)
 
     assert bool(calls) is runs

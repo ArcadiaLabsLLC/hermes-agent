@@ -3537,6 +3537,8 @@ def main():
     if _first_positional_argv() != "update":
         from hermes_cli.boot_bootstrap import maybe_run_boot_bootstrap
         from pm.paths import install_root
+        from agent_runtime.boot_code_identity import carry_install_identity  # fork seam: code-tree identity
+        carry_install_identity(install_root())  # fork seam: a vault-only commit runs no home steps
         maybe_run_boot_bootstrap(install_root())
 
     # Every dispatch, including fast chat/serve, gets one passive PM verdict.

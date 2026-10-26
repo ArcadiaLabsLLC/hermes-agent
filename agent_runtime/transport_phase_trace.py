@@ -34,8 +34,10 @@ never replaced.
 
 from __future__ import annotations
 
+import contextlib
 import logging
-from typing import Any, Callable
+import threading
+from typing import Any, Callable, Iterator
 
 from agent_runtime.conversation_observability import (
     TRANSPORT_CLIENT_BUILT_STEP,
@@ -48,7 +50,11 @@ from agent_runtime.prewarmed_system_prompt import run_deferred_turn_persist, def
 from agent_runtime.send_window_receipt import SendWindow
 from agent_runtime.transport_dispatch_evidence import AttemptFact, note_attempt
 from agent_runtime.title_upgrade_defer import start_held_title_upgrade
-from agent_runtime.stream_gap_receipt import begin_send_window, begin_stream_gap_receipt
+from agent_runtime.stream_gap_receipt import (
+    begin_send_window,
+    begin_stream_gap_receipt,
+    observe_anthropic_stream_events,
+)
 
 __layer__ = "policy"
 
@@ -113,6 +119,25 @@ def phase_trace_for(
     return _trace
 
 
+#: Set while the provider pre-connect checks out a request client: that checkout
+#: is not a turn, so it announces no ``client_built`` and opens no receipt (the
+#: OpenAI arm says so with ``reason="prewarm_preconnect"``; the anthropic
+#: checkout carries no reason, so the pre-connect holds this instead).
+_PRECONNECT = threading.local()
+
+
+@contextlib.contextmanager
+def preconnect_checkout() -> Iterator[None]:
+    """Mark this thread's request-client checkout as the pre-connect's, not a turn's."""
+
+    previous = getattr(_PRECONNECT, "active", False)
+    _PRECONNECT.active = True
+    try:
+        yield
+    finally:
+        _PRECONNECT.active = previous
+
+
 def install_transport_phase_trace(agent: Any, client: Any) -> None:
     """Announce ``client_built`` and hook *client*'s httpx requests. Never raises.
 
@@ -121,8 +146,12 @@ def install_transport_phase_trace(agent: Any, client: Any) -> None:
     first-mark-wins rule then ignores) and re-points the hook at *agent*.
     """
 
+    if getattr(_PRECONNECT, "active", False):
+        return  # a pre-connect checkout is not a turn (RT-ANTHROPIC-CONN-PER-TURN)
     _emit_phase_marker(agent, TRANSPORT_CLIENT_BUILT_STEP)
     begin_stream_gap_receipt(agent, client)  # h-stream-gap: a fresh receipt per opened stream
+    if str(getattr(agent, "api_mode", "") or "") == "anthropic_messages":
+        observe_anthropic_stream_events(agent, client)  # its events reach the receipt
     try:
         http_client = getattr(client, "_client", None)
         hooks = getattr(http_client, "event_hooks", None)
@@ -175,4 +204,10 @@ def install_request_client_trace(agent: Any, client: Any, *, reason: str = "") -
         logger.debug("request client trace not installed", exc_info=True)
 
 
-__all__ = ["TRACE_EVENT_STEPS", "install_request_client_trace", "install_transport_phase_trace", "phase_trace_for"]
+__all__ = [
+    "TRACE_EVENT_STEPS",
+    "install_request_client_trace",
+    "install_transport_phase_trace",
+    "phase_trace_for",
+    "preconnect_checkout",
+]

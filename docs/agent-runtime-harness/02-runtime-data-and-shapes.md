@@ -836,7 +836,7 @@ the digest and the cheap facts read on every consult; `entries.json` holds the
 full stat set the digest summarises, in its own file so the cheap half of the
 judgement does not pay for the diagnostic half. `live.json` is a pointer naming
 the live generation and is **the one file whose replacement publishes a
-write-back** (`core_cache/vocabulary.py:102-107`) — a pointer, not a directory rename,
+write-back** (`core_cache/vocabulary.py:111-115`) — a pointer, not a directory rename,
 because between two renames there is no live generation at all.
 
 Live pair (2026-08-22 15:46), sidecar verbatim:
@@ -867,7 +867,7 @@ into the match decision (`planned/core-cache-input-closure.md` (the relocated mo
 SQLite is the one mtime-blind case covered explicitly: a WAL commit that has not
 checkpointed leaves `state.db`'s mtime untouched, so the `-wal` and `-journal`
 siblings are fingerprinted beside it, under a mask that stops *reading* the
-database from looking like *writing* it (`core_cache/vocabulary.py:554-607`).
+database from looking like *writing* it (`core_cache/vocabulary.py:713-768`).
 
 **Demote** is the read-side outcome: a persisted pair that is not served. Every
 demote emits `snapshot_core_cache core_source=rebuilt caller=… reason=…`; the ten

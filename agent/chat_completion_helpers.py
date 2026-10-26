@@ -3422,12 +3422,10 @@ class _StreamingCall(StreamingWaitMonitor):
             on_stream_created=_anthropic_stream_created, on_chunk=accumulator.observe,
             accept_chunk=lambda _event: self._writer_still_current("Anthropic streaming"),
             metadata=_relay_stream_metadata(self.agent, "anthropic_messages"), defer_logical_completion=True))
-        from agent_runtime.stream_gap_receipt import observe_stream_event  # fork seam: h-stream-gap receipt
         try:
             for event in stream:
                 saw_stream_event = True
                 self._count_chunk(_diag, event)
-                observe_stream_event(self.agent, event)  # fork seam: h-stream-gap receipt
                 if self.agent._interrupt_requested:
                     break
                 event_type = getattr(event, "type", None)

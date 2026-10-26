@@ -153,7 +153,10 @@ def _turn_client(agent: Any) -> Any:
         release = getattr(agent, "_close_request_openai_client", None)
     if (api_mode in REQUEST_CLIENT_API_MODES or api_mode == ANTHROPIC_API_MODE) and callable(create) and callable(release):
         try:
-            client = create(reason="prewarm_preconnect")
+            from .transport_phase_trace import preconnect_checkout
+
+            with preconnect_checkout():  # not a turn: no client_built, no receipt
+                client = create(reason="prewarm_preconnect")
             release(client, reason="request_complete")
             return client
         except Exception:

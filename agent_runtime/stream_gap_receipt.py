@@ -482,12 +482,91 @@ def begin_stream_gap_receipt(agent: Any, client: Any) -> None:
         logger.debug("stream gap receipt install skipped", exc_info=True)
 
 
+#: The anthropic request client's ``messages`` resource, once its ``stream`` is
+#: wrapped (``_ANTHROPIC_AGENT_ATTR`` names the agent its events go to).
+_ANTHROPIC_WRAP_MARK = "_hermes_stream_gap_wrapped"
+_ANTHROPIC_AGENT_ATTR = "_hermes_stream_gap_agent"
+
+
+class _ObservedMessageStream:
+    """The SDK's ``MessageStream``, with each event it yields handed to
+    :func:`observe_stream_event` first. Everything else is the stream's own
+    (``response``, ``get_final_message``, ``_raw_stream`` …), read and written
+    through to it."""
+
+    def __init__(self, inner: Any, resource: Any) -> None:
+        object.__setattr__(self, "_hermes_inner", inner)
+        object.__setattr__(self, "_hermes_resource", resource)
+
+    def __iter__(self) -> Iterator[Any]:
+        for event in self._hermes_inner:
+            observe_stream_event(getattr(self._hermes_resource, _ANTHROPIC_AGENT_ATTR, None), event)
+            yield event
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._hermes_inner, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        setattr(self._hermes_inner, name, value)
+
+
+class _ObservedStreamManager:
+    """``messages.stream(...)``'s manager; ``__enter__`` answers the observed stream."""
+
+    def __init__(self, inner: Any, resource: Any) -> None:
+        self._hermes_inner = inner
+        self._hermes_resource = resource
+
+    def __enter__(self) -> Any:
+        return _ObservedMessageStream(self._hermes_inner.__enter__(), self._hermes_resource)
+
+    def __exit__(self, *exc: Any) -> Any:
+        return self._hermes_inner.__exit__(*exc)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._hermes_inner, name)
+
+
+def observe_anthropic_stream_events(agent: Any, client: Any) -> None:
+    """Route the anthropic request client's stream events through the receipt. Never raises.
+
+    RT-ANTHROPIC-STREAM-RECEIPT-ABANDONED: the Codex consume loop calls
+    :func:`observe_stream_event` from a fork seam; the anthropic one
+    (``agent/chat_completion_helpers.py``) has none, so every anthropic
+    ``send_window_receipt`` closed ``end=abandoned`` when the NEXT request began.
+    Rather than a new seam in that upstream file, the request client's
+    ``messages.stream`` is wrapped here, at the checkout hook
+    (``transport_phase_trace.install_transport_phase_trace``) the anthropic
+    client already passes. Idempotent per client; each install re-points it at
+    *agent*.
+    """
+
+    try:
+        messages = getattr(client, "messages", None)
+        stream = getattr(messages, "stream", None)
+        if messages is None or not callable(stream):
+            return
+        setattr(messages, _ANTHROPIC_AGENT_ATTR, agent)
+        # Read off the instance dict: a stand-in that answers every attribute
+        # (a mock) must not look wrapped before it is.
+        if (getattr(messages, "__dict__", None) or {}).get(_ANTHROPIC_WRAP_MARK):
+            return
+
+        def _observed_stream(*args: Any, **kwargs: Any) -> Any:
+            return _ObservedStreamManager(stream(*args, **kwargs), messages)
+
+        messages.stream = _observed_stream
+        setattr(messages, _ANTHROPIC_WRAP_MARK, True)
+    except Exception:
+        logger.debug("anthropic stream observation not installed", exc_info=True)
+
+
 def observe_stream_event(agent: Any, event: Any) -> None:
     """Record one parsed SSE event; log the receipt on the terminal event. Never raises.
 
     Called from both wires' consume loops: the Codex Responses loop
-    (``agent/codex_runtime.py``) and the anthropic Messages loop
-    (``agent/chat_completion_helpers.py``), one fork seam each.
+    (``agent/codex_runtime.py``, one fork seam) and the anthropic Messages loop,
+    through :func:`observe_anthropic_stream_events`'s wrapped stream.
     """
 
     try:
@@ -516,5 +595,6 @@ __all__ = [
     "begin_send_window",
     "begin_stream_gap_receipt",
     "bind_turn_reasoning",
+    "observe_anthropic_stream_events",
     "observe_stream_event",
 ]

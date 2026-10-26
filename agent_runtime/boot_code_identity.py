@@ -5,8 +5,10 @@ once per installed revision, and a revision is a commit. On 2026-10-25 a
 fast-forward of three vault-only commits made the next CLI log ``home
 maintenance: code changed to 4053e64a90ec, running steps`` while the serve,
 keyed on the code tree that excludes ``Harness_Brain/``, rightly did not
-restart. :func:`carry_identity_if_code_unchanged` is the fork seam
-``run_boot_bootstrap`` calls before its lock: when the recorded revision and
+restart. :func:`carry_install_identity` runs just before each
+``maybe_run_boot_bootstrap`` call (``hermes_cli/main.py``, ``gateway/run.py``,
+one additive fork seam each, so ``boot_bootstrap.py`` itself stays upstream's
+bytes): when the recorded revision and
 the new one load the same code (``agent_runtime.build_identity.code_tree_unchanged``)
 and every recorded step succeeded, the record is re-stamped with the new
 revision and the steps are skipped. A failed step, a sealed tree (no
@@ -68,4 +70,23 @@ def carry_identity_if_code_unchanged(project_root: Path, record: Path, identity:
         return False
 
 
-__all__ = ["CARRIED_FROM_KEY", "carry_identity_if_code_unchanged"]
+def carry_install_identity(project_root: Path) -> bool:
+    """The boot seam: carry the record forward before upstream decides to run steps. Never raises.
+
+    After a carry ``boot_bootstrap.needs_bootstrap`` reads a matching identity
+    and the upstream call that follows does nothing.
+    """
+
+    try:
+        from hermes_cli.boot_bootstrap import needs_bootstrap, record_path
+
+        identity = needs_bootstrap(Path(project_root))
+        if not identity:
+            return False
+        return carry_identity_if_code_unchanged(project_root, record_path(Path(project_root)), identity)
+    except Exception as exc:
+        logger.debug("install identity carry skipped: %s", exc)
+        return False
+
+
+__all__ = ["CARRIED_FROM_KEY", "carry_identity_if_code_unchanged", "carry_install_identity"]

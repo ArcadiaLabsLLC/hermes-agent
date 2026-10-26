@@ -7,13 +7,15 @@ the NEXT request began (87 of 87 on record, 2026-10-25), and a chat's last call
 never logged one.
 
 Drives the REAL consume loop (``AIAgent._interruptible_streaming_api_call`` on
-``api_mode="anthropic_messages"``) over a scripted SDK stream; the receipt is
-opened the way ``install_transport_phase_trace`` opens it.
+``api_mode="anthropic_messages"``) over a scripted SDK stream; the client is
+hooked by ``install_transport_phase_trace``, the call the real checkout makes,
+which wraps ``messages.stream`` so the loop's events reach the receipt (no seam
+in the upstream loop).
 
-Named sabotage (each reds the test): drop the ``observe_stream_event`` seam
-line in ``agent/chat_completion_helpers.py``'s anthropic loop (no line at all);
-drop the anthropic arm of ``stream_gap_receipt._event_role`` (``message_stop``
-is no terminal, so no stream-gap line).
+Named sabotage (each reds the test): drop the
+``observe_anthropic_stream_events`` call in ``install_transport_phase_trace``
+(no line at all); drop the anthropic arm of ``stream_gap_receipt._event_role``
+(``message_stop`` is no terminal, so no stream-gap line).
 """
 
 from __future__ import annotations
@@ -23,7 +25,8 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from agent_runtime.send_window_receipt import SEND_WINDOW_RECEIPT, SendWindow
-from agent_runtime.stream_gap_receipt import STREAM_GAP_RECEIPT, begin_stream_gap_receipt
+from agent_runtime.stream_gap_receipt import STREAM_GAP_RECEIPT
+from agent_runtime.transport_phase_trace import install_transport_phase_trace
 
 
 def _stream_cm(final_message, events):
@@ -58,7 +61,7 @@ def _agent():
 
     def _request_client(*_args, **_kwargs):
         client = agent._anthropic_client
-        begin_stream_gap_receipt(agent, client)
+        install_transport_phase_trace(agent, client)  # what the real checkout calls
         receipt = agent._hermes_stream_gap_receipt
         receipt.probe_factory = None
         receipt.send = SendWindow(probe_factory=None)

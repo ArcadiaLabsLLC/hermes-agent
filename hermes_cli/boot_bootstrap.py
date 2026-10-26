@@ -223,9 +223,6 @@ def run_boot_bootstrap(project_root: Path) -> dict:
     if not identity:
         return {"home": "skipped"}
     record = record_path(project_root)
-    from agent_runtime.boot_code_identity import carry_identity_if_code_unchanged  # fork seam: code-tree identity
-    if carry_identity_if_code_unchanged(project_root, record, identity):  # fork seam: RT-VAULT-COMMIT-HOME-MAINTENANCE
-        return {"home": "skipped"}
     lock = _RecordLock(record)
     if not lock.acquire():
         return {"home": "lost-race"}

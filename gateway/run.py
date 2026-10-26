@@ -5160,7 +5160,9 @@ def main():
     try:
         from hermes_cli.boot_bootstrap import maybe_run_boot_bootstrap
         from pm.paths import install_root
+        from agent_runtime.boot_code_identity import carry_install_identity  # fork seam: code-tree identity
 
+        carry_install_identity(install_root())  # fork seam: a vault-only commit runs no home steps
         maybe_run_boot_bootstrap(install_root())
     except Exception:
         logger.debug("boot bootstrap failed", exc_info=True)
