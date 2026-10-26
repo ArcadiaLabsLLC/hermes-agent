@@ -218,3 +218,35 @@ deliveries to Neko and 4 teammate turns.
 On every warm CLI turn of the sitting the receipt reads `tool_form_receipt source=unchanged
 publishes=0 pin_written=0 names=24 json_bytes=42172` and `turn_context_receipt … mcp_refresh_ms=0`.
 Parts (b) and (c) are timing reads and wait for an idle box.
+
+## RT-AUTH-JSON-TRANSIENT-READ — DONE (zero sightings)
+
+`hermes_cli.auth: could not read …auth.json` appears **0** times in every profile log of the live
+namespace (2026-10-19 to 2026-10-25: eight serve boots, 41 persona turns, this sitting's 16 turns),
+and the Launcher diag log carries no "needs attention" line in that window. `credential pool: no
+available entries (all exhausted or empty)` does fire — twice, ~3 s after every serve boot (21:54:11,
+22:25:21 today) — with no read failure beside it: it is the boot's probe of an empty pool, not the
+2026-10-07 race.
+
+## RT-REALM-SYNCED-LEVEL-REVERT and RT-REALM-SYNC-REVERT-TAKES — not run
+
+`hermes harness realm sync status cf6d244d-…` ("test realm"): `last_pull: null`, `last_publish:
+null`, `remote_check_error: sync_auth_failed`, and every store row reads `kind: added` — including
+the new `level` family row (`level:ws_testv4_afb811:ws_testv4_afb811`, so S2's drift row does show).
+With no pulled baseline a revert of that row would remove the owner's level rather than restore an
+edit, and the remote cannot be reached without the operator's realm-sync sign-in. Both proofs need
+the owner: sign in to realm sync and pull (or publish) a baseline, then edit a level and press Revert.
+
+## RT-PIPER-FIRST-AUDIO-LATENCY — not run
+
+No `openphonemizer*` or Piper pack anywhere under `X:\Eternia\.hermes` or the namespaces root. The
+profile needs the speech pack installed first (a download the owner approves).
+
+## RT-VERIFY-IMPROVE-FIRST-RESPONSE — sized, handed to the live phase
+
+Its precondition has landed (launcher `469e500730` arm-B wording, `415215dbe4` catalog). The run is
+two QA builds (arm A before `469e500730`, arm B at it) driven through `launcher_qa`
+(`launcher.agent_chat.new/send`), 15 turns × 2 agents × every QA provider per arm
+(`evals/genui_first_response_prompts.json`: 12 comparisons + 3 controls). That is a QA-launcher
+sitting, which this wave runs one lane at a time in its live phase; it does not touch the owner's
+serve.
