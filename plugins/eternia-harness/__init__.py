@@ -284,17 +284,33 @@ def refuse_tool_call(tool_name=None, args=None, task_id="", session_id="", **_co
 
 
 def default_background_notify(tool_name=None, args=None, **_context):
-    """``tool_request`` middleware: a background ``terminal`` spawn notifies on exit by default.
+    """``tool_request`` middleware — the plugin's ONE args rewriter, two rewrites in order.
 
-    Owner ruling 2026-09-24 — completion is decided once, at spawn, through upstream's own
-    ``notify`` parameter; an explicit ``notify`` (``false`` included) is left alone.
+    1. A background ``terminal`` spawn notifies on exit by default. Owner ruling 2026-09-24 —
+       completion is decided once, at spawn, through upstream's own ``notify`` parameter; an
+       explicit ``notify`` (``false`` included) is left alone.
+    2. A persona turn's ``git commit`` gains ``Agent-Instance`` / ``Agent-Turn`` trailers
+       (RT-AGENT-COMMIT-ATTRIBUTION, ``agent_runtime.agent_commit_attribution``).
+
+    One callback, because upstream's chain hands every ``tool_request`` middleware the ORIGINAL
+    args (``hermes_cli.middleware._apply_request_chain``): a second rewriter would silently
+    replace the first one's result.
     """
+    from agent_runtime.agent_commit_attribution import attribute_commits
     from agent_runtime.background_completion import default_background_notify as _default
+    from agent_runtime.persona_turn_binding import current_persona_turn_agent
 
-    rewritten = _default(tool_name, args)
-    if rewritten is None:
+    reasons = []
+    current = args
+    notified = _default(tool_name, current)
+    if notified is not None:
+        current, reasons = notified, ["background notify default"]
+    attributed = attribute_commits(tool_name, current, current_persona_turn_agent())
+    if attributed is not None:
+        current, reasons = attributed, [*reasons, "agent commit trailers"]
+    if not reasons:
         return None
-    return {"args": rewritten, "source": "eternia-harness", "reason": "background notify default"}
+    return {"args": current, "source": "eternia-harness", "reason": "; ".join(reasons)}
 
 
 def time_provider_dispatch(**kwargs):
