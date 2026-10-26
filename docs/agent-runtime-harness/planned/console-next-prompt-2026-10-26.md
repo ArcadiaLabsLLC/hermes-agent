@@ -7,8 +7,8 @@ and API connections, and queue the work in its owning repositories.
 
 This is the canonical cross-repository design. The Launcher implementation map is
 `EterniaLauncher/docs/mission_control/planned/CONSOLE_NEXT_PROMPT_2026-10-26.md`.
-Work/status belongs only in the two domain queues. The decision row
-`RT-NEXT-PROMPT-DECISIONS` gates implementation; this document is not permission to
+Work/status belongs only in the two domain queues. The retained hold row
+`RT-NEXT-PROMPT-DECISIONS` defers implementation; this document is not permission to
 install a plugin, enable generation, change live configuration, or start a lane.
 
 ## 1. Audit basis and conclusion
@@ -59,35 +59,44 @@ breaks Launcher. No general plugin framework or persona refactor is needed.
 
 ### 2.1 Fixed by the owner
 
-- Suggestions are **off by default** in Harness global settings; no silent opt-in
+- Suggestions are **off by default** in global Settings > Eternia Harness; no silent opt-in
   on upgrade, edition switch, install repair, profile creation or reconnect.
 - No invented confirmations, outcomes, approvals, facts known only to the user,
   or claims that the user performed a step. A draft is not evidence or consent.
 - Preserve persona identity, soul/system guidance, model cascade, profile binding,
   skills, tool permissions, memory opt-ins, chat ownership and history.
 - Planning and queue changes only in this task. No implementation starts yet.
+- Preserve next-prompt's contextual **free-form next-message suggestions**. Use
+  existing auxiliary-model routing by default; a task-specific model override is
+  optional, not a setup prerequisite. These revised choices were selected by the
+  owner on 2026-10-26 and supersede the original constrained-renderer/model gate.
 
 No new confirmation dialog is required to enable/disable the setting, dismiss a
 suggestion or insert a draft. The user's direct action is sufficient. Existing
 chat approvals retain their current authority; the planning-only boundary here
 does not introduce a product approval flow.
 
-### 2.2 Options for the owner (recommendations, not recorded approvals)
+### 2.2 Options and revised design baseline
+
+The owner's 2026-10-26 follow-up adopts the revised recommendations for the plan,
+while explicitly withholding implementation. Preserve option IDs: D2 and D3 now
+select B; D1 and D4-D7 retain A. Alternatives remain documented for comparison,
+not as unanswered approvals or additional product settings.
 
 | ID | Options and tradeoff | Recommendation |
 |---|---|---|
 | D1 reuse | A: adapt minimal Python helpers/test cases into a fork-owned subsystem, pin attribution; B: maintain a separate adapted next-prompt plugin and require its install/version; C: write generation from scratch | **A**: one bundled lifecycle and no optional Desktop dependency. B preserves more upstream packaging but adds discovery, upgrades and two configuration owners. C loses useful source/test reuse. |
-| D2 wording | A: model selects a grounded reference and safe request/question intent; trusted localized renderer builds the draft; B: free-form next-message generation with semantic screening and evaluation | **A for v1**: no user-confirmation intent exists. Less expressive than next-prompt, but a regex or a second model cannot guarantee B never invents a confirmation. B requires a separately reviewed expansion. |
-| D3 model | A: explicitly choose a dedicated auxiliary provider/model before generation can run; B: inherit the serving runtime default, with its usage disclosed | **A**: predictable routing and no surprise use of a persona's expensive model. No model brand is prescribed. Existing provider catalog/auth owns availability; missing configuration means `model_unconfigured`. |
+| D2 wording | A: constrain generation to reference/question intents and trusted templates; B: retain contextual free-form next-message text, with anti-fabrication instructions, output checks and evaluation | **B, selected**: preserves the plugin's core experience, including useful conversational replies. A restricts expressiveness and is not the v1 baseline. Prompting and screening reduce fabricated human claims but cannot guarantee their absence; no template whitelist or compulsory second-model call. |
+| D3 model | A: require a separately selected auxiliary provider/model before generation; B: use existing host auxiliary routing, with an optional task-specific override | **B, selected**: works with an already configured Harness and avoids mandatory setup. Preserve host routing/auth/fallback policy and report the effective route/usage; never copy or mutate persona model settings. No override does not mean `model_unconfigured`. |
 | D4 global scope | A: all eligible Console chats on the selected runtime/account namespace, no per-persona switch; B: synchronize the preference across installations | **A**: matches a concrete runtime settings target; cross-machine synchronization is additional product work. The selected install is displayed beside the control. |
 | D5 when to generate | A: only while an authorized visible Console subscribes, including one catch-up for its latest settled turn; B: every eligible Console turn even with no UI attached | **A**: same global opt-in, fewer invisible calls and bounded idle cost. B helps background-chat return latency but incurs ongoing usage. |
 | D6 delivery | A: RPC subscribe/read/dismiss plus revisioned notifications and reconnect hydration; B: post-turn bounded polling | **A**: follows the existing PUSH/CALL ruling. No dashboard server or polling every hidden chat. B is a fallback only if an explicitly supported transport cannot push, not a parallel default. |
 | D7 retention | A: derived local cache, expires after 24 hours or any identity/revision/policy invalidation; B: upstream's seven-day persistence | **A**: suggestions can be recomputed; don't keep obsolete human-reply guesses across a week of work. Usage/deduplication metadata has bounded separate retention. |
 
-`RT-NEXT-PROMPT-DECISIONS` asks the owner to approve an option set and authorize
-implementation. Recommended execution baseline is A throughout. A changed choice
-updates this plan and affected rows before coding; no implementation lane silently
-chooses a more expensive model, broader scope or weaker wording policy.
+`RT-NEXT-PROMPT-DECISIONS` now records the selected baseline and the owner's
+explicit implementation deferral. It does not ask for the same choices again.
+Only a later implementation request releases that hold; no work starts from this
+documentation update. A later design change must update the plan and owning rows.
 
 ## 3. Persona-preserving architecture
 
@@ -97,8 +106,8 @@ Proposed flow (all new suggestion-specific components below are UNBUILT):
 Existing Console turn -> native commit -> persisted projected journal state
   -> post-root-lease, nonblocking suggestion admission (if enabled + visible)
   -> exact root/instance/account check -> bounded curated context
-  -> dedicated auxiliary completion (no tools, no persona execution)
-  -> intent/reference validation -> safe draft renderer -> fenced cache publish
+  -> existing auxiliary route -> free-form completion (no tools, no persona execution)
+  -> output cleanup/redaction + source/state checks -> fenced cache publish
   -> existing authenticated RPC notification -> scoped Dart port -> suggestion pill
   -> explicit user click -> existing draft owner -> ordinary user Send later
 ```
@@ -113,7 +122,7 @@ head/runtime namespace, not this persona profile. Cache physical location stays
 inside that namespace; profile identity remains part of provenance/freshness.
 
 Record source turn id, native lineage revision/tip, persona/instance identity
-revision, policy epoch, model configuration revision and renderer version. The
+revision, policy epoch, effective routing revision and generation-policy version. The
 native tip may change on compression; the root does not. Re-read authoritative
 revisions before publication and consumption. Branch, rollback, redo, new chat,
 profile change, deletion/retirement and account/runtime switch invalidate an old
@@ -169,8 +178,9 @@ edition and administrator-managed configuration are distinct cases to qualify.
 
 One authoritative writer serializes compare-and-set updates. Proposed response:
 `contract`, `install_id`, `scope` (runtime namespace), `enabled`,
-`settings_revision`, `policy_epoch`, `writable`, `model_status`, and safe resolved
-provider/model labels. The enable key is the configuration truth; epoch/revision
+`settings_revision`, `policy_epoch`, `writable`, `model_status`, `routing_mode`
+(`inherited` or `override`), and safe resolved provider/model labels when known.
+The enable key is the configuration truth; epoch/revision
 are derived execution metadata, not a second enabled preference. Reads require
 no model call, plugin install, provider login or actor startup.
 
@@ -193,13 +203,28 @@ existing namespace auth-home resolver; no raw key passes through Dart or a new
 HTTP client. Resolve the global auxiliary configuration in its own explicit scope,
 not an ambient persona-worker thread. No blanket `allow_*_override` grant.
 
-Under recommended D3, readiness requires an explicitly selected available model;
-never silently fall back to the persona's model or another provider. The adapter
-must inspect host fallback behavior and constrain/report the **actual** provider
-and model used. If a native host constraint prevents this without an upstream
-change, record a narrow seam option before expanding upstream footprint. Use
-structured output if supported, with independent local schema validation even if
-the host's optional jsonschema dependency is absent; no free-text fallback.
+Under selected D3 B, use the host's existing auxiliary resolution, authentication
+and fallback policy. `hermes_cli/plugins_aux_tasks.py::build_auxiliary_task_entry`
+already defaults an unpinned task to provider `auto` and an empty model. Leave
+those host defaults in place; the new task name is for ownership/accounting, not
+a requirement for a separate provider account or model selection. Do not replace
+the host's routing policy with a suggestion-specific cascade or a blanket ban
+on its existing fallback behavior. Record the **actual** provider/model used.
+
+An optional override belongs to `auxiliary.console_next_prompt` and follows host
+validation/trust controls. Clearing it restores inherited routing. Neither action
+writes persona or primary-model fields. Inherited configuration changes invalidate
+affected cached suggestions just as explicit override changes do. Report
+`model_unconfigured` only when no usable host route can resolve, not merely when
+the suggestion override is absent; auth/transport/provider failures remain typed
+unavailable states. Unresolved route metadata may be unknown until dispatch;
+do not run a model or quota probe to fill it while off.
+
+Use `PluginLlm.complete` for free-form text. Structured-output support is not a
+prerequisite and must not be used to force a finite intent/reference schema.
+Cleanup, length/shape checks and secret redaction apply to returned text before
+publication; empty or rejected output yields no suggestion, not a fabricated
+template or a second model invocation by default.
 
 Avoid copying the plugin's unconditional `temperature=0.3`: let the provider
 capability layer determine supported parameters. Preserve host OAuth/refresh,
@@ -214,8 +239,9 @@ See [provider method contract](../runtime-provider-methods.md) for transport
 restrictions and deadlines. Reuse the existing provider connection UI only on
 explicit user action. `runtime.provider.configure` and `runtime.default_model.set`
 change primary model policy: neither is a setter for the new auxiliary slot.
-The new settings method must validate/write that slot without changing those
-primary fields. `runtime.provider.list` can make a quota/auth probe; never call
+The new settings method validates/writes only an explicitly requested override;
+ordinary enable/disable must not pin a model or change primary fields.
+`runtime.provider.list` can make a quota/auth probe; never call
 it as a hidden per-turn or disabled-path readiness poll.
 
 ## 5. Context and the no-invented-confirmations policy
@@ -226,8 +252,8 @@ idea from `_build_context`, not its raw hook-history input. Existing anchors are
 `agent_runtime/persona_chat_history/messages.py`, `agent_runtime/persona_chat_history/curation.py`, `agent_runtime/persona_chat_history/operator_envelopes.py`, and
 `agent_runtime/persona_chat_continuity/content.py`. Do not expose injected HUD, workspace prompt,
 private guidance, intermediate narration, tool payloads, reasoning or attachments.
-Apply the existing secret redactor before auxiliary dispatch and on candidate
-reference spans. An uncertain/unreadable redaction status means no generation.
+Apply the existing secret redactor before auxiliary dispatch and on generated
+candidate text. An uncertain/unreadable redaction status means no publication.
 
 The current public history API bounds its returned page but curation can walk the
 whole lineage before slicing. Do not call it per poll or assume `limit=4` proves
@@ -235,22 +261,30 @@ bounded computation. `RT-NEXT-PROMPT-CONTEXT` must add a bounded projection at t
 existing history owner (or use a bounded immutable post-commit capture), preserving
 identical curation/redaction. No new full-history scanner or shadow transcript.
 
-Recommended D2 schema accepts only `none` or an intent such as `explain_reference`,
-`check_reference`, `compare_references`, with validated message ids and literal
-source spans. Runtime verifies the spans against its supplied context and renders
-a localized question/request. No model-supplied complete sentence is displayed.
-Example: `Check this claim: «all tests passed».` attributes a claim for verification;
-it does not assert that the user ran the tests. The original prompt and examples
-that guess user actions/outcomes must be removed, not layered under a disclaimer.
+Selected D2 B preserves one short contextual free-form next message in the
+conversation's language. Reuse/adapt next-prompt's prompt construction and output
+cleanup, including complete model-authored sentences, instead of reducing output
+to a menu of questions or reference intents. Useful follow-ups, conversational
+replies and user-grounded statements remain eligible; suppress when no useful
+continuation exists. Do not ban all affirmative language or require literal
+source-span matches for every sentence.
 
-No `confirm`, `approve`, `performed`, `result`, `yes` or inferred personal-detail
-intent exists in v1. When the agent asks the user to perform a manual check or
-provide a fact only they know, return `none` or a request explaining the check.
-An approval/clarify card remains the only structured response authority; do not
-show a suggestion as a shortcut around it. Social closure yields `none`.
-Unsupported locale/renderer or malformed output yields no suggestion with an
-accounted reason, not guessed English. Supporting free-form language later needs
-its own evaluation and owner decision; a phrase blacklist is not semantic proof.
+Replace the original instructions/examples that tell the model to guess a manual
+check's outcome. Instruct it not to invent actions the user took, test results,
+private facts or approvals. For an unanswered manual check, it may suggest a
+useful clarification/request or return no suggestion; it must not predict success
+as fact. Suppress suggestions while a structured approval/clarification request
+is pending. Existing response controls retain their authority, and a suggested
+draft is never evidence that the user consented or performed an action.
+
+Apply output cleanup, bounded text validation, redaction and known-state checks;
+evaluate adversarial, multilingual and ordinary conversational cases. Do not
+claim these checks or a phrase blacklist guarantee semantic truth for arbitrary
+free-form output. Record observed fabrication and over-suppression rates during
+qualification; positive cases must prove ordinary contextual replies survive.
+No constrained-template fallback, extra confirmation dialog or mandatory second
+model judge is part of this baseline. Unsupported/invalid output yields no
+suggestion with a reason; it does not change the persona's response.
 
 ## 6. Lifecycle, storage, and scale
 
@@ -275,7 +309,7 @@ prewarm and duplicate settle replay do not generate. Catch-up on subscribing
 reads only the latest eligible turn and applies the same checks.
 
 Deduplicate with `(subject, source_turn_id, source_revision, policy_epoch,
-model_revision, renderer_version)`. Multiple windows/subscribers share one job.
+model_revision, generation_policy_version)`. Multiple windows/subscribers share one job.
 Per-process `_turn_seq` is insufficient across the serve/chat worker split and
 restart. A durable atomic claim in the derived suggestion store fences publication;
 crash recovery marks an uncertain dispatched call abandoned, rather than blindly
@@ -291,7 +325,7 @@ These are proposed tunable defaults to qualify, not measured capacity claims:
 | Inference | 2 running jobs per namespace; 1 per root; at most 32 pending distinct roots |
 | Queue | Latest eligible revision replaces older pending work for that root; full queue reports `capacity_limited`, never blocks chat |
 | Context | 4 messages; 1,200 Unicode code points per message (300 head/900 tail); additionally 4,096 input tokens including instructions; account clipping |
-| Output | 256 tokens for structured intent/references; rendered draft max 160 Unicode code points |
+| Output | 256 output tokens; one cleaned free-form draft, at most 160 Unicode code points; no intent/template restriction |
 | Deadline | 15-second auxiliary deadline initially; provider-aware cancellation and no detached unlimited retries |
 | Cache | At most 256 pending subjects; 24-hour TTL plus immediate invalidation; oldest expired/unused entries first, eviction accounted |
 | Dedup receipts | Bounded age/count (initial 7 days / 4,096 terminal records); active claims not evicted; pressure refuses admission rather than losing a live fence |
@@ -323,7 +357,7 @@ do not weaken existing turn-time budgets.
 | Setting schema/read | `plugins/eternia-harness/plugin.yaml::config_schema`, `agent_runtime/harness_settings.py::harness_setting` | Declare false default; explicit head scope |
 | Config write | `hermes_cli/plugins_state.py::save_plugin_setting`; `PluginContext.set_config` | Reuse atomic configuration writer, add typed compare-and-set owner |
 | Head/auth identity | `agent_runtime/profile_home.py::get_hermes_head_home`, `get_hermes_auth_home`; `agent_runtime/profile_context.py` | Separate global settings/model policy from persona execution |
-| Aux registration/call | `PluginContext.register_auxiliary_task`, `agent/plugin_llm.py::PluginLlm.complete_structured` / async sibling | Existing routing/auth/usage; no provider SDK in Launcher |
+| Aux registration/call | `PluginContext.register_auxiliary_task`, `agent/plugin_llm.py::PluginLlm.complete`, `hermes_cli/plugins_aux_tasks.py::build_auxiliary_task_entry` | Existing auto routing/auth/fallback/usage; optional task override; no provider SDK in Launcher |
 | Exact conversation | `agent_runtime/operator_conversation.py::exact_operator_target`, `agent_runtime/operator_session_inspection.py::operator_session_read` | Verify install, workspace, persona, instance, root and owner |
 | Read context | `agent_runtime/persona_chat_history/messages.py::existing_chat_session`; existing curation/redaction owners | Bounded owner-checked committed projection |
 | Turn trigger | `hermes_cli/harness_parts/persona/chat_turn_commit/settle.py::_SettlePhases._project`, `hermes_cli/harness_parts/persona/chat_events.py::_publish_persona_chat_projection_event` | Persisted eligible turn; enqueue after root lease |
@@ -344,7 +378,7 @@ MCP tool, raw YAML write, shell command or argv fallback.
 | Method | Parameters beyond request id | Tier / result |
 |---|---|---|
 | `runtime.console_suggestions.settings.get` | `install_id` | console; settings/readiness/revision, no inference |
-| `runtime.console_suggestions.settings.set` | `install_id`, `expected_revision`, `enabled`, optional auxiliary provider/model selection | console; atomic validated result; same-account paired-console choice follows D4 target, no raw credential fields |
+| `runtime.console_suggestions.settings.set` | `install_id`, `expected_revision`, `enabled`, optional `auxiliary_override` (omitted: preserve; null: clear; provider/model object: set) | console; atomic validated result; toggle alone preserves inherited routing; same-account paired-console choice follows D4 target, no raw credential fields |
 | `runtime.console_suggestions.settings.subscribe` / `.unsubscribe` | `install_id` on subscribe; owned `subscription_id` on unsubscribe | console; one connection-owned metadata baseline/watch, shared by the settings page and Console |
 | notification `runtime.console_suggestions.settings.changed` | `subscription_id`, `seq`, settings revision, policy epoch and safe settings/readiness state | metadata-only push to authorized watchers; another window learns enable/disable without polling |
 | `runtime.operator.conversation.suggestions.read` | exact target + `client_scope` | console; current state, identity, revision, reason; never generates by itself |
@@ -389,8 +423,9 @@ poller. Auth revocation and connection teardown remove both kinds of watch.
 
 ## 8. Launcher behavior
 
-Harness global settings shows the target runtime, off-by-default switch, model
-readiness/selection and concise usage text. No duplicated switch in Agent details
+Global Settings > Eternia Harness shows the target runtime, off-by-default switch,
+inherited auxiliary routing/readiness and concise usage text. Model override and
+reset-to-inherited are optional controls, never an enable prerequisite. No duplicated switch in Agent details
 or Console menus. Save progress, refusal, disconnected, unsupported and target-
 changed states are explicit. On account/edition/runtime change, discard the old
 pending write target and re-read; never optimistically claim persisted success.
@@ -425,13 +460,13 @@ with its behavior tests and source provenance, not a later testing-only promise.
 
 | Row | Deliverable / acceptance | Depends on |
 |---|---|---|
-| `RT-NEXT-PROMPT-DECISIONS` | Owner chooses D1-D7 and authorizes implementation; amend contract if needed | Owner |
+| `RT-NEXT-PROMPT-DECISIONS` | Record selected revised baseline; hold all build work until the owner later requests implementation | Owner's explicit deferral |
 | `RT-NEXT-PROMPT-CONTRACT` | False-default, explicitly head-scoped settings and unique auxiliary slot; atomic revision/epoch writer; capability and model readiness contracts; disabled zero-call proof | Decision row |
-| `RT-NEXT-PROMPT-CONTEXT` | Pinned helper reuse/notice, bounded curated context, trusted intent renderer, no invented confirmations, persona non-mutation proofs | Contract |
+| `RT-NEXT-PROMPT-CONTEXT` | Pinned helper reuse/notice, bounded curated context, contextual free-form suggestions, anti-fabrication and over-suppression evaluation, persona non-mutation proofs | Contract |
 | `RT-NEXT-PROMPT-LIFECYCLE` | Post-lease admission, bounded queue/cache/claims, stale/disable/deletion fences, separate usage; duplicate windows and crashes covered | Context |
 | `RT-NEXT-PROMPT-RPC` | Advertised RPC family, authorization, atomic subscribe baseline, push lifecycle, conditional dismiss, old-client compatibility fixtures | Lifecycle |
 | `MC-NEXT-PROMPT-CLIENT` | Typed Dart data/ports and per-runtime RPC/push binding, capability gating, target/race tests | RPC |
-| `MC-NEXT-PROMPT-SETTINGS` | Global Harness switch and auxiliary selection/readiness with target provenance and persisted false default | Client |
+| `MC-NEXT-PROMPT-SETTINGS` | Global Settings > Eternia Harness switch, inherited auxiliary readiness and optional override/reset; target provenance and persisted false default | Client |
 | `MC-NEXT-PROMPT-COMPOSER` | Native pill, visibility subscription, guarded draft insertion, all Console placements and accessibility | Settings |
 | `MC-NEXT-PROMPT-QUALIFY` | Paired-version native proof and measured latency/scale outcomes; opening docs folded into canon only when built | Composer and all Hermes acceptance evidence |
 
@@ -447,10 +482,10 @@ add the actual owner-repo rows before implementing that larger scope.
 | Toggle races | Disable before enqueue, while queued, during provider call and before publish; off/on epoch; stale writer; no old result becomes ready. |
 | Persona preservation | Two personas/two profiles, two instances of one persona and two roots per instance; compare prompts/cache identity/model overrides/permissions/skills/memory config before and after; no mutations or cross-chat leakage. |
 | Root lifecycle | Compression, redo, rollback, branch, new root, retired instance, deleted chat, erasure, account/edition/runtime switch; stale candidates disappear and cannot be inserted. |
-| Human truth | Manual-check and test-result prompts produce no affirmative human claim; yes/no approval, deployment approval, personal detail, failed task and multilingual cases; malformed or injected source text cannot escape the trusted renderer. |
+| Free-form quality and human truth | Positive fixtures preserve contextual replies and user-grounded statements, not just questions; unanswered manual checks, fabricated test results, approvals, personal details, prompt injection and multilingual cases are evaluated. Suppress during structured approval/clarification. Report observed fabrication and false-rejection rates; no blanket truth guarantee. |
 | Authorization | Wrong install/workspace/persona/instance/root/client_scope; read-only/revoked peer; foreign subscription id; reconnect same account versus changed account. Refuse before history/inference. |
 | Persistence/fan-out | Two processes/windows request one source concurrently; duplicate settled event, crash at claim/dispatch/publish/dismiss boundaries; DB locked/corrupt, full cache, stale dismissal; no duplicate publication or hidden retry spend. |
-| Provider | Explicit configured model, missing/revoked auth, rate limit, unsupported schema, timeout, cancellation, disallowed fallback and local model busy; one safe typed outcome, chat unaffected. |
+| Provider | No suggestion-specific override uses the existing auxiliary route; override and reset follow host policy without changing persona/primary models. Cover inherited route changes, host-authorized fallback, actual-route reporting, missing/revoked auth, rate limit, timeout, cancellation and local model busy; no structured-output dependency or new mandatory setup. |
 | UI | Empty/typed draft race, wrong chat while insertion awaits, dismissed source reconnect, floating/docked/fullscreen move, hidden pane, old runtime; no send or overwrite. |
 | Scale | Fake deterministic load: 1,000 distinct completed roots, 64 subscribers, duplicate reconnects and source churn; assert 2 active/32 pending and O(active work + bounded cache), not unbounded threads/timers. Real provider smoke only on an isolated opt-in profile after authorization. |
 | Latency | Compare off/on cold/warm/immediate-next-send timings on an idle box with unchanged primary model; no delay to first text, final delivery or root release beyond existing budgets; report auxiliary time separately. No guessed performance win. |
@@ -465,11 +500,14 @@ Launcher anchors and proposed tests are in its handoff. Run selected checks unde
 each repository's test instructions; no full suite for this documentation task.
 
 For positive controls, deliberately bypass epoch checks, swap persona/root targets,
-allow an assertion intent, clear by session instead of suggestion id, remove the
+drop structured-approval suppression, clear by session instead of suggestion id, remove the
 queue bound, or call the model on the disabled path: the corresponding test must
 fail. Provider-text regexes and mocked UI screenshots alone cannot qualify these
-contracts. Final live proof must name both code revisions, isolated namespace,
-configured auxiliary model, measured costs/timings and unresolved limitations.
+contracts. Also reject a usable inherited route merely because its task override
+is absent, or replace every free-form reply with a question template: the routing
+and positive quality tests must catch those regressions. Final live proof names
+both code revisions, isolated namespace, effective auxiliary route/override,
+measured costs/timings, fabrication/over-suppression findings and limitations.
 
 ## 11. Delivery and documentation retirement
 
