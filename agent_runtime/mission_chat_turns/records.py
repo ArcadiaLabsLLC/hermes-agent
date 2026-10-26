@@ -96,7 +96,30 @@ _JOURNAL_TEXT_FIELDS = {
     # D2.04: the client_message_id of the reply-less terminal turn this turn
     # re-runs. Stored once, on the retry; the original record is never written.
     "retry_of": 240,
+    # RT-NAMING-ADDRESS-VALUE: the turn's typed address (``agent_runtime.address``), stamped once at
+    # the write-ahead — ``machine:…/namespace:…/persona-instance:…/chat:…/turn:…``.
+    "address": 1200,
 }
+
+#: RT-TURN-EDITION-STAMP: ``{edition, commit, code_tree}`` of the process that ran the turn
+#: (``agent_runtime.run_provenance``), stamped once at the write-ahead. Editions are not an address
+#: segment (naming map ruling 9), so they ride here, beside it.
+TURN_RAN_BY_KEY = "ran_by"
+_RAN_BY_EDITIONS = frozenset({"developer", "bundled"})
+_HEX = frozenset("0123456789abcdef")
+
+
+def safe_ran_by(value: Any) -> dict[str, Any] | None:
+    """The ``ran_by`` block with only its three shapes kept; ``None`` when it carries none of them."""
+
+    if not isinstance(value, dict):
+        return None
+    edition = value.get("edition") if value.get("edition") in _RAN_BY_EDITIONS else None
+    hexes = {key: text for key, cap in (("commit", 40), ("code_tree", 64))
+             if isinstance(text := value.get(key), str) and 0 < len(text) <= cap and set(text) <= _HEX}
+    if edition is None and not hexes:
+        return None
+    return {"edition": edition, "commit": hexes.get("commit"), "code_tree": hexes.get("code_tree")}
 
 
 #: The write-ahead's attachment paths (``chat_turn_commit/run.py::_write_ahead``): the
@@ -395,6 +418,9 @@ def _safe_journal_metadata(value: Any) -> dict[str, Any]:
     profile_timing = safe_turn_profile_timing(value.get(TURN_PROFILE_TIMING_KEY))
     if profile_timing is not None:
         result[TURN_PROFILE_TIMING_KEY] = profile_timing
+    ran_by = safe_ran_by(value.get(TURN_RAN_BY_KEY))
+    if ran_by is not None:
+        result[TURN_RAN_BY_KEY] = ran_by
     turn_outcome = safe_turn_outcome(value.get(TURN_OUTCOME_KEY))
     if turn_outcome is not None:
         result[TURN_OUTCOME_KEY] = turn_outcome

@@ -30,6 +30,10 @@ MACHINE_ID_SCHEMA = 1
 MACHINE_ID_PREFIX = "mach_"
 
 
+#: path -> id, once read or minted: a machine id never changes while a process lives.
+_KNOWN: dict[str, str] = {}
+
+
 class MachineIdentityUnavailable(RuntimeError):
     """The machine id could not be read or minted; ``state`` names why."""
 
@@ -60,9 +64,18 @@ def read_machine_id(env: Mapping[str, str] | None = None) -> str | None:
     """The machine id WITHOUT minting one; ``None`` when there is none or it cannot be read."""
 
     try:
-        return _decode(machine_id_path(env).read_text(encoding="utf-8-sig"))
-    except (OSError, NamespaceRefused):
+        path = machine_id_path(env)
+    except NamespaceRefused:
         return None
+    if str(path) in _KNOWN:
+        return _KNOWN[str(path)]
+    try:
+        value = _decode(path.read_text(encoding="utf-8-sig"))
+    except OSError:
+        return None
+    if value is not None:
+        _KNOWN[str(path)] = value
+    return value
 
 
 def ensure_machine_id(env: Mapping[str, str] | None = None) -> str:
@@ -93,4 +106,5 @@ def ensure_machine_id(env: Mapping[str, str] | None = None) -> str:
         raise MachineIdentityUnavailable(f"error:{type(exc).__name__}") from exc
     with os.fdopen(fd, "w", encoding="utf-8") as handle:
         json.dump(record, handle, indent=2, sort_keys=True)
+    _KNOWN[str(path)] = record["machine_id"]
     return record["machine_id"]

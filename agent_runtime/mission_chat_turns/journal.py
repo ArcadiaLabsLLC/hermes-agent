@@ -66,6 +66,7 @@ def persist_mission_chat_turn(
     safe_elements = _safe_elements(elements)
     if state is None and not safe_elements:
         return MissionChatTurnPersistOutcome.SKIPPED_EMPTY_LEGACY
+    stamps = _turn_stamps(session_key, message_key, turn_id, metadata)  # outside the lock; cached per process
 
     def _mutate(session: dict[str, Any]) -> tuple[bool, MissionChatTurnPersistOutcome]:
         existing = session.get(message_key)
@@ -91,6 +92,7 @@ def persist_mission_chat_turn(
             started_at = now_iso_micro()
         prior = dict(existing) if isinstance(existing, dict) else {}
         session[message_key] = {
+            **stamps,
             **prior,
             "schema_version": TURN_RECORD_SCHEMA_VERSION,
             "turn_id": safe_assignment_token(turn_id) or safe_assignment_token(message_key),
@@ -108,6 +110,23 @@ def persist_mission_chat_turn(
         timeout_result=MissionChatTurnPersistOutcome.SKIPPED_LOCK_TIMEOUT,
         protected_message=message_key,
     )
+
+
+def _turn_stamps(session_key: str, message_key: str, turn_id: str | None,
+                 metadata: dict[str, Any] | None) -> dict[str, Any]:
+    """The turn's address and ``ran_by``, stamped on its FIRST write (RT-NAMING-ADDRESS-VALUE,
+    RT-TURN-EDITION-STAMP). Absent stays absent: a segment that cannot be named writes no address."""
+
+    from agent_runtime.address import turn_address
+    from agent_runtime.run_provenance import ran_by
+
+    meta = metadata if isinstance(metadata, dict) else {}
+    address = turn_address(
+        persona_instance_id=safe_assignment_text(meta.get("persona_instance_id"), limit=200),
+        chat_id=safe_assignment_text(meta.get("root_chat_session_id"), limit=240) or session_key,
+        turn_id=safe_assignment_token(turn_id) or safe_assignment_token(message_key),
+    )
+    return {**({"address": str(address)} if address is not None else {}), "ran_by": ran_by()}
 
 
 def transition_mission_chat_turn(
@@ -133,6 +152,7 @@ def transition_mission_chat_turn(
         return MissionChatTurnPersistOutcome.SKIPPED_NO_KEYS
     if requested not in JOURNAL_TURN_STATES:
         return MissionChatTurnPersistOutcome.REJECTED_INVALID_STATE
+    stamps = _turn_stamps(session_key, message_key, turn_id, metadata)  # outside the lock; cached per process
 
     def _mutate(session: dict[str, Any]) -> tuple[bool, MissionChatTurnPersistOutcome]:
         existing = session.get(message_key)
@@ -142,7 +162,7 @@ def transition_mission_chat_turn(
         if requested not in _JOURNAL_TRANSITIONS.get(current, set()):
             return False, MissionChatTurnPersistOutcome.REJECTED_STALE_TRANSITION
         now_iso = now_iso_micro()
-        record = dict(existing) if isinstance(existing, dict) else {}
+        record = {**stamps, **existing} if isinstance(existing, dict) else dict(stamps)
         if not record.get("started_at"):
             record["started_at"] = now_iso
         record.update(
