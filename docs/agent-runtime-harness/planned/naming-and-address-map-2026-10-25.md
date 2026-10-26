@@ -85,7 +85,7 @@ Facts the tree rests on:
 6. **`machine_roots.json` names its two halves**: config roots and slot folders, then merges them so one slot
    folder is one config root.
 7. **Realm and workspace records stay per-namespace copies kept in step by realm sync.**
-8. **Upstream's kanban leaves our map**, and our board stops calling itself kanban (name: see the open question).
+8. **Upstream's kanban leaves our map**, and our board stops calling itself kanban: it is the Mission Board (below).
 9. **Editions are not an address segment** — the data is the same whichever edition reads it; every turn record
    and audit line carries the edition, commit and code-tree digest that ran it.
 
@@ -120,11 +120,13 @@ Each segment carries its kind, so a bare id never names anything. One typed addr
 (hermes and launcher) with one print/parse format; every audit line, turn record and agent commit trailer
 (`RT-AGENT-COMMIT-ATTRIBUTION`) prints it.
 
-## Open question (owner)
+## The board (owner, 2026-10-25)
 
-What our board is called once it stops borrowing "kanban". Recommend **Mission Board** — the launcher's code is
-already `mission_board_*`; "todo" is taken twice (upstream's `todo` toolset, and the brains' `TODO.md` / work
-queues).
+Our board is the **Mission Board**, and it is where the brains' TODO is shown: its Queues view is the brain
+queue notes of every repo slot the realm workspace binds (`runtime.work.list`; plan
+`docs/agent-runtime-harness/planned/work-on-markdown-2026-10-18.md`), beside its cards. Owner: "our brains todo is
+meant to be displayed in the mission board". "Todo" in code means only that brain-backed work; upstream's
+`todo` toolset (an agent's in-session task list) and upstream's `kanban.db` keep their upstream names.
 
 ## Rows
 
