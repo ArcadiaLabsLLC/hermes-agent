@@ -13,7 +13,10 @@ Chat is the only lane; the goal/task mission lane was removed 2026-07-30.
 ## The store root
 
 `paths.store_root()` (`agent_runtime/paths.py:8`) resolves the runtime root —
-live, `X:\Eternia\.hermes\agent-runtime`. Every durable JSON write in this tree
+live, `X:\Eternia\hermes-namespaces\acct-26858805fff7de3b\agent-runtime` — a namespace's store since the
+account namespace was seeded from the base root on 2026-10-20 (the base root's own `agent-runtime` is a stale
+copy); machine → install → namespace → store is drawn in
+[the naming and address map](planned/naming-and-address-map-2026-10-25.md). Every durable JSON write in this tree
 goes through `utils.atomic_json_write` (stage a temp file, `os.replace` it into
 position). That discipline is what makes the stat fingerprint below sound: a
 rename always moves the target's mtime, even for a byte-identical rewrite.
