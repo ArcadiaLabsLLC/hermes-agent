@@ -250,3 +250,91 @@ two QA builds (arm A before `469e500730`, arm B at it) driven through `launcher_
 (`evals/genui_first_response_prompts.json`: 12 comparisons + 3 controls). That is a QA-launcher
 sitting, which this wave runs one lane at a time in its live phase; it does not touch the owner's
 serve.
+
+## Timing batch (22:38–22:46, idle box)
+
+The coordinator's tier ended 22:34; before each read there was no `flutter_tester`, `dart test`,
+`pytest` or tier process and CPU sat at 4–14% (the only `dart` processes were the serve's own
+`dart mcp-server` admission children). Fresh serve pid 28932 (boot `interpreter_ms=3482
+main_import=298 dispatch=1642`), default flags. All turns are CLI turns (`mission-chat message`,
+inside the serve); the Launcher was not running, so no `[MissionChatTiming]` span exists for them.
+Spans below are `hermes harness observe turn-timing --check --last 10` and each turn's
+`send_prep_receipt`.
+
+| turn | what | anchor→request_sent | request_sent→headers | stream done→projected |
+|---|---|---|---|---|
+| P1 | Dev, sent while the boot build ran | **7,723** | 837 | 99 |
+| N1 | Neko, first turn after boot (prewarmed chat, actor reused) | **356** | 1,827 | 42 |
+| N2 | Neko, after 105 s idle | **258** | 1,784 | 43 |
+| D1 | Dev 22-row chat, first on that actor | 688 | 1,070 | 127 |
+| D2–D4 | Dev 22-row chat, warm | 305 / 317 / 308 | 720–1,287 | 107–132 |
+| W1–W4 | Neko, warm (W2–W4 under `py-spy record`) | 344 / 552 / 297 / 286 | 1,304–2,201 | 45–61 |
+
+**RT-FIRST-TURN-BOOT-LATENCY — DONE.** Boot leg 356 ms, idle leg 258 ms, against 770 / 441 ms on
+the row and the 259.5 ms warm table. Against a warm Neko turn (W4 286): the boot leg's extra ~70 ms
+is `observability_built` 75 vs 21 and `client_built` 58 vs 42 (`tls_done` 58 vs 64 — every Neko turn
+handshakes, below). The idle leg is a warm turn. The time to text is the provider's (cache write of
+24.8k tokens on N1: `request_sent→headers` 1,827 ms).
+
+**RT-PREWARM-HOLDS-WORKDIR-LOCK — DONE (measured).** The actor prewarm's steps are now small
+(`system_prompt_build_ms` 30–59, `construct_ms` 131–3,375 across five chats). P1, sent 4 s after
+`ready`, did not land in an actor-prewarm step at all (the pass started at 22:38:33, after it): it
+landed in the boot's prewarm SNAPSHOT build (22:38:24.8–31.0, 6,261 ms) and its send-prep read
+7,723 ms (`cpu_ms` 7,390, `unattributed_ms` 4,671, `context_built_ms` 2,261) — the D1.04 number is
+a 7.7 s first send behind a 6.3 s build, which is `RT-PREWARM-BUILD-AGENTS-READINESS-COLD`'s cost,
+not a lock hold.
+
+**RT-REMOVE-H-TURN1-A5 — go.** The A5 laps on N1 (first turn after boot): `lead_in 0, redecorate 1,
+observe_tools 0, kwargs 3, preflight 0, middleware 5, hook 0` = 9 ms, the same as every warm Neko turn
+(9–11 ms); Dev (codex) 41–46 ms (`kwargs` 36–39). The 0.57–2.3 s first-turn span the stamps were kept
+for is gone: the 8 lines can return to upstream bytes.
+
+**RT-ATTRIBUTE-RECORDED-FIRST-TURN — DONE: no local step delays first text.** On warm Neko turns
+the local tail after the stream is 45–61 ms (`stream_done_to_projected`) and the response wait is the
+provider's (`request_sent→headers` 1.3–2.2 s). `py-spy record --rate 200` over W2–W4 caught only
+115–141 active samples in 14 s windows (~0.6 s of CPU across all threads), spread over skill
+listing (`skill_resolution._listing`, `skills_resolver._walk_skill_catalog`), `serde.read_json`,
+`git_cmd.run_git`, `provider_credentials.bound_provider_home` and the observability receipts — none
+above 13 samples. Persistence, title and refresh do not show. No ablation was needed.
+
+**RT-SEND-PREP-FIXES-LIVE-PROOF — DONE.** (a) above. (c) warm `send_prep_total`: Neko 258–344 ms,
+Dev 305–317 ms — inside the 400 ms budget (the `--check` FAIL names D1, a first turn on that actor
+grouped as warm, and W2, the first `py-spy` turn); warm median ~306 ms. (b) the 22-row Dev chat reads
+`context_built_ms` 130–142 warm (D2–D4) against 197 on the actor's first turn; a matched BEFORE needs
+the pre-`f7c61ff2ac` build and cannot be taken on the live serve, so (b) is recorded after-only.
+
+**RT-WARM-MEDIAN-LIVE-PROOF — CLI route only.** Warm median on the CLI route ~306 ms (above). The
+Launcher route needs the owner's Launcher open; none of these turns crossed it.
+
+**RT-TURN1-WARM-CONNECTION — DONE: Neko's provider changed, so the warm connection does not
+exist.** Neko now runs anthropic `claude-opus-5-5`. Its prewarm line reads `connect_ms=absent`
+(Dev's, on openai-codex, reads `persona_chat_actor_prewarm_connect host=chatgpt.com status=404
+kept=2`). Every Neko turn of the sitting builds its client (`client_built_ms` 41–58) and handshakes
+(`tls_done_ms` 31–157); the check's `conn` line reads `new` on every Neko turn. Dev turns reuse
+(`client_built_ms` 4, no `tls_done`). Rows `RT-ANTHROPIC-CONN-PER-TURN` and, for the receipts that
+should have shown it per call, `RT-ANTHROPIC-STREAM-RECEIPT-ABANDONED` (all 87 anthropic
+`send_window_receipt` lines on record read `end=abandoned first_event_ms=na`, logged when the NEXT
+request begins).
+
+**RT-LIVE-SERVE-AGENTS-READINESS — DONE (narrowed).** Three in-serve builds on the idle box
+(22:44:37, 22:45:17, 22:45:58, `harness stream` hydrates): `walk_ms` 266 / 271 / 330,
+`tool_visibility_ms` 47–52. The loaded figures were 651–1,595 (row) and, in today's log, p50 470 /
+p90 972 over 60 warm walks; the first walk of every boot is 1.8–5.3 s. So the live serve's walk is
+~2× the quiet 126–155 ms on an idle box: the 5–10× is load (turns, the Launcher hub, other lanes on
+the box) plus the cold first walk, which `RT-PREWARM-BUILD-AGENTS-READINESS-COLD` carries.
+
+**RT-BOARD-CARD-FOLD-RUNTIME — S0 measured: build S1–S4.** A hub subscriber (`{"op":"subscribe",
+"lane":"stream"}` on its own connection) and a probe card on `board_default_ws_testv4_afb811`
+(added, moved active → review → queued, archived): `runtime.board.card.move` acks in 10–12 ms, and
+each move reaches the subscriber 2.0 / 2.3 / 2.4 s later as one `delta` frame
+(`op: event.appended`) of ~668 KB — the demoted full core. That is far above any gesture tolerance
+before the Launcher's repaint is even added (not measurable without the Launcher).
+
+**RT-QUEUE-COMMIT-SERVE-RESTART — hermes half proven.** The vault-only fast-forward drew no serve
+restart (above); both real restarts drained clean: `serve connect --drain` → `drain_complete`,
+`29380.ended.json reason=drained` 7.3 s after the request was typed, and the same for 34320. The
+`[MissionServe] drain` / `serve_drain proven=` lines are the Launcher's and need it open.
+
+**RT-HARNESS-SERVE-COLD-BOOT — not run.** Three warm-disk boots today: `interpreter_ms` 4,967 /
+6,750 / 3,482 (`interpreter_boot` 2,200 / 3,025 / 1,541, `main_import` 440 / 607 / 298, `dispatch`
+2,326 / 3,116 / 1,642). The D1.06 protocol needs a disk-cold boot, i.e. a reboot.
