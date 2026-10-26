@@ -54,6 +54,7 @@ or registry entry names something real).
 | `tests/tooling/test_no_launcher_tool_name_literals.py` | fence | no hermes code names a Launcher tool (the underscore spelling), by the vendored catalog |
 | `tests/agent_runtime/test_launcher_catalog_fixture_parses.py` | runtime | every vendored Launcher catalog entry parses as the wire does; names follow the id rule |
 | `tests/tooling/test_no_silent_package_patches.py` | fence | a monkeypatch on a package attribute reaches a reader |
+| `tests/tooling/test_rebind_seams_have_positive_controls.py` | fence | a fork seam that rebinds an upstream attribute names a test driving upstream's own caller |
 | `tests/agent_runtime/test_duplicate_helper_bodies.py` | ratchet | one authority per helper body |
 | `tests/agent_runtime/test_tombstone_registry.py` | fence | deleted symbols stay deleted (census ≥ 703; never grep-count) |
 | `tests/agent_runtime/test_s41_dead_import_bindings.py` | fence | no import binding nothing reads |

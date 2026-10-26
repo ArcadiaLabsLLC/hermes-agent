@@ -92,3 +92,26 @@ def test_clear_forgets(resolver):
     bash_resolution_memo.clear()
     find()
     assert calls == ["probe", "probe"]
+
+
+def test_upstreams_own_caller_reaches_the_memo(tmp_path, monkeypatch):
+    """The POSITIVE control for the rebind (RT-REBIND-SEAMS-NO-POSITIVE-CONTROL): the
+    seam only works while upstream still looks ``_find_bash`` up by its module global.
+    Drive upstream's own caller (``_find_shell``, the background-spawn shell) twice and
+    the probe must run once; a caller that bypassed the rebound name probes twice."""
+    from tools.environments import local
+
+    bash = tmp_path / "bash.exe"
+    bash.write_text("", encoding="utf-8")
+    calls: list[str] = []
+
+    def fake_bash():
+        calls.append("probe")
+        return str(bash)
+
+    monkeypatch.setattr(pm.shell, "bash", fake_bash)
+    monkeypatch.delenv("SHELL", raising=False)
+    bash_resolution_memo.clear()
+    assert local._find_shell() == str(bash)
+    assert local._find_shell() == str(bash)
+    assert calls == ["probe"]
