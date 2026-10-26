@@ -17,11 +17,6 @@
   },
   {
    "depth": 5,
-   "lines": 24,
-   "unit": "agent_runtime/discussions/service.py|DiscussionService.bindings"
-  },
-  {
-   "depth": 5,
    "lines": 42,
    "unit": "agent_runtime/events.py|_archived_event_slices"
   },

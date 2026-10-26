@@ -199,25 +199,31 @@ class DiscussionService:
             result = []
             for run in self.runs.owned():
                 try:
-                    if run["initial"].get("compare_import", {}).get("state") == "pending":
-                        continue
-                    if run["phase"] == "initializing":
-                        self.state.initialize(run)
-                    elif run["phase"] == "ending":
-                        # Repair a crash between disband and claim release.
-                        try:
-                            ended = self.state.room(run, include_ended=True).get("disbanded_at") is not None
-                        except rooms.RoomNotFoundError:
-                            ended = not self.attempts.rows(run["run_id"])
-                        if ended:
-                            self.runs.end(run["run_id"])
-                            continue
-                    result.append(HostedRoomBinding(run["run_id"], self.context.install_id, 1))
+                    if self._bring_to_hosted(run):
+                        result.append(HostedRoomBinding(run["run_id"], self.context.install_id, 1))
                 except Exception as exc:
                     reason = getattr(exc, "reason", "initialization_failed")
                     self.runs.report_error(run["run_id"], reason)
                     logger.warning("Discussion initialization held: %s (%s)", run["run_id"], reason)
             return result
+
+    def _bring_to_hosted(self, run) -> bool:
+        """Bring one owned run to its hosted state; False when it is not (yet, or any longer) a room to bind."""
+        if run["initial"].get("compare_import", {}).get("state") == "pending":
+            return False
+        if run["phase"] == "initializing":
+            self.state.initialize(run)
+        elif run["phase"] == "ending" and self._room_disbanded(run):
+            self.runs.end(run["run_id"])
+            return False
+        return True
+
+    def _room_disbanded(self, run) -> bool:
+        """Repair a crash between disband and claim release: is this ending run's room already gone?"""
+        try:
+            return self.state.room(run, include_ended=True).get("disbanded_at") is not None
+        except rooms.RoomNotFoundError:
+            return not self.attempts.rows(run["run_id"])
 
     def transport(self, binding: HostedRoomBinding, task: Mapping[str, Any]) -> NativeSessionRPC:
         run = self.runs.get(binding.room_id)
