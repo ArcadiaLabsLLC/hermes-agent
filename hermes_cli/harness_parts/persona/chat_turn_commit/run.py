@@ -495,6 +495,13 @@ class _RunPhases:
         # carries the row in one build instead of being followed by a second.
         # Captured on THIS thread (the handler's): the provider-wait windows are
         # steered from the progress callback, which may run elsewhere.
+        # RT-WORKTREE-RECORDED-ON-SLOT: observe the workspace's bound repo slots now and at the
+        # turn's end, so a worktree this turn cuts is recorded against its slot (off this thread).
+        from agent_runtime.slot_worktrees import start_turn_observation
+
+        self.worktree_watch = start_turn_observation(
+            getattr(self.instance, "workspace_id", None), persona_instance_id=self.instance.id,
+            chat_id=session_id, turn_id=stream_emitter.turn_id)
         from agent_runtime.turn_activity import current_hot_window
 
         self.hot_window = current_hot_window()
@@ -789,6 +796,9 @@ class _RunPhases:
             turn_id=safe_assignment_token(self.client_message_id),
             model_input=prompt_context.get("final_model_input"),
         )
+        watch = getattr(self, "worktree_watch", None)
+        if watch is not None:
+            watch.finish()
         try:
             persist_prompt_observability_context(prompt_context)
         except Exception as persist_exc:

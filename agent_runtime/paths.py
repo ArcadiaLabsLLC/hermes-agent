@@ -726,6 +726,15 @@ def workspace_slots_path(workspace_id: str) -> Path:
     return workspace_slots_dir() / f"{safe_path_token(workspace_id)}.json"
 
 
+def slot_worktrees_path(workspace_id: str, slot: str) -> Path:
+    """The git worktrees seen cut from one repo slot's folder on THIS machine (RT-WORKTREE-RECORDED-ON-SLOT).
+
+    Machine-local like the slot fill it describes: under no realm-sync family, never synced.
+    """
+
+    return store_root() / "slot_worktrees" / safe_path_token(workspace_id) / f"{safe_path_token(slot)}.json"
+
+
 def work_dir() -> Path:
     """Work's machine-local state (plan ``work-on-markdown-2026-10-18.md`` §4): never synced."""
 

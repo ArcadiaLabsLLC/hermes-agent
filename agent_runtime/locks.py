@@ -171,6 +171,14 @@ def board_lock(board_id: str) -> Iterator[None]:
 
 
 @contextlib.contextmanager
+def slot_worktrees_lock(workspace_id: str, slot: str) -> Iterator[None]:
+    """One repo slot's worktree ledger (``agent_runtime.slot_worktrees``)."""
+    token = f"{paths.safe_path_token(workspace_id)}.{paths.safe_path_token(slot)}"
+    with _file_lock(paths.lock_dir() / "slot_worktrees" / f"{token}.lock"):
+        yield
+
+
+@contextlib.contextmanager
 def office_lock(workspace_id: str) -> Iterator[None]:
     with _file_lock(paths.lock_dir() / "office" / f"{paths.safe_path_token(workspace_id)}.lock"):
         yield
