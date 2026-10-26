@@ -256,7 +256,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-06 (lane h-slim-prompt)
 
-- **`RT-STREAM-RELAY-LINE-BOUND` — A standalone `harness stream` drops off the serve relay on its first frame and builds in-process: the hydrate line (~1.2 MB on the live store) exceeds `MAX_LINE_BYTES` (1 MiB), a bound meant for client lines that `ServeSocketClient` also applies to the serve's frames** · fork / serve socket · `agent_runtime/serve_socket/vocabulary.py::MAX_LINE_BYTES`, `agent_runtime/serve_socket/client.py`, `hermes_cli/harness_parts/stream_relay.py::relay_stream_via_serve` · evidence: live 2026-10-25 22:08:35 `stream_relay lane=in_process serve_fallback=transport_failed:_LineTooLong`, then an in-process walk of 2,423 ms (`docs/agent-runtime-harness/planned/live-sitting-results-2026-10-25.md`) · lane: give the client's reader of serve frames its own bound; killing mutation: a relay test with a frame over 1 MiB falls back in-process · READY 2026-10-25 · **TAKEN 2026-10-25 w1025b-h-stream**
 
 ### Filed on arrival — 2026-10-06 (lane h-pool-starve)
 

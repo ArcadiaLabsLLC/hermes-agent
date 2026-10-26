@@ -10,7 +10,7 @@ import json
 import socket
 from typing import Any
 
-from agent_runtime.serve_socket.vocabulary import NONCE_BYTES
+from agent_runtime.serve_socket.vocabulary import MAX_SERVE_FRAME_BYTES, NONCE_BYTES
 from agent_runtime.serve_socket.hello import (
     HELLO_CONTRACT_VERSION,
     ServeCertificatePinMismatch,
@@ -68,7 +68,8 @@ class ServeSocketClient:
         if self._tls:
             sock = self._wrap_tls(sock)
         self._sock = sock
-        self._reader = _LineReader(sock)
+        # The SERVE's frames, not a client's lines: see MAX_SERVE_FRAME_BYTES.
+        self._reader = _LineReader(sock, max_line_bytes=MAX_SERVE_FRAME_BYTES)
 
     def _wrap_tls(self, sock: socket.socket) -> Any:
         """Negotiate TLS and PIN the certificate. The reference pinning path.

@@ -84,6 +84,34 @@ def test_a_cli_hydrate_while_a_serve_runs_builds_nothing_in_process(
     assert frames == [{"type": "hydrate", "core": {"marker": "built-by-the-serve"}}]
 
 
+def test_a_hydrate_past_the_client_line_bound_still_rides_the_relay(
+    isolate_agent_runtime_root, monkeypatch
+):
+    """RT-STREAM-RELAY-LINE-BOUND: the live store's hydrate read ~1.2 MB, past
+    the 1 MiB ``MAX_LINE_BYTES`` the client applied to the SERVE's frames, so
+    the relay fell back in-process on its first frame. Mutation: read serve
+    frames under ``MAX_LINE_BYTES`` again → the relay answers ``None``
+    (fallback) and this reds."""
+
+    from agent_runtime.serve_socket import MAX_LINE_BYTES
+
+    marker = "x" * (MAX_LINE_BYTES + (256 << 10))
+
+    def big(**_kwargs):
+        yield {"type": "hydrate", "core": {"marker": marker}}
+
+    monkeypatch.setattr("agent_runtime.stream.stream_frames", big)
+    monkeypatch.setattr(stream_relay, "_this_pid", lambda: -1)
+    out = io.StringIO()
+    with running_serve(dispatch=dispatch_argv):
+        code = stream_relay.relay_stream_via_serve(_stream_args(), out=out)
+
+    assert code == 0
+    (line,) = [line for line in out.getvalue().splitlines() if line.strip()]
+    assert len(line) > MAX_LINE_BYTES
+    assert json.loads(line)["core"]["marker"] == marker
+
+
 def test_with_no_live_serve_the_cli_builds_in_process(isolate_agent_runtime_root, monkeypatch):
     spy = _FramesSpy()
     monkeypatch.setattr("agent_runtime.stream.stream_frames", spy)

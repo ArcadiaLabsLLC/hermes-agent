@@ -32,6 +32,7 @@ __all__ = [
     "LOCK_OUTCOME_ACQUIRED",
     "LOCK_OUTCOME_HELD",
     "MAX_LINE_BYTES",
+    "MAX_SERVE_FRAME_BYTES",
     "NONCE_BYTES",
     "OWNER_STATE_ABSENT",
     "OWNER_STATE_DEAD",
@@ -214,6 +215,17 @@ IO_TIMEOUT_SECONDS = 10.0
 #: Hard bound on a single client line. The ops are small JSON objects; anything
 #: past this is a client streaming garbage at the runtime.
 MAX_LINE_BYTES = 1 << 20
+
+
+#: Hard bound on a single SERVE frame, as the client reads it. Not
+#: :data:`MAX_LINE_BYTES`: that bound is about what a CLIENT may send, and a
+#: serve frame is a snapshot — the live store's hydrate line read ~1.2 MB on
+#: 2026-10-25, past 1 MiB, so every standalone ``harness stream`` fell off the
+#: relay on its first frame (``serve_fallback=transport_failed:_LineTooLong``,
+#: row RT-STREAM-RELAY-LINE-BOUND). 64 MiB is still a bound — a runaway serve
+#: cannot grow the client's buffer without limit — and sits an order of
+#: magnitude above the largest core on record (the 8.6 MB snapshot lesson).
+MAX_SERVE_FRAME_BYTES = 64 << 20
 
 
 class LockOutcome(StrEnum):
