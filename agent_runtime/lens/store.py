@@ -1,4 +1,4 @@
-"""The Lens store: one SQLite file per home, ``HERMES_HOME/lens/lens.sqlite3`` (WAL).
+"""The Lens store: one SQLite file per home, ``<head home>/lens/lens.sqlite3`` (WAL).
 
 Plan ``eternia-lens-in-hermes.md`` §3 (``store.py``). One writer: the serve that
 owns the home (the poller starts only on the socket owner), plus the RPC verbs in
@@ -169,10 +169,24 @@ class LensStoreError(ValueError):
         self.code = code
 
 
-def default_path() -> Path:
-    from hermes_constants import get_hermes_home
+def lens_root() -> Path:
+    """The ONE Lens directory every Lens reader and writer opens (RT-LENS-READ-PERSONA-HOME).
 
-    return get_hermes_home() / "lens" / "lens.sqlite3"
+    The runtime root's head home (the serve's), never the turn's profile home: a
+    ``lens_read`` / ``lens_propose`` inside a persona turn runs under
+    ``profiles/<agent>`` and used to open (and create) an empty store there,
+    answering ``monitor_not_found`` for a monitor the poller and Mission Control
+    read fine. Resolved on the process chat-scope ladder (relay → env
+    ``HERMES_HEAD_HOME`` → shared-root pointer → config declaration → ambient), so
+    an un-headed process degrades to its own home exactly as before."""
+
+    from agent_runtime.chat_session_scope import resolve_process_chat_scope
+
+    return resolve_process_chat_scope().head_home / "lens"
+
+
+def default_path() -> Path:
+    return lens_root() / "lens.sqlite3"
 
 
 def to_ms(moment: datetime) -> int:

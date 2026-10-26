@@ -29,7 +29,7 @@ memory of the monitor), and it keeps two kinds of content apart (W9):
   encoded with ``<`` escaped so nothing inside can close the fence, under the
   standing sentence :data:`UNTRUSTED_EVIDENCE_SENTENCE`.
 
-It names the Episode's folder (``HERMES_HOME/lens/episodes/<episode_id>/``), where
+It names the Episode's folder (``<head home>/lens/episodes/<episode_id>/``), where
 a file the persona writes is listed on the receipt, and asks for a ``MEDIA:`` line
 per image (the only declaration ``media_handles.mint_reply_media`` mints).
 """

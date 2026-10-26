@@ -1,7 +1,7 @@
 """What an Episode's turn left behind: its folder, the receipt's two lists, and the one read door.
 
 Plan ``p10-agent-2026-10-19.md`` §5.2 decision 4. Every Episode owns a folder,
-``HERMES_HOME/lens/episodes/<episode_id>/`` (resolved at call time). After the
+``<head home>/lens/episodes/<episode_id>/`` (resolved at call time). After the
 turn, :func:`collect` gives the receipt
 
 * ``artifact_handles`` — ``media_handles.mint_reply_media(reply)``: the IMAGES the
@@ -52,9 +52,9 @@ class LensArtifactError(ValueError):
 
 
 def episodes_root() -> Path:
-    from hermes_constants import get_hermes_home
+    from .store import lens_root
 
-    return get_hermes_home() / "lens" / "episodes"
+    return lens_root() / "episodes"
 
 
 def episode_folder(episode_id: str) -> Path:

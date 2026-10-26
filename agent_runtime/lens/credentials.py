@@ -5,7 +5,7 @@ S2 as amended by the owner ruling of 2026-10-18 (``RT-LENS-CREDENTIAL-PREVIEW``)
 and Lens plan W12:
 
 * A manifest names a credential by ``credential_ref`` only; the bytes live in ONE
-  fork-owned file, ``HERMES_HOME/lens/credentials.json``, written 0600
+  fork-owned file, ``<head home>/lens/credentials.json``, written 0600
   (:func:`credentials_path`). They are NOT in the hermes credential pool: upstream's
   dashboard lists every pool slice with a token preview, and the Lens ruling is
   write-only — set / not set / rotated, never any part of the value.
@@ -76,13 +76,15 @@ class LensCredential:
 
 
 def _home() -> Path:
-    from hermes_constants import get_hermes_home
+    """The home whose ``lens/`` holds the credentials file: the one Lens root's parent."""
 
-    return get_hermes_home().resolve()
+    from .store import lens_root
+
+    return lens_root().parent.resolve()
 
 
 def credentials_path() -> Path:
-    """``HERMES_HOME/lens/credentials.json`` — resolved at call time."""
+    """``<head home>/lens/credentials.json`` — resolved at call time."""
 
     return _home() / "lens" / "credentials.json"
 

@@ -89,11 +89,11 @@ def secret_ref_for(route_id: str) -> str:
 
 
 def ingress_config_path() -> Path:
-    """``HERMES_HOME/lens/ingress.json`` — resolved at call time."""
+    """``<head home>/lens/ingress.json`` — resolved at call time."""
 
-    from hermes_constants import get_hermes_home
+    from .store import lens_root
 
-    return get_hermes_home() / "lens" / "ingress.json"
+    return lens_root() / "ingress.json"
 
 
 def ingress_address() -> tuple[str, int]:
