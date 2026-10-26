@@ -49,7 +49,7 @@ def machine_id_path(env: Mapping[str, str] | None = None) -> Path:
     return namespaces_dir(source, base_root(source)) / MACHINE_ID_FILENAME
 
 
-def _decode(raw: str) -> str | None:
+def _decode_machine_record(raw: str) -> str | None:
     try:
         record = json.loads(raw)
     except json.JSONDecodeError:
@@ -70,7 +70,7 @@ def read_machine_id(env: Mapping[str, str] | None = None) -> str | None:
     if str(path) in _KNOWN:
         return _KNOWN[str(path)]
     try:
-        value = _decode(path.read_text(encoding="utf-8-sig"))
+        value = _decode_machine_record(path.read_text(encoding="utf-8-sig"))
     except OSError:
         return None
     if value is not None:

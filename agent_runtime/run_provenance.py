@@ -26,7 +26,7 @@ def ran_by() -> dict[str, Any]:
     global _cached
     with _lock:
         if _cached is None:
-            _cached = _resolve()
+            _cached = _measure()
         return dict(_cached)
 
 
@@ -38,7 +38,7 @@ def reset_ran_by_cache() -> None:
         _cached = None
 
 
-def _resolve() -> dict[str, Any]:
+def _measure() -> dict[str, Any]:
     edition: str | None = None
     commit: str | None = None
     code_tree: str | None = None
