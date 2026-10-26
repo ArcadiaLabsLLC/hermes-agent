@@ -21,7 +21,9 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import re
+import subprocess
 import threading
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
@@ -57,6 +59,10 @@ TERMINAL_TOOL = "terminal"
 # A git commit's own ``[<branch> <sha>]`` line (``[main (root-commit) abc1234]`` too).
 _COMMIT_SHA_RE = re.compile(r"^\[[^\]\n]*?\b([0-9a-f]{7,40})\]", re.MULTILINE)
 SHA_RE = re.compile(r"[0-9a-f]{7,40}")
+# ``git -C <dir>`` on the commit line: the repository the commit landed in.
+_GIT_DIR_RE = re.compile(r"""\bgit\s+-C\s+("[^"]+"|'[^']+'|\S+)""")
+#: Bound on the post-commit ``rev-parse`` (RT-TURN-OUTCOME-QUIET-COMMIT-SHA).
+HEAD_PROBE_TIMEOUT_S = 5.0
 
 # The git subcommand position: ``git``, then global options (``-C <dir>``, ``-c k=v``,
 # ``--no-pager``), then the verb — so ``git commit -m "push fix"`` is not a push.
@@ -141,10 +147,17 @@ class TurnOutcomeFold:
         else:
             rows.append(row)
 
-    def fold_terminal(self, command: str, exit_code: int | None, output: str) -> None:
+    def fold_terminal(self, command: str, exit_code: int | None, output: str,
+                      cwd: str | None = None) -> None:
+        kinds = classify_command(command)
+        # A quiet commit (``-q``) prints no ``[<branch> <sha>]`` line: read HEAD from the
+        # repository instead, outside the lock (RT-TURN-OUTCOME-QUIET-COMMIT-SHA).
+        head = (_head_after_commit(command, cwd)
+                if CommandKind.COMMIT in kinds and exit_code == 0
+                and _COMMIT_SHA_RE.search(output or "") is None else None)
         with self._lock:
-            for kind in classify_command(command):
-                _ROW_BUILDERS[kind](self, command, exit_code, output)
+            for kind in kinds:
+                _ROW_BUILDERS[kind](self, command, exit_code, output, head)
 
     def fold_file(self, path: str, op: str) -> None:
         row = {"path": path, "op": op}
@@ -167,18 +180,48 @@ class TurnOutcomeFold:
             }
 
 
-def _test_row(fold: TurnOutcomeFold, command: str, exit_code: int | None, _output: str) -> None:
+def _repo_dir(command: str, cwd: str | None) -> str | None:
+    """The directory the commit ran against: ``git -C <dir>`` (relative to ``cwd``), else ``cwd``."""
+
+    match = _GIT_DIR_RE.search(command or "")
+    named = match.group(1).strip("\"'") if match else ""
+    if named and os.path.isabs(named):
+        return named
+    if not cwd:
+        return None
+    return os.path.join(cwd, named) if named else cwd
+
+
+def _head_after_commit(command: str, cwd: str | None) -> str | None:
+    """``git -C <repo> rev-parse HEAD`` after a commit that exited 0; None when it cannot say. Never raises."""
+
+    repo = _repo_dir(command, cwd)
+    if not repo or not os.path.isdir(repo):
+        return None
+    try:
+        done = subprocess.run(["git", "-C", repo, "rev-parse", "HEAD"], capture_output=True, text=True,
+                              timeout=HEAD_PROBE_TIMEOUT_S, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    sha = (done.stdout or "").strip()
+    return sha if done.returncode == 0 and SHA_RE.fullmatch(sha) else None
+
+
+def _test_row(fold: TurnOutcomeFold, command: str, exit_code: int | None, _output: str,
+              _head: str | None) -> None:
     fold._append(fold.tests, {"command": command, "exit_code": exit_code,
                               "verdict": verdict_for_exit(exit_code)}, TURN_OUTCOME_MAX_TESTS)
 
 
-def _commit_row(fold: TurnOutcomeFold, command: str, _exit_code: int | None, output: str) -> None:
+def _commit_row(fold: TurnOutcomeFold, command: str, _exit_code: int | None, output: str,
+                head: str | None) -> None:
     match = _COMMIT_SHA_RE.search(output or "")
-    fold._append(fold.commits, {"command": command, "sha": match.group(1) if match else None,
+    fold._append(fold.commits, {"command": command, "sha": match.group(1) if match else head,
                                 "pushed": None}, TURN_OUTCOME_MAX_COMMITS)
 
 
-def _push_row(fold: TurnOutcomeFold, _command: str, exit_code: int | None, _output: str) -> None:
+def _push_row(fold: TurnOutcomeFold, _command: str, exit_code: int | None, _output: str,
+              _head: str | None) -> None:
     # ``pushed`` is true or null, never false: the fold cannot prove a push did not
     # happen elsewhere. A push that exited 0 marks every commit folded before it.
     if exit_code == 0:
@@ -186,7 +229,7 @@ def _push_row(fold: TurnOutcomeFold, _command: str, exit_code: int | None, _outp
             row["pushed"] = True
 
 
-_ROW_BUILDERS: Mapping[CommandKind, Callable[[TurnOutcomeFold, str, int | None, str], None]] = (
+_ROW_BUILDERS: Mapping[CommandKind, Callable[[TurnOutcomeFold, str, int | None, str, str | None], None]] = (
     MappingProxyType({
         CommandKind.TEST: _test_row,
         CommandKind.COMMIT: _commit_row,
@@ -209,8 +252,28 @@ def bind_turn_outcome() -> Iterator[TurnOutcomeFold]:
         _FOLD.reset(token)
 
 
+def _terminal_cwd(payload: Mapping[str, Any], args: Mapping[str, Any], task_id: Any) -> str | None:
+    """Where the terminal call ran: the result's changed ``cwd``, the call's ``workdir``, the
+    session's recorded cwd (keyed as ``terminal_tool`` keys it), else ``TERMINAL_CWD``."""
+
+    for value in (payload.get("cwd"), args.get("workdir")):
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    try:
+        from tools.approval import get_current_session_key
+        from tools.terminal_tool import get_session_cwd
+
+        recorded = get_session_cwd(get_current_session_key(default="") or str(task_id or ""))
+    except Exception:
+        recorded = None
+    if recorded:
+        return recorded
+    configured = os.environ.get("TERMINAL_CWD", "").strip()
+    return configured if configured and os.path.isabs(configured) else None
+
+
 def on_post_tool_call(tool_name: Any = None, args: Any = None, result: Any = None,
-                      status: Any = None, **_context: Any) -> None:
+                      status: Any = None, task_id: Any = None, **_context: Any) -> None:
     """``post_tool_call`` hook: a terminal call or a file write becomes a row of the bound fold."""
 
     fold = _FOLD.get()
@@ -223,7 +286,8 @@ def on_post_tool_call(tool_name: Any = None, args: Any = None, result: Any = Non
             payload = _terminal_payload(result)
             output = payload.get("output")
             fold.fold_terminal(command, _exit_code(payload.get("exit_code")),
-                               output if isinstance(output, str) else "")
+                               output if isinstance(output, str) else "",
+                               cwd=_terminal_cwd(payload, args, task_id))
         return
     op = FILE_TOOL_OPS.get(str(tool_name or ""))
     if op is not None and status == "ok":

@@ -205,3 +205,38 @@ def test_the_history_row_carries_the_block_and_an_older_record_leaves_it_untouch
     assert row["turn_outcome"] == _STORED
     row["turn_outcome"]["tests"].clear()  # a copy: the record is not aliased
     assert state.turn_records_by_message["cm-1"]["turn_outcome"]["tests"]
+
+
+def _repo_with_one_commit(tmp_path):
+    import subprocess
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    git = ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t"]
+    subprocess.run(git[:3] + ["init", "-q"], check=True)
+    (repo / "a.txt").write_text("a", encoding="utf-8")
+    subprocess.run(git + ["add", "a.txt"], check=True)
+    subprocess.run(git + ["commit", "-q", "-m", "a"], check=True)
+    head = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True, text=True,
+                          check=True).stdout.strip()
+    return repo, head
+
+
+# RT-TURN-OUTCOME-QUIET-COMMIT-SHA. Mutation: keep `head` out of `_commit_row`
+# (`match.group(1) if match else None`) -> both quiet commits read sha None.
+def test_a_quiet_commit_reads_its_sha_from_the_repository(tmp_path):
+    repo, head = _repo_with_one_commit(tmp_path)
+    with bind_turn_outcome() as fold:
+        on_post_tool_call(tool_name="terminal", args={"command": "git commit -q -m x", "workdir": str(repo)},
+                          result=json.dumps({"output": "", "exit_code": 0}), status="ok", task_id="t")
+        _terminal(f'git -C "{repo}" commit -q -m y', exit_code=0)
+    assert [row["sha"] for row in fold.block()["commits"]] == [head, head]
+
+
+# Positive control: the same repository, the same quiet line, a commit that FAILED —
+# nothing landed, so HEAD is not this commit's sha and must not be claimed.
+def test_a_failed_quiet_commit_claims_no_sha(tmp_path):
+    repo, _head = _repo_with_one_commit(tmp_path)
+    with bind_turn_outcome() as fold:
+        _terminal(f'git -C "{repo}" commit -q -m y', exit_code=1)
+    assert fold.block()["commits"][0]["sha"] is None
