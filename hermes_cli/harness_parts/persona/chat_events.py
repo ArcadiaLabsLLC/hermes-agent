@@ -13,7 +13,7 @@ import sys
 import time
 import uuid
 from agent_runtime.cli_format import emit_json
-from agent_runtime.clock import elapsed_ms
+from agent_runtime.clock import elapsed_ms, now_iso_micro
 from agent_runtime.conversation_observability import compaction_state
 from agent_runtime.events import EventLog
 from agent_runtime.mission_chat_phases import safe_handler_anchor
@@ -521,6 +521,7 @@ class _ChatProtocolV2Emitter:
             return
         segment["state"] = state
         segment["duration_ms"] = elapsed_ms(segment.get("started_at"))
+        segment["settled_at"] = now_iso_micro()
         self._emit_chat_frame(
             {
                 "type": "segment.end",
@@ -739,6 +740,7 @@ class _ChatProtocolV2Emitter:
             }
             self.elements.append(tool)
         tool["state"] = "finished"
+        tool["settled_at"] = now_iso_micro()
         tool["status"] = safe_text(payload.get("status"), limit=_STREAM_TEXT_LIMIT) or "ok"
         tool["duration_ms"] = payload.get("duration_ms")
         started = tool.get("started_mono")

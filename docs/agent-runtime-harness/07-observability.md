@@ -421,6 +421,12 @@ person joining the two by hand needs, and not having it written down cost the
 2026-09-07 read an hour of impossible timelines
 (`planned/chat-turn-prep-cost.md` §0).
 
+**Each element's own settle time (`settled_at`, RT-TURN-ELEMENT-TIMESTAMPS).** A segment
+stamps `settled_at` (microsecond `Z`, `now_iso_micro`) when it ends and a tool when it finishes, in
+`_ChatProtocolV2Emitter`; the turn store keeps it absent-when-absent (`records._settled_at`). It is the
+wall time a history row shows for that element — a reloaded turn no longer stamps every row with the
+agent message's one time. Records written before 2026-10-26 carry none.
+
 **The handler's own `profile_timing` sub-spans (chat-turn-prep Stage 6).**
 `context_built` and `observability_built` are one number each, and ≥ 60 % of an
 uncontended turn's admission is skill-directory walking performed three ways

@@ -31,7 +31,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-26 (launcher lane w1025b-mc)
 
-- **`RT-TURN-ELEMENT-TIMESTAMPS` — a settled turn's `turn_elements` carry no per-element time, so the launcher's history rows for a turn all show the agent message's one timestamp (launcher `MC-CHAT-SEGMENT-TIME-IS-TURN-START` fixed only the live overlay); stamp each element's settle time (`settled_at`) in the turn record — launcher consumer `_turnElementToChatMessage` in the agent console history policy** · `agent_runtime/mission_chat_turns/storage.py` · READY 2026-10-26 · **TAKEN 2026-10-26 w1026a-h-a**
 
 ### Filed on arrival — 2026-10-26 (lane w1025b-hlive, live sitting)
 

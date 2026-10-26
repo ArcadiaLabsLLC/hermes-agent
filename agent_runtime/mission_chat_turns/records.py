@@ -486,8 +486,19 @@ def _safe_element(raw: Any) -> dict[str, Any] | None:
         "turn_id": turn_id,
         "seq": seq,
         "state": safe_assignment_token(raw.get("state")) or "settled",
+        **_settled_at(raw),
         **_ELEMENT_FIELDS[kind](raw),
     }
+
+
+def _settled_at(raw: dict[str, Any]) -> dict[str, str]:
+    """When this element settled (RT-TURN-ELEMENT-TIMESTAMPS): the producer's
+    ``now_iso_micro`` stamp at segment end / tool finish, so a reloaded turn's
+    rows each carry their own time. Absent-when-absent — a pre-stamp record or
+    an element that never settled gains no key."""
+
+    stamp = safe_assignment_text(raw.get("settled_at"), limit=40)
+    return {"settled_at": stamp} if stamp else {}
 
 
 def _segment_fields(raw: dict[str, Any]) -> dict[str, Any]:
