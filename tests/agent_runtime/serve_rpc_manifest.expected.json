@@ -423,6 +423,7 @@
       "clarify_token",
       "client_scope",
       "correlation_id",
+      "course_credential",
       "files",
       "images",
       "intent_hint",

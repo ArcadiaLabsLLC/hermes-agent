@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import time
+from functools import partial
 from typing import Any
 
 from agent_runtime.launcher_app_functions import (
@@ -71,6 +72,19 @@ def accept_chat_turn(request: _ArgvRequest) -> Any:
     from agent_runtime.turn_activity import AcceptedTurn
 
     return AcceptedTurn(request.rid)
+
+
+def _run_with_turn_secrets(run: Any, turn_request_id: str, request: _ArgvRequest) -> Any:
+    """``run(request)`` with the turn's secrets bound as CURRENT, and dropped however it ends
+    (RT-COURSE-TURN-SECRETS; ``agent_runtime.turn_secrets``)."""
+
+    from agent_runtime import turn_secrets
+
+    with turn_secrets.bound(turn_request_id):
+        try:
+            return run(request)
+        finally:
+            turn_secrets.drop(turn_request_id)
 
 
 def submit_accepted(pool: Any, run: Any, request: _ArgvRequest) -> Any:
@@ -539,7 +553,8 @@ class ArgvLanes:
                     "a request with this server-minted id is already in flight",
                 )
             self.inflight[chat_request.key] = chat_request
-        chat_future = submit_accepted(self.pool, self._run, chat_request)
+        chat_future = submit_accepted(self.pool, partial(_run_with_turn_secrets, self._run, turn_request_id),
+                                      chat_request)
         with self.inflight_lock:
             if chat_request.key in self.inflight:
                 self.inflight_futures[chat_request.key] = chat_future

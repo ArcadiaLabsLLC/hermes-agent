@@ -61,12 +61,14 @@ length of it. Accept-and-hand-off is the only shape the lane admits.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
 
 from .operator_files import FILE_FLAG, OperatorFilesInvalid, normalize_files, store_files
 from .operator_images import IMAGE_FLAG, OperatorImagesInvalid, normalize_images, store_images
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
+
+from . import turn_secrets
 
 from .chat_turn_reservations import (
     STATE_ACCEPTED,
@@ -174,6 +176,7 @@ CHAT_MESSAGE_PARAMS: tuple[str, ...] = (
     "clarify_token",
     "client_scope",
     "correlation_id",
+    "course_credential",
     "files",
     "images",
     "intent_hint",
@@ -283,6 +286,11 @@ class ChatTurnRequest:
     #: restarted launcher) is presenting the same message, and is answered as a
     #: replay rather than refused.
     delivery_flags: tuple[str, ...] = ()
+    #: Turn-scoped secrets (RT-COURSE-TURN-SECRETS): held in the serve process for the
+    #: turn's duration (``agent_runtime.turn_secrets``), never in :attr:`argv` — so never
+    #: in the fingerprint, the accept receipt or a replay ack. ``course_credential`` is
+    #: the parsed ``RealmSyncCredential`` the Launcher brokered.
+    secrets: Mapping[str, Any] = field(default_factory=dict, repr=False, compare=False)
 
     @property
     def spawn_argv(self) -> list[str]:
@@ -501,7 +509,26 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
         correlation_id=correlation_id,
         delivery_flags=("--stream",) if stream else (),
         client_scope=request_client_scope(params),
+        secrets=_course_secrets(params),
     )
+
+
+def _course_secrets(params: dict) -> dict[str, Any]:
+    """``course_credential`` parsed at the door (an invalid or expired one refuses with
+    ``course_authoring``'s own reason), held as a turn secret, never lowered to argv."""
+
+    raw = params.get("course_credential")
+    if raw is None:
+        return {}
+    from .course_authoring import CourseRefused, parse_credential
+
+    try:
+        credential = parse_credential(raw)
+    except CourseRefused as exc:
+        raise ChatTurnInvalid(exc.reason.value, f"invalid params: {exc}") from None
+    if credential.is_expired():
+        raise ChatTurnInvalid("course_credential_expired", "invalid params: course credential expired; re-broker it")
+    return {"course_credential": credential}
 
 
 def _image_refs(params: dict) -> list[str]:
@@ -808,9 +835,15 @@ def perform_chat_turn(
             request_id = mint_chat_turn_request_id()
             ack["request_id"] = request_id
             reservation.mark_accepted(ack, request_id=request_id)
+            # RT-COURSE-TURN-SECRETS: held for the turn; the serve's turn wrapper binds and
+            # drops them (``_spawn_chat_turn``). A refused or failed spawn drops them here.
+            turn_secrets.put(request.turn_request_id, request.secrets)
             try:
                 spawn(request_id, request.spawn_argv, request.turn_request_id)
-            except ChatTurnSpawnRefused as exc:
+            except BaseException as exc:
+                turn_secrets.drop(request.turn_request_id)
+                if not isinstance(exc, ChatTurnSpawnRefused):
+                    raise
                 # The receipt is REMOVED, not left behind. A refusal is not an
                 # accept, and a receipt that outlived one would answer the
                 # client's honest retry with ``idempotent_replay`` for a turn
