@@ -163,6 +163,12 @@ _CORRELATION_ID_RE = re.compile(r"^[A-Za-z0-9_.:\-]+$")
 
 OFFICE_ACTOR_ENTITY = "office_actor"
 
+#: One Mission Board card (plan ``board-card-fold-2026-10-15.md``). A
+#: brand-new entity whose name is also its token — the WS1 ``scope`` argument:
+#: no fielded client declares it, so "can you fold the row" and "may the paired
+#: ``board.card.*`` event free-ride" are the same question.
+BOARD_CARD_ENTITY = "board_card"
+
 
 OFFICE_SURFACE_ENTITY = "office_surface"
 

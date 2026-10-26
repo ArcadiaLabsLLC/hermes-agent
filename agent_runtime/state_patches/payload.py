@@ -181,6 +181,18 @@ def office_actor_patch_id(workspace_id: Any, actor_key: Any) -> str:
     return f"{workspace_id}/{actor_key}"
 
 
+def board_card_patch_id(board_id: Any, card_id: Any) -> str:
+    """The patch identity for one board card: ``"<board_id>/<card_id>"``.
+
+    :func:`office_actor_patch_id`'s scheme and separator argument (both halves
+    pass ``safe_id``, which never keeps ``/``); a card id is globally unique
+    today, but the board id is what the client's board-keyed section needs to
+    find the row without a scan. Split on the FIRST ``/``.
+    """
+
+    return f"{board_id}/{card_id}"
+
+
 def office_patch_scope(patch: Any) -> str | None:
     """The office workspace one ``state.patched`` row belongs to, or ``None``.
 

@@ -26,6 +26,7 @@ from ..store_conflicts import check_revision
 from ..store_events import emit_store_event
 from . import adopt
 from .card_mechanics import CardOrdering, IdempotencyReceipts
+from .patches import emit_card_patch
 from .files import (
     _write_board,
     _write_card,
@@ -274,6 +275,7 @@ class BoardStore:
                 updated_by=actor,
             )
             _write_card(card)
+            emit_card_patch(self, card, created=True)
             self._emit(
                 "board.card.created",
                 board_id=card.board_id,
@@ -336,6 +338,7 @@ class BoardStore:
             card.updated_at = now()
             card.updated_by = _safe_actor(updated_by)
             _write_card(card)
+            emit_card_patch(self, card)
             self._emit(
                 "board.card.edited",
                 board_id=card.board_id,
@@ -381,6 +384,7 @@ class BoardStore:
             card.updated_at = now()
             card.updated_by = _safe_actor(updated_by)
             _write_card(card)
+            emit_card_patch(self, card)
             self._emit(
                 "board.card.moved",
                 board_id=card.board_id,

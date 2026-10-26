@@ -187,6 +187,7 @@ indistinguishable from live ones.
 from __future__ import annotations
 
 from agent_runtime.state_patches.models import (  # the package's export floor
+    BOARD_CARD_ENTITY,
     CORRELATION_ID_KEY,
     CORRELATION_ID_MAX_LEN,
     FOLDABLE_PATCH_OPS,
@@ -212,6 +213,7 @@ from agent_runtime.state_patches.payload import (  # the package's export floor
     _assemble,
     _is_oversize_marker,
     _oversize_marker,
+    board_card_patch_id,
     build_state_patch,
     normalize_correlation_id,
     office_actor_patch_id,
@@ -241,6 +243,11 @@ from agent_runtime.state_patches.office import (  # the package's export floor
     emit_office_surface_patch,
     emit_office_surface_refresh,
     project_office_actor_wire_row,
+)
+from agent_runtime.state_patches.board import (  # the package's export floor
+    emit_board_card_patch,
+    emit_board_card_refresh,
+    project_board_card_wire_row,
 )
 
 __layer__ = "stores"

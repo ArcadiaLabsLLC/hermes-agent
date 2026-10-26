@@ -11,6 +11,29 @@ received, Launcher repaint) on a running serve and Launcher, which a build lane
 does not start; it needs the owner's machine. S1–S4 are gated on its number, so
 nothing was built.
 
+## Build status (lane w1025b-h-stream, 2026-10-25)
+
+S0 measured on the owner's PC (`live-sitting-results-2026-10-25.md` § Timing batch: move ack
+10–12 ms, the demoted ~668 KB core 2.0–2.4 s later) — over tolerance, so S1–S2 are BUILT:
+
+- **S1:** `agent_runtime/board_store/patches.py::emit_card_patch`, called from `add_card`
+  (`created`), `edit_card` and `move_card` inside `board_lock`, after the card file and before
+  the `board.card.*` event; the row is `snapshot.boards.board_card_row` plus a recomputed
+  `unpublished` (`agent_runtime/state_patches/board.py`). A board past
+  `MAX_BOARD_CARDS_PROJECTED`, an unreadable card file, or a row over the value budget emits
+  the accounted `refresh`. Red recorded: the edit's emit moved past the lock → the forced
+  interleaving test lands revisions `[4, 3]`.
+- **S2:** `board.card.created/.edited/.moved` are covered, token-gated on the entity name
+  `board_card` (WS1's trade — a brand-new entity — so no separate `board_card_fold` string).
+  Red recorded: drop `board.card.edited` from `TOKEN_GATED_DOMAIN_EVENT_TYPES` → an unpaired
+  edit event becomes coverable at a legacy client (`assert not True`).
+- **Deliberately not covered:** archive / restore (they rewrite the board def's
+  `archived_card_ids` and `updated_at`), `board.rebalanced` (sibling `order_key` rewrites),
+  conflict resolve, board-def writes. Those batches keep the full core.
+- The coverage manifest and every stream golden moved (`decision_contract_hash` had also
+  drifted since `c8ba19b105`'s lens events); the launcher must mirror them with S3.
+- **Left:** S3 (launcher fold, declare `board_card`) and S4 (live proof).
+
 ## In plain English
 
 Board writes now have fast RPC twins (build-1011-C4), but after each write the

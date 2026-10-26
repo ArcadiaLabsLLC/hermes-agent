@@ -30,7 +30,8 @@ per-field allowlist, no re-derivation. So coverage is defined at the OP level:
   run traces, the ``state.reconciled`` watchdog, ``persona_assignment.*`` (the
   ``persona_assignments`` frame section is a ``{active, recent}`` projection, not
   an id-keyed table the launcher can fold a remove into), ``task.*`` domain
-  events, board/flow writes, every office write EXCEPT the actor-only upsert
+  events, board/flow writes (except a card create/edit/move under the
+  ``board_card`` token), every office write EXCEPT the actor-only upsert
   (see ``LIVE_COVERED_DOMAIN_EVENT_TYPES``), and — the known uncovered case the
   plan names — ``planning.py`` chokepoint-less mutations (no ``state.patched``
   at all).
@@ -90,6 +91,7 @@ from __future__ import annotations
 from typing import Any, Iterable
 
 from .state_patches import (
+    BOARD_CARD_ENTITY,
     FOLDABLE_PATCH_OPS,
     OFFICE_ACTOR_ENTITY,
     OFFICE_CONFLICT_ENTITY,
@@ -466,6 +468,27 @@ LIVE_COVERED_DOMAIN_EVENT_TYPES: frozenset[str] = frozenset(
         # whole of the container-row effect. Nothing is left that only the
         # demoted full core could say.
         "office.actor.conflict_resolved",
+        # The BOARD-CARD half (plan ``board-card-fold-2026-10-15.md`` S2,
+        # 2026-10-25). Each pairs with the ``board_card`` row
+        # ``board_store.patches.emit_card_patch`` writes inside ``board_lock``
+        # before the event. THE DERIVABILITY AUDIT: a create, an edit and a
+        # move rewrite exactly one card file and nothing on the board def — no
+        # ``revision``, ``updated_at``, column or ledger moves — so the board
+        # row's only derived fields they touch are the card list itself and
+        # ``active_card_count`` (+1 on a create), which a client recomputes from
+        # the rows it folds. ``conflict_card_ids`` cannot move: each verb
+        # refuses a card with an open sidecar. Truncation, an unreadable card
+        # file and a row over the value budget are the cases a row cannot
+        # express, and each emits ``refresh``. A move that has to rebalance its
+        # column appends ``board.rebalanced`` (sibling ``order_key`` rewrites
+        # with no row each), which stays uncovered and demotes that batch.
+        # Still UNCOVERED, deliberately: ``board.card.archived`` /
+        # ``.restored`` (they rewrite the board def's ``archived_card_ids`` and
+        # ``updated_at``), ``board.rebalanced``, ``board.card.conflict_resolved``
+        # and the board-def writes.
+        "board.card.created",
+        "board.card.edited",
+        "board.card.moved",
     }
 )
 
@@ -503,6 +526,12 @@ TOKEN_GATED_DOMAIN_EVENT_TYPES: dict[str, str] = {
     # brand-new entity with exactly one op, so the entity name IS the token and a
     # fifth capability string could only ever agree with it.
     "office.actor.conflict_resolved": OFFICE_CONFLICT_ENTITY,
+    # ``board_card`` takes the same trade: a brand-new entity, so its name is
+    # the token, and a client that cannot fold the row never free-rides the
+    # event beside it.
+    "board.card.created": BOARD_CARD_ENTITY,
+    "board.card.edited": BOARD_CARD_ENTITY,
+    "board.card.moved": BOARD_CARD_ENTITY,
 }
 
 COVERED_DOMAIN_EVENT_TYPES: frozenset[str] = (
