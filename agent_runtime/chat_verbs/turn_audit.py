@@ -36,7 +36,7 @@ _GIT_GLOBAL = {"-C", "-c", "--git-dir", "--work-tree"}
 _WORKTREE_VALUE_OPTS = {"--reason", "-b", "-B", "--orphan"}
 
 
-def _git_argv(segment: str) -> list[str] | None:
+def _audit_git_argv(segment: str) -> list[str] | None:
     """``segment``'s git argv after the global options, or None when it is not a git call."""
 
     try:
@@ -59,7 +59,7 @@ def _git_changes(command: str, exit_code: int | None) -> tuple[list[dict[str, An
     worktrees: list[dict[str, Any]] = []
     branches: list[dict[str, Any]] = []
     for segment in _SEGMENT_SPLIT.split(command or ""):
-        argv = _git_argv(segment.strip())
+        argv = _audit_git_argv(segment.strip())
         if not argv:
             continue
         verb, args = argv[0], argv[1:]
@@ -89,7 +89,7 @@ def _git_changes(command: str, exit_code: int | None) -> tuple[list[dict[str, An
     return worktrees, branches
 
 
-def _tool_row(element: dict[str, Any]) -> dict[str, Any]:
+def _audit_tool_row(element: dict[str, Any]) -> dict[str, Any]:
     outcome = element.get("outcome") or element.get("status")
     return {
         "seq": element.get("seq"),
@@ -103,14 +103,14 @@ def _tool_row(element: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _wall_seconds(record: dict[str, Any]) -> float | None:
+def _turn_wall_seconds(record: dict[str, Any]) -> float | None:
     for budget in (record.get("run_budget") or {}).get("budgets") or ():
         if isinstance(budget, dict) and budget.get("kind") == "wall":
             return budget.get("consumed")
     return None
 
 
-def _price(usage: dict[str, Any]) -> dict[str, Any] | None:
+def _price_usage(usage: dict[str, Any]) -> dict[str, Any] | None:
     if not usage.get("model"):
         return None
     try:
@@ -134,7 +134,7 @@ def _price(usage: dict[str, Any]) -> dict[str, Any] | None:
     return {"usd": None if amount is None else str(amount), "status": result.status, "label": result.label}
 
 
-def _turn_row(record: dict[str, Any], price: Callable[[dict[str, Any]], dict[str, Any] | None]) -> dict[str, Any]:
+def _audit_turn_row(record: dict[str, Any], price: Callable[[dict[str, Any]], dict[str, Any] | None]) -> dict[str, Any]:
     from agent_runtime.turn_outcome import TURN_OUTCOME_KEY
     from agent_runtime.turn_usage import TURN_USAGE_KEY
 
@@ -157,8 +157,8 @@ def _turn_row(record: dict[str, Any], price: Callable[[dict[str, Any]], dict[str
         "persona_instance_id": record.get("persona_instance_id"),
         "root_chat_session_id": record.get("root_chat_session_id"),
         "active_session_id": record.get("active_session_id"),
-        "wall_seconds": _wall_seconds(record),
-        "tool_calls": [_tool_row(element) for element in tools],
+        "wall_seconds": _turn_wall_seconds(record),
+        "tool_calls": [_audit_tool_row(element) for element in tools],
         "tool_ms": sum(int(element.get("duration_ms") or 0) for element in tools),
         "files_written": list(outcome.get("files") or ()),
         "tests": list(outcome.get("tests") or ()),
@@ -195,7 +195,7 @@ def turn_audit(
     session_id: str | None = None,
     turn_id: str | None = None,
     limit: Any = TURN_AUDIT_LIMIT_DEFAULT,
-    price: Callable[[dict[str, Any]], dict[str, Any] | None] = _price,
+    price: Callable[[dict[str, Any]], dict[str, Any] | None] = _price_usage,
 ) -> dict[str, Any]:
     """The audit row: ``ok``, ``namespace``, ``turns`` (newest first), ``count``, ``truncated``.
 
@@ -238,5 +238,5 @@ def turn_audit(
         "count": min(len(records), cap),
         "total": len(records),
         "truncated": len(records) > cap,
-        "turns": [_turn_row(record, price) for record in records[:cap]],
+        "turns": [_audit_turn_row(record, price) for record in records[:cap]],
     }

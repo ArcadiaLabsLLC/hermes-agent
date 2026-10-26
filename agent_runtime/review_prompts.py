@@ -104,7 +104,7 @@ def timings_block(rows: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def _ledger(agent: Any) -> list[dict[str, Any]]:
+def _turn_timing_rows(agent: Any) -> list[dict[str, Any]]:
     turn_id = str(getattr(agent, "_persona_chat_turn_id", None) or "")
     ledger = getattr(agent, _LEDGER_ATTR, None)
     if not isinstance(ledger, dict) or ledger.get("turn_id") != turn_id:
@@ -118,12 +118,12 @@ def arm_review_prompts(agent: Any) -> None:
     if agent is None:
         return
     skill, combined = harness_review_prompts()
-    block = timings_block(_ledger(agent))
+    block = timings_block(_turn_timing_rows(agent))
     agent._SKILL_REVIEW_PROMPT = skill + block
     agent._COMBINED_REVIEW_PROMPT = combined + block
 
 
-def _exit_code(result: Any) -> int | None:
+def _terminal_exit_code(result: Any) -> int | None:
     payload = result
     if isinstance(payload, str) and payload.strip().startswith("{"):
         try:
@@ -142,9 +142,9 @@ def on_post_tool_call(tool_name: Any = None, args: Any = None, result: Any = Non
     agent = current_persona_turn_agent()
     if agent is None:
         return
-    rows = _ledger(agent)
+    rows = _turn_timing_rows(agent)
     if len(rows) < _LEDGER_MAX and type(duration_ms) in (int, float) and duration_ms >= 0:
-        code = _exit_code(result) if tool_name == "terminal" else None
+        code = _terminal_exit_code(result) if tool_name == "terminal" else None
         command = args.get("command") if isinstance(args, dict) and tool_name == "terminal" else None
         rows.append({
             "name": str(tool_name or "tool"),

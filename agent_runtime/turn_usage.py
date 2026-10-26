@@ -39,27 +39,27 @@ _MAX_TOKENS = 10**10
 _TEXT_LIMIT = 160
 
 
-def _count(value: Any) -> int | None:
+def _token_count(value: Any) -> int | None:
     return value if type(value) is int and 0 <= value <= _MAX_TOKENS else None
 
 
-def _text(value: Any) -> str | None:
+def _usage_text(value: Any) -> str | None:
     if not isinstance(value, str):
         return None
     text = " ".join(value.split())[:_TEXT_LIMIT]
     return text or None
 
 
-def _calls(rows: Any) -> list[dict[str, int]]:
+def _usage_calls(rows: Any) -> list[dict[str, int]]:
     out: list[dict[str, int]] = []
     for index, row in enumerate(rows if isinstance(rows, list) else ()):
         if len(out) >= MAX_CALLS:
             break
         if not isinstance(row, dict):
             continue
-        call = {"call_index": _count(row.get("call_index")) or index + 1}
+        call = {"call_index": _token_count(row.get("call_index")) or index + 1}
         for field in CALL_FIELDS:
-            count = _count(row.get(field))
+            count = _token_count(row.get(field))
             if count is not None:
                 call[field] = count
         out.append(call)
@@ -73,14 +73,14 @@ def safe_turn_usage(value: Any) -> dict[str, Any] | None:
         return None
     block: dict[str, Any] = {"schema": TURN_USAGE_SCHEMA}
     for key in ("provider", "model"):
-        text = _text(value.get(key))
+        text = _usage_text(value.get(key))
         if text:
             block[key] = text
     for key in ("api_calls", *TOTAL_FIELDS):
-        count = _count(value.get(key))
+        count = _token_count(value.get(key))
         if count is not None:
             block[key] = count
-    calls = _calls(value.get("calls"))
+    calls = _usage_calls(value.get("calls"))
     if calls:
         block["calls"] = calls
     return block if len(block) > 1 else None
