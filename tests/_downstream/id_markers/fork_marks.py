@@ -113,6 +113,13 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # killed them (green on the pure tag, whose runner has no default). Each sits above its child bound.
     "tests/gateway/test_session_policy.py::test_launch_policy_reaches_real_turn_runner": (pytest.mark.timeout(150),),
     "tests/gateway/test_session_policy.py::test_ordinary_daemon_cli_launch_policy": (pytest.mark.timeout(200),),
+    # FH-TOOLING-LANE-TIMEOUTS-ICON-INSTALL (2026-10-25, measured alone): the icon file's module
+    # fixture builds the icon runtime in 159 s of setup and two renders take ~50 s each; the
+    # installer file's three git-staging tests take 29-70 s. The fork's --timeout=30 killed every
+    # one, so both files only ever reported "no tests ran". Each bound sits above its own
+    # subprocess bound (180 s); the runner's file bound comes from scripts/fork_heavy_test_files.txt.
+    "tests/scripts/test_icon_flavors.py": (pytest.mark.timeout(600),),
+    "tests/scripts/install/test_install_ps1_native_calls.py": (pytest.mark.timeout(400),),
     # MCF-66: reads the real ~/.claude/.credentials.json via the fixture's
     # redirected Path.home() (gate: tests/test_claude_code_credentials_file_gate.py).
     "tests/hermes_cli/test_codex_cli_model_picker.py::"
