@@ -24,6 +24,22 @@ cli_commands:
 # One reader, agent_runtime/harness_settings.py — which still reads the legacy
 # top-level remote_gateway.* / charsheet.* keys during the stated transition.
 config_schema:
+  console_suggestions_enabled:
+    type: bool
+    default: false
+    description: Suggest editable follow-up messages in visible Agent Console chats
+  console_suggestions_max_context_messages:
+    type: int
+    default: 4
+    description: Recent user and final assistant messages used for suggestions (2–10)
+  console_suggestions_cooldown_seconds:
+    type: int
+    default: 3
+    description: Minimum seconds between suggestion calls for one chat (0 disables cooldown)
+  console_suggestions_generation:
+    type: str
+    default: ""
+    description: Runtime-owned revision fence for suggestion policy changes
   remote_gateway_listen:
     # No `type`: a host string turns the LAN listener on; false or absent is off.
     description: Interface the remote gateway listens on (host string, e.g. 0.0.0.0); false or absent = off

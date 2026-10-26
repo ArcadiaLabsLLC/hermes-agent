@@ -409,6 +409,7 @@ class RpcContext:
     interrupt_operator: Callable[[str], bool] | None = None
     launcher_request: Callable[[str, dict], dict] | None = None
     batch_dispatcher: Callable[[], Any] | None = None
+    console_suggestions: Callable[[], Any] | None = None
 
     def push(self, method_name: str, params: dict) -> bool:
         """Send one notification to THIS caller. False when there is no channel.

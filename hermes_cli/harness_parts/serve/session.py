@@ -204,6 +204,7 @@ class ServeSession(
         self.shell.refuse_levers(socket_lane=socket_lane, service=service,
                                  record_end_reason=record_end_reason, parent_pid=parent_pid)
         self.reader = reader
+        self._suggestions = None
         self.writer = writer
         self.pool_size = pool_size
         self.dispatch = dispatch
@@ -505,6 +506,24 @@ class ServeSession(
                 "serve_head_fallback head_home=%s reason=no_head_authority", self.serve_head_home
             )
         self.timeline.mark("head_publish_ms")
+        from agent_runtime.profile_home import get_hermes_head_home
+
+        self.serve_suggestion_home = get_hermes_head_home() if self.serve_head_home is None else self.serve_head_home
+
+    def _console_suggestions_service(self):
+        from agent_runtime.console_suggestions.service import ConsoleSuggestions
+
+        with self.inflight_lock:
+            if self._suggestions is None:
+                self._suggestions = ConsoleSuggestions(self.serve_suggestion_home, observe=self._observe_suggestion_changes)
+            return self._suggestions
+
+    def _observe_suggestion_changes(self, callback, dropped):
+        hub = self._ensure_stream_hub()
+        key = "console-suggestions-source"
+        hub.subscribe(key, sink=callback, on_drop=lambda reason, stats: dropped(),
+                      restart_producer=False, declared=self._promoted_fold_entities())
+        return lambda: hub.unsubscribe(key)
 
     def _boot_anchor_and_skills(self) -> None:
         # Publish the machine root anchor: `agent_runtime.store_root` into the
@@ -1046,6 +1065,8 @@ class ServeSession(
         return DRAIN_TIMEOUT_EXIT_CODE
 
     def _give_up_the_lane(self, shutdown_frame: dict[str, Any]) -> None:
+        if self._suggestions is not None:
+            self._suggestions.close()
         # Socket clients hear it BEFORE the transport closes under them: an
         # attached client whose socket simply died could not tell a clean
         # service shutdown from a crash.

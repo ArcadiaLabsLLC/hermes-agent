@@ -15,7 +15,7 @@ readme = "README.md"
 requires-python = ">=3.11,<3.15"
 authors = [{ name = "Nous Research" }]
 license = "MIT"
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "THIRD_PARTY_LICENSES/next-prompt.txt"]
 dependencies = [
   # Core — every direct dep is exact-pinned to ==X.Y.Z (no ranges).
   # Rationale: ranges allow PyPI to ship a fresh version of a transitive

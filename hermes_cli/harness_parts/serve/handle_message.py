@@ -879,6 +879,7 @@ class MessageHandling:
                 interrupt_operator=partial(interrupt_operator_turn, self),
                 launcher_request=self._launcher_requester(connection, sink),
                 batch_dispatcher=partial(getattr, self, "batch_dispatcher", None),
+                console_suggestions=self._console_suggestions_service,
             ),
         )
         # The ONE frame this lane does not write: the handler took the

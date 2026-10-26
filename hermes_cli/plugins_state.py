@@ -71,23 +71,31 @@ def save_plugin_setting(plugin_id: str, segments: tuple[str, ...], value: Any) -
     administrator-managed-key refusals, the cross-process lock and the fail-closed raw read
     are enforced once. ``segments`` must already be validated by :func:`_plugin_relative_segments`.
     """
-    from hermes_cli import config as config_mod
-    from hermes_cli import managed_scope
-
-    if config_mod.is_managed():
-        raise PermissionError("Plugin settings cannot be changed in a managed install")
     full_path = ("plugins", "entries", plugin_id, "settings", *segments)
-    dotted_path = ".".join(full_path)
-    if managed_scope.is_key_managed(dotted_path):
-        raise PermissionError(f"Plugin setting {dotted_path!r} is administrator-managed")
-    partial = _nested_plugin_mapping(full_path[:4], _nested_plugin_mapping(segments, value))
-    # The lock covers merge-read plus atomic save so sibling plugin writes (threads or
-    # processes) cannot race between the two steps.
+
+    def update(raw):
+        target = raw
+        for segment in full_path[:-1]:
+            target = target.setdefault(segment, {})
+        target[full_path[-1]] = value
+
+    update_plugin_configuration(update, paths={full_path})
+
+
+def update_plugin_configuration(update, *, paths: set[tuple[str, ...]]) -> None:
+    """One atomic config transaction for plugin settings and registered task routing.
+
+    The callback runs under the existing cross-process writer lock, so revision
+    checks and multi-field changes cannot lose another setting writer's update.
+    """
+    from hermes_cli import config as config_mod, managed_scope
+
+    if config_mod.is_managed() or any(managed_scope.is_key_managed(".".join(path)) for path in paths):
+        raise PermissionError("Plugin configuration is managed")
     with _locked_plugin_state(config_mod.get_config_path()), config_mod._CONFIG_LOCK:
-        # Fail closed on malformed YAML: save_config degrades parse failures to {} — safe
-        # for reads, destructive for read-modify-write.
-        config_mod.read_user_config_raw()
-        config_mod.save_config(partial, preserve_keys={full_path}, merge_existing=True)
+        raw = config_mod.read_user_config_raw()
+        update(raw)
+        config_mod.save_config(raw, preserve_keys=paths)
 
 
 def _plugin_data_namespace(plugin_id: str, skill_namespace: str) -> str:

@@ -195,6 +195,10 @@ def _cmd_persona_chat_delete(args) -> int:
             return 2
     try:
         from agent_runtime.session_extensions import delete_compression_lineage
+        from agent_runtime.console_suggestions.store import SuggestionStore
+        from agent_runtime.profile_home import get_hermes_head_home
+
+        SuggestionStore(get_hermes_head_home() / "state" / "console_suggestions.sqlite3").erase_session(session_id)
 
         if callable(getattr(session_db, "_execute_write", None)):  # a real SessionDB
             deleted_session = bool(

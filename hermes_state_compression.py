@@ -801,6 +801,15 @@ class SessionCompressionMixin:
                 last_notice_at = now
             time.sleep(min(max(0.01, float(poll_interval_seconds)), remaining))
 
+    def session_turn_is_active(self, session_id: str) -> bool:
+        """Read the native turn lease without claiming it or waking an actor."""
+        with self._read_ctx() as conn:
+            row = conn.execute(
+                "SELECT expires_at FROM session_turn_leases WHERE conversation_id = ?",
+                (self._session_turn_lease_key_on_conn(conn, session_id),),
+            ).fetchone()
+        return row is not None and float(row[0]) > time.time()
+
     def session_turn_lease_expires_at(self, session_id: str, holder: str) -> Optional[float]:
         """Committed ``expires_at`` of ``holder``'s turn lease, or None when it does not hold it."""
         if not session_id or not holder:

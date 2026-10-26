@@ -465,6 +465,9 @@ def _worker_config_frozen() -> bool:
 
 
 def register(ctx) -> None:
+    from agent_runtime.console_suggestions.generation import register_suggestion_task
+
+    register_suggestion_task(ctx)
     from agent_runtime.provider_access import SharedProviderAccess
 
     ctx.register_provider_access(SharedProviderAccess())

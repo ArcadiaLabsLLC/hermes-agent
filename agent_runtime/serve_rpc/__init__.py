@@ -97,6 +97,7 @@ from agent_runtime.serve_rpc import (
     operator_conversation,
     operator_history,
     operator_inspection,
+    console_suggestions,
     operator_subagents,
     console_operations,
     instance_history,

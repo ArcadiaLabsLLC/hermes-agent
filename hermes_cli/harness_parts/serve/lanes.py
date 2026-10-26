@@ -173,6 +173,8 @@ class ArgvLanes:
         # request that is inside its handler as still waiting for a worker,
         # which is the exact confusion this field exists to end.
         request.started_monotonic = time.monotonic()
+        if self._suggestions is not None and request.is_chat_turn:
+            self._suggestions.turn_changed(request.argv, started=True)
         token = _request_id.set(request.rid)
         # Answers go back to whoever asked. ``request.sink`` is None on stdio,
         # which leaves the contextvar unset and the proxy on stdout — the
@@ -500,6 +502,8 @@ class ArgvLanes:
             exit_frame["served_from_cache"] = True
             exit_frame["cache_age_ms"] = state.cache_age_ms
         state.sink.emit(exit_frame)
+        if self._suggestions is not None and request.is_chat_turn:
+            self._suggestions.turn_changed(request.argv, started=False)
 
     def _spawn_chat_turn(
         self,

@@ -15,10 +15,10 @@ _NATIVE_MEDIA_TAIL = re.compile(
 )
 
 
-def strip_operator_envelopes(content: Any) -> tuple[str, Any, Any]:
+def strip_operator_envelopes(content: Any, *, include_media: bool = True) -> tuple[str, Any, Any]:
     text = content if isinstance(content, str) else str(content or "")
     tail = _NATIVE_MEDIA_TAIL.search(text)
     composed, media = (text[:tail.start()], tail.group()) if tail else (text, "")
     composed, runtime_context = extract_runtime_context_envelope(composed)
     composed, skill_preload = extract_skill_preload_envelope(composed)
-    return composed + media, runtime_context, skill_preload
+    return composed + (media if include_media else ""), runtime_context, skill_preload
