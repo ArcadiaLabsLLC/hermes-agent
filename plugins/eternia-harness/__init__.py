@@ -258,6 +258,9 @@ def settle_turn_tools(session_id=None, **_context):
     agent = current_persona_turn_agent()
     if agent is not None:
         settle_turn_tool_form(agent, blocked=blocked_tools_for(session_id or getattr(agent, "session_id", None)))
+        from agent_runtime.review_prompts import arm_review_prompts
+
+        arm_review_prompts(agent)  # the harness review prompts, before any tool call (RT-REVIEW-WRITE-BIAS-UPSTREAM)
     reprune_turn_agent(session_id)
 
 
@@ -270,15 +273,19 @@ def refuse_blocked_tool(tool_name=None, session_id="", **_context):
 
 
 def refuse_tool_call(tool_name=None, args=None, task_id="", session_id="", **_context):
-    """``pre_tool_call`` hook: a blocked tool, then a ``flutter build`` that collides with the live Launcher.
-
-    One callback for both refusals (``agent_runtime.flutter_build_guard`` for the second).
+    """``pre_tool_call`` hook: a blocked tool, a background review's write to a SHARED skill
+    (staged for the owner, ``agent_runtime.review_skill_gate``), then a ``flutter build`` that
+    collides with the live Launcher (``agent_runtime.flutter_build_guard``). One callback for all three.
     """
     from agent_runtime.flutter_build_guard import flutter_build_refusal
+    from agent_runtime.review_skill_gate import review_shared_skill_write
 
     blocked = refuse_blocked_tool(tool_name=tool_name, session_id=session_id)
     if blocked is not None:
         return blocked
+    staged = review_shared_skill_write(tool_name, args)
+    if staged is not None:
+        return staged
     message = flutter_build_refusal(tool_name, args, task_id=task_id)
     return None if message is None else {"action": "block", "message": message}
 
@@ -340,10 +347,13 @@ def record_usage_ledger_row(**kwargs):
 
 
 def record_turn_outcome(**kwargs):
-    """``post_tool_call`` hook: a terminal call or file write folds into a bound persona turn's outcome."""
+    """``post_tool_call`` hook: a terminal call or file write folds into a bound persona turn's outcome,
+    and every call's measured ``duration_ms`` into the turn's review timings (``agent_runtime.review_prompts``)."""
+    from agent_runtime.review_prompts import on_post_tool_call as fold_review_timing
     from agent_runtime.turn_outcome import on_post_tool_call
 
     on_post_tool_call(**kwargs)
+    fold_review_timing(**kwargs)
 
 
 async def answer_queue_status(**kwargs):

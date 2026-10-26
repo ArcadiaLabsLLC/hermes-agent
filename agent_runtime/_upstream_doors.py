@@ -23,6 +23,7 @@ from pathlib import Path
 
 __layer__ = "models"
 __all__ = [
+    "background_review_prompts",
     "codex_account_claims",
     "codex_bounded_prompt_cache_key",
     "codex_cache_scope_from_session_id",
@@ -56,6 +57,7 @@ __all__ = [
     "sanitize_surrogates",
     "session_async_delivery_unset",
     "session_async_delivery_var",
+    "skill_manage_target",
     "skills_sync_primitives",
     "skills_tool_inspection_doors",
     "skills_walker",
@@ -105,6 +107,26 @@ def compression_threshold_for_model(model: str, provider: str | None, *, allow_c
     return _compression_threshold_for_model(
         model, provider, allow_codex_gpt55_autoraise=allow_codex_gpt55_autoraise
     )
+
+
+def background_review_prompts() -> tuple[str, str]:
+    """Upstream's ``(_SKILL_REVIEW_PROMPT, _COMBINED_REVIEW_PROMPT)`` from ``agent.background_review``,
+    read by ``agent_runtime.review_prompts`` to derive the harness agents' per-agent overrides
+    (upstream's door: AIAgent exposes them as class attributes "so per-agent overrides work")."""
+    from agent.background_review import _COMBINED_REVIEW_PROMPT, _SKILL_REVIEW_PROMPT
+
+    return _SKILL_REVIEW_PROMPT, _COMBINED_REVIEW_PROMPT
+
+
+def skill_manage_target(name: str) -> Path | None:
+    """The package directory ``skill_manage`` would write for ``name`` — upstream's own
+    ``tools.skill_manager_tool._find_skill``, so the review's shared-skill gate
+    (``agent_runtime.review_skill_gate``) and the write it gates resolve one way. None when
+    nothing resolves (a create, or an unknown name)."""
+    from tools.skill_manager_tool import _find_skill
+
+    found = _find_skill(name)
+    return found["path"] if found else None
 
 
 def skills_walker():
