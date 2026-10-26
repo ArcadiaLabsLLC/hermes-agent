@@ -92,6 +92,8 @@ class SuggestionStore:
                 result["text"] = row["text"]
             if row["reason"]:
                 result["reason"] = row["reason"]
+            if row["usage"]:
+                result["usage"] = json.loads(row["usage"])
             return result
 
     def finish(self, key: str, *, text: str | None = None, reason: str | None = None, usage: dict | None = None):

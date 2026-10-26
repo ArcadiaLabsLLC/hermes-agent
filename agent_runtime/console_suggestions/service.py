@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 import json
 import logging
+import sqlite3
 from pathlib import Path
 from threading import Condition, Thread
 import time
@@ -23,6 +24,30 @@ logger = logging.getLogger(__name__)
 SETTINGS_PREFIX = "runtime.console_suggestions.settings"
 CHAT_PREFIX = "runtime.operator.conversation.suggestions"
 IDENTITY_KEYS = ("install_id", "workspace_id", "persona_id", "persona_instance_id", "session_id", "client_scope")
+
+
+def suggestion_failure_reason(exc):
+    """Classify public exception facts, never parse or return provider text."""
+    from agent.auxiliary_unavailable import AuxiliaryClientUnavailable
+    from httpx import TimeoutException
+
+    classifiers = {
+        SuggestionRefused: lambda error: error.reason,
+        AuxiliaryClientUnavailable: lambda error: "auth",
+        sqlite3.Error: lambda error: "storage",
+    }
+    for kind, classify in classifiers.items():
+        if isinstance(exc, kind):
+            return classify(exc)
+    reason = {401: "auth", 403: "auth", 429: "rate_limit"}.get(getattr(exc, "status_code", None))
+    if reason:
+        return reason
+    cause = exc
+    for _ in range(4):
+        if isinstance(cause, (TimeoutError, TimeoutException)):
+            return "timeout"
+        cause = getattr(cause, "__cause__", None)
+    return "provider"
 
 
 @dataclass
@@ -299,9 +324,7 @@ class ConsoleSuggestions:
             if valid:
                 self._publish(subject, {**base, **self.store.read(attempt)})
         except Exception as exc:  # health: allow BLE001 -- provider SDK boundary; log only class/reason, never provider credentials or prompts
-            reason = "timeout" if isinstance(exc, TimeoutError) else "provider"
-            if isinstance(exc, SuggestionRefused):
-                reason = exc.reason
+            reason = suggestion_failure_reason(exc)
             logger.info("console_suggestion_failed reason=%s class=%s", reason, type(exc).__name__)
             if owned:
                 try:

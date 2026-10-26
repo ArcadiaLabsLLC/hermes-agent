@@ -117,7 +117,7 @@ class LivenessPump:
 
     def _liveness_pump(self) -> None:
         while not self.liveness_stop.wait(self.liveness_pump_interval_seconds):
-            if self._suggestions is not None:
+            if getattr(self, "_suggestions", None) is not None:
                 self._suggestions.settings_read()
             with self.inflight_lock:
                 pending = list(self.inflight.values())

@@ -11,7 +11,7 @@ from .registry import method
 __layer__ = "lanes"
 
 
-def _answer(operation, rid, params, context):
+def _suggestion_answer(operation, rid, params, context):
     if context is None or context.console_suggestions is None:
         return err(rid, 4090, "Suggestions unavailable", {"reason": "service_unavailable"})
     try:
@@ -26,7 +26,8 @@ def _answer(operation, rid, params, context):
         return ok(rid, {**{key: value for key, value in result.items() if key != "attempt_key"},
                         **({"install_id": params["install_id"]} if "install_id" in params else {})})
     except (SuggestionRefused, OperatorConversationRefused) as exc:
-        return err(rid, 4090, "Suggestion request refused", {"reason": exc.reason})
+        invalid = exc.reason.startswith("invalid_") or exc.reason in {"changes_required", "conversation_identity_required"}
+        return err(rid, -32602 if invalid else 4090, "Suggestion request refused", {"reason": exc.reason})
     except Exception as exc:  # health: allow BLE001 -- RPC boundary returns a typed sanitized failure, never config or provider exception text
         return err(rid, -32000, "Suggestion request unavailable", {"reason": "service_unavailable", "error_class": type(exc).__name__})
 
@@ -53,7 +54,7 @@ _OPERATIONS = {
 def _dispatch(operation, rid, params, context=None):
     prefix, verb = operation.split(".")
     name = (SETTINGS_PREFIX if prefix == "settings" else CHAT_PREFIX) + "." + verb
-    return defer_or_inline(rid, name, context, partial(_answer, operation, rid, params, context))
+    return defer_or_inline(rid, name, context, partial(_suggestion_answer, operation, rid, params, context))
 
 
 for _operation in _OPERATIONS:

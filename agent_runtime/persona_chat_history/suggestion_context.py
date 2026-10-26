@@ -5,7 +5,7 @@ membership fences that evidence after rewinds; no shadow transcript is written.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone, UTC
+from datetime import datetime, UTC
 import hashlib
 import json
 import time
@@ -16,7 +16,7 @@ from agent_runtime.operator_session_inspection import operator_session_read, ins
 from agent_runtime.persona_chat_continuity.clarify_tickets import PersonaChatClarifyTicketStore
 from .operator_envelopes import strip_operator_envelopes
 from .text import _curate_chat_message_text
-from .vocabulary import logical_persona_chat_client_message_id
+from .vocabulary import logical_persona_chat_client_message_id, MessageRole
 from agent.redact import redact_for_egress
 from agent_runtime.relay_policy import parse_relay_sender_marker, parse_harness_delivery_marker, parse_lens_episode_marker
 
@@ -61,7 +61,8 @@ def suggestion_context(params: dict, window: int, *, now: float | None = None) -
         if not visible:
             return {"identity": identity, "reason": "context_unavailable"}
         latest = visible[-1]
-        native_users = [row for row in raw if row.get("role") in {"user", "operator"}]
+        operator_roles = {MessageRole.OPERATOR: True}
+        native_users = [row for row in raw if operator_roles.get(MessageRole.from_wire(row.get("role")), False)]
         if not native_users or _logical(native_users[-1]) != latest["client_message_id"]:
             return {"identity": identity, "reason": "source_ineligible"}
         if (latest["state"] != TURN_STATE_PROJECTED or not latest.get("projection_committed")

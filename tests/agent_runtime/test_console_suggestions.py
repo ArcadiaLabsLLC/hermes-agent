@@ -180,6 +180,37 @@ def test_completed_source_generates_once_and_read_rechecks_revision(service):
     assert svc.read(subject())["state"] == "none"
 
 
+@pytest.mark.parametrize("status,reason", [(401, "auth"), (403, "auth"), (429, "rate_limit"), (500, "provider")])
+def test_failures_are_sanitized_dismissible_and_not_retried(service, status, reason):
+    svc, _ = service
+    enable(svc)
+    observed(svc, subject())
+    calls = []
+    def fail(messages):
+        calls.append(True)
+        error = RuntimeError("private credential must never escape")
+        error.status_code = status
+        raise error
+    svc.generator = fail
+    svc._work(subject())
+    entry = svc.read(subject())
+    assert entry["state"] == "unavailable" and entry["reason"] == reason
+    assert "private credential" not in str(entry) and "text" not in entry
+    svc._work(subject())
+    assert len(calls) == 1
+    svc.dismiss(subject(), {"entry_id": entry["entry_id"], "expected_revision": entry["entry_revision"]})
+    assert svc.read(subject())["state"] == "none"
+
+
+def test_actual_route_and_usage_are_reported_separately(service):
+    svc, _ = service
+    enable(svc)
+    observed(svc, subject())
+    svc.generator = lambda messages: {"text": "好", "provider": "custom", "model": "actual", "usage": {"total_tokens": 13}}
+    svc._work(subject())
+    assert svc.read(subject())["usage"] == {"provider": "custom", "model": "actual", "total_tokens": 13}
+
+
 def test_disable_during_call_discards_result_and_keeps_attempt_receipt(service):
     svc, _ = service
     enable(svc)

@@ -411,7 +411,7 @@ class SubscriptionLanes:
         )
 
         _office_subs.release(key)
-        if self._suggestions is not None:
+        if getattr(self, "_suggestions", None) is not None:
             self._suggestions.release(None if connection is None else connection.key)
         # S2d's lane is namespaced away from both of the above for the same
         # reason the office lane is, so a departing connection would

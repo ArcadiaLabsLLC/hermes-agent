@@ -122,19 +122,25 @@ class SuggestionSettings:
 
     @staticmethod
     def _validate(changes: dict) -> None:
-        for key, value in changes.items():
-            if key == "enabled" and type(value) is not bool:
-                raise SuggestionRefused("invalid_enabled")
-            if key == "max_context_messages" and (type(value) is not int or not 2 <= value <= 10):
-                raise SuggestionRefused("invalid_context_window")
-            if key == "cooldown_seconds" and (type(value) is not int or value < 0):
-                raise SuggestionRefused("invalid_cooldown")
-            if key == "auxiliary_override" and value is not None:
-                if (not isinstance(value, dict) or not value or set(value) - ROUTE_FIELDS
-                        or any(not isinstance(item, str) or not item.strip() or len(item) > 2048 for item in value.values())):
-                    raise SuggestionRefused("invalid_auxiliary_override")
-                if value.get("base_url") and not value["base_url"].startswith(("http://", "https://")):
-                    raise SuggestionRefused("invalid_auxiliary_override")
-                endpoint = urlsplit(value.get("base_url", ""))
-                if endpoint.username or endpoint.password or endpoint.query or endpoint.fragment:
-                    raise SuggestionRefused("invalid_auxiliary_override")
+        validators = {
+            "enabled": (lambda value: type(value) is bool, "invalid_enabled"),
+            "max_context_messages": (lambda value: type(value) is int and 2 <= value <= 10, "invalid_context_window"),
+            "cooldown_seconds": (lambda value: type(value) is int and value >= 0, "invalid_cooldown"),
+        }
+        for key, (validate, reason) in validators.items():
+            if key in changes and not validate(changes[key]):
+                raise SuggestionRefused(reason)
+        _validate_suggestion_route(changes.get("auxiliary_override"))
+
+
+def _validate_suggestion_route(value):
+    if value is None:
+        return
+    if (not isinstance(value, dict) or not value or set(value) - ROUTE_FIELDS
+            or any(not isinstance(item, str) or not item.strip() or len(item) > 2048 for item in value.values())):
+        raise SuggestionRefused("invalid_auxiliary_override")
+    if value.get("base_url") and not value["base_url"].startswith(("http://", "https://")):
+        raise SuggestionRefused("invalid_auxiliary_override")
+    endpoint = urlsplit(value.get("base_url", ""))
+    if endpoint.username or endpoint.password or endpoint.query or endpoint.fragment:
+        raise SuggestionRefused("invalid_auxiliary_override")

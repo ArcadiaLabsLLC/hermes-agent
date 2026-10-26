@@ -77,6 +77,8 @@ def test_rpc_manifest_off_gate_identity_and_settings_cas(native):
         result = call(prefix + ".get", target)
         assert "result" in result, result
         settings = result["result"]
+        invalid = call(prefix + ".set", {**target, "expected_revision": settings["settings_revision"], "cooldown_seconds": -1})
+        assert invalid["error"]["code"] == -32602
         assert settings["enabled"] is False and settings["install_id"] == target["install_id"]
         disabled = call("runtime.operator.conversation.suggestions.read", target)
         assert disabled["result"]["state"] == "disabled"
