@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-26 (launcher lane w1025b-mc)
+
+- **`RT-TURN-ELEMENT-TIMESTAMPS` — a settled turn's `turn_elements` carry no per-element time, so the launcher's history rows for a turn all show the agent message's one timestamp (launcher `MC-CHAT-SEGMENT-TIME-IS-TURN-START` fixed only the live overlay); stamp each element's settle time (`settled_at`) in the turn record — launcher consumer `_turnElementToChatMessage` in the agent console history policy** · `agent_runtime/mission_chat_turns/storage.py` · READY 2026-10-26
+
 ### Filed on arrival — 2026-10-26 (lane w1025b-hlive, live sitting)
 
 - **`RT-LENS-READ-PERSONA-HOME` — `lens_read` (and `lens_propose`) open the Lens store under the TURN's profile home, not the serve's: `LensStore()` defaults to `get_hermes_home()/lens/lens.sqlite3`, so a qa turn read (and created) an empty `profiles/launcher-qa/lens/lens.sqlite3` and answered `monitor_not_found` for `w1025a_proof`, which `runtime.lens.latest` reads fine from `profiles/base/lens`; a `lens_propose` draft would land in a store the poller and Mission Control never read. Resolve the store from the runtime root's head home (the serve's), one helper both tools and the poller share** · fork / runtime · `agent_runtime/lens/store.py::default_path`, `agent_runtime/lens/tool.py::read_lens` · evidence: live 2026-10-26 02:03–02:04, turn `w1025b-hlive-L4` (`docs/agent-runtime-harness/planned/live-sitting-results-2026-10-25.md` § 2026-10-26) · READY 2026-10-26
