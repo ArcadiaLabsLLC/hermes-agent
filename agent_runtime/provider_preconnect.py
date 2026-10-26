@@ -129,18 +129,29 @@ def note_process_request_sent() -> None:
 #: API modes whose turn sends on ``agent._create_request_openai_client``'s cached client.
 REQUEST_CLIENT_API_MODES = frozenset({"codex_responses", "chat_completions"})
 
+#: The API mode whose turn sends on ``agent._create_request_anthropic_client``'s cached client.
+ANTHROPIC_API_MODE = "anthropic_messages"
+
 
 def _turn_client(agent: Any) -> Any:
     """The provider client the turn's request will go through.
 
-    For :data:`REQUEST_CLIENT_API_MODES`, the per-request client, built here and
+    For :data:`REQUEST_CLIENT_API_MODES` and :data:`ANTHROPIC_API_MODE`, the per-request client, built here and
     released with a reuse reason so the turn's checkout finds it cached; any
     failure falls back to the primary ``agent.client``.
     """
 
-    create = getattr(agent, "_create_request_openai_client", None)
-    release = getattr(agent, "_close_request_openai_client", None)
-    if str(getattr(agent, "api_mode", "") or "") in REQUEST_CLIENT_API_MODES and callable(create) and callable(release):
+    api_mode = str(getattr(agent, "api_mode", "") or "")
+    if api_mode == ANTHROPIC_API_MODE:
+        # RT-ANTHROPIC-CONN-PER-TURN: the anthropic turn sends on the request
+        # client ``_create_request_anthropic_client`` caches, which now rides
+        # the keep-alive pool (``agent_runtime.anthropic_keepalive``).
+        create = getattr(agent, "_create_request_anthropic_client", None)
+        release = getattr(agent, "_close_request_anthropic_client", None)
+    else:
+        create = getattr(agent, "_create_request_openai_client", None)
+        release = getattr(agent, "_close_request_openai_client", None)
+    if (api_mode in REQUEST_CLIENT_API_MODES or api_mode == ANTHROPIC_API_MODE) and callable(create) and callable(release):
         try:
             client = create(reason="prewarm_preconnect")
             release(client, reason="request_complete")
@@ -433,6 +444,7 @@ def refresh_idle_connection(agent: Any) -> str:
 
 
 __all__ = [
+    "ANTHROPIC_API_MODE",
     "IDENTITY_HEADERS",
     "IDLE_KEEPWARM_RECEIPT",
     "KEEPWARM_INTERVAL_SECONDS",

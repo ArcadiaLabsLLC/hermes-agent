@@ -533,6 +533,8 @@ class ClientLifecycleMixin:
         if stale is not None:
             self._close_request_anthropic_client(stale, reason=f"reuse_evict:{reason}")
         client = self._build_anthropic_client_for_key(key)
+        from agent_runtime.anthropic_keepalive import adopt_keepalive_http_client  # fork seam: keep-alive pool
+        adopt_keepalive_http_client(client, key)  # fork seam: RT-ANTHROPIC-CONN-PER-TURN
         logger.debug("Anthropic request client created (%s, shared=False) %s", reason, self._anthropic_log_context())
         self._store_request_slot(_ANTHROPIC_SLOT, client, key)
         from agent_runtime.transport_phase_trace import install_transport_phase_trace  # fork seam: turn stamps
