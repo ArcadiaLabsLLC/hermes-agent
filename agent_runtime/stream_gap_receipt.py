@@ -60,7 +60,7 @@ import time
 from collections import Counter
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterator
+from typing import Any, Callable, Iterator, NamedTuple
 
 from agent_runtime.send_window_receipt import SendWindow
 
@@ -105,37 +105,54 @@ def _field(obj: Any, name: str) -> Any:
     return value
 
 
-def _event_role(event: Any) -> tuple[str, str | None, str]:
-    """``(kind, role, delta_text)`` for one parsed event of either wire.
+class _EventRole(NamedTuple):
+    """One parsed event, read: the kind counted in ``kinds=``, its role
+    (``text`` / ``args`` / ``reasoning`` / ``terminal`` / ``None``), the text it
+    carries, and where its usage lives (``None``: nowhere; ``""``: the event;
+    else that attribute)."""
 
-    ``role`` is ``text`` (reply text), ``args`` (a tool call's arguments),
-    ``reasoning`` (a reasoning summary or an anthropic thinking delta),
-    ``terminal`` or ``None``. The kind counted in ``kinds=`` keeps the delta's
-    own type on the anthropic wire (``content_block_delta.text_delta``), where
-    the event type alone would fold every delta into one bucket.
+    kind: str
+    role: str | None
+    value: str
+    usage_from: str | None
+
+
+#: ``type`` -> ``(role, text field, usage source)``, both wires' top-level events.
+_EVENT_ROLES: dict[str, tuple[str | None, str | None, str | None]] = {
+    TEXT_DELTA_TYPE: ("text", "delta", None),
+    FUNCTION_ARGS_DELTA_TYPE: ("args", None, None),
+    REASONING_SUMMARY_DELTA_TYPE: ("reasoning", "delta", None),
+    **{terminal: ("terminal", None, "response") for terminal in TERMINAL_TYPES},
+    ANTHROPIC_TERMINAL_TYPE: ("terminal", None, None),
+    ANTHROPIC_USAGE_TYPE: (None, None, ""),
+}
+
+#: The anthropic ``content_block_delta``'s ``delta.type`` -> ``(role, text field)``.
+_ANTHROPIC_DELTA_ROLES: dict[str, tuple[str | None, str | None]] = {
+    "text_delta": ("text", "text"),
+    "input_json_delta": ("args", None),
+    "thinking_delta": ("reasoning", "thinking"),
+}
+
+
+def _event_role(event: Any) -> _EventRole:
+    """Read one parsed event of either wire through the two tables above.
+
+    The anthropic wire types its deltas on ``event.delta.type``, so its kind
+    keeps that type (``content_block_delta.text_delta``) — the event type alone
+    would fold every delta into one bucket.
     """
 
     kind = str(_field(event, "type") or "?")
-    if kind == TEXT_DELTA_TYPE:
-        return kind, "text", str(_field(event, "delta") or "")
-    if kind == FUNCTION_ARGS_DELTA_TYPE:
-        return kind, "args", ""
-    if kind == REASONING_SUMMARY_DELTA_TYPE:
-        return kind, "reasoning", str(_field(event, "delta") or "")
-    if kind in TERMINAL_TYPES or kind == ANTHROPIC_TERMINAL_TYPE:
-        return kind, "terminal", ""
+    role, text_field, usage_from = _EVENT_ROLES.get(kind, (None, None, None))
+    source = event
     if kind == ANTHROPIC_DELTA_TYPE:
-        delta = _field(event, "delta")
-        delta_type = str(_field(delta, "type") or "?") if delta is not None else "?"
-        named = f"{kind}.{delta_type}"
-        if delta_type == "text_delta":
-            return named, "text", str(_field(delta, "text") or "")
-        if delta_type == "input_json_delta":
-            return named, "args", ""
-        if delta_type == "thinking_delta":
-            return named, "reasoning", str(_field(delta, "thinking") or "")
-        return named, None, ""
-    return kind, None, ""
+        source = _field(event, "delta")
+        delta_type = str(_field(source, "type") or "?") if source is not None else "?"
+        kind = f"{kind}.{delta_type}"
+        role, text_field = _ANTHROPIC_DELTA_ROLES.get(delta_type, (None, None))
+    value = str(_field(source, text_field) or "") if text_field and source is not None else ""
+    return _EventRole(kind, role, value, usage_from)
 
 
 class _StallProbe:
@@ -222,18 +239,20 @@ class StreamGapReceipt:
     # -- parse side --------------------------------------------------------
     def on_event(self, event: Any) -> None:
         now = self.clock()
-        kind, role, delta_text = _event_role(event)
-        text = role == "text" and bool(delta_text)
-        if role == "reasoning":
-            self.reasoning_summary_chars += len(delta_text)
-        if self.reply_at is None and self.first_event_at is not None and (role == "args" or text):
+        read = _event_role(event)
+        kind = read.kind
+        is_text, is_args, is_reasoning, is_terminal = (
+            read.role == role for role in ("text", "args", "reasoning", "terminal")
+        )
+        text = is_text and bool(read.value)
+        if is_reasoning:
+            self.reasoning_summary_chars += len(read.value)
+        if self.reply_at is None and self.first_event_at is not None and (is_args or text):
             self.reply_at = now
-        if kind == ANTHROPIC_USAGE_TYPE:
-            self._read_usage(event)
-        if role == "terminal":
+        if read.usage_from is not None:
+            self._read_usage(_field(event, read.usage_from) if read.usage_from else event)
+        if is_terminal:
             self.terminal_at = now
-            if kind != ANTHROPIC_TERMINAL_TYPE:
-                self._read_usage(_field(event, "response"))
         if self.text_at is not None:
             return
         lag_ms = None if self.last_chunk_at is None else max(0.0, (now - self.last_chunk_at) * 1000.0)
@@ -578,7 +597,7 @@ def observe_stream_event(agent: Any, event: Any) -> None:
         if send is not None and send.first_event_at is not None and not send.logged:
             send.finish(request_id=getattr(agent, "_current_api_request_id", None),
                         model=getattr(agent, "model", None))
-        if _event_role(event)[1] == "terminal":
+        if _event_role(event).role == "terminal":
             tally = getattr(agent, _TURN_ATTR, None)
             if isinstance(tally, TurnReasoning) and not receipt.logged:
                 tally.fold(receipt)
