@@ -396,6 +396,18 @@ def migrate_legacy_persona_toolsets() -> None:
         logging.getLogger(__name__).warning("persona toolsets legacy-key migration failed", exc_info=True)
 
 
+def retire_legacy_harness_blocks() -> None:
+    """RT-RETIRE-LEGACY-TOP-LEVEL (old schema: delete and report): the top-level
+    ``remote_gateway.*`` / ``charsheet.*`` keys move under the plugin's settings and are
+    deleted from the root and every profile ``config.yaml`` (idempotent, every start)."""
+    try:
+        from agent_runtime.harness_settings_legacy import retire_legacy_harness_blocks as retire
+
+        retire()
+    except Exception:  # a failed migration must not take plugin load down
+        logging.getLogger(__name__).warning("harness legacy-key retirement failed", exc_info=True)
+
+
 def migrate_legacy_office_schema() -> None:
     """Owner rule 2026-09-18 (old schema: delete and report): the one-shot office
     cleanups in ``agent_runtime.office_legacy_migration.STEPS``, once per store."""
@@ -438,6 +450,7 @@ def register(ctx) -> None:
     if not _worker_config_frozen():  # the three read and rewrite profile config.yaml files
         migrate_retired_local_llama_id()
         migrate_legacy_persona_toolsets()
+        retire_legacy_harness_blocks()
         seed_persona_profile_defaults()
     migrate_legacy_office_schema()  # a store migration, not a config.yaml rewrite
     from agent_runtime.harness_toolset import ensure_harness_core

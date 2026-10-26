@@ -92,7 +92,8 @@ def strip_legacy_persona_toolsets(store_root: Path) -> dict[str, Any]:
     }
 
 
-def _config_paths(hermes_root: Path) -> list[Path]:
+def hermes_config_files(hermes_root: Path) -> list[Path]:
+    """The root ``config.yaml`` and every ``profiles/<name>/config.yaml`` that exists."""
     root = Path(hermes_root)
     paths = [root / "config.yaml"]
     profiles = root / "profiles"
@@ -130,7 +131,7 @@ def strip_legacy_persona_toolsets_from_configs(hermes_root: Path | None = None) 
     root = Path(hermes_root) if hermes_root is not None else get_default_hermes_root()
     stripped: list[dict[str, str]] = []
     errors: list[dict[str, str]] = []
-    for path in _config_paths(root):
+    for path in hermes_config_files(root):
         try:
             persona_ids = _persona_ids_carrying_key(path)
             for persona_id in persona_ids:

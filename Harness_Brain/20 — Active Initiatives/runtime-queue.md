@@ -497,7 +497,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-24 (lane MOVE-A)
 
-- **`RT-RETIRE-LEGACY-TOP-LEVEL` — Retire the legacy top-level `remote_gateway.*` / `charsheet.*` read once the launcher writes `plugins.entries.eternia-harness.settings.remote_gateway_listen` / `remote_gateway_port`: empty `LEGACY_KEYS` and delete-and-report the old blocks at one chokepoint** · fork / config · `agent_runtime/harness_settings.py::LEGACY_KEYS` · blocked on the launcher row "Harness config keys move under the plugin manifest" (`mission-control-queue.md`) · filed by lane h-doors 2026-10-03 · launcher writes the new path since 290449df44 (lane mc-doors); retire only once the owner's installed launcher is at or after that commit, or an older launcher's LAN toggle silently stops working · RULED 2026-10-15 owner (decision sheet w1015i #4): check the BUILD line; if it is that build or newer, say go · RULED 2026-10-25: owner — an agent runs this sitting on this PC · LIVE 2026-10-25: the installed Launcher is a debug build of the primary checkout after 290449df44 — go (`docs/agent-runtime-harness/planned/live-sitting-results-2026-10-25.md`) · READY 2026-10-25 · **TAKEN 2026-10-25 w1025b-h-misc**
 
 ### Filed on arrival — 2026-09-24 (seam lane S2)
 

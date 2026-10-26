@@ -89,7 +89,7 @@ def test_the_providers_own_failure_still_reaches_the_caller(monkeypatch):
 
 
 def test_a_non_positive_budget_runs_the_call_inline_on_this_thread(monkeypatch):
-    """`charsheet.provider_timeout_seconds: 0` restores the old behaviour exactly."""
+    """`charsheet_provider_timeout_seconds: 0` restores the old behaviour exactly."""
 
     caller = threading.get_ident()
     ran_on: list[int] = []
@@ -126,13 +126,17 @@ def test_an_empty_answer_is_still_the_no_image_refusal_it_always_was(monkeypatch
         )
 
 
+def _deadline_config(value):
+    return {"plugins": {"entries": {"eternia-harness": {"settings": {"charsheet_provider_timeout_seconds": value}}}}}
+
+
 def test_the_deadline_is_read_from_config_yaml_and_falls_back_to_the_default(monkeypatch):
     """`config.yaml`, never an env var — timeouts are behavioural settings."""
 
     import hermes_cli.config as config_module
 
     monkeypatch.setattr(
-        config_module, "load_config_readonly", lambda: {"charsheet": {"provider_timeout_seconds": 42}}
+        config_module, "load_config_readonly", lambda: _deadline_config(42)
     )
     assert pipeline.provider_timeout_seconds() == 42.0
 
@@ -141,7 +145,7 @@ def test_the_deadline_is_read_from_config_yaml_and_falls_back_to_the_default(mon
     monkeypatch.setattr(config_module, "load_config_readonly", dict)
     assert pipeline.provider_timeout_seconds() == pipeline.PROVIDER_TIMEOUT_SECONDS
     monkeypatch.setattr(
-        config_module, "load_config_readonly", lambda: {"charsheet": {"provider_timeout_seconds": "soon"}}
+        config_module, "load_config_readonly", lambda: _deadline_config("soon")
     )
     assert pipeline.provider_timeout_seconds() == pipeline.PROVIDER_TIMEOUT_SECONDS
     monkeypatch.setattr(
