@@ -45,6 +45,8 @@ import logging
 import threading
 from typing import Any
 
+from agent_runtime.process_state import register_process_state
+
 __layer__ = "policy"
 
 logger = logging.getLogger(__name__)
@@ -112,6 +114,14 @@ def _poolable_key(key: Any) -> bool:
 _TEMPLATES: dict[tuple, Any] = {}
 _TEMPLATES_LOCK = threading.Lock()
 _MAX_TEMPLATES = 8
+
+
+def _reset_templates() -> None:
+    with _TEMPLATES_LOCK:
+        _TEMPLATES.clear()
+
+
+register_process_state("agent_runtime.anthropic_keepalive", _reset_templates, holds=("_TEMPLATES",))
 
 
 def _copy_onto_pool(source: Any, key: tuple) -> Any | None:
