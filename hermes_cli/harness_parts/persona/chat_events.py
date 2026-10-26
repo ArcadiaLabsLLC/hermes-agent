@@ -253,6 +253,10 @@ def _mission_chat_emit(args, data, plain=None, *, stream=None) -> None:
     if callable(sink):
         sink(data)
         return
+    # The serve's settle reads the payload itself, not a reprint of it (RT-SETTLE-CLI-SEND-NO-SESSION).
+    from agent_runtime.chat_turn_settles import note_turn_payload
+
+    note_turn_payload(data)
     streaming = getattr(args, "stream", False) if stream is None else stream
     if streaming:
         _emit_chat_final(data)

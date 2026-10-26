@@ -17,6 +17,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timedelta, timezone, UTC
 from enum import StrEnum
@@ -156,6 +159,36 @@ def settle_id_for(session_id: str | None, client_message_id: str) -> str:
 
     raw = f"{session_id or ''}\x00{client_message_id}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+#: The turn's own terminal payload, handed over by the mission-chat handler WHATEVER its output
+#: mode (RT-SETTLE-CLI-SEND-NO-SESSION). A CLI send without ``--json`` prints the plain reply, so
+#: the stdout tail held no JSON line and the settle recorded ``turn_id: null`` (and, for a
+#: ``--new-session`` send, ``session_id: null``: the minted root lives only in the payload). The
+#: serve binds a box around each chat-turn request (:func:`capture_turn_payload`); the handler's
+#: emit site drops the payload into it (:func:`note_turn_payload`); the settle reads the box first
+#: and the stdout tail only when the box is empty.
+_TURN_PAYLOAD: ContextVar[list[dict[str, Any]] | None] = ContextVar("chat_turn_settle_payload", default=None)
+
+
+@contextmanager
+def capture_turn_payload() -> Iterator[list[dict[str, Any]]]:
+    """Collect the terminal payload of the chat turn run in this context (the last one wins)."""
+
+    box: list[dict[str, Any]] = []
+    token = _TURN_PAYLOAD.set(box)
+    try:
+        yield box
+    finally:
+        _TURN_PAYLOAD.reset(token)
+
+
+def note_turn_payload(data: Any) -> None:
+    """Hand the turn's terminal payload to a bound capture; no-op when none is bound."""
+
+    box = _TURN_PAYLOAD.get()
+    if box is not None and isinstance(data, dict):
+        box[:] = [dict(data)]
 
 
 def outcome_from_result_lines(lines: Iterable[str]) -> TurnOutcome:

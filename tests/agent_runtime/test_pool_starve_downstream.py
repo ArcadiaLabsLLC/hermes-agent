@@ -198,7 +198,7 @@ def _session(dispatch, pool):
         stderr_proxy=SimpleNamespace(flush_request=lambda rid: None),
         # The settle push records a chat turn's settle in ``_reply_exit``; this
         # fake's subject is the pool, so the record is a no-op here.
-        _record_turn_settle=lambda request, lines, code: None,
+        _record_turn_settle=lambda request, lines, code, **_kw: None,
         _owner_of=lambda connection: "stdio",
         _bind_launcher_link=lambda request, sink: None,
     )
