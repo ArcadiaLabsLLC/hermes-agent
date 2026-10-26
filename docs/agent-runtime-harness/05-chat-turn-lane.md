@@ -1271,6 +1271,11 @@ operator's text.
 
 ## Open rows
 
+- [Optional Console follow-up suggestions](planned/console-next-prompt-2026-10-26.md)
+  audits next-prompt reuse after durable settlement, preserving persona ownership.
+  False-default global settings, scoped RPC and resource budgets are proposed,
+  not built; `RT-NEXT-PROMPT-DECISIONS` gates the runtime queue's five slices.
+
 - **New-chat first send settled REJECTED — OPEN, unreproduced.** 2026-08-22 02:00:47Z; the mint is
   acquitted, the explicit-`session_id` lane implicated, and `[MissionChatOutcome]` (§10) stands
   guard for the next occurrence → [record](planned/new-chat-first-send-rejected.md).
