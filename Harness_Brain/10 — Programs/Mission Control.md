@@ -12,10 +12,11 @@ tags: [program/mission-control, program]
 
 `next_prompt_cursor::` 2026-10-26 — Planning only: [next-prompt reuse audit and
 cross-repo plan](../../docs/agent-runtime-harness/planned/console-next-prompt-2026-10-26.md)
-now preserves contextual free-form suggestions and existing auxiliary routing
-with an optional override. Global Settings > Eternia Harness stays off by default;
-persona authority is preserved. Five runtime rows start at
-`RT-NEXT-PROMPT-DECISIONS`; design revised, implementation still deferred.
+§1.2 records final parity/gap findings F1–F8: optional tuning, additive draft use,
+native actions, host timeouts, cleanup, scoped routing and durable attempt fences.
+Contextual free-form suggestions and existing auxiliary routing remain selected;
+global Settings > Eternia Harness stays off by default and personas are preserved.
+Five runtime rows start at `RT-NEXT-PROMPT-DECISIONS`; implementation is deferred.
 
 `history_review_cursor::` 2026-10-14 — Old Console history review reconciled
 against the landed owners; missing safety coverage and private-API seam record
