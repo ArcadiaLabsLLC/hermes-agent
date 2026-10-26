@@ -128,6 +128,7 @@ def format_dispatch_delivery(row: dict[str, Any]) -> str:
     if reply:
         lines.append("--- THEIR REPLY ---")
         lines.append(reply)
+    lines.extend(_clarify_lines(result.get("clarify_request"), target))
     if error:
         lines.append("--- ERROR ---")
         lines.append(error[:600])
@@ -159,6 +160,37 @@ def format_dispatch_delivery(row: dict[str, Any]) -> str:
             "asked for, what came back, and what you are doing about it."
         )
     return "\n".join(lines)
+
+
+def _clarify_lines(clarify: Any, target: str) -> list[str]:
+    """The teammate's structured question, the way a waited send returns it.
+
+    A waited ``agent_chat_send`` hands the asker ``clarify_request`` with its
+    ``clarify_token``; a background dispatch's delivery is the asker's only copy
+    (RT-DISPATCH-DELIVERY-DROPS-CLARIFY), so the token, the choices and how to
+    answer on it ride the block. No question → no lines.
+    """
+
+    if not isinstance(clarify, dict) or not clarify.get("question"):
+        return []
+    lines = ["", "--- THEY ASKED YOU A QUESTION (clarify) ---", str(clarify["question"])]
+    for choice in clarify.get("choices") or []:
+        lines.append(f"  - {choice}")
+    count = clarify.get("question_count")
+    if isinstance(count, int) and count > 1:
+        lines.append(f"({count} questions were asked; read their thread for the rest.)")
+    token = clarify.get("clarify_token")
+    if token:
+        lines.append(f"clarify_token: {token}")
+        lines.append(
+            f"Answer {target} with agent_chat_send, passing clarify_token={token} and your "
+            "answer as the message — the runtime puts it in the thread that asked."
+        )
+    else:
+        lines.append(
+            f"No clarify_token came back; answer {target} in their thread (the session_id above)."
+        )
+    return lines
 
 
 # --------------------------------------------------------------------------

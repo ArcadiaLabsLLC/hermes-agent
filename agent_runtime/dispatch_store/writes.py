@@ -127,6 +127,7 @@ def record_completion(
     visibility: dict[str, Any] | None = None,
     remote: dict[str, Any] | None = None,
     media: list[dict[str, Any]] | None = None,
+    clarify_request: dict[str, Any] | None = None,
     only_if_running: bool = False,
 ) -> bool:
     """Record the target turn's outcome and arm the row for delivery.
@@ -174,6 +175,14 @@ def record_completion(
     rather than by hoping a map is small: sixteen entries of absolute Windows
     paths plus 71-character handles is several kilobytes, and a store write
     whose event was refused for size is a write no consumer would ever see.
+
+    ``clarify_request`` (RT-DISPATCH-DELIVERY-DROPS-CLARIFY) is the target
+    turn's structured question — ``question``, ``choices`` and the
+    ``clarify_token`` this install minted for it — when the teammate called
+    ``clarify`` instead of answering. A waited send returns it on the tool
+    result; a background dispatch must carry it on the row, or the delivery
+    hands the asking agent the question as plain text with no token to answer
+    it on. Bounded by :func:`_bounded_clarify_request`; absent stays absent.
     """
 
     settled = str(state or STATE_UNKNOWN)
@@ -183,6 +192,9 @@ def record_completion(
     result = _completion_result(
         settled, reply, error, target_session_id, total_tokens, visibility, remote, media_rows
     )
+    clarify = _bounded_clarify_request(clarify_request)
+    if clarify:
+        result["clarify_request"] = clarify
     updated, prior = _completion_update(dispatch_id, settled, result, only_if_running=only_if_running)
     if updated:
         _completion_events(str(dispatch_id), prior, settled, result, remote, media_rows)
@@ -218,6 +230,42 @@ def _completion_result(
     if media_rows:
         result["media"] = media_rows
     return result
+
+
+#: Bounds on a stored clarify question: the row is read back into a delivery
+#: turn's prompt, so nothing on it may grow without limit.
+CLARIFY_QUESTION_LIMIT = 2000
+CLARIFY_CHOICE_LIMIT = 200
+CLARIFY_MAX_CHOICES = 12
+CLARIFY_TOKEN_LIMIT = 128
+
+
+def _bounded_clarify_request(raw: Any) -> dict[str, Any] | None:
+    """``{question, choices?, clarify_token?, question_count?}`` or ``None``.
+
+    The first question leads (the clarify capture's own ``question`` /
+    ``choices`` accessors read the same one); a multi-question ask keeps its
+    count so the delivery can say there were more.
+    """
+
+    if not isinstance(raw, dict):
+        return None
+    question = bounded_text(str(raw.get("question") or "").strip(), CLARIFY_QUESTION_LIMIT)
+    if not question:
+        return None
+    out: dict[str, Any] = {"question": question}
+    choices = raw.get("choices")
+    if isinstance(choices, list):
+        kept = [bounded_text(str(c), CLARIFY_CHOICE_LIMIT) for c in choices[:CLARIFY_MAX_CHOICES] if str(c).strip()]
+        if kept:
+            out["choices"] = kept
+    token = str(raw.get("clarify_token") or "").strip()
+    if token:
+        out["clarify_token"] = token[:CLARIFY_TOKEN_LIMIT]
+    questions = raw.get("questions")
+    if isinstance(questions, list) and len(questions) > 1:
+        out["question_count"] = len(questions)
+    return out
 
 
 def _completion_update(

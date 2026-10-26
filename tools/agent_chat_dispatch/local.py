@@ -478,6 +478,9 @@ def _settle_local(
         target_session_id=str(payload.get("session_id") or payload.get("chat_session_id") or ""),
         total_tokens=payload.get("total_tokens"),
         visibility=TurnVisibility.from_payload(payload).as_dict(),
+        # The teammate's clarify question and its token, or the delivery hands
+        # the asking agent a question it has no token to answer on.
+        clarify_request=payload.get("clarify_request"),
     )
 
 
