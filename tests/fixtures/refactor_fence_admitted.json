@@ -30,7 +30,7 @@
   "reason": "RT-NATIVE-CONVERSATION-RECOVERY MOVE A (design-sweep-d2 D2.09): moves the FORK's observe handler and turn-start gates out of the upstream compute host into agent_runtime/gateway; the crossing shrinks the fork's hunks there (ledger added 58 -> 36), it does not widen them"
  },
  {
-  "commit": "c3b6172ce6713f90ec470eb2bbacc99a8fec8bd6",
+  "commit": "b5885046489ba0ce0ab759e81a4c2156f2f0d924",
   "path": "agent/turn_api_request.py",
   "reason": "RT-REMOVE-H-TURN1-A5: deletes the eight fork-seam stamp lines, returning the file to upstream bytes (footprint 237 -> 236); no upstream line changes"
  }
