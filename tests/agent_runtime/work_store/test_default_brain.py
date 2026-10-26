@@ -15,7 +15,7 @@ from agent_runtime import paths, workspace_slots
 from agent_runtime.work_store import board, default_brain
 from agent_runtime.work_store.grammar import is_queue
 from agent_runtime.work_store.reasons import Reason, WorkRefused
-from agent_runtime.workspace_slots import load_document, machine_id
+from agent_runtime.workspace_slots import install_id, load_document
 from work_store_support import ISSUED, LATER, bind_here, checkout, declare_slots, slot_decl
 
 
@@ -43,14 +43,14 @@ def test_ensure_default_brain_inits_commits_and_records_a_machine_local_binding(
     assert made.read_root == root == made.checkout and made.brain_dir == "Work_Brain/20 — Active Initiatives"
     assert made.clone_url is None and made.default_branch == "main"
     assert _git(root, "log", "--format=%an <%ae>|%s").strip() == (
-        f"Eternia Harness <harness+{machine_id()}@eternia.local>|work: default brain for {workspace}")
+        f"Eternia Harness <harness+{install_id()}@eternia.local>|work: default brain for {workspace}")
     assert _git(root, "rev-parse", "--abbrev-ref", "HEAD").strip() == "main"
     assert _git(root, "remote").strip() == "" and _git(root, "status", "--porcelain") == ""
     assert "brain" not in (load_document(workspace).get("slots") or {})
     assert "brain" not in workspace_slots.show(workspace)["here"]
     record = json.loads(board.binding_path(workspace).read_text(encoding="utf-8"))
     assert record == {"slot": "brain", "path": str(root), "brain_dir": "Work_Brain/20 — Active Initiatives",
-                      "default_branch": "main", "created_at": ISSUED, "machine": machine_id(),
+                      "default_branch": "main", "created_at": ISSUED, "machine": install_id(),
                       "remote_url": None, "retired_into": None}
     assert [b.slot for b in board.boards(workspace)] == ["brain"]
     assert not board.needs_default_brain(board.boards(workspace))
@@ -114,14 +114,14 @@ def test_identity_pairs_are_hermes_own():
 def test_every_writer_refuses_an_unidentified_machine_through_this_machine(monkeypatch):
     """RT-MACHINE-ID-REFUSAL-WRAPPER: ``work.store.writer_for`` reads ``this_machine``, the one owner of the
     machine-id → ``WorkRefused(MACHINE_UNIDENTIFIED)`` wrapper. Killing mutation: re-inline the wrapper in
-    ``writer_for`` over ``workspace_slots.machine_id`` — this test goes red (the patched door is bypassed)."""
+    ``writer_for`` over ``workspace_slots.install_id`` (the commit identity is per namespace, RT-MACHINE-ID) — this test goes red (the patched door is bypassed)."""
 
     from agent_runtime.work import store as work_store
 
     def unidentified():
         raise workspace_slots.SlotRefused(workspace_slots.REASON_MACHINE_UNIDENTIFIED, "")
 
-    monkeypatch.setattr(default_brain, "machine_id", unidentified)
+    monkeypatch.setattr(default_brain, "install_id", unidentified)
     with pytest.raises(WorkRefused) as refused:
         work_store.writer_for(None)  # refused before the board is read
     assert refused.value.reason is Reason.MACHINE_UNIDENTIFIED
