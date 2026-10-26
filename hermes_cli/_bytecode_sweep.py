@@ -188,6 +188,24 @@ def _log_bytecode_sweep_outcome(
         int(max(0.0, _time.monotonic() - started) * 1000),
     )
 
+def _code_tree_unchanged(recorded: str, fingerprint: str) -> bool:
+    """Whether the two ``git:<ref>:<sha>`` fingerprints name commits with one
+    code tree (``agent_runtime.build_identity.code_tree_unchanged``). Asked only
+    after the fingerprint moved; any unanswerable side answers False, which is
+    the old sweep."""
+
+    try:
+        from hermes_cli.main import PROJECT_ROOT
+        from agent_runtime.build_identity import code_tree_unchanged
+
+        previous = recorded.rsplit(":", 1)[-1] if recorded.startswith("git:") else ""
+        current = fingerprint.rsplit(":", 1)[-1] if fingerprint.startswith("git:") else ""
+        return code_tree_unchanged(PROJECT_ROOT, previous, current)
+    except Exception as exc:
+        logger.debug("code-tree comparison skipped: %s", exc)
+        return False
+
+
 def _sweep_stale_bytecode_if_checkout_changed() -> None:
     """Clear ``__pycache__`` at launch when the checkout changed underneath us.
 
@@ -237,6 +255,18 @@ def _sweep_stale_bytecode_if_checkout_changed() -> None:
         except OSError:
             recorded = ""
         if recorded == fingerprint:
+            return
+        if _code_tree_unchanged(recorded, fingerprint):
+            # RT-VAULT-COMMIT-HOME-MAINTENANCE: the commit moved but no file a
+            # runtime loads did (a vault-, docs- or test-only commit — the
+            # serve's own code-tree rule). Restamp and keep the bytecode.
+            _record_bytecode_fingerprint()
+            logger.info(
+                "Checkout changed since last launch (%s -> %s): code tree unchanged, "
+                "bytecode kept",
+                recorded,
+                fingerprint,
+            )
             return
         # The fingerprint check is deliberately OUTSIDE the lock: it is two cheap
         # file reads, and on the overwhelmingly common path (nothing changed) it

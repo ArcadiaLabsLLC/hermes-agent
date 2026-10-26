@@ -110,6 +110,8 @@ __all__ = [
     "code_tree_digest",
     "code_tree_for",
     "code_tree_rule",
+    "code_tree_unchanged",
+    "is_commit_id",
     "is_runtime_path",
     "parse_ls_tree_z",
     "parse_tree_list",
@@ -316,3 +318,32 @@ def code_tree_for(root: Path | str, head: str = "HEAD") -> CodeTree:
         reason="",
         entry_count=len(kept),
     )
+
+
+#: A commit id this module will hand to ``git ls-tree`` as a revision: hex only,
+#: so a recorded value can never be read by git as an option.
+_COMMIT_ID_CHARS = frozenset("0123456789abcdef")
+
+
+def is_commit_id(value: Any) -> bool:
+    text = str(value or "").strip().lower()
+    return 7 <= len(text) <= 64 and set(text) <= _COMMIT_ID_CHARS
+
+
+def code_tree_unchanged(root: Path | str, previous: Any, current: Any) -> bool:
+    """Do commits *previous* and *current* of the checkout at *root* load the same code?
+
+    True only when both code trees resolve and are equal — the serve's own
+    rule (:func:`code_tree_for`), so a vault- or docs-only commit answers True.
+    Any unanswerable side (not a commit id, git missing, an unknown commit)
+    answers False, which keeps every caller on its old commit-keyed path.
+    Costs two ``git ls-tree`` runs; callers ask only after the COMMIT moved.
+    """
+
+    if not is_commit_id(previous) or not is_commit_id(current):
+        return False
+    before = code_tree_for(root, str(previous).strip())
+    if before.code_tree is None:
+        return False
+    after = code_tree_for(root, str(current).strip())
+    return after.code_tree == before.code_tree
