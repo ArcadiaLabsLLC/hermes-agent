@@ -119,7 +119,8 @@ def test_every_source_entry_is_copied_skipped_with_a_reason_or_borrowed(base: Pa
     instances = [row["path"] for row in [*out["instances"]["carried"], *out["instances"]["skipped"]]]
     assert instances == ["agent-runtime/persona_instances/personainst_neko.json"]  # "{}" is no record: skipped
     tops = {rel.split("/")[0] for rel in [*out["copied"], *skipped, *out["borrowed"]]}
-    assert tops == {p.name for p in base.iterdir()}
+    # SEEDED_INTO.json is written by this seed, after its plan (RT-BASE-ROOT-STALE-AFTER-SEED).
+    assert tops == {p.name for p in base.iterdir()} - {"SEEDED_INTO.json"}
     sections = {"profiles": base / "profiles", "agent-runtime": base / "agent-runtime", "shared": base / "shared"}
     for name, folder in sections.items():
         named = {rel.split("/")[1] for rel in [*out["copied"], *skipped, *instances] if rel.startswith(f"{name}/")}
@@ -271,3 +272,26 @@ def test_the_cli_prints_json_and_exits_2_on_a_refusal(base: Path):
     assert [row["id"] for row in listed["namespaces"]] == [QA]
     refused = run("delete", "base")
     assert refused.returncode == 2 and json.loads(refused.stdout)["reason"] == "namespace_reserved"
+
+
+def test_a_seed_from_base_marks_the_base_root_as_seeded_into_the_namespace(base: Path):
+    """RT-BASE-ROOT-STALE-AFTER-SEED: the base root's copies read as moved, naming where the data went."""
+    from agent_runtime.namespace_seed import superseded
+
+    env = _env(base)
+    seeding.seed(ACCT, "base", env)
+    marker = superseded.read_marker(base)
+    assert [row["namespace"] for row in marker["seeded_into"]] == [ACCT]
+    assert "agent-runtime" in marker["seeded_into"][0]["copied_top_level"]
+    assert admin.list_namespaces(env)["base_root_marked_seeded_into"] == []  # already recorded: a no-op
+
+
+def test_list_backfills_the_marker_for_a_seed_that_predates_it(base: Path):
+    from agent_runtime.namespace_seed import superseded
+
+    env = _env(base)
+    seeding.seed(ACCT, "base", env)
+    superseded.marker_path(base).unlink()
+    assert admin.list_namespaces(env)["base_root_marked_seeded_into"] == [ACCT]
+    assert admin.list_namespaces(env)["base_root_marked_seeded_into"] == []
+    assert [row["namespace"] for row in superseded.read_marker(base)["seeded_into"]] == [ACCT]

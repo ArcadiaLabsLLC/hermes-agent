@@ -295,10 +295,16 @@ def seed(target_id: str, source: str, env: Mapping[str, str], *, dry_run: bool =
             _copy(src, dst)
         write_instances(plan.instances)
     result = plan.payload()
+    seeded_at = _now()
     _write_manifest(item, restamped({
-        **manifest, "seeded_from": source, "seeded_at": _now(), "seeded": result["copied"],
+        **manifest, "seeded_from": source, "seeded_at": seeded_at, "seeded": result["copied"],
         "skipped": result["skipped"], "instances": [row["id"] for row in result["instances"]["carried"]],
         "with_memories": with_memories}))
+    if source == BASE_ID:  # RT-BASE-ROOT-STALE-AFTER-SEED: the base root's copies now read as moved
+        from .superseded import record_seed
+
+        record_seed(src_root, namespace=item.id, namespaces_dir=item.namespaces_dir, seeded_at=seeded_at,
+                    copied=result["copied"])
     return {"ok": True, **head, "dry_run": False, **result}
 
 

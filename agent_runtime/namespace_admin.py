@@ -210,10 +210,15 @@ def _last_serve(item: Layout) -> str | None:
 
 
 def list_namespaces(env: Mapping[str, str]) -> dict[str, Any]:
-    """Every namespace of this install: id, kind, size, last serve, busy. Reports; never chooses."""
+    """Every namespace of this install: id, kind, size, last serve, busy. Reports; never chooses.
+
+    Its one write: a namespace seeded from the base root before ``SEEDED_INTO.json`` existed is
+    recorded in that marker (idempotent), named in ``base_root_marked_seeded_into``.
+    """
     base = base_root(env)
     folder = namespaces_dir(env, base)
     rows = []
+    manifests: dict[str, dict[str, Any]] = {}
     for entry in sorted(folder.iterdir()) if folder.is_dir() else []:
         try:
             item = layout(validate_id(entry.name), env, long_paths=True)
@@ -228,4 +233,12 @@ def list_namespaces(env: Mapping[str, str]) -> dict[str, Any]:
             "size_bytes": _namespace_bytes(item.root), "last_serve_at": _last_serve(item), "busy": busy_reason(item),
             "created_at": manifest.get("created_at"), "seeded_from": manifest.get("seeded_from"),
         })
-    return {"ok": True, "verb": "list", "base_root": str(base), "namespaces_dir": str(folder), "namespaces": rows}
+        manifests[item.id] = manifest
+    out = {"ok": True, "verb": "list", "base_root": str(base), "namespaces_dir": str(folder), "namespaces": rows}
+    try:  # RT-BASE-ROOT-STALE-AFTER-SEED: a seed that predates the marker is recorded in the base root once
+        from .namespace_seed.superseded import backfill
+    except ImportError:  # the bundled closure ships no seed machinery, and seeds nothing
+        return out
+    out["base_root_marked_seeded_into"] = backfill(
+        base, folder, ({"id": key, "manifest": value} for key, value in manifests.items()))
+    return out
