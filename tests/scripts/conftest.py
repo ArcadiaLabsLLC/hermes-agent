@@ -40,3 +40,31 @@ def no_changed_sources_by_default(monkeypatch):
     """
 
     monkeypatch.setattr(_run_lane, "_changed_sources", lambda base: [])
+
+
+#: Upstream test files here that spawn a bare ``bash`` (FH-PICK-RELEASE-TAGS-BARE-BASH).
+_BARE_BASH_FILES = frozenset({"test_pick_release_tags.py"})
+
+
+@pytest.fixture(autouse=True)
+def bare_bash_is_the_real_bash(request, monkeypatch, real_bash):
+    """A bare ``bash`` in an upstream test here runs the ``real_bash`` the root conftest names.
+
+    On Windows ``CreateProcess`` resolves a bare ``bash`` to System32's WSL launcher before
+    PATH, which mangles the backslashed script path (exit 127, "No such file"); the test
+    file is upstream's, so the respelling lives in this fork-owned conftest, scoped to the
+    files that need it. Elsewhere ``real_bash`` is the PATH bash and nothing changes.
+    """
+
+    if request.node.path.name not in _BARE_BASH_FILES or real_bash == "bash":
+        return
+    import subprocess
+
+    original = subprocess.run
+
+    def run(args, *rest, **kwargs):
+        if isinstance(args, (list, tuple)) and args and args[0] == "bash":
+            args = [real_bash, *args[1:]]
+        return original(args, *rest, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", run)
