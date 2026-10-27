@@ -54,6 +54,32 @@ __all__ = [
 ]
 
 
+def _conversation_session_db(args):
+    """The writer for an explicit ``--session-id`` open: that conversation's own head.
+
+    The scope is resolved from the session id and the caller's instance pin, so
+    a per-profile conversation is written in its profile and never in base.
+    """
+
+    return persona_session_db_for(
+        resolve_conversation_chat_scope(
+            session_id=args.session_id,
+            persona_instance_id=safe_assignment_token(
+                getattr(args, "persona_instance_id", None)
+            ) or None,
+        ),
+        process=_default_persona_session_db,
+    )
+
+
+def _instance_session_db(instance):
+    """The writer for *instance*'s own chat head (process scope unless per-profile)."""
+
+    return persona_session_db_for(
+        resolve_instance_chat_scope(instance), process=_default_persona_session_db
+    )
+
+
 def _cmd_persona_instance_open_chat(args) -> int:
     # Function-local: the convention from before lane H1, when this file was
     # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
@@ -207,15 +233,7 @@ def _cmd_persona_instance_open_chat(args) -> int:
                     or None
                 ),
             )
-            session_db = persona_session_db_for(
-                resolve_conversation_chat_scope(
-                    session_id=args.session_id,
-                    persona_instance_id=safe_assignment_token(
-                        getattr(args, "persona_instance_id", None)
-                    ) or None,
-                ),
-                process=_default_persona_session_db,
-            )
+            session_db = _conversation_session_db(args)
             if (
                 is_canonical_session_persistence(session_db)
                 and session_db.get_session(args.session_id) is None
@@ -320,9 +338,7 @@ def _cmd_persona_instance_open_chat(args) -> int:
         return 2
     try:
         _ensure_persona_chat_session(
-            session_db=persona_session_db_for(
-                resolve_instance_chat_scope(instance), process=_default_persona_session_db
-            ),
+            session_db=_instance_session_db(instance),
             session_id=instance.default_chat_session_id,
             persona_id=instance.persona_id,
             title=f"{instance.display_name} chat",
@@ -448,9 +464,7 @@ def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_sc
         )
 
     try:
-        with closing(persona_session_db_for(
-            resolve_instance_chat_scope(current), process=_default_persona_session_db
-        )) as session_db:
+        with closing(_instance_session_db(current)) as session_db:
             receipt = mint_chat_root(
                 instance_store=store,
                 session_db=session_db,

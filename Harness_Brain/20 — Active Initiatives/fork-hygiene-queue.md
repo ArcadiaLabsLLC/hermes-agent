@@ -9,7 +9,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-10-27 (lane w1027h-h-reds)
 
-- **`FH-LEGIBILITY-PERSONA-CLI-GREW` — `test_no_grandfathered_function_grew` is red on main: two grandfathered persona CLI verbs grew past their floor rows — `_cmd_persona_instance_open_chat` [314, 4] -> [324, 4] and `_cmd_persona_instance_create` [155, 4] -> [157, 4]; lift the added lines into helpers (rule 17), never raise the rows** · `tests/tooling/test_function_legibility_floor.py::test_no_grandfathered_function_grew` · `hermes_cli/harness_parts/persona/chat_open.py::_cmd_persona_instance_open_chat` · `hermes_cli/harness_parts/persona/lifecycle_commands.py::_cmd_persona_instance_create` · filed by lane w1027h-h-reds 2026-10-27 · READY 2026-10-27 · **TAKEN 2026-10-27 w1027i-h-reds on nekwo-ubuntu24 as nekwo in hermes-w1027i-h-reds**
 
 ## Filed on arrival — 2026-10-27 (lane w1027a-h-fork)
 

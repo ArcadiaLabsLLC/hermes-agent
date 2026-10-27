@@ -179,6 +179,14 @@ def _placement_discriminability_refusal(placement_id: str) -> dict | None:
     }
 
 
+def _instance_session_db(instance):
+    """The writer for *instance*'s own chat head (process scope unless per-profile)."""
+
+    return persona_session_db_for(
+        resolve_instance_chat_scope(instance), process=_default_persona_session_db
+    )
+
+
 def _cmd_persona_instance_create(args) -> int:
     # Function-local: the convention from before lane H1, when this file was
     # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
@@ -270,9 +278,7 @@ def _cmd_persona_instance_create(args) -> int:
             return 2
         try:
             _ensure_persona_chat_session(
-                session_db=persona_session_db_for(
-                    resolve_instance_chat_scope(instance), process=_default_persona_session_db
-                ),
+                session_db=_instance_session_db(instance),
                 session_id=instance.default_chat_session_id,
                 persona_id=instance.persona_id,
                 title=f"{instance.display_name} chat",
