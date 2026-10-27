@@ -24,6 +24,7 @@ Modules, by layer (lowest first; a module imports only its own layer or lower):
   ``lifecycle_commands`` (instance create, the shared retire outcome),
   ``instance_commands`` (instance close/retire/steer/return/update-profile),
   ``model_and_skills_commands`` (set-model and set-skills),
+  ``context_memory_commands`` (set-context: the core-context and profile-memory switches),
   ``chat_open`` / ``chat_delete`` (open, open-new and delete a persona chat),
   ``chat_coordinator`` (coordinator scope and the steer/queue-skill verbs),
   ``chat_tickets_commands`` (clarify tickets, redeliver, turn resolve),

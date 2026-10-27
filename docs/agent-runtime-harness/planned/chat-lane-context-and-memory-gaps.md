@@ -44,6 +44,13 @@ the "goal→Neko→Dev" mental model and making Neko relay to itself (`:240-248`
 **Gate.** A surface that sets these per persona, with the cost and the identity
 consequence stated at the point of setting. Not a global default flip.
 
+**Built 2026-10-27 (lane w1027k-h-rt).** `hermes harness persona set-context <persona>
+--core-context-files on|off --profile-memory on|off` and its wire twin
+`runtime.persona.set_context` (console tier) write the template row through the
+set-model verb's store target (`hermes_cli/harness_parts/persona/context_memory_commands.py`);
+every reply carries a `cost` sentence for each switch left on. The global default is
+unchanged. The Mission Control control that calls it is the launcher's to build.
+
 ---
 
 ## R2 — No shell hooks on the lane

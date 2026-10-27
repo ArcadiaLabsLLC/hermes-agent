@@ -135,6 +135,7 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness persona chat-head migrate](#hermes-harness-persona-chat-head-migrate)
 - [hermes harness persona set-model](#hermes-harness-persona-set-model)
 - [hermes harness persona set-skills](#hermes-harness-persona-set-skills)
+- [hermes harness persona set-context](#hermes-harness-persona-set-context)
 - [hermes harness persona instance](#hermes-harness-persona-instance)
 - [hermes harness persona instance create](#hermes-harness-persona-instance-create)
 - [hermes harness persona instance open-chat](#hermes-harness-persona-instance-open-chat)
@@ -2432,10 +2433,10 @@ options:
 
 ```text
 usage: hermes harness persona [-h]
-                              {list,show,tool-diff,permission,chat,chat-head,set-model,set-skills,instance,slots} ...
+                              {list,show,tool-diff,permission,chat,chat-head,set-model,set-skills,set-context,instance,slots} ...
 
 positional arguments:
-  {list,show,tool-diff,permission,chat,chat-head,set-model,set-skills,instance,slots}
+  {list,show,tool-diff,permission,chat,chat-head,set-model,set-skills,set-context,instance,slots}
     list                List durable persona instances
     show                Show one durable persona instance
     tool-diff           Show resolved model tools and blocked tools for one persona
@@ -2448,6 +2449,8 @@ positional arguments:
                         instances inherit it)
     set-skills          Persist a persona's default skill set (profile-default lane; future
                         instances inherit it)
+    set-context         Turn a persona's core context files and profile memory on or off (profile-
+                        default lane; the reply states each switch's cost)
     instance            Create, open, steer, retire, and maintain persona instances (chat is the
                         only messaging lane)
     slots               A persona instance's assigned repo slots and its primary slot
@@ -2668,6 +2671,27 @@ options:
   --issued-at ISSUED_AT
                         ISO-8601 issue timestamp; stale writes are superseded instead of applied
   --requested-by REQUESTED_BY
+  --json
+```
+
+## hermes harness persona set-context
+
+```text
+usage: hermes harness persona set-context [-h] [--core-context-files {on,off}]
+                                          [--profile-memory {on,off}] [--json]
+                                          persona_id
+
+positional arguments:
+  persona_id            Persona id or profile_<name>
+
+options:
+  -h, --help            show this help message and exit
+  --core-context-files {on,off}
+                        Load the project context files (AGENTS.md, CLAUDE.md, ...) into every turn:
+                        a fixed per-turn prompt cost
+  --profile-memory {on,off}
+                        Load the bound profile's MEMORY.md / USER.md into every turn: the persona
+                        inherits that profile's memory
   --json
 ```
 

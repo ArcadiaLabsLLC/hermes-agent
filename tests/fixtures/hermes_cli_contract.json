@@ -7493,6 +7493,7 @@
         "instance",
         "list",
         "permission",
+        "set-context",
         "set-model",
         "set-skills",
         "show",
@@ -9130,6 +9131,73 @@
         "persona",
         "permission",
         "set"
+      ],
+      "positionals": [
+        {
+          "action": "store",
+          "choices": null,
+          "name": "persona_id",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        }
+      ],
+      "subcommands": []
+    },
+    "harness persona set-context": {
+      "exclusive_groups": [],
+      "options": {
+        "--core-context-files": {
+          "action": "store",
+          "canonical": "--core-context-files",
+          "choices": [
+            "off",
+            "on"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--profile-memory": {
+          "action": "store",
+          "canonical": "--profile-memory",
+          "choices": [
+            "off",
+            "on"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "persona",
+        "set-context"
       ],
       "positionals": [
         {

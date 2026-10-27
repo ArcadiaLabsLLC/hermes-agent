@@ -55,6 +55,21 @@ def persona_model(rid, params, context=None):
     return _operation(rid, params, context, "runtime.persona.set_model", lambda p: _console_model(p, False))
 
 
+def _context_switches(params):
+    from hermes_cli.harness_parts.persona.context_memory_commands import CONTEXT_SWITCHES, context_operation_result
+    _console_text(params, "persona_id", required=True)
+    for key in CONTEXT_SWITCHES:
+        if params.get(key) is not None and type(params[key]) is not bool:
+            raise ValueError(key)
+    return context_operation_result(params)
+
+
+@method("runtime.persona.set_context", tier=TIER_CONSOLE)
+def persona_context(rid, params, context=None):
+    """Plan chat-lane-context-and-memory-gaps R1: ``persona set-context``'s wire twin."""
+    return _operation(rid, params, context, "runtime.persona.set_context", _context_switches)
+
+
 def _permission(params, preview):
     from hermes_cli.harness_parts.persona.inspect_commands import permission_operation_result
     for key in ("persona_id", "session_id"):

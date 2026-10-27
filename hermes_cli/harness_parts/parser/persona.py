@@ -15,6 +15,7 @@ chat_delete = lazy_module("hermes_cli.harness_parts.persona.chat_delete")
 chat_head_commands = lazy_module("hermes_cli.harness_parts.persona.chat_head_commands")
 chat_open = lazy_module("hermes_cli.harness_parts.persona.chat_open")
 chat_tickets_commands = lazy_module("hermes_cli.harness_parts.persona.chat_tickets_commands")
+context_memory_commands = lazy_module("hermes_cli.harness_parts.persona.context_memory_commands")
 chat_turn_message = lazy_module("hermes_cli.harness_parts.persona.chat_turn_message")
 chat_serve_route = lazy_module("hermes_cli.harness_parts.persona.chat_serve_route")
 inspect_commands = lazy_module("hermes_cli.harness_parts.persona.inspect_commands")
@@ -155,7 +156,7 @@ def _add_persona_read_verbs(persona_subs) -> None:
 
 
 def _add_persona_chat_and_model_verbs(persona_subs) -> None:
-    """``hermes harness persona chat / set-model / set-skills``."""
+    """``hermes harness persona chat / set-model / set-skills / set-context``."""
     persona_chat = persona_subs.add_parser("chat", help="Manage durable persona chat sessions")
     persona_chat_subs = persona_chat.add_subparsers(dest="persona_chat_command")
     persona_chat_delete = persona_chat_subs.add_parser("delete", help="Delete a persona chat session and clear active persona bindings")
@@ -207,6 +208,12 @@ def _add_persona_chat_and_model_verbs(persona_subs) -> None:
     persona_set_skills.add_argument("--requested-by", default="operator")
     persona_set_skills.add_argument("--json", action="store_true")
     persona_set_skills.set_defaults(func=model_and_skills_commands._cmd_persona_set_skills)
+    persona_set_context = persona_subs.add_parser("set-context", help="Turn a persona's core context files and profile memory on or off (profile-default lane; the reply states each switch's cost)")
+    persona_set_context.add_argument("persona_id", help="Persona id or profile_<name>")
+    persona_set_context.add_argument("--core-context-files", dest="core_context_files", choices=("on", "off"), default=None, help="Load the project context files (AGENTS.md, CLAUDE.md, ...) into every turn: a fixed per-turn prompt cost")
+    persona_set_context.add_argument("--profile-memory", dest="profile_memory", choices=("on", "off"), default=None, help="Load the bound profile's MEMORY.md / USER.md into every turn: the persona inherits that profile's memory")
+    persona_set_context.add_argument("--json", action="store_true")
+    persona_set_context.set_defaults(func=context_memory_commands._cmd_persona_set_context)
 
 
 def _add_persona_instance_verbs(persona_subs) -> None:
