@@ -153,24 +153,31 @@ def _reader_scope(snapshot: dict, child: dict | None) -> tuple[str, bool, str | 
     """(cwd, can_load, history key, running) of the session read — or of the child's own agent."""
     info = snapshot["info"]
     if child is not None:
-        agent = child["agent"]
-        tools = getattr(agent, "valid_tool_names", None) or ()
-        return (str(getattr(agent, "cwd", None) or info["cwd"]), "skill_view" in tools,
-                getattr(agent, "session_id", None), True)
+        return (*child_reader_scope(child, info["cwd"]), True)
     tools = info.get("tools") or {}
     can_load = any("skill_view" in names for names in tools.values() if isinstance(names, list))
     key = snapshot.get("session_key") or info.get("stored_session_id") or snapshot.get("stored_session_id")
     return info["cwd"], can_load, key, bool(snapshot.get("running") or info.get("running"))
 
 
-def _inspect(operation: str, snapshot: dict, skill_id: str | None, child: dict | None = None) -> dict:
+def child_reader_scope(child: dict, fallback_cwd: str | None) -> tuple[str | None, bool, str | None]:
+    """(cwd, can_load, history key) of a live child record's OWN agent — its working directory,
+    whether its own tools can load a skill, and its own session — for both conversation families."""
+    agent = child["agent"]
+    tools = getattr(agent, "valid_tool_names", None) or ()
+    cwd = getattr(agent, "cwd", None) or fallback_cwd
+    return (str(cwd) if cwd else None), "skill_view" in tools, getattr(agent, "session_id", None)
+
+
+def read_skills(operation: str, *, cwd: str | None, can_load: bool, skill_id: str | None,
+                history, child: dict | None = None) -> dict:
+    """One ``list`` / ``detail`` / ``history`` read at ``cwd``; ``history()`` answers the last.
+
+    A child's ``list`` also names what is lent to it. Raises ``ValueError`` for a bad ``skill_id``.
+    """
     from agent.runtime_cwd import reset_session_cwd, set_session_cwd
-    from agent_runtime import skill_activity
-    from hermes_constants import get_hermes_home
-    import hermes_state_registry
     from agent_runtime.skill_inspection import skill_inspection_reader
 
-    cwd, can_load, key, running = _reader_scope(snapshot, child)
     token = set_session_cwd(cwd)
     try:
         reader = skill_inspection_reader()
@@ -181,6 +188,19 @@ def _inspect(operation: str, snapshot: dict, skill_id: str | None, child: dict |
             if not isinstance(skill_id, str) or not skill_id or len(skill_id) > 512:
                 raise ValueError("invalid skill")
             return {"skill": reader.detail(skill_id, can_load=can_load)}
+        return history()
+    finally:
+        reset_session_cwd(token)
+
+
+def _inspect(operation: str, snapshot: dict, skill_id: str | None, child: dict | None = None) -> dict:
+    from agent_runtime import skill_activity
+    from hermes_constants import get_hermes_home
+    import hermes_state_registry
+
+    cwd, can_load, key, running = _reader_scope(snapshot, child)
+
+    def history() -> dict:
         if not key:
             return {"loaded": [], "historyComplete": False}
         db = hermes_state_registry.acquire(get_hermes_home() / "state.db")
@@ -189,8 +209,8 @@ def _inspect(operation: str, snapshot: dict, skill_id: str | None, child: dict |
             return {"loaded": skill_activity.skill_load_history(messages), "historyComplete": not running}
         finally:
             hermes_state_registry.release_or_close(db)
-    finally:
-        reset_session_cwd(token)
+
+    return read_skills(operation, cwd=cwd, can_load=can_load, skill_id=skill_id, history=history, child=child)
 
 
 # ── the worker half of lending ─────────────────────────────────────────────
@@ -202,7 +222,8 @@ def _lent_to_child(child: dict) -> tuple[str, ...]:
     return lent_to(child_target(str(child["subagent_id"])))
 
 
-def _lend_request(params: dict) -> tuple[list[str], str, str]:
+def lend_request(params: dict) -> tuple[list[str], str, str]:
+    """(skills, mode, request_id) of a lend request; ``ValueError`` names what is wrong."""
     skills, mode, request_id = params.get("skills"), params.get("mode") or "lend", params.get("request_id")
     if (not isinstance(skills, list) or not skills or len(skills) > 64
             or not all(isinstance(s, str) and s.strip() and len(s) <= 128 for s in skills)):
@@ -231,28 +252,63 @@ def _rescope(child: dict, lent: tuple[str, ...]) -> None:
     setattr(child["agent"], COMPACT_ATTR, compact)
 
 
-def _announce(params: dict, request_id: str, mode: str, skills: list[str]) -> bool:
-    from agent_runtime.subagents import native
-
+def lend_announcement(mode: str, skills: list[str]) -> str:
+    """The steer that tells a child its lend changed (bounded to one steer's bytes)."""
     if mode == "lend":
         text = f"Skills lent: {', '.join(skills)}. Load one with skill_view(<id>) when it applies."
     else:
         text = f"Skills no longer lent: {', '.join(skills)}. A body already loaded stays until the turn ends."
-    return native.steer_child(params, text.encode("utf-8")[:_STEER_LIMIT].decode("utf-8", "ignore"),
-                              f"lend:{request_id}") == "queued"
+    return text.encode("utf-8")[:_STEER_LIMIT].decode("utf-8", "ignore")
+
+
+class LendRejected(ValueError):
+    """``skills_not_loadable``: a lent skill does not resolve; ``rejected`` maps each to why. Nothing written."""
+
+    reason = "skills_not_loadable"
+
+    def __init__(self, rejected: dict):
+        super().__init__(self.reason)
+        self.rejected = rejected
+
+
+def record_lend(child: dict, skills: list[str], mode: str, *, owner_session: str) -> tuple[str, tuple[str, ...]]:
+    """Check, then write a child's lend (or revoke) and rescope it: ``(target, now lent)``.
+
+    Raises :class:`LendRejected` before anything is written when a lent skill is not loadable.
+    Runs under the profile whose skills resolve; the caller announces the change.
+    """
+    from agent_runtime.chat_verbs import queue_skill
+    from agent_runtime import skill_lends
+    from agent_runtime.subagents.native import child_registered
+
+    rejected = queue_skill._rejected_skills(skills) if mode == "lend" else {}
+    if rejected:
+        raise LendRejected(rejected)
+    target = skill_lends.child_target(str(child["subagent_id"]))
+    if mode == "lend":
+        skill_lends.lend(target, skills, owner_session=owner_session, by=owner_session)
+    else:
+        skill_lends.revoke(target, skills)
+    lent = skill_lends.lent_to(target)
+    _rescope(child, lent)
+    skill_lends.sweep(child_registered)
+    return target, lent
+
+
+def _announce(params: dict, request_id: str, mode: str, skills: list[str]) -> bool:
+    from agent_runtime.subagents import native
+
+    return native.steer_child(params, lend_announcement(mode, skills), f"lend:{request_id}") == "queued"
 
 
 def lend_method(rid, params):
     """``eternia.skills.lend``: lend skills to (or revoke them from) the child the address names."""
-    from agent_runtime.chat_verbs import queue_skill
-    from agent_runtime import skill_lends
     from agent_runtime.subagents.model import SubagentError
-    from agent_runtime.subagents.native import child_registered
 
     if all(params.get(key) is None for key in CHILD_PARAMS):
         return _skills_invalid(rid, f"lend names a child (owner_scope, worker_generation, child_ref); a task's is {_TASK_HALF}")
     try:
-        skills, mode, request_id = _lend_request(params)
+        skills, mode, request_id = lend_request(params)
         child = _child_of(params)
     except SubagentError as exc:
         return _subagent_refusal(rid, exc)
@@ -260,19 +316,11 @@ def lend_method(rid, params):
         return _skills_invalid(rid, str(exc))
     try:
         with _bind_profile_home(params.get("profile")):
-            rejected = queue_skill._rejected_skills(skills) if mode == "lend" else {}
-            if rejected:
-                return _skills_error(rid, 4090, "One or more skills are not loadable.",
-                              {"reason": "skills_not_loadable", "rejected_skills": rejected})
-            target = skill_lends.child_target(str(child["subagent_id"]))
-            if mode == "lend":
-                skill_lends.lend(target, skills, owner_session=str(params["session_id"]), by=str(params["session_id"]))
-            else:
-                skill_lends.revoke(target, skills)
-            lent = skill_lends.lent_to(target)
-            _rescope(child, lent)
-            skill_lends.sweep(child_registered)
+            target, lent = record_lend(child, skills, mode, owner_session=str(params["session_id"]))
         steered = _announce(params, request_id, mode, skills)
+    except LendRejected as exc:
+        return _skills_error(rid, 4090, "One or more skills are not loadable.",
+                             {"reason": exc.reason, "rejected_skills": exc.rejected})
     except SubagentError as exc:
         return _subagent_refusal(rid, exc)
     except (OSError, ValueError):
@@ -281,4 +329,5 @@ def lend_method(rid, params):
         "target": target, "skills_lent": list(lent), "effective": "next_turn", "steered": steered}}}
 
 
-__all__ = ["CHILD_PARAMS", "LEND_MODES", "declare_contracts", "install", "lend_method"]
+__all__ = ["CHILD_PARAMS", "LEND_MODES", "LendRejected", "child_reader_scope", "declare_contracts", "install",
+           "lend_announcement", "lend_method", "lend_request", "read_skills", "record_lend"]

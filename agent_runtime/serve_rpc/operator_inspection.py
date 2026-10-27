@@ -10,7 +10,9 @@ from agent_runtime.operator_session_models import operator_model_facts, operator
 from agent_runtime.operator_session_controls import (
     operator_control_facts, operator_approval_facts, set_operator_control, respond_operator_approval,
 )
+from agent_runtime.conversations.worker_skills import LendRejected
 from agent_runtime.skill_inspection import SkillInspectionError
+from agent_runtime.subagents.model import SubagentError
 from .protocol import RpcContext, defer_or_inline, err, ok
 from .registry import method
 
@@ -24,7 +26,10 @@ def _inspect_reply(rid, params, inspect):
             return err(rid, 4130, "This information is too large to display.",
                        {"reason": "response_too_large"})
         return ok(rid, result)
-    except (OperatorConversationRefused, SkillInspectionError) as exc:
+    except LendRejected as exc:
+        return err(rid, 4090, "One or more skills are not loadable.",
+                   {"reason": exc.reason, "rejected_skills": exc.rejected})
+    except (OperatorConversationRefused, SkillInspectionError, SubagentError) as exc:
         return err(rid, 4090, "This conversation's information is unavailable.",
                    {"reason": exc.reason})
     except Exception as exc:

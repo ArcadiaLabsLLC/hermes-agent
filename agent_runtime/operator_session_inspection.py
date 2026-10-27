@@ -80,9 +80,16 @@ def inspect_operator_permissions(params: dict[str, Any]) -> dict[str, Any]:
 
 
 def inspect_operator_skills(params: dict[str, Any]) -> dict[str, Any]:
+    """The conversation's skills; with ``child_ref`` (or for ``lend``) the addressed worker child's."""
+    from .subagents.params import SKILLS_OPERATIONS
+
     operation = params.get("operation")
-    if operation not in ("list", "detail", "history"):
+    if operation not in SKILLS_OPERATIONS:
         raise OperatorConversationRefused("invalid_skill_operation")
+    if params.get("child_ref") is not None or operation == "lend":
+        from .subagents.operator import inspect_operator_child_skills
+
+        return inspect_operator_child_skills(operation, params)
     with operator_session_read(params) as (instance, session):
         if operation == "history":
             data = _operator_skill_history(session.db, params["session_id"])

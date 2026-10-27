@@ -664,6 +664,20 @@
       "persona_instance_id",
       "legacy_route_id"
     ],
+    "runtime.operator.conversation.skills": [
+      "install_id",
+      "workspace_id",
+      "persona_id",
+      "persona_instance_id",
+      "session_id",
+      "client_scope",
+      "operation",
+      "child_ref",
+      "skill_id",
+      "skills",
+      "mode",
+      "request_id"
+    ],
     "runtime.operator.conversation.subagents.capabilities": [
       "install_id",
       "workspace_id",

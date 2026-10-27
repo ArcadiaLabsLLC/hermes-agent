@@ -29,3 +29,9 @@ METHOD_PARAMS.update({
     "runtime.conversation.skills." + operation: (*_NATIVE, "child_ref", *_SKILLS_EXTRA[operation])
     for operation in SKILLS_OPERATIONS
 })
+
+#: ``runtime.operator.conversation.skills`` (one verb, ``operation`` = one of :data:`SKILLS_OPERATIONS`):
+#: the conversation's skills, or with ``child_ref`` (from ``runtime.operator.conversation.subagents.list``)
+#: a worker child's; ``operation: lend`` always names a child (RT-SERVE-SKILLS-OPERATOR-CHILD-ADDRESS).
+METHOD_PARAMS["runtime.operator.conversation.skills"] = (
+    *_OPERATOR, "operation", "child_ref", "skill_id", "skills", "mode", "request_id")

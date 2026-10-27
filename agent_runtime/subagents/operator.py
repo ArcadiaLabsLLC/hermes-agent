@@ -70,14 +70,20 @@ class _Owner:
                 raise SubagentError(Refusal.WRONG_OWNER)
 
 
+def _operator_owner(params, instance, session):
+    """(binding, home, identity, owner) of the exact operator conversation's children."""
+    binding = _subagent_profile_binding(instance)
+    # An inherited profile is pinned to the conversation's recorded head,
+    # not whichever profile a different turn temporarily exports to os.environ.
+    home = (binding.profile_home or session.scope.head_home).resolve()
+    identity = inspection_identity(params, session.owner)
+    owner = (tuple(sorted(identity.items())), str(home), str(Path(session.db.db_path).resolve()))
+    return binding, home, identity, owner
+
+
 def inspect_operator(operation: str, params: dict) -> dict:
     with operator_session_read(params) as (instance, session):
-        binding = _subagent_profile_binding(instance)
-        # An inherited profile is pinned to the conversation's recorded head,
-        # not whichever profile a different turn temporarily exports to os.environ.
-        home = (binding.profile_home or session.scope.head_home).resolve()
-        identity = inspection_identity(params, session.owner)
-        owner = (tuple(sorted(identity.items())), str(home), str(Path(session.db.db_path).resolve()))
+        binding, home, identity, owner = _operator_owner(params, instance, session)
 
         if operation in SETTINGS_OPERATIONS:
             from .settings import inspect_settings
@@ -100,3 +106,66 @@ def inspect_operator(operation: str, params: dict) -> dict:
             data = inspect_records(operation, params, owner=owner, visible=records,
                                    exact=checked.exact, revalidate=checked.revalidate, controllable=checked.controllable)
         return {**identity, **include_history_capabilities(operation, data)}
+
+
+def inspect_operator_child_skills(operation: str, params: dict) -> dict:
+    """``runtime.operator.conversation.skills`` on the child ``child_ref`` names (RT-SERVE-SKILLS-OPERATOR-CHILD-ADDRESS).
+
+    The ``child_ref`` is the one ``runtime.operator.conversation.subagents.list`` minted for this exact
+    conversation, so the same owner derivation resolves it here; a replaced or foreign child is
+    ``subagent_reference_stale``, never the parent's catalog. ``list`` / ``detail`` / ``history`` read the
+    child's own working directory, tools and session; ``lend`` (``skills``, ``mode: lend | revoke``,
+    ``request_id``) writes the child's lend and steers it, the worker lane's ``eternia.skills.lend`` in-serve.
+    """
+    from agent_runtime import skill_activity
+    from agent_runtime.skill_inspection import SkillInspectionError
+    from agent_runtime.conversations.worker_skills import (
+        child_reader_scope, lend_announcement, lend_request, read_skills, record_lend,
+    )
+    from .commands import control_records
+    from .native import _named_child, still_registered
+
+    child_ref = params.get("child_ref")
+    if not isinstance(child_ref, str) or not child_ref or len(child_ref) > 512:
+        raise SubagentError(Refusal.INVALID)
+    try:
+        lend = lend_request(params) if operation == "lend" else None
+    except ValueError as exc:
+        raise OperatorConversationRefused("invalid_lend_request") from exc
+    with operator_session_read(params) as (instance, session):
+        binding, home, identity, owner = _operator_owner(params, instance, session)
+        checked = _Owner(params, instance.id, session.db, home)
+        with persona_profile_context(binding, runtime_root=paths.store_root()):
+            records = [record for record in registry_snapshot()
+                       if checked.visible(record) and still_registered(record)]
+            child = _named_child(owner, records, checked.exact, child_ref)
+            if lend is None:
+                cwd, can_load, key = child_reader_scope(child, session.row.get("cwd"))
+
+                def history() -> dict:
+                    # A live child is running: its history is never complete.
+                    messages = session.db.get_messages_as_conversation(key, include_ancestors=True) if key else []
+                    return {"loaded": skill_activity.skill_load_history(messages), "historyComplete": False}
+
+                try:
+                    data = read_skills(operation, cwd=cwd, can_load=can_load, skill_id=params.get("skill_id"),
+                                       history=history, child=child)
+                except SkillInspectionError:
+                    raise
+                except ValueError as exc:
+                    raise OperatorConversationRefused("invalid_skill_id") from exc
+                checked.revalidate()
+                return {**identity, "child_ref": child_ref, **data}
+            skills, mode, request_id = lend
+            try:
+                target, lent = record_lend(child, skills, mode, owner_session=params["session_id"])
+            except OSError as exc:
+                raise SubagentError(Refusal.UNKNOWN) from exc
+        try:
+            steer = control_records("steer", {"child_ref": child_ref, "request_id": f"lend:{request_id}",
+                                              "text": lend_announcement(mode, skills)},
+                                    owner=owner, records=records, exact=checked.exact, revalidate=checked.revalidate)
+        except SubagentError:  # the lend is written; only the announcement did not reach the child
+            steer = {}
+        return {**identity, "child_ref": child_ref, "target": target, "skills_lent": list(lent),
+                "effective": "next_turn", "steered": steer.get("status") == "queued"}
