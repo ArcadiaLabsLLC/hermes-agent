@@ -195,7 +195,7 @@ def test_a_freshly_seeded_profile_matches_the_canonical_mcp_template(bundled_per
     """RT-MCP-TEMPLATE-VS-SEED-HERMES-HOME: the seed's line 1 and the readiness
     template name one ``env.HERMES_HOME``, so seeding never manufactures drift."""
 
-    from agent_runtime.machine_roots import canonical_mcp_server_yaml, mcp_server_template_issues
+    from agent_runtime.mcp_server_templates import canonical_mcp_server_yaml, mcp_server_template_issues
     from agent_runtime.persona_seed_defaults import seed_persona_profile
 
     block = "\n".join(

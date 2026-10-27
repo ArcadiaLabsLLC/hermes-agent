@@ -7,11 +7,8 @@ from hermes_cli.runtime_environment import missing_runtime_packages_for
 from agent_runtime.provider_probes import probe_runtime_provider
 from hermes_cli.runtime_provider import resolve_runtime_provider
 
-from .machine_roots import (
-    contains_path_tokens,
-    mcp_server_issues,
-    path_token_issues,
-)
+from .machine_roots import contains_path_tokens, path_token_issues
+from .mcp_server_templates import mcp_server_issues
 from .parse_cache import cached_yaml_file
 from .profile_context import persona_profile_context, resolve_persona_profile
 from .skill_install import SKILL_HASH_MISMATCH, harness_skill_hash_states

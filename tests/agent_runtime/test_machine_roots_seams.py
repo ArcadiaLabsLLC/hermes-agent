@@ -78,7 +78,7 @@ def test_the_seam_server_has_no_canonical_template():
     instead, where the reason is readable.
     """
 
-    from agent_runtime.machine_roots import canonical_mcp_server_template
+    from agent_runtime.mcp_server_templates import canonical_mcp_server_template
 
     assert canonical_mcp_server_template(SEAM_SERVER) is None
 

@@ -7,7 +7,7 @@ falls back to the same helper path — which is precisely why it was debt: the t
 blocks agreed only by coincidence of a fallback in another repo.
 
 Operator ruling (2026-07-31): the explicit variant is canonical
-(``machine_roots.CANONICAL_LAUNCHER_QA_MCP_SERVER``).
+(``mcp_server_templates.CANONICAL_LAUNCHER_QA_MCP_SERVER``).
 
 Executed 2026-08-01: the five variant-B profiles (backend-dev, gpt-launcher,
 launcher-dev, launcher-qa, qa) were patched live, the expected-drift ledger they
@@ -34,12 +34,11 @@ from typing import Any
 import pytest
 from agent_runtime import yaml_io
 
-from agent_runtime.machine_roots import (
+from agent_runtime.machine_roots import ISSUE_MCP_TEMPLATE_DRIFT, machine_roots_cache_clear
+from agent_runtime.mcp_server_templates import (
     CANONICAL_LAUNCHER_QA_MCP_SERVER,
-    ISSUE_MCP_TEMPLATE_DRIFT,
     canonical_mcp_server_template,
     canonical_mcp_server_yaml,
-    machine_roots_cache_clear,
     mcp_server_issues,
     mcp_server_template_diffs,
     mcp_server_template_issues,
@@ -157,7 +156,7 @@ def _assert_launcher_qa_blocks_match(blocks: dict[str, Any]) -> None:
     assert not drifted, (
         f"'{SERVER}' template drift across {len(drifted)} of {len(blocks)} profiles "
         f"({', '.join(sorted(blocks))}). The canonical block is "
-        f"agent_runtime.machine_roots.CANONICAL_LAUNCHER_QA_MCP_SERVER; apply the "
+        f"agent_runtime.mcp_server_templates.CANONICAL_LAUNCHER_QA_MCP_SERVER; apply the "
         f"patch below by hand (this lane is report-only and never writes a config). "
         f"Do NOT re-add an expected-drift ledger:" + "".join(drifted)
     )

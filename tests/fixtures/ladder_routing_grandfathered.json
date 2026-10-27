@@ -35,14 +35,6 @@
   },
   {
    "arms": 3,
-   "site": "agent_runtime/machine_roots.py|_freeze|isinstance|value"
-  },
-  {
-   "arms": 3,
-   "site": "agent_runtime/machine_roots.py|_normalize_for_diff|isinstance|value"
-  },
-  {
-   "arms": 3,
    "site": "agent_runtime/machine_roots.py|_walk|isinstance|value"
   },
   {
@@ -60,6 +52,14 @@
   {
    "arms": 3,
    "site": "agent_runtime/machine_roots_migration.py|_flatten_strings|isinstance|value"
+  },
+  {
+   "arms": 3,
+   "site": "agent_runtime/mcp_server_templates.py|_freeze|isinstance|value"
+  },
+  {
+   "arms": 3,
+   "site": "agent_runtime/mcp_server_templates.py|_normalize_for_diff|isinstance|value"
   },
   {
    "arms": 3,

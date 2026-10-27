@@ -50,13 +50,13 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from .machine_roots import MCP_HERMES_HOME_VALUE
+from .mcp_server_templates import MCP_HERMES_HOME_VALUE
 
 __layer__ = "stores"
 
 logger = logging.getLogger(__name__)
 
-# Line 1's value is ``machine_roots.MCP_HERMES_HOME_VALUE`` — owned by the
+# Line 1's value is ``mcp_server_templates.MCP_HERMES_HOME_VALUE`` — owned by the
 # canonical MCP template's module so the seed and the readiness template cannot
 # disagree (RT-MCP-TEMPLATE-VS-SEED-HERMES-HOME).
 #: Line 2's value: ``agent.credential_pool.STRATEGY_LEAST_USED``.

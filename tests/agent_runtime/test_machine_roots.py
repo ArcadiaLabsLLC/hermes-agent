@@ -29,13 +29,12 @@ from agent_runtime.machine_roots import (
     expand_config_paths,
     load_machine_roots,
     machine_roots_cache_clear,
-    mcp_server_issues,
-    mcp_servers_in_issue_scope,
     path_token_issues,
     platform_supported,
     resolve_mcp_servers,
     write_machine_roots,
 )
+from agent_runtime.mcp_server_templates import mcp_server_issues, mcp_servers_in_issue_scope
 
 
 @pytest.fixture(autouse=True)
