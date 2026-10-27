@@ -1051,7 +1051,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-27 (launcher lane w1027i-plan-ai)
 
-- **`RT-LENS-STORE-AT-CEILING` — `agent_runtime/lens/store.py` is at 799 lines against its 800-line ceiling after the stale-admission fix; split the receipt and Episode-admission write paths into their own module before the next change has to squeeze in** · `agent_runtime/lens/store.py` · `agent_runtime/lens/store_episode_rows.py` · READY 2026-10-27 · **TAKEN 2026-10-27 w1027k-h-lens on nekwo-ubuntu24 as nekwo in hermes-w1027k-h-lens**
 
 ## Filed on arrival — 2026-10-27 (planned/ triage lane w1027j-h-tri-c)
 

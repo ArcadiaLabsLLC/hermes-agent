@@ -6,7 +6,7 @@ or an Episode opened reached a connected Launcher only when something else rebui
 reads and an active Episode's ``last_seen`` ticks land every poll and must append nothing.
 
 Killing mutations: drop the ``_changed`` call from ``set_state`` (the monitor test reds); make
-``_episode_state_moves`` answer True (the tick test reds — one event per poll, the 2026-08-21
+``store_episode_rows.episode_state_moves`` answer True (the tick test reds — one event per poll, the 2026-08-21
 reconcile storm's shape).
 """
 

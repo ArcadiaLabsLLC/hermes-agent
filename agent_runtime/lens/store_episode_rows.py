@@ -1,6 +1,7 @@
 """One Episode row as the store holds it: its canonical body, a read of the stored body by id, and the
 door's ``turn_id``-only write (row ``RT-LENS-EPISODE-WRITE-RACE``), and the receipt transaction's
-re-check that the stored Episode is still owed its admission (row ``RT-LENS-DOOR-ADMITS-STALE-EPISODE``).
+re-check that the stored Episode is still owed its admission (row ``RT-LENS-DOOR-ADMITS-STALE-EPISODE``), and the
+row write itself (:func:`write_episode`, :func:`episode_state_moves`; row ``RT-LENS-STORE-AT-CEILING``).
 
 Beside ``store.py`` (that file sits at its ADR 0007 ceiling). ``LensStore.move_episode`` compares a
 writer's read against :func:`episode_body`; the receipt transaction writes through :func:`door_owned`.
@@ -21,6 +22,19 @@ __layer__ = "stores"
 
 def canonical_body(episode: Episode) -> str:
     return json.dumps(episode.to_json(), sort_keys=True)
+
+
+def episode_state_moves(conn: sqlite3.Connection, episode: Episode) -> bool:
+    """True for a new Episode or one whose stored state differs (the transitions a reader sees)."""
+
+    row = conn.execute("SELECT state FROM episodes WHERE id = ?", (episode.id,)).fetchone()
+    return row is None or row[0] != episode.state.value
+
+
+def write_episode(conn: sqlite3.Connection, episode: Episode) -> None:
+    conn.execute("INSERT OR REPLACE INTO episodes VALUES (?, ?, ?, ?, ?, ?)",
+                 (episode.id, episode.monitor_id, episode.rule_id, episode.ordinal, episode.state.value,
+                  canonical_body(episode)))
 
 
 def episode_body(conn: sqlite3.Connection, episode_id: str) -> str | None:

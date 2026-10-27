@@ -39,14 +39,15 @@ import logging
 import sqlite3
 import threading
 from contextlib import contextmanager
-from dataclasses import replace
 from datetime import datetime, timedelta, timezone, UTC
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
 from .episode import Episode
-from .store_episode_rows import canonical_body, door_owned, episode_body, stale_pairs
+from .store_episode_rows import canonical_body, episode_body, episode_state_moves, stale_pairs, write_episode
+from .store_receipt_rows import (RECEIPT_COLUMNS as _RECEIPT_COLUMNS, insert_receipts,
+                                 receipt_json as _receipt_json, receipt_row as _receipt_row, settle_receipts_full)
 from .feed import Observation
 from .manifest import read_manifest
 from .seal import SealedManifest, seal_manifest
@@ -71,8 +72,6 @@ PROPOSALS_EXPIRED_RECEIPT = "[LensProposalsExpired] retired=%d ids=%s"
 #: (``retention.fold_receipts``); still full, the Episode is SETTLED with ``turn_id``
 #: ``receipts_full`` and no receipt row, so it is never owed forever.
 MAXIMUM_RECEIPTS = 50_000
-#: The log receipt a fence refusal leaves (observability is a log receipt, never a wire key).
-RECEIPTS_FULL_RECEIPT = "[LensReceiptsFull] monitor=%s episode=%s"
 #: Push-door routes are refused past this many (W13).
 MAXIMUM_ROUTES = 64
 #: The longest range one series read may span (the raw window is 24 h; rollups cover 7 d).
@@ -179,8 +178,6 @@ FORGE_FAILED_PREFIX = "forge_failed:"
 #: The outcomes ``daily_turn_cap`` counts: a turn run, running, or a notification sent.
 CAPPED_OUTCOMES = (ReceiptOutcome.FORGING.value, ReceiptOutcome.FORGED.value, ReceiptOutcome.NOTIFIED.value,
                    ReceiptOutcome.NOTIFIED_OVER_BUDGET.value)
-_RECEIPT_COLUMNS = ("episode_id", "monitor_id", "turn_id", "session_id", "started_ms", "finished_ms", "outcome",
-                    "artifact_handles", "files", "tool_admission", "digest_id")
 
 
 class LensStoreError(ValueError):
@@ -495,8 +492,8 @@ class LensStore:
             if checked and (expected is not None and episode_body(conn, expected.id) != canonical_body(expected)
                             or fresh and episode_body(conn, episode.id) is not None):
                 return False
-            moved = _episode_state_moves(conn, episode)
-            _write_episode(conn, episode)
+            moved = episode_state_moves(conn, episode)
+            write_episode(conn, episode)
         if moved or announce:
             self._episode_changed(episode)
         return True
@@ -553,9 +550,9 @@ class LensStore:
                 if stale := stale_pairs(conn, pairs, ReceiptOutcome.SKIPPED_DECIDED.value):
                     pairs, rows, also, owed = stale, [_receipt_row(receipt) for receipt, _ in stale], None, False
                 if conn.execute("SELECT COUNT(*) FROM receipts").fetchone()[0] + len(rows) <= MAXIMUM_RECEIPTS:
-                    moved, inserted = _insert_receipts(conn, rows, pairs), True
+                    moved, inserted = insert_receipts(conn, rows, pairs), True
                 elif folded:
-                    _settle_receipts_full(conn, rows, pairs)
+                    settle_receipts_full(conn, rows, pairs, turn_id=StoreRefusal.RECEIPTS_FULL.value)
                 if (inserted or folded) and also is not None:
                     also(conn)
                 if folded and not inserted:
@@ -743,57 +740,3 @@ def _route_json(row: tuple[Any, ...]) -> dict[str, Any]:
     out = dict(zip(_ROUTE_COLUMNS, row))
     out["mapping"] = json.loads(out["mapping"])
     return out
-
-
-def _episode_state_moves(conn: sqlite3.Connection, episode: Episode) -> bool:
-    """True for a new Episode or one whose stored state differs (the transitions a reader sees)."""
-
-    row = conn.execute("SELECT state FROM episodes WHERE id = ?", (episode.id,)).fetchone()
-    return row is None or row[0] != episode.state.value
-
-
-def _write_episode(conn: sqlite3.Connection, episode: Episode) -> None:
-    conn.execute("INSERT OR REPLACE INTO episodes VALUES (?, ?, ?, ?, ?, ?)",
-                 (episode.id, episode.monitor_id, episode.rule_id, episode.ordinal, episode.state.value,
-                  canonical_body(episode)))
-
-
-def _insert_receipts(conn: sqlite3.Connection, rows: list[tuple], pairs: list[tuple[dict[str, Any], Episode | None]]
-                     ) -> list[bool]:
-    """Insert each receipt row with its Episode; per pair, whether the Episode's state moved."""
-
-    moved: list[bool] = []
-    for row, (_, episode) in zip(rows, pairs):
-        conn.execute(f"INSERT INTO receipts ({', '.join(_RECEIPT_COLUMNS)}) VALUES "
-                     f"({', '.join('?' * len(_RECEIPT_COLUMNS))})", row)
-        moved.append(episode is not None and _episode_state_moves(conn, episode))
-        if episode is not None:
-            _write_episode(conn, door_owned(conn, episode))
-    return moved
-
-
-def _settle_receipts_full(conn: sqlite3.Connection, rows: list[tuple],
-                          pairs: list[tuple[dict[str, Any], Episode | None]]) -> None:
-    """Still full after a fold: each Episode settles as ``receipts_full`` and no receipt row is written."""
-
-    for row, (_, episode) in zip(rows, pairs):
-        if episode is not None:
-            _write_episode(conn, door_owned(conn, replace(episode, turn_id=StoreRefusal.RECEIPTS_FULL.value)))
-        logger.warning(RECEIPTS_FULL_RECEIPT, row[1], row[0])
-
-
-def _receipt_row(receipt: dict[str, Any]) -> tuple[Any, ...]:
-    values = dict(receipt)
-    values["artifact_handles"] = json.dumps(list(values.get("artifact_handles") or []), sort_keys=True)
-    values["files"] = json.dumps(list(values.get("files") or []), sort_keys=True)
-    values.setdefault("session_id", None)
-    values.setdefault("finished_ms", None)
-    values.setdefault("digest_id", None)
-    return tuple(values[column] for column in _RECEIPT_COLUMNS)
-
-
-def _receipt_json(row: tuple[Any, ...]) -> dict[str, Any]:
-    out = dict(zip(_RECEIPT_COLUMNS, row))
-    out["artifact_handles"] = json.loads(out["artifact_handles"])
-    out["files"] = json.loads(out["files"])
-    return {"version": 1, **out}
