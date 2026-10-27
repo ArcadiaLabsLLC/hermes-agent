@@ -1018,4 +1018,3 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-27 (launcher lane w1027e-plan-comp)
 
-- **`RT-MESSAGING-REFUSED-RECENT` — serve a read verb `runtime.messaging.refused.recent` returning the last ≤10 refused senders per platform (user_id, display, chat_id, at) from what `agent_runtime/messaging/bridge.py::_refuse` emits, so the launcher can offer "Allow" without the operator hunting for a Telegram user ID; note `messaging_enabled` is one harness setting although the enable verbs take a platform (fine while Telegram is the only platform)** · `agent_runtime/messaging/rpc.py` · launcher `COMP-MESSAGING-RECENT-REFUSED` · READY 2026-10-27 · **TAKEN 2026-10-27 w1027f-h-rt on nekwo-ubuntu24 as nekwo in hermes-w1027f-h-rt**

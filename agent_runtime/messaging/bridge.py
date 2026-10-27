@@ -35,6 +35,7 @@ from .approvals import ApprovalCards
 from .bindings import BindingStore
 from .models import MessagingRefused, Platform, Reason
 from .operators import OperatorStore
+from .refused import RefusedSenders
 from .transport import CallbackPress, InboundMessage, Transport, Update
 
 __layer__ = "lanes"
@@ -130,6 +131,10 @@ class MessagingBridge:
     def _refuse(self, update: Update, reason: Reason | str) -> None:
         emit("messaging.refused", platform=self.platform.value, update_id=update.update_id,
              chat_id=update.chat_id, user_id=update.user_id, reason=str(getattr(reason, "value", reason)))
+        if reason == Reason.UNKNOWN_OPERATOR:
+            # The console's "Allow" list (``runtime.messaging.refused.recent``): strangers only.
+            RefusedSenders().record(self.platform, user_id=update.user_id, display=update.user_display,
+                                    chat_id=update.chat_id)
 
     def _press(self, press: CallbackPress) -> None:
         if self.on_press is not None:

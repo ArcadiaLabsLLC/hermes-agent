@@ -969,3 +969,9 @@ def messaging_operators_dir() -> Path:
     """One JSON file per platform user allowed to talk to the runtime (``messaging/operators.py``)."""
 
     return messaging_dir() / "operators"
+
+
+def messaging_refused_dir() -> Path:
+    """One JSON file per platform: the last refused senders, so the console can offer Allow (``messaging/refused.py``)."""
+
+    return messaging_dir() / "refused"

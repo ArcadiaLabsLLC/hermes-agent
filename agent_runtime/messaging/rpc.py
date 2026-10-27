@@ -1,6 +1,7 @@
 """``runtime.messaging.*`` — the messaging stores' verbs (p10-messaging §3 M1).
 
-``status`` is ``read``; every write is ``console`` — ``platform.enable|disable`` (M5) write the harness
+``status`` is ``read``; ``refused.recent`` (the last strangers the bridge dropped, for the console's
+"Allow") is ``console`` beside ``operator.list``, since both name platform users; every write is ``console`` — ``platform.enable|disable`` (M5) write the harness
 setting ``messaging_enabled`` and wake the running serve's lane (``serve_lane.poke``), which starts or
 stops polling within one tick; ``status`` reports each platform's ``lane`` state; ``credential.set|clear`` are also in
 ``call_authorization.LOCAL_CONSOLE_METHODS`` — a bot token is written only from this machine's own
@@ -28,6 +29,7 @@ from . import credentials
 from .bindings import Binding, BindingStore, chat_key, field_text
 from .models import MessagingRefused, Platform, Reason, platform_of
 from .operators import Operator, OperatorStore
+from .refused import RefusedSenders
 
 __layer__ = "lanes"
 __all__ = ["METHOD_PREFIX", "OPS", "TIERS", "execute", "register", "status"]
@@ -155,6 +157,16 @@ def _operator_list(params: Mapping[str, Any], _by: str) -> dict[str, Any]:
     return {"operators": [o.wire() for o in OperatorStore().list(_optional_platform(params))]}
 
 
+def _refused_recent(params: Mapping[str, Any], _by: str) -> dict[str, Any]:
+    """The last refused strangers per platform, a user allowed since left out — the console's Allow list."""
+    named = _optional_platform(params)
+    platforms = [named] if named is not None else list(Platform)
+    store, operators = RefusedSenders(), OperatorStore()
+    return {"refused": {platform.value: [row for row in store.recent(platform)
+                                         if not operators.is_allowed(platform, row["user_id"])]
+                        for platform in platforms}}
+
+
 def _credential_set(params: Mapping[str, Any], by: str) -> dict[str, Any]:
     platform = platform_of(params.get("platform"))
     credentials.set_token(platform, params.get("token"))
@@ -178,6 +190,7 @@ OPS: dict[str, tuple[str, Callable[[Mapping[str, Any], str], dict[str, Any]]]] =
     "operator.allow": (TIER_CONSOLE, _operator_allow),
     "operator.revoke": (TIER_CONSOLE, _operator_revoke),
     "operator.list": (TIER_CONSOLE, _operator_list),
+    "refused.recent": (TIER_CONSOLE, _refused_recent),
     "credential.set": (TIER_CONSOLE, _credential_set),
     "credential.clear": (TIER_CONSOLE, _credential_clear),
     "platform.enable": (TIER_CONSOLE, _platform_switch(True)),

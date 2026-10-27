@@ -208,3 +208,47 @@ def test_start_registers_the_listener_and_stop_removes_it(rig, monkeypatch):
     rig.bridge.stop()
     assert "messaging" not in rig.turns._origin_listeners and calls[-1] == ("stop", None)
     assert bridge_module.messaging_origin(send_queue.QueuedSend(ROOT, "x", 0, "", {})) is None
+
+
+# ── RT-MESSAGING-REFUSED-RECENT: the console's "Allow" list ──────────────────
+
+
+def _recent():
+    return rpc.execute("refused.recent", {"platform": "telegram"}, by="rpc:stdio_owner")["refused"]["telegram"]
+
+
+def test_a_refused_stranger_is_listed_for_the_console_newest_first_once(rig):
+    """Killing mutation: drop the ``RefusedSenders().record`` call in ``_refuse`` → nothing lists → red."""
+    rig.api.push_message("let me in", user_id=99, first_name="Stranger")
+    rig.api.push_message("me too", user_id=77, first_name="Other", chat_id=-2002)
+    rig.api.push_message("again", user_id=99, first_name="Stranger")
+    _poll(rig)
+    rows = _recent()
+    assert [(r["user_id"], r["display"], r["chat_id"]) for r in rows] == [("99", "Stranger", "-1001"),
+                                                                          ("77", "Other", "-2002")]
+    assert all(r["at"] for r in rows) and "let me in" not in json.dumps(rows)
+
+
+def test_an_operator_refused_for_another_reason_is_not_listed(rig):
+    """The reason filter: operator 42 is refused (``unknown_persona``) and is never STORED — read the store,
+    because the read's allowed-operator filter would hide 42 anyway."""
+    from agent_runtime.messaging.refused import RefusedSenders
+
+    rig.api.push_message("/persona nobody")
+    rig.api.push_message("who", user_id=99)  # positive control: a stranger in the same poll is stored
+    _poll(rig)
+    assert [r["user_id"] for r in RefusedSenders().recent(TG)] == ["99"]
+
+
+def test_the_list_is_bounded_and_drops_a_user_allowed_since(rig):
+    from agent_runtime.messaging.refused import RECENT_MAX
+
+    for user in range(100, 100 + RECENT_MAX + 3):
+        rig.api.push_message("hi", user_id=user)
+    _poll(rig)
+    rows = _recent()
+    assert len(rows) == RECENT_MAX and rows[0]["user_id"] == str(100 + RECENT_MAX + 2)
+    OperatorStore().allow(Operator(TG, rows[0]["user_id"], "", "rpc:stdio_owner", "2026-10-27T00:00:00+00:00"))
+    assert [r["user_id"] for r in _recent()] == [r["user_id"] for r in rows[1:]]
+    everything = rpc.execute("refused.recent", {}, by="rpc:stdio_owner")["refused"]
+    assert set(everything) == {platform.value for platform in Platform}

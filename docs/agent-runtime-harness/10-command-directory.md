@@ -225,7 +225,8 @@ Never pass `--parent-pid` to a service. Messaging is off until both of these hol
 or `hermes config set plugins.entries.eternia-harness.settings.messaging_enabled true` on a checkout) and the
 bot token is set through `runtime.messaging.credential.set` from this machine's console. Read
 `runtime.messaging.status` for `credential` and `lane`; allow your platform user with
-`runtime.messaging.operator.allow` before the first message, then send `/persona <name>` in the chat.
+`runtime.messaging.operator.allow` before the first message (a refused first message puts your user id in
+`runtime.messaging.refused.recent`), then send `/persona <name>` in the chat.
 [Transport](03-transport-and-wire.md) owns the verbs; [multi-device](09-multi-device-runtime.md) the
 service model.
 

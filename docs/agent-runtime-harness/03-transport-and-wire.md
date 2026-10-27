@@ -1902,7 +1902,9 @@ manifests switch it off). `status` (read) answers `{enabled, default_persona, pl
 {credential: present|absent, bindings, operators, lane: {state: running|off|draining, reason}}}}`; the token
 itself is never on a reply, a receipt or a log. Console: `binding.set|clear|list` (a platform chat POINTS AT a
 persona instance; the session is always the instance's current chat root), `operator.allow|revoke|list`
-(unknown platform users are dropped fail-closed), `credential.set|clear` (also `LOCAL_CONSOLE_METHODS`: a
+(unknown platform users are dropped fail-closed), `refused.recent` (`{platform?}` → `{refused: {<platform>:
+[{user_id, display, chat_id, at}]}}` — the last ≤10 strangers the bridge dropped as `unknown_operator`,
+newest first, one row per user, a user allowed since left out; `messaging/refused.py`), `credential.set|clear` (also `LOCAL_CONSOLE_METHODS`: a
 paired device never writes the bot token), and `platform.enable|disable` (`{platform?}` → `{platform,
 enabled, lane}`), which write `plugins.entries.eternia-harness.settings.messaging_enabled` through
 `hermes_cli.config.save_config` and wake the running serve's lane, which converges within one tick — read
