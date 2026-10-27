@@ -110,7 +110,7 @@ def _root_stem(root: str) -> str:
 
 
 def _lease_paths(root: str) -> tuple[Path, Path]:
-    base = paths.store_root() / "persona_chat_leases"
+    base = paths.store_root() / paths.PERSONA_CHAT_LEASES_DIRNAME
     stem = _root_stem(root)
     return base / f"{stem}.lock", base / f"{stem}.owner.json"
 

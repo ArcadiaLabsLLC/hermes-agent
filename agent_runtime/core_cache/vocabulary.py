@@ -19,7 +19,9 @@ from agent_runtime.paths import (
     COURSES_DIRNAME,
     DELETED_ARCHIVE_DIRNAME,
     DERIVED_CACHE_DIRNAME,
+    MISSION_CHAT_STEER_DIRNAME,
     OFFICE_ARCHIVE_DIRNAME,
+    PERSONA_CHAT_LEASES_DIRNAME,
     REALM_SYNC_DIRNAME,
     WORK_DIRNAME,
     SERVE_AUTH_TOKEN_FILENAME,
@@ -409,6 +411,10 @@ _EXCLUDED_STORE_ENTRIES = frozenset(
         # see the block below for the reader audit.
         CHAT_TURN_RESERVATIONS_DIRNAME,
         CHAT_TURN_SETTLES_DIRNAME,
+        # Two of the 2026-08-23 chat-turn sidecar families
+        # (RT-CORE-CACHE-CONVERGENCE-CENSUS) — see the block below.
+        PERSONA_CHAT_LEASES_DIRNAME,
+        MISSION_CHAT_STEER_DIRNAME,
     }
 )
 
@@ -444,6 +450,36 @@ _EXCLUDED_STORE_ENTRIES = frozenset(
 #: ``realm_sync_state/<realm>.json`` (1 of the 7) is deliberately NOT here: the
 #: realm rows read it (``realm_sync.read_realm_sync_sidecar``), so its change is
 #: a real input change and the miss it caused was correct.
+
+
+#: THE 2026-08-23 CHAT-TURN SIDECAR FAMILIES, RULED ONE BY ONE
+#: (RT-CORE-CACHE-CONVERGENCE-CENSUS, 2026-10-27; plan core-cache-input-closure,
+#: 2026-08-23 addendum). All four are written on every operator turn.
+#:
+#: **THE READER AUDIT** (re-run it; do not trust this transcript)::
+#:
+#:     grep -rn "_lease_paths\|PERSONA_CHAT_LEASES_DIRNAME" agent_runtime/ hermes_cli/ | grep -v tests
+#:     grep -rn "mission_chat_steer import\|MISSION_CHAT_STEER_DIRNAME" agent_runtime/ hermes_cli/ | grep -v tests
+#:     grep -rn "inflight_turn_rows\|load_live_prompt_observability_contexts" agent_runtime/ | grep -v tests
+#:
+#: * ``persona_chat_leases/`` — **excluded**. The only reader is the lease itself
+#:   (``persona_chat_root_lease``, entered by a turn and by the serve-boot orphan
+#:   sweep ``repair_orphaned_chat_turns``); no projection section opens a lease.
+#: * ``mission_chat_steer/`` — **excluded**. Read only by the live turn's own inbox
+#:   watcher and the steer submitters (``dispatch_delivery.completions``, the
+#:   ``mission-chat steer`` verb); the snapshot build never imports the module.
+#: * ``mission_chat_turns/`` — **kept**: ``running_work`` (a snapshot section)
+#:   projects in-flight turns from it through ``mission_chat_turns.inflight_turn_rows``,
+#:   so a turn record's change is a real input change.
+#: * ``prompt_observability/`` + ``prompt_observability_index.json`` — **kept**: the
+#:   prompt-observability section reads the persisted contexts
+#:   (``snapshot_frame`` -> ``context_store.load_live_prompt_observability_contexts``).
+#:
+#: The runtime half is ``tests/agent_runtime/test_core_cache_input_families.py``: a
+#: real ``build_snapshot`` over a store seeded with both excluded families opens and
+#: lists nothing in either. **WHAT WOULD MAKE THIS WRONG**: a section that surfaces a
+#: held lease or a queued steer from these files; whoever adds it removes the
+#: exclusion in the SAME commit.
 
 
 #: WHY ``deleted_archive/`` IS EXCLUDED, WRITTEN WHERE THE EXCLUSION LIVES.

@@ -263,6 +263,11 @@ COURSES_DIRNAME = "courses"
 CHAT_TURN_RESERVATIONS_DIRNAME = "chat_turn_reservations"
 CHAT_TURN_SETTLES_DIRNAME = "chat_turn_settles"
 WORK_DIRNAME = "work"
+#: The chat lane's per-root lease files (``persona_chat_continuity.lease``) and live-turn steer
+#: inboxes (``mission_chat_steer``): rewritten on every operator turn and read by no projection
+#: section, so the core cache's exclusion set imports both (RT-CORE-CACHE-CONVERGENCE-CENSUS).
+PERSONA_CHAT_LEASES_DIRNAME = "persona_chat_leases"
+MISSION_CHAT_STEER_DIRNAME = "mission_chat_steer"
 
 
 def course_dir(course_public_id: str) -> Path:

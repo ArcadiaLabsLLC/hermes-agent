@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
-from .paths import unlink_quietly
+from .paths import MISSION_CHAT_STEER_DIRNAME, unlink_quietly
 
 __layer__ = "lanes"
 
@@ -350,7 +350,7 @@ def _mark_active_complete(runtime_root: Path, session_id: str) -> None:
 
 
 def _turn_dir(runtime_root: Path, session_id: str) -> Path:
-    return Path(runtime_root) / "mission_chat_steer" / _safe_token(session_id)
+    return Path(runtime_root) / MISSION_CHAT_STEER_DIRNAME / _safe_token(session_id)
 
 
 def _active_path(runtime_root: Path, session_id: str) -> Path:

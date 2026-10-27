@@ -246,6 +246,26 @@ Runtime half: `tests/agent_runtime/test_core_cache_input_families.py` (a real `b
 opens no file in the three families, beside a positive control). Field half still owed: the
 next week's `fingerprint_mismatch` census.
 
+## 2026-10-27 — the 2026-08-23 chat-turn sidecar families, ruled
+
+Row `RT-CORE-CACHE-CONVERGENCE-CENSUS` (lane w1027k-h-rt). The four families of the
+2026-08-23 addendum, ruled one by one; the argument and the greps are at
+`core_cache.vocabulary._EXCLUDED_STORE_ENTRIES`:
+
+- `persona_chat_leases/` — **excluded**: read only by the lease itself (a turn, the
+  serve-boot orphan sweep).
+- `mission_chat_steer/` — **excluded**: read only by the live turn's inbox watcher and
+  the steer submitters; the snapshot build never imports the module.
+- `mission_chat_turns/` — **kept**: `running_work` projects in-flight turns from it.
+- `prompt_observability/` + its index — **kept**: the prompt-observability section reads
+  the persisted contexts.
+
+Runtime half: `tests/agent_runtime/test_core_cache_input_families.py` (digest cases for
+the two exclusions, positive controls for the two kept families, and the build spy now
+counts directory listings as well as opens). Field half still owed: a week of
+`scripts/core_cache_demote_census.py` over operator boots; IC-4 is built only if that
+week still names WAL triples.
+
 ## The gate to open this
 
 - ~~Every candidate exclusion has a named reader audit proving nothing in
