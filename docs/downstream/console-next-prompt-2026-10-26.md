@@ -105,7 +105,7 @@ all nine completion rows retain the owner's implementation hold.
 
 ## Authorized completion implementation — 2026-10-27
 
-The owner released the earlier hold. MOVE `0c06b4de18` extracts shared generation;
+The owner released the earlier hold. MOVE `2bcb797836` extracts shared generation;
 subsequent CHANGE adds the latest-user-language reminder and narrow cleanup.
 Console still binds `console_next_prompt` / `console_follow_up` through the existing
 plugin facade. Shared code has no persona/history/settings dependency. No live

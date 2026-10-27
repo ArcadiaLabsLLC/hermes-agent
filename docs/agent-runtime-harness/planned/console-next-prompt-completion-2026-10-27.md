@@ -1,8 +1,9 @@
 # Agent Console follow-up suggestions: completion plan
 
 Status: PLANNED qualification; implementation authorized by the owner on 2026-10-27.
-The shared extraction and completion changes are implemented in the owned worktrees;
-landing checks and live qualification are in progress. The former documentation-only
+The shared extraction and completion changes have landed from the owned worktree.
+Automated checks and baseline classification are recorded; live qualification awaits
+Amelia's provider reconnection. The former documentation-only
 hold is released. Live user enablement remains off; no product confirmation flow is added.
 
 The original implementation remains built. See [chat canon](../05-chat-turn-lane.md)

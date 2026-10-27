@@ -1,7 +1,7 @@
 # Suggestion evaluation protocol — 2026-10-27
 
 Protocol frozen before paid samples. This finite check compares the pre-refinement
-shared helper (`0c06b4de18`) with the completed helper through the same Console
+shared helper (`2bcb797836`) with the completed helper through the same Console
 plugin completion binding, task, provider route and context. Two samples per
 variant per case: 9 cases × 2 variants × 2 samples = 36 calls. No persona execution,
 real conversation history, automatic send or live suggestion enablement.
