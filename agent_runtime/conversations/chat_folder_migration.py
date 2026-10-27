@@ -140,13 +140,21 @@ def _bound_persona_root(store: ConversationStore, route: ConversationRoute) -> t
         return None
     instance_id = target[1]
     from agent_runtime import paths
-    from agent_runtime.chat_session_scope import SessionDbAccess, open_chat_session_db
+    from agent_runtime.chat_session_scope import (
+        SessionDbAccess,
+        open_chat_session_db,
+        resolve_conversation_chat_scope,
+    )
     from agent_runtime.store_file_io import read_json_object
 
     receipts = paths.persona_chat_mint_receipts_dir()
     if not receipts.is_dir():
         return None
-    db = open_chat_session_db(access=SessionDbAccess.READ)
+    # The receipt's instance names the head its root lives in: a ``per_profile``
+    # instance's own store, else the process one (plan §7.2 decision 5).
+    db = open_chat_session_db(
+        resolve_conversation_chat_scope(persona_instance_id=instance_id), access=SessionDbAccess.READ
+    )
     if db is None:
         return None
     try:

@@ -276,6 +276,9 @@ left by a crash, now copied and deleted) · `skipped` (`runs_in_process_head` / 
   bound to a `per_profile` instance is written into that instance's head (opened once per head), a
   child into its parent's store, everything else into the process store; a head whose home is gone
   skips the chat `target_chat_head_missing`. The report adds `per_profile_stores`.
+- `RT-CHAT-HEAD-FOLDER-MIGRATION-READ`: `chat_folder_migration._bound_persona_root` reads the
+  receipt's root from `resolve_conversation_chat_scope(persona_instance_id=)` — the instance's own
+  head when it is `per_profile`, the process head otherwise.
 
 ### 7.5 Open questions
 

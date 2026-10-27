@@ -230,3 +230,38 @@ def test_a_route_counts_as_bound_only_with_its_import_and_a_bound_receipt(tmp_pa
     assert _bound_persona_root(store, route) is None, "a reserved receipt is not bound"
     receipt.write_text(_json.dumps({**body, "state": "bound"}), encoding="utf-8")
     assert _bound_persona_root(store, route) == ("personainst_qa", "personainst_qa_root")
+
+
+@pytest.mark.parametrize("kind", ["per_profile", "process"])
+def test_a_bound_root_is_read_from_its_per_profile_instances_head(tmp_path, monkeypatch, kind):
+    """RT-CHAT-HEAD-FOLDER-MIGRATION-READ. Positive control: stamped ``process``, the root is not in base."""
+    import json as _json
+
+    from agent_runtime.chat_session_scope import ChatHeadSource, ChatSessionScope, SessionDbAccess, open_chat_session_db
+    from agent_runtime.conversations.chat_folder_migration import _bound_persona_root
+    from agent_runtime.conversations.store import ConversationStore
+    from agent_runtime.persona_assignments import PersonaInstanceStore
+
+    head, alice = tmp_path / "profiles" / "base", tmp_path / "profiles" / "alice"
+    for path in (head, alice):
+        path.mkdir(parents=True)
+    monkeypatch.setenv("HERMES_HEAD_HOME", str(head))
+    root = paths.store_root()
+    root.mkdir(parents=True, exist_ok=True)
+    instances = PersonaInstanceStore()
+    instance = instances.open_chat(persona_id="qa", session_id="personainst_qa_root", persona_instance_id="personainst_qa")
+    instance.chat_head_home, instance.chat_head_kind = str(alice), kind
+    instances.update(instance)
+    store = ConversationStore(root / "native_conversation_routes.db")
+    route = _launcher_route(store, tmp_path / "eternia_launcher" / "agents" / "workspaces", "ggg")
+    store.reserve_migration(route, "qa", "personainst_qa")
+    db = open_chat_session_db(ChatSessionScope(alice, ChatHeadSource.INSTANCE_RECORDED), access=SessionDbAccess.WRITE)
+    db.create_session("personainst_qa_root", "agent_runtime_persona_chat", model_config={
+        "legacy_conversation": {"route_id": route.id}})
+    db.close()
+    receipt = paths.persona_chat_mint_receipt_path("digest2")
+    receipt.parent.mkdir(parents=True, exist_ok=True)
+    receipt.write_text(_json.dumps({"persona_instance_id": "personainst_qa", "session_id": "personainst_qa_root",
+                                    "state": "bound"}), encoding="utf-8")
+    expected = ("personainst_qa", "personainst_qa_root") if kind == "per_profile" else None
+    assert _bound_persona_root(store, route) == expected
