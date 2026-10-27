@@ -34,14 +34,20 @@ ROOT = Path(__file__).resolve().parents[2]
 
 @pytest.fixture
 def machine(tmp_path, monkeypatch):
-    """A native root, an operator-chosen persisted home, and a QA seeded home, all under tmp."""
+    """A native root, an operator-chosen persisted home, and a QA seeded home, all under tmp.
+
+    The native root is the PLATFORM's (``hermes_constants._platform_default_hermes_home``):
+    ``%LOCALAPPDATA%\\hermes`` on Windows, ``~/.hermes`` elsewhere — so both are pointed at tmp.
+    """
     local = tmp_path / "LocalAppData"
-    native = local / "hermes"
+    user_home = tmp_path / "user"
+    native = local / "hermes" if sys.platform == "win32" else user_home / ".hermes"
     operator = tmp_path / "Eternia" / ".hermes"
     qa = tmp_path / "Temp" / "qa-seeded" / "home"
     for path in (native, operator, qa):
         path.mkdir(parents=True)
     monkeypatch.setenv("LOCALAPPDATA", str(local))
+    monkeypatch.setenv("HOME", str(user_home))
     monkeypatch.setenv("HERMES_DATA_DIR_SUFFIX", "")
     monkeypatch.setattr(fence, "_persisted_user_home", lambda: str(operator))
     return {"native": native, "operator": operator, "qa": qa}
