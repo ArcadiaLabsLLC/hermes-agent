@@ -1,7 +1,7 @@
 """The persona CLI replies stop carrying two constants nobody read.
 
-``harness persona list`` / ``show`` / ``assignments`` emitted
-``feature_enabled: true`` and ``assignment_store_enabled: true`` — literal
+``harness persona list`` / ``show`` (and the since-retired ``assignments``)
+emitted ``feature_enabled: true`` and ``assignment_store_enabled: true`` — literal
 ``True`` in the dict, never derived from anything. S56 kept them on the reply
 "so operator tooling that reads them keeps parsing"; the 2026-09-01 trace found
 no such tooling:
@@ -22,7 +22,9 @@ skills-sync's honest key. So the replies are BUILT and read back.
 
 What is deliberately still asserted present is what a caller actually branches
 on: ``ok`` on both ``show`` arms, and the rows themselves. This cut removes
-constants, not the reply.
+constants, not the reply. The ``assignments`` verb itself left with
+PersonaAssignmentStore at ``72a4f8d3ba``; its absence is pinned by
+``tests/agent_runtime/test_persona_assignment_store_retired.py``.
 """
 
 from __future__ import annotations
@@ -123,16 +125,3 @@ def test_the_persona_show_not_found_arm_keeps_ok_false_and_drops_the_constant(
     for key in CUT_KEYS:
         assert key not in out["data"]
 
-
-def test_persona_assignments_carries_the_rows_and_neither_constant(persona_home, capsys):
-    """The store is empty on a fresh hermetic root, and that is the honest
-    shape to assert: ``assignments`` is present and is a list. The cut is about
-    the two constants beside it, not about the rows."""
-
-    out = _reply(["harness", "persona", "assignments", "--json"], capsys)
-
-    assert out["code"] == 0
-    assert out["data"]["ok"] is True
-    assert isinstance(out["data"]["assignments"], list)
-    for key in CUT_KEYS:
-        assert key not in out["data"]
