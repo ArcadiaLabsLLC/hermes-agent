@@ -339,6 +339,15 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "test_resync_keeps_in_memory_consent_and_never_disarms_on_bad_input",
         )
     },
+    # The same refuse_tool_call registration reaches session.create's launch-hook consent:
+    # upstream counts exactly one pre_tool_call hook (row FH-SESSION-POLICY-HOOK-COUNT-RED).
+    "tests/gateway/test_session_policy.py::"
+    "test_launch_options_reach_the_owner_frozen_and_hooks_consented": (
+        _fork_replaces(
+            "eternia-harness pre_tool_call hook refuse_tool_call (plugins/eternia-harness)",
+            "tests/gateway/test_session_policy_downstream.py",
+        ),
+    ),
     # Same branch: a session narrowed to toolsets=['terminal'] keeps the eternia-harness
     # default-on plugin toolset "skills" (skill_search), as on the v0.21.6 row above.
     "tests/gateway/test_canonical_session_inventory.py::"
