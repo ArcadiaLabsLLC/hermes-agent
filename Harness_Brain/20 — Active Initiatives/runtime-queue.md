@@ -31,7 +31,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-27 (lane w1027b-h-fix)
 
-- **`RT-STREAM-GOLDEN-PATCH-AGENT-CREATE-DRIFT` — `test_committed_goldens_are_the_generators_bytes` and `test_a_serve_boot_earlier_in_the_process_does_not_reach_the_goldens` red on `origin/main` `7e6d0da0a5` (Linux, `scripts/run_tests.sh`): `patch_agent_create.json` differs from the generator at byte 1292 (`,` vs `]`); decide whether the generator or the golden moved and land the regenerated golden cross-stack with the launcher mirror** · `tests/agent_runtime/test_stream_contract_fixture.py` · `scripts/generate_agent_runtime_stream_fixtures.py` · READY 2026-10-27 · **TAKEN 2026-10-27 w1027c-h-rt on nekwo-ubuntu24 as nekwo in hermes-w1027c-h-rt**
 
 ### Lens plan reconciliation — 2026-10-26 (codex-lens-status)
 
