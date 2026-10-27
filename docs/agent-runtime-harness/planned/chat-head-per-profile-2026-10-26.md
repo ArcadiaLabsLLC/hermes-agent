@@ -239,8 +239,8 @@ the process handle's is left to it. Two readers fan out over it:
 first, an instance's rows read from its own head, a refused or absent head a typed drop) and
 `instance_history.py::list_instance_conversations` (the history list: one keyset page per store,
 merged by `started_at DESC, id DESC`, a head's copy first). The projection's own handle
-(`snapshot/details.py::persona_session_db_scope`) stays the process read. Not moved: the
-prompt-observability section (row `RT-CHAT-HEAD-PROMPT-OBS-READ`).
+(`snapshot/details.py::persona_session_db_scope`) stays the process read. The
+prompt-observability section moved later (§7.4g).
 
 ### 7.4e Built — CH2C-FIRST-BIND-STAMP (lane w1027h-h-head, 2026-10-27)
 
@@ -279,6 +279,11 @@ left by a crash, now copied and deleted) · `skipped` (`runs_in_process_head` / 
 - `RT-CHAT-HEAD-FOLDER-MIGRATION-READ`: `chat_folder_migration._bound_persona_root` reads the
   receipt's root from `resolve_conversation_chat_scope(persona_instance_id=)` — the instance's own
   head when it is `per_profile`, the process head otherwise.
+- `RT-CHAT-HEAD-PROMPT-OBS-READ`: `SnapshotFrame.build` opens `per_profile_read_heads` over the
+  roster for the build; each instance's context reads `SnapshotFrame.session_db_for(instance)` (its
+  head, `None` when that head is gone or empty — never the process handle), and the disk-row
+  backfill takes the same answer through `_merge_latest_contexts(session_db_for=)`. That backfill
+  arm has no test of its own: a built row already carries the title it would backfill.
 
 ### 7.5 Open questions
 

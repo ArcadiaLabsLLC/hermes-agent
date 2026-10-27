@@ -505,12 +505,14 @@ def _merge_latest_contexts(
     *,
     session_db: Any | None = None,
     disk_rows: list[dict[str, Any]] | None = None,
+    session_db_for: Callable[[dict[str, Any]], Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Merge persisted rows (newest-first) over the freshly built contexts.
 
     ``disk_rows`` lets the C2 roster-keyed loader supply exactly the live
     lanes' rows; when omitted (legacy callers/tests) the newest-50 glob load
-    is used."""
+    is used. ``session_db_for(row)`` names the store a row's chat metadata is
+    backfilled from (its instance's own head); ``session_db`` otherwise."""
 
     merged: list[dict[str, Any]] = []
     seen: set[tuple[str, str, str]] = set()
@@ -527,7 +529,10 @@ def _merge_latest_contexts(
         key = key_for(item)
         if key in seen:
             continue
-        _backfill_derived_fields(item, built_by_key.get(key), session_db=session_db)
+        _backfill_derived_fields(
+            item, built_by_key.get(key),
+            session_db=session_db_for(item) if session_db_for is not None else session_db,
+        )
         merged.append(item)
         seen.add(key)
     for item in contexts:

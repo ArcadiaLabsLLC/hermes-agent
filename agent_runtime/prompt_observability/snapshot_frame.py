@@ -84,11 +84,19 @@ class SnapshotFrame:
     skill_resolver: _SkillObservabilityResolver | None = None
     roster: list[Any] = field(init=False)
     installs: Any = field(init=False)
+    #: Instance id -> its ``per_profile`` head (chat-head plan §2.4), open for the build.
+    head_reads: dict[str, Any] = field(init=False, default_factory=dict)
 
     def build(self) -> dict[str, Any]:
+        from .. import chat_session_scope
+
         self.roster_and_installs()
-        contexts = self.built_contexts()
-        chat_contexts, chat_contexts_evicted, ctx_read = self.live_rows(contexts)
+        # A ``per_profile`` instance's lineage is in its own head, opened once per
+        # head, read-only; every other instance reads ``session_db`` as before.
+        with chat_session_scope.per_profile_read_heads(self.roster, process_db=self.session_db) as heads:
+            self.head_reads = heads
+            contexts = self.built_contexts()
+            chat_contexts, chat_contexts_evicted, ctx_read = self.live_rows(contexts)
         frame_catalog_hashes = self.hoist(chat_contexts)
         return self.section(chat_contexts, chat_contexts_evicted, ctx_read, frame_catalog_hashes)
 
@@ -111,6 +119,16 @@ class SnapshotFrame:
         # (thread count + on-level list) and the input may be a one-shot iterable.
         self.roster = list(self.persona_instances)
         self.installs = installs_block()
+
+    def session_db_for(self, instance_id: Any) -> Any | None:
+        """The store one instance's lineage is read from: its own head, else ``session_db``.
+
+        A ``per_profile`` head that is gone or holds no store answers ``None`` —
+        no history — never the process handle, which holds none of its chats.
+        """
+
+        read = self.head_reads.get(safe_assignment_token(instance_id) or "")
+        return self.session_db if read is None else read.db
 
     def situational_for(self, instance: Any) -> dict[str, Any]:
         from .. import workspace_scope
@@ -188,7 +206,7 @@ class SnapshotFrame:
                     goal_id=getattr(instance, "goal_id", None),
                     surface_prompt="",
                     limiting_wrapper_active=False,
-                    session_db=self.session_db,
+                    session_db=self.session_db_for(_persona_instance_id(instance)),
                     situational_hud=self.situational_for(instance),
                     instance_skill_overrides=(
                         list(getattr(instance, "skill_overrides", None) or [])
@@ -231,7 +249,10 @@ class SnapshotFrame:
             live_instance_ids=live_instance_ids,
             live_session_ids=live_session_ids,
         )
-        chat_contexts = _merge_latest_contexts(contexts, session_db=self.session_db, disk_rows=disk_rows)
+        chat_contexts = _merge_latest_contexts(
+            contexts, session_db=self.session_db, disk_rows=disk_rows,
+            session_db_for=lambda item: self.session_db_for(item.get("persona_instance_id")),
+        )
         chat_contexts, chat_contexts_evicted = _filter_live_chat_contexts(
             chat_contexts,
             built_keys=built_keys,

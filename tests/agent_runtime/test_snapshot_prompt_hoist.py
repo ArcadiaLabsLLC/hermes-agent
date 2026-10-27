@@ -19,6 +19,8 @@ import copy
 import hashlib
 import json
 
+import pytest
+
 from agent_runtime import prompt_observability as po
 from tests.agent_runtime.snapshot_bytes import snapshot_size_budget
 
@@ -625,3 +627,27 @@ def test_prompt_observability_budget_ratchet():
     violations = snapshot_size_budget(un_hoisted, ratchet)
     assert violations, "the un-hoisted 24-row catalog must blow the ratchet"
     assert "prompt_observability" in violations[0]
+
+
+@pytest.mark.parametrize("kind", ["per_profile", "process"])
+def test_a_per_profile_instances_lineage_is_read_from_its_own_head(isolate_agent_runtime_root, tmp_path, kind):
+    """RT-CHAT-HEAD-PROMPT-OBS-READ. Positive control: stamped ``process``, the process handle answers."""
+    from hermes_state import SessionDB
+
+    alice, base = tmp_path / "profiles" / "alice", tmp_path / "profiles" / "base"
+    for home, title in ((alice, "Alice in her own head"), (base, None)):
+        home.mkdir(parents=True)
+        db = SessionDB(db_path=home / "state.db")
+        if title:
+            db.create_session("persona_chat_alice", "agent_runtime_persona_chat")
+            db.set_session_title("persona_chat_alice", title)
+        db.close()
+    instance = _profile_instance("persona_chat_alice")
+    instance.chat_head_home, instance.chat_head_kind = str(alice), kind
+    process = SessionDB(db_path=base / "state.db")
+    try:
+        section = po.snapshot_prompt_observability(personas=[], persona_instances=[instance], session_db=process)
+    finally:
+        process.close()
+    row = next(r for r in section["chat_contexts"] if r.get("persona_instance_id") == instance.id)
+    assert (row.get("chat_title") or None) == ("Alice in her own head" if kind == "per_profile" else None)
