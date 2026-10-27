@@ -305,7 +305,9 @@ def test_the_walk_finds_the_dockets_and_the_stages_it_exists_to_gate():
     done = [stage for stage in stages if stage.claims_done]
 
     assert len(dockets) >= 60, len(dockets)
-    assert len(stages) >= 30, len(stages)
+    # 29 on 2026-10-27, after the planned/ triage moved every built docket to
+    # archive/ (FH-PLANNED-TRIAGE-2026-10-27-A/B/C); the floor guards an empty walk.
+    assert len(stages) >= 20, len(stages)
     assert len(done) >= 5, len(done)
 
 
