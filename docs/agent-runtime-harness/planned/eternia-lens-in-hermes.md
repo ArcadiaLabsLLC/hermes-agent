@@ -20,6 +20,7 @@ Runtime work lives in `Harness_Brain/20 — Active Initiatives/runtime-queue.md`
 | Explicit later additions | `RT-LENS-ACT-ADMISSION`, `RT-LENS-LOCAL-METRICS`, `RT-LENS-STREAMING-FEED`, `RT-LENS-POSTGRES-SOURCE`. These rows retain the plan's separate-decision gates. |
 | Conditional W3/W4/W8/W11/W14 branches | `RT-LENS-PROVIDER-ADAPTERS`, `RT-LENS-BROWSER-RECORD`, `RT-LENS-HOSTED-WATCHER`, `RT-LENS-BACKEND-RELAY`, `RT-LENS-ARTIFACT-LIFECYCLE`. These are optional decisions/deferrals, not approved current build scope. |
 | Watch-side Luau | `RT-LENS-WATCH-SCRIPTING` retains the separate-host deferral and W17–W21 prerequisites. Launcher-side Luau is already implemented; the Lens read binding remains separate. |
+| W1 / W3 / W6 / W8 extensions and the missing-data rule — planned 2026-10-27 | [LENS_EXTENSIONS_2026-10-27.md](LENS_EXTENSIONS_2026-10-27.md): decisions, slices and killing mutations for `RT-LENS-SOURCE-REPAIR`, `RT-LENS-HOST-READ-BUDGET`, `RT-LENS-TRIGGER-COALESCING`, `RT-LENS-MISSED-DEADLINES`, `RT-LENS-MISSING-DATA-RULE` and their split rows. |
 
 Implementation anchors: `agent_runtime/lens/{manifest,rules,feed,poller,store,retention,credentials,trigger,artifacts,tool,ingress,ingress_routes}.py` and `agent_runtime/serve_rpc/lens.py`. Launcher authoring is built and live-qualified; subsequent open-panel/receipt native regression is `MC-LENS-PUSH-RECEIPT-LIVE-PROOF` in the Launcher Mission Control queue. Its authoring contract is `EterniaLauncher/docs/mission_control/subsystems/LENS_MONITOR_AUTHORING_FORM_2026-10-21.md`.
 
