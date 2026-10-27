@@ -1,6 +1,6 @@
 """``persona tool-diff`` prints the cost layer's split, not the callable count alone (toolvis slice 4).
 
-Plan: ``docs/agent-runtime-harness/planned/tool-visibility-authority-split-2026-10-08.md`` §0 and
+Plan: ``docs/agent-runtime-harness/archive/tool-visibility-authority-split-2026-10-08.md`` §0 and
 §3 slice 4, ruling R1. The headline used to read ``neko_supervisor: 45 tools`` while the turn
 shipped 27; it now leads with ``eager · deferred · unavailable · blocked`` and keeps the
 callable-by-name count (``final_tool_count``, which the Launcher reads) in parentheses. Driven

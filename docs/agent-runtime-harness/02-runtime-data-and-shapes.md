@@ -418,7 +418,7 @@ ContextVar first and the `HERMES_AUTH_HOME` env var second. The provider-access 
 (`agent/provider_access.py::current_access`) never runs plugin discovery: a bound read
 registers the harness's access itself (`agent_runtime.provider_access.
 ensure_shared_provider_access_registered`), an unbound one takes the native path
-(`planned/v0216-plugin-discovery-seams.md` §1). The named residue is
+(`archive/v0216-plugin-discovery-seams.md` §1). The named residue is
 `HOME`: POSIX `os.path.expanduser` has no context-scoped hook, so a `~` expanded
 under the binding (a `skills.external_dirs` entry, the `~/.codex` / `~/.qwen`
 singletons) resolves to the process home rather than `<profile>/home`. Inert on

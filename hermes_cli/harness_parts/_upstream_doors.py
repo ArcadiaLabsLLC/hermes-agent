@@ -11,7 +11,7 @@ Each door imports its upstream name at CALL time, exactly as the call sites it
 replaces did: a verb that never needs a reader never pays its import, and a
 test stub on the upstream module (``agent.account_usage``, ``hermes_cli.status``,
 …) still reaches the call. Each door names its class from the second-door rule
-(``docs/agent-runtime-harness/planned/second-doors-2026-09-24.md``): FIRST — no
+(``docs/agent-runtime-harness/archive/second-doors-2026-09-24.md``): FIRST — no
 public door exists upstream yet and the read is read-only, so the reach stays,
 named, until one does.
 

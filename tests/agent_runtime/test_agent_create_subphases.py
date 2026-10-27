@@ -41,7 +41,7 @@ ZERO rounds to every one of the three reads, warmed or not, which is what
 place of the pair that measured the cost. The registry POPULATE — importing the
 38 modules under ``tools/`` — is untouched and is still the larger half of the
 2,421 ms; it is not counted by this instrument and never was. See
-``docs/agent-runtime-harness/planned/serve-small-batch-field-notes-2026-09-02.md``
+``docs/agent-runtime-harness/archive/serve-small-batch-field-notes-2026-09-02.md``
 §2.
 """
 
@@ -383,7 +383,7 @@ def test_a_mint_bills_no_probe_rounds_to_any_projection_read(
     The span attribution the receipt carries is untouched and still asserted:
     ``chat_lane_scope_ms >= tool_visibility_ms``. What the warm is still worth
     is an open row for the 3a stage's owner — see
-    ``planned/serve-small-batch-field-notes-2026-09-02.md`` §2; the per-persona
+    ``archive/serve-small-batch-field-notes-2026-09-02.md`` §2; the per-persona
     readiness memo it fills is still pinned in ``test_persona_prewarm.py``.
     """
 

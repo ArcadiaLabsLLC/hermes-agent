@@ -654,7 +654,7 @@ instance family's pattern rather than beside it:
   (`tests/agent_runtime/test_persona_instance_drift.py`).
 - **Still separate rows:** the launcher's rendering of the held/conflict rows,
   and replication of `flow_graphs_stale/` — which the plan's §3 left undecided
-  and which has no requester (see `planned/w13-h2-flow-graph-canvas-replication.md`).
+  and which has no requester (see `archive/w13-h2-flow-graph-canvas-replication.md`).
 
 ## The board
 

@@ -1,6 +1,6 @@
 """The preview and the factory are one answer: the measured 45-vs-27 cannot recur.
 
-Plan: ``docs/agent-runtime-harness/planned/tool-visibility-authority-split-2026-10-08.md`` §0
+Plan: ``docs/agent-runtime-harness/archive/tool-visibility-authority-split-2026-10-08.md`` §0
 and §3 slice 4. ``persona tool-diff`` reported 45 names for Neko while the turn shipped 27 — the
 preview never ran the persona's defer, availability or the bridge. Now the preview
 (``inspect_commands._preview_tool_surface``, on the chat-lane bundle's ``tool_contract``) and the

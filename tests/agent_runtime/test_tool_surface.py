@@ -1,6 +1,6 @@
 """The cost layer's account: every requested name has exactly one disposition and one reason.
 
-Plan: ``docs/agent-runtime-harness/planned/tool-visibility-authority-split-2026-10-08.md`` §3
+Plan: ``docs/agent-runtime-harness/archive/tool-visibility-authority-split-2026-10-08.md`` §3
 slice 3. The fixture is the recorded Neko lane ``test_chat_lane_defer`` carries, plus the fork's
 own harness tools registered into their real toolsets (``agent_chat``, ``board``) and the lane's
 admitted ``launcher_qa`` server — so the requested set comes from upstream's own toolset

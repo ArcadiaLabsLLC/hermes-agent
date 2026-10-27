@@ -209,7 +209,7 @@ counts `every_pass` firings from this family after a week of post-`bfde53b4ae` b
 ## 2026-09-08 addendum — the field half of IC-4's "measure first", partly taken
 
 Read on the operator's `neko` profile (`agent.log` + `errors.log`) and recorded in
-full at [`windows-path-syscall-cost-2026-09-08.md`](windows-path-syscall-cost-2026-09-08.md),
+full at [`windows-path-syscall-cost-2026-09-08.md`](../archive/windows-path-syscall-cost-2026-09-08.md),
 "What the measurement did NOT explain" item 2. Three facts, none of which changes
 this plan's direction:
 

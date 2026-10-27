@@ -3,7 +3,7 @@
 **Owner domain:** transport and wire ([03-transport-and-wire.md](../03-transport-and-wire.md) § Native
 Work methods), the chat lane ([05](../05-chat-turn-lane.md)), the office and board
 ([06-office-and-board.md](../06-office-and-board.md)), multi-device ([09](../09-multi-device-runtime.md)).
-**Builds on:** [work-on-markdown-2026-10-18.md](work-on-markdown-2026-10-18.md) (W1–W5; the board, the
+**Builds on:** [work-on-markdown-2026-10-18.md](../archive/work-on-markdown-2026-10-18.md) (W1–W5; the board, the
 writer, the engine). **Status:** scoped, nothing built. One doc, no code.
 **Measured / read:** 2026-10-18 against hermes `origin/main` d518fa0963, the chat-wake branch
 `origin/ccr-cc6cbc42-w6ahvk` (`598bedea`), and `EterniaLauncher` `origin/main` (read with `git show` /

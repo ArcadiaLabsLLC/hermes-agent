@@ -226,7 +226,7 @@ all three join families so no adjacency moves — an additive field, never a
 formatter change, because `%(process)d` would re-shape every line the runtime
 emits and break every grep anchored on a neighbour (`agent_runtime/stream/build.py::_is_one_shot`).
 
-**Build accounting (h-snap-worker, 2026-10-06; plan `planned/snapshot-offproc-2026-10-06.md`
+**Build accounting (h-snap-worker, 2026-10-06; plan `archive/snapshot-offproc-2026-10-06.md`
 S2).** Every build is a receipt: led builds on `snapshot_build_core`, the shadow
 validation on `snapshot_build_shadow`. Four fields ride before `pid=` on both:
 `reason=` (with `caller=`, the trigger — `demote` / `hydrate` / `boot` /

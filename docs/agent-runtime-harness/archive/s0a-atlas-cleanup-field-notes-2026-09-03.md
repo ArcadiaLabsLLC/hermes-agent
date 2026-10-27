@@ -73,7 +73,7 @@ reads.
    and `scripts/doc_cite_adjacency.py` (the two doc gates that scan `planned/`).
 9. Queue sources: launcher `Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`
    (the three folded rows at lines ~476, ~2020, ~2022) and hermes
-   `planned/serve-small-batch-field-notes-2026-09-02.md` §2.
+   `archive/serve-small-batch-field-notes-2026-09-02.md` §2.
 
 ## What I measured
 
@@ -193,7 +193,7 @@ below); the pre-rebase shas the earlier draft carried are dead.
 | `162b1e7a0d` | A3 — admitted MCP is not a failure (R-S0a-4) + `admitted_mcp_servers` + the ratchet test + the canon 08 ledger row |
 | `d5dd25f630` | A4 — the emitter, the three generated artifacts, the tools-first Operate table, the drift gate |
 | `ba7157801d` | A6 — `persona_skill_sources` + two `agent list` keys; A6a/A6b measurements recorded |
-| `029f6a79ad` | the gate repair the plan named: three stale coverage claims in `planned/serve-small-batch-field-notes-2026-09-02.md` |
+| `029f6a79ad` | the gate repair the plan named: three stale coverage claims in `archive/serve-small-batch-field-notes-2026-09-02.md` |
 | `99ead2f2d1` | the cross-repo stream goldens regenerated for `toolset_declaration` — **launcher byte mirror OWED** |
 | `bb780ab1df` | these field notes |
 | `18c0720f2b` | nine canon cites re-anchored after the rebase (replaces the pre-rebase `6083c9cca7`, which the rebase dropped as empty — main had re-anchored the same cites for its own shift) |

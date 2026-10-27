@@ -1,6 +1,6 @@
 """Hermes's worktree is keyed by the CHECKOUT it is cut from, not by the slot name.
 
-Plan ``docs/agent-runtime-harness/planned/work-slot-roots-per-workspace-2026-10-21.md`` §4
+Plan ``docs/agent-runtime-harness/archive/work-slot-roots-per-workspace-2026-10-21.md`` §4
 (``RT-WORK-WORKTREE-KEYED-BY-SLOT``): the default brain and a declared slot ``brain`` over two
 repositories used to share ``worktrees/brain``, so each alternating write recreated it. Real git, two
 local brains, no remote.

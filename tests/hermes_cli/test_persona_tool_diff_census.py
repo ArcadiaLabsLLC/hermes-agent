@@ -1,6 +1,6 @@
 """``persona tool-diff`` names the plugin toolsets no profile declares (slice 2).
 
-Plan: ``docs/agent-runtime-harness/planned/tool-visibility-authority-split-2026-10-08.md``
+Plan: ``docs/agent-runtime-harness/archive/tool-visibility-authority-split-2026-10-08.md``
 §3 slice 2. Acceptance: a fake plugin registering one tool into ``eternia_lens`` with the
 persona on ``harness_core`` is named in the text line and in ``--json``; declaring it
 clears both. Drives the REAL argparse tree through ``args.func``.

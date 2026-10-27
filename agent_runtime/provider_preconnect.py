@@ -1,6 +1,6 @@
 """Open the provider connection on the prewarm thread, not on the first turn.
 
-h-turn1 A4 (``docs/agent-runtime-harness/planned/turn-latency-h-turn1-2026-10-05.md``).
+h-turn1 A4 (``docs/agent-runtime-harness/archive/turn-latency-h-turn1-2026-10-05.md``).
 A resident actor's OpenAI client rides upstream's process-shared keepalive
 transport (``agent/process_bootstrap.py::build_keepalive_http_client``), so a
 chat's first turn opens a connection. The FIRST one in the process pays the

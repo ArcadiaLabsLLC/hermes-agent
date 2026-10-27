@@ -3,7 +3,7 @@
 Upstream deleted ``agent/ssl_guard.py`` (the certifi CA-bundle preflight) for
 ``agent.ssl_verify.install_truststore()`` at the 2026-09-25 merge; the prewarm
 step that called ``verify_ca_bundle()`` was re-seated onto it (design note
-``docs/agent-runtime-harness/planned/upstream-merge-2026-09-25-design.md`` §2.1).
+``docs/agent-runtime-harness/archive/upstream-merge-2026-09-25-design.md`` §2.1).
 These pin the relationship — prewarm -> the one authority, exactly once, and a
 raising authority never escapes the prewarm thread — not the function body.
 """

@@ -1,6 +1,6 @@
 """One-shot startup strip of the legacy persona-level ``toolsets`` key from ``<store>/agents/*.json``.
 
-Ruling R2 of the tool-visibility split (``docs/agent-runtime-harness/planned/tool-visibility-authority-split-2026-10-08.md``
+Ruling R2 of the tool-visibility split (``docs/agent-runtime-harness/archive/tool-visibility-authority-split-2026-10-08.md``
 §6, applied 2026-10-08): ``AgentPersona.toolsets`` is deleted, the root-config key is
 refused at load (``config.persona_records``), and the STORE rows — the live carrier of the
 list (Neko's row held it; the root config did not) — are migrated once. A row that still

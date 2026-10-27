@@ -1,6 +1,6 @@
 """The chat lane's tool form: one owner of a persona chat actor's ``tools``.
 
-Plan ``docs/agent-runtime-harness/planned/tool-form-one-owner-2026-10-08.md``. A persona
+Plan ``docs/agent-runtime-harness/archive/tool-form-one-owner-2026-10-08.md``. A persona
 chat turn's ``tools[]`` is derived ONCE, here, from the lane's raw definitions, the
 constructor's post-build extras and the persona's defer list (``chat_lane_defer_tools``),
 through the one assembly upstream's tool search runs (``assemble_tool_defs``) — at

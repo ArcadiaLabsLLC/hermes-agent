@@ -1,7 +1,7 @@
 """The census: toolsets a loaded PLUGIN registered that no persona's declaration names.
 
 Slice 2 of the tool-visibility split
-(``docs/agent-runtime-harness/planned/tool-visibility-authority-split-2026-10-08.md`` §3).
+(``docs/agent-runtime-harness/archive/tool-visibility-authority-split-2026-10-08.md`` §3).
 A plugin that registers tools into a toolset nobody declares reaches no persona —
 ``unbounded`` no longer widens the declaration (S0a A1) — and before this module
 nothing said so: a teammate's Lens-as-a-tool plugin never surfaced and no row told

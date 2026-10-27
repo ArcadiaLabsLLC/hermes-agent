@@ -2,7 +2,7 @@
 
 Moved out of the upstream file ``hermes_constants.py`` by Stage 4 of
 ``docs/agent-runtime-harness/planned/harness-plugin-and-upstream-seams.md``
-(inventory: ``docs/agent-runtime-harness/planned/seam-s4-s5-s6-inventory-2026-09-23.md``
+(inventory: ``docs/agent-runtime-harness/archive/seam-s4-s5-s6-inventory-2026-09-23.md``
 §2.1, bucket "ours"). Upstream has no equivalent of any name here: the head
 home is the Mission Control operator home across persona relay hops, the auth
 home is the harness's one shared operator auth, and the shared skills /

@@ -8,7 +8,7 @@ All four office verbs are on the RPC lane today. What remains is deleting the
 fallbacks they were shipped beside, and the one guard that was deliberately held
 back for behaviour parity.
 
-**Not the same file as [single-transport-collapse](single-transport-collapse.md).**
+**Not the same file as [single-transport-collapse](../archive/single-transport-collapse.md).**
 That one owns the READ side — the argv `harness stream` child versus the serve hub
 lane. This one owns the WRITE side — the `office.*` capability lowerings under the
 four RPC verbs. They share TC-3/TC-4's *criterion* (a fallback proves it is dead

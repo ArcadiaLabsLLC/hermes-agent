@@ -1,7 +1,10 @@
 # Planned — retire the task-bound vocabulary
 
 **Owner domain:** system architecture ([01-system-architecture.md](../01-system-architecture.md))
-**Status:** not done. The task lane was removed 2026-07-30; three of its names
+**Status:** STALE 2026-10-27 (triage `FH-PLANNED-TRIAGE-2026-10-27-C`): the write and the reads
+are still live, but every line anchor below predates the `persona_assignments/` and
+`persona_chat_history/` package splits and the PersonaAssignmentStore retirement (`72a4f8d3ba`).
+The replan is row `RT-TASK-BOUND-VOCABULARY`. The task lane was removed 2026-07-30; three of its names
 still write and read on the live chat lane.
 **Raised / verified:** 2026-08-22 against HEAD.
 

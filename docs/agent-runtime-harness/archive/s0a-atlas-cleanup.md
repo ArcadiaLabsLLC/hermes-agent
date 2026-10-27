@@ -217,7 +217,7 @@ provider bill.
   3.36 s on 2026-09-02; the AST-verdict cache under `cache/tool_discovery_cache.json`
   was warm both times). It is reached on the create path only through
   `all_registered_toolsets` (chain in
-  `planned/serve-small-batch-field-notes-2026-09-02.md` §2). A1 removes that
+  `archive/serve-small-batch-field-notes-2026-09-02.md` §2). A1 removes that
   call from the default path (the declared set is static), so the toolset-NAME
   half of a create's wire row becomes import-free; the tool-NAME half
   (`final_model_tools`) still needs the registry. The full manifest is "a stage
@@ -700,7 +700,7 @@ to the same rule); and `tests/test_coverage_claims_resolve.py` reds on any
 doubled-colon test reference that does not resolve — it DOES scan `planned/`
 — so write a new test's full id into a doc only after the test exists. At the
 time of writing that gate is already red on main for three stale references
-in `planned/serve-small-batch-field-notes-2026-09-02.md` (lines 190–192,
+in `archive/serve-small-batch-field-notes-2026-09-02.md` (lines 190–192,
 tests retired by the 2026-09-02 prewarm change); the builder repoints those
 three at the tests that replaced them in the same landing.
 

@@ -7,7 +7,7 @@ tests: the viewport is a VIEW preference, the store envelope's ``updated_at`` /
 that must never reach the wire. Each of those is DROPPED WITH ACCOUNTING — an
 unaccounted drop is the same silence the replication row exists to close.
 
-Plan: `docs/agent-runtime-harness/planned/w13-h2-flow-graph-canvas-replication.md`.
+Plan: `docs/agent-runtime-harness/archive/w13-h2-flow-graph-canvas-replication.md`.
 """
 
 import pytest

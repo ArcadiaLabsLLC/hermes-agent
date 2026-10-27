@@ -1,6 +1,6 @@
 """Settle push (h-settle-push, 2026-10-10): every chat-turn settle reaches the launcher.
 
-Contract: ``docs/agent-runtime-harness/planned/settle-push-2026-10-10.md``. The
+Contract: ``docs/agent-runtime-harness/archive/settle-push-2026-10-10.md``. The
 owner ruling is that hermes pushes and verifies the push landed; the launcher
 never polls. So each test here is about the PUSH side: the settle rides a channel
 the stream producer cannot take down, it is re-sent until acked, an unacked one

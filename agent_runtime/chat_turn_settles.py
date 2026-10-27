@@ -2,7 +2,7 @@
 
 Owner ruling 2026-10-09: hermes PUSHES each chat-turn settle (exit code, refusal
 class, ``fix_hint``) to the launcher and verifies the push landed; the launcher
-never polls. Contract: ``docs/agent-runtime-harness/planned/settle-push-2026-10-10.md``.
+never polls. Contract: ``docs/agent-runtime-harness/archive/settle-push-2026-10-10.md``.
 
 This module is the durable half. A record is written ``pending`` BEFORE the turn's
 ``exit`` frame (so a serve restart loses no settle), re-sent by the serve's pusher

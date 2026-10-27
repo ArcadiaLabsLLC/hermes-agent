@@ -1,5 +1,5 @@
 """The eternia-harness plugin registers no ``on_kanban_*`` hook (Work W5, plan
-``docs/agent-runtime-harness/planned/work-on-markdown-2026-10-18.md`` §6.5).
+``docs/agent-runtime-harness/archive/work-on-markdown-2026-10-18.md`` §6.5).
 
 Work is the markdown todo board written through git; the fork's kanban observers (blocked-card PM
 routing, crash evidence) are retired. The plugin's real ``register`` runs against a recording

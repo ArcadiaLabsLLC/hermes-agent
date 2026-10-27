@@ -1,6 +1,6 @@
 """The resident snapshot worker: the read-model core is built in a child process.
 
-Plan ``docs/agent-runtime-harness/planned/snapshot-offproc-2026-10-06.md`` stage S2.
+Plan ``docs/agent-runtime-harness/archive/snapshot-offproc-2026-10-06.md`` stage S2.
 The serve keeps every decision -- the consult, the coalescer, the roles, the ledger
 span, the receipt, ``write_back`` and the reuse memos; only
 ``_build_snapshot_uncoalesced()`` moves (``executor.execute_build``), and a dead or

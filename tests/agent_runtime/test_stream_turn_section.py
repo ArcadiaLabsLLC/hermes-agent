@@ -1,6 +1,6 @@
 """A chat turn's batch ships one ``persona_chat_turn`` frame per root, not a core.
 
-Plan h-turn1 §2 C1/C2 (``docs/agent-runtime-harness/planned/turn-latency-h-turn1-2026-10-05.md``).
+Plan h-turn1 §2 C1/C2 (``docs/agent-runtime-harness/archive/turn-latency-h-turn1-2026-10-05.md``).
 Measured live 2026-10-05: every turn demoted the stream to a full core on each
 of the two subscribers (2.2–3.6 s of build, 3–13 s of wait, per core), because
 ``persona_chat.turn_started`` / ``.turn_ended`` are uncovered. A subscriber that

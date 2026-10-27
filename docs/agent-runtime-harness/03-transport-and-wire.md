@@ -1650,7 +1650,7 @@ counters of the session lineage, not quota and not per turn.
 
 - **Single-transport collapse is half-done** — the hub lane is primary and
   gated; the argv backstop's deletion waits on an observation window
-  ([planned/single-transport-collapse.md](planned/single-transport-collapse.md)).
+  ([archive/single-transport-collapse.md](archive/single-transport-collapse.md)).
 - **Correlation-id coverage is partial** — the office lane and
   `runtime.agent.create` carry the token, the remaining argv capability lanes do
   not, and the one-grep acceptance was never scripted
@@ -1721,7 +1721,7 @@ All others under `archive/2026-08-22-pre-consolidation/`:
 | [`harness-serve-design.md`](archive/2026-08-22-pre-consolidation/harness-serve-design.md) | the 2026-07-08 settled design behind §1 |
 | [`delivery-directive.md`](archive/2026-08-22-pre-consolidation/delivery-directive.md) | removed contract; §9 is the live half |
 | [`17-upstream-boundary-ledger.md`](archive/2026-08-22-pre-consolidation/17-upstream-boundary-ledger.md) · [`18-upstream-merge-rehearsal-20260730.md`](archive/2026-08-22-pre-consolidation/18-upstream-merge-rehearsal-20260730.md) | summarised in §7; still the authority for their own detail |
-| [`SINGLE_TRANSPORT_COLLAPSE_PLAN_2026-08-16.md`](archive/2026-08-22-pre-consolidation/SINGLE_TRANSPORT_COLLAPSE_PLAN_2026-08-16.md) | landed stages → §2/§5; open half → `planned/single-transport-collapse.md` |
+| [`SINGLE_TRANSPORT_COLLAPSE_PLAN_2026-08-16.md`](archive/2026-08-22-pre-consolidation/SINGLE_TRANSPORT_COLLAPSE_PLAN_2026-08-16.md) | landed stages → §2/§5; open half → `archive/single-transport-collapse.md` |
 | [`CORRELATION_ID_PLAN_2026-08-16.md`](archive/2026-08-22-pre-consolidation/CORRELATION_ID_PLAN_2026-08-16.md) | landed stages → §8; open half → `planned/correlation-id-coverage.md` |
 
 ## Console history: reviewed Redo
@@ -1734,7 +1734,7 @@ recovery and pending discovery serve both directions.
 ## Native Work methods
 
 `agent_runtime/work/` serves Work on the workspace todo boards (plan
-[work-on-markdown-2026-10-18.md](planned/work-on-markdown-2026-10-18.md) §2, §5, §6.2). An owner is a
+[work-on-markdown-2026-10-18.md](archive/work-on-markdown-2026-10-18.md) §2, §5, §6.2). An owner is a
 WORKSPACE; its board is the `type: queue` notes of every repo slot it binds (plus the auto-created
 default brain when none carries a brain); a row in the ADR 0011 grammar IS a task, keyed `(slot, ID)`.
 The default brain is a MACHINE-LOCAL binding

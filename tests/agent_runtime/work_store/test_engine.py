@@ -1,6 +1,6 @@
 """The Work engine: persona-claimed rows become runs; endings are written back by row ID (W3).
 
-Plan ``docs/agent-runtime-harness/planned/work-on-markdown-2026-10-18.md`` §6.3 / §8. A fake executor
+Plan ``docs/agent-runtime-harness/archive/work-on-markdown-2026-10-18.md`` §6.3 / §8. A fake executor
 records the runs; a fake writer applies each ``RowOp`` to a real note with the real ``grammar.apply``
 (replaying a request id it has seen, as the W2 writer does), so every written row is checked by the
 grammar the lint runs. Run records are real files on this test's isolated home.

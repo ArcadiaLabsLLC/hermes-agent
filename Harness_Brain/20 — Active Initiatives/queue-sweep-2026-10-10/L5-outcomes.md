@@ -26,7 +26,7 @@ Raw: 60 unreferenced, 51 test-only. 46 of the 60 are decorator-registered (singl
 DEAD (no reference anywhere outside the definition) — candidate DELETE rows for the dead-code queue:
 - `agent_runtime/builds/registry.py::writer_registry_dir` (5 lines)
 - `agent_runtime/builds/vocabulary.py`: `BUILD_TAIL_SOURCES`, `RESERVED_TOOLCHAINS`, `RECORD_STATUSES`, `RECORD_STOP_MODES`, `RECORD_RESTART_MODES` (1 line each; vocabulary constants — check the launcher contract before deleting)
-- `agent_runtime/chat_lane_bundle.py::_registry_content_revision` (1 line; named only in planned/tool-form-one-owner-2026-10-08.md)
+- `agent_runtime/chat_lane_bundle.py::_registry_content_revision` (1 line; named only in archive/tool-form-one-owner-2026-10-08.md)
 - `agent_runtime/discussions/run_store.py::LIVE_PHASES` (1 line)
 - `agent_runtime/harness_settings.py::settings_path` (3 lines)
 - `agent_runtime/map_sync.py::map_token_for_published_path` (15 lines; its twin `level_sync.workspace_token_for_published_path` is test-only)

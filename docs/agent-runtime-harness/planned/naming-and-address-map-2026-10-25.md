@@ -124,7 +124,7 @@ Each segment carries its kind, so a bare id never names anything. One typed addr
 
 Our board is the **Mission Board**, and it is where the brains' TODO is shown: its Queues view is the brain
 queue notes of every repo slot the realm workspace binds (`runtime.work.list`; plan
-`docs/agent-runtime-harness/planned/work-on-markdown-2026-10-18.md`), beside its cards. Owner: "our brains todo is
+`docs/agent-runtime-harness/archive/work-on-markdown-2026-10-18.md`), beside its cards. Owner: "our brains todo is
 meant to be displayed in the mission board". "Todo" in code means only that brain-backed work; upstream's
 `todo` toolset (an agent's in-session task list) and upstream's `kanban.db` keep their upstream names.
 

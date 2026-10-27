@@ -1,6 +1,6 @@
 """PersonaTurnExecutor: a claimed row runs as one queued chat turn of the claiming instance (W3).
 
-Plan ``docs/agent-runtime-harness/planned/work-on-markdown-2026-10-18.md`` §6.3 / §8. The queue and the
+Plan ``docs/agent-runtime-harness/archive/work-on-markdown-2026-10-18.md`` §6.3 / §8. The queue and the
 settle records are the real ones on this test's isolated home; the instance store, the root lookup and
 the open-chat door are fakes.
 """

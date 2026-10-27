@@ -505,7 +505,7 @@ expensive option, and its whole value is the non-bypassability.
   the check runs. Stage A4(i) renames it; it does not redesign it.
 - **Whether the argv lane should exist.** Two lanes reach the CLI handlers, and
   collapsing them is
-  [single-transport-collapse.md](../planned/single-transport-collapse.md) /
+  [single-transport-collapse.md](../archive/single-transport-collapse.md) /
   [office-write-lane-collapse.md](../planned/office-write-lane-collapse.md).
 
 ---

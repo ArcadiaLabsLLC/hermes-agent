@@ -22,7 +22,7 @@ Three of the 46 could not be given a case and were answered in the code instead
 (the standing answer for a branch no reachable input distinguishes), and the
 draft-lock pair are genuine races that a unit test can only fake. The full
 verdict table — arc by arc, including the ones this file does not touch — is in
-`docs/agent-runtime-harness/planned/w16-ha-field-notes-2026-09-05.md`.
+`docs/agent-runtime-harness/archive/w16-ha-field-notes-2026-09-05.md`.
 
 A note on shape: these are DELIBERATELY small and direct. A guard clause's case
 is the bad argument, and dressing it up in a full draft would hide which arc it

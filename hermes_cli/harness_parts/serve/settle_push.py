@@ -1,6 +1,6 @@
 """The settle push: every chat-turn settle, pushed to the launcher until it acks.
 
-Contract: ``docs/agent-runtime-harness/planned/settle-push-2026-10-10.md``. The
+Contract: ``docs/agent-runtime-harness/archive/settle-push-2026-10-10.md``. The
 durable outbox is ``agent_runtime.chat_turn_settles``; this mixin is the serve's
 half — record the settle in the worker's ``finally``, push it on the CONTROL
 channel (the stdio frame writer and the loopback socket's broadcast, the channel

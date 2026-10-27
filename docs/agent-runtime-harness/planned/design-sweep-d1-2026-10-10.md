@@ -712,7 +712,7 @@ fork's `persona_turn_binding.capture_final_request_tools` reads the result; it a
 the span (other parts 0 in the attribution pass).
 
 **Protocol** (the codex-warm-prep fixture from
-[`warm-send-prep-measurements-2026-10-08.md`](warm-send-prep-measurements-2026-10-08.md),
+[`warm-send-prep-measurements-2026-10-08.md`](../archive/warm-send-prep-measurements-2026-10-08.md),
 44 tools, histories of 0 / 20 / 80 rows; n=25 A/B/A/B per history size): test-only timing
 shims on the six callees above; report medians per part per history size. Decision rules:
 (a) `convert_tools` + `_content_cache_key` ≥ 8 ms together → the fork candidate is one memo of

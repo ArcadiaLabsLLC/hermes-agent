@@ -1,6 +1,6 @@
 # Planned - upstream-ready test-fix classes (2026-09-23)
 
-Disposition pass over the 177 in-place-edit files of [`seam-s4-s5-s6-inventory-2026-09-23.md`](seam-s4-s5-s6-inventory-2026-09-23.md) 1.3. Base for fork hunks: the merge base `d337b736aa`, diffed to `origin/main` @ `a78027236d`. Branches cut from `upstream/main` @ `35b14ad5e2`; each is one commit, pushed to `origin`, no PR opened, and each `git cherry-pick --no-commit` onto `upstream/main` @ `c22b0a240f` exited 0. Every touched file was run with pytest on Windows (Python 3.12.5) on the `upstream/main` tree before and after; no test that passed before fails after.
+Disposition pass over the 177 in-place-edit files of [`seam-s4-s5-s6-inventory-2026-09-23.md`](../archive/seam-s4-s5-s6-inventory-2026-09-23.md) 1.3. Base for fork hunks: the merge base `d337b736aa`, diffed to `origin/main` @ `a78027236d`. Branches cut from `upstream/main` @ `35b14ad5e2`; each is one commit, pushed to `origin`, no PR opened, and each `git cherry-pick --no-commit` onto `upstream/main` @ `c22b0a240f` exited 0. Every touched file was run with pytest on Windows (Python 3.12.5) on the `upstream/main` tree before and after; no test that passed before fails after.
 
 ## Classes lifted
 

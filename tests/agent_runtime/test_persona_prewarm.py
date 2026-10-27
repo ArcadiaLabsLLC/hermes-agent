@@ -174,7 +174,7 @@ def _probe_rounds() -> int:
 # ``get_registered_toolset_names()``, whose key set is identical by
 # construction, and the create path probes NOTHING — measured 25 rounds → 0,
 # and −1.43 s median on the first call in a fresh interpreter (see
-# ``planned/serve-small-batch-field-notes-2026-09-02.md`` §2).
+# ``archive/serve-small-batch-field-notes-2026-09-02.md`` §2).
 #
 # Two tests died with that cost and are not replaced by weaker ones. The
 # probe-round GATE ("after a prewarm the create pays no rounds") became

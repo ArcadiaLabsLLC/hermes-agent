@@ -1,7 +1,7 @@
 """No agent_runtime module imports a kanban module — the blanket prohibition.
 
 Restored 2026-10-18 (Work W2-B, plan
-docs/agent-runtime-harness/planned/work-on-markdown-2026-10-18.md §6.2): Work is the markdown todo
+docs/agent-runtime-harness/archive/work-on-markdown-2026-10-18.md §6.2): Work is the markdown todo
 board written through git, so the one exception this gate carried (work/native.py's two public
 kanban imports, owner-approved 2026-09-30) is deleted with that module.
 

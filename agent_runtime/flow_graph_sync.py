@@ -4,7 +4,7 @@
 with the agent — nodes, layout and non-owner edges travel in the same sync the
 steering already rides. Authored work silently missing on a replica is worse
 than the sync cost.* Staged plan:
-``docs/agent-runtime-harness/planned/w13-h2-flow-graph-canvas-replication.md``.
+``docs/agent-runtime-harness/archive/w13-h2-flow-graph-canvas-replication.md``.
 
 Before this module the flow graph was not EXCLUDED from sync, it was outside
 every door: ``grep flow_graph`` matched nothing in ``realm_sync``,

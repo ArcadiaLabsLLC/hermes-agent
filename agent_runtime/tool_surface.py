@@ -1,6 +1,6 @@
 """The cost layer: which schemas RIDE a turn, and for every name that does not, the one rule that moved it.
 
-Plan: ``docs/agent-runtime-harness/planned/tool-visibility-authority-split-2026-10-08.md`` §2(b),
+Plan: ``docs/agent-runtime-harness/archive/tool-visibility-authority-split-2026-10-08.md`` §2(b),
 slice 3. The capability authority (declaration, permission, admission — ``tool_visibility``)
 answers "what may this persona do"; this module answers "what does the provider see", and it
 may only DEFER or DROP a name the capability already holds, never add one.

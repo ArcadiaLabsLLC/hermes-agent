@@ -1,6 +1,6 @@
 """The census of plugin toolsets no persona declares (tool-visibility split, slice 2).
 
-Plan: ``docs/agent-runtime-harness/planned/tool-visibility-authority-split-2026-10-08.md`` §3
+Plan: ``docs/agent-runtime-harness/archive/tool-visibility-authority-split-2026-10-08.md`` §3
 slice 2. The case it exists for: a teammate's Lens plugin registered tools into a toolset
 no profile declared, reached no persona, and nothing said so. Each case registers a REAL
 tool into toolset ``eternia_lens`` on the live ``tools.registry.registry`` (a fake plugin,

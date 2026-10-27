@@ -4,7 +4,7 @@ The refusal is a typed issue row, never a raise: on 2026-10-09 the raise took th
 serve's snapshot producer down on every rebuild (five operator profile configs carried
 the key; the config read feeds the producer).
 
-Plan: ``docs/agent-runtime-harness/planned/tool-visibility-authority-split-2026-10-08.md``
+Plan: ``docs/agent-runtime-harness/archive/tool-visibility-authority-split-2026-10-08.md``
 §3 slice 1 (second half), ruling R2 in §6. The list admitted nothing since S0a A1;
 the bound profile's ``toolsets:`` is the one declaration. These pin both carriers:
 the root-config key (refused at load, typed) and the store row ``agents/<id>.json``

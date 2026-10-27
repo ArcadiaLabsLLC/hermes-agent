@@ -1,6 +1,6 @@
 """The system prompt a chat-actor prewarm builds, and the first turn that adopts it.
 
-h-turn1 A3 (``docs/agent-runtime-harness/planned/turn-latency-h-turn1-2026-10-05.md``).
+h-turn1 A3 (``docs/agent-runtime-harness/archive/turn-latency-h-turn1-2026-10-05.md``).
 A prewarmed resident actor is constructed but carries no prompt: upstream builds
 it inside the conversation (``agent/conversation_loop.py::
 _restore_or_build_system_prompt``), and with no history that function never

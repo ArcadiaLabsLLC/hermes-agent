@@ -11,7 +11,7 @@ checkout's ``git config user.name``, ``--worktree`` to the checkout's folder nam
 be read refuses ``invalid`` rather than writing a claim the grammar rejects.
 
 The edit is ``agent_runtime.work_store.grammar.apply`` — the same one-line, by-ID edit the Work
-writer makes (plan ``docs/agent-runtime-harness/planned/work-on-markdown-2026-10-18.md`` §5, §6.2):
+writer makes (plan ``docs/agent-runtime-harness/archive/work-on-markdown-2026-10-18.md`` §5, §6.2):
 a session that races the engine re-applies its op here instead of resolving a text conflict.
 The row is found across ``*_Brain/20 — Active Initiatives/*.md`` (or ``--note``); the commit is
 by pathspec under the session's own git identity; a non-fast-forward push exits 3 with the hint

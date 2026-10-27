@@ -34,7 +34,7 @@ the composition this module caches is still worth caching, but the probe storm
 is no longer the reason. Probes still run where they are actually READ —
 ``registry.get_definitions`` re-checks every ``check_fn`` at agent-construction
 time on its own TTL. See
-``docs/agent-runtime-harness/planned/serve-small-batch-field-notes-2026-09-02.md``
+``docs/agent-runtime-harness/archive/serve-small-batch-field-notes-2026-09-02.md``
 §2.
 
 The 15/30 s TTL memos underneath (``tool_visibility._PROFILE_READINESS_TTL_SECONDS``,

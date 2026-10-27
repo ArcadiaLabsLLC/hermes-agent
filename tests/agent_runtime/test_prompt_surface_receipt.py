@@ -138,7 +138,7 @@ def test_the_visibility_token_figure_is_measured_from_the_schema():
 
 
 # ── toolvis slice 4: one receipt, three readers ──────────────────────────────
-# Plan: ``docs/agent-runtime-harness/planned/tool-visibility-authority-split-2026-10-08.md`` §2(c),
+# Plan: ``docs/agent-runtime-harness/archive/tool-visibility-authority-split-2026-10-08.md`` §2(c),
 # §3 slice 4, §5 item 1. The receipt is the tool form owner's (``chat_lane_tool_form``), set with
 # the form it describes; the wire capture runs AFTER the transport aliased the bridge
 # (``hermes_tool_search``), so the join reverses the transport's own alias map.

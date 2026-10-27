@@ -148,7 +148,7 @@ quiet-batch and declaring-client checks retain their safety assertions.
 ## H08: CLI spelling condition still exists
 
 The original condition is recorded in
-`docs/agent-runtime-harness/planned/upstream-reds-2026-10-07.md`: the relay
+`docs/agent-runtime-harness/archive/upstream-reds-2026-10-07.md`: the relay
 test compares the launcher basename case-sensitively, rejecting `hermes.EXE`.
 A native Windows probe invokes the original upstream test body with the same
 delivery stub and two resolver outputs: `hermes.exe` passes; `hermes.EXE`

@@ -1236,7 +1236,7 @@ every realm (owner ruling 2026-10-18). When a repo slot with a brain is bound (t
 slot document records no declaration order), the default board's rows move into that brain's `work-queue.md` in one commit with their IDs
 kept, the default board drops from the list, and new rows land in the repo brain. A row in the ADR 0011 grammar
 IS a task; nothing is copied, and tasks are keyed `(slot, ID)` (plan
-[work-on-markdown-2026-10-18.md](planned/work-on-markdown-2026-10-18.md) §2, §4; the wire is doc 03 §
+[work-on-markdown-2026-10-18.md](archive/work-on-markdown-2026-10-18.md) §2, §4; the wire is doc 03 §
 Native Work methods).
 
 The default brain has four states, and promotion is the one door from binding to slot

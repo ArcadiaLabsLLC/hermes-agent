@@ -3,7 +3,7 @@
 **Status: RULED and BUILT (2026-09-04).** The ruling is option **B** —
 *replicate the canvas with the agent; nodes, layout and non-owner edges travel
 in the same sync the steering already rides*. It was built stage by stage from
-[`w13-h2-flow-graph-canvas-replication.md`](w13-h2-flow-graph-canvas-replication.md),
+[`w13-h2-flow-graph-canvas-replication.md`](../archive/w13-h2-flow-graph-canvas-replication.md),
 which is the implementation authority; the shipped shape is recorded in
 [`01-system-architecture.md`](../01-system-architecture.md), under "And the
 CANVAS travels with the agent". This brief is kept for the re-measurement and

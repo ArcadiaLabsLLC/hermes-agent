@@ -634,7 +634,7 @@ does on the lane (`agent_runtime/chat_lane_bundle.py`, where the chat-lane scope
   model-input record carries `tool_schema.per_tool_chars` and `prompt_surface` (chars of the wire
   form, by part), and a first turn logs one `prompt_surface …` line.
 - The turn's tool form has ONE owner, `agent_runtime/chat_lane_tool_form.py::settle_turn_tool_form`
-  (plan `planned/tool-form-one-owner-2026-10-08.md`): at construction (`apply_chat_lane_defer`,
+  (plan `archive/tool-form-one-owner-2026-10-08.md`): at construction (`apply_chat_lane_defer`,
   from the runner's factory, no pin) and in the eternia-harness `pre_llm_call` hook before the
   turn's first request, it assembles the lane's raw definitions plus the constructor's post-build
   extras with the persona's names deferred (upstream's `assemble_tool_defs`), re-deriving the
