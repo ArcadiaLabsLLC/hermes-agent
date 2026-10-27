@@ -154,6 +154,8 @@ class ReceiptOutcome(str, Enum):
     NOTIFIED = "notified"
     SKIPPED_SEVERITY = "skipped_severity"
     CAPPED = "capped"
+    #: W6: the rule's previous receipt is inside the monitor's ``cooldown_ms`` — no turn.
+    COOLED = "cooled"
 
 
 FORGE_FAILED_PREFIX = "forge_failed:"

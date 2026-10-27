@@ -5,7 +5,10 @@ Ported from Companion's ``monitor_manifest.dart`` (``MonitorManifest``,
 ``eternia-lens-in-hermes.md`` §3, rulings §6):
 
 * ``automation`` is ``{level: notify|investigate, when: urgent|always,
-  daily_turn_cap}``. The ``act`` level is out (ruling 3), so it is an unknown
+  daily_turn_cap}`` plus the OPTIONAL W6 coalescing keys (``cooldown_ms``; plan
+  ``LENS_EXTENSIONS_2026-10-27.md`` §3 decision 1): an absent key is today's behaviour
+  and is not emitted, so every manifest sealed before them keeps its canonical bytes
+  and seal digest. The ``act`` level is out (ruling 3), so it is an unknown
   enum here, not a disabled option. The Work owner/scope/budget fields are cut.
 * ``persona_id`` targets the forged turn. A DRAFT may leave it ``null``; a SEAL
   of an ``investigate`` monitor refuses ``null`` as ``persona_required``
@@ -47,6 +50,8 @@ MAXIMUM_FEEDS = 4
 MAXIMUM_RULES = 16
 #: A ceiling on the per-monitor daily turn cap: one turn per quarter hour.
 MAXIMUM_DAILY_TURN_CAP = 96
+#: W6: a rule's new Episode inside this long of its previous receipt is ``cooled`` (§3 decision 2).
+MAXIMUM_COOLDOWN_MS = 24 * 60 * 60 * 1000
 
 
 class AutomationLevel(str, Enum):
@@ -61,15 +66,21 @@ class AutomationWhen(str, Enum):
 
 MANIFEST_KEYS = frozenset({"version", "monitor_id", "feeds", "rules", "automation", "persona_id"})
 AUTOMATION_KEYS = frozenset({"level", "when", "daily_turn_cap"})
+#: Optional automation keys and their ceilings: read only when present, emitted only when present.
+OPTIONAL_AUTOMATION_KEYS: dict[str, int] = {"cooldown_ms": MAXIMUM_COOLDOWN_MS}
 
 
 def read_automation(value: Any) -> dict[str, Any]:
-    m = checked_object(value, AUTOMATION_KEYS)
-    return {
+    m = checked_object(value, AUTOMATION_KEYS, OPTIONAL_AUTOMATION_KEYS)
+    automation = {
         "level": enum_value(m["level"], AutomationLevel).value,
         "when": enum_value(m["when"], AutomationWhen).value,
         "daily_turn_cap": bounded_int(m["daily_turn_cap"], maximum=MAXIMUM_DAILY_TURN_CAP),
     }
+    for key, maximum in OPTIONAL_AUTOMATION_KEYS.items():
+        if key in m:
+            automation[key] = bounded_int(m[key], maximum=maximum)
+    return automation
 
 
 def read_manifest(value: Any) -> dict[str, Any]:

@@ -12,6 +12,9 @@ and, every tick, admits each ACTIVE Episode that
 =====================  =============================================================
 monitor not enabled    nothing written; the Episode stays owed (a paused monitor's
                        Episode forges when it is enabled again)
+rule not in revision   receipt ``forge_failed:rule_not_in_revision``
+inside ``cooldown_ms`` receipt ``cooled`` (W6: the rule's previous receipt started
+                       less than ``cooldown_ms`` ago; first, so it spends no cap)
 ``when: urgent`` and   receipt ``skipped_severity``
 a non-urgent rule
 daily cap reached      receipt ``capped`` (``store.receipts_today``, per UTC day)
@@ -184,6 +187,17 @@ def _offline(store: LensStore, rule: dict[str, Any], episode: Episode) -> tuple[
     return offline_interval(store, episode.monitor_id, rule["feed_id"], episode.missed_deadline_ms)
 
 
+def _cooling(store: LensStore, episode: Episode, now: datetime, cooldown_ms: int) -> bool:
+    """True when the rule's previous counted receipt started less than ``cooldown_ms`` ago (W6)."""
+
+    from .store_admission import last_rule_receipt_ms
+
+    if cooldown_ms <= 0:
+        return False
+    previous = last_rule_receipt_ms(store, episode.monitor_id, episode.rule_id)
+    return previous is not None and to_ms(now) - previous < cooldown_ms
+
+
 @dataclass
 class LensForge:
     store_factory: Callable[[], LensStore] = LensStore
@@ -218,6 +232,8 @@ class LensForge:
         rule = next((r for r in manifest["rules"] if r["id"] == episode.rule_id), None)
         if rule is None:
             return self._settle(store, episode, now, f"{FORGE_FAILED_PREFIX}rule_not_in_revision")
+        if _cooling(store, episode, now, automation.get("cooldown_ms", 0)):
+            return self._settle(store, episode, now, ReceiptOutcome.COOLED.value)
         if automation["when"] == AutomationWhen.URGENT.value and rule["severity"] != Severity.URGENT.value:
             return self._settle(store, episode, now, ReceiptOutcome.SKIPPED_SEVERITY.value)
         if store.receipts_today(episode.monitor_id, now) >= automation["daily_turn_cap"]:

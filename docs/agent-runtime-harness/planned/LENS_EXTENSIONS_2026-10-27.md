@@ -185,6 +185,9 @@ many monitors breaching together each forge a turn; nothing bounds model spend a
 2. **Cooldown is per rule.** A new Episode of rule R whose admission falls inside `cooldown_ms` of R's
    previous receipt's `started_ms` is settled with the new outcome `cooled` — a receipt, visible in the
    fold, never a turn. The Episode itself still opens and records its facts.
+   *Built (w1027f-h-lens-b):* "previous receipt" is the newest receipt of the rule that was not itself
+   `cooled` (`agent_runtime/lens/store_admission.py::last_rule_receipt_ms`), so a rule flapping inside its
+   cooldown is measured from the last admission that counted and is admitted again once it passes.
 3. **Digest identity.** With `digest_window_ms > 0`, the first owed Episode of a monitor opens a window
    `[t, t + digest_window_ms)`; every Episode of that monitor owed inside it waits. At window end ONE turn
    (or one notify) carries all of them. `digest_id = canonical_digest({monitor_id, window_start_ms})`;
