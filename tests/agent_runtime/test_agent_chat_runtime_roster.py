@@ -208,7 +208,14 @@ def test_plain_head_caller_keeps_ambiguity_and_exact_handle_admission(
 def test_unbound_home_override_still_refuses_transcript_creation(
     relay_runtime, monkeypatch,
 ):
-    head, _homes, _store, siblings, executed = relay_runtime
+    head, _homes, store, siblings, executed = relay_runtime
+    # A created agent's first bind records its own head (chat-head plan §7.2
+    # decision 8 (a)), and a recorded head needs no env. This guard is about a
+    # PROCESS record, whose head is only ever the env's: make the target one.
+    target = store.get(siblings[0].id)
+    assert target.chat_head_kind == "per_profile"
+    target.chat_head_kind, target.chat_head_home = "process", str(head)
+    store.update(target)
     monkeypatch.delenv("HERMES_HEAD_HOME")
     with process_home_scope(head):
         assert not hermes_head_home_is_authoritative()

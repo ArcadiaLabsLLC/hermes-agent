@@ -8,7 +8,8 @@ from agent_runtime.call_authorization import LOCAL_CONSOLE
 from agent_runtime.gateway_identity import ensure_install_identity
 from agent_runtime.mission_chat_turns import persist_mission_chat_turn
 from agent_runtime.persona_assignments import PersonaInstanceStore
-from agent_runtime.persona_chat_durability import default_persona_session_db
+from agent_runtime.chat_session_scope import resolve_conversation_chat_scope
+from agent_runtime.persona_chat_durability import default_persona_session_db, persona_session_db_for
 from agent_runtime.persona_chat_session import _persist_chat_model_override
 from agent_runtime.store import AgentStore
 from hermes_cli import profiles
@@ -111,7 +112,8 @@ def test_skills_use_the_named_profile_and_durable_session_evidence(placed_agent,
                              encoding="utf-8")
     (profiles.get_profile_dir("alpha") / "config.yaml").write_text(json.dumps({"skills": {
         "trusted_project_dirs": [str(workspace)]}}), encoding="utf-8")
-    with closing(default_persona_session_db()) as db:
+    # A created agent's chat lives in its own profile's head (chat-head plan §7.2 decision 8 (a)).
+    with closing(persona_session_db_for(resolve_conversation_chat_scope(session_id=params["session_id"]))) as db:
         db.update_session_cwd(params["session_id"], str(workspace))
         db.append_message(params["session_id"], "assistant", "", tool_calls=[{
             "id": "load-one", "type": "function", "function": {"name": "skill_view",
@@ -153,7 +155,12 @@ def test_memory_reads_the_named_profile_store_and_pending_writes_without_mutatio
     (alpha_pending / "p1.json").write_text(json.dumps({"id": "p1", "subsystem": "memory", "action": "add",
         "summary": "add to MEMORY.md: likes tea", "origin": "background_review", "created_at": 1.0,
         "payload": {"action": "add", "target": "memory", "content": "likes tea"}}), encoding="utf-8")
-    before = sorted(str(p) for p in profiles._get_profiles_root().rglob("*"))
+    def tree():
+        # The agents' chat stores live in their profiles now (chat-head plan §7.2 decision 8 (a));
+        # a read-only SQLite open may add its WAL sidecars, which are not the profile's content.
+        return sorted(str(p) for p in profiles._get_profiles_root().rglob("*") if not p.name.startswith("state.db"))
+
+    before = tree()
     alpha = inspect("memory", targets["alpha"])["result"]["memory"]
     beta = inspect("memory", targets["beta"])["result"]["memory"]
     assert alpha["on_lane"] is True and beta["on_lane"] is False
@@ -166,7 +173,7 @@ def test_memory_reads_the_named_profile_store_and_pending_writes_without_mutatio
         "summary": "add to MEMORY.md: likes tea", "origin": "background_review", "created_at": 1.0,
         "target": "memory"}]}
     assert beta["write_approval"] == {"enabled": False, "pending": []}
-    assert sorted(str(p) for p in profiles._get_profiles_root().rglob("*")) == before
+    assert tree() == before
     assert write_approval.get_pending(write_approval.MEMORY, "p1") is None  # native home untouched
     assert get_hermes_home() == native_home
     refused = inspect("memory", {**targets["alpha"], "client_scope": OTHER})

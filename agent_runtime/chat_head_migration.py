@@ -81,7 +81,7 @@ def migrate_chat_heads(*, instance_id: str | None = None, apply: bool = False) -
         process, access=scopes.SessionDbAccess.WRITE if apply else scopes.SessionDbAccess.READ
     )
     with closing(source) if source is not None else ExitStack():
-        moves = [_one(store, instance, source, process, apply=apply) for instance in instances]
+        moves = [_plan_instance(store, instance, source, process, apply=apply) for instance in instances]
     return {
         "ok": not any(move.status == "refused" for move in moves),
         "applied": apply,
@@ -90,7 +90,7 @@ def migrate_chat_heads(*, instance_id: str | None = None, apply: bool = False) -
     }
 
 
-def _one(store: Any, instance: Any, source: Any, process: Any, *, apply: bool) -> InstanceMove:
+def _plan_instance(store: Any, instance: Any, source: Any, process: Any, *, apply: bool) -> InstanceMove:
     instance_id = str(instance.id)
     per_profile = getattr(instance, "chat_head_kind", None) == CHAT_HEAD_KIND_PER_PROFILE
     if per_profile:
@@ -114,7 +114,7 @@ def _one(store: Any, instance: Any, source: Any, process: Any, *, apply: bool) -
         return move
     try:
         with _quiesced(instance_id, roots):
-            return _apply(store, instance_id, source, target, move, per_profile=per_profile)
+            return _apply_move(store, instance_id, source, target, move, per_profile=per_profile)
     except _Busy as exc:
         move.status, move.reason = "refused", exc.reason
         return move
@@ -181,7 +181,7 @@ class _quiesced:
         self._stack.close()
 
 
-def _apply(store: Any, instance_id: str, source: Any, target: Path, move: InstanceMove, *,
+def _apply_move(store: Any, instance_id: str, source: Any, target: Path, move: InstanceMove, *,
            per_profile: bool) -> InstanceMove:
     from hermes_state_profile_repair import SessionLedgeredError
 
