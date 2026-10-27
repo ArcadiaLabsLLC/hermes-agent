@@ -2,9 +2,11 @@
 
 Status: PLANNED qualification; implementation authorized by the owner on 2026-10-27.
 The shared extraction and completion changes have landed from the owned worktree.
-Automated checks and baseline classification are recorded; live qualification awaits
-the remaining isolated provider and native qualification; shared account credentials are healthy (see the evaluation protocol correction). The former documentation-only
-hold is released. Live user enablement remains off; no product confirmation flow is added.
+Automated checks and baseline classification are recorded. Isolated provider and
+paired native qualification remain open; the shared account credentials are healthy
+(see the evaluation protocol correction). The former documentation-only hold is
+released. The product default remains off, existing user choices are preserved,
+and no product confirmation flow is added.
 
 The original implementation remains built. See [chat canon](../05-chat-turn-lane.md)
 and [qualification evidence](../../downstream/console-next-prompt-2026-10-26.md).
