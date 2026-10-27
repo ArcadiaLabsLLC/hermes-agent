@@ -350,12 +350,15 @@ def open_chat(
     )
     # THE bind: both chat pointers move here, in ``open_chat`` itself, and
     # nowhere else on the open path.
+    # Never bound before this bind: no chat pointer and no recorded head (plan
+    # §7.2 decision 8 (a)) — the one bind that may stamp ``per_profile``.
+    first_bind = not instance.default_chat_session_id and not instance.chat_head_home
     instance.mode = "chat"
     instance.default_chat_session_id = normalized_session
     # Read-compatible mirror for v1 consumers. Worker writers never touch
     # this field; default_chat_session_id is the sole new authority.
     instance.session_id = normalized_session
-    previous_chat_head = _stamp_chat_head(instance)
+    previous_chat_head = _stamp_chat_head(instance, first_bind=first_bind)
     after = _tracked_fields(store, instance)
     if not created and before == after:
         # Idempotent re-open is an observation, not a mutation. Rewriting the
@@ -454,7 +457,7 @@ def _apply_open_fields(
         instance.realm_id = safe_realm_id
 
 
-def _stamp_chat_head(instance: PersonaInstance) -> str | None:
+def _stamp_chat_head(instance: PersonaInstance, *, first_bind: bool = False) -> str | None:
     """THE writer of the INSTANCE_RECORDED rung; returns the head it replaces.
 
     Stamp WHERE the bound conversation's transcript lives — the
@@ -467,10 +470,26 @@ def _stamp_chat_head(instance: PersonaInstance) -> str | None:
     DIFFERENT authoritative head is deliberate and AUDITED, not silent:
     it changes the before/after tuple, so the row is rewritten and the
     ``chat_opened`` event carries both the new and previous head.
+
+    ``first_bind`` (the instance had no chat pointer and no recorded head
+    before this bind) is the one case that stamps ``per_profile``: the
+    persona's own profile home, when ``first_bind_chat_head`` finds no legacy
+    session of this instance in the process head (plan §7.2 decision 8 (a)).
     """
     previous_chat_head = instance.chat_head_home
-    from ..chat_session_scope import resolve_process_chat_scope
+    from ..chat_session_scope import first_bind_chat_head, resolve_process_chat_scope
     from ..models import CHAT_HEAD_KIND_PER_PROFILE
+
+    if first_bind and (
+        head := first_bind_chat_head(
+            instance_id=instance.id,
+            persona_id=instance.persona_id,
+            session_id=instance.default_chat_session_id,
+        )
+    ):
+        instance.chat_head_home = str(head)
+        instance.chat_head_kind = CHAT_HEAD_KIND_PER_PROFILE
+        return previous_chat_head
 
     if instance.chat_head_kind == CHAT_HEAD_KIND_PER_PROFILE:
         # Never downgrade (chat-head-per-profile plan §7.2 decision 8): a

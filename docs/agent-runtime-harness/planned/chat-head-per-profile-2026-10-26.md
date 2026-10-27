@@ -242,6 +242,18 @@ merged by `started_at DESC, id DESC`, a head's copy first). The projection's own
 (`snapshot/details.py::persona_session_db_scope`) stays the process read. Not moved: the
 prompt-observability section (row `RT-CHAT-HEAD-PROMPT-OBS-READ`).
 
+### 7.4e Built — CH2C-FIRST-BIND-STAMP (lane w1027h-h-head, 2026-10-27)
+
+`chat_session_scope.first_bind_chat_head(instance_id=, persona_id=, session_id=)` is the one answer:
+the persona's run home when it is not the process head and the process head holds neither a session
+naming the instance (`agent_runtime/instance_sessions.py::instance_session_ids`, the predicate the
+history list already used) nor the session being bound. Both sides ask it — where the tree differs
+from §7.2 decision 8, which names only the stamp: a create mints its root BEFORE the row exists, so
+`resolve_conversation_chat_scope(persona_id=)` answers the first-bind head for a named owner with no
+row, and `ensure_durable_persona_chat_root` passes its persona. Without that the root lands in
+`base`, the stamp's own guard then finds it and stays `process` — consistent, but no agent would
+ever start per-profile. The send lane's and `chat_open`'s mints pass no persona and stay `process`.
+
 ### 7.5 Open questions
 
 None for the owner: every choice above is technical and follows ruling 4. §4's question (what stays in

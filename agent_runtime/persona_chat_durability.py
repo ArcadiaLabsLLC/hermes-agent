@@ -234,7 +234,7 @@ def ensure_persona_chat_session(
 
 
 @contextmanager
-def _acquired_persona_session_db(session_id: str) -> Iterator[Any]:
+def _acquired_persona_session_db(session_id: str, *, persona_id: str | None = None) -> Iterator[Any]:
     """Acquire the operator chat ``SessionDB`` and CLOSE it on the way out.
 
     The argv handlers pass a handle they already hold, so this scope exists for
@@ -246,7 +246,11 @@ def _acquired_persona_session_db(session_id: str) -> Iterator[Any]:
 
     from agent_runtime.chat_session_scope import resolve_conversation_chat_scope
 
-    session_db = persona_session_db_for(resolve_conversation_chat_scope(session_id=session_id))
+    # ``persona_id``: a root minted before its instance exists lands on the head
+    # the first bind will stamp (plan §7.2 decision 8 (a)), not on ``base``.
+    session_db = persona_session_db_for(
+        resolve_conversation_chat_scope(session_id=session_id, persona_id=persona_id)
+    )
     try:
         yield session_db
     finally:
@@ -274,7 +278,7 @@ def ensure_durable_persona_chat_root(
     on and bind anyway".
     """
 
-    with _acquired_persona_session_db(session_id) as session_db:
+    with _acquired_persona_session_db(session_id, persona_id=persona_id) as session_db:
         ensure_persona_chat_session(
             session_db=session_db,
             session_id=session_id,

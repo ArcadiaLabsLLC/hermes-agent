@@ -171,6 +171,7 @@ __all__ = [
     "chat_session_store_exists",
     "configured_head_home",
     "declared_chat_head_home",
+    "first_bind_chat_head",
     "is_canonical_session_persistence",
     "open_chat_session_db",
     "per_profile_read_heads",
@@ -525,6 +526,7 @@ def resolve_conversation_chat_scope(
     persona_instance_id: str | None = None,
     instance: Any = None,
     instance_store: Any = None,
+    persona_id: str | None = None,
 ) -> ChatSessionScope:
     """The chat scope a per-conversation WRITER acquires (plan §7.2 decision 5). Never raises.
 
@@ -532,17 +534,32 @@ def resolve_conversation_chat_scope(
     the owner the session id encodes (``persona_chat_<instance>_<hex>``), else
     the caller's pin — through :func:`resolve_instance_chat_scope`. A session
     whose owner cannot be derived (a legacy opaque id) asks the ladder, and keeps
-    its answer only when a ``per_profile`` record gave it; a derived owner with
-    no row (an instance being created) has no record to ask. Everything else is
-    the process scope, so a writer that moves here changes nothing for a process
+    its answer only when a ``per_profile`` record gave it. A named owner with no
+    row (an instance being created) has no record to ask: given its
+    ``persona_id``, it answers the head its first bind will record
+    (:func:`first_bind_chat_head`), so the root a create mints lands where the
+    bind then stamps it; without one, the process scope. Everything else is the
+    process scope, so a writer that moves here changes nothing for a process
     record.
     """
 
     owner = _derived_owner(session_id)
+    named = owner or str(persona_instance_id or "").strip()
     if instance is None:
-        instance = _load_instance(owner or str(persona_instance_id or "").strip(), instance_store)
+        instance = _load_instance(named, instance_store)
     if instance is not None:
         return resolve_instance_chat_scope(instance)
+    if named and persona_id and (
+        head := first_bind_chat_head(instance_id=named, persona_id=persona_id, session_id=session_id)
+    ):
+        return ChatSessionScope(
+            head,
+            ChatHeadSource.INSTANCE_RECORDED,
+            instance_head=InstanceChatHead(
+                InstanceChatHeadStatus.RECORDED, head_home=head, instance_id=named,
+                head_kind=_per_profile_kind(),
+            ),
+        )
     if session_id and str(session_id).strip() and not owner:
         scope = resolve_chat_session_scope(session_id=str(session_id))
         if scope.per_profile:
@@ -585,6 +602,69 @@ def chat_head_for(persona: Any) -> Path:
 
     home = resolve_persona_profile(persona).profile_home
     return Path(home) if home is not None else resolve_process_chat_scope().head_home
+
+
+def first_bind_chat_head(
+    *, instance_id: str, persona_id: str, session_id: str | None = None
+) -> Path | None:
+    """The ``per_profile`` head a never-bound instance's FIRST bind records, or ``None``.
+
+    Plan §7.2 decision 8 (a): the persona's run home (:func:`chat_head_for`)
+    when it is not the process head and the process head holds no session that
+    names *instance_id* nor *session_id* (the conversation being bound) — the
+    legacy rows that predate the stamp keep their instance on the process head,
+    for the migrate verb to move. ``None`` — stay
+    ``process`` — whenever that cannot be shown: a degraded process scope, a
+    persona not on the roster, a home equal to the process head, a process store
+    that exists but will not open. Both the create's root mint and the bind's
+    stamp ask this one function, so the root lands where the record points.
+    """
+
+    process = resolve_process_chat_scope()
+    persona = _roster_persona(persona_id)
+    if not process.authoritative or persona is None:
+        return None
+    head = chat_head_for(persona)
+    if _same_path(head, process.head_home) or not head.is_dir():
+        return None
+    if not chat_session_store_exists(process):
+        return head
+    db = open_chat_session_db(process, access=SessionDbAccess.READ)
+    if db is None:
+        return None
+    try:
+        from agent_runtime.instance_sessions import instance_session_ids
+
+        if session_id and db.get_session(session_id) is not None:
+            return None
+        return None if instance_session_ids(db, instance_id, limit=1) else head
+    except Exception:
+        logger.debug("first-bind legacy-row query failed", exc_info=True)
+        return None
+    finally:
+        close = getattr(db, "close", None)
+        if callable(close):
+            close()
+
+
+def _roster_persona(persona_id: str) -> Any:
+    from agent_runtime.config.roster import ensure_persisted_personas
+    from agent_runtime.serde import safe_assignment_token
+
+    wanted = safe_assignment_token(persona_id)
+    try:
+        return next(
+            (p for p in ensure_persisted_personas() if safe_assignment_token(getattr(p, "id", None)) == wanted),
+            None,
+        )
+    except Exception:
+        return None
+
+
+def _per_profile_kind() -> str:
+    from agent_runtime.models import CHAT_HEAD_KIND_PER_PROFILE
+
+    return CHAT_HEAD_KIND_PER_PROFILE
 
 
 def _per_profile_scope(instance_head: InstanceChatHead | None) -> ChatSessionScope | None:

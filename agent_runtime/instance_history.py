@@ -8,6 +8,7 @@ from contextlib import closing
 from . import chat_session_scope
 from .conversation_owner import ConversationOwnerError, request_client_scope
 from .instance_selection import verify_instance_install, InstanceSelectionError
+from .instance_sessions import instance_session_clause
 from .persona_assignments import PersonaInstanceStore, chat_session_owner_instance_id
 from .persona_assignments.lookups import normalize_persona_or_template_id
 from .persona_chat_continuity import PERSONA_CHAT_SESSION_SOURCE
@@ -147,21 +148,6 @@ def _requested_persona(value):
     return canonical
 
 
-def _instance_clause(instance_id):
-    """The model_config's persona_instance_id, else the owner minted into the id."""
-
-    return ("(json_extract(model_config,'$.persona_instance_id')=? OR "
-            "(COALESCE(json_extract(model_config,'$.persona_instance_id'),'')='' AND id GLOB ?))",
-            [instance_id, _minted_session_glob(instance_id)])
-
-
-def _minted_session_glob(instance_id):
-    """GLOB for ``persona_chat_<instance>_<12 hex>`` (``chat_session_owner_instance_id``)."""
-
-    escaped = "".join(f"[{ch}]" if ch in "*?[" else ch for ch in instance_id)
-    return "persona_chat_" + escaped + "_" + "[0-9a-fA-F]" * 12
-
-
 def _history_position(value, scope):
     if value is None:
         return None
@@ -196,12 +182,12 @@ def _history_page(db, *, owner, instance_id=None, persona=None, legacy_route=Non
         clauses.append("json_extract(model_config,'$.legacy_conversation.route_id')=?")
         args.append(legacy_route)
     if instance_id is not None:
-        clause, values = _instance_clause(instance_id)
+        clause, values = instance_session_clause(instance_id)
         clauses.append(clause)
         args.extend(values)
     if persona is not None:
         persona_id, roster = persona
-        fallback = [_instance_clause(member) for member in roster]
+        fallback = [instance_session_clause(member) for member in roster]
         unstamped = ("(COALESCE(json_extract(model_config,'$.persona_id'),'')='' AND ("
                      + " OR ".join(clause for clause, _ in fallback) + "))") if fallback else None
         clauses.append("(json_extract(model_config,'$.persona_id')=?"
