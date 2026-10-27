@@ -162,7 +162,7 @@ def producer(tmp_path, monkeypatch):
         root = tmp_path / case.replace(".json", "")
         generator.isolate(root, setenv=monkeypatch.setenv)
         generator.arrange(case, root, setenv=monkeypatch.setenv)
-        return generator._run(parser, argv)
+        return generator._run_cli_capture(parser, argv)
 
     run.cases = dict(generator.FIXTURE_CASES)  # type: ignore[attr-defined]
     return run
