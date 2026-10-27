@@ -1003,3 +1003,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-27 (hermes lane w1027a-h-rt)
 
+
+## Filed on arrival — 2026-10-27 (launcher lane w1027b-mc)
+
+- **`RT-SUBAGENTS-LIST-LENT` — `runtime.operator.conversation.subagents.list` rows carry no `lent` skills, so the Launcher's roster cards cannot show a worker's lent chips without one `runtime.operator.conversation.skills` list per child per 3 s poll; add each child's `lent` slugs (from `skill_lends.lent_to(child_target(subagent_id))`) to the list row** · `agent_runtime/subagents/operator.py` · `agent_runtime/conversations/worker_skills.py::_lent_to_child` · launcher `COMP-SKILLS-WORKER-ROSTER-CHIPS` · READY 2026-10-27
