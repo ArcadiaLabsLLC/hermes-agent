@@ -92,3 +92,12 @@ adapter to existing persona, history, auxiliary routing and draft authorities.
 The plan names current seams, proposed homes, extraction order and boundary
 acceptance; one implementation and the false-default Eternia Harness setting
 remain mandatory. No DM implementation or runtime/code/settings change was made.
+
+Final separation audit, 2026-10-27: [completion plan](../agent-runtime-harness/planned/console-next-prompt-completion-2026-10-27.md)
+keeps extraction limited to the shared helpers/contract/presentation used by the
+Console adapter. Clarified one eligibility predicate and existing state owners,
+disabled versus absent capability, consumer-local disposal, adapter-owned errors,
+unchanged free-form text and optional command gaps without an infrastructure mandate.
+The existing lifecycle/store, persona and auxiliary authorities and false-default
+Harness setting remain. No new rows, code, DM work or live configuration changes;
+all nine completion rows retain the owner's implementation hold.

@@ -113,6 +113,16 @@ all imports/tests/attribution; no internal compatibility re-export or dual path.
 Preserve behavior during extraction, then apply the existing parity row once in
 the shared helper. Console-specific lifecycle policy stays in its adapter; a
 speculative generalization of that lifecycle is outside this completion pass.
+The extraction is complete with shared prompt/cleanup/result logic and one real
+Console caller. It does not require moving scheduling, subscriptions or persistence
+into a shared service merely to make their directory names generic. Keep the
+completion callable narrow: it invokes the already-bound host LLM operation, with
+no second dependency container or routing facade. Missing plugin context and
+Console refusals stay adapter concerns; shared helpers must not import
+`SuggestionRefused` from Console settings or invent a parallel error framework.
+Preserve actual provider errors for the existing sanitized classifier. A shared
+result is text-or-absence plus existing route/usage facts, not an intent taxonomy
+or extra semantic filter on the plugin's contextual free-form suggestions.
 
 The setting remains off by default under Global Settings > Eternia Harness >
 Agent Console > Follow-up suggestions. Reusable code does not make that Console
@@ -126,10 +136,15 @@ Boundary acceptance after implementation: exercise shared generation using
 explicit messages/completion input without constructing a persona or Console
 service; then exercise the real Console adapter to prove routing, authorization,
 off-state zero history/model work, scope isolation and stale-result rejection.
-Unregistering the optional binding must leave ordinary persona chat usable with
-no suggestion work. Keep one producer and existing stored receipts across the
-internal move. These checks join the existing qualification rows, not a new DM
-test application or permanent benchmarking service.
+Removing a Console consumer releases its existing observation/subscription;
+ordinary persona chat and other still-bound consumers remain usable. Test the
+last-consumer idle path separately from a disabled policy or unavailable plugin.
+The false-default policy forbids generation and history reads, not the existing
+lightweight settings observation needed to notice enablement. In-flight work
+retains existing cancellation and stale-publication rules; no new unload protocol
+or promise to cancel another window's work. Keep one producer and existing stored
+receipts across the internal move. These checks join the existing qualification
+rows, not a new DM test application or permanent benchmarking service.
 
 ## Runtime changes to plan
 
