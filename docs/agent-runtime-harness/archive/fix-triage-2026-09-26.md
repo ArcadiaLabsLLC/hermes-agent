@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits a10274735f, 3f9c4555fa, e402f3ee7f.**
+Verdict sheet executed; DROP reverts landed and the held branches it named are gone; KEEP-PR merges are upstream's.
+
 # Fix triage — one verdict per upstream-footprint row (2026-09-26)
 
 Lane FIX-TRIAGE, design sitting, no code in the fork tree. Owner's ask (runtime-queue row, RULED 2026-09-26):

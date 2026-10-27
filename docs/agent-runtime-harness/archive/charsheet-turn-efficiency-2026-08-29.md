@@ -25,7 +25,7 @@ list is unchanged and is what every stage was priced against.
 of `planned/` at the next docs pass. The W2-H4 running record — the premise
 re-measurement, the four deliberate corrections to the stage text below, and
 the fixture-measured call shape of an autopilot run — is
-`planned/dcw-h4-field-notes-2026-08-31.md`.
+`archive/dcw-h4-field-notes-2026-08-31.md`.
 
 **R-3 — RULED YES, 2026-08-31.** The one-shot autopilot ships. The ruling is
 RD-10 of `EterniaLauncher/docs/archive/mission_control/decision-close-wave-2026-08-31.md`

@@ -17,7 +17,7 @@ The launcher measured its method over a whole program: per-file design notes wit
 
 ## Decision
 
-The plan is `docs/agent-runtime-harness/planned/downstream-god-file-refactor.md` (13 lanes, ≤ 27 commits). Gates: size ceiling with a shrink-only grandfather list, upstream fence, widened duplicate-body gate, thin harness namespace. Method: design sittings one at a time on the strongest model; review-and-fix lanes that RUN the named killing mutations; uncapped exec lanes on touched tests only; one batched landing with concurrent gates; tool-call counts per lane; briefs ≤ 40 lines.
+The plan is `docs/agent-runtime-harness/archive/downstream-god-file-refactor.md` (13 lanes, ≤ 27 commits). Gates: size ceiling with a shrink-only grandfather list, upstream fence, widened duplicate-body gate, thin harness namespace. Method: design sittings one at a time on the strongest model; review-and-fix lanes that RUN the named killing mutations; uncapped exec lanes on touched tests only; one batched landing with concurrent gates; tool-call counts per lane; briefs ≤ 40 lines.
 
 ## Consequences
 

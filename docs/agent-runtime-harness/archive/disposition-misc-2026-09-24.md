@@ -1,6 +1,9 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits dfc3e28502, 37ca422c25, fd6fe3c50d.**
+DISP-M dispositions merged and applied; movable carries resolved.
+
 # Disposition pass — the ledger rows outside `tests/`, `hermes_cli/`, `tools/`, `agent/` (lane DISP-M, 2026-09-24)
 
-Scope: the 75 `unreviewed` rows of [`upstream-footprint-ledger.md`](upstream-footprint-ledger.md) outside those four directories. Each row was read as `git diff d337b736aa HEAD -- <path>` (the fork's hunks against the manifest base) and checked against `upstream/main` @ `6b2c23ae42`. The rules are §1 rules 1 and 4 of [`harness-plugin-and-upstream-seams.md`](harness-plugin-and-upstream-seams.md) and its "No duplicate authority" paragraph. The ledger cells hold the per-row reason, and this note does not repeat them.
+Scope: the 75 `unreviewed` rows of [`upstream-footprint-ledger.md`](../planned/upstream-footprint-ledger.md) outside those four directories. Each row was read as `git diff d337b736aa HEAD -- <path>` (the fork's hunks against the manifest base) and checked against `upstream/main` @ `6b2c23ae42`. The rules are §1 rules 1 and 4 of [`harness-plugin-and-upstream-seams.md`](../planned/harness-plugin-and-upstream-seams.md) and its "No duplicate authority" paragraph. The ledger cells hold the per-row reason, and this note does not repeat them.
 
 ## 1. Tally
 

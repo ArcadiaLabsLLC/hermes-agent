@@ -6,7 +6,7 @@ was retired with the mission lane, and the only remaining callers were the
 flow-graph / checkpoint / state-patch suites that need a pair of cheap instance
 rows to point edges at. A production method whose sole callers are tests is a
 method nothing proves; the mint moved here and the store method was deleted
-(``docs/agent-runtime-harness/planned/duplicate-implementation-retirement.md``
+(``docs/agent-runtime-harness/archive/duplicate-implementation-retirement.md``
 Stage 4; the tombstone row lives in ``test_tombstone_registry.py``).
 
 The fixture preserves the deleted method's contracts: same id

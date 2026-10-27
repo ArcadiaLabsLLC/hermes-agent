@@ -56,7 +56,7 @@ place personas are created.
 
 ## Evidence
 
-- Source of every value: `docs/agent-runtime-harness/planned/door-fit-2026-09-27.md`
+- Source of every value: `docs/agent-runtime-harness/archive/door-fit-2026-09-27.md`
   (PARTIAL rows #124210, #124193, #124192, #124191, #123979, #123977,
   #125257, draft `issue-config-readonly-projection`) and its line "the
   launcher SEEDS every persona profile's `config.yaml`" — now hermes's job.

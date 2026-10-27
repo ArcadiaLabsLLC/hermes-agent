@@ -1,6 +1,6 @@
 """The batch dispatcher — ready todo rows planned into thick lanes, run, landed once (dispatcher plan §3).
 
-Plan ``docs/agent-runtime-harness/planned/dispatcher-and-libraries-2026-10-18.md`` §3, stage B2. The
+Plan ``docs/agent-runtime-harness/archive/dispatcher-and-libraries-2026-10-18.md`` §3, stage B2. The
 package holds no state of its own: a batch IS its manifest note in the workspace's default brain plus
 the rows' claim marks; every object here is rebuilt from those on each call.
 

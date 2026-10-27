@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 876ccc98dc, c653dc96e4.**
+The partial branch it describes landed on main, including all nine remaining runtime items.
+
 # Discussion tables — continuation handoff
 
 Status: partial implementation on `feat/discussion-tables-20260916`; not ready for main.

@@ -21,7 +21,7 @@ Row grammar: [[0011 — One brain per repo, one Mission Control queue in the lau
 
 ## Second instalment — the reach census (W0-D), filed 2026-09-24 by lane W0
 
-106 rows, one per cold function or cold arm; evidence note `docs/agent-runtime-harness/planned/downstream-god-file-refactor-reach-census.md` (population, traced suite, the 4 unrelated reds). Class DECIDE until the owning lane rules it (§4.3 of the 09-21 plan); a DELETE ruling lands under "Working a slice".
+106 rows, one per cold function or cold arm; evidence note `docs/agent-runtime-harness/archive/downstream-god-file-refactor-reach-census.md` (population, traced suite, the 4 unrelated reds). Class DECIDE until the owning lane rules it (§4.3 of the 09-21 plan); a DELETE ruling lands under "Working a slice".
 
 
 ## Filed on arrival — 2026-10-06 (lane h-bundle-epoch)

@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 5a411b1657, 9da4e149a7.**
+W2-H4 notes; charsheet autopilot and invocation-matched element pairing shipped.
+
 # W2-H4 field notes — charsheet autopilot (Stage 5) + element pairing (Stage 6)
 
 Running record of the decision-close wave's W2-H4 agent, hermes side. Branch

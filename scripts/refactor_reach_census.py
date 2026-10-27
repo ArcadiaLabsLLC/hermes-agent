@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """W0-D — the reach census: code in the god files no traced test reaches.
 
-Plan: ``docs/agent-runtime-harness/planned/downstream-god-file-refactor.md``
+Plan: ``docs/agent-runtime-harness/archive/downstream-god-file-refactor.md``
 §2 Wave 0 (W0-D) and §4.3; ``god-file-program-2026-09-24.md`` §5. Its output is
 the second half of the dead-code list — rows in
 ``Harness_Brain/20 — Active Initiatives/dead-code-burn-down-queue.md``.

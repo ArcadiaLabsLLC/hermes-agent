@@ -1,6 +1,6 @@
 """Fast-gate §3 stage 2 — the runner shards slow files only on a tail-bound run.
 
-Plan: ``docs/agent-runtime-harness/planned/fast-gate-2026-10-10.md`` §3. Pinned
+Plan: ``docs/agent-runtime-harness/archive/fast-gate-2026-10-10.md`` §3. Pinned
 without spawning pytest (the solo launcher is injected):
 
 * a tail-bound run (Σ estimates / jobs < 2 × max) splits a file cached green

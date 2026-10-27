@@ -13,7 +13,7 @@ For any change under `hermes_cli/harness.py` or `hermes_cli/harness_parts/`. Rea
 
 ## Read order
 
-1. [[Downstream Refactor]] → plan §0.4 and §2 Wave 1 (H1) in `docs/agent-runtime-harness/planned/downstream-god-file-refactor.md`.
+1. [[Downstream Refactor]] → plan §0.4 and §2 Wave 1 (H1) in `docs/agent-runtime-harness/archive/downstream-god-file-refactor.md`.
 2. [`docs/agent-runtime-harness/01-system-architecture.md`](../../docs/agent-runtime-harness/01-system-architecture.md) — the command surface and how parts are wired (`build_parser` → `set_defaults(func=…)`).
 3. `hermes_cli/_downstream_cli.py::build_downstream_parsers` — the seam into upstream's parser.
 

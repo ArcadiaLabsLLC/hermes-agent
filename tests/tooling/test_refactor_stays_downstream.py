@@ -1,6 +1,6 @@
 """W0-G2 — a ``refactor(`` commit never touches an upstream file.
 
-Plan: ``docs/agent-runtime-harness/planned/downstream-god-file-refactor.md`` §2
+Plan: ``docs/agent-runtime-harness/archive/downstream-god-file-refactor.md`` §2
 Wave 0 and rule 9; ``god-file-program-2026-09-24.md``'s scope rule. For every
 first-parent commit after the Wave 0 landing (the commit whose subject starts
 ``test(tooling): W0 —``) whose subject starts ``refactor(``, the files it

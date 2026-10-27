@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 55c4ceb1d9.**
+Ruled option B and built: agent_runtime/flow_graph_sync.py.
+
 # Decision brief — does the flow graph replicate with its agent?
 
 **Status: RULED and BUILT (2026-09-04).** The ruling is option **B** —

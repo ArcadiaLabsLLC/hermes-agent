@@ -22,7 +22,7 @@ L3.19 · RETURNED upstream PR: public scoped/keyset SessionDB page query (draft 
 L3.20 · RETURNED owner decision: "OK to open one upstream PR for a configurable compute-host hello budget (default 10 s)?" — upstream still waits a fixed 10 s
 L3.21 · RETURNED upstream PR: waits on #122427 / #123393 (both OPEN 2026-10-10)
 L3.22 · RETURNED upstream PR: waits on #128648 (OPEN 2026-10-10)
-L3.23 · ALREADY-DONE verdict sheet `docs/agent-runtime-harness/planned/fix-triage-2026-09-26.md` landed (last `598604d1b9`), DROP reverts landed 2026-09-26; nothing left but merges of the KEEP PRs
+L3.23 · ALREADY-DONE verdict sheet `docs/agent-runtime-harness/archive/fix-triage-2026-09-26.md` landed (last `598604d1b9`), DROP reverts landed 2026-09-26; nothing left but merges of the KEEP PRs
 L3.24 · RETURNED upstream PR: PAR-2..6 wait on #124190/#124191/#124193/#124194/#124195/#124210 (all OPEN 2026-10-10); PAR-1 and row 14 done
 L3.25 · RETURNED upstream PR: waits on #128842 and #128648 (both OPEN 2026-10-10)
 L3.26 · RETURNED owner decision: "#123976 (register_command busy_policy) is closed unmerged — re-cut the PR, or give `/queue-status` a fork-side command seam? And add P6–P9 with fallback `carry` to §Stage 3?" (#123977/#123978/#123979 OPEN 2026-10-10)

@@ -2,7 +2,7 @@
 
 ``scripts/run_tests_bundled.py`` owns execution; this module owns the rules that
 make one file's process different from the default solo
-(``docs/agent-runtime-harness/planned/fast-gate-2026-10-10.md``):
+(``docs/agent-runtime-harness/archive/fast-gate-2026-10-10.md``):
 
 * **known reds** (§2) — a file red or timed out in the last recorded run runs
   ONCE, alone, with no flake retry, no straggler retry and a capped timeout

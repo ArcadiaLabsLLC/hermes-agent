@@ -1,7 +1,7 @@
 """Reviewed restore over the native checkpoint store (fork-owned).
 
 Moved out of ``tools/checkpoint_manager.py`` (footprint lane C, plan
-``docs/agent-runtime-harness/planned/footprint-audit-2026-10-15.md`` section 2):
+``docs/agent-runtime-harness/archive/footprint-audit-2026-10-15.md`` section 2):
 strict operator preview, reviewed apply with durable receipts, resumable
 recovery, retention pins, and the observer reads (tree, proven file diff,
 metadata namespace). ``CheckpointManager`` inherits ``ReviewedRestoreMixin``;

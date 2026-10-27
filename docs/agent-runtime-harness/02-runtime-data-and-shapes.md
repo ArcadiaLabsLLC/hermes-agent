@@ -911,7 +911,7 @@ the only one. The `read_model.db` lane (module, schema, projector, both CLI
 verbs, `write_snapshot` and the `snapshot.json` boot cache) was deleted at
 Stage 6 of the duplicate-implementation retirement — the full what/why record
 is that stage's row in
-[planned/duplicate-implementation-retirement.md](planned/duplicate-implementation-retirement.md)
+[archive/duplicate-implementation-retirement.md](archive/duplicate-implementation-retirement.md)
 and the `fac754194e` commit body; the s74 rows in
 `tests/agent_runtime/test_tombstone_registry.py` enforce it. `harness snapshot`
 calls `build_snapshot()` directly and still stamps `parity.frame_source` — now

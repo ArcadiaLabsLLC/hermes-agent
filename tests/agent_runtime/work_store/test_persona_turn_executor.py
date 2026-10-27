@@ -1,6 +1,6 @@
 """PersonaTurnExecutor with ``goal_mode=UNTIL_DONE`` — a goal on the root, continued as queued sends (B3).
 
-Dispatcher plan ``docs/agent-runtime-harness/planned/dispatcher-and-libraries-2026-10-18.md`` §2.2, §5, §6.
+Dispatcher plan ``docs/agent-runtime-harness/archive/dispatcher-and-libraries-2026-10-18.md`` §2.2, §5, §6.
 The send queue and the goal bindings are the real ones on this test's isolated home; the goal engine
 (``GoalManager``), the instance store and the root lookup are fakes.
 

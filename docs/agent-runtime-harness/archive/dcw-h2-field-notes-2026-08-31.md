@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 1b7eb98cb1.**
+W1-H2 test-isolation notes; the gateway escape fence and the pollution-red fixes shipped.
+
 # W1-H2 field notes — test isolation: the gateway hole and the pollution reds
 
 Running record for the decision-close wave's W1-H2 stage (hermes repo, branch

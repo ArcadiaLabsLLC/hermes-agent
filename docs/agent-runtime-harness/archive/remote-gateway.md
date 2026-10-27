@@ -114,7 +114,7 @@ The drift addendum below ordered an inventory before minting a third
 **distinct** — the argument lives in `agent_runtime/gateway_identity.py`'s
 module docstring (the file that would be deleted if the verdict were ever
 reversed), and is summarised here so
-[duplicate-implementation-retirement.md](../planned/duplicate-implementation-retirement.md)
+[duplicate-implementation-retirement.md](../archive/duplicate-implementation-retirement.md)
 reads a decision rather than an accident:
 
 | | scope | lifetime | audience |
@@ -795,7 +795,7 @@ ride them, don't re-derive:
   (`agent/monitoring/policy.py::ensure_install_id`, consumed as OTel
   `service.instance.id`) and the telemetry `install_id`
   (`hermes_cli/observability/shared_metrics.py:259`) already ship. Inventory and
-  reuse-or-distinguish, per `planned/duplicate-implementation-retirement.md`.
+  reuse-or-distinguish, per `archive/duplicate-implementation-retirement.md`.
   **ANSWERED 2026-08-27 — DISTINCT, on scope + lifetime + audience. The
   three-row table and the full argument are in "Stage 0 notes" above; the
   mechanism is `serve_auth.py`'s, deliberately not re-derived.**

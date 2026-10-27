@@ -1,6 +1,6 @@
 """W0-G4 — ``hermes_cli.harness`` is a thin namespace: no exec'd parts, no re-export shims.
 
-Plan: ``docs/agent-runtime-harness/planned/downstream-god-file-refactor.md`` §0.4
+Plan: ``docs/agent-runtime-harness/archive/downstream-god-file-refactor.md`` §0.4
 and §2 Wave 0. Until lane H1 ``_load_command_parts`` ran the command parts with
 ``exec(compile(...), globals())``, so a test patch on ``harness.<name>`` reached
 every part. Each part is now a real module that looks its names up in its own

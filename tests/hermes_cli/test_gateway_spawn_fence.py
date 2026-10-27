@@ -12,7 +12,7 @@ Measured escape this pins (2026-08-31, this Windows workstation)::
 
 Each layer gets its own claim, and each claim is red when only that layer is
 reverted (proof recorded in
-``docs/agent-runtime-harness/planned/dcw-h2-field-notes-2026-08-31.md``):
+``docs/agent-runtime-harness/archive/dcw-h2-field-notes-2026-08-31.md``):
 
 * L1 — ``_cmd_update_impl`` never registers the atexit handler.
 * L2 — ``gateway_windows._spawn_detached`` refuses for the whole session.

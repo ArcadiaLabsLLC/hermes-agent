@@ -1,6 +1,6 @@
 """W0-G1 — every fork production file is <= 800 CODE lines, or grandfathered and shrinking.
 
-Plan: ``docs/agent-runtime-harness/planned/downstream-god-file-refactor.md`` §2
+Plan: ``docs/agent-runtime-harness/archive/downstream-god-file-refactor.md`` §2
 Wave 0 and ``god-file-program-2026-09-24.md`` §9 (ruling Q1: code lines bind).
 The population and the counter are ``scripts/god_file_probe.py``'s; the
 baseline is ``tests/fixtures/size_ceiling_grandfathered.json``, written by

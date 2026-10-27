@@ -1,6 +1,6 @@
 """``runtime.schedule.arm | disarm | list`` — the desktop runtime's scheduler (``ServeTickScheduler``).
 
-Dispatcher plan ``docs/agent-runtime-harness/planned/dispatcher-and-libraries-2026-10-18.md`` §2.3, §4
+Dispatcher plan ``docs/agent-runtime-harness/archive/dispatcher-and-libraries-2026-10-18.md`` §2.3, §4
 (B4, ``RT-DISPATCH-B4-SCHEDULER``). Each verb is one row of ``work_store.schedule_ops.OPS`` and runs off
 the reader lane (``spawn_reply``), as every Work verb does. ``console`` tier: an armed schedule starts
 agent turns on a clock. The Launcher arms a hermes schedule only through ``arm`` (plan §4). Refusals:

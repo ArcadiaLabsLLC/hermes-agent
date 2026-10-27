@@ -1,6 +1,6 @@
 """Fast-gate §3 stage 1 — ``--hermes-shard=i/k`` splits a file by node id.
 
-Plan: ``docs/agent-runtime-harness/planned/fast-gate-2026-10-10.md`` §3. A
+Plan: ``docs/agent-runtime-harness/archive/fast-gate-2026-10-10.md`` §3. A
 throwaway file of 12 tests (4 of them one parametrised function) is collected
 under ``0/3``, ``1/3`` and ``2/3`` in a child pytest: every node lands in
 exactly one shard, and no shard holds them all.

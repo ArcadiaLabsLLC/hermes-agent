@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 02a53ccb39, 96f4955882, c48ab85502, 664ecb3afe.**
+All five lanes (C/R/P/M/D) landed; rows deleted in b5f7c6d90c.
+
 # Footprint audit 2026-10-15 — the 48 upstream files the fork began editing after 2026-10-06
 
 Design lane `fp-audit` (owner claim `037232c56ab`). Design only: no code moved here. Every

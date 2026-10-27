@@ -50,7 +50,7 @@ build in the same process 183 ms (36 / 146).
 
 `agent_runtime/projector.py` is **deleted** as of 2026-08-22. It survived S46
 holding only `full_rebuild()`, and Stage 6 of
-[duplicate-implementation-retirement.md](../planned/duplicate-implementation-retirement.md)
+[duplicate-implementation-retirement.md](../archive/duplicate-implementation-retirement.md)
 took that too — along with `read_model.py`, the schema, and the two CLI verbs —
 when the operator ruled the whole `read_model.db` lane RETIRE. `full_rebuild`'s
 "production caller" turned out to be a verb an operator had to type, writing a

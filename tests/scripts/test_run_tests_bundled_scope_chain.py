@@ -1,6 +1,6 @@
 """Fast-gate §5 — a change to the session chain runs the chain's contract plus a sample.
 
-Plan: ``docs/agent-runtime-harness/planned/fast-gate-2026-10-10.md`` §5. Every
+Plan: ``docs/agent-runtime-harness/archive/fast-gate-2026-10-10.md`` §5. Every
 test process loads the chain (the fork's root ``conftest.py``, the conftest
 plugin under ``tests/_downstream/``, ``pyproject.toml``), so a chain edit is
 proved by the chain's contract and one file per folder nothing else reached —

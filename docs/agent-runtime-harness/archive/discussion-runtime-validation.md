@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits c653dc96e4.**
+Checkpoint superseded: the runtime landed and was accepted under discussion-experience-20260927.
+
 # Native discussion runtime — implementation checkpoint
 
 2026-09-16. This checkpoint extends the reviewed definition/preset foundation.

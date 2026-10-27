@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 7425b754a7.**
+The program it records shipped; no fork file is left over the 800-line ceiling.
+
 # Downstream god-file refactor — running record (hermes half)
 
 Field notes for [`downstream-god-file-refactor.md`](downstream-god-file-refactor.md). Every lane builder appends its own section here, in this repo (the desktop lane D1 too — it stands in this repo). The runtime-model skill is rewritten LAST from these notes, per the field-notes ruling.

@@ -5,7 +5,7 @@ The adjacency probe and its ratcheting baseline shipped; the remaining residuals
 
 The record for the stage that built the second half of the doc-cite pair and
 spent its first sweep budget. Companion to
-[dcw-h3-field-notes-2026-08-31.md](../planned/dcw-h3-field-notes-2026-08-31.md), which
+[dcw-h3-field-notes-2026-08-31.md](../archive/dcw-h3-field-notes-2026-08-31.md), which
 built the first half (the RESOLUTION report) and closed by saying the adjacency
 probe was the harder half and still unbuilt.
 

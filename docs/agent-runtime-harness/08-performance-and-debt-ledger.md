@@ -269,7 +269,7 @@ Open refactor and dead-code rows only, each re-verified against the tree on 2026
 Executed history stays archived. The duplicate-implementation retirement's rows
 (`create_free_floating`, `PERSONA_CHAT_SESSION_SOURCE`, `--message`) were struck on
 2026-08-30 when its stages 1/3/4/5 finished — see
-[`planned/duplicate-implementation-retirement.md`](planned/duplicate-implementation-retirement.md).
+[`archive/duplicate-implementation-retirement.md`](archive/duplicate-implementation-retirement.md).
 
 **From [`19-deferred-debt-ledger.md`](archive/2026-08-22-pre-consolidation/19-deferred-debt-ledger.md):**
 
@@ -319,7 +319,7 @@ Executed history stays archived. The duplicate-implementation retirement's rows
 - `head_agent_profile` — inert config field; recommendation *defer*, trigger "next
   contract bump" (2 lines are not worth a cross-stack golden regeneration).
 - `backfill_instance_profile_ids` — RETIRED 2026-09-24 (lane FORK-CODE, per
-  `planned/downstream-god-file-refactor.md` §4.1): the function and its six tests deleted.
+  `archive/downstream-god-file-refactor.md` §4.1): the function and its six tests deleted.
 - `set_entry_point_lane` — recommendation *cut*; move its two suites to the env-var
   spelling.
 - `realm bind-server` / `workspace add-agent|remove-agent` — is `server_id`/`agent_ids`

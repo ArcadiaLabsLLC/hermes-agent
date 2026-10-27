@@ -48,7 +48,7 @@ The fork reaches into upstream files at a few anchors. The good shape is **one i
 
 ## The fence
 
-- Refactor lanes never touch an upstream file: gate W0-G2 of [`downstream-god-file-refactor.md`](../../docs/agent-runtime-harness/planned/downstream-god-file-refactor.md) reds a `refactor(` commit whose diff intersects the upstream manifest.
+- Refactor lanes never touch an upstream file: gate W0-G2 of [`downstream-god-file-refactor.md`](../../docs/agent-runtime-harness/archive/downstream-god-file-refactor.md) reds a `refactor(` commit whose diff intersects the upstream manifest.
 - New modules go under fork-owned directories (`agent_runtime/`, `hermes_cli/harness_parts/`, `agent/charsheet/`, `tools/agent_chat/`, `scripts/mutation_check/`, `apps/desktop/src/app/skills/`), never at the top level of `hermes_cli/` or `tools/`.
 - A duplicate whose second copy is in an upstream file is folded on the fork side only; the upstream copy is baselined `upstream_copy_left`.
 - The history was RECONSTRUCTED on 2026-09-15 (`ed9ac406be`, "same-tree reconstruction", pinned upstream `110baa095b`); pre-history commits live on `codex/pre-history-replacement-20260915`. `git log --follow` on a fork file stops there. See [[0005 — Fork history reconstruction 2026-09-15]].

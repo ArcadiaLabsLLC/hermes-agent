@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 5a411b1657, f804bb448c.**
+W2-H5 notes; the skill-tombstone union merge (RD-11) shipped.
+
 # W2-H5 field notes — skill-tombstone union merge (hermes)
 
 Running record for the decision-close wave's W2-H5 stage: build

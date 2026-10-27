@@ -1,6 +1,6 @@
 """``scripts/worker_protocol.py`` -- the worker-count protocol's sampler, sample and receipt.
 
-Plan: ``docs/agent-runtime-harness/planned/fast-gate-2026-10-10.md`` §4 stage 1. Times are
+Plan: ``docs/agent-runtime-harness/archive/fast-gate-2026-10-10.md`` §4 stage 1. Times are
 the plan's 12 s run at a 5 s interval, scaled by 1/20.
 """
 

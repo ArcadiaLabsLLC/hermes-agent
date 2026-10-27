@@ -1,6 +1,6 @@
 """``runtime.chat.goal.*`` over upstream's ``GoalManager``, and the after-turn hook's slot rule (B3).
 
-Dispatcher plan ``docs/agent-runtime-harness/planned/dispatcher-and-libraries-2026-10-18.md`` §5, §6.
+Dispatcher plan ``docs/agent-runtime-harness/archive/dispatcher-and-libraries-2026-10-18.md`` §5, §6.
 The RPC tests drive the registered handlers with the REAL ``GoalManager`` on this test's isolated home
 (SessionDB ``state_meta``); the slot test uses the goal fakes and the real send queue.
 

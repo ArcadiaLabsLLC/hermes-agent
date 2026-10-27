@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits df7d8dd560, ed9ac406be, 5a411b1657.**
+Every stage executed or cancelled; leftover rulings are owned by other plans.
+
 # Planned — duplicate-implementation retirement
 
 **Status:** **CLOSED 2026-08-30 — every stage executed or cancelled.** Stages 1,
@@ -30,8 +33,8 @@ This plan **links, and does not duplicate**, three sibling planned files that
 already carry half the docket:
 `read-model-db-serve-population.md` (DELETED — its ruling was executed as
 Stage 6 and its residual truth folded into doc 02's retired-lane section),
-[task-bound-vocabulary-retirement.md](task-bound-vocabulary-retirement.md),
-[writerless-goal-lane-residue.md](writerless-goal-lane-residue.md). Where a
+[task-bound-vocabulary-retirement.md](../planned/task-bound-vocabulary-retirement.md),
+[writerless-goal-lane-residue.md](../planned/writerless-goal-lane-residue.md). Where a
 stage below depends on one of their rulings, the stage says so instead of
 re-arguing it.
 
@@ -353,7 +356,7 @@ Cleared with evidence, so nobody re-audits them.
   imports only `board_models` / `BoardStore` / `WorkspaceStore`
   (`board_tool.py:82-84`); the stub survives on the single re-export
   `store.py:149` and ~12 pinning test files. R-3 stands as issued (doc 17 §3),
-  and [task-bound-vocabulary-retirement.md](task-bound-vocabulary-retirement.md)
+  and [task-bound-vocabulary-retirement.md](../planned/task-bound-vocabulary-retirement.md)
   gate 1 already requests the re-ruling — see Operator rulings below; nothing
   is deleted here and nothing is duplicated there.
 - **`PersonaAssignmentStore` — live, not a shell; retirement stays blocked.**
@@ -411,12 +414,12 @@ Cleared with evidence, so nobody re-audits them.
    core before consulting the cache. Both findings weigh for outcome (2),
    retire. Stage 7 is cancelled or activated by this same ruling.
 2. **R-3 re-ruling on `TaskStoreStub`** — owned by
-   [task-bound-vocabulary-retirement.md](task-bound-vocabulary-retirement.md)
+   [task-bound-vocabulary-retirement.md](../planned/task-bound-vocabulary-retirement.md)
    gate 1. The stub's stated cause (an unguarded upstream import) is verified
    gone; either the docstring is corrected to "insurance", or the stub, the
    `store.py:149` re-export, and the s1 keep-set item retire together.
 3. **The two `status.py` writer-less keys** (`foreground_runtime` /
    `runtime_instances`, `status.py:110,113` — the *same call twice*) — owned by
-   [writerless-goal-lane-residue.md](writerless-goal-lane-residue.md) gate 1,
+   [writerless-goal-lane-residue.md](../planned/writerless-goal-lane-residue.md) gate 1,
    which requires a launcher reader check first. Subsumed by reference; not
    restaged here.

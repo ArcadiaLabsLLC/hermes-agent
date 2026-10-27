@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 5a411b1657.**
+W1-H3 mutation-gate notes; the resolution checker, deletion-aware selection and the later adjacency probe all shipped.
+
 # W1-H3 field notes — mutation-gate hygiene batch (2026-08-31)
 
 Running record for the decision-close wave's hermes mutation/gate stage.
@@ -135,10 +138,10 @@ over 60 docs
   cross-repo/elided, skipped: 79
 
 PATH DOES NOT RESOLVE: 6
-  planned/duplicate-implementation-retirement.md:224  read_model.py:339
-  planned/duplicate-implementation-retirement.md:231  read_model.py:167
-  planned/duplicate-implementation-retirement.md:235  projector.py:28
-  planned/duplicate-implementation-retirement.md:248  read_model.py:167
+  archive/duplicate-implementation-retirement.md:224  read_model.py:339
+  archive/duplicate-implementation-retirement.md:231  read_model.py:167
+  archive/duplicate-implementation-retirement.md:235  projector.py:28
+  archive/duplicate-implementation-retirement.md:248  read_model.py:167
   archive/remote-gateway-field-notes.md:35   docs/archive/mission_control/universal-remote-gateway.md:524
   archive/remote-gateway-field-notes.md:812  universal-remote-gateway.md:740
 
@@ -162,7 +165,7 @@ unknown shas, 123 non-ancestor shas — frozen copy, expected, not worth a sweep
 clone and are NOT ancestors of `origin/main` — the pre-rebase-sha trap the
 queue named at its own round-five entry, where `d01e5f7bc … 7c35e3963` lived
 only in a local reflog. They will be garbage-collected. The three
-`planned/duplicate-implementation-retirement.md` rows cite `read_model.py` and
+`archive/duplicate-implementation-retirement.md` rows cite `read_model.py` and
 `projector.py`, both RETIRED (the projector retirement is the standing
 architecture per the docs-canon consolidation), so that doc is citing a world
 that no longer exists.

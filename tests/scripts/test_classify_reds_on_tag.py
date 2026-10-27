@@ -1,6 +1,6 @@
 """``scripts/classify_reds_on_tag.py`` -- is a main red also red on the pure upstream tag?
 
-Plan: ``docs/agent-runtime-harness/planned/fast-gate-2026-10-10.md`` §6. Stage 1 pins the
+Plan: ``docs/agent-runtime-harness/archive/fast-gate-2026-10-10.md`` §6. Stage 1 pins the
 pure classifier and its emitters over fake tag outputs; stage 2 pins the tag worktree
 and the runner call on a scratch git clone whose ``scripts/run_tests.sh`` is a stub.
 """

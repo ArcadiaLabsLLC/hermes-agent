@@ -3,7 +3,7 @@ type: initiative
 program: downstream-refactor
 status: planned
 blocking: "none — Wave 0 is dispatchable; the operator owes only the H4 boot and the §4.2 argv rulings, both late"
-docs: "docs/agent-runtime-harness/planned/downstream-god-file-refactor.md"
+docs: "docs/agent-runtime-harness/archive/downstream-god-file-refactor.md"
 tags: [initiative, program/downstream-refactor]
 ---
 
@@ -13,7 +13,7 @@ tags: [initiative, program/downstream-refactor]
 
 ## Files
 
-**Plan:** `docs/agent-runtime-harness/planned/downstream-god-file-refactor.md` · **Notes:** `…-field-notes-2026-09-21.md` · **Instrument:** `scripts/refactor_census.py` · **Rules for sessions:** `CLAUDE.md` § Briefing a subagent.
+**Plan:** `docs/agent-runtime-harness/archive/downstream-god-file-refactor.md` · **Notes:** `…-field-notes-2026-09-21.md` · **Instrument:** `scripts/refactor_census.py` · **Rules for sessions:** `CLAUDE.md` § Briefing a subagent.
 **Wave 0 creates:** `tests/tooling/test_downstream_size_ceiling.py`, `test_refactor_stays_downstream.py`, `test_harness_namespace_is_thin.py` (xfail until H1), the widened `test_duplicate_helper_bodies.py`, `tests/fixtures/{downstream_manifest.txt,upstream_manifest.txt,size_ceiling_grandfathered.json}`, `scripts/downstream_manifest.py`, `scripts/refactor_reach_census.py`, the EXEC_CARD.
 
 ## Resume

@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 876ccc98dc, c653dc96e4.**
+Historical handoff; implemented.
+
 # Discussion Tables — runtime checkpoint handoff (2026-09-16)
 
 Historical checkpoint, subsequently implemented and refactored. Current shared

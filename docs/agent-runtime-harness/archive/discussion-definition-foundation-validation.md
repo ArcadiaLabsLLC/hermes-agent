@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 876ccc98dc, ef488f3203.**
+Validation receipt for the discussion-definition foundation, which shipped.
+
 # Discussion definitions — foundation validation
 
 Status: locally committed foundation, not wired to the live runtime, not on main.

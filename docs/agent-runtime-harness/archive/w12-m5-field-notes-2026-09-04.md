@@ -104,7 +104,7 @@ in `realm_sync.HARD_EXCLUDED_PATH_PARTS` deliberately.
 So the symptom is "the second machine shows a blank canvas for a working agent",
 not "the replica arrives broken" — a smaller and different problem than filed.
 
-**Changed.** `planned/flow-graph-replication-ruling.md`: the three corrections,
+**Changed.** `archive/flow-graph-replication-ruling.md`: the three corrections,
 what an operator sees today, three options (leave-local-and-say-so / travel the
 document adopt-or-hold / re-derive from `steered_by`) with their costs, and the
 one question the ruling turns on. Nothing built — this row needs an operator

@@ -1,6 +1,6 @@
 """Fast-gate §2 — a known red runs once, alone, capped; pinned without spawning pytest.
 
-Plan: ``docs/agent-runtime-harness/planned/fast-gate-2026-10-10.md`` §2 (owner
+Plan: ``docs/agent-runtime-harness/archive/fast-gate-2026-10-10.md`` §2 (owner
 ruling Q5: the caps as written).
 
 * Stage 1 — the cap: ``min(flat, max(60, 2 × green))`` with a green duration,

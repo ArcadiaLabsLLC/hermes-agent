@@ -11,7 +11,7 @@ from its §6 section without a design decision; every open point is a `Decided (
 owner decision in §9. No code in this lane.
 **Measured / read:** 2026-10-18 against hermes `origin/main` 78911c6cc3 and `EterniaLauncher`
 `origin/main` (read with `git show` / `git grep`, never checked out). Companion plan:
-[dispatcher-and-libraries-2026-10-18.md](../planned/dispatcher-and-libraries-2026-10-18.md) — W3's engine sits behind
+[dispatcher-and-libraries-2026-10-18.md](dispatcher-and-libraries-2026-10-18.md) — W3's engine sits behind
 its § 2.2 EXECUTOR contract, restated in §6.3 here verbatim.
 
 ## 0. Rulings and the owner's model

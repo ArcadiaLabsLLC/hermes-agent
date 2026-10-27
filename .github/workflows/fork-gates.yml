@@ -2,7 +2,7 @@ name: Fork gates
 
 # Fork-only gates that used to be jobs inside upstream's tests.yml. Keeping them
 # in their own workflow means the fork does not edit upstream's workflow for
-# them (docs/agent-runtime-harness/planned/disposition-misc-2026-09-24.md §5).
+# them (docs/agent-runtime-harness/archive/disposition-misc-2026-09-24.md §5).
 # tests.yml is `workflow_call`-only (ci.yaml orchestrates it), so this file
 # carries the triggers the job used to inherit from ci.yaml.
 

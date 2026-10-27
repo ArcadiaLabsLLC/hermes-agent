@@ -1,6 +1,6 @@
 """Fast-gate §1 stages 2-4: the green-result cache's key, decision, skip and audit.
 
-Plan: ``docs/agent-runtime-harness/planned/fast-gate-2026-10-10.md`` §1. A cache
+Plan: ``docs/agent-runtime-harness/archive/fast-gate-2026-10-10.md`` §1. A cache
 that hides a real red is the failure this design exists to prevent, so every key
 input is proven to invalidate here, in a scratch git repository: the test file,
 a recorded module, a recorded data file and listed directory, the conftest

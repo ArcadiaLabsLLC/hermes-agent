@@ -1,7 +1,7 @@
 # Fork features the upstream website does not document
 
 The fork does not edit upstream's `website/` pages (the upstream-footprint
-ledger's movable-carry rule, `docs/agent-runtime-harness/planned/disposition-misc-2026-09-24.md`
+ledger's movable-carry rule, `docs/agent-runtime-harness/archive/disposition-misc-2026-09-24.md`
 §5). The operator-facing notes it used to write into those pages live here,
 one section per page they came from. Upstream's pages are as upstream ships them.
 

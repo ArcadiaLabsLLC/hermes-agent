@@ -1,6 +1,9 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 41be8941c7, 13cf04f76f, 5465fd1bb3, 5e70d0360b, dee4f7cf08.**
+L0–L4 lanes landed; the L4 live acceptance is RT-ETERNIA-LENS-L2-L4.
+
 # Eternia Lens — the program cut into lanes (design)
 
-Status (reconciled 2026-10-26): CORE LANES BUILT; L4 LIVE ACCEPTANCE OPEN. The five runtime stages and the Launcher painter/authoring controls are on main. L1/L2/L3 passed live; the successful L4 read is the remaining core acceptance row `RT-ETERNIA-LENS-L2-L4`. The [Lens plan](eternia-lens-in-hermes.md#current-implementation-and-queue-coverage) owns the implemented scope and pointers to separately queued extensions. This file preserves the 2026-10-15 lane cut; its old baseline and approval questions below are historical, not current blockers.
+Status (reconciled 2026-10-26): CORE LANES BUILT; L4 LIVE ACCEPTANCE OPEN. The five runtime stages and the Launcher painter/authoring controls are on main. L1/L2/L3 passed live; the successful L4 read is the remaining core acceptance row `RT-ETERNIA-LENS-L2-L4`. The [Lens plan](../planned/eternia-lens-in-hermes.md#current-implementation-and-queue-coverage) owns the implemented scope and pointers to separately queued extensions. This file preserves the 2026-10-15 lane cut; its old baseline and approval questions below are historical, not current blockers.
 
 ## In plain English
 

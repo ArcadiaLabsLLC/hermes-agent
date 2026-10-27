@@ -7,7 +7,7 @@
 non-owner edges travel in the same sync the steering already rides. Authored work
 silently missing on a replica is worse than the sync cost.* (operator,
 2026-09-04, adopting option **B** of
-[`flow-graph-replication-ruling.md`](../planned/flow-graph-replication-ruling.md).)
+[`flow-graph-replication-ruling.md`](flow-graph-replication-ruling.md).)
 
 The ruling settles §4 Q1 of that brief. Q2 (whole-document versus per-node
 granularity) is not re-opened here: option B answers it in its own text —

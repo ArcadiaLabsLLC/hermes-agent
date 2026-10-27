@@ -100,7 +100,7 @@ How a many-lane program is run — bulk mode, cluster lanes, one batched landing
 with concurrent gates, tool-call counts per lane, model tiering, and the measured journey
 that bought each rule — is
 `EterniaLauncher/docs/tooling/SUBAGENT_DEPLOYMENT_PLAYBOOK_2026-09-21.md`, restated for
-this repo in `docs/agent-runtime-harness/planned/downstream-god-file-refactor.md` §6 and
+this repo in `docs/agent-runtime-harness/archive/downstream-god-file-refactor.md` §6 and
 `Harness_Brain/50 — Agent Handoffs/Dispatching a lane.md`. Read it before orchestrating
 more than two subagents on one program.
 

@@ -16,7 +16,7 @@ tags: [adr, fork, upstream, refactor, process]
 The 2026-09-21 upstream merge landed ([[upstream-merge-2026-09-21]]). Two implementation-ready plans wait on it:
 
 - `docs/agent-runtime-harness/planned/harness-plugin-and-upstream-seams.md` — shrink the fork's footprint in upstream files so weekly merges stop hurting; optionally detach. Program cursor: [[Upstream Sync]].
-- `docs/agent-runtime-harness/planned/downstream-god-file-refactor.md` — 41 fork-owned files over 800 code lines, 13 lanes. Program cursor: [[Downstream Refactor]].
+- `docs/agent-runtime-harness/archive/downstream-god-file-refactor.md` — 41 fork-owned files over 800 code lines, 13 lanes. Program cursor: [[Downstream Refactor]].
 
 The refactor touches fork-owned files only, so it never changes the upstream footprint. The two programs share exactly one file: refactor lane H2 splits `hermes_cli/harness.py`, and seam Stage 1 changes how that file's parser is registered. And both programs land through the validated suite, which today reads 194 reds on `main` that predate the merge (row in [[fork-hygiene-queue]]).
 

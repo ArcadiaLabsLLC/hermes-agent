@@ -241,7 +241,7 @@ def test_the_grandfathered_baseline_still_describes_the_code(agent_runtime_dupli
 #
 # The two tests above hold agent_runtime's module-level functions to the
 # reasoned rows in ``_GRANDFATHERED``. Wave 0 of the god-file program
-# (``docs/agent-runtime-harness/planned/downstream-god-file-refactor.md`` §2,
+# (``docs/agent-runtime-harness/archive/downstream-god-file-refactor.md`` §2,
 # ``god-file-program-2026-09-24.md`` rule 15) widens the net without loosening
 # it: EVERY fork production ``.py`` (``scripts/god_file_probe.py``'s
 # population), methods and nested functions too, locals AND parameters

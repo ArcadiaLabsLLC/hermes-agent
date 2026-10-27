@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 7425b754a7.**
+W0-D evidence; all 106 DECIDE rows were burned down or ruled.
+
 # Reach census (W0-D) — 2026-09-24, `main` @ `4e73892724`
 
 Instrument: `scripts/refactor_reach_census.py` (plan [`downstream-god-file-refactor.md`](downstream-god-file-refactor.md) §2 Wave 0 W0-D and §4.3; [`god-file-program-2026-09-24.md`](../archive/god-file-program-2026-09-24.md) §5). This note is EVIDENCE; the rows it produced live in `Harness_Brain/20 — Active Initiatives/dead-code-burn-down-queue.md`.

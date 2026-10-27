@@ -1,13 +1,16 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits fec1ecf2c3, 37ca422c25.**
+DISP-T dispositions merged and applied.
+
 # Planned — dispositions for the `tests/` rows of the upstream footprint ledger (2026-09-24)
 
 Lane DISP-T gave a disposition, a reason and a stage to all 207 `tests/` rows of
-[`upstream-footprint-ledger.md`](upstream-footprint-ledger.md) that still read `unreviewed`.
+[`upstream-footprint-ledger.md`](../planned/upstream-footprint-ledger.md) that still read `unreviewed`.
 The rules are §1 rules 1 and 4 and "No duplicate authority" in
-[`harness-plugin-and-upstream-seams.md`](harness-plugin-and-upstream-seams.md).
+[`harness-plugin-and-upstream-seams.md`](../planned/harness-plugin-and-upstream-seams.md).
 
 **Inputs.** The fork hunks are `git diff d337b736aa HEAD` (the manifest base) for each path. They
 were checked against `upstream/main` @ `6b2c23ae42`, fetched 2026-09-24. 173 rows take their
-reason code from [`upstream-test-fix-classes-2026-09-23.md`](upstream-test-fix-classes-2026-09-23.md).
+reason code from [`upstream-test-fix-classes-2026-09-23.md`](../planned/upstream-test-fix-classes-2026-09-23.md).
 I read the other 34 rows hunk by hunk. These are files whose fork tests S5 already moved out, so
 only the in-place residue is left.
 

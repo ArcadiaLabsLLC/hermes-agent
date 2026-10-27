@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Classify the fork's red node ids against a pure upstream release tag.
 
-Plan: ``docs/agent-runtime-harness/planned/fast-gate-2026-10-10.md`` §6; runbook:
+Plan: ``docs/agent-runtime-harness/archive/fast-gate-2026-10-10.md`` §6; runbook:
 ``Harness_Brain/50 — Agent Handoffs/Merging upstream.md`` step 5d.
 
 A red on the fork's main is one of: red on the pure tag (upstream's own -- a strict

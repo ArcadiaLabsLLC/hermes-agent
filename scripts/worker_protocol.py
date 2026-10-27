@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The worker-count protocol's instruments: a saturation sampler, the fixed sample, a receipt.
 
-Plan: ``docs/agent-runtime-harness/planned/fast-gate-2026-10-10.md`` §4 stage 1. The six
+Plan: ``docs/agent-runtime-harness/archive/fast-gate-2026-10-10.md`` §4 stage 1. The six
 measurement runs (8, 12, 16, 8, 12, 16 workers, idle box) are stage 2 and are not run here.
 
 * ``SaturationSampler`` -- a thread sampling system-wide ``psutil.cpu_percent(interval=5)``

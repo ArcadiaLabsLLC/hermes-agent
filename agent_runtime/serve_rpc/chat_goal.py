@@ -1,6 +1,6 @@
 """``runtime.chat.goal.set | status | pause | resume | clear`` — upstream's goal engine on a chat root.
 
-Dispatcher plan ``docs/agent-runtime-harness/planned/dispatcher-and-libraries-2026-10-18.md`` §5 (B3,
+Dispatcher plan ``docs/agent-runtime-harness/archive/dispatcher-and-libraries-2026-10-18.md`` §5 (B3,
 ``RT-GOAL-ENGINE-DOOR``). Each verb is one row of ``agent_runtime.chat_goal.OPS`` over
 ``GoalManager(params["session_id"])`` and answers ``{"goal": <state>}``. ``console`` tier: a goal
 drives an agent with tools turn after turn. The SessionDB read runs off the reader lane

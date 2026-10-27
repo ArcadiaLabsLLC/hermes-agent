@@ -1787,7 +1787,7 @@ unloadable skill refuses the run `skills_not_loadable`); an `UNTIL_DONE` continu
 `runtime.chat.goal.set | status | pause | resume | clear` (`agent_runtime/serve_rpc/chat_goal.py` over
 `agent_runtime/chat_goal.py::OPS`) drive upstream's goal engine, `hermes_cli/goals.py::GoalManager`, on a
 chat root named by `session_id` (dispatcher plan
-[dispatcher-and-libraries-2026-10-18.md](planned/dispatcher-and-libraries-2026-10-18.md) §5). `set` takes
+[dispatcher-and-libraries-2026-10-18.md](archive/dispatcher-and-libraries-2026-10-18.md) §5). `set` takes
 `goal`, `max_turns?`, `contract?` (`outcome`, `verification`, `constraints`, `boundaries`, `stop_when`) and
 `gates?` (shell commands); every verb answers `{"goal": {status, goal, turns_used, max_turns, contract,
 gates[], paused_reason, last_verdict, last_reason, status_line, run}}` (`status: none` when the root holds
@@ -1809,7 +1809,7 @@ no run owns from the settled turn's arguments its `wait` recorded (`<store_root>
 
 `runtime.batch.plan | start | status | stop | land | approve` (`agent_runtime/batch/rpc.py` over
 `agent_runtime/batch/dispatcher.py::BatchDispatcher`; dispatcher plan
-[dispatcher-and-libraries-2026-10-18.md](planned/dispatcher-and-libraries-2026-10-18.md) §3) plan the
+[dispatcher-and-libraries-2026-10-18.md](archive/dispatcher-and-libraries-2026-10-18.md) §3) plan the
 workspace's READY rows into thick lanes (one per `Domain(slot, note, heading)`, sized by the files the rows
 name — 65 rows only a ceiling — a lane sharing a file with an earlier one sequenced after it, one landing
 lane), claim them `persona:<instance_id>` (the rows' assignee, else the roster instance whose role is the

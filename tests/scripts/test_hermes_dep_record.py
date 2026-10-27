@@ -1,6 +1,6 @@
 """Fast-gate §1 stage 1: the dependency recorder, run for real in a throwaway bundle.
 
-Plan: ``docs/agent-runtime-harness/planned/fast-gate-2026-10-10.md`` §1. A file's
+Plan: ``docs/agent-runtime-harness/archive/fast-gate-2026-10-10.md`` §1. A file's
 record must name every module, data file and directory it touched and whether it
 spawned a process — a missed dependency is a false green once the cache skips.
 """

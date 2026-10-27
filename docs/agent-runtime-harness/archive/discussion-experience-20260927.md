@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits e354ef8849, 3b1eb95960.**
+Implementation and native acceptance landed; the whole-suite qualification it handed off is FORK-WRAPPER-PUBLICATION-TESTS.
+
 # Shared Discussion experience — approved 2026-09-27
 
 Status: implementation and scoped native acceptance complete. Joint landing uses

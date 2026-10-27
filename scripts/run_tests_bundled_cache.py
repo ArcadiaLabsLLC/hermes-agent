@@ -1,6 +1,6 @@
 """The green-result cache's store and dependency records (fast-gate §1).
 
-``docs/agent-runtime-harness/planned/fast-gate-2026-10-10.md`` §1: a test file is
+``docs/agent-runtime-harness/archive/fast-gate-2026-10-10.md`` §1: a test file is
 skipped when nothing it depends on has changed since its last green run on this
 box, and the dependency set is RECORDED at run time
 (``scripts/_bundle_plugin/hermes_dep_record.py``), never inferred.
