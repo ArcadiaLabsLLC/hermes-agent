@@ -5,7 +5,6 @@ from typing import Any
 from hermes_cli.auth import AuthError
 from hermes_cli.runtime_environment import missing_runtime_packages_for
 from agent_runtime.provider_probes import probe_runtime_provider
-from hermes_cli.runtime_provider import resolve_runtime_provider
 
 from .machine_roots import contains_path_tokens, path_token_issues
 from .mcp_server_templates import mcp_server_issues
@@ -26,7 +25,26 @@ READINESS_SKILL_INVALID_SOURCE = "skill_invalid_source"
 READINESS_SKILL_HASH_MISMATCH = "skill_hash_mismatch"
 READINESS_RUNTIME_DEPENDENCY_MISSING = "runtime_dependency_missing"
 
-_RUNTIME_PROVIDER_RESOLVER = resolve_runtime_provider
+#: The UNPATCHED ``hermes_cli.runtime_provider.resolve_runtime_provider``, captured on first use.
+#: The provider stack loads lazily (PEP 562 below): a store-only import of this module — the
+#: persona package at plugin load, under a cold ``harness gateway peers list`` — must not pay for it.
+_RUNTIME_PROVIDER_RESOLVER = None
+
+
+def __getattr__(name: str):
+    if name != "resolve_runtime_provider":
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    global _RUNTIME_PROVIDER_RESOLVER
+    from hermes_cli.runtime_provider import resolve_runtime_provider
+
+    _RUNTIME_PROVIDER_RESOLVER = resolve_runtime_provider
+    globals()[name] = resolve_runtime_provider
+    return resolve_runtime_provider
+
+
+def _runtime_provider_resolver():
+    """This module's ``resolve_runtime_provider`` — a test's patch when one is set — loaded on first use."""
+    return globals().get("resolve_runtime_provider") or __getattr__("resolve_runtime_provider")
 
 _SEVERITY = {
     READINESS_MISSING_PROFILE: 60,
@@ -336,7 +354,7 @@ def _provider_issue(persona) -> tuple[str, str] | None:
         str(provider or ""),
         str(model or ""),
     )
-    fn = resolve_runtime_provider
+    fn = _runtime_provider_resolver()
     now = time.monotonic()
     entry = _provider_issue_memo.get(key)
     if (
