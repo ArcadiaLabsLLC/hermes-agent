@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 7f2b8aae3c, b8c8ec16b3.**
+Split and the REARM_OUTCOME_BY_STATE CHANGE landed.
+
 # Layout sheet — `agent_runtime/dispatch_store.py` (lane R1 · exec lane 2B-A)
 
 Base: `main` @ `28012c8f8a` · 1,308 raw / 1,019 code / 30 top-level defs · longest `record_completion` 155 (W0-G7 fixture row) · chains 1/0 · `str==` 0 · `isinstance` 9 · sha256 `9d820992700c6f5307088751b50e0e85873ba42b14bf5c13bf26f225370b7163` · owner doc `docs/agent-runtime-harness/05-chat-turn.md` (the detached lane). 9 production importers (`dispatch_delivery`, `running_work`, `media_handles`, `mission_chat_outcome`, `decision_contract_registry`, `harness_parts/persona/chat_tickets_commands`, `harness_parts/serve/boot_phases`, `tools/agent_chat_dispatch`, `tools/agent_chat_tool`), 13 test files. Importers take the `__all__` list (line 70) plus `REARM_ERROR_KINDS`, `ERROR_KIND_DISPATCH_STORE_UNAVAILABLE`, `REPLY_LIMIT`, `STATE_COMPLETED`; tests read `_emit`, `_query`, `_TABLE`, `_backlog_report_state`, `_MAX_RETAINED_TERMINAL` by attribute.

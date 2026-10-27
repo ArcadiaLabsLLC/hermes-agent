@@ -14,7 +14,7 @@ UsageError, not a silent no-op: an unmatched row would read as coverage it no
 longer gives.
 
 **The map** (lane B5, 2026-09-25; the layout sheet is
-``docs/agent-runtime-harness/planned/god-file-layout-sheets/id_markers.md``). The rows are
+``docs/agent-runtime-harness/archive/god-file-layout-sheets/id_markers.md``). The rows are
 split by the CLASS that RETIRES them -- never by size, never by the lane that filed them --
 so the file a lane edits to add a row is data, and its name says what will retire it::
 

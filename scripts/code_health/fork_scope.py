@@ -10,7 +10,7 @@ red is judged and the receipt says so.
 
 ``scripts/check`` (an upstream file) holds only the additive calls: :func:`configure`,
 :data:`RUFF_ARGS`, :func:`filter_job`, :func:`report_unjudged`.
-Plan: ``docs/agent-runtime-harness/planned/fork-seam-line-lint-2026-10-21.md`` F2.
+Plan: ``docs/agent-runtime-harness/archive/fork-seam-line-lint-2026-10-21.md`` F2.
 """
 
 from __future__ import annotations

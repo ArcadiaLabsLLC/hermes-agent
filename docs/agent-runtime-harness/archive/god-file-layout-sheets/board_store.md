@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 0306c9cbd3.**
+Split landed.
+
 # Layout sheet — `agent_runtime/board_store.py` (lane R1 · exec lane 2B-A)
 
 Base: `main` @ `28012c8f8a` · 1,085 raw / 925 code / 16 top-level defs · longest `BoardStore._idempotent_replay` 88 · chains 0/0 · `str==` 1 · `isinstance` 4 · sha256 `3f4969014ac5489d4911d1ebfc810560692571ef07fb4a1bab33750434fa52bf` · owner doc `docs/agent-runtime-harness/06-office-and-board.md`. 11 production importers (`board_sync`, `default_scope`, `realm_revert`, `realm_sync/{drift,publish_scans}`, `runtime_hud`, `snapshot/sections`, `store`, `workspace_template`, `harness_parts/board`, `tools/board_tool`), 15 test files. Importers take `BoardStore`; one takes `_read_json` (which folds onto `serde.read_json`, §3).

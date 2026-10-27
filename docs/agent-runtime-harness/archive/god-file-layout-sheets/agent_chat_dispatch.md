@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 29d9ea4b54.**
+Split landed as laid out.
+
 # Layout sheet — `tools/agent_chat_dispatch.py` (lane T1 · exec lane 2B-C)
 
 Base: `main` @ `28012c8f8a` · 1,149 raw / 842 code / 20 top-level defs · longest `_run_remote_dispatch` 258 (W0-G7 fixture row; depth 5), `_run_dispatch_guarded` 147 · chains 0/0 · `str==` 4 · `isinstance` 1 · sha256 `c65ebf5e2bb2541eee75c287291e5e31f5de4c9545fe905c3d833d2318401007` · owner doc `docs/agent-runtime-harness/05-chat-turn.md` (the detached lane) and `09-multi-device-runtime.md` (Stage 7). **A fork-only file in an upstream directory** (program §0.3, Q2 yes). 7 production importers (`agent_runtime/dispatch_store` lazy, `agent_runtime/media_proxy` — a comment, `agent_runtime/serve_socket/__init__`, `harness_parts/persona/chat_reply_stamps` — a comment, `scripts/upstream_sync_gate`, `tools/agent_chat_remote`, `tools/agent_chat_tool`), 5 test files. Importers take `supervised_dispatch_ids`, `dispatch_detached_turn`, `summarize_for_caller`, `build_dispatch_argv`, `PEER_DIAL_TIMEOUT_SECONDS`; tests read `_run_remote_dispatch`, `_child_identity`, `KILL_GRACE_SECONDS`, `SERVE_STDOUT_EVENT` and patch `_child_identity` ×4, `dispatch_detached_turn` ×3, `threading` ×1.

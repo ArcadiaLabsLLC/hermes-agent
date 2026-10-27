@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits edb1279131, bc26f23324.**
+Package split and the INPUT_CLASSES/checks CHANGE landed.
+
 # Layout sheet — `agent_runtime/core_cache.py` (lane R3)
 
 Base: `main` @ `bf4377f226` · 4,073 raw / 2,502 code / 85 top-level defs · longest `build_input_fingerprint` 236 (1535–1770, depth 4) · chains 1/0 · `str==` 2 · `isinstance` 20 · owner doc `docs/agent-runtime-harness/04-boot-and-lifecycle.md` (the persisted core) and `08-performance-and-debt-ledger.md`. **1,571 of the 4,073 lines are prose** — a 245-line module docstring and eleven `# ---` section banners whose history (ML-10, MC-1/2, IC-2, P3/P5, EG-3.1) is the ruling-Q3 class: relocate, never split for it. 6 production importers; 15 test files, of which 11 pin **32 distinct private names** through 36 `monkeypatch.setattr(core_cache, …)` sites — the largest retarget in Wave 2.

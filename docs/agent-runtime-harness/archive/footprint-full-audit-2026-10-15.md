@@ -1,9 +1,12 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits d1b6aeb941, 912eb11b0b, 615a3115f3, a716d5a9d0.**
+Phase B lanes and T1–T3 all landed.
+
 # Footprint full audit 2026-10-15 — the other 174 ledger files, and the fork tests still inside upstream test files
 
 Design lane `fp-full`. Design only: no code moves here. This extends
 [`footprint-audit-2026-10-15.md`](../archive/footprint-audit-2026-10-15.md) (the 48 post-2026-10-06 files;
 its verdict format and lanes C/R/P/M/D are not redone) to every other row of
-[`upstream-footprint-ledger.md`](upstream-footprint-ledger.md) on `origin/main` (`28b444fc756`,
+[`upstream-footprint-ledger.md`](../planned/upstream-footprint-ledger.md) on `origin/main` (`28b444fc756`,
 ratchet `[up-fp] files=222 deleted_lines=1050 heavy=4`): 174 files, 4,758 added / 906 deleted lines.
 
 Measured against `v0.21.7` (the fork hunk: `git diff v0.21.7 origin/main -- <path>`) and `v0.22.2`

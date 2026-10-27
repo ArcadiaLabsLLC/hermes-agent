@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 8f0850dd40, a5bb04af4c, 7bffcc1562.**
+Split and the section-table CHANGE landed.
+
 # Layout sheet — `agent_runtime/config.py` (lane R3 · exec lane 2B-C)
 
 Base: `main` @ `28012c8f8a` · 1,212 raw / 902 code / 43 top-level defs · longest `describe_runtime_default_authority` 72 · chains 0/0 · `str==` 5 · `isinstance` 33 · sha256 `0112a37640925c1ea740aec993c9dd425b05c158787c121492b7bfeda35c0682` · owner doc `docs/agent-runtime-harness/01-boot-and-config.md`. **57 production importers, 64 test files** — second only to `store` — across `agent_runtime/`, `hermes_cli/harness_parts/`, `gateway/`, `plugins/`, `tools/`. Importers take `AgentRuntimeConfig`, `load_agent_runtime_config`, `load_root_runtime_config`, `harness_root_config_path`, `ensure_persisted_personas` (25 production readers), `persona_records_from_config`, `chat_lane_restore_toolsets`, `mission_chat_workdir`, the `mission_chat_*` / `resolve_mission_chat_*` knobs, `describe_runtime_default_authority`, `scan_misplaced_root_only_keys`, `ROOT_ONLY_CONFIG_KEYS`, the bounds constants; tests import `_mcp_admission_config` ×3, `_mission_chat_config`, `_event_log_config`.

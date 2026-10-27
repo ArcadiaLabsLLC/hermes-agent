@@ -1,7 +1,7 @@
 """``scripts/code_health/fork_lines.py``: a line is the fork's iff it is absent from the
 upstream base blob (or its file is not upstream at all).
 
-Plan: ``docs/agent-runtime-harness/planned/fork-seam-line-lint-2026-10-21.md`` F1.
+Plan: ``docs/agent-runtime-harness/archive/fork-seam-line-lint-2026-10-21.md`` F1.
 """
 
 from __future__ import annotations

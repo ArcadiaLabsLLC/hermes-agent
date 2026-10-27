@@ -4,7 +4,7 @@ The fixture repo (``_fork_repo``) plants ``Dict[str, Any]`` (UP006) on an upstre
 and on a fork-added line of the same upstream file. The tool output is the real formats
 (ruff ``--output-format=json``, the footgun scanner's ``path:line: [name]`` blocks), fed
 through ``scripts/check``'s own ``_run`` / ``main``.
-Plan: ``docs/agent-runtime-harness/planned/fork-seam-line-lint-2026-10-21.md`` F2.
+Plan: ``docs/agent-runtime-harness/archive/fork-seam-line-lint-2026-10-21.md`` F2.
 """
 
 from __future__ import annotations

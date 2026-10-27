@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 454c7129aa, e3f4d156c3, 74490fa89a.**
+Lane executed 151 -> 117 files; the residue went to RT-HOSTED-ROOMS-CANNOT-MOVE.
+
 # FOOTPRINT-DROP — bucket table (2026-09-27)
 
 Lane FOOTPRINT-DROP (row in `Harness_Brain/10 — Programs/Upstream Sync.md`). Baseline at

@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits f7fb321ec9, 0b860e3637, 19db5a96c5.**
+Split and the census/run phases CHANGE landed.
+
 # Layout sheet — `agent_runtime/harness_doctor.py` (lane R3 · exec lane 2B-C)
 
 Base: `main` @ `28012c8f8a` · 1,262 raw / 831 code / 21 top-level defs · longest `_placement_census_report` 255 (W0-G7 fixture row), `run_harness_doctor` 161 (fixture row) · chains 2/0 · `str==` 5 · `isinstance` 8 · sha256 `993f04c49b9bb0a5bfd47f27f2ca0c4ba39cc957fa01cf2f52885785c2634da7` · owner doc `docs/agent-runtime-harness/08-operations.md` (`harness doctor`). 2 production importers (`harness_parts/doctor_commands`, `harness_parts/parser/machine`), 5 test files. Importers take `run_harness_doctor`, `doctor_detail_sources`, `DEFAULT_WORKTREE_MIN_AGE_SECONDS`; tests import `_census_join_workspace`, `_census_live_actor_bindings`, `_census_duplicate_placements`, `_duplicate_placement_reason`, `ORPHAN_ACTOR_*`, `DoctorSection`, `DOCTOR_SECTIONS`, `HEALTH_*`.

@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 2453b29138, fc724b61df.**
+Split and the MCP_DENIAL_CODES/phases CHANGE landed.
+
 # Layout sheet — `agent_runtime/mcp_admission.py` (lane R3)
 
 Base: `main` @ `28012c8f8a` · sha256 `e1037484dc09d04cf2e29372f6f2140bc771c185e3a6fc1cefd64a528e577b68` · 2,073 raw / 1,452 code / 37 top-level defs · longest `admit_mcp_servers` 198 (1199–1396) · chains 0/0 · `str==` 0 · `isinstance` 5 · owner doc `docs/agent-runtime-harness/archive/2026-08-22-pre-consolidation/mission-chat-mcp-admission.md` (the design the docstring says to read first) and ADR `Harness_Brain/30 — Decisions/0009` (profile declaration is the sole admission authority). 8 production importers taking 11 names (`persona_runtime` ×6, `tool_visibility` ×4, `chat_lane_bundle`, `persona_chat_actor_prewarm`, `profile_runner/{mcp_lane,runner,toolsets}`, `persona/inspect_commands`); 10 test files pinning 33 names, three private (`_default_registrar`, `_live_mcp_sessions`, and `_current_mcp_servers` by module attribute).

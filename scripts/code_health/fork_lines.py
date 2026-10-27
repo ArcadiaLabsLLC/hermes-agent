@@ -12,7 +12,7 @@ when the ``upstream/main`` ref exists (a merge lane's checkout); the manifest's
 
 The diff is taken against the WORKING TREE of ``root`` under ``env``, so a
 ``scripts/check`` snapshot (``GIT_WORK_TREE`` = the snapshot) is judged by its own bytes.
-Plan: ``docs/agent-runtime-harness/planned/fork-seam-line-lint-2026-10-21.md`` F1.
+Plan: ``docs/agent-runtime-harness/archive/fork-seam-line-lint-2026-10-21.md`` F1.
 """
 
 from __future__ import annotations

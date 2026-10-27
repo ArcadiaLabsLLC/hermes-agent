@@ -36,7 +36,7 @@ readable beside the command that enforces it: CI passes its own in
 the same way. See ``tool/test_quality/README.md``.
 
 **The map** (lane B5, 2026-09-25; the layout sheet is
-``docs/agent-runtime-harness/planned/god-file-layout-sheets/changed_line_mutation_check.md``).
+``docs/agent-runtime-harness/archive/god-file-layout-sheets/changed_line_mutation_check.md``).
 The ENTRY keeps its path -- CI, ``scripts/unattended_suite_run.ps1``, ``CLAUDE.md``
 and the gate's own tests name it -- and this package holds everything it runs::
 

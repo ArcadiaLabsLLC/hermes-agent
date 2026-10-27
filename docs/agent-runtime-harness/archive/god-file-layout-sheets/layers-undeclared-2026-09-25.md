@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits ba00a35bb1, a50f6c7f3b, 6504288e6f, 57bec79351.**
+All 66 undeclared modules now declare __layer__ (the grandfather fixture lists 0); lanes L1–L4 landed.
+
 # Layout sheet — the W0-G6-undeclared population (lane LAYERS-DESIGN, 2026-09-25)
 
 Base: `origin/main` @ `478fcc5ba5`. Rules the two `runtime-queue.md` rows marked `TAKEN 2026-09-25 lane LAYERS-DESIGN` — the 66-module row (lane W3-B, `24763b9a8e` / `60c0309dfc` / `cc22bb16b3` / `c37726d912`) and the three-upward-edge row (lane 2B-B). Bar: `god-file-program-2026-09-24.md` §2 rule 16 and gate W0-G6 (§2.4). Design only — no code changes in this lane.

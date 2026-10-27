@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 19f55c6ca2, dc85ac9b8d, 9e5da53517, f8967fda90.**
+hermes_cli/harness.py split into harness_parts/ (106 lines); the three tables landed.
+
 # Layout sheet — `hermes_cli/harness.py` (lane H2)
 
 Base: `main` @ `78501db796` · 6,737 raw / 5,240 code / 164 top-level defs · longest `populate_parser` 1,768 (286–2053) · `str==` 28 · `isinstance` 11 · owner doc `docs/agent-runtime-harness/01-system-architecture.md`. Waits on H1 (`_load_command_parts` + `exec` at 6730–6737; 263 test patches on `harness.<name>`). Entry since seam Stage 1: `plugins/eternia-harness/__init__.py::_setup_harness_parser` → `build_cli_parser` (2146) → `populate_parser`; `harness_command` (2056) is the argparse `func=` root; `_harness_entry`/`_install_harness_entries` (2107–2143) are the plugin's entries. This file is **upstream-directory, fork-only**: nothing new goes at `hermes_cli/` top level; every target below is under `hermes_cli/harness_parts/`.

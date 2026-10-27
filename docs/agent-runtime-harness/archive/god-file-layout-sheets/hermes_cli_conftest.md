@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 7acfe55416, d54dac1900.**
+Split and KnownDefectTracker CHANGE landed; the _PREREQ_GUARDS table was mooted by the deleted guards.
+
 # Layout sheet — `tests/_downstream/hermes_cli_conftest.py` (lane T2 · exec lane B5)
 
 Base: `main` @ `8411d26a01` · 1,347 raw / 893 code / 29 top-level defs · longest `_sys_modules_identity_is_restored` 78 (depth 5 — the W0-G7 row) · chains 0/0 · `str==` 5 · `isinstance` 4 · sha256 `0acfe569532eafedb3981d538524d51c39da6db16c27d6259a7c1406316c1ebe` · owner doc `docs/downstream-development.md` (the test runner and its validated scope) and `tests/_env_gap_fence.py`'s module docstring (the fence contract). Test infrastructure: the fork half of `tests/hermes_cli/conftest.py`, loaded for every one of the ~1,260 per-file `tests/hermes_cli` processes.

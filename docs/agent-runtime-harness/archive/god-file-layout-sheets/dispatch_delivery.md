@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits c7ac6d79c3, 3cf639f81d, e017f921fc.**
+Split and the BOUNCE_GATES/BackgroundDrain CHANGE landed.
+
 # Layout sheet — `agent_runtime/dispatch_delivery.py` (lane R2)
 
 Base: `main` @ `28012c8f8a` · sha256 `7a654ba97eb00ff70e8e0e811d9408d7fd5be1206682127ce4466ba888802955` · 1,801 raw / 1,311 code / 31 top-level defs · longest `drain_background_completions` 258 (1465–1722, depth 3) · chains 3/0 · `str==` 6 · `isinstance` 3 · owner doc `docs/agent-runtime-harness/05-chat-turn-lane.md` (the delivery drain, `wait: false`). 7 production importers taking 6 names (`serve/session.py` → `start_delivery_drain`; `status.py` → `delivery_drain_status`; `persona/chat_admission.py` → `delivery_drain_is_live`; `core_cache/vocabulary.py`, `core_cache_census.py` → `DRAIN_STATE_FILENAME`; `persona/chat_history_writes.py` → the module; **`tools/agent_chat_tool.py` → `_sender_persona`, a private**); 14 test files pinning 5 names plus the module.

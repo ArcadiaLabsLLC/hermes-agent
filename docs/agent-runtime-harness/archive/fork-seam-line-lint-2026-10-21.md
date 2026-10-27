@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 70aa5b8cd7, 81d12a3380, 3e6a0e1048.**
+F1–F3 landed.
+
 # Planned — `scripts/check` with a fork scope: upstream's own lines never red the local gate — 2026-10-21
 
 **Owner domain:** the repository as a fork (`docs/downstream-development.md` § The fork landing gate;

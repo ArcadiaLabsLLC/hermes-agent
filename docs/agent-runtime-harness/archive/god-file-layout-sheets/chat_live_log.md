@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 62267d1c21.**
+Split landed, with the state module folded into files.py.
+
 # Layout sheet — `agent_runtime/chat_live_log.py` (lane R2 · exec lane 2B-B)
 
 Base: `main` @ `28012c8f8a` · 1,066 raw / 849 code / 38 top-level defs · longest `_backfill_rows` 82 (depth 4) · chains 1/1 · `str==` 8 · `isinstance` 6 · W0-G5 fixture rows `_normalized_role|ladder|role`, `chat_live_log_stats|ladder|kind` · sha256 `77f64791321ea1f01dde09abf4d762db7c213a8adc65f0416dc3cc9590b84707` · owner doc `docs/agent-runtime-harness/05-chat-turn.md` (the mirror). 6 production importers (`continuity`, `media_handles`, `mission_chat_steer`, `progress`, `harness_parts/persona/chat_history_writes`, `tools/agent_chat_tool`), 10 test files. Importers take the `__all__` list (line 115); tests patch `_backfill_rows` ×3, `LIVE_LOG_ROTATE_BYTES` ×3, `record_chat_message` ×2, `record_chat_tool` ×1.

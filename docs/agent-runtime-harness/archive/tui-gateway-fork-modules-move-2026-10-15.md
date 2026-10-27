@@ -38,7 +38,7 @@ re-pointed in the same move.
 - Layer gate: `__layer__` per module, `tests/tooling/test_fork_import_layers.py`,
   `tests/fixtures/import_layers_grandfathered.json` (`"undeclared": []` must
   stay empty); method and vocabulary in
-  `docs/agent-runtime-harness/planned/god-file-layout-sheets/layers-undeclared-2026-09-25.md`.
+  `docs/agent-runtime-harness/archive/god-file-layout-sheets/layers-undeclared-2026-09-25.md`.
 
 ## Target shape
 

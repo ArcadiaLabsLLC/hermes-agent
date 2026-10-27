@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 8c8623892e, f9ddfa2379.**
+Split and the vocabulary/Dial CHANGE landed.
+
 # Layout sheet — `agent_runtime/gateway_peers.py` (lane R4)
 
 Base: `main` @ `28012c8f8a` · sha256 `90020d187da5e3b7d0c56c4d268ab6ed2a74961e8c0fd0b1f6a508d47d41f948` · 2,185 raw / 1,621 code / 43 top-level defs · longest `dial_peer` 172 (1089–1260) · chains 0/0 · `str==` 2 · `isinstance` 20 · owner doc `docs/agent-runtime-harness/09-multi-device-runtime.md` (Stage 6 peers, S2/S2c/S2d). 14 production importers (`gateway_announce`, `gateway_targets`, `media_proxy`, `peer_directory`, `serve_gateway_credentials`, `serve_gateway_peers_rpc`, `serve_rpc/{gateway_peers,peer}`, `serve_socket/client`, `harness_parts/gateway_commands`, `serve/handle_message`, `tools/agent_chat_{dispatch,remote,tool}`) taking 22 public names; 13 test files pinning 37 names, none private. The 134-line module docstring (trust vs cache, R5, the hashing limit, root-as-input) is the design and moves whole onto the package `__init__`.

@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits c43fc8c68b.**
+Split landed.
+
 # Layout sheet — `agent_runtime/agent_create.py` (lane R4)
 
 Base: `main` @ `28012c8f8a` · sha256 `33a970791b01a0bfb38cfa64f1ec84d17a786ef42a08167accfe06ddd28ce2ca` · 2,126 raw / 1,439 code / 33 top-level defs · longest `perform_agent_create` 691 (1436–2126, depth 5 — the third-longest function left in the fork) · chains 0/0 · `str==` 2 · `isinstance` 11 · owner doc `docs/agent-runtime-harness/06-office-and-board.md` (the create sequence, UC-H1). 7 production importers (`persona_prewarm` ×7 names, `serve_rpc/agent.py` and `harness_parts/persona/lifecycle_commands.py` — the two lanes the docstring names — `snapshot/summaries`, `harness_parts/agent_commands`, `persona/chat_open`, `scripts/generate_agent_runtime_stream_fixtures`) taking 12 names; 14 test files pinning 8, one private (`_RESERVATION_ROLLED_BACK`).

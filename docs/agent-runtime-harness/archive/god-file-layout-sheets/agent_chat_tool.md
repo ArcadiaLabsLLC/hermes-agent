@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 005657f97b.**
+Split landed; the entry keeps the registrations.
+
 # Layout sheet — `tools/agent_chat_tool.py` (lane T1)
 
 Base: `main` @ `28012c8f8a` · sha256 `d5fa1710db6b5c27f0e15bc075549dfb6d1ff05fc8f102641e77df69ead8d268` · 1,898 raw / 1,429 code / 24 top-level defs + six `registry.register(...)` statements (1809–1898) · longest `agent_chat_send` 422 (217–638, depth 3) · chains 0/0 · `str==` 5 · owner doc `docs/agent-runtime-harness/05-chat-turn-lane.md` (the agent-chat lane; the 55-line docstring is the thread/clarify/scope contract). 1 production importer — `agent_runtime/peer_directory.py` taking two PRIVATE names (`_resolve_chat_lane_target`, `_session_belongs_to_chat_lane`) — plus upstream's tool discovery, which imports the module BY FILE because it registers tools; 11 test files pinning 14 names, two private (`_async_delivery_available`, `_session_belongs_to_chat_lane`).

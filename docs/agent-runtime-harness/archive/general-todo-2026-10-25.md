@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 5e37806c18, 8254f53895.**
+Hermes half (G1 personal board, G2 agent view) landed; the launcher views and the owner-gated backend half live elsewhere.
+
 # Planned — the general todo: one Work authority, every surface a view (RT-GENERAL-TODO-PLAN, 2026-10-25)
 
 **Owner domain:** transport and wire ([03-transport-and-wire.md](../03-transport-and-wire.md) § Native Work
@@ -5,7 +8,7 @@ methods), the office and board ([06-office-and-board.md](../06-office-and-board.
 **Status:** RULED 2026-10-25 (lane w1025b-h-misc, by the wave brief's "go with recommendations"); G1 and G2 BUILT 2026-10-26 (lane w1026a-h-b); build rows
 filed in §5. **Read:** hermes `origin/main` `eed79e6933` — `agent_runtime/work/` (`WorkScope`, the five
 `runtime.work.*` methods), `agent_runtime/work_store/` (the default brain, `normalize_default_brain`), and
-the naming spec [naming-and-address-map-2026-10-25.md](naming-and-address-map-2026-10-25.md) § The board.
+the naming spec [naming-and-address-map-2026-10-25.md](../planned/naming-and-address-map-2026-10-25.md) § The board.
 
 ## 0. The owner's words
 

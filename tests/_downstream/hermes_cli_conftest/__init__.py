@@ -7,7 +7,7 @@ and its hooks are registered as a fixture-free plugin; the upstream conftest car
 (lane CARRY3).
 
 **The map** (lane B5, 2026-09-25; the layout sheet is
-``docs/agent-runtime-harness/planned/god-file-layout-sheets/hermes_cli_conftest.md``).
+``docs/agent-runtime-harness/archive/god-file-layout-sheets/hermes_cli_conftest.md``).
 This package IS the object the root ``conftest.py`` registers (by the module name
 ``tests._downstream.hermes_cli_conftest``), so it BINDS every autouse fixture and every
 ``pytest_*`` hook by name below. Imports are ABSOLUTE: ``tests/test_env_gap_registry.py``

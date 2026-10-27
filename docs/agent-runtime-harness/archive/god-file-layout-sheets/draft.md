@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits a79119643f, 1f33c62e55.**
+Split and the Stage/VERB_STAGES composition CHANGE landed.
+
 # Layout sheet — `agent/charsheet/draft.py` (lane C1)
 
 Base: `main` @ `28012c8f8a` · sha256 `59035684b4ac243045d5acf36ae28da096bd59d9493a00dce78ede3f446dd1d4` · 2,000 raw / 1,600 code / 24 top-level defs · longest `CharacterDraft.compose` 151 (1586–1736) · chains 0/0 · `str==` 0 · owner doc: the module docstring (the stage machine, the lock, what is auto-approved). 4 production importers (`hermes_cli/charsheet_payload_contract.py`, `hermes_cli/harness_parts/characters/{auto,commands,payloads}.py`) taking `CharacterDraft`, `characters_dir`, `migrate_characters_home`, `path_or_none`, `read_palette`, `_handedness_accepted`, the five `*_FILENAME`/`DEFAULT_THUMB_*` constants and the module itself; 6 test files pinning 21 names including `_migration_entry_id` and `_handedness_accepted`.

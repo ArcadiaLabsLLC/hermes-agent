@@ -96,7 +96,7 @@ c33a1b4c68cb51fc lane PF-1 (lane/pf-1): the blocked-tool set and the terminal sc
 2384f65f2c1324a3 merge upstream/main 2f14d5e6e4 (lane MERGE-0927, 1,347 commits, 8 conflicts); manifest re-based 067fa1a257 -> 2f14d5e6e4
 68b432de31ab1ee2 lane CARRY-DELETE (lane/carry-delete): door-fit EXISTS carries + the DROP-AT-MERGE residue
 078f6505c7a7fcb7 277580092a (Windows console signal safety, landed 2026-09-27 by another session without a fixture row)
-da38331f7757a24e lane FOOTPRINT-DROP (lane/footprint-drop): sort-and-drop of the 151 footprint files (table: docs/agent-runtime-harness/planned/footprint-drop-2026-09-27.md)
+da38331f7757a24e lane FOOTPRINT-DROP (lane/footprint-drop): sort-and-drop of the 151 footprint files (table: docs/agent-runtime-harness/archive/footprint-drop-2026-09-27.md)
 1dad8db0bd12e030 lane hq-b (HQ3, 2026-10-01): two added lines in hermes_cli/main.py main() install hermes_cli.gettext_find_memo (fork-owned, stdlib-only) before the parser tree is built
 4421ad690b5bf51c lane h-conn-pool (2026-10-06): one guarded additive block in agent/auxiliary_client.py _CodexCompletionsAdapter.create drains the settled Responses stream (agent_runtime.stream_reuse) before it is closed
 971bde35d976dd55 lane 1011-M1 (2026-10-10): three added lines at the end of pm/plugins_state.py rebind read_home_selection through pm._fork_selection_memo (fork-owned, stdlib-only), one parse per config content per process
