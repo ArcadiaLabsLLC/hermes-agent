@@ -104,16 +104,49 @@ def opening_block(manifest: dict[str, Any], episode: Episode, evidence: Evidence
     typed = {
         "episode": episode.to_json(),
         "rule": rule,
-        "feeds": [{key: feed[key] for key in ("id", "kind", "interval_ms")} for feed in feeds],
+        "feeds": _typed_feeds(feeds),
         "evidence": evidence.to_json(),
     }
     if offline is not None:
         typed["offline"] = {"from_ms": offline[0], "until_ms": offline[1]}
-    sources = {feed["id"]: feed["source"] for feed in feeds}
-    return "\n".join([
+    return _block(
         f"[LENS EPISODE — {episode_title(episode)}]",
         (_opening_sentence(rule, episode, offline) + " No operator wrote this message. Investigate what the "
          "evidence shows, say plainly what you found and what you would do, and stop; nothing is fixed for you."),
+        typed, feeds, folder)
+
+
+def digest_opening_block(manifest: dict[str, Any], windows: list[tuple[Episode, EvidenceWindow]],
+                         folder: Path) -> str:
+    """The forged user message for a W6 digest: every member Episode with its own rule and
+    evidence (each built to an N-th of the one evidence budget), leader first."""
+
+    rules = {rule["id"]: rule for rule in manifest["rules"]}
+    feed_ids = {feed_id for _, evidence in windows for feed_id in evidence.feed_ids}
+    feeds = [feed for feed in manifest["feeds"] if feed["id"] in feed_ids]
+    typed = {
+        "episodes": [{"episode": episode.to_json(), "rule": rules[episode.rule_id], "evidence": evidence.to_json()}
+                     for episode, evidence in windows],
+        "feeds": _typed_feeds(feeds),
+    }
+    monitor_id = windows[0][0].monitor_id
+    return _block(
+        f"[LENS DIGEST — {monitor_id} · {len(windows)} episodes]",
+        (f"Eternia Lens opened these {len(windows)} Episodes of monitor {monitor_id} inside one digest window "
+         "and owes them ONE turn. No operator wrote this message. Investigate what the evidence shows across "
+         "them, say plainly what you found and what you would do, and stop; nothing is fixed for you."),
+        typed, feeds, folder)
+
+
+def _typed_feeds(feeds: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [{key: feed[key] for key in ("id", "kind", "interval_ms")} for feed in feeds]
+
+
+def _block(header: str, intro: str, typed: dict[str, Any], feeds: list[dict[str, Any]], folder: Path) -> str:
+    sources = {feed["id"]: feed["source"] for feed in feeds}
+    return "\n".join([
+        header,
+        intro,
         "",
         "Typed data (numbers and recorded gaps; a gap is a read that did not answer, never a healthy value):",
         canonical_json(typed),

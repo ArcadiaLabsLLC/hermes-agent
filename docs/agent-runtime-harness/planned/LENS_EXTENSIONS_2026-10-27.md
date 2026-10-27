@@ -196,6 +196,13 @@ many monitors breaching together each forge a turn; nothing bounds model spend a
    ordinary outcome for the leader (the earliest). The once-only guarantee holds per digest: all member
    receipts are written in the same transaction, before the turn. The digest opening block lists each
    member's evidence under the existing 32 KiB budget, halving per member as `_evidence` does.
+   *Built (w1027f-h-lens-b):* the window lives in `digest_windows` (`agent_runtime/lens/store_digests.py`) and
+   closes in the transaction that writes every member receipt (`LensStore.save_receipts(..., also=...)`). The
+   per-Episode screen (rule, cooldown, urgency) runs before the window, so a cooled or skipped Episode never
+   joins one; cap, budget and level are decided once for the digest. Each member's evidence is built to an
+   N-th of the 32 KiB budget. `receipts_today` is unchanged: members carry `digested`, which the cap does not
+   count, so a digest is one turn without counting distinct `turn_id`s. The turn and its chat are keyed by
+   `digest_id` (`forge_episode_turn(turn_key=...)`), the folder and the artifact list by the leader.
 4. **Global budget, per UTC day, across monitors.** Runtime config key `lens.daily_turn_budget`
    (read through `agent_runtime/config/loader.py::load_agent_runtime_config`; default in §6). A turn — a digest
    counts once — that would exceed it is downgraded to a notify with outcome `notified_over_budget`, never

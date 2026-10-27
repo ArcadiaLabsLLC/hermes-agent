@@ -36,12 +36,14 @@ TURN_ADMISSION = "read_only"
 
 
 def turns_today(store: LensStore, now: datetime) -> int:
-    """Turns every monitor began on ``now``'s UTC day: receipts that held a read-only turn."""
+    """Turns every monitor began on ``now``'s UTC day: receipts that held a read-only turn.
+    A digest is ONE turn: its members' receipts (``digested``) share the leader's."""
 
     if not store.exists():
         return 0
     day = now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
     with store.connection() as conn:
         return int(conn.execute(
-            "SELECT COUNT(*) FROM receipts WHERE started_ms >= ? AND started_ms < ? AND tool_admission = ?",
-            (to_ms(day), to_ms(day + timedelta(days=1)), TURN_ADMISSION)).fetchone()[0])
+            "SELECT COUNT(*) FROM receipts WHERE started_ms >= ? AND started_ms < ? AND tool_admission = ? "
+            "AND outcome != ?",
+            (to_ms(day), to_ms(day + timedelta(days=1)), TURN_ADMISSION, ReceiptOutcome.DIGESTED.value)).fetchone()[0])

@@ -5,7 +5,7 @@ Ported from Companion's ``monitor_manifest.dart`` (``MonitorManifest``,
 ``eternia-lens-in-hermes.md`` §3, rulings §6):
 
 * ``automation`` is ``{level: notify|investigate, when: urgent|always,
-  daily_turn_cap}`` plus the OPTIONAL W6 coalescing keys (``cooldown_ms``; plan
+  daily_turn_cap}`` plus the OPTIONAL W6 coalescing keys (``cooldown_ms``, ``digest_window_ms``; plan
   ``LENS_EXTENSIONS_2026-10-27.md`` §3 decision 1): an absent key is today's behaviour
   and is not emitted, so every manifest sealed before them keeps its canonical bytes
   and seal digest. The ``act`` level is out (ruling 3), so it is an unknown
@@ -52,6 +52,8 @@ MAXIMUM_RULES = 16
 MAXIMUM_DAILY_TURN_CAP = 96
 #: W6: a rule's new Episode inside this long of its previous receipt is ``cooled`` (§3 decision 2).
 MAXIMUM_COOLDOWN_MS = 24 * 60 * 60 * 1000
+#: W6: the longest digest window — Episodes owed inside one share one turn (§3 decision 3).
+MAXIMUM_DIGEST_WINDOW_MS = 6 * 60 * 60 * 1000
 
 
 class AutomationLevel(str, Enum):
@@ -67,7 +69,8 @@ class AutomationWhen(str, Enum):
 MANIFEST_KEYS = frozenset({"version", "monitor_id", "feeds", "rules", "automation", "persona_id"})
 AUTOMATION_KEYS = frozenset({"level", "when", "daily_turn_cap"})
 #: Optional automation keys and their ceilings: read only when present, emitted only when present.
-OPTIONAL_AUTOMATION_KEYS: dict[str, int] = {"cooldown_ms": MAXIMUM_COOLDOWN_MS}
+OPTIONAL_AUTOMATION_KEYS: dict[str, int] = {"cooldown_ms": MAXIMUM_COOLDOWN_MS,
+                                            "digest_window_ms": MAXIMUM_DIGEST_WINDOW_MS}
 
 
 def read_automation(value: Any) -> dict[str, Any]:

@@ -26,6 +26,15 @@ global budget reached  receipt ``notified_over_budget`` (W6: an ``investigate`` 
                        ``forge_failed:<reason>``
 =====================  =============================================================
 
+W6 digest (``automation.digest_window_ms > 0``; plan ``LENS_EXTENSIONS_2026-10-27.md`` §3
+decision 3): after the per-Episode screen (rule, cooldown, urgency) the monitor's first owed
+Episode opens a window (``store_digests``); every Episode owed before it ends waits. At the
+end the members are admitted TOGETHER past the cap, the budget and the level: ONE turn (or
+one notify) under ``turn_id = lens_client_message_id(digest_id)``, the earliest member's
+receipt carrying the outcome and every other's ``digested``, all written — and the window
+closed — in one transaction before the turn. Each member's evidence gets an N-th of the
+one byte budget.
+
 Every receipt is written in the SAME transaction that sets the Episode's
 ``turn_id`` (the client message id for a turn; the outcome's own name for the
 rest), and BEFORE any turn runs, so a second admission — another tick, a restart,
@@ -57,13 +66,13 @@ from typing import Any, Callable
 
 from .artifacts import collect, episode_folder
 from .episode import ADMITTED_STATES, Episode, needs_admission
-from .evidence import MAXIMUM_SPAN, EvidenceRefused, build_evidence
+from .evidence import DEFAULT_MAXIMUM_BYTES, MAXIMUM_SPAN, EvidenceRefused, build_evidence
 from .feed import Observation
 from .manifest import AutomationLevel, AutomationWhen
 from .provenance import lens_client_message_id, lens_requested_by
 from .rules import Severity, rule_feed_ids
 from .store import FORGE_FAILED_PREFIX, LensStore, MonitorState, ReceiptOutcome, from_ms, to_ms
-from .tool import episode_title, opening_block
+from .tool import digest_opening_block, episode_title, opening_block
 
 __layer__ = "lanes"
 
@@ -86,7 +95,7 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-def _open_episode_chat(persona_id: str, episode: Episode) -> tuple[str | None, dict[str, Any]]:
+def _open_episode_chat(persona_id: str, episode: Episode, turn_key: str) -> tuple[str | None, dict[str, Any]]:
     """Mint the Episode's own chat (never selected over the operator's), titled, held ``read_only``.
 
     ``(session_id, {})`` or ``(None, refusal payload)``. Keyed by the Episode, so a restart that finds the
@@ -100,7 +109,7 @@ def _open_episode_chat(persona_id: str, episode: Episode) -> tuple[str | None, d
     # Titled BY the mint (one door), never re-titled after it.
     outcome = perform_persona_instance_open_chat({
         "persona_id": persona_id, "new_session": True,
-        "idempotency_key": f"{lens_client_message_id(episode.id)}:chat",
+        "idempotency_key": f"{lens_client_message_id(turn_key)}:chat",
         "requested_by": lens_requested_by(episode.id, episode.monitor_id),
         "title": episode_title(episode),
     }, select_session=False)
@@ -115,14 +124,18 @@ def _open_episode_chat(persona_id: str, episode: Episode) -> tuple[str | None, d
 
 
 def forge_episode_turn(*, manifest: dict[str, Any], episode: Episode, message: str,
-                       max_seconds: float | None = None) -> tuple[bool, dict[str, Any] | None]:
-    """Run the Episode's turn as a real mission-chat turn in its own read-only chat. ``(ok, payload)``."""
+                       max_seconds: float | None = None, turn_key: str | None = None
+                       ) -> tuple[bool, dict[str, Any] | None]:
+    """Run the Episode's turn as a real mission-chat turn in its own read-only chat. ``(ok, payload)``.
+
+    ``turn_key`` names the turn when it is not the Episode's own: a digest's ``digest_id`` (W6)."""
 
     from ..config import mission_chat_default_max_seconds
     from ..mission_chat_door import run_mission_chat_turn
 
     # One new chat per Episode: a storm never splices into an operator's conversation.
-    session_id, refused = _open_episode_chat(manifest["persona_id"], episode)
+    key = turn_key or episode.id
+    session_id, refused = _open_episode_chat(manifest["persona_id"], episode, key)
     if session_id is None:
         return False, refused
     args = SimpleNamespace(
@@ -141,7 +154,7 @@ def forge_episode_turn(*, manifest: dict[str, Any], episode: Episode, message: s
         surface_prompt="",
         intent_hint="chat",
         requested_by=lens_requested_by(episode.id, episode.monitor_id),
-        client_message_id=lens_client_message_id(episode.id),
+        client_message_id=lens_client_message_id(key),
         stream=False,
         max_seconds=float(max_seconds or mission_chat_default_max_seconds()),
         json=True,
@@ -153,8 +166,10 @@ def forge_episode_turn(*, manifest: dict[str, Any], episode: Episode, message: s
     return exit_code == 0 and bool((payload or {}).get("ok")), payload
 
 
-def _evidence(store: LensStore, manifest: dict[str, Any], rule: dict[str, Any], episode: Episode, now: datetime):
-    """The rule's evidence window ending now, halved until it fits its byte budget (None if it never does)."""
+def _evidence(store: LensStore, manifest: dict[str, Any], rule: dict[str, Any], episode: Episode, now: datetime,
+              *, maximum_bytes: int = DEFAULT_MAXIMUM_BYTES):
+    """The rule's evidence window ending now, halved until it fits ``maximum_bytes`` (None if it never does).
+    A digest of N Episodes gives each one N-th of the budget, so the whole block keeps the one budget."""
 
     feeds = {feed["id"]: feed for feed in manifest["feeds"]}
     feed_ids = rule_feed_ids(rule)
@@ -172,7 +187,7 @@ def _evidence(store: LensStore, manifest: dict[str, Any], rule: dict[str, Any], 
     for _ in range(_EVIDENCE_SHRINKS):
         try:
             return build_evidence(observations, monitor_id=episode.monitor_id, feed_ids=feed_ids,
-                                  start=end - span, end=end)
+                                  start=end - span, end=end, maximum_bytes=maximum_bytes)
         except EvidenceRefused as refused:
             if refused.code != "byte_budget":
                 return None
@@ -240,24 +255,43 @@ class LensForge:
         if monitor["state"] != MonitorState.ENABLED.value or monitor["sealed"] is None:
             return None
         manifest = monitor["sealed"]["manifest"]
+        screened = self._screen(store, manifest, episode, now)
+        if screened is not None:
+            return self._settle(store, episode, now, screened)
+        if manifest["automation"].get("digest_window_ms", 0) > 0:
+            return self._digest(store, manifest, episode, now)
+        outcome = self._admission(store, manifest, episode, now)
+        if outcome is not None:
+            return self._settle(store, episode, now, outcome)
+        return self._forge(store, manifest, [episode], now)
+
+    def _screen(self, store: LensStore, manifest: dict[str, Any], episode: Episode, now: datetime) -> str | None:
+        """The outcomes that settle ONE Episode on its own facts — before any digest or cap."""
+
         automation = manifest["automation"]
         rule = next((r for r in manifest["rules"] if r["id"] == episode.rule_id), None)
         if rule is None:
-            return self._settle(store, episode, now, f"{FORGE_FAILED_PREFIX}rule_not_in_revision")
+            return f"{FORGE_FAILED_PREFIX}rule_not_in_revision"
         if _cooling(store, episode, now, automation.get("cooldown_ms", 0)):
-            return self._settle(store, episode, now, ReceiptOutcome.COOLED.value)
+            return ReceiptOutcome.COOLED.value
         if automation["when"] == AutomationWhen.URGENT.value and rule["severity"] != Severity.URGENT.value:
-            return self._settle(store, episode, now, ReceiptOutcome.SKIPPED_SEVERITY.value)
+            return ReceiptOutcome.SKIPPED_SEVERITY.value
+        return None
+
+    def _admission(self, store: LensStore, manifest: dict[str, Any], episode: Episode, now: datetime) -> str | None:
+        """What a screened Episode (or digest) is owed: an outcome with no turn, or None — forge."""
+
+        automation = manifest["automation"]
         if store.receipts_today(episode.monitor_id, now) >= automation["daily_turn_cap"]:
-            return self._settle(store, episode, now, ReceiptOutcome.CAPPED.value)
+            return ReceiptOutcome.CAPPED.value
         if automation["level"] == AutomationLevel.INVESTIGATE.value and _over_budget(store, now):
-            return self._settle(store, episode, now, ReceiptOutcome.NOTIFIED_OVER_BUDGET.value)
+            return ReceiptOutcome.NOTIFIED_OVER_BUDGET.value
         if automation["level"] == AutomationLevel.NOTIFY.value:
-            return self._settle(store, episode, now, ReceiptOutcome.NOTIFIED.value)
+            return ReceiptOutcome.NOTIFIED.value
         if manifest["persona_id"] is None:
             # A revision sealed before L2.6's guard: nobody to forge the turn for.
-            return self._settle(store, episode, now, f"{FORGE_FAILED_PREFIX}persona_required")
-        return self._forge(store, manifest, rule, episode, now)
+            return f"{FORGE_FAILED_PREFIX}persona_required"
+        return None
 
     def _settle(self, store: LensStore, episode: Episode, now: datetime, outcome: str) -> str | None:
         """A receipt with no turn; the Episode's ``turn_id`` names the outcome so it is no longer owed."""
@@ -268,36 +302,112 @@ class LensForge:
         saved = store.save_receipt(receipt, episode=replace(episode, turn_id=receipt["turn_id"]))
         return outcome if saved else None
 
-    def _forge(self, store: LensStore, manifest: dict[str, Any], rule: dict[str, Any], episode: Episode,
-               now: datetime) -> str | None:
-        folder = episode_folder(episode.id)
+    def _digest(self, store: LensStore, manifest: dict[str, Any], episode: Episode, now: datetime) -> str | None:
+        """W6 digest window: wait while it is open; at its end settle every member at once."""
+
+        from .store_digests import close_window, digest_id, drop_window, open_window
+
+        start = open_window(store, episode.monitor_id, to_ms(now))
+        end = start + manifest["automation"]["digest_window_ms"]
+        if to_ms(now) < end:
+            return None
+        members = []
+        for candidate in [episode, *self._owed(store, episode, now)]:
+            if to_ms(candidate.first_seen) >= end:
+                continue  # owed after this window closed: it waits for the next one
+            screened = None if candidate is episode else self._screen(store, manifest, candidate, now)
+            if screened is not None:
+                self._settle(store, candidate, now, screened)
+            else:
+                members.append(candidate)
+        if not members:
+            drop_window(store, episode.monitor_id)
+            return None
+        members.sort(key=lambda member: (member.first_seen, member.ordinal))
+        digest = digest_id(episode.monitor_id, start)
+        outcome = self._admission(store, manifest, members[0], now)
+        if outcome is not None:
+            pairs = [self._digest_receipt(member, now, digest, outcome if i == 0 else ReceiptOutcome.DIGESTED.value,
+                                          outcome.split(":")[0], TOOL_ADMISSION_NONE)
+                     for i, member in enumerate(members)]
+            saved = store.save_receipts(pairs, also=close_window(episode.monitor_id))
+            return outcome if saved else None
+        return self._forge(store, manifest, members, now, digest=digest,
+                           close=close_window(episode.monitor_id))
+
+    def _owed(self, store: LensStore, episode: Episode, now: datetime) -> list[Episode]:
+        """The monitor's other Episodes still owed their admission."""
+
+        rows = store.episodes(monitor_id=episode.monitor_id,
+                              states=tuple(state.value for state in sorted(ADMITTED_STATES)))
+        owed = [Episode.from_json(row) for row in rows]
+        return [other for other in owed
+                if other.id != episode.id and needs_admission(other, now) and not store.has_receipt(other.id)]
+
+    @staticmethod
+    def _digest_receipt(member: Episode, now: datetime, digest: str | None, outcome: str, turn_id: str,
+                        admission: str) -> tuple[dict[str, Any], Episode]:
+        settled = outcome != ReceiptOutcome.FORGING.value
+        receipt = {"episode_id": member.id, "monitor_id": member.monitor_id, "turn_id": turn_id,
+                   "started_ms": to_ms(now), "finished_ms": to_ms(now) if settled else None, "outcome": outcome,
+                   "tool_admission": admission, "digest_id": digest}
+        return receipt, replace(member, turn_id=turn_id)
+
+    def _forge(self, store: LensStore, manifest: dict[str, Any], members: list[Episode], now: datetime, *,
+               digest: str | None = None, close: Callable[[Any], None] | None = None) -> str | None:
+        """ONE turn for ``members`` (one Episode, or a digest's leader first), its receipts
+        written before it runs in one transaction."""
+
+        leader = members[0]
+        folder = episode_folder(leader.id)
         folder.mkdir(parents=True, exist_ok=True)
-        evidence = _evidence(store, manifest, rule, episode, now)
-        if evidence is None:
-            return self._settle(store, episode, now, f"{FORGE_FAILED_PREFIX}evidence_refused")
-        message = opening_block(manifest, episode, evidence, folder, offline=_offline(store, rule, episode))
-        turn_id = lens_client_message_id(episode.id)
-        receipt = {"episode_id": episode.id, "monitor_id": episode.monitor_id, "turn_id": turn_id,
-                   "started_ms": to_ms(now), "outcome": ReceiptOutcome.FORGING.value,
-                   "tool_admission": TOOL_ADMISSION_READ_ONLY}
-        # BEFORE the turn, with the Episode's turn_id, in one transaction: the once-only guarantee.
-        if not store.save_receipt(receipt, episode=replace(episode, turn_id=turn_id)):
+        budget = DEFAULT_MAXIMUM_BYTES // len(members)
+        windows = []
+        for member in members:
+            rule = next(r for r in manifest["rules"] if r["id"] == member.rule_id)
+            evidence = _evidence(store, manifest, rule, member, now, maximum_bytes=budget)
+            if evidence is None:
+                return self._refuse(store, members, now, digest, close)
+            windows.append((member, evidence))
+        if digest is None:
+            leader_rule = next(r for r in manifest["rules"] if r["id"] == leader.rule_id)
+            message = opening_block(manifest, leader, windows[0][1], folder,
+                                    offline=_offline(store, leader_rule, leader))
+        else:
+            message = digest_opening_block(manifest, windows, folder)
+        turn_key = leader.id if digest is None else digest
+        turn_id = lens_client_message_id(turn_key)
+        pairs = [self._digest_receipt(member, now, digest,
+                                      ReceiptOutcome.FORGING.value if i == 0 else ReceiptOutcome.DIGESTED.value,
+                                      turn_id, TOOL_ADMISSION_READ_ONLY) for i, member in enumerate(members)]
+        # BEFORE the turn, with every Episode's turn_id, in one transaction: the once-only guarantee.
+        if not store.save_receipts(pairs, also=close):
             return None
         payload: dict[str, Any] = {}
+        turn = {} if digest is None else {"turn_key": digest}
         try:
-            ok, payload = self.forge(manifest=manifest, episode=episode, message=message)
+            ok, payload = self.forge(manifest=manifest, episode=leader, message=message, **turn)
             payload = payload or {}
             outcome = (ReceiptOutcome.FORGED.value if ok
                        else FORGE_FAILED_PREFIX + (str(payload.get("error_kind") or "") or "refused"))
         except Exception as exc:
-            logger.warning("lens forge failed for episode %s", episode.id, exc_info=True)
+            logger.warning("lens forge failed for episode %s", leader.id, exc_info=True)
             outcome = f"{FORGE_FAILED_PREFIX}{type(exc).__name__}"
-        handles, files = collect(episode.id, payload.get("reply"))
+        handles, files = collect(leader.id, payload.get("reply"))
         session_id = payload.get("session_id") or payload.get("chat_session_id")
-        store.finish_receipt(episode.id, outcome=outcome, finished_ms=to_ms(self.clock()),
+        store.finish_receipt(leader.id, outcome=outcome, finished_ms=to_ms(self.clock()),
                              session_id=None if session_id is None else str(session_id),
                              artifact_handles=handles, files=files)
         return outcome
+
+    def _refuse(self, store: LensStore, members: list[Episode], now: datetime, digest: str | None,
+                close: Callable[[Any], None] | None) -> str | None:
+        outcome = f"{FORGE_FAILED_PREFIX}evidence_refused"
+        if digest is None:
+            return self._settle(store, members[0], now, outcome)
+        pairs = [self._digest_receipt(member, now, digest, outcome if i == 0 else ReceiptOutcome.DIGESTED.value,
+                                      outcome.split(":")[0], TOOL_ADMISSION_NONE) for i, member in enumerate(members)]
+        return outcome if store.save_receipts(pairs, also=close) else None
 
     def run(self, stop_event: threading.Event) -> None:
         while not stop_event.is_set():

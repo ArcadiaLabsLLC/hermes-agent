@@ -43,7 +43,7 @@ from dataclasses import replace
 from datetime import datetime, timedelta, timezone, UTC
 from enum import Enum
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
 
 from .episode import Episode
 from .feed import Observation
@@ -104,7 +104,8 @@ CREATE INDEX IF NOT EXISTS episodes_by_rule ON episodes (monitor_id, rule_id, or
 CREATE TABLE IF NOT EXISTS receipts (
   episode_id TEXT PRIMARY KEY, monitor_id TEXT NOT NULL, turn_id TEXT NOT NULL, session_id TEXT,
   started_ms INTEGER NOT NULL, finished_ms INTEGER, outcome TEXT NOT NULL,
-  artifact_handles TEXT NOT NULL DEFAULT '[]', files TEXT NOT NULL DEFAULT '[]', tool_admission TEXT NOT NULL);
+  artifact_handles TEXT NOT NULL DEFAULT '[]', files TEXT NOT NULL DEFAULT '[]', tool_admission TEXT NOT NULL,
+  digest_id TEXT);
 CREATE INDEX IF NOT EXISTS receipts_by_monitor ON receipts (monitor_id, started_ms);
 CREATE TABLE IF NOT EXISTS receipt_rollups (
   monitor_id TEXT NOT NULL, day_ms INTEGER NOT NULL, outcome TEXT NOT NULL, count INTEGER NOT NULL,
@@ -158,6 +159,8 @@ class ReceiptOutcome(str, Enum):
     COOLED = "cooled"
     #: W6: the turn would pass the global ``daily_turn_budget`` — downgraded to a notification.
     NOTIFIED_OVER_BUDGET = "notified_over_budget"
+    #: W6: a member of a digest; its leader's receipt carries the outcome, all share ``turn_id``.
+    DIGESTED = "digested"
 
 
 FORGE_FAILED_PREFIX = "forge_failed:"
@@ -165,7 +168,7 @@ FORGE_FAILED_PREFIX = "forge_failed:"
 CAPPED_OUTCOMES = (ReceiptOutcome.FORGING.value, ReceiptOutcome.FORGED.value, ReceiptOutcome.NOTIFIED.value,
                    ReceiptOutcome.NOTIFIED_OVER_BUDGET.value)
 _RECEIPT_COLUMNS = ("episode_id", "monitor_id", "turn_id", "session_id", "started_ms", "finished_ms", "outcome",
-                    "artifact_handles", "files", "tool_admission")
+                    "artifact_handles", "files", "tool_admission", "digest_id")
 
 
 class LensStoreError(ValueError):
@@ -235,6 +238,7 @@ class LensStore:
                 _add_route_auth(conn)
                 _add_proposal_columns(conn)
                 _add_observation_revision(conn)
+                _add_receipt_digest(conn)
                 with conn:
                     yield conn
             finally:
@@ -505,32 +509,46 @@ class LensStore:
         receipt's own ``started_ms``, the door's clock); still full, False with ``episode``
         settled as ``turn_id`` ``receipts_full`` and no receipt row."""
 
-        row = _receipt_row(receipt)
+        return self.save_receipts([(receipt, episode)])
+
+    def save_receipts(self, pairs: list[tuple[dict[str, Any], Episode | None]], *,
+                      also: Callable[[sqlite3.Connection], None] | None = None) -> bool:
+        """:meth:`save_receipt` for several receipts at once — all of them or none, in ONE
+        transaction with their Episodes and ``also(conn)`` (a digest closes its window there)."""
+
+        rows = [_receipt_row(receipt) for receipt, _ in pairs]
         for folded in (False, True):
-            inserted = moved = False
+            inserted, moved = False, []
             with self._db() as conn:
-                if conn.execute("SELECT 1 FROM receipts WHERE episode_id = ?", (row[0],)).fetchone() is not None:
+                if any(conn.execute("SELECT 1 FROM receipts WHERE episode_id = ?", (row[0],)).fetchone() is not None
+                       for row in rows):
                     return False
-                if conn.execute("SELECT COUNT(*) FROM receipts").fetchone()[0] < MAXIMUM_RECEIPTS:
-                    conn.execute(f"INSERT INTO receipts ({', '.join(_RECEIPT_COLUMNS)}) VALUES "
-                                 f"({', '.join('?' * len(_RECEIPT_COLUMNS))})", row)
-                    moved = episode is not None and _episode_state_moves(conn, episode)
-                    if episode is not None:
-                        _write_episode(conn, episode)
+                if conn.execute("SELECT COUNT(*) FROM receipts").fetchone()[0] + len(rows) <= MAXIMUM_RECEIPTS:
+                    for row, (_, episode) in zip(rows, pairs):
+                        conn.execute(f"INSERT INTO receipts ({', '.join(_RECEIPT_COLUMNS)}) VALUES "
+                                     f"({', '.join('?' * len(_RECEIPT_COLUMNS))})", row)
+                        moved.append(episode is not None and _episode_state_moves(conn, episode))
+                        if episode is not None:
+                            _write_episode(conn, episode)
                     inserted = True
                 elif folded:
-                    if episode is not None:
-                        _write_episode(conn, replace(episode, turn_id=StoreRefusal.RECEIPTS_FULL.value))
-                    logger.warning(RECEIPTS_FULL_RECEIPT, row[1], row[0])
+                    for row, (_, episode) in zip(rows, pairs):
+                        if episode is not None:
+                            _write_episode(conn, replace(episode, turn_id=StoreRefusal.RECEIPTS_FULL.value))
+                        logger.warning(RECEIPTS_FULL_RECEIPT, row[1], row[0])
+                if (inserted or folded) and also is not None:
+                    also(conn)
+                if folded and not inserted:
                     return False
             if inserted:  # after the commit: a reader woken by the event sees the row
-                self._receipt_changed(receipt)
-                if moved:
-                    self._episode_changed(episode)
+                for (receipt, episode), episode_moved in zip(pairs, moved):
+                    self._receipt_changed(receipt)
+                    if episode_moved:
+                        self._episode_changed(episode)
                 return True
             from .retention import fold_receipts
 
-            fold_receipts(self, from_ms(int(row[_RECEIPT_COLUMNS.index("started_ms")])))
+            fold_receipts(self, from_ms(int(rows[0][_RECEIPT_COLUMNS.index("started_ms")])))
         return False
 
     def finish_receipt(self, episode_id: str, *, outcome: str, finished_ms: int, session_id: str | None = None,
@@ -687,6 +705,13 @@ def _expire_proposals(conn: sqlite3.Connection, now_ms: int) -> None:
     logger.info(PROPOSALS_EXPIRED_RECEIPT, len(expired), ",".join(expired[:16]))
 
 
+def _add_receipt_digest(conn: sqlite3.Connection) -> None:
+    """A store written before W6 digests gains ``receipts.digest_id``; its receipts read null."""
+
+    if "digest_id" not in {row[1] for row in conn.execute("PRAGMA table_info(receipts)")}:
+        conn.execute("ALTER TABLE receipts ADD COLUMN digest_id TEXT")
+
+
 def _add_route_auth(conn: sqlite3.Connection) -> None:
     """A store written before routes carried ``auth`` gains the column; its routes read ``hmac``."""
 
@@ -719,6 +744,7 @@ def _receipt_row(receipt: dict[str, Any]) -> tuple[Any, ...]:
     values["files"] = json.dumps(list(values.get("files") or []), sort_keys=True)
     values.setdefault("session_id", None)
     values.setdefault("finished_ms", None)
+    values.setdefault("digest_id", None)
     return tuple(values[column] for column in _RECEIPT_COLUMNS)
 
 

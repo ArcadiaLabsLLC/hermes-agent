@@ -11,7 +11,12 @@ Gates and their killing mutations (each red recorded in the row's commit):
   sealed on the code before the keys existed) — killed by emitting ``cooldown_ms: 0``
   by default;
 * a re-breach inside ``cooldown_ms`` is ``cooled`` with no forge call, and outside it
-  forges (positive control) — killed by deleting the cooldown check from ``admit``.
+  forges (positive control) — killed by deleting the cooldown check from ``admit``;
+* past ``daily_turn_budget`` the turn is ``notified_over_budget``, a receipt — killed by
+  returning None instead, and by deleting the budget check;
+* three Episodes in one digest window are one forge call, three receipts, one ``turn_id``,
+  and a second door arriving during the turn forges nothing — killed by writing the
+  member receipts AFTER the turn, and by skipping the digest gate.
 """
 
 from __future__ import annotations
@@ -22,6 +27,7 @@ from datetime import timedelta
 from test_lens_exit_door import T0, _armed, _episode, _monitor, door  # noqa: F401  (door is a fixture)
 
 from agent_runtime.lens.seal import seal_manifest
+from agent_runtime.lens.store import to_ms
 from agent_runtime.lens.trigger import LensForge
 
 #: ``_monitor()`` sealed at revision 1 on 5027e700fb, before W6's optional keys existed.
@@ -108,3 +114,43 @@ def test_the_budget_defaults_to_96_and_a_malformed_value_reads_as_it():
     assert lens_setting("daily_turn_budget") == 96
     _set_budget(5)
     assert lens_setting("daily_turn_budget") == 5
+
+
+# --- RT-LENS-DIGEST-WINDOW ----------------------------------------------------------
+
+
+def test_episodes_owed_inside_one_window_share_one_turn_and_a_restart_forges_nothing_twice(door):
+    from agent_runtime.lens.provenance import lens_client_message_id
+    from agent_runtime.lens.store_admission import turns_today
+    from agent_runtime.lens.store_digests import digest_id
+
+    store = _armed(_with(_monitor(), digest_window_ms=60_000), 1, 2, 3)
+    assert _at(timedelta(0)).tick() == []  # the window opens; every member waits
+    assert _at(timedelta(seconds=30)).tick() == [] and door.calls == []  # a restart mid-window
+
+    # A second door (a restart) arrives while the digest's turn runs.
+    door.during = lambda args: _at(timedelta(seconds=61)).tick()
+    assert _at(timedelta(seconds=60)).tick() == ["forged"]
+
+    [args] = door.calls
+    digest = digest_id("status", to_ms(T0))
+    assert args.client_message_id == lens_client_message_id(digest)
+    assert door.opener.calls[0].idempotency_key == f"{lens_client_message_id(digest)}:chat"
+    assert args.message.startswith("[LENS DIGEST — status · 3 episodes]")
+    receipts = sorted(store.receipts(limit=8), key=lambda r: r["episode_id"] != _episode(1).id)
+    assert [(r["outcome"], r["turn_id"], r["digest_id"]) for r in receipts] == [
+        ("forged", lens_client_message_id(digest), digest)] + [
+        ("digested", lens_client_message_id(digest), digest)] * 2
+    assert store.receipts_today("status", T0) == 1 and turns_today(store, T0) == 1
+    assert _at(timedelta(minutes=5)).tick() == [] and len(door.calls) == 1
+
+
+def test_a_notify_digest_writes_one_notified_leader_and_its_members():
+    store = _armed(_with(_monitor(level="notify"), digest_window_ms=60_000), 1, 2)
+    _at(timedelta(0)).tick()
+
+    assert _at(timedelta(minutes=1)).tick() == ["notified"]
+    assert sorted(r["outcome"] for r in store.receipts()) == ["digested", "notified"]
+    # Positive control: an Episode owed after the settle opens the NEXT window, it is not swept in.
+    store.save_episode(_episode(3))
+    assert _at(timedelta(minutes=1, seconds=1)).tick() == []
