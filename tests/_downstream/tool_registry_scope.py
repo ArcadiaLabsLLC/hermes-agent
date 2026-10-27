@@ -11,9 +11,15 @@ upstream ``ToolRegistry.snapshot()/restore()`` door lands
 (``docs/agent-runtime-harness/upstream-prs/registry-snapshot-restore-body.md``), the
 mark and restore below switch to it.
 
-One registration is kept: an entry whose handler's module was FIRST imported during
-the test. Tool files register at import, and an import never runs twice, so removing
-that entry would leave the tool unregistered for the rest of the process.
+One registration is kept: an entry registered by a module FIRST imported during the
+test. Tool files register at import, and an import never runs twice, so removing that
+entry would leave the tool unregistered for the rest of the process. "Registered by"
+is the module whose body was executing when ``register`` ran -- recorded at register
+time by a ``sys.monitoring`` start event on ``ToolRegistry.register``'s code, which
+adds no frame to the call (the registry reads its caller with ``sys._getframe``) --
+or, as before, the handler's own module (FORK-REGISTRY-SCOPE-HANDLER-MODULE: a
+registrar whose handlers live in an already-imported module lost its tools after
+the first test).
 """
 
 from __future__ import annotations
@@ -32,6 +38,50 @@ class RegistryMark:
 
     entries: dict = field(default_factory=dict)
     modules: frozenset = frozenset()
+
+
+# name -> the modules whose module body was on the stack at that name's latest register.
+_import_registrars: dict[str, frozenset[str]] = {}
+_monitored_code = None
+
+
+def _on_register_start(code, _offset):
+    frame = sys._getframe(1)
+    if frame.f_code is not code:
+        return None
+    name = frame.f_locals.get("name")
+    modules = set()
+    outer = frame.f_back
+    while outer is not None:
+        if outer.f_code.co_name == "<module>":
+            modules.add(outer.f_globals.get("__name__", ""))
+        outer = outer.f_back
+    if isinstance(name, str):
+        _import_registrars[name] = frozenset(modules)
+    return None
+
+
+def _watch_register(registry) -> None:
+    """Record, per registration, which module bodies were executing (3.12+; idempotent)."""
+    global _monitored_code
+    monitoring = getattr(sys, "monitoring", None)
+    code = getattr(getattr(type(registry), "register", None), "__code__", None)
+    if monitoring is None or code is None or code is _monitored_code:
+        return
+    tool_id = next((i for i in (4, 3) if monitoring.get_tool(i) is None), None)
+    if tool_id is None:
+        return
+    monitoring.use_tool_id(tool_id, "eternia-tool-registry-scope")
+    monitoring.register_callback(tool_id, monitoring.events.PY_START, _on_register_start)
+    monitoring.set_local_events(tool_id, code, monitoring.events.PY_START)
+    _monitored_code = code
+
+
+def _registered_by_a_first_import(name: str, current, imported_before: frozenset) -> bool:
+    if getattr(current.handler, "__module__", None) not in imported_before:
+        return True
+    registrars = _import_registrars.get(name, ())
+    return any(m in sys.modules and m not in imported_before for m in registrars)
 
 
 def _registry():
@@ -73,6 +123,8 @@ def _global_entries(registry) -> dict:
 
 def mark_tool_registry() -> RegistryMark:
     registry = _registry()
+    if registry is not None:
+        _watch_register(registry)
     entries = _global_entries(registry) if registry is not None else {}
     return RegistryMark(entries=entries, modules=frozenset(sys.modules))
 
@@ -94,7 +146,7 @@ def restore_tool_registry(mark: RegistryMark) -> list[str]:
         previous = before.get(name)
         if current is previous:
             continue
-        if previous is None and getattr(current.handler, "__module__", None) not in imported_before:
+        if previous is None and _registered_by_a_first_import(name, current, imported_before):
             continue  # registered by a first import: process-lifetime, see module docstring
         if registry.restore_registration(name, current, previous, scope=None):
             undone.append(name)

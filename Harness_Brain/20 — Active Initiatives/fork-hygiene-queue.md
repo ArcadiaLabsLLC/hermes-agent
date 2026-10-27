@@ -9,7 +9,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-10-26 (lane w1026c-h-rt-b)
 
-- **`FORK-REGISTRY-SCOPE-HANDLER-MODULE` — the per-test tool-registry restore keeps a first-import registration only when the HANDLER's module was first imported in that test, so a builtin registrar whose handler lives in another, already-imported module loses its tools for the rest of the process** · `fork / suite` · `tests/_downstream/tool_registry_scope.py::restore_tool_registry` (`current.handler.__module__ not in imported_before`) · seen 2026-10-26: `tools/course_tool.py` registering `agent_runtime.course_tool` handlers vanished after the first test, and `test_harness_core_ratchet` counted 41 of 44 in the second param; worked around with lambdas in the registrar (`board_tool`'s shape) · shape: key the kept set on the module that RAN `registry.register` (record it at register time, or diff `sys.modules` for `tools.*` registrars), with a positive control that a cross-module handler survives · READY 2026-10-26 · **TAKEN 2026-10-27 w1027a-h-fork on nekwo-ubuntu24 as nekwo in hermes-w1027a-h-fork**
 
 ## Filed on arrival — 2026-10-26 (lane w1026c-h-fork)
 

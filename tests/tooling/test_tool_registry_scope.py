@@ -8,7 +8,9 @@ again -> ``test_the_restore_runs_after_monkeypatch_is_undone`` errors in teardow
 
 from __future__ import annotations
 
+import json
 import os
+import sys
 
 from tests._downstream.tool_registry_scope import mark_tool_registry, restore_tool_registry
 from tools.registry import registry
@@ -81,3 +83,40 @@ def test_the_restore_runs_after_monkeypatch_is_undone(monkeypatch, tmp_path):
 
     monkeypatch.setenv("HERMES_HOME", str(tmp_path / "not-created"))
     monkeypatch.setattr(os, "getcwd", _boom)
+
+
+_REGISTRAR = "r_isolation_cross_module_registrar"
+_REGISTRAR_SOURCE = f"""
+from json import dumps
+from tools.registry import registry
+
+registry.register({_THROWAWAY!r}, "r_isolation_set", {_SCHEMA!r}, dumps)
+"""
+
+
+def test_a_first_import_registrar_with_a_handler_elsewhere_keeps_its_tool(monkeypatch, tmp_path):
+    # FORK-REGISTRY-SCOPE-HANDLER-MODULE. The registrar module is first imported in
+    # this test; its handler lives in ``json``, imported long before. Killing
+    # mutation: drop the registrar clause from ``_registered_by_a_first_import``
+    # -> the restore removes the tool and this reds.
+    (tmp_path / f"{_REGISTRAR}.py").write_text(_REGISTRAR_SOURCE)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    mark = mark_tool_registry()
+    try:
+        __import__(_REGISTRAR)
+        assert registry.snapshot_registration(_THROWAWAY).handler is json.dumps
+
+        assert restore_tool_registry(mark) == []
+        assert registry.snapshot_registration(_THROWAWAY) is not None
+    finally:
+        sys.modules.pop(_REGISTRAR, None)
+        registry.deregister(_THROWAWAY)
+
+
+def test_the_same_registration_from_a_test_body_is_removed():
+    # The negative twin of the positive control above: same handler, same name, no import.
+    mark = mark_tool_registry()
+    registry.register(_THROWAWAY, "r_isolation_set", _SCHEMA, json.dumps)
+
+    assert restore_tool_registry(mark) == [_THROWAWAY]
+    assert registry.snapshot_registration(_THROWAWAY) is None
