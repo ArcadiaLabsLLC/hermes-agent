@@ -1021,3 +1021,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-27 (launcher lane w1027e-plan-comp)
 
+
+## Filed on arrival — 2026-10-27 (lane w1027f-h-lens-a)
+
+- **`RT-MACHINE-ROOTS-SIZE-CEILING` — `test_downstream_size_ceiling` is red on main: `agent_runtime/machine_roots.py` is 855 lines after `2e31b99c1f` (RT-MACHINE-ROOTS-M2, wave w1026c) against the 800-line ceiling; split the schema-2→3 upgrade and the token-expansion ladder into their own modules (behaviour-preserving moves) rather than raising the ceiling** · `agent_runtime/machine_roots.py` · `tests/agent_runtime/test_downstream_size_ceiling.py` · READY 2026-10-27
