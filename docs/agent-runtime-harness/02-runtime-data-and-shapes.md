@@ -760,7 +760,7 @@ the writer's ``expires_at``. The goldens moved and the launcher mirror is
 owed (``tests/fixtures/stream_frames/README.md``).
 
 54 KEPT (hb-a H4, 2026-10-04) — ``running_work`` gained its eighth lane,
-``build`` (``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md``
+``build`` (``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md``
 §1): agent-started builds (a terminal row the Flutter recognizer reclassifies
 IN PLACE, accounted ``reclassified_build``), builds a writer announces into
 ``<background-work home>/builds/``, and builds detected under a bound repo slot.

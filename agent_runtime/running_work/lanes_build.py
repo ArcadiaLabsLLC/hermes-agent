@@ -1,6 +1,6 @@
 """The ``build`` lane: agent-started, announced and detected builds as ONE row kind.
 
-Plan ``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md`` §1, §2, §8, §9.
+Plan ``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §1, §2, §8, §9.
 
 * **agent** — a terminal row whose command the Flutter recognizer classifies as a build is
   REPLACED IN PLACE by a build row carrying ``origin_work_id`` (accounted

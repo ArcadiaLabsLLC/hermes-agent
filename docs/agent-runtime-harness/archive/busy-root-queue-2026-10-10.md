@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits a0416a607c, 9204de94eb, fd66fb365d.**
+The busy-root accept-and-queue store, drain accounting and origin binding landed.
+
 # Busy chat root — accept and queue (2026-10-10)
 
 Owner ruling 2026-10-10: busy is not a reason to refuse. An operator send to a chat

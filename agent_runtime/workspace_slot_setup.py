@@ -1,6 +1,6 @@
 """Clone a slot and run an owner's setup step — as VISIBLE background work (row H11).
 
-Plan ``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md`` §3.5 (OWNER calls
+Plan ``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §3.5 (OWNER calls
 8b, 8d). Both verbs spawn through ``process_registry.spawn_local`` as background processes, so
 each is a ``terminal`` row with a tail, a completion and a Stop — never a foreground call that
 holds the request open.

@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 3a2ddd7678, 0c97fc5277.**
+Record of the 2026-10-07 carried-PR refresh; scripts/check_carried_prs.py and its manifest landed and later syncs maintain them.
+
 # Carried upstream PR refresh — 2026-10-07
 
 Job 1, branch `sync/carried-prs`, starts from fork main

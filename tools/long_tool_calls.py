@@ -1,7 +1,7 @@
 """Fork-owned long tool calls: a call that outlives its threshold moves to the background.
 
 Owner ruling 2026-10-18 (``runtime-queue.md`` RT-LONG-TOOL-CALLS-BACKGROUND, design in
-``docs/agent-runtime-harness/planned/agent-behaviour-proposals-2026-10-18.md`` §2).
+``docs/agent-runtime-harness/archive/agent-behaviour-proposals-2026-10-18.md`` §2).
 
 The join, end to end:
 

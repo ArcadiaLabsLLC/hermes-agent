@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 4a8167c3a0, d476fa8675, c04528d99a, e972746e82, 7481ec678f.**
+All six proposals ruled and landed; §1's live A/B is owned by `p10-agent-2026-10-19.md` and row RT-VERIFY-IMPROVE-FIRST-RESPONSE.
+
 # Planned — agent behaviour and policy rows: proposals for the owner (r-agent, 2026-10-18)
 
 **Owner domain:** the chat turn lane ([05-chat-turn-lane.md](../05-chat-turn-lane.md))

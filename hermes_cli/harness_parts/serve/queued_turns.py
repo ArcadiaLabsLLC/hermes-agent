@@ -11,7 +11,7 @@ same stdout proxy — go out on the CONTROL channel the settle push uses (the st
 frame writer when a launcher reads it, and a broadcast to every authenticated
 loopback connection). The chat frames carry ``client_message_id`` / ``turn_id``,
 which is what ties them to the message the launcher shows as queued.
-Contract: ``docs/agent-runtime-harness/planned/busy-root-queue-2026-10-10.md``.
+Contract: ``docs/agent-runtime-harness/archive/busy-root-queue-2026-10-10.md``.
 """
 
 from __future__ import annotations

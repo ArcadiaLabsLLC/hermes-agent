@@ -1,7 +1,7 @@
 """The Flutter argv parser: which ``flutter`` command a shell line runs, and where.
 
 Lifted whole from ``agent_runtime.flutter_build_guard`` (plan
-``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md`` §4) so the guard
+``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §4) so the guard
 and the build recognizer read ONE parser: ``flutter``/``flutter.bat``/``flutter.exe``/
 ``fvm flutter``, the launch prefixes in front of the command word, and a ``cd`` /
 ``Set-Location`` / ``pushd`` segment that moves the directory the way the shell would.

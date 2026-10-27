@@ -22,7 +22,7 @@ match. Sharing a profile store does not permit switching installations.
 chat folder `<store_root>/chat_folders/profile-<profile>/<route_id>/` (`paths.chat_folder`) and stores
 it on the route; a resume that omits it is checked against the same path. A given `cwd` must be an
 existing absolute directory and is stored as before. Plan:
-[chat-folder-in-namespace](planned/chat-folder-in-namespace-2026-10-26.md) §2.2.
+[chat-folder-in-namespace](archive/chat-folder-in-namespace-2026-10-26.md) §2.2.
 `hermes harness conversation chat-folder migrate [--apply] --json`
 (`conversations/chat_folder_migration.py`, §2.4) moves routes off the launcher's
 `eternia_launcher/agents/workspaces/<hash>` folders: dry run by default, an empty folder removed, a

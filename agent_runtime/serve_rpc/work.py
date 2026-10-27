@@ -1,7 +1,7 @@
 """``runtime.work.cancel`` / ``runtime.work.restart`` — Stop and Restart as direct methods (OWNER call 3);
 ``runtime.work.background.promote`` — Send to background (RT-LONG-TOOL-CALLS-BACKGROUND).
 
-Plan ``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md`` §7. Each is the
+Plan ``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §7. Each is the
 SAME decision the argv verb reaches (``harness work cancel`` / ``harness work restart``):
 ``running_work.cancel_work`` and ``builds.control.restart_build``, behind the ONE ``issued_at``
 replay guard both doors share (``running_work.surface._cancel_is_superseded``) — a command

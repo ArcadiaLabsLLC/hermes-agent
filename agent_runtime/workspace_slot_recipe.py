@@ -1,6 +1,6 @@
 """The setup recipe ("image") — the slot declaration READ AS A CHECKLIST (build plan §3.5, Phase B).
 
-Plan ``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md`` §3.5 and §11
+Plan ``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §3.5 and §11
 (OWNER calls 8a, 8d). The recipe is not a second model. It is two things:
 
 * **Derived steps**, materialised from the declaration every time it is read — never stored,

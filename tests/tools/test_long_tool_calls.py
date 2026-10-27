@@ -3,7 +3,7 @@
 Fork module: ``tools/long_tool_calls.py``; the arming seam is one guarded line in
 ``tools/registry.py::ToolRegistry.dispatch``; the running card is ``running_work``'s
 ``BackgroundToolCallLane``; the verbs are ``runtime.work.background.promote`` and
-``runtime.work.cancel``. Design: ``docs/agent-runtime-harness/planned/agent-behaviour-proposals-2026-10-18.md`` §2.
+``runtime.work.cancel``. Design: ``docs/agent-runtime-harness/archive/agent-behaviour-proposals-2026-10-18.md`` §2.
 """
 
 from __future__ import annotations

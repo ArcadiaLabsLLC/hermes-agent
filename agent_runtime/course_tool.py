@@ -1,6 +1,6 @@
 """``course_checkout`` / ``course_commit`` / ``course_pull_request`` — a persona authors a git course.
 
-Plan ``docs/agent-runtime-harness/planned/course-turn-credential-2026-10-25.md`` §2.4 (row
+Plan ``docs/agent-runtime-harness/archive/course-turn-credential-2026-10-25.md`` §2.4 (row
 ``RT-COURSE-PERSONA-TOOLS``). Each tool calls the shipped :mod:`agent_runtime.course_authoring` verb with the
 CURRENT turn's ``course_credential`` — the one the Launcher brokered on ``mission.chat.message``, held by
 :mod:`agent_runtime.turn_secrets` for the turn's duration and never in argv. With no credential the tool

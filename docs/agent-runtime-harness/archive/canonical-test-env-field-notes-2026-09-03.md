@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 5a411b1657, de17eeef61.**
+Field notes; the canonical venv, the runner auto-find and the fence real-root fix are in the tree.
+
 # Canonical test environment — field notes, 2026-09-03
 
 The record for the pre-dispatch blocker of the launcher plan

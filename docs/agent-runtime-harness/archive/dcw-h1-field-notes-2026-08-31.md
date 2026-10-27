@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits ed9ac406be.**
+W1-H1 stage notes; conflict guess marking and the unreadable-actor warning shipped.
+
 # W1-H1 field notes — conflict guesses + unreadable-actor warnings (2026-08-31)
 
 Running record for stage **W1-H1** of the decision-close wave

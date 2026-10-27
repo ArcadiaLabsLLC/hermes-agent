@@ -56,7 +56,7 @@ def _mission_chat_operative_rules() -> str:
     reason it names no ``@personainst_*`` id — the live specimen instance is
     disposable and the roster in the HUD is the address book. Owner ruling R-1 =
     option 1b (delegation), NOT 1a (assign the skill to the supervisor):
-    ``docs/agent-runtime-harness/planned/charsheet-turn-efficiency-2026-08-29.md``.
+    ``docs/agent-runtime-harness/archive/charsheet-turn-efficiency-2026-08-29.md``.
 
     S4 (lane h-prompt-surface, ruling R4): with the root-config flag
     ``agent_runtime.mission_chat.lean_operative_rules`` ON the lane serves

@@ -1,6 +1,6 @@
 """This machine's private fill for each repo slot: tool paths, env values, PATH head, ``.env``, venv.
 
-Plan ``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md`` §3.2. The PATH
+Plan ``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §3.2. The PATH
 half of a slot's fill is the machine-root registry (``machine_roots.json`` ``roots.<slot>``);
 THIS file is the environment half, ``machine_slot_env.json`` v1, beside it in the hermes
 root because it describes the MACHINE, not one profile::

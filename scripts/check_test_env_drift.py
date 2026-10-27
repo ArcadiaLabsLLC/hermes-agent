@@ -167,7 +167,7 @@ def main(argv: list[str] | None = None) -> int:
     print()
     print(
         "Rebuild the recipe in "
-        "docs/agent-runtime-harness/planned/canonical-test-env-field-notes-2026-09-03.md §1 "
+        "docs/agent-runtime-harness/archive/canonical-test-env-field-notes-2026-09-03.md §1 "
         "if this is real drift, not an intentional test-only addition."
     )
     return 1

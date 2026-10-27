@@ -1,6 +1,6 @@
 """Builds as a first-class ``running_work`` kind — the package map (program rule 16).
 
-Plan: ``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md`` §9.
+Plan: ``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §9.
 Modules, lowest layer first; no module imports one above it (W0-G6)::
 
     agent_runtime/builds/

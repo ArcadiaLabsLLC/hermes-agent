@@ -1,8 +1,11 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 5a411b1657, 236c916b45.**
+The adjacency probe and its ratcheting baseline shipped; the remaining residuals are scope rulings, not designed work.
+
 # Cite-adjacency probe — field notes, 2026-09-01
 
 The record for the stage that built the second half of the doc-cite pair and
 spent its first sweep budget. Companion to
-[dcw-h3-field-notes-2026-08-31.md](dcw-h3-field-notes-2026-08-31.md), which
+[dcw-h3-field-notes-2026-08-31.md](../planned/dcw-h3-field-notes-2026-08-31.md), which
 built the first half (the RESOLUTION report) and closed by saying the adjacency
 probe was the harder half and still unbuilt.
 

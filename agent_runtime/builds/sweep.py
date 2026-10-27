@@ -1,6 +1,6 @@
 """The serve tick for builds: stall-fail, ``build.ended``, history, registry gc, and the boot hook.
 
-Plan ``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md`` §2, §6, §7 (owner
+Plan ``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §2, §6, §7 (owner
 call 1).
 
 * **Stall-fail** — every 30 s, beside the delegation stale monitor. An agent-started or

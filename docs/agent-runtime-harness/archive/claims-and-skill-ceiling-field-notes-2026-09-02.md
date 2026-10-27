@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 5a411b1657.**
+All three rows' fixes landed (coverage-claim budget, SKILL.md ceilings, autostash stub); a record, not a plan.
+
 # Field notes — coverage claims, the preload ceiling, and one load-flake (2026-09-02)
 
 **Status:** record of a three-row branch, `fix/coverage-claims-skill-ceiling`, cut

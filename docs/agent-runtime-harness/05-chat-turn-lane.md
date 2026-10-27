@@ -429,7 +429,7 @@ one of `agent_init_tool_defs_build_ms` / `..._cached_ms` per construction; and
 (5.7/6.5/6.6 median, flat from 0.6 to 170.8 MB store size; cold first-open 56–204 ms), which is
 why the open stays per-turn and unpooled. The durable record's block is the TURN's (a superset);
 the live result frame keeps the runner's dict byte-for-byte. Evidence + the owed live re-takes:
-`planned/chat-turn-prep-stages-3-5-field-notes-2026-09-01.md`.
+`archive/chat-turn-prep-stages-3-5-field-notes-2026-09-01.md`.
 
 **Seven more landed with prep-cost Stage 6 (2026-09-07)** — the PRE-ADMIT sub-spans, because
 `context_built` and `observability_built` are one number each and a sandbox profile of the live
@@ -448,7 +448,7 @@ the handler pops it and `persist_prompt_observability_context` drops it again. B
 component moved, names only, the same disclosure rule `resident_signature_diff` follows.
 `safe_turn_profile_timing` grew two admitted shapes for these — `*_cached` and
 `visibility_bundle_rebuild_*` — and admits nothing else new. Evidence and the owed operator read:
-`planned/chat-turn-prep-cost.md` §0.3 and `planned/chat-turn-prep-cost-field-notes-2026-09-07.md`.
+`planned/chat-turn-prep-cost.md` §0.3 and `archive/chat-turn-prep-cost-field-notes-2026-09-07.md`.
 
 **Four honesty rules** (`:18-50`), each enforced in code, not by convention:
 

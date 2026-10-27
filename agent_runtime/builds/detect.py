@@ -1,6 +1,6 @@
 """The DETECTED build source: Flutter builds running under this machine's bound repo slots.
 
-Plan ``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md`` §5 (owner calls 1,
+Plan ``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §5 (owner calls 1,
 7 and refinement 2). Runs in the serve process only (serve boot calls
 :func:`enable_detection`), on the snapshot build cadence, and only while this machine binds at
 least one slot.

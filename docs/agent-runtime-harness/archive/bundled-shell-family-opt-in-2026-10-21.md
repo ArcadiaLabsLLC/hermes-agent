@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 5d7435ea1a, 6b71ebd7f7, 3310a8bc26, 5b6742a369.**
+B1–B4 landed: the bundled edition subtracts its profile toolsets and opt-in is the approval record.
+
 # Planned — the bundled edition subtracts its profile's toolsets at load time; per-agent opt-in is an approval record — 2026-10-21
 
 **Owner domain:** the bundled editions and namespaces (`docs/downstream/bundled-desktop-closure-2026-09-28.md`;

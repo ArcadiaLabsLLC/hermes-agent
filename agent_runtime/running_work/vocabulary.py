@@ -42,7 +42,7 @@ KIND_TOOL_CALL = "tool_call"
 KIND_MCP_JOB = "mcp_job"
 #: A build — agent-started (a terminal row the Flutter recognizer reclassifies), announced
 #: by its own writer into the build registry, or detected under a bound repo slot
-#: (plan ``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md`` §1).
+#: (plan ``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §1).
 KIND_BUILD = "build"
 #: A scheduler fire (``work_store/serve_scheduler.py``) from the moment it queues on its chat root until
 #: the turn settles — read durably from the send-queue entries whose origin names a schedule

@@ -1,6 +1,6 @@
 """A send to a busy chat root is accepted and queued, never refused ``chat_busy``.
 
-Owner ruling 2026-10-10 (``docs/agent-runtime-harness/planned/busy-root-queue-2026-10-10.md``):
+Owner ruling 2026-10-10 (``docs/agent-runtime-harness/archive/busy-root-queue-2026-10-10.md``):
 the operator's message is persisted, answered "queued", run after the current turn
 in arrival order, and its settle is recorded when it RUNS — so first-settle-wins
 (``chat_turn_settles.record_settle``) stays correct. The lease, the handler and the

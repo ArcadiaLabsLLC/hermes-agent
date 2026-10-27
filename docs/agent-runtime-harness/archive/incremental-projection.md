@@ -10,7 +10,7 @@
 **Scope boundary.** This plan is about the build being O(world) on *every* call.
 The separate fact that the FIRST build in a process costs 3–5× a later one — cold
 per-process cache population — is
-[`cold-first-core-build-cost.md`](../planned/cold-first-core-build-cost.md). Both are true of
+[`cold-first-core-build-cost.md`](../archive/cold-first-core-build-cost.md). Both are true of
 the same 11,235 ms receipt; they need different fixes and different gates.
 
 ## The problem

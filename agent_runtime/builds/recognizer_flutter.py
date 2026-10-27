@@ -1,6 +1,6 @@
 """The Flutter build recognizer: which stage a build is in, read from its own output.
 
-Plan ``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md`` §4.
+Plan ``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §4.
 
 * **Stage, from output.** :data:`FLUTTER_STAGES` is a DATA table — one regex per stage,
   in the stage enum's order — read against each new output line. The stage only moves

@@ -3,7 +3,7 @@
 Owner ruling 2026-10-10: busy is not a reason to refuse. A send whose chat root is
 held by another turn is persisted here, answered "queued", and run by the serve's
 queued-send runner once the root frees. Contract:
-``docs/agent-runtime-harness/planned/busy-root-queue-2026-10-10.md``.
+``docs/agent-runtime-harness/archive/busy-root-queue-2026-10-10.md``.
 
 One JSON file per entry under ``<store_root>/chat_root_send_queue/<root>/``, keyed
 by the digest of its ``client_message_id``, so a re-presented id converges on the

@@ -1,7 +1,7 @@
 """The typed-unknown index: everything hermes could not classify about a build, WITH what it saw.
 
 Owner rule 2026-10-04, "index the unknowns" (plan
-``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md`` §1 ``unknowns``):
+``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §1 ``unknowns``):
 an unrecognised stage line, unreadable output, an unidentifiable process, an
 environment or wrapper hermes could not observe — each is recorded on the row (or the
 registry record, or a source's sub-health) as ``{kind, evidence, seen_at}``, so a future

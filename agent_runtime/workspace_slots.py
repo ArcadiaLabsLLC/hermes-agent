@@ -1,6 +1,6 @@
 """Repo slots — the workspace declares, the machine fills, the agent is assigned (OWNER 2026-10-04).
 
-Plan ``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md`` §3.
+Plan ``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §3.
 
 A WORKSPACE declares named **repo slots** (``launcher``, ``backend``, ``hermes``) — the
 portable identity that travels with the realm: clone URL, default branch, the toolchain

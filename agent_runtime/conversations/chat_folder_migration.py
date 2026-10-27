@@ -1,6 +1,6 @@
 """Move native routes off the launcher's AppData workspaces into namespace chat folders.
 
-``docs/agent-runtime-harness/planned/chat-folder-in-namespace-2026-10-26.md`` §2.4, the one-shot
+``docs/agent-runtime-harness/archive/chat-folder-in-namespace-2026-10-26.md`` §2.4, the one-shot
 ``hermes harness conversation chat-folder migrate [--apply] --json``. Dry-run by default; a second
 apply finds nothing to do. For each route whose ``cwd`` is a launcher
 ``eternia_launcher/agents/workspaces/<hash>`` folder:

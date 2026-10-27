@@ -141,7 +141,7 @@ def chat_goal_park_path(root_session_id: str) -> Path:
 
 
 #: Parent of every chat's scratch folder (naming-map ruling 5,
-#: ``docs/agent-runtime-harness/planned/chat-folder-in-namespace-2026-10-26.md`` §2.1).
+#: ``docs/agent-runtime-harness/archive/chat-folder-in-namespace-2026-10-26.md`` §2.1).
 CHAT_FOLDERS_DIRNAME = "chat_folders"
 
 #: Owner segment for a native route no persona instance has adopted yet

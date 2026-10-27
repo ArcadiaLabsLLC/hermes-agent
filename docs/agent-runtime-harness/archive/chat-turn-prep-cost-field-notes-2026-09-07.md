@@ -1,6 +1,9 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits cad18295e1, 01b1a9a0f8.**
+Stages 6–8 recorded here landed (shas inside predate the history rewrite); the live re-take is owed on RT-LOCAL-CHAT-PREP-COST.
+
 # Chat-turn prep cost — running record of the 2026-09-07 re-arm (hermes half)
 
-Field notes for [`chat-turn-prep-cost.md`](chat-turn-prep-cost.md) Stages 6–10. This file is written by whoever builds a stage, in the repo the stage stands in (the launcher half of Stage 6 — the `rt_write_ahead_ms` clause and the fixture mirrors — writes its own notes beside `EterniaLauncher/docs/archive/mission_control/runtime-observability.md`). The skill, if one is written, is written LAST from these notes.
+Field notes for [`chat-turn-prep-cost.md`](../planned/chat-turn-prep-cost.md) Stages 6–10. This file is written by whoever builds a stage, in the repo the stage stands in (the launcher half of Stage 6 — the `rt_write_ahead_ms` clause and the fixture mirrors — writes its own notes beside `EterniaLauncher/docs/archive/mission_control/runtime-observability.md`). The skill, if one is written, is written LAST from these notes.
 
 ## 0. The read that re-armed the plan (Fable, 2026-09-07, read-only)
 

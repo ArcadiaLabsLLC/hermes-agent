@@ -1,6 +1,6 @@
 """Who sent a queued chat send, and where its turn answers when it runs.
 
-Owner ruling 2026-10-10 (``docs/agent-runtime-harness/planned/busy-root-queue-2026-10-10.md``
+Owner ruling 2026-10-10 (``docs/agent-runtime-harness/archive/busy-root-queue-2026-10-10.md``
 § "Origin"): a send that queued behind a busy root runs later, with no serve request of its
 own, yet must get what a direct run of the same send gets:
 

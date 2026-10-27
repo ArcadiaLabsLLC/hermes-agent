@@ -1,8 +1,11 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits cad18295e1, b55394840d.**
+Stages 3–5 executed 2026-09-01; the code now lives in agent_runtime/stream/ and the turn ledger.
+
 # Field notes — chat-turn prep cost, Stages 3–5 (2026-09-01)
 
 Running record for the branch `perf/chat-turn-prep-stages-3-5`, cut from
 `98d43d0c8604adeebfeacd074382f66022e0f5dd`. Authority:
-[`chat-turn-prep-cost.md`](chat-turn-prep-cost.md) §5.
+[`chat-turn-prep-cost.md`](../planned/chat-turn-prep-cost.md) §5.
 
 Everything here is either a measurement taken before the fix, or a correction to
 the plan. Where a note corrects the plan, it says what the plan claimed, what the

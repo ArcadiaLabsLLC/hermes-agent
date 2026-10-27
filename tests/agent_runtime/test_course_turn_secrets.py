@@ -1,6 +1,6 @@
 """RT-COURSE-TURN-SECRETS — the course credential reaches a turn without riding argv.
 
-Plan ``docs/agent-runtime-harness/planned/course-turn-credential-2026-10-25.md`` §2.1-2.3.
+Plan ``docs/agent-runtime-harness/archive/course-turn-credential-2026-10-25.md`` §2.1-2.3.
 
 Killing mutations (recorded in the landing commit): fold the credential into argv
 (``argv += ["--course-credential", ...]``) -> the receipt-bytes test reds; skip the

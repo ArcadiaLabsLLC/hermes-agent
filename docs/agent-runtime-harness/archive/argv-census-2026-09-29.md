@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 516a1337f9, eb3d15e3bc.**
+Hermes-half census; both halves were read and the DELETE rows cut.
+
 # The argv census — hermes half (2026-09-29, lane h10b-refac)
 
 Plan: `downstream-god-file-refactor.md` §4.2. Dead-code queue row "The argv census". This is the HERMES half only: every handler the `harness` argv tree can reach, the method twin that carries the same verb (if any), and its callers inside this repository. Whether the launcher still LOWERS a verb to argv is read in `EterniaLauncher`; that half is the launcher queue's row. No handler is deleted on this note alone.

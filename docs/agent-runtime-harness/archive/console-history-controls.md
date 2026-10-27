@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 24151042d2, fa124924aa, 18732a6697.**
+Console Branch, Edit, Undo and file-history controls landed and passed native qualification; upstream candidates stay held on RT-QUALIFY-HELD-CHECKPOINT.
+
 # Console history controls — audit and implementation contract
 
 Status: approved repair implemented; qualification in progress. Not landed.

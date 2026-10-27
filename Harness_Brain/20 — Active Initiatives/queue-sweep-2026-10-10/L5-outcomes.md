@@ -15,7 +15,7 @@ L5.12 · ALREADY-DONE d61247fdfa (fix(test): operator-lane fixture carries the s
 L5.13 · FIXED 9204de94eb + 95d15e6351 (owner ruling 2026-10-10: origin persisted in persistable_args; queued turn binds the sender's direct-run link, gateway-rule fallback; new module serve/queued_turn_origin.py). Size: 298 insertions / 69 deletions across both commits, over the ~150 cap per the ruling; no file near 800, no grandfathered function grown
 L5.14 · FIXED fd66fb365d (owner ruling 2026-10-10: queued, never refused; frames tee'd and settle sent once to the sending gateway connection). Size: 116 insertions / 12 deletions
 L5.15 · RETURNED upstream: `tools/registry.py` is in tests/fixtures/upstream_manifest.txt; deleting `registry_epoch` is an edit of an upstream file (carried seam, KEEP-HELD branch `fix/tool-registry-probe-cache` per fix-triage-2026-09-26); it also still names the epoch in `launcher_app_functions` docstrings
-L5.16 · RETURNED launcher side: the hermes half landed (`docs/agent-runtime-harness/planned/argv-census-2026-09-29.md`); DELETE rows wait on the launcher-half read of which of the 18 twin-carrying verbs `EterniaLauncher` still lowers to argv
+L5.16 · RETURNED launcher side: the hermes half landed (`docs/agent-runtime-harness/archive/argv-census-2026-09-29.md`); DELETE rows wait on the launcher-half read of which of the 18 twin-carrying verbs `EterniaLauncher` still lowers to argv
 L5.17 · FIXED (census run, rows below)
 L5.18 · FIXED e188174d53 (deleted with its tests; tombstone row s-1010-l5; 07-observability corrected)
 

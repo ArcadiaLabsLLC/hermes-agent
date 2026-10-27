@@ -2753,7 +2753,7 @@ the QA surface was reading the wrong one.
 
 ## 2026-08-29 — the square hero crop, and payloads that name their own successor (Stage 4 slice)
 
-Stage 4a and 4b of `planned/charsheet-turn-efficiency-2026-08-29.md`, built as two commits on
+Stage 4a and 4b of `archive/charsheet-turn-efficiency-2026-08-29.md`, built as two commits on
 top of the same-day frame-geometry fix above. Both are about the same currency: a charsheet
 turn's cost is API round-trips, and a round-trip late in a heavy turn re-sends the whole
 context at 60–120k prompt tokens. 4a removes a *looking* round-trip (open the fullscreen

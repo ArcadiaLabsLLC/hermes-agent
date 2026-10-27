@@ -1,6 +1,6 @@
 """Turn-scoped secrets held in the serve process, never in argv (RT-COURSE-TURN-SECRETS).
 
-Plan ``docs/agent-runtime-harness/planned/course-turn-credential-2026-10-25.md`` §2.1-2.3. A
+Plan ``docs/agent-runtime-harness/archive/course-turn-credential-2026-10-25.md`` §2.1-2.3. A
 ``runtime.chat.message`` param becomes argv, and argv is durable: the accept receipt fingerprints
 it and keeps it to answer a replay. A credential the turn needs (the course credential the
 Launcher brokers) therefore rides :attr:`agent_runtime.chat_turn.ChatTurnRequest.secrets`

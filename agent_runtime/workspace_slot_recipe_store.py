@@ -1,6 +1,6 @@
 """The setup recipe's two doors: ``recipe.set`` writes the owner's part, ``recipe.show`` reads the checklist.
 
-Plan ``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md`` §3.5 (row H10).
+Plan ``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §3.5 (row H10).
 The recipe lives INSIDE the slot record (``slots.<name>.recipe``) of the slot document, so it
 travels with the declaration as one decision (``workspace_slots_sync``); the policy that reads
 it — derived steps, owner steps, readiness — is ``workspace_slot_recipe``.

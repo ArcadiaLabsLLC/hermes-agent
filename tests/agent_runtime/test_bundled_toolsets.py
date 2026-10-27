@@ -1,6 +1,6 @@
 """The bundled edition's toolset refusal and the per-agent approval record (RT-NAMESPACE-SHARED-CONFIG-SHELL-FAMILY B1).
 
-Plan ``docs/agent-runtime-harness/planned/bundled-shell-family-opt-in-2026-10-21.md``. The edition is
+Plan ``docs/agent-runtime-harness/archive/bundled-shell-family-opt-in-2026-10-21.md``. The edition is
 faked by patching ``hermes_cli.steward.is_bundled_payload`` (the build-stamp predicate).
 
 Killing mutation: return the profile's list on the Developer Edition too -> the Developer test reds.

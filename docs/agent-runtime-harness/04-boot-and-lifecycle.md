@@ -861,7 +861,7 @@ Nothing below is implemented. Each links to a plan carrying its own evidence and
   calling this a producer defect, not an ordinary
   miss. → [`planned/core-cache-home-capture-timing.md`](planned/core-cache-home-capture-timing.md)
 - **The cold first build is still ~11 s**, dominant sections known by name, no shipped stage
-  aimed at it. → [`planned/cold-first-core-build-cost.md`](planned/cold-first-core-build-cost.md)
+  aimed at it. → [`archive/cold-first-core-build-cost.md`](archive/cold-first-core-build-cost.md)
 - **The boot resubscribe still buys a fourth full core** — HY-L2, the one stage of its plan that
   did not ship. → [`planned/boot-resubscribe-fourth-core.md`](planned/boot-resubscribe-fourth-core.md)
 

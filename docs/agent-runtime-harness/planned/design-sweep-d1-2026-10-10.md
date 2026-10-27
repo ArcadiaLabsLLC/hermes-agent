@@ -285,7 +285,7 @@ gauge stops a prewarm from starting a step once a turn is accepted.
 ### D1.05 = L2.11 — every new process pays the cold snapshot sections again
 
 **Verdict: PLAN**, landing as stages CF-1..CF-3 of the owning doc
-[`cold-first-core-build-cost.md`](cold-first-core-build-cost.md) (which today says "no stage
+[`cold-first-core-build-cost.md`](../archive/cold-first-core-build-cost.md) (which today says "no stage
 is aimed at the number"). The 2026-10-06 verdict stands: upstream changed none of the four
 walkers since the merge base; this is ours.
 

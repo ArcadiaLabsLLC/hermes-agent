@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits fa124924aa, 8bf7337cd1.**
+Every PR #7 review finding was closed by the 2026-10-14 repair.
+
 # Console history controls — review of draft PR #7 (2026-10-10)
 
 Current disposition: [October 14 reconciliation](#reconciliation--october-14).

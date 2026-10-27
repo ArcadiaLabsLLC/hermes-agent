@@ -1,9 +1,12 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 8230796b12, df3cb9c80b, 5ac06bb774.**
+F1–F3 landed; the chat folder lives under `<store_root>/chat_folders/`.
+
 # Planned — a chat's scratch folder inside the namespace (RT-CHAT-FOLDER-IN-NAMESPACE, 2026-10-26)
 
 **Owner domain:** transport and wire ([03-transport-and-wire.md](../03-transport-and-wire.md), native
 conversations), chat turn lane ([05-chat-turn-lane.md](../05-chat-turn-lane.md), the workdir ladder).
 **Status:** RULED 2026-10-26 (lane w1026a-h-b, by the wave brief's "go with recommendations"); build rows in §5.
-**Spec:** [naming-and-address-map-2026-10-25.md](naming-and-address-map-2026-10-25.md) ruling 5 — "chat
+**Spec:** [naming-and-address-map-2026-10-25.md](../planned/naming-and-address-map-2026-10-25.md) ruling 5 — "chat
 folders live inside the namespace, under their persona instance; the launcher's AppData folder and its
 route are deleted."
 

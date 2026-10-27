@@ -554,7 +554,7 @@ def test_mission_chat_operative_rules_route_named_agents_without_creating_goals(
 
 def test_mission_chat_operative_rules_delegate_charsheet_authoring():
     # Owner ruling R-1 = option 1b, DELEGATION (not 1a, "give the supervisor the
-    # skill"): docs/agent-runtime-harness/planned/charsheet-turn-efficiency-2026-08-29.md.
+    # skill"): docs/agent-runtime-harness/archive/charsheet-turn-efficiency-2026-08-29.md.
     #
     # Measured 2026-08-28 on the fire-imp one-shot: the supervisor drove the
     # whole 8-way pipeline itself, on the expensive model, WITHOUT the authoring

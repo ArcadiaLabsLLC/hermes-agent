@@ -1,6 +1,6 @@
 """The WORKSPACE_SLOTS realm-sync family: the slot document, merged key-wise at three depths.
 
-Plan ``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md`` §3.1 (call 4d:
+Plan ``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §3.1 (call 4d:
 key-wise, never whole-document HOLD — a HOLD would block a realm's detection over a rename).
 
 * **Slot names union.** A name only one side holds is kept. A name both sides hold resolves

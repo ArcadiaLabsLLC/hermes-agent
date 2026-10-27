@@ -5,7 +5,7 @@ held by another turn (or other sends already waiting on it) is persisted in
 ``agent_runtime.chat_root_send_queue`` and answered "queued"; the serve's
 queued-send runner (``agent_runtime.dispatch_delivery.queued_sends``) runs it after
 the current turn, in arrival order. Contract:
-``docs/agent-runtime-harness/planned/busy-root-queue-2026-10-10.md``.
+``docs/agent-runtime-harness/archive/busy-root-queue-2026-10-10.md``.
 
 Who queues: an OPERATOR send — one with no ``requested_by_session`` and no
 in-process ``payload_sink``. An agent relay and a delivery forge name their

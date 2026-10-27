@@ -181,7 +181,7 @@ no reason and no manifest entry — exactly what happened.
   is the safe direction. Killing mutation: run `scripts/upstream_footprint.py --ledger` after
   a throwaway edit to an upstream file → the new `unreviewed` row reds the gate.
 - `Harness_Brain/50 — Agent Handoffs/Merging upstream.md` and the carried-PR job's brief
-  (`docs/agent-runtime-harness/planned/carried-pr-sync-2026-10-07.md`, "Job 1"): the sync
+  (`docs/agent-runtime-harness/archive/carried-pr-sync-2026-10-07.md`, "Job 1"): the sync
   commit carries its ledger rows and `carried_prs.json` entries; the gate enforces it at
   landing.
 

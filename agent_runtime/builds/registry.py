@@ -1,6 +1,6 @@
 """The announced-job registry: one JSON record per build a writer announces, and the reader's rules.
 
-Plan ``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md`` §2.
+Plan ``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §2.
 
 **Location.** ``<background-work home>/builds/`` — the directory ``processes.json`` and
 ``mcp_jobs.json`` already resolve to (``get_hermes_background_work_home``), so writer and

@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 68bd0446e4, 0c4361389d.**
+Both build rows landed; the turn credential rides turn_secrets, never argv.
+
 # Planned — the course credential reaches a persona's turn without riding argv (RT-COURSE-AUTHORING-PERSONA-TOOL, 2026-10-25)
 
 **Owner domain:** the chat turn lane ([05-chat-turn-lane.md](../05-chat-turn-lane.md)), multi-device credentials

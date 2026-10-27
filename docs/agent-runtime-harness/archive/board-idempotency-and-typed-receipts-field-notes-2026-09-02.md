@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 5a411b1657.**
+Field notes for a four-row batch; IdempotencyKeyVerbMismatch, mcp_sdk_available and both pins are in the tree.
+
 # Board idempotency and typed receipts — field notes (2026-09-02)
 
 Running record for a four-row queue batch in `agent_runtime/`.

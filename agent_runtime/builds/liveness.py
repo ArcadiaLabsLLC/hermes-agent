@@ -1,6 +1,6 @@
 """Progress across snapshots: how long since a build's progress signal last moved.
 
-Plan ``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md`` §1 (``liveness``,
+Plan ``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §1 (``liveness``,
 ``progress_signal``, ``seconds_since_progress``), §5 (detected: CPU time across two
 consecutive scans). A projection is a point in time; "stalled" is a fact about TWO points,
 so the serve process keeps one small memo per source: the last value of the signal (an

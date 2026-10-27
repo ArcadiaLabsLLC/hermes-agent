@@ -18,7 +18,7 @@ The character-sheet pipeline: an operator authors a character (concept, style), 
 - Source: `agent/charsheet/pipeline.py` (run, `validate_sheet`, `detect_mirrored_art`), `draft.py` (`CharacterDraft`: `create`, directions, rows, `add_state`, thumbs, `compose`, `status_payload`), `palette.py`, `revisions.py`; CLI in `hermes_cli/harness.py` (`_cmd_characters_*`, moving to `harness_parts/characters_commands.py` in the refactor's H2 lane).
 - Contract with the launcher: `hermes_cli/charsheet_payload_contract.py` → `scripts/dump_payload_contract.py` → `tests/fixtures/charsheet_payload_contract.json`; vendored in the launcher at `tool/charsheet_payload_contract/`. **A removed key is the dangerous half** (three moves landed blind before the gate: `handednessAccepted` added and threw everywhere, `cardSafe` removed, the conditional `sheet` slot).
 - Skill: `docs/agent-runtime-harness/harness-skills/harness-charsheet-authoring/SKILL.md`.
-- Plans: `planned/charsheet-turn-efficiency-2026-08-29.md` (the 72 % overhead audit), `archive/charsheet-add-state.md`.
+- Plans: `archive/charsheet-turn-efficiency-2026-08-29.md` (the 72 % overhead audit), `archive/charsheet-add-state.md`.
 - Shared library and the 8-way runs: session memory `project_shared_character_library`, `project_charsheet_8way` (graduate the standing facts here when the rulings close).
 
 ## Facts an agent forgets

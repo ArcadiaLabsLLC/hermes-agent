@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits ed9ac406be, df7d8dd560.**
+`characters sprite --no-sheet` and the profile-spelling advertisement landed; the launcher contract re-sync is recorded.
+
 # CLI ergonomics — field notes, 2026-09-02
 
 Running record for the two-row CLI-ergonomics lane worked on branch

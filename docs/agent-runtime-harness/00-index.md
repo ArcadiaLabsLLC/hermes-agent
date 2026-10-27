@@ -51,7 +51,7 @@ Read in this order for a full picture; each stands alone for its own territory.
   the as-built map verified 2026-10-25 and the owner's rulings; the hermes half shipped 2026-10-25..26,
   the launcher half is its row `MC-ADDRESS-VALUE-LAUNCHER`.
 - [Chat head per agent profile](planned/chat-head-per-profile-2026-10-26.md),
-  [chat folder in the namespace](planned/chat-folder-in-namespace-2026-10-26.md) — the build plans for
+  [chat folder in the namespace](archive/chat-folder-in-namespace-2026-10-26.md) — the build plans for
   naming-map rulings 4 and 5. Ruling 6's plan, [machine roots' two halves](archive/machine-roots-two-halves-2026-10-26.md),
   is built and archived.
 

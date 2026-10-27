@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits c2fe7ad3fd, 14380aa9fc, b1790ba1bd.**
+Phase A and B (H1–H11) landed: agent_runtime/builds/, repo slots, the setup recipe and the qa_build wake carve.
+
 # Builds as a first-class `running_work` kind — the hermes half
 
 **Status: designed 2026-10-04, not shipped. Owner decisions (fixed, 2026-10-04):** three sources

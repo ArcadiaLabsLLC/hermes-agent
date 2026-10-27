@@ -1584,7 +1584,7 @@ Two decisions ride with it:
   [planned/board-surface-rpc-lane.md](planned/board-surface-rpc-lane.md)
 - Remaining console lane-ambiguity: browsable catalog under a failing lane, the
   bare-token paste path, catalog empties →
-  [planned/agent-console-lane-honesty.md](planned/agent-console-lane-honesty.md)
+  [archive/agent-console-lane-honesty.md](archive/agent-console-lane-honesty.md)
 
 ## Supersedes
 

@@ -3,7 +3,7 @@
 Owner ruling 2026-10-21 (row RT-NAMESPACE-SHARED-CONFIG-SHELL-FAMILY): the bundled edition subtracts
 its profile's ``toolsets.disabled`` at load time whatever the shared namespace ``config.yaml`` says; a
 single agent opts back in only through an explicit approval record the bundled edition writes.
-Plan: ``docs/agent-runtime-harness/planned/bundled-shell-family-opt-in-2026-10-21.md``.
+Plan: ``docs/agent-runtime-harness/archive/bundled-shell-family-opt-in-2026-10-21.md``.
 
 :func:`bundled_disabled_toolsets` is what the chat lane's request carries as ``disabled_toolsets``.
 Upstream unions config's own ``agent.disabled_toolsets`` INTO the request's list, so a config can add a

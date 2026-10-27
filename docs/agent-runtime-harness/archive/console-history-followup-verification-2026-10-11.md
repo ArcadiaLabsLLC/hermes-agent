@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 71ba58a781, 292a429351, 18732a6697.**
+The follow-up repairs (H1–H5) and native qualification landed; upstream candidates stay held on RT-QUALIFY-HELD-CHECKPOINT.
+
 # Console history follow-up verification — 2026-10-11
 
 Read-only product audit of PR #7 at `8cbb135f15b0812c75d772838c31b873974c90dd`,

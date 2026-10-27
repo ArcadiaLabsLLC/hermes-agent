@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits defbee0ae6, e05a8524f4, 9dc0b2ad19.**
+CF-1..CF-3 landed; the three-boot generation=1 read is a measurement owed in 04-boot-and-lifecycle.md, not a build.
+
 # Planned — the cold first core build is still ~11s, and its cost is named
 
 **Status:** direction (2) PARTLY BUILT — stages CF-1..CF-3 below (design sweep D1.05,
@@ -64,8 +67,8 @@ Two sections dominate and they alternate for the top slot, which is itself a fin
 1. **Make the cache hit reliably.** If the persisted core were actually served, the cold
    build would move off the operator's path entirely — measured 210 ms to a cache hit vs
    11,235 ms to a cold build. This is the cheaper win by a wide margin and is blocked
-   behind [`core-cache-input-closure.md`](core-cache-input-closure.md) and
-   [`core-cache-home-capture-timing.md`](core-cache-home-capture-timing.md). **Do these
+   behind [`core-cache-input-closure.md`](../planned/core-cache-input-closure.md) and
+   [`core-cache-home-capture-timing.md`](../planned/core-cache-home-capture-timing.md). **Do these
    first.**
 2. **Make the cold build cheaper**, for the boots that legitimately have no cache — a
    genuinely new store, an upgrade that moved the build stamp. Only worth opening once
@@ -75,8 +78,8 @@ Two sections dominate and they alternate for the top slot, which is itself a fin
 ## Staging (coordinator, 2026-08-22)
 
 Direction (1) is chosen and is not this file's work: it is
-[`core-cache-input-closure.md`](core-cache-input-closure.md) stages IC-1..IC-4
-plus [`core-cache-home-capture-timing.md`](core-cache-home-capture-timing.md)
+[`core-cache-input-closure.md`](../planned/core-cache-input-closure.md) stages IC-1..IC-4
+plus [`core-cache-home-capture-timing.md`](../planned/core-cache-home-capture-timing.md)
 HC-1..HC-3. This plan stays PARKED until those land and a week of operator
 boots shows the hit rate; only then does direction (2) — making the cold build
 itself cheaper — get measured against the boots that remain legitimately cold.
@@ -95,7 +98,7 @@ artifact of a warm machine, not a fix.
 
 ## Stages CF-1..CF-3 (design sweep D1.05, owner-ruled 2026-10-10)
 
-Designed in [`design-sweep-d1-2026-10-10.md`](design-sweep-d1-2026-10-10.md) § D1.05, which
+Designed in [`design-sweep-d1-2026-10-10.md`](../planned/design-sweep-d1-2026-10-10.md) § D1.05, which
 holds the cost table, the measurements and the build record. Direction (2) was opened on
 the cold first build of every NEW process (each serve boot, each CLI child), not on boots
 the core cache could have served.

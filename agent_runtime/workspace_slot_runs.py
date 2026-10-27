@@ -1,6 +1,6 @@
 """This machine's record of the setup runs it started: Clone and owner ``command`` steps (row H11).
 
-Plan ``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md`` §3.5. A run is a
+Plan ``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §3.5. A run is a
 background ``terminal`` row in the process registry (its tail, its notification, its Stop);
 THIS file is what the checklist needs on top of that row and the registry does not keep: which
 workspace, slot and step the run serves, and its typed ending (``clone_auth_required``,

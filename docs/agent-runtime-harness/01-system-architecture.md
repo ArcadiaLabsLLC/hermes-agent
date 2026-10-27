@@ -860,7 +860,7 @@ system message is composed by `_mission_chat_surface_message`
    `CHARSHEET-QA:` lines are relayed verbatim; a persona that already holds the
    skill is exempt and does the work itself. Owner ruling R-1 = option **1b**,
    delegation, NOT "assign the skill to the supervisor"
-   ([planned/charsheet-turn-efficiency-2026-08-29.md](planned/charsheet-turn-efficiency-2026-08-29.md)).
+   ([archive/charsheet-turn-efficiency-2026-08-29.md](archive/charsheet-turn-efficiency-2026-08-29.md)).
 4. Optional workspace `AGENTS.md`, behind a fixed preamble that states the
    boundary: a repo doc describes the repo and never redefines how this channel
    handles confirmation (`mission_chat_prompts.py::MISSION_CHAT_WORKSPACE_AGENTS_PREAMBLE`).

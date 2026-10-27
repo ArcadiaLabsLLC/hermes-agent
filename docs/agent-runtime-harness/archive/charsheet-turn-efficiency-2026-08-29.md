@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 19f55c6ca2, 5a411b1657.**
+Every stage shipped (characters auto, thumb --square, payload next hint, terminal notify); the shas inside predate the history rewrite.
+
 # Planned — charsheet turn efficiency: standard things cost too many calls
 
 **Owner domain:** system architecture ([01-system-architecture.md](../01-system-architecture.md)) —

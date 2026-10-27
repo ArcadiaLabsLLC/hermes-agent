@@ -99,7 +99,7 @@ already proved that reading a section number off a build log convicts the wrong 
 **Gate to open work:** a section-level audit that decomposes `prompt_observability` the
 way `25cd488d33` decomposed `agents_readiness` — instrument first, then choose a target.
 No remedy may be proposed against the section-level number alone.
-→ [`planned/cold-first-core-build-cost.md`](planned/cold-first-core-build-cost.md),
+→ [`archive/cold-first-core-build-cost.md`](archive/cold-first-core-build-cost.md),
 [`archive/incremental-projection.md`](archive/incremental-projection.md) (parked 2026-10-27) (boot and
 runtime-data lanes own those designs; do not fork them here).
 

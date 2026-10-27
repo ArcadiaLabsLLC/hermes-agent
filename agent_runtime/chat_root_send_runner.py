@@ -1,6 +1,6 @@
 """The serve's queued-send runner: run each idle root's waiting send, record its settle.
 
-Owner ruling 2026-10-10 (``docs/agent-runtime-harness/planned/busy-root-queue-2026-10-10.md``):
+Owner ruling 2026-10-10 (``docs/agent-runtime-harness/archive/busy-root-queue-2026-10-10.md``):
 an operator send to a busy chat root is queued (``chat_root_send_queue``) and runs
 after the current turn, in arrival order per root. This is the half that runs it:
 a dispatcher thread in every serve hands the HEAD entry of each root whose

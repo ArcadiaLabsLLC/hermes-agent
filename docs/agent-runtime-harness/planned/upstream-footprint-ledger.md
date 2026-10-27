@@ -484,7 +484,7 @@ initialization so an earlier readonly load cannot suppress the normal loader's
 last-known-good backup; malformed cached reads never become good backups.
 PR candidate: make readonly-to-writable cache promotion explicit when combining
 readonly loading with persistent last-known-good backups (no PR opened).
-See [refresh evidence](carried-pr-sync-2026-10-07.md).
+See [refresh evidence](../archive/carried-pr-sync-2026-10-07.md).
 
 #125264 keeps the fork's quoted Windows-path delivery: a closing quote terminates
 the path; the stricter trailing boundary applies to bare paths only. The checker
@@ -509,7 +509,7 @@ rebound on every resident turn. Each acquisition gets at most 30 seconds and
 no more than the current remaining time; an unbound native caller waits zero.
 No fork import or additional clock/deadline owner enters CheckpointManager.
 No upstream submission or acceptance is claimed. Counts below include the repair.
-Owner/value/sequence and proof criteria: [history repair audit](console-history-followup-verification-2026-10-11.md),
+Owner/value/sequence and proof criteria: [history repair audit](../archive/console-history-followup-verification-2026-10-11.md),
 "The test for Value beyond Eternia" and "Upstream seam sequence and quality requirements".
 Product neutrality alone does not qualify: require a demonstrated native
 user/maintainer benefit worth the API and maintenance cost, an existing-work

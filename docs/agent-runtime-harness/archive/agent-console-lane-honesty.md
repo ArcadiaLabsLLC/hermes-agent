@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits f94a1151ad (launcher), 912e9220aa.**
+G-2 shipped with the launcher's agent_console model browser; provider sign-in now runs in the serve child via runtime.provider.signin.*.
+
 # Planned — the agent console's last two lane-ambiguity gaps
 
 **Status:** not built. **Owner surface:**

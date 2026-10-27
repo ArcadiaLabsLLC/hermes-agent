@@ -1,3 +1,6 @@
+**BUILT — archived 2026-10-27 by triage lane w1027j-h-tri-a; landing commits 4028e6db1c, ff0250c75b, e8e817c3ae.**
+Chat-first group intents, profile groups on ConversationService and member-model repair landed.
+
 # Chat-first group messages
 
 Owner-approved 2026-09-29. Implemented; live-provider desktop acceptance remains separate.

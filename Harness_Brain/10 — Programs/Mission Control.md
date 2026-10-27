@@ -15,7 +15,7 @@ tags: [program/mission-control, program]
 `history_review_cursor::` 2026-10-14 — Old Console history review reconciled
 against the landed owners; missing safety coverage and private-API seam record
 added. Dispatch cancellation preserves the owning lane's verdict through RPC.
-[Evidence](../../docs/agent-runtime-harness/planned/console-history-controls-review-2026-10-10.md#reconciliation--october-14).
+[Evidence](../../docs/agent-runtime-harness/archive/console-history-controls-review-2026-10-10.md#reconciliation--october-14).
 `execution_controls_cursor::` 2026-10-14 — Native conversation approval/speed
 settings validate route and owner, bind the existing approval queue, and apply
 speed to cold/reused actors. [Contract and verification](../../docs/downstream/session-controls-2026-10-14.md).
@@ -46,7 +46,7 @@ Mission Control is the launcher's command deck for this runtime: the spatial off
 `history_controls_cursor::` 2026-10-12 — Native selected-turn Branch/Edit/Undo,
 turn-attributed files and reviewed recovery qualify through the paired Launcher.
 SessionDB and CheckpointManager remain the owners. [Evidence and repository
-limits](../../docs/agent-runtime-harness/planned/console-history-followup-verification-2026-10-11.md).
+limits](../../docs/agent-runtime-harness/archive/console-history-followup-verification-2026-10-11.md).
 Compressed-ancestry branching and held upstream candidates remain queued.
 
 ## Where the truth lives

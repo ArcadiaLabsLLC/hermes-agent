@@ -1,6 +1,6 @@
 """A chat's scratch folder inside the namespace (chat-folder plan §2.1–2.3).
 
-``docs/agent-runtime-harness/planned/chat-folder-in-namespace-2026-10-26.md``.
+``docs/agent-runtime-harness/archive/chat-folder-in-namespace-2026-10-26.md``.
 """
 from pathlib import Path
 

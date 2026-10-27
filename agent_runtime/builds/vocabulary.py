@@ -1,6 +1,6 @@
 """The build vocabulary: the wire enums a ``build`` row carries, one tuple each, and the limits.
 
-Plan ``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md`` §1 (the
+Plan ``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §1 (the
 ``build`` row) and §2 (the announced-job registry). A vocabulary module: every word a
 consumer branches on is declared HERE once, and the golden fixture
 (``tests/fixtures/builds/build_rows.json``) is checked against these tuples rather than a
