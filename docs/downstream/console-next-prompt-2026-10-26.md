@@ -85,3 +85,10 @@ parity repairs from native adaptations and new Tab enhancement, limits Tab-only
 restrictions, removes optional-framework qualification blockers, and records the
 stock/Console auxiliary task-key distinction plus disable-in-flight semantics.
 Documentation only; no code rollback, provider call or runtime setting change.
+
+Clean-separation planning, 2026-10-27: [completion plan](../agent-runtime-harness/planned/console-next-prompt-completion-2026-10-27.md)
+now requires reusable suggestions outside Agent Console, with Console as the
+adapter to existing persona, history, auxiliary routing and draft authorities.
+The plan names current seams, proposed homes, extraction order and boundary
+acceptance; one implementation and the false-default Eternia Harness setting
+remain mandatory. No DM implementation or runtime/code/settings change was made.

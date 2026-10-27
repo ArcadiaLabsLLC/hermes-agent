@@ -29,8 +29,9 @@ and 24-hour expiry are deliberate product differences. Keep them documented as
 differences, not as prerequisites for a useful suggestion feature or proof of
 superiority. The Launcher plan owns its separate UI parity inventory.
 
-This completion pass extends the current helpers only. It does not rebuild the
-scheduler/store, introduce another generator or restore the Desktop REST stack.
+This completion pass extracts reusable helper logic behind the Console adapter
+and extends that single implementation. It does not rebuild the scheduler/store,
+introduce another generator or restore the Desktop REST stack.
 Earlier question-only and empty-draft-only proposals were revised during planning;
 they are not a shipped restriction to remove. Temporary mutation-test changes
 were restored to verify tests; they were not product rollbacks.
@@ -79,10 +80,62 @@ one native Console turn is served by one suggestion producer; do not widen its
 hook platform allowlist to run both producers over the same Console turn.
 These checks belong to RT-NEXT-PROMPT-PROVIDER-EVAL, not a new routing authority.
 
+## Shared capability and Console adapter — planned separation
+
+`RT-NEXT-PROMPT-SEPARATION` precedes generation parity. The current implementation
+is not yet consumer-neutral: generation combines reusable prompt/cleanup logic
+with Console task registration, while `ConsoleSuggestions` authorizes Console
+subjects and reads persona history. Constructor injection alone does not remove
+those assumptions. Extract the existing capability; do not copy it into a second
+implementation or turn the Console service into an all-chat authority.
+
+| Responsibility | Planned home and dependency |
+| --- | --- |
+| Free-form prompt construction, language reminder, output cleanup/redaction, generation result shape | Proposed `agent_runtime/suggestions/`; lift existing logic from `agent_runtime/console_suggestions/generation.py::generate_suggestion` and `agent_runtime/console_suggestions/generation.py::clean_suggestion`. Consume bounded admitted messages and an explicitly supplied completion callable; return text/absence and actual provider/model/usage facts. No Console/persona identity, config lookup, transcript reader or RPC dependency. |
+| Plugin registration and serving-head auxiliary connection | Existing `agent_runtime/console_suggestions/generation.py::register_suggestion_task` and the Console generation adapter bind the current plugin context and `console_next_prompt` task to the shared helper. The callback delegates to `ctx.llm.complete`; the shared helper does not select a model, construct a provider client or resolve credentials. |
+| Console authorization, context selection and lifecycle | Existing `agent_runtime/console_suggestions/service.py::ConsoleSuggestions`, Console RPC and `agent_runtime/persona_chat_history/suggestion_context.py::suggestion_context` remain the adapter to existing owners. Validate exact subject, permissions and committed source before reading history or invoking generation; preserve invalidation and use-time checks. |
+| Configuration, scheduling, receipts, retention and notifications | Existing Console settings/service/store/notification owners remain single instances. They coordinate this consumer; they are not a new cross-surface platform. Keep current storage and wire contracts. |
+
+Dependency direction is Console adapter → shared suggestion helper → supplied
+host completion operation. The shared helper must not import Console adapters,
+persona history, operator authorization or settings. The adapter binds the exact
+serving home across worker execution through the existing scope owner, preserving
+persona isolation and auxiliary override/reset. It supplies only authorized recent
+user/final-reply context; shared code cannot fetch additional history or act as a
+persona. Keep redaction, no guessed manual outcomes and free-form output intact.
+
+Use a small function/value contract for the one real consumer. Do not introduce
+a generic conversation registry, adapter discovery framework, new service process,
+second scheduler/store, transport, settings key or auxiliary task. Do not rename
+`console_next_prompt`, the current SQLite file, RPC methods or preference keys as
+a side effect of moving internal code. Remove relocated helper bodies and update
+all imports/tests/attribution; no internal compatibility re-export or dual path.
+Preserve behavior during extraction, then apply the existing parity row once in
+the shared helper. Console-specific lifecycle policy stays in its adapter; a
+speculative generalization of that lifecycle is outside this completion pass.
+
+The setting remains off by default under Global Settings > Eternia Harness >
+Agent Console > Follow-up suggestions. Reusable code does not make that Console
+setting apply to DMs. No DM endpoint, context reader, setting, history adapter,
+membership policy, send integration or production registration is authorized.
+A future DM consumer would keep messaging's own permissions/history/send owners
+and supply its own authorized context and routing connection; no fake persona or
+Console subject. Its enablement and provider policy remain future design work.
+
+Boundary acceptance after implementation: exercise shared generation using
+explicit messages/completion input without constructing a persona or Console
+service; then exercise the real Console adapter to prove routing, authorization,
+off-state zero history/model work, scope isolation and stale-result rejection.
+Unregistering the optional binding must leave ordinary persona chat usable with
+no suggestion work. Keep one producer and existing stored receipts across the
+internal move. These checks join the existing qualification rows, not a new DM
+test application or permanent benchmarking service.
+
 ## Runtime changes to plan
 
-`RT-NEXT-PROMPT-GENERATION-PARITY`: extend the existing generation helper with a
-final reminder grounded in the latest user's language, using bounded/redacted
+`RT-NEXT-PROMPT-GENERATION-PARITY`: after `RT-NEXT-PROMPT-SEPARATION`, extend
+the extracted single shared generation helper with a final reminder grounded in
+the latest user's language, using bounded/redacted
 context already admitted by the existing reader. Conversation text remains data.
 Preserve free-form requests, questions, conversational replies and statements
 supported by user-provided facts. No question-only conversion, intent whitelist,
@@ -115,8 +168,10 @@ pair boundary tests with the real-provider evaluation below.
 
 ## Qualification after implementation authorization
 
-Expand the existing `RT-NEXT-PROMPT-PROVIDER-EVAL` row, not a second evaluation
-authority. Freeze a representative corpus and scoring rubric before paid runs:
+After separation and generation parity, expand the existing
+`RT-NEXT-PROMPT-PROVIDER-EVAL` row, not a second evaluation authority. Include
+the shared-helper/Console-adapter boundary acceptance above. Freeze a representative
+corpus and scoring rubric before paid runs:
 multilingual and mixed-language conversations, code, completed tasks, grounded
 statements, pending structured controls, unknown manual outcomes and older intent.
 Compare landed baseline versus proposed refinement on the same corpus, route and
@@ -161,5 +216,5 @@ retain existing MIT attribution for adapted helpers. Upstream prompt/cleanup:
 Product comparisons are UX references, not implementation authority or evidence
 of parity: [Codex](https://learn.chatgpt.com/docs/features/composer-predictions),
 [Claude Code](https://code.claude.com/docs/en/interactive-mode#prompt-suggestions).
-Runtime work is `RT-NEXT-PROMPT-GENERATION-PARITY` and the existing
-`RT-NEXT-PROMPT-PROVIDER-EVAL` in the runtime queue. Both remain deferred.
+Runtime work is `RT-NEXT-PROMPT-SEPARATION`, `RT-NEXT-PROMPT-GENERATION-PARITY`
+and the existing `RT-NEXT-PROMPT-PROVIDER-EVAL` in the runtime queue. All remain deferred.
