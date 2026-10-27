@@ -23,6 +23,7 @@ runtime_commands = lazy_module("hermes_cli.harness_parts.runtime_commands")
 usage_commands = lazy_module("hermes_cli.harness_parts.usage.commands")
 verify_commands = lazy_module("hermes_cli.harness_parts.verify_commands")
 builds_commands = lazy_module("hermes_cli.harness_parts.builds_commands")
+conversation_commands = lazy_module("hermes_cli.harness_parts.conversation_commands")
 observe_commands = lazy_module("hermes_cli.harness_parts.observe_commands")
 work_commands = lazy_module("hermes_cli.harness_parts.work_commands")
 settle_commands = lazy_module("hermes_cli.harness_parts.serve.settle_commands")
@@ -34,6 +35,7 @@ __all__ = [
     "add_builds",
     "add_config",
     "add_contracts",
+    "add_conversation",
     "add_doctor",
     "add_gateway",
     "add_health",
@@ -386,6 +388,21 @@ def add_migrate(subs) -> None:
     migrate.add_argument("--check", action="store_true", help="Report pending migrations without modifying data")
     migrate.add_argument("--json", action="store_true")
     migrate.set_defaults(func=runtime_commands._cmd_migrate)
+
+
+def add_conversation(subs) -> None:
+    """``hermes harness conversation``."""
+    conversation = subs.add_parser("conversation", help="Operator verbs over native conversation routes")
+    conversation_subs = conversation.add_subparsers(dest="conversation_command", required=True)
+    chat_folder = conversation_subs.add_parser("chat-folder", help="Native routes' scratch folders")
+    chat_folder_subs = chat_folder.add_subparsers(dest="chat_folder_command", required=True)
+    migrate = chat_folder_subs.add_parser(
+        "migrate",
+        help="Move routes off the launcher's agents/workspaces folders into namespace chat folders (dry run unless --apply)",
+    )
+    migrate.add_argument("--apply", action="store_true", help="Make the moves; without it the verb only reports them")
+    migrate.add_argument("--json", action="store_true")
+    migrate.set_defaults(func=conversation_commands._cmd_conversation_chat_folder_migrate)
 
 
 def add_observe(subs) -> None:

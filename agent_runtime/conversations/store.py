@@ -183,6 +183,28 @@ class ConversationStore:
         with closing(self.connect()) as db:
             self._require_executable(db, route.id)
 
+    def routes(self) -> list[ConversationRoute]:
+        """Every route, id order — the chat-folder move's enumeration (it reads no scope)."""
+        with closing(self.connect()) as db:
+            return [ConversationRoute(**dict(row))
+                    for row in db.execute("SELECT * FROM conversation_routes ORDER BY id").fetchall()]
+
+    def rewrite_cwd(self, conversation_id: str, *, old: str, new: str) -> None:
+        """Compare-and-set the route's folder; a route whose cwd moved meanwhile is a conflict."""
+        with transaction(self.connect(), immediate=True) as db:
+            if db.execute("UPDATE conversation_routes SET cwd=? WHERE id=? AND cwd=?",
+                          (new, conversation_id, old)).rowcount != 1:
+                raise ConversationError(Refusal.CONFLICT)
+
+    def delete_route(self, conversation_id: str) -> None:
+        """Drop a route ``migrate_conversation`` bound, and its turn receipts; the migration fence stays."""
+        with transaction(self.connect(), immediate=True) as db:
+            if db.execute("SELECT 1 FROM conversation_migrations WHERE conversation_id=?",
+                          (conversation_id,)).fetchone() is None:
+                raise ConversationError(Refusal.CONFLICT)
+            db.execute("DELETE FROM conversation_turns WHERE conversation_id=?", (conversation_id,))
+            db.execute("DELETE FROM conversation_routes WHERE id=?", (conversation_id,))
+
     def migration_target(self, route: ConversationRoute) -> tuple[str, str] | None:
         with closing(self.connect()) as db:
             row = db.execute("SELECT persona_id,persona_instance_id FROM conversation_migrations "
