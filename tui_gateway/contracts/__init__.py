@@ -25,5 +25,7 @@ from agent_runtime.gateway import contracts_recovery  # fork seam: registers the
 from . import canonical
 from .base import JsonValue, Params, Payload, Result, WireEnum
 from .registry import CANONICAL_METHODS, EVENTS, METHODS, SERVER_REQUESTS
+from agent_runtime.gateway import rendered_contracts  # fork seam: the import-time catalog the generator renders
 
 __all__ = ["CANONICAL_METHODS", "EVENTS", "METHODS", "SERVER_REQUESTS", "JsonValue", "Params", "Payload", "Result", "WireEnum"]
+rendered_contracts.freeze()  # fork seam: last, so lane declare_contracts() never reach the rendered TS

@@ -1,7 +1,7 @@
 {
-  "measured_at": "2026-10-26",
+  "measured_at": "2026-10-27",
   "base": "4d04303818",
-  "files": 238,
+  "files": 239,
   "deleted_lines": 1057,
   "heavy": 1,
   "reasons": [
@@ -1210,6 +1210,21 @@
       },
       "reason": "Ship the pinned next-prompt MIT notice through the existing PEP 639 and bundled license manifest.",
       "owner_ruling": "2026-10-26 owner authorized implementation of the pinned-helper plan in docs/agent-runtime-harness/archive/console-next-prompt-2026-10-26.md"
+    },
+    {
+      "change": "FH-FORK-CONTRACTS-MUTATE-RENDERED-REGISTRY",
+      "before": {
+        "files": 238,
+        "deleted_lines": 1057,
+        "heavy": 1
+      },
+      "after": {
+        "files": 239,
+        "deleted_lines": 1057,
+        "heavy": 1
+      },
+      "reason": "renders agent_runtime/gateway/rendered_contracts.py's import-time catalog (one additive import line), so a lane's declare_contracts() in the rendering process never reaches upstream's TS/OpenRPC",
+      "owner_ruling": "2026-10-27 \u00b7 Harness_Brain/20 \u2014 Active Initiatives/fork-hygiene-queue.md RULED record (go with recommendations on all 19 owner decisions)"
     }
   ]
 }
