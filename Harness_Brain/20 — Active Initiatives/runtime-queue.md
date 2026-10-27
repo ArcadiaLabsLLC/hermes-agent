@@ -1003,3 +1003,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ## Filed on arrival — 2026-10-26 (launcher lane w1026c-core)
 
 - **`RT-CLAIM-MARK-PLACE-GATE` — the work-store grammar does not red a lane claim dated 2026-10-27 or later that names no `on <machine>`; mirror the launcher's `WorkQueueClaim.missingPlace` (persona claims and earlier marks exempt), with its killing mutation recorded** · `tests/agent_runtime/work_store/test_grammar.py` · `lib/features/mission_control/work_queue/policy/work_queue_row.dart::WorkQueueClaim` · READY 2026-10-26
+
+## Filed on arrival — 2026-10-26 (launcher lane w1026c-mc-b)
+
+- **`RT-SKILL-CHANGE-RECORD` — a background-review skill write (applied to a profile skill, or staged for a shared one) records the chat and turn it came from, and a read lists a skill's applied changes with their diffs, so the launcher can show "Updated skill <name>" on the turn and a per-skill history (launcher `MC-SKILL-CHANGE-VISIBLE`)** · `agent_runtime/review_skill_gate.py` · `agent_runtime/review_skill_pending.py` · READY 2026-10-26
