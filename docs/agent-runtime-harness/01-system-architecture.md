@@ -1031,10 +1031,9 @@ and the final acceptance are in
 
 Each links to a `planned/` file carrying its evidence and the gate to open it.
 
-- 2026-08-22 — **`--kill-active` is a no-op that reports success**: accepted by
-  `open_chat`, never read; the CLI echoes the operator's own flag back as
-  `killed_previous` →
-  [planned/chat-swap-kill-active-guard.md](planned/chat-swap-kill-active-guard.md)
+- 2026-10-27 — **`--kill-active` is accepted and ignored** (S1 shipped: no
+  `killed_previous`, no close review); refusing it waits on the launcher →
+  [planned/chat-open-kill-active-retirement-2026-10-27.md](planned/chat-open-kill-active-retirement-2026-10-27.md) S2
 - 2026-08-22 — **`mode="task_bound"` is still written** by a flag documented as
   a correlation id, five readers still branch on it, and `TaskStoreStub` has
   lost the upstream caller its permanence rests on →
