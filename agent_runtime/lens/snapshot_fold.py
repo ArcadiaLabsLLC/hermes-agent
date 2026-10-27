@@ -26,7 +26,7 @@ from typing import Any
 
 from .missed_deadlines import offline_interval
 from .rules import manifest_rule
-from .store import LensStore, MonitorState
+from .store import LensStore, LensStoreError, MonitorState
 from .store_decisions import open_episodes
 
 __layer__ = "lanes"
@@ -84,7 +84,10 @@ def _with_outage(store: LensStore, row: dict[str, Any]) -> dict[str, Any]:
     deadline = row.get("missed_deadline_ms")
     if deadline is None:
         return row
-    sealed = store.sealed(row["monitor_id"])
+    try:
+        sealed = store.sealed(row["monitor_id"])
+    except LensStoreError:  # an Episode outliving its monitor row still folds, with no outage
+        sealed = None
     rule = None if sealed is None else manifest_rule(sealed.manifest(), row["rule_id"])
     interval = None if rule is None else offline_interval(store, row["monitor_id"], rule["feed_id"], deadline)
     return {**row, "offline": None if interval is None else {"from_ms": interval[0], "until_ms": interval[1]}}
