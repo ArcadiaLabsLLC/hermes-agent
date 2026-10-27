@@ -296,19 +296,21 @@ def test_a_done_claim_whose_only_sha_is_foreign_is_unbacked():
 
 
 def test_the_walk_finds_the_dockets_and_the_stages_it_exists_to_gate():
-    """Fails loud on an empty set, three ways. A scan that resolves nothing is
-    this project's most repeated defect, and it is indistinguishable from a
-    passing gate."""
+    """Fails loud on an empty set, two ways: no docket, no stage. A scan that
+    resolves nothing is this project's most repeated defect, and it is
+    indistinguishable from a passing gate."""
 
     dockets = _dockets()
     stages = [stage for path in dockets for stage in stage_sections(_read(path))]
-    done = [stage for stage in stages if stage.claims_done]
 
-    assert len(dockets) >= 60, len(dockets)
-    # 29 on 2026-10-27, after the planned/ triage moved every built docket to
-    # archive/ (FH-PLANNED-TRIAGE-2026-10-27-A/B/C); the floor guards an empty walk.
-    assert len(stages) >= 20, len(stages)
-    assert len(done) >= 5, len(done)
+    # Non-empty, not a corpus size: a shipped docket LEAVES planned/ for
+    # archive/, so the docket, stage and done-stage counts all fall by design.
+    # The 2026-10-27 triage (FH-PLANNED-TRIAGE-2026-10-27-A/B/C) left them at
+    # 47 / 16 / 1, under every floor this test carried (60 / 30 then 20 / 5).
+    # That the walk can READ a stage and a done claim is pinned on FABRICATED
+    # above, not on the live corpus.
+    assert len(dockets) >= 1, len(dockets)
+    assert len(stages) >= 1, len(stages)
 
 
 def test_every_stage_that_says_it_shipped_names_a_commit_that_landed_here():
