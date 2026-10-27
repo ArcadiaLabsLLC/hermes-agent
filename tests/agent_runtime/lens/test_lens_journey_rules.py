@@ -29,6 +29,7 @@ import pytest
 
 from agent_runtime.lens.feed import Observation, ReadingRefusal, read_feed, typed_reading
 from agent_runtime.lens.manifest import read_manifest
+from agent_runtime.lens.host_budget import HostBudget
 from agent_runtime.lens.poller import LensPoller
 from agent_runtime.lens.rules import Verdict, evaluate, read_rule
 from agent_runtime.lens.store import LensStore, MonitorState
@@ -331,7 +332,10 @@ def _guarded(values: list[float]) -> list[tuple[float | None, str]]:
     store = _enabled(manifest)
     answers = iter(values)
     clock = _Clock(T0)
-    poller = LensPoller(clock=clock, client=_client(lambda: {"v": next(answers)}), resolver=lambda host: PUBLIC)
+    # A 1 s feed outruns one public host's default read budget (W3); this test is about the guard.
+    budget = HostBudget(public_per_minute=6000, private_per_minute=6000)
+    poller = LensPoller(clock=clock, client=_client(lambda: {"v": next(answers)}), resolver=lambda host: PUBLIC,
+                        host_budget=budget)
     for i in range(len(values)):
         clock.at = T0 + timedelta(seconds=i)
         poller.tick()
