@@ -91,7 +91,7 @@ def _checked_id(pending_id: Any) -> str:
     return text
 
 
-def _row(profile: str, record: dict[str, Any]) -> dict[str, Any]:
+def _pending_skill_row(profile: str, record: dict[str, Any]) -> dict[str, Any]:
     from tools import write_approval as wa
 
     payload = record.get("payload") if isinstance(record.get("payload"), dict) else {}
@@ -122,7 +122,7 @@ def list_staged(*, profile: str | None = None) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     for name, home in homes:
         with process_home_scope(home):
-            rows.extend(_row(name, record) for record in wa.list_pending(wa.SKILLS))
+            rows.extend(_pending_skill_row(name, record) for record in wa.list_pending(wa.SKILLS))
     return {"pending": rows, "count": len(rows), "profiles_scanned": [name for name, _home in homes]}
 
 

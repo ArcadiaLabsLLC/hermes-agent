@@ -17,7 +17,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-10-26 (next-prompt implementation)
 
-- **`FORK-NEXT-PROMPT-BASE-DUPLICATES` — The fork-wide duplicate-name gate is already red for `_row` in review_skill_pending/workspace_create and `_run` in skills_pending_commands/generate_agent_runtime_response_fixtures; give these distinct helpers unambiguous names without expanding the baseline** · fork / suite · `tests/agent_runtime/test_duplicate_helper_bodies.py::test_no_new_duplicate_anywhere_in_the_fork` · four source files and duplicate baseline are byte-identical to claim base ba542d8f; 1 failure / 5 passes on the implementation tree · READY 2026-10-26 · **TAKEN 2026-10-26 w1026c-h-fork on nekwo-ubuntu24 as nekwo in w1026c-h-fork**
 
 
 
