@@ -137,6 +137,8 @@ import json
 import logging
 import os
 import tempfile
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -159,6 +161,7 @@ __all__ = [
     "ChatHeadSource",
     "ChatScopeMismatch",
     "ChatSessionScope",
+    "HeadRead",
     "InstanceChatHead",
     "InstanceChatHeadStatus",
     "SessionDbAccess",
@@ -170,6 +173,7 @@ __all__ = [
     "declared_chat_head_home",
     "is_canonical_session_persistence",
     "open_chat_session_db",
+    "per_profile_read_heads",
     "publish_chat_head_home",
     "recorded_chat_head_home",
     "recorded_instance_chat_head",
@@ -857,6 +861,68 @@ def open_chat_session_db(
     if not read:
         prepare_chat_session_writer(db, resolved)
     return db
+
+
+@dataclass(frozen=True, slots=True)
+class HeadRead:
+    """One ``per_profile`` head opened for a cross-agent read: its scope and READ handle.
+
+    ``db`` is ``None`` when the head refused (its home is gone) or holds no
+    store yet; :attr:`unavailable` names which, for the reader's accounting.
+    """
+
+    scope: ChatSessionScope
+    db: Any | None
+
+    @property
+    def unavailable(self) -> str:
+        return self.scope.refusal or SESSION_DB_ABSENT
+
+
+@contextmanager
+def per_profile_read_heads(
+    instances: Iterable[Any], *, process_db: Any = None
+) -> Iterator[dict[str, HeadRead]]:
+    """Instance id -> its ``per_profile`` head, each distinct head opened ONCE, read-only.
+
+    The fan-out a cross-agent read (the roster, the history list) runs beside
+    its process handle (plan §2.4): instances whose head is the process one —
+    every record that is not ``per_profile``, and a ``per_profile`` record whose
+    home IS ``process_db``'s — are absent, so the caller's process handle serves
+    them exactly as before. Handles close on exit. N is the number of agent
+    profiles, so nothing is indexed.
+    """
+
+    from agent_runtime.models import CHAT_HEAD_KIND_PER_PROFILE
+
+    process_path = getattr(process_db, "db_path", None)
+    process_key = _normalized(Path(process_path)) if process_path else None
+    by_path: dict[str, HeadRead] = {}
+    reads: dict[str, HeadRead] = {}
+    try:
+        for instance in instances:
+            if getattr(instance, "chat_head_kind", None) != CHAT_HEAD_KIND_PER_PROFILE:
+                continue
+            instance_id = str(getattr(instance, "id", "") or "")
+            scope = resolve_instance_chat_scope(instance)
+            key = _normalized(scope.db_path)
+            if not instance_id or not scope.per_profile or key == process_key:
+                continue
+            read = by_path.get(key)
+            if read is None:
+                read = by_path[key] = HeadRead(
+                    scope, open_chat_session_db(scope, access=SessionDbAccess.READ)
+                )
+            reads[instance_id] = read
+        yield reads
+    finally:
+        for read in by_path.values():
+            close = getattr(read.db, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception:  # a read must not fail on release
+                    logger.debug("closing a per-profile chat head failed", exc_info=True)
 
 
 def prepare_chat_session_writer(db: Any, scope: ChatSessionScope) -> None:

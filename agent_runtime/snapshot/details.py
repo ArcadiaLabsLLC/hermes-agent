@@ -57,6 +57,8 @@ def _default_persona_session_db():
     # existing store is attached read-only, because a writer open here ran
     # upstream's data migration inside the build, moving the ``state.db`` the
     # stream watchdog fingerprints (``open_chat_session_db``'s docstring).
+    # The PROCESS head only: the history summary it feeds opens each
+    # ``per_profile`` head beside it (``per_profile_read_heads``, plan §2.4).
     from ..chat_session_scope import open_chat_session_db
 
     from ..chat_session_scope import SessionDbAccess

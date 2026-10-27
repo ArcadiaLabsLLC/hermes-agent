@@ -73,15 +73,42 @@ def list_instance_conversations(params: dict) -> dict:
         instances = {instance.id: instance for instance in scan.instances}
         persona = None if persona_id is None else (persona_id, sorted(
             instance.id for instance in scan.instances if instance.persona_id == persona_id))
-        raw = _history_page(db, owner=None if all_accounts else owner, instance_id=instance_id,
-                            persona=persona, legacy_route=legacy_route, before=before, limit=limit)
-        visible = raw[:limit]
-        rows = [_project_instance_history(db, item, instances, params["install_id"]) for item in visible]
+        # Cross-agent fan-out (chat-head plan §2.4): each per_profile head opened
+        # once, read-only, paged with the same keyset, merged by that key.
+        with chat_session_scope.per_profile_read_heads(scan.instances, process_db=db) as heads:
+            sources = [read.db for read in {id(r): r for r in heads.values()}.values()
+                       if read.db is not None] + [db]
+            raw = _merged_pages([(source, _history_page(
+                source, owner=None if all_accounts else owner, instance_id=instance_id,
+                persona=persona, legacy_route=legacy_route, before=before, limit=limit))
+                for source in sources], limit)
+            visible = raw[:limit]
+            rows = [_project_instance_history(source, item, instances, params["install_id"])
+                    for source, item in visible]
     cursor = None
     if len(raw) > limit:
-        last = visible[-1]
+        last = visible[-1][1]
         cursor = json.dumps([*scope, last["started_at"], last["id"]], separators=(",", ":"))
     return {"conversations": rows, "next_cursor": cursor, "legacy_route_id": legacy_route}
+
+
+def _merged_pages(pages, limit):
+    """``(source, row)`` pairs from every store's page, newest first, first copy of an id wins.
+
+    Each page is already ``started_at DESC, id DESC`` before the same cursor, so
+    the merged first ``limit + 1`` is the page one store would have answered.
+    SQLite sorts a NULL ``started_at`` last under DESC; the key does too.
+    """
+
+    seen, merged = set(), []
+    for source, rows in pages:
+        for row in rows:
+            if row["id"] not in seen:
+                seen.add(row["id"])
+                merged.append((source, row))
+    merged.sort(key=lambda pair: (pair[1]["started_at"] is not None, pair[1]["started_at"] or 0,
+                                  pair[1]["id"]), reverse=True)
+    return merged[:limit + 1]
 
 
 def _project_instance_history(db, raw, instances, install_id):

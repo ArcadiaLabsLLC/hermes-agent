@@ -123,10 +123,20 @@ def persona_chat_history_summary(
         if session_db is None and not chat_session_scope.chat_session_store_exists():
             summary.account_absent_store()
         return []
-    summary.session_candidates(db)
-    summary.bound_candidates(db)
-    summary.live_mission_candidates()
-    return summary.rows(db)
+    # Cross-agent fan-out (chat-head plan §2.4): every ``per_profile`` head
+    # opened once, read-only; its instances read from it, everyone else from
+    # ``db``. Heads first, so a head's copy outranks a leftover in ``db``.
+    with chat_session_scope.per_profile_read_heads(
+        summary.instances_by_id.values(), process_db=db
+    ) as head_reads:
+        summary.head_reads = head_reads
+        for head in {id(read): read for read in head_reads.values()}.values():
+            if head.db is not None:
+                summary.session_candidates(head.db, head=head)
+        summary.session_candidates(db)
+        summary.bound_candidates(db)
+        summary.live_mission_candidates()
+        return summary.rows(db)
 
 
 #: One candidate row: ``(raw session row, instance, session id, kind, task id)``.
@@ -163,6 +173,16 @@ class HistorySummary:
     # nothing, and a runtime with fifty orphans still pays one listing, never one
     # per session.
     retired_instance_ids: frozenset[str] | None = None
+    #: Instance id -> its ``per_profile`` head (``chat_session_scope.HeadRead``);
+    #: an instance absent here reads from the process handle.
+    head_reads: dict[str, Any] = field(default_factory=dict)
+
+    def _head_of(self, instance: Any) -> Any:
+        return self.head_reads.get(safe_assignment_text(getattr(instance, "id", None), limit=160) or "")
+
+    def _db_for(self, instance: Any, db: Any) -> Any:
+        head = self._head_of(instance)
+        return db if head is None else head.db
 
     def index_instances(self) -> None:
         for instance in self.persona_instances:
@@ -217,7 +237,16 @@ class HistorySummary:
         except Exception:
             return list(broad_sessions)
 
-    def session_candidates(self, db: Any) -> None:
+    def session_candidates(self, db: Any, *, head: Any = None) -> None:
+        """Candidates from one store: the process one (``head=None``) or a ``per_profile`` head.
+
+        A session is this store's only when its instance reads from this store,
+        so a head's copy is never shadowed by a leftover in the process store and
+        a head never claims a process instance's row. Unmatched rows are
+        accounted by the process pass only: a profile's own store holds that
+        profile's non-Mission-Control sessions, which are not this projection's.
+        """
+
         for raw in self._session_pool(db) or []:
             if not isinstance(raw, dict):
                 continue
@@ -242,8 +271,6 @@ class HistorySummary:
             if not is_source_chat and session_id not in self.bound_by_session:
                 self.seen.add(session_id)
                 continue
-            if self.accountant is not None:
-                self.accountant.consider(1)
             persisted_instance_id = _persisted_persona_instance_id(raw)
             inferred_persona = _infer_persona_id(raw, session_id=session_id)
             instance = (
@@ -255,6 +282,12 @@ class HistorySummary:
                     else None
                 )
             )
+            if (instance is None and head is not None) or (
+                instance is not None and self._head_of(instance) is not head
+            ):
+                continue
+            if self.accountant is not None:
+                self.accountant.consider(1)
             if instance is None:
                 self._drop_unmatched(session_id, persisted_instance_id)
                 # A session id can appear in both the source and broad pools;
@@ -316,7 +349,15 @@ class HistorySummary:
         for session_id, instance in self.bound_by_session.items():
             if session_id in self.seen:
                 continue
-            raw = _get_session_row(db, session_id)
+            head = self._head_of(instance)
+            if head is not None and head.db is None:
+                # A per-profile head that refused (home gone) or holds no store:
+                # typed, never read from the process store instead.
+                if self.accountant is not None:
+                    self.accountant.consider(1)
+                    self.accountant.drop(head.unavailable, entity_id=session_id)
+                continue
+            raw = _get_session_row(self._db_for(instance, db), session_id)
             if raw is None:
                 if self.accountant is not None:
                     # Anomalous on purpose: the instance still points at a session
@@ -443,7 +484,7 @@ class HistorySummary:
                 persona_id=instance.persona_id,
                 instance_id=instance.id,
                 session_id=session_id,
-                session_db=db,
+                session_db=self._db_for(instance, db),
                 message_tail=self.message_tail,
                 kind=kind,
             )

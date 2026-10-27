@@ -230,6 +230,18 @@ ContextVar is unchanged: it still records the outermost operator's home, which i
 head-less (process-scope) read inside the nested turn resolves — the operator identity, no longer
 the head of the target's conversation. A `process` target still runs on the relay head.
 
+### 7.4d Built — CH4-CROSS-AGENT-READS (lane w1027g-h-head, 2026-10-27)
+
+`chat_session_scope.per_profile_read_heads(instances, process_db=)` maps each `per_profile`
+instance to its head, every distinct head opened once, read-only, closed on exit; a head equal to
+the process handle's is left to it. Two readers fan out over it:
+`persona_chat_history/summary.py::persona_chat_history_summary` (the roster: each head's pool
+first, an instance's rows read from its own head, a refused or absent head a typed drop) and
+`instance_history.py::list_instance_conversations` (the history list: one keyset page per store,
+merged by `started_at DESC, id DESC`, a head's copy first). The projection's own handle
+(`snapshot/details.py::persona_session_db_scope`) stays the process read. Not moved: the
+prompt-observability section (row `RT-CHAT-HEAD-PROMPT-OBS-READ`).
+
 ### 7.5 Open questions
 
 None for the owner: every choice above is technical and follows ruling 4. §4's question (what stays in
