@@ -141,6 +141,7 @@ def _bound_persona_root(store: ConversationStore, route: ConversationRoute) -> t
     instance_id = target[1]
     from agent_runtime import paths
     from agent_runtime.chat_session_scope import SessionDbAccess, open_chat_session_db
+    from agent_runtime.store_file_io import read_json_object
 
     receipts = paths.persona_chat_mint_receipts_dir()
     if not receipts.is_dir():
@@ -150,7 +151,7 @@ def _bound_persona_root(store: ConversationStore, route: ConversationRoute) -> t
         return None
     try:
         for path in sorted(receipts.glob("*.json")):
-            raw = _json(path)
+            raw = read_json_object(path)
             if raw.get("persona_instance_id") != instance_id or raw.get("state") != "bound":
                 continue
             session = db.get_session(str(raw.get("session_id") or ""))
@@ -161,14 +162,6 @@ def _bound_persona_root(store: ConversationStore, route: ConversationRoute) -> t
         return None
     finally:
         db.close()
-
-
-def _json(path: Path) -> dict:
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    return raw if isinstance(raw, dict) else {}
 
 
 __all__ = ["FolderMove", "FolderStep", "RouteStep", "apply_chat_folder_move", "is_launcher_workspace",
