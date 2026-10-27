@@ -14,6 +14,7 @@ store as a gap.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any, Callable, Sequence
 
 from ..feed import (
@@ -74,8 +75,8 @@ def typed_result(feed: dict[str, Any], result: ReadResult, *, history: Sequence[
     if value is not None:
         value, refusal = total_cost(feed, value, fx_rate)
     if refusal is None:
-        return ReadResult(value=value, reason=result.reason, http_status=result.http_status)
-    return ReadResult(value=None, reason=ReadReason(refusal.value), http_status=result.http_status)
+        return replace(result, value=value)
+    return replace(result, value=None, reason=ReadReason(refusal.value))
 
 
 def preview_reads(manifest: dict[str, Any], *, client: Any = None, resolver: Any = None) -> dict[str, ReadResult]:

@@ -229,6 +229,7 @@ class LensStore:
                 conn.executescript(_SCHEMA)
                 _add_route_auth(conn)
                 _add_proposal_columns(conn)
+                _add_observation_revision(conn)
                 with conn:
                     yield conn
             finally:
@@ -360,7 +361,8 @@ class LensStore:
 
     def record(self, monitor_id: str, feed_id: str, *, observed_at: datetime, received_at: datetime,
                value: float | None, reason: str, http_status: int | None = None) -> Observation:
-        """Append one observation (``value`` None is a recorded gap). Sequence is per feed."""
+        """Append one observation (``value`` None is a recorded gap). Sequence is per feed; ``revision``
+        is the monitor's sealed revision as the row is written (W1 provenance; NULL when none is sealed)."""
 
         with self._db() as conn:
             # The counter outlives retention, so a sequence is never reused after a fold.
@@ -368,9 +370,11 @@ class LensStore:
                          "DO UPDATE SET last = last + 1", (monitor_id, feed_id))
             sequence = int(conn.execute("SELECT last FROM feed_sequences WHERE monitor_id = ? AND feed_id = ?",
                                         (monitor_id, feed_id)).fetchone()[0])
-            conn.execute("INSERT INTO observations VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            conn.execute("INSERT INTO observations (monitor_id, feed_id, sequence, observed_ms, received_ms, value, "
+                         "reason, http_status, revision) VALUES (?, ?, ?, ?, ?, ?, ?, ?, (SELECT revision FROM "
+                         "monitors WHERE monitor_id = ? AND body IS NOT NULL))",
                          (monitor_id, feed_id, sequence, to_ms(observed_at), to_ms(received_at), value, reason,
-                          http_status))
+                          http_status, monitor_id))
         return Observation(monitor_id=monitor_id, feed_id=feed_id, sequence=sequence, observed_at=observed_at,
                            received_at=received_at, value=value, gap=value is None)
 
@@ -641,6 +645,13 @@ def _add_proposal_columns(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE monitors ADD COLUMN proposed INTEGER NOT NULL DEFAULT 0")
     if "proposed_by" not in columns:
         conn.execute("ALTER TABLE monitors ADD COLUMN proposed_by TEXT")
+
+
+def _add_observation_revision(conn: sqlite3.Connection) -> None:
+    """Observations gain the sealed ``revision`` that read them (W1); older rows read NULL."""
+
+    if "revision" not in {row[1] for row in conn.execute("PRAGMA table_info(observations)")}:
+        conn.execute("ALTER TABLE observations ADD COLUMN revision INTEGER")
 
 
 #: A proposal still waiting for the operator: proposed, never sealed, not retired.

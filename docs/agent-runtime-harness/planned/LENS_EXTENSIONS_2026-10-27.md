@@ -73,6 +73,16 @@ monitor (`StoreRefusal.EXISTS`), so a repair cannot reuse it as is.
 | `RT-LENS-SOURCE-BROKEN-EPISODE` | decisions 5–6 | `agent_runtime/lens/rules.py`, `agent_runtime/lens/poller.py`, `agent_runtime/lens/trigger.py`, `agent_runtime/lens/tool.py` (opening block: both skeletons inside the untrusted fence) |
 | `RT-LENS-SOURCE-REPAIR-PROPOSE` | decision 7 | `agent_runtime/lens/tool.py`, `plugins/eternia-lens/__init__.py` |
 
+*Built (`RT-LENS-SOURCE-REPAIR`, lane w1027f-h-lens-a), where the tree differed from the plan:*
+`SHAPE_REASONS` is in `agent_runtime/lens/shapes.py` as the reasons' string values, not beside
+`ReadReason` — `shapes.py` is a `models` module and `sources/transport.py` is `lanes`, so the enum
+cannot be imported down; a test holds every member to a `ReadReason`. Python's `sqlite3` exposes a
+column's name but not its declared type, so the SQL skeleton types each cell by its storage class.
+The observation `revision` is written by `LensStore.record` itself (a subselect of the monitor's sealed
+revision in the same INSERT) rather than threaded through the poller and the push door. The pure
+detector is `shapes.source_broken`; `store_shapes.feed_broken` applies it to the stored facts and is
+what slice 2 opens its Episode on.
+
 ### Test plan
 
 - Fingerprint: the same document with values changed → same fingerprint; a renamed key → different.

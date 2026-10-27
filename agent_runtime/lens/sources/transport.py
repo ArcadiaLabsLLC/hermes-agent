@@ -77,6 +77,9 @@ class ReadResult:
     value: float | None
     reason: ReadReason
     http_status: int | None = None
+    #: The answer's value-free skeleton (``lens.shapes``) when the source answered a document;
+    #: kept off :meth:`to_json` — it is the poller's, for ``store_shapes``, never the preview's.
+    shape: tuple[tuple[str, str], ...] | None = None
 
     @property
     def status(self) -> str:

@@ -14,9 +14,11 @@ non-finite value is ``not_a_number``.
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 from typing import Any
 
 from ..feed import kube_proxy_base_url
+from ..shapes import prometheus_skeleton
 from .transport import ReadReason, ReadResult, fetch_json, unavailable
 
 __layer__ = "lanes"
@@ -62,5 +64,7 @@ def read(feed: dict[str, Any], *, headers: dict[str, str], client: Any = None, r
     if failed is not None:
         return failed
     if not isinstance(document, dict) or document.get("status") != "success":
-        return unavailable(ReadReason.QUERY_FAILED, 200)
-    return _value_of(document.get("data"))
+        result = unavailable(ReadReason.QUERY_FAILED, 200)
+    else:
+        result = _value_of(document.get("data"))
+    return replace(result, shape=prometheus_skeleton(document))

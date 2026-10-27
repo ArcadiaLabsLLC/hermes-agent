@@ -44,6 +44,7 @@ from .rules import CLOCK_FORMS, RuleForm, evaluate, rule_feed_ids
 from .sources import read_feed_source
 from .sources.transport import ReadReason, ReadResult
 from .store import LensStore, MonitorState, from_ms, to_ms
+from .store_shapes import record_shape
 
 __layer__ = "lanes"
 
@@ -197,6 +198,9 @@ class LensPoller:
                              fx_rate=self._fx_rate(store, monitor_id, feed, observed))
         store.record(monitor_id, feed["id"], observed_at=observed, received_at=received,
                      value=typed.value, reason=typed.reason.value, http_status=typed.http_status)
+        if not is_push_feed(feed):
+            record_shape(store, monitor_id, feed["id"], shape=typed.shape, answered=typed.value is not None,
+                         reason=typed.reason.value, at=received)
         for rule in manifest["rules"]:
             if feed["id"] in rule_feed_ids(rule):
                 # Evaluated at the RECEIVE time: an observation is never later than its verdict.

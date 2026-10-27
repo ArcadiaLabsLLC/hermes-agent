@@ -20,7 +20,7 @@ import json
 import subprocess
 from typing import Any
 
-from .http_json import number_of, select
+from .http_json import document_read
 from .transport import ReadReason, ReadResult, unavailable
 
 __layer__ = "lanes"
@@ -56,10 +56,4 @@ def read(feed: dict[str, Any], *, headers: dict[str, str], client: Any = None, r
         document = json.loads(done.stdout.decode("utf-8"))
     except (UnicodeDecodeError, ValueError):
         return unavailable(ReadReason.NOT_JSON)
-    found, value = select(document, source["extract"])
-    if not found:
-        return unavailable(ReadReason.SELECTOR_MISSING)
-    number = number_of(value)
-    if number is None:
-        return unavailable(ReadReason.NOT_A_NUMBER)
-    return ReadResult(value=number, reason=ReadReason.OK)
+    return document_read(document, source["extract"])

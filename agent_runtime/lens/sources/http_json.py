@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import math
 import re
+from dataclasses import replace
 from typing import Any
 
+from ..shapes import json_skeleton
 from .transport import ReadReason, ReadResult, fetch_json, unavailable
 
 __layer__ = "lanes"
@@ -42,16 +44,24 @@ def number_of(value: Any) -> float | None:
     return number if math.isfinite(number) else None
 
 
+def document_read(document: Any, selector: str, http_status: int | None = None) -> ReadResult:
+    """The number ``selector`` lands on in ``document``, carrying the document's skeleton (W1)."""
+
+    found, value = select(document, selector)
+    number = number_of(value) if found else None
+    if not found:
+        result = unavailable(ReadReason.SELECTOR_MISSING, http_status)
+    elif number is None:
+        result = unavailable(ReadReason.NOT_A_NUMBER, http_status)
+    else:
+        result = ReadResult(value=number, reason=ReadReason.OK, http_status=http_status)
+    return replace(result, shape=json_skeleton(document))
+
+
 def read(feed: dict[str, Any], *, headers: dict[str, str], client: Any = None, resolver: Any = None) -> ReadResult:
     source = feed["source"]
     document, failed = fetch_json(source["url"], headers=headers, allow_private=feed.get("allow_private_network", False),
                                   client=client, resolver=resolver)
     if failed is not None:
         return failed
-    found, value = select(document, source["selector"])
-    if not found:
-        return unavailable(ReadReason.SELECTOR_MISSING, 200)
-    number = number_of(value)
-    if number is None:
-        return unavailable(ReadReason.NOT_A_NUMBER, 200)
-    return ReadResult(value=number, reason=ReadReason.OK, http_status=200)
+    return document_read(document, source["selector"], 200)

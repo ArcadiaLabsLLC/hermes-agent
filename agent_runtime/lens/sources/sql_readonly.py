@@ -20,10 +20,12 @@ from __future__ import annotations
 
 import sqlite3
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from ..feed import READ_ONLY_STATEMENT
+from ..shapes import sql_skeleton
 from .http_json import number_of
 from .transport import ReadReason, ReadResult, unavailable
 
@@ -47,13 +49,19 @@ def read(feed: dict[str, Any], *, headers: dict[str, str], client: Any = None, r
     try:
         connection.execute("PRAGMA query_only = ON")
         connection.set_progress_handler(lambda: 1 if time.monotonic() > deadline else 0, _PROGRESS_STEPS)
-        rows = connection.execute(source["query"]).fetchmany(2)
+        cursor = connection.execute(source["query"])
+        rows = cursor.fetchmany(2)
+        columns = [str(column[0]) for column in cursor.description or ()]
     except sqlite3.OperationalError as exc:
         return unavailable(ReadReason.TIMEOUT if "interrupt" in str(exc).lower() else ReadReason.QUERY_FAILED)
     except sqlite3.Error:
         return unavailable(ReadReason.QUERY_FAILED)
     finally:
         connection.close()
+    return replace(_row_read(rows), shape=sql_skeleton(columns, rows[0] if rows else None))
+
+
+def _row_read(rows: list[Any]) -> ReadResult:
     if not rows:
         return unavailable(ReadReason.NO_SERIES)
     if len(rows) > 1 or len(rows[0]) != 1:
