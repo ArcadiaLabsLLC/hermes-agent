@@ -408,3 +408,31 @@ def test_an_untouched_proposal_expires_and_an_adopted_one_does_not(monkeypatch, 
     assert store.get("adopted")["state"] == MonitorState.DRAFT.value
     assert store.get("fresh")["state"] == MonitorState.DRAFT.value
     assert "[LensProposalsExpired] retired=1 ids=stale" in caplog.text
+
+
+# --- RT-LENS-SCHEDULE-PROPOSE (plan lens-deadline-schedule-equivalence-report §2 slice 2) ---------
+
+DAILY_AT_EIGHT = {"every_ms": 86_400_000, "offset_ms": 28_800_000, "brief": "look for new listings of CPU 9000"}
+
+
+def test_lens_propose_drafts_a_schedule_and_refuses_one_on_a_notify_monitor():
+    # Kill: ``propose_monitor`` stops forwarding ``schedule`` -> the draft carries none, red.
+    # Kill: drop ``schedule`` from the accepted keys -> the proposal is refused unknown_key, red.
+    import httpx
+
+    from agent_runtime.lens.tool import handle_lens_propose, propose_monitor
+
+    store = LensStore()
+    client = _client(lambda request: httpx.Response(200, json={"latency": 42}))
+    investigate = {**_proposal(), "automation": {"level": "investigate", "when": "always", "daily_turn_cap": 4},
+                   "persona_id": "personainst_scout", "schedule": DAILY_AT_EIGHT}
+    propose_monitor(investigate, store=store, client=client, resolver=lambda host: PUBLIC)
+    draft = store.get("proposed-status")["draft"]
+    assert draft["schedule"] == DAILY_AT_EIGHT and store.get("proposed-status")["sealed"] is None
+
+    refused = json.loads(handle_lens_propose({**_proposal(), "monitor_id": "proposed-notify",
+                                              "schedule": DAILY_AT_EIGHT}))
+    assert refused["error"] == "schedule_needs_investigate"
+    # Positive control: the same notify proposal without a schedule drafts (as before this row).
+    assert propose_monitor({**_proposal(), "monitor_id": "proposed-notify"}, store=store, client=client,
+                           resolver=lambda host: PUBLIC)["state"] == "draft"
