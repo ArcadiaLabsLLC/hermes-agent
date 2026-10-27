@@ -7,6 +7,13 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+## Filed on arrival — 2026-10-27 (lane w1027g-h-fix, reds proven on `e89649c8d9` in a detached base worktree)
+
+- **`FH-WORK-ROW-CLAIM-TESTS-NO-MACHINE` — three `work_row claim` tests are red on main: the script now refuses `grammar_invalid` ("claim dated 2026-10-27 names no machine") under ADR 0025's 2026-10-26 claim shape, and the tests still drive it with only `--who`; move the tests (and any caller) to the machine/account/worktree claim shape** · `tests/tooling/test_work_row_script.py::test_claim_by_id_commits_by_pathspec_and_pushes` · `scripts/work_row.py` · filed by lane w1027g-h-fix 2026-10-27 · READY 2026-10-27
+- **`FH-REGISTRY-FENCE-NATIVE-ROOT-LINUX` — `test_the_native_root_registers` is red on the Linux box: the PATH fence refuses the native root as "not installer-owned (neither the native root nor the persisted HERMES_HOME's)", so the test's Windows-shaped `LocalAppData` fixture no longer matches what the fence reads as native on Linux** · `tests/tooling/test_registry_path_fence.py::test_the_native_root_registers` · `hermes_cli/_registry_write_fence.py` · filed by lane w1027g-h-fix 2026-10-27 · READY 2026-10-27
+- **`FH-SILENT-PATCH-COURSE-TOOLS-TEST` — `test_no_new_silent_package_patch` is red on main: `tests/agent_runtime/test_course_persona_tools.py` (from `0c4361389d`) monkeypatches `agent_runtime.persona_assignments:PersonaInstanceStore`, a name other fork modules bound by import; patch the module that looks it up** · `tests/tooling/test_no_silent_package_patches.py::test_no_new_silent_package_patch` · `tests/agent_runtime/test_course_persona_tools.py` · filed by lane w1027g-h-fix 2026-10-27 · READY 2026-10-27
+- **`FH-LEGIBILITY-LENS-SAVE-RECEIPTS` — `test_no_new_function_breaks_the_floor` is red on main: `LensStore.save_receipts` is over 150 lines or nested deeper than 4 and not grandfathered; lift it into helpers (rule 17), never add a row** · `tests/tooling/test_function_legibility_floor.py::test_no_new_function_breaks_the_floor` · `agent_runtime/lens/store.py::LensStore.save_receipts` · filed by lane w1027g-h-fix 2026-10-27 · READY 2026-10-27
+
 ## Filed on arrival — 2026-10-27 (lane w1027a-h-fork)
 
 

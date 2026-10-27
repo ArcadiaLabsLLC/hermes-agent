@@ -31,6 +31,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-27 (lane w1027f-h-rt, w1027g-h-fix)
 
+- **`RT-PEERS-LIST-COLD-IMPORT-RUNTIME-PROVIDER` — `test_gateway_peers_list_loads_no_persona_chat_or_provider_stack` is red on main (`e89649c8d9`, Linux box): `hermes harness gateway peers list` now loads `hermes_cli.runtime_provider` cold; find the import edge that pulled the provider stack into the peers verb and make it lazy** · `tests/agent_runtime/test_harness_gateway_cli_cold_imports_downstream.py::test_gateway_peers_list_loads_no_persona_chat_or_provider_stack` · filed by lane w1027g-h-fix 2026-10-27 · READY 2026-10-27
 - **`RT-COURSE-TOOLS-NOT-MUTATING` — `course_commit` and `course_pull_request` push to a git remote and open a PR, yet the regenerated harness tool inventory lists them `mutating: false` because neither is in `tool_permissions.READ_ONLY_BLOCKS`, so a read-only turn is not stopped at the mutation boundary; add them (and decide `course_checkout`, which writes a working tree) with a test that a read-only turn refuses each** · `agent_runtime/tool_permissions.py::READ_ONLY_BLOCKS` · `tools/course_tool.py` · `docs/agent-runtime-harness/harness-skills/harness-runtime-model/references/tool-inventory.json` · filed by lane w1027g-h-fix 2026-10-27 · READY 2026-10-27
 
 ### Filed on arrival — 2026-10-27 (lane w1027b-h-fix)
