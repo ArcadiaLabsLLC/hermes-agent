@@ -59,9 +59,13 @@ Work tracking (adopted from the launcher's ADR 0025):
   `BLOCKED <date>: owner decision — … · Recommend: …`, an answer a `RULED <date>:` record;
   `VERDICT` is retired. The grammar's one home is `Harness_Brain/30 — Decisions/0011`
   § Row grammar; `tests/tooling/test_work_queue_row_grammar.py` enforces it.
-- **Claim a row before you start it:** fetch, append `**TAKEN <date> <who>**` to the row's
-  line, commit that alone, push, then cut the worktree. A row already marked `TAKEN` is
-  someone else's. The landing commit deletes the row.
+- **Claim a row before you start it:** fetch, append
+  `**TAKEN <date> <lane> on <machine> as <git account> in <worktree>**` to the row's line as
+  its own ` · ` segment after the status (`<machine>` = `hostname`, `<git account>` =
+  `git config user.name`, `<worktree>` = the worktree's folder name, never a full path — the
+  owner runs lanes on several machines; launcher ADR 0025's 2026-10-26 amendment), commit that
+  alone, push, then cut the worktree. The Work engine's `persona:<instance_id>` claim is
+  unchanged. A row already marked `TAKEN` is someone else's. The landing commit deletes the row.
 - **File a finding when it arrives, not at the end of the session.** A report, a review
   verdict, an audit result is EVIDENCE; the queue rows point at it. The one exception is a
   finding you are fixing in this change, where the commit is the record.
