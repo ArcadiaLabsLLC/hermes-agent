@@ -215,3 +215,36 @@ def test_the_cli_verb_prints_one_json_object_and_exits_2_on_a_refusal(world):
     done = run(ACCT, str(world["export"]), "--bind", "qa=personainst_qa_agent_aaaa1111")
     assert done.returncode == 0, done.stderr[-2000:]
     assert json.loads(done.stdout)["counts"]["imported"] == 5
+
+
+def _ids(path: Path) -> set[str]:
+    if not path.is_file():
+        return set()
+    db = SessionDB(db_path=path, read_only=True)
+    try:
+        return {row["id"] for row in db.search_sessions(source=None, limit=1000)}
+    finally:
+        db.close()
+
+
+@pytest.mark.parametrize("kind", ["per_profile", "process"])
+def test_a_chat_bound_to_a_per_profile_instance_lands_in_that_instances_head(tmp_path, world, kind):
+    """RT-CHAT-HEAD-OWN-IMPORT-WRITER. Positive control: the same row stamped ``process`` lands in the process store."""
+    alice_home = tmp_path / "profiles" / "alice"
+    alice_home.mkdir(parents=True)
+    instances = _recreate_instances(world["item"])
+    instances[0].chat_head_home, instances[0].chat_head_kind = str(alice_home), kind
+    process = SessionDB(db_path=tmp_path / "process" / "state.db")
+    try:
+        report = imp.import_own_export(world["export"], session_db=process, instances=instances)
+    finally:
+        process.close()
+    alice_chats = {"chat_alice", "chat_alice_cont"}  # the root and its continuation, one store
+    if kind == "per_profile":
+        assert _ids(alice_home / "state.db") == alice_chats
+        assert report["per_profile_stores"] == [str(alice_home / "state.db")]
+        assert not alice_chats & _ids(tmp_path / "process" / "state.db")
+    else:
+        assert _ids(alice_home / "state.db") == set()
+        assert alice_chats <= _ids(tmp_path / "process" / "state.db")
+    assert {"chat_neko", "cli_scratch"} <= _ids(tmp_path / "process" / "state.db")

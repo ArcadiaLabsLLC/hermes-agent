@@ -270,6 +270,13 @@ left by a crash, now copied and deleted) · `skipped` (`runs_in_process_head` / 
 / `no_sessions`) · `refused` (`chat_busy` / `session_ledgered` / `copy_unverified` /
 `target_store_unavailable`). No RPC twin: the plan names it an operator verb.
 
+### 7.4g Built — §7.4b's and §7.4d's leftovers (lane w1027h-h-head, 2026-10-27)
+
+- `RT-CHAT-HEAD-OWN-IMPORT-WRITER`: `own_session_import._Stores` — one store per bind target. A chat
+  bound to a `per_profile` instance is written into that instance's head (opened once per head), a
+  child into its parent's store, everything else into the process store; a head whose home is gone
+  skips the chat `target_chat_head_missing`. The report adds `per_profile_stores`.
+
 ### 7.5 Open questions
 
 None for the owner: every choice above is technical and follows ruling 4. §4's question (what stays in
