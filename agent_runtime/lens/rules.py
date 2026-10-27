@@ -30,6 +30,12 @@ two newest unbroken reads unless stated:
   ``now``. Evaluated on the runtime clock (W7): the poller asks it every tick,
   not only when the feed is read.
 
+The absence form (plan ``planned/LENS_EXTENSIONS_2026-10-27.md`` §5):
+
+* ``missing_data`` — FIRING only on ATTESTED absence: no valid read in
+  ``(now - window_ms, now]`` while the watch covered the whole window
+  (:func:`evaluate_missing_data`). Absence nobody could observe stays ``unknown``.
+
 ``confirm_reads: 2`` (W2(b)) makes a rule that is not already firing fire only
 when it also fires at the previous read — one bad parse never opens an Episode.
 
@@ -79,6 +85,7 @@ class RuleForm(str, Enum):
     MOVED_BY = "moved_by"
     BEST_OF = "best_of"
     ENDS_WITHIN = "ends_within"
+    MISSING_DATA = "missing_data"
 
 
 class Direction(str, Enum):
@@ -103,6 +110,16 @@ _COMPANION_FORMS = frozenset({RuleForm.THRESHOLD, RuleForm.DELTA, RuleForm.FOR_D
 _TIMED_FORMS = frozenset({RuleForm.DELTA, RuleForm.FOR_DURATION})
 #: Forms the runtime clock moves without a new read (the poller asks them every tick).
 CLOCK_FORMS = frozenset({RuleForm.ENDS_WITHIN})
+#: Gap reasons that ATTEST absence: the watcher asked and got no value (§5 decision 2).
+ATTESTING_REASONS = frozenset({
+    "http_status", "timeout", "network", "redirect_refused", "too_large", "not_json", "selector_missing",
+    "not_a_number", "private_address_refused", "credential_missing", "no_series", "ambiguous_series",
+    "query_failed", "type_mismatch", "implausible", "outlier", "fx_stale", "ingress_refused",
+    "statement_refused", "command_refused", "command_failed", "source_failed",
+})
+#: Gap reasons that attest nothing: nobody could ask. A gap with no reason, or one in neither set,
+#: is read as this — absence that cannot be told from a blind spot never fires.
+NON_ATTESTING_REASONS = frozenset({"watcher_offline", "not_sealed", "push_only", "host_budget_deferred"})
 
 RULE_KEYS = frozenset({
     "version", "id", "feed_id", "form", "severity", "direction",
@@ -167,6 +184,12 @@ def _check_rule(rule: dict[str, Any]) -> None:
     if form is RuleForm.ENDS_WITHIN:
         require(direction is Direction.BELOW and rule["threshold"] == 0, "ends_within is below 0")
         require(0 < window <= MAXIMUM_DEADLINE_LEAD_MS, "ends_within lead time")
+        return
+    if form is RuleForm.MISSING_DATA:
+        # The lower bound is the feed's continuity limit, checked where intervals are known (manifest).
+        require(direction is Direction.BELOW and rule["threshold"] == 0, "missing_data is below 0")
+        require(0 < window <= MAXIMUM_RULE_WINDOW_MS, "missing_data window")
+        require("confirm_reads" not in rule, "missing_data takes no confirm_reads")
         return
     require(window == 0, "rule window mismatch")
     if form is RuleForm.CHANGED:
@@ -370,6 +393,31 @@ def _previous_read(rule: dict[str, Any], observations: Sequence[Observation]) ->
     return earlier, earlier[-1].received_at
 
 
+def evaluate_missing_data(rule: dict[str, Any], observations: Sequence[Observation], *, now: datetime,
+                          expected_interval: timedelta, watched_since: datetime | None, pushed: bool) -> Verdict:
+    """``missing_data`` at ``now``. Pure (§5 decision 2).
+
+    HEALTHY — a valid observation inside ``(now - window_ms, now]``. FIRING — none, and the watch
+    covered the window: ``watched_since`` (the watcher's start for a pulled feed, the ingress
+    listener's bind for a ``push`` one) at or before the window's start, every row inside it an
+    ATTESTING gap, and — for a pulled feed — no hole wider than the continuity limit from the
+    window's start to ``now``. UNKNOWN — anything else, a row later than ``now`` included."""
+
+    start = now - timedelta(milliseconds=rule["window_ms"])
+    samples = _ordered_samples(rule["feed_id"], observations)
+    if any(obs.observed_at > now or obs.received_at > now for obs in samples):
+        return Verdict.UNKNOWN
+    inside = [obs for obs in samples if obs.observed_at > start]
+    if any(not obs.gap and obs.value is not None for obs in inside):
+        return Verdict.HEALTHY
+    if watched_since is None or watched_since > start or any(obs.reason not in ATTESTING_REASONS for obs in inside):
+        return Verdict.UNKNOWN
+    times = [start, *(obs.observed_at for obs in inside), now]
+    limit = continuity_limit(expected_interval)
+    covered = pushed or all(later - earlier <= limit for earlier, later in zip(times, times[1:]))
+    return Verdict.FIRING if covered else Verdict.UNKNOWN
+
+
 def evaluate(
     rule: dict[str, Any],
     observations: Sequence[Observation],
@@ -378,13 +426,21 @@ def evaluate(
     expected_interval: timedelta,
     was_firing: bool,
     has_gap: bool = False,
+    watched_since: datetime | None = None,
+    pushed: bool = False,
 ) -> Verdict:
-    """The verdict of ``rule`` over ``observations`` at ``now``. Pure."""
+    """The verdict of ``rule`` over ``observations`` at ``now``. Pure.
+
+    ``watched_since`` / ``pushed`` are read by ``missing_data`` only; without ``watched_since`` it
+    can answer HEALTHY or UNKNOWN, never FIRING."""
 
     if expected_interval <= timedelta(0):
         raise ValueError("positive expected interval required")
     if len(observations) > MAXIMUM_OBSERVATIONS:
         raise ValueError(f"at most {MAXIMUM_OBSERVATIONS} observations")
+    if RuleForm(rule["form"]) is RuleForm.MISSING_DATA:
+        return evaluate_missing_data(rule, observations, now=now, expected_interval=expected_interval,
+                                     watched_since=watched_since, pushed=pushed)
     if has_gap or not observations:
         return Verdict.UNKNOWN
     limit = continuity_limit(expected_interval)

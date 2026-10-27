@@ -325,6 +325,18 @@ dark). The rule must fire on attested absence without making `unknown` mean "bre
 | `RT-LENS-MISSING-DATA-RULE` | decisions 1, 2, 4 — the form and its pure evaluator, with conformance cases | `agent_runtime/lens/rules.py`, `agent_runtime/lens/manifest.py`, `tests/agent_runtime/lens/conformance/` |
 | `RT-LENS-MISSING-DATA-CLOCK` | decision 3 — poller clock wiring and the listener's `bound_since` | `agent_runtime/lens/poller.py`, `agent_runtime/lens/ingress.py` |
 
+*Built (`RT-LENS-MISSING-DATA-RULE`, lane w1027f-h-lens-a), where the tree differed from the plan:*
+the evaluator needs each gap's reason and `feed.Observation` carried none, so `Observation` gained an
+optional `reason` (off `to_json`, out of equality). `rules.evaluate` routes `missing_data` to
+`rules.evaluate_missing_data` and takes `watched_since` / `pushed` keywords; without `watched_since` the
+form answers HEALTHY or UNKNOWN, never FIRING — so until slice 2 a sealed `missing_data` rule recovers
+but cannot fire. The attesting/non-attesting split is two explicit string sets in `rules.py` (a gap
+with no reason, or one in neither set, attests nothing); a test enumerates `ReadReason` against them,
+exempting the value-carrying `ok` / `not_modified`. `missing_data` is admitted on instant feeds. The
+corpus is `tests/agent_runtime/lens/conformance/missing_data_corpus.json` (hermes-authored, 12 cases).
+**Slice 2 must** build the poller's observations with `reason=row["reason"]` (today `_verdict` drops
+it, which makes every gap non-attesting) and pass `watched_since` / `pushed`.
+
 ### Test plan (conformance cases, each one JSON case in the corpus)
 
 1. Valid reads, then attesting failures spanning more than `window_ms` → FIRING.

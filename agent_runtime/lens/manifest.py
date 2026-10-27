@@ -20,11 +20,12 @@ manifest does not carry, and a document over 64 KiB canonical.
 
 from __future__ import annotations
 
+from datetime import timedelta
 from enum import Enum
 from typing import Any
 
 from .feed import ValueKind, comparable_type, fx_feed_id, read_feed, value_type_of
-from .rules import RuleForm, read_rule, rule_feed_ids
+from .rules import RuleForm, continuity_limit, read_rule, rule_feed_ids
 from .wire_value import (
     MAXIMUM_MANIFEST_BYTES,
     WireError,
@@ -94,8 +95,8 @@ def read_manifest(value: Any) -> dict[str, Any]:
     return manifest
 
 
-#: The forms an instant feed admits: a deadline, or the deadline moving.
-_INSTANT_FORMS = frozenset({RuleForm.ENDS_WITHIN, RuleForm.CHANGED, RuleForm.MOVED_BY})
+#: The forms an instant feed admits: a deadline, the deadline moving, or the deadline going missing.
+_INSTANT_FORMS = frozenset({RuleForm.ENDS_WITHIN, RuleForm.CHANGED, RuleForm.MOVED_BY, RuleForm.MISSING_DATA})
 
 
 def _check_typed_rules(manifest: dict[str, Any]) -> None:
@@ -108,8 +109,13 @@ def _check_typed_rules(manifest: dict[str, Any]) -> None:
         require(rate is None or (rate in types and rate != feed["id"]
                                  and types[rate]["kind"] == ValueKind.NUMBER.value), "fx feed")
     comparable = {feed["id"]: comparable_type(feed) for feed in manifest["feeds"]}
+    intervals = {feed["id"]: timedelta(milliseconds=feed["interval_ms"]) for feed in manifest["feeds"]}
     for rule in manifest["rules"]:
         form = RuleForm(rule["form"])
+        # An absence shorter than one missed tick is jitter, not absence (§5 decision 1).
+        require(form is not RuleForm.MISSING_DATA
+                or timedelta(milliseconds=rule["window_ms"]) >= continuity_limit(intervals[rule["feed_id"]]),
+                "missing_data window below the feed's continuity limit")
         if form is RuleForm.BEST_OF:
             # Totals in one currency compare; shipping, tax and source currency may differ (W5).
             group = [comparable[feed] for feed in rule_feed_ids(rule)]

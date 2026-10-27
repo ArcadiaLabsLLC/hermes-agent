@@ -52,7 +52,7 @@ both the source's time and the time it was received.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any
@@ -457,6 +457,9 @@ class Observation:
     received_at: datetime
     value: float | None
     gap: bool = False
+    #: The row's typed read reason when the caller has it (the store does). Read only by the
+    #: ``missing_data`` rule; never on the wire (:meth:`to_json`) and never part of equality.
+    reason: str | None = field(default=None, compare=False)
 
     def to_json(self) -> dict[str, Any]:
         return {

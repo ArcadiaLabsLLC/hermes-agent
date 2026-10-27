@@ -1,0 +1,1266 @@
+{
+ "source": "hermes-authored for RT-LENS-MISSING-DATA-RULE (plan docs/agent-runtime-harness/planned/LENS_EXTENSIONS_2026-10-27.md \u00a75); not a Companion corpus",
+ "rule": {
+  "version": 1,
+  "id": "silent",
+  "feed_id": "beat",
+  "form": "missing_data",
+  "severity": "urgent",
+  "direction": "below",
+  "threshold": 0,
+  "recovery_threshold": 0,
+  "window_ms": 60000,
+  "samples": 1
+ },
+ "interval_ms": 5000,
+ "cases": [
+  {
+   "id": "attested-absence-past-the-window-fires",
+   "note": "plan \u00a75 case 1",
+   "push": false,
+   "watched_since_ms": -600000,
+   "now_ms": 0,
+   "rows": [
+    {
+     "at_ms": -120000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -115000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -110000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -105000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -100000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -95000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -90000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -85000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -80000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -75000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -70000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -65000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -60000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -55000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -50000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -45000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -40000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -35000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -30000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -25000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -20000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -15000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -10000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -5000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": 0,
+     "value": null,
+     "reason": "timeout"
+    }
+   ],
+   "expected": "firing"
+  },
+  {
+   "id": "absence-shorter-than-the-window-is-healthy",
+   "note": "plan \u00a75 case 2",
+   "push": false,
+   "watched_since_ms": -600000,
+   "now_ms": 0,
+   "rows": [
+    {
+     "at_ms": -120000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -115000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -110000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -105000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -100000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -95000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -90000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -85000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -80000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -75000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -70000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -65000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -60000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -55000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -50000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -45000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -40000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -35000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -30000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -25000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -20000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -15000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -10000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -5000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": 0,
+     "value": null,
+     "reason": "timeout"
+    }
+   ],
+   "expected": "healthy"
+  },
+  {
+   "id": "a-watcher-offline-gap-inside-the-window-is-unknown",
+   "note": "plan \u00a75 case 3",
+   "push": false,
+   "watched_since_ms": -600000,
+   "now_ms": 0,
+   "rows": [
+    {
+     "at_ms": -120000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -115000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -110000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -105000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -100000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -95000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -90000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -85000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -80000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -75000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -70000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -65000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -60000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -55000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -50000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -45000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -40000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -35000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -30000,
+     "value": null,
+     "reason": "watcher_offline"
+    },
+    {
+     "at_ms": -25000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -20000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -15000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -10000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -5000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": 0,
+     "value": null,
+     "reason": "timeout"
+    }
+   ],
+   "expected": "unknown"
+  },
+  {
+   "id": "the-same-series-with-a-timeout-instead-fires",
+   "note": "plan \u00a75 case 8, positive control for case 3",
+   "push": false,
+   "watched_since_ms": -600000,
+   "now_ms": 0,
+   "rows": [
+    {
+     "at_ms": -120000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -115000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -110000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -105000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -100000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -95000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -90000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -85000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -80000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -75000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -70000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -65000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -60000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -55000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -50000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -45000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -40000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -35000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -30000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -25000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -20000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -15000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -10000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -5000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": 0,
+     "value": null,
+     "reason": "timeout"
+    }
+   ],
+   "expected": "firing"
+  },
+  {
+   "id": "a-silent-push-feed-bound-across-the-window-fires",
+   "note": "plan \u00a75 case 4",
+   "push": true,
+   "watched_since_ms": -120000,
+   "now_ms": 0,
+   "rows": [],
+   "expected": "firing"
+  },
+  {
+   "id": "a-silent-push-feed-bound-inside-the-window-is-unknown",
+   "note": "plan \u00a75 case 4",
+   "push": true,
+   "watched_since_ms": -30000,
+   "now_ms": 0,
+   "rows": [],
+   "expected": "unknown"
+  },
+  {
+   "id": "one-valid-read-after-firing-is-healthy",
+   "note": "plan \u00a75 case 5 (recovery; the firing frame is case 1)",
+   "push": false,
+   "watched_since_ms": -600000,
+   "now_ms": 5000,
+   "rows": [
+    {
+     "at_ms": -120000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -115000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -110000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -105000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -100000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -95000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -90000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -85000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -80000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -75000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -70000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -65000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -60000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -55000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -50000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -45000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -40000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -35000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -30000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -25000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -20000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -15000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -10000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -5000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": 0,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": 5000,
+     "value": 50.0,
+     "reason": "ok"
+    }
+   ],
+   "expected": "healthy"
+  },
+  {
+   "id": "a-sample-later-than-now-is-unknown",
+   "note": "plan \u00a75 case 6",
+   "push": false,
+   "watched_since_ms": -600000,
+   "now_ms": 0,
+   "rows": [
+    {
+     "at_ms": -120000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -115000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -110000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -105000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -100000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -95000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -90000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -85000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -80000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -75000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -70000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -65000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -60000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -55000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -50000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -45000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -40000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -35000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -30000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -25000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -20000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -15000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -10000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -5000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": 0,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": 3000,
+     "value": null,
+     "reason": "timeout"
+    }
+   ],
+   "expected": "unknown"
+  },
+  {
+   "id": "never-a-valid-read-in-an-attested-window-fires",
+   "note": "plan \u00a75 case 7",
+   "push": false,
+   "watched_since_ms": -100000,
+   "now_ms": 0,
+   "rows": [
+    {
+     "at_ms": -100000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -95000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -90000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -85000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -80000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -75000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -70000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -65000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -60000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -55000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -50000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -45000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -40000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -35000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -30000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -25000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -20000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -15000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -10000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -5000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": 0,
+     "value": null,
+     "reason": "timeout"
+    }
+   ],
+   "expected": "firing"
+  },
+  {
+   "id": "a-hole-wider-than-the-continuity-limit-is-unknown",
+   "note": "pulled-feed coverage",
+   "push": false,
+   "watched_since_ms": -600000,
+   "now_ms": 0,
+   "rows": [
+    {
+     "at_ms": -120000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -115000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -110000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -105000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -100000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -95000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -90000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -85000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -80000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -75000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -70000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -65000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -60000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -55000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -50000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -45000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -40000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -20000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -15000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -10000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -5000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": 0,
+     "value": null,
+     "reason": "timeout"
+    }
+   ],
+   "expected": "unknown"
+  },
+  {
+   "id": "a-watcher-that-started-inside-the-window-is-unknown",
+   "note": "plan \u00a75 decision 2",
+   "push": false,
+   "watched_since_ms": -30000,
+   "now_ms": 0,
+   "rows": [
+    {
+     "at_ms": -25000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -20000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -15000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -10000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": -5000,
+     "value": null,
+     "reason": "timeout"
+    },
+    {
+     "at_ms": 0,
+     "value": null,
+     "reason": "timeout"
+    }
+   ],
+   "expected": "unknown"
+  },
+  {
+   "id": "a-gap-with-no-reason-attests-nothing",
+   "note": "a row read without its reason is never attesting",
+   "push": false,
+   "watched_since_ms": -600000,
+   "now_ms": 0,
+   "rows": [
+    {
+     "at_ms": -120000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -115000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -110000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -105000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -100000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -95000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -90000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -85000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -80000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -75000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -70000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -65000,
+     "value": 50.0,
+     "reason": "ok"
+    },
+    {
+     "at_ms": -60000,
+     "value": null,
+     "reason": null
+    },
+    {
+     "at_ms": -55000,
+     "value": null,
+     "reason": null
+    },
+    {
+     "at_ms": -50000,
+     "value": null,
+     "reason": null
+    },
+    {
+     "at_ms": -45000,
+     "value": null,
+     "reason": null
+    },
+    {
+     "at_ms": -40000,
+     "value": null,
+     "reason": null
+    },
+    {
+     "at_ms": -35000,
+     "value": null,
+     "reason": null
+    },
+    {
+     "at_ms": -30000,
+     "value": null,
+     "reason": null
+    },
+    {
+     "at_ms": -25000,
+     "value": null,
+     "reason": null
+    },
+    {
+     "at_ms": -20000,
+     "value": null,
+     "reason": null
+    },
+    {
+     "at_ms": -15000,
+     "value": null,
+     "reason": null
+    },
+    {
+     "at_ms": -10000,
+     "value": null,
+     "reason": null
+    },
+    {
+     "at_ms": -5000,
+     "value": null,
+     "reason": null
+    },
+    {
+     "at_ms": 0,
+     "value": null,
+     "reason": null
+    }
+   ],
+   "expected": "unknown"
+  }
+ ]
+}
