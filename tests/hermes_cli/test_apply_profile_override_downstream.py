@@ -128,3 +128,44 @@ def test_extracted_profile_scanner_distinguishes_cli_typos_from_pytest(monkeypat
     assert bootstrap._scan_profile_flag(["-p", "Work Bot"]) == (None, 0, None)
     assert bootstrap._scan_profile_flag(["-p", "no:xdist"]) == (None, 0, None)
     assert capsys.readouterr().err == ""
+
+
+class TestBindingPinnedHome:
+    """RT-PERSONA-BINDING-ENV-REPLAN: a child of a default-bound persona turn
+    gets ``HERMES_HOME=<root>`` plus ``HERMES_PROFILE_PINNED=1``; the sticky
+    ``active_profile`` must not re-home it."""
+
+    def _run(self, tmp_path, monkeypatch, *, pinned: bool, argv=None):
+        from hermes_cli import profiles
+
+        monkeypatch.setattr(
+            profiles, "resolve_profile_env",
+            lambda name: str(tmp_path / ".hermes" / "profiles" / name),
+        )
+        _pin_hermes_root(monkeypatch, tmp_path / ".hermes")
+        monkeypatch.delenv("HERMES_PROFILE_PINNED", raising=False)
+        return _run_apply_profile_override(
+            tmp_path, monkeypatch,
+            hermes_home=str(tmp_path / ".hermes"), active_profile="other",
+            argv=argv or ["hermes", "chat"],
+            extra_env={"HERMES_PROFILE_PINNED": "1"} if pinned else None,
+        )
+
+    def test_pinned_root_ignores_active_profile(self, tmp_path, monkeypatch):
+        """Kill-mutation: remove the fork ``HERMES_PROFILE_PINNED`` rung —
+        ``HERMES_HOME`` becomes ``<root>/profiles/other``."""
+        result = self._run(tmp_path, monkeypatch, pinned=True)
+        assert result == str(tmp_path / ".hermes")
+        assert os.environ["HERMES_PROFILE_RESOLUTION"] == "binding_pinned"
+
+    def test_unpinned_root_still_follows_active_profile(self, tmp_path, monkeypatch):
+        """Positive control (#22502). Kill-mutation: skip the sticky read
+        whenever ``HERMES_HOME`` is set."""
+        result = self._run(tmp_path, monkeypatch, pinned=False)
+        assert result == str(tmp_path / ".hermes" / "profiles" / "other")
+        assert os.environ["HERMES_PROFILE_RESOLUTION"] == "active_profile_marker"
+
+    def test_explicit_flag_beats_the_pin(self, tmp_path, monkeypatch):
+        result = self._run(tmp_path, monkeypatch, pinned=True, argv=["hermes", "--profile", "x", "chat"])
+        assert result == str(tmp_path / ".hermes" / "profiles" / "x")
+        assert os.environ["HERMES_PROFILE_RESOLUTION"] == "flag"

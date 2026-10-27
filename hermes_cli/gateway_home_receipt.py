@@ -52,6 +52,9 @@ RESOLUTION_FLAG = "flag"
 RESOLUTION_ENV_PROFILE_DIR = "env_profile_dir"
 RESOLUTION_ACTIVE_PROFILE_MARKER = "active_profile_marker"
 RESOLUTION_DEFAULT = "default"
+#: A child spawned inside a persona turn: its ``HERMES_HOME`` is the bound home
+#: (``HERMES_PROFILE_PINNED``), so the sticky ``active_profile`` is not read.
+RESOLUTION_BINDING_PINNED = "binding_pinned"
 
 #: Every rung main.py's ladder can name. The receipt reads it: a value outside it
 #: (a pre-parse that grew a rung this module never heard of, or a stray env var)
@@ -61,6 +64,7 @@ RESOLUTION_RUNGS = (
     RESOLUTION_ENV_PROFILE_DIR,
     RESOLUTION_ACTIVE_PROFILE_MARKER,
     RESOLUTION_DEFAULT,
+    RESOLUTION_BINDING_PINNED,
 )
 
 #: main.py writes the answering rung here; the gateway reads it back at boot.

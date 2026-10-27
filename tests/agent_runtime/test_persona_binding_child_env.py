@@ -193,3 +193,47 @@ def test_agent_chat_dispatch_child_states_the_home_rather_than_inheriting(tmp_pa
     stated = str(tmp_path / "profiles" / "alice")
     env = child_environment({"hermes_home": stated})
     assert env["HERMES_HOME"] == stated
+
+
+# ---------------------------------------------------------------------------
+# RT-PERSONA-BINDING-ENV-REPLAN: a default-bound turn's child keeps the root
+# ---------------------------------------------------------------------------
+
+
+def test_default_bound_child_env_carries_the_pin_marker(tmp_path, monkeypatch):
+    """A ``default`` binding's home IS the root; the marker says it was bound.
+
+    Kill-mutation: delete the ``HERMES_PROFILE_PINNED`` write in
+    ``_apply_profile_home`` — the key is then absent and the child's pre-parse
+    falls through to the sticky ``active_profile``.
+    """
+    from tools.environments.local import build_subprocess_env
+
+    monkeypatch.delenv("HERMES_PROFILE_PINNED", raising=False)
+    root = tmp_path / "hermesroot"
+    root.mkdir()
+    binding = PersonaProfileBinding(
+        persona_id="persona_default", hermes_profile="default", profile_home=root,
+        readiness="ready", summary="profile exists",
+    )
+    with persona_profile_context(binding, runtime_root=tmp_path / "rt"):
+        child = build_subprocess_env()
+    assert child["HERMES_HOME"] == str(root)
+    assert child.get("HERMES_PROFILE_PINNED") == "1"
+
+
+def test_unbound_child_env_carries_no_pin_marker(tmp_path, monkeypatch):
+    """Positive control: no bound home, no marker (#22502 stays intact).
+
+    Kill-mutation: write the marker unconditionally in ``_apply_profile_home``.
+    """
+    from tools.environments.local import build_subprocess_env
+
+    monkeypatch.delenv("HERMES_PROFILE_PINNED", raising=False)
+    unbound = PersonaProfileBinding(
+        persona_id="p", hermes_profile=None, profile_home=None,
+        readiness="ready", summary="inherits active Harness profile",
+    )
+    with persona_profile_context(unbound, runtime_root=tmp_path / "rt"):
+        child = build_subprocess_env()
+    assert "HERMES_PROFILE_PINNED" not in child

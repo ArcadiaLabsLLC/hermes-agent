@@ -1,6 +1,6 @@
 # Planned — the persona binding as the env authority
 
-**Status:** STALE 2026-10-27 (triage lane w1027j-h-tri-b) — every line cite predates the god-file split, B-4's `hermes_profile` now exists on create, and per-profile chat heads changed the model; the replan is row `RT-PERSONA-BINDING-ENV-REPLAN`. Was: B-1 shipped; B-2 / B-3 / B-4 not started. **Owner doc:**
+**Status:** STALE 2026-10-27 (triage lane w1027j-h-tri-b) — every line cite predates the god-file split, B-4's `hermes_profile` now exists on create, and per-profile chat heads changed the model; the replan ([persona-binding-child-default-profile-2026-10-27.md](persona-binding-child-default-profile-2026-10-27.md)) shipped B-2's last slice and closed B-3 / B-4. Was: B-1 shipped; B-2 / B-3 / B-4 not started. **Owner doc:**
 [`../05-chat-turn-lane.md`](../05-chat-turn-lane.md).
 **Source:**
 [`../archive/2026-08-22-pre-consolidation/PERSONA_PROFILE_BINDING_AUTHORITY_PLAN_2026-08-16.md`](../archive/2026-08-22-pre-consolidation/PERSONA_PROFILE_BINDING_AUTHORITY_PLAN_2026-08-16.md),
