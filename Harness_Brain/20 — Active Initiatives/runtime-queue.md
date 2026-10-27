@@ -999,3 +999,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ## Filed on arrival — 2026-10-26 (launcher lane w1026c-shell)
 
 - **`RT-SERVE-SKILLS-OPERATOR-CHILD-ADDRESS` — Forward `child_ref` and `lend` on the operator conversation family: `runtime.operator.conversation.skills` takes only list|detail|history for the parent session, while the Launcher's worker snapshots are all `runtime.operator.conversation.subagents.*`, so the shipped native-only `runtime.conversation.skills.*` child route (`e1eea45389`) is unreachable from the Launcher** · `agent_runtime/operator_session_inspection.py::inspect_operator_skills` · `agent_runtime/subagents/params.py` · launcher row `COMP-SKILLS-WORKER-ADDRESS` · READY 2026-10-26
+
+## Filed on arrival — 2026-10-26 (launcher lane w1026c-core)
+
+- **`RT-CLAIM-MARK-PLACE-GATE` — the work-store grammar does not red a lane claim dated 2026-10-27 or later that names no `on <machine>`; mirror the launcher's `WorkQueueClaim.missingPlace` (persona claims and earlier marks exempt), with its killing mutation recorded** · `tests/agent_runtime/work_store/test_grammar.py` · `lib/features/mission_control/work_queue/policy/work_queue_row.dart::WorkQueueClaim` · READY 2026-10-26
