@@ -13,7 +13,7 @@ from dataclasses import replace
 from typing import Any
 
 from ..shapes import json_skeleton
-from .transport import ReadReason, ReadResult, fetch_json, unavailable
+from .transport import ReadReason, ReadResult, Validators, fetch_json, unavailable
 
 __layer__ = "lanes"
 
@@ -58,10 +58,27 @@ def document_read(document: Any, selector: str, http_status: int | None = None) 
     return replace(result, shape=json_skeleton(document))
 
 
-def read(feed: dict[str, Any], *, headers: dict[str, str], client: Any = None, resolver: Any = None) -> ReadResult:
+def read(feed: dict[str, Any], *, headers: dict[str, str], client: Any = None, resolver: Any = None,
+         validators: Validators | None = None) -> ReadResult:
+    """One read; with ``validators`` it is conditional and a ``304`` answers ``not_modified``."""
+
     source = feed["source"]
     document, failed = fetch_json(source["url"], headers=headers, allow_private=feed.get("allow_private_network", False),
-                                  client=client, resolver=resolver)
+                                  client=client, resolver=resolver, validators=validators)
     if failed is not None:
+        return _replayed(failed, validators)
+    result = document_read(document, source["selector"], 200)
+    if validators is not None:
+        validators.answer = result
+    return result
+
+
+def _replayed(failed: ReadResult, validators: Validators | None) -> ReadResult:
+    """A ``304``: the document is the one the validators name, so its read answers again —
+    a value under ``not_modified``, a failed selection under its own reason (its skeleton kept)."""
+
+    answer = None if validators is None else validators.answer
+    if failed.reason is not ReadReason.NOT_MODIFIED or answer is None:
         return failed
-    return document_read(document, source["selector"], 200)
+    reason = ReadReason.NOT_MODIFIED if answer.value is not None else answer.reason
+    return replace(answer, reason=reason, http_status=failed.http_status)

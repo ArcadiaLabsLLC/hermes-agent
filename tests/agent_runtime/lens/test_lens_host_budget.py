@@ -117,3 +117,51 @@ def test_every_read_names_eterna_lens_and_a_hostless_feed_spends_no_budget():
     assert host_key({"kind": "command_allowlisted", "source": {}}) is None
     assert host_key(_feed("https://Status.Example.invalid/h")) == "status.example.invalid:443"
     assert host_key(_feed("http://10.0.0.5:9090/x")) == "10.0.0.5:9090"
+
+
+# --- RT-LENS-CONDITIONAL-READS ------------------------------------------------------
+
+
+def _conditional(sent: list) -> callable:
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request.headers.get("if-none-match"))
+        if request.headers.get("if-none-match") == '"v1"':
+            return httpx.Response(304)
+        return httpx.Response(200, json={"cpu": 95}, headers={"ETag": '"v1"'})
+
+    return handler
+
+
+def test_a_304_records_the_last_value_as_not_modified_and_its_rule_stays_evaluable():
+    rule = {"version": 1, "id": "hot", "feed_id": "api", "form": "consecutive_samples",
+            "severity": "urgent", "direction": "above", "threshold": 90, "recovery_threshold": 80, "window_ms": 0,
+            "samples": 2}
+    manifest = {"version": 1, "monitor_id": "status", "feeds": [_feed("https://status.example.invalid/h", 5000)],
+                "rules": [rule], "automation": {"level": "notify", "when": "urgent", "daily_turn_cap": 0},
+                "persona_id": None}
+    store = LensStore()
+    store.create(manifest)
+    store.seal("status")
+    store.set_state("status", MonitorState.ENABLED)
+    sent: list = []
+    clock = _Clock(T0)
+    poller = _poller(clock, _conditional(sent), HostBudget(public_per_minute=30, private_per_minute=120))
+    poller.tick()
+    clock.at += timedelta(seconds=5)
+    poller.tick()
+
+    assert sent == [None, '"v1"']
+    assert [(row["value"], row["gap"], row["reason"], row["http_status"]) for row in _rows(store, "status")] == [
+        (95.0, False, "ok", 200), (95.0, False, "not_modified", 304)]
+    # Two non-gap samples above 90: the 304 counts as evidence, so the rule fires.
+    assert [e["state"] for e in store.episodes(monitor_id="status")] == ["active"]
+
+
+def test_a_restarted_poller_holds_no_validators_and_sends_a_full_get():
+    _enable("status", _feed("https://status.example.invalid/h", 5000))
+    sent: list = []
+    budget = HostBudget(public_per_minute=30, private_per_minute=120)
+    _poller(_Clock(T0), _conditional(sent), budget).tick()
+    _poller(_Clock(T0 + timedelta(seconds=5)), _conditional(sent), budget).tick()
+
+    assert sent == [None, None]

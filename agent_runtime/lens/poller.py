@@ -20,6 +20,10 @@ Each :meth:`LensPoller.tick` polls every due feed of every ENABLED monitor once:
   (``host_budget.HostBudget``, shared by every monitor); a refused take DEFERS the read to
   the next tick, and a defer that outlasts the feed's continuity limit records ONE
   ``host_budget_deferred`` gap per elapsed limit, so a paused host is visible in the series;
+* W3 conditional reads: an ``http_json`` feed's ``ETag`` / ``Last-Modified`` (and the read
+  they answer) are held here, in memory, and sent back; a ``304`` answers that read's value
+  with reason ``not_modified`` (not a gap: the server asserted it unchanged now). A restart
+  holds no validators, so its first read is a full GET;
 * a read is typed by ``sources.typed_result`` with the feed's recent raw reads (the
   outlier window, kept in memory: a restart refills it, and the guard abstains
   until it is full) and the monitor's newest dated exchange rate (W2(c), W5);
@@ -48,7 +52,7 @@ from .host_budget import HostBudget, host_key, is_private_reader
 from .missed_deadlines import record_missed_deadlines
 from .rules import CLOCK_FORMS, RuleForm, continuity_limit, evaluate, rule_feed_ids
 from .sources import read_feed_source
-from .sources.transport import ReadReason, ReadResult
+from .sources.transport import ReadReason, ReadResult, Validators
 from .store import LensStore, MonitorState, from_ms, to_ms
 from .store_shapes import record_shape
 
@@ -79,6 +83,8 @@ class _FeedClock:
     failures: int = 0
     #: When a due read was first deferred by its host's budget (None while not deferred).
     deferred_since: datetime | None = None
+    #: Conditional-read validators and the read they answer (W3, in memory only).
+    validators: Validators = field(default_factory=Validators)
     #: The feed's recent raw reads, refused ones included (the outlier window).
     recent: deque = field(default_factory=lambda: deque(maxlen=64))
 
@@ -192,7 +198,8 @@ class LensPoller:
     def _read(self, store: LensStore, monitor_id: str, manifest: dict[str, Any], feed: dict[str, Any],
               now: datetime) -> None:
         clock = self._clocks.setdefault((monitor_id, feed["id"]), _FeedClock())
-        result = read_feed_source(feed, client=self.client, resolver=self.resolver, sealed=True)
+        result = read_feed_source(feed, client=self.client, resolver=self.resolver, sealed=True,
+                                  validators=clock.validators)
         received = self.clock()
         self._record(store, monitor_id, manifest, feed, result, observed=now, received=received,
                      history=list(clock.recent))

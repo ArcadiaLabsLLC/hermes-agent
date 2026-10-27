@@ -10,6 +10,10 @@ Plan ``eternia-lens-in-hermes.md`` W10 (stage L1), ported in spirit from Compani
   cannot walk a classified URL onto an unclassified one);
 * the body is capped at :data:`MAXIMUM_BODY_BYTES` and the read at
   :data:`TIMEOUT_SECONDS`;
+* a caller that holds :class:`Validators` (the poller, per ``http_json`` feed, in memory)
+  sends ``If-None-Match`` / ``If-Modified-Since``; a ``304`` then answers
+  ``not_modified`` and the caller replays the value it last read (plan
+  ``LENS_EXTENSIONS_2026-10-27.md`` §2 decision 5). A validator never reaches the store;
 * every read names its reader: ``User-Agent: EterniaLens/<version>`` (:data:`USER_AGENT`,
   plan ``LENS_EXTENSIONS_2026-10-27.md`` §2 decision 6).
 
@@ -75,6 +79,9 @@ class ReadReason(str, Enum):
     #: A command feed of a manifest that is not sealed (a preview of a draft; L4).
     NOT_SEALED = "not_sealed"
     SOURCE_FAILED = "source_failed"
+    #: A conditional read's ``304``: the server asserted the last representation unchanged (W3).
+    #: Not a gap — the poller records the feed's last value with this reason.
+    NOT_MODIFIED = "not_modified"
     #: The host's shared read budget deferred a due read past the continuity limit (W3).
     HOST_BUDGET_DEFERRED = "host_budget_deferred"
 
@@ -95,6 +102,35 @@ class ReadResult:
     def to_json(self) -> dict[str, Any]:
         return {"status": self.status, "number": self.value, "reason": self.reason.value,
                 "http_status": self.http_status}
+
+
+#: The longest validator kept; a longer ``ETag`` / ``Last-Modified`` is not sent back.
+MAXIMUM_VALIDATOR_BYTES = 256
+
+
+@dataclass(slots=True)
+class Validators:
+    """One feed's conditional-read validators, held in memory by its poller (never stored),
+    with ``answer`` — the read the source made of the document they name. Set together, so
+    a ``304`` against them can only mean that read; a failed read in between moves neither."""
+
+    etag: str | None = None
+    last_modified: str | None = None
+    answer: ReadResult | None = None
+
+    def request_headers(self) -> dict[str, str]:
+        sent = {"If-None-Match": self.etag, "If-Modified-Since": self.last_modified}
+        return {name: value for name, value in sent.items() if value is not None}
+
+    def remember(self, headers: Any) -> None:
+        self.etag, self.last_modified = _validator(headers.get("etag")), _validator(headers.get("last-modified"))
+        self.answer = None
+
+
+def _validator(value: str | None) -> str | None:
+    if value is None or not value.isascii() or not value.isprintable() or len(value) > MAXIMUM_VALIDATOR_BYTES:
+        return None
+    return value
 
 
 def unavailable(reason: ReadReason, http_status: int | None = None) -> ReadResult:
@@ -135,9 +171,12 @@ def _is_ip(host: str) -> bool:
 
 
 def fetch_json(url: str, *, headers: dict[str, str], params: dict[str, str] | None = None,
-               allow_private: bool, client: Any = None, resolver: Resolver | None = None
-               ) -> tuple[Any, ReadResult | None]:
-    """``(document, None)`` on a 2xx JSON body, else ``(None, the failed read)``."""
+               allow_private: bool, client: Any = None, resolver: Resolver | None = None,
+               validators: Validators | None = None) -> tuple[Any, ReadResult | None]:
+    """``(document, None)`` on a 2xx JSON body, else ``(None, the failed read)``.
+
+    With ``validators``: they are sent, a ``304`` answers ``not_modified``, and a 2xx JSON
+    body replaces them with the response's own."""
 
     import httpx
 
@@ -146,8 +185,12 @@ def fetch_json(url: str, *, headers: dict[str, str], params: dict[str, str] | No
         return None, unavailable(refusal)
     owned = client is None
     client = client or httpx.Client(timeout=TIMEOUT_SECONDS, follow_redirects=False)
+    conditional = {} if validators is None else validators.request_headers()
     try:
-        with client.stream("GET", url, headers={**headers, "User-Agent": USER_AGENT}, params=params) as response:
+        with client.stream("GET", url, headers={**headers, **conditional, "User-Agent": USER_AGENT},
+                           params=params) as response:
+            if conditional and response.status_code == 304:
+                return None, unavailable(ReadReason.NOT_MODIFIED, 304)
             if 300 <= response.status_code < 400:
                 return None, unavailable(ReadReason.REDIRECT_REFUSED, response.status_code)
             if not 200 <= response.status_code < 300:
@@ -157,7 +200,7 @@ def fetch_json(url: str, *, headers: dict[str, str], params: dict[str, str] | No
                 body += chunk
                 if len(body) > MAXIMUM_BODY_BYTES:
                     return None, unavailable(ReadReason.TOO_LARGE, response.status_code)
-            status = response.status_code
+            status, answered = response.status_code, response.headers
     except httpx.TimeoutException:
         return None, unavailable(ReadReason.TIMEOUT)
     except httpx.HTTPError:
@@ -166,6 +209,9 @@ def fetch_json(url: str, *, headers: dict[str, str], params: dict[str, str] | No
         if owned:
             client.close()
     try:
-        return json.loads(bytes(body).decode("utf-8")), None
+        document = json.loads(bytes(body).decode("utf-8"))
     except (UnicodeDecodeError, ValueError):
         return None, unavailable(ReadReason.NOT_JSON, status)
+    if validators is not None:
+        validators.remember(answered)
+    return document, None

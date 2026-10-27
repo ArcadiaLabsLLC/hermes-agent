@@ -21,7 +21,7 @@ from ..feed import (
     SEALED_ONLY_FEED_KINDS, FeedKind, ReadingRefusal, fx_feed_id, outlier_refused, total_cost, typed_reading,
 )
 from . import command, http_json, prometheus, sql_readonly
-from .transport import ReadReason, ReadResult, unavailable
+from .transport import ReadReason, ReadResult, Validators, unavailable
 
 __layer__ = "lanes"
 
@@ -31,12 +31,18 @@ SOURCE_READERS: dict[FeedKind, Callable[..., ReadResult]] = {
     FeedKind.SQL_READONLY: sql_readonly.read,
     FeedKind.COMMAND_ALLOWLISTED: command.read,
 }
+#: The kinds whose reader takes conditional-read ``validators`` (W3; Prometheus queries are not
+#: conditional).
+CONDITIONAL_KINDS = frozenset({FeedKind.HTTP_JSON})
 
 
 def read_feed_source(feed: dict[str, Any], *, client: Any = None, resolver: Any = None,
-                     sealed: bool = False) -> ReadResult:
+                     sealed: bool = False, validators: Validators | None = None) -> ReadResult:
     """``sealed`` is True only for a read of a SEALED manifest (the poller): a command feed
-    runs from nothing else, so a draft's preview never executes a proposed argv."""
+    runs from nothing else, so a draft's preview never executes a proposed argv.
+
+    ``validators`` makes a :data:`CONDITIONAL_KINDS` read conditional (the poller's, per
+    feed); other kinds ignore them."""
 
     from ..credentials import resolve_credential
 
@@ -55,8 +61,9 @@ def read_feed_source(feed: dict[str, Any], *, client: Any = None, resolver: Any 
         if credential is None:
             return unavailable(ReadReason.CREDENTIAL_MISSING)
         headers.update(credential.headers())
+    conditional = {"validators": validators} if validators is not None and kind in CONDITIONAL_KINDS else {}
     try:
-        return reader(feed, headers=headers, client=client, resolver=resolver)
+        return reader(feed, headers=headers, client=client, resolver=resolver, **conditional)
     except Exception:
         return unavailable(ReadReason.SOURCE_FAILED)
 
