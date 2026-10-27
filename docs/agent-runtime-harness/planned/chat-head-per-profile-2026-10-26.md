@@ -68,3 +68,31 @@ change), CH4, and CH3 last; the operator applies the move after CH2–CH5 are li
 
 `RT-CHAT-HEAD-CH1-RECALL-PIN`, `RT-CHAT-HEAD-CH2-LADDER`, `RT-CHAT-HEAD-CH3-MOVE-VERB`,
 `RT-CHAT-HEAD-CH4-CROSS-AGENT-READS`, `RT-CHAT-HEAD-CH5-RELAY-HEAD`.
+
+## 6. Open — the writer side (found building CH2, lane w1026c-h-rt-a, 2026-10-26)
+
+§2.2 moves the READ ladder; nothing in §2 moves the writes, and the two cannot move apart (the
+2026-07-27 read-lane gap is exactly a read and a write resolving different heads). Read on `main`:
+
+- The send lane opens its SessionDB BEFORE it loads the instance:
+  `hermes_cli/harness_parts/persona/chat_turn_message.py` calls `_default_persona_session_db()`
+  (`agent_runtime/persona_chat_durability.py::default_persona_session_db`, process scope →
+  `HERMES_HEAD_HOME`) and only then builds the `PersonaInstanceStore`; the fresh-root mint
+  (`_mint_send_root` → `mint_chat_root(session_db=…)`) writes into that handle.
+- The same process-scope acquisition is the writer for `chat_open.py` (three sites, incl. its mint),
+  `chat_delete.py`, `lifecycle_commands.py`, `chat_verbs/turn_resolve.py`,
+  `conversations/migration.py::migrate_conversation`, `snapshot/details.py` (three) and
+  `profile_context.py`; `operator_history.py`, `operator_undo.py`, `operator_session_models.py`,
+  `continuity.py` and `persona_assignments/scan.py` call `resolve_process_chat_scope()` directly.
+- One writer handle is held per process (`agent_runtime/chat_session_writer.py::ChatSessionWriterOwner`,
+  one scope per `acquire`) and the prewarmed resident actor keeps the `session_db` it was built with
+  (`persona_chat_actor_prewarm.py`, `ProfileAgentRunner(session_db=…)`); CH1's pin shows that handle is
+  what recall searches.
+- The stamp writer `persona_assignments/chat_binding.py::_stamp_chat_head` stamps the PROCESS scope
+  every turn, so it would overwrite a per-profile stamp with `profiles/base` on the next turn.
+
+What the plan must decide before CH2 builds: which of these acquisitions resolve per instance (a
+`scope_for_instance(instance)` door beside `resolve_process_chat_scope`, and the send lane loading the
+instance first), how the writer lease and the resident actor hold one handle per head, and when the
+mint may stamp `per_profile` on an instance that already has chats in `base` (only on a first mint, or
+only via CH3's flip).
