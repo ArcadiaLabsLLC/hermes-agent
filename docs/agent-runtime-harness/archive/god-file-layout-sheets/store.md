@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `4c73f83de0` (MOVE), `19efe65b29` (CHANGE).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Layout sheet — `agent_runtime/store.py` (lane R1 · exec lane 2B-A)
 
 Base: `main` @ `28012c8f8a` · 1,114 raw / 911 code / 28 top-level defs · longest `WorkspaceStore.delete` 124 · chains 0/0 · `str==` 4 · `isinstance` 4 · sha256 `70e42ce25af8bcfebc8f0896a8c63c0b3e4826a83c67cc56aa7e249ec182f305` · owner doc `docs/agent-runtime-harness/02-data-shapes-and-stores.md`. **34 production importers and 113 test files** — the most-spelled path in this batch — so the package MUST be named after the file and `__init__` must re-export every name below. Importers take `AgentStore`, `WorkspaceStore`, `RealmStore`, `RunStore`, `IncidentStore`, `TaskStore` (the `task_store_stub` re-export at line 209 — 6 production importers read it FROM HERE), `ACTIVE_RUN_STATES`, the ledger helpers (`skill_tombstoned`, `active_skill_tombstones`, `lift_deleted_workspace`, `prune_settled_ledger`, `ledger_time`, `workspace_lift_is_active`, `skill_tombstone_matches`), and one test imports `_write_model`.

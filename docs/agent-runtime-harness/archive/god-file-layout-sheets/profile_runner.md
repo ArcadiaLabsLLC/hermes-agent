@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `628504e136` (MOVE), `aee2d8096f`, `edac59bf1c` (CHANGE).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Layout sheet — `agent_runtime/profile_runner.py` (lane R3)
 
 Base: `main` @ `bf4377f226` · 3,584 raw / 2,733 code / 95 top-level defs · longest `ProfileAgentRunner._execute_agent_run` 424 (951–1374, **depth 5** — the deepest unit in Wave 2) · chains 4/4 · `str==` 26 · `isinstance` 71 · owner doc `docs/agent-runtime-harness/05-chat-turn-lane.md`. 4 production importers, all taking four names (`AgentRunRequest`, `ProfileAgentRunner`, `RunBudgetExceeded`, `agent_runs_in_flight`); 36 test files, 8 pinning 8 private names, 9 `setattr` sites. One W0-G6 private upstream reach. Seven W0-G3 duplicate rows name this file — more than any other in Wave 2: it is where the fork's redaction helpers were copied FROM.

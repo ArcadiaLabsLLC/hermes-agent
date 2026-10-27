@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `ea9b244dfb` (MOVE), `90e9fab96f` (CHANGE).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Layout sheet — `agent_runtime/persona_instance_sync.py` (lane R4 · exec lane 2B-C)
 
 Base: `main` @ `28012c8f8a` · 1,357 raw / 975 code / 28 top-level defs · longest `apply_persona_instance_pull` 273 (W0-G7 fixture row) · chains 0/0 · `str==` 3 · `isinstance` 16 · W0-G5 fixture row `_wire_value|isinstance|value` · sha256 `5376425b358f991c7f1503da43e64d96d1d9841167c506903fb6282149e054cb` · owner doc `docs/agent-runtime-harness/09-multi-device-runtime.md` (instance replication). 7 production importers (`realm_sync/{artifacts,drift,persona_artifacts,publish,pull}`, `realm_revert`, `persona_assignments/replicate`), 5 test files. Importers take `PROJECTION_RELATIVE_PATH`, `apply_persona_instance_pull`, `instance_baseline_key`, `persona_instance_def_hash`, `project_persona_instance(s)`, `read_remote_persona_instances`, `refuse_persona_instance`, `update_persona_instance_baseline_after_publish`; tests additionally pin the three key sets and `PERSONA_INSTANCE_NEVER_TRAVELS_KEYS` (the totality gate), `cleared_travel_value`, `instance_conflict_path`, `valid_persona_instance_id`, `REFUSAL_*`; one patches `apply_persona_instance_pull` on the module.

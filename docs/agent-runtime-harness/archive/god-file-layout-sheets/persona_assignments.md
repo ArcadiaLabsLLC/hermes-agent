@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `2343e2e529` (MOVE), `af443619cf`, `add584ad69` (CHANGE).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Layout sheet — `agent_runtime/persona_assignments.py` (lane R1)
 
 Base: `main` @ `bf4377f226` · 4,053 raw / 3,172 code / 56 top-level defs · longest `PersonaInstanceStore.open_chat` 203 (2258–2460) · chains 0 · `str==` 6 · `isinstance` 2 · owner doc `docs/agent-runtime-harness/02-runtime-data-and-shapes.md` (persona instances) and `05-chat-turn-lane.md` (the chat binding). **The most-imported file in Wave 2: 60 production importers, 72 test files**, most of them taking the module-level identity helpers (`canonical_persona_instance_id`, `persona_instance_display_name`, `normalize_persona_id`, `safe_assignment_token` ×29, `safe_assignment_text` ×30) rather than the store. `PersonaInstanceStore` (480–2845) is 2,366 raw lines in one class.

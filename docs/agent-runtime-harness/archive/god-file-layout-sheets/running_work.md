@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `1778b923a6` (MOVE), `76e960cba4` (CHANGE).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Layout sheet — `agent_runtime/running_work.py` (lane R2)
 
 Base: `main` @ `28012c8f8a` · sha256 `ad55a7c70b87fed9db780643b7a1ad1be5652009c0dcc9035c34d85f0888fae9` · 1,964 raw / 1,517 code / 31 top-level defs · longest `_collect_delegations` 233 (1029–1261, depth 5) · chains 0/0 · `str==` 4 · `isinstance` 21 · owner doc `docs/agent-runtime-harness/07-observability.md` (the `running_work` projection; the 152-line module docstring is its design — durable-first, the five honesty rules, contract vs ambient). 6 production importers taking 8 names (`runtime_commands.py` → `RUNNING_WORK_KINDS`, `build_running_work`, `cancel_work`, `find_work_row`, `peek_work`; `snapshot/sections.py` → `build_running_work`; `core_cache/{fingerprint,restat}.py`, `stream.py`, `serve/boot.py` → `running_work_store_paths`; `core_cache/restat.py` → the private `_STATE_DB_FILENAME`); 5 test files pinning 18 names, two private.

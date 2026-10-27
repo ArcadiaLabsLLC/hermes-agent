@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `ff9bde9043` (MOVE), `9f3e6f4b64` (CHANGE).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Layout sheet — `agent_runtime/runtime_hud.py` (lane R2 · exec lane 2B-B)
 
 Base: `main` @ `28012c8f8a` · 1,437 raw / 1,103 code / 37 top-level defs · longest `render_situational_hud_block` 146 (four lines under the floor) · chains 3/0 · `str==` 6 · `isinstance` 34 · sha256 `55ffa9d51f6a25fb077beed33765b13a7e9719231156459e744ed96ae9ba4537` · owner doc `docs/agent-runtime-harness/05-chat-turn.md` (the HUD) and `07-observability.md`. 5 production importers (`mission_chat_turn_context`, `persona_chat_continuity`, `chat_lane_bundle`, `persona_chat_history/curation`, `prompt_observability/snapshot_frame` — which lazily imports the PRIVATE `_installs_block`), 16 test files (two import `_mission_chat_surface_message`/`_mission_chat_user_message` FROM `persona_runtime`, not from here). Importers take `resolve_situational_hud`, `situational_hud_for_instance`, `capability_block_for_persona`, the two `extract_*_envelope`, `situational_hud_revision`, `render_*`, `skill_preload_*`, the `*_CODEC`s.

@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `da5eb0f273` (MOVE), `592ff06301`, `ae383cc9c0` (CHANGE).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Layout sheet — `hermes_cli/harness_parts/serve.py` (lane H4)
 
 Base: `main` @ `78501db796` · 6,646 raw / 4,041 code / 46 top-level defs · longest `serve_loop` 3,760 (2508–6267) with **39 nested defs** (listed in §4) · `str==` 27 · `isinstance` 30 · owner doc `docs/agent-runtime-harness/03-transport-and-wire.md`. LAST of the harness lanes (09-21 §2 H4, kept): waits on H1–H3 so nothing else is moving in the boot path; the operator's one boot (program §7) gates its CHANGE. Already a real module (not exec'd); 46 test files import it by path, so `serve/__init__.py` is the ONE place a re-export is allowed until the CHANGE retargets them.

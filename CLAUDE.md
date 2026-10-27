@@ -158,7 +158,7 @@ batch at its landing, never per lane.
 ## Weakness escalation, per domain (owner ruling 2026-09-24, mirrored from the launcher's CLAUDE.md)
 
 Whenever work in an area — a fix, a feature, a review, a lane report — reveals architecture that
-is weak by the fork's bar (`docs/agent-runtime-harness/planned/god-file-program-2026-09-24.md`
+is weak by the fork's bar (`docs/agent-runtime-harness/archive/god-file-program-2026-09-24.md`
 §2: routing as tables, one write path per state, typed reasons, one owner per helper, a module
 map, the legibility floor), do NOT just patch the symptom and move on: **fix the immediate defect
 narrowly, then RECORD the structural weakness as a row in the domain queue, in the same commit

@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `de8cdf0bd4` (MOVE), `27bd07a842` (CHANGE).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Layout sheet — `hermes_cli/harness_parts/persona_commands.py` (lane H3)
 
 Base: `main` @ `78501db796` · 8,191 raw / 6,269 code / 119 top-level defs · longest `_mission_chat_commit_turn` 1,590 (3544–5133) · `str==` 31 · `isinstance` 30 · owner doc `docs/agent-runtime-harness/05-chat-turn-lane.md`. Waits on H1 (this file is still `exec`'d into `harness.py`'s globals at harness.py:6730–6737; 41 test patches name `harness.<name>` for names defined HERE). Every line range below is on the base SHA; the MOVE commit re-derives each span's sha256 from these ranges (program §3.3).

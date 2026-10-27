@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The god-file program's one instrument, and the census every Wave 0 gate reads.
 
-Plan: ``docs/agent-runtime-harness/planned/god-file-program-2026-09-24.md``
+Plan: ``docs/agent-runtime-harness/archive/god-file-program-2026-09-24.md``
 (§0.1, §2.4, Appendix A) and ``downstream-god-file-refactor.md`` §2 Wave 0.
 
 The POPULATION is enumerated from the tree, never typed: a file is FORK

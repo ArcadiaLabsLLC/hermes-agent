@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `943b4d37ba` (MOVE), `f056e9920b` (CHANGE).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Layout sheet — `agent_runtime/persona_chat_continuity.py` (lane R1)
 
 Base: `main` @ `28012c8f8a` · sha256 `7a4f94b5c33afb1b55d63f93e4f7b16644b3f1d2faad6a20a6b812b343f36e0c` · 2,240 raw / 1,646 code / 36 top-level defs · longest `PersonaChatMintReceiptStore.mint` 232 (987–1218, depth 4) · chains 0/0 · `str==` 10 · `isinstance` 25 · owner doc `docs/agent-runtime-harness/05-chat-turn-lane.md` (the lease, the mint, the native boundary). 19 production importers taking 16 names (the four persona CLI modules, `dispatch_delivery`, `native_persistence`, `persona_chat_actor_prewarm`, `persona_chat_durability`, `persona_chat_history/*`, `profile_runner/execute`, `serve/{boot_phases,session}`, `harness_support`, `tools/terminal_tool`); 12 test files pinning 36 names, seven private (`_MAX_*` ×4, `_bound_envelope`, `_signature_component_diff`, `CONTENT_BOUND_PARTS`).

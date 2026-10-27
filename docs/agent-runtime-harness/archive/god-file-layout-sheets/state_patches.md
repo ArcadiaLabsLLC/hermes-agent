@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `ced4dc2c20` (MOVE), `e936635056` (CHANGE).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Layout sheet — `agent_runtime/state_patches.py` (lane R1 · exec lane 2B-A)
 
 Base: `main` @ `28012c8f8a` · 1,439 raw / 1,023 code / 27 top-level defs · longest `build_state_patch` 82 · chains 0/0 · `str==` 0 · `isinstance` 5 · sha256 `2a121504d135d92254f60743db28d678247ee553ba9f95eaf07b7cb552f5bdd3` · owner doc `docs/agent-runtime-harness/03-transport-and-wire.md` (the patch lane). 16 production importers (`office_store/{patches,store}`, `persona_assignments/{chat_binding,replicate,retire,store}`, `serve_rpc/params`, `serve_office_subscriptions`, `patch_coverage`, `stream`, `stream_resume`, `chat_turn`, `store`, `gateway_commands`, the stream-fixture generator), 23 test files. Every importer takes a public name (13 distinct: the nine `emit_*`, `delta_patches_enabled`, `normalize_correlation_id`, `CORRELATION_ID_KEY`, `STATE_PATCHED_EVENT_TYPE`); no private name crosses the file.

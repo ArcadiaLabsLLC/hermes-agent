@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `18818836a6` (MOVE), `1545acc7e5` (CHANGE).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Layout sheet — `agent_runtime/terminal_envelope.py` (lane R2 · exec lane 2B-B)
 
 Base: `main` @ `28012c8f8a` · 1,262 raw / 963 code / 27 top-level defs · longest `envelope_decision` 141 (nine under the floor) · chains 0/0 · `str==` 0 · `isinstance` 3 · sha256 `ea8b97b119dddec8b434f88fa2d04795d3293870b9e1611bf3344ff1d7b9807a` · owner doc `docs/agent-runtime-harness/05-chat-turn.md` (the envelope). 13 production importers (`config`, `permission_modes`, `persona_chat_actor_prewarm`, `persona_chat_continuity`, `persona_runtime`, `process_notifications`, `profile_runner/{execute,models}`, `runtime_config`, `runtime_hud`, `terminal_envelope_explain`, `terminal_policy`), 11 test files. Importers take names from the `__all__` list (1213–1262, 49 names) — nothing private crosses the file; one test patches `explain_terminal_envelope`.

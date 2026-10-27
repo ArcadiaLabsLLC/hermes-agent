@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `831d921779` (MOVE), `f0f68eb68a` (CHANGE).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Layout sheet — `agent_runtime/serve_socket.py` (lane R3)
 
 Base: `main` @ `bf4377f226` · 2,967 raw / 2,194 code / 33 top-level defs · longest `ServeSocketServer._handshake` 127 (1902–2028) · chains 0 · `str==` 6 · `isinstance` 17 · owner doc `docs/agent-runtime-harness/03-transport-and-wire.md` and `09-multi-device-runtime.md`. **No W0-G7 row** — the only Wave 2 file already under the floor; three methods sit AT depth 4 (`_accept_loop` 1669, `_serve_connection` 1794, `SocketConnection.close` 1329), so the MOVE may not add a level. 10 production importers taking 13 public names (the constants, the two classes, the client, `HelloAuthOutcome`, `read_socket_owner`, `SocketOwnerLock`); 19 test files, **0 private pins**. A 222-line protocol docstring (1–222) is the Q3 class: relocate, do not split for it.

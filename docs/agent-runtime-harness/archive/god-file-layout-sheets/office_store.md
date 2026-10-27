@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `9f4aa62d76` (MOVE), `7b5b63fb4f`, `a8d43f69d8` (CHANGE).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Layout sheet — `agent_runtime/office_store.py` (lane R1)
 
 Base: `main` @ `bf4377f226` · 2,493 raw / 1,874 code / 23 top-level defs · longest `OfficeStore.upsert_actor` 249 (1211–1459, depth 3) · chains 0 · `str==` 1 · `isinstance` 6 · owner doc `docs/agent-runtime-harness/06-office-and-board.md`. 18 production importers, 15 of them taking only `OfficeStore` (plus `ActorScan`, `read_actor_dir`, and two private names `_read_json`, `_normalize_persona_id` from `scripts/office_actor_rekey_to_instance.py` and `office_sync`); 51 test files, 1 private pin. **No W0-G5 row and no dead-code row** — the cleanest of the ten; the work is the one floor row, the write path, and the two W0-G3 rows it shares with `board_store` (`_archive_conflict_sidecar`, `_check_revision`) plus the `_emit`/`_guard_no_conflict` pair program §4 already names.

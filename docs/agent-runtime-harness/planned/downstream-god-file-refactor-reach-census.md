@@ -1,6 +1,6 @@
 # Reach census (W0-D) — 2026-09-24, `main` @ `4e73892724`
 
-Instrument: `scripts/refactor_reach_census.py` (plan [`downstream-god-file-refactor.md`](downstream-god-file-refactor.md) §2 Wave 0 W0-D and §4.3; [`god-file-program-2026-09-24.md`](god-file-program-2026-09-24.md) §5). This note is EVIDENCE; the rows it produced live in `Harness_Brain/20 — Active Initiatives/dead-code-burn-down-queue.md`.
+Instrument: `scripts/refactor_reach_census.py` (plan [`downstream-god-file-refactor.md`](downstream-god-file-refactor.md) §2 Wave 0 W0-D and §4.3; [`god-file-program-2026-09-24.md`](../archive/god-file-program-2026-09-24.md) §5). This note is EVIDENCE; the rows it produced live in `Harness_Brain/20 — Active Initiatives/dead-code-burn-down-queue.md`.
 
 - **Population:** every fork production `.py` over 800 raw lines — 62 files (`scripts/god_file_probe.py`'s population).
 - **Traced suite:** 653 test files enumerated from the tree (every tracked test naming `agent_runtime`, `hermes_cli.harness`, `harness_parts`, or a population file's module/path), run through `scripts/run_tests.sh` under `coverage` (branch). Not the whole suite: a file only a test OUTSIDE this set reaches reads as cold here.

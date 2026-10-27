@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `51c03df353` (MOVE), `b9374999b0` (CHANGE).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Layout sheet — `agent_runtime/serve_rpc.py` (lane R3)
 
 Base: `main` @ `bf4377f226` · 4,703 raw / 3,518 code / 62 top-level defs · longest `_runtime_office_upsert` 333 (1234–1566) · chains 1/0 · `str==` 1 · `isinstance` 44 · owner doc `docs/agent-runtime-harness/03-transport-and-wire.md` (RPC), `06-office-and-board.md` (the office verbs). The `_METHODS` + `@method` registry (158–403) is the program's **reference implementation of rule 12** and is not converted — it is moved. 33 `@method` registrations (721–4593); 41 test files import the module by path; 12 of them pin 5 private handler names (`serve_rpc._runtime_office_*`).

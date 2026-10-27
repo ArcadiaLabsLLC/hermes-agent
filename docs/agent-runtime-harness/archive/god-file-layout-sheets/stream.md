@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `b55394840d` (MOVE), `f8195a4a09` (CHANGE).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Layout sheet — `agent_runtime/stream.py` (lane R3)
 
 Base: `main` @ `28012c8f8a` · sha256 `7b2049237cb8b395c4c09540c87ad67b7a0a73ec7f035292afe624ef36f2fcdf` · 1,898 raw / 1,385 code / 30 top-level defs · longest `stream_frames` 425 (1221–1645, **depth 6** — the deepest function in this batch) · chains 0/0 · `str==` 7 · `isinstance` 15 · owner doc `docs/agent-runtime-harness/03-transport-and-wire.md` (the stream lane, v1 full-core and v2 patch frames). 8 production importers taking 11 names (`serve/subscriptions.py`, `runtime_commands.py` → `stream_frames`; `serve/{handle_message,subscriptions}.py`, `serve_office_subscriptions.py` → `log_stream_attach`/`log_stream_denied`; `serve_stream_hub.py` → `resolve_fold_variant`; `stream_resume.py` → `_DELTA_BATCH_CAP`, `batch_carries_patch_rows`, `patch_batch_frame`; `core_cache/fingerprint.py` → `STREAM_SCHEMA_VERSION`; the fixture generator → five frame builders); 27 test files pinning 18 names, four private (`_batch_frames_with_liveness`, `_defer_demote_build_for_active_turns`, `_delta_op`, `_scope_fingerprint`).

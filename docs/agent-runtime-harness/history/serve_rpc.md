@@ -1,7 +1,7 @@
 # History — `agent_runtime/serve_rpc/` (the METHOD lane's handler rationale)
 
 Rule 7 of the god-file program (`docs/agent-runtime-harness/planned/downstream-god-file-refactor.md` §1)
-and ruling Q3 (`docs/agent-runtime-harness/planned/god-file-program-2026-09-24.md` §9): prose that narrates
+and ruling Q3 (`docs/agent-runtime-harness/archive/god-file-program-2026-09-24.md` §9): prose that narrates
 WHY a handler is shaped the way it is, and what it used to be, lives here once the handler's code is
 rewritten. Each section below is the handler's former docstring subsections, verbatim; the docstring
 keeps its contract summary (params, result) and a pointer back here. Lane R3's CHANGE commit moved

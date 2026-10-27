@@ -1,6 +1,6 @@
 """W0-G5 — routing is data: no new ladder on a string, a kind or an ``isinstance``.
 
-Plan: ``docs/agent-runtime-harness/planned/god-file-program-2026-09-24.md`` rule
+Plan: ``docs/agent-runtime-harness/archive/god-file-program-2026-09-24.md`` rule
 12 and §2.4. Three arms, all a NEGATIVE guarantee over the AST (a source walk is
 the right instrument for "this is never written"):
 

@@ -1,6 +1,6 @@
 """W0-G7 — no fork function over 150 lines or nested deeper than 4, beyond a shrinking list.
 
-Plan: ``docs/agent-runtime-harness/planned/god-file-program-2026-09-24.md`` rule
+Plan: ``docs/agent-runtime-harness/archive/god-file-program-2026-09-24.md`` rule
 17 and §2.4 (ruling Q4: a gate). Lines are ``end_lineno - lineno + 1`` of the
 def (nested defs included, as the §0.2 table measures them); depth is control-
 block nesting inside the function, ``elif`` not counted, nested defs their own

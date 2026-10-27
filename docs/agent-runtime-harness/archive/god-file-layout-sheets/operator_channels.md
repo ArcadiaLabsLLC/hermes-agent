@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `a5fb23fdab` (MOVE), `a5ba2e3d31` (CHANGE).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Layout sheet — `agent_runtime/operator_channels.py` (lane R2)
 
 Base: `main` @ `28012c8f8a` · sha256 `5ed656c3260ab046b0177f276d9bbe8330ed84c5ebf63f9aec0d3fe6d19d3c42` · 1,670 raw / 1,394 code / 40 top-level defs · longest `_OperatorChannelBuilder.build` 203 (238–440) · chains 2/0 · `str==` 27 · `isinstance` 26 · owner doc `docs/agent-runtime-harness/07-observability.md` (the Agent Console projection). 2 production importers (`snapshot/sections.py`, `status.py`), both taking `operator_channel_summary`; 8 test files pinning 10 names, seven private (`_CONVERSATION_MESSAGE_CAP`, `_CONVERSATION_TRIMMABLE_KINDS`, `_SETTLED_TOOL_CALL_STATUS`, `_TERMINAL_TURN_MARKER_PRESENTATION`, `_conversation_contract`, `_conversation_history_message`, `_dedupe_conversation_messages`, `_turn_identity_dropped`). One public function, 39 helpers: this file IS its single entry point, and the skeleton is the projection's stages.

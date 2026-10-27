@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `3361940bc6` (MOVE), `41f8c25739` (CHANGE).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Layout sheet — `agent/charsheet/pipeline.py` (lane C1)
 
 Base: `main` @ `28012c8f8a` · sha256 `74c1fd3b3e7f5738a895549efd5e7b9ba338a8dfac794c171929deb9aa8a32ea` · 2,533 raw / 1,898 code / 53 top-level defs · longest `detect_mirrored_art` 504 (1328–1831) · chains 0/0 · `str==` 10 · `isinstance` — · owner doc: the module docstring (plan H §4) and launcher ADR 0024 ruling 3-B. 3 production importers (`agent/charsheet/draft.py`, `agent/charsheet/fake_draftsman.py` — `MAGENTA` — and `hermes_cli/harness_parts/characters/steps.py`, all `from agent.charsheet import pipeline` and attribute access), 7 test files, all by module attribute.

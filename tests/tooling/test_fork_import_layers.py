@@ -1,6 +1,6 @@
 """W0-G6 — the fork's import graph points DOWN its layers, and never through a back door.
 
-Plan: ``docs/agent-runtime-harness/planned/god-file-program-2026-09-24.md`` rule
+Plan: ``docs/agent-runtime-harness/archive/god-file-program-2026-09-24.md`` rule
 16 and §2.4. Layers, lowest first: ``models`` -> ``policy`` -> ``stores`` ->
 ``lanes`` -> ``wiring`` (``scripts/god_file_probe.py::LAYERS``).
 

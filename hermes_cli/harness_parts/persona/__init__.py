@@ -1,6 +1,6 @@
 """The persona and mission-chat command family of the harness CLI, one verb family per module.
 
-Lane H3 (``docs/agent-runtime-harness/planned/god-file-layout-sheets/persona_commands.md``)
+Lane H3 (``docs/agent-runtime-harness/archive/god-file-layout-sheets/persona_commands.md``)
 split the 8,201-line ``harness_parts/persona_commands.py`` into this package. This
 file is the MAP and binds nothing: import the module that owns a name, and patch a
 name in the module that LOOKS IT UP (W0-G4's rule, one module per lookup).

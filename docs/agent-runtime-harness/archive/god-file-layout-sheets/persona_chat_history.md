@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `a47097806b` (MOVE), `d56aae1c33` (CHANGE).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Layout sheet — `agent_runtime/persona_chat_history.py` (lane R2)
 
 Base: `main` @ `bf4377f226` · 2,325 raw / 1,753 code / 60 top-level defs · longest `persona_chat_history_summary` 270 (273–542, depth 4) · chains 0 · `str==` 24 · `isinstance` 26 · owner doc `docs/agent-runtime-harness/05-chat-turn-lane.md` (the operator-facing transcript). 8 production importers (`snapshot` takes five names incl. `_SECRET_RE` and `_canonical_persona_id`; `persona_assignments` takes the `_default_session_db` wrapper; `tools/agent_chat_tool` takes `persona_chat_session_messages`), 20 test files, 3 private pins. Three W0-G5 rows, three W0-G7 rows, three W0-G3 rows.

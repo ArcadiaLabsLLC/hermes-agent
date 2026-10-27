@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `f804bb448c` (MOVE), `2c9f745ab2` (CHANGE).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Layout sheet — `agent_runtime/realm_sync.py` (lane R4)
 
 Base: `main` @ `bf4377f226` · 4,464 raw / 3,244 code / 118 top-level defs · longest `publish_realm_sync` 242 (466–707) · chains 6/1 · `str==` 40 · `isinstance` 13 · owner doc `docs/agent-runtime-harness/06-office-and-board.md` (the sync families) and `09-multi-device-runtime.md`. 13 production importers, 26 test files; the importers take `RealmSyncError`, `MembershipDecision`, `RealmMembershipProvider`, `read_realm_sync_sidecar`, `resolve_realm_sync_artifacts`, `skill_tombstone_rows`, `sync_artifacts_for_workspace_agent` and five private names (`_canonicalize_text_bytes`, `_is_hard_excluded_path`, `_is_secretish_path`, `_profile_home_for_token`, `_held_skill_packages_for_realm`, `_realm_subtree`, `_sync_repo_path`) — the private ones become public in the CHANGE.

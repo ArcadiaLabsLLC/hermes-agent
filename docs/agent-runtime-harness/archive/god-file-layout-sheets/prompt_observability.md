@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `f3c3020529` (MOVE), `847a197b22` (CHANGE).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Layout sheet — `agent_runtime/prompt_observability.py` (lane R2)
 
 Base: `main` @ `bf4377f226` · 3,749 raw / 2,933 code / 98 top-level defs · longest `mission_chat_prompt_observability` 501 (198–698) · chains 5/5 · `str==` 29 · **`isinstance` 118 — the densest in the fork** · owner doc `docs/agent-runtime-harness/07-observability.md`. 7 production importers (`snapshot` takes `_SkillObservabilityResolver` + `snapshot_prompt_observability`; the chat lane takes `load_workspace_agents_context`, `load_persisted_context_row`, `skills_catalog_by_hash`, `slim_chat_final_observability`), 20 test files, 5 `setattr` pins. Two W0-G6 **private upstream reaches** — the only Wave 2 file with more than one.

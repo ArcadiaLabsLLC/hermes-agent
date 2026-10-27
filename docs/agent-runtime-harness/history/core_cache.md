@@ -1,7 +1,7 @@
 # History — `agent_runtime/core_cache/` (the persisted core's cost and convergence notes)
 
 Rule 7 of the god-file program (`docs/agent-runtime-harness/planned/downstream-god-file-refactor.md` §1) and ruling Q3
-(`docs/agent-runtime-harness/planned/god-file-program-2026-09-24.md` §9): narrative that records what a
+(`docs/agent-runtime-harness/archive/god-file-program-2026-09-24.md` §9): narrative that records what a
 function used to cost or how it used to behave lives here once the function is rewritten. Lane R3's CHANGE
 moved these paragraphs out of `write_back`'s docstring when it became phases; the contract paragraphs stayed.
 

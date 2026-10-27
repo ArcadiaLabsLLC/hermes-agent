@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `d84f15ce86` (MOVE), `28012c8f8a` (CHANGE).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Layout sheet — `agent_runtime/snapshot.py` (lane R3)
 
 Base: `main` @ `bf4377f226` · 2,814 raw / 1,775 code / 53 top-level defs · longest `_parity_envelope` 338 (1083–1420) · chains 1/1 · `str==` 3 · `isinstance` 30 · owner doc `docs/agent-runtime-harness/02-runtime-data-and-shapes.md` (the frame) and `04-boot-and-lifecycle.md` (the build). **The hub**: 38 module-level fork imports (20–65) including six other Wave 2 files (`core_cache`, `office_store`, `persona_assignments`, `persona_chat_history`, `prompt_observability`, `realm_sync`), 18 production importers, 57 test files, 15 pinning 17 private names through 15 `setattr` sites — and five private names imported by PRODUCTION (`_parity_envelope`, `_workspace_summary`, `_realm_summary`, `_office_actor_summary_row`, `_board_card_row`). Four W0-G7 rows, two of them the contract-history class (Q3).

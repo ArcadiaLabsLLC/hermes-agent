@@ -2,7 +2,7 @@
 
 Written by the orchestrator session that ran Wave 0 through Wave 3. Read this
 before touching anything the program left open. The program's plan is
-`docs/agent-runtime-harness/planned/god-file-program-2026-09-24.md` (§3.1a–e
+`docs/agent-runtime-harness/archive/god-file-program-2026-09-24.md` (§3.1a–e
 record every wave's sheets and hashes, §9 the rulings Q1–Q32); the layout
 sheets are under `docs/agent-runtime-harness/planned/god-file-layout-sheets/`.
 
