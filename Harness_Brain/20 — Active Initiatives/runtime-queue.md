@@ -31,7 +31,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-27 (orchestrator, from lane w1027k-h-rt)
 
-- **`RT-LOCAL-INFERENCE-DUPLICATE-HELPERS` — `test_duplicate_helper_bodies` is red on main since `a71cb35a8d`: new duplicate helper bodies in `agent_runtime/local_inference/runners.py` (reported by lane w1027k-h-rt; dedupe or declare)** · `agent_runtime/local_inference/runners.py` · READY 2026-10-27 · **TAKEN 2026-10-27 w1028a-h-rt on vm as Claude in w1028a-h-rt**
 
 ### Filed on arrival — 2026-10-27 (launcher lane w1027k-plan-host)
 
