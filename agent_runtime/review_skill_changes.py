@@ -18,6 +18,10 @@ This module is the fork's record beside upstream's ledger, one JSONL file per pr
 * ``staged`` — written by the gate when it stages a shared-skill write, keyed by the pending id;
   ``approved`` / ``rejected`` by :mod:`agent_runtime.review_skill_pending` when the owner acts.
 
+Each ``applied`` / ``staged`` record is announced on the stream as one ``persona_chat.skill_changed``
+event per skill (:func:`_announce`, RT-SKILL-CHANGE-EVENT) — ``{profile, skill, action, change, turn,
+staged_id?}`` — so the launcher re-reads on the event rather than polling after a turn settles.
+
 :func:`list_changes` is the read (``runtime.skills.changes.list``): a skill's applied changes from the
 ledger with their unified diffs and, where the review made them, the chat and turn; or one chat's / one
 turn's review changes; plus the staged writes with their turn and status. A deferred review (the idle
@@ -100,6 +104,43 @@ def _row(kind: str, **fields: Any) -> dict[str, Any]:
     return {"id": uuid.uuid4().hex[:12], "kind": kind, "recorded_at": time.time(), **fields}
 
 
+def _current_profile() -> str:
+    """This process's profile as :func:`list_changes` names it, so the event's ``profile`` reads back."""
+    from hermes_constants import get_hermes_home
+
+    from agent_runtime.profile_context import active_profile_name
+    from agent_runtime.review_skill_pending import profile_homes
+
+    home = get_hermes_home().resolve()
+    for name, candidate in profile_homes():
+        if candidate.resolve() == home:
+            return name
+    return active_profile_name()
+
+
+def _announce(change: str, targets: list[tuple[str, str]], turn: dict[str, Any] | None,
+              staged_id: str | None = None) -> None:
+    """One ``persona_chat.skill_changed`` per (action, skill); never raises — the change already happened."""
+    try:
+        from agent_runtime.events import EventLog
+        from agent_runtime.models import Event
+        from hermes_time import now
+
+        profile = _current_profile()
+        log = EventLog()
+        for action, skill in sorted(set(targets)):
+            payload: dict[str, Any] = {"profile": profile, "skill": skill, "action": action, "change": change,
+                                       "turn": turn}
+            if staged_id:
+                payload["staged_id"] = staged_id
+            log.append(Event(type="persona_chat.skill_changed", task_id=None, run_id=None, persona_id=None,
+                             ts=now(), payload=payload,
+                             session_id=(turn or {}).get("chat_session_id") or None,
+                             turn_id=(turn or {}).get("turn_id") or None))
+    except Exception:
+        logger.warning("review skill changes: could not announce %s", change, exc_info=True)
+
+
 # ── writes ─────────────────────────────────────────────────────────────────
 
 
@@ -152,13 +193,17 @@ def on_post_tool_call(tool_name: Any = None, args: Any = None, result: Any = Non
         entries = _ledger_entries(skills, str(session_id or ""), started, ended)
     except Exception:
         entries = []
+    turn = _turn()
     _append_change_row(_row("applied", skills=skills, actions=sorted({action for action, _name in targets}),
-                 native_session_id=str(session_id or "") or None, ledger_entries=entries, turn=_turn()))
+                 native_session_id=str(session_id or "") or None, ledger_entries=entries, turn=turn))
+    _announce("applied", targets, turn)
 
 
 def record_staged(pending_id: str, skills: list[str], action: str) -> None:
     """The gate staged ``pending_id``: remember the chat and turn the review came from."""
-    _append_change_row(_row("staged", pending_id=pending_id, skills=sorted(skills), actions=[action], turn=_turn()))
+    turn = _turn()
+    _append_change_row(_row("staged", pending_id=pending_id, skills=sorted(skills), actions=[action], turn=turn))
+    _announce("staged", [(action, skill) for skill in skills], turn, staged_id=pending_id)
 
 
 def record_staged_outcome(pending_id: str, outcome: str) -> None:

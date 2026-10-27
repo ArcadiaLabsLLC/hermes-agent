@@ -124,3 +124,52 @@ def test_the_method_lane_reads_and_refuses_typed(home):
     assert rpc._runtime_skills_changes_list(1, {"limit": 0})["error"]["data"]["reason"] == "invalid_params"
     assert rpc._runtime_skills_changes_list(1, {"skill": 3})["error"]["data"]["reason"] == "invalid_params"
     assert rpc._runtime_skills_changes_list(1, {"profile": "nobody"})["error"]["data"]["reason"] == "unknown_profile"
+
+
+# ── RT-SKILL-CHANGE-EVENT: the change is announced on the stream ─────────────
+
+
+@pytest.fixture
+def events(home, tmp_path, monkeypatch):
+    """The real EventLog under a private store root; returns a reader of its skill events."""
+    from agent_runtime.events import EventLog
+
+    monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "agent-runtime"))
+    return lambda: [event for event in EventLog().tail(50) if event.type == "persona_chat.skill_changed"]
+
+
+def test_an_applied_review_change_is_announced_with_its_profile_skill_action_and_turn(events):
+    with bind_persona_turn_agent(_agent(**TURN)):
+        _review_call(changes._changes_path().parent)
+    [event] = events()
+    assert event.payload == {"profile": "default", "skill": "git", "action": "patch", "change": "applied",
+                             "turn": TURN}
+    assert (event.session_id, event.turn_id) == (TURN["chat_session_id"], TURN["turn_id"])
+    # The announced profile is the one the read takes back.
+    assert changes.list_changes(profile=event.payload["profile"], skill="git")["changes"]
+
+
+def test_a_foreground_write_announces_nothing(events):
+    """Positive control for the gate the announce sits behind: same write, no review origin."""
+    with bind_persona_turn_agent(_agent(**TURN)):
+        _review_call(changes._changes_path().parent, review=False)
+    assert events() == []
+
+
+def test_a_deferred_review_announces_a_null_turn(events):
+    _review_call(changes._changes_path().parent)
+    [event] = events()
+    assert event.payload["turn"] is None and event.session_id is None
+
+
+def test_a_staged_write_is_announced_with_its_staged_id(events, home):
+    from tools import write_approval as wa
+
+    with process_home_scope(home):
+        record = wa.stage_write(wa.SKILLS, {"action": "patch", "name": "git", "old_string": "a", "new_string": "b"},
+                                summary="[shared] demo", origin="background_review")
+        with bind_persona_turn_agent(_agent(**TURN)):
+            changes.record_staged(record["id"], ["git"], "patch")
+    [event] = events()
+    assert event.payload == {"profile": "default", "skill": "git", "action": "patch", "change": "staged",
+                             "turn": TURN, "staged_id": record["id"]}

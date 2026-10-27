@@ -242,6 +242,12 @@ _EVENT_CONTRACTS: dict[str, EventContract] = {
     # Summary fields are the two keys the verb always passes; the three list/
     # actor fields are details. The persona rides the Event envelope's
     # persona_id column, not the payload.
+    # A background-review skill change, applied or staged (RT-SKILL-CHANGE-EVENT,
+    # ``agent_runtime.review_skill_changes._announce``): one per changed skill, after the
+    # fork's change record is written, so the launcher re-reads ``runtime.skills.changes.list``
+    # on the event instead of a timed window after settle. ``turn`` is null for a deferred
+    # review (the idle queue) — said, never guessed; ``staged_id`` rides a staged write only.
+    "persona_chat.skill_changed": EventContract("persona_chat.skill_changed", "Background review changed a skill", ("profile", "skill", "action", "change"), ("turn", "staged_id")),
     "persona_chat.deleted": EventContract("persona_chat.deleted", "Persona chat session deleted", ("session_id", "deleted_session"), ("cleared_bindings", "requested_by")),
     "persona_instance.profile_updated": EventContract("persona_instance.profile_updated", "Persona instance runtime profile updated", ("persona_instance_id",), ("persona_id", "display_name", "current_chat_goal", "goal_id", "skill_overrides", "provider", "model", "api_mode", "requested_by")),
     "persona_assignment.created": EventContract("persona_assignment.created", "Persona assignment created", ("assignment_id", "persona_instance_id", "kind"), ("state",)),

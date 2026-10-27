@@ -269,7 +269,10 @@ REMOVED_EVENT_TYPES = frozenset(
 # ``lens.monitor.changed`` / ``lens.episode.changed`` / ``lens.receipt.changed``, the Lens store's
 # low-churn transitions (``agent_runtime.lens.store.LensStore._changed``). Red at 70 on that commit
 # and moved deliberately.
-SURVIVING_EVENT_COUNT = 73
+# 74 (lane w1027f-h-rt, 2026-10-27, RT-SKILL-CHANGE-EVENT): ``persona_chat.skill_changed``, a
+# background-review skill change applied or staged (``agent_runtime.review_skill_changes._announce``).
+# Red at 73 on that commit and moved deliberately.
+SURVIVING_EVENT_COUNT = 74
 
 
 def test_the_unemittable_event_types_are_no_longer_registered():
