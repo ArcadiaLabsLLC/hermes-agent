@@ -96,13 +96,12 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(format_census(report, source=str(path)))
 
-    if report["verdict"] == VERDICT_NO_LINES:
-        return EXIT_UNMEASURED
-    if report["verdict"] == VERDICT_SELF_PERTURBATION:
-        return EXIT_SELF_PERTURBATION
-    if report["verdict"] == VERDICT_HOME_LAZY_CAPTURE:
-        return EXIT_HOME_LAZY_CAPTURE
-    return EXIT_OK
+    exit_for = {
+        VERDICT_NO_LINES: EXIT_UNMEASURED,
+        VERDICT_SELF_PERTURBATION: EXIT_SELF_PERTURBATION,
+        VERDICT_HOME_LAZY_CAPTURE: EXIT_HOME_LAZY_CAPTURE,
+    }
+    return exit_for.get(report["verdict"], EXIT_OK)
 
 
 if __name__ == "__main__":
