@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-27 (orchestrator, from lane w1027k-h-rt)
+
+- **`RT-LOCAL-INFERENCE-DUPLICATE-HELPERS` — `test_duplicate_helper_bodies` is red on main since `a71cb35a8d`: new duplicate helper bodies in `agent_runtime/local_inference/runners.py` (reported by lane w1027k-h-rt; dedupe or declare)** · `agent_runtime/local_inference/runners.py` · READY 2026-10-27
+
 ### Filed on arrival — 2026-10-27 (launcher lane w1027k-plan-host)
 
 - **`RT-LAUNCHER-EVENT-CURSOR` — keep Lens-episode and agent-turn events in a bounded durable journal the launcher can read after a cursor on attach, so launcher webhooks for events produced while no launcher ran are sent once and never lost silently** · `EterniaLauncher/docs/stages/installer-distribution/planned/HOST_OUTBOUND_WEBHOOKS_2026-10-27.md` · NEEDS PLAN 2026-10-27: the journal's store and retention, the cursor shape, and which event kinds it carries
