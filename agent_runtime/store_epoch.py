@@ -80,6 +80,17 @@ MIGRATION_REGISTRY: tuple[dict[str, Any], ...] = (
                   "edition only upgrades a lower schema_version, never refuses a higher one",
         "pins_sha256": "5b78d48e0911dd5107d144a6afda04a68463a92db5760b4f2b8bcf914ffd4dab",
     },
+    {
+        "id": "machine-roots-schema-3-named-halves",
+        "date": "2026-10-26",
+        "store": "machine_roots.json",
+        "breaking": False,
+        "reason": "additive: schema 3 writes config_roots + slot_folders beside the roots / workspace_roots "
+                  "mirrors an older edition reads (roots still carries every slot bound to one folder), upgraded "
+                  "once in workspace_slots.scoped_roots (plan machine-roots-two-halves-2026-10-26 §2.1, §2.4); "
+                  "dropping the old keys is a later breaking entry",
+        "pins_sha256": "5b78d48e0911dd5107d144a6afda04a68463a92db5760b4f2b8bcf914ffd4dab",
+    },
 )
 
 #: ``1 + count(breaking entries)`` — ``tests/agent_runtime/test_store_epoch_gate.py`` holds it to that.

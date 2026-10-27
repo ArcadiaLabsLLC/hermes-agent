@@ -40,6 +40,7 @@ from utils import atomic_json_write
 from . import paths
 from .machine_roots import (
     _ROOT_NAME_RE,
+    MACHINE_ROOTS_MIRRORED_SCHEMA_VERSION,
     MACHINE_ROOTS_SCHEMA_VERSION,
     MachineRoots,
     load_machine_roots,
@@ -426,16 +427,33 @@ def scoped_roots(*, refresh: bool = True, migrate: bool = True) -> MachineRoots:
     current = load_machine_roots(refresh=refresh)
     if current.schema_version >= MACHINE_ROOTS_SCHEMA_VERSION:
         return current
-    scoped, ambiguous = _legacy_fills(current)
+    if current.schema_version >= MACHINE_ROOTS_MIRRORED_SCHEMA_VERSION:
+        scoped = {ws: dict(fills) for ws, fills in current.workspace_roots.items()}
+        config, ambiguous = _without_slot_mirrors(current.roots, scoped), []
+    else:
+        (scoped, ambiguous), config = _legacy_fills(current), dict(current.roots)
     if not migrate:
-        return replace(current, workspace_roots=scoped)
-    write_machine_roots(dict(current.roots), workspace_roots=scoped, dry_run=False)
+        return replace(current, roots=config, workspace_roots=scoped)
+    write_machine_roots(config, workspace_roots=scoped, dry_run=False)
     from .work_store import receipts
 
     for entry in ambiguous:
         receipts.emit("machine_roots.migration_ambiguous", **entry)
-    receipts.emit("machine_roots.migrated", workspaces=len(scoped), slots=sum(len(s) for s in scoped.values()))
+    receipts.emit("machine_roots.migrated", workspaces=len(scoped), slots=sum(len(s) for s in scoped.values()),
+                  from_schema=current.schema_version, to_schema=MACHINE_ROOTS_SCHEMA_VERSION,
+                  config_roots=len(config), mirrors_dropped=len(current.roots) - len(config))
     return load_machine_roots(refresh=True)
+
+
+def _without_slot_mirrors(roots: dict[str, str], scoped: dict[str, dict[str, str]]) -> dict[str, str]:
+    """Schema 2's ``roots`` minus each entry that is exactly the mirror of a single slot binding (plan §2.4)."""
+
+    kept = {}
+    for name, value in roots.items():
+        bindings = [slots[name] for slots in scoped.values() if slots.get(name)]
+        if not (len(bindings) == 1 and bindings[0] == value):
+            kept[name] = value
+    return kept
 
 
 def _legacy_fills(current: MachineRoots) -> tuple[dict[str, dict[str, str]], list[dict[str, Any]]]:

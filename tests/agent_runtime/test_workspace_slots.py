@@ -447,7 +447,8 @@ def test_a_legacy_root_migrates_once_to_the_workspace_declaring_it(workspace, ch
     target = _legacy_registry({"brain": str(checkout)})
     assert [(s.workspace_id, s.slot, s.path) for s in slot_census().bound] == [(workspace, "brain", checkout)]
     written = json.loads(target.read_text(encoding="utf-8"))
-    assert written["schema_version"] == 2 and written["workspace_roots"] == {workspace: {"brain": str(checkout)}}
+    assert written["schema_version"] == 3 and written["slot_folders"] == {workspace: {"brain": str(checkout)}}
+    assert written["config_roots"] == {"brain": str(checkout)}  # schema 1's roots were bound by hand: kept
     assert written["roots"] == {"brain": str(checkout)}  # the config namespace is kept as it was
     [receipt] = _receipts(caplog, "machine_roots.migrated")
     assert (receipt["workspaces"], receipt["slots"]) == (1, 1)
@@ -476,3 +477,38 @@ def test_an_ambiguous_legacy_root_binds_only_the_workspace_whose_origin_matches(
     [entry] = _receipts(caplog, "machine_roots.migration_ambiguous")
     assert entry["slot"] == "brain" and entry["unbound"] == [mismatched]
     assert sorted(entry["workspaces"]) == sorted([workspace, other])
+
+
+def _mirrored_registry(roots, scoped):
+    from agent_runtime.machine_roots import machine_roots_registry_paths
+
+    target = machine_roots_registry_paths()[0]
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps({"schema_version": 2, "roots": roots, "workspace_roots": scoped}), encoding="utf-8")
+    machine_roots_cache_clear()
+    return target
+
+
+def test_a_schema_2_registry_upgrades_once_dropping_only_single_binding_mirrors(workspace, tmp_path, caplog):
+    """Killing mutation: ``_without_slot_mirrors`` keeping every entry leaves ``brain``'s mirror a config root."""
+
+    import logging
+
+    from agent_runtime.workspace_slots import scoped_roots
+
+    caplog.set_level(logging.INFO, logger="agent_runtime.work_store.receipts")
+    one, two, tool = _bare_dir(tmp_path, "one"), _bare_dir(tmp_path, "two"), _bare_dir(tmp_path, "tool")
+    scoped = {"ws_a": {"brain": str(one), "launcher": str(one)}, "ws_b": {"launcher": str(two)}}
+    target = _mirrored_registry({"brain": str(one), "launcher": str(one), "tool": str(tool)}, scoped)
+    upgraded = scoped_roots()
+    written = json.loads(target.read_text(encoding="utf-8"))
+    assert written["schema_version"] == 3 and written["slot_folders"] == scoped
+    # ``brain`` was the mirror of its one binding; ``launcher`` has two bindings, so it may be an operator's.
+    assert written["config_roots"] == {"launcher": str(one), "tool": str(tool)}
+    assert written["roots"] == {"brain": str(one), "launcher": str(one), "tool": str(tool)}
+    assert upgraded.roots == written["config_roots"] and upgraded.schema_version == 3
+    [receipt] = _receipts(caplog, "machine_roots.migrated")
+    assert (receipt["from_schema"], receipt["mirrors_dropped"], receipt["config_roots"]) == (2, 1, 2)
+    before = target.read_text(encoding="utf-8")
+    scoped_roots()
+    assert target.read_text(encoding="utf-8") == before and len(_receipts(caplog, "machine_roots.migrated")) == 1

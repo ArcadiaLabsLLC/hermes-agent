@@ -426,9 +426,12 @@ def test_registry_round_trips_both_maps_and_a_none_write_keeps_the_scoped_map(tm
     scoped = {"ws_one": {"brain": str(tmp_path / "one")}, "ws_two": {"brain": str(tmp_path / "two")}}
     result = write_machine_roots({"eternia_launcher": str(tmp_path)}, workspace_roots=scoped, dry_run=False)
     payload = json.loads(Path(result["path"]).read_text(encoding="utf-8"))
-    assert payload["schema_version"] == 2 and payload["workspace_roots"] == scoped
+    assert payload["schema_version"] == 3 and payload["slot_folders"] == scoped
+    assert payload["config_roots"] == {"eternia_launcher": str(tmp_path)}
+    # The schema-2 mirrors an older edition reads: ``brain`` is bound to two folders, so it stays out.
+    assert payload["workspace_roots"] == scoped and payload["roots"] == payload["config_roots"]
     loaded = load_machine_roots(refresh=True)
-    assert loaded.workspace_roots == scoped and loaded.schema_version == 2
+    assert loaded.workspace_roots == scoped and loaded.schema_version == 3
     assert loaded.workspace_root("ws_two", "brain") == tmp_path / "two"
     assert "brain" not in loaded.roots
 
@@ -453,11 +456,52 @@ def test_a_legacy_registry_loads_with_no_workspace_roots(tmp_path, monkeypatch):
     assert load_machine_roots(refresh=True).schema_version == 1
 
 
-def test_root_token_expansion_ignores_workspace_roots(tmp_path):
-    """Killing mutation: ``_resolve_root`` falling back to ``workspace_roots`` resolves this token."""
+def test_a_slot_bound_to_one_folder_answers_its_token_and_two_folders_answer_none(tmp_path):
+    """Killing mutation: ``_resolve_root`` taking the first of two slot folders resolves the second case."""
 
-    roots = MachineRoots(roots={}, workspace_roots={"ws_one": {"brain": str(tmp_path)}})
-    issues = path_token_issues("${roots.brain}/x", roots=roots)
-    assert [issue.code for issue in issues] == [ISSUE_UNBOUND_ROOT]
+    one, two = tmp_path / "one", tmp_path / "two"
+    one.mkdir()
+    two.mkdir()
+    single = MachineRoots(roots={}, workspace_roots={"ws_one": {"brain": str(one)}, "ws_two": {"brain": str(one)}})
+    assert expand_config_paths("${roots.brain}", roots=single) == str(one)
+    split = MachineRoots(roots={}, workspace_roots={"ws_one": {"brain": str(one)}, "ws_two": {"brain": str(two)}})
+    assert path_token_issues("${roots.brain}/x", roots=split)
     with pytest.raises(MachineRootError):
-        expand_config_paths("${roots.brain}", roots=roots)
+        expand_config_paths("${roots.brain}", roots=split)
+
+
+def test_a_schema_3_file_reads_the_named_halves_over_the_mirrors(tmp_path, monkeypatch):
+    """Killing mutation: the reader preferring ``roots`` reads the mirror's ``brain`` as a config root."""
+
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / MACHINE_ROOTS_FILENAME).write_text(json.dumps({
+        "schema_version": 3,
+        "config_roots": {"eternia_launcher": str(tmp_path)},
+        "slot_folders": {"ws_one": {"brain": str(tmp_path / "one")}},
+        "roots": {"eternia_launcher": str(tmp_path), "brain": str(tmp_path / "one")},
+        "workspace_roots": {"ws_stale": {"brain": str(tmp_path / "stale")}},
+    }), encoding="utf-8")
+    monkeypatch.setenv("HERMES_HOME", str(home))
+    machine_roots_cache_clear()
+
+    loaded = load_machine_roots(refresh=True)
+    assert loaded.schema_version == 3 and loaded.roots == {"eternia_launcher": str(tmp_path)}
+    assert loaded.workspace_roots == {"ws_one": {"brain": str(tmp_path / "one")}}
+
+
+def test_a_roots_only_write_keeps_a_schema_2_file_mirrored(tmp_path, monkeypatch):
+    """Killing mutation: a ``None`` write upgrading to 3 freezes the file's slot mirrors as config roots."""
+
+    home = tmp_path / "home"
+    home.mkdir()
+    scoped = {"ws_one": {"brain": str(tmp_path)}}
+    (home / MACHINE_ROOTS_FILENAME).write_text(json.dumps(
+        {"schema_version": 2, "roots": {"brain": str(tmp_path)}, "workspace_roots": scoped}), encoding="utf-8")
+    monkeypatch.setenv("HERMES_HOME", str(home))
+    machine_roots_cache_clear()
+
+    write_machine_roots({"brain": str(tmp_path), "other": str(tmp_path)}, dry_run=False)
+    payload = json.loads((home / MACHINE_ROOTS_FILENAME).read_text(encoding="utf-8"))
+    assert payload["schema_version"] == 2 and "config_roots" not in payload
+    assert payload["workspace_roots"] == scoped

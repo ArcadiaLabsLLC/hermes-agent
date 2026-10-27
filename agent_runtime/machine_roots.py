@@ -59,7 +59,14 @@ logger = logging.getLogger(__name__)
 
 
 MACHINE_ROOTS_FILENAME = "machine_roots.json"
-MACHINE_ROOTS_SCHEMA_VERSION = 2
+#: Schema 3 names the two halves (plan ``machine-roots-two-halves-2026-10-26.md`` §2.1): ``config_roots``
+#: (what ``${roots.<name>}`` expands to) and ``slot_folders`` (``{workspace: {slot: path}}``), and keeps
+#: writing ``roots`` / ``workspace_roots`` as mirrors for an edition that reads schema 2. Readers prefer
+#: the new keys and fall back to the old.
+MACHINE_ROOTS_SCHEMA_VERSION = 3
+#: A registry whose ``roots`` may still hold slot mirrors (the retired ``setdefault``): upgraded once by
+#: ``workspace_slots.scoped_roots`` to schema 3, dropping each mirror of a single slot binding.
+MACHINE_ROOTS_MIRRORED_SCHEMA_VERSION = 2
 #: A registry written before workspace-scoped slot roots (no ``workspace_roots`` map): upgraded once by
 #: ``workspace_slots`` on its first read (plan work-slot-roots-per-workspace-2026-10-21 §2).
 MACHINE_ROOTS_LEGACY_SCHEMA_VERSION = 1
@@ -164,10 +171,10 @@ class MachineRoots:
     roots: dict[str, str] = dataclass_field(default_factory=dict)
     sources: tuple[str, ...] = ()
     issues: tuple[PathTokenIssue, ...] = ()
-    #: A slot's machine fill PER WORKSPACE: ``{workspace_id: {slot: abs path}}``. Never read by the
-    #: ``${roots.<name>}`` expansion — config tokens name machine facts, slot binds are per workspace.
+    #: A slot's machine fill PER WORKSPACE (file key ``slot_folders``): ``{workspace_id: {slot: abs path}}``.
+    #: The ``${roots.<name>}`` expansion reads it only for a name ``roots`` (``config_roots``) lacks.
     workspace_roots: Mapping[str, Mapping[str, str]] = dataclass_field(default_factory=dict)
-    #: The write target's schema: ``MACHINE_ROOTS_LEGACY_SCHEMA_VERSION`` while it has no ``workspace_roots``.
+    #: The write target's schema: 1 with no slot map, 2 while its ``roots`` may hold slot mirrors, else 3.
     schema_version: int = MACHINE_ROOTS_SCHEMA_VERSION
 
     def get(self, name: str) -> Path | None:
@@ -177,6 +184,11 @@ class MachineRoots:
     def workspace_root(self, workspace_id: str, slot: str) -> Path | None:
         raw = (self.workspace_roots.get(workspace_id) or {}).get(slot)
         return Path(raw) if raw else None
+
+    def slot_folder_bindings(self, name: str) -> dict[str, str]:
+        """``{workspace_id: path}`` for every workspace whose slot ``name`` is bound on this machine."""
+
+        return {ws: str(slots[name]) for ws, slots in sorted(self.workspace_roots.items()) if slots.get(name)}
 
     def names(self) -> list[str]:
         return sorted(self.roots)
@@ -301,8 +313,8 @@ def load_machine_roots(*, refresh: bool = False) -> MachineRoots:
         roots.update(parsed.roots)
         for workspace_id, slots in parsed.workspace_roots.items():
             scoped.setdefault(workspace_id, {}).update(slots)
-        if index == 0 and not parsed.scoped:
-            schema = MACHINE_ROOTS_LEGACY_SCHEMA_VERSION
+        if index == 0:
+            schema = parsed.schema
     resolved = MachineRoots(roots=roots, sources=tuple(sources), issues=tuple(issues), workspace_roots=scoped,
                             schema_version=schema)
     _roots_cache[key] = resolved
@@ -313,8 +325,10 @@ def load_machine_roots(*, refresh: bool = False) -> MachineRoots:
 class _RegistryFile:
     roots: dict[str, str]
     workspace_roots: dict[str, dict[str, str]]
-    #: The file carries a ``workspace_roots`` object (schema 2), even an empty one.
+    #: The file carries a slot-folder object (``slot_folders`` or ``workspace_roots``), even an empty one.
     scoped: bool
+    #: 3 when it carries both named halves, 2 when only the mirrored keys, 1 with no slot map.
+    schema: int = MACHINE_ROOTS_SCHEMA_VERSION
 
 
 def _sorted_workspace_roots(scoped: Mapping[str, Mapping[str, str]]) -> dict[str, dict[str, str]]:
@@ -354,7 +368,8 @@ def _read_registry_file(path: Path) -> tuple[_RegistryFile | None, list[PathToke
                 fix_hint=f"Repair or delete {path}, then re-run `hermes harness roots list`.",
             )
         ]
-    node = payload.get("roots") if isinstance(payload, dict) else None
+    named = isinstance(payload, dict) and isinstance(payload.get("config_roots"), dict)
+    node = payload.get("config_roots" if named else "roots") if isinstance(payload, dict) else None
     if not isinstance(node, dict):
         return None, [
             PathTokenIssue(
@@ -364,9 +379,14 @@ def _read_registry_file(path: Path) -> tuple[_RegistryFile | None, list[PathToke
             )
         ]
     parsed, issues = _read_roots_node(node, path)
-    scoped = "workspace_roots" in payload
-    workspace_roots = _read_workspace_roots(payload.get("workspace_roots"), path, issues) if scoped else {}
-    return _RegistryFile(parsed, workspace_roots, scoped), issues
+    slot_key = "slot_folders" if isinstance(payload.get("slot_folders"), dict) else "workspace_roots"
+    scoped = slot_key in payload
+    workspace_roots = _read_workspace_roots(payload.get(slot_key), path, issues) if scoped else {}
+    if named and slot_key == "slot_folders":
+        schema = MACHINE_ROOTS_SCHEMA_VERSION
+    else:
+        schema = MACHINE_ROOTS_MIRRORED_SCHEMA_VERSION if scoped else MACHINE_ROOTS_LEGACY_SCHEMA_VERSION
+    return _RegistryFile(parsed, workspace_roots, scoped, schema), issues
 
 
 def _read_roots_node(node: Mapping[str, Any], path: Path) -> tuple[dict[str, str], list[PathTokenIssue]]:
@@ -399,11 +419,29 @@ def _read_roots_node(node: Mapping[str, Any], path: Path) -> tuple[dict[str, str
     return parsed, issues
 
 
-def _held_workspace_roots(target: Path) -> dict[str, dict[str, str]] | None:
-    """The target file's own ``workspace_roots`` (None: a legacy file or no file — nothing to keep)."""
-
+def _held_registry(target: Path) -> _RegistryFile | None:
     held, _ = _read_registry_file(target)
-    return held.workspace_roots if held is not None and held.scoped else None
+    return held
+
+
+def legacy_roots_mirror(
+    config_roots: Mapping[str, str], slot_folders: Mapping[str, Mapping[str, str]]
+) -> dict[str, str]:
+    """The schema-2 ``roots`` an older edition reads: the config roots plus each slot name bound to ONE folder.
+
+    An older edition expands ``${roots.<slot>}`` from ``roots`` alone, so a slot bound once keeps
+    resolving there; a name two workspaces bind to different folders is left out (never first-wins).
+    """
+
+    mirror = {str(name): str(value) for name, value in config_roots.items()}
+    folders: dict[str, set[str]] = {}
+    for slots in slot_folders.values():
+        for name, value in slots.items():
+            folders.setdefault(str(name), set()).add(str(value))
+    for name, values in folders.items():
+        if name not in mirror and len(values) == 1:
+            mirror[name] = next(iter(values))
+    return dict(sorted(mirror.items()))
 
 
 def write_machine_roots(
@@ -422,15 +460,24 @@ def write_machine_roots(
     """
 
     target = Path(path) if path is not None else machine_roots_registry_paths()[0]
-    # ``None`` keeps what the file has; a file that never carried the map stays legacy (schema 1) so
-    # its roots are still migrated into ``workspace_roots`` on the next slot read.
-    scoped = _held_workspace_roots(target) if workspace_roots is None else workspace_roots
-    payload: dict[str, Any] = {
-        "schema_version": MACHINE_ROOTS_SCHEMA_VERSION if scoped is not None else MACHINE_ROOTS_LEGACY_SCHEMA_VERSION,
-        "roots": {str(name): str(value) for name, value in sorted(roots.items())},
-    }
+    config = {str(name): str(value) for name, value in sorted(roots.items())}
+    # ``None`` keeps what the file has, in the file's own schema: a schema-1 file stays legacy and a
+    # schema-2 file keeps its mirrored shape, so the next slot read still upgrades it (and drops its
+    # slot mirrors, which only that read can tell from config roots). A passed map writes schema 3.
+    held = _held_registry(target) if workspace_roots is None else None
+    if workspace_roots is not None:
+        scoped, schema = workspace_roots, MACHINE_ROOTS_SCHEMA_VERSION
+    elif held is not None and held.scoped:
+        scoped, schema = held.workspace_roots, held.schema
+    else:
+        scoped, schema = None, MACHINE_ROOTS_LEGACY_SCHEMA_VERSION
+    payload: dict[str, Any] = {"schema_version": schema, "roots": config}
     if scoped is not None:
         payload["workspace_roots"] = _sorted_workspace_roots(scoped)
+    if schema >= MACHINE_ROOTS_SCHEMA_VERSION:
+        payload["config_roots"] = config
+        payload["slot_folders"] = payload["workspace_roots"]
+        payload["roots"] = legacy_roots_mirror(config, payload["slot_folders"])
     after = json.dumps(payload, indent=2, sort_keys=True) + "\n"
     try:
         before = target.read_text(encoding="utf-8") if target.is_file() else ""
@@ -441,7 +488,7 @@ def write_machine_roots(
         "path": str(target),
         "dry_run": bool(dry_run),
         "changed": changed,
-        "roots": payload["roots"],
+        "roots": config,
     }
     if dry_run or not changed:
         result["written"] = False
@@ -637,6 +684,11 @@ def _resolve_root(
         )
         return None
     bound = roots.roots.get(name)
+    if not bound:
+        # A slot folder bound to ONE folder answers the name (schema 3 keeps no slot mirror in
+        # ``config_roots``); two different folders answer nothing.
+        folders = set(roots.slot_folder_bindings(name).values())
+        bound = next(iter(folders)) if len(folders) == 1 else ""
     if not bound:
         known = ", ".join(roots.names()) or "(none bound on this machine)"
         issues.append(
