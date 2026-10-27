@@ -7,6 +7,10 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+## Filed on arrival — 2026-10-27 (lane w1027a-h-fork)
+
+- **`FORK-GATEWAY-FENCE-BARE-PYTEST-HERMETIC-ROOT` — under bare `python -m pytest -q -p no:cacheprovider tests/hermes_cli/test_plugins_cmd_catalog.py` (the lane command `Harness_Brain/50 — Agent Handoffs/Running the tests.md` names) the gateway fence takes the session's hermetic home `/tmp/hermes-test-home-*` as the operator's REAL store and refuses the fixture's `git init`, 22 errors on `origin/main`; the same file passes 24/24 under `scripts/run_tests.sh`. Shape: the fallback root never names a path the suite itself minted (compare against the hermetic session home before admitting source 2), with a bare-pytest positive control** · `fork / suite` · `tests/hermes_cli/_gateway_fence.py::_real_hermes_root` · seen 2026-10-27 on nekwo-ubuntu24 · READY 2026-10-27
+
 ## Filed on arrival — 2026-10-26 (lane w1026c-h-rt-b)
 
 
