@@ -131,6 +131,8 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness persona chat](#hermes-harness-persona-chat)
 - [hermes harness persona chat delete](#hermes-harness-persona-chat-delete)
 - [hermes harness persona chat history](#hermes-harness-persona-chat-history)
+- [hermes harness persona chat-head](#hermes-harness-persona-chat-head)
+- [hermes harness persona chat-head migrate](#hermes-harness-persona-chat-head-migrate)
 - [hermes harness persona set-model](#hermes-harness-persona-set-model)
 - [hermes harness persona set-skills](#hermes-harness-persona-set-skills)
 - [hermes harness persona instance](#hermes-harness-persona-instance)
@@ -163,6 +165,9 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness config](#hermes-harness-config)
 - [hermes harness config show](#hermes-harness-config-show)
 - [hermes harness migrate](#hermes-harness-migrate)
+- [hermes harness conversation](#hermes-harness-conversation)
+- [hermes harness conversation chat-folder](#hermes-harness-conversation-chat-folder)
+- [hermes harness conversation chat-folder migrate](#hermes-harness-conversation-chat-folder-migrate)
 - [hermes harness observe](#hermes-harness-observe)
 - [hermes harness observe snapshot-builds](#hermes-harness-observe-snapshot-builds)
 - [hermes harness observe turn-timing](#hermes-harness-observe-turn-timing)
@@ -222,10 +227,10 @@ before changing state. Alias paths share the canonical command's flags.
 
 ```text
 usage: hermes harness [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color] [--fields FIELDS]
-                      {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,observe,contracts,worktree,persona-instance,query,agent,install-harness-skills,snapshot,stream,serve,work,builds,pets,characters} ...
+                      {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,conversation,observe,contracts,worktree,persona-instance,query,agent,install-harness-skills,snapshot,stream,serve,work,builds,pets,characters} ...
 
 positional arguments:
-  {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,observe,contracts,worktree,persona-instance,query,agent,install-harness-skills,snapshot,stream,serve,work,builds,pets,characters}
+  {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,conversation,observe,contracts,worktree,persona-instance,query,agent,install-harness-skills,snapshot,stream,serve,work,builds,pets,characters}
     execution-identity  Identify this Hermes installation without starting a service
     auth                Connect a provider without a terminal prompt
     init                Initialize the harness store
@@ -261,6 +266,7 @@ positional arguments:
                         focused store/snapshot/status test modules
     config              Inspect Harness runtime config
     migrate             Inspect Harness runtime migrations
+    conversation        Operator verbs over native conversation routes
     observe             Show redaction-safe Mission Control observability
     contracts           Inspect canonical Mission Control event contracts
     worktree            Manage harness-managed git worktrees
@@ -2426,10 +2432,10 @@ options:
 
 ```text
 usage: hermes harness persona [-h]
-                              {list,show,tool-diff,permission,chat,set-model,set-skills,instance,slots} ...
+                              {list,show,tool-diff,permission,chat,chat-head,set-model,set-skills,instance,slots} ...
 
 positional arguments:
-  {list,show,tool-diff,permission,chat,set-model,set-skills,instance,slots}
+  {list,show,tool-diff,permission,chat,chat-head,set-model,set-skills,instance,slots}
     list                List durable persona instances
     show                Show one durable persona instance
     tool-diff           Show resolved model tools and blocked tools for one persona
@@ -2437,6 +2443,7 @@ positional arguments:
                         The runtime default is the standing posture — this is the temporary
                         narrowing lane, not an escalation ritual.
     chat                Manage durable persona chat sessions
+    chat-head           Where each agent's chats live (its own profile's state.db)
     set-model           Persist a persona's default provider/model (profile-default lane; future
                         instances inherit it)
     set-skills          Persist a persona's default skill set (profile-default lane; future
@@ -2589,6 +2596,32 @@ options:
   --session-id SESSION_ID
   --limit LIMIT         Page size (clamped 1..40)
   --before BEFORE       Opaque cursor returned by the previous page
+  --json
+```
+
+## hermes harness persona chat-head
+
+```text
+usage: hermes harness persona chat-head [-h] {migrate} ...
+
+positional arguments:
+  {migrate}
+    migrate   Move each agent's chats out of the process head into its own profile; dry-run unless
+              --apply
+
+options:
+  -h, --help  show this help message and exit
+```
+
+## hermes harness persona chat-head migrate
+
+```text
+usage: hermes harness persona chat-head migrate [-h] [--instance INSTANCE] [--apply] [--json]
+
+options:
+  -h, --help           show this help message and exit
+  --instance INSTANCE  One persona instance id; omit for every live instance
+  --apply              Copy, verify, flip the record, then delete from the process head
   --json
 ```
 
@@ -3389,6 +3422,44 @@ usage: hermes harness migrate [-h] [--check] [--json]
 options:
   -h, --help  show this help message and exit
   --check     Report pending migrations without modifying data
+  --json
+```
+
+## hermes harness conversation
+
+```text
+usage: hermes harness conversation [-h] {chat-folder} ...
+
+positional arguments:
+  {chat-folder}
+    chat-folder  Native routes' scratch folders
+
+options:
+  -h, --help     show this help message and exit
+```
+
+## hermes harness conversation chat-folder
+
+```text
+usage: hermes harness conversation chat-folder [-h] {migrate} ...
+
+positional arguments:
+  {migrate}
+    migrate   Move routes off the launcher's agents/workspaces folders into namespace chat folders
+              (dry run unless --apply)
+
+options:
+  -h, --help  show this help message and exit
+```
+
+## hermes harness conversation chat-folder migrate
+
+```text
+usage: hermes harness conversation chat-folder migrate [-h] [--apply] [--json]
+
+options:
+  -h, --help  show this help message and exit
+  --apply     Make the moves; without it the verb only reports them
   --json
 ```
 

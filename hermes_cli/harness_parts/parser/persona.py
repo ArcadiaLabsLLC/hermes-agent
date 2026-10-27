@@ -12,6 +12,7 @@ from .lazy import lazy_module
 agent_commands = lazy_module("hermes_cli.harness_parts.agent_commands")
 chat_coordinator = lazy_module("hermes_cli.harness_parts.persona.chat_coordinator")
 chat_delete = lazy_module("hermes_cli.harness_parts.persona.chat_delete")
+chat_head_commands = lazy_module("hermes_cli.harness_parts.persona.chat_head_commands")
 chat_open = lazy_module("hermes_cli.harness_parts.persona.chat_open")
 chat_tickets_commands = lazy_module("hermes_cli.harness_parts.persona.chat_tickets_commands")
 chat_turn_message = lazy_module("hermes_cli.harness_parts.persona.chat_turn_message")
@@ -170,6 +171,15 @@ def _add_persona_chat_and_model_verbs(persona_subs) -> None:
     persona_chat_history.add_argument("--before", default=None, help="Opaque cursor returned by the previous page")
     persona_chat_history.add_argument("--json", action="store_true")
     persona_chat_history.set_defaults(func=runtime_commands._cmd_persona_chat_history)
+    chat_head = persona_subs.add_parser("chat-head", help="Where each agent's chats live (its own profile's state.db)")
+    chat_head_subs = chat_head.add_subparsers(dest="persona_chat_head_command", required=True)
+    migrate = chat_head_subs.add_parser(
+        "migrate", help="Move each agent's chats out of the process head into its own profile; dry-run unless --apply"
+    )
+    migrate.add_argument("--instance", default=None, help="One persona instance id; omit for every live instance")
+    migrate.add_argument("--apply", action="store_true", help="Copy, verify, flip the record, then delete from the process head")
+    migrate.add_argument("--json", action="store_true")
+    migrate.set_defaults(func=chat_head_commands._cmd_persona_chat_head_migrate)
 
     persona_set_model = persona_subs.add_parser("set-model", help="Persist a persona's default provider/model (profile-default lane; future instances inherit it)")
     persona_set_model.add_argument("persona_id", help="Persona id or profile_<name>")

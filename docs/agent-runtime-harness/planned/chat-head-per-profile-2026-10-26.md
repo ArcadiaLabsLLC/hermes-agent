@@ -254,6 +254,22 @@ row, and `ensure_durable_persona_chat_root` passes its persona. Without that the
 `base`, the stamp's own guard then finds it and stays `process` — consistent, but no agent would
 ever start per-profile. The send lane's and `chat_open`'s mints pass no persona and stay `process`.
 
+### 7.4f Built — CH3-MOVE-VERB (lane w1027h-h-head, 2026-10-27)
+
+`hermes harness persona chat-head migrate [--instance <id>] [--apply] [--json]`
+(`agent_runtime/chat_head_migration.py::migrate_chat_heads`). Per live instance whose persona runs
+in its own profile: its sessions in the process head (`instance_sessions`, plus the bound root) and
+every descendant by `parent_session_id`, parents first, through upstream's
+`export_session_for_move` → `import_moved_session` → `delete_moved_session`. Under `--apply` it holds
+the instance's `persona_chat_instance_lock` and every root's `persona_chat_root_lease`, and refuses
+`chat_busy` when a lease is held or a turn, receipt or clarify ticket is open
+(`operator_session_models._require_idle`). The record flips only after every session verified (the
+target holds it with at least the source's messages); then the process-head rows go, children first.
+Statuses: `planned` (dry run) · `moved` · `present` (flipped, nothing left) · `settled` (flipped, rows
+left by a crash, now copied and deleted) · `skipped` (`runs_in_process_head` / `profile_home_missing`
+/ `no_sessions`) · `refused` (`chat_busy` / `session_ledgered` / `copy_unverified` /
+`target_store_unavailable`). No RPC twin: the plan names it an operator verb.
+
 ### 7.5 Open questions
 
 None for the owner: every choice above is technical and follows ruling 4. §4's question (what stays in

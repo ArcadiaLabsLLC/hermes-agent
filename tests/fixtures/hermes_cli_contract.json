@@ -7489,6 +7489,7 @@
       "positionals": [],
       "subcommands": [
         "chat",
+        "chat-head",
         "instance",
         "list",
         "permission",
@@ -7656,6 +7657,89 @@
         "persona",
         "chat",
         "history"
+      ],
+      "positionals": [],
+      "subcommands": []
+    },
+    "harness persona chat-head": {
+      "exclusive_groups": [],
+      "options": {
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "persona",
+        "chat-head"
+      ],
+      "positionals": [],
+      "subcommands": [
+        "migrate"
+      ]
+    },
+    "harness persona chat-head migrate": {
+      "exclusive_groups": [],
+      "options": {
+        "--apply": {
+          "action": "store_true",
+          "canonical": "--apply",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--instance": {
+          "action": "store",
+          "canonical": "--instance",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "persona",
+        "chat-head",
+        "migrate"
       ],
       "positionals": [],
       "subcommands": []
