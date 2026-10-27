@@ -125,7 +125,9 @@ def test_the_text_mode_names_the_source(
     # (ruling R1): the headline leads with the eager split and keeps 45 as callable-by-name.
     # 45 -> 41: upstream v0.22.2 folded the five ``browser_vault_*`` tools into one
     # ``browser_vault`` (2026-10-15 release merge); the ratchet reads 41 in the same wave.
-    assert "(41 callable by name)" in out
+    # 41 -> 44: RT-COURSE-PERSONA-TOOLS (``0c4361389d``) added the ``course`` toolset's
+    # three tools to ``harness_core``; the ratchet reads DECLARED_TOOL_COUNT = 44.
+    assert "(44 callable by name)" in out
     assert "toolsets: harness_core (" in out
     assert "persona-level toolsets list ignored" not in out
 

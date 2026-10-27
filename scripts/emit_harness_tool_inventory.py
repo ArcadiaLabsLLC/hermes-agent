@@ -85,6 +85,7 @@ TOOLSET_PURPOSE = {
     "session_search": "search your own past sessions",
     "vision": "analyze an image",
     "code_execution": "run code in the sandbox",
+    "course": "author a course: checkout, commit, PR",
 }
 
 #: Operate-table rows that have NO in-turn tool — the CLI is genuinely the only

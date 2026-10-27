@@ -119,6 +119,14 @@
       "tools": [
         "execute_code"
       ]
+    },
+    {
+      "name": "course",
+      "tools": [
+        "course_checkout",
+        "course_commit",
+        "course_pull_request"
+      ]
     }
   ],
   "tools": [
@@ -277,6 +285,27 @@
       "description": "Ask the user one or more questions when you need a decision, clarification, or feedback before proceeding. Pass every question in `questions` (1-5 entries) —..."
     },
     {
+      "name": "course_checkout",
+      "toolset": "course",
+      "mutating": false,
+      "gated": false,
+      "description": "Clone or fetch a course repo with the turn's course credential."
+    },
+    {
+      "name": "course_commit",
+      "toolset": "course",
+      "mutating": false,
+      "gated": false,
+      "description": "Commit and push files on the persona's course authoring branch."
+    },
+    {
+      "name": "course_pull_request",
+      "toolset": "course",
+      "mutating": false,
+      "gated": false,
+      "description": "Open the pull request for the persona's course authoring branch."
+    },
+    {
       "name": "delegate_task",
       "toolset": "delegation",
       "mutating": false,
@@ -411,9 +440,9 @@
     }
   ],
   "counts": {
-    "tools": 41,
-    "toolsets": 15,
-    "token_estimate": 7792
+    "tools": 44,
+    "toolsets": 16,
+    "token_estimate": 8205
   },
   "cli_only_verbs": [
     "persona instance open-chat",

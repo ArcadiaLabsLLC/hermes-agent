@@ -30,7 +30,8 @@
         "todo",
         "session_search",
         "vision",
-        "code_execution"
+        "code_execution",
+        "course"
       ],
       "goal_id": null,
       "last_heartbeat_at": null,
@@ -87,7 +88,7 @@
       "state": "idle",
       "steered_by": [],
       "token_budget_used": 0,
-      "tool_count": 41,
+      "tool_count": 44,
       "toolset_declaration": {
         "config_path": "<tmp>/hermes-home/profiles/beta/config.yaml",
         "declared": [
@@ -111,7 +112,8 @@
           "todo",
           "session_search",
           "vision",
-          "code_execution"
+          "code_execution",
+          "course"
         ],
         "unknown": []
       },
@@ -130,7 +132,8 @@
         "todo",
         "session_search",
         "vision",
-        "code_execution"
+        "code_execution",
+        "course"
       ],
       "updated_at": "<timestamp>",
       "visibility_ref": {
@@ -176,7 +179,8 @@
         "todo",
         "session_search",
         "vision",
-        "code_execution"
+        "code_execution",
+        "course"
       ],
       "goal_id": null,
       "last_heartbeat_at": null,
@@ -229,7 +233,7 @@
       "state": "idle",
       "steered_by": [],
       "token_budget_used": 0,
-      "tool_count": 41,
+      "tool_count": 44,
       "toolset_declaration": {
         "config_path": "<tmp>/hermes-home/profiles/alpha/config.yaml",
         "declared": [
@@ -253,7 +257,8 @@
           "todo",
           "session_search",
           "vision",
-          "code_execution"
+          "code_execution",
+          "course"
         ],
         "unknown": []
       },
@@ -272,7 +277,8 @@
         "todo",
         "session_search",
         "vision",
-        "code_execution"
+        "code_execution",
+        "course"
       ],
       "updated_at": "<timestamp>",
       "visibility_ref": {
@@ -318,7 +324,8 @@
         "todo",
         "session_search",
         "vision",
-        "code_execution"
+        "code_execution",
+        "course"
       ],
       "goal_id": null,
       "last_heartbeat_at": null,
@@ -369,7 +376,7 @@
       "state": "idle",
       "steered_by": [],
       "token_budget_used": 0,
-      "tool_count": 41,
+      "tool_count": 44,
       "toolset_declaration": {
         "config_path": "<tmp>/hermes-home/profiles/alpha/config.yaml",
         "declared": [
@@ -393,7 +400,8 @@
           "todo",
           "session_search",
           "vision",
-          "code_execution"
+          "code_execution",
+          "course"
         ],
         "unknown": []
       },
@@ -412,7 +420,8 @@
         "todo",
         "session_search",
         "vision",
-        "code_execution"
+        "code_execution",
+        "course"
       ],
       "updated_at": "<timestamp>",
       "visibility_ref": {

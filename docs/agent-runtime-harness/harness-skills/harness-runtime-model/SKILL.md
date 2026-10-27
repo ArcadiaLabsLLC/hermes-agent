@@ -146,7 +146,7 @@ sections — gone, not missing.
 
 <!-- BEGIN GENERATED: harness_core inventory -->
 
-41 tools · generated from the registry by `scripts/emit_harness_tool_inventory.py` · do not edit by hand. If a tool exists for it, the tool is the answer; the full table with descriptions is `references/tool-inventory.md`.
+44 tools · generated from the registry by `scripts/emit_harness_tool_inventory.py` · do not edit by hand. If a tool exists for it, the tool is the answer; the full table with descriptions is `references/tool-inventory.md`.
 
 | toolset | tools | use it for |
 |---|---|---|
@@ -165,6 +165,7 @@ sections — gone, not missing.
 | `session_search` | `session_search` | search your own past sessions |
 | `vision` | `vision_analyze` | analyze an image |
 | `code_execution` | `execute_code` | run code in the sandbox |
+| `course` | `course_checkout` · `course_commit` · `course_pull_request` | author a course: checkout, commit, PR |
 
 <!-- END GENERATED: harness_core inventory -->
 
