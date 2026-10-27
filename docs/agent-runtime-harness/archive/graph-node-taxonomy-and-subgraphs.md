@@ -1,3 +1,6 @@
+> **PARKED, not built** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b): its gate (an operator ask an agent node cannot express) was never met; fan-in already lives in `steered_by`, and the bound-persona node stays the only node.
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Planned — graph node taxonomy and sub-graph expansion
 
 **Owner domain:** system architecture ([01-system-architecture.md](../01-system-architecture.md))

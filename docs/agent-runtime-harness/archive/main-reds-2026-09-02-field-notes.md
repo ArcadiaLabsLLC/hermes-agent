@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: 2026-09-02 (flag-reader census, drain accounting); the original shas predate the 2026-09-15 history fold into the `fork:` commits (`5a411b1657`..`0d5b7b8abc`).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # `main` reds, 2026-09-02 — field notes
 
 Running record for the branch `fix/main-reds-flag-readers-drain-accounting`, cut

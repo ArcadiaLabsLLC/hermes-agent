@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: first landed in the 2026-09-15 fork fold `3b0f3c9672` and `5de3445812`; re-seated as the adapter over upstream's `local_runtime` engine at `7c3a800eef` (2026-09-24), provider alias `dd7ad19e73`.
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Local llama Hermes — Agent Console implementation plan
 
 > Current status (2026-09-14): the v1 implementation has landed; see

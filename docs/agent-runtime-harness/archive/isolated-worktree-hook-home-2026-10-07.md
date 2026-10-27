@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `48ccf324ad` (2026-10-10: post-merge installs from the primary checkout only; `tests/tooling/test_post_merge_hook_worktree.py`).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Isolated worktree post-merge inherits operator home
 
 2026-10-07, lifecycle fixture lane. No hook/installer implementation change.

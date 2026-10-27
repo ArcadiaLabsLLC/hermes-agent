@@ -9,7 +9,7 @@ and precise.
 **Scope boundary — read this first.** This plan is about the FIRST build in a process
 being 3-5× the cost of a later one in the same process, i.e. **cold per-process cache
 population**. It is NOT about the build being O(world) on every call; that is
-[`incremental-projection.md`](incremental-projection.md), which reaches the same
+[`incremental-projection.md`](../archive/incremental-projection.md), which reaches the same
 receipt from the other side and explicitly separates the two ("the cost is cold caches,
 not algorithmic"). Both can be true; they need different fixes and different gates.
 

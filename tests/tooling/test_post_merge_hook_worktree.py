@@ -3,7 +3,7 @@
 ``core.hooksPath`` is per-clone, so the hook also fires in a lane's linked worktree,
 whose shell inherits the operator's ``HERMES_HOME``; there it must verify only
 (``--check``), never copy a branch's skill packages into that home
-(``docs/agent-runtime-harness/planned/isolated-worktree-hook-home-2026-10-07.md``).
+(``docs/agent-runtime-harness/archive/isolated-worktree-hook-home-2026-10-07.md``).
 """
 
 from __future__ import annotations

@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: the setup/installation verbs landed at `5de3445812` (2026-09-15) and ride `agent_runtime/local_llama_adapter/setup.py` since the re-seat `7c3a800eef` (2026-09-24).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Local llama setup: implementation checkpoint and consumer contract
 
 2026-09-15. **Backend protocol implemented and focused-tested; integrated UI
@@ -65,7 +68,7 @@ the operation. Recognize stale_revision, plan_changed/expired, operation_busy,
 active_turns, server_must_be_off, cancel_not_available, digest_mismatch, disk_full,
 path_conflict, unsafe_archive, recovery_required, rate_limited. Keep user drafts.
 
-[Producer fixtures](local-llama-setup-fixtures.json) were emitted from an isolated
+[Producer fixtures](../planned/local-llama-setup-fixtures.json) were emitted from an isolated
 real official b10964 CPU installation/activation, with host paths sanitized. They
 cover setup capabilities/status, lifecycle status, plan, and terminal operations.
 Unknown/empty/permission and cancellation cases are exercised in setup/gateway tests.

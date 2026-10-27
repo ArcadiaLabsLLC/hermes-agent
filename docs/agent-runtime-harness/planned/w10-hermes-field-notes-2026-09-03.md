@@ -3,7 +3,7 @@
 Worktree `X:/Eternia/_worktrees/w10-hermes`, branch `w10/hermes`, base `504953f6ad`.
 Six rows, six commits (`501f66c25a`, `7b4a985261`, `22718696da`, `a7cf27ee79`,
 `2dc6805041`, `c544782022`). Focused `pytest` only throughout, per the wave's
-verification rule; `docs/agent-runtime-harness/planned/hermes-suite-perf.md`
+verification rule; `docs/agent-runtime-harness/archive/hermes-suite-perf.md`
 and the retired pre-push hook's own text were the sources for row 3's docs
 and row 4's baseline.
 
@@ -164,7 +164,7 @@ scope vs. what the runner discovers by default" paragraph naming
 validated suite" means everywhere in the doc, and a triage of the three
 classes (provider-network hangs, WSL-bash PATH shadow, acp/ripgrep
 dependency holes) with the operational meaning of each — sourced from
-`docs/agent-runtime-harness/planned/hermes-suite-perf.md`'s own
+`docs/agent-runtime-harness/archive/hermes-suite-perf.md`'s own
 2026-09-01 residual entry and the retired pre-push hook's text (`git show
 000bbd6179:.githooks/pre-push`), not re-measured.
 

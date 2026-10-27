@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `efad97d095` (2026-10-07).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Native handler anchor contract — 2026-10-07
 
 Frozen base `40ebb8da6428b4349131ef2676434a6229ceffa0` joins claim/main `f1d285e4faf09aec1e6b973e307c439201248d0c` and reviewed runtime `8f235b8e320324f928d752b1eda9197013a0234f`. No advancing-main integration during proof.

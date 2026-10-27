@@ -1285,7 +1285,7 @@ operator's text.
 
 - **New-chat first send settled REJECTED — OPEN, unreproduced.** 2026-08-22 02:00:47Z; the mint is
   acquitted, the explicit-`session_id` lane implicated, and `[MissionChatOutcome]` (§10) stands
-  guard for the next occurrence → [record](planned/new-chat-first-send-rejected.md).
+  guard for the next occurrence → [record](archive/new-chat-first-send-rejected.md).
 - **Hermes admission cost — REMEDIATED 2026-08-23, warm half RE-TAKEN 2026-08-24; two
   narrow opens left.** The ~4–6 s warm-turn share was remediated by
   `planned/chat-turn-prep-cost.md` Stages 0–2
@@ -1298,7 +1298,7 @@ operator's text.
   five (343 / 468 ms) against 562 / 796 / 968 on the other three, and the **fresh-chat first
   turn** still reads `agent_init_cold=true` through
   `resident_rebuild_component_workspace_agents` (§4b) →
-  [plan](planned/mission-chat-admission-latency.md).
+  [plan](archive/mission-chat-admission-latency.md).
 - **Chat-lane context, memory and affordance gaps** — core-context/profile-memory knobs with no
   operator surface, no shell hooks, no slash commands, no attachment *input*, no per-turn worktree
   isolation, skill surface filter → [plan](planned/chat-lane-context-and-memory-gaps.md).

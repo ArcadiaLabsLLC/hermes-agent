@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `b8d68649d2` and `68b24d4254` (2026-09-16).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Model picker provider policy v1
 
 Status: implementation contract; code remains on a feature branch pending joint client/runtime validation. Date: 2026-09-16.

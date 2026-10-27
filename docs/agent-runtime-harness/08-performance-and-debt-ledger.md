@@ -100,7 +100,7 @@ already proved that reading a section number off a build log convicts the wrong 
 way `25cd488d33` decomposed `agents_readiness` — instrument first, then choose a target.
 No remedy may be proposed against the section-level number alone.
 → [`planned/cold-first-core-build-cost.md`](planned/cold-first-core-build-cost.md),
-[`planned/incremental-projection.md`](planned/incremental-projection.md) (boot and
+[`archive/incremental-projection.md`](archive/incremental-projection.md) (boot and
 runtime-data lanes own those designs; do not fork them here).
 
 ### 2. The core cache never converges — CONVICTED

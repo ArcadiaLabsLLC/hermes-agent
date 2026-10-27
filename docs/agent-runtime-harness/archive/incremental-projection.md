@@ -1,3 +1,6 @@
+> **PARKED, not built** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b): none of its four gates was met and no production driver exists; the cold-cache route it names as cheaper first is `cold-first-core-build-cost.md`.
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Planned — incremental projection (the O(world) build)
 
 **Status:** not implemented; the previous attempt was retired 2026-08-01.
@@ -7,7 +10,7 @@
 **Scope boundary.** This plan is about the build being O(world) on *every* call.
 The separate fact that the FIRST build in a process costs 3–5× a later one — cold
 per-process cache population — is
-[`cold-first-core-build-cost.md`](cold-first-core-build-cost.md). Both are true of
+[`cold-first-core-build-cost.md`](../planned/cold-first-core-build-cost.md). Both are true of
 the same 11,235 ms receipt; they need different fixes and different gates.
 
 ## The problem
@@ -47,7 +50,7 @@ build in the same process 183 ms (36 / 146).
 
 `agent_runtime/projector.py` is **deleted** as of 2026-08-22. It survived S46
 holding only `full_rebuild()`, and Stage 6 of
-[duplicate-implementation-retirement.md](duplicate-implementation-retirement.md)
+[duplicate-implementation-retirement.md](../planned/duplicate-implementation-retirement.md)
 took that too — along with `read_model.py`, the schema, and the two CLI verbs —
 when the operator ruled the whole `read_model.db` lane RETIRE. `full_rebuild`'s
 "production caller" turned out to be a verb an operator had to type, writing a

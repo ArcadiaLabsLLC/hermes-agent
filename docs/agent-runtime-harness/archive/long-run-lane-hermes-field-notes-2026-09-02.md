@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: 2026-09-02 (per-draft lock, generate-verb drain hold, provider timeout); the original shas predate the 2026-09-15 history fold into the `fork:` commits (`5a411b1657`..`0d5b7b8abc`).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Long-run lane — the hermes half (2026-09-02, running record)
 
 Branch `feat/longrun-hermes-half`, worktree `X:/Eternia/_worktrees/w1-longrun`,

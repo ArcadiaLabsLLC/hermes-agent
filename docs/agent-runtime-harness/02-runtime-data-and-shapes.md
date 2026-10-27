@@ -995,7 +995,7 @@ log, 13:45–13:46). The `events` section is not the problem; the two walks are.
   `build_ms=11235 sections_top=prompt_observability:4520,agents_readiness:4366,events:842`
   (prewarm, generation 1, pid 30588). Every build re-projects the whole store;
   RD3's incremental lane was retired 2026-08-01 with no successor.
-  → [planned/incremental-projection.md](planned/incremental-projection.md)
+  → [archive/incremental-projection.md](archive/incremental-projection.md)
 - **2026-08-22 — the retired lane's last traces have a removal plan.** Three
   dead config fields still ride the snapshot wire (contract-bump lockstep —
   rides the NEXT bump, never its own), the operator's live `config.yaml` still

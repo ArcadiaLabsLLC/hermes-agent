@@ -111,7 +111,7 @@ number to move with the box's core count.
 That four-directory scope is **the 4 directories R3 was proven on**,
 deliberately not a whole-tree run (nothing runs the whole tree, ADR 0016): a whole-tree run on a green
 `main` reads ~142 failed, every one triaged environmental or pre-existing (see
-[`planned/hermes-suite-perf.md`](docs/agent-runtime-harness/planned/hermes-suite-perf.md)
+[`planned/hermes-suite-perf.md`](docs/agent-runtime-harness/archive/hermes-suite-perf.md)
 §Follow-ups). Two things sit OUTSIDE it and are named nowhere in it:
 `tests/test_coverage_claims_resolve.py` and all of `tests/scripts/`. They are
 section 3 of the unattended report below — the only lane that runs them
@@ -260,7 +260,7 @@ services and run in their own dedicated jobs — name them explicitly, e.g.
 `run_tests_parallel.py tests/e2e`, when you do want them). Do NOT raise
 `HERMES_TEST_WORKERS` past 8: the 12-worker probe measured slower (23:55 vs
 17:36) AND load-flaked 2 tests that are serially green (field notes §14 of
-`docs/agent-runtime-harness/planned/hermes-suite-perf-field-notes-2026-09-01.md`).
+`docs/agent-runtime-harness/archive/hermes-suite-perf-field-notes-2026-09-01.md`).
 Any parallel-only failure is compared as a SET against a serial confirmation
 run of just that file before it is believed. Two knobs worth knowing:
 `HERMES_TEST_TMP_ROOT` (point it at a dedicated, Defender-excluded throwaway
@@ -335,5 +335,5 @@ those 142 triages into an environmental class, not a code defect:
 Widening the validated scope past these four directories is a scope decision
 with an open row (Mission Control queue, "the ruled default's SCOPE is wider
 than its proof"), not something a hook or a doc edit does unilaterally.
-Details and the full triage: `docs/agent-runtime-harness/planned/hermes-suite-perf.md`
+Details and the full triage: `docs/agent-runtime-harness/archive/hermes-suite-perf.md`
 §"Follow-ups this diagnosis surfaced" (residual 2026-09-01).

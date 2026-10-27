@@ -1,3 +1,6 @@
+> **PARKED, not built** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b): superseded: the hermes share before the provider is owned by `chat-turn-prep-cost.md` (row `RT-LOCAL-CHAT-PREP-COST`) with 2026-09-06 numbers, and every line cite here predates the god-file split.
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Planned — mission-chat admission latency (the 4–6 s before the provider)
 
 **Status:** measured, convicted, not remediated. **Owner doc:**

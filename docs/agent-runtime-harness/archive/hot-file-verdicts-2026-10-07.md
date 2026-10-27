@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: the four local MOVEs `9b717478f33`, `1a578e79a82`, `a2d6aaf222d` (2026-10-07); the `upstream` verdicts ride the upstream footprint ledger and the deferred PRs.
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Job 2 hot-file verdicts — 2026-10-07
 
 Phase A design only: this table commits alone before product edits. Parent batch review is required before extracts/drops. Job 3 remains LAST and is not started. User/Claude own final full validation and main landing; no full suite is authorized for this lane or parent.

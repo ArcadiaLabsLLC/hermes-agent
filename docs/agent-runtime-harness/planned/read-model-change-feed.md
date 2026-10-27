@@ -53,7 +53,7 @@ entities are what a feed would carry today.
 
 1. **There is no producer to hang it on.** The archived design attaches the feed
    to the incremental projector's commit boundary. That lane was retired
-   2026-08-01 (see [incremental-projection.md](incremental-projection.md)), so
+   2026-08-01 (see [incremental-projection.md](../archive/incremental-projection.md)), so
    the feed has no natural chokepoint. A feed written from `write_back()` in
    `core_cache.py` instead would fire once per whole-core build — which is
    coarse, but it is where the runtime actually commits a projection today.

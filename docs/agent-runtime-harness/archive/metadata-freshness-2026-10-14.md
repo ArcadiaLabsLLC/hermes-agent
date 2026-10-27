@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `6de9e509e6` (2026-10-14).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Package metadata freshness repair
 
 The intermittent failure in `test_skill_root_freshness` was a production cache

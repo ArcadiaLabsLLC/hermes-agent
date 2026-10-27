@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: the setup/installation verbs landed at `5de3445812` (2026-09-15) and ride `agent_runtime/local_llama_adapter/setup.py` since the re-seat `7c3a800eef` (2026-09-24).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Local llama Hermes installation and management contract
 
 Status: **proposed, source-reviewed; not implemented or fixture-frozen**.
@@ -16,7 +19,7 @@ Its supervisor changes launch-flag compatibility and unknown idle telemetry;
 the fork-owned Local llama implementation is unchanged. Qualify owner-specific
 arguments against pinned binaries and never turn unknown telemetry into lifecycle
 authority. No installer schema change follows from this update. See the
-[latest merge and validation notes](upstream-sync-20260915.md).
+[latest merge and validation notes](../planned/upstream-sync-20260915.md).
 
 The combined source includes upstream `hermes_cli/local_runtime/` (binary assets,
 hardware, GGUF/catalog, bootstrap, supervision and recovery). The original source
@@ -35,8 +38,8 @@ and journal publication before freezing installer fixtures.
 The integration candidate passed all 48 existing Local llama tests and the real
 isolated text/tool/compression/reload/owned-shutdown probe. This proves the existing
 runtime, not the proposed installer. See the detailed
-[installer handoff](upstream-sync-20260914/installer-handoff.md) and
-[candidate evidence](upstream-sync-20260914/candidate-test-evidence.json).
+[installer handoff](../planned/upstream-sync-20260914/installer-handoff.md) and
+[candidate evidence](../planned/upstream-sync-20260914/candidate-test-evidence.json).
 Launcher installation work remains blocked on producer-owned installer contract
 fixtures and served-wire proof; no installer methods have been implemented.
 

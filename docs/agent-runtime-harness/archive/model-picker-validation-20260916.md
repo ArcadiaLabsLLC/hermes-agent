@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `b8d68649d2` and `68b24d4254` (2026-09-16).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Model picker validation receipt — 2026-09-16
 
 Status: feature branch only; NOT approved to merge. The operator's local worker must inspect and validate both repositories before either product branch lands. Plans are already on main. This evidence note is not a work queue.

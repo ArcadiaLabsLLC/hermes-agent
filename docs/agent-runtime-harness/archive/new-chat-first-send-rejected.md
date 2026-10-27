@@ -1,3 +1,6 @@
+> **PARKED, not built** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b): a bug record unreproduced since 2026-08-22; the chat lane it names was rebuilt as native conversations, and `[MissionChatOutcome]` still stands guard for a recurrence.
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Planned — the first send into a fresh new chat settled REJECTED, and nothing recorded why
 
 **Owner domain:** the chat turn lane ([05-chat-turn-lane.md](../05-chat-turn-lane.md) §1)

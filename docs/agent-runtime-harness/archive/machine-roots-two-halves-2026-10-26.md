@@ -1,9 +1,12 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `a5e94f7ac3` (M1, schema 3) and `2e31b99c1f` (M2, slot folder is a config root), 2026-10-26.
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Planned — `machine_roots.json` names its two halves, then merges them (RT-MACHINE-ROOTS-TWO-HALVES, 2026-10-26)
 
 **Owner domain:** runtime data ([02-runtime-data-and-shapes.md](../02-runtime-data-and-shapes.md)), boot
 and lifecycle (store epoch).
 **Status:** RULED 2026-10-26 (lane w1026a-h-b, by the wave brief's "go with recommendations"); build rows in §5.
-**Spec:** [naming-and-address-map-2026-10-25.md](naming-and-address-map-2026-10-25.md) ruling 6.
+**Spec:** [naming-and-address-map-2026-10-25.md](../planned/naming-and-address-map-2026-10-25.md) ruling 6.
 
 ## 1. What is true today (read 2026-10-26 on `main`)
 

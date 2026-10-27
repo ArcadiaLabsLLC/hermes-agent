@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: the reviewed candidate landed through `7f5d4bbe7e` (land/prep-hermes-waves); every dependency tip it lists is an ancestor of main.
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Reviewed Hermes fork candidate — 2026-10-07
 
 Branch `prep/hermes-waves-reviewed-20261007`, main frozen at `f1d285e4faf09aec1e6b973e307c439201248d0c`. Combined product freeze `b5fa078e1f5d27be42f6eb9592b2ce6f975a77c9`; this receipt changes documentation only.
@@ -17,8 +20,8 @@ All dependency tips and frozen main are ancestors. No conflicts or manual semant
 Exact title matching against the original 41-row `runtime.json` manifest, with a verified deletion diff/commit for every absent title: **32 DONE, 1 REFUTED, 8 PENDING**. No inferred 42nd original row and no missing-title assumption without a deletion receipt.
 
 - REFUTED: R017's old build-unknown assertion, scoped to the actual supported developer boot evidence.
-- Concrete additive upstream-door prerequisites remain pending: R008, R010, R034; see [ownership design](runtime-wave2-ownership-2026-10-07.md). Their design is not a completed producer implementation.
-- Five fresh evidence prerequisites remain pending: R003, R013, R018, R019, R021; see [evidence wave](runtime-evidence-wave4-2026-10-07.md). R013 retains the current standing-stream drain receipt and actual Launcher handoff remains unproved.
+- Concrete additive upstream-door prerequisites remain pending: R008, R010, R034; see [ownership design](../planned/runtime-wave2-ownership-2026-10-07.md). Their design is not a completed producer implementation.
+- Five fresh evidence prerequisites remain pending: R003, R013, R018, R019, R021; see [evidence wave](../planned/runtime-evidence-wave4-2026-10-07.md). R013 retains the current standing-stream drain receipt and actual Launcher handoff remains unproved.
 - Separate added anchor claim: DONE at `efad97d0952081213f2f352b967d333a8011f278`; not included in the original 41. Separate hook-isolation finding: PENDING in fork-hygiene queue; see [hook receipt](isolated-worktree-hook-home-2026-10-07.md).
 
 Per-ID original title, queue line or deletion SHA, and separate claim receipts are in coordinator `outputs/hermes-reviewed-candidate-accounting.json`; reproduction `hermes-reviewed-candidate-accounting.py`. Historical progress status is retained there only as comparison, not current authority.

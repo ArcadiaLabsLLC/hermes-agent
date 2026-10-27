@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: every classified red was retired by 2026-09-24, the last two classes at `bc499262d2`.
+> History, not truth: the domain docs and the queues hold what is current.
+
 # `main`'s named reds, classified — 2026-09-23 (lane ORDER0)
 
 **Base:** `origin/main` at `bcf8012e6a`, worktree `X:/wt/h-reds`. Every file was
