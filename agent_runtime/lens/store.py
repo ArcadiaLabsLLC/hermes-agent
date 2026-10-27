@@ -528,18 +528,9 @@ class LensStore:
                        for row in rows):
                     return False
                 if conn.execute("SELECT COUNT(*) FROM receipts").fetchone()[0] + len(rows) <= MAXIMUM_RECEIPTS:
-                    for row, (_, episode) in zip(rows, pairs):
-                        conn.execute(f"INSERT INTO receipts ({', '.join(_RECEIPT_COLUMNS)}) VALUES "
-                                     f"({', '.join('?' * len(_RECEIPT_COLUMNS))})", row)
-                        moved.append(episode is not None and _episode_state_moves(conn, episode))
-                        if episode is not None:
-                            _write_episode(conn, episode)
-                    inserted = True
+                    moved, inserted = _insert_receipts(conn, rows, pairs), True
                 elif folded:
-                    for row, (_, episode) in zip(rows, pairs):
-                        if episode is not None:
-                            _write_episode(conn, replace(episode, turn_id=StoreRefusal.RECEIPTS_FULL.value))
-                        logger.warning(RECEIPTS_FULL_RECEIPT, row[1], row[0])
+                    _settle_receipts_full(conn, rows, pairs)
                 if (inserted or folded) and also is not None:
                     also(conn)
                 if folded and not inserted:
@@ -740,6 +731,30 @@ def _write_episode(conn: sqlite3.Connection, episode: Episode) -> None:
     conn.execute("INSERT OR REPLACE INTO episodes VALUES (?, ?, ?, ?, ?, ?)",
                  (episode.id, episode.monitor_id, episode.rule_id, episode.ordinal, episode.state.value,
                   json.dumps(episode.to_json(), sort_keys=True)))
+
+
+def _insert_receipts(conn: sqlite3.Connection, rows: list[tuple], pairs: list[tuple[dict[str, Any], Episode | None]]
+                     ) -> list[bool]:
+    """Insert each receipt row with its Episode; per pair, whether the Episode's state moved."""
+
+    moved: list[bool] = []
+    for row, (_, episode) in zip(rows, pairs):
+        conn.execute(f"INSERT INTO receipts ({', '.join(_RECEIPT_COLUMNS)}) VALUES "
+                     f"({', '.join('?' * len(_RECEIPT_COLUMNS))})", row)
+        moved.append(episode is not None and _episode_state_moves(conn, episode))
+        if episode is not None:
+            _write_episode(conn, episode)
+    return moved
+
+
+def _settle_receipts_full(conn: sqlite3.Connection, rows: list[tuple],
+                          pairs: list[tuple[dict[str, Any], Episode | None]]) -> None:
+    """Still full after a fold: each Episode settles as ``receipts_full`` and no receipt row is written."""
+
+    for row, (_, episode) in zip(rows, pairs):
+        if episode is not None:
+            _write_episode(conn, replace(episode, turn_id=StoreRefusal.RECEIPTS_FULL.value))
+        logger.warning(RECEIPTS_FULL_RECEIPT, row[1], row[0])
 
 
 def _receipt_row(receipt: dict[str, Any]) -> tuple[Any, ...]:

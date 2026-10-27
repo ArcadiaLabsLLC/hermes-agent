@@ -9,7 +9,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-10-27 (lane w1027g-h-fix, reds proven on `e89649c8d9` in a detached base worktree)
 
-- **`FH-LEGIBILITY-LENS-SAVE-RECEIPTS` — `test_no_new_function_breaks_the_floor` is red on main: `LensStore.save_receipts` is over 150 lines or nested deeper than 4 and not grandfathered; lift it into helpers (rule 17), never add a row** · `tests/tooling/test_function_legibility_floor.py::test_no_new_function_breaks_the_floor` · `agent_runtime/lens/store.py::LensStore.save_receipts` · filed by lane w1027g-h-fix 2026-10-27 · READY 2026-10-27 · **TAKEN 2026-10-27 w1027h-h-reds on nekwo-ubuntu24 as nekwo in hermes-w1027h-h-reds**
 
 ## Filed on arrival — 2026-10-27 (lane w1027a-h-fork)
 
