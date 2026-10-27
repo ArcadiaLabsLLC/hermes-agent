@@ -26,8 +26,14 @@ grep the diag log and the serve service log for the minted token, and require
 the output to contain, in order — launcher send, serve write receipt, patch-row
 fold receipt (or a demote receipt naming the id among contributors).
 
-- Not present in `tests/`; there is no scripted acceptance for the cross-process
-  join today. `test_correlation_id.py` pins the hermes half only.
+- **Built 2026-10-27 (lane w1027k-h-rt):** `scripts/correlation_id_acceptance.py
+  --token <id> --receipts <receipts.jsonl> --serve-log <agent.log>` reads the launcher's
+  transport receipts (`office_write_sent`, `fold_applied`) and the serve's
+  `office_write op=… corr=…` line and exits 0 only when send, serve and fold appear in
+  that order (1 missing, 2 out of order); the hop rules are
+  `agent_runtime/correlation_acceptance.py`, pinned by
+  `tests/agent_runtime/test_correlation_acceptance.py`. The run against the operator's own
+  build (one delete, one drag) is the live half and is still owed.
 - Gate: it must run against the operator's own build reading logs only — no
   `.hermes/` writes, no casual `harness serve`.
 - Until it exists, the sanctioned diagnostic procedure it was meant to REPLACE
