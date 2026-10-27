@@ -1,6 +1,6 @@
 # Planned — burn down the Unverified carry-forward sections
 
-**Status:** IN PROGRESS — first row discharged 2026-08-23 (doc 05's `chat_lane_scope_ms` 2,421: re-verified as the UNWARMED CREATE subphase, never a per-turn cost, and the doc-05 row now carries the annotation — prep-cost §3 H2).
+**Status:** IN PROGRESS — first row discharged 2026-08-23 (doc 05's `chat_lane_scope_ms` 2,421: re-verified as the UNWARMED CREATE subphase, never a per-turn cost, and the doc-05 row now carries the annotation — prep-cost §3 H2). 2026-10-27 (lane w1027k-h-rt): three more discharged — doc 05's MCP admission timings (the mechanism and its fence are stated in the body at the `TRANSPORT_WARM` / `TRANSPORT_COLD` paragraph; the milliseconds were never the claim) and its `chat_lane_scope_ms` 2,421 (stated in the body with its unwarmed-create annotation), and doc 06's `office.actor.restore` (verified and executed 2026-08-22; the body states the surviving `actor-restore` verb). 18 claims remain.
 **Opened:** 2026-08-22, from the operator's reading of doc 02's tail.
 **Domain:** cross-cutting — every domain doc.
 
@@ -19,8 +19,8 @@ follow-up — the sections would sit forever without this file.
 | 01-system-architecture | 2 | launcher entity rendering; Neko prompt-layer ordering |
 | 02-runtime-data-and-shapes | 2 | `state.reconciled` staleness SLO; supersede guard at the store chokepoint |
 | 03-transport-and-wire | 2 | persona-chat event-lane 2026-08-09 properties; patch-lane byte saving |
-| 05-chat-turn-lane | 4 | MCP admission timings; ~~`chat_lane_scope_ms` 2,421~~ **RE-VERIFIED 2026-08-23** (unwarmed-create subphase, annotated in doc 05); the 1,762 ms hermes share; tool-schema census |
-| 06-office-and-board | 4 | `laneAbsent` window; page-open write storm; ~~`office.actor.restore` fully dead~~ **VERIFIED AND EXECUTED 2026-08-22** (launcher cut `e38bb108c` — promote to stated truth); argv-fallback incident-repro test |
+| 05-chat-turn-lane | 2 | ~~MCP admission timings~~ and ~~`chat_lane_scope_ms` 2,421~~ **discharged 2026-10-27** (both in the body); the 1,762 ms hermes share; tool-schema census |
+| 06-office-and-board | 3 | `laneAbsent` window; page-open write storm; ~~`office.actor.restore` fully dead~~ **discharged 2026-10-27** (launcher cut `e38bb108c`); argv-fallback incident-repro test |
 | 08-performance-and-debt-ledger | 4 | RD-H2/H4/H5/H6; boot cache-hit measurement; launcher-side rows; the 2026-07-09 cProfile profile |
 
 The launcher canon (`docs/mission_control/`) carries its own Unverified

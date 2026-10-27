@@ -1456,12 +1456,6 @@ Two decisions ride with it:
 - **The page-open write storm ("item 9").** Named unowned by three separate
   2026-08-16 plans; not re-derived from a live boot this pass. Source:
   `OFFICE_WRITE_VERBS_RPC_PLAN_2026-08-16.md` §4 / §5 D-W4.
-- ~~**`office.actor.restore` is fully dead.**~~ VERIFIED AND EXECUTED
-  2026-08-22: the launcher delete audit re-proved zero submit sites plus
-  `localOnly` exposure, and the shell (registry row + argv lowering) was
-  deleted in launcher `e38bb108c` with w23 tombstone rows in `379e70d5c`. The
-  hermes CLI verb `actor-restore` deliberately survives pending the launcher
-  docket's ruling 2 (kept product feature vs deleted with its store arm).
 - **The office controller's incident-repro test exercises the argv fallback, not
   the RPC path**, because it never overrides `missionOfficeRpcWriterProvider` —
   so a regression making the RPC arm always `Unavailable` would leave it green.

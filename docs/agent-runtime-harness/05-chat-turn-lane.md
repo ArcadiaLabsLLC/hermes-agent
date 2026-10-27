@@ -1309,21 +1309,6 @@ operator's text.
 
 Mechanism exists in code; the NUMBER or live condition was not re-measured here.
 
-- **Warm/cold MCP admission timings** (6–8 ms warm, 0.2–0.3 ms teardown, 3,197 ms cold) —
-  `mcp_admission.TRANSPORT_WARM` / `TRANSPORT_COLD`, 2026-08-09, one 60-tool stdio server. The
-  `warm`/`cold` attribution field is live; the milliseconds are historical **and are not a
-  discriminator**. `launcher_qa` is a compiled Dart exe whose real cold spawn measured ~100 ms, so
-  the "~3,200 ms means a real cold spawn" rule of thumb reads a genuine spawn as a fast failure —
-  it sent a whole investigation down the wrong branch (corrected 2026-08-26; the docstring and
-  `profile_runner`'s comment were re-corrected 2026-09-02). The discriminator is the non-empty
-  admitted SET. No code compares an elapsed count, and
-  `tests/agent_runtime/test_mcp_admission.py::test_no_admission_code_branches_on_an_elapsed_millisecond_count`
-  is the fence that keeps it that way.
-- **The 2,421 ms `chat_lane_scope_ms`** —
-  `tests/agent_runtime/test_agent_create_subphases.py:17-24`, one machine, hermetic home. That file
-  states no test asserts a millisecond and none can reproduce the magnitude; the enforced gate is
-  the probe-round count. **Annotated 2026-08-23 (prep-cost 2026-08 text §3 H2, in that file's history): the 2,421 ms is the UNWARMED
-  CREATE subphase (warm create: 859/15 ms) — never re-quote it as a per-turn cost.**
 - **The 1,762 ms hermes share of turn `c59ab99e`** (`mission_chat_phases.py`, 2026-08-22 tree) and the live
   phase-joined TTFT splits (alice 17.8 s, qa 9.2 s) — 2026-08-22 session receipts, read through the
   launcher's audit tooling; not reproducible from this repo.
