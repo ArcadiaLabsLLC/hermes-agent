@@ -133,6 +133,11 @@ def chat(lane, monkeypatch):  # the imported fixture
             session_id=kwargs["session_id"],
         )
 
+    # Upstream's class-attribute door (``agent_runtime/review_prompts.py::_upstream_prompts`` reads
+    # the review prompts off the agent's class): the stand-in actor carries the real ones, read
+    # before ``run_agent.AIAgent`` becomes the constructor function below.
+    for name in ("_SKILL_REVIEW_PROMPT", "_COMBINED_REVIEW_PROMPT"):
+        monkeypatch.setattr(_LedgerActor, name, getattr(run_agent.AIAgent, name), raising=False)
     monkeypatch.setattr(run_agent, "AIAgent", upstream_constructor)
 
     def new_actor(session_id: str):
