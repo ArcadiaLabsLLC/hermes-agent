@@ -287,21 +287,21 @@
     {
       "name": "course_checkout",
       "toolset": "course",
-      "mutating": false,
+      "mutating": true,
       "gated": false,
       "description": "Clone or fetch a course repo with the turn's course credential."
     },
     {
       "name": "course_commit",
       "toolset": "course",
-      "mutating": false,
+      "mutating": true,
       "gated": false,
       "description": "Commit and push files on the persona's course authoring branch."
     },
     {
       "name": "course_pull_request",
       "toolset": "course",
-      "mutating": false,
+      "mutating": true,
       "gated": false,
       "description": "Open the pull request for the persona's course authoring branch."
     },

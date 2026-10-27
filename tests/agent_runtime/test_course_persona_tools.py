@@ -157,3 +157,27 @@ def test_a_harness_core_profile_reaches_the_course_tools(bundled_persona_profile
     names = {definition["function"]["name"] for definition in definitions}
     assert {"course_checkout", "course_commit", "course_pull_request"} <= names
     assert "terminal" in names, "positive control: the profile resolved harness_core"
+
+
+COURSE_TOOLS = ("course_checkout", "course_commit", "course_pull_request")
+
+
+def test_a_read_only_turn_refuses_every_course_tool():
+    """RT-COURSE-TOOLS-NOT-MUTATING: commit pushes, the PR opens one, checkout writes a working tree —
+    each crosses the mutation boundary, so ``read_only`` (and a Lens forged turn, which blocks this
+    same set) refuses it, and the inventory marks it ``mutating``."""
+
+    from pathlib import Path
+
+    from agent_runtime.permission_modes import PERMISSION_MODE_READ_ONLY, PERMISSION_MODE_UNBOUNDED
+    from agent_runtime.tool_permissions import extra_blocked_tools_for_permission_mode
+    from agent_runtime.tool_visibility import _mutating_tools
+
+    blocked = set(extra_blocked_tools_for_permission_mode(PERMISSION_MODE_READ_ONLY))
+    assert set(COURSE_TOOLS) <= blocked and set(COURSE_TOOLS) <= _mutating_tools()
+    assert "read_file" not in blocked, "positive control: read_only still admits a read"
+    assert extra_blocked_tools_for_permission_mode(PERMISSION_MODE_UNBOUNDED) == []
+    inventory = Path(__file__).resolve().parents[2] / (
+        "docs/agent-runtime-harness/harness-skills/harness-runtime-model/references/tool-inventory.json")
+    rows = {row["name"]: row["mutating"] for row in json.loads(inventory.read_text(encoding="utf-8"))["tools"]}
+    assert all(rows[name] for name in COURSE_TOOLS)

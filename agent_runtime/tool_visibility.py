@@ -166,7 +166,7 @@ def get_toolset_for_tool(name: str) -> str | None:
 def _read_only_blocks() -> frozenset[str]:
     """The tools that cross the mutation boundary, built-in half.
 
-    ONE definition, in ``tool_permissions.READ_ONLY_BLOCKS`` — the same 7 names
+    ONE definition, in ``tool_permissions.READ_ONLY_BLOCKS`` — the same names
     used to be maintained here as ``_MUTATING_TOOLS`` and there as the
     ``read_only`` block set, two copies of one fact in two files that could only
     drift. The import is deferred because ``tool_permissions`` imports THIS
