@@ -121,6 +121,9 @@ only the feed that saw it; `Retry-After` is ignored; an unchanged document is re
    public host 30 reads/min, burst 5; a feed that opted into `allow_private_network` 120/min, burst 20
    (an operator's own Prometheus is not a third party). Constants in a new `agent_runtime/lens/host_budget.py`;
    no manifest key (the manifest describes a monitor, the budget describes a host shared across monitors).
+   *Built (w1027f-h-lens-b):* the bursts are constants there; the two rates are root-config knobs
+   (`agent_runtime/lens/settings.py`, `agent_runtime.lens.host_reads_per_minute_{public,private}`) with these
+   defaults, because §6 leaves them to the owner.
 3. **A due read the bucket refuses is deferred, never dropped.** It is retried next tick. When the defer
    outlasts `rules.continuity_limit(interval)`, ONE gap is recorded with the new reason
    `host_budget_deferred` per elapsed interval, so the pause is visible in the series.

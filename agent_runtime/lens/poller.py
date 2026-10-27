@@ -16,6 +16,10 @@ Each :meth:`LensPoller.tick` polls every due feed of every ENABLED monitor once:
   ``watcher_offline`` gap at start (W8(a)): missed windows are gaps, never silence;
 * a ``push`` feed is never read here (its ingress route writes it, L3): it is
   skipped by the tick, the offline catch-up and the deadline's confirming read;
+* W3 host budget: a due read of an HTTP host first takes a token from that HOST's bucket
+  (``host_budget.HostBudget``, shared by every monitor); a refused take DEFERS the read to
+  the next tick, and a defer that outlasts the feed's continuity limit records ONE
+  ``host_budget_deferred`` gap per elapsed limit, so a paused host is visible in the series;
 * a read is typed by ``sources.typed_result`` with the feed's recent raw reads (the
   outlier window, kept in memory: a restart refills it, and the guard abstains
   until it is full) and the monitor's newest dated exchange rate (W2(c), W5);
@@ -40,8 +44,9 @@ from typing import Any, Callable
 
 from .episode import EpisodeState, observe
 from .feed import is_push_feed
+from .host_budget import HostBudget, host_key, is_private_reader
 from .missed_deadlines import record_missed_deadlines
-from .rules import CLOCK_FORMS, RuleForm, evaluate, rule_feed_ids
+from .rules import CLOCK_FORMS, RuleForm, continuity_limit, evaluate, rule_feed_ids
 from .sources import read_feed_source
 from .sources.transport import ReadReason, ReadResult
 from .store import LensStore, MonitorState, from_ms, to_ms
@@ -72,6 +77,8 @@ def _utc_now() -> datetime:
 class _FeedClock:
     last_read: datetime | None = None
     failures: int = 0
+    #: When a due read was first deferred by its host's budget (None while not deferred).
+    deferred_since: datetime | None = None
     #: The feed's recent raw reads, refused ones included (the outlier window).
     recent: deque = field(default_factory=lambda: deque(maxlen=64))
 
@@ -111,6 +118,7 @@ class LensPoller:
     clock: Clock = _utc_now
     client: Any = None
     resolver: Any = None
+    host_budget: HostBudget | None = None
     _clocks: dict[tuple[str, str], _FeedClock] = field(default_factory=dict)
     _last_retention: datetime | None = None
 
@@ -148,12 +156,38 @@ class LensPoller:
                 clock = self._clocks.setdefault((monitor_id, feed["id"]), _FeedClock())
                 if clock.last_read is not None and now < clock.last_read + clock.period(feed, deadline):
                     continue
-                self._read(store, monitor_id, manifest, feed, now)
-                reads += 1
+                if self._admitted(store, monitor_id, feed, clock, now):
+                    self._read(store, monitor_id, manifest, feed, now)
+                    reads += 1
         reads += self._clock_rules(store, now)
         self._retention(store, now)
         WATCHER.last_tick = now
         return reads
+
+    def _admitted(self, store: LensStore, monitor_id: str, feed: dict[str, Any], clock: _FeedClock,
+                  now: datetime) -> bool:
+        """True when the feed's host budget admits a read now (W3). A refusal defers it, never
+        drops it; a defer past the continuity limit records one ``host_budget_deferred`` gap."""
+
+        key = host_key(feed)
+        if key is None or self._budget().take(key, now, private=is_private_reader(feed)):
+            clock.deferred_since = None
+            return True
+        if clock.deferred_since is None:
+            clock.deferred_since = now
+        elif now - clock.deferred_since >= continuity_limit(timedelta(milliseconds=feed["interval_ms"])):
+            store.record(monitor_id, feed["id"], observed_at=now, received_at=now, value=None,
+                         reason=ReadReason.HOST_BUDGET_DEFERRED.value)
+            clock.deferred_since = now
+        return False
+
+    def _budget(self) -> HostBudget:
+        if self.host_budget is None:
+            from .settings import lens_setting
+
+            self.host_budget = HostBudget(public_per_minute=lens_setting("host_reads_per_minute_public"),
+                                          private_per_minute=lens_setting("host_reads_per_minute_private"))
+        return self.host_budget
 
     def _read(self, store: LensStore, monitor_id: str, manifest: dict[str, Any], feed: dict[str, Any],
               now: datetime) -> None:
@@ -242,11 +276,16 @@ class LensPoller:
             for rule in manifest["rules"]:
                 if RuleForm(rule["form"]) not in CLOCK_FORMS:
                     continue
+                feed = feeds[rule["feed_id"]]
                 clock = self._clocks.get((monitor_id, rule["feed_id"]))
-                pulled = not is_push_feed(feeds[rule["feed_id"]])
+                pulled = not is_push_feed(feed)
                 if pulled and (clock is None or clock.last_read != now) and self._would_open(
                         store, monitor_id, manifest, rule, now):
-                    self._read(store, monitor_id, manifest, feeds[rule["feed_id"]], now)
+                    clock = self._clocks.setdefault((monitor_id, feed["id"]), _FeedClock())
+                    if not self._admitted(store, monitor_id, feed, clock, now):
+                        # No confirming read the host allows: judge it next tick, never on a stale read.
+                        continue
+                    self._read(store, monitor_id, manifest, feed, now)
                     reads += 1
                 self._evaluate(store, monitor_id, manifest, rule, now)
         return reads

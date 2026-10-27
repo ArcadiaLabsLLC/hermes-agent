@@ -9,7 +9,9 @@ Plan ``eternia-lens-in-hermes.md`` W10 (stage L1), ported in spirit from Compani
 * a redirect is never followed (a 3xx is an ``unavailable`` read, so a redirect
   cannot walk a classified URL onto an unclassified one);
 * the body is capped at :data:`MAXIMUM_BODY_BYTES` and the read at
-  :data:`TIMEOUT_SECONDS`.
+  :data:`TIMEOUT_SECONDS`;
+* every read names its reader: ``User-Agent: EterniaLens/<version>`` (:data:`USER_AGENT`,
+  plan ``LENS_EXTENSIONS_2026-10-27.md`` §2 decision 6).
 
 A failed read answers a typed :class:`ReadReason` and the HTTP status — never the
 body, a header or an exception message, so nothing a server says (an echoed
@@ -26,8 +28,11 @@ from enum import Enum
 from typing import Any, Callable
 from urllib.parse import urlsplit
 
+from ... import __version__
+
 __layer__ = "lanes"
 
+USER_AGENT = f"EterniaLens/{__version__}"
 MAXIMUM_BODY_BYTES = 1024 * 1024
 TIMEOUT_SECONDS = 10.0
 
@@ -70,6 +75,8 @@ class ReadReason(str, Enum):
     #: A command feed of a manifest that is not sealed (a preview of a draft; L4).
     NOT_SEALED = "not_sealed"
     SOURCE_FAILED = "source_failed"
+    #: The host's shared read budget deferred a due read past the continuity limit (W3).
+    HOST_BUDGET_DEFERRED = "host_budget_deferred"
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,7 +147,7 @@ def fetch_json(url: str, *, headers: dict[str, str], params: dict[str, str] | No
     owned = client is None
     client = client or httpx.Client(timeout=TIMEOUT_SECONDS, follow_redirects=False)
     try:
-        with client.stream("GET", url, headers=headers, params=params) as response:
+        with client.stream("GET", url, headers={**headers, "User-Agent": USER_AGENT}, params=params) as response:
             if 300 <= response.status_code < 400:
                 return None, unavailable(ReadReason.REDIRECT_REFUSED, response.status_code)
             if not 200 <= response.status_code < 300:
