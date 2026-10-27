@@ -17,6 +17,11 @@ through ``harness_core``.
   ``proposals_full`` while ``store.MAXIMUM_PROPOSALS`` never-sealed drafts wait, so
   proposals never take the operator's capacity). It never seals and never enables: the operator's confirm in Mission Control
   (``runtime.lens.seal``) is the only way a proposal starts polling.
+* ``lens_propose_repair {monitor_id, feed_id, source}`` (:func:`propose_repair`, plan
+  ``planned/LENS_EXTENSIONS_2026-10-27.md`` §1 decision 7) — admitted only while that feed has an
+  open ``source_broken:<feed_id>`` Episode; the sealed manifest with ONLY that feed's ``source``
+  replaced, previewed (the feed must answer a value) and stored as the monitor's next-revision
+  draft. Sealed only by ``runtime.lens.seal``, dropped by ``runtime.lens.draft.drop``.
 
 The block is the forged user message. It stands on its own (the persona has no
 memory of the monitor), and it keeps two kinds of content apart (W9):
@@ -42,10 +47,10 @@ from datetime import datetime, UTC
 from pathlib import Path
 from typing import Any
 
-from .episode import Episode
+from .episode import Episode, is_open
 from .evidence import EvidenceWindow
 from .manifest import read_manifest
-from .rules import is_source_broken, manifest_rule
+from .rules import is_source_broken, manifest_rule, source_broken_rule_id
 from .store import LensStore, LensStoreError, StoreRefusal, to_ms
 from .wire_value import WireError, bounded_int, canonical_json, checked_object, opaque_id, require
 
@@ -85,7 +90,8 @@ def _opening_sentence(rule: dict[str, Any], episode: Episode, offline: tuple[int
         return (f"Eternia Lens opened this Episode: monitor {episode.monitor_id}'s feed {rule['feed_id']} "
                 "stopped answering in the shape it was sealed against (source_broken). Its reads now fail with "
                 "a shape reason, so every rule on it answers unknown. The last known-good shape and the newest "
-                "different one are below, as key paths and types with every value removed.")
+                "different one are below, as key paths and types with every value removed. If you find the "
+                "corrected source, propose it with lens_propose_repair; only the operator seals it.")
     if episode.missed_deadline_ms is None:
         return (f"Eternia Lens opened this Episode: monitor {episode.monitor_id}'s rule {episode.rule_id} "
                 f"({rule['severity']}) is breaching.")
@@ -325,3 +331,55 @@ def propose_monitor(args: Any, *, store: LensStore | None = None, client: Any = 
 
 def handle_lens_propose(args: dict[str, Any], **kwargs: Any) -> str:
     return _tool_answer(lambda: propose_monitor(args))
+
+
+LENS_PROPOSE_REPAIR_SCHEMA: dict[str, Any] = {
+    "name": "lens_propose_repair",
+    "description": (
+        "Propose a corrected source for ONE feed of an Eternia Lens monitor whose source_broken Episode is open. "
+        "Lens reads the corrected source once now (it must answer a value) and stores the monitor's next revision "
+        "as a DRAFT that differs from the sealed one only in that feed's source; the operator seals it in "
+        "Mission Control. Rules, automation and the other feeds cannot be changed here."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "monitor_id": {"type": "string", "description": "The monitor whose feed is broken."},
+            "feed_id": {"type": "string", "description": "The feed of the open source_broken Episode."},
+            "source": {"type": "object", "description": "The feed's corrected source block, in its kind's schema."},
+        },
+        "required": ["monitor_id", "feed_id", "source"],
+    },
+}
+
+
+def propose_repair(args: Any, *, store: LensStore | None = None, client: Any = None,
+                   resolver: Any = None) -> dict[str, Any]:
+    """``lens_propose_repair``'s answer: the repaired feed's preview and the draft (see the module)."""
+
+    from .sources import preview_reads
+
+    m = checked_object(args if args is not None else {}, {"monitor_id", "feed_id", "source"})
+    monitor_id, feed_id = opaque_id(m["monitor_id"]), opaque_id(m["feed_id"])
+    store = store or LensStore()
+    monitor = store.get(monitor_id)
+    if monitor["sealed"] is None:
+        raise LensStoreError(StoreRefusal.NOT_SEALED)
+    if monitor["draft"] is not None:
+        raise LensStoreError(StoreRefusal.DRAFT_PENDING)
+    sealed = monitor["sealed"]["manifest"]
+    require(any(feed["id"] == feed_id for feed in sealed["feeds"]), "feed_id")
+    if not is_open(store.latest_episode(monitor_id, source_broken_rule_id(feed_id))):
+        raise LensStoreError(StoreRefusal.SOURCE_NOT_BROKEN)
+    draft = read_manifest({**sealed, "feeds": [{**feed, "source": m["source"]} if feed["id"] == feed_id else feed
+                                               for feed in sealed["feeds"]]})
+    preview = preview_reads(draft, client=client, resolver=resolver)[feed_id]
+    require(preview.value is not None, "the repaired source answered no value")
+    store.create(draft, proposal=True)
+    return {"monitor_id": monitor_id, "feed_id": feed_id, "sealed": False, "preview": preview.to_json(),
+            "confirm": "The operator seals this next-revision draft in Mission Control (runtime.lens.seal) or "
+                       "drops it (runtime.lens.draft.drop); the sealed revision keeps polling until then."}
+
+
+def handle_lens_propose_repair(args: dict[str, Any], **kwargs: Any) -> str:
+    return _tool_answer(lambda: propose_repair(args))

@@ -140,6 +140,10 @@ class StoreRefusal(str, Enum):
     EPISODE_NOT_FOUND = "episode_not_found"
     #: ``runtime.lens.episode.decide`` on an Episode already closed or resolved.
     EPISODE_SETTLED = "episode_settled"
+    #: ``lens_propose_repair`` on a feed with no open ``source_broken:<feed_id>`` Episode.
+    SOURCE_NOT_BROKEN = "source_not_broken"
+    #: ``lens_propose_repair`` over a monitor whose next-revision draft already waits for the operator.
+    DRAFT_PENDING = "draft_pending"
 
 
 #: The refusals a reader answers as "not found" (the rest are conflicts).

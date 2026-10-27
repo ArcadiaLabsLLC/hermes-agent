@@ -143,7 +143,9 @@ class Episode:
         return episode
 
 
-def _is_open(previous: Episode | None) -> bool:
+def is_open(previous: Episode | None) -> bool:
+    """True for an ``active`` Episode, or a ``recovered`` one the operator has not settled."""
+
     if previous is None:
         return False
     if previous.state is EpisodeState.ACTIVE:
@@ -169,7 +171,7 @@ def observe(
         raise ValueError("episode identity or time")
     if verdict is Verdict.UNKNOWN:
         return previous
-    if not _is_open(previous):
+    if not is_open(previous):
         if previous is not None and previous.suppressed_until is not None and previous.suppressed_until > at:
             return previous
         if verdict is not Verdict.FIRING:

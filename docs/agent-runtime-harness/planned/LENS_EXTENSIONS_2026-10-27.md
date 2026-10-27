@@ -93,6 +93,15 @@ read's observation `revision` is later than the one at the Episode's opening —
 manual re-seal counts as a repair too. The skeletons ride a SECOND untrusted fence,
 `{<feed_id>: {known_good, newest}}`, after the source descriptions.
 
+*Built (`RT-LENS-SOURCE-REPAIR-PROPOSE`, lane w1027h-h-lens):* `tool.py::propose_repair` takes
+`{monitor_id, feed_id, source}` only (a `rules` key is refused by the strict decoder), so the draft is
+the sealed manifest with that one feed's `source` replaced. "Open" is `episode.is_open` (active, or
+recovered and not settled). Two new refusals: `source_not_broken`, and `draft_pending` — a repair never
+writes over a next-revision draft already waiting (the operator's or an earlier repair's); the operator
+drops it first. The preview reads the whole draft (a converting feed needs its rate feed) and requires
+the repaired feed to answer a value, so a `command_allowlisted` feed — whose preview answers
+`not_sealed` — cannot be repaired by this tool. The `source_broken` opening block names the tool.
+
 ### Test plan
 
 - Fingerprint: the same document with values changed → same fingerprint; a renamed key → different.

@@ -115,7 +115,8 @@ def test_a_profile_that_does_not_declare_lens_never_reaches_lens_read(bundled_pe
     assert not {"lens_read", "lens_propose"} & undeclared
     assert "terminal" in undeclared, "positive control: the undeclared profile resolved harness_core"
     tools = _plugin_tools()
-    assert tools == {"lens_read": "lens", "lens_propose": "lens"} and LENS_TOOLSET == "lens"
+    assert tools == {"lens_read": "lens", "lens_propose": "lens", "lens_propose_repair": "lens"}
+    assert LENS_TOOLSET == "lens"
     assert LENS_TOOLSET not in HARNESS_CORE_INCLUDES
 
 
