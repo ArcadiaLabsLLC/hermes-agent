@@ -149,6 +149,7 @@ def _instance(args: dict[str, Any]) -> dict[str, Any]:
             **_instance_row(instance),
             "steered_by": list(instance.steered_by),
             "chat_head_home": instance.chat_head_home,
+            "chat_head_kind": instance.chat_head_kind,
             "model": instance.model,
             "provider": instance.provider,
             "reasoning_effort": instance.reasoning_effort,

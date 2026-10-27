@@ -470,6 +470,16 @@ def _stamp_chat_head(instance: PersonaInstance) -> str | None:
     """
     previous_chat_head = instance.chat_head_home
     from ..chat_session_scope import resolve_process_chat_scope
+    from ..models import CHAT_HEAD_KIND_PER_PROFILE
+
+    if instance.chat_head_kind == CHAT_HEAD_KIND_PER_PROFILE:
+        # Never downgrade (chat-head-per-profile plan §7.2 decision 8): a
+        # per-profile record is this conversation's own home, and the process
+        # scope may stamp only process records. Re-stamping it here would
+        # point the next turn's reads at ``profiles/base`` while its
+        # transcript lives in the profile — the split. Moving it is the
+        # migrate verb's, never a turn's.
+        return previous_chat_head
 
     # PROCESS ladder, deliberately — this is the site that WRITES the
     # INSTANCE_RECORDED rung, and ``normalized_session`` is in hand

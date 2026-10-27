@@ -377,7 +377,8 @@ class PersonaInstanceStore:
     #: tuples plus a third list of names is the shape that silently drifts, so
     #: there is one authority and the tuples are built from it.
     #:
-    #: ``chat_head_home`` is deliberately in the list even though it projects to
+    #: ``chat_head_home`` (and ``chat_head_kind`` beside it) is deliberately in
+    #: the list even though it projects to
     #: no wire field: it must still count as a mutation for the idempotence gate
     #: above, and ``_PERSONA_INSTANCE_STORE_TO_WIRE`` drops it at the projection
     #: (an unmapped store field yields itself, and it is not in the wire row).
@@ -390,6 +391,7 @@ class PersonaInstanceStore:
         "default_chat_session_id",
         "session_id",
         "chat_head_home",
+        "chat_head_kind",
     )
 
     def add_instance(

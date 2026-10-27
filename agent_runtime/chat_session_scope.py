@@ -95,6 +95,18 @@ rescue is the 2026-08-12 incident retired). Absence is not a mismatch either:
 an instance predating the stamp (``chat_head_home is None``) falls through to
 the pointer exactly as before.
 
+A record stamped ``chat_head_kind == per_profile`` (chat-head-per-profile plan
+§7.2 decisions 1 and 4) is the instance's OWN agent profile home, not a copy of
+the process head, so it outranks ``ENV_HEAD_HOME`` for its conversation and is
+never a mismatch against the env, the pointer or the declaration — they name
+the PROCESS default, which is a different fact. Only ``RELAY_CONTEXT`` stays
+above it (until the relay-head slice). A ``per_profile`` record whose home is
+gone does NOT fall through: falling back to the process head is a write into
+the wrong store, the very split this module retires, so the scope carries
+``refusal == CHAT_HEAD_MISSING`` and :func:`open_chat_session_db` opens nothing.
+:func:`resolve_instance_chat_scope` is the same answer for a caller holding the
+instance rather than a session id.
+
 One divergence the mismatch machinery does NOT model, and why it is reported
 separately: when the POINTER wins, a ``CONFIG_DECLARED`` value naming a
 different directory is never compared — ``ChatScopeMismatch`` is about the
@@ -136,6 +148,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "AMBIENT_CHAT_READS_ENV",
     "CANONICAL_SESSION_PERSISTENCE_ATTR",
+    "CHAT_HEAD_MISSING",
     "CHAT_HEAD_POINTER_FILENAME",
     "CHAT_SESSION_DB_FILENAME",
     "DECLARED_HEAD_HOME_KEY",
@@ -147,6 +160,7 @@ __all__ = [
     "InstanceChatHeadStatus",
     "SessionDbAccess",
     "ambient_chat_reads_allowed",
+    "chat_head_for",
     "chat_session_db_path",
     "chat_session_store_exists",
     "configured_head_home",
@@ -157,8 +171,13 @@ __all__ = [
     "recorded_chat_head_home",
     "recorded_instance_chat_head",
     "resolve_chat_session_scope",
+    "resolve_instance_chat_scope",
     "resolve_process_chat_scope",
 ]
+
+#: The typed refusal a ``per_profile`` record whose home no longer exists
+#: answers (plan §7.2 decision 4) — never a fallback to the process head.
+CHAT_HEAD_MISSING = "chat_head_missing"
 
 #: The opt-in marker a NON-``hermes_state`` object sets to declare that it is
 #: real, queryable chat persistence. See
@@ -272,10 +291,20 @@ class InstanceChatHead:
     status: InstanceChatHeadStatus
     head_home: Path | None = None
     instance_id: str | None = None
+    #: The record's ``chat_head_kind`` as stored; ``None`` reads as process.
+    head_kind: str | None = None
 
     @property
     def recorded(self) -> bool:
         return self.status is InstanceChatHeadStatus.RECORDED
+
+    @property
+    def per_profile(self) -> bool:
+        """Was the home stamped by the per-profile derivation (outranks the env)?"""
+
+        from agent_runtime.models import CHAT_HEAD_KIND_PER_PROFILE
+
+        return self.head_kind == CHAT_HEAD_KIND_PER_PROFILE
 
     def payload(self) -> dict[str, Any]:
         block: dict[str, Any] = {"status": self.status.value}
@@ -283,6 +312,8 @@ class InstanceChatHead:
             block["head_home"] = str(self.head_home)
         if self.instance_id:
             block["instance_id"] = self.instance_id
+        if self.head_kind:
+            block["head_kind"] = self.head_kind
         return block
 
 
@@ -339,6 +370,11 @@ class ChatSessionScope:
     #: machine declaration has gone stale can SEE that rather than discover it
     #: the day the pointer stops answering and every read silently moves.
     declared_head_home: Path | None = None
+    #: A typed reason NO store may be opened for this scope — today only
+    #: :data:`CHAT_HEAD_MISSING`. ``head_home`` then names the missing home, so
+    #: the refusal says where the conversation was recorded, and
+    #: :func:`open_chat_session_db` answers ``None`` for it.
+    refusal: str | None = None
 
     @property
     def db_path(self) -> Path:
@@ -388,6 +424,8 @@ class ChatSessionScope:
             block["instance_head"] = self.instance_head.payload()
         if self.mismatch is not None:
             block["mismatch"] = self.mismatch.payload()
+        if self.refusal is not None:
+            block["refusal"] = self.refusal
         if self.declared_head_home is not None:
             # Both fields or neither: a bare ``declaration_diverges: false``
             # would be unreadable without the value it was compared against.
@@ -444,6 +482,54 @@ def resolve_process_chat_scope() -> ChatSessionScope:
     return _resolve_chat_scope(None)
 
 
+def resolve_instance_chat_scope(instance: Any) -> ChatSessionScope:
+    """The chat scope FOR ONE PERSONA INSTANCE — the door beside the process one.
+
+    Plan §7.2 decision 4: a ``per_profile`` record whose home exists answers
+    ``INSTANCE_RECORDED``; a ``per_profile`` record whose home is gone answers
+    the typed :data:`CHAT_HEAD_MISSING` refusal; every other record answers the
+    process scope. ``RELAY_CONTEXT`` stays on top, exactly as on the ladder.
+    Never raises.
+    """
+
+    process = resolve_process_chat_scope()
+    if process.source is ChatHeadSource.RELAY_CONTEXT:
+        return process
+    return _per_profile_scope(_instance_chat_head(instance)) or process
+
+
+def chat_head_for(persona: Any) -> Path:
+    """The chat head a NEW per-profile record names (plan §7.2 decision 2).
+
+    The home the persona RUNS in — ``profile_context.resolve_persona_profile``,
+    the one derivation the worker store and recall already use — so the chat,
+    the run and recall agree. A persona that inherits the active profile (or
+    names a profile that does not exist) gets the process head. Derivation
+    only: the stamp that records it is the first-bind slice's.
+    """
+
+    from agent_runtime.profile_context import resolve_persona_profile
+
+    home = resolve_persona_profile(persona).profile_home
+    return Path(home) if home is not None else resolve_process_chat_scope().head_home
+
+
+def _per_profile_scope(instance_head: InstanceChatHead | None) -> ChatSessionScope | None:
+    """The scope a ``per_profile`` record answers, or ``None`` for any other record."""
+
+    if instance_head is None or not instance_head.per_profile or instance_head.head_home is None:
+        return None
+    missing = instance_head.status is InstanceChatHeadStatus.RECORDED_HOME_MISSING
+    if not (missing or instance_head.recorded):
+        return None
+    return ChatSessionScope(
+        instance_head.head_home,
+        ChatHeadSource.INSTANCE_RECORDED,
+        instance_head=instance_head,
+        refusal=CHAT_HEAD_MISSING if missing else None,
+    )
+
+
 def _resolve_chat_scope(session_id: str | None) -> ChatSessionScope:
     """The shared ladder behind both public entry points. Never raises."""
 
@@ -480,6 +566,15 @@ def _resolve_chat_scope(session_id: str | None) -> ChatSessionScope:
             explicit = False
         else:
             source = _explicit_source(head)
+            per_profile = (
+                None
+                if source is ChatHeadSource.RELAY_CONTEXT
+                else _per_profile_scope(instance_head)
+            )
+            if per_profile is not None:
+                # A per-profile record outranks the env head: the env names
+                # the PROCESS default, the record this conversation's own home.
+                return per_profile
             # The explicit head still WINS resolution — env/relay outrank the
             # record — but a disagreeing record is surfaced, never dropped:
             # either the stamp is stale or the environment is wrong, and only
@@ -490,6 +585,10 @@ def _resolve_chat_scope(session_id: str | None) -> ChatSessionScope:
                 instance_head=instance_head,
                 mismatch=_mismatch_against(head, source),
             )
+
+    per_profile = _per_profile_scope(instance_head)
+    if per_profile is not None:
+        return per_profile
 
     pointer = recorded_chat_head_home()
     declared = declared_chat_head_home()
@@ -572,8 +671,15 @@ def recorded_instance_chat_head(session_id: str) -> InstanceChatHead:
             break
     if match is None:
         return InstanceChatHead(InstanceChatHeadStatus.NO_INSTANCE)
+    return _instance_chat_head(match)
+
+
+def _instance_chat_head(match: Any) -> InstanceChatHead:
+    """One instance record's chat head, typed — shared by the ladder and the instance door."""
+
     instance_id = str(getattr(match, "id", "") or "") or None
     recorded = str(getattr(match, "chat_head_home", None) or "").strip()
+    head_kind = str(getattr(match, "chat_head_kind", None) or "").strip() or None
     if not recorded:
         return InstanceChatHead(
             InstanceChatHeadStatus.UNRECORDED, instance_id=instance_id
@@ -591,11 +697,13 @@ def recorded_instance_chat_head(session_id: str) -> InstanceChatHead:
             InstanceChatHeadStatus.RECORDED_HOME_MISSING,
             head_home=candidate,
             instance_id=instance_id,
+            head_kind=head_kind,
         )
     return InstanceChatHead(
         InstanceChatHeadStatus.RECORDED,
         head_home=candidate,
         instance_id=instance_id,
+        head_kind=head_kind,
     )
 
 
@@ -665,6 +773,11 @@ def open_chat_session_db(
     """
 
     resolved = scope or resolve_process_chat_scope()
+    if resolved.refusal is not None:
+        # A refused scope (a per-profile home that is gone) opens nothing — a
+        # WRITE here would create the store in a directory the record names
+        # and nothing else does, a READ would answer from no store.
+        return None
     read = SessionDbAccess(access) is SessionDbAccess.READ
     if read and not _store_exists(resolved.db_path):
         return None

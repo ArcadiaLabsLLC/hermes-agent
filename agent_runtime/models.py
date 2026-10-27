@@ -490,6 +490,12 @@ class AgentRun:
 # ``PersonaInstance.state`` is typed on it.
 
 
+#: ``PersonaInstance.chat_head_kind`` values (chat-head-per-profile plan §7.2
+#: decision 1). ``None`` on a record reads as the process kind.
+CHAT_HEAD_KIND_PROCESS = "process"
+CHAT_HEAD_KIND_PER_PROFILE = "per_profile"
+
+
 @dataclass(slots=True)
 class PersonaInstance:
     id: str
@@ -566,6 +572,13 @@ class PersonaInstance:
     # explicit allowlists); persisted rows carrying it are safe under older
     # code because ``serde._coerce`` ignores unknown keys.
     chat_head_home: str | None = None
+    # WHICH derivation stamped ``chat_head_home`` (chat-head-per-profile plan
+    # §7.2 decision 1): ``CHAT_HEAD_KIND_PROCESS`` — the process head
+    # (``HERMES_HEAD_HOME`` / pointer), every row on disk before the plan — or
+    # ``CHAT_HEAD_KIND_PER_PROFILE`` — the instance's own agent profile home,
+    # which outranks the env head for this conversation. ``None`` reads as
+    # ``process``. Like ``chat_head_home``, it projects to no wire field.
+    chat_head_kind: str | None = None
     # Repo slots (build plan §3.3, OWNER 2026-10-04): the subset of this
     # instance's workspace's declared slots it works in — the AUTHORITY the
     # launcher's Agent Console edits. Empty means NONE (never "all"); a slot may

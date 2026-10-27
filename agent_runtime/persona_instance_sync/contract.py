@@ -101,6 +101,7 @@ PERSONA_INSTANCE_LOCAL_ONLY_KEYS: frozenset[str] = frozenset(
     {
         "active_run_id",
         "chat_head_home",
+        "chat_head_kind",
         "current_assignment_id",
         "current_chat_goal",
         "current_task_id",

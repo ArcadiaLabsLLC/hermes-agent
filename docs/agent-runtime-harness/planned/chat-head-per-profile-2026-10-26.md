@@ -191,6 +191,20 @@ the 2026-07-27 read-lane gap. Reads and writes must change through one door, and
 - CH2C: first bind of a fresh instance stamps `per_profile`; a never-bound legacy instance with a session
   in base whose meta names it stays `process`. Mutation: skip the base query → the legacy case goes red.
 
+### 7.4a Built — CH2-LADDER (lane w1027f-h-rt, 2026-10-27)
+
+Landed as planned, with two places the tree differs from the text above:
+
+- `chat_head_for(persona)` takes the persona only. The home a persona runs in is
+  `resolve_persona_profile(persona)` alone — no run path consults `instance.profile_id`, which
+  `ensure_for_personas` derives from the persona anyway — so "the same home the persona RUNS in"
+  is the persona's binding; a missing profile answers the process head like an inheriting one.
+- The row's title says the mint records `chat_head_for(instance)`; decision 9 holds that back, so
+  the mint is unchanged and the derivation's first caller is CH2C's first-bind stamp.
+- A missing `per_profile` home reaches the ladder as `ChatSessionScope.refusal ==
+  "chat_head_missing"` (the resolver never raises); `open_chat_session_db` opens nothing for a
+  refused scope, so neither a read nor a write reaches `base`.
+
 ### 7.5 Open questions
 
 None for the owner: every choice above is technical and follows ruling 4. §4's question (what stays in

@@ -1077,7 +1077,13 @@ the cockpit dropped the row as `session_not_in_db` (`:1-38`). Ladder, highest fi
 | `AMBIENT_HOME` | degraded: `get_hermes_home()` (`:72-74`). **NOT authoritative** — this is the rung the 2026-07-25 binding massacre and the 2026-07-27 read-lane gap were both computed in |
 
 Env and relay context always win over the pointer, so a recorded head can only ever narrow the
-ambient fallback (`:37-39`). Public surface: `resolve_chat_session_scope` (`:381`),
+ambient fallback (`:37-39`). One exception, since `RT-CHAT-HEAD-CH2-LADDER` (2026-10-27): a record
+stamped `PersonaInstance.chat_head_kind == "per_profile"` is the instance's own agent profile home
+and outranks `ENV_HEAD_HOME` for its conversation, with no `ChatScopeMismatch`; a `per_profile`
+home that is gone carries `refusal == "chat_head_missing"` and opens no store, never `base`.
+`resolve_instance_chat_scope(instance)` is the same answer for a caller holding the instance.
+Nothing stamps `per_profile` in production yet (plan
+[chat-head-per-profile §7.2 decision 9](planned/chat-head-per-profile-2026-10-26.md)). Public surface: `resolve_chat_session_scope` (`:381`),
 `open_chat_session_db` (`:615`), `publish_chat_head_home` (`:716`), `declared_chat_head_home`
 (`:659`); `is_canonical_session_persistence` (`:151`) is the predicate the two §1 guards gate on.
 
