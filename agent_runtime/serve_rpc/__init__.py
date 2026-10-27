@@ -49,6 +49,8 @@ default_model            lanes   ``runtime.default_model.set`` (the serve profil
 speech                   lanes   ``runtime.speech.*`` (load, recognize, synthesize)
 text                     lanes   ``runtime.text.summarize`` (an auxiliary-task summary;
                                  ``agent_runtime/text_summary.py``)
+local_inference          lanes   ``runtime.embed.texts`` / ``runtime.vision.tag`` (small
+                                 local ONNX models; ``agent_runtime/local_inference/``)
 admission                lanes   ``runtime.admission.*`` (the model memory budget)
 health                   lanes   ``runtime.health`` (the ``harness health`` block)
 chat_verbs               lanes   the chat-family argv twins (history, instance
@@ -115,6 +117,7 @@ from agent_runtime.serve_rpc import (
     default_model,
     speech,
     text,
+    local_inference,
     admission,
     health,
     chat_verbs,

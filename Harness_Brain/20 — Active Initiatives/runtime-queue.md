@@ -29,6 +29,12 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-27 (lane w1027k-h-local)
+
+- **`RT-LOCAL-INFERENCE-ADMISSION` — `runtime.embed.texts` / `runtime.vision.tag` load their onnxruntime sessions outside the model-memory budget (`agent_runtime/model_admission.py::KINDS` is `stt`, `tts`, `llm`); add an `embed`/`vision` kind (or one `local_small`), reserve each runner's estimate in `LocalInferenceService._load` with an idle evictor, and add both to `runtime.admission.status` — the launcher's admission decode must learn the kind in the same change** · fork / `agent_runtime/local_inference/service.py::LocalInferenceService._load` · `docs/agent-runtime-harness/runtime-local-inference-methods.md` · READY 2026-10-27
+- **`RT-LOCAL-AI-METHODS-LIVE` — live check of the three new methods on a box with the speech pack: `runtime.embed.texts` against the real `bge-small-en-v1.5` int8 folder (cosine of a paraphrase pair above an unrelated pair; vector parity with the Hugging Face reference within 1e-3), `runtime.vision.tag` against the real CLIP ViT-B/32 int8 folder on three known images (the obvious label first), and `runtime.text.summarize` against a signed-in provider and against local llama (bullets in the asked locale, `truncated` on an over-cap window); the tests only fake the model** · fork / `agent_runtime/local_inference/runners.py` · `agent_runtime/text_summary.py` · READY 2026-10-27
+- **`RT-LOCAL-MODEL-FIXTURES-FOR-LAUNCHER` — the launcher's catalog entries for `bge-small-en-v1.5` and `clip-vit-base-patch32` must place the flat files `models.py` names (`model_quantized.onnx`, `vocab.txt`; `text_model_quantized.onnx`, `vision_model_quantized.onnx`, `vocab.json`, `merges.txt`); add a hermes-side pin that the two tables' file lists equal a checked-in fixture the launcher mirrors, so a rename on either side reds** · fork / `agent_runtime/local_inference/models.py::EMBED_MODELS` · `docs/agent-runtime-harness/runtime-local-inference-methods.md` · READY 2026-10-27
+
 ### Filed on arrival — 2026-10-27 (lane w1027j-h-tri-b, planned/ triage)
 
 - **`RT-READ-MODEL-RESIDUE-NEXT-BUMP` — the retired read model's three dead config fields (`ReadModelConfig.enabled` / `serve_snapshot_from_db` / `db_filename`) still ride every snapshot through `core.runtime_config`; delete them inside whatever change next bumps `SNAPSHOT_CONTRACT_VERSION` (goldens and the launcher mirrors in lockstep), then shrink doc 02's RETIRED section — never a bump of its own** · fork / snapshot wire · `agent_runtime/runtime_config.py::ReadModelConfig` · plan `docs/agent-runtime-harness/planned/read-model-residue-removal.md` · READY 2026-10-27 · **TAKEN 2026-10-27 w1027k-h-rt on nekwo-ubuntu24 as nekwo in hermes-w1027k-h-rt**
@@ -1041,8 +1047,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-27 (launcher lane w1027i-plan-ai)
 
-- **`RT-LOCAL-EMBED-TEXTS` — a `runtime.embed.texts` method running bge-small-en-v1.5 int8 on the speech pack's onnxruntime; params `{model, texts[≤64]}`, result `{contract:1, model, dim, vectors (base64 f32le)}`** · `EterniaLauncher/docs/messaging/planned/LOCAL_SEMANTIC_INDEX_2026-10-27.md` S2 · READY 2026-10-27 · **TAKEN 2026-10-27 w1027k-h-local on nekwo-ubuntu24 as nekwo in hermes-w1027k-h-local**
-- **`RT-LOCAL-IMAGE-TAG` — a `runtime.vision.tag` method: CLIP ViT-B/32 int8 zero-shot on the speech pack's onnxruntime; params `{model, image b64 ≤2MB, labels[], top_k}`, result `{contract:1, model, scores[]}`; label embeddings cached per vocabulary hash** · `EterniaLauncher/docs/posts/planned/CLIENT_TAGGER_OPTIONAL_2026-10-27.md` S0 · READY 2026-10-27 · **TAKEN 2026-10-27 w1027k-h-local on nekwo-ubuntu24 as nekwo in hermes-w1027k-h-local**
 - **`RT-LENS-STORE-AT-CEILING` — `agent_runtime/lens/store.py` is at 799 lines against its 800-line ceiling after the stale-admission fix; split the receipt and Episode-admission write paths into their own module before the next change has to squeeze in** · `agent_runtime/lens/store.py` · `agent_runtime/lens/store_episode_rows.py` · READY 2026-10-27 · **TAKEN 2026-10-27 w1027k-h-lens on nekwo-ubuntu24 as nekwo in hermes-w1027k-h-lens**
 
 ## Filed on arrival — 2026-10-27 (planned/ triage lane w1027j-h-tri-c)
