@@ -43,7 +43,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_runtime.lens.store import LensStore, MonitorState, to_ms
+from agent_runtime.lens.store import LensStore, LensStoreError, MonitorState, to_ms
 
 T0 = datetime(2026, 10, 19, 12, tzinfo=UTC)
 PLUGIN = Path(__file__).resolve().parents[3] / "plugins" / "eternia-lens" / "__init__.py"
@@ -436,3 +436,75 @@ def test_lens_propose_drafts_a_schedule_and_refuses_one_on_a_notify_monitor():
     # Positive control: the same notify proposal without a schedule drafts (as before this row).
     assert propose_monitor({**_proposal(), "monitor_id": "proposed-notify"}, store=store, client=client,
                            resolver=lambda host: PUBLIC)["state"] == "draft"
+
+
+# --- RT-LENS-EQUIVALENCE-PROPOSAL (plan lens-deadline-schedule-equivalence-report §3 slice 2) -----
+
+NEW_CPU = {"identity": "MPN-CPU-9000", "variant": "", "condition": "new"}
+WHY = {"us": {"why": "same MPN, boxed, new", "cited": ["CPU 9000 (MPN-CPU-9000) new in box"]},
+       "uk": {"why": "listing names the same MPN, sealed", "cited": ["MPN-CPU-9000 sealed retail"]}}
+
+
+def _deal_proposal(**extra) -> dict:
+    def listing(feed_id):
+        return {"id": feed_id, "kind": "http_json", "interval_ms": 60_000,
+                "source": {"url": f"https://shop.example.invalid/{feed_id}", "selector": "$.price"},
+                "value_type": {"kind": "money", "currency": "USD"}, "product": dict(NEW_CPU)}
+
+    rule = {"id": "best", "feed_id": "us", "form": "best_of", "severity": "attention", "direction": "below",
+            "threshold": 0, "recovery_threshold": 0, "window_ms": 0, "samples": 1, "feed_ids": ["us", "uk"]}
+    return {"monitor_id": "proposed-deal", "feeds": [listing("us"), listing("uk")], "rule": rule,
+            "automation": {"level": "notify", "when": "always", "daily_turn_cap": 4}, **extra}
+
+
+def _rpc(method: str, params: dict) -> dict:
+    from agent_runtime import serve_rpc
+
+    return serve_rpc.handle_request({"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
+
+
+def test_a_money_best_of_proposal_must_justify_every_member():
+    # Kill: ``_equivalence_evidence`` returns {} for a money group -> the bare proposal drafts, red.
+    import httpx
+
+    from agent_runtime.lens.tool import handle_lens_propose, propose_monitor
+
+    shop = _client(lambda request: httpx.Response(200, json={"price": 300}))
+    assert json.loads(handle_lens_propose(_deal_proposal()))["error"] == "equivalence_unjustified"
+    one = {"us": WHY["us"]}
+    assert json.loads(handle_lens_propose(_deal_proposal(equivalence=one)))["error"] == "equivalence_unjustified"
+    with pytest.raises(LensStoreError):
+        LensStore().get("proposed-deal")  # nothing was drafted
+    # Positive control: one entry per member drafts.
+    assert propose_monitor(_deal_proposal(equivalence=WHY), client=shop,
+                           resolver=lambda host: PUBLIC)["state"] == "draft"
+    # A proposal that is not a money best_of carries no justification.
+    assert json.loads(handle_lens_propose({**_proposal(), "equivalence": WHY}))["error"] == "invalid_value"
+
+
+def test_runtime_lens_get_shows_the_justification_and_marks_it_stale_after_an_operator_edit():
+    # Kill: ``equivalence_evidence`` answers stale False whatever the digest (keyed by monitor id
+    # only) -> the edited draft still reads fresh, red.
+    import httpx
+
+    from agent_runtime.lens.tool import propose_monitor
+
+    propose_monitor(_deal_proposal(equivalence=WHY), client=_client(lambda request: httpx.Response(
+        200, json={"price": 300})), resolver=lambda host: PUBLIC)
+    got = _rpc("runtime.lens.get", {"monitor_id": "proposed-deal"})["result"]
+    evidence = got["equivalence_evidence"]
+    assert (evidence["stale"], evidence["members"]) == (False, WHY)
+
+    draft = got["draft"]
+    # Positive control: the operator re-saving the same bytes is still the justified draft.
+    assert "result" in _rpc("runtime.lens.create", {"manifest": draft})
+    assert _rpc("runtime.lens.get", {"monitor_id": "proposed-deal"})["result"]["equivalence_evidence"]["stale"] is False
+    edited = {**draft, "automation": {**draft["automation"], "daily_turn_cap": 8}}
+    assert "result" in _rpc("runtime.lens.create", {"manifest": edited})
+    stale = _rpc("runtime.lens.get", {"monitor_id": "proposed-deal"})["result"]["equivalence_evidence"]
+    assert stale["stale"] is True and stale["draft_digest"] == evidence["draft_digest"]
+
+
+def test_a_monitor_proposed_without_justification_reads_none():
+    _sealed()
+    assert _rpc("runtime.lens.get", {"monitor_id": "status"})["result"]["equivalence_evidence"] is None

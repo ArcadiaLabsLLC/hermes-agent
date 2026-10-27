@@ -192,17 +192,23 @@ def check_sealable(manifest: dict[str, Any]) -> None:
     _check_equivalence(manifest)
 
 
+def money_best_of_members(manifest: dict[str, Any]) -> list[list[str]]:
+    """Per money ``best_of`` rule, its member feed ids: the groups W5 says compare PRODUCTS.
+
+    A ``best_of`` over plain numbers (latency across regions) is not a product comparison."""
+
+    feeds = {feed["id"]: feed for feed in manifest["feeds"]}
+    return [list(rule_feed_ids(rule)) for rule in manifest["rules"]
+            if RuleForm(rule["form"]) is RuleForm.BEST_OF
+            and value_type_of(feeds[rule_feed_ids(rule)[0]])["kind"] == ValueKind.MONEY.value]
+
+
 def _check_equivalence(manifest: dict[str, Any]) -> None:
     """W5: every member of a money ``best_of`` is labelled, and all share condition and variant."""
 
     feeds = {feed["id"]: feed for feed in manifest["feeds"]}
-    for rule in manifest["rules"]:
-        if RuleForm(rule["form"]) is not RuleForm.BEST_OF:
-            continue
-        members = [feeds[feed_id] for feed_id in rule_feed_ids(rule)]
-        if value_type_of(members[0])["kind"] != ValueKind.MONEY.value:
-            continue  # a best_of over plain numbers (latency across regions) is not a product comparison
-        products = [member.get("product") for member in members]
+    for group in money_best_of_members(manifest):
+        products = [feeds[feed_id].get("product") for feed_id in group]
         if any(p is None or p["condition"] == ProductCondition.UNKNOWN.value for p in products):
             raise WireError(WireRefusal.EQUIVALENCE_UNLABELLED, "product")
         if len({(p["condition"], p["variant"].casefold()) for p in products}) > 1:

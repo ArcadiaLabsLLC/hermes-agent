@@ -13,7 +13,10 @@ through ``harness_core``.
 * ``lens_propose {feeds, rule, automation, persona_id?, monitor_id?, schedule?}``
   (:func:`propose_monitor`) — ``schedule`` (``{every_ms, offset_ms, brief}``, the manifest's own
   key) lets the agent that set up a watch propose its discovery schedule; it is read and refused
-  exactly as a sealed manifest's (``schedule_needs_investigate``, ``schedule_over_cap``) — one real preview read per feed (``sources.preview_reads``:
+  exactly as a sealed manifest's (``schedule_needs_investigate``, ``schedule_over_cap``). A money
+  ``best_of`` rule needs ``equivalence: {<feed_id>: {why, cited}}``, one entry per member
+  (``equivalence_unjustified`` otherwise; W5, ``store_proposals.py``), stored by the draft's digest and
+  shown by ``runtime.lens.get`` — one real preview read per feed (``sources.preview_reads``:
   the transport classifier refuses a private address unless the feed opts in), then
   the manifest is stored as a DRAFT of a NEW monitor (``store.create``; refused
   ``proposals_full`` while ``store.MAXIMUM_PROPOSALS`` never-sealed drafts wait, so
@@ -56,9 +59,10 @@ from typing import Any
 
 from .episode import Episode, is_open
 from .evidence import EvidenceWindow
-from .manifest import read_manifest
+from .manifest import money_best_of_members, read_manifest
 from .rules import is_source_broken, manifest_rule, source_broken_rule_id
 from .store import LensStore, LensStoreError, StoreRefusal, to_ms
+from .store_proposals import draft_digest, read_equivalence, record_evidence
 from .wire_value import WireError, bounded_int, canonical_json, checked_object, opaque_id, require
 
 __layer__ = "lanes"
@@ -314,6 +318,10 @@ LENS_PROPOSE_SCHEMA: dict[str, Any] = {
                                                             "daily_turn_cap}."},
             "persona_id": {"type": "string", "description": "The persona an investigate Episode's turn goes to."},
             "monitor_id": {"type": "string", "description": "A new monitor id (default: proposed-<hex>)."},
+            "equivalence": {"type": "object", "description": "Required when the rule is a best_of over money: "
+                                                             "{<feed_id>: {why, cited}} for every member, why "
+                                                             "the listings are the same product (why <= 512 "
+                                                             "bytes; cited <= 4 short strings you read)."},
             "schedule": {"type": "object", "description": "{every_ms, offset_ms, brief}: a scheduled discovery "
                                                           "run every every_ms (15 min to 7 days) at UTC phase "
                                                           "offset_ms, asking brief; investigate monitors only."},
@@ -338,6 +346,16 @@ def _calling_persona() -> str | None:
     return persona_instance_of(agent) if agent is not None else None
 
 
+def _equivalence_evidence(manifest: dict[str, Any], value: Any) -> dict[str, Any]:
+    """W5: a money ``best_of`` proposal justifies each member; any other proposal carries none."""
+
+    groups = money_best_of_members(manifest)
+    if not groups:
+        require(value is None, "equivalence justifies a money best_of only")
+        return {}
+    return read_equivalence(value, groups[0])
+
+
 def propose_monitor(args: Any, *, store: LensStore | None = None, client: Any = None,
                     resolver: Any = None) -> dict[str, Any]:
     """``lens_propose``'s answer: the preview and the new DRAFT's id. Never seals (see the module)."""
@@ -345,7 +363,7 @@ def propose_monitor(args: Any, *, store: LensStore | None = None, client: Any = 
     from .sources import preview_reads
 
     m = checked_object(args if args is not None else {}, {"feeds", "rule", "automation"},
-                       {"persona_id", "monitor_id", "schedule"})
+                       {"persona_id", "monitor_id", "schedule", "equivalence"})
     monitor_id = opaque_id(m["monitor_id"]) if m.get("monitor_id") is not None else f"proposed-{secrets.token_hex(4)}"
     feeds = m["feeds"]
     optional_keys = {"schedule": m["schedule"]} if m.get("schedule") is not None else {}
@@ -353,6 +371,7 @@ def propose_monitor(args: Any, *, store: LensStore | None = None, client: Any = 
                               "feeds": [_versioned(feed) for feed in feeds] if isinstance(feeds, list) else feeds,
                               "rules": [_versioned(m["rule"])], "automation": m["automation"],
                               "persona_id": m.get("persona_id"), **optional_keys})
+    evidence = _equivalence_evidence(manifest, m.get("equivalence"))
     store = store or LensStore()
     try:
         store.get(monitor_id)
@@ -363,6 +382,8 @@ def propose_monitor(args: Any, *, store: LensStore | None = None, client: Any = 
         raise LensStoreError(StoreRefusal.EXISTS)
     preview = preview_reads(manifest, client=client, resolver=resolver)
     monitor = store.create(manifest, proposal=True, proposer=_calling_persona())
+    if evidence:
+        record_evidence(store, monitor_id, draft_digest(manifest), evidence)
     return {"monitor_id": monitor_id, "state": monitor["state"], "sealed": False,
             "preview": [{"feed_id": feed_id, **result.to_json()} for feed_id, result in preview.items()],
             "confirm": "The operator seals this draft in Mission Control (runtime.lens.seal); nothing polls "
