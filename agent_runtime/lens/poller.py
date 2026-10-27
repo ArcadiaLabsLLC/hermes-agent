@@ -23,6 +23,8 @@ Each :meth:`LensPoller.tick` polls every due feed of every ENABLED monitor once:
   (``host_budget.HostBudget``, shared by every monitor); a refused take DEFERS the read to
   the next tick, and a defer that outlasts the feed's continuity limit records ONE
   ``host_budget_deferred`` gap per elapsed limit, so a paused host is visible in the series;
+  a ``429`` / ``503`` read's ``Retry-After`` pauses that HOST (``HostBudget.pause``), so every
+  feed on it defers the same way until then;
 * W3 conditional reads: an ``http_json`` feed's ``ETag`` / ``Last-Modified`` (and the read
   they answer) are held here, in memory, and sent back; a ``304`` answers that read's value
   with reason ``not_modified`` (not a gap: the server asserted it unchanged now). A restart
@@ -204,6 +206,9 @@ class LensPoller:
         result = read_feed_source(feed, client=self.client, resolver=self.resolver, sealed=True,
                                   validators=clock.validators)
         received = self.clock()
+        key = host_key(feed)
+        if result.retry_after_ms is not None and key is not None:
+            self._budget().pause(key, now + timedelta(milliseconds=result.retry_after_ms))
         self._record(store, monitor_id, manifest, feed, result, observed=now, received=received,
                      history=list(clock.recent))
         if result.value is not None:

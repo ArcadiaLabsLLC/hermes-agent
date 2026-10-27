@@ -12,6 +12,9 @@ Plan ``LENS_EXTENSIONS_2026-10-27.md`` §2 decisions 1–3. A feed's own pacing
   :data:`PUBLIC_BURST`), a host a feed reaches through ``allow_private_network`` — or the
   loopback ``kubectl proxy`` — at ``host_reads_per_minute_private`` (burst
   :data:`PRIVATE_BURST`): an operator's own Prometheus is not a third party.
+* A ``429`` / ``503`` with ``Retry-After`` PAUSES the host (:meth:`HostBudget.pause`, §2
+  decision 4): every take on it is refused until then, whatever its tokens — so every feed on
+  the host defers, not only the one that was told.
 * A refused take is the poller's to DEFER, never to drop (``poller.LensPoller._read_due``).
 
 No manifest key: a manifest describes a monitor, the budget describes a host shared by
@@ -72,8 +75,20 @@ class HostBudget:
     public_per_minute: int
     private_per_minute: int
     _buckets: dict[str, _Bucket] = field(default_factory=dict)
+    _paused: dict[str, datetime] = field(default_factory=dict)
+
+    def pause(self, key: str, until: datetime) -> None:
+        """Refuse every take on ``key`` before ``until`` (a later pause only extends it)."""
+
+        if key not in self._paused or until > self._paused[key]:
+            self._paused[key] = until
 
     def take(self, key: str, now: datetime, *, private: bool) -> bool:
+        paused = self._paused.get(key)
+        if paused is not None:
+            if now < paused:
+                return False
+            del self._paused[key]
         rate = (self.private_per_minute if private else self.public_per_minute) / 60.0
         burst = float(PRIVATE_BURST if private else PUBLIC_BURST)
         bucket = self._buckets.setdefault(key, _Bucket(tokens=burst, at=now))

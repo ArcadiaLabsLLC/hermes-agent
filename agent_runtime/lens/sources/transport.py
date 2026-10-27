@@ -14,6 +14,10 @@ Plan ``eternia-lens-in-hermes.md`` W10 (stage L1), ported in spirit from Compani
   sends ``If-None-Match`` / ``If-Modified-Since``; a ``304`` then answers
   ``not_modified`` and the caller replays the value it last read (plan
   ``LENS_EXTENSIONS_2026-10-27.md`` §2 decision 5). A validator never reaches the store;
+* a ``429`` / ``503`` with ``Retry-After`` (delta-seconds or an HTTP-date) answers it as a
+  bounded delay in ``ReadResult.retry_after_ms`` (at most :data:`MAXIMUM_RETRY_AFTER_MS`), which
+  the poller turns into a pause of every feed on that host (plan
+  ``LENS_EXTENSIONS_2026-10-27.md`` §2 decision 4) — an integer, never the header's text;
 * every read names its reader: ``User-Agent: EterniaLens/<version>`` (:data:`USER_AGENT`,
   plan ``LENS_EXTENSIONS_2026-10-27.md`` §2 decision 6).
 
@@ -27,7 +31,9 @@ from __future__ import annotations
 import ipaddress
 import json
 import socket
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from enum import Enum
 from typing import Any, Callable
 from urllib.parse import urlsplit
@@ -37,6 +43,10 @@ from ... import __version__
 __layer__ = "lanes"
 
 USER_AGENT = f"EterniaLens/{__version__}"
+#: The longest pause a ``Retry-After`` buys (1 h); a longer one is cut to it.
+MAXIMUM_RETRY_AFTER_MS = 60 * 60 * 1000
+#: The statuses whose ``Retry-After`` pauses the host.
+RETRY_AFTER_STATUSES = frozenset({429, 503})
 MAXIMUM_BODY_BYTES = 1024 * 1024
 TIMEOUT_SECONDS = 10.0
 
@@ -94,6 +104,9 @@ class ReadResult:
     #: The answer's value-free skeleton (``lens.shapes``) when the source answered a document;
     #: kept off :meth:`to_json` — it is the poller's, for ``store_shapes``, never the preview's.
     shape: tuple[tuple[str, str], ...] | None = None
+    #: A ``429`` / ``503``'s ``Retry-After`` as a delay in ms (0…:data:`MAXIMUM_RETRY_AFTER_MS`),
+    #: the poller's to pause the host by; off :meth:`to_json` like ``shape``.
+    retry_after_ms: int | None = None
 
     @property
     def status(self) -> str:
@@ -131,6 +144,27 @@ def _validator(value: str | None) -> str | None:
     if value is None or not value.isascii() or not value.isprintable() or len(value) > MAXIMUM_VALIDATOR_BYTES:
         return None
     return value
+
+
+def retry_after_ms(value: str | None, now: datetime) -> int | None:
+    """``Retry-After`` as a bounded delay from ``now`` in ms, or None when absent or unreadable.
+    Delta-seconds or an HTTP-date; a date already past is 0; anything longer is
+    :data:`MAXIMUM_RETRY_AFTER_MS`."""
+
+    if value is None:
+        return None
+    text = value.strip()
+    if text.isascii() and text.isdigit():
+        delay = int(text[:12]) * 1000
+    else:
+        try:
+            when = parsedate_to_datetime(text)
+        except (TypeError, ValueError, IndexError, OverflowError):
+            return None
+        if when is None or when.tzinfo is None:
+            return None
+        delay = int((when - now).total_seconds() * 1000)
+    return max(0, min(delay, MAXIMUM_RETRY_AFTER_MS))
 
 
 def unavailable(reason: ReadReason, http_status: int | None = None) -> ReadResult:
@@ -194,7 +228,11 @@ def fetch_json(url: str, *, headers: dict[str, str], params: dict[str, str] | No
             if 300 <= response.status_code < 400:
                 return None, unavailable(ReadReason.REDIRECT_REFUSED, response.status_code)
             if not 200 <= response.status_code < 300:
-                return None, unavailable(ReadReason.HTTP_STATUS, response.status_code)
+                failed = unavailable(ReadReason.HTTP_STATUS, response.status_code)
+                if response.status_code in RETRY_AFTER_STATUSES:
+                    failed = replace(failed, retry_after_ms=retry_after_ms(response.headers.get("retry-after"),
+                                                                           datetime.now(UTC)))
+                return None, failed
             body = bytearray()
             for chunk in response.iter_bytes():
                 body += chunk

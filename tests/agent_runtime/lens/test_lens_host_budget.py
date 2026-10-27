@@ -165,3 +165,44 @@ def test_a_restarted_poller_holds_no_validators_and_sends_a_full_get():
     _poller(_Clock(T0 + timedelta(seconds=5)), _conditional(sent), budget).tick()
 
     assert sent == [None, None]
+
+
+# --- RT-LENS-HOST-RETRY-AFTER -------------------------------------------------------
+
+
+def test_a_429_retry_after_pauses_every_feed_on_the_host_until_it_passes():
+    """Killed by pausing only the feed that saw the 429 (a key the host's takes never ask), and
+    by dropping the ``Retry-After`` parse from ``fetch_json``: the sibling reads inside the window."""
+
+    _enable("first", _feed("https://shared.example.invalid/a"))
+    store = _enable("second", _feed("https://shared.example.invalid/b"))
+    reads: list = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        reads.append((clock.at, request.url.path))
+        if not reads[1:]:
+            return httpx.Response(429, headers={"Retry-After": "120"})
+        return httpx.Response(200, json={"cpu": 1})
+
+    clock = _Clock(T0)
+    poller = _poller(clock, handler, HostBudget(public_per_minute=6000, private_per_minute=6000))
+    for _ in range(130):
+        poller.tick()
+        clock.at += timedelta(seconds=1)
+
+    assert reads[0] == (T0, "/a")
+    inside = [path for at, path in reads[1:] if at < T0 + timedelta(seconds=120)]
+    assert inside == [], "no read of the host while it asked to be left alone"
+    resumed = {path for at, path in reads if at >= T0 + timedelta(seconds=120)}
+    assert resumed == {"/a", "/b"}
+    assert any(row["reason"] == "host_budget_deferred" for row in _rows(store, "second"))
+
+
+def test_retry_after_reads_seconds_or_a_date_bounded_to_an_hour():
+    from agent_runtime.lens.sources.transport import MAXIMUM_RETRY_AFTER_MS, retry_after_ms
+
+    assert retry_after_ms("120", T0) == 120_000
+    assert retry_after_ms("Tue, 27 Oct 2026 12:02:00 GMT", T0) == 120_000
+    assert retry_after_ms("Tue, 27 Oct 2026 11:00:00 GMT", T0) == 0
+    assert retry_after_ms("86400", T0) == MAXIMUM_RETRY_AFTER_MS
+    assert retry_after_ms("soon", T0) is None and retry_after_ms(None, T0) is None

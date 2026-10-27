@@ -160,6 +160,13 @@ only the feed that saw it; `Retry-After` is ignored; an unchanged document is re
 | `RT-LENS-HOST-RETRY-AFTER` | decision 4 | `agent_runtime/lens/sources/transport.py`, `agent_runtime/lens/host_budget.py`, `agent_runtime/lens/poller.py` |
 | `RT-LENS-CONDITIONAL-READS` | decision 5 | `agent_runtime/lens/sources/transport.py`, `agent_runtime/lens/sources/http_json.py`, `agent_runtime/lens/poller.py` |
 
+*Built (`RT-LENS-HOST-RETRY-AFTER`, lane w1027g-h-lens):* `ReadResult.retry_after_ms` is a DELAY in
+ms (`transport.retry_after_ms`, 0…`MAXIMUM_RETRY_AFTER_MS`), not an instant — the transport has no
+injected clock, so an HTTP-date is measured against the wall clock there and the poller adds the delay
+to its own `now`. `HostBudget.pause(key, until)` refuses every take on the host until then (a later
+pause only extends it); a 429/503 with no readable `Retry-After` pauses nothing beyond the feed's own
+backoff.
+
 ### Test plan
 
 - Two monitors, one host, fake clock: reads in one minute ≤ the budget; a feed on another host is not
