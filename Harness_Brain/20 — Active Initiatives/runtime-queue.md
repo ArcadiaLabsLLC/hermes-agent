@@ -29,6 +29,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-27 (lane w1027b-h-fix)
+
+- **`RT-DUP-APPEND-SKILL-CHANGES` — `test_no_new_duplicate_anywhere_in_the_fork` reds on `origin/main` `7e6d0da0a5`: `NEW _append: agent_runtime/review_skill_changes.py, agent_runtime/running_work/process_presence.py` (two bodies of one helper since `7f8bb59bd5`); give them one owner or rename the new one** · `tests/agent_runtime/test_duplicate_helper_bodies.py` · `agent_runtime/review_skill_changes.py::_append` · READY 2026-10-27
+- **`RT-STREAM-GOLDEN-PATCH-AGENT-CREATE-DRIFT` — `test_committed_goldens_are_the_generators_bytes` and `test_a_serve_boot_earlier_in_the_process_does_not_reach_the_goldens` red on `origin/main` `7e6d0da0a5` (Linux, `scripts/run_tests.sh`): `patch_agent_create.json` differs from the generator at byte 1292 (`,` vs `]`); decide whether the generator or the golden moved and land the regenerated golden cross-stack with the launcher mirror** · `tests/agent_runtime/test_stream_contract_fixture.py` · `scripts/generate_agent_runtime_stream_fixtures.py` · READY 2026-10-27
+
 ### Lens plan reconciliation — 2026-10-26 (codex-lens-status)
 
 Reconciled against the built code and the plan, not inferred from an absent old row. Optional branches retain their decision/deferral gates. Evidence and coverage: `docs/agent-runtime-harness/planned/eternia-lens-in-hermes.md` § Current implementation and queue coverage.
