@@ -8,3 +8,5 @@ Importing it once here, before any window opens, keeps boot out of the mocked im
 """
 
 import hermes_bootstrap
+
+from tests._fixtures.prompt_turn_reaper import _reap_prompt_turn_threads  # fixture registers here

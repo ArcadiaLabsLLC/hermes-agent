@@ -7,6 +7,11 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+## Filed on arrival — 2026-10-26 (lane poller-requeue)
+
+- **`FORK-GENERATED-CONTRACT-BUNDLE-LEAK` — `tests/tui_gateway/contracts/test_generated.py::test_generated_files_are_current` reds in its bundle ("stale generated contract files": `apps/shared/src/gateway-contract.generated.ts`, `gateway-contract.openrpc.json`) and passes alone** · `fork / suite` · observed 2026-10-26 on Linux at `-j 24`, bundle #0 as its first member, and red identically with and without the `tests/_fixtures/prompt_turn_reaper.py` fixture, so not that change; find what the bundle's import of the next three members changes in the generator's output, or unbundle it with the observed diff · evidence: `scripts/run_tests_bundled.sh --scope features -j 24 tests/tui_gateway`, bundle members `tests/tui_gateway/contracts/test_generated.py`, `tests/tui_gateway/contracts/test_profile_rename_history.py`, `tests/tui_gateway/test_adversarial_sidecar_availability.py`, `tests/tui_gateway/test_approval_cancelled_on_reap.py` · READY 2026-10-26
+- **`FORK-DISPLAY-WATCH-BUNDLE-LEAK` — `tests/tui_gateway/test_display_watch.py::test_release_in_another_process_is_broadcast_and_local_transition_not_duplicated` reds after three earlier bundle members and passes alone** · `fork / suite` · observed 2026-10-26 on Linux at `-j 24`, bundle #16, red identically with and without the turn-thread reaper; the earlier members are `tests/tui_gateway/test_diagnostic_turn_end_to_end.py`, `tests/tui_gateway/test_diagnostics_share_nous.py`, `tests/tui_gateway/test_display_methods.py` — bisect which one leaves display-watch state behind · READY 2026-10-26
+
 ## Filed on arrival — 2026-10-26 (next-prompt implementation)
 
 - **`FORK-NEXT-PROMPT-BASE-DUPLICATES` — The fork-wide duplicate-name gate is already red for `_row` in review_skill_pending/workspace_create and `_run` in skills_pending_commands/generate_agent_runtime_response_fixtures; give these distinct helpers unambiguous names without expanding the baseline** · fork / suite · `tests/agent_runtime/test_duplicate_helper_bodies.py::test_no_new_duplicate_anywhere_in_the_fork` · four source files and duplicate baseline are byte-identical to claim base ba542d8f; 1 failure / 5 passes on the implementation tree · READY 2026-10-26
@@ -279,7 +284,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-24 (lane REDS3)
 
-- **`FORK-NOTIFICATION-POLLER-REQUEUE` — `test_tui_gateway_server.py::test_notification_poller_live_loop_requeues_foreign_completion_for_owner` is order/timing-flaky: a stray `session.info` frame (this worktree's cwd and branch) reaches its captured writes** · `fork / suite` · red once in a five-file run on `6251144d09`, green alone and green on the next four-file run; find the emitter that outlives its test (a session-info publish from an earlier test's thread) and join or drain it in teardown · evidence: lane REDS3 `.lane-logs/base.log` (`assert [('session.info', 'msg-id-trunc-sid', {...'branch': 'fork/main-reds-2026-09-24'...})] == []`) · traced 2026-09-24: the only test naming `msg-id-trunc-sid` is `test_prompt_submit_truncates_by_message_id` (upstream bytes), whose daemon `_run_after_agent_ready` thread is never joined, but alone it never calls `server._session_info`; if it reds again, capture the stray's stack with a patched `_emit` in the failing multi-file run · DEFERRED 2026-10-16: owner 2026-10-15 "no decision owed: not reproduced" — a watch until it reds again · stale claim taken over 2026-10-26 (r-gateway: no commit since 2026-10-18) · **TAKEN 2026-10-26 poller-requeue on nekwo-ubuntu24 as nekwo in wt-poller-requeue**
 
 ## Filed on arrival — 2026-09-24 (lane CLOSE)
 
