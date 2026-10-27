@@ -54,7 +54,9 @@ def test_marker_with_live_shaped_root_raises(tmp_path):
 
 def test_marker_with_default_layer_raises(tmp_path, monkeypatch):
     # Marker set, no env root pin at all → falls through to the default/live layer → raise.
+    # The default home is LOCALAPPDATA on Windows and ``Path.home()`` (HOME) on POSIX: pin both.
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "AppData"))
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
     env = _env(
         HERMES_REQUIRE_ISOLATED_ROOT="1",
         LOCALAPPDATA=str(tmp_path / "AppData"),

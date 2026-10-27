@@ -73,6 +73,11 @@ def _run(profile: str, root: str, message: str, runtime_root: Path, errors: list
         errors.append(exc)
 
 
+@pytest.mark.xfail(
+    os.name != "nt", strict=True,
+    reason="POSIX runs serialize behind workdir._PROCESS_HOME_LOCK (the HOME write) until the upstream "
+           "home-hook door lands: row RT-POSIX-TURNS-SERIALIZE-BEHIND",
+)
 def test_another_root_finishes_while_one_root_waits(tmp_path, two_profiles):
     b_done = threading.Event()
     a_waiting = threading.Event()

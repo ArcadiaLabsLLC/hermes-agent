@@ -150,7 +150,9 @@ def spawned_program(event: str, args: tuple) -> str:
 def is_python(program: str) -> bool:
     if not program:
         return False
-    base = os.path.basename(program).lower()
+    # Both separators: a Windows audit line (``C:\\Program Files\\Py\\python.exe``) read on POSIX,
+    # where ``os.path.basename`` splits on ``/`` alone and would keep the whole path.
+    base = program.replace("\\", "/").rsplit("/", 1)[-1].lower()
     if base.startswith("python"):
         return True
     try:

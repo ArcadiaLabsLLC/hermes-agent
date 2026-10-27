@@ -1041,7 +1041,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-27 (orchestrator, after lane w1027g-h-head)
 
-- **`RT-LINUX-REDS-SEVEN-TESTS` — seven tests are red on `main` `282bf59907` on nekwo-ubuntu24 (Linux), the same before and after a docs-only change: `test_probe_isolation::test_marker_with_default_layer_raises`, `test_run_serialization_per_root::test_another_root_finishes_while_one_root_waits`, `test_persona_tool_diff_surface::test_tool_diff_prints_the_split`, `test_hermes_dep_record` (2: `is_python` false for a `C:\\Program Files\\…\\python.exe` path on POSIX), `test_long_tool_calls` (2: `bg/tool_calls.json` never written); triage each as host-assumption vs real defect** · fork · `tests/scripts/test_hermes_dep_record.py`, `tests/tools/test_long_tool_calls.py`, `tests/agent_runtime/test_probe_isolation.py` · READY 2026-10-27 · REQUIRES linux · **TAKEN 2026-10-27 w1027k-h-rt on nekwo-ubuntu24 as nekwo in hermes-w1027k-h-rt**
 
 ## Filed on arrival — 2026-10-27 (launcher lane w1027i-plan-ai)
 

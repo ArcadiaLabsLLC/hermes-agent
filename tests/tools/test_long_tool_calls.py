@@ -76,6 +76,9 @@ def _in_live_call(fn, tool="slow"):
     out = {}
 
     def _go():
+        # The tool executor clears its thread's bit before a call (``agent/tool_executor.py``); thread
+        # idents are reused (at once on Linux), so a bit an earlier test left on a dead ident must not land here.
+        _interrupt.set_interrupt(False)
         live_turns.tool_started(TURN, CALL, tool)
         try:
             out["result"] = fn()
