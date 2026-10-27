@@ -40,3 +40,8 @@ def _subprocess_keeps_real_threads(monkeypatch):
     """Pin ``subprocess``'s ``Thread`` to the real class for one test."""
     monkeypatch.setattr(subprocess, "threading", _SubprocessThreading(threading.Thread))
     yield
+
+
+# Leaked prompt.submit turn threads are ended and joined after every test here
+# (FORK-NOTIFICATION-POLLER-REQUEUE, c7c2c86ce8); the import binds the fixture into this half.
+from tests._fixtures.prompt_turn_reaper import _reap_prompt_turn_threads  # noqa: E402,F401
