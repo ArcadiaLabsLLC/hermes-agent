@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-27 (lane w1027f-h-rt)
+
+- **`RT-TOOL-INVENTORY-RED-ON-MAIN` — two tool-surface pins are red on `main` at `5027e700fb` on the Linux box: the committed harness tool inventory no longer matches the live registry (`--check` diff in `toolsets` / `token_estimate`), and `hermes persona tool-diff dev` reports 44 callable by name where the test pins 41 (kanban tools now in the surface); regenerate and READ the diff, or find the commit that moved them** · `tests/agent_runtime/test_harness_tool_inventory.py::test_the_committed_inventory_matches_the_live_registry` · `tests/hermes_cli/test_persona_tool_diff_declaration.py::test_the_text_mode_names_the_source` · `scripts/emit_harness_tool_inventory.py` · filed by lane w1027f-h-rt 2026-10-27 · READY 2026-10-27
+
 ### Filed on arrival — 2026-10-27 (lane w1027b-h-fix)
 
 
