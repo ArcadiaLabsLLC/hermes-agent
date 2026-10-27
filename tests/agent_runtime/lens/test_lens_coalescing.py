@@ -154,3 +154,34 @@ def test_a_notify_digest_writes_one_notified_leader_and_its_members():
     # Positive control: an Episode owed after the settle opens the NEXT window, it is not swept in.
     store.save_episode(_episode(3))
     assert _at(timedelta(minutes=1, seconds=1)).tick() == []
+
+
+def test_a_digest_carries_each_missed_members_outage_and_no_other_member_gets_one(door):
+    """RT-LENS-DIGEST-MISSED-NOTE. Killed by dropping ``offline`` from ``digest_opening_block``'s
+    member entries and sentences: the outage the single missed Episode carries is lost in a digest.
+    Positive control: the active member names no outage."""
+
+    import json
+    import re
+
+    from agent_runtime.lens.episode import Episode, EpisodeState
+
+    store = _armed(_with(_monitor(), digest_window_ms=60_000), 2)
+    before, offline_at, deadline = T0 - timedelta(minutes=10), T0 - timedelta(minutes=1), T0 - timedelta(minutes=5)
+    store.record("status", "api", observed_at=before, received_at=before, value=1.0, reason="ok")
+    store.record("status", "api", observed_at=offline_at, received_at=offline_at, value=None,
+                 reason="watcher_offline")
+    store.save_episode(Episode(monitor_id="status", rule_id="cpu_hot", ordinal=1, first_seen=before,
+                               last_seen=deadline, count=1, state=EpisodeState.MISSED,
+                               missed_deadline_ms=to_ms(deadline)))
+    _at(timedelta(0)).tick()
+
+    assert _at(timedelta(minutes=1)).tick() == ["forged"]
+
+    [args] = door.calls
+    assert "Episode #1: monitor status's rule cpu_hot (urgent) MISSED its deadline" in args.message
+    assert "The watcher was offline from 2026-10-19T11:50:00Z to 2026-10-19T11:59:00Z" in args.message
+    assert "Episode #2:" not in args.message
+    typed = json.loads(re.search(r"^\{.*\}$", args.message, re.M).group(0))
+    offline = {entry["episode"]["ordinal"]: entry.get("offline") for entry in typed["episodes"]}
+    assert offline == {1: {"from_ms": to_ms(before), "until_ms": to_ms(offline_at)}, 2: None}

@@ -127,23 +127,32 @@ def digest_opening_block(manifest: dict[str, Any], windows: list[tuple[Episode, 
                          folder: Path, *, notes: dict[str, dict[str, Any]] | None = None) -> str:
     """The forged user message for a W6 digest: every member Episode with its own rule and
     evidence (each built to an N-th of the one evidence budget), leader first. ``notes`` maps a
-    member's id to what :func:`opening_block` takes besides its evidence (``shapes``)."""
+    member's id to what :func:`opening_block` takes besides its evidence (``offline``, ``shapes``):
+    a missed member carries its outage in its typed entry and one sentence of its own, as a
+    single missed Episode does."""
 
     notes = notes or {}
     feed_ids = {feed_id for _, evidence in windows for feed_id in evidence.feed_ids}
     feeds = [feed for feed in manifest["feeds"] if feed["id"] in feed_ids]
-    typed = {
-        "episodes": [{"episode": episode.to_json(), "rule": manifest_rule(manifest, episode.rule_id),
-                      "evidence": evidence.to_json()} for episode, evidence in windows],
-        "feeds": _typed_feeds(feeds),
-    }
+    members, missed = [], []
+    for episode, evidence in windows:
+        rule = manifest_rule(manifest, episode.rule_id)
+        member = {"episode": episode.to_json(), "rule": rule, "evidence": evidence.to_json()}
+        offline = (notes.get(episode.id) or {}).get("offline")
+        if offline is not None:
+            member["offline"] = {"from_ms": offline[0], "until_ms": offline[1]}
+        if episode.missed_deadline_ms is not None:
+            missed.append(" " + _opening_sentence(rule, episode, offline).replace(
+                "Eternia Lens opened this Episode: ", f"Episode #{episode.ordinal}: ", 1))
+        members.append(member)
+    typed = {"episodes": members, "feeds": _typed_feeds(feeds)}
     shapes = {manifest_rule(manifest, episode.rule_id)["feed_id"]: notes[episode.id]["shapes"]
               for episode, _ in windows if (notes.get(episode.id) or {}).get("shapes") is not None}
     monitor_id = windows[0][0].monitor_id
     return _block(
         f"[LENS DIGEST — {monitor_id} · {len(windows)} episodes]",
         (f"Eternia Lens opened these {len(windows)} Episodes of monitor {monitor_id} inside one digest window "
-         "and owes them ONE turn. No operator wrote this message. Investigate what the evidence shows across "
+         f"and owes them ONE turn.{''.join(missed)} No operator wrote this message. Investigate what the evidence shows across "
          "them, say plainly what you found and what you would do, and stop; nothing is fixed for you."),
         typed, feeds, folder, shapes=shapes or None)
 

@@ -1015,10 +1015,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ## Filed on arrival — 2026-10-27 (launcher lane w1027e-plan-comp)
 
 
-## Filed on arrival — 2026-10-27 (lane w1027f-h-lens-b merge)
-
-- **`RT-LENS-DIGEST-MISSED-NOTE` — after lens-a and lens-b merged (`d47af54ffc`), a digest window takes `missed` Episodes but the digest opening block drops their offline-interval note, which a single missed Episode carries; carry the outage interval into `tool.digest_opening_block` for each missed member, with a positive control** · `agent_runtime/lens/tool.py` · `agent_runtime/lens/missed_deadlines.py` · READY 2026-10-27 · **TAKEN 2026-10-27 w1027g-h-lens on nekwo-ubuntu24 as nekwo in hermes-w1027g-h-lens**
-
 ## Filed on arrival — 2026-10-27 (launcher lane w1027g-lens)
 
 - **`RT-LENS-MISSED-OUTAGE-ON-FOLD` — a `missed` Episode on the Lens fold carries only `missed_deadline_ms`; the outage it was missed in (offline_from / offline_to) is read back from recorded rows for the opening block but never reaches the fold row, so Mission Control cannot show the interval the launcher row asked for** · `agent_runtime/lens/missed_deadlines.py` · `agent_runtime/lens/snapshot_fold.py::lens_fold` · READY 2026-10-27
