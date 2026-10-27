@@ -54,7 +54,7 @@ Verdict table (filled as batches land):
   is sent.
 - `ConversationService.capabilities()` advertises `"version": 2, "images": True`; the
   launcher gates its composer on these (C019 workorder
-  `EterniaLauncher/docs/mission_control/planned/console-file-input-native-workorder-2026-10-07.md`).
+  `EterniaLauncher/docs/archive/mission_control/console-file-input-native-workorder-2026-10-07.md`).
 
 ### The design decisions
 

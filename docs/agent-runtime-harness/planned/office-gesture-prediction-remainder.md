@@ -1,6 +1,6 @@
 # Planned — office gesture prediction: the last stage
 
-**Status:** not built. **Owner surface:** [06 — Office and board](../06-office-and-board.md).
+**Status:** all six stages discharged — Row 1 by launcher `9a9343318a` (2026-10-27, w1027k). **Owner surface:** [06 — Office and board](../06-office-and-board.md).
 **Origin:** `UNIFIED_GESTURE_PREDICTION_PLAN_2026-08-16.md` (archived).
 
 FIVE of that plan's six stages are discharged and must not be re-litigated
@@ -55,6 +55,6 @@ shipped; its truth is [06 — the placement verb](../06-office-and-board.md#the-
 on this side and `EterniaLauncher/docs/mission_control/04-office-scene.md` "Drops end-to-end" on
 the launcher's. Do not re-cite `planned/agent-placement-verb.md`; it is history in one commit.
 
-Row 1 (the refused-create retraction) is untouched and still open.
+Row 1 (the refused-create retraction) is DISCHARGED 2026-10-27 by launcher `9a9343318a` ("a refused agent create retracts what the drop staged").
 
 **Sequencing.** Row 1 is launcher-only and independent.

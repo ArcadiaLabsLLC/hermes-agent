@@ -6,12 +6,12 @@ status: open
 
 <!-- The work-queue row grammar: one valid row per status and per BLOCKED
 reason, each `- **`<ID>` — <title>** · …` on one line. Shared contract (plan
-docs/mission_control/planned/WORK_QUEUE_BOARD_2026-10-16.md D3, ADR 0025's
+docs/mission_control/subsystems/WORK_QUEUE_BOARD_2026-10-16.md D3, ADR 0025's
 2026-10-18 amendment); hermes and backend port these lines to gate their own
 queues. -->
 
 - **`FX-READY` — Ready row** · surface · READY 2026-10-16
-- **`FX-READY-PLAN` — Ready row with a plan** · READY 2026-10-16: plan `docs/mission_control/planned/WORK_QUEUE_BOARD_2026-10-16.md`
+- **`FX-READY-PLAN` — Ready row with a plan** · READY 2026-10-16: plan `docs/mission_control/subsystems/WORK_QUEUE_BOARD_2026-10-16.md`
 - **`FX-OWNER-DECISION` — Owner decision row** · BLOCKED 2026-10-16: owner decision — Ship the pill read-only? · Recommend: yes, writes wait for an ask
 - **`FX-OWNER-SITTING` — Owner sitting row** · BLOCKED 2026-10-16: owner sitting (look at the board at 1280×800 on the desktop)
 - **`FX-BACKEND` — Backend row** · BLOCKED 2026-10-16: backend — `PLATFORM-QUEUE-READ` the "queue read model" row

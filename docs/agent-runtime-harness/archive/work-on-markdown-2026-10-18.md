@@ -34,7 +34,7 @@ its § 2.2 EXECUTOR contract, restated in §6.3 here verbatim.
 - Standing: ADR 0015 marks upstream kanban unused; ADR 0011 § Row grammar is the grammar's one home here
   (the launcher's twin is `EterniaLauncher/Launcher_Brain/30 — Decisions/0025` with its 2026-09-03
   claim amendment and 2026-10-18 ID amendment); the launcher's board never authors a git commit
-  (`EterniaLauncher/docs/mission_control/planned/WORK_QUEUE_BOARD_2026-10-16.md` D6).
+  (`EterniaLauncher/docs/mission_control/subsystems/WORK_QUEUE_BOARD_2026-10-16.md` D6).
 
 ## 1. What is true today
 

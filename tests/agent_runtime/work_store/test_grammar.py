@@ -44,7 +44,7 @@ def test_every_valid_fixture_row_parses_with_no_defect() -> None:
     assert by_id["FX-NEEDS-PLAN"].status is Status.NEEDS_PLAN and by_id["FX-NEEDS-PLAN"].status_date == "2026-10-16"
     assert by_id["FX-TAKEN"].taken == grammar.Claim("2026-10-16", "w1016c-mc")
     assert by_id["FX-RULED"].rulings == ("RULED 2026-10-16: one board per repo",)
-    assert by_id["FX-READY-PLAN"].pointers == ("docs/mission_control/planned/WORK_QUEUE_BOARD_2026-10-16.md",)
+    assert by_id["FX-READY-PLAN"].pointers == ("docs/mission_control/subsystems/WORK_QUEUE_BOARD_2026-10-16.md",)
     assert by_id["FX-READY"].title == "Ready row"
 
 
