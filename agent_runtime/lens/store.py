@@ -46,6 +46,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterator
 
 from .episode import Episode
+from .store_episode_rows import canonical_body, door_owned, episode_body
 from .feed import Observation
 from .manifest import read_manifest
 from .seal import SealedManifest, seal_manifest
@@ -144,6 +145,8 @@ class StoreRefusal(str, Enum):
     SOURCE_NOT_BROKEN = "source_not_broken"
     #: ``lens_propose_repair`` over a monitor whose next-revision draft already waits for the operator.
     DRAFT_PENDING = "draft_pending"
+    #: ``runtime.lens.episode.decide`` lost every compare-and-set to other writers of the Episode.
+    EPISODE_CONTENDED = "episode_contended"
 
 
 #: The refusals a reader answers as "not found" (the rest are conflicts).
@@ -477,11 +480,24 @@ class LensStore:
         """Upsert the Episode; an event only when it is new or its state moved (never a ``last_seen`` tick),
         or when ``announce`` (the operator's decision, ``store_decisions``)."""
 
+        self.move_episode(None, episode, announce=announce, checked=False)
+
+    def move_episode(self, expected: Episode | None, episode: Episode, *, announce: bool = False,
+                     checked: bool = True) -> bool:
+        """Compare-and-set: write ``episode`` only while ``expected`` (the row its writer read; None for
+        none) is still stored as read and ``episode``, when it is a new ordinal, is not yet stored. False
+        means another writer moved the row first (the door's ``turn_id``, the operator's decision): re-read."""
+
         with self._db() as conn:
+            fresh = expected is None or expected.id != episode.id
+            if checked and (expected is not None and episode_body(conn, expected.id) != canonical_body(expected)
+                            or fresh and episode_body(conn, episode.id) is not None):
+                return False
             moved = _episode_state_moves(conn, episode)
             _write_episode(conn, episode)
         if moved or announce:
             self._episode_changed(episode)
+        return True
 
     def _episode_changed(self, episode: Episode) -> None:
         self._changed("lens.episode.changed", monitor_id=episode.monitor_id, episode_id=episode.id,
@@ -734,7 +750,7 @@ def _episode_state_moves(conn: sqlite3.Connection, episode: Episode) -> bool:
 def _write_episode(conn: sqlite3.Connection, episode: Episode) -> None:
     conn.execute("INSERT OR REPLACE INTO episodes VALUES (?, ?, ?, ?, ?, ?)",
                  (episode.id, episode.monitor_id, episode.rule_id, episode.ordinal, episode.state.value,
-                  json.dumps(episode.to_json(), sort_keys=True)))
+                  canonical_body(episode)))
 
 
 def _insert_receipts(conn: sqlite3.Connection, rows: list[tuple], pairs: list[tuple[dict[str, Any], Episode | None]]
@@ -747,7 +763,7 @@ def _insert_receipts(conn: sqlite3.Connection, rows: list[tuple], pairs: list[tu
                      f"({', '.join('?' * len(_RECEIPT_COLUMNS))})", row)
         moved.append(episode is not None and _episode_state_moves(conn, episode))
         if episode is not None:
-            _write_episode(conn, episode)
+            _write_episode(conn, door_owned(conn, episode))
     return moved
 
 
@@ -757,7 +773,7 @@ def _settle_receipts_full(conn: sqlite3.Connection, rows: list[tuple],
 
     for row, (_, episode) in zip(rows, pairs):
         if episode is not None:
-            _write_episode(conn, replace(episode, turn_id=StoreRefusal.RECEIPTS_FULL.value))
+            _write_episode(conn, door_owned(conn, replace(episode, turn_id=StoreRefusal.RECEIPTS_FULL.value)))
         logger.warning(RECEIPTS_FULL_RECEIPT, row[1], row[0])
 
 

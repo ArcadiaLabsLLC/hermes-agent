@@ -42,6 +42,9 @@ from .wire_value import (
 __layer__ = "policy"
 
 SNOOZE = timedelta(minutes=15)
+#: Re-reads one compare-and-set Episode write (``LensStore.move_episode``) may take when another
+#: writer moves the row in between (the door's ``turn_id``, the operator's decision, the poller).
+EPISODE_WRITE_ATTEMPTS = 4
 
 
 class EpisodeState(str, Enum):

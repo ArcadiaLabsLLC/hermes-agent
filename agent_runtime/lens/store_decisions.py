@@ -24,7 +24,7 @@ from dataclasses import replace
 from datetime import datetime
 from typing import Any
 
-from .episode import SNOOZE, Decision, Episode, EpisodeState
+from .episode import EPISODE_WRITE_ATTEMPTS, SNOOZE, Decision, Episode, EpisodeState
 from .store import LensStore, LensStoreError, StoreRefusal
 
 __layer__ = "stores"
@@ -38,22 +38,29 @@ _SETTLING = (Decision.DISMISS.value, Decision.SNOOZE_15M.value)
 def decide_episode(store: LensStore, episode_id: str, decision: Decision, now: datetime) -> dict[str, Any]:
     """Record the operator's ``decision`` on the Episode; returns it as stored."""
 
+    for _ in range(EPISODE_WRITE_ATTEMPTS):
+        episode = _stored(store, episode_id)
+        if episode.state in _SETTLED_STATES:
+            raise LensStoreError(StoreRefusal.EPISODE_SETTLED)
+        decided = replace(episode, decision=decision, decided_at=max(now, episode.first_seen))
+        if decision is Decision.SNOOZE_15M:
+            decided = replace(decided, suppressed_until=now + SNOOZE)
+        if decision is Decision.DISMISS and episode.state is EpisodeState.RECOVERED:
+            decided = replace(decided, state=EpisodeState.CLOSED_RECOVERED)
+        # Compare-and-set: a poller tick between the read and the write is re-read, never undone.
+        if store.move_episode(episode, decided, announce=True):
+            return decided.to_json()
+    raise LensStoreError(StoreRefusal.EPISODE_CONTENDED)
+
+
+def _stored(store: LensStore, episode_id: str) -> Episode:
     row = None
     if store.exists():
         with store.connection() as conn:
             row = conn.execute("SELECT body FROM episodes WHERE id = ?", (episode_id,)).fetchone()
     if row is None:
         raise LensStoreError(StoreRefusal.EPISODE_NOT_FOUND)
-    episode = Episode.from_json(json.loads(row[0]))
-    if episode.state in _SETTLED_STATES:
-        raise LensStoreError(StoreRefusal.EPISODE_SETTLED)
-    decided = replace(episode, decision=decision, decided_at=max(now, episode.first_seen))
-    if decision is Decision.SNOOZE_15M:
-        decided = replace(decided, suppressed_until=now + SNOOZE)
-    if decision is Decision.DISMISS and episode.state is EpisodeState.RECOVERED:
-        decided = replace(decided, state=EpisodeState.CLOSED_RECOVERED)
-    store.save_episode(decided, announce=True)
-    return decided.to_json()
+    return Episode.from_json(json.loads(row[0]))
 
 
 def open_episodes(store: LensStore, *, limit: int) -> list[dict[str, Any]]:

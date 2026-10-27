@@ -54,7 +54,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone, UTC
 from typing import Any, Callable
 
-from .episode import EpisodeState, observe
+from .episode import EPISODE_WRITE_ATTEMPTS, Episode, EpisodeState, observe
 from .feed import is_push_feed
 from .host_budget import HostBudget, host_key, is_private_reader
 from .missed_deadlines import record_missed_deadlines
@@ -268,15 +268,17 @@ class LensPoller:
         """W1: move the feed's reserved ``source_broken:<feed_id>`` Episode on this read."""
 
         rule_id = source_broken_rule_id(feed_id)
-        previous = store.latest_episode(monitor_id, rule_id)
         verdict = drift_verdict(store, monitor_id, feed_id, answered=answered)
-        repaired = (previous is not None and verdict is Verdict.HEALTHY
-                    and repaired_since(store, monitor_id, feed_id, previous.first_seen))
-        nxt = observe(monitor_id=monitor_id, rule_id=rule_id, next_ordinal=(previous.ordinal if previous else 0) + 1,
-                      verdict=verdict, at=max(at, previous.last_seen) if previous else at, previous=previous,
-                      close_recovered=repaired)
-        if nxt is not None and nxt != previous:
-            store.save_episode(nxt)
+
+        def step(previous: Episode | None) -> Episode | None:
+            repaired = (previous is not None and verdict is Verdict.HEALTHY
+                        and repaired_since(store, monitor_id, feed_id, previous.first_seen))
+            return observe(monitor_id=monitor_id, rule_id=rule_id,
+                           next_ordinal=(previous.ordinal if previous else 0) + 1, verdict=verdict,
+                           at=max(at, previous.last_seen) if previous else at, previous=previous,
+                           close_recovered=repaired)
+
+        _move_episode(store, monitor_id, rule_id, step)
 
     def record_pushed(self, store: LensStore, monitor_id: str, manifest: dict[str, Any], feed: dict[str, Any], *,
                       value: float | None, reason: ReadReason, observed: datetime, received: datetime) -> None:
@@ -333,13 +335,13 @@ class LensPoller:
 
     def _evaluate(self, store: LensStore, monitor_id: str, manifest: dict[str, Any], rule: dict[str, Any],
                   now: datetime) -> None:
-        previous = store.latest_episode(monitor_id, rule["id"])
-        verdict = self._verdict(store, monitor_id, manifest, rule, now, previous)
-        nxt = observe(monitor_id=monitor_id, rule_id=rule["id"],
-                      next_ordinal=(previous.ordinal if previous else 0) + 1,
-                      verdict=verdict, at=now, previous=previous)
-        if nxt is not None and nxt != previous:
-            store.save_episode(nxt)
+        def step(previous: Episode | None) -> Episode | None:
+            verdict = self._verdict(store, monitor_id, manifest, rule, now, previous)
+            return observe(monitor_id=monitor_id, rule_id=rule["id"],
+                           next_ordinal=(previous.ordinal if previous else 0) + 1,
+                           verdict=verdict, at=now, previous=previous)
+
+        _move_episode(store, monitor_id, rule["id"], step)
 
     def _verdict(self, store: LensStore, monitor_id: str, manifest: dict[str, Any], rule: dict[str, Any],
                  now: datetime, previous: Any):
@@ -387,6 +389,20 @@ class LensPoller:
                 stop_event.wait(TICK_SECONDS)
         finally:
             WATCHER.running = False
+
+
+def _move_episode(store: LensStore, monitor_id: str, rule_id: str,
+                  step: Callable[[Episode | None], Episode | None]) -> bool:
+    """Move the rule's newest Episode by ``step`` with a compare-and-set (``LensStore.move_episode``):
+    on a lost race re-read and step again, so a field another writer set is never written back stale."""
+
+    for _ in range(EPISODE_WRITE_ATTEMPTS):
+        previous = store.latest_episode(monitor_id, rule_id)
+        nxt = step(previous)
+        if nxt is None or nxt == previous or store.move_episode(previous, nxt):
+            return True
+    logger.warning("[LensEpisodeWriteContended] monitor=%s rule=%s", monitor_id, rule_id)
+    return False
 
 
 def _watched_since(pushed: bool) -> datetime | None:
