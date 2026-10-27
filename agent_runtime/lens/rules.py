@@ -108,8 +108,12 @@ class Verdict(str, Enum):
 _COMPANION_FORMS = frozenset({RuleForm.THRESHOLD, RuleForm.DELTA, RuleForm.FOR_DURATION,
                               RuleForm.CONSECUTIVE_SAMPLES})
 _TIMED_FORMS = frozenset({RuleForm.DELTA, RuleForm.FOR_DURATION})
-#: Forms the runtime clock moves without a new read (the poller asks them every tick).
-CLOCK_FORMS = frozenset({RuleForm.ENDS_WITHIN})
+#: Forms the runtime clock moves without a new read (the poller asks them every tick): a deadline
+#: approaches, and a silent feed records no rows, so only the clock can notice it (§5 decision 3).
+CLOCK_FORMS = frozenset({RuleForm.ENDS_WITHIN, RuleForm.MISSING_DATA})
+#: The clock forms whose feed carries a DEADLINE: W7's adaptive cadence and confirming read are
+#: theirs alone (a confirming read of a missing source is only another attesting gap).
+DEADLINE_FORMS = frozenset({RuleForm.ENDS_WITHIN})
 #: Gap reasons that ATTEST absence: the watcher asked and got no value (§5 decision 2).
 ATTESTING_REASONS = frozenset({
     "http_status", "timeout", "network", "redirect_refused", "too_large", "not_json", "selector_missing",

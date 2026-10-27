@@ -93,3 +93,81 @@ def test_the_window_must_cover_the_feeds_continuity_limit():
 def test_the_closed_form_refuses_what_absence_does_not_mean(bad):
     with pytest.raises(WireError):
         read_rule({**CORPUS["rule"], **bad})
+
+
+# --- RT-LENS-MISSING-DATA-CLOCK: the poller's clock and the listener's bind ------------------
+#
+# Killing mutations (each red recorded in the row's commit): drop ``MISSING_DATA`` from
+# ``rules.CLOCK_FORMS`` (the silent push feed never fires); build the poller's observations without
+# ``reason=row["reason"]`` (every gap reads as non-attesting); pass the feed's own interval instead
+# of its backed-off period (the backoff's holes read as a blind spot).
+
+
+def _enable(manifest: dict):
+    from agent_runtime.lens.store import LensStore, MonitorState
+
+    store = LensStore()
+    store.create(manifest)
+    store.seal(manifest["monitor_id"])
+    store.set_state(manifest["monitor_id"], MonitorState.ENABLED)
+    return store
+
+
+def test_a_pulled_feed_failing_past_the_window_fires_on_the_poller_clock(monkeypatch):
+    import httpx
+
+    from agent_runtime.lens import poller as poller_module
+
+    manifest = {"version": 1, "monitor_id": "api", "persona_id": None,
+                "feeds": [{"version": 1, "id": "beat", "kind": "http_json", "interval_ms": 5000,
+                           "source": {"url": "https://status.example.invalid/h", "selector": "$.cpu"}}],
+                "rules": [{**CORPUS["rule"], "window_ms": 20_000}],
+                "automation": {"level": "notify", "when": "always", "daily_turn_cap": 4}}
+    store = _enable(manifest)
+    monkeypatch.setattr(poller_module.WATCHER, "since", NOW)
+    at = [NOW]
+    client = httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(500)), follow_redirects=False)
+    poller = poller_module.LensPoller(store_factory=lambda: store, clock=lambda: at[0], client=client,
+                                      resolver=lambda host: ["93.184.216.34"])
+    opened_at = None
+    for second in range(30):
+        at[0] = NOW + timedelta(seconds=second)
+        poller.tick()
+        if opened_at is None and store.latest_episode("api", "silent") is not None:
+            opened_at = second
+    # The window (20 s) must start at or after the watch began, so nothing fires before 20 s.
+    assert opened_at == 20
+    assert store.latest_episode("api", "silent").state is EpisodeState.ACTIVE
+
+
+def _silent_push(monkeypatch, bound_since: datetime):
+    from types import SimpleNamespace
+
+    from agent_runtime.lens import ingress
+    from agent_runtime.lens.poller import LensPoller
+
+    store = _enable(_manifest(120_000))
+    monkeypatch.setitem(ingress._ACTIVE, "listener", SimpleNamespace(bound_since=bound_since))
+    LensPoller(store_factory=lambda: store, clock=lambda: NOW).tick()
+    return store.latest_episode("beats", "silent")
+
+
+def test_a_silent_push_feed_fires_once_the_listener_was_bound_across_the_window(monkeypatch):
+    opened = _silent_push(monkeypatch, NOW - timedelta(minutes=3))
+    assert opened is not None and opened.state is EpisodeState.ACTIVE
+
+
+def test_a_listener_bound_inside_the_window_attests_nothing(monkeypatch):
+    assert _silent_push(monkeypatch, NOW - timedelta(minutes=1)) is None
+
+
+def test_the_listener_state_carries_its_bind_time():
+    from agent_runtime.lens.ingress import IngressListener
+
+    listener = IngressListener("127.0.0.1", 0, clock=lambda: NOW)
+    assert listener.bound_since is None
+    listener.start()
+    try:
+        assert listener.bound_since == NOW
+    finally:
+        listener.stop()

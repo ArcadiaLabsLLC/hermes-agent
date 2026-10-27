@@ -201,6 +201,8 @@ class IngressListener:
         self._gap_lock = threading.Lock()
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
+        #: When this listener bound (None until ``start``): a push feed is watched only since then.
+        self.bound_since: datetime | None = None
 
     @property
     def address(self) -> tuple[str, int]:
@@ -244,6 +246,7 @@ class IngressListener:
         self._thread = threading.Thread(target=self._server.serve_forever, kwargs={"poll_interval": 0.2},
                                         name="harness-serve-lens-ingress", daemon=True)
         self._thread.start()
+        self.bound_since = self.clock()
         return self
 
     def stop(self) -> None:
@@ -333,6 +336,13 @@ def active_listener() -> IngressListener | None:
     return _ACTIVE["listener"]
 
 
+def listener_bound_since() -> datetime | None:
+    """Since when the push door has been bound without a break; None while it is not."""
+
+    listener = active_listener()
+    return None if listener is None else listener.bound_since
+
+
 def sync_ingress(store: LensStore | None = None) -> IngressListener | None:
     """Bind the armed door while a route exists; close it when none does. The one writer of
     ``_ACTIVE["listener"]`` besides :func:`bind_ingress`'s move and the serve's stop.
@@ -418,5 +428,7 @@ def bind_ingress(host: Any, port: Any) -> dict[str, Any]:
 def ingress_state() -> dict[str, Any]:
     listener = active_listener()
     host, port = listener.address if listener is not None else ingress_address()
+    since = None if listener is None else listener.bound_since
     return {"host": host, "port": port, "listening": listener is not None,
+            "bound_since_ms": None if since is None else int(since.timestamp() * 1000),
             "url_base": route_url("", (host, port)), "maximum_body_bytes": MAXIMUM_BODY_BYTES}

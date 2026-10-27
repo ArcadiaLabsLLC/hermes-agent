@@ -32,6 +32,9 @@ Each :meth:`LensPoller.tick` polls every due feed of every ENABLED monitor once:
 * a read is typed by ``sources.typed_result`` with the feed's recent raw reads (the
   outlier window, kept in memory: a restart refills it, and the guard abstains
   until it is full) and the monitor's newest dated exchange rate (W2(c), W5);
+* ``missing_data`` (§5) is a clock form too: every tick it is judged with its gaps' reasons and
+  the time the feed has been watched since (``WATCHER.since``, or the ingress listener's
+  ``bound_since`` for a ``push`` feed) — never given a confirming read;
 * W7 adaptive cadence: while a monitor's ``ends_within`` deadline is ahead, every
   feed of that monitor is read at most ``remaining / 4`` apart (never under
   :data:`ADAPTIVE_FLOOR_MS`, never slower than its own interval); and a deadline
@@ -55,7 +58,7 @@ from .episode import EpisodeState, observe
 from .feed import is_push_feed
 from .host_budget import HostBudget, host_key, is_private_reader
 from .missed_deadlines import record_missed_deadlines
-from .rules import CLOCK_FORMS, RuleForm, Verdict, continuity_limit, evaluate, rule_feed_ids, source_broken_rule_id
+from .rules import CLOCK_FORMS, DEADLINE_FORMS, RuleForm, Verdict, continuity_limit, evaluate, rule_feed_ids, source_broken_rule_id
 from .sources import read_feed_source
 from .sources.transport import ReadReason, ReadResult, Validators
 from .store import LensStore, MonitorState, from_ms, to_ms
@@ -222,7 +225,7 @@ class LensPoller:
 
         nearest = None
         for rule in manifest["rules"]:
-            if RuleForm(rule["form"]) not in CLOCK_FORMS:
+            if RuleForm(rule["form"]) not in DEADLINE_FORMS:
                 continue
             latest = store.latest(monitor_id, rule["feed_id"])
             if latest is None or latest["value"] is None:
@@ -309,7 +312,7 @@ class LensPoller:
                     continue
                 feed = feeds[rule["feed_id"]]
                 clock = self._clocks.get((monitor_id, rule["feed_id"]))
-                pulled = not is_push_feed(feed)
+                pulled = not is_push_feed(feed) and RuleForm(rule["form"]) in DEADLINE_FORMS
                 if pulled and (clock is None or clock.last_read != now) and self._would_open(
                         store, monitor_id, manifest, rule, now):
                     clock = self._clocks.setdefault((monitor_id, feed["id"]), _FeedClock())
@@ -345,17 +348,23 @@ class LensPoller:
         feeds = {feed["id"]: feed for feed in manifest["feeds"]}
         interval = max(timedelta(milliseconds=feeds[f]["interval_ms"]) for f in rule_feed_ids(rule))
         # A deadline's lead time is not an evidence window: it reads only the newest reads.
-        lookback = 0 if RuleForm(rule["form"]) in CLOCK_FORMS else rule["window_ms"]
+        lookback = 0 if RuleForm(rule["form"]) in DEADLINE_FORMS else rule["window_ms"]
         span = timedelta(milliseconds=lookback) + interval * (rule["samples"] + 3)
         observations = [
             Observation(monitor_id=monitor_id, feed_id=feed_id, sequence=row["sequence"],
                         observed_at=from_ms(row["observed_ms"]), received_at=from_ms(row["received_ms"]),
-                        value=row["value"], gap=row["gap"])
+                        value=row["value"], gap=row["gap"], reason=row["reason"])
             for feed_id in rule_feed_ids(rule)
             for row in store.observations(monitor_id, feed_id, start=now - span, end=now + timedelta(milliseconds=1))
         ]
+        pushed = is_push_feed(feeds[rule["feed_id"]])
+        clock = self._clocks.get((monitor_id, rule["feed_id"]))
+        if RuleForm(rule["form"]) is RuleForm.MISSING_DATA and clock is not None and not pushed:
+            # A failing feed is backed off (x2...x8): a hole the watcher itself scheduled is watched.
+            interval = max(interval, clock.period(feeds[rule["feed_id"]], None))
         return evaluate(rule, observations, now=now, expected_interval=interval,
-                        was_firing=previous is not None and previous.state is EpisodeState.ACTIVE)
+                        was_firing=previous is not None and previous.state is EpisodeState.ACTIVE,
+                        watched_since=_watched_since(pushed), pushed=pushed)
 
     def _retention(self, store: LensStore, now: datetime) -> None:
         from .retention import apply_retention
@@ -378,6 +387,17 @@ class LensPoller:
                 stop_event.wait(TICK_SECONDS)
         finally:
             WATCHER.running = False
+
+
+def _watched_since(pushed: bool) -> datetime | None:
+    """Since when the feed has been watched without a break (``missing_data``, §5 decision 3): the
+    ingress listener's bind for a ``push`` feed, the watcher's start for a pulled one."""
+
+    if pushed:
+        from .ingress import listener_bound_since
+
+        return listener_bound_since()
+    return WATCHER.since
 
 
 def _is_rate_feed(manifest: dict[str, Any], feed_id: str) -> bool:

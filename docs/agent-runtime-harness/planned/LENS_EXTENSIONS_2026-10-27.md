@@ -372,6 +372,16 @@ corpus is `tests/agent_runtime/lens/conformance/missing_data_corpus.json` (herme
 **Slice 2 must** build the poller's observations with `reason=row["reason"]` (today `_verdict` drops
 it, which makes every gap non-attesting) and pass `watched_since` / `pushed`.
 
+*Built (`RT-LENS-MISSING-DATA-CLOCK`, lane w1027g-h-lens):* `missing_data` joins `CLOCK_FORMS`; the
+deadline-only uses (W7 cadence, the evidence lookback of 0, the confirming read) moved to a new
+`rules.DEADLINE_FORMS = {ends_within}`. The poller's observations carry `reason`, and it passes
+`watched_since` = `WATCHER.since` (pulled) or `ingress.listener_bound_since()` (push: the active
+listener's `bound_since`, set when it binds; `ingress_state` answers it as `bound_since_ms`). Where the
+tree differed from the plan: the poller's failure backoff (x2…x8) leaves holes wider than the
+continuity limit, which the evaluator would read as a blind spot, so a pulled feed under backoff is
+judged against its CURRENT backed-off period (`_FeedClock.period`) — a hole the watcher itself
+scheduled is watched; without that a down source never fires.
+
 ### Test plan (conformance cases, each one JSON case in the corpus)
 
 1. Valid reads, then attesting failures spanning more than `window_ms` → FIRING.
