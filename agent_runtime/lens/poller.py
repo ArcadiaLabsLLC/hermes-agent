@@ -12,6 +12,9 @@ Each :meth:`LensPoller.tick` polls every due feed of every ENABLED monitor once:
   (interval x 2, x 4, capped at x 8) until it answers again;
 * after each record, every rule on that feed is evaluated over its window and the
   rule's Episode moves (``episode.observe``);
+* W1 source drift: after each pulled read, the feed's reserved ``source_broken:<feed_id>``
+  Episode moves — opened while ``store_shapes.feed_broken`` holds, ``recovered`` on the next
+  read with a value, ``closed_recovered`` when that read came from a later sealed revision;
 * a feed the watcher could not see while the serve was down gets ONE
   ``watcher_offline`` gap at start (W8(a)): missed windows are gaps, never silence;
 * a ``push`` feed is never read here (its ingress route writes it, L3): it is
@@ -50,11 +53,11 @@ from .episode import EpisodeState, observe
 from .feed import is_push_feed
 from .host_budget import HostBudget, host_key, is_private_reader
 from .missed_deadlines import record_missed_deadlines
-from .rules import CLOCK_FORMS, RuleForm, continuity_limit, evaluate, rule_feed_ids
+from .rules import CLOCK_FORMS, RuleForm, Verdict, continuity_limit, evaluate, rule_feed_ids, source_broken_rule_id
 from .sources import read_feed_source
 from .sources.transport import ReadReason, ReadResult, Validators
 from .store import LensStore, MonitorState, from_ms, to_ms
-from .store_shapes import record_shape
+from .store_shapes import drift_verdict, record_shape, repaired_since
 
 __layer__ = "lanes"
 
@@ -246,10 +249,26 @@ class LensPoller:
         if not is_push_feed(feed):
             record_shape(store, monitor_id, feed["id"], shape=typed.shape, answered=typed.value is not None,
                          reason=typed.reason.value, at=received)
+            self._source_drift(store, monitor_id, feed["id"], answered=typed.value is not None, at=received)
         for rule in manifest["rules"]:
             if feed["id"] in rule_feed_ids(rule):
                 # Evaluated at the RECEIVE time: an observation is never later than its verdict.
                 self._evaluate(store, monitor_id, manifest, rule, received)
+
+    def _source_drift(self, store: LensStore, monitor_id: str, feed_id: str, *, answered: bool,
+                      at: datetime) -> None:
+        """W1: move the feed's reserved ``source_broken:<feed_id>`` Episode on this read."""
+
+        rule_id = source_broken_rule_id(feed_id)
+        previous = store.latest_episode(monitor_id, rule_id)
+        verdict = drift_verdict(store, monitor_id, feed_id, answered=answered)
+        repaired = (previous is not None and verdict is Verdict.HEALTHY
+                    and repaired_since(store, monitor_id, feed_id, previous.first_seen))
+        nxt = observe(monitor_id=monitor_id, rule_id=rule_id, next_ordinal=(previous.ordinal if previous else 0) + 1,
+                      verdict=verdict, at=max(at, previous.last_seen) if previous else at, previous=previous,
+                      close_recovered=repaired)
+        if nxt is not None and nxt != previous:
+            store.save_episode(nxt)
 
     def record_pushed(self, store: LensStore, monitor_id: str, manifest: dict[str, Any], feed: dict[str, Any], *,
                       value: float | None, reason: ReadReason, observed: datetime, received: datetime) -> None:
@@ -299,8 +318,6 @@ class LensPoller:
 
     def _would_open(self, store: LensStore, monitor_id: str, manifest: dict[str, Any], rule: dict[str, Any],
                     now: datetime) -> bool:
-        from .rules import Verdict
-
         previous = store.latest_episode(monitor_id, rule["id"])
         if previous is not None and previous.state is EpisodeState.ACTIVE:
             return False

@@ -83,6 +83,16 @@ revision in the same INSERT) rather than threaded through the poller and the pus
 detector is `shapes.source_broken`; `store_shapes.feed_broken` applies it to the stored facts and is
 what slice 2 opens its Episode on.
 
+*Built (`RT-LENS-SOURCE-BROKEN-EPISODE`, lane w1027g-h-lens):* the reserved rule is
+`rules.source_broken_rule(feed_id)` — form `source_broken` (not a `RuleForm`, never sealed or
+evaluated by `rules.evaluate`), severity `attention`; `rules.manifest_rule` resolves it for every
+reader that looked a rule up by id (the exit door, both opening blocks). The poller moves it after
+each pulled read on `store_shapes.drift_verdict` (FIRING while `feed_broken`, HEALTHY on a value,
+else UNKNOWN); `closed_recovered` is decided by `store_shapes.repaired_since` — the recovering
+read's observation `revision` is later than the one at the Episode's opening — so an operator's
+manual re-seal counts as a repair too. The skeletons ride a SECOND untrusted fence,
+`{<feed_id>: {known_good, newest}}`, after the source descriptions.
+
 ### Test plan
 
 - Fingerprint: the same document with values changed → same fingerprint; a renamed key → different.

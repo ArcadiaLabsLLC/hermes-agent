@@ -15,8 +15,9 @@ monitor not enabled    nothing written; the Episode stays owed (a paused monitor
 rule not in revision   receipt ``forge_failed:rule_not_in_revision``
 inside ``cooldown_ms`` receipt ``cooled`` (W6: the rule's previous receipt started
                        less than ``cooldown_ms`` ago; first, so it spends no cap)
-``when: urgent`` and   receipt ``skipped_severity``
-a non-urgent rule
+``when: urgent`` and   receipt ``skipped_severity`` — except a feed's reserved
+a non-urgent rule      ``source_broken:<feed_id>`` Episode (W1), settled ``notified``:
+                       an urgent-only monitor never hides a broken source
 daily cap reached      receipt ``capped`` (``store.receipts_today``, per UTC day)
 global budget reached  receipt ``notified_over_budget`` (W6: an ``investigate`` turn past
                        the root config's ``agent_runtime.lens.daily_turn_budget`` turns,
@@ -57,6 +58,7 @@ among them. The receipt says so (``tool_admission: read_only``); a receipt that 
 
 from __future__ import annotations
 
+import json
 import logging
 import threading
 from dataclasses import dataclass, replace
@@ -70,7 +72,7 @@ from .evidence import DEFAULT_MAXIMUM_BYTES, MAXIMUM_SPAN, EvidenceRefused, buil
 from .feed import Observation
 from .manifest import AutomationLevel, AutomationWhen
 from .provenance import lens_client_message_id, lens_requested_by
-from .rules import Severity, rule_feed_ids
+from .rules import Severity, is_source_broken, manifest_rule, rule_feed_ids
 from .store import FORGE_FAILED_PREFIX, LensStore, MonitorState, ReceiptOutcome, from_ms, to_ms
 from .tool import digest_opening_block, episode_title, opening_block
 
@@ -205,6 +207,24 @@ def _offline(store: LensStore, rule: dict[str, Any], episode: Episode) -> tuple[
     return offline_interval(store, episode.monitor_id, rule["feed_id"], episode.missed_deadline_ms)
 
 
+def _shapes(store: LensStore, rule: dict[str, Any], episode: Episode) -> dict[str, Any] | None:
+    """A ``source_broken`` Episode's two skeletons, known-good and newest different (W1); else None."""
+
+    from .store_shapes import feed_shape
+
+    if not is_source_broken(rule):
+        return None
+    row = feed_shape(store, episode.monitor_id, rule["feed_id"]) or {}
+    return {name: None if row.get(column) is None else json.loads(row[column])
+            for name, column in (("known_good", "good_skeleton"), ("newest", "other_skeleton"))}
+
+
+def _notes(store: LensStore, rule: dict[str, Any], episode: Episode) -> dict[str, Any]:
+    """What the opening block says beyond the evidence: a missed outage (W8), a broken source's shapes (W1)."""
+
+    return {"offline": _offline(store, rule, episode), "shapes": _shapes(store, rule, episode)}
+
+
 def _cooling(store: LensStore, episode: Episode, now: datetime, cooldown_ms: int) -> bool:
     """True when the rule's previous counted receipt started less than ``cooldown_ms`` ago (W6)."""
 
@@ -269,13 +289,14 @@ class LensForge:
         """The outcomes that settle ONE Episode on its own facts — before any digest or cap."""
 
         automation = manifest["automation"]
-        rule = next((r for r in manifest["rules"] if r["id"] == episode.rule_id), None)
+        rule = manifest_rule(manifest, episode.rule_id)
         if rule is None:
             return f"{FORGE_FAILED_PREFIX}rule_not_in_revision"
         if _cooling(store, episode, now, automation.get("cooldown_ms", 0)):
             return ReceiptOutcome.COOLED.value
         if automation["when"] == AutomationWhen.URGENT.value and rule["severity"] != Severity.URGENT.value:
-            return ReceiptOutcome.SKIPPED_SEVERITY.value
+            # W1 decision 6: a broken source is shown, never skipped, under an urgent-only filter.
+            return ReceiptOutcome.NOTIFIED.value if is_source_broken(rule) else ReceiptOutcome.SKIPPED_SEVERITY.value
         return None
 
     def _admission(self, store: LensStore, manifest: dict[str, Any], episode: Episode, now: datetime) -> str | None:
@@ -364,17 +385,16 @@ class LensForge:
         budget = DEFAULT_MAXIMUM_BYTES // len(members)
         windows = []
         for member in members:
-            rule = next(r for r in manifest["rules"] if r["id"] == member.rule_id)
+            rule = manifest_rule(manifest, member.rule_id)
             evidence = _evidence(store, manifest, rule, member, now, maximum_bytes=budget)
             if evidence is None:
                 return self._refuse(store, members, now, digest, close)
             windows.append((member, evidence))
+        notes = {member.id: _notes(store, manifest_rule(manifest, member.rule_id), member) for member in members}
         if digest is None:
-            leader_rule = next(r for r in manifest["rules"] if r["id"] == leader.rule_id)
-            message = opening_block(manifest, leader, windows[0][1], folder,
-                                    offline=_offline(store, leader_rule, leader))
+            message = opening_block(manifest, leader, windows[0][1], folder, **notes[leader.id])
         else:
-            message = digest_opening_block(manifest, windows, folder)
+            message = digest_opening_block(manifest, windows, folder, notes=notes)
         turn_key = leader.id if digest is None else digest
         turn_id = lens_client_message_id(turn_key)
         pairs = [self._digest_receipt(member, now, digest,

@@ -13,7 +13,9 @@ One row per ``(monitor_id, feed_id)``:
   a body that is not JSON).
 
 Skeletons are canonical JSON of at most ``shapes.MAXIMUM_SKELETON_BYTES``; they carry key names and
-types, never a value. :func:`feed_broken` is decision 3 over the stored facts.
+types, never a value. :func:`feed_broken` is decision 3 over the stored facts; :func:`drift_verdict`
+is what the ``source_broken:<feed_id>`` Episode moves on (decision 5), and :func:`repaired_since`
+tells a recovery read by a newer sealed revision (a repair) from one by the revision that broke.
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from .rules import Verdict
 from .shapes import SHAPE_REASONS, BROKEN_AFTER_READS, Skeleton, canonical_skeleton, fingerprint, source_broken
 from .store import LensStore, to_ms
 
@@ -86,3 +89,27 @@ def feed_broken(store: LensStore, monitor_id: str, feed_id: str) -> bool:
     shape = feed_shape(store, monitor_id, feed_id) or {}
     return source_broken([row[0] for row in reversed(rows)], latest_fingerprint=shape.get("last_fingerprint"),
                          known_good_fingerprint=shape.get("good_fingerprint"))
+
+
+def drift_verdict(store: LensStore, monitor_id: str, feed_id: str, *, answered: bool) -> Verdict:
+    """The ``source_broken`` Episode's verdict after one read: FIRING while the feed is broken,
+    HEALTHY on a read that answered a value, else UNKNOWN (a timeout says nothing about shape)."""
+
+    if feed_broken(store, monitor_id, feed_id):
+        return Verdict.FIRING
+    return Verdict.HEALTHY if answered else Verdict.UNKNOWN
+
+
+def repaired_since(store: LensStore, monitor_id: str, feed_id: str, since: datetime) -> bool:
+    """True when the feed's newest read was made by a later sealed revision than the read at or
+    before ``since`` (the Episode's opening): the recovery is a repair's, not the old source's."""
+
+    with store.connection() as conn:
+        newest = conn.execute("SELECT revision FROM observations WHERE monitor_id = ? AND feed_id = ? "
+                              "ORDER BY sequence DESC LIMIT 1", (monitor_id, feed_id)).fetchone()
+        opened = conn.execute("SELECT revision FROM observations WHERE monitor_id = ? AND feed_id = ? "
+                              "AND observed_ms <= ? ORDER BY sequence DESC LIMIT 1",
+                              (monitor_id, feed_id, to_ms(since))).fetchone()
+    if newest is None or opened is None or newest[0] is None or opened[0] is None:
+        return False
+    return int(newest[0]) > int(opened[0])

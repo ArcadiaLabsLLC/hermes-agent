@@ -121,6 +121,11 @@ ATTESTING_REASONS = frozenset({
 #: is read as this — absence that cannot be told from a blind spot never fires.
 NON_ATTESTING_REASONS = frozenset({"watcher_offline", "not_sealed", "push_only", "host_budget_deferred"})
 
+#: The reserved rule id of a feed's source-drift Episode (W1, plan
+#: ``planned/LENS_EXTENSIONS_2026-10-27.md`` §1 decision 5): ``source_broken:<feed_id>``. The poller
+#: opens it; :func:`read_rule` refuses the prefix, so no manifest can author it.
+SOURCE_BROKEN_PREFIX = "source_broken:"
+
 RULE_KEYS = frozenset({
     "version", "id", "feed_id", "form", "severity", "direction",
     "threshold", "recovery_threshold", "window_ms", "samples",
@@ -135,7 +140,7 @@ def read_rule(value: Any) -> dict[str, Any]:
     m = checked_object(value, RULE_KEYS, RULE_KEYS_OPTIONAL)
     rule = {
         "version": bounded_int(m["version"], minimum=1, maximum=1),
-        "id": opaque_id(m["id"]),
+        "id": _authored_id(m["id"]),
         "feed_id": opaque_id(m["feed_id"]),
         "form": enum_value(m["form"], RuleForm).value,
         "severity": enum_value(m["severity"], Severity).value,
@@ -156,6 +161,40 @@ def read_rule(value: Any) -> dict[str, Any]:
             rule["confirm_reads"] = confirm
     _check_rule(rule)
     return rule
+
+
+def _authored_id(value: Any) -> str:
+    rule_id = opaque_id(value)
+    require(not rule_id.startswith(SOURCE_BROKEN_PREFIX), "source_broken is a reserved rule id")
+    return rule_id
+
+
+def source_broken_rule_id(feed_id: str) -> str:
+    return SOURCE_BROKEN_PREFIX + feed_id
+
+
+def source_broken_rule(feed_id: str) -> dict[str, Any]:
+    """The rule a ``source_broken:<feed_id>`` Episode stands for. Never sealed and never
+    evaluated by :func:`evaluate` — its form is no :class:`RuleForm`; the poller opens it on
+    ``store_shapes.feed_broken``. Severity ``attention``; the evidence is the feed's own reads."""
+
+    return {"id": source_broken_rule_id(feed_id), "feed_id": feed_id, "form": "source_broken",
+            "severity": Severity.ATTENTION.value, "window_ms": 0, "samples": 1}
+
+
+def manifest_rule(manifest: dict[str, Any], rule_id: str) -> dict[str, Any] | None:
+    """The rule ``rule_id`` names in ``manifest``: a sealed rule, or the reserved
+    ``source_broken:<feed_id>`` of one of its feeds; None when the revision has neither."""
+
+    rule = next((rule for rule in manifest["rules"] if rule["id"] == rule_id), None)
+    if rule is not None or not rule_id.startswith(SOURCE_BROKEN_PREFIX):
+        return rule
+    feed_id = rule_id[len(SOURCE_BROKEN_PREFIX):]
+    return source_broken_rule(feed_id) if any(feed["id"] == feed_id for feed in manifest["feeds"]) else None
+
+
+def is_source_broken(rule: dict[str, Any]) -> bool:
+    return rule["id"].startswith(SOURCE_BROKEN_PREFIX)
 
 
 def rule_feed_ids(rule: dict[str, Any]) -> tuple[str, ...]:

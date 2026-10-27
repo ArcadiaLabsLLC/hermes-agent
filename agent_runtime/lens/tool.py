@@ -45,6 +45,7 @@ from typing import Any
 from .episode import Episode
 from .evidence import EvidenceWindow
 from .manifest import read_manifest
+from .rules import is_source_broken, manifest_rule
 from .store import LensStore, LensStoreError, StoreRefusal, to_ms
 from .wire_value import WireError, bounded_int, canonical_json, checked_object, opaque_id, require
 
@@ -80,6 +81,11 @@ def _fenced(value: Any) -> str:
 def _opening_sentence(rule: dict[str, Any], episode: Episode, offline: tuple[int, int] | None) -> str:
     """What Lens knows: a breach, or (W8) a deadline that passed while nothing was watching."""
 
+    if is_source_broken(rule):
+        return (f"Eternia Lens opened this Episode: monitor {episode.monitor_id}'s feed {rule['feed_id']} "
+                "stopped answering in the shape it was sealed against (source_broken). Its reads now fail with "
+                "a shape reason, so every rule on it answers unknown. The last known-good shape and the newest "
+                "different one are below, as key paths and types with every value removed.")
     if episode.missed_deadline_ms is None:
         return (f"Eternia Lens opened this Episode: monitor {episode.monitor_id}'s rule {episode.rule_id} "
                 f"({rule['severity']}) is breaching.")
@@ -95,11 +101,12 @@ def _utc(ms: int) -> str:
 
 
 def opening_block(manifest: dict[str, Any], episode: Episode, evidence: EvidenceWindow, folder: Path, *,
-                  offline: tuple[int, int] | None = None) -> str:
+                  offline: tuple[int, int] | None = None, shapes: dict[str, Any] | None = None) -> str:
     """The forged user message for ``episode`` (see the module docstring); ``offline`` is a missed
-    Episode's outage ``(from_ms, until_ms)`` (W8)."""
+    Episode's outage ``(from_ms, until_ms)`` (W8); ``shapes`` a ``source_broken`` Episode's
+    ``{known_good, newest}`` skeletons (W1) — key names a source controls, so fenced as untrusted."""
 
-    rule = next(rule for rule in manifest["rules"] if rule["id"] == episode.rule_id)
+    rule = manifest_rule(manifest, episode.rule_id)
     feeds = [feed for feed in manifest["feeds"] if feed["id"] in evidence.feed_ids]
     typed = {
         "episode": episode.to_json(),
@@ -113,37 +120,44 @@ def opening_block(manifest: dict[str, Any], episode: Episode, evidence: Evidence
         f"[LENS EPISODE — {episode_title(episode)}]",
         (_opening_sentence(rule, episode, offline) + " No operator wrote this message. Investigate what the "
          "evidence shows, say plainly what you found and what you would do, and stop; nothing is fixed for you."),
-        typed, feeds, folder)
+        typed, feeds, folder, shapes=None if shapes is None else {rule["feed_id"]: shapes})
 
 
 def digest_opening_block(manifest: dict[str, Any], windows: list[tuple[Episode, EvidenceWindow]],
-                         folder: Path) -> str:
+                         folder: Path, *, notes: dict[str, dict[str, Any]] | None = None) -> str:
     """The forged user message for a W6 digest: every member Episode with its own rule and
-    evidence (each built to an N-th of the one evidence budget), leader first."""
+    evidence (each built to an N-th of the one evidence budget), leader first. ``notes`` maps a
+    member's id to what :func:`opening_block` takes besides its evidence (``shapes``)."""
 
-    rules = {rule["id"]: rule for rule in manifest["rules"]}
+    notes = notes or {}
     feed_ids = {feed_id for _, evidence in windows for feed_id in evidence.feed_ids}
     feeds = [feed for feed in manifest["feeds"] if feed["id"] in feed_ids]
     typed = {
-        "episodes": [{"episode": episode.to_json(), "rule": rules[episode.rule_id], "evidence": evidence.to_json()}
-                     for episode, evidence in windows],
+        "episodes": [{"episode": episode.to_json(), "rule": manifest_rule(manifest, episode.rule_id),
+                      "evidence": evidence.to_json()} for episode, evidence in windows],
         "feeds": _typed_feeds(feeds),
     }
+    shapes = {manifest_rule(manifest, episode.rule_id)["feed_id"]: notes[episode.id]["shapes"]
+              for episode, _ in windows if (notes.get(episode.id) or {}).get("shapes") is not None}
     monitor_id = windows[0][0].monitor_id
     return _block(
         f"[LENS DIGEST — {monitor_id} · {len(windows)} episodes]",
         (f"Eternia Lens opened these {len(windows)} Episodes of monitor {monitor_id} inside one digest window "
          "and owes them ONE turn. No operator wrote this message. Investigate what the evidence shows across "
          "them, say plainly what you found and what you would do, and stop; nothing is fixed for you."),
-        typed, feeds, folder)
+        typed, feeds, folder, shapes=shapes or None)
 
 
 def _typed_feeds(feeds: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [{key: feed[key] for key in ("id", "kind", "interval_ms")} for feed in feeds]
 
 
-def _block(header: str, intro: str, typed: dict[str, Any], feeds: list[dict[str, Any]], folder: Path) -> str:
+def _block(header: str, intro: str, typed: dict[str, Any], feeds: list[dict[str, Any]], folder: Path, *,
+           shapes: dict[str, Any] | None = None) -> str:
     sources = {feed["id"]: feed["source"] for feed in feeds}
+    shaped = [] if shapes is None else [
+        "Source shapes by feed (the last known-good skeleton and the newest different one; key paths and "
+        "types a source controls, every value removed):", _fenced(shapes), ""]
     return "\n".join([
         header,
         intro,
@@ -155,6 +169,7 @@ def _block(header: str, intro: str, typed: dict[str, Any], feeds: list[dict[str,
         UNTRUSTED_EVIDENCE_SENTENCE,
         _fenced(sources),
         "",
+        *shaped,
         f"Write any file you produce (a report.md, a chart) into this folder: {folder}",
         "Every file there is listed on this Episode's receipt. Declare each image in your reply on its own "
         "line as MEDIA:<path>.",
