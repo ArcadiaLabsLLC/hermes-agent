@@ -13,6 +13,7 @@ from typing import Any, Callable
 from agent_runtime.call_authorization import TIER_CONSOLE
 
 from agent_runtime.serve_rpc.protocol import (
+    ERR_CONFLICT,
     ERR_HANDLER_FAILED,
     ERR_INVALID_PARAMS,
     ERR_NOT_FOUND,
@@ -27,7 +28,7 @@ __layer__ = "lanes"
 
 __all__ = ["_runtime_embed_texts", "_runtime_vision_tag"]
 
-_REFUSAL_CODES = {"invalid_params": ERR_INVALID_PARAMS, "not_found": ERR_NOT_FOUND}
+_REFUSAL_CODES = {"invalid_params": ERR_INVALID_PARAMS, "not_found": ERR_NOT_FOUND, "conflict": ERR_CONFLICT}
 
 
 def _inference_frame(rid: Any, method_name: str, run: Callable[[Any], dict], params: Any) -> dict:

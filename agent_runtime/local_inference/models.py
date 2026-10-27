@@ -38,9 +38,12 @@ class LocalInferenceRefused(Exception):
 
 @dataclass(frozen=True)
 class LocalModelSpec:
-    """One installable local model: the folder's files, the vector width, the token limit."""
+    """One installable local model: the folder's files, the vector width, the token limit.
+
+    ``kind`` is the :data:`agent_runtime.model_admission.KINDS` entry its load reserves under."""
 
     model: str
+    kind: str
     runner: str
     files: tuple[str, ...]
     dim: int
@@ -51,7 +54,7 @@ class LocalModelSpec:
 #: the files are Xenova's transformers.js int8 export (``onnx/model_quantized.onnx``, ``vocab.txt``).
 EMBED_MODELS: dict[str, LocalModelSpec] = {
     "bge-small-en-v1.5": LocalModelSpec(
-        model="bge-small-en-v1.5", runner="bert_cls", files=("model_quantized.onnx", "vocab.txt"),
+        model="bge-small-en-v1.5", kind="embed", runner="bert_cls", files=("model_quantized.onnx", "vocab.txt"),
         dim=384, max_tokens=512),
 }
 
@@ -59,7 +62,7 @@ EMBED_MODELS: dict[str, LocalModelSpec] = {
 #: (``onnx/text_model_quantized.onnx``, ``onnx/vision_model_quantized.onnx``, ``vocab.json``, ``merges.txt``).
 VISION_MODELS: dict[str, LocalModelSpec] = {
     "clip-vit-base-patch32": LocalModelSpec(
-        model="clip-vit-base-patch32", runner="clip",
+        model="clip-vit-base-patch32", kind="vision", runner="clip",
         files=("text_model_quantized.onnx", "vision_model_quantized.onnx", "vocab.json", "merges.txt"),
         dim=512, max_tokens=77),
 }

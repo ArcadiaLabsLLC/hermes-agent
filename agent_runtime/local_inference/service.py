@@ -5,6 +5,12 @@ The model seam is ``loader(spec, folder)``: it answers a runner with ``embed(tex
 or ``text_embeds(texts)`` / ``image_embeds(image)`` (CLIP), each returning unit-length rows.
 The production loader is :func:`agent_runtime.local_inference.runners.load_runner`; tests pass a fake.
 
+Admission: every load reserves its estimate (:func:`_estimate_bytes`) in the process's one model
+budget (:mod:`agent_runtime.model_admission`) under the spec's ``kind`` (``embed`` / ``vision``)
+before it touches memory, and releases it when the runner is dropped. An idle runner is evictable:
+another model's reservation may unload it; a runner mid-call refuses. A reservation that does not
+fit is the ``over_budget`` refusal (code ``conflict``).
+
 Caches: at most :data:`MAX_LOADED` runners stay loaded, least recently used dropped first, and the
 text-side label embeddings are kept per (model, folder, vocabulary hash) for the last
 :data:`MAX_VOCABULARIES` vocabularies, so a composer re-asking with the same labels embeds only the
@@ -21,9 +27,11 @@ import math
 import struct
 import threading
 from collections import OrderedDict
+from contextlib import contextmanager
+from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Iterator
 
 from agent_runtime.local_inference.models import (
     EMBED_MODELS,
@@ -33,6 +41,7 @@ from agent_runtime.local_inference.models import (
     absent_engine_modules,
     model_folder,
 )
+from agent_runtime.model_admission import AdmissionRefused, ModelAdmission, admission
 from agent_runtime.process_state import register_process_state
 
 __layer__ = "lanes"
@@ -62,6 +71,12 @@ MAX_VOCABULARIES = 8
 LABEL_PROMPT = "a photo of {label}."
 #: CLIP's learned ``logit_scale`` (exp 4.6052 = 100) for openai/clip-vit-base-patch32.
 CLIP_LOGIT_SCALE = 100.0
+#: Admission estimate: resident bytes per byte of model files on disk, plus one onnxruntime
+#: session's fixed overhead. An estimate, so it rounds up (int8 weights plus the CPU arena).
+_DISK_FACTOR = 2.0
+_SESSION_OVERHEAD = 64 * 1024 * 1024
+#: Every reservation this service holds is named ``local_inference:<model>:<folder digest>``.
+HOLDER_PREFIX = "local_inference:"
 
 
 def encode_vector(vector: list[float]) -> str:
@@ -155,6 +170,15 @@ def _vocabulary_hash(labels: list[str]) -> str:
     return hashlib.sha256("\n".join([LABEL_PROMPT, *labels]).encode("utf-8")).hexdigest()
 
 
+def _holder(spec: LocalModelSpec, folder: Path) -> str:
+    return f"{HOLDER_PREFIX}{spec.model}:{hashlib.sha256(str(folder).encode('utf-8')).hexdigest()[:12]}"
+
+
+def _estimate_bytes(spec: LocalModelSpec, folder: Path) -> int:
+    disk = sum((folder / name).stat().st_size for name in spec.files)
+    return int(disk * _DISK_FACTOR) + _SESSION_OVERHEAD
+
+
 def _checked_rows(rows: Any, count: int, dim: int) -> list[list[float]]:
     rows = [list(row) for row in rows]
     if len(rows) != count or any(len(row) != dim for row in rows):
@@ -162,48 +186,104 @@ def _checked_rows(rows: Any, count: int, dim: int) -> list[list[float]]:
     return rows
 
 
+@dataclass
+class _Loaded:
+    runner: Any
+    holder: str
+    #: Calls holding this runner right now; a runner in use refuses eviction.
+    users: int = 0
+
+
 class LocalInferenceService:
     def __init__(self, *, loader: Callable[[LocalModelSpec, Path], Any] | None = None,
-                 absent_modules: Callable[[], list[str]] = absent_engine_modules) -> None:
+                 absent_modules: Callable[[], list[str]] = absent_engine_modules,
+                 authority: ModelAdmission | None = None) -> None:
         self._loader = loader
         self._absent_modules = absent_modules
+        self._authority = authority
         self._lock = threading.Lock()
-        self._loaded: OrderedDict[tuple[str, str], Any] = OrderedDict()
+        self._loaded: OrderedDict[tuple[str, str], _Loaded] = OrderedDict()
         self._vocabularies: OrderedDict[tuple[str, str, str], list[list[float]]] = OrderedDict()
         self._run_lock = threading.Lock()
 
-    def _load(self, spec: LocalModelSpec, folder: Path) -> Any:
+    @property
+    def authority(self) -> ModelAdmission:
+        return self._authority if self._authority is not None else admission()
+
+    @contextmanager
+    def _runner(self, spec: LocalModelSpec, folder: Path) -> Iterator[Any]:
+        """A loaded runner held in use (not evictable) for the width of the block."""
+        key = (spec.model, str(folder))
+        entry = self._load(spec, folder, key)
+        try:
+            yield entry.runner
+        finally:
+            with self._lock:
+                entry.users -= 1
+                if entry.users == 0 and self._loaded.get(key) is entry:
+                    self.authority.mark(entry.holder, idle=True)
+
+    def _use(self, entry: _Loaded) -> _Loaded:
+        """Under ``_lock``: one more call holds ``entry``."""
+        entry.users += 1
+        if entry.users == 1:
+            self.authority.mark(entry.holder, idle=False)
+        return entry
+
+    def _load(self, spec: LocalModelSpec, folder: Path, key: tuple[str, str]) -> _Loaded:
         absent = self._absent_modules()
         if absent:
             raise LocalInferenceRefused("engine_missing", "not_found",
                                         "the speech pack's onnxruntime is not installed", modules=absent)
-        key = (spec.model, str(folder))
         with self._lock:
-            runner = self._loaded.get(key)
-            if runner is not None:
+            entry = self._loaded.get(key)
+            if entry is not None:
                 self._loaded.move_to_end(key)
-                return runner
+                return self._use(entry)
+        holder = _holder(spec, folder)
+        try:
+            self.authority.reserve(holder, kind=spec.kind, resource="ram", bytes=_estimate_bytes(spec, folder),
+                                   evict=partial(self._evict, key))
+        except AdmissionRefused as refusal:
+            code = "conflict" if refusal.reason == "over_budget" else "handler_failed"
+            raise LocalInferenceRefused(refusal.reason, code, f"{spec.model} was not admitted: {refusal}",
+                                        **refusal.details) from refusal
         loader = self._loader
         if loader is None:
             from agent_runtime.local_inference.runners import load_runner as loader
         try:
             runner = loader(spec, folder)
         except Exception as exc:  # a load failure is a typed refusal, the class name only
+            self.authority.release(holder)
             raise LocalInferenceRefused("load_failed", "handler_failed", f"{spec.model} failed to load",
                                         error_class=type(exc).__name__) from exc
         with self._lock:
-            self._loaded[key] = runner
+            entry = self._loaded[key] = _Loaded(runner, holder)
             self._loaded.move_to_end(key)
-            while len(self._loaded) > MAX_LOADED:
-                self._loaded.popitem(last=False)
-        return runner
+            self._use(entry)
+            self._trim()
+        return entry
+
+    def _trim(self) -> None:
+        """Under ``_lock``: drop least-recently-used idle runners past :data:`MAX_LOADED`."""
+        idle = [key for key, entry in self._loaded.items() if entry.users == 0]
+        while len(self._loaded) > MAX_LOADED and idle:
+            dropped = self._loaded.pop(idle.pop(0))
+            self.authority.release(dropped.holder)
+
+    def _evict(self, key: tuple[str, str]) -> None:
+        """The admission authority's evictor: unload an IDLE runner, refuse one in use."""
+        with self._lock:
+            entry = self._loaded.get(key)
+            if entry is not None and entry.users:
+                raise RuntimeError(f"local inference model {key[0]} is in use")
+            self._loaded.pop(key, None)
 
     def embed_texts(self, params: Any) -> dict:
         params = params if isinstance(params, dict) else {}
         spec, folder = model_folder(params, EMBED_MODELS)
         texts = _texts(params)
-        runner = self._load(spec, folder)
-        with self._run_lock:
+        with self._runner(spec, folder) as runner, self._run_lock:
             rows = _checked_rows(runner.embed(texts), len(texts), spec.dim)
         return {"contract": LOCAL_INFERENCE_CONTRACT, "model": spec.model, "dim": spec.dim,
                 "encoding": "f32le_base64", "vectors": [encode_vector(row) for row in rows]}
@@ -229,8 +309,7 @@ class LocalInferenceService:
         labels = _labels(params)
         top_k = _top_k(params, len(labels))
         image = _image(params)
-        runner = self._load(spec, folder)
-        with self._run_lock:
+        with self._runner(spec, folder) as runner, self._run_lock:
             label_rows = self._label_rows(spec, folder, runner, labels)
             image_row = _checked_rows([runner.image_embeds(image)], 1, spec.dim)[0]
         scores = _softmax([CLIP_LOGIT_SCALE * _dot(image_row, row) for row in label_rows])

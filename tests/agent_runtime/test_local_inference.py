@@ -19,9 +19,15 @@ from agent_runtime.local_inference import service as inference
 from agent_runtime.local_inference.clip_bpe import ClipBpe
 from agent_runtime.local_inference.models import EMBED_MODELS, VISION_MODELS
 from agent_runtime.local_inference.wordpiece import WordPiece
+from agent_runtime.model_admission import ModelAdmission
 from agent_runtime.serve_rpc import handle_request
 
 BGE, CLIP = "bge-small-en-v1.5", "clip-vit-base-patch32"
+_ROOMY = 1 << 40
+
+
+def _authority(ram=_ROOMY):
+    return ModelAdmission({"ram": ram})
 
 
 def _unit(dim, hot):
@@ -75,7 +81,8 @@ def runners(monkeypatch):
         loads.append((spec.model, folder.name))
         return made[spec.runner]
 
-    inference.set_service(inference.LocalInferenceService(loader=loader, absent_modules=lambda: []))
+    inference.set_service(inference.LocalInferenceService(loader=loader, absent_modules=lambda: [],
+                                                          authority=_authority()))
     yield made, loads
     inference.set_service(None)
 
@@ -155,7 +162,9 @@ def test_a_runner_of_the_wrong_width_fails_loud(models_dir, runners):
 
 def test_loaded_runners_are_bounded(models_dir, tmp_path):
     # Kill: drop the ``MAX_LOADED`` trim -> three runners stay loaded, red.
-    service = inference.LocalInferenceService(loader=lambda spec, folder: _FakeEmbedder(), absent_modules=lambda: [])
+    authority = _authority()
+    service = inference.LocalInferenceService(loader=lambda spec, folder: _FakeEmbedder(), absent_modules=lambda: [],
+                                              authority=authority)
     for index in range(3):
         other = tmp_path / f"m{index}"
         (other / BGE).mkdir(parents=True)
@@ -163,6 +172,111 @@ def test_loaded_runners_are_bounded(models_dir, tmp_path):
             (other / BGE / name).write_bytes(b"x")
         service.embed_texts({"model": BGE, "models_dir": str(other), "texts": ["a"]})
     assert len(service._loaded) == inference.MAX_LOADED
+    # Kill: ``_trim`` stops releasing -> three reservations outlive two runners, red.
+    assert len(authority.status()["reservations"]) == inference.MAX_LOADED
+
+
+# ── admission (RT-LOCAL-INFERENCE-ADMISSION) ────────────────────────────────
+
+
+def _service(authority, loader=None):
+    return inference.LocalInferenceService(loader=loader or (lambda spec, folder: _FakeEmbedder()),
+                                           absent_modules=lambda: [], authority=authority)
+
+
+def _embed(service, models_dir):
+    return service.embed_texts({"model": BGE, "models_dir": str(models_dir), "texts": ["a"]})
+
+
+def test_a_load_reserves_its_estimate_under_its_kind_and_goes_idle(models_dir):
+    # Kill: drop the ``reserve`` in ``_load`` -> no reservation is listed, red.
+    authority = _authority()
+    _embed(_service(authority), models_dir)
+    (row,) = authority.status()["reservations"]
+    disk = sum((models_dir / BGE / name).stat().st_size for name in EMBED_MODELS[BGE].files)
+    assert row["holder"].startswith(inference.HOLDER_PREFIX + BGE + ":")
+    assert (row["kind"], row["pool"], row["evictable"], row["idle"]) == ("embed", "ram", True, True)
+    assert row["bytes"] == int(disk * inference._DISK_FACTOR) + inference._SESSION_OVERHEAD
+
+
+def test_the_vision_model_reserves_as_vision(models_dir):
+    authority = _authority()
+    clip = _FakeClip()
+    service = _service(authority, loader=lambda spec, folder: clip)
+    service.tag_image({"model": CLIP, "models_dir": str(models_dir), "image": _png(), "labels": ["cat", "dog"]})
+    assert [r["kind"] for r in authority.status()["reservations"]] == ["vision"]
+
+
+def test_a_load_over_budget_is_refused_before_the_loader_runs(models_dir):
+    # Kill: drop the ``reserve`` in ``_load`` -> the fake loads and answers, red.
+    loads = []
+    inference.set_service(_service(_authority(ram=1024), loader=lambda spec, folder: loads.append(spec) or _FakeEmbedder()))
+    try:
+        frame = _call("runtime.embed.texts", {"model": BGE, "models_dir": str(models_dir), "texts": ["a"]})
+    finally:
+        inference.set_service(None)
+    assert frame["error"]["code"] == 4090 and frame["error"]["data"]["reason"] == "over_budget"
+    assert loads == []
+    # Positive control: the same call with room answers.
+    inference.set_service(_service(_authority()))
+    try:
+        assert "result" in _call("runtime.embed.texts", {"model": BGE, "models_dir": str(models_dir), "texts": ["a"]})
+    finally:
+        inference.set_service(None)
+
+
+def test_an_idle_runner_is_evicted_to_admit_another_model(models_dir):
+    # Kill: reserve without ``evict`` -> the speech reservation is refused over_budget, red.
+    estimate = inference._estimate_bytes(EMBED_MODELS[BGE], models_dir / BGE)
+    authority = _authority(ram=estimate + 10)
+    service = _service(authority)
+    _embed(service, models_dir)
+    authority.reserve("speech:stt", kind="stt", resource="ram", bytes=estimate)
+    assert service._loaded == {} and [r["holder"] for r in authority.status()["reservations"]] == ["speech:stt"]
+
+
+def test_a_runner_in_use_refuses_eviction(models_dir):
+    # Kill: ``_use`` stops marking the holder busy -> the mid-call reservation evicts it, red.
+    # Kill: drop the ``users`` check in ``_evict`` -> the direct mid-call evict succeeds, red.
+    estimate = inference._estimate_bytes(EMBED_MODELS[BGE], models_dir / BGE)
+    authority = _authority(ram=estimate + 10)
+    seen, armed = [], []
+
+    class _Reserving(_FakeEmbedder):
+        def embed(self, texts):
+            if not armed:  # the first call loads; the second finds the runner idle, then holds it
+                return super().embed(texts)
+            seen.append(authority.status()["reservations"][0]["idle"])
+            try:
+                authority.reserve("speech:stt", kind="stt", resource="ram", bytes=estimate)
+                seen.append("admitted")
+            except Exception as refusal:  # AdmissionRefused
+                seen.append(getattr(refusal, "reason", type(refusal).__name__))
+            try:
+                service._evict((BGE, str(models_dir / BGE)))
+                seen.append("evicted")
+            except RuntimeError:
+                seen.append("in_use")
+            return super().embed(texts)
+
+    service = _service(authority, loader=lambda spec, folder: _Reserving())
+    _embed(service, models_dir)
+    assert authority.status()["reservations"][0]["idle"] is True
+    armed.append(True)
+    _embed(service, models_dir)
+    assert seen == [False, "over_budget", "in_use"] and len(service._loaded) == 1
+
+
+def test_a_failed_load_releases_its_reservation(models_dir):
+    # Kill: drop the ``release`` on the load-failure branch -> the reservation outlives the failure, red.
+    authority = _authority()
+
+    def broken(spec, folder):
+        raise OSError("bad onnx")
+
+    with pytest.raises(inference.LocalInferenceRefused) as refused:
+        _embed(_service(authority, loader=broken), models_dir)
+    assert refused.value.reason == "load_failed" and authority.status()["reservations"] == []
 
 
 # ── runtime.vision.tag ──────────────────────────────────────────────────────

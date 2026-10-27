@@ -40,7 +40,9 @@ __all__ = [
 
 #: What a caller asks for. ``vram`` maps to the ``ram`` pool on a shared-memory machine.
 RESOURCES = ("vram", "ram")
-KINDS = ("stt", "tts", "llm")
+#: ``embed`` / ``vision`` are the small onnxruntime models behind ``runtime.embed.texts`` /
+#: ``runtime.vision.tag`` (:mod:`agent_runtime.local_inference`).
+KINDS = ("stt", "tts", "llm", "embed", "vision")
 OWNERS = ("local", "remote")
 
 #: A remote holder (another process) renews by reserving again; one that stops renewing is
