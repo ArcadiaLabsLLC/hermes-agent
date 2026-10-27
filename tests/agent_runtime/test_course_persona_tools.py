@@ -15,6 +15,7 @@ from types import SimpleNamespace
 import pytest
 
 from agent_runtime import course_tool, turn_secrets
+from tests._downstream.split_package_source import patch_where_bound
 from tests.agent_runtime.test_course_authoring import COURSE, GITHUB_URL, SECRET, FakeGitHub, _credential, _url
 from tests.agent_runtime.test_course_authoring import remote  # noqa: F401 — the bare-remote fixture
 
@@ -32,7 +33,7 @@ def persona(monkeypatch):
             assert instance_id == "inst_ada"
             return SimpleNamespace(persona_id="p_ada", display_name="Ada")
 
-    monkeypatch.setattr(persona_assignments, "PersonaInstanceStore", Instances)
+    patch_where_bound(monkeypatch, persona_assignments, "PersonaInstanceStore", Instances)
 
 
 @contextmanager
