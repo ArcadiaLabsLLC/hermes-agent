@@ -39,7 +39,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 ### Filed on arrival — 2026-10-27 (lane w1027k-h-local)
 
 - **`RT-LOCAL-AI-METHODS-LIVE` — live check of the three new methods on a box with the speech pack: `runtime.embed.texts` against the real `bge-small-en-v1.5` int8 folder (cosine of a paraphrase pair above an unrelated pair; vector parity with the Hugging Face reference within 1e-3), `runtime.vision.tag` against the real CLIP ViT-B/32 int8 folder on three known images (the obvious label first), and `runtime.text.summarize` against a signed-in provider and against local llama (bullets in the asked locale, `truncated` on an over-cap window); the tests only fake the model** · fork / `agent_runtime/local_inference/runners.py` · `agent_runtime/text_summary.py` · READY 2026-10-27
-- **`RT-LOCAL-MODEL-FIXTURES-FOR-LAUNCHER` — the launcher's catalog entries for `bge-small-en-v1.5` and `clip-vit-base-patch32` must place the flat files `models.py` names (`model_quantized.onnx`, `vocab.txt`; `text_model_quantized.onnx`, `vision_model_quantized.onnx`, `vocab.json`, `merges.txt`); add a hermes-side pin that the two tables' file lists equal a checked-in fixture the launcher mirrors, so a rename on either side reds** · fork / `agent_runtime/local_inference/models.py::EMBED_MODELS` · `docs/agent-runtime-harness/runtime-local-inference-methods.md` · READY 2026-10-27 · **TAKEN 2026-10-27 w1028a-h-rt on vm as Claude in w1028a-h-rt**
 
 ### Filed on arrival — 2026-10-27 (lane w1027j-h-tri-b, planned/ triage)
 

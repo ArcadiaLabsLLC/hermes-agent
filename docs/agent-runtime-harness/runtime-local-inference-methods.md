@@ -23,6 +23,10 @@ places each file under them):
 | `bge-small-en-v1.5` | WordPiece ids, `[CLS]` row of `last_hidden_state`, L2-normalised | `model_quantized.onnx`, `vocab.txt` | 384 |
 | `clip-vit-base-patch32` | CLIP BPE text embeds per label, image embeds per image, both L2-normalised | `text_model_quantized.onnx`, `vision_model_quantized.onnx`, `vocab.json`, `merges.txt` | 512 |
 
+The same lists, as data, are `tests/fixtures/local_inference_model_files.json`, pinned equal to
+the two tables by `tests/agent_runtime/test_local_inference_model_files_fixture.py`; the Launcher
+mirrors that file beside its catalog so a rename on either side reds.
+
 Both are Xenova's transformers.js int8 exports (the repos keep the `.onnx` files under `onnx/`;
 the folder here is flat). Sizes and SHA-256 are pinned by the Launcher's catalog entry, read from
 the Hugging Face API, not here. The tokenizers are pure Python
