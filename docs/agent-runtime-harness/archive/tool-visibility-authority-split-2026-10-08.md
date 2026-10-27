@@ -1,3 +1,6 @@
+> **BUILT** — 2026-10-08 — slice 1a `008ff14109`, 1b `bf916f50d6`, 2 `79f221ebef`, 3 `7bc2a7a0ae`, 4 `03a271bd45`.
+> Archived 2026-10-27 from `planned/` by `FH-PLANNED-TRIAGE-2026-10-27-C`; history only — the domain docs and the code are the truth.
+
 # Tool visibility — the capability authority and the cost layer, split, with one receipt — 2026-10-08
 
 **Status:** planned — slices 1–4 in flight (lanes opus-toolvis-decl, opus-toolvis-surface); the test names below are the tests those lanes write.

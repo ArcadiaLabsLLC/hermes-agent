@@ -1,3 +1,6 @@
+> **BUILT** — 2026-10-08 — S1 `97d4e7c7f4`, S2 `ddab1137a3`, S3 `dd2491e5e1`, S4 `487e479fd7`, then `ca08f85b0a`.
+> Archived 2026-10-27 from `planned/` by `FH-PLANNED-TRIAGE-2026-10-27-C`; history only — the domain docs and the code are the truth.
+
 # Planned — one owner of a persona chat turn's tool form, lane fable-w2-tool-writers (2026-10-08)
 
 **Status:** DESIGN 2026-10-08 (Fable, read-only against the tree at `f6a8d6324c`; no production code changed, no serve touched). **Rows:** the two `TAKEN 2026-10-08 fable-w2-tool-writers` rows in `Harness_Brain/20 — Active Initiatives/runtime-queue.md` (§ "Filed on arrival — 2026-10-06 (lane h-cache-hit)" and § "Filed on arrival — 2026-10-03 (lane h-chatperf)"). **Owner doc:** [`../05-chat-turn-lane.md`](../05-chat-turn-lane.md) §4 (tool posture), §5 (MCP admission). **Siblings:** [`warm-prep-integration-2026-10-08.md`](warm-prep-integration-2026-10-08.md) (the 41–50 ms `mcp_refresh` lap), [`prompt-surface-2026-10-05.md`](../archive/prompt-surface-2026-10-05.md) S1 (the per-persona defer this plan takes ownership of), commit `637b086e2c` (lane h-cache-hit: the `pre_llm_call` settle).

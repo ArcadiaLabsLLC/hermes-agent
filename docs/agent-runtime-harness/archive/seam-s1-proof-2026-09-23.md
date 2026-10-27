@@ -1,7 +1,10 @@
+> **BUILT** — 2026-09-23 — Stage 1 shipped after this proof as `9514c16896` (the harness CLI registers as the eternia-harness plugin; `plugins/eternia-harness/plugin.yaml` `cli_commands`).
+> Archived 2026-10-27 from `planned/` by `FH-PLANNED-TRIAGE-2026-10-27-C`; history only — the domain docs and the code are the truth.
+
 # Seam Stage 1 proof — the harness CLI as a manifest-declared plugin (2026-09-23)
 
 **Lane:** S1P (proving lane, branch `seam/s1-proof`, cut from `origin/main` @ `5732265aaf`).
-**Plan:** [`harness-plugin-and-upstream-seams.md`](harness-plugin-and-upstream-seams.md) § Stage 1, the
+**Plan:** [`harness-plugin-and-upstream-seams.md`](../planned/harness-plugin-and-upstream-seams.md) § Stage 1, the
 "CORRECTED 2026-09-23" block, points 1–5 (design of record). Stage 1 stays ON HOLD unless §3 says PASS.
 
 ## 1. Baseline (before any edit, tree @ `5732265aaf`)

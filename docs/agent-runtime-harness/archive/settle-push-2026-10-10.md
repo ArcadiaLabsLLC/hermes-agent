@@ -1,3 +1,6 @@
+> **BUILT** — 2026-10-10 — `56fbb418de` (push every chat-turn settle, retire it on settle_ack) and `4e69a6246e` (its pins).
+> Archived 2026-10-27 from `planned/` by `FH-PLANNED-TRIAGE-2026-10-27-C`; history only — the domain docs and the code are the truth.
+
 # Chat-turn settle push — contract (2026-10-10)
 
 Owner ruling 2026-10-09: hermes pushes every chat-turn settle and verifies the push

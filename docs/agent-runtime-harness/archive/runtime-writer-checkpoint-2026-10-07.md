@@ -1,3 +1,6 @@
+> **BUILT** — 2026-10-07 — the writer lifetime owner landed in `4e4db3e0b7` (canonical chat writers own the turn tail and resident lifetimes); this checkpoint was `c37717246e`.
+> Archived 2026-10-27 from `planned/` by `FH-PLANNED-TRIAGE-2026-10-27-C`; history only — the domain docs and the code are the truth.
+
 # R011 writer lifetime checkpoint — 2026-10-07
 
 Frozen product base: `39964eb11f1470c7d16bcf8c03a56289c2189efc`, branch `grind/sol-runtime-20261007`. **R011 remains pending.** Its accepted instance/skill read slices remain intact. This checkpoint commits design only; the six-path writer implementation is preserved outside the tree and is not shipped.

@@ -1,3 +1,6 @@
+> **BUILT** — 2026-10-14 — `72dd5150ac`, `9bb47086c1`; the late-finalization steer gap closed in `3500b88847`.
+> Archived 2026-10-27 from `planned/` by `FH-PLANNED-TRIAGE-2026-10-27-C`; history only — the domain docs and the code are the truth.
+
 # Transcript delivery and recovery repair — 2026-10-14
 
 The existing steer buffer now preserves the distinction between operator input

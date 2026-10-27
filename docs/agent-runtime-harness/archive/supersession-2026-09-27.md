@@ -1,3 +1,6 @@
+> **BUILT** — 2026-09-27 — U06 adopted in `28400a8877`; U39 REFUTED and U40 recorded as a ledger parallel by lane ADOPT the same day (§ Adoption lanes).
+> Archived 2026-10-27 from `planned/` by `FH-PLANNED-TRIAGE-2026-10-27-C`; history only — the domain docs and the code are the truth.
+
 # Supersession pass — fork-only modules against upstream (2026-09-27)
 
 Lane SUPERSEDE, docs only. Question: which fork-only modules has upstream made redundant?

@@ -1,3 +1,6 @@
+> **BUILT** — 2026-09-12 — landed before the 2026-09-15 history squash (`0d5b7b8abc`), so its own commits are not reachable; paths it names have since moved (god-file splits) — history only.
+> Archived 2026-10-27 from `planned/` by `FH-PLANNED-TRIAGE-2026-10-27-C`; history only — the domain docs and the code are the truth.
+
 # Skill three-way sync — the mutation record, 2026-09-12
 
 Evidence for the eighteen checks added with the skill family's three-way lane

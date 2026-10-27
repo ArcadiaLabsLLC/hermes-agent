@@ -1,3 +1,6 @@
+> **PARKED, not built** — not built — measured and REFUTED (`478b0b826b`): a child costs ~1 s inside and outside the runner, so no bound is raised.
+> Archived 2026-10-27 from `planned/` by `FH-PLANNED-TRIAGE-2026-10-27-C`; history only — the domain docs and the code are the truth.
+
 # Test-child Python spawn cost — 2026-10-24
 
 Row `FH-TEST-CHILD-PYTHON-SPAWN-COST` (fork-hygiene queue): a `sys.executable scripts/check` child

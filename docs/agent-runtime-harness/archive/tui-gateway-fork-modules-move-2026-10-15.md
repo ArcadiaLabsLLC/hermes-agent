@@ -1,3 +1,6 @@
+> **BUILT** — 2026-10-16 — `2cf1a22573` (layers declared in place) and `02566bb0f3` (the fork modules move to `agent_runtime/gateway/`).
+> Archived 2026-10-27 from `planned/` by `FH-PLANNED-TRIAGE-2026-10-27-C`; history only — the domain docs and the code are the truth.
+
 # Fork modules leave `tui_gateway/` for `agent_runtime/gateway/` (design)
 
 Status: PLAN — written 2026-10-15; owner approval owed. Row: fork-hygiene-queue,

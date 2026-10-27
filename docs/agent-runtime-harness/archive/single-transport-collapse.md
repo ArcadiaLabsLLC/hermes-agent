@@ -1,3 +1,6 @@
+> **BUILT** — 2026-10-23 — P2 shipped launcher-side: EterniaLauncher `81c5e0bb32` (EG-4.4 slice 3, the argv stream backstop deleted) and `161cdf5ea5` (EG-4.4 live DONE).
+> Archived 2026-10-27 from `planned/` by `FH-PLANNED-TRIAGE-2026-10-27-C`; history only — the domain docs and the code are the truth.
+
 # Planned — collapse to one stream transport
 
 **Status: partly shipped; the remaining half is an observation window and a

@@ -1,7 +1,10 @@
+> **PARKED, not built** — not built as a program — its one ruled pick shipped (`23967867e5`, completion decided once at spawn), the kanban rows went with `c8edb2752b`, and the live per-row door reasons are `upstream-footprint-ledger.md`.
+> Archived 2026-10-27 from `planned/` by `FH-PLANNED-TRIAGE-2026-10-27-C`; history only — the domain docs and the code are the truth.
+
 # Second doors — every `hook` row checked for a door upstream already has (2026-09-24)
 
 Lane DOORS, read-only analysis. For each of the 46 `hook` rows in
-[`upstream-footprint-ledger.md`](upstream-footprint-ledger.md) the fork diff
+[`upstream-footprint-ledger.md`](../planned/upstream-footprint-ledger.md) the fork diff
 (`git diff f24a1d7f92 HEAD -- <file>`) was read against `upstream/main` `749220ef00`,
 and one question was asked: does upstream ALREADY give the plugin this behaviour
 with zero upstream edit? The pattern is the 2026-09-24 ruling on

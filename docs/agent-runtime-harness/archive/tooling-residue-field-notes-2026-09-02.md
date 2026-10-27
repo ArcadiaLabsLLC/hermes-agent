@@ -1,3 +1,6 @@
+> **BUILT** — 2026-09-02 — landed before the 2026-09-15 history squash (`0d5b7b8abc`), so its own commits are not reachable; paths it names have since moved (god-file splits) — history only.
+> Archived 2026-10-27 from `planned/` by `FH-PLANNED-TRIAGE-2026-10-27-C`; history only — the domain docs and the code are the truth.
+
 # Tooling residue, 2026-09-02 — five rows, and the two premises that were wrong
 
 Branch `fix/hermes-tooling-probe-anchor-runner`, cut from `origin/main` at
@@ -239,7 +242,7 @@ bullet beside it now point at rule 3.
 ## 6. Two reds that arrived with the base, not with this branch
 
 * **`test_every_coverage_claim_names_a_test_that_exists` is red by three**, all
-  in `planned/serve-small-batch-field-notes-2026-09-02.md:190-192`, which landed
+  in `archive/serve-small-batch-field-notes-2026-09-02.md:190-192`, which landed
   in the branch base `10d0d3a41c` itself and is byte-identical here
   (`git diff origin/main` on it is empty). The three named tests were retired by
   the persona-prewarm change the vault row describes — the gates went vacuous

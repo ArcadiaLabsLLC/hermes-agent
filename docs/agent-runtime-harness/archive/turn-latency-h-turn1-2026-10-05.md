@@ -1,3 +1,6 @@
+> **BUILT** — 2026-10-05/06 — wave 2 `7ddb6949a1`, `bd76f98fa8`, conn lane `5b8c9ff0e4`; the A5 stamps retired in `b588504648`.
+> Archived 2026-10-27 from `planned/` by `FH-PLANNED-TRIAGE-2026-10-27-C`; history only — the domain docs and the code are the truth.
+
 # Planned — turn latency, lane h-turn1 (2026-10-05): the four "turns still feel slow" rows
 
 **Status:** DESIGN 2026-10-05; §2 redesigned the same day by lane h-turn1-c1-design (Fable, read-only against the live store, the base serve log 14:14 / 14:48–14:54, the launcher diag log 18:47–18:54Z, and both trees). No production code was changed. **Rows:** the four `TAKEN … lane h-turn1` rows under `Harness_Brain/20 — Active Initiatives/runtime-queue.md` § "Filed on arrival — 2026-10-05 (owner live turns)", plus the `rt_provider_wait_ms` row as the beneficiary of lane C. **Owner doc:** [`../05-chat-turn-lane.md`](../05-chat-turn-lane.md) §4b (prewarm), [`../04-boot-and-lifecycle.md`](../04-boot-and-lifecycle.md) (drain, build identity). **Sibling:** `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md` carries the launcher halves named below.
