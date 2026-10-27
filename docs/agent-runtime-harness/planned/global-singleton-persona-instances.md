@@ -1,7 +1,7 @@
 # Planned — global-singleton persona instances
 
 **Owner domain:** system architecture ([01-system-architecture.md](../01-system-architecture.md))
-**Status:** queued redesign, not implemented.
+**Status:** STALE 2026-10-27 (triage w1027j-h-tri-a) — persona_assignments is now a package, so every line cite is dead, and nothing of the redesign has a design; replan under `RT-GLOBAL-SINGLETON-CANONICAL`. Was: queued redesign, not implemented.
 **Raised:** in-code, cited as "the queued global-singleton redesign" at
 `agent_runtime/persona_assignments.py:2518` and
 `tests/agent_runtime/test_office_state_patches.py:930`. Re-verified 2026-08-22.

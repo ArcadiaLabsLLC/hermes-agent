@@ -1,7 +1,7 @@
 # Planned — the chat-swap `--kill-active` guard is a no-op
 
 **Owner domain:** system architecture ([01-system-architecture.md](../01-system-architecture.md))
-**Status:** known-broken. The flag is accepted, reported as applied, and does
+**Status:** STALE 2026-10-27 (triage w1027j-h-tri-a) — the defect is still live but every file and line cite predates the persona_assignments and parser splits, and the flag now opens a coordinator-budget review the plan does not know; replan under `RT-CHAT-SWAP-KILL-ACTIVE-NOOP`. Was: known-broken. The flag is accepted, reported as applied, and does
 nothing.
 **Raised / verified:** 2026-08-22 against HEAD.
 

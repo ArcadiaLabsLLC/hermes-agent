@@ -1,6 +1,6 @@
 # Planned — the boot resubscribe still buys a fourth full core (HY-L2)
 
-**Status:** NOT IMPLEMENTED. Verified absent in the launcher tree 2026-08-22.
+**Status:** STALE 2026-10-27 (triage w1027j-h-tri-a) — the code anchor names the office projection lane, not the core stream, and the core stream has since gained a position-gated resume (`agent_runtime/stream_resume.py`); replan under `RT-BOOT-RESUBSCRIBE-CORE-REMEASURE`. Was: NOT IMPLEMENTED. Verified absent in the launcher tree 2026-08-22.
 **Owning doc:** [`../04-boot-and-lifecycle.md`](../04-boot-and-lifecycle.md) Stage 7/8.
 **Source:** `archive/2026-08-22-pre-consolidation/BOOT_HYDRATE_SECOND_READ_2026-08-17.md`,
 stage HY-L2 — the ONE stage of that plan that did not ship. HY-0, HY-H1 and HY-H2 all
