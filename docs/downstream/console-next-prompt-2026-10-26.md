@@ -115,8 +115,8 @@ remain the same.
 Focused coverage includes the shared helper, Console scope/unload, actual facade
 routing, native two-persona isolation, disabled work and stale publication. The
 new helper file passed 15 tests; the corrected cold/facade file passed 3. Name
-census and tombstone checks passed 35 tests. The broad fork landing run is still
-in progress; this paragraph does not certify it.
+census and tombstone checks passed 35 tests. The broad fork landing run and its
+follow-up classification are recorded below.
 
 Red proof: removing `reminder` from the completion message list caused
 `test_shared_generation_accepts_only_supplied_context_and_returns_actual_usage`
@@ -132,7 +132,7 @@ qualification are not marked passed by fixture tests.
 The full fork gate ran once: 1,330 files, 15,101 passed, 34 failed, 1 error,
 52 skipped, 512.7 s (12 workers). Two owned metadata failures were repaired:
 shared package layer declaration and claim-account token formatting; their
-explicit check passed 64 tests. The remaining failures are under base comparison,
+explicit check passed 64 tests. The remaining failures were compared with the base,
 not silently treated as green.
 
 The existing `RT-CONSOLE-SUGGESTIONS-TEST-DOUBLES-RED` follow-up was claimed and
@@ -142,3 +142,12 @@ serve session, to None. All three importing files pass (49 tests). The broad run
 had shown 19 failures across those files before this one-line repair; restoring
 the missing field is the red/green proof, with no production fallback. The other
 two files named by the row already passed the broad run (94 and 9 tests).
+
+Canonical `--confirm-red` completed for the fourteen remaining failed files against
+`6219b86283`. Ten reproduced their same failing nodes on both revisions; three
+fixture-dependent files passed after the repair above, and the registered-event
+emitter check passed alone after exceeding the broad-run time cap. Existing
+runtime/CLI failures are recorded in `RT-WINDOWS-BASELINE-REGRESSIONS`; stale pins
+and mutation anchors in `FH-BASELINE-PINS-AND-MUTATION-ANCHORS`. The PM slow-exit
+environment requirement already has `FORK-SECOND-WORKSTATION-ENV`. These are
+qualification exceptions, not suggestion passes or changes to the assertions.
