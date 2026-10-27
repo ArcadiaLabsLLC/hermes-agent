@@ -1013,3 +1013,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-27 (launcher lane w1027b-mc)
 
+
+## Filed on arrival — 2026-10-27 (launcher lane w1027e-plan-mc)
+
+- **`RT-SKILL-CHANGE-EVENT` — a background-review skill change (applied or staged) emits a persona-chat stream event carrying `{profile, skill, action, turn: {chat_session_id, turn_id} | null, staged_id?}`, so the launcher can retire its post-settle read window** · `agent_runtime/review_skill_changes.py::on_post_tool_call` · `agent_runtime/review_skill_changes.py::record_staged` · launcher `MC-SKILL-CHANGE-VISIBLE` · READY 2026-10-27
