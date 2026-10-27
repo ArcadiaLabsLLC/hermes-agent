@@ -115,7 +115,7 @@ def _turn_credential(course_public_id: Any) -> Any:
     return credential
 
 
-def _calling_persona() -> tuple[str, str | None]:
+def _course_turn_persona() -> tuple[str, str | None]:
     """``(persona_id, display_name)`` of the persona whose live turn is calling, read from the turn binding."""
 
     from .live_turns import persona_instance_of
@@ -135,7 +135,7 @@ def _calling_persona() -> tuple[str, str | None]:
     raise _ToolRefused(REASON_PERSONA_UNKNOWN, "course authoring runs only inside a persona's turn")
 
 
-def _answer(body: Callable[[], dict[str, Any]]) -> str:
+def _course_tool_answer(body: Callable[[], dict[str, Any]]) -> str:
     try:
         with VERB_LOCK:
             return json.dumps(body(), sort_keys=True)
@@ -145,14 +145,14 @@ def _answer(body: Callable[[], dict[str, Any]]) -> str:
         return json.dumps({"error": exc.reason.value, "detail": str(exc)})
 
 
-def _checkout(args: dict[str, Any]) -> dict[str, Any]:
+def _course_tool_checkout(args: dict[str, Any]) -> dict[str, Any]:
     from .course_authoring import checkout
 
     receipt = checkout(_turn_credential(args.get("course_public_id")))
     return {"course": receipt.course, "outcome": receipt.outcome, "branch": receipt.branch, "head": receipt.head}
 
 
-def _commit(args: dict[str, Any]) -> dict[str, Any]:
+def _course_tool_commit(args: dict[str, Any]) -> dict[str, Any]:
     from .course_authoring import commit
 
     files, deletes = args.get("files") or {}, args.get("deletes") or []
@@ -161,18 +161,18 @@ def _commit(args: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(deletes, list) or not all(isinstance(item, str) for item in deletes):
         raise CourseRefused(CourseRefusal.INVALID_REQUEST, "deletes must be a list of paths")
     credential = _turn_credential(args.get("course_public_id"))
-    persona_id, persona_name = _calling_persona()
+    persona_id, persona_name = _course_turn_persona()
     receipt = commit(credential, persona_id=persona_id, persona_name=persona_name,
                      branch=str(args.get("branch") or ""), message=str(args.get("message") or ""),
                      files=files, deletes=deletes)
     return {"course": receipt.course, "branch": receipt.branch, "sha": receipt.sha, "files": list(receipt.files)}
 
 
-def _pull_request(args: dict[str, Any]) -> dict[str, Any]:
+def _course_tool_pull_request(args: dict[str, Any]) -> dict[str, Any]:
     from .course_authoring import pull_request
 
     credential = _turn_credential(args.get("course_public_id"))
-    persona_id, _name = _calling_persona()
+    persona_id, _name = _course_turn_persona()
     receipt = pull_request(credential, persona_id=persona_id, branch=str(args.get("branch") or ""),
                            title=str(args.get("title") or ""), body=str(args.get("body") or ""))
     return {"course": receipt.course, "branch": receipt.branch, "number": receipt.number,
@@ -180,12 +180,12 @@ def _pull_request(args: dict[str, Any]) -> dict[str, Any]:
 
 
 def handle_course_checkout(args: dict[str, Any], **kwargs: Any) -> str:
-    return _answer(lambda: _checkout(args or {}))
+    return _course_tool_answer(lambda: _course_tool_checkout(args or {}))
 
 
 def handle_course_commit(args: dict[str, Any], **kwargs: Any) -> str:
-    return _answer(lambda: _commit(args or {}))
+    return _course_tool_answer(lambda: _course_tool_commit(args or {}))
 
 
 def handle_course_pull_request(args: dict[str, Any], **kwargs: Any) -> str:
-    return _answer(lambda: _pull_request(args or {}))
+    return _course_tool_answer(lambda: _course_tool_pull_request(args or {}))

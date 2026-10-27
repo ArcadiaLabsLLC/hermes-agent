@@ -131,7 +131,7 @@ def test_a_clone_that_exits_zero_binds_the_slot_and_reports(workspace, registry,
     registry.finish(run["run_id"], 0, "Cloning into 'launcher'...\n")
     settled, = settle_runs(workspace, registry)
     assert settled["status"] == "succeeded" and settled["exit_code"] == 0
-    assert load_machine_roots(refresh=True).roots["launcher"] == str(dest)
+    assert load_machine_roots(refresh=True).workspace_root(workspace, "launcher") == dest
     me = next(iter(load_document(workspace)["machines"].values()))
     assert me["slots"]["launcher"]["checkout"] == "matches"
     # Call 8d: nothing ran after the clone on its own — the clone is the only spawn.
@@ -298,7 +298,7 @@ def test_the_cli_clone_waits_for_the_run_and_binds(workspace, registry, tmp_path
     assert workspace_slots_commands._cmd_workspace_slots_clone(args) == 0
     printed = json.loads(capsys.readouterr().out)
     assert json.dumps(printed).count('"succeeded"') >= 1
-    assert load_machine_roots(refresh=True).roots["launcher"] == str(dest)
+    assert load_machine_roots(refresh=True).workspace_root(workspace, "launcher") == dest
 
 
 def test_the_runs_file_never_travels_with_the_realm():

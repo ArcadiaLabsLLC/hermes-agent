@@ -82,7 +82,7 @@ def test_a_credential_for_another_course_refuses_subject_mismatch(remote, person
 
 
 def test_a_commit_is_authored_by_the_turns_persona_on_its_branch_and_never_echoes_the_secret(remote, persona):  # noqa: F811
-    """Killing mutation: ``_calling_persona`` answering a fixed ``agent`` id lands ``agent/agent/intro``."""
+    """Killing mutation: ``_course_turn_persona`` answering a fixed ``agent`` id lands ``agent/agent/intro``."""
 
     with _turn({"course_credential": _credential(_url(remote))}):
         _call(course_tool.handle_course_checkout, {"course_public_id": COURSE})
