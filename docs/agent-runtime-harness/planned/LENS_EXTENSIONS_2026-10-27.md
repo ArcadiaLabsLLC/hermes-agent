@@ -311,6 +311,10 @@ names is read back from the recorded rows (the first `watcher_offline` gap at or
 before it), not stored on the Episode, so the version-2 row adds only `missed_deadline_ms`. Push
 feeds are not caught up (as before), so a push-fed deadline is never `missed`. Follow-ups filed:
 `RT-LENS-MISSED-THEN-FIRED`, `RT-LENS-EPISODE-DECIDE-VERB`.
+*Built (`RT-LENS-MISSED-OUTAGE-ON-FOLD`, lane w1027h-h-lens):* the fold's `open_episodes` row of a
+`missed` Episode carries `offline: {from_ms, until_ms}` (None when the rows are gone), read by
+`snapshot_fold._with_outage` through the same `offline_interval` as the opening block; the stored
+Episode body is unchanged and every other row is byte-identical.
 
 ### Test plan
 

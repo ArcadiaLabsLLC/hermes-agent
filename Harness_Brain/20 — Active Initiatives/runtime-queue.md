@@ -1015,7 +1015,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-27 (launcher lane w1027g-lens)
 
-- **`RT-LENS-MISSED-OUTAGE-ON-FOLD` — a `missed` Episode on the Lens fold carries only `missed_deadline_ms`; the outage it was missed in (offline_from / offline_to) is read back from recorded rows for the opening block but never reaches the fold row, so Mission Control cannot show the interval the launcher row asked for** · `agent_runtime/lens/missed_deadlines.py` · `agent_runtime/lens/snapshot_fold.py::lens_fold` · READY 2026-10-27 · **TAKEN 2026-10-27 w1027h-h-lens on nekwo-ubuntu24 as nekwo in hermes-w1027h-h-lens**
 
 ## Filed on arrival — 2026-10-27 (orchestrator, after lane w1027g-h-head)
 

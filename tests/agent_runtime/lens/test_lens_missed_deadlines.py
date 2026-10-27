@@ -134,6 +134,20 @@ def test_a_missed_episode_is_admitted_and_painted_and_never_open():
     assert (nxt.ordinal, nxt.state) == (2, EpisodeState.ACTIVE)
 
 
+def test_the_fold_carries_a_missed_episodes_outage_and_leaves_other_rows_alone():
+    from agent_runtime.lens.snapshot_fold import lens_fold
+
+    resume = T0 + timedelta(hours=1)
+    store = _outage(T0 + timedelta(minutes=20), resume=resume)
+    store.save_episode(Episode(monitor_id="auction", rule_id="other", ordinal=1, first_seen=T0, last_seen=T0,
+                               count=1, state=EpisodeState.ACTIVE))
+
+    rows = {row["rule_id"]: row for row in lens_fold(store)["open_episodes"]}
+
+    assert rows["ending"]["offline"] == {"from_ms": to_ms(T0), "until_ms": to_ms(resume)}
+    assert "offline" not in rows["other"], "positive control: a non-missed row is the stored body"
+
+
 def test_the_opening_block_says_what_is_known_and_what_is_not():
     from agent_runtime.lens.trigger import LensForge
 
