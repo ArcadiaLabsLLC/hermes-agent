@@ -2401,10 +2401,6 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "task-era persona store readers and close helpers were called only by their own tests",
         "persona_assignments.PersonaInstanceStore.list_for_task",
         "persona_assignments.PersonaInstanceStore.close_for_task",
-        "persona_assignments.PersonaAssignmentStore.contention_warnings",
-        "persona_assignments.PersonaAssignmentStore._release_if_owning_goal_terminal",
-        "persona_assignments.PersonaAssignmentStore.list_for_task",
-        "persona_assignments.PersonaAssignmentStore.close_for_task",
         scope=_AR,
     ),
     *rows(
@@ -2645,8 +2641,6 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "persona_assignments.PersonaInstanceStore.ensure_for_goal",
         "persona_assignments.PersonaInstanceStore.list_for_goal",
         "persona_assignments.PersonaInstanceStore.record_context",
-        "persona_assignments.PersonaAssignmentStore.attach_run",
-        "persona_assignments.PersonaAssignmentStore.attach_proof",
         scope=("agent_runtime",),
     ),
     *rows(
@@ -2886,14 +2880,16 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         scope=("agent_runtime.persona_assignments",),
     ),
     *rows(
-        "s70",
-        "HEAD",
-        Form.CLASS_ATTR,
-        "the store's row-mint entry points went with the spec; residual rows "
-        "are settled through complete(), never re-minted",
-        "persona_assignments.PersonaAssignmentStore.create",
-        "persona_assignments.PersonaAssignmentStore.create_or_resume",
-        scope=_AR,
+        "s-rt-full-pas",
+        "72a4f8d3ba",
+        Form.ATTR,
+        "the task-era assignment store retired with its settle verbs "
+        "(RT-FULL-PERSONAASSIGNMENTSTORE); residual rows are archived at "
+        "plugin load. Supersedes the s61/s65/s70 CLASS_ATTR rows on its "
+        "readers, attach and mint methods, which could no longer fail once "
+        "the class was gone",
+        "PersonaAssignmentStore",
+        scope=("agent_runtime.persona_assignments",),
     ),
     *rows(
         "s70",
