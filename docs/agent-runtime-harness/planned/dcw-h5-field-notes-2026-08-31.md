@@ -1,7 +1,7 @@
 # W2-H5 field notes — skill-tombstone union merge (hermes)
 
 Running record for the decision-close wave's W2-H5 stage: build
-`planned/realm-skill-tombstone-merge.md` whole, R-D upgraded LWW → UNION by
+`archive/realm-skill-tombstone-merge.md` whole, R-D upgraded LWW → UNION by
 RD-11. Worktree `X:/Eternia/_worktrees/dcw-h5`, branch
 `feat/dcw-h5-tombstone-union`, based on `301946bc57`.
 

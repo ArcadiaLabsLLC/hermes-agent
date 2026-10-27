@@ -1045,7 +1045,7 @@ Each links to a `planned/` file carrying its evidence and the gate to open it.
   [planned/writerless-goal-lane-residue.md](planned/writerless-goal-lane-residue.md)
 - Deferred by design — **no node taxonomy, no sub-graph expansion**; the Node
   Charter's four questions are unanswered for every candidate →
-  [archive/graph-node-taxonomy-and-subgraphs.md](archive/graph-node-taxonomy-and-subgraphs.md)
+  [archive/graph-node-taxonomy-and-subgraphs.md](archive/graph-node-taxonomy-and-subgraphs.md) (parked 2026-10-27)
 - Queued — **the global-singleton persona-instance redesign**, cited at
   `persona_assignments.persona_instance_id_for` →
   [planned/global-singleton-persona-instances.md](planned/global-singleton-persona-instances.md)

@@ -1,6 +1,6 @@
 # Planned — collapsing the office write lane to one transport
 
-**Status:** not built. **Owner surface:** [06 — Office and board](../06-office-and-board.md).
+**Status:** STALE 2026-10-27 (triage lane w1027j-h-tri-b) — every launcher cite predates the bridge and registry splits (the office argv lowerings now live in `lib/core/services/hermes/runtime/data/capabilities/harness_office_capabilities.dart`), Row 3's `office.actor.restore` row is already deleted, and no observation window was ever run; the replan is the launcher row `MC-OFFICE-WRITE-LANE-COLLAPSE-REPLAN`. Was: not built. **Owner surface:** [06 — Office and board](../06-office-and-board.md).
 **Origin:** `OFFICE_WRITE_VERBS_RPC_PLAN_2026-08-16.md` §5 (deferrals D-W1..D-W5)
 and `SINGLE_TRANSPORT_COLLAPSE_PLAN_2026-08-16.md` (TC-3/TC-4), both archived.
 

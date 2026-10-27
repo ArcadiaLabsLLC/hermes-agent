@@ -1,5 +1,5 @@
 """A mission-chat turn carrying reviewed files (``RT-MISSION-CHAT-MESSAGE-TAKES`` S3,
-plan ``planned/p10-turn-2026-10-19.md`` §3.5 test 6).
+plan ``archive/p10-turn-2026-10-19.md`` §3.5 test 6).
 
 Drives the real ``mission-chat message`` handler over the turn-phases fixture with ``--file``
 references stored by ``agent_runtime.operator_files``. The request text the runtime is handed and

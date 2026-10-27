@@ -1,5 +1,5 @@
 """The eternia-harness plugin feeds the turn-outcome fold from ``post_tool_call``
-(``RT-TURN-LEFT-BEHIND-RECORD``, plan ``planned/p10-turn-2026-10-19.md`` §1.5 test 9).
+(``RT-TURN-LEFT-BEHIND-RECORD``, plan ``archive/p10-turn-2026-10-19.md`` §1.5 test 9).
 
 The plugin's real ``register`` runs against a recording context, so the walk reads
 the hook list the plugin actually registers. Killing mutation: drop the

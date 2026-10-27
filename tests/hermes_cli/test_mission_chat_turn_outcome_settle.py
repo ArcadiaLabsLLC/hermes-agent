@@ -1,5 +1,5 @@
 """The settle point persists what a turn left behind on its terminal record
-(``RT-TURN-LEFT-BEHIND-RECORD`` S3, plan ``planned/p10-turn-2026-10-19.md`` §1.5 test 6).
+(``RT-TURN-LEFT-BEHIND-RECORD`` S3, plan ``archive/p10-turn-2026-10-19.md`` §1.5 test 6).
 
 Drives the real ``mission-chat message`` handler over the turn-phases fixture; the
 durable record is the subject. Killing mutation: remove the ``turn_outcome`` line

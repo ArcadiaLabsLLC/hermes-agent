@@ -1579,7 +1579,7 @@ Two decisions ride with it:
   restore verb) →
   [planned/office-write-lane-collapse.md](planned/office-write-lane-collapse.md)
 - The page-open write storm and the `laneAbsent` window on cold open →
-  [archive/office-page-open-write-storm.md](archive/office-page-open-write-storm.md)
+  [archive/office-page-open-write-storm.md](archive/office-page-open-write-storm.md) (parked 2026-10-27)
 - The board surface's missing RPC lane and fold coverage →
   [planned/board-surface-rpc-lane.md](planned/board-surface-rpc-lane.md)
 - Remaining console lane-ambiguity: browsable catalog under a failing lane, the

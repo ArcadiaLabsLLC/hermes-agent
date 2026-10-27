@@ -1,7 +1,7 @@
 """What one persona turn left behind: tests run, commits made, files written.
 
 Derived in a plugin hook, never in the upstream executor (``RULED 2026-10-10``,
-``RT-TURN-LEFT-BEHIND-RECORD``; plan ``planned/p10-turn-2026-10-19.md`` §1). The
+``RT-TURN-LEFT-BEHIND-RECORD``; plan ``archive/p10-turn-2026-10-19.md`` §1). The
 persona runner binds a :class:`TurnOutcomeFold` around ``run_conversation``
 (:func:`bind_turn_outcome`); the eternia-harness plugin's ``post_tool_call``
 hook folds each terminal call into it (:func:`on_post_tool_call`). Tool calls run

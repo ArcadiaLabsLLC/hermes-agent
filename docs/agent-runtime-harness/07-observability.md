@@ -830,7 +830,7 @@ drift.
 
 * **Nothing schedules the three live-log consumers** — the two `dart run` audits
   and the demote census run only when a human remembers.
-  → `archive/observability-consumer-runner.md`
+  → `archive/observability-consumer-runner.md` (parked 2026-10-27)
 * **Residual split, named rather than fixed:** the cache line says `stale=true`
   while the payload says `parity.core_stale` / `parity.freshness.state` — a
   consumer contract predating the lane (`core_cache/__init__.py:74`). A census reads both.

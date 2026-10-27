@@ -111,7 +111,7 @@ number to move with the box's core count.
 That four-directory scope is **the 4 directories R3 was proven on**,
 deliberately not a whole-tree run (nothing runs the whole tree, ADR 0016): a whole-tree run on a green
 `main` reads ~142 failed, every one triaged environmental or pre-existing (see
-[`planned/hermes-suite-perf.md`](docs/agent-runtime-harness/archive/hermes-suite-perf.md)
+[`archive/hermes-suite-perf.md`](docs/agent-runtime-harness/archive/hermes-suite-perf.md)
 §Follow-ups). Two things sit OUTSIDE it and are named nowhere in it:
 `tests/test_coverage_claims_resolve.py` and all of `tests/scripts/`. They are
 section 3 of the unattended report below — the only lane that runs them
