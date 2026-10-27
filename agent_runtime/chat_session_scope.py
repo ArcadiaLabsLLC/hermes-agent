@@ -49,7 +49,8 @@ Resolution ladder (highest first)
 
 ======================  =====================================================
 ``RELAY_CONTEXT``       the ``_HERMES_HEAD_HOME`` ContextVar — a nested relay
-                        turn can never escape the operator that started it.
+                        turn can never escape the operator that started it,
+                        except into a ``per_profile`` record's own home (below).
 ``ENV_HEAD_HOME``       ``HERMES_HEAD_HOME`` — what the Launcher supplies.
 ``INSTANCE_RECORDED``   the chat head the persona instance bound to this
                         conversation RECORDED at bind/turn time
@@ -99,8 +100,10 @@ A record stamped ``chat_head_kind == per_profile`` (chat-head-per-profile plan
 §7.2 decisions 1 and 4) is the instance's OWN agent profile home, not a copy of
 the process head, so it outranks ``ENV_HEAD_HOME`` for its conversation and is
 never a mismatch against the env, the pointer or the declaration — they name
-the PROCESS default, which is a different fact. Only ``RELAY_CONTEXT`` stays
-above it (until the relay-head slice). A ``per_profile`` record whose home is
+the PROCESS default, which is a different fact. It outranks ``RELAY_CONTEXT``
+too (plan §2.5): the relay context records the OPERATOR who started a nested
+turn — the process default for that turn's head-less reads — not the head of
+the target's conversation. A ``per_profile`` record whose home is
 gone does NOT fall through: falling back to the process head is a write into
 the wrong store, the very split this module retires, so the scope carries
 ``refusal == CHAT_HEAD_MISSING`` and :func:`open_chat_session_db` opens nothing.
@@ -505,14 +508,11 @@ def resolve_instance_chat_scope(instance: Any) -> ChatSessionScope:
     Plan §7.2 decision 4: a ``per_profile`` record whose home exists answers
     ``INSTANCE_RECORDED``; a ``per_profile`` record whose home is gone answers
     the typed :data:`CHAT_HEAD_MISSING` refusal; every other record answers the
-    process scope. ``RELAY_CONTEXT`` stays on top, exactly as on the ladder.
-    Never raises.
+    process scope. Above ``RELAY_CONTEXT`` too, exactly as on the ladder: a
+    relay turn runs on its TARGET's head (plan §2.5). Never raises.
     """
 
-    process = resolve_process_chat_scope()
-    if process.source is ChatHeadSource.RELAY_CONTEXT:
-        return process
-    return _per_profile_scope(_instance_chat_head(instance)) or process
+    return _per_profile_scope(_instance_chat_head(instance)) or resolve_process_chat_scope()
 
 
 def resolve_conversation_chat_scope(
@@ -635,14 +635,12 @@ def _resolve_chat_scope(session_id: str | None) -> ChatSessionScope:
             explicit = False
         else:
             source = _explicit_source(head)
-            per_profile = (
-                None
-                if source is ChatHeadSource.RELAY_CONTEXT
-                else _per_profile_scope(instance_head)
-            )
+            per_profile = _per_profile_scope(instance_head)
             if per_profile is not None:
-                # A per-profile record outranks the env head: the env names
-                # the PROCESS default, the record this conversation's own home.
+                # A per-profile record outranks the env head AND the relay
+                # context: both name the PROCESS default (the operator who
+                # started the turn), the record this conversation's own home —
+                # so a relay turn runs on its TARGET's head (plan §2.5).
                 return per_profile
             # The explicit head still WINS resolution — env/relay outrank the
             # record — but a disagreeing record is surfaced, never dropped:

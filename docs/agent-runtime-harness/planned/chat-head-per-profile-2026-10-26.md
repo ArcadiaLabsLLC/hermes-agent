@@ -222,6 +222,14 @@ Landed as planned, with these places the tree differs from the text above:
 - Not in decision 5's list and not moved: `own_session_import.py` (writes imported chats) and
   `conversations/chat_folder_migration.py` (reads mint receipts' roots) — filed as rows.
 
+### 7.4c Built — CH5-RELAY-HEAD (lane w1027g-h-head, 2026-10-27)
+
+A `per_profile` record now outranks `RELAY_CONTEXT` on the ladder and at the instance door, so a
+relay turn targeting such an instance runs on the target's head. The `_HERMES_HEAD_HOME`
+ContextVar is unchanged: it still records the outermost operator's home, which is what a
+head-less (process-scope) read inside the nested turn resolves — the operator identity, no longer
+the head of the target's conversation. A `process` target still runs on the relay head.
+
 ### 7.5 Open questions
 
 None for the owner: every choice above is technical and follows ruling 4. §4's question (what stays in
