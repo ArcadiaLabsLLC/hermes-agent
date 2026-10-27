@@ -101,3 +101,44 @@ unchanged free-form text and optional command gaps without an infrastructure man
 The existing lifecycle/store, persona and auxiliary authorities and false-default
 Harness setting remain. No new rows, code, DM work or live configuration changes;
 all nine completion rows retain the owner's implementation hold.
+
+
+## Authorized completion implementation — 2026-10-27
+
+The owner released the earlier hold. MOVE `0c06b4de18` extracts shared generation;
+subsequent CHANGE adds the latest-user-language reminder and narrow cleanup.
+Console still binds `console_next_prompt` / `console_follow_up` through the existing
+plugin facade. Shared code has no persona/history/settings dependency. No live
+setting or persona file changed; the Harness false default and auxiliary route
+remain the same.
+
+Focused coverage includes the shared helper, Console scope/unload, actual facade
+routing, native two-persona isolation, disabled work and stale publication. The
+new helper file passed 15 tests; the corrected cold/facade file passed 3. Name
+census and tombstone checks passed 35 tests. The broad fork landing run is still
+in progress; this paragraph does not certify it.
+
+Red proof: removing `reminder` from the completion message list caused
+`test_shared_generation_accepts_only_supplied_context_and_returns_actual_usage`
+to fail (1 failed, 14 passed); restored. The cold facade expectation was updated
+for the final system reminder after the unchanged user/assistant context.
+
+The [fixed evaluation protocol](console-next-prompt-evaluation-2026-10-27.md) was
+frozen before paid samples. Amelia's route preflight found expired authentication;
+the owner is reconnecting the provider. Real quality/cost/latency and paired native
+qualification are not marked passed by fixture tests.
+
+
+The full fork gate ran once: 1,330 files, 15,101 passed, 34 failed, 1 error,
+52 skipped, 512.7 s (12 workers). Two owned metadata failures were repaired:
+shared package layer declaration and claim-account token formatting; their
+explicit check passed 64 tests. The remaining failures are under base comparison,
+not silently treated as green.
+
+The existing `RT-CONSOLE-SUGGESTIONS-TEST-DOUBLES-RED` follow-up was claimed and
+repaired at the shared `tests/agent_runtime/operator_lane_fixture.py::OperatorLane`
+fixture: it now initializes the same optional suggestion-service field as a real
+serve session, to None. All three importing files pass (49 tests). The broad run
+had shown 19 failures across those files before this one-line repair; restoring
+the missing field is the red/green proof, with no production fallback. The other
+two files named by the row already passed the broad run (94 and 9 tests).

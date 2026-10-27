@@ -293,6 +293,9 @@ def rows(
 _AR = ("agent_runtime",)
 
 TOMBSTONES: tuple[Tombstone, ...] = (
+    *rows("suggestion-separation", "0c06b4de18", Form.ATTR,
+        "Cleaner moved to shared suggestions; Console only binds the host route.",
+        "clean_suggestion", scope=("agent_runtime.console_suggestions.generation",)),
     # -- S1-S39 legacy removal contracts (Wave 4 registry migration) -----
     *rows(
         "s11",

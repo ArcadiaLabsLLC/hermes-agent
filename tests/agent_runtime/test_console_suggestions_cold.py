@@ -26,7 +26,9 @@ def test_cold_manager_registers_task_and_uses_facade_without_persona(tmp_path, m
         assert result["text"] == "[foo] を説明して"
         assert seen[0]["task"] == "console_next_prompt"
         assert not {"provider", "model", "timeout", "response_format"} & seen[0].keys()
-        assert seen[0]["messages"][-1] == {"role": "assistant", "content": "説明"}
+        assert seen[0]["messages"][-2] == {"role": "assistant", "content": "説明"}
+        assert seen[0]["messages"][-1]["role"] == "system"
+        assert "latest user message" in seen[0]["messages"][-1]["content"]
     finally:
         _reset_plugin_managers_for_tests()
 

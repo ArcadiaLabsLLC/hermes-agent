@@ -1,15 +1,15 @@
 # Agent Console follow-up suggestions: completion plan
 
-Status: planned, implementation explicitly deferred by the owner on 2026-10-27.
-This update authorizes documentation and queue work only. It does not authorize
-code changes, live enablement, provider calls or qualification runs. A later
-implementation go-ahead releases this hold; do not add a separate confirmation flow.
+Status: PLANNED qualification; implementation authorized by the owner on 2026-10-27.
+The shared extraction and completion changes are implemented in the owned worktrees;
+landing checks and live qualification are in progress. The former documentation-only
+hold is released. Live user enablement remains off; no product confirmation flow is added.
 
 The original implementation remains built. See [chat canon](../05-chat-turn-lane.md)
 and [qualification evidence](../../downstream/console-next-prompt-2026-10-26.md).
 This plan owns runtime completion only. Launcher presentation is owned by
 `EterniaLauncher/docs/mission_control/planned/CONSOLE_NEXT_PROMPT_COMPLETION_2026-10-27.md`.
-The 2026-10-26 archived design remains historical; this is its unbuilt follow-up.
+The 2026-10-26 archived design remains historical; this records the completion and remaining qualification.
 
 ## Stock capability versus our adaptation — final audit
 
@@ -146,7 +146,7 @@ or promise to cancel another window's work. Keep one producer and existing store
 receipts across the internal move. These checks join the existing qualification
 rows, not a new DM test application or permanent benchmarking service.
 
-## Runtime changes to plan
+## Runtime completion
 
 `RT-NEXT-PROMPT-GENERATION-PARITY`: after `RT-NEXT-PROMPT-SEPARATION`, extend
 the extracted single shared generation helper with a final reminder grounded in
@@ -181,7 +181,7 @@ pair boundary tests with the real-provider evaluation below.
 | `agent_runtime/console_suggestions/notifications.py` | Existing revisioned changed notifications and subscription ownership; no polling lane |
 | `agent_runtime/console_suggestions/generation.py::generate_suggestion` | Actual provider/model/usage result for qualification; provider cost may be unavailable and must be labeled unknown |
 
-## Qualification after implementation authorization
+## Qualification
 
 After separation and generation parity, expand the existing
 `RT-NEXT-PROMPT-PROVIDER-EVAL` row, not a second evaluation authority. Include
@@ -233,3 +233,20 @@ of parity: [Codex](https://learn.chatgpt.com/docs/features/composer-predictions)
 [Claude Code](https://code.claude.com/docs/en/interactive-mode#prompt-suggestions).
 Runtime work is `RT-NEXT-PROMPT-SEPARATION`, `RT-NEXT-PROMPT-GENERATION-PARITY`
 and the existing `RT-NEXT-PROMPT-PROVIDER-EVAL` in the runtime queue. All remain deferred.
+
+
+## Implementation receipt — 2026-10-27
+
+`agent_runtime/suggestions/generation.py` owns the one prompt, cleanup and result
+helper. `agent_runtime/console_suggestions/generation.py` binds the existing plugin
+completion operation with `task="console_next_prompt"` and
+`purpose="console_follow_up"`. No service, store, task key or routing change was
+introduced. The final language reminder and matched-wrapper/exact-sentinel cleanup
+live only in the shared helper. Short text, statements, code and literal brackets
+remain valid; no question-only rule or intent taxonomy was added.
+
+Fixtures cover shared input/result independence, preserved provider errors, actual
+Console registration/unload scope, stock-versus-Console override/reset, disabled
+work, native persona isolation and stale results. Real provider quality and latency
+are separate from these contract checks; see the paired evidence for measured
+results and limitations. No persona files or live suggestion settings were changed.

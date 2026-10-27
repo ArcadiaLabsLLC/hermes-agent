@@ -18,7 +18,7 @@ _context_lock = RLock()
 
 
 def register_suggestion_task(ctx) -> None:
-    ctx.register_auxiliary_task(TASK, display_name="Console follow-up suggestions",
+    ctx.register_auxiliary_task(TASK, display_name="Agent Console follow-up suggestions",
         description="Optional contextual drafts in Eternia Agent Console; off by default.")
     key = str(get_hermes_home().resolve())
     with _context_lock:
