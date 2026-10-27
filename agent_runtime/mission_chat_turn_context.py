@@ -247,12 +247,14 @@ def _default_load_slot_context(instance: Any) -> Any:
 
 
 def _default_mission_chat_workdir(
-    persona: Any, *, workspace_agents_path: str | None, primary_slot_path: str | None
+    persona: Any, *, workspace_agents_path: str | None, primary_slot_path: str | None,
+    chat_folder_path: str | None = None,
 ) -> Any:
     from .mission_chat_workdir import mission_chat_workdir_for_persona
 
     return mission_chat_workdir_for_persona(
-        persona, workspace_agents_path=workspace_agents_path, primary_slot_path=primary_slot_path
+        persona, workspace_agents_path=workspace_agents_path, primary_slot_path=primary_slot_path,
+        chat_folder_path=chat_folder_path,
     )
 
 
@@ -535,7 +537,7 @@ def build_mission_chat_turn_context(
     timings["context_skill_preload_ms"] = _elapsed_ms(_started)
 
     slot_context, workspace_agents, workspace_agents_receipt, workdir = _turn_workspace(
-        resolvers, persona, instance, agents_file, run_workdir)
+        resolvers, persona, instance, agents_file, run_workdir, chat_session_id=session_id)
 
     # Composed ONCE, then folded two ways: the composite is the reuse key the
     # registry compares, the per-component digests are what let a mismatch name
@@ -636,7 +638,8 @@ def build_mission_chat_turn_context(
 
 
 def _turn_workspace(
-    resolvers: MissionChatTurnResolvers, persona: Any, instance: Any, agents_file: Any, run_workdir: str | None = None
+    resolvers: MissionChatTurnResolvers, persona: Any, instance: Any, agents_file: Any, run_workdir: str | None = None,
+    *, chat_session_id: str | None = None,
 ) -> tuple[Any, Any, dict[str, Any] | None, Any]:
     """``(slot context, workspace agents, its receipt, workdir)``: the turn's workspace facts, each once.
 
@@ -648,18 +651,21 @@ def _turn_workspace(
     batch lane's worktree, dispatcher plan §2.2 B5) goes on top of the ladder's answer.
     """
 
-    from .mission_chat_workdir import with_run_override
+    from .mission_chat_workdir import chat_folder_path_for, with_run_override
     from .persona_slots import slot_context_for_prompt
 
+    # Rung 4 (chat-folder plan §2.3): this chat's own folder, created only if the ladder reaches it.
+    folder = chat_folder_path_for(getattr(instance, "id", None), chat_session_id)
     slot_context = resolvers.load_slot_context(instance)
     if slot_context is None:
         workspace_agents, receipt = _workspace_context(resolvers, agents_file, None)
         workdir = resolvers.mission_chat_workdir(
-            persona, workspace_agents_path=_workspace_agents_path(None, workspace_agents), primary_slot_path=None
+            persona, workspace_agents_path=_workspace_agents_path(None, workspace_agents), primary_slot_path=None,
+            chat_folder_path=folder,
         )
         return None, workspace_agents, receipt, with_run_override(workdir, run_workdir)
     workdir = with_run_override(resolvers.mission_chat_workdir(
-        persona, workspace_agents_path=None, primary_slot_path=slot_context.primary_path
+        persona, workspace_agents_path=None, primary_slot_path=slot_context.primary_path, chat_folder_path=folder,
     ), run_workdir)
     slot_context = slot_context_for_prompt(slot_context, persona=persona, workdir=workdir)
     workspace_agents, receipt = _workspace_context(resolvers, agents_file, slot_context)

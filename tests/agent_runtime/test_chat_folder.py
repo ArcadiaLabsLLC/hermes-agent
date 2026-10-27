@@ -75,3 +75,39 @@ def test_the_rpc_lane_accepts_an_omitted_cwd(runtime):
     scope = ConversationScope("operator", "account-a", "a")
     reply = _open(service, scope, {"key": "thread", "profile_home": str(root / "a")})
     assert Path(_route_cwd(service, scope, reply["session_id"])).parent.name == "profile-a"
+
+
+# ── §2.3: the Mission Control workdir ladder's rung 4 ────────────────────────
+
+
+def test_the_chat_folder_rung_outranks_home_and_is_created_when_reached(tmp_path):
+    from agent_runtime.mission_chat_workdir import WORKDIR_SOURCE_CHAT_FOLDER, resolve_mission_chat_workdir
+
+    home, folder = tmp_path / "home", tmp_path / "chat_folders" / "inst" / "chat"
+    home.mkdir()
+    resolved = resolve_mission_chat_workdir(chat_folder_path=str(folder), home_fallback=str(home))
+    assert (resolved.source, resolved.path) == (WORKDIR_SOURCE_CHAT_FOLDER, str(folder.resolve()))
+    assert folder.is_dir()
+
+
+def test_a_rung_above_wins_and_the_chat_folder_is_never_created(tmp_path):
+    from agent_runtime.mission_chat_workdir import WORKDIR_SOURCE_PERSONA_REPO_SCOPE, resolve_mission_chat_workdir
+
+    repo, folder = tmp_path / "repo", tmp_path / "chat_folders" / "inst" / "chat"
+    repo.mkdir()
+    resolved = resolve_mission_chat_workdir(repo_scope=str(repo), chat_folder_path=str(folder),
+                                            home_fallback=str(tmp_path))
+    assert resolved.source == WORKDIR_SOURCE_PERSONA_REPO_SCOPE
+    assert not folder.exists()
+
+
+def test_a_turn_with_no_grounding_runs_in_its_chat_folder(tmp_path, monkeypatch):
+    from agent_runtime.mission_chat_turn_context import _default_mission_chat_workdir
+    from agent_runtime.mission_chat_workdir import WORKDIR_SOURCE_CHAT_FOLDER
+    from tests.agent_runtime.test_mission_chat_turn_context import _build, _resolvers
+
+    monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "runtime"))
+    context = _build(resolvers=_resolvers(mission_chat_workdir=_default_mission_chat_workdir))
+    expected = paths.chat_folder("personainst_dev", "chat-root-1")
+    assert context.workdir.source == WORKDIR_SOURCE_CHAT_FOLDER
+    assert Path(context.workdir.path) == expected.resolve()

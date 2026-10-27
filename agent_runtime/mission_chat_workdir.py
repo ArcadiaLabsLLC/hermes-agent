@@ -34,13 +34,16 @@ The ladder (first source that resolves to a real directory wins)
    doctrine, that workspace is where the turn belongs.
 3. The persona's own ``repo_scope`` — the same declared repo the worker lane
    grounds in, when it names a real directory on this machine.
-4. The operator's home directory (``Path.home()``), handed in by the live
+4. The chat's own folder, ``paths.chat_folder(<instance>, <chat session>)``
+   inside the namespace (chat-folder plan §2.3). Created when this rung is
+   REACHED — a turn grounded by a rung above never creates one.
+5. The operator's home directory (``Path.home()``), handed in by the live
    wrapper — the same placeholder fallback upstream's gateway uses for an
    ungrounded local terminal (``gateway/cwd_placeholder.py``). A serve's own
    cwd is whatever its spawner held (a QA serve was measured running file tools
    in ``C:/windows/system32/spool/drivers/x64/3``, 2026-10-15), which nobody
    chose; it is never a turn's working directory when a home exists.
-5. Nothing: the pure resolver called without a home keeps the process cwd.
+6. Nothing: the pure resolver called without a home keeps the process cwd.
 
 Failing to safe cwd, loudly
 ---------------------------
@@ -74,6 +77,7 @@ WORKDIR_SOURCE_PERSONA_CONFIG = "persona_config"
 WORKDIR_SOURCE_PRIMARY_SLOT = "primary_slot"
 WORKDIR_SOURCE_WORKSPACE_AGENTS = "workspace_agents_file"
 WORKDIR_SOURCE_PERSONA_REPO_SCOPE = "persona_repo_scope"
+WORKDIR_SOURCE_CHAT_FOLDER = "chat_folder"
 WORKDIR_SOURCE_USER_HOME = "user_home"
 WORKDIR_SOURCE_PROCESS_CWD = "process_cwd"
 #: A batch lane's worktree (dispatcher plan §2.2, B5): the run names it, it outranks the ladder.
@@ -222,6 +226,7 @@ def resolve_mission_chat_workdir(
     workspace_agents_path: str | None = None,
     repo_scope: str | None = None,
     primary_slot_path: str | None = None,
+    chat_folder_path: str | None = None,
     home_fallback: str | None = None,
 ) -> MissionChatWorkdir:
     """Walk the grounding ladder; return the first real directory, typed.
@@ -257,11 +262,14 @@ def resolve_mission_chat_workdir(
         (WORKDIR_SOURCE_PRIMARY_SLOT, str(primary_slot_path or "").strip() or None),
         (WORKDIR_SOURCE_WORKSPACE_AGENTS, _workspace_root(workspace_agents_path)),
         (WORKDIR_SOURCE_PERSONA_REPO_SCOPE, str(repo_scope or "").strip() or None),
+        (WORKDIR_SOURCE_CHAT_FOLDER, str(chat_folder_path or "").strip() or None),
         (WORKDIR_SOURCE_USER_HOME, str(home_fallback or "").strip() or None),
     ):
         # A pointer that does not resolve is NOT re-typed here (see module
         # docstring): the operator's explicit `workdir` key owns the issue lane,
         # machine_roots / profile_readiness own repo_scope's.
+        if candidate and source == WORKDIR_SOURCE_CHAT_FOLDER:
+            candidate = _created_chat_folder(candidate)
         if candidate and _refusal(candidate) is None:
             return MissionChatWorkdir(
                 path=_resolved(candidate),
@@ -274,6 +282,19 @@ def resolve_mission_chat_workdir(
         source=WORKDIR_SOURCE_PROCESS_CWD,
         issues=tuple(issues),
     )
+
+
+def _created_chat_folder(path: str) -> str | None:
+    """The chat folder, created on the first turn that reaches its rung; ``None`` when it cannot be."""
+
+    folder = Path(path)
+    if not folder.is_absolute():
+        return None
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+    except OSError:  # a turn is never failed by grounding: degrade to the next rung
+        return None
+    return str(folder)
 
 
 def _with_fallback(
@@ -294,7 +315,8 @@ def _with_fallback(
 
 
 def mission_chat_workdir_for_persona(
-    persona: Any, *, workspace_agents_path: str | None = None, primary_slot_path: str | None = None
+    persona: Any, *, workspace_agents_path: str | None = None, primary_slot_path: str | None = None,
+    chat_folder_path: str | None = None,
 ) -> MissionChatWorkdir:
     """:func:`resolve_mission_chat_workdir` for a live persona.
 
@@ -316,6 +338,7 @@ def mission_chat_workdir_for_persona(
         workspace_agents_path=workspace_agents_path,
         repo_scope=getattr(persona, "repo_scope", None),
         primary_slot_path=primary_slot_path,
+        chat_folder_path=chat_folder_path,
         home_fallback=_home_or_none(),
     )
 
@@ -357,6 +380,19 @@ def with_run_override(workdir: MissionChatWorkdir, override: str | None) -> Miss
     if refused is not None:
         raise refused
     return MissionChatWorkdir(path=_resolved(requested), source=WORKDIR_SOURCE_RUN_OVERRIDE, issues=workdir.issues)
+
+
+def chat_folder_path_for(instance_id: str | None, chat_session_id: str | None) -> str | None:
+    """The rung-4 path for one persona chat, or ``None`` when either id is missing or no store root resolves."""
+
+    if not str(instance_id or "").strip() or not str(chat_session_id or "").strip():
+        return None
+    try:
+        from .paths import chat_folder
+
+        return str(chat_folder(str(instance_id), str(chat_session_id)))
+    except Exception:  # an unresolvable store root never fails a turn
+        return None
 
 
 def _home_or_none() -> str | None:

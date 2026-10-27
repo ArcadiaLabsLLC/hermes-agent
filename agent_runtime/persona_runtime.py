@@ -18,7 +18,7 @@ from .mission_chat_prompts import (
     _mission_chat_operative_rules,
     _mission_chat_soul_overlay,
 )
-from .mission_chat_workdir import MissionChatWorkdir, mission_chat_workdir_for_persona
+from .mission_chat_workdir import MissionChatWorkdir, chat_folder_path_for, mission_chat_workdir_for_persona
 from .profile_context import resolve_persona_profile
 from .provider_health import assert_provider_health_for_persona
 from .terminal_envelope import TerminalEnvelopeScope, scope_for_persona as terminal_envelope_scope_for_persona
@@ -179,7 +179,8 @@ class GPTPersonaRuntime:
         # (D1.12 S1); only a caller that hands none resolves it here.
         if workdir is None:
             workdir = mission_chat_workdir_for_persona(
-                persona, workspace_agents_path=workspace_agents_path, primary_slot_path=primary_slot_path
+                persona, workspace_agents_path=workspace_agents_path, primary_slot_path=primary_slot_path,
+                chat_folder_path=chat_folder_path_for(persona_instance_id, root_chat_session_id or session_id),
             )
         # Lane/role identity for the terminal safety envelope, bound for the
         # WHOLE run (see :func:`mission_chat_envelope_scope`). The workdir above
