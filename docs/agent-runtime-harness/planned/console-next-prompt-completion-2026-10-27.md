@@ -11,6 +11,30 @@ This plan owns runtime completion only. Launcher presentation is owned by
 `EterniaLauncher/docs/mission_control/planned/CONSOLE_NEXT_PROMPT_COMPLETION_2026-10-27.md`.
 The 2026-10-26 archived design remains historical; this is its unbuilt follow-up.
 
+## Stock capability versus our adaptation — final audit
+
+The pinned plugin already provides free-form generation, host auxiliary routing,
+context/cooldown tuning, final-reply context selection, language reinforcement,
+output cleanup, persistence, failure classification and stale-turn rejection.
+These are not inventions of this integration. Our first adaptation simplified
+the language reminder and cleaner; the generation row restores omitted useful
+behavior while retaining deliberate code/bracket and short-language acceptance.
+
+Required native adaptations bind those capabilities to Agent Console's durable
+persona chat, existing RPC and draft owners. Bounded scheduling, durable attempt
+receipts and disable epochs are additional implementation choices for concurrent
+native chats, not proof that the stock plugin lacked all lifecycle protection.
+The explicit false default, no guessed manual outcomes, visible-chat generation
+and 24-hour expiry are deliberate product differences. Keep them documented as
+differences, not as prerequisites for a useful suggestion feature or proof of
+superiority. The Launcher plan owns its separate UI parity inventory.
+
+This completion pass extends the current helpers only. It does not rebuild the
+scheduler/store, introduce another generator or restore the Desktop REST stack.
+Earlier question-only and empty-draft-only proposals were revised during planning;
+they are not a shipped restriction to remove. Temporary mutation-test changes
+were restored to verify tests; they were not product rollbacks.
+
 ## Fixed decisions and existing owners
 
 - User-facing surface: Agent Console; feature: Follow-up suggestions. Global
@@ -19,7 +43,10 @@ The 2026-10-26 archived design remains historical; this is its unbuilt follow-up
   existing config transaction remain the settings authority. The existing
   `plugins.entries.eternia-harness.settings.console_suggestions_enabled` defaults
   false. Scope remains the selected serving Harness, not a cross-install sync or
-  a per-persona setting. Disabled means no suggestion generation/history work.
+  a per-persona setting. Initially disabled means no suggestion generation/history
+  work. Disabling admits no new work and invalidates pending output; an already
+  issued provider request can finish under the existing cancellation/timeout
+  contract, and its result must not publish. Do not promise retroactive zero cost.
 - `agent_runtime/console_suggestions/generation.py::generate_suggestion` retains the registered `console_next_prompt`
   task through the existing plugin LLM facade. Inherited routing, optional
   provider/model/base_url override and reset preserve host authentication,
@@ -32,6 +59,25 @@ The 2026-10-26 archived design remains historical; this is its unbuilt follow-up
 - Existing native identity, committed-turn, root lease, policy epoch, retention,
   bounded scheduler and visibility rules stay authoritative. No second lifecycle,
   retry loop, model router, settings store or permission policy.
+
+### Auxiliary task compatibility and coexistence
+
+Preserving the host router does not mean preserving the stock task key. Stock
+uses `auxiliary.next_prompt`; the built Console integration uses
+`auxiliary.console_next_prompt`. A custom override on the former is not
+automatically inherited by the latter. Default/reset resolves the serving head's
+host routing, not the active persona model and not the stock task's override.
+Qualification must cover both keys present and conflicting, stock-only override,
+Console override/reset, and unrelated timeout/fallback/auth fields unchanged.
+An operator may deliberately select the same route through existing Console
+settings/config, but there is no automatic migration, dual-read fallback or write
+to the stock slot in this plan. Make the effective task/route explicit in evidence.
+
+Do not install or enable the stock Desktop plugin as a dependency. If it is
+already used for other surfaces, leave its configuration alone and verify that
+one native Console turn is served by one suggestion producer; do not widen its
+hook platform allowlist to run both producers over the same Console turn.
+These checks belong to RT-NEXT-PROMPT-PROVIDER-EVAL, not a new routing authority.
 
 ## Runtime changes to plan
 
@@ -85,13 +131,19 @@ acceptance and idle-box cold/warm/immediate-next-send timing. Record environment
 paired revisions, sample count and pass/fail criteria before measurement; no
 unmeasured claim of superiority to Codex or Claude.
 
-Hard acceptance: off-state zero provider calls; no persona/config mutation;
+Hard acceptance: initially off means zero provider calls; disable means no new
+calls and no stale publication (already-issued calls may finish); no persona
+mutation or config writes except the explicitly requested suggestion settings;
 override/reset retains host routing; no cross-subject publication; disable
 invalidates queued/in-flight output; no draft auto-send. Fixtures prove these
 contracts; quality and latency need live evidence. Suggested ship criteria are
 zero observed fabricated user actions/approvals in the fixed corpus and no
 regression in relevance/language scores or primary-turn latency against baseline;
 zero observed events is not a guarantee of semantic truth. Publish all misses.
+Use a finite evaluation corpus and existing test/evidence mechanisms, not a new
+benchmark service, permanent acceptance tracker or general telemetry pipeline.
+Reuse baseline receipts for unchanged contracts; rerun affected behavior and
+native acceptance, not every historical test because documentation changed.
 
 ## Deliberately outside this completion pass
 

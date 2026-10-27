@@ -79,3 +79,9 @@ Final paired Launcher landing is 97f4f93b4f (implementation 2e75042f49 plus f173
 [Completion plan](../agent-runtime-harness/planned/console-next-prompt-completion-2026-10-27.md) separates the remaining recommendations from this built
 implementation record. The owner requested plans and rows only, with implementation
 deferred. No new runtime, UI, live configuration or provider qualification is claimed.
+
+Final plan audit, 2026-10-27: [completion plan](../agent-runtime-harness/planned/console-next-prompt-completion-2026-10-27.md) now separates stock
+parity repairs from native adaptations and new Tab enhancement, limits Tab-only
+restrictions, removes optional-framework qualification blockers, and records the
+stock/Console auxiliary task-key distinction plus disable-in-flight semantics.
+Documentation only; no code rollback, provider call or runtime setting change.
