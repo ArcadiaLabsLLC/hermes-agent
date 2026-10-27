@@ -12,9 +12,9 @@ import pytest
 from agent_runtime.chat_session_scope import (
     ChatHeadSource,
     resolve_chat_session_scope,
-    resolve_conversation_chat_scope,
     resolve_instance_chat_scope,
 )
+from agent_runtime.chat_heads import resolve_conversation_chat_scope
 from agent_runtime.models import CHAT_HEAD_KIND_PER_PROFILE, CHAT_HEAD_KIND_PROCESS
 from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.profile_home import record_hermes_head_home_if_unset, reset_hermes_head_home

@@ -477,7 +477,8 @@ def _stamp_chat_head(instance: PersonaInstance, *, first_bind: bool = False) -> 
     session of this instance in the process head (plan §7.2 decision 8 (a)).
     """
     previous_chat_head = instance.chat_head_home
-    from ..chat_session_scope import first_bind_chat_head, resolve_process_chat_scope
+    from ..chat_session_scope import resolve_process_chat_scope
+    from ..chat_heads import first_bind_chat_head
     from ..models import CHAT_HEAD_KIND_PER_PROFILE
 
     if first_bind and (

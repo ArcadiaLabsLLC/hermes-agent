@@ -139,7 +139,7 @@ _BARE_PROCESS_ACQUIRE = re.compile(r"(?<![\w.`])_?default_persona_session_db\(\)
 _PROCESS_BY_DESIGN = {
     "agent_runtime/persona_chat_durability.py",
     # The projection's PROCESS read, not a writer; the summary it feeds fans
-    # out over the per_profile heads (chat_session_scope.per_profile_read_heads).
+    # out over the per_profile heads (chat_heads.per_profile_read_heads).
     "agent_runtime/snapshot/details.py",
 }
 

@@ -10,8 +10,8 @@ import time
 import uuid
 from agent_runtime.chat_session_scope import (
     is_canonical_session_persistence,
-    resolve_conversation_chat_scope,
 )
+from agent_runtime.chat_heads import resolve_conversation_chat_scope
 from agent_runtime.chat_turn_presence import ChatTurnPresence
 from agent_runtime.chat_session_writer import (
     current_chat_session_writer_owner,

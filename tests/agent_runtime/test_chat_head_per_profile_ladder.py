@@ -15,11 +15,11 @@ from agent_runtime.chat_session_scope import (
     CHAT_HEAD_MISSING,
     ChatHeadSource,
     SessionDbAccess,
-    chat_head_for,
     open_chat_session_db,
     resolve_chat_session_scope,
     resolve_instance_chat_scope,
 )
+from agent_runtime.chat_heads import chat_head_for
 from agent_runtime.models import CHAT_HEAD_KIND_PER_PROFILE, CHAT_HEAD_KIND_PROCESS
 from agent_runtime.persona_assignments import PersonaInstanceStore
 

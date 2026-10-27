@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from agent_runtime import chat_session_scope as scopes
+from agent_runtime import chat_heads, chat_session_scope as scopes
 from agent_runtime.instance_sessions import instance_session_ids
 from agent_runtime.models import CHAT_HEAD_KIND_PER_PROFILE
 
@@ -96,8 +96,8 @@ def _plan_instance(store: Any, instance: Any, source: Any, process: Any, *, appl
     if per_profile:
         target = Path(str(instance.chat_head_home))
     else:
-        persona = scopes._roster_persona(instance.persona_id)
-        target = scopes.chat_head_for(persona) if persona is not None else process.head_home
+        persona = chat_heads._roster_persona(instance.persona_id)
+        target = chat_heads.chat_head_for(persona) if persona is not None else process.head_home
     move = InstanceMove(instance_id, "planned", target_home=str(target))
     if scopes._same_path(target, process.head_home):
         return _skip(move, "runs_in_process_head")

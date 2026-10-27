@@ -149,7 +149,7 @@ def _acquire_chat_writer(scope):
 def persona_session_db_for(scope, *, process=None):
     """The persona-chat WRITER for one conversation's resolved scope (plan §7.2 decision 5).
 
-    ``scope`` comes from ``chat_session_scope.resolve_conversation_chat_scope``
+    ``scope`` comes from ``chat_heads.resolve_conversation_chat_scope``
     or ``resolve_instance_chat_scope``. A process answer is the process
     acquisition — ``process`` (default :func:`default_persona_session_db`, the
     caller's own seam, looked up at call time), so a moved site is the same
@@ -244,7 +244,7 @@ def _acquired_persona_session_db(session_id: str, *, persona_id: str | None = No
     (``snapshot.persona_session_db_scope`` carries the full argument).
     """
 
-    from agent_runtime.chat_session_scope import resolve_conversation_chat_scope
+    from agent_runtime.chat_heads import resolve_conversation_chat_scope
 
     # ``persona_id``: a root minted before its instance exists lands on the head
     # the first bind will stamp (plan §7.2 decision 8 (a)), not on ``base``.

@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
-from .. import chat_session_scope
+from .. import chat_heads, chat_session_scope
 from ..clock import iso_timestamp
 from ..models import PersonaInstance
 from ..projection_accountant import ProjectionAccountant
@@ -126,7 +126,7 @@ def persona_chat_history_summary(
     # Cross-agent fan-out (chat-head plan §2.4): every ``per_profile`` head
     # opened once, read-only; its instances read from it, everyone else from
     # ``db``. Heads first, so a head's copy outranks a leftover in ``db``.
-    with chat_session_scope.per_profile_read_heads(
+    with chat_heads.per_profile_read_heads(
         summary.instances_by_id.values(), process_db=db
     ) as head_reads:
         summary.head_reads = head_reads
@@ -173,7 +173,7 @@ class HistorySummary:
     # nothing, and a runtime with fifty orphans still pays one listing, never one
     # per session.
     retired_instance_ids: frozenset[str] | None = None
-    #: Instance id -> its ``per_profile`` head (``chat_session_scope.HeadRead``);
+    #: Instance id -> its ``per_profile`` head (``chat_heads.HeadRead``);
     #: an instance absent here reads from the process handle.
     head_reads: dict[str, Any] = field(default_factory=dict)
 

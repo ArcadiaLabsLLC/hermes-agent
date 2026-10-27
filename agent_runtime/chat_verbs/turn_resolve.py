@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..chat_session_scope import resolve_conversation_chat_scope
+from ..chat_heads import resolve_conversation_chat_scope
 from ..persona_chat_durability import default_persona_session_db as _default_persona_session_db
 from ..persona_chat_durability import persona_session_db_for
 from ..persona_chat_session import _persona_chat_session_owner

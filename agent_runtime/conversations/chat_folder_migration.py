@@ -143,8 +143,8 @@ def _bound_persona_root(store: ConversationStore, route: ConversationRoute) -> t
     from agent_runtime.chat_session_scope import (
         SessionDbAccess,
         open_chat_session_db,
-        resolve_conversation_chat_scope,
     )
+    from agent_runtime.chat_heads import resolve_conversation_chat_scope
     from agent_runtime.store_file_io import read_json_object
 
     receipts = paths.persona_chat_mint_receipts_dir()

@@ -209,7 +209,7 @@ Landed as planned, with two places the tree differs from the text above:
 
 Landed as planned, with these places the tree differs from the text above:
 
-- The writers resolve through ONE door, `chat_session_scope.resolve_conversation_chat_scope`
+- The writers resolve through ONE door, `chat_heads.resolve_conversation_chat_scope`
   (the instance; else the owner the session id encodes; else the caller's pin; else the ladder,
   kept only for a `per_profile` answer), and acquire through
   `persona_chat_durability.persona_session_db_for(scope, process=…)`. A process answer calls the
@@ -232,7 +232,7 @@ the head of the target's conversation. A `process` target still runs on the rela
 
 ### 7.4d Built — CH4-CROSS-AGENT-READS (lane w1027g-h-head, 2026-10-27)
 
-`chat_session_scope.per_profile_read_heads(instances, process_db=)` maps each `per_profile`
+`chat_heads.per_profile_read_heads(instances, process_db=)` maps each `per_profile`
 instance to its head, every distinct head opened once, read-only, closed on exit; a head equal to
 the process handle's is left to it. Two readers fan out over it:
 `persona_chat_history/summary.py::persona_chat_history_summary` (the roster: each head's pool
@@ -244,7 +244,7 @@ prompt-observability section moved later (§7.4g).
 
 ### 7.4e Built — CH2C-FIRST-BIND-STAMP (lane w1027h-h-head, 2026-10-27)
 
-`chat_session_scope.first_bind_chat_head(instance_id=, persona_id=, session_id=)` is the one answer:
+`chat_heads.first_bind_chat_head(instance_id=, persona_id=, session_id=)` is the one answer:
 the persona's run home when it is not the process head and the process head holds neither a session
 naming the instance (`agent_runtime/instance_sessions.py::instance_session_ids`, the predicate the
 history list already used) nor the session being bound. Both sides ask it — where the tree differs

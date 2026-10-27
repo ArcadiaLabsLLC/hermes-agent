@@ -5,7 +5,7 @@ import json
 import math
 from contextlib import closing
 
-from . import chat_session_scope
+from . import chat_heads, chat_session_scope
 from .conversation_owner import ConversationOwnerError, request_client_scope
 from .instance_selection import verify_instance_install, InstanceSelectionError
 from .instance_sessions import instance_session_clause
@@ -76,7 +76,7 @@ def list_instance_conversations(params: dict) -> dict:
             instance.id for instance in scan.instances if instance.persona_id == persona_id))
         # Cross-agent fan-out (chat-head plan §2.4): each per_profile head opened
         # once, read-only, paged with the same keyset, merged by that key.
-        with chat_session_scope.per_profile_read_heads(scan.instances, process_db=db) as heads:
+        with chat_heads.per_profile_read_heads(scan.instances, process_db=db) as heads:
             sources = [read.db for read in {id(r): r for r in heads.values()}.values()
                        if read.db is not None] + [db]
             raw = _merged_pages([(source, _history_page(

@@ -11,9 +11,9 @@ from contextlib import closing
 from agent_runtime.conversation_owner import ConversationOwnerError, require_session_owner
 from agent_runtime.chat_session_scope import (
     is_canonical_session_persistence,
-    resolve_conversation_chat_scope,
     resolve_instance_chat_scope,
 )
+from agent_runtime.chat_heads import resolve_conversation_chat_scope
 from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.coordinator_permissions import review_coordinator_budget
 from agent_runtime.persona_assignments import (

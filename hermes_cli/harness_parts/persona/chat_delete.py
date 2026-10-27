@@ -28,7 +28,7 @@ from agent_runtime.persona_chat_durability import (
     default_persona_session_db as _default_persona_session_db,
     persona_session_db_for,
 )
-from agent_runtime.chat_session_scope import resolve_conversation_chat_scope
+from agent_runtime.chat_heads import resolve_conversation_chat_scope
 from hermes_constants import get_hermes_home
 from hermes_time import now
 from .chat_request import _emit_persona_verb_payload

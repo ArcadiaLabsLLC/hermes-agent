@@ -88,12 +88,12 @@ class SnapshotFrame:
     head_reads: dict[str, Any] = field(init=False, default_factory=dict)
 
     def build(self) -> dict[str, Any]:
-        from .. import chat_session_scope
+        from .. import chat_heads
 
         self.roster_and_installs()
         # A ``per_profile`` instance's lineage is in its own head, opened once per
         # head, read-only; every other instance reads ``session_db`` as before.
-        with chat_session_scope.per_profile_read_heads(self.roster, process_db=self.session_db) as heads:
+        with chat_heads.per_profile_read_heads(self.roster, process_db=self.session_db) as heads:
             self.head_reads = heads
             contexts = self.built_contexts()
             chat_contexts, chat_contexts_evicted, ctx_read = self.live_rows(contexts)

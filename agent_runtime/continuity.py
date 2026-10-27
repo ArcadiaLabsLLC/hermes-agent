@@ -142,8 +142,8 @@ def _session_db(session_id: str | None = None):
     from .chat_session_scope import (
         SessionDbAccess,
         open_chat_session_db,
-        resolve_conversation_chat_scope,
     )
+    from .chat_heads import resolve_conversation_chat_scope
 
     # The PARENT conversation's head: the summary lands where that chat lives.
     scope = resolve_conversation_chat_scope(session_id=session_id)

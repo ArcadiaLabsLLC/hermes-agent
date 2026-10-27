@@ -8,7 +8,7 @@ from agent_runtime.call_authorization import LOCAL_CONSOLE
 from agent_runtime.gateway_identity import ensure_install_identity
 from agent_runtime.mission_chat_turns import persist_mission_chat_turn
 from agent_runtime.persona_assignments import PersonaInstanceStore
-from agent_runtime.chat_session_scope import resolve_conversation_chat_scope
+from agent_runtime.chat_heads import resolve_conversation_chat_scope
 from agent_runtime.persona_chat_durability import default_persona_session_db, persona_session_db_for
 from agent_runtime.persona_chat_session import _persist_chat_model_override
 from agent_runtime.store import AgentStore
