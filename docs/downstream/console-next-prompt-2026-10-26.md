@@ -151,3 +151,10 @@ runtime/CLI failures are recorded in `RT-WINDOWS-BASELINE-REGRESSIONS`; stale pi
 and mutation anchors in `FH-BASELINE-PINS-AND-MUTATION-ANCHORS`. The PM slow-exit
 environment requirement already has `FORK-SECOND-WORKSTATION-ENV`. These are
 qualification exceptions, not suggestion passes or changes to the assertions.
+
+## Shared provider check correction — 2026-10-27
+
+The earlier Amelia reconnect blocker was based on standalone profile credentials,
+not Launcher's account-shared auth owner. The read-only shared check is healthy;
+no reconnect was performed or required. See [the evaluation protocol correction](console-next-prompt-evaluation-2026-10-27.md#shared-connection-correction--2026-10-27).
+The isolated corpus and paired native matrix remain unmeasured.

@@ -45,5 +45,21 @@ Stop on authentication/configuration failure; do not guess another provider.
 
 Amelia's configured route is the proposed evaluation source. Configuration is
 copied to a temporary evaluation home; credentials remain with their canonical
-owner and persona files are not loaded or edited. The initial preflight found an
-expired access token. Await the owner's provider reconnection before samples.
+owner and persona files are not loaded or edited.
+
+### Shared-connection correction — 2026-10-27
+
+The initial preflight inspected Amelia's standalone profile credentials. That
+does not establish the health of Launcher's shared account connection. Launcher
+binds `HERMES_AUTH_HOME` through `HermesProviderScope.environment`; its selected
+namespaced base profile owns the connection used across personas. Resolve this
+owner from the saved installation, namespace and selected profile before testing.
+
+A read-only `get_codex_auth_status()` and `provider_list()` against that account
+base profile reported Codex logged in and a healthy OAuth credential, last
+refreshed at 21:14:07 UTC on October 27. No reconnect is needed on this evidence.
+No token, credential copy, provider refresh, persona edit or model request was
+performed. This is a status check, not the paid corpus or a generation-success
+claim. The account already had suggestions enabled; its explicit choice was
+preserved. The feature's default remains false. Use the verified shared auth
+owner for the isolated corpus, retaining the configured auxiliary routing.

@@ -3,7 +3,7 @@
 Status: PLANNED qualification; implementation authorized by the owner on 2026-10-27.
 The shared extraction and completion changes have landed from the owned worktree.
 Automated checks and baseline classification are recorded; live qualification awaits
-Amelia's provider reconnection. The former documentation-only
+the remaining isolated provider and native qualification; shared account credentials are healthy (see the evaluation protocol correction). The former documentation-only
 hold is released. Live user enablement remains off; no product confirmation flow is added.
 
 The original implementation remains built. See [chat canon](../05-chat-turn-lane.md)
@@ -126,7 +126,7 @@ result is text-or-absence plus existing route/usage facts, not an intent taxonom
 or extra semantic filter on the plugin's contextual free-form suggestions.
 
 The setting remains off by default under Global Settings > Eternia Harness >
-Agent Console > Follow-up suggestions. Reusable code does not make that Console
+Composer > Follow-up suggestions. Reusable code does not make that Console
 setting apply to DMs. No DM endpoint, context reader, setting, history adapter,
 membership policy, send integration or production registration is authorized.
 A future DM consumer would keep messaging's own permissions/history/send owners
