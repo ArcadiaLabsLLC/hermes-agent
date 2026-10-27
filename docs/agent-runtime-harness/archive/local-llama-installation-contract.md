@@ -19,7 +19,7 @@ Its supervisor changes launch-flag compatibility and unknown idle telemetry;
 the fork-owned Local llama implementation is unchanged. Qualify owner-specific
 arguments against pinned binaries and never turn unknown telemetry into lifecycle
 authority. No installer schema change follows from this update. See the
-[latest merge and validation notes](../planned/upstream-sync-20260915.md).
+[latest merge and validation notes](../archive/upstream-sync-20260915.md).
 
 The combined source includes upstream `hermes_cli/local_runtime/` (binary assets,
 hardware, GGUF/catalog, bootstrap, supervision and recovery). The original source
@@ -38,8 +38,8 @@ and journal publication before freezing installer fixtures.
 The integration candidate passed all 48 existing Local llama tests and the real
 isolated text/tool/compression/reload/owned-shutdown probe. This proves the existing
 runtime, not the proposed installer. See the detailed
-[installer handoff](../planned/upstream-sync-20260914/installer-handoff.md) and
-[candidate evidence](../planned/upstream-sync-20260914/candidate-test-evidence.json).
+[installer handoff](../archive/upstream-sync-20260914/installer-handoff.md) and
+[candidate evidence](../archive/upstream-sync-20260914/candidate-test-evidence.json).
 Launcher installation work remains blocked on producer-owned installer contract
 fixtures and served-wire proof; no installer methods have been implemented.
 
