@@ -37,6 +37,17 @@ class FlutterBuild:
     mode: str
 
 
+def _word_name(word: str) -> str:
+    """A command word's file name, lowercased, split on BOTH separators whatever the host.
+
+    ``os.path.basename`` keeps ``C:\\sdk\\flutter\\bin\\flutter.bat`` whole on POSIX, so a
+    guard running on Linux let a Windows-spelled build through (RT-FLUTTER-BUILD-GUARD-LINUX-RED).
+    The parser classifies TEXT, and what the text names does not depend on where it is read.
+    """
+
+    return word.replace("\\", "/").rsplit("/", 1)[-1].lower()
+
+
 def _tokens(segment: str) -> list[str]:
     return [token.strip("\"'") for token in _TOKEN_RE.findall(segment)]
 
@@ -46,7 +57,7 @@ def _command_words(tokens: list[str]) -> list[str]:
 
     words = list(tokens)
     while words:
-        head = os.path.basename(words[0]).lower()
+        head = _word_name(words[0])
         if head in _PREFIX_WORDS or _ENV_ASSIGN_RE.match(words[0]):
             words = words[1:]
         elif head in ("cmd", "cmd.exe") and len(words) > 1 and words[1].lower() in ("/c", "/k"):
@@ -66,7 +77,7 @@ def _cd_target(words: list[str]) -> str | None:
 def _build_args(words: list[str]) -> list[str] | None:
     """The arguments after ``build`` when this is ``flutter [global flags] build``, else None."""
 
-    if not words or os.path.basename(words[0]).lower() not in _FLUTTER_NAMES:
+    if not words or _word_name(words[0]) not in _FLUTTER_NAMES:
         return None
     rest = words[1:]
     while rest and rest[0].startswith("-"):
@@ -201,7 +212,7 @@ def recognize_argv(argv: list[str] | tuple[str, ...], cwd: str | os.PathLike[str
 
     words = _command_words([str(word) for word in argv])
     project = Path(os.path.expanduser(str(cwd)))
-    head = os.path.basename(words[0]).lower() if words else ""
+    head = _word_name(words[0]) if words else ""
     if head in _FLUTTER_NAMES:
         return CommandRecognition(_flutter_command(words[1:], project), words=tuple(words))
     if head in _DART_NAMES:

@@ -29,6 +29,10 @@ from agent_runtime.builds import flutter_argv as fa
              "build", "windows", "--release"],
             ("build", "windows", "release", "flutter"),
         ),
+        # A path-spelled command word names the same tool on every host: os.path.basename
+        # kept a backslash path whole on POSIX (RT-FLUTTER-BUILD-GUARD-LINUX-RED).
+        ([r"C:\sdk\flutter\bin\flutter.bat", "build", "windows", "--profile"], ("build", "windows", "profile", "flutter")),
+        (["/opt/flutter/bin/flutter", "build", "linux"], ("build", "linux", "release", "flutter")),
         (["dart", "run", "tool/stagec_parity_build.dart", "--commit", "abc"], ("build", "qa_isolated", "release", "dart")),
         (["dart.exe", "language-server"], ("other", "", "", "dart")),
     ],
