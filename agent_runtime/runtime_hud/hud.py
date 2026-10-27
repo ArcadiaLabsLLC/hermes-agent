@@ -205,7 +205,6 @@ def _steering_block(instance: Any, roster: Iterable[Any], *, self_id: str | None
 def resolve_situational_hud(
     instance: Any,
     *,
-    daemon: dict[str, Any] | None = None,
     realm: str | None = None,
     workspace: str | None = None,
     roster: Iterable[Any] = (),

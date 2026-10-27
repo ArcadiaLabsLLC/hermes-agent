@@ -64,4 +64,3 @@ Delete it. When the last row of an instalment closes, the program ledger (`god-f
 
 ## Filed on arrival — 2026-10-27 (lane w1027k-h-rt)
 
-- **`DC-HUD-DAEMON-PARAM` — the retired daemon pulse still has a parameter: `runtime_hud.hud.resolve_situational_hud(daemon=…)` is never read in its body, its one caller passes `daemon=None` (`agent_runtime/runtime_hud/ambient.py`), and `prompt_observability.snapshot_frame.snapshot_prompt_observability(daemon=…)` threads it from the snapshot section's `daemon=None`; delete the kwarg at all three** · fork / runtime HUD · `agent_runtime/runtime_hud/hud.py::resolve_situational_hud`, `agent_runtime/prompt_observability/snapshot_frame.py::snapshot_prompt_observability` · READY 2026-10-27 · **TAKEN 2026-10-27 w1028a-h-rt on vm as Claude in w1028a-h-rt**

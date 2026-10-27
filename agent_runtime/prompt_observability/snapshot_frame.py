@@ -49,7 +49,6 @@ def snapshot_prompt_observability(
     personas: Iterable[Any],
     persona_instances: Iterable[Any],
     session_db: Any | None = None,
-    daemon: dict[str, Any] | None = None,
     realm: str | None = None,
     workspace: str | None = None,
     active_workspace_id: str | None = None,
@@ -60,7 +59,6 @@ def snapshot_prompt_observability(
         personas=personas,
         persona_instances=persona_instances,
         session_db=session_db,
-        daemon=daemon,
         realm=realm,
         workspace=workspace,
         active_workspace_id=active_workspace_id,
@@ -76,7 +74,6 @@ class SnapshotFrame:
     personas: Iterable[Any]
     persona_instances: Iterable[Any]
     session_db: Any | None = None
-    daemon: dict[str, Any] | None = None
     realm: str | None = None
     workspace: str | None = None
     active_workspace_id: str | None = None
@@ -153,7 +150,6 @@ class SnapshotFrame:
             )
             return resolve_situational_hud(
                 instance,
-                daemon=self.daemon,
                 realm=self.realm,
                 workspace=self.workspace,
                 roster=scoped_roster,
