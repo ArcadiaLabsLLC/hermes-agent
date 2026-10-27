@@ -205,6 +205,23 @@ Landed as planned, with two places the tree differs from the text above:
   "chat_head_missing"` (the resolver never raises); `open_chat_session_db` opens nothing for a
   refused scope, so neither a read nor a write reaches `base`.
 
+### 7.4b Built — CH2B-WRITERS (lane w1027g-h-head, 2026-10-27)
+
+Landed as planned, with these places the tree differs from the text above:
+
+- The writers resolve through ONE door, `chat_session_scope.resolve_conversation_chat_scope`
+  (the instance; else the owner the session id encodes; else the caller's pin; else the ladder,
+  kept only for a `per_profile` answer), and acquire through
+  `persona_chat_durability.persona_session_db_for(scope, process=…)`. A process answer calls the
+  site's own process acquisition, so every moved site is byte-identical until a record is
+  `per_profile`; a refused scope raises `PersonaChatPersistenceError("chat_head_missing")`.
+- `snapshot/details.py`'s acquisition is the projection's cross-agent READ, not a writer: it moved
+  with CH4, not here.
+- The store-side mint (`ensure_durable_persona_chat_root`, reached by `add_instance`) resolves the
+  session it persists, so a created agent's root follows its head too.
+- Not in decision 5's list and not moved: `own_session_import.py` (writes imported chats) and
+  `conversations/chat_folder_migration.py` (reads mint receipts' roots) — filed as rows.
+
 ### 7.5 Open questions
 
 None for the owner: every choice above is technical and follows ruling 4. §4's question (what stays in

@@ -51,7 +51,7 @@ def return_summary_to_parent_session(
     message = _format_parent_message(safe_instance, safe_summary, proof_ids=proofs, artifact_refs=artifacts)
     client_message_id = _client_message_id(safe_instance, safe_session, safe_summary)
 
-    session_db = _session_db()
+    session_db = _session_db(safe_session)
     session_db.ensure_session(safe_session, source="agent_runtime_persona_chat")
     # Wrapped in the live-log seam like every other explicit persona-chat
     # append: "the child finished, here is the distilled result" is exactly the
@@ -127,7 +127,7 @@ def return_summary_to_parent_session(
     }
 
 
-def _session_db():
+def _session_db(session_id: str | None = None):
     """The OPERATOR-visible chat database — never the ambient ``HERMES_HOME`` one.
 
     A child returning a distilled summary to its parent runs precisely under a
@@ -139,11 +139,15 @@ def _session_db():
     ``docs/agent-runtime-harness/archive/2026-08-22-pre-consolidation/chat-session-presence-authority.md``.)
     """
 
-    from .chat_session_scope import open_chat_session_db
+    from .chat_session_scope import (
+        SessionDbAccess,
+        open_chat_session_db,
+        resolve_conversation_chat_scope,
+    )
 
-    from .chat_session_scope import SessionDbAccess
-
-    db = open_chat_session_db(access=SessionDbAccess.WRITE)
+    # The PARENT conversation's head: the summary lands where that chat lives.
+    scope = resolve_conversation_chat_scope(session_id=session_id)
+    db = open_chat_session_db(scope, access=SessionDbAccess.WRITE)
     if db is None:
         raise RuntimeError("chat session database unavailable")
     return db

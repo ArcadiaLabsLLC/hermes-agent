@@ -12,7 +12,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..chat_session_scope import resolve_conversation_chat_scope
 from ..persona_chat_durability import default_persona_session_db as _default_persona_session_db
+from ..persona_chat_durability import persona_session_db_for
 from ..persona_chat_session import _persona_chat_session_owner
 from ..mission_chat_turns.states import TurnResolution
 
@@ -31,7 +33,10 @@ def _owner_instance_id(session_id: str) -> str | None:
     from ..persona_assignments import PersonaInstanceStore
 
     try:
-        owner_id = _persona_chat_session_owner(_default_persona_session_db(), session_id)
+        session_db = persona_session_db_for(
+            resolve_conversation_chat_scope(session_id=session_id), process=_default_persona_session_db
+        )
+        owner_id = _persona_chat_session_owner(session_db, session_id)
         return PersonaInstanceStore().get(owner_id).id if owner_id else None
     except Exception:
         return None

@@ -541,7 +541,8 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
         mission_chat_runtime_signature_from_components,
     )
     from .models import apply_instance_model_overrides
-    from .persona_chat_durability import default_persona_session_db
+    from .chat_session_scope import resolve_instance_chat_scope
+    from .persona_chat_durability import persona_session_db_for
     from .persona_runtime import PERSONA_CHAT_SCRATCH_SOURCE, mission_chat_envelope_scope
     from .persona_chat_continuity import persona_chat_runtime_registry
     from .profile_context import resolve_persona_profile
@@ -569,7 +570,8 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
     if binding.readiness == "missing_profile":
         raise _PrewarmRefused(OUTCOME_SKIPPED_PROFILE_UNREADY)
 
-    session_db = default_persona_session_db()
+    # The root's own head (its instance's), the store its first turn writes.
+    session_db = persona_session_db_for(resolve_instance_chat_scope(instance))
     session_model_config = _session_model_config(session_db, root)
     model_selection = _chat_effective_model_payload(
         persona=persona,

@@ -9,7 +9,11 @@ from __future__ import annotations
 from dataclasses import asdict
 from contextlib import closing
 from agent_runtime.conversation_owner import ConversationOwnerError, require_session_owner
-from agent_runtime.chat_session_scope import is_canonical_session_persistence
+from agent_runtime.chat_session_scope import (
+    is_canonical_session_persistence,
+    resolve_conversation_chat_scope,
+    resolve_instance_chat_scope,
+)
 from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.coordinator_permissions import review_coordinator_budget
 from agent_runtime.persona_assignments import (
@@ -27,6 +31,7 @@ from agent_runtime.persona_chat_durability import (
     PersonaChatPersistenceError,
     default_persona_session_db as _default_persona_session_db,
     ensure_persona_chat_session as _ensure_persona_chat_session,
+    persona_session_db_for,
 )
 from agent_runtime.persona_chat_continuity import mint_chat_root
 from agent_runtime.persona_chat_mints import PersonaChatMintError
@@ -202,7 +207,15 @@ def _cmd_persona_instance_open_chat(args) -> int:
                     or None
                 ),
             )
-            session_db = _default_persona_session_db()
+            session_db = persona_session_db_for(
+                resolve_conversation_chat_scope(
+                    session_id=args.session_id,
+                    persona_instance_id=safe_assignment_token(
+                        getattr(args, "persona_instance_id", None)
+                    ) or None,
+                ),
+                process=_default_persona_session_db,
+            )
             if (
                 is_canonical_session_persistence(session_db)
                 and session_db.get_session(args.session_id) is None
@@ -307,7 +320,9 @@ def _cmd_persona_instance_open_chat(args) -> int:
         return 2
     try:
         _ensure_persona_chat_session(
-            session_db=_default_persona_session_db(),
+            session_db=persona_session_db_for(
+                resolve_instance_chat_scope(instance), process=_default_persona_session_db
+            ),
             session_id=instance.default_chat_session_id,
             persona_id=instance.persona_id,
             title=f"{instance.display_name} chat",
@@ -433,7 +448,9 @@ def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_sc
         )
 
     try:
-        with closing(_default_persona_session_db()) as session_db:
+        with closing(persona_session_db_for(
+            resolve_instance_chat_scope(current), process=_default_persona_session_db
+        )) as session_db:
             receipt = mint_chat_root(
                 instance_store=store,
                 session_db=session_db,

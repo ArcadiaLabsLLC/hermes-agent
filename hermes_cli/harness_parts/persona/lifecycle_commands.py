@@ -24,7 +24,9 @@ from agent_runtime.persona_chat_durability import (
     PersonaChatPersistenceError,
     default_persona_session_db as _default_persona_session_db,
     ensure_persona_chat_session as _ensure_persona_chat_session,
+    persona_session_db_for,
 )
+from agent_runtime.chat_session_scope import resolve_instance_chat_scope
 from .chat_coordinator import (
     _coordinator_actor_id,
     _coordinator_confirm_payload,
@@ -268,7 +270,9 @@ def _cmd_persona_instance_create(args) -> int:
             return 2
         try:
             _ensure_persona_chat_session(
-                session_db=_default_persona_session_db(),
+                session_db=persona_session_db_for(
+                    resolve_instance_chat_scope(instance), process=_default_persona_session_db
+                ),
                 session_id=instance.default_chat_session_id,
                 persona_id=instance.persona_id,
                 title=f"{instance.display_name} chat",

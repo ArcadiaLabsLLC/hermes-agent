@@ -96,11 +96,7 @@ def default_persona_session_db():
     try:
         from hermes_constants import get_hermes_home_override
 
-        from agent_runtime.chat_session_scope import (
-            SessionDbAccess,
-            open_chat_session_db,
-            resolve_process_chat_scope,
-        )
+        from agent_runtime.chat_session_scope import resolve_process_chat_scope
 
         # The persona-chat SessionDB is the OPERATOR-visible transcript store —
         # the exact DB ``persona_chat_history`` (the snapshot projection) reads.
@@ -118,12 +114,24 @@ def default_persona_session_db():
         # base profile) relaying in-process. The former path-equality check
         # conflated the two and killed every relay such a persona sent (live
         # 2026-07-23, chat_session_db_unavailable).
-        # Default DB acquisition for the process: no session in hand. A
-        # caller that HAS one passes its own scope to open_chat_session_db.
+        # The PROCESS-only acquisition: no conversation in hand. A writer that
+        # HAS one resolves its scope and calls persona_session_db_for.
         scope = resolve_process_chat_scope()
         override = get_hermes_home_override()
         if override is not None and not scope.authoritative:
             raise PersonaChatPersistenceError("session_db_acquire")
+    except PersonaChatPersistenceError:
+        raise
+    except Exception as exc:
+        raise PersonaChatPersistenceError("session_db_acquire", exc) from exc
+    return _acquire_chat_writer(scope)
+
+
+def _acquire_chat_writer(scope):
+    """Lease *scope*'s writer from the request's owner, else open one; raise, never ``None``."""
+
+    try:
+        from agent_runtime.chat_session_scope import SessionDbAccess, open_chat_session_db
         from agent_runtime.chat_session_writer import current_chat_session_writer_owner
 
         owner = current_chat_session_writer_owner()
@@ -131,13 +139,31 @@ def default_persona_session_db():
             owner.acquire(scope) if owner is not None
             else open_chat_session_db(scope, access=SessionDbAccess.WRITE)
         )
-        if db is None:
-            raise PersonaChatPersistenceError("session_db_acquire")
-        return db
-    except PersonaChatPersistenceError:
-        raise
     except Exception as exc:
         raise PersonaChatPersistenceError("session_db_acquire", exc) from exc
+    if db is None:
+        raise PersonaChatPersistenceError("session_db_acquire")
+    return db
+
+
+def persona_session_db_for(scope, *, process=None):
+    """The persona-chat WRITER for one conversation's resolved scope (plan §7.2 decision 5).
+
+    ``scope`` comes from ``chat_session_scope.resolve_conversation_chat_scope``
+    or ``resolve_instance_chat_scope``. A process answer is the process
+    acquisition — ``process`` (default :func:`default_persona_session_db`, the
+    caller's own seam, looked up at call time), so a moved site is the same
+    acquisition it was until a record is ``per_profile``. A ``per_profile``
+    scope leases (or opens) its own head through the same writer owner. A
+    refused scope raises with the refusal as the operation, never a write into
+    the process head.
+    """
+
+    if not getattr(scope, "per_profile", False):
+        return (process or default_persona_session_db)()
+    if scope.refusal is not None:
+        raise PersonaChatPersistenceError(scope.refusal)
+    return _acquire_chat_writer(scope)
 
 
 def persona_chat_ownership(
@@ -208,7 +234,7 @@ def ensure_persona_chat_session(
 
 
 @contextmanager
-def _acquired_persona_session_db() -> Iterator[Any]:
+def _acquired_persona_session_db(session_id: str) -> Iterator[Any]:
     """Acquire the operator chat ``SessionDB`` and CLOSE it on the way out.
 
     The argv handlers pass a handle they already hold, so this scope exists for
@@ -218,7 +244,9 @@ def _acquired_persona_session_db() -> Iterator[Any]:
     (``snapshot.persona_session_db_scope`` carries the full argument).
     """
 
-    session_db = default_persona_session_db()
+    from agent_runtime.chat_session_scope import resolve_conversation_chat_scope
+
+    session_db = persona_session_db_for(resolve_conversation_chat_scope(session_id=session_id))
     try:
         yield session_db
     finally:
@@ -246,7 +274,7 @@ def ensure_durable_persona_chat_root(
     on and bind anyway".
     """
 
-    with _acquired_persona_session_db() as session_db:
+    with _acquired_persona_session_db(session_id) as session_db:
         ensure_persona_chat_session(
             session_db=session_db,
             session_id=session_id,
@@ -264,4 +292,5 @@ __all__ = [
     "ensure_persona_chat_session",
     "persona_chat_ownership",
     "persona_chat_persistence_failed",
+    "persona_session_db_for",
 ]

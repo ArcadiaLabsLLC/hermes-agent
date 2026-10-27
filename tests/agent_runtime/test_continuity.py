@@ -166,7 +166,7 @@ def test_a_failed_return_summary_append_is_not_mirrored():
             raise RuntimeError("db down")
 
     original = continuity._session_db
-    continuity._session_db = lambda: _ExplodingDB()
+    continuity._session_db = lambda *_args: _ExplodingDB()
     try:
         store = PersonaInstanceStore()
         parent = store.ensure_for_persona(_persona("neko_supervisor"))

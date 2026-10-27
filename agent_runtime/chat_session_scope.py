@@ -171,6 +171,7 @@ __all__ = [
     "recorded_chat_head_home",
     "recorded_instance_chat_head",
     "resolve_chat_session_scope",
+    "resolve_conversation_chat_scope",
     "resolve_instance_chat_scope",
     "resolve_process_chat_scope",
 ]
@@ -410,6 +411,22 @@ class ChatSessionScope:
 
         return self.source is not ChatHeadSource.AMBIENT_HOME
 
+    @property
+    def per_profile(self) -> bool:
+        """Did a ``per_profile`` instance record answer (its own home, or its refusal)?
+
+        The one question a per-conversation writer asks: when False the scope is
+        the PROCESS answer and the writer takes the process acquisition, so a
+        site that moved to the instance door is byte-identical to the process
+        one until a record is stamped ``per_profile`` (plan §7.2 decision 9).
+        """
+
+        return (
+            self.source is ChatHeadSource.INSTANCE_RECORDED
+            and self.instance_head is not None
+            and self.instance_head.per_profile
+        )
+
     def payload(self) -> dict[str, Any]:
         """Stable, machine-readable scope block for ``--json`` envelopes."""
 
@@ -496,6 +513,58 @@ def resolve_instance_chat_scope(instance: Any) -> ChatSessionScope:
     if process.source is ChatHeadSource.RELAY_CONTEXT:
         return process
     return _per_profile_scope(_instance_chat_head(instance)) or process
+
+
+def resolve_conversation_chat_scope(
+    *,
+    session_id: str | None = None,
+    persona_instance_id: str | None = None,
+    instance: Any = None,
+    instance_store: Any = None,
+) -> ChatSessionScope:
+    """The chat scope a per-conversation WRITER acquires (plan §7.2 decision 5). Never raises.
+
+    The owning instance answers when it can be named — ``instance`` itself, else
+    the owner the session id encodes (``persona_chat_<instance>_<hex>``), else
+    the caller's pin — through :func:`resolve_instance_chat_scope`. A session
+    whose owner cannot be derived (a legacy opaque id) asks the ladder, and keeps
+    its answer only when a ``per_profile`` record gave it; a derived owner with
+    no row (an instance being created) has no record to ask. Everything else is
+    the process scope, so a writer that moves here changes nothing for a process
+    record.
+    """
+
+    owner = _derived_owner(session_id)
+    if instance is None:
+        instance = _load_instance(owner or str(persona_instance_id or "").strip(), instance_store)
+    if instance is not None:
+        return resolve_instance_chat_scope(instance)
+    if session_id and str(session_id).strip() and not owner:
+        scope = resolve_chat_session_scope(session_id=str(session_id))
+        if scope.per_profile:
+            return scope
+    return resolve_process_chat_scope()
+
+
+def _derived_owner(session_id: str | None) -> str:
+    if not session_id:
+        return ""
+    from .persona_assignments.identity import chat_session_owner_instance_id
+
+    return chat_session_owner_instance_id(session_id) or ""
+
+
+def _load_instance(instance_id: str, instance_store: Any) -> Any:
+    if not instance_id:
+        return None
+    try:
+        if instance_store is None:
+            from .persona_assignments import PersonaInstanceStore
+
+            instance_store = PersonaInstanceStore()
+        return instance_store.get(instance_id)
+    except Exception:
+        return None
 
 
 def chat_head_for(persona: Any) -> Path:

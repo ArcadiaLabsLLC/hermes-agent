@@ -8,7 +8,10 @@ from __future__ import annotations
 
 import time
 import uuid
-from agent_runtime.chat_session_scope import is_canonical_session_persistence
+from agent_runtime.chat_session_scope import (
+    is_canonical_session_persistence,
+    resolve_conversation_chat_scope,
+)
 from agent_runtime.chat_turn_presence import ChatTurnPresence
 from agent_runtime.chat_session_writer import (
     current_chat_session_writer_owner,
@@ -41,6 +44,7 @@ from agent_runtime.persona_chat_mints import PersonaChatMintError
 from agent_runtime.persona_chat_durability import (
     PersonaChatPersistenceError,
     default_persona_session_db as _default_persona_session_db,
+    persona_session_db_for,
 )
 from .chat_admission import (
     _bind_mission_chat_delivery_capability,
@@ -250,40 +254,6 @@ def _cmd_mission_chat_message(args) -> int:
         _mission_chat_emit(args, data)
         return 2
 
-    # chat-turn-prep Stage 4: MEASURE the SessionDB open before deciding to pool
-    # it. H3 (§3) confirmed in CODE that every turn constructs a fresh
-    # ``SessionDB`` whose writer-path constructor runs ``_init_schema`` (DDL +
-    # FTS probe + column reconcile) plus the WAL checks, and confirmed just as
-    # plainly that its millisecond share of the ``request_received →
-    # context_built`` span was never measured. The pooling remedy is gated on
-    # this number, not on the code shape — the plan's own §6 rule about remedies
-    # measured against numbers nobody can re-take applies to its own stages.
-    #
-    # ``time.monotonic`` for the same reason ``mission_chat_phases`` uses it: an
-    # NTP step must not be able to poison a duration. The value is folded into
-    # the durable record's ``profile_timing`` block below; a turn that fails
-    # here never reaches that fold, so the key stays ABSENT rather than
-    # reporting the cost of an open that did not succeed.
-    _session_db_open_started = time.monotonic()
-    _session_db_open_ms: int | None = None
-    try:
-        session_db = _default_persona_session_db()
-    except PersonaChatPersistenceError as exc:
-        data = {
-            "ok": False,
-            "capability_id": "mission.chat.message",
-            "execution_state": ExecutionState.FAILED,
-            "error_kind": ChatErrorKind.CHAT_SESSION_DB_UNAVAILABLE,
-            "persistence_operation": exc.operation,
-            "error": str(exc),
-            "persona_id": normalized_persona,
-            "next_expected": "restore canonical persona chat transcript storage and retry the message",
-        }
-        _mission_chat_emit(args, data)
-        return 2
-    _session_db_open_ms = max(
-        0, int((time.monotonic() - _session_db_open_started) * 1000)
-    )
     from agent_runtime.preparation_reads import InstanceReadEpoch
     instance_read_epoch = InstanceReadEpoch()
     instance_store = PersonaInstanceStore(preparation_epoch=instance_read_epoch)
@@ -417,6 +387,65 @@ def _cmd_mission_chat_message(args) -> int:
         _mission_chat_emit(args, data)
         return 2
 
+    if not session_id:
+        # The omitted-session target, decided BEFORE the SessionDB open so the
+        # open can resolve this instance's chat head (chat-head plan §7.2
+        # decision 5). Read-only; see the omitted-session branch below for why
+        # it is ONE instance identity for the turn.
+        persona_instance_id = (
+            persona_instance_id
+            or _mission_chat_bare_persona_target(
+                instance_store,
+                normalized_persona=normalized_persona,
+                requested_by_session=requested_by_session,
+            )
+            or canonical_chat_instance_id(normalized_persona, None)
+        )
+    # The open runs once the target instance is known: the instance's chat head
+    # (its own profile for a ``per_profile`` record, the process head otherwise)
+    # names the store this turn writes. The timing moved with it.
+    #
+    # chat-turn-prep Stage 4: MEASURE the SessionDB open before deciding to pool
+    # it. H3 (§3) confirmed in CODE that every turn constructs a fresh
+    # ``SessionDB`` whose writer-path constructor runs ``_init_schema`` (DDL +
+    # FTS probe + column reconcile) plus the WAL checks, and confirmed just as
+    # plainly that its millisecond share of the ``request_received →
+    # context_built`` span was never measured. The pooling remedy is gated on
+    # this number, not on the code shape — the plan's own §6 rule about remedies
+    # measured against numbers nobody can re-take applies to its own stages.
+    #
+    # ``time.monotonic`` for the same reason ``mission_chat_phases`` uses it: an
+    # NTP step must not be able to poison a duration. The value is folded into
+    # the durable record's ``profile_timing`` block below; a turn that fails
+    # here never reaches that fold, so the key stays ABSENT rather than
+    # reporting the cost of an open that did not succeed.
+    _session_db_open_started = time.monotonic()
+    _session_db_open_ms: int | None = None
+    try:
+        session_db = persona_session_db_for(
+            resolve_conversation_chat_scope(
+                session_id=session_id or None,
+                persona_instance_id=persona_instance_id,
+                instance_store=instance_store,
+            ),
+            process=_default_persona_session_db,
+        )
+    except PersonaChatPersistenceError as exc:
+        data = {
+            "ok": False,
+            "capability_id": "mission.chat.message",
+            "execution_state": ExecutionState.FAILED,
+            "error_kind": ChatErrorKind.CHAT_SESSION_DB_UNAVAILABLE,
+            "persistence_operation": exc.operation,
+            "error": str(exc),
+            "persona_id": normalized_persona,
+            "next_expected": "restore canonical persona chat transcript storage and retry the message",
+        }
+        _mission_chat_emit(args, data)
+        return 2
+    _session_db_open_ms = max(
+        0, int((time.monotonic() - _session_db_open_started) * 1000)
+    )
     if (
         session_id
         and is_canonical_session_persistence(session_db)
@@ -532,15 +561,7 @@ def _cmd_mission_chat_message(args) -> int:
         # 'personainst_qa'") — refusing every placement-routed send, new-session
         # and continue alike. The explicit-session branch above already adopts
         # its resolved owner the same way; this is the omitted-session mirror.
-        persona_instance_id = (
-            persona_instance_id
-            or _mission_chat_bare_persona_target(
-                instance_store,
-                normalized_persona=normalized_persona,
-                requested_by_session=requested_by_session,
-            )
-            or canonical_chat_instance_id(normalized_persona, None)
-        )
+        # (``persona_instance_id`` was resolved above, before the SessionDB open.)
         # Fresh-vs-continue is decided by ONE authority
         # (agent_runtime.dispatch_session_policy), not by an inline
         # `not args.new_session` boolean: the flag is tri-state now (True /

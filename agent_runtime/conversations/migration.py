@@ -13,7 +13,12 @@ from pathlib import Path
 
 from agent_runtime.conversation_owner import client_scope, require_session_owner
 from agent_runtime.persona_assignments import PersonaInstanceStore, persona_chat_session_id_for
-from agent_runtime.persona_chat_durability import default_persona_session_db, persona_chat_ownership
+from agent_runtime.chat_session_scope import resolve_instance_chat_scope
+from agent_runtime.persona_chat_durability import (
+    default_persona_session_db,
+    persona_chat_ownership,
+    persona_session_db_for,
+)
 from agent_runtime.persona_chat_mints import reserve_persona_chat_mint
 from agent_runtime.persona_profile_binding import binding_index
 from agent_runtime.profile_context import active_profile_name
@@ -145,7 +150,9 @@ def migrate_conversation(service, scope, route, instance):
         idempotency_key="profile-migration:" + route.id, persona_id=instance.persona_id,
         persona_instance_id=instance.id, session_id=persona_chat_session_id_for(instance.id),
         client_scope=scope.client, select_session=False,
-    ) as mint, closing(default_persona_session_db()) as db:
+    ) as mint, closing(persona_session_db_for(
+        resolve_instance_chat_scope(instance), process=default_persona_session_db
+    )) as db:
         root = mint.receipt.session_id
         if not mint.receipt.bound and db.get_session(root) is None:
             segments = _source_segments(service, route)

@@ -26,7 +26,9 @@ from agent_runtime.persona_chat_continuity import (
 from agent_runtime.persona_chat_durability import (
     PersonaChatPersistenceError,
     default_persona_session_db as _default_persona_session_db,
+    persona_session_db_for,
 )
+from agent_runtime.chat_session_scope import resolve_conversation_chat_scope
 from hermes_constants import get_hermes_home
 from hermes_time import now
 from .chat_request import _emit_persona_verb_payload
@@ -104,7 +106,10 @@ def _cmd_persona_chat_delete(args) -> int:
 
     deleted_session = False
     try:
-        session_db = _default_persona_session_db()
+        session_db = persona_session_db_for(
+            resolve_conversation_chat_scope(session_id=session_id),
+            process=_default_persona_session_db,
+        )
     except PersonaChatPersistenceError as exc:
         data = {
             "ok": False,

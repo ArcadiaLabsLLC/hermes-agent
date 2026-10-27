@@ -317,6 +317,14 @@ def _default_store_root() -> str:
     return str(paths.store_root())
 
 
+def _default_chat_head(instance: Any) -> str:
+    """The chat store this instance's conversation writes (chat-head plan §7.2 decision 7)."""
+
+    from .chat_session_scope import resolve_instance_chat_scope
+
+    return str(resolve_instance_chat_scope(instance).db_path)
+
+
 @dataclass(frozen=True, slots=True)
 class MissionChatTurnResolvers:
     """The impure seams the assembly needs, each bound to its ONE authority.
@@ -355,6 +363,9 @@ class MissionChatTurnResolvers:
     tool_contract: Callable[..., dict[str, Any]] = _default_tool_contract
     permission_state: Callable[..., dict[str, Any]] = _default_permission_state
     store_root: Callable[[], str] = _default_store_root
+    #: The instance's chat head ``db_path``: a resident actor holds the
+    #: ``session_db`` it was built with, so a head that moves must rebuild it.
+    chat_head: Callable[[Any], str] = _default_chat_head
 
 
 DEFAULT_RESOLVERS = MissionChatTurnResolvers()
@@ -929,6 +940,7 @@ def mission_chat_runtime_signature_components(
             str(surface_prompt or "").encode("utf-8")
         ).hexdigest(),
         "runtime_root": resolvers.store_root(),
+        "chat_head": resolvers.chat_head(instance),
         "prompt_contract_revision": PROMPT_CONTRACT_REVISION,
     }
 
