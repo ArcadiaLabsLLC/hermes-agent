@@ -2,10 +2,10 @@
 runtime HUD strip and the agent's chat turn both render, so operator and agent
 reason from the identical picture ("parity so the AI and I are on the same page").
 
-The launcher `MissionRuntimeHudStrip` shows the operator: the daemon pulse
-(state · loop · beat · next-wake), the scope (realm · workspace), the bound
-mission (title · state · threads), the selected lane (identity · liveness ·
-steer handle), and the on-level roster.
+The launcher `MissionRuntimeHudStrip` shows the operator: the scope (realm ·
+workspace), the bound mission (title · state · threads), the selected lane
+(identity · liveness · steer handle), the on-level roster and the rest of
+``fields.HUD_FIELDS`` (steering, board, installs, turn budget, capability).
 Historically none of that reached the model: the mission-chat turn composed only
 identity + rules + optional surface/skill prompts, so the agent was blind to
 everything the operator saw.

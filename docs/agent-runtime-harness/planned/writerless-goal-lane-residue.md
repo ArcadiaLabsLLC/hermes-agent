@@ -54,6 +54,12 @@ These are prose, not behaviour — but they are the prose a future session reads
 before deciding what a lane is, and they currently assert a second execution
 lane exists.
 
+**Fixed 2026-10-27 (lane w1027k-h-rt), against the code:** `chat_lane_toolsets`'s
+docstring now names the real chokepoint (`chat_lane_scope._enabled_toolsets_for_chat`),
+says every agent turn is a chat turn, and names the three projection readers of
+`effective_toolsets`; `runtime_hud/__init__.py` lists the HUD's real fields. The dead
+`daemon` kwarg behind the old pulse is row `DC-HUD-DAEMON-PARAM` (dead-code queue).
+
 ## Gate to open this
 
 1. Operator ruling on the two `status.py` keys: drop both, or keep one with an

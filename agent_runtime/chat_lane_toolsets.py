@@ -18,15 +18,20 @@ What this is (and is NOT)
 -------------------------
 This module is a **pure filter** over an *already-resolved* toolset list. It
 never GRANTS a toolset that a role / permission layer withheld — it only DROPS
-the browser / vision / heavy-dev toolsets from a chat lane's enabled set. Role
-gating, persona blocklists, and permission mode
-all run first and upstream; this is the last, cost-motivated narrowing applied
-only at the chat-lane chokepoint (``chat_lane_bundle._enabled_toolsets_for_chat``).
+the browser / vision / heavy-dev toolsets from a chat lane's enabled set. The
+declaration (``effective_toolsets(persona)``: the bound profile's ``toolsets:``,
+or ``harness_core``) and the permission mode run first and upstream; this is the
+last, cost-motivated narrowing, applied only at the chat-lane chokepoint
+(``chat_lane_scope._enabled_toolsets_for_chat``, re-exported by ``chat_lane_bundle``),
+and skipped entirely under ``unbounded``.
 
-Worker / dev task lanes never go through here — they resolve toolsets via
-``effective_toolsets(persona)`` directly (``persona_runtime.run_persona``,
-``root_node_engine``, ``node_tools``); only the two operator/mission chat call
-sites apply this policy, so there is exactly one chat-lane authority.
+There is no second execution lane to keep in step: every agent turn is a chat
+turn (``GPTPersonaRuntime.mission_chat_reply``; ``persona_chat_actor_prewarm``
+builds the same lane's agent ahead of one) and reaches the chokepoint. The other
+readers of ``effective_toolsets(persona)`` — the snapshot's persona summaries
+(``snapshot.summaries``, ``persona_assignments.summary``) and the visibility
+preview (``tool_visibility``) — are projections that report the DECLARED set; the
+preview carries this module's drops as typed rows (``chat_lane_drop_rows``).
 
 Per-profile override
 --------------------
