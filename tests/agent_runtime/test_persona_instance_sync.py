@@ -76,7 +76,8 @@ def test_every_persona_instance_field_is_classified():
 
     names = {item.name for item in dataclasses.fields(PersonaInstance)}
     # 35 since build plan H5b (2026-10-04): assigned_slots, primary_slot, slots_issued_at — all travel.
-    assert len(names) == 35, "the plan's tables classify exactly 35 fields"
+    # 36 since RT-CHAT-HEAD-CH2-LADDER (2026-10-27): chat_head_kind, local-only beside chat_head_home.
+    assert len(names) == 36, "the plan's tables classify exactly 36 fields"
 
     unclassified = names - (
         PERSONA_INSTANCE_ALLOWED_KEYS
@@ -100,7 +101,7 @@ def test_every_persona_instance_field_is_classified():
     assert PERSONA_INSTANCE_DERIVED_KEYS & PERSONA_INSTANCE_LOCAL_ONLY_KEYS == set()
     # The plan's counts, pinned so a silent reclassification reads as a change.
     assert len(PERSONA_INSTANCE_ALLOWED_KEYS) == 17  # +3 slot-assignment keys (build plan H5b)
-    assert len(PERSONA_INSTANCE_NEVER_TRAVELS_KEYS) == 18
+    assert len(PERSONA_INSTANCE_NEVER_TRAVELS_KEYS) == 19  # +1 chat_head_kind (RT-CHAT-HEAD-CH2-LADDER)
     assert len(PERSONA_INSTANCE_DERIVED_KEYS) == 6
 
 
