@@ -130,6 +130,41 @@ def test_the_real_store_root_comes_from_the_runners_env_var_first(monkeypatch):
     assert _gateway_fence.REAL_ROOT_ENV == "HERMES_TEST_REAL_ROOT"
 
 
+def test_the_fallback_root_never_names_the_session_home_the_suite_minted(monkeypatch, tmp_path):
+    """A bare run from a shell with no HERMES_HOME took the SANDBOX for the store.
+
+    ``tests/conftest.py`` mints ``hermes-test-home-*`` before this module
+    imports, so the production resolver answered with it, and the fence then
+    refused a fixture's ``git init`` inside the sandbox it had been handed (22
+    errors in ``test_plugins_cmd_catalog.py`` under bare pytest, nekwo-ubuntu24
+    2026-10-27). The minted home is never the operator's store.
+    """
+    from hermes_state_guard import _real_platform_state_root
+
+    minted = tmp_path / "hermes-test-home-abc"
+    minted.mkdir()
+    monkeypatch.delenv(_gateway_fence.REAL_ROOT_ENV, raising=False)
+    monkeypatch.setenv("HERMES_HOME", str(minted))
+    monkeypatch.setenv(_gateway_fence.SANDBOX_ENV, str(minted))
+
+    assert _gateway_fence._real_hermes_root() == _real_platform_state_root()
+
+    # Positive control: the same HERMES_HOME, NOT minted by the suite (an
+    # operator's custom store), is still admitted as the root to refuse.
+    monkeypatch.delenv(_gateway_fence.SANDBOX_ENV)
+    assert _gateway_fence._real_hermes_root() == minted.resolve()
+
+
+def test_this_sessions_real_root_is_not_its_own_sandbox():
+    """Whatever runner started this session, the fence guards a store, not the sandbox."""
+    import os
+
+    sandbox = os.environ.get(_gateway_fence.SANDBOX_ENV, "").strip()
+    if not sandbox:
+        pytest.skip("no session home minted in this process")
+    assert _gateway_fence.real_root() != Path(sandbox).resolve()
+
+
 def test_the_agent_browser_capability_probe_is_refused_like_anything_else():
     """The exemption is GONE (2026-09-04), and the real-store arm is whole again.
 

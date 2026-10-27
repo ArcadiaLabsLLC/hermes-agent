@@ -144,9 +144,38 @@ def _real_hermes_root() -> Path | None:
     try:
         from hermes_constants import get_default_hermes_root
 
-        return Path(get_default_hermes_root()).resolve()
+        fallback = Path(get_default_hermes_root()).resolve()
     except Exception:
         return None
+    # A bare run from a shell with no HERMES_HOME arrives with the session
+    # home ``tests/conftest.py`` minted already in the environment, so the
+    # resolver answers with THAT -- and the fence then refused every spawn whose
+    # cwd or env sat in the sandbox it was handed (a fixture's ``git init``:
+    # 22 errors in test_plugins_cmd_catalog.py, nekwo-ubuntu24 2026-10-27). A
+    # path the suite minted is never the operator's store; the platform default
+    # the conftest itself guards is.
+    if _is_session_minted(fallback):
+        from hermes_state_guard import _real_platform_state_root
+
+        return _real_platform_state_root()
+    return fallback
+
+
+#: Exported by ``tests/conftest.py`` (and ``tests/_downstream/session_home.py``)
+#: alongside the session home it mints.
+SANDBOX_ENV = "HERMES_TEST_SANDBOX_HOME"
+
+
+def _is_session_minted(path: Path) -> bool:
+    """True when *path* is (inside) the session home this test process minted."""
+    sandbox = (os.environ.get(SANDBOX_ENV) or "").strip()
+    if not sandbox:
+        return False
+    try:
+        minted = Path(sandbox).resolve()
+    except Exception:
+        return False
+    return path == minted or minted in path.parents
 
 
 _REAL_ROOT = _real_hermes_root()
@@ -204,8 +233,14 @@ def _names_real_root(text: str, env) -> bool:
         value = env.get(key)
         if not value:
             continue
+        # Lexical, never ``resolve()``: resolving a path under the real root
+        # stats it, which ``tests/home_io_guard.py`` refuses with an
+        # AssertionError -- swallowed here, so on a host whose real root is
+        # the guarded ``~/.hermes`` (Linux) the env arm answered "not the store"
+        # for the store itself (3 reds in test_gateway_spawn_fence.py under
+        # scripts/run_tests.sh, nekwo-ubuntu24 2026-10-27).
         try:
-            candidate = Path(value).resolve()
+            candidate = Path(os.path.abspath(os.path.expanduser(value)))
         except Exception:
             continue
         if candidate == _REAL_ROOT or _REAL_ROOT in candidate.parents:
