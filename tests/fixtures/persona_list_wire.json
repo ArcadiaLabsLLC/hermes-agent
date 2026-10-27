@@ -43,6 +43,9 @@
         "can_mutate_files": true,
         "can_run_terminal": true,
         "mutating_tools": [
+          "course_checkout",
+          "course_commit",
+          "course_pull_request",
           "patch",
           "terminal",
           "write_file"
@@ -192,6 +195,9 @@
         "can_mutate_files": true,
         "can_run_terminal": true,
         "mutating_tools": [
+          "course_checkout",
+          "course_commit",
+          "course_pull_request",
           "patch",
           "terminal",
           "write_file"
@@ -337,6 +343,9 @@
         "can_mutate_files": true,
         "can_run_terminal": true,
         "mutating_tools": [
+          "course_checkout",
+          "course_commit",
+          "course_pull_request",
           "patch",
           "terminal",
           "write_file"
