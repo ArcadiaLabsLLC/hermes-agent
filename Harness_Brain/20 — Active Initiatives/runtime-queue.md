@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-27 (launcher lane w1027k-plan-host)
+
+- **`RT-LAUNCHER-EVENT-CURSOR` — keep Lens-episode and agent-turn events in a bounded durable journal the launcher can read after a cursor on attach, so launcher webhooks for events produced while no launcher ran are sent once and never lost silently** · `EterniaLauncher/docs/stages/installer-distribution/planned/HOST_OUTBOUND_WEBHOOKS_2026-10-27.md` · NEEDS PLAN 2026-10-27: the journal's store and retention, the cursor shape, and which event kinds it carries
+
 ### Filed on arrival — 2026-10-27 (lane w1027k-h-local)
 
 - **`RT-LOCAL-INFERENCE-ADMISSION` — `runtime.embed.texts` / `runtime.vision.tag` load their onnxruntime sessions outside the model-memory budget (`agent_runtime/model_admission.py::KINDS` is `stt`, `tts`, `llm`); add an `embed`/`vision` kind (or one `local_small`), reserve each runner's estimate in `LocalInferenceService._load` with an idle evictor, and add both to `runtime.admission.status` — the launcher's admission decode must learn the kind in the same change** · fork / `agent_runtime/local_inference/service.py::LocalInferenceService._load` · `docs/agent-runtime-harness/runtime-local-inference-methods.md` · READY 2026-10-27
