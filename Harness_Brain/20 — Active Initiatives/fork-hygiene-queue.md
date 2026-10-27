@@ -7,6 +7,10 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+## Filed on arrival — 2026-10-27 (lane w1027k-plan-misc, launcher)
+
+- **`FH-OFFICE-WRITE-LANE-COLLAPSE-SUPERSEDED` — retire `docs/agent-runtime-harness/planned/office-write-lane-collapse.md`: replanned launcher-side as `EterniaLauncher/docs/mission_control/planned/OFFICE_WRITE_LANE_COLLAPSE_2026-10-27.md` (guarded remove shipped `ede7a64754`; restore row gone)** · `docs/agent-runtime-harness/planned/office-write-lane-collapse.md` · READY 2026-10-27
+
 ## Filed on arrival — 2026-10-27 (lane w1027j-h-tri-b, planned/ triage)
 
 - **`FH-SEAMS-PLAN-STAGE-3-AND-7` — the seams plan's Stages 0, 1, 4, 5 and 6 are on main and Stage 2's leftovers are `RT-NINE-STAGE-2-ROWS`; left are Stage 3 (upstream PRs P1–P5, each with its pre-decided fallback) and Stage 7 (the detach read, when `[up-fp]` reads zero or only carry-permanent rows)** · fork / upstream sync · plan `docs/agent-runtime-harness/planned/harness-plugin-and-upstream-seams.md` §2 Stage 3, Stage 7 · DEFERRED 2026-10-27: owner 2026-10-24 — "defer prs but make sure the code needed is on our main"; until the owner opens the PRs
