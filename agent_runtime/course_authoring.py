@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+import threading
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
@@ -44,12 +45,17 @@ __all__ = [
     "CourseRefusal",
     "CourseRefused",
     "PullRequestReceipt",
+    "VERB_LOCK",
     "admit",
     "checkout",
     "commit",
     "parse_credential",
     "pull_request",
 ]
+
+#: Course verbs run one at a time in a process (``runtime.course.*`` and the persona tools share it): two
+#: verbs never share a clone at once.
+VERB_LOCK = threading.Lock()
 
 _TAIL = 400
 _EMPTY_REMOTE = "couldn't find remote ref"

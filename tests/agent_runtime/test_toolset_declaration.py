@@ -45,7 +45,7 @@ from agent_runtime.persona_profiles import declared_lane_toolsets, effective_too
 HARNESS_CORE_MEMBERS = [
     "agent_chat", "board", "clarify", "delegation", "terminal", "file",
     "web", "browser", "browser-cdp", "skills", "memory", "todo",
-    "session_search", "vision", "code_execution",
+    "session_search", "vision", "code_execution", "course",
 ]
 
 
@@ -305,7 +305,7 @@ def test_the_declaration_read_never_imports_model_tools(tmp_path):
         "    provider=None, api_mode='codex_responses',\n"
         "    system_prompt_path='', hermes_profile='gpt-launcher')\n"
         "declaration = declared_lane_toolsets(persona)\n"
-        "assert len(declaration.toolsets) == 15, declaration\n"
+        "assert len(declaration.toolsets) == 16, declaration\n"
         "print('model_tools' in sys.modules)\n"
     )
     env = {

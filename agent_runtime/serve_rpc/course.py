@@ -7,18 +7,17 @@ OBJECT, schema v1, passed inline by the caller exactly as ``runtime.realm.sync.*
 
 **Refusals.** ``data.reason`` is a ``course_authoring.CourseRefusal`` value; the JSON-RPC code is
 :data:`REASON_CODES`'s. **Tier: ``console``** — every verb reaches a git host under a credential. Course verbs
-run off the reader loop and one at a time (:data:`_COURSE_VERB_LOCK`): two verbs never share a clone at once.
+run off the reader loop and one at a time (:data:`agent_runtime.course_authoring.VERB_LOCK`): two verbs never share a clone at once.
 
 Params per verb: :data:`agent_runtime.serve_rpc.twin_params.COURSE_METHOD_PARAMS`.
 """
 
 from __future__ import annotations
 
-import threading
 from typing import Any, Callable
 
 from agent_runtime.call_authorization import TIER_CONSOLE
-from agent_runtime.course_authoring import CourseRefusal, CourseRefused
+from agent_runtime.course_authoring import VERB_LOCK, CourseRefusal, CourseRefused
 from agent_runtime.serve_rpc.protocol import (
     ERR_CONFLICT,
     ERR_HANDLER_FAILED,
@@ -117,7 +116,7 @@ COURSE_METHODS: dict[str, Callable[[dict], dict]] = {
     "runtime.course.pull_request": _pull_request,
 }
 
-_COURSE_VERB_LOCK = threading.Lock()
+_COURSE_VERB_LOCK = VERB_LOCK  # shared with the persona tools (``agent_runtime.course_tool``)
 
 
 def _course_reply(rid: Any, body: Callable[[dict], dict], params: Any) -> dict:

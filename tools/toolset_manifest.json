@@ -27,6 +27,9 @@
     "clarify": "clarify",
     "close_terminal": "desktop_ui",
     "computer_use": "computer_use",
+    "course_checkout": "course",
+    "course_commit": "course",
+    "course_pull_request": "course",
     "cronjob_manage": "cronjob",
     "delegate_task": "delegation",
     "desktop_preview": "desktop_ui",
@@ -150,6 +153,11 @@
     "connectors.tool": [
       "manage_catalog",
       "manage_connections"
+    ],
+    "course_tool": [
+      "course_checkout",
+      "course_commit",
+      "course_pull_request"
     ],
     "cronjob_tools": [
       "cronjob_manage"

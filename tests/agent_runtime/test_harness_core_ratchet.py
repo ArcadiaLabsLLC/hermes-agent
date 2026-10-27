@@ -39,7 +39,7 @@ pytestmark = pytest.mark.gate
 HARNESS_CORE_MEMBERS = [
     "agent_chat", "board", "clarify", "delegation", "terminal", "file",
     "web", "browser", "browser-cdp", "skills", "memory", "todo",
-    "session_search", "vision", "code_execution",
+    "session_search", "vision", "code_execution", "course",
 ]
 # S2b added ``agent_chat_installs`` to the ``agent_chat`` toolset, which
 # ``harness_core`` includes by NAME — so the count moved without an edit to the
@@ -48,7 +48,9 @@ HARNESS_CORE_MEMBERS = [
 # resolver reports for the declared set on this build. HQ1 moved it to 45.
 # Upstream v0.22.2 (2026-10-15 release merge) folded the five ``browser_vault_*``
 # tools into one ``browser_vault`` action tool: 45 -> 41, re-measured.
-DECLARED_TOOL_COUNT = 41
+# RT-COURSE-PERSONA-TOOLS (2026-10-26, plan course-turn-credential-2026-10-25 §2.4): the ``course`` toolset
+# joins harness_core with course_checkout / course_commit / course_pull_request: 41 -> 44, re-measured.
+DECLARED_TOOL_COUNT = 44
 # Upstream's canonical tool names and refreshed manifest: same 44 declared
 # tools, measured name/schema estimate +13 tokens (1177 -> 1190).
 # HQ1 (2026-10-01) added ``harness_query`` to ``agent_chat``: 45 tools,
@@ -69,7 +71,9 @@ DECLARED_TOOL_COUNT = 41
 # behind tool_describe: 10176 -> 8380 (-1796). Re-measured at the landing.
 # Upstream v0.22.2 (2026-10-15 release merge): five ``browser_vault_*`` schemas became
 # one ``browser_vault`` action tool; the v0.22.2 schemas re-measured: 8380 -> 7792 (-588).
-DECLARED_TOKEN_ESTIMATE = 7792
+# RT-COURSE-PERSONA-TOOLS (2026-10-26): the three course tools' schemas, re-measured: 7792 -> 8205 (+413).
+# They are deferrable (a non-core toolset), so a turn with tool search active carries them as listing rows.
+DECLARED_TOKEN_ESTIMATE = 8205
 MISSION_PERSONAS = ("neko_supervisor", "dev", "backend_dev", "qa")
 
 

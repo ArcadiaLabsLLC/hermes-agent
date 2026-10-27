@@ -28,6 +28,9 @@ _DESCRIPTION = (
 HARNESS_CORE_INCLUDES: tuple[str, ...] = (
     "agent_chat", "board", "clarify", "delegation", "terminal", "file", "web", "browser",
     "browser-cdp", "skills", "memory", "todo", "session_search", "vision", "code_execution",
+    # The course authoring tools (``agent_runtime.course_tool``): usable only in a turn that carries a
+    # course credential, so every persona may see them (plan course-turn-credential-2026-10-25 §2.4).
+    "course",
 )
 
 

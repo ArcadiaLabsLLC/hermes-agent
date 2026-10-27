@@ -125,7 +125,7 @@ class TestHarnessCoreToolset:
         assert expand_toolset_names(["harness_core"]) == [
             "agent_chat", "board", "clarify", "delegation", "terminal", "file",
             "web", "browser", "browser-cdp", "skills", "memory", "todo",
-            "session_search", "vision", "code_execution",
+            "session_search", "vision", "code_execution", "course",
         ]
 
     def test_expand_toolset_names_passes_leaves_and_unknowns_through(self):
@@ -179,7 +179,7 @@ class TestHarnessCoreToolset:
             "import sys\n"
             "from agent_runtime.toolset_names import expand_toolset_names\n"
             "names = expand_toolset_names(['harness_core'])\n"
-            "assert len(names) == 15, names\n"
+            "assert len(names) == 16, names\n"
             "print('model_tools' in sys.modules)\n"
         )
         out = subprocess.run(

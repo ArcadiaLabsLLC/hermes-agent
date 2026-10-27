@@ -726,9 +726,10 @@ The harness lane admits by the persona's BOUND PROFILE `toolsets:` key, read by
 `toolset_declaration.source: lane_default`; any other list is honored verbatim as `profile_config`;
 an unresolvable profile home resolves the same default as `profile_unresolved`. A YAML fault
 resolves narrow, never wide. `harness_core` (`agent_runtime/harness_toolset.py::HARNESS_CORE_INCLUDES`, registered into
-upstream's `TOOLSETS` by `ensure_harness_core`) is a composite of 15 member
+upstream's `TOOLSETS` by `ensure_harness_core`) is a composite of 16 member
 toolsets — `agent_chat`, `board`, `clarify`, `delegation`, `terminal`, `file`, `web`, `browser`,
-`browser-cdp`, `skills`, `memory`, `todo`, `session_search`, `vision`, `code_execution` — expanded
+`browser-cdp`, `skills`, `memory`, `todo`, `session_search`, `vision`, `code_execution`, `course` (the
+course persona tools, `agent_runtime/course_tool.py`, since 2026-10-26) — expanded
 to those NAMES by `agent_runtime/toolset_names.py::expand_toolset_names` so the cost policy, which drops by name, still
 sees them. Measured 2026-09-03 on all four mission personas: **43 callable tools, 0 withheld**
 (was 79 / 17). `model_tool_tokens` read 1149 then, a names-only envelope (~12 tokens a tool); since
