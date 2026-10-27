@@ -12,9 +12,10 @@ document's ``machines.<id>`` block — set / missing / unknown per key, never a 
 never a path.
 
 **The fill is per workspace** (plan ``work-slot-roots-per-workspace-2026-10-21.md``): two
-workspaces that both declare ``brain`` bind two paths. Binding slot ``launcher`` also FILLS
-``roots.launcher`` when that config root is unbound (never repoints it), so a
-``${roots.launcher}`` token keeps resolving. A legacy registry's ``roots.<slot>`` is migrated
+workspaces that both declare ``brain`` bind two paths. A binding never writes a config root:
+``${roots.launcher}`` expands to the slot folder of the config's own workspace, or — read with no
+workspace — the one folder every binding agrees on, else a typed ``root_ambiguous``
+(``machine_roots._resolve_root``). A legacy registry's ``roots.<slot>`` is migrated
 into ``workspace_roots`` once (``scoped_roots``), which is how a root an operator bound by
 hand before any workspace declared the name is ADOPTED as the fill
 (``adopted_existing_root`` in the first report, call 8g).
@@ -490,15 +491,13 @@ def bound_path(slot: str, *, workspace_id: str) -> Path | None:
 
 
 def _write_fill(workspace_id: str, slot: str, path: str) -> None:
-    """THE slot fill write: ``workspace_roots[ws][slot]``, plus the fill-only config mirror."""
+    """THE slot fill write: ``slot_folders[ws][slot]``. It never writes a config root (plan
+    machine-roots-two-halves §2.2): ``${roots.<slot>}`` reads the slot folder itself."""
 
     current = scoped_roots()
-    roots = dict(current.roots)
     scoped = {ws: dict(slots) for ws, slots in current.workspace_roots.items()}
     scoped.setdefault(workspace_id, {})[slot] = path
-    # The one-way mirror: a config token ``${roots.<slot>}`` keeps resolving; it is never repointed.
-    roots.setdefault(slot, path)
-    write_machine_roots(roots, workspace_roots=scoped, dry_run=False)
+    write_machine_roots(dict(current.roots), workspace_roots=scoped, dry_run=False)
 
 
 def bind(workspace_id: str, slot: str, path: str, *, issued_at: str) -> dict[str, Any]:

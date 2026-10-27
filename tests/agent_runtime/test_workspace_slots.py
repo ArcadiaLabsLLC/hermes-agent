@@ -110,7 +110,8 @@ def test_bind_writes_the_machine_root_and_reports(workspace, checkout):
     _declare(workspace, [_slot()])
     reply = call("runtime.workspace.slot.bind", {"workspace_id": workspace, "slot": "launcher", "path": str(checkout),
                                                   "issued_at": ISSUED})["result"]
-    assert load_machine_roots(refresh=True).roots["launcher"] == str(checkout)
+    held = load_machine_roots(refresh=True)
+    assert held.workspace_root(workspace, "launcher") == checkout and "launcher" not in held.roots
     assert reply["bound_here"] is True and reply["warnings"] == []
     row = reply["report"]
     assert row["checkout"] == "matches"
@@ -402,9 +403,10 @@ def test_two_workspaces_binding_one_slot_name_keep_their_own_paths(workspace, tm
     assert bound[(workspace, "brain")] == one and bound[(other, "brain")] == two
 
 
-def test_a_bind_fills_the_config_root_only_when_it_is_absent(workspace, tmp_path):
-    """Killing mutation: the mirror overwriting ``roots[slot]`` repoints a config root an operator set."""
+def test_a_bind_never_writes_a_config_root_and_two_folders_are_ambiguous_unscoped(workspace, tmp_path):
+    """Killing mutation: restoring ``roots.setdefault(slot, path)`` in ``_write_fill`` — first bind wins."""
 
+    from agent_runtime.machine_roots import ISSUE_ROOT_AMBIGUOUS, expand_config_paths, path_token_issues
     from agent_runtime.workspace_slots import bind
 
     other = WorkspaceStore().create(name="Slots two").id
@@ -412,11 +414,14 @@ def test_a_bind_fills_the_config_root_only_when_it_is_absent(workspace, tmp_path
     for ws in (workspace, other):
         _declare(ws, [_slot("eternia_launcher")])
     bind(workspace, "eternia_launcher", str(first), issued_at=ISSUED)
-    assert load_machine_roots(refresh=True).roots["eternia_launcher"] == str(first)
+    roots = load_machine_roots(refresh=True)
+    assert "eternia_launcher" not in roots.roots
+    assert expand_config_paths("${roots.eternia_launcher}", roots=roots) == str(first)  # one folder: resolves
     bind(other, "eternia_launcher", str(second), issued_at=ISSUED)
     roots = load_machine_roots(refresh=True)
-    assert roots.roots["eternia_launcher"] == str(first)
-    assert roots.workspace_root(other, "eternia_launcher") == second
+    assert "eternia_launcher" not in roots.roots
+    assert [i.code for i in path_token_issues("${roots.eternia_launcher}", roots=roots)] == [ISSUE_ROOT_AMBIGUOUS]
+    assert expand_config_paths("${roots.eternia_launcher}", roots=roots, workspace_id=other) == str(second)
 
 
 # ── The one-time legacy migration (plan work-slot-roots-per-workspace-2026-10-21 R3) ──

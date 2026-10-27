@@ -87,6 +87,9 @@ _TAIL_TERMINATORS = frozenset(" \t\r\n'\"`;|&<>,()$")
 
 ISSUE_UNBOUND_ROOT = "unbound_root"
 ISSUE_ROOT_TARGET_MISSING = "root_target_missing"
+#: A name only slot folders bind, read with no workspace that binds it, and two workspaces bind it to
+#: different folders: nothing resolves (never first-wins). Plan machine-roots-two-halves §2.3.
+ISSUE_ROOT_AMBIGUOUS = "root_ambiguous"
 ISSUE_INVALID_ROOT_TOKEN = "invalid_root_token"
 ISSUE_INVALID_REGISTRY = "invalid_registry"
 ISSUE_PLATFORM_UNSUPPORTED = "platform_unsupported"
@@ -523,12 +526,15 @@ def expand_config_paths(
     field: str = "",
     roots: MachineRoots | None = None,
     check_target_exists: bool = True,
+    workspace_id: str = "",
 ) -> Any:
     """Expand path tokens, raising :class:`MachineRootError` on any problem.
 
     Use this where a dead path must never reach a caller (spawning a process,
     handing a workdir to a subagent). Use :func:`path_token_issues` where the
-    caller must report rather than raise (readiness).
+    caller must report rather than raise (readiness). ``workspace_id`` names the
+    workspace the config belongs to: its slot folder answers ``${roots.<slot>}``
+    before any config root does.
     """
 
     issues: list[PathTokenIssue] = []
@@ -538,6 +544,7 @@ def expand_config_paths(
         roots=roots if roots is not None else load_machine_roots(),
         issues=issues,
         check_target_exists=check_target_exists,
+        workspace_id=workspace_id,
     )
     if issues:
         raise MachineRootError(issues)
@@ -550,6 +557,7 @@ def path_token_issues(
     field: str = "",
     roots: MachineRoots | None = None,
     check_target_exists: bool = True,
+    workspace_id: str = "",
 ) -> list[PathTokenIssue]:
     """Every typed reason ``value``'s path tokens cannot resolve. Never raises."""
 
@@ -560,6 +568,7 @@ def path_token_issues(
         roots=roots if roots is not None else load_machine_roots(),
         issues=issues,
         check_target_exists=check_target_exists,
+        workspace_id=workspace_id,
     )
     return issues
 
@@ -571,10 +580,12 @@ def _walk(
     roots: MachineRoots,
     issues: list[PathTokenIssue],
     check_target_exists: bool,
+    workspace_id: str = "",
 ) -> Any:
     if isinstance(value, str):
         return _expand_text(
-            value, field=field, roots=roots, issues=issues, check_target_exists=check_target_exists
+            value, field=field, roots=roots, issues=issues, check_target_exists=check_target_exists,
+            workspace_id=workspace_id,
         )
     if isinstance(value, Mapping):
         return {
@@ -584,6 +595,7 @@ def _walk(
                 roots=roots,
                 issues=issues,
                 check_target_exists=check_target_exists,
+                workspace_id=workspace_id,
             )
             for key, item in value.items()
         }
@@ -595,6 +607,7 @@ def _walk(
                 roots=roots,
                 issues=issues,
                 check_target_exists=check_target_exists,
+                workspace_id=workspace_id,
             )
             for index, item in enumerate(value)
         ]
@@ -608,6 +621,7 @@ def _expand_text(
     roots: MachineRoots,
     issues: list[PathTokenIssue],
     check_target_exists: bool,
+    workspace_id: str = "",
 ) -> str:
     if "${" not in text:
         return text
@@ -629,6 +643,7 @@ def _expand_text(
             roots=roots,
             issues=issues,
             check_target_exists=check_target_exists,
+            workspace_id=workspace_id,
         )
         if resolved is None:
             # Unresolved: keep the literal token + tail. Callers that must not
@@ -670,6 +685,7 @@ def _resolve_root(
     roots: MachineRoots,
     issues: list[PathTokenIssue],
     check_target_exists: bool,
+    workspace_id: str = "",
 ) -> Path | None:
     where = f" (field {field})" if field else ""
     if not _ROOT_NAME_RE.match(name):
@@ -683,12 +699,27 @@ def _resolve_root(
             )
         )
         return None
-    bound = roots.roots.get(name)
+    # A slot folder IS a config root, in its workspace (plan machine-roots-two-halves §2.2): the
+    # reading config's own workspace first, then ``config_roots``, then a slot bound to ONE folder.
+    in_workspace = roots.workspace_root(workspace_id, name) if workspace_id else None
+    bound = str(in_workspace) if in_workspace is not None else roots.roots.get(name)
     if not bound:
-        # A slot folder bound to ONE folder answers the name (schema 3 keeps no slot mirror in
-        # ``config_roots``); two different folders answer nothing.
-        folders = set(roots.slot_folder_bindings(name).values())
-        bound = next(iter(folders)) if len(folders) == 1 else ""
+        bindings = roots.slot_folder_bindings(name)
+        folders = set(bindings.values())
+        if len(folders) > 1:
+            named = ", ".join(f"{ws}={bindings[ws]}" for ws in sorted(bindings))
+            issues.append(
+                PathTokenIssue(
+                    code=ISSUE_ROOT_AMBIGUOUS,
+                    root_name=name,
+                    field=field,
+                    summary=f"Machine root '{name}' is only a slot folder, and workspaces bind it to different "
+                            f"folders{where}: {named}",
+                    fix_hint=f"hermes harness roots set {name} <absolute-local-path> --yes",
+                )
+            )
+            return None
+        bound = next(iter(folders)) if folders else ""
     if not bound:
         known = ", ".join(roots.names()) or "(none bound on this machine)"
         issues.append(

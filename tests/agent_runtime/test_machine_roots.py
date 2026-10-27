@@ -465,9 +465,27 @@ def test_a_slot_bound_to_one_folder_answers_its_token_and_two_folders_answer_non
     single = MachineRoots(roots={}, workspace_roots={"ws_one": {"brain": str(one)}, "ws_two": {"brain": str(one)}})
     assert expand_config_paths("${roots.brain}", roots=single) == str(one)
     split = MachineRoots(roots={}, workspace_roots={"ws_one": {"brain": str(one)}, "ws_two": {"brain": str(two)}})
-    assert path_token_issues("${roots.brain}/x", roots=split)
+    [issue] = path_token_issues("${roots.brain}/x", roots=split)
+    assert issue.code == machine_roots.ISSUE_ROOT_AMBIGUOUS and issue.root_name == "brain"
+    assert "ws_one=" in issue.summary and "ws_two=" in issue.summary
     with pytest.raises(MachineRootError):
         expand_config_paths("${roots.brain}", roots=split)
+
+
+def test_a_slot_folder_answers_its_own_workspace_before_any_config_root(tmp_path):
+    """Killing mutation: ``_resolve_root`` reading ``config_roots`` first answers ws_two with the config root."""
+
+    config, one, two = tmp_path / "config", tmp_path / "one", tmp_path / "two"
+    for folder in (config, one, two):
+        folder.mkdir()
+    roots = MachineRoots(roots={"brain": str(config)},
+                         workspace_roots={"ws_one": {"brain": str(one)}, "ws_two": {"brain": str(two)}})
+    assert expand_config_paths("${roots.brain}/x", roots=roots, workspace_id="ws_two") == str(two / "x")
+    assert expand_config_paths("${roots.brain}", roots=roots, workspace_id="ws_one") == str(one)
+    # Positive control: the same token with no workspace, and from a workspace binding no ``brain``, reads config.
+    assert expand_config_paths("${roots.brain}", roots=roots) == str(config)
+    assert expand_config_paths("${roots.brain}", roots=roots, workspace_id="ws_three") == str(config)
+    assert path_token_issues({"cwd": "${roots.brain}"}, roots=roots, workspace_id="ws_two") == []
 
 
 def test_a_schema_3_file_reads_the_named_halves_over_the_mirrors(tmp_path, monkeypatch):
