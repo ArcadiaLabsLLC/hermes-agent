@@ -18,6 +18,9 @@ inside ``cooldown_ms`` receipt ``cooled`` (W6: the rule's previous receipt start
 ``when: urgent`` and   receipt ``skipped_severity``
 a non-urgent rule
 daily cap reached      receipt ``capped`` (``store.receipts_today``, per UTC day)
+global budget reached  receipt ``notified_over_budget`` (W6: an ``investigate`` turn past
+                       the root config's ``agent_runtime.lens.daily_turn_budget`` turns,
+                       all monitors, this UTC day — downgraded to a notify, never dropped)
 ``level: notify``      receipt ``notified``; no turn
 ``level: investigate`` receipt ``forging`` -> the turn -> ``forged`` |
                        ``forge_failed:<reason>``
@@ -198,6 +201,15 @@ def _cooling(store: LensStore, episode: Episode, now: datetime, cooldown_ms: int
     return previous is not None and to_ms(now) - previous < cooldown_ms
 
 
+def _over_budget(store: LensStore, now: datetime) -> bool:
+    """True when the turns every monitor began today already fill the global budget (W6)."""
+
+    from .settings import lens_setting
+    from .store_admission import turns_today
+
+    return turns_today(store, now) >= lens_setting("daily_turn_budget")
+
+
 @dataclass
 class LensForge:
     store_factory: Callable[[], LensStore] = LensStore
@@ -238,6 +250,8 @@ class LensForge:
             return self._settle(store, episode, now, ReceiptOutcome.SKIPPED_SEVERITY.value)
         if store.receipts_today(episode.monitor_id, now) >= automation["daily_turn_cap"]:
             return self._settle(store, episode, now, ReceiptOutcome.CAPPED.value)
+        if automation["level"] == AutomationLevel.INVESTIGATE.value and _over_budget(store, now):
+            return self._settle(store, episode, now, ReceiptOutcome.NOTIFIED_OVER_BUDGET.value)
         if automation["level"] == AutomationLevel.NOTIFY.value:
             return self._settle(store, episode, now, ReceiptOutcome.NOTIFIED.value)
         if manifest["persona_id"] is None:

@@ -156,11 +156,14 @@ class ReceiptOutcome(str, Enum):
     CAPPED = "capped"
     #: W6: the rule's previous receipt is inside the monitor's ``cooldown_ms`` — no turn.
     COOLED = "cooled"
+    #: W6: the turn would pass the global ``daily_turn_budget`` — downgraded to a notification.
+    NOTIFIED_OVER_BUDGET = "notified_over_budget"
 
 
 FORGE_FAILED_PREFIX = "forge_failed:"
 #: The outcomes ``daily_turn_cap`` counts: a turn run, running, or a notification sent.
-CAPPED_OUTCOMES = (ReceiptOutcome.FORGING.value, ReceiptOutcome.FORGED.value, ReceiptOutcome.NOTIFIED.value)
+CAPPED_OUTCOMES = (ReceiptOutcome.FORGING.value, ReceiptOutcome.FORGED.value, ReceiptOutcome.NOTIFIED.value,
+                   ReceiptOutcome.NOTIFIED_OVER_BUDGET.value)
 _RECEIPT_COLUMNS = ("episode_id", "monitor_id", "turn_id", "session_id", "started_ms", "finished_ms", "outcome",
                     "artifact_handles", "files", "tool_admission")
 

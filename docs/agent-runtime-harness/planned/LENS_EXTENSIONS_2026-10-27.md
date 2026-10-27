@@ -200,6 +200,11 @@ many monitors breaching together each forge a turn; nothing bounds model spend a
    (read through `agent_runtime/config/loader.py::load_agent_runtime_config`; default in §6). A turn — a digest
    counts once — that would exceed it is downgraded to a notify with outcome `notified_over_budget`, never
    dropped. `receipts_today` counts distinct `turn_id`s, so a digest is one turn for the per-monitor cap too.
+   *Built (w1027f-h-lens-b):* read raw from the root config (`agent_runtime/lens/settings.py`, default 96), not
+   through `load_agent_runtime_config` — a `RuntimeConfig` section rides the `runtime_config` wire via
+   `asdict(cfg)`. The budget counts receipts whose `tool_admission` is `read_only` (a turn begun), all monitors,
+   UTC day (`agent_runtime/lens/store_admission.py::turns_today`); `notified_over_budget` joins the per-monitor
+   cap's counted outcomes like `notified`.
 5. **Order inside `admit`:** rule-not-in-revision → cooldown → urgency filter → per-monitor cap → global
    budget → level. Cooldown first because a cooled Episode must not spend cap.
 
