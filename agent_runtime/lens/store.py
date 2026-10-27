@@ -46,7 +46,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterator
 
 from .episode import Episode
-from .store_episode_rows import canonical_body, door_owned, episode_body
+from .store_episode_rows import canonical_body, door_owned, episode_body, stale_pairs
 from .feed import Observation
 from .manifest import read_manifest
 from .seal import SealedManifest, seal_manifest
@@ -171,6 +171,8 @@ class ReceiptOutcome(str, Enum):
     NOTIFIED_OVER_BUDGET = "notified_over_budget"
     #: W6: a member of a digest; its leader's receipt carries the outcome, all share ``turn_id``.
     DIGESTED = "digested"
+    #: The stored Episode stopped being owed (a decision, a snooze) after the door read it — no turn.
+    SKIPPED_DECIDED = "skipped_decided"
 
 
 FORGE_FAILED_PREFIX = "forge_failed:"
@@ -538,15 +540,18 @@ class LensStore:
     def save_receipts(self, pairs: list[tuple[dict[str, Any], Episode | None]], *,
                       also: Callable[[sqlite3.Connection], None] | None = None) -> bool:
         """:meth:`save_receipt` for several receipts at once — all of them or none, in ONE
-        transaction with their Episodes and ``also(conn)`` (a digest closes its window there)."""
+        transaction with their Episodes and ``also(conn)`` (a digest closes its window there).
+        A stored Episode no longer owed settles ``skipped_decided`` alone, and False: no turn."""
 
-        rows = [_receipt_row(receipt) for receipt, _ in pairs]
+        rows, owed = [_receipt_row(receipt) for receipt, _ in pairs], True
         for folded in (False, True):
             inserted, moved = False, []
             with self._db() as conn:
                 if any(conn.execute("SELECT 1 FROM receipts WHERE episode_id = ?", (row[0],)).fetchone() is not None
                        for row in rows):
                     return False
+                if stale := stale_pairs(conn, pairs, ReceiptOutcome.SKIPPED_DECIDED.value):
+                    pairs, rows, also, owed = stale, [_receipt_row(receipt) for receipt, _ in stale], None, False
                 if conn.execute("SELECT COUNT(*) FROM receipts").fetchone()[0] + len(rows) <= MAXIMUM_RECEIPTS:
                     moved, inserted = _insert_receipts(conn, rows, pairs), True
                 elif folded:
@@ -560,7 +565,7 @@ class LensStore:
                     self._receipt_changed(receipt)
                     if episode_moved:
                         self._episode_changed(episode)
-                return True
+                return owed
             from .retention import fold_receipts
 
             fold_receipts(self, from_ms(int(rows[0][_RECEIPT_COLUMNS.index("started_ms")])))

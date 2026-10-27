@@ -25,6 +25,9 @@ global budget reached  receipt ``notified_over_budget`` (W6: an ``investigate`` 
 ``level: notify``      receipt ``notified``; no turn
 ``level: investigate`` receipt ``forging`` -> the turn -> ``forged`` |
                        ``forge_failed:<reason>``
+decided after the read receipt ``skipped_decided``, no turn: ``save_receipts`` re-checks
+                       ``needs_admission`` on the STORED row (an operator dismiss/snooze
+                       written between the door's read and its receipt transaction)
 =====================  =============================================================
 
 W6 digest (``automation.digest_window_ms > 0``; plan ``LENS_EXTENSIONS_2026-10-27.md`` §3
