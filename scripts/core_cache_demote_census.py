@@ -19,6 +19,8 @@ EXIT CODES, and why the quiet one is not zero
   exactly how a self-invalidating cache went unnoticed for months.
 * ``2`` — at least one demote named a path the runtime itself writes. The
   finding this tool exists for.
+* ``3`` — a ``fingerprint_home_lazy_capture`` receipt was logged: a process pinned
+  the wrong fingerprint home, which the next boot reads as ``home_mismatch``.
 
 The classification, the census rules it honours and the list of runtime-authored
 names all live in :mod:`agent_runtime.core_cache_census`; this file is argv, IO
@@ -40,11 +42,13 @@ if str(REPO_ROOT) not in sys.path:
 EXIT_OK = 0
 EXIT_UNMEASURED = 1
 EXIT_SELF_PERTURBATION = 2
+EXIT_HOME_LAZY_CAPTURE = 3
 
 
 def main(argv: list[str] | None = None) -> int:
     from agent_runtime.core_cache_census import (
         DEFAULT_WINDOW,
+        VERDICT_HOME_LAZY_CAPTURE,
         VERDICT_NO_LINES,
         VERDICT_SELF_PERTURBATION,
         census_demotes,
@@ -96,6 +100,8 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_UNMEASURED
     if report["verdict"] == VERDICT_SELF_PERTURBATION:
         return EXIT_SELF_PERTURBATION
+    if report["verdict"] == VERDICT_HOME_LAZY_CAPTURE:
+        return EXIT_HOME_LAZY_CAPTURE
     return EXIT_OK
 
 

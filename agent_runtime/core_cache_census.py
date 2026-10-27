@@ -84,6 +84,7 @@ from .core_cache import (
     DEMOTE_FINGERPRINT_MISMATCH,
     DEMOTE_HOME_MISMATCH,
     DIFF_UNAVAILABLE,
+    RECEIPT_FINGERPRINT_HOME_LAZY_CAPTURE,
     _WAL_SIBLING,
 )
 from .dispatch_delivery import DRAIN_STATE_FILENAME
@@ -104,6 +105,10 @@ _HIT_ANCHOR = f"{FAMILY} core_source={CORE_SOURCE_CACHE} "
 #: authority. It shares the hit anchor and is told apart by this marker, exactly
 #: as ``take_stale_first_core`` emits it.
 _STALE_MARKER = "stale=true"
+#: The PRODUCING side of ``home_mismatch`` (plan core-cache-home-capture-timing, HC-3): a process
+#: that declared a boot instant captured its fingerprint home on first use instead, so the sidecar it
+#: writes is keyed under whatever scope was live, and the NEXT boot demotes it ``home_mismatch``.
+_LAZY_CAPTURE_ANCHOR = f"{FAMILY} {RECEIPT_FINGERPRINT_HOME_LAZY_CAPTURE} "
 
 #: Verbatim from the channel table's self-perturbation rule. Basenames, because
 #: the receipt carries absolute paths from the fingerprint's own entries.
@@ -127,6 +132,9 @@ VERDICT_SELF_PERTURBATION = "self_perturbation"
 VERDICT_DIFF_UNAVAILABLE = "diff_unavailable"
 VERDICT_STORE_CHURN = "store_churn"
 VERDICT_NO_MISMATCH = "no_fingerprint_mismatch"
+#: A lazy fingerprint-home capture was logged: a defect on ANY install (the receipt fires only in a
+#: process that declared a boot instant and skipped it), and a measurement even with no demote line.
+VERDICT_HOME_LAZY_CAPTURE = "home_lazy_capture"
 
 #: Bound on the distinct store paths carried back in the report. The
 #: runtime-authored bucket is NOT capped — it is the finding, and truncating a
@@ -203,6 +211,18 @@ def parse_demote_line(message: str) -> dict[str, Any] | None:
     return row
 
 
+def parse_lazy_capture_site(message: str) -> str | None:
+    """The ``site=`` of one ``fingerprint_home_lazy_capture`` receipt, or ``None`` if this is not one."""
+
+    index = message.find(_LAZY_CAPTURE_ANCHOR)
+    if index < 0:
+        return None
+    for token in message[index + len(_LAZY_CAPTURE_ANCHOR):].split():
+        if token.startswith("site="):
+            return token[len("site="):]
+    return "unknown"
+
+
 def census_demotes(
     lines: Iterable[str], *, window: int = DEFAULT_WINDOW
 ) -> dict[str, Any]:
@@ -217,8 +237,13 @@ def census_demotes(
     demotes: list[dict[str, Any]] = []
     hits = 0
     stale_first = 0
+    lazy_sites: Counter[str] = Counter()
     for raw in lines:
         scanned += 1
+        site = parse_lazy_capture_site(raw)
+        if site is not None:
+            lazy_sites[site] += 1
+            continue
         row = parse_demote_line(raw)
         if row is not None:
             demotes.append(row)
@@ -270,10 +295,12 @@ def census_demotes(
             unavailable += 1
             unavailable_reasons[DIFF_TAIL_ABSENT] += 1
 
-    if not demotes:
-        verdict = VERDICT_NO_LINES
-    elif self_perturbing:
+    if self_perturbing:
         verdict = VERDICT_SELF_PERTURBATION
+    elif lazy_sites:
+        verdict = VERDICT_HOME_LAZY_CAPTURE
+    elif not demotes:
+        verdict = VERDICT_NO_LINES
     elif unavailable:
         verdict = VERDICT_DIFF_UNAVAILABLE
     elif store_only:
@@ -299,6 +326,8 @@ def census_demotes(
             "store_paths": dict(store_paths.most_common(_STORE_PATH_SAMPLE)),
         },
         "home_mismatch_lines": reasons.get(DEMOTE_HOME_MISMATCH, 0),
+        # Every receipt in the scan, not the demote window: each is one process that pinned the wrong home.
+        "home_lazy_capture": {"lines": sum(lazy_sites.values()), "sites": dict(lazy_sites.most_common())},
         "verdict": verdict,
     }
 
@@ -316,6 +345,21 @@ def format_census(report: dict[str, Any], *, source: str = "-") -> str:
         f"stale-first paints {report['context']['stale_first_paints']}",
         f"  verdict: {report['verdict']}",
     ]
+
+    lazy = report["home_lazy_capture"]
+    if lazy["lines"]:
+        out.append(
+            f"  ** HOME LAZY CAPTURE ** {lazy['lines']} receipt(s): a process that declared a boot "
+            "instant captured its fingerprint home on first use, so its sidecar is keyed under "
+            "whatever scope was live and the next boot demotes it home_mismatch. A defect on any "
+            "install:"
+        )
+        for site, count in lazy["sites"].items():
+            out.append(f"    site={site}: {count}")
+
+    if not report["demotes_parsed"] and report["verdict"] == VERDICT_HOME_LAZY_CAPTURE:
+        out.append("  no demote receipt in the window: the demote half is UNMEASURED, not clean.")
+        return "\n".join(out)
 
     if report["verdict"] == VERDICT_NO_LINES:
         out.append(

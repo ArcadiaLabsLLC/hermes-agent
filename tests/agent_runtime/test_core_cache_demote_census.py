@@ -427,3 +427,69 @@ def test_the_census_reads_a_receipt_the_real_cache_lane_wrote(
         str(path).replace("\\", "/") == named.replace("\\", "/")
         for named in mismatch["store_paths"]
     ), mismatch
+
+
+# --------------------------------------------------------------------------- #
+# 6. the producing side of home_mismatch is a counted defect family (HC-3)
+# --------------------------------------------------------------------------- #
+def _churn_line() -> list[str]:
+    """A store-only mismatch receipt, spelled through the producer's own tail helper."""
+
+    return [
+        f"snapshot_core_cache core_source={core_cache.CORE_SOURCE_REBUILT} caller=hub "
+        f"reason={core_cache.DEMOTE_FINGERPRINT_MISMATCH} inputs=3 "
+        f"{core_cache._diff_detail(core_cache.DIFF_SCOPE_LAST_PAIR, ['C:/s/workspaces/w.json'])}"
+    ]
+
+
+def _lazy_capture_lines(caplog, site: str) -> list[str]:
+    """Run the REAL lazy-capture receipt: a declared boot instant, then a first-use capture."""
+
+    caplog.clear()
+    try:
+        core_cache.declare_fingerprint_home_boot_site(site)
+        with caplog.at_level(logging.WARNING, logger=_LOGGER):
+            core_cache.resolved_fingerprint_home()
+    finally:
+        _seams.reset_fingerprint_home()
+    return [record.getMessage() for record in caplog.records]
+
+
+def test_a_lazy_fingerprint_home_capture_is_counted_and_is_the_verdict(caplog, tmp_path, capsys):
+    """Plan core-cache-home-capture-timing, HC-3: the census counted ``reason=home_mismatch`` (the
+    judging side) and not ``fingerprint_home_lazy_capture`` (the producing side, a boot earlier).
+
+    *Kill:* drop the lazy-capture branch from ``census_demotes``. The receipt is then neither a
+    demote nor a hit, the count is 0 and the verdict falls to ``no_demote_lines_parsed``.
+    """
+
+    from agent_runtime.core_cache_census import VERDICT_HOME_LAZY_CAPTURE
+    from scripts.core_cache_demote_census import EXIT_HOME_LAZY_CAPTURE, main
+
+    lines = _lazy_capture_lines(caplog, "probe:census_lazy")
+    assert len(lines) == 1, lines
+    churn = _churn_line()
+
+    alone = census_demotes(lines)
+    assert alone["home_lazy_capture"] == {"lines": 1, "sites": {"probe:census_lazy": 1}}
+    assert alone["verdict"] == VERDICT_HOME_LAZY_CAPTURE and alone["demotes_parsed"] == 0
+    assert "UNMEASURED" in format_census(alone)
+
+    # A lazy capture outranks store churn: churn alone would read "working as designed".
+    mixed = census_demotes(lines + churn)
+    assert mixed["verdict"] == VERDICT_HOME_LAZY_CAPTURE
+    assert "HOME LAZY CAPTURE" in format_census(mixed)
+
+    log = tmp_path / "agent.log"
+    log.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    assert main(["--log", str(log)]) == EXIT_HOME_LAZY_CAPTURE
+    capsys.readouterr()
+
+
+def test_without_a_lazy_receipt_the_family_reads_zero_and_changes_nothing(caplog):
+    """Positive control for the case above: the same churn line with no lazy receipt keeps its old verdict."""
+
+    churn = _churn_line()
+    report = census_demotes(churn)
+    assert report["home_lazy_capture"] == {"lines": 0, "sites": {}}
+    assert report["verdict"] == VERDICT_STORE_CHURN
