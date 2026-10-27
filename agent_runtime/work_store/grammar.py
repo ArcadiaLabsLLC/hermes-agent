@@ -40,6 +40,7 @@ __all__ = [
     "parse_note",
     "parse_row",
     "render_status",
+    "requires_hosts",
     "row_defects",
     "segment_text",
     "split_segments",
@@ -56,6 +57,13 @@ SKILLS = re.compile(r"^skills: `[A-Za-z0-9_./-]+`(?:, `[A-Za-z0-9_./-]+`)*$")
 SKILL_SLUG = re.compile(r"^[A-Za-z0-9_./-]+$")
 WORK_ID = re.compile(r"^WORK-[A-Z2-7]{6}$")
 TAKEN = re.compile(r"\*\*TAKEN (\d{4}-\d{2}-\d{2}) ([^*]+?)\*\*")
+#: A lane claim's ``<who>``: ``<lane>[ on <machine>][ as <git account>][ in <worktree>]``.
+CLAIM_WHO = re.compile(r"^(.+?)(?: on (\S+))?(?: as (\S+))?(?: in (\S+))?$")
+#: The first claim date that must name its machine (launcher ADR 0025's 2026-10-26 amendment).
+PLACE_REQUIRED_FROM = "2026-10-27"
+#: ``REQUIRES <host>[, <host>…]`` — the OS a row must be worked on; a record, never a status.
+REQUIRES = re.compile(r"^REQUIRES(?:\s+(.*))?$", re.DOTALL)
+HOSTS = ("windows", "macos", "linux")
 RECOMMEND = re.compile(r"^Recommend:\s*(.*)$", re.DOTALL)
 TITLE = re.compile(r"^\s*- (?:\[[ xX]\] )?\*\*`[^`]*` — (.*?)\*\*")
 CODE_SPAN = re.compile(r"`([^`]+)`")
@@ -104,6 +112,17 @@ class Claim:
     def persona_instance_id(self) -> str | None:
         return self.who[len(PERSONA_PREFIX):] if self.who.startswith(PERSONA_PREFIX) else None
 
+    @property
+    def machine(self) -> str | None:
+        """The ``on <machine>`` part of a lane claim, or None when the mark leaves it out."""
+        match = CLAIM_WHO.match(self.who)
+        return match.group(2) if match else None
+
+    @property
+    def missing_place(self) -> bool:
+        """A lane claim from :data:`PLACE_REQUIRED_FROM` on with no ``on <machine>`` (persona claims exempt)."""
+        return self.persona_instance_id is None and self.machine is None and self.date >= PLACE_REQUIRED_FROM
+
 
 @dataclass(frozen=True)
 class Assignee:
@@ -131,6 +150,8 @@ class Row:
     defects: tuple[str, ...] = ()
     #: The skills the row lends whoever works it (``skills:`` segment); never a pointer.
     skills: tuple[str, ...] = ()
+    #: The hosts the row's ``REQUIRES`` segment names, in order; empty when it runs anywhere.
+    requires: tuple[str, ...] = ()
 
 
 def domain_of(row: Row) -> Domain:
@@ -157,6 +178,17 @@ def split_segments(line: str) -> list[str]:
         i += 1
     out.append("".join(current))
     return out
+
+
+def requires_hosts(segment: str) -> tuple[str, ...] | None:
+    """The hosts of a ``REQUIRES`` segment, or None when it names none, an unknown one, or one twice."""
+    match = REQUIRES.match(segment)
+    if match is None:
+        return None
+    hosts = [part.strip() for part in (match.group(1) or "").split(",")]
+    if any(host not in HOSTS for host in hosts) or len(set(hosts)) != len(hosts):
+        return None
+    return tuple(hosts)
 
 
 def blocked_reason(body: str) -> str | None:
@@ -213,18 +245,31 @@ def _segment_defects(segments: list[str]) -> list[str]:
             defects.append(f"assignee shape: {segment[:40]!r}; the segment is `assignee: persona:<token>`")
         if segment.startswith("skills:") and not SKILLS.match(segment):
             defects.append(f"skills shape: {segment[:40]!r}; the segment is `skills: `<slug>`[, `<slug>`]`")
+        if REQUIRES.match(segment) and requires_hosts(segment) is None:
+            defects.append(f"REQUIRES shape: {segment[:40]!r}; the segment is `REQUIRES <host>[, <host>]`, "
+                           f"each host once, from {HOSTS}")
     if sum(1 for s in segments[1:] if ASSIGNEE.match(s)) > 1:
         defects.append("2 assignee segments; at most one")
     if sum(1 for s in segments[1:] if SKILLS.match(s)) > 1:
         defects.append("2 skills segments; at most one")
+    if sum(1 for s in segments[1:] if REQUIRES.match(s)) > 1:
+        defects.append("2 REQUIRES segments; at most one")
     return defects
+
+
+def _claim_defects(line: str) -> list[str]:
+    taken = TAKEN.search(line)
+    if taken is None or not Claim(taken.group(1), taken.group(2).strip()).missing_place:
+        return []
+    return [f"claim dated {taken.group(1)} names no machine; a lane claim is "
+            "`**TAKEN <date> <lane> on <machine> as <git account> in <worktree>**`"]
 
 
 def row_defects(line: str) -> list[str]:
     """Every grammar defect of one row line (empty when the row is canonical) — the lint's verdict."""
 
     segments = [s.strip() for s in split_segments(line)]
-    return _lead_defects(line) + _status_defects(segments) + _segment_defects(segments)
+    return _lead_defects(line) + _status_defects(segments) + _segment_defects(segments) + _claim_defects(line)
 
 
 # ── parse ────────────────────────────────────────────────────────────────────
@@ -243,6 +288,7 @@ def parse_row(line: str, *, slot: str, note: str, line_no: int, heading: str = "
     recommend = next((m.group(1).strip() for m in map(RECOMMEND.match, segments[1:]) if m), None)
     assignee = next((Assignee(m.group(1)) for m in map(ASSIGNEE.match, segments[1:]) if m), None)
     lent = next((s for s in segments[1:] if SKILLS.match(s)), None)
+    hosts = next((h for h in map(requires_hosts, segments[1:]) if h is not None), ())
     taken = TAKEN.search(line)
     return Row(
         ref=RowRef(slot, note, id_match.group(1) if id_match else ""),
@@ -261,6 +307,7 @@ def parse_row(line: str, *, slot: str, note: str, line_no: int, heading: str = "
         raw=line,
         defects=tuple(row_defects(line)),
         skills=tuple(CODE_SPAN.findall(lent)) if lent else (),
+        requires=hosts,
     )
 
 

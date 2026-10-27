@@ -41,6 +41,13 @@ Identical in the launcher, this repo and the backend; do not diverge.
   skills to whoever works the row; each slug is a code span of `[A-Za-z0-9_./-]+`; at most one such
   segment; a segment opening `skills:` in any other shape is a defect. The launcher's twin is ADR 0025
   "Amendment 2026-10-19".
+- **Claim place (amendment 2026-10-27, twin of launcher ADR 0025's 2026-10-26 amendment):** a lane claim is
+  `**TAKEN <date> <lane> on <machine> as <git account> in <worktree>**`; one dated 2026-10-27 or later with no
+  `on <machine>` is a defect. Persona claims and earlier marks are exempt.
+- **Host (amendment 2026-10-27, twin of launcher ADR 0025's 2026-10-26b amendment):** an optional segment
+  `REQUIRES <host>[, <host>…]` (host `windows` | `macos` | `linux`, each once) names the OS a row must be
+  worked on — a record like RULED, never a status. An unknown or repeated host, no host, or a second
+  `REQUIRES` segment is a defect.
 - **Engine-minted IDs (amendment 2026-10-18, Work W1):** a row the Work engine appends is `WORK-<6>` —
   `WORK-` plus six base32 characters (`[A-Z2-7]{6}`), minted by the engine, unique within the brain like
   any ID. Lane rows keep their domain prefixes; nothing existing is renumbered.

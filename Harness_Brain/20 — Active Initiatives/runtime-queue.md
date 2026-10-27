@@ -1002,7 +1002,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-26 (launcher lane w1026c-core)
 
-- **`RT-CLAIM-MARK-PLACE-GATE` — the work-store grammar does not red a lane claim dated 2026-10-27 or later that names no `on <machine>`; mirror the launcher's `WorkQueueClaim.missingPlace` (persona claims and earlier marks exempt), with its killing mutation recorded** · `tests/agent_runtime/work_store/test_grammar.py` · `lib/features/mission_control/work_queue/policy/work_queue_row.dart::WorkQueueClaim` · READY 2026-10-26 · **TAKEN 2026-10-27 w1027a-h-grammar on nekwo-ubuntu24 as nekwo in hermes-w1027a-h-grammar**
 
 ## Filed on arrival — 2026-10-26 (launcher lane w1026c-mc-b)
 
@@ -1010,4 +1009,3 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-26 (launcher lane w1026c-requires)
 
-- **`RT-QUEUE-REQUIRES-SEGMENT` — mirror the launcher's `REQUIRES <host>[, <host>…]` record (windows|macos|linux; unknown/empty/repeated/second segment is a defect) in the Work grammar; add a REQUIRES row to the shared grammar fixtures in both repos together (hermes keeps byte-identical copies)** · `agent_runtime/work_store/grammar.py` · `tests/agent_runtime/work_store/test_grammar.py` · launcher `lib/features/mission_control/work_queue/policy/work_queue_row_parser.dart` · READY 2026-10-26 · **TAKEN 2026-10-27 w1027a-h-grammar on nekwo-ubuntu24 as nekwo in hermes-w1027a-h-grammar**

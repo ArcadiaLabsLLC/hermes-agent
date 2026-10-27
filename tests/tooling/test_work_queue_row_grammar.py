@@ -26,7 +26,11 @@ A row is ``- **`<ID>` — <title>** · <segment> · …``, on ONE physical line,
   ``assignee:`` segment in any other shape (amendment 2026-10-18, Work W1);
 * at most one ``skills: `<slug>`[, `<slug>`]`` segment (slug ``[A-Za-z0-9_./-]+``), and no ``skills:``
   segment in any other shape (amendment 2026-10-19, p10-work S1);
-* an ID opening ``WORK-`` is an engine-minted ``WORK-<6>``: six base32 characters ``[A-Z2-7]``.
+* an ID opening ``WORK-`` is an engine-minted ``WORK-<6>``: six base32 characters ``[A-Z2-7]``;
+* at most one ``REQUIRES <host>[, <host>…]`` segment (host ``windows`` | ``macos`` | ``linux``, each once) —
+  a record like RULED, never a status (launcher ADR 0025's 2026-10-26 amendment);
+* a lane claim dated 2026-10-27 or later names its machine:
+  ``**TAKEN <date> <lane> on <machine> as <git account> in <worktree>**`` (persona claims exempt).
 
 Segments split on `` · `` outside code spans. ``**TAKEN <date> <who>**`` is a claim,
 never a status.
@@ -53,6 +57,11 @@ ASSIGNEE = re.compile(r"^assignee: persona:[A-Za-z0-9_.-]+$")
 SKILLS = re.compile(r"^skills: `[A-Za-z0-9_./-]+`(?:, `[A-Za-z0-9_./-]+`)*$")
 WORK_ID = re.compile(r"^WORK-[A-Z2-7]{6}$")
 RETIRED = re.compile(r"^(VERDICT|DESIGN|OWNER|PLAN|VERIFY)\b")
+REQUIRES = re.compile(r"^REQUIRES(?:\s+(.*))?$", re.DOTALL)
+HOSTS = ("windows", "macos", "linux")
+TAKEN = re.compile(r"\*\*TAKEN (\d{4}-\d{2}-\d{2}) ([^*]+?)\*\*")
+CLAIM_WHO = re.compile(r"^(.+?)(?: on (\S+))?(?: as (\S+))?(?: in (\S+))?$")
+PLACE_REQUIRED_FROM = "2026-10-27"
 BLOCKED_REASONS = ("owner decision", "owner sitting", "backend", "hermes", "launcher", "upstream", "another lane")
 LANE_REASONS = ("backend", "hermes", "launcher", "another lane")
 BLOCKER = re.compile(r"^`([A-Z0-9][A-Z0-9._-]*)`(.*)$", re.DOTALL)
@@ -144,10 +153,24 @@ def row_defects(line: str) -> list[str]:
             defects.append(f"assignee shape: {segment[:40]!r}; the segment is `assignee: persona:<token>`")
         if segment.startswith("skills:") and not SKILLS.match(segment):
             defects.append(f"skills shape: {segment[:40]!r}; the segment is `skills: `<slug>`[, `<slug>`]`")
+        if (requires := REQUIRES.match(segment)) is not None:
+            hosts = [part.strip() for part in (requires.group(1) or "").split(",")]
+            if any(host not in HOSTS for host in hosts) or len(set(hosts)) != len(hosts):
+                defects.append(f"REQUIRES shape: {segment[:40]!r}; the segment is `REQUIRES <host>[, <host>]`, "
+                               f"each host once, from {HOSTS}")
     if sum(1 for s in segments[1:] if ASSIGNEE.match(s)) > 1:
         defects.append("2 assignee segments; at most one")
     if sum(1 for s in segments[1:] if SKILLS.match(s)) > 1:
         defects.append("2 skills segments; at most one")
+    if sum(1 for s in segments[1:] if REQUIRES.match(s)) > 1:
+        defects.append("2 REQUIRES segments; at most one")
+    taken = TAKEN.search(line)
+    if taken is not None and taken.group(1) >= PLACE_REQUIRED_FROM:
+        who = taken.group(2).strip()
+        place = CLAIM_WHO.match(who)
+        if not who.startswith("persona:") and (place is None or place.group(2) is None):
+            defects.append(f"claim dated {taken.group(1)} names no machine; a lane claim is "
+                           "`**TAKEN <date> <lane> on <machine> as <git account> in <worktree>**`")
     return defects
 
 
@@ -211,6 +234,10 @@ VALID = [
     "- **`RT-I` — assigned** · assignee: persona:pi_alice_01 · READY 2026-10-18",
     "- **`WORK-A2B3C4` — minted** · assignee: persona:alice · READY 2026-10-18 · **TAKEN 2026-10-18 persona:pi_alice_01**",
     "- **`RT-J` — lent** · assignee: persona:alice · skills: `git-workflow`, `eternia/qa` · READY 2026-10-19",
+    "- **`RT-K` — host-bound** · READY 2026-10-26 · REQUIRES windows, macos · regenerate the golden there",
+    "- **`RT-L` — placed claim** · READY 2026-10-27 · **TAKEN 2026-10-27 w1027a-x on box-1 as nekwo in w1027a-x**",
+    "- **`RT-M` — earlier bare claim** · READY 2026-10-26 · **TAKEN 2026-10-26 w1026a-x**",
+    "- **`RT-N` — persona claim** · READY 2026-10-27 · **TAKEN 2026-10-27 persona:pi_alice_01**",
 ]
 DEFECTS = {
     "- [ ] **`RT-A` — checkbox** · READY 2026-10-18": "checkbox",
@@ -232,6 +259,13 @@ DEFECTS = {
     "- **`RT-A` — two skills** · skills: `a` · skills: `b` · READY 2026-10-19": "2 skills",
     "- **`WORK-abc` — bad mint** · READY 2026-10-18": "is not",
     "- **`WORK-ABCDE` — short mint** · READY 2026-10-18": "WORK-<6>",
+    "- **`RT-A` — unknown host** · READY 2026-10-26 · REQUIRES windos": "REQUIRES shape",
+    "- **`RT-A` — no host** · READY 2026-10-26 · REQUIRES": "REQUIRES shape",
+    "- **`RT-A` — repeated host** · READY 2026-10-26 · REQUIRES windows, windows": "REQUIRES shape",
+    "- **`RT-A` — capital host** · READY 2026-10-26 · REQUIRES Windows": "REQUIRES shape",
+    "- **`RT-A` — two hosts segments** · READY 2026-10-26 · REQUIRES windows · REQUIRES linux": "2 REQUIRES",
+    "- **`RT-A` — bare claim** · READY 2026-10-27 · **TAKEN 2026-10-27 w1027a-core**": "names no machine",
+    "- **`RT-A` — claim with no on** · READY 2026-10-27 · **TAKEN 2026-10-27 w1027a-core as nekwo in wt**": "names no machine",
 }
 
 

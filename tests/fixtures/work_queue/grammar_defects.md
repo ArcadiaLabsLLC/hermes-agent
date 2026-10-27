@@ -20,3 +20,6 @@ status: open
 - **`WORK-ABCDE` — Short engine-minted ID row** · READY 2026-10-18
 - **`FX-BARE-SKILL` — Bare skill row** · skills: git-workflow · READY 2026-10-19
 - **`FX-TWO-SKILLS` — Two skills segments row** · skills: `a` · skills: `b` · READY 2026-10-19
+- **`FX-BAD-HOST` — Unknown host row** · READY 2026-10-26 · REQUIRES windos
+- **`FX-TWO-REQUIRES` — Two REQUIRES segments row** · READY 2026-10-26 · REQUIRES windows · REQUIRES linux
+- **`FX-CLAIM-NO-PLACE` — Claim naming no machine row** · READY 2026-10-27 · **TAKEN 2026-10-27 w1027a-mc**

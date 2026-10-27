@@ -150,3 +150,46 @@ def test_set_skills_inserts_replaces_and_removes_the_one_segment() -> None:
     with pytest.raises(WorkRefused) as bad:
         grammar.apply(bare, Op.SET_SKILLS, who="operator", date=DATE, payload={"skills": ["no spaces"]})
     assert bad.value.reason is Reason.INVALID
+
+
+def test_requires_names_the_hosts_in_order_and_is_not_a_status() -> None:
+    """RT-QUEUE-REQUIRES-SEGMENT. KILLING MUTATION: make ``requires_hosts`` drop an unknown host
+    (``hosts = [h for h in hosts if h in HOSTS]``) -> ``REQUIRES windos`` parses clean, red."""
+
+    row = grammar.parse_row("- **`H-1` — golden** · READY 2026-10-26 · REQUIRES windows, macos · regenerate there",
+                            slot="s", note="n", line_no=1)
+    assert row.requires == ("windows", "macos") and row.status is Status.READY and row.defects == ()
+    # POSITIVE CONTROL: the same row without the segment runs anywhere; every host alone is clean.
+    assert grammar.parse_row("- **`H-1` — golden** · READY 2026-10-26", slot="s", note="n", line_no=1).requires == ()
+    for host in grammar.HOSTS:
+        alone = grammar.parse_row(f"- **`H-2` — x** · READY 2026-10-26 · REQUIRES {host}", slot="s", note="n", line_no=1)
+        assert alone.requires == (host,) and alone.defects == (), host
+    for bad in ("REQUIRES windos", "REQUIRES", "REQUIRES windows, windows", "REQUIRES Windows",
+                "REQUIRES windows · REQUIRES linux"):
+        parsed = grammar.parse_row(f"- **`H-2` — x** · READY 2026-10-26 · {bad}", slot="s", note="n", line_no=1)
+        assert parsed.defects and all("REQUIRES" in d for d in parsed.defects), (bad, parsed.defects)
+        assert parsed.status is Status.READY, bad
+
+
+def test_a_lane_claim_from_2026_10_27_must_name_its_machine() -> None:
+    """RT-CLAIM-MARK-PLACE-GATE. KILLING MUTATION: drop the ``self.machine is None`` term from
+    ``Claim.missing_place`` -> the placed claim below is a defect too, red."""
+
+    bare = grammar.parse_row("- **`A-1` — x** · READY 2026-10-27 · **TAKEN 2026-10-27 w1027a-core**",
+                             slot="s", note="n", line_no=1)
+    assert bare.taken.missing_place and bare.taken.machine is None
+    assert len(bare.defects) == 1 and "names no machine" in bare.defects[0]
+    # POSITIVE CONTROLS: with its place, a day earlier, and the engine's persona claim, all clean.
+    for clean in ("**TAKEN 2026-10-27 w1027a-core on box-1 as nekwo in w1027a-core**",
+                  "**TAKEN 2026-10-26 w1027a-core**", "**TAKEN 2026-10-27 persona:pi_alice_01**"):
+        parsed = grammar.parse_row(f"- **`A-1` — x** · READY 2026-10-27 · {clean}", slot="s", note="n", line_no=1)
+        assert parsed.taken is not None and not parsed.taken.missing_place and parsed.defects == (), clean
+    assert grammar.parse_row("- **`A-1` — x** · READY 2026-10-27 · **TAKEN 2026-10-27 w1027a-core on box-1**",
+                             slot="s", note="n", line_no=1).taken.machine == "box-1"
+    # The one-line edit refuses to write a placeless lane claim, and still writes a persona one.
+    line = "- **`A-1` — x** · READY 2026-10-27"
+    with pytest.raises(WorkRefused) as placeless:
+        grammar.apply(line, Op.CLAIM, who="w1027a-core", date="2026-10-27", payload={})
+    assert placeless.value.reason is Reason.GRAMMAR_INVALID
+    assert grammar.apply(line, Op.CLAIM, who="persona:pi_alice_01", date="2026-10-27", payload={}).endswith(
+        "**TAKEN 2026-10-27 persona:pi_alice_01**")
