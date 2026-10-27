@@ -16,20 +16,37 @@ from typing import Any, Iterator
 __layer__ = "policy"
 
 _PERSONA_TURN_AGENT: ContextVar[Any] = ContextVar("eternia_persona_turn_agent", default=None)
+#: The bound turn's chat and turn ids, copied at bind time: a thread started inside the turn (the
+#: post-turn background review) keeps THIS turn's ids even after the agent moves on to the next one.
+_PERSONA_TURN_ORIGIN: ContextVar[dict[str, str] | None] = ContextVar("eternia_persona_turn_origin", default=None)
+
+
+def _turn_origin(agent: Any) -> dict[str, str] | None:
+    chat = str(getattr(agent, "_persona_chat_root_session_id", None) or "")
+    turn = str(getattr(agent, "_persona_chat_turn_id", None) or "")
+    return {"chat_session_id": chat, "turn_id": turn} if chat or turn else None
 
 
 @contextmanager
 def bind_persona_turn_agent(agent: Any) -> Iterator[None]:
     agent._hermes_turn_wire_tool_receipt = None
     token = _PERSONA_TURN_AGENT.set(agent)
+    origin = _PERSONA_TURN_ORIGIN.set(_turn_origin(agent))
     try:
         yield
     finally:
+        _PERSONA_TURN_ORIGIN.reset(origin)
         _PERSONA_TURN_AGENT.reset(token)
 
 
 def current_persona_turn_agent() -> Any:
     return _PERSONA_TURN_AGENT.get()
+
+
+def current_turn_origin() -> dict[str, str] | None:
+    """``{chat_session_id, turn_id}`` of the persona turn this context was bound in, else None."""
+    origin = _PERSONA_TURN_ORIGIN.get()
+    return dict(origin) if origin else None
 
 
 def capture_final_request_tools(request: Any) -> None:

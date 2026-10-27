@@ -309,6 +309,7 @@
     "runtime.settles.list",
     "runtime.settles.rearm",
     "runtime.skills.catalog",
+    "runtime.skills.changes.list",
     "runtime.skills.pending.approve",
     "runtime.skills.pending.list",
     "runtime.skills.pending.reject",
@@ -920,6 +921,13 @@
       "credential",
       "realm_id"
     ],
+    "runtime.skills.changes.list": [
+      "chat_session_id",
+      "limit",
+      "profile",
+      "skill",
+      "turn_id"
+    ],
     "runtime.skills.pending.approve": [
       "id",
       "profile"
@@ -1249,6 +1257,7 @@
     "runtime.settles.list": "console",
     "runtime.settles.rearm": "console",
     "runtime.skills.catalog": "read",
+    "runtime.skills.changes.list": "console",
     "runtime.skills.pending.approve": "console",
     "runtime.skills.pending.list": "console",
     "runtime.skills.pending.reject": "console",

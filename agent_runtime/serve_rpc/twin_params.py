@@ -16,6 +16,7 @@ __all__ = [
     "PERSONA_TOOLSET_METHOD_PARAMS",
     "REALM_METHOD_PARAMS",
     "SKILLS_PENDING_METHOD_PARAMS",
+    "SKILL_CHANGES_METHOD_PARAMS",
     "TWIN_METHOD_PARAMS",
 ]
 
@@ -73,6 +74,11 @@ COURSE_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     "runtime.course.checkout": ("credential",),
     "runtime.course.commit": ("branch", "credential", "deletes", "files", "message", "persona_id", "persona_name"),
     "runtime.course.pull_request": ("body", "branch", "credential", "persona_id", "title"),
+}
+
+#: ``runtime.skills.changes.list`` (``serve_rpc/skills_pending.py``) — method-lane-only, no argv twin.
+SKILL_CHANGES_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
+    "runtime.skills.changes.list": ("chat_session_id", "limit", "profile", "skill", "turn_id"),
 }
 
 #: ``runtime.persona.toolset.*`` (``serve_rpc/console_operations.py``) — method-lane-only, no argv twin.

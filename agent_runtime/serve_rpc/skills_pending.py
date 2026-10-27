@@ -9,12 +9,16 @@ owner's door onto every profile's staged writes from Mission Control. The argv t
 =========  =====================================================================
 verb       params -> result
 =========  =====================================================================
-list       {profile?} -> {pending: [{profile, id, summary, origin, action, skill,
+list       {profile?} -> {pending: [{profile, id, summary, origin, turn, action, skill,
            created_at, diff, diff_truncated}], count, profiles_scanned}
 approve    {profile, id} -> {profile, id, applied: true, result} (upstream's replay,
            ``apply_skill_pending``; the record is dropped only when it applied)
 reject     {profile, id} -> {profile, id, rejected: true}
 =========  =====================================================================
+
+``list`` rows also carry ``turn`` (the chat and turn the review came from, or null). Beside them,
+``runtime.skills.changes.list`` (method-lane only) lists applied skill changes with their diffs and
+the review's chat and turn (RT-SKILL-CHANGE-RECORD, ``agent_runtime/review_skill_changes.py``).
 
 Tier ``console`` for all three: a diff carries skill text, and approve writes the shared
 skill every agent of the account loads. Every refusal carries ``data.reason`` (a
@@ -39,6 +43,7 @@ from agent_runtime.serve_rpc.registry import method
 __layer__ = "lanes"
 
 __all__ = [
+    "_runtime_skills_changes_list",
     "_runtime_skills_pending_approve",
     "_runtime_skills_pending_list",
     "_runtime_skills_pending_reject",
@@ -82,3 +87,27 @@ def _runtime_skills_pending_reject(rid: Any, params: dict, context: RpcContext |
 
     params = params or {}
     return _pending_call(rid, lambda: reject_staged(profile=params.get("profile"), pending_id=params.get("id")))
+
+
+@method("runtime.skills.changes.list", tier=TIER_CONSOLE)
+def _runtime_skills_changes_list(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """Applied skill changes with diffs and the review's chat and turn, plus staged writes (RT-SKILL-CHANGE-RECORD).
+
+    ``{profile?, skill?, chat_session_id?, turn_id?, limit?}`` -> ``{changes: [{profile, entry_id, skill, action,
+    actor, at, review, turn: {chat_session_id, turn_id} | null, files, diff, diff_truncated}], staged: [{profile,
+    pending_id, skills, action, at, turn, status: pending | approved | rejected | gone}], truncated,
+    profiles_scanned}`` (``agent_runtime.review_skill_changes.list_changes``). Method-lane only.
+    """
+    from agent_runtime.review_skill_changes import list_changes
+
+    params = params or {}
+    keys = ("profile", "skill", "chat_session_id", "turn_id")
+    if any(params.get(key) is not None and not isinstance(params[key], str) for key in keys):
+        return err(rid, ERR_INVALID_PARAMS, "The skill change read was refused.",
+                   {"reason": "invalid_params", "detail": "profile, skill, chat_session_id and turn_id are strings"})
+    try:
+        return _pending_call(rid, lambda: list_changes(**{key: params.get(key) for key in keys},
+                                                       limit=params.get("limit")))
+    except ValueError as exc:
+        return err(rid, ERR_INVALID_PARAMS, "The skill change read was refused.",
+                   {"reason": "invalid_params", "detail": str(exc)})

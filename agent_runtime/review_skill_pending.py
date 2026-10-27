@@ -8,7 +8,8 @@ act on a staged write from Mission Control. This module is that door, one level 
 
 * :func:`list_staged` walks the default home and every ``profiles/<name>`` home and returns
   each staged skill write with its profile, id, summary, origin, action, skill name, time and
-  the unified diff upstream's ``/skills diff`` would print (bounded);
+  the unified diff upstream's ``/skills diff`` would print (bounded), and the chat and turn the review
+  came from (``turn``, :mod:`agent_runtime.review_skill_changes`; null when unrecorded);
 * :func:`approve_staged` replays one record through ``tools.skill_manager_tool.apply_skill_pending``
   under that profile's home — upstream's own replay, the same one ``/skills approve`` runs — and
   drops the record only when the replay succeeded;
@@ -35,6 +36,7 @@ __all__ = [
     "SkillPendingRefusal",
     "approve_staged",
     "list_staged",
+    "profile_homes",
     "reject_staged",
 ]
 
@@ -76,6 +78,11 @@ def _profile_homes() -> list[tuple[str, Path]]:
     return homes
 
 
+def profile_homes(profile: Any = None) -> list[tuple[str, Path]]:
+    """``[(profile, home)]`` for the one named profile, or every profile of the namespace when none is named."""
+    return [_home_of(profile)] if profile else _profile_homes()
+
+
 def _home_of(profile: Any) -> tuple[str, Path]:
     name = str(profile or "").strip()
     for candidate, home in _profile_homes():
@@ -92,6 +99,7 @@ def _checked_id(pending_id: Any) -> str:
 
 
 def _pending_skill_row(profile: str, record: dict[str, Any]) -> dict[str, Any]:
+    from agent_runtime.review_skill_changes import turn_of_pending
     from tools import write_approval as wa
 
     payload = record.get("payload") if isinstance(record.get("payload"), dict) else {}
@@ -109,6 +117,7 @@ def _pending_skill_row(profile: str, record: dict[str, Any]) -> dict[str, Any]:
         "created_at": record.get("created_at"),
         "diff": diff[:DIFF_LIMIT],
         "diff_truncated": len(diff) > DIFF_LIMIT,
+        "turn": turn_of_pending(str(record.get("id") or "")),
     }
 
 
@@ -118,7 +127,7 @@ def list_staged(*, profile: str | None = None) -> dict[str, Any]:
     from agent_runtime.profile_context import process_home_scope
     from tools import write_approval as wa
 
-    homes = [_home_of(profile)] if profile else _profile_homes()
+    homes = profile_homes(profile)
     rows: list[dict[str, Any]] = []
     for name, home in homes:
         with process_home_scope(home):
@@ -130,6 +139,7 @@ def approve_staged(*, profile: str, pending_id: str) -> dict[str, Any]:
     """Replay one staged write under its profile's home; drop the record only when it applied."""
 
     from agent_runtime.profile_context import process_home_scope
+    from agent_runtime.review_skill_changes import record_staged_outcome
     from tools import write_approval as wa
 
     name, home = _home_of(profile)
@@ -148,6 +158,7 @@ def approve_staged(*, profile: str, pending_id: str) -> dict[str, Any]:
             error = result.get("error") if isinstance(result, dict) else ""
             raise SkillPendingError(SkillPendingRefusal.APPLY_FAILED, str(error or "the replay did not succeed"))
         wa.discard_pending(wa.SKILLS, record_id)
+        record_staged_outcome(record_id, "approved")
     return {"profile": name, "id": record_id, "applied": True, "result": result}
 
 
@@ -155,6 +166,7 @@ def reject_staged(*, profile: str, pending_id: str) -> dict[str, Any]:
     """Drop one staged write unapplied."""
 
     from agent_runtime.profile_context import process_home_scope
+    from agent_runtime.review_skill_changes import record_staged_outcome
     from tools import write_approval as wa
 
     name, home = _home_of(profile)
@@ -162,4 +174,5 @@ def reject_staged(*, profile: str, pending_id: str) -> dict[str, Any]:
     with process_home_scope(home):
         if not wa.discard_pending(wa.SKILLS, record_id):
             raise SkillPendingError(SkillPendingRefusal.NOT_FOUND, "no staged skill write with that id")
+        record_staged_outcome(record_id, "rejected")
     return {"profile": name, "id": record_id, "rejected": True}

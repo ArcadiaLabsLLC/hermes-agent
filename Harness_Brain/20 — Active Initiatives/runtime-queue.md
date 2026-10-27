@@ -999,9 +999,5 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ## Filed on arrival — 2026-10-26 (launcher lane w1026c-core)
 
 
-## Filed on arrival — 2026-10-26 (launcher lane w1026c-mc-b)
-
-- **`RT-SKILL-CHANGE-RECORD` — a background-review skill write (applied to a profile skill, or staged for a shared one) records the chat and turn it came from, and a read lists a skill's applied changes with their diffs, so the launcher can show "Updated skill <name>" on the turn and a per-skill history (launcher `MC-SKILL-CHANGE-VISIBLE`)** · `agent_runtime/review_skill_gate.py` · `agent_runtime/review_skill_pending.py` · READY 2026-10-26 · **TAKEN 2026-10-27 w1027a-h-rt on nekwo-ubuntu24 as nekwo in hermes-w1027a-h-rt**
-
 ## Filed on arrival — 2026-10-26 (launcher lane w1026c-requires)
 

@@ -248,7 +248,8 @@ def manifest() -> dict[str, Any]:
     from ..persona_open_chat import (OPEN_CHAT_METHOD, OPEN_CHAT_METHOD_PARAMS,
                                      CREATE_CONVERSATION_METHOD, CREATE_CONVERSATION_METHOD_PARAMS)
     from .board import BOARD_METHOD_PARAMS
-    from .twin_params import COURSE_METHOD_PARAMS, PERSONA_TOOLSET_METHOD_PARAMS, TWIN_METHOD_PARAMS
+    from .twin_params import (COURSE_METHOD_PARAMS, PERSONA_TOOLSET_METHOD_PARAMS, SKILL_CHANGES_METHOD_PARAMS,
+                              TWIN_METHOD_PARAMS)
     from ..subagents.params import METHOD_PARAMS as SUBAGENT_METHOD_PARAMS
     from ..conversations.model import MIGRATE_METHOD, MIGRATE_PARAMS
     from ..work.model import READ_METHOD_PARAMS as WORK_READ_METHOD_PARAMS
@@ -266,6 +267,7 @@ def manifest() -> dict[str, Any]:
                 **TWIN_METHOD_PARAMS,
                 **COURSE_METHOD_PARAMS,
                 **PERSONA_TOOLSET_METHOD_PARAMS,
+                **SKILL_CHANGES_METHOD_PARAMS,
                 **BOARD_METHOD_PARAMS,
                 **SUBAGENT_METHOD_PARAMS,
                 **WORK_READ_METHOD_PARAMS,

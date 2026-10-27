@@ -361,12 +361,15 @@ def record_usage_ledger_row(**kwargs):
 
 def record_turn_outcome(**kwargs):
     """``post_tool_call`` hook: a terminal call or file write folds into a bound persona turn's outcome,
-    and every call's measured ``duration_ms`` into the turn's review timings (``agent_runtime.review_prompts``)."""
+    every call's measured ``duration_ms`` into the turn's review timings (``agent_runtime.review_prompts``),
+    and a background review's skill write is recorded with its chat and turn (``agent_runtime.review_skill_changes``)."""
     from agent_runtime.review_prompts import on_post_tool_call as fold_review_timing
+    from agent_runtime.review_skill_changes import on_post_tool_call as record_review_skill_change
     from agent_runtime.turn_outcome import on_post_tool_call
 
     on_post_tool_call(**kwargs)
     fold_review_timing(**kwargs)
+    record_review_skill_change(**kwargs)
 
 
 async def answer_queue_status(**kwargs):

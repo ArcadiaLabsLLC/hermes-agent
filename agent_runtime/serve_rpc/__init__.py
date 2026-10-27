@@ -67,6 +67,7 @@ lens                     lanes   ``runtime.lens.*`` (Eternia Lens; code under
                                  ``agent_runtime/lens/``)
 skills_pending           lanes   ``runtime.skills.pending.list/approve/reject`` (staged
                                  skill writes; ``agent_runtime/review_skill_pending.py``)
+                                 and ``runtime.skills.changes.list`` (applied changes)
 =======================  ======  ================================================
 
 Each verb family registers its handlers on import; the family import below is

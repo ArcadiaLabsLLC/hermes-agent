@@ -16,7 +16,9 @@ target resolves inside :func:`agent_runtime.profile_home.get_shared_skills_dir` 
 2. **snapshotted**: the package as it stands is copied to ``<shared>/.archive/<skill>-<stamp>-pre-review``
    (resolver-invisible — ``agent.skill_utils.EXCLUDED_SKILL_DIRS``), so the text a later approval
    replaces can be put back;
-3. **refused** to the review fork with a message naming the pending id, so it does not retry.
+3. **refused** to the review fork with a message naming the pending id, so it does not retry;
+4. **attributed**: the chat and turn the review came from are recorded against the pending id
+   (:func:`agent_runtime.review_skill_changes.record_staged`, RT-SKILL-CHANGE-RECORD).
 
 Profile-local skills keep writing directly; a ``create`` lands in the profile's own skills dir and
 is never staged. A foreground write (the operator's own turn) is never touched.
@@ -32,7 +34,7 @@ from pathlib import Path
 from typing import Any
 
 __layer__ = "lanes"
-__all__ = ["PRE_REVIEW_SUFFIX", "REVIEW_GATED_ACTIONS", "review_shared_skill_write"]
+__all__ = ["PRE_REVIEW_SUFFIX", "REVIEW_GATED_ACTIONS", "review_shared_skill_write", "write_targets"]
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +61,8 @@ def _shared_package_dir(name: Any, shared_root: Path) -> Path | None:
         return None
 
 
-def _write_targets(args: dict[str, Any]) -> list[tuple[str, str]]:
+def write_targets(args: dict[str, Any]) -> list[tuple[str, str]]:
+    """``(action, name)`` of every write a ``skill_manage`` call makes (a batch's operations, or the flat call)."""
     operations = args.get("operations")
     if isinstance(operations, list):
         return [(str(op.get("action") or ""), str(op.get("name") or args.get("name") or ""))
@@ -91,7 +94,7 @@ def review_shared_skill_write(tool_name: Any, args: Any) -> dict[str, Any] | Non
 
     shared_root = get_shared_skills_dir()
     packages = {
-        package for action, name in _write_targets(args) if action in REVIEW_GATED_ACTIONS
+        package for action, name in write_targets(args) if action in REVIEW_GATED_ACTIONS
         for package in [_shared_package_dir(name, shared_root)] if package is not None
     }
     if not packages:
@@ -103,6 +106,9 @@ def review_shared_skill_write(tool_name: Any, args: Any) -> dict[str, Any] | Non
                          **{key: str(payload.get(key) or "")
                             for key in ("content", "file_path", "old_string", "new_string")})
     record = wa.stage_write(wa.SKILLS, payload, summary=f"[shared] {gist}", origin="background_review")
+    from agent_runtime.review_skill_changes import record_staged
+
+    record_staged(record["id"], sorted(package.name for package in packages), str(payload.get("action") or "batch"))
     kept = [str(path) for path in (_keep_prior_package(package, shared_root) for package in sorted(packages)) if path]
     logger.info("review_skill_gate staged=%s skills=%s kept=%s", record["id"],
                 ",".join(sorted(package.name for package in packages)), len(kept))
