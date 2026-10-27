@@ -60,7 +60,7 @@ RETIRED = re.compile(r"^(VERDICT|DESIGN|OWNER|PLAN|VERIFY)\b")
 REQUIRES = re.compile(r"^REQUIRES(?:\s+(.*))?$", re.DOTALL)
 HOSTS = ("windows", "macos", "linux")
 TAKEN = re.compile(r"\*\*TAKEN (\d{4}-\d{2}-\d{2}) ([^*]+?)\*\*")
-CLAIM_WHO = re.compile(r"^(.+?)(?: on (\S+))?(?: as (\S+))?(?: in (\S+))?$")
+CLAIM_WHO = re.compile(r"^(.+?)(?: on (\S+))?(?: as (.+?))?(?: in (\S+))?$")  # a git account may contain spaces
 PLACE_REQUIRED_FROM = "2026-10-27"
 BLOCKED_REASONS = ("owner decision", "owner sitting", "backend", "hermes", "launcher", "upstream", "another lane")
 LANE_REASONS = ("backend", "hermes", "launcher", "another lane")
@@ -236,6 +236,8 @@ VALID = [
     "- **`RT-J` — lent** · assignee: persona:alice · skills: `git-workflow`, `eternia/qa` · READY 2026-10-19",
     "- **`RT-K` — host-bound** · READY 2026-10-26 · REQUIRES windows, macos · regenerate the golden there",
     "- **`RT-L` — placed claim** · READY 2026-10-27 · **TAKEN 2026-10-27 w1027a-x on box-1 as nekwo in w1027a-x**",
+    # A git account (`user.name`) may contain spaces; mutation: `as (\S+)` back in CLAIM_WHO -> red.
+    "- **`RT-L2` — placed claim, spaced account** · READY 2026-10-27 · **TAKEN 2026-10-27 next-prompt on MUltiversalLabsInc as Maximus Shaban in next-prompt-20261027**",
     "- **`RT-M` — earlier bare claim** · READY 2026-10-26 · **TAKEN 2026-10-26 w1026a-x**",
     "- **`RT-N` — persona claim** · READY 2026-10-27 · **TAKEN 2026-10-27 persona:pi_alice_01**",
 ]
