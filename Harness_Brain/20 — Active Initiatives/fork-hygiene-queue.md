@@ -7,6 +7,10 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+## Filed on arrival — 2026-10-27 (lane w1027i-h-fork)
+
+- **`FH-SESSION-POLICY-HOOK-COUNT-RED` — upstream `tests/gateway/test_session_policy.py::test_launch_options_reach_the_owner_frozen_and_hooks_consented` reds on `origin/main` (`assert 2 == 1`): the pre-tool-call hook list holds the fork plugin's `refuse_tool_call` (`plugins/eternia-harness/__init__.py`) beside the consented shell hook, so the test's count of exactly one hook sees the fork's registration; decide whether the fork hook is registered in a process that only asked for the test's hook, or the test needs a caller-side isolation fixture** · `tests/gateway/test_session_policy.py::test_launch_options_reach_the_owner_frozen_and_hooks_consented` · `plugins/eternia-harness/__init__.py` · filed by lane w1027i-h-fork 2026-10-27 (red alone at `origin/main` in a detached probe) · READY 2026-10-27
+
 ## Filed on arrival — 2026-10-27 (lane w1027h-h-reds)
 
 
