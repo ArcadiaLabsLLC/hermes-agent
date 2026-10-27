@@ -18,7 +18,8 @@ logger = logging.getLogger(__name__)
 
 
 def _open(service, scope, params):
-    return service.open(scope, key=identifier(params["key"]), cwd=identifier(params["cwd"]),
+    cwd = params.get("cwd")
+    return service.open(scope, key=identifier(params["key"]), cwd=None if cwd is None else identifier(cwd),
                         resume=params.get("resume"), expected_home=identifier(params["profile_home"]))
 
 

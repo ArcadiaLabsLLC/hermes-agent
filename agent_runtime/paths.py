@@ -140,6 +140,30 @@ def chat_goal_park_path(root_session_id: str) -> Path:
     return chat_goal_parks_dir() / f"{safe_path_token(root_session_id)}.json"
 
 
+#: Parent of every chat's scratch folder (naming-map ruling 5,
+#: ``docs/agent-runtime-harness/planned/chat-folder-in-namespace-2026-10-26.md`` §2.1).
+CHAT_FOLDERS_DIRNAME = "chat_folders"
+
+#: Owner segment for a native route no persona instance has adopted yet
+#: (``chat_folders/profile-<profile>/<route_id>``) until ``migrate_conversation`` binds it.
+NATIVE_ROUTE_CHAT_FOLDER_PREFIX = "profile-"
+
+
+def chat_folder(instance_id: str, session_id: str, *, root: Path | None = None) -> Path:
+    """``<store_root>/chat_folders/<persona_instance_id>/<chat_session_id>`` — a path, never created here.
+
+    ``root`` is a store root the caller already holds (the conversation service's); ``None`` resolves it.
+    A native route with no persona instance passes ``native_route_chat_folder_owner(profile)`` as the owner.
+    """
+
+    base = store_root() if root is None else Path(root)
+    return base / CHAT_FOLDERS_DIRNAME / safe_path_token(instance_id) / safe_path_token(session_id)
+
+
+def native_route_chat_folder_owner(profile: str) -> str:
+    return NATIVE_ROUTE_CHAT_FOLDER_PREFIX + safe_path_token(profile)
+
+
 def runtime_instances_dir() -> Path:
     return store_root() / "runtime_instances"
 

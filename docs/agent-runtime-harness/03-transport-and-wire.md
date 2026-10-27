@@ -18,6 +18,12 @@ the native dispatch guard requires the selected executable's matching identity.
 The actor credential, client account scope, profile/home and session must also
 match. Sharing a profile store does not permit switching installations.
 
+`open`'s `cwd` is optional (capability `minted_chat_folder`). Omitted, the service mints the route's
+chat folder `<store_root>/chat_folders/profile-<profile>/<route_id>/` (`paths.chat_folder`) and stores
+it on the route; a resume that omits it is checked against the same path. A given `cwd` must be an
+existing absolute directory and is stored as before. Plan:
+[chat-folder-in-namespace](planned/chat-folder-in-namespace-2026-10-26.md) §2.2.
+
 `ConversationStore` persists dispatch identity before execution. Duplicate
 requests return their existing receipt; uncertain outcomes are never silently
 replayed. Native worker messages stay behind `NativePeer`; consumers receive

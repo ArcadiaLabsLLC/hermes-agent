@@ -17,7 +17,7 @@ from ..session_model_catalog import facts as model_facts
 from .bindings import Bindings
 from .live import LiveConversation
 from .model import (UNSETTLED, ConversationError, ConversationScope, Refusal, TurnState,
-                    identifier)
+                    conversation_route_id, identifier)
 from .store import ConversationStore
 from .worker import start_worker
 from .workers import Workers
@@ -50,14 +50,23 @@ class ConversationService:
                 "execution_identity_guard": True,
                 "images": True, "files": files_capability(),
                 "models": True, "skills": True, "launcher_app_functions": True,
-                "independent_sessions": True, "disconnect_keeps_work": True}
+                "independent_sessions": True, "disconnect_keeps_work": True,
+                # ``runtime.conversation.open`` without ``cwd`` mints the chat folder (chat-folder plan §2.2).
+                "minted_chat_folder": True}
 
-    def open(self, scope: ConversationScope, *, key: str, cwd: str,
+    def open(self, scope: ConversationScope, *, key: str, cwd: str | None = None,
              resume: str | None = None, expected_home: str) -> dict:
+        """Open or resume a route. ``cwd`` omitted: hermes mints the route's chat folder
+        (``paths.chat_folder``, chat-folder plan §2.2); a given ``cwd`` keeps today's check."""
         home = self.profile_home(scope.profile).resolve(strict=True)
         if home != Path(expected_home).resolve(strict=True):
             raise ConversationError(Refusal.WRONG_OWNER)
-        directory = Path(cwd)
+        if cwd is None:
+            if resume:
+                self.store.get(resume, scope)  # ownership first: an unknown id mints no folder
+            directory = self._minted_chat_folder(scope, resume or conversation_route_id(scope, key))
+        else:
+            directory = Path(cwd)
         if not directory.is_absolute() or not directory.is_dir():
             raise ConversationError(Refusal.INVALID_REQUEST)
         with self._lock:
@@ -71,6 +80,17 @@ class ConversationService:
             inventory = live.peer.call("model.options", {"session_id": live.native_id})
             return {"session_id": route.id, "install_id": self.install_id,
                     "facts": self._facts(route, recovered["recovery"], inventory), **recovered}
+
+    def _minted_chat_folder(self, scope: ConversationScope, route_id: str) -> Path:
+        """An un-adopted route's folder, created on open; the route id is a digest, so the path is stable."""
+        from agent_runtime.paths import chat_folder, native_route_chat_folder_owner
+
+        folder = chat_folder(native_route_chat_folder_owner(scope.profile), route_id, root=self.root)
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise ConversationError(Refusal.UNKNOWN) from exc
+        return folder
 
     def _attach(self, route, *, created: bool) -> LiveConversation:
         self.store.require_executable(route)
