@@ -6,7 +6,8 @@ import time
 
 import pytest
 
-from agent_runtime.console_suggestions.generation import clean_suggestion, register_suggestion_task
+from agent_runtime.console_suggestions.generation import register_suggestion_task
+from agent_runtime.suggestions.generation import clean_suggestion
 from agent_runtime.console_suggestions.settings import SuggestionRefused, SuggestionSettings, suggestion_home
 from agent_runtime.console_suggestions.store import SuggestionStore
 from agent_runtime.console_suggestions import service as lifecycle
