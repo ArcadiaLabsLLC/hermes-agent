@@ -239,6 +239,9 @@ _SharedTransport: Any = None
 
 def _shared_transport_key(base_url: str, verify: Any, proxy: Optional[str]) -> tuple:
     """Identity under which sync direct transports are pooled process-wide."""
+    if verify is True:  # carry beside #128649: the default trust keys as the ONE shared context
+        from agent.ssl_verify import resolve_httpx_verify
+        verify = resolve_httpx_verify()
     if verify is True or verify is False:
         verify_key: Any = verify
     elif isinstance(verify, str):

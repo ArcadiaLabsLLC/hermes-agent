@@ -210,8 +210,10 @@ def test_the_idle_keeper_warms_the_connection_the_next_turn_checks_out(server, m
     keep-alive client built with the default ``verify=True`` keys a DIFFERENT pool than the
     turn's resolved ``SSLContext``, so the keeper's ``HEAD`` opened a connection no turn used.
 
-    Named sabotage: build the keeper's client without ``verify=turn_pool_verify(url)`` in
-    ``provider_preconnect.refresh_process_connection`` -> the keeper opens a new connection."""
+    Named sabotage (both halves since FH-POOL-VERIFY-KEY-ONE-AUTHORITY keys ``verify=True`` as the
+    shared context): build the keeper's client without ``verify=turn_pool_verify(url)`` in
+    ``provider_preconnect.refresh_process_connection`` AND drop the ``verify is True`` branch of
+    ``agent/process_bootstrap.py::_shared_transport_key`` -> the keeper opens a new connection."""
 
     agent = _agent(server)
     assert _preconnect(monkeypatch, agent) == "404"

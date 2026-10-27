@@ -10,6 +10,11 @@ the anthropic adoption rode its own. :func:`turn_pool_verify` resolves ``verify`
 auxiliary lane does (``agent/auxiliary_client.py::_resolve_aux_verify``: the provider's
 ``ssl_ca_cert`` / ``ssl_verify`` for that base URL, else the shared default), so every fork
 keep-alive client mounts the turn's transport. Any failure answers ``True``, the old behaviour.
+
+Since FH-POOL-VERIFY-KEY-ONE-AUTHORITY ``_shared_transport_key`` keys ``verify=True`` as that shared
+default context itself, so the pool no longer depends on this call; what stays here is the
+per-provider half — a base URL with its own ``ssl_ca_cert`` / ``ssl_verify`` must get THAT trust,
+which ``True`` cannot express.
 """
 
 from __future__ import annotations
