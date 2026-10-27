@@ -33,4 +33,4 @@ Three killing controls failed their exact named nodes (factory bypass, omitted f
 
 Queue delta: none; R011 remains TAKEN/pending. All product paths restored to accepted base before this design commit. User main `.claude/`, parent Job2's in-flight test file, QA parity branch and old QA WIP patch preserved. Parent reviews this checkpoint before any new slice. Claude owns final full validation; user owns landing.
 
-Follow-on implementation: [resident/writer completion](runtime-resident-writer-2026-10-07.md) at frozen dependency boundary `6e2c7047980b9105138b8d042b481dbcaa151897`. The pending statements above record this historical design-only checkpoint; preserved WIP/evidence remains unchanged.
+Follow-on implementation: [resident/writer completion](../archive/runtime-resident-writer-2026-10-07.md) at frozen dependency boundary `6e2c7047980b9105138b8d042b481dbcaa151897`. The pending statements above record this historical design-only checkpoint; preserved WIP/evidence remains unchanged.

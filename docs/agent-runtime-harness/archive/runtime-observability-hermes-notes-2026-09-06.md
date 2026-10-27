@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: 2026-09-06 (O-h); the launcher plan is archived; the original shas predate the 2026-09-15 history fold into the `fork:` commits (`5a411b1657`..`0d5b7b8abc`).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Runtime observability — the hermes half's running record (2026-09-06)
 
 Field notes for the hermes stages of

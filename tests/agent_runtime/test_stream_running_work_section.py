@@ -1,6 +1,6 @@
 """A batch made only of terminal-process presence rides ONE sequenced ``running_work`` frame.
 
-Row ``RT-EMIT-RUNNING-WORK-CHAT``, plan ``docs/agent-runtime-harness/planned/p10-turn-2026-10-19.md``
+Row ``RT-EMIT-RUNNING-WORK-CHAT``, plan ``docs/agent-runtime-harness/archive/p10-turn-2026-10-19.md``
 §2.4 tests 4-6. A room where every subscriber declared the sixth token
 (``running_work_section``) is handed the ``running_work`` section carrying the
 batch's ``watermark`` / ``base_offset`` instead of a full core; a room that did

@@ -1,3 +1,6 @@
+> **PARKED, not built** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b): never measured since 2026-08-16 and no consequence on record; its own gate says a cause with no consequence is a false alarm — reopen on a cold-open receipt.
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Planned — the page-open write storm and the cold-open degrade window
 
 **Status:** not built, and never owned. **Owner surface:**
@@ -39,7 +42,7 @@ the by-design/anomalous lesson the drops chip already taught.
 has not arrived, `missionOfficeRpcRefusal` answers `laneAbsent`, and every office
 verb degrades to the argv lane inside that window — by design, but it is also the
 window in which the fallbacks Row 1 of
-[office-write-lane-collapse](office-write-lane-collapse.md) wants deleted are
+[office-write-lane-collapse](../planned/office-write-lane-collapse.md) wants deleted are
 genuinely reachable.
 
 **What is verified today, and what is not.** The degrade path is live in code:

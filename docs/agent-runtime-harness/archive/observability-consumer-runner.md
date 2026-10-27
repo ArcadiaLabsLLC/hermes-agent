@@ -1,3 +1,6 @@
+> **PARKED, not built** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b): neither of its gates (a second receipt-visible miss, a post-live QA step) was met; the consumers stay a human act.
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Planned — a runner for the live-log observability consumers
 
 **Status: proposed, unbuilt.** Nothing in this file describes shipped code.

@@ -3,7 +3,7 @@
 ``monkeypatch`` is ONE instance per test, shared by every fixture and the body; pytest unwinds it at the
 ``monkeypatch`` fixture's own teardown, AFTER every fixture that depends on it has torn down. So a patch the
 body pushed (a raising resolver, a stubbed home, a counted ``rmtree``) is live through every fixture's
-post-yield code (row ``FORK-PATCH-IN-TEARDOWN``; plan ``docs/agent-runtime-harness/planned/p10-suite-2026-10-19.md``
+post-yield code (row ``FORK-PATCH-IN-TEARDOWN``; plan ``docs/agent-runtime-harness/archive/p10-suite-2026-10-19.md``
 § A.1-A.3).
 
 Provenance is by stack INDEX RANGE, never by frame or source: ``pytest_pyfunc_call`` takes the base once every

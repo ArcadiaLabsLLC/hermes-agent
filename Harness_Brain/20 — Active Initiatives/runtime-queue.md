@@ -99,7 +99,7 @@ Reconciled against the built code and the plan, not inferred from an absent old 
 
 ### Filed on arrival — 2026-10-21 (land w1021i)
 
-- **`RT-COURSE-AUTHORING-RULINGS` — course authoring stage C3 needs two owner answers: who hands the persona the course credential during a turn, and whether the course installation token may open a PR (the App has contents+metadata only)** · fork / course authoring · plan `docs/agent-runtime-harness/planned/realm-course-subject-authoring-2026-10-21.md` · RULED 2026-10-22: owner — the Launcher hands the course credential inline (hermes holds no player bearer); yes, add `pull_requests: write` to eternia-server-realms · BLOCKED 2026-10-22: owner sitting — grant `pull_requests: write` on the eternia-server-realms GitHub App (C3 ships behind `pull_request_not_permitted` meanwhile)
+- **`RT-COURSE-AUTHORING-RULINGS` — course authoring stage C3 needs two owner answers: who hands the persona the course credential during a turn, and whether the course installation token may open a PR (the App has contents+metadata only)** · fork / course authoring · plan `docs/agent-runtime-harness/archive/realm-course-subject-authoring-2026-10-21.md` · RULED 2026-10-22: owner — the Launcher hands the course credential inline (hermes holds no player bearer); yes, add `pull_requests: write` to eternia-server-realms · BLOCKED 2026-10-22: owner sitting — grant `pull_requests: write` on the eternia-server-realms GitHub App (C3 ships behind `pull_request_not_permitted` meanwhile)
 
 ### Filed on arrival — 2026-10-21 (lane w1021h-rpc, branch `w1021h/rpc`)
 

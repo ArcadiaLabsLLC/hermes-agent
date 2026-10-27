@@ -1,7 +1,7 @@
 """The ``config.yaml`` keys hermes seeds into every persona's bound profile.
 
 Owner ruling 2026-10-03: HERMES seeds the door-fit PARTIAL keys on persona
-create, not the launcher. Values: ``docs/agent-runtime-harness/planned/persona-create-seed-values-2026-10-15.md``
+create, not the launcher. Values: ``docs/agent-runtime-harness/archive/persona-create-seed-values-2026-10-15.md``
 (approved 2026-10-15). This module is the ONE table of them and the ONE writer.
 
 Only lines the plan settles without a further decision are in the table:

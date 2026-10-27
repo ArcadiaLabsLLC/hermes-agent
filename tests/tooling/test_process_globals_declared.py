@@ -1,6 +1,6 @@
 """Census: process-global state in fork modules is DECLARED (``agent_runtime.process_state``).
 
-Plan ``docs/agent-runtime-harness/planned/process-global-state-reset-2026-10-15.md``
+Plan ``docs/agent-runtime-harness/archive/process-global-state-reset-2026-10-15.md``
 S4. A fork module that keeps state for the whole process registers its reset
 beside the global; one fixture resets everything declared. This census finds the
 state nobody declared.

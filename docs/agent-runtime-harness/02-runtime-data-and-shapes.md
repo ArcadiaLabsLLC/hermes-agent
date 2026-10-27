@@ -1006,7 +1006,7 @@ log, 13:45–13:46). The `events` section is not the problem; the two walks are.
   codebase; consumers poll. Unaffected by Stage 6 — the question is about the
   LIVE core-cache lane, not the retired database; any revival names a new
   producer (the projector is gone).
-  → [planned/read-model-change-feed.md](planned/read-model-change-feed.md)
+  → [archive/read-model-change-feed.md](archive/read-model-change-feed.md)
 - **2026-08-22 — the Unverified carry-forward sections have no burn-down
   owner.** Seven domain docs carry claims from archived sources that no pass
   has verified against code; nothing schedules that verification.

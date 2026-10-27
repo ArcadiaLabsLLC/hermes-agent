@@ -8,7 +8,7 @@ a run did not look at, so the red sets are restricted to the files each run's di
 Prints (a) NEW reds (red in ON, not OFF) with their phase — ``teardown`` when the ON diagnosis lists
 the node in ``teardown_error_ids``, else ``call/setup``; (b) FIXED reds; (c) the
 ``body_patches`` / ``late_fixture_patches`` / ``teardown_errors`` population per run; (d) Σ phase
-seconds and wall per run. Read-only; p10 S-A2 (``docs/agent-runtime-harness/planned/p10-suite-2026-10-19.md``).
+seconds and wall per run. Read-only; p10 S-A2 (``docs/agent-runtime-harness/archive/p10-suite-2026-10-19.md``).
 """
 
 from __future__ import annotations

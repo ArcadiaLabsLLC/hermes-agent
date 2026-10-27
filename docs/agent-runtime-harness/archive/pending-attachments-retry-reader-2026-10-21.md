@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `501e235b08` (2026-10-21).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Planned — the write-ahead's attachment lists get their reader: a retry re-attaches the same bytes — 2026-10-21
 
 **Owner domain:** the chat turn ([04](../04-chat-turn.md) § The write-ahead record, § Retry — D2.04);

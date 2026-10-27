@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: exec lanes PF-1..PF-3 + PF-FIX, row closed at `14a98988fb` (2026-09-26).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Plugin fit — every remaining `hook` / `carry` row against upstream's CURRENT plugin surface (2026-09-26)
 
 Lane PLUGIN-FIT, design sitting, no code. Owner's ask: "anything we can do that's not PRs? like investigate if it can be moved over plugin side?"

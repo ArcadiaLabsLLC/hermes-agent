@@ -1,6 +1,6 @@
 """Hermes seeds the approved door-fit keys into a persona's bound profile — absent keys only.
 
-Plan: ``docs/agent-runtime-harness/planned/persona-create-seed-values-2026-10-15.md`` (S1 + S2,
+Plan: ``docs/agent-runtime-harness/archive/persona-create-seed-values-2026-10-15.md`` (S1 + S2,
 lines 1 and 2). The writer is ``agent_runtime.persona_seed_defaults``; it runs from the
 persona-mint door (``promote_profile_to_persona``) and from the plugin's startup sweep.
 """

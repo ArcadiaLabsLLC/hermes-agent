@@ -1,6 +1,6 @@
 """The chat lane's persona-scoped skills index (lane h-prompt-surface, S3).
 
-Plan: ``docs/agent-runtime-harness/planned/prompt-surface-2026-10-05.md`` S3.
+Plan: ``docs/agent-runtime-harness/archive/prompt-surface-2026-10-05.md`` S3.
 Upstream's ``agent/system_prompt.py::_skills_prompt`` renders every category in
 full on ``platform=tool`` (the coding-context demotion only engages on the
 interactive coding platforms), so a supervisor declaring nine skills paid for a

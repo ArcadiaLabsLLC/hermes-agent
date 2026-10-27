@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: R039 `518b14aa9c` (2026-10-07); R011 finished by the read-epoch and writer receipts.
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Runtime Wave1 checkpoint — R011 / R039
 
 Frozen dependency: prior runtime fc1edc5341a017b2ef2b9dc84189d0e3b3c6df5e; origin/main 8a5c19d4125a1460f1d8ecd67ef67177d468c0a2; conflict-free integration d4b5a3952ecfa0345dfcbcaa6064a0439b1012a0. Queue union preserved. No main write. Job2 tree untouched; original QA patch and evidence retained.

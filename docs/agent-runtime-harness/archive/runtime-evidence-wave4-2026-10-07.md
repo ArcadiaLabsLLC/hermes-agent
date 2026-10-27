@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: the evidence wave ran and landed at `f35900ff22` (2026-10-07); it changed no product code.
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Runtime evidence Wave4 (2026-10-07)
 
 Frozen source40ebb8da6428b4349131ef2676434a6229ceffa0; fresh main-based qa/sol-adapters-runtime-evidence-20261007, fast-forwarded from f1d285e4faf09aec1e6b973e307c439201248d0c. Parent delegated evidence for existing sol-runtime claims. No claim takeover, product repair, anchor/writer edit or Job3 work.

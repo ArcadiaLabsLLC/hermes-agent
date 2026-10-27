@@ -1,8 +1,11 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `4e4db3e0b7` (2026-10-07).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # R011 resident and writer completion — 2026-10-07
 
 Frozen dependency boundary: `6e2c7047980b9105138b8d042b481dbcaa151897`, branch `fix/resident-writer-lifetime-20261007`. Main base `f1d285e4faf09aec1e6b973e307c439201248d0c`; reviewed anchor `efad97d0952081213f2f352b967d333a8011f278` and QA parity `d30264b544fa19fc7a43aea52d5c28e1d7da3856`. Only queue conflict joined independently reviewed completed R041 and promoted-brief removals; all current evidence and other ownership preserved.
 
-All six steps in [writer checkpoint](runtime-writer-checkpoint-2026-10-07.md) are implemented. The preserved original WIP patch remains outside the old runtime tree unchanged. Product implementation is fork-owned; no upstream edits, private actor rebinding, registry refcount mutation, global TTL cache or assumed serve owner.
+All six steps in [writer checkpoint](../planned/runtime-writer-checkpoint-2026-10-07.md) are implemented. The preserved original WIP patch remains outside the old runtime tree unchanged. Product implementation is fork-owned; no upstream edits, private actor rebinding, registry refcount mutation, global TTL cache or assumed serve owner.
 
 ## Ownership
 

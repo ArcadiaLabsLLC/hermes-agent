@@ -1,6 +1,6 @@
 """A terminal background process appends its own START and END to the EventLog.
 
-Row ``RT-EMIT-RUNNING-WORK-CHAT``, plan ``docs/agent-runtime-harness/planned/p10-turn-2026-10-19.md``
+Row ``RT-EMIT-RUNNING-WORK-CHAT``, plan ``docs/agent-runtime-harness/archive/p10-turn-2026-10-19.md``
 §2.4 tests 1-3. The listener rides the additive upstream seam
 ``ProcessRegistry.add_lifecycle_listener``; these drive a REAL registry spawning
 a REAL child, so the chokepoints under test are the ones every spawn and exit

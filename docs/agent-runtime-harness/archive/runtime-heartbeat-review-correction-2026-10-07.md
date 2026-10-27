@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `8f2f1cdd38` (2026-10-07), lifetime follow-on `3831bdab5a`.
+> History, not truth: the domain docs and the queues hold what is current.
+
 # R007 review correction — heartbeat / terminal race
 
 Base: accepted Wave1 518b14aa9cbc28208008a3373f368c02515665d7 on grind/sol-runtime-20261007.

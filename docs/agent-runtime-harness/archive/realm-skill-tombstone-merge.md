@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: 2026-08-31 (union merge, `restored_at`); the original shas predate the 2026-09-15 history fold into the `fork:` commits (`5a411b1657`..`0d5b7b8abc`).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Skill-tombstone ledger union merge (was realm-skill-delete S4)
 
 **Status: SHIPPED 2026-08-31** (W2-H5, decision-close wave) as `4a8d398268`

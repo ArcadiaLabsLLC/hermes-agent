@@ -1,6 +1,6 @@
 """The ``# fork seam: h-prompt S3`` line in upstream ``agent/system_prompt.py::_skills_prompt``.
 
-Plan: ``docs/agent-runtime-harness/planned/prompt-surface-2026-10-05.md`` S3. A chat-lane
+Plan: ``docs/agent-runtime-harness/archive/prompt-surface-2026-10-05.md`` S3. A chat-lane
 agent carries ``_chat_lane_compact_skill_categories`` (``agent_runtime.chat_lane_skill_index``);
 the seam unions it into upstream's own ``compact_categories``, so every category holding none of
 the persona's skills renders names-only. An agent without the attribute renders exactly as

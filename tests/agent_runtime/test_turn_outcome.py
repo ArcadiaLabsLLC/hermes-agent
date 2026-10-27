@@ -1,5 +1,5 @@
 """``RT-TURN-LEFT-BEHIND-RECORD`` — what a turn left behind (plan
-``docs/agent-runtime-harness/planned/p10-turn-2026-10-19.md`` §1.5).
+``docs/agent-runtime-harness/archive/p10-turn-2026-10-19.md`` §1.5).
 
 Each test names the mutation that kills it.
 """

@@ -37,7 +37,7 @@ under test. What is being measured is which LANE carries the frames, not what an
 agent says, and a real provider here would measure the provider.
 
 The assertions are what was OBSERVED. The recorded answer is in
-``<repo>/docs/agent-runtime-harness/planned/remote-chat-parity-field-notes-2026-09-05.md``.
+``<repo>/docs/agent-runtime-harness/archive/remote-chat-parity-field-notes-2026-09-05.md``.
 
 C1h-bis, in this file
 ---------------------

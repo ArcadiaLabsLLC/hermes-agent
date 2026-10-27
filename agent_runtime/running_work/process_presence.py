@@ -1,6 +1,6 @@
 """A terminal background process publishes its own START and END on the stream lane.
 
-Row ``RT-EMIT-RUNNING-WORK-CHAT``, plan ``docs/agent-runtime-harness/planned/p10-turn-2026-10-19.md``
+Row ``RT-EMIT-RUNNING-WORK-CHAT``, plan ``docs/agent-runtime-harness/archive/p10-turn-2026-10-19.md``
 §2 S2. The terminal ``running_work`` rows are a read-time projection
 (:class:`~agent_runtime.running_work.lanes_process.TerminalLane` reads the
 ``processes.json`` checkpoint and the live registry), and nothing appended an

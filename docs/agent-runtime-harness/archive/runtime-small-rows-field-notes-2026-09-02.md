@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: 2026-09-02 (five runtime rows); the original shas predate the 2026-09-15 history fold into the `fork:` commits (`5a411b1657`..`0d5b7b8abc`).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Five runtime rows, filed 2026-09-02, closed on `fix/hermes-runtime-small-rows`
 
 Worktree `X:/Eternia/_worktrees/w7-runtime`, cut from `origin/main` at

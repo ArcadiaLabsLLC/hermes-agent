@@ -1,6 +1,6 @@
 # feat(tools): `ToolRegistry.snapshot()` / `restore(snapshot)` — whole-registry save and restore
 
-Draft PR body (plan `docs/agent-runtime-harness/planned/process-global-state-reset-2026-10-15.md`,
+Draft PR body (plan `docs/agent-runtime-harness/archive/process-global-state-reset-2026-10-15.md`,
 S5). Posted by the owner in a posting sitting; the code and its tests are cut on an `up/` branch
 once `tools/registry.py` is outside the upstream-sync fence.
 

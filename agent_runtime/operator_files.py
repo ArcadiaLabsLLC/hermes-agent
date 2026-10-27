@@ -1,7 +1,7 @@
 """Reviewed files on the operator chat send: staged on disk, named to the agent by a path line.
 
 Row ``RT-MISSION-CHAT-MESSAGE-TAKES`` (hermes ``runtime-queue.md``; the launcher half is
-``MC-CONSOLE-SEND-FILES``; plan ``docs/agent-runtime-harness/planned/p10-turn-2026-10-19.md`` §3).
+``MC-CONSOLE-SEND-FILES``; plan ``docs/agent-runtime-harness/archive/p10-turn-2026-10-19.md`` §3).
 The mirror of :mod:`agent_runtime.operator_images`, end to end:
 
 1. **The door.** ``runtime.chat.message`` accepts ``files: [{name, media_type, data}]`` — the

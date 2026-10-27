@@ -2,7 +2,7 @@
 
 **Owner domain:** the chat turn lane ([05-chat-turn-lane.md](../05-chat-turn-lane.md)), multi-device credentials
 ([09-multi-device-runtime.md](../09-multi-device-runtime.md) § Realm sync credentials). Parent plan:
-[realm-course-subject-authoring-2026-10-21.md](realm-course-subject-authoring-2026-10-21.md) §3 C3 and § Open
+[realm-course-subject-authoring-2026-10-21.md](../archive/realm-course-subject-authoring-2026-10-21.md) §3 C3 and § Open
 rulings (the Launcher brokers the credential and passes it inline — recommended there, taken here).
 **Status:** RULED 2026-10-25 (lane w1025b-h-misc, by the wave brief's "go with recommendations"); build rows in §4.
 **Read:** hermes `origin/main` `eed79e6933` — `agent_runtime/chat_turn.py::normalize_chat_message` and

@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: lines 1-2 `4337842853`, line 5 `4cb63e5b19`; lines 3, 4, 6 and 8 ruled not seeded (`e878442cf2`).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Default seed values for the door-fit PARTIAL keys on persona create (draft for owner approval)
 
 Status: DRAFT VALUES — written 2026-10-15 for the owner to approve, per the

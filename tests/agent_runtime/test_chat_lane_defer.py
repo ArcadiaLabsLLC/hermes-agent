@@ -1,6 +1,6 @@
 """The chat lane's per-persona defer (lane h-prompt-tools S1, rulings R1/R2).
 
-Plan: ``docs/agent-runtime-harness/planned/prompt-surface-2026-10-05.md`` §1 S1. The
+Plan: ``docs/agent-runtime-harness/archive/prompt-surface-2026-10-05.md`` §1 S1. The
 fixture is the tool set Neko's recorded first request carried (``ctx_96cd09894da6e457``,
 31 entries), rebuilt as definitions: what each persona keeps eager after the defer is
 pinned BY NAME against the ruling, and every deferred tool must stay reachable through

@@ -1,6 +1,6 @@
 """``agent_runtime.process_state``: process-global state is declared beside its
 global, and one call puts every declared piece back the way a fresh import left
-it. Plan ``docs/agent-runtime-harness/planned/process-global-state-reset-2026-10-15.md`` S1/S2.
+it. Plan ``docs/agent-runtime-harness/archive/process-global-state-reset-2026-10-15.md`` S1/S2.
 
 The owner arm asks the RUNTIME: it dirties each owner's real global, runs the one
 reset, and reads the global back -- a registration that is spelled but never

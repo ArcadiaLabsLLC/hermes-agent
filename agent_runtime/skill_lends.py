@@ -1,6 +1,6 @@
 """Skills lent to a WORKER (a live child agent): one record per child, never the child's session.
 
-Plan ``docs/agent-runtime-harness/planned/p10-work-2026-10-19.md`` §4 (S2, RT-ETERNIA-SKILLS-LENDS-SKILLS).
+Plan ``docs/agent-runtime-harness/archive/p10-work-2026-10-19.md`` §4 (S2, RT-ETERNIA-SKILLS-LENDS-SKILLS).
 A Work row lends through its own ``skills:`` segment; a worker has no row, so ``eternia.skills.lend`` writes
 ``<store_root>/skill_lends/<token>.json`` ``{target, owner_session, skills, lent_at, lent_by}``, the target
 being ``child:<subagent_id>``. The child's session file is upstream's and a replaced worker (a new generation

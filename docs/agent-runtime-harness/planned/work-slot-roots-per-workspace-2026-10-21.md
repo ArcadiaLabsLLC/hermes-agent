@@ -3,7 +3,7 @@
 **Owner domain:** multi-device ([09](../09-multi-device-runtime.md) § Repo slots, § Machine roots) and
 the Work lane ([06](../06-office-and-board.md) § The todo board; plans
 [work-on-markdown-2026-10-18.md](work-on-markdown-2026-10-18.md) §5,
-[p10-work-2026-10-19.md](p10-work-2026-10-19.md) §2.5).
+[p10-work-2026-10-19.md](../archive/p10-work-2026-10-19.md) §2.5).
 **Status:** IMPLEMENTATION-READY (design lane w1021i-plans). One doc, no code. Two rows, one mechanism:
 a name-only key where the thing keyed is per workspace (the root) or per checkout (the worktree).
 **Measured / read:** 2026-10-21 against hermes `origin/main` d087df7035.

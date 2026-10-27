@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `a198b3fff5` (S1), `322c7055f7` (S2), `4cbb187f85` (S3), 2026-10-21.
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Planned — one actor scan per office upsert: the patch lane reads the scan the write already took — 2026-10-21
 
 **Owner domain:** the office and board ([06](../06-office-and-board.md) § The office store, § The patch lane).

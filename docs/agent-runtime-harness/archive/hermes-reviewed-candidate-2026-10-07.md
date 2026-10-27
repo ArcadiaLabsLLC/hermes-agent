@@ -21,7 +21,7 @@ Exact title matching against the original 41-row `runtime.json` manifest, with a
 
 - REFUTED: R017's old build-unknown assertion, scoped to the actual supported developer boot evidence.
 - Concrete additive upstream-door prerequisites remain pending: R008, R010, R034; see [ownership design](../planned/runtime-wave2-ownership-2026-10-07.md). Their design is not a completed producer implementation.
-- Five fresh evidence prerequisites remain pending: R003, R013, R018, R019, R021; see [evidence wave](../planned/runtime-evidence-wave4-2026-10-07.md). R013 retains the current standing-stream drain receipt and actual Launcher handoff remains unproved.
+- Five fresh evidence prerequisites remain pending: R003, R013, R018, R019, R021; see [evidence wave](runtime-evidence-wave4-2026-10-07.md). R013 retains the current standing-stream drain receipt and actual Launcher handoff remains unproved.
 - Separate added anchor claim: DONE at `efad97d0952081213f2f352b967d333a8011f278`; not included in the original 41. Separate hook-isolation finding: PENDING in fork-hygiene queue; see [hook receipt](isolated-worktree-hook-home-2026-10-07.md).
 
 Per-ID original title, queue line or deletion SHA, and separate claim receipts are in coordinator `outputs/hermes-reviewed-candidate-accounting.json`; reproduction `hermes-reviewed-candidate-accounting.py`. Historical progress status is retained there only as comparison, not current authority.

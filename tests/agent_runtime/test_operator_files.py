@@ -3,7 +3,7 @@
 Fork module ``agent_runtime/operator_files.py``: the native lane's ``prompt.files`` item shape and
 limits on ``runtime.chat.message``, stored content-addressed with a name sidecar, named on argv by
 reference, and staged for the agent as ``FILE:<path>`` lines (plan
-``docs/agent-runtime-harness/planned/p10-turn-2026-10-19.md`` §3.5).
+``docs/agent-runtime-harness/archive/p10-turn-2026-10-19.md`` §3.5).
 """
 
 from __future__ import annotations

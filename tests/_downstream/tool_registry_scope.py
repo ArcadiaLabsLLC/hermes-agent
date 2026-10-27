@@ -1,6 +1,6 @@
 """Each test leaves the process-global tool registry the way it found it (plan S3).
 
-Plan ``docs/agent-runtime-harness/planned/process-global-state-reset-2026-10-15.md``.
+Plan ``docs/agent-runtime-harness/archive/process-global-state-reset-2026-10-15.md``.
 ``tools.registry.registry`` is upstream's process singleton: a test (or a plugin load
 it drove) that registered or replaced a tool used to leave that entry for every later
 test in the bundle (L6.30: 585 leaked registrations). This fixture marks the

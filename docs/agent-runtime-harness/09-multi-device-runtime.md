@@ -271,7 +271,7 @@ into `<store_root>/courses/<id>/repo`, `commit` pushes one commit on
 the course App carries `pull_requests: write` GitHub answers 403 and the verb
 refuses `pull_request_not_permitted`. The credential rides `-c` pairs and the
 REST `Authorization` header only — never `.git/config`, a receipt or a log.
-Plan: `docs/agent-runtime-harness/planned/realm-course-subject-authoring-2026-10-21.md`.
+Plan: `docs/agent-runtime-harness/archive/realm-course-subject-authoring-2026-10-21.md`.
 Acceptance: `tests/agent_runtime/test_course_authoring.py`.
 
 ## Invariants

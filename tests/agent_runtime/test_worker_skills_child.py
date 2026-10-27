@@ -1,6 +1,6 @@
 """``eternia.skills.*`` with the child address, and ``eternia.skills.lend`` (p10-work S2, RT-ETERNIA-SKILLS-LENDS-SKILLS).
 
-Plan ``docs/agent-runtime-harness/planned/p10-work-2026-10-19.md`` §4.4. A fake owner session (the
+Plan ``docs/agent-runtime-harness/archive/p10-work-2026-10-19.md`` §4.4. A fake owner session (the
 ``tests/tui_gateway/test_subagent_snapshot.py`` runtime) holds a child registered through upstream's own
 ``_register_child``; the request runs under that session's bound transport, as a gateway dispatch does.
 The skill reader, the state db, the compact-category walk and the steer are fakes that record what they

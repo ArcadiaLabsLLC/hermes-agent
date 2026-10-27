@@ -1026,7 +1026,7 @@ long capability account cannot squeeze out the countdown. Over-budget content st
 twice: in band, so the agent reads it was not told everything, and as a typed accounting row, so no
 operator has to grep prose to learn a fact was clipped.
 
-**What the turn left behind** (`RT-TURN-LEFT-BEHIND-RECORD`, plan `planned/p10-turn-2026-10-19.md` §1)
+**What the turn left behind** (`RT-TURN-LEFT-BEHIND-RECORD`, plan `archive/p10-turn-2026-10-19.md` §1)
 rides the terminal record as ONE optional block, `turn_outcome {schema: 1, tests[{command, exit_code,
 verdict}], commits[{command, sha, pushed}], files[{path, op}], truncated}`. The persona runner binds a
 fold around `run_conversation` (`agent_runtime/turn_outcome.py::bind_turn_outcome`, beside the usage

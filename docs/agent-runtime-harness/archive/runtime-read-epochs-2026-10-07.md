@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `39964eb11f` (2026-10-07).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # R011 bounded read-epoch implementation — 2026-10-07
 
 Base: `1655c0ab1fa437596d7aa07dcf9d9ba3a4025b40`; branch `grind/sol-runtime-20261007`; no advancing main integration.

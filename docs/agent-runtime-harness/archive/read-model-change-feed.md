@@ -1,3 +1,6 @@
+> **PARKED, not built** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b): moot as specified (its producer, the projector, is deleted); the serve stream's hydrate/delta and patch frames now push changes to consumers.
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Planned — change feed / push invalidation (archived RD4)
 
 **Status:** not implemented — and MOOT AS SPECIFIED since Stage 6 of the

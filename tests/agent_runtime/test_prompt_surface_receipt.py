@@ -1,6 +1,6 @@
 """The per-part prompt-surface receipt (lane h-prompt-tools S0).
 
-Plan: ``docs/agent-runtime-harness/planned/prompt-surface-2026-10-05.md`` §1 S0. Every
+Plan: ``docs/agent-runtime-harness/archive/prompt-surface-2026-10-05.md`` §1 S0. Every
 turn's model-input record says what its request is made of, in chars of the WIRE form:
 per tool, per system-prompt block, and the parts summed — so a cut lands against a number.
 """

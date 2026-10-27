@@ -1258,7 +1258,7 @@ is uncovered), so the finished turn left `running_work` only with the next
 full core — 16.6 s after `turn_ended` measured live, a 10.2 s build queued
 behind another. The office sink skips it (`_NON_OFFICE_STATE_FRAME_TYPES`).
 
-Since 2026-10-19 (row `RT-EMIT-RUNNING-WORK-CHAT`, plan `planned/p10-turn-2026-10-19.md` §2) the
+Since 2026-10-19 (row `RT-EMIT-RUNNING-WORK-CHAT`, plan `archive/p10-turn-2026-10-19.md` §2) the
 overlay also ships for a batch carrying a terminal process's `running_work.process_started` /
 `running_work.process_ended` (`stream/frames.py::batch_changes_running_work_presence`; the old
 `batch_changes_chat_turn_presence` name is an alias for one release). The pair is appended by

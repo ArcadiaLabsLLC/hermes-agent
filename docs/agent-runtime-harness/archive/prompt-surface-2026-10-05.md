@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: S0-S2 `a6db50294e`, S3/S4/S6 `ba499069be` (2026-10-05).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Planned — the chat turn's prompt surface, lane h-prompt-design (2026-10-05): what the ~22k input tokens are made of, and what to cut
 
 **Status:** DESIGN 2026-10-05 (Fable, read-only against the live store, the neko / gpt-launcher `agent.log`, the recorded first requests in `prompt_observability_archive/`, and the tree). No production code was changed. **Row:** the `TAKEN … lane h-prompt-design` row under `Harness_Brain/20 — Active Initiatives/runtime-queue.md` § "Filed on arrival — 2026-10-05 (owner live turns)". **Owner doc:** [`../05-chat-turn-lane.md`](../05-chat-turn-lane.md) §4 (tool posture), §4c (the declared toolset), §5 (MCP admission), §10 (provider dispatch). **Siblings:** `planned/turn-latency-h-turn1-2026-10-05.md` (the first-turn cost this surface is one leg of); `planned/chat-turn-prep-cost.md` (the pre-admit span).

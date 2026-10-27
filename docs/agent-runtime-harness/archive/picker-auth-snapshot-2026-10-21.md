@@ -1,10 +1,13 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: `eec6d8db56`, `a67f250323`, `0c619a8b70` (P1-P3), `839662b1dc` (direct reads).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Planned — the model picker reads auth.json once per build: a credential-pool snapshot scope — 2026-10-21
 
 **Owner domain:** operator sessions and the model picker ([03](../03-transport-and-wire.md) §
 `runtime.operator.session.models`; `agent_runtime/operator_session_models.py`); upstream-owned
 `hermes_cli/inventory.py`, `hermes_cli/model_switch_providers.py`, `agent/credential_pool.py`,
 `hermes_cli/auth.py` (the footprint ledger
-[upstream-footprint-ledger.md](upstream-footprint-ledger.md)).
+[upstream-footprint-ledger.md](../planned/upstream-footprint-ledger.md)).
 **Status:** IMPLEMENTATION-READY (design lane w1021i-plans). One doc, no code.
 **Measured / read:** 2026-10-21 against hermes `origin/main` d087df7035; cProfile of
 `tests/agent_runtime/test_operator_session_models.py` (33 tests, 119.8 s wall, 122.2 s profiled).

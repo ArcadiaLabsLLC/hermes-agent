@@ -1240,7 +1240,7 @@ IS a task; nothing is copied, and tasks are keyed `(slot, ID)` (plan
 Native Work methods).
 
 The default brain has four states, and promotion is the one door from binding to slot
-(`RT-WORK-DEFAULT-BRAIN-REMOTE`, plan [p10-work-2026-10-19.md](planned/p10-work-2026-10-19.md) §2.5; owner ruling
+(`RT-WORK-DEFAULT-BRAIN-REMOTE`, plan [p10-work-2026-10-19.md](archive/p10-work-2026-10-19.md) §2.5; owner ruling
 2026-10-18: a connected git account means the remote is created automatically). **Local**: no remote. When the
 machine's own GitHub chain (`GITHUB_TOKEN`/`GH_TOKEN`, `gh auth token`, the git credential helper) answers
 `GET /user`, `default_brain.promote_default_brain` creates a PRIVATE `eternia-work-<workspace slug>` repo (a name
@@ -1579,7 +1579,7 @@ Two decisions ride with it:
   restore verb) →
   [planned/office-write-lane-collapse.md](planned/office-write-lane-collapse.md)
 - The page-open write storm and the `laneAbsent` window on cold open →
-  [planned/office-page-open-write-storm.md](planned/office-page-open-write-storm.md)
+  [archive/office-page-open-write-storm.md](archive/office-page-open-write-storm.md)
 - The board surface's missing RPC lane and fold coverage →
   [planned/board-surface-rpc-lane.md](planned/board-surface-rpc-lane.md)
 - Remaining console lane-ambiguity: browsable catalog under a failing lane, the

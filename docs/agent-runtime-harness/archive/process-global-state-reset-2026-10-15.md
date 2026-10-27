@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: S1-S2 `116deb8170`, S3 `ec775d1226` (2026-10-16); S5's upstream PR is deferred (row `FH-DEFER-PR-REGISTRY-SNAPSHOT-RESTORE`).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # One owner for process-global state between tests (design)
 
 Status: BUILT 2026-10-16 except S5's posting; approved by the owner 2026-10-15 (all

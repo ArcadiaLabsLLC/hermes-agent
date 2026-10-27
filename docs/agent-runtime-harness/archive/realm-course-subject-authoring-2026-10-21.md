@@ -1,3 +1,6 @@
+> **BUILT** — archived 2026-10-27 from `planned/` (lane w1027j-h-tri-b); landed: C3/C4 `266207d5a9` (2026-10-25), persona tools `0c4361389d` (2026-10-26).
+> History, not truth: the domain docs and the queues hold what is current.
+
 # Planned — agent authoring on a git course: clone with a course credential, commit on a branch, open the PR — 2026-10-21
 
 **Owner domain:** multi-device / realm sync ([09](../09-multi-device-runtime.md) § Realm sync credentials;

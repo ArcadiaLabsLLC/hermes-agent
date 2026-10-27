@@ -1,6 +1,6 @@
 """The chat lane's per-persona defer: tools the persona never calls ride the bridge listing.
 
-Lane h-prompt-tools S1 (``docs/agent-runtime-harness/planned/prompt-surface-2026-10-05.md``).
+Lane h-prompt-tools S1 (``docs/agent-runtime-harness/archive/prompt-surface-2026-10-05.md``).
 The tool-search assembly upstream runs inside the agent constructor reads ONE config —
 the profile's ``tools.tool_search`` — and the profile is shared by every persona bound to
 it, so a supervisor's never-called tools (``delegate_task``, ``memory``, the browser

@@ -1,6 +1,6 @@
 """Process-global state a fork module owns, declared beside the global with its reset.
 
-Plan ``docs/agent-runtime-harness/planned/process-global-state-reset-2026-10-15.md``.
+Plan ``docs/agent-runtime-harness/archive/process-global-state-reset-2026-10-15.md``.
 A module that keeps state for the whole Python process -- a memo, a registry, an
 on/off switch, a keeper's windows -- registers the function that puts that state
 back the way a fresh import left it, at import, next to the global:

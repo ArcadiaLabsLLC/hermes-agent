@@ -1,6 +1,6 @@
 """Lane h-prompt-surface: stages S3, S4, S6 of the chat turn's prompt surface.
 
-Plan: ``docs/agent-runtime-harness/planned/prompt-surface-2026-10-05.md``.
+Plan: ``docs/agent-runtime-harness/archive/prompt-surface-2026-10-05.md``.
 
 * S3 — the chat lane names its persona's skill categories; every other category
   renders names-only (``agent_runtime.chat_lane_skill_index``).

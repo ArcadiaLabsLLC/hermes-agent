@@ -1,6 +1,6 @@
 """Agent authoring on a git course: the course's checkout, and commits on an authoring branch.
 
-Plan: ``docs/agent-runtime-harness/planned/realm-course-subject-authoring-2026-10-21.md`` (stages C1–C3).
+Plan: ``docs/agent-runtime-harness/archive/realm-course-subject-authoring-2026-10-21.md`` (stages C1–C3).
 C3's pull request needs ``pull_requests: write`` on the course App (``RT-COURSE-AUTHORING-RULINGS``); until
 the App carries it GitHub answers 403 and the verb refuses ``pull_request_not_permitted`` — the branch is
 pushed, and the author opens the PR by hand.
