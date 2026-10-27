@@ -129,6 +129,14 @@ NON_ATTESTING_REASONS = frozenset({"watcher_offline", "not_sealed", "push_only",
 #: ``planned/LENS_EXTENSIONS_2026-10-27.md`` §1 decision 5): ``source_broken:<feed_id>``. The poller
 #: opens it; :func:`read_rule` refuses the prefix, so no manifest can author it.
 SOURCE_BROKEN_PREFIX = "source_broken:"
+#: The reserved prefix of a monitor's scheduled runs (plan
+#: ``planned/lens-deadline-schedule-equivalence-report-2026-10-27.md`` §2 decision 3), refused like
+#: ``source_broken:``; its one rule is :data:`SCHEDULE_RULE_ID`, resolved only when the sealed
+#: revision carries a ``schedule``.
+SCHEDULE_PREFIX = "schedule:"
+SCHEDULE_RULE_ID = SCHEDULE_PREFIX + "run"
+#: A scheduled run's evidence lead: at most a day of each feed's reads.
+_SCHEDULE_WINDOW_CAP_MS = 24 * 60 * 60 * 1000
 
 RULE_KEYS = frozenset({
     "version", "id", "feed_id", "form", "severity", "direction",
@@ -170,6 +178,7 @@ def read_rule(value: Any) -> dict[str, Any]:
 def _authored_id(value: Any) -> str:
     rule_id = opaque_id(value)
     require(not rule_id.startswith(SOURCE_BROKEN_PREFIX), "source_broken is a reserved rule id")
+    require(not rule_id.startswith(SCHEDULE_PREFIX), "schedule is a reserved rule id")
     return rule_id
 
 
@@ -186,11 +195,29 @@ def source_broken_rule(feed_id: str) -> dict[str, Any]:
             "severity": Severity.ATTENTION.value, "window_ms": 0, "samples": 1}
 
 
+def schedule_rule(manifest: dict[str, Any]) -> dict[str, Any]:
+    """The rule a ``schedule:run`` Episode stands for. Never sealed, never evaluated (its form is no
+    :class:`RuleForm`; ``schedules.py`` opens it on the clock). Every feed of the monitor, a lead of
+    min(``every_ms``, 24 h), severity ``attention``."""
+
+    feed_ids = [feed["id"] for feed in manifest["feeds"]]
+    return {"id": SCHEDULE_RULE_ID, "feed_id": feed_ids[0], "feed_ids": feed_ids, "form": "schedule",
+            "severity": Severity.ATTENTION.value,
+            "window_ms": min(manifest["schedule"]["every_ms"], _SCHEDULE_WINDOW_CAP_MS), "samples": 1}
+
+
+def is_scheduled(rule: dict[str, Any]) -> bool:
+    return rule["id"] == SCHEDULE_RULE_ID
+
+
 def manifest_rule(manifest: dict[str, Any], rule_id: str) -> dict[str, Any] | None:
-    """The rule ``rule_id`` names in ``manifest``: a sealed rule, or the reserved
-    ``source_broken:<feed_id>`` of one of its feeds; None when the revision has neither."""
+    """The rule ``rule_id`` names in ``manifest``: a sealed rule, the reserved
+    ``source_broken:<feed_id>`` of one of its feeds, or ``schedule:run`` when the revision is
+    scheduled; None when the revision has none of them."""
 
     rule = next((rule for rule in manifest["rules"] if rule["id"] == rule_id), None)
+    if rule is None and rule_id == SCHEDULE_RULE_ID:
+        return schedule_rule(manifest) if manifest.get("schedule") is not None else None
     if rule is not None or not rule_id.startswith(SOURCE_BROKEN_PREFIX):
         return rule
     feed_id = rule_id[len(SOURCE_BROKEN_PREFIX):]

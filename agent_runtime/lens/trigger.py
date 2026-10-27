@@ -30,6 +30,12 @@ decided after the read receipt ``skipped_decided``, no turn: ``save_receipts`` r
                        written between the door's read and its receipt transaction)
 =====================  =============================================================
 
+A SCHEDULED run (``schedule:run``, plan ``planned/lens-deadline-schedule-equivalence-report-2026-10-27.md``
+§2 decision 7) passes the cooldown and urgency screens — they govern breaches; the sealed schedule
+is the operator's explicit ask and its spacing is its own cooldown — but the daily cap and the
+global budget apply; it never joins a digest, and its opening block is
+``tool.schedule_opening_block``.
+
 W6 digest (``automation.digest_window_ms > 0``; plan ``LENS_EXTENSIONS_2026-10-27.md`` §3
 decision 3): after the per-Episode screen (rule, cooldown, urgency) the monitor's first owed
 Episode opens a window (``store_digests``); every Episode owed before it ends waits. At the
@@ -75,9 +81,9 @@ from .evidence import DEFAULT_MAXIMUM_BYTES, MAXIMUM_SPAN, EvidenceRefused, buil
 from .feed import Observation
 from .manifest import AutomationLevel, AutomationWhen
 from .provenance import lens_client_message_id, lens_requested_by
-from .rules import Severity, is_source_broken, manifest_rule, rule_feed_ids
+from .rules import SCHEDULE_RULE_ID, Severity, is_scheduled, is_source_broken, manifest_rule, rule_feed_ids
 from .store import FORGE_FAILED_PREFIX, LensStore, MonitorState, ReceiptOutcome, from_ms, to_ms
-from .tool import digest_opening_block, episode_title, opening_block
+from .tool import digest_opening_block, episode_title, opening_block, schedule_opening_block
 
 __layer__ = "lanes"
 
@@ -281,7 +287,7 @@ class LensForge:
         screened = self._screen(store, manifest, episode, now)
         if screened is not None:
             return self._settle(store, episode, now, screened)
-        if manifest["automation"].get("digest_window_ms", 0) > 0:
+        if manifest["automation"].get("digest_window_ms", 0) > 0 and episode.rule_id != SCHEDULE_RULE_ID:
             return self._digest(store, manifest, episode, now)
         outcome = self._admission(store, manifest, episode, now)
         if outcome is not None:
@@ -295,6 +301,8 @@ class LensForge:
         rule = manifest_rule(manifest, episode.rule_id)
         if rule is None:
             return f"{FORGE_FAILED_PREFIX}rule_not_in_revision"
+        if is_scheduled(rule):
+            return None  # the operator's sealed ask: no cooldown, no urgency filter (cap and budget still apply)
         if _cooling(store, episode, now, automation.get("cooldown_ms", 0)):
             return ReceiptOutcome.COOLED.value
         if automation["when"] == AutomationWhen.URGENT.value and rule["severity"] != Severity.URGENT.value:
@@ -365,8 +373,10 @@ class LensForge:
         rows = store.episodes(monitor_id=episode.monitor_id,
                               states=tuple(state.value for state in sorted(ADMITTED_STATES)))
         owed = [Episode.from_json(row) for row in rows]
+        # A scheduled run is never a digest member: merging a standing ask into an alert mixes two instructions.
         return [other for other in owed
-                if other.id != episode.id and needs_admission(other, now) and not store.has_receipt(other.id)]
+                if other.id != episode.id and other.rule_id != SCHEDULE_RULE_ID and needs_admission(other, now)
+                and not store.has_receipt(other.id)]
 
     @staticmethod
     def _digest_receipt(member: Episode, now: datetime, digest: str | None, outcome: str, turn_id: str,
@@ -394,7 +404,12 @@ class LensForge:
                 return self._refuse(store, members, now, digest, close)
             windows.append((member, evidence))
         notes = {member.id: _notes(store, manifest_rule(manifest, member.rule_id), member) for member in members}
-        if digest is None:
+        if digest is None and leader.rule_id == SCHEDULE_RULE_ID:
+            from .schedules import previous_run_ms
+
+            message = schedule_opening_block(manifest, leader, windows[0][1], folder,
+                                             previous_ms=previous_run_ms(store, leader))
+        elif digest is None:
             message = opening_block(manifest, leader, windows[0][1], folder, **notes[leader.id])
         else:
             message = digest_opening_block(manifest, windows, folder, notes=notes)

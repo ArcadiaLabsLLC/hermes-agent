@@ -34,9 +34,14 @@ memory of the monitor), and it keeps two kinds of content apart (W9):
   encoded with ``<`` escaped so nothing inside can close the fence, under the
   standing sentence :data:`UNTRUSTED_EVIDENCE_SENTENCE`.
 
-It names the Episode's folder (``<head home>/lens/episodes/<episode_id>/``), where
-a file the persona writes is listed on the receipt, and asks for a ``MEDIA:`` line
-per image (the only declaration ``media_handles.mint_reply_media`` mints).
+It names the Episode's folder (``<head home>/lens/episodes/<episode_id>/``) and says the
+turn is read-only: the door saves the reply there as ``report.md``, listed on the receipt
+(``artifacts.write_reply_report``).
+
+A SCHEDULED run (``schedule:run``) has its own block, :func:`schedule_opening_block`: the sealed
+``brief`` as the operator-sealed standing ask (JSON-encoded in a labelled line, never system
+text), the run's slot, run time and the previous run's time as typed data, each feed's latest
+evidence, and the instruction that a new thing to watch is proposed through ``lens_propose``.
 """
 
 from __future__ import annotations
@@ -127,6 +132,34 @@ def opening_block(manifest: dict[str, Any], episode: Episode, evidence: Evidence
         (_opening_sentence(rule, episode, offline) + " No operator wrote this message. Investigate what the "
          "evidence shows, say plainly what you found and what you would do, and stop; nothing is fixed for you."),
         typed, feeds, folder, shapes=None if shapes is None else {rule["feed_id"]: shapes})
+
+
+def schedule_opening_block(manifest: dict[str, Any], episode: Episode, evidence: EvidenceWindow, folder: Path, *,
+                           previous_ms: int | None) -> str:
+    """The forged user message for a scheduled run (plan
+    ``planned/lens-deadline-schedule-equivalence-report-2026-10-27.md`` §2 decision 8)."""
+
+    schedule = manifest["schedule"]
+    feeds = [feed for feed in manifest["feeds"] if feed["id"] in evidence.feed_ids]
+    previous = "none recorded" if previous_ms is None else _utc(previous_ms)
+    typed = {
+        "episode": episode.to_json(),
+        "run": {"slot_start_ms": to_ms(episode.first_seen), "run_ms": to_ms(episode.last_seen),
+                "previous_run_ms": previous_ms, "every_ms": schedule["every_ms"]},
+        "feeds": _typed_feeds(feeds),
+        "evidence": evidence.to_json(),
+    }
+    intro = "\n".join([
+        f"Eternia Lens opened this scheduled run of monitor {episode.monitor_id} (#{episode.ordinal}, slot "
+        f"{_utc(to_ms(episode.first_seen))}); the previous run was {previous}. No operator wrote this message "
+        "and nothing is breaching. Do the standing ask below over the evidence and what you can read, say "
+        "plainly what you found, and stop. A new thing worth watching is proposed with lens_propose, as a "
+        "draft only the operator seals; this turn changes nothing itself.",
+        # JSON-encoded with ``<`` escaped (as ``_fenced``): sealed text cannot open or close a fence.
+        "The operator-sealed standing ask (manifest text, JSON-encoded): "
+        + canonical_json(schedule["brief"]).replace("<", "\\u003c"),
+    ])
+    return _block(f"[LENS SCHEDULED RUN — {episode.monitor_id} · #{episode.ordinal}]", intro, typed, feeds, folder)
 
 
 def digest_opening_block(manifest: dict[str, Any], windows: list[tuple[Episode, EvidenceWindow]],

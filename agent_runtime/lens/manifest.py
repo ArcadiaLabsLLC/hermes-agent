@@ -21,6 +21,13 @@ Ported from Companion's ``monitor_manifest.dart`` (``MonitorManifest``,
   (``equivalence_mismatch``). Seal-only, so every revision sealed before it still reads;
   ``identity`` is not compared (marketplaces spell one product differently).
 
+* ``schedule: {every_ms, offset_ms, brief}`` (OPTIONAL, plan
+  ``planned/lens-deadline-schedule-equivalence-report-2026-10-27.md`` §2): a scheduled run every
+  ``every_ms`` (15 min .. 7 d) at phase ``offset_ms`` (UTC), carrying the operator's standing ask
+  ``brief``; absent is today's bytes. Refused ``schedule_needs_investigate`` on a ``notify``
+  monitor, and ``schedule_over_cap`` when the cap would clip it every day (``schedules.py``
+  produces the runs).
+
 The schema is CLOSED at every level: a manifest with one unknown key is refused,
 as is a missing key, a duplicate feed or rule id, a rule naming a feed the
 manifest does not carry, and a document over 64 KiB canonical.
@@ -40,6 +47,7 @@ from .wire_value import (
     WireRefusal,
     bounded_int,
     bounded_list,
+    bounded_string,
     canonical_bytes,
     checked_object,
     decode_strict_json,
@@ -59,6 +67,11 @@ MAXIMUM_DAILY_TURN_CAP = 96
 MAXIMUM_COOLDOWN_MS = 24 * 60 * 60 * 1000
 #: W6: the longest digest window — Episodes owed inside one share one turn (§3 decision 3).
 MAXIMUM_DIGEST_WINDOW_MS = 6 * 60 * 60 * 1000
+DAY_MS = 24 * 60 * 60 * 1000
+#: A scheduled run's shortest period: the :data:`MAXIMUM_DAILY_TURN_CAP` floor (one per quarter hour).
+MINIMUM_SCHEDULE_EVERY_MS = DAY_MS // MAXIMUM_DAILY_TURN_CAP
+MAXIMUM_SCHEDULE_EVERY_MS = 7 * DAY_MS
+MAXIMUM_SCHEDULE_BRIEF_BYTES = 1024
 
 
 class AutomationLevel(str, Enum):
@@ -72,6 +85,9 @@ class AutomationWhen(str, Enum):
 
 
 MANIFEST_KEYS = frozenset({"version", "monitor_id", "feeds", "rules", "automation", "persona_id"})
+#: Optional top-level keys: read only when present, emitted only when present.
+OPTIONAL_MANIFEST_KEYS = frozenset({"schedule"})
+SCHEDULE_KEYS = frozenset({"every_ms", "offset_ms", "brief"})
 AUTOMATION_KEYS = frozenset({"level", "when", "daily_turn_cap"})
 #: Optional automation keys and their ceilings: read only when present, emitted only when present.
 OPTIONAL_AUTOMATION_KEYS: dict[str, int] = {"cooldown_ms": MAXIMUM_COOLDOWN_MS,
@@ -91,10 +107,29 @@ def read_automation(value: Any) -> dict[str, Any]:
     return automation
 
 
+def read_schedule(value: Any) -> dict[str, Any]:
+    """``{every_ms, offset_ms, brief}``: interval plus UTC phase (``offset_ms`` < ``every_ms``)."""
+
+    m = checked_object(value, SCHEDULE_KEYS)
+    every = bounded_int(m["every_ms"], minimum=MINIMUM_SCHEDULE_EVERY_MS, maximum=MAXIMUM_SCHEDULE_EVERY_MS)
+    return {"every_ms": every, "offset_ms": bounded_int(m["offset_ms"], maximum=every - 1),
+            "brief": bounded_string(m["brief"], maximum=MAXIMUM_SCHEDULE_BRIEF_BYTES)}
+
+
+def _check_schedule(manifest: dict[str, Any]) -> None:
+    schedule, automation = manifest.get("schedule"), manifest["automation"]
+    if schedule is None:
+        return
+    if automation["level"] != AutomationLevel.INVESTIGATE.value:
+        raise WireError(WireRefusal.SCHEDULE_NEEDS_INVESTIGATE, "schedule")
+    if -(-DAY_MS // schedule["every_ms"]) > automation["daily_turn_cap"]:
+        raise WireError(WireRefusal.SCHEDULE_OVER_CAP, "schedule")
+
+
 def read_manifest(value: Any) -> dict[str, Any]:
     """The canonical manifest dict, or :class:`WireError` naming the first refusal."""
 
-    m = checked_object(value, MANIFEST_KEYS)
+    m = checked_object(value, MANIFEST_KEYS, OPTIONAL_MANIFEST_KEYS)
     manifest = {
         "version": bounded_int(m["version"], minimum=1, maximum=1),
         "monitor_id": opaque_id(m["monitor_id"]),
@@ -103,12 +138,15 @@ def read_manifest(value: Any) -> dict[str, Any]:
         "automation": read_automation(m["automation"]),
         "persona_id": optional(m["persona_id"], opaque_id),
     }
+    if m.get("schedule") is not None:
+        manifest["schedule"] = read_schedule(m["schedule"])
     feed_ids = [feed["id"] for feed in manifest["feeds"]]
     require(len(set(feed_ids)) == len(feed_ids), "duplicate feed id")
     rule_ids = [rule["id"] for rule in manifest["rules"]]
     require(len(set(rule_ids)) == len(rule_ids), "duplicate rule id")
     require(all(set(rule_feed_ids(rule)) <= set(feed_ids) for rule in manifest["rules"]), "rule names an unknown feed")
     _check_typed_rules(manifest)
+    _check_schedule(manifest)
     if len(canonical_bytes(manifest)) > MAXIMUM_MANIFEST_BYTES:
         raise WireError(WireRefusal.OVER_BUDGET, "manifest byte budget")
     return manifest

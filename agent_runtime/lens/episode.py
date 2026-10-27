@@ -14,6 +14,10 @@ passed while the watcher was off (``missed_deadlines.py`` opens it at catch-up).
 ``active`` and is never open: the next real breach of its rule is the next ordinal. Its row is
 version 2 and carries ``missed_deadline_ms``; every other row stays version 1, byte for byte.
 
+``scheduled`` (plan ``planned/lens-deadline-schedule-equivalence-report-2026-10-27.md`` §2) is one run
+of a monitor's ``schedule`` (``schedules.py``, rule ``schedule:run``): admitted, never open, never
+painted as an alert; its receipt is its record. Its row is version 1.
+
 The Companion Work owner is cut (plan §4): an Episode's response is the ONE chat
 turn the exit door forges (stage L2), named here by ``turn_id``; ``decision`` is
 the operator's settle (dismiss / investigate / snooze15m), recorded with its time.
@@ -53,6 +57,7 @@ class EpisodeState(str, Enum):
     CLOSED_RECOVERED = "closed_recovered"
     RESOLVED = "resolved"
     MISSED = "missed"
+    SCHEDULED = "scheduled"
 
 
 class Decision(str, Enum):
@@ -62,7 +67,7 @@ class Decision(str, Enum):
 
 
 #: The states the exit door admits (``needs_admission``).
-ADMITTED_STATES = frozenset({EpisodeState.ACTIVE, EpisodeState.MISSED})
+ADMITTED_STATES = frozenset({EpisodeState.ACTIVE, EpisodeState.MISSED, EpisodeState.SCHEDULED})
 _EPISODE_KEYS = frozenset({
     "version", "id", "monitor_id", "rule_id", "ordinal", "first_seen", "last_seen",
     "count", "state", "suppressed_until", "turn_id", "decision", "decided_at",

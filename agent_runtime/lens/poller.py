@@ -32,6 +32,8 @@ Each :meth:`LensPoller.tick` polls every due feed of every ENABLED monitor once:
 * a read is typed by ``sources.typed_result`` with the feed's recent raw reads (the
   outlier window, kept in memory: a restart refills it, and the guard abstains
   until it is full) and the monitor's newest dated exchange rate (W2(c), W5);
+* a sealed ``schedule`` opens its due ``schedule:run`` Episode once per slot (``schedules.py``):
+  only an ENABLED monitor's, so a paused one accrues nothing;
 * ``missing_data`` (§5) is a clock form too: every tick it is judged with its gaps' reasons and
   the time the feed has been watched since (``WATCHER.since``, or the ingress listener's
   ``bound_since`` for a ``push`` feed) — never given a confirming read;
@@ -59,6 +61,7 @@ from .feed import is_push_feed
 from .host_budget import HostBudget, host_key, is_private_reader
 from .missed_deadlines import continues_missed, record_missed_deadlines, recorded_deadline
 from .rules import CLOCK_FORMS, DEADLINE_FORMS, RuleForm, Verdict, continuity_limit, evaluate, rule_feed_ids, source_broken_rule_id
+from .schedules import record_due_schedule
 from .sources import read_feed_source
 from .sources.transport import ReadReason, ReadResult, Validators
 from .store import LensStore, MonitorState, from_ms, to_ms
@@ -162,6 +165,7 @@ class LensPoller:
 
         store, now, reads = self.store_factory(), self.clock(), 0
         for monitor_id, manifest in self._enabled(store):
+            record_due_schedule(store, monitor_id, manifest, now)  # a sealed schedule's due run (§2)
             deadline = self._deadline(store, monitor_id, manifest, now)
             # A rate feed is read before the feeds it converts, so one tick's total uses one tick's rate.
             for feed in sorted(manifest["feeds"], key=lambda f: not _is_rate_feed(manifest, f["id"])):

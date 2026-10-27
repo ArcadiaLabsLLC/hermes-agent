@@ -65,6 +65,10 @@ class WireRefusal(str, Enum):
     EQUIVALENCE_UNLABELLED = "equivalence_unlabelled"
     #: A money ``best_of`` sealed over members that differ in ``condition`` or ``variant`` (W5).
     EQUIVALENCE_MISMATCH = "equivalence_mismatch"
+    #: A ``schedule`` on a ``notify`` monitor: a scheduled run forges a turn or is meaningless.
+    SCHEDULE_NEEDS_INVESTIGATE = "schedule_needs_investigate"
+    #: A ``schedule`` the monitor's ``daily_turn_cap`` would clip every day.
+    SCHEDULE_OVER_CAP = "schedule_over_cap"
 
 
 class WireError(ValueError):
