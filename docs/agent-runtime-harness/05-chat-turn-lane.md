@@ -1388,6 +1388,14 @@ Active root leases, uncommitted latest input, structured clarification and synth
 origins are ineligible. The existing curation/redaction removes runtime/skill envelopes;
 attachment paths/bodies are not loaded. The configured 2–10 message window uses whole pairs.
 
+`agent_runtime/suggestions/generation.py` owns shared prompt/cleanup/result helpers.
+The Console adapter binds the existing plugin completion operation; scheduling,
+authorized history, settings and storage stay with their existing owners. The helper
+cannot fetch persona history, select a model or create a second producer. The final
+system reminder reinforces the latest user's language even after a mixed-language
+assistant reply. Known labels and matched quotation wrappers are cleaned; punctuation
+is accepted on complete no-suggestion sentinels, not arbitrary sentinel-prefixed prose.
+
 Pinned next-prompt helpers retain contextual free-form replies, latest-user language,
 short non-Latin output and code-bearing text. Exact sentinels, actual placeholders and
 over-160-code-point output are rejected; there is no intent whitelist or question template.

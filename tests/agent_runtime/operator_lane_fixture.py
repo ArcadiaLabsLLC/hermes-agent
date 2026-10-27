@@ -16,6 +16,7 @@ class OperatorLane(MessageHandling, ArgvLanes, SettlePush):
         self.inflight_lock = threading.Lock()
         self.inflight, self.inflight_futures = {}, {}
         self.drain_state = None
+        self._console_suggestions_service = None
         self.jobs, self.output = [], []
         self.frames = SimpleNamespace(emit=self.output.append)
         # The serve's stdout proxy surface the lanes call (frames.py): the settle push

@@ -21,10 +21,16 @@ useful continuation exists. The user will review and edit the draft before choos
 
 def clean_suggestion(text: str) -> str | None:
     value = text.strip().splitlines()[0] if text.strip() else ""
-    value = re.sub(r"^(?:suggestion|next message|next prompt)\s*:\s*", "", value, flags=re.IGNORECASE).strip()
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'`":
-        value = value[1:-1].strip()
-    if not value or value.upper() in {"NULL", "NONE", "N/A"} or len(value) > 160:
+    wrappers = {'"': '"', "'": "'", '`': '`', '“': '”', '‘': '’', '«': '»'}
+    # Labels can wrap a quoted message or occur inside its wrapper. Strip only
+    # complete wrappers and known labels; brackets and inline code are content.
+    for _ in range(2):
+        value = re.sub(r"^(?:suggestion|next message|next prompt|sugerencia|siguiente mensaje|pr[oó]ximo mensaje)\s*:\s*",
+                       "", value, flags=re.IGNORECASE).strip()
+        if len(value) >= 2 and wrappers.get(value[0]) == value[-1]:
+            value = value[1:-1].strip()
+    sentinel = value.rstrip(".!?…。！？").strip().upper()
+    if not value or sentinel in {"NULL", "NONE", "N/A"} or len(value) > 160:
         return None
     if re.search(r"\[(?:insert|your|fill in)\b[^\]]*\]|<your\b[^>]*>|_{3,}", value, re.IGNORECASE):
         return None
@@ -33,7 +39,11 @@ def clean_suggestion(text: str) -> str | None:
 
 
 def generate_suggestion(messages: list[dict], complete) -> dict:
-    result = complete(messages=[{"role": "system", "content": SYSTEM}, *messages],
+    reminder = {"role": "system", "content":
+        "Use the language and style of the latest user message above, even if the assistant replied "
+        "in another language. Return only the user's next message, or NULL. A question is not required. "
+        "Do not invent user actions, approvals or manual outcomes."}
+    result = complete(messages=[{"role": "system", "content": SYSTEM}, *messages, reminder],
                       max_tokens=256, temperature=0.3)
     return {"text": clean_suggestion(result.text), "provider": result.provider, "model": result.model,
             "usage": vars(result.usage)}
