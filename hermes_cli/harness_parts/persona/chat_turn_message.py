@@ -862,7 +862,7 @@ def _mint_send_root(args, *, instance_store, session_db, normalized_persona, per
             "ok": False,
             "capability_id": "mission.chat.message",
             "execution_state": ExecutionState.FAILED,
-            "error_kind": getattr(exc, "code", None) or getattr(exc, "reason", None),
+            "error_kind": exc.code if isinstance(exc, PersonaChatMintError) else exc.reason,
             "error": safe_assignment_text(str(exc), limit=400),
             "persona_id": normalized_persona,
             "persona_instance_id": persona_instance_id,
