@@ -326,9 +326,12 @@ def test_real_command_exception_after_acquisition_releases(canonical_scope, monk
         opened.append(db)
         return db
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", real_factory)
-    def fail_store(**kwargs):
+    # The first step after the SessionDB open (which now follows the instance
+    # resolution, chat-head plan §7.2 decision 5) is the explicit root's
+    # canonical-persistence check.
+    def fail_after_open(*args, **kwargs):
         raise RuntimeError("pre-admission preparation failed")
-    monkeypatch.setattr(chat_turn_message, "PersonaInstanceStore", fail_store)
+    monkeypatch.setattr(chat_turn_message, "is_canonical_session_persistence", fail_after_open)
     with pytest.raises(RuntimeError, match="pre-admission preparation failed"):
         chat_turn_message._cmd_mission_chat_message(_args("writer-exception"))
     assert len(opened) == 1
