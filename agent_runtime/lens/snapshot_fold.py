@@ -27,7 +27,7 @@ from .store import LensStore, MonitorState
 __layer__ = "lanes"
 
 MAXIMUM_OPEN_EPISODES = 32
-_OPEN = (EpisodeState.ACTIVE.value, EpisodeState.RECOVERED.value)
+_OPEN = (EpisodeState.ACTIVE.value, EpisodeState.RECOVERED.value, EpisodeState.MISSED.value)
 _WATCHER_KEYS = frozenset({"running", "since_ms", "last_tick_ms"})
 _RECORDED_WATCHER: ContextVar[dict[str, Any] | None] = ContextVar("lens_recorded_watcher", default=None)
 

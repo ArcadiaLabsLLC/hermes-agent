@@ -50,7 +50,7 @@ from types import SimpleNamespace
 from typing import Any, Callable
 
 from .artifacts import collect, episode_folder
-from .episode import Episode, needs_admission
+from .episode import ADMITTED_STATES, Episode, needs_admission
 from .evidence import MAXIMUM_SPAN, EvidenceRefused, build_evidence
 from .feed import Observation
 from .manifest import AutomationLevel, AutomationWhen
@@ -174,6 +174,16 @@ def _evidence(store: LensStore, manifest: dict[str, Any], rule: dict[str, Any], 
     return None
 
 
+def _offline(store: LensStore, rule: dict[str, Any], episode: Episode) -> tuple[int, int] | None:
+    """A ``missed`` Episode's outage, from the recorded rows (W8); None for every other Episode."""
+
+    from .missed_deadlines import offline_interval
+
+    if episode.missed_deadline_ms is None:
+        return None
+    return offline_interval(store, episode.monitor_id, rule["feed_id"], episode.missed_deadline_ms)
+
+
 @dataclass
 class LensForge:
     store_factory: Callable[[], LensStore] = LensStore
@@ -187,7 +197,7 @@ class LensForge:
         if not store.exists():
             return []
         outcomes = []
-        for row in store.episodes(states=("active",)):
+        for row in store.episodes(states=tuple(state.value for state in sorted(ADMITTED_STATES))):
             episode = Episode.from_json(row)
             if needs_admission(episode, now):
                 outcome = self.admit(store, episode, now)
@@ -235,7 +245,7 @@ class LensForge:
         evidence = _evidence(store, manifest, rule, episode, now)
         if evidence is None:
             return self._settle(store, episode, now, f"{FORGE_FAILED_PREFIX}evidence_refused")
-        message = opening_block(manifest, episode, evidence, folder)
+        message = opening_block(manifest, episode, evidence, folder, offline=_offline(store, rule, episode))
         turn_id = lens_client_message_id(episode.id)
         receipt = {"episode_id": episode.id, "monitor_id": episode.monitor_id, "turn_id": turn_id,
                    "started_ms": to_ms(now), "outcome": ReceiptOutcome.FORGING.value,

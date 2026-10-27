@@ -77,8 +77,27 @@ def _fenced(value: Any) -> str:
     return f"{UNTRUSTED_EVIDENCE_OPEN}\n{body}\n{UNTRUSTED_EVIDENCE_CLOSE}"
 
 
-def opening_block(manifest: dict[str, Any], episode: Episode, evidence: EvidenceWindow, folder: Path) -> str:
-    """The forged user message for ``episode`` (see the module docstring)."""
+def _opening_sentence(rule: dict[str, Any], episode: Episode, offline: tuple[int, int] | None) -> str:
+    """What Lens knows: a breach, or (W8) a deadline that passed while nothing was watching."""
+
+    if episode.missed_deadline_ms is None:
+        return (f"Eternia Lens opened this Episode: monitor {episode.monitor_id}'s rule {episode.rule_id} "
+                f"({rule['severity']}) is breaching.")
+    window = ("" if offline is None else f" The watcher was offline from {_utc(offline[0])} to {_utc(offline[1])}, "
+              "and no read was made in that interval.")
+    return (f"Eternia Lens opened this Episode: monitor {episode.monitor_id}'s rule {episode.rule_id} "
+            f"({rule['severity']}) MISSED its deadline — the recorded deadline {_utc(episode.missed_deadline_ms)} "
+            f"passed while the watcher was off.{window} The current value is unknown until the next read.")
+
+
+def _utc(ms: int) -> str:
+    return datetime.fromtimestamp(ms / 1000, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def opening_block(manifest: dict[str, Any], episode: Episode, evidence: EvidenceWindow, folder: Path, *,
+                  offline: tuple[int, int] | None = None) -> str:
+    """The forged user message for ``episode`` (see the module docstring); ``offline`` is a missed
+    Episode's outage ``(from_ms, until_ms)`` (W8)."""
 
     rule = next(rule for rule in manifest["rules"] if rule["id"] == episode.rule_id)
     feeds = [feed for feed in manifest["feeds"] if feed["id"] in evidence.feed_ids]
@@ -88,12 +107,13 @@ def opening_block(manifest: dict[str, Any], episode: Episode, evidence: Evidence
         "feeds": [{key: feed[key] for key in ("id", "kind", "interval_ms")} for feed in feeds],
         "evidence": evidence.to_json(),
     }
+    if offline is not None:
+        typed["offline"] = {"from_ms": offline[0], "until_ms": offline[1]}
     sources = {feed["id"]: feed["source"] for feed in feeds}
     return "\n".join([
         f"[LENS EPISODE — {episode_title(episode)}]",
-        (f"Eternia Lens opened this Episode: monitor {episode.monitor_id}'s rule {episode.rule_id} "
-         f"({rule['severity']}) is breaching. No operator wrote this message. Investigate what the evidence "
-         "shows, say plainly what you found and what you would do, and stop; nothing is fixed for you."),
+        (_opening_sentence(rule, episode, offline) + " No operator wrote this message. Investigate what the "
+         "evidence shows, say plainly what you found and what you would do, and stop; nothing is fixed for you."),
         "",
         "Typed data (numbers and recorded gaps; a gap is a read that did not answer, never a healthy value):",
         canonical_json(typed),

@@ -9,6 +9,11 @@ States: ``active`` (breaching) -> ``recovered`` (healthy again, still OPEN — t
 operator or the turn has not settled it) -> back to ``active`` on a new breach,
 or settled as ``closed_recovered`` / ``resolved``. Recovery is not resolution.
 
+``missed`` (W8, plan ``planned/LENS_EXTENSIONS_2026-10-27.md`` §4) is a recorded deadline that
+passed while the watcher was off (``missed_deadlines.py`` opens it at catch-up). It is admitted like
+``active`` and is never open: the next real breach of its rule is the next ordinal. Its row is
+version 2 and carries ``missed_deadline_ms``; every other row stays version 1, byte for byte.
+
 The Companion Work owner is cut (plan §4): an Episode's response is the ONE chat
 turn the exit door forges (stage L2), named here by ``turn_id``; ``decision`` is
 the operator's settle (dismiss / investigate / snooze15m), recorded with its time.
@@ -44,6 +49,7 @@ class EpisodeState(str, Enum):
     RECOVERED = "recovered"
     CLOSED_RECOVERED = "closed_recovered"
     RESOLVED = "resolved"
+    MISSED = "missed"
 
 
 class Decision(str, Enum):
@@ -51,6 +57,13 @@ class Decision(str, Enum):
     INVESTIGATE = "investigate"
     SNOOZE_15M = "snooze15m"
 
+
+#: The states the exit door admits (``needs_admission``).
+ADMITTED_STATES = frozenset({EpisodeState.ACTIVE, EpisodeState.MISSED})
+_EPISODE_KEYS = frozenset({
+    "version", "id", "monitor_id", "rule_id", "ordinal", "first_seen", "last_seen",
+    "count", "state", "suppressed_until", "turn_id", "decision", "decided_at",
+})
 
 #: A decision that settles a RECOVERED episode: the next breach opens a new one.
 _SETTLING = frozenset({Decision.DISMISS, Decision.SNOOZE_15M})
@@ -77,14 +90,16 @@ class Episode:
     turn_id: str | None = None
     decision: Decision | None = None
     decided_at: datetime | None = None
+    #: The recorded deadline (epoch ms) a ``missed`` Episode names; None for every other state.
+    missed_deadline_ms: int | None = None
 
     @property
     def id(self) -> str:
         return episode_id(self.monitor_id, self.rule_id, self.ordinal)
 
     def to_json(self) -> dict[str, Any]:
-        return {
-            "version": 1,
+        body = {
+            "version": 1 if self.missed_deadline_ms is None else 2,
             "id": self.id,
             "monitor_id": self.monitor_id,
             "rule_id": self.rule_id,
@@ -98,14 +113,15 @@ class Episode:
             "decision": None if self.decision is None else self.decision.value,
             "decided_at": None if self.decided_at is None else format_utc(self.decided_at),
         }
+        if self.missed_deadline_ms is not None:
+            body["missed_deadline_ms"] = self.missed_deadline_ms
+        return body
 
     @classmethod
     def from_json(cls, value: Any) -> Episode:
-        m = checked_object(value, {
-            "version", "id", "monitor_id", "rule_id", "ordinal", "first_seen", "last_seen",
-            "count", "state", "suppressed_until", "turn_id", "decision", "decided_at",
-        })
-        bounded_int(m["version"], minimum=1, maximum=1)
+        m = checked_object(value, _EPISODE_KEYS, {"missed_deadline_ms"})
+        version = bounded_int(m["version"], minimum=1, maximum=2)
+        require((version == 2) == ("missed_deadline_ms" in m), "missed_deadline_ms is version 2's")
         episode = cls(
             monitor_id=opaque_id(m["monitor_id"]),
             rule_id=opaque_id(m["rule_id"]),
@@ -118,7 +134,9 @@ class Episode:
             turn_id=optional(m["turn_id"], opaque_id),
             decision=optional(m["decision"], lambda v: enum_value(v, Decision)),
             decided_at=optional(m["decided_at"], utc_time),
+            missed_deadline_ms=bounded_int(m["missed_deadline_ms"]) if version == 2 else None,
         )
+        require((episode.state is EpisodeState.MISSED) == (version == 2), "a missed episode is version 2")
         require(m["id"] == episode.id, "episode identity")
         require(episode.last_seen >= episode.first_seen, "episode chronology")
         require((episode.decision is None) == (episode.decided_at is None), "decision needs its time")
@@ -176,7 +194,7 @@ def needs_admission(episode: Episode, now: datetime) -> bool:
     """True when this Episode is owed its one forged turn (stage L2 reads this)."""
 
     return (
-        episode.state is EpisodeState.ACTIVE
+        episode.state in ADMITTED_STATES
         and episode.turn_id is None
         and episode.decision is None
         and (episode.suppressed_until is None or episode.suppressed_until <= now)

@@ -40,6 +40,7 @@ from typing import Any, Callable
 
 from .episode import EpisodeState, observe
 from .feed import is_push_feed
+from .missed_deadlines import record_missed_deadlines
 from .rules import CLOCK_FORMS, RuleForm, evaluate, rule_feed_ids
 from .sources import read_feed_source
 from .sources.transport import ReadReason, ReadResult
@@ -126,6 +127,9 @@ class LensPoller:
                 latest = store.latest(monitor_id, feed["id"])
                 horizon = timedelta(milliseconds=feed["interval_ms"] * _OFFLINE_INTERVALS)
                 if latest is not None and now - from_ms(latest["observed_ms"]) > horizon:
+                    # W8: a recorded deadline that passed in the outage is a ``missed`` Episode.
+                    record_missed_deadlines(store, monitor_id, manifest, feed,
+                                            offline_from=from_ms(latest["observed_ms"]), now=now)
                     store.record(monitor_id, feed["id"], observed_at=now, received_at=now, value=None,
                                  reason=ReadReason.WATCHER_OFFLINE.value)
                     recorded += 1

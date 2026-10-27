@@ -257,6 +257,17 @@ too. The deadline passes in silence — the exact outcome W8(a) forbids.
 |---|---|---|
 | `RT-LENS-MISSED-DEADLINES` | decisions 1–5 (one slice: the state, its producer and its opening block are not separable without an unproduced state) | `agent_runtime/lens/episode.py`, `agent_runtime/lens/poller.py`, `agent_runtime/lens/trigger.py`, `agent_runtime/lens/tool.py`, `agent_runtime/lens/snapshot_fold.py` |
 
+*Built (`RT-LENS-MISSED-DEADLINES`, lane w1027f-h-lens-a), where the tree differed from the plan:* the
+producer and its queries are a new `agent_runtime/lens/missed_deadlines.py` (the poller only calls
+it from `catch_up`). Decision 3's two dedup arms are ONE check: a `missed` Episode's `last_seen` is D,
+so "a missed Episode for the same D exists" already satisfies "the latest Episode was seen at or
+after D − lead"; the separate query had no killing mutation and was dropped. Decision 1's "D − lead
+or D inside the outage, and D ≤ now" reduces to offline_from < D ≤ now. The outage the opening block
+names is read back from the recorded rows (the first `watcher_offline` gap at or after D, and the row
+before it), not stored on the Episode, so the version-2 row adds only `missed_deadline_ms`. Push
+feeds are not caught up (as before), so a push-fed deadline is never `missed`. Follow-ups filed:
+`RT-LENS-MISSED-THEN-FIRED`, `RT-LENS-EPISODE-DECIDE-VERB`.
+
 ### Test plan
 
 - Deadline recorded, serve down across D, resume after D → exactly one `missed` Episode with
