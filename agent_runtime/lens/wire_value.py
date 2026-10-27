@@ -61,6 +61,10 @@ class WireRefusal(str, Enum):
     INVALID_VALUE = "invalid_value"
     #: An ``investigate`` monitor sealed with no ``persona_id`` (p10-agent §5.2 decision 1).
     PERSONA_REQUIRED = "persona_required"
+    #: A money ``best_of`` sealed with a member lacking ``product`` labels, or labelled ``unknown`` (W5).
+    EQUIVALENCE_UNLABELLED = "equivalence_unlabelled"
+    #: A money ``best_of`` sealed over members that differ in ``condition`` or ``variant`` (W5).
+    EQUIVALENCE_MISMATCH = "equivalence_mismatch"
 
 
 class WireError(ValueError):

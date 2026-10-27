@@ -15,6 +15,11 @@ Ported from Companion's ``monitor_manifest.dart`` (``MonitorManifest``,
   (:func:`check_sealable`; owner ruling 2026-10-19, plan p10-agent §5.2
   decision 1: hermes holds no Mission Control selection to default to).
   ``notify`` forges no turn and may keep ``null``.
+* A money ``best_of`` compares PRODUCTS (W5): the seal refuses it unless every member
+  carries ``product`` labels (``equivalence_unlabelled``, an ``unknown`` condition
+  included) that agree on ``condition`` and case-folded ``variant``
+  (``equivalence_mismatch``). Seal-only, so every revision sealed before it still reads;
+  ``identity`` is not compared (marketplaces spell one product differently).
 
 The schema is CLOSED at every level: a manifest with one unknown key is refused,
 as is a missing key, a duplicate feed or rule id, a rule naming a feed the
@@ -27,7 +32,7 @@ from datetime import timedelta
 from enum import Enum
 from typing import Any
 
-from .feed import ValueKind, comparable_type, fx_feed_id, read_feed, value_type_of
+from .feed import ProductCondition, ValueKind, comparable_type, fx_feed_id, read_feed, value_type_of
 from .rules import RuleForm, continuity_limit, read_rule, rule_feed_ids
 from .wire_value import (
     MAXIMUM_MANIFEST_BYTES,
@@ -141,10 +146,29 @@ def _check_typed_rules(manifest: dict[str, Any]) -> None:
 
 
 def check_sealable(manifest: dict[str, Any]) -> None:
-    """What a seal adds to :func:`read_manifest`: an ``investigate`` monitor names its persona."""
+    """What a seal adds to :func:`read_manifest`: an ``investigate`` monitor names its persona, and a
+    money ``best_of`` compares one product (:func:`_check_equivalence`)."""
 
     if manifest["automation"]["level"] == AutomationLevel.INVESTIGATE.value and manifest["persona_id"] is None:
         raise WireError(WireRefusal.PERSONA_REQUIRED, "persona_id")
+    _check_equivalence(manifest)
+
+
+def _check_equivalence(manifest: dict[str, Any]) -> None:
+    """W5: every member of a money ``best_of`` is labelled, and all share condition and variant."""
+
+    feeds = {feed["id"]: feed for feed in manifest["feeds"]}
+    for rule in manifest["rules"]:
+        if RuleForm(rule["form"]) is not RuleForm.BEST_OF:
+            continue
+        members = [feeds[feed_id] for feed_id in rule_feed_ids(rule)]
+        if value_type_of(members[0])["kind"] != ValueKind.MONEY.value:
+            continue  # a best_of over plain numbers (latency across regions) is not a product comparison
+        products = [member.get("product") for member in members]
+        if any(p is None or p["condition"] == ProductCondition.UNKNOWN.value for p in products):
+            raise WireError(WireRefusal.EQUIVALENCE_UNLABELLED, "product")
+        if len({(p["condition"], p["variant"].casefold()) for p in products}) > 1:
+            raise WireError(WireRefusal.EQUIVALENCE_MISMATCH, "product")
 
 
 def decode_manifest(source: str | bytes) -> dict[str, Any]:

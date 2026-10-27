@@ -44,6 +44,11 @@ Two more guards stand between a read and a rule (plan §6b W2(c), W5):
   rate older than ``fx.max_age_ms`` at the read, or none, is a gap ``fx_stale``:
   a comparison never silently mixes currencies. ``best_of`` compares the total.
 
+``product: {identity, variant, condition}`` (W5, plan
+``planned/lens-deadline-schedule-equivalence-report-2026-10-27.md`` §3) labels WHAT a listing is: a
+money ``best_of`` seals only over members that share ``condition`` and ``variant``
+(``manifest.check_sealable``). Absent is today's canonical bytes.
+
 Observations keep the reference's honesty rules: a gap is a gap (``value`` is
 ``None`` and ``gap`` is True, never interpolated), and an observation carries
 both the source's time and the time it was received.
@@ -228,8 +233,9 @@ FEED_KEYS_REQUIRED = frozenset({"version", "id", "kind", "interval_ms", "source"
 #: ``value_type`` and ``plausible`` (W2): what the number IS, and the range a read
 #: must fall in before any rule may see it.
 #: ``outlier_guard`` (W2(c)): the median/deviation guard for a fast feed.
+#: ``product`` (W5): the sealed product labels (:func:`read_product`).
 FEED_KEYS_OPTIONAL = frozenset({"credential_ref", "allow_private_network", "value_type", "plausible",
-                                "outlier_guard"})
+                                "outlier_guard", "product"})
 
 
 # --- typed values (W2(c), W5) --------------------------------------------------
@@ -251,6 +257,30 @@ class ReadingRefusal(str, Enum):
     IMPLAUSIBLE = "implausible"
     OUTLIER = "outlier"
     FX_STALE = "fx_stale"
+
+
+class ProductCondition(str, Enum):
+    """A listing's condition. ``unknown`` is explicit: an absent condition never means ``new``."""
+
+    NEW = "new"
+    USED = "used"
+    REFURBISHED = "refurbished"
+    OPEN_BOX = "open_box"
+    FOR_PARTS = "for_parts"
+    UNKNOWN = "unknown"
+
+
+PRODUCT_KEYS = frozenset({"identity", "variant", "condition"})
+
+
+def read_product(value: Any) -> dict[str, Any]:
+    """``{identity, variant, condition}``: a GTIN/MPN or normalised model name (<= 128 bytes), the
+    variant (<= 64; ``""`` when the product has none) and a :class:`ProductCondition`."""
+
+    m = checked_object(value, PRODUCT_KEYS)
+    return {"identity": bounded_string(m["identity"], maximum=128),
+            "variant": bounded_string(m["variant"], maximum=64, empty=True),
+            "condition": enum_value(m["condition"], ProductCondition).value}
 
 
 _CURRENCY = re.compile(r"^[A-Z]{3}$")
@@ -440,6 +470,8 @@ def read_feed(value: Any) -> dict[str, Any]:
         feed["plausible"] = read_plausible(m["plausible"])
     if m.get("outlier_guard") is not None:
         feed["outlier_guard"] = read_outlier_guard(m["outlier_guard"])
+    if m.get("product") is not None:
+        feed["product"] = read_product(m["product"])
     return feed
 
 

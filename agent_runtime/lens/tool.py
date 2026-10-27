@@ -164,7 +164,9 @@ def digest_opening_block(manifest: dict[str, Any], windows: list[tuple[Episode, 
 
 
 def _typed_feeds(feeds: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [{key: feed[key] for key in ("id", "kind", "interval_ms")} for feed in feeds]
+    """Each feed's typed identity; ``product`` (W5, the sealed labels a ``best_of`` claimed equal) when present."""
+
+    return [{key: feed[key] for key in ("id", "kind", "interval_ms", "product") if key in feed} for feed in feeds]
 
 
 def _block(header: str, intro: str, typed: dict[str, Any], feeds: list[dict[str, Any]], folder: Path, *,

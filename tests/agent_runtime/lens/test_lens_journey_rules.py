@@ -227,6 +227,7 @@ def test_a_price_read_as_zero_is_a_gap_and_never_alerts():
     manifest = _deal_manifest()
     for feed in manifest["feeds"]:
         feed["plausible"] = {"minimum": 50, "maximum": 5000}
+        feed["product"] = dict(NEW_CPU)  # a money best_of seals over labelled members (W5)
     store = _enabled(manifest)
     poller = LensPoller(clock=_Clock(T0), client=_client(lambda: {"price": 0}), resolver=lambda host: PUBLIC)
     assert poller.tick() == 2
@@ -355,10 +356,14 @@ def test_the_outlier_guard_abstains_over_a_flat_window():
     assert _guarded([389, 389, 389, 389, 389, 349])[-1] == (349, "ok")  # a price step is a change
 
 
-def _listing(feed_id: str, value_type: dict) -> dict:
-    return {"version": 1, "id": feed_id, "kind": "http_json", "interval_ms": 60000,
+NEW_CPU = {"identity": "MPN-CPU-9000", "variant": "", "condition": "new"}
+
+
+def _listing(feed_id: str, value_type: dict, product: dict | None = NEW_CPU) -> dict:
+    feed = {"version": 1, "id": feed_id, "kind": "http_json", "interval_ms": 60000,
             "source": {"url": f"https://shop.example.invalid/{feed_id}", "selector": "$.price"},
             "value_type": value_type}
+    return feed if product is None else {**feed, "product": dict(product)}
 
 
 def _total_cost_manifest(fx_max_age_ms: int = 3600000) -> dict:
@@ -420,3 +425,83 @@ def test_a_group_of_totals_in_one_currency_is_comparable_and_a_bad_fx_feed_is_re
     mixed["feeds"][1]["value_type"]["total_cost"]["fx"]["from"] = "GBP"
     with pytest.raises(WireError):
         read_manifest(mixed)
+
+
+# --- W5 equivalence labels (RT-LENS-EQUIVALENCE-LABELS) -------------------------------
+
+def _labelled(us: dict | None, uk: dict | None) -> dict:
+    manifest = _total_cost_manifest()
+    for feed, product in zip(manifest["feeds"][:2], (us, uk)):
+        feed.pop("product")
+        if product is not None:
+            feed["product"] = product
+    return manifest
+
+
+def _seal(manifest: dict):
+    from agent_runtime.lens.seal import seal_manifest
+
+    return seal_manifest(manifest, revision=1)
+
+
+def _refusal(manifest: dict) -> str:
+    with pytest.raises(WireError) as raised:
+        _seal(manifest)
+    return raised.value.code.value
+
+
+def test_an_unlabelled_money_best_of_still_reads_but_does_not_seal():
+    unlabelled = _labelled(None, NEW_CPU)
+
+    read_manifest(unlabelled)  # a revision sealed before the labels keeps reading
+    assert _refusal(unlabelled) == "equivalence_unlabelled"
+    assert _refusal(_labelled(NEW_CPU, {**NEW_CPU, "condition": "unknown"})) == "equivalence_unlabelled"
+
+
+def test_a_money_best_of_over_different_conditions_or_variants_does_not_seal():
+    assert _refusal(_labelled(NEW_CPU, {**NEW_CPU, "condition": "used"})) == "equivalence_mismatch"
+    assert _refusal(_labelled({**NEW_CPU, "variant": "128 GB"}, {**NEW_CPU, "variant": "256 GB"})) == (
+        "equivalence_mismatch")
+
+
+def test_one_product_spelled_two_ways_seals():
+    """Positive control: same condition, variant equal case-folded, identity differs (a judgement, not a key)."""
+
+    _seal(_labelled({**NEW_CPU, "variant": "Black"}, {"identity": "CPU 9000 boxed", "variant": "black",
+                                                       "condition": "new"}))
+
+
+def test_a_number_best_of_without_labels_seals():
+    manifest = _labelled(None, None)
+    for feed in manifest["feeds"][:2]:
+        feed["value_type"] = {"kind": "number"}
+    _seal(manifest)
+
+
+def test_a_feed_without_product_keeps_its_canonical_bytes():
+    from agent_runtime.lens.wire_value import canonical_bytes
+
+    bare = _listing("us", {"kind": "money", "currency": "USD"}, product=None)
+    assert "product" not in read_feed(bare)
+    assert canonical_bytes(read_feed(bare)) == canonical_bytes(read_feed({**bare, "product": None}))
+    assert read_feed(_listing("us", {"kind": "money", "currency": "USD"}))["product"] == NEW_CPU
+    for bad in ({**NEW_CPU, "condition": "mint"}, {**NEW_CPU, "identity": "x" * 129}, {"identity": "a"}):
+        with pytest.raises(WireError):
+            read_feed(_listing("us", {"kind": "money", "currency": "USD"}, product=bad))
+
+
+def test_the_opening_block_carries_each_members_labels_as_typed_data(tmp_path):
+    import json
+
+    from agent_runtime.lens.episode import Episode, EpisodeState
+    from agent_runtime.lens.evidence import build_evidence
+    from agent_runtime.lens.tool import opening_block
+
+    manifest = read_manifest(_total_cost_manifest())
+    episode = Episode(monitor_id="deal", rule_id="best", ordinal=1, first_seen=T0, last_seen=T0, count=1,
+                      state=EpisodeState.ACTIVE)
+    window = build_evidence((), monitor_id="deal", feed_ids=["us", "uk"], start=T0 - STEP, end=T0)
+    block = opening_block(manifest, episode, window, tmp_path)
+
+    typed = json.loads(block.split("\n")[4])
+    assert {feed["id"]: feed.get("product") for feed in typed["feeds"]} == {"us": NEW_CPU, "uk": NEW_CPU}
