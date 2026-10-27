@@ -1007,3 +1007,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ## Filed on arrival — 2026-10-26 (launcher lane w1026c-mc-b)
 
 - **`RT-SKILL-CHANGE-RECORD` — a background-review skill write (applied to a profile skill, or staged for a shared one) records the chat and turn it came from, and a read lists a skill's applied changes with their diffs, so the launcher can show "Updated skill <name>" on the turn and a per-skill history (launcher `MC-SKILL-CHANGE-VISIBLE`)** · `agent_runtime/review_skill_gate.py` · `agent_runtime/review_skill_pending.py` · READY 2026-10-26
+
+## Filed on arrival — 2026-10-26 (launcher lane w1026c-requires)
+
+- **`RT-QUEUE-REQUIRES-SEGMENT` — mirror the launcher's `REQUIRES <host>[, <host>…]` record (windows|macos|linux; unknown/empty/repeated/second segment is a defect) in the Work grammar; add a REQUIRES row to the shared grammar fixtures in both repos together (hermes keeps byte-identical copies)** · `agent_runtime/work_store/grammar.py` · `tests/agent_runtime/work_store/test_grammar.py` · launcher `lib/features/mission_control/work_queue/policy/work_queue_row_parser.dart` · READY 2026-10-26

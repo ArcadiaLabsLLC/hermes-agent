@@ -57,7 +57,7 @@ Work tracking (adopted from the launcher's ADR 0025):
   `DEFERRED <date>: …` / `NEEDS PLAN <date>: …`; a `backend` / `hermes` / `launcher` / `another lane`
   block opens its detail with the blocking row's `ID` (no limbo); an open owner question is
   `BLOCKED <date>: owner decision — … · Recommend: …`, an answer a `RULED <date>:` record;
-  `VERDICT` is retired. The grammar's one home is `Harness_Brain/30 — Decisions/0011`
+  `VERDICT` is retired. `owner sitting` is for the owner looking at something, not for a host: a row whose only obstacle is the OS it must run on keeps its real status (normally READY) and carries ` · REQUIRES <host>[, <host>…]` (host `windows` | `macos` | `linux`) — a record like RULED, never a status — and a lane claims it only when `hostname`'s OS is in that list (launcher ADR 0025's 2026-10-26b amendment). The grammar's one home is `Harness_Brain/30 — Decisions/0011`
   § Row grammar; `tests/tooling/test_work_queue_row_grammar.py` enforces it.
 - **Claim a row before you start it:** fetch, append
   `**TAKEN <date> <lane> on <machine> as <git account> in <worktree>**` to the row's line as
