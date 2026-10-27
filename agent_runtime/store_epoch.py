@@ -91,6 +91,18 @@ MIGRATION_REGISTRY: tuple[dict[str, Any], ...] = (
                   "dropping the old keys is a later breaking entry",
         "pins_sha256": "5b78d48e0911dd5107d144a6afda04a68463a92db5760b4f2b8bcf914ffd4dab",
     },
+    {
+        "id": "slot-worktrees-and-assignment-store-retired",
+        "date": "2026-10-26",
+        "store": "all",
+        "breaking": False,
+        "reason": "two path-table moves, pinned together by lane w1026c-h-fork: paths.slot_worktrees_path is "
+                  "additive (slot_worktrees/<workspace>/<slot>.json, 69b6dec1f0; an older edition never reads it), "
+                  "and paths.persona_assignment_path left with PersonaAssignmentStore (72a4f8d3ba), whose residual "
+                  "rows are archived byte-for-byte under persona_assignments_archive/; an older edition reads an "
+                  "empty persona_assignments/ as no assignments, which is the live census (0), and mints none",
+        "pins_sha256": "6c79a0aa3224ff2c50d9095abba03af719be6bcac551a7cf2a0dc962bee5f2f7",
+    },
 )
 
 #: ``1 + count(breaking entries)`` — ``tests/agent_runtime/test_store_epoch_gate.py`` holds it to that.

@@ -195,6 +195,11 @@ LEDGER.update(
         # ``hermes_profile`` at top level since inception — historically the
         # ONE verb that said which root it checked.
         "_cmd_verify": "packet already states runtime_root at top level",
+        # ``agent_runtime.chat_verbs.turn_audit`` answers with its own
+        # ``namespace`` block (kind, id, store_root, machine install id), the
+        # audit's statement of which store answered; a second ``resolution``
+        # beside it would be the same duplication ``_cmd_snapshot`` avoids.
+        "_cmd_mission_chat_audit": "envelope carries turn_audit's namespace block, store_root included",
     }
 )
 
