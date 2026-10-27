@@ -43,6 +43,8 @@ Read in this order for a full picture; each stands alone for its own territory.
 
 ## planned/ — designed, not implemented
 
+- [Agent Console suggestion completion](planned/console-next-prompt-completion-2026-10-27.md) — 2026-10-27 completion recommendations; documentation only, implementation deferred by the owner.
+
 - [Agent Console follow-up suggestions](05-chat-turn-lane.md#opt-in-follow-up-drafts) — implemented through existing native owners; off by default. Historical design is archived and live qualification remains named in the domain queue.
 - [Naming and address map](planned/naming-and-address-map-2026-10-25.md) — machine, install,
   namespace, agent profile, persona instance, realm workspace and repo slot as one typed address;

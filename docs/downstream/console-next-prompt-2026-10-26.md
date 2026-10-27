@@ -73,3 +73,9 @@ The two registered-event emitter/retired-consumer assertions also fail on base 1
 Paired Launcher implementation: 2082f311b4 plus dd0e80e109, rebased onto d4b799f634. Combined Harness goldens were regenerated after the rebase; the rebased codec/settings/draft/search run passed 29 tests. Runtime landed on main at 3021ee627f, and its primary checkout was fast-forwarded without touching the unrelated web build directory.
 
 Final paired Launcher landing is 97f4f93b4f (implementation 2e75042f49 plus f17370d436), after a further docs-only main rebase. Its primary checkout is reconciled. The final optional-capability regression passed in the nine-test client file and failed under the deliberate route-before-capability mutation; the mutation was restored. All owned Dart analysis and the final provider/test analysis are clean. The earlier paired hashes above are historical pre-rebase receipts.
+
+## Completion planning — 2026-10-27
+
+[Completion plan](../agent-runtime-harness/planned/console-next-prompt-completion-2026-10-27.md) separates the remaining recommendations from this built
+implementation record. The owner requested plans and rows only, with implementation
+deferred. No new runtime, UI, live configuration or provider qualification is claimed.

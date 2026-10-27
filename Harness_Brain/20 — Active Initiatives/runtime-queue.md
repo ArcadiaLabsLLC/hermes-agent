@@ -1003,7 +1003,8 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Follow-up suggestions — remaining live evidence
 
-- **`RT-NEXT-PROMPT-PROVIDER-EVAL` — Measure real-provider free-form quality and idle-box primary-turn/auxiliary latency on an isolated opt-in profile; deterministic native, routing and scale implementation is built** · `docs/downstream/console-next-prompt-2026-10-26.md` · preserve inherited routing and persona state; report actual provider/model, costs, fabrication and false-rejection rates for multilingual, code, user-grounded statements and unknown manual outcomes; pair Developer/bundled revisions with Launcher MC-NEXT-PROMPT-QUALIFY · READY 2026-10-26
+- **`RT-NEXT-PROMPT-GENERATION-PARITY` — Restore language reinforcement and robust output cleanup without narrowing contextual free-form suggestions** · `docs/agent-runtime-harness/planned/console-next-prompt-completion-2026-10-27.md` · extend existing generation helper and history owner; preserve useful short multilingual text, code/brackets and exact sentinel handling; keep false-default Harness setting and persona/auxiliary authorities · DEFERRED 2026-10-27: owner says "dont implement yet"; until an explicit implementation go-ahead
+- **`RT-NEXT-PROMPT-PROVIDER-EVAL` — Qualify suggestion relevance, language, fabricated claims, acceptance burden, cost and latency on isolated profiles** · `docs/agent-runtime-harness/planned/console-next-prompt-completion-2026-10-27.md` · after RT-NEXT-PROMPT-GENERATION-PARITY; preserve personas and inherited auxiliary routing/override/reset; off-state zero work; pair Launcher MC-NEXT-PROMPT-QUALIFY; baseline evidence `docs/downstream/console-next-prompt-2026-10-26.md` · DEFERRED 2026-10-27: owner says "dont implement yet"; until an explicit implementation go-ahead
 
 ## Filed on arrival — 2026-10-27 (hermes lane w1027a-h-rt)
 
