@@ -185,9 +185,8 @@ def _block(header: str, intro: str, typed: dict[str, Any], feeds: list[dict[str,
         _fenced(sources),
         "",
         *shaped,
-        f"Write any file you produce (a report.md, a chart) into this folder: {folder}",
-        "Every file there is listed on this Episode's receipt. Declare each image in your reply on its own "
-        "line as MEDIA:<path>.",
+        f"Your reply is saved as report.md in this Episode's folder ({folder}) and listed on the receipt; "
+        "this turn is read-only, so do not try to write files.",
     ])
 
 

@@ -69,7 +69,7 @@ from datetime import datetime, timedelta, UTC
 from types import SimpleNamespace
 from typing import Any, Callable
 
-from .artifacts import collect, episode_folder
+from .artifacts import collect, episode_folder, write_reply_report
 from .episode import ADMITTED_STATES, Episode, needs_admission
 from .evidence import DEFAULT_MAXIMUM_BYTES, MAXIMUM_SPAN, EvidenceRefused, build_evidence
 from .feed import Observation
@@ -416,6 +416,8 @@ class LensForge:
         except Exception as exc:
             logger.warning("lens forge failed for episode %s", leader.id, exc_info=True)
             outcome = f"{FORGE_FAILED_PREFIX}{type(exc).__name__}"
+        # The turn is read-only: its reply IS the report, written by the door before the folder is listed.
+        write_reply_report(leader.id, payload.get("reply"))
         handles, files = collect(leader.id, payload.get("reply"))
         session_id = payload.get("session_id") or payload.get("chat_session_id")
         store.finish_receipt(leader.id, outcome=outcome, finished_ms=to_ms(self.clock()),

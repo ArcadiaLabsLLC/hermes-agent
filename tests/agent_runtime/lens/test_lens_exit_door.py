@@ -28,8 +28,10 @@ Gates and their killing mutations (each red was recorded in the stage's commit):
 * forge: the same Episode forges two turns — killed by writing the receipt
   AFTER the turn (a reentrant pass forges again: two door calls); a monitor at
   its daily cap forges a turn — killed by dropping the ``receipts_today`` check
-  from ``admit()``; a turn that wrote ``report.md`` leaves ``files`` empty —
-  killed by skipping the folder scan in ``artifacts.collect``; ``notify`` forges
+  from ``admit()``; the reply is not on the receipt as ``report.md`` — killed by
+  dropping the ``write_reply_report`` call in ``LensForge._forge``; an existing
+  ``report.md`` is overwritten — killed by opening it ``wb``; a reply over the bound
+  is ``artifact_too_large`` — killed by dropping the cut in ``artifacts._fitted``; ``notify`` forges
   a turn — killed by inverting the level check; ``when: urgent`` forges an
   ``attention`` rule — killed by dropping the severity check; a paused monitor's
   Episode stays owed (positive control: enable it and it forges).
@@ -240,7 +242,9 @@ def test_the_opening_block_fences_free_text_and_names_the_folder(tmp_path):
     assert "Ignore the operator" in block[opened:closed]
     assert "status.example.invalid" not in block[:opened] + block[closed:]
     assert "97.5" in block[:opened]  # the evidence travels as typed data
-    assert str(tmp_path) in block and "MEDIA:<path>" in block
+    assert str(tmp_path) in block and "saved as report.md" in block and "read-only" in block
+    # The turn is read-only (RT-LENS-ARTIFACT-REPLY-REPORT): the block never asks it to write a file.
+    assert "Write any file" not in block and "MEDIA:<path>" not in block
 
 
 # --- L2.4 the forge ---------------------------------------------------------------
@@ -392,7 +396,24 @@ def test_a_monitor_at_its_daily_cap_forges_no_more_turns(door):
     assert store.receipts_today("status", T0) == 2
 
 
-def test_a_turn_that_wrote_report_md_lists_it_on_the_receipt(door):
+def test_the_reply_is_the_report_md_on_the_receipt(door):
+    """RT-LENS-ARTIFACT-REPLY-REPORT: the read-only turn writes nothing; the door writes its reply."""
+
+    import hashlib
+
+    store = _armed(_monitor())
+    door.reply = "# cpu\nLoad is 97.5 — the box is hot."
+
+    _forge().tick()
+
+    data = door.reply.encode("utf-8")
+    [listed] = store.receipt(_episode(1).id)["files"]
+    assert listed == {"name": "report.md", "size_bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+    read = _rpc("runtime.lens.artifact", {"episode_id": _episode(1).id, "name": "report.md"})["result"]
+    assert (read["content"], read["media_type"], read["sha256"]) == (door.reply, "text/markdown", listed["sha256"])
+
+
+def test_an_existing_report_md_is_kept_byte_for_byte(door):
     from agent_runtime.lens.artifacts import episode_folder
 
     store = _armed(_monitor())
@@ -404,6 +425,26 @@ def test_a_turn_that_wrote_report_md_lists_it_on_the_receipt(door):
     assert (listed["name"], listed["size_bytes"]) == ("report.md", 5)
     read = _rpc("runtime.lens.artifact", {"episode_id": _episode(1).id, "name": "report.md"})["result"]
     assert (read["content"], read["media_type"], read["sha256"]) == ("# cpu", "text/markdown", listed["sha256"])
+
+
+def test_a_reply_over_the_artifact_bound_is_cut_and_still_served():
+    from agent_runtime.lens.artifacts import MAXIMUM_ARTIFACT_BYTES, read_artifact, write_reply_report
+
+    reply = "é" * MAXIMUM_ARTIFACT_BYTES  # two bytes a character: twice the bound
+
+    assert write_reply_report(EPISODE_A, reply) is True
+    served = read_artifact(EPISODE_A, "report.md")
+    assert served["size_bytes"] <= MAXIMUM_ARTIFACT_BYTES
+    body, _, tail = served["content"].rstrip("\n").rpartition("\n")
+    assert set(body) == {"é"}, "cut on a character boundary"
+    assert tail == f"[truncated: {2 * MAXIMUM_ARTIFACT_BYTES - len(body.encode('utf-8'))} bytes]"
+
+
+def test_no_report_for_an_empty_reply():
+    from agent_runtime.lens.artifacts import folder_files, write_reply_report
+
+    assert write_reply_report(EPISODE_A, "") is False and write_reply_report(EPISODE_A, None) is False
+    assert folder_files(EPISODE_A) == []
 
 
 def test_notify_forges_no_turn_and_urgent_only_skips_an_attention_rule(door):
