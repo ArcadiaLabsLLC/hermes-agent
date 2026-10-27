@@ -60,7 +60,7 @@ def _changes_path() -> Path:
     return get_hermes_home() / CHANGES_FILE
 
 
-def _append(row: dict[str, Any]) -> None:
+def _append_change_row(row: dict[str, Any]) -> None:
     """One line; never raises (a record is telemetry, the skill write already happened)."""
     try:
         path = _changes_path()
@@ -152,18 +152,18 @@ def on_post_tool_call(tool_name: Any = None, args: Any = None, result: Any = Non
         entries = _ledger_entries(skills, str(session_id or ""), started, ended)
     except Exception:
         entries = []
-    _append(_row("applied", skills=skills, actions=sorted({action for action, _name in targets}),
+    _append_change_row(_row("applied", skills=skills, actions=sorted({action for action, _name in targets}),
                  native_session_id=str(session_id or "") or None, ledger_entries=entries, turn=_turn()))
 
 
 def record_staged(pending_id: str, skills: list[str], action: str) -> None:
     """The gate staged ``pending_id``: remember the chat and turn the review came from."""
-    _append(_row("staged", pending_id=pending_id, skills=sorted(skills), actions=[action], turn=_turn()))
+    _append_change_row(_row("staged", pending_id=pending_id, skills=sorted(skills), actions=[action], turn=_turn()))
 
 
 def record_staged_outcome(pending_id: str, outcome: str) -> None:
     """The owner approved (``approved``) or rejected (``rejected``) a staged write."""
-    _append(_row(outcome, pending_id=pending_id))
+    _append_change_row(_row(outcome, pending_id=pending_id))
 
 
 def turn_of_pending(pending_id: str) -> dict[str, Any] | None:
