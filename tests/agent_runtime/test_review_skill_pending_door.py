@@ -111,3 +111,5 @@ def test_the_argv_twin_prints_the_same_listing(namespace, capsys):
     assert args.func(args) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is True and [row["id"] for row in payload["pending"]] == [record["id"]]
+    # The envelope states which root answered (tests/hermes_cli/test_harness_json_root_observability.py).
+    assert "resolution" in payload

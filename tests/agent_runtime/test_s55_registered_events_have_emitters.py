@@ -153,14 +153,17 @@ RETIRED_PRODUCER_LIVE_CONSUMER_ALLOWLIST = {
         "S70 (`6b9a27a74`, retire the free-floating assignment lane) removed the "
         "emitter deliberately. The registration survives for READ-BACK "
         "compatibility: `persona_chat_history` still resolves the type in two "
-        "places — the `_TRACE_EVENT_TYPES` fetch filter (used at :563, :582 and "
-        ":626) and the `_trace_entry` mapping (:1551), which renders it as an "
-        "`assignment_created` harness-trace row. Both feed `persona_chat_trace_summary`, "
-        "which is on the live snapshot AND status wire (`data['persona_chat_trace']`) "
-        "and therefore reaches the Launcher. Its sibling `persona_assignment.closed` "
-        "is STILL emitted (`persona_assignments.py:1795`) through the very same "
-        "reader, so the consumer path is exercised in production today — the two "
-        "types are read as a pair."
+        "places — the `_TRACE_EVENT_TYPES` fetch filter and the `_trace_entry` "
+        "mapping, which renders it as an `assignment_created` harness-trace row. "
+        "Both feed `persona_chat_trace_summary`, which is on the live snapshot AND "
+        "status wire (`data['persona_chat_trace']`) and therefore reaches the Launcher."
+    ),
+    "persona_assignment.closed": (
+        "`72a4f8d3ba` (RT-FULL-PERSONAASSIGNMENTSTORE) retired PersonaAssignmentStore "
+        "and its settle verbs, the last writer of this type. Rows written before it "
+        "are still in session history and the same reader renders them as "
+        "`assignment_closed`; the two types are now read back as a pair, and "
+        "neither has a production writer."
     ),
 }
 
@@ -517,8 +520,9 @@ def test_the_retired_producer_entries_are_witnessed_on_their_live_consumer():
     would be circular. What has to be true is that a historical row still
     resolves, so that is what is driven.
 
-    ``persona_assignment.created`` last had a writer before S70 (`6b9a27a74`).
-    Rows carrying it are still in real session history, and
+    ``persona_assignment.created`` last had a writer before S70 (`6b9a27a74`),
+    ``persona_assignment.closed`` before `72a4f8d3ba`.
+    Rows carrying them are still in real session history, and
     ``persona_chat_history.trace_rows._trace_entry`` still renders them into the
     ``persona_chat_trace`` block that ships on the snapshot and status wire. If
     that stopped being true the honest outcome flips: de-register the type and
@@ -530,9 +534,21 @@ def test_the_retired_producer_entries_are_witnessed_on_their_live_consumer():
     class _HistoricalEvent:
         """A row as it sits in a session log written before the producer left."""
 
-        type = "persona_assignment.created"
         turn_id = "turn_historical"
-        payload = {"status": "open", "assignment_id": "asg_1"}
+
+        def __init__(self, type: str, payload: dict) -> None:
+            self.type = type
+            self.payload = payload
+
+    historical = {
+        "persona_assignment.created": (_HistoricalEvent(
+            "persona_assignment.created", {"status": "open", "assignment_id": "asg_1"}), "assignment_created"),
+        "persona_assignment.closed": (_HistoricalEvent(
+            "persona_assignment.closed", {"status": "closed", "assignment_id": "asg_1"}), "assignment_closed"),
+    }
+    assert set(historical) == set(RETIRED_PRODUCER_LIVE_CONSUMER_ALLOWLIST), (
+        "every retired-producer entry needs a historical row driven through its consumer below"
+    )
 
     for event_type in RETIRED_PRODUCER_LIVE_CONSUMER_ALLOWLIST:
         # 1. The fetch filter still admits the type, or the row is never read.
@@ -542,26 +558,18 @@ def test_the_retired_producer_entries_are_witnessed_on_their_live_consumer():
             "nothing — de-register it and state the contract_hash migration."
         )
 
-    # 2. And the mapping still RESOLVES a historical row into a rendered entry.
-    entry = persona_chat_history.trace_rows._trace_entry(_HistoricalEvent())
-    assert entry is not None, (
-        "persona_chat_history.trace_rows._trace_entry no longer resolves a historical "
-        "persona_assignment.created row. The live-consumer claim is false; flip "
-        "to de-registration."
-    )
-    assert entry["kind"] == "harness_trace"
-    assert entry["event"] == "assignment_created"
-
-    # 3. The sibling that proves the reader is exercised in production TODAY.
-    #    `.closed` still has an emitter and travels the identical path, so this
-    #    is not a lane kept alive only by the row above.
-    sibling = "persona_assignment.closed"
-    assert sibling in persona_chat_history.vocabulary._TRACE_EVENT_TYPES
-    assert sibling in emitted_event_types(), (
-        f"{sibling} lost its emitter too. The whole assignment-trace lane may now "
-        "be dead, which would retire the read-back argument for its sibling — "
-        "re-derive rather than leaving the exemption standing."
-    )
+    # 2. And the mapping still RESOLVES each historical row into a rendered entry.
+    #    Since 72a4f8d3ba neither type has a production writer (the entries'
+    #    no-writer claim is held by the test above), so this read-back is the
+    #    whole of the argument for keeping them registered.
+    for event_type, (row, rendered) in historical.items():
+        entry = persona_chat_history.trace_rows._trace_entry(row)
+        assert entry is not None, (
+            "persona_chat_history.trace_rows._trace_entry no longer resolves a historical "
+            f"{event_type} row. The live-consumer claim is false; flip to de-registration."
+        )
+        assert entry["kind"] == "harness_trace"
+        assert entry["event"] == rendered
 
 
 def _module_tree(module) -> ast.Module:

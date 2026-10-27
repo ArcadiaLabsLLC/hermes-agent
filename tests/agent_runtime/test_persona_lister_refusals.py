@@ -205,9 +205,11 @@ def test_steering_repair_still_strips_a_genuinely_dangling_parent(
 #
 # What survives here is the ONE gate that outlived the pair — a retire over a
 # store whose assignment directory is unreadable must not become a NEW way to
-# fail. The positive behaviour (the retire completes, the assignment row is left
-# on disk) is pinned where the guard lived, in
-# ``test_persona_assignments.py::test_a_residual_active_assignment_no_longer_blocks_a_retire``.
+# fail. The positive test that pinned "the retire completes over a residual
+# active assignment" left with the store itself (72a4f8d3ba): residual rows are
+# no longer left on disk for a retire to meet, they are moved into the archive at
+# plugin load, pinned in
+# ``test_persona_assignment_store_retired.py::test_residual_rows_move_byte_for_byte_into_the_archive_with_a_report``.
 
 
 @pytest.mark.parametrize("corrupt_count", [1, 2])

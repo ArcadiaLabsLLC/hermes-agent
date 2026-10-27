@@ -13197,6 +13197,7 @@
         "inbox",
         "inventory",
         "link-external",
+        "pending",
         "promote",
         "publishable",
         "restore"
@@ -13537,6 +13538,191 @@
         "link-external"
       ],
       "positionals": [],
+      "subcommands": []
+    },
+    "harness skills pending": {
+      "exclusive_groups": [],
+      "options": {
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "skills",
+        "pending"
+      ],
+      "positionals": [],
+      "subcommands": [
+        "approve",
+        "list",
+        "reject"
+      ]
+    },
+    "harness skills pending approve": {
+      "exclusive_groups": [],
+      "options": {
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--profile": {
+          "action": "store",
+          "canonical": "--profile",
+          "choices": null,
+          "nargs": 1,
+          "required": true,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "skills",
+        "pending",
+        "approve"
+      ],
+      "positionals": [
+        {
+          "action": "store",
+          "choices": null,
+          "name": "id",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        }
+      ],
+      "subcommands": []
+    },
+    "harness skills pending list": {
+      "exclusive_groups": [],
+      "options": {
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--profile": {
+          "action": "store",
+          "canonical": "--profile",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "skills",
+        "pending",
+        "list"
+      ],
+      "positionals": [],
+      "subcommands": []
+    },
+    "harness skills pending reject": {
+      "exclusive_groups": [],
+      "options": {
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--profile": {
+          "action": "store",
+          "canonical": "--profile",
+          "choices": null,
+          "nargs": 1,
+          "required": true,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "skills",
+        "pending",
+        "reject"
+      ],
+      "positionals": [
+        {
+          "action": "store",
+          "choices": null,
+          "name": "id",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        }
+      ],
       "subcommands": []
     },
     "harness skills promote": {
