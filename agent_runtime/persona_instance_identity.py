@@ -618,9 +618,10 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
     durable registry regardless, so the ``identity_map`` keeps resolving old
     ids in archived history. Running twice is a no-op the second time.
 
-    Six phases run in order: (1) legacy-id fold, (2) orphan / legacy-role
+    Seven phases run in order: (1) legacy-id fold, (2) orphan / legacy-role
     prune, (2b) unplaced-instance prune, (3) missing steering-parent repair,
-    (4) missing chat-session-binding repair, (5) owner-less flow-graph prune.
+    (4) missing chat-session-binding repair, (5) owner-less flow-graph prune, (6) canonical
+    scope-pointer clear.
     ``apply=False`` (the CLI's ``--dry-run``) reports every phase and writes
     nothing — no store rows, no graph docs, no events.
 
@@ -826,6 +827,9 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
         live_instance_ids=live_instance_ids,
         apply=apply,
     )
+    # Phase 6 — canonical scope hygiene: a canonical channel stores no workspace/realm pointer
+    # (RT-GLOBAL-SINGLETON-CANONICAL). The decode already hides them; this clears what is stored.
+    canonical_scope_cleared = store.clear_canonical_scope_pointers(apply=apply)
 
     return {
         "applied": bool(apply),
@@ -864,6 +868,8 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
         "graph_departed_steering_count": sum(
             1 for item in graph_prune["departed_steering"] if item.get("changed")
         ),
+        "canonical_scope_cleared": canonical_scope_cleared,
+        "canonical_scope_cleared_count": len(canonical_scope_cleared),
         "alias_count": len(aliases),
         "archive_dir": str(archive_dir) if apply and actions else None,
         "prune_archive_dir": str(prune_archive_dir) if apply and pruned_actions else None,

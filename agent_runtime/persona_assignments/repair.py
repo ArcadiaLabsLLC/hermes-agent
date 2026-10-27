@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 __layer__ = "stores"
 
 __all__ = [
+    "clear_canonical_scope_pointers",
     "repair_missing_chat_session_bindings",
     "repair_missing_steering_references",
     "repair_non_instance_steering",
@@ -302,3 +303,38 @@ def repair_missing_chat_session_bindings(
         "held": held,
         "held_count": len(held),
     }
+
+
+def clear_canonical_scope_pointers(store: PersonaInstanceStore, *, apply: bool = True) -> list[dict[str, Any]]:
+    """Clear ``workspace_id`` / ``realm_id`` STORED on canonical operator channels.
+
+    The store's decode already reads them as ``None`` (RT-GLOBAL-SINGLETON-CANONICAL), so
+    this is hygiene: it reads the RAW rows (the decode would hide what is stored),
+    rewrites each pointer-bearing canonical through the decode, and emits one
+    ``persona_instance.reconciled`` with ``action: "canonical_scope_cleared"``. ``apply=False``
+    reports and writes nothing; a second apply finds nothing.
+    """
+    import json
+
+    from agent_runtime import paths
+    from agent_runtime.persona_assignments.identity import row_is_canonical_persona_channel
+
+    directory = paths.persona_instances_dir()
+    cleared: list[dict[str, Any]] = []
+    for path in sorted(directory.glob("*.json")) if directory.exists() else []:
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue  # an unreadable row is scan_all's to account, not this phase's
+        if not isinstance(raw, dict) or not row_is_canonical_persona_channel(raw.get("id"), raw.get("persona_id")):
+            continue
+        if not (raw.get("workspace_id") or raw.get("realm_id")):
+            continue
+        item = {"persona_instance_id": raw["id"], "workspace_id": raw.get("workspace_id"),
+                "realm_id": raw.get("realm_id"), "action": "canonical_scope_cleared"}
+        cleared.append(item)
+        if apply:
+            instance = store.get(raw["id"])  # decoded: the pointers already read None
+            store._write(instance)
+            store._event("persona_instance.reconciled", instance, dict(item))
+    return cleared

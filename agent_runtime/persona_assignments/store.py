@@ -30,6 +30,7 @@ from agent_runtime.persona_assignments.identity import (
     _normalize_instance_source_persona,
     _profile_id_for_persona_or_template,
     canonical_persona_instance_id,
+    is_canonical_persona_channel,
     persona_chat_session_id_for,
     persona_instance_id_for,
     persona_instance_id_for_placement,
@@ -60,6 +61,22 @@ __all__ = [
 # of the store went at RT-FULL-PERSONAASSIGNMENTSTORE, 2026-10-25). The spec's one production consumer was
 # ``create_or_resume``, whose one caller was the retired free-floating queue
 # verb chain.
+
+
+def _decode_instance(raw: dict[str, Any]) -> PersonaInstance:
+    """THE decode of one stored row; ``get`` and ``scan_all`` both go through it.
+
+    A canonical operator channel carries no scene claim (the 2026-07-18 ruling,
+    "instance = in-level placement"): its ``workspace_id`` / ``realm_id`` decode as
+    ``None`` whatever the row on disk still holds, so no reader can put the persona
+    on a level by following a pointer an old bind stamped
+    (RT-GLOBAL-SINGLETON-CANONICAL; plan ``canonical-channel-global-storage-2026-10-27``).
+    """
+    instance = from_jsonable(PersonaInstance, raw)
+    if is_canonical_persona_channel(instance):
+        instance.workspace_id = None
+        instance.realm_id = None
+    return instance
 
 
 class PersonaInstanceStore:
@@ -201,7 +218,7 @@ class PersonaInstanceStore:
             if resolved is None:
                 raise
             raw = json.loads(paths.persona_instance_path(resolved).read_text(encoding="utf-8"))
-        return from_jsonable(PersonaInstance, raw)
+        return _decode_instance(raw)
 
     def _resolve_stored_instance_id(self, raw_id: str) -> str | None:
         """Resolve a caller-supplied id to the id of the row actually on disk.
@@ -521,7 +538,7 @@ class PersonaInstanceStore:
         unreadable = 0
         for path in sorted(directory.glob("*.json")):
             try:
-                instances.append(from_jsonable(PersonaInstance, json.loads(path.read_text(encoding="utf-8"))))
+                instances.append(_decode_instance(json.loads(path.read_text(encoding="utf-8"))))
             except Exception:
                 unreadable += 1
                 continue
@@ -668,6 +685,7 @@ class PersonaInstanceStore:
     repair_non_instance_steering = repair_lane.repair_non_instance_steering
     repair_missing_steering_references = repair_lane.repair_missing_steering_references
     repair_missing_chat_session_bindings = repair_lane.repair_missing_chat_session_bindings
+    clear_canonical_scope_pointers = repair_lane.clear_canonical_scope_pointers
 
     # chat_binding
     clear_chat_session_binding = chat_binding_lane.clear_chat_session_binding

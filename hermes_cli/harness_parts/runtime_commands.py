@@ -179,10 +179,14 @@ def _cmd_persona_instance_reconcile(args) -> int:
             f"graphs_pruned={data.get('graphs_pruned_count', 0)} "
             f"graphs_held={data.get('graphs_held_count', 0)} "
             f"graph_steering_settled={data.get('graph_departed_steering_count', 0)} "
+            f"canonical_scope_cleared={data.get('canonical_scope_cleared_count', 0)} "
             f"aliases={data['alias_count']}"
         )
         for item in data["actions"]:
             print(f"  - {item['action']}: {item['from_id']} -> {item['to_id']}")
+        for item in data.get("canonical_scope_cleared") or []:
+            print(f"  - canonical_scope_cleared: {item['persona_instance_id']} "
+                  f"(workspace={item['workspace_id']}, realm={item['realm_id']})")
         for item in data.get("pruned") or []:
             print(f"  - pruned ({item['reason']}): {item['persona_instance_id']}")
         for item in data.get("held") or []:

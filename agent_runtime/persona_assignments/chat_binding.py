@@ -25,6 +25,7 @@ from agent_runtime.persona_assignments.identity import (
     canonical_persona_instance_id,
     chat_session_is_foreign_to_instance,
     chat_session_owner_instance_id,
+    is_canonical_persona_channel,
     persona_chat_session_id_for,
     persona_instance_id_for,
 )
@@ -447,7 +448,10 @@ def _apply_open_fields(
     # authoritative placement-scope claim (the launcher stamps its active
     # scope when minting a placement) and applies on create AND re-open; an
     # omitted one never clears an existing pointer (plain chat re-opens
-    # don't know scope and must not erase it).
+    # don't know scope and must not erase it). A canonical operator channel takes
+    # no pointer at all: it is plumbing, never a placement (RT-GLOBAL-SINGLETON-CANONICAL).
+    if is_canonical_persona_channel(instance):
+        return
     safe_workspace_id = safe_assignment_token(workspace_id) if workspace_id is not None else None
     safe_realm_id = safe_assignment_token(realm_id) if realm_id is not None else None
     if safe_workspace_id:

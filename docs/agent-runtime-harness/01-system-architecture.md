@@ -71,7 +71,10 @@ prefixed `personainst_` (`models.py:15`), and there are exactly two derivations:
 - a **placement-backed** row — `persona_instance_id_for_placement(placement_id)`
   (its neighbour there), whose tail is the scene `itemId`.
 
-`is_canonical_persona_channel` is the live discriminator between them.
+`is_canonical_persona_channel` is the live discriminator between them. A canonical
+channel carries no scene claim: the store's decode (`persona_assignments/store.py::_decode_instance`)
+reads its `workspace_id` / `realm_id` as `None`, the bind stamps none, and the reconciler's
+phase 6 clears any an older bind stored (`canonical_scope_cleared`).
 Every id arriving from outside the store passes the single derivation authority
 `canonical_persona_instance_id` (both in the same file), which folds the two structurally
 recognizable drift schemes; ids predating that chokepoint are folded by
@@ -1045,9 +1048,9 @@ Each links to a `planned/` file carrying its evidence and the gate to open it.
 - Deferred by design — **no node taxonomy, no sub-graph expansion**; the Node
   Charter's four questions are unanswered for every candidate →
   [archive/graph-node-taxonomy-and-subgraphs.md](archive/graph-node-taxonomy-and-subgraphs.md) (parked 2026-10-27)
-- Queued — **the global-singleton persona-instance redesign**, cited at
-  `persona_assignments.persona_instance_id_for` →
-  [planned/global-singleton-persona-instances.md](planned/global-singleton-persona-instances.md)
+- 2026-10-27 — **the global-singleton persona-instance redesign**: canonical channels
+  are global in storage (S1 shipped); the bare-persona SEND fallback stays →
+  [planned/canonical-channel-global-storage-2026-10-27.md](planned/canonical-channel-global-storage-2026-10-27.md)
 - 2026-08-24 — **a character's state vocabulary is fixed at `start`**: there is
   no `characters add-state`, so adding a strip to an installed sheet means
   re-authoring the character →
