@@ -24,6 +24,9 @@ preview                {manifest} -> {feeds: [{feed_id, status, number, reason, 
 latest                 {monitor_id} -> {latest: [row per feed]}
 range                  {monitor_id, feed_id, start_ms, end_ms} -> {series, observations, rollups}
 episodes               {monitor_id?, state?} -> {episodes}
+episode.decide         {episode_id, decision: dismiss|investigate|snooze15m} -> the Episode
+                       (the operator's settle, ``lens.store_decisions``; ``episode_not_found``,
+                       ``episode_settled`` for one already closed or resolved)
 fold                   {} -> the Mission Control fold (``lens.snapshot_fold``)
 credential.set         {ref, scheme, secret, username?} -> {ref, set, rotated_at}
                        (write-only: no verb returns a credential value)
@@ -198,6 +201,22 @@ def _runtime_lens_episodes(rid: Any, params: dict, context: RpcContext | None = 
         monitor_id = None if params_.get("monitor_id") is None else _monitor_id(params_)
         states = None if params_.get("state") is None else (enum_value(params_["state"], EpisodeState).value,)
         return {"episodes": _store().episodes(monitor_id=monitor_id, states=states)}
+
+    return _lens_call(rid, body)
+
+
+@method("runtime.lens.episode.decide", tier=TIER_CONSOLE)
+def _runtime_lens_episode_decide(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    def body() -> dict:
+        from datetime import UTC, datetime
+
+        from agent_runtime.lens.episode import Decision
+        from agent_runtime.lens.store_decisions import decide_episode
+        from agent_runtime.lens.wire_value import checked_object, digest_value, enum_value
+
+        m = checked_object(params or {}, {"episode_id", "decision"})
+        return decide_episode(_store(), digest_value(m["episode_id"]), enum_value(m["decision"], Decision),
+                              datetime.now(UTC))
 
     return _lens_call(rid, body)
 

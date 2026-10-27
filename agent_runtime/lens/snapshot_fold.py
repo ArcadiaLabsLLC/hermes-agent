@@ -21,13 +21,12 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
 
-from .episode import EpisodeState
 from .store import LensStore, MonitorState
+from .store_decisions import open_episodes
 
 __layer__ = "lanes"
 
 MAXIMUM_OPEN_EPISODES = 32
-_OPEN = (EpisodeState.ACTIVE.value, EpisodeState.RECOVERED.value, EpisodeState.MISSED.value)
 _WATCHER_KEYS = frozenset({"running", "since_ms", "last_tick_ms"})
 _RECORDED_WATCHER: ContextVar[dict[str, Any] | None] = ContextVar("lens_recorded_watcher", default=None)
 
@@ -66,7 +65,8 @@ def lens_fold(store: LensStore | None = None) -> dict[str, Any]:
     return {
         "version": 1,
         "monitors_enabled": len(enabled),
-        "open_episodes": store.episodes(states=_OPEN, limit=MAXIMUM_OPEN_EPISODES),
+        # Settled by the operator (``store_decisions``): off the fold, not crowded out by 32 newer ones.
+        "open_episodes": open_episodes(store, limit=MAXIMUM_OPEN_EPISODES),
         "latest": latest,
         "last_receipt": next(iter(store.receipts(limit=1)), None),
         "watcher": watcher_state(),

@@ -137,11 +137,14 @@ class StoreRefusal(str, Enum):
     EXISTS = "monitor_exists"
     #: ``lens_propose`` refused: :data:`MAXIMUM_PROPOSALS` never-sealed drafts already wait.
     PROPOSALS_FULL = "proposals_full"
+    EPISODE_NOT_FOUND = "episode_not_found"
+    #: ``runtime.lens.episode.decide`` on an Episode already closed or resolved.
+    EPISODE_SETTLED = "episode_settled"
 
 
 #: The refusals a reader answers as "not found" (the rest are conflicts).
 NOT_FOUND_REFUSALS = frozenset({StoreRefusal.NOT_FOUND, StoreRefusal.RECEIPT_NOT_FOUND,
-                                StoreRefusal.ROUTE_NOT_FOUND})
+                                StoreRefusal.ROUTE_NOT_FOUND, StoreRefusal.EPISODE_NOT_FOUND})
 
 
 class ReceiptOutcome(str, Enum):
@@ -466,13 +469,14 @@ class LensStore:
                                "ORDER BY ordinal DESC LIMIT 1", (monitor_id, rule_id)).fetchone()
         return None if row is None else Episode.from_json(json.loads(row[0]))
 
-    def save_episode(self, episode: Episode) -> None:
-        """Upsert the Episode; an event only when it is new or its state moved (never a ``last_seen`` tick)."""
+    def save_episode(self, episode: Episode, *, announce: bool = False) -> None:
+        """Upsert the Episode; an event only when it is new or its state moved (never a ``last_seen`` tick),
+        or when ``announce`` (the operator's decision, ``store_decisions``)."""
 
         with self._db() as conn:
             moved = _episode_state_moves(conn, episode)
             _write_episode(conn, episode)
-        if moved:
+        if moved or announce:
             self._episode_changed(episode)
 
     def _episode_changed(self, episode: Episode) -> None:
