@@ -1,6 +1,6 @@
 # Runtime Wave2 ownership design checkpoint — R008 / R010 / R034
 
-**Status:** STALE 2026-10-27 (triage `FH-PLANNED-TRIAGE-2026-10-27-C`): written on the frozen grind base, before one run per chat root (`d1324ca9dd`) and the bounded admission wait (`e61e5f0088`); R034 shipped as the tool-form owner (`archive/tool-form-one-owner-2026-10-08.md`). The replan is row `RT-WAVE2-PREP-AND-REGISTRAR-DOORS`.
+**Status:** STALE 2026-10-27 (triage `FH-PLANNED-TRIAGE-2026-10-27-C`): written on the frozen grind base, before one run per chat root (`d1324ca9dd`) and the bounded admission wait (`e61e5f0088`); R034 shipped as the tool-form owner (`archive/tool-form-one-owner-2026-10-08.md`). The replan (2026-10-27, w1027k-h-plan) found R008 and R010 not wanted: [`wave2-doors-not-wanted-2026-10-27.md`](wave2-doors-not-wanted-2026-10-27.md).
 
 Frozen task base: 8f2f1cdd3867943a98795c2eb8da8c6e148479ae, branch grind/sol-runtime-20261007. No integration of advancing main. Local upstream/main reference observed: 865ba906c1a8d93de65839ee7af487204d42e873 (not fetched or adopted during this batch). All registered worktrees inspected: only primary .claude/ and this worktree's preserved evidence/QA patch were dirty. Job2 and all other trees untouched.
 
