@@ -727,6 +727,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Upstream-owned
 
+### Filed on arrival — 2026-10-26 (lane w1026c-h-fork)
+
+- **`UP-LEASE-RESET-DESYNCS-LISTENER-FLAG` — `tools/bot_desktop/lease.py::_reset_for_tests` clears `lease._listeners` while `tui_gateway/methods_display.py::_lease_listener_installed` (and `methods_display_watch._lease_watcher_started`) stay set, so after any test that resets the lease `_install_lease_listener()` is a no-op and no in-process lease change is broadcast for the rest of the process; `tests/tui_gateway/test_display_watch.py` reds after `tests/tui_gateway/test_display_methods.py` in one process and is unbundled for it. Shape: the once-flag keys on the subscription itself (re-subscribe when the listener is no longer registered), or the reset hook clears the flags through a registered reset callback; an upstream issue, never a fork edit** · `tools/bot_desktop/lease.py::_reset_for_tests` · `tui_gateway/methods_display.py::_install_lease_listener` · `scripts/test_bundles_unbundled.txt` · READY 2026-10-26
+
 ### Filed on arrival — 2026-10-25 (lane w1025b-h-audit)
 
 - **`UP-TOOL-REQUEST-MIDDLEWARE-ORIGINAL-ARGS` — upstream's `tool_request` chain hands EVERY middleware the original args (`hermes_cli/middleware.py::_apply_request_chain` passes the same `**kwargs` each time and keeps only the last result), so two plugins that both rewrite one call silently drop the first rewrite; the fork carries one rewriter (`plugins/eternia-harness/__init__.py::default_background_notify` chains background-notify and commit trailers) to stay correct** · `hermes_cli/middleware.py::_apply_request_chain` (upstream-owned) · DEFERRED 2026-10-25: the fork's single rewriter carries it; an upstream issue (each middleware sees the current payload) only if a second plugin rewriter is ever needed
