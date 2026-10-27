@@ -13,6 +13,12 @@ W7 confirming read fire it from a fresh read), or when the rule's latest Episode
 D - lead. That one check covers both of the plan's dedup arms: a rule that fired before the outage
 was seen inside its lead window, and a ``missed`` Episode for the same D (a second restart) has
 ``last_seen`` = D — and any later Episode of the rule is later still.
+
+One deadline, one admission (row ``RT-LENS-MISSED-THEN-FIRED``): a ``missed`` Episode is never open,
+so on resume the first fresh read still answering D would fire ``ends_within`` again (every passed
+deadline is inside its lead) and open the next ordinal. :func:`continues_missed` is the poller's
+guard: a read of the exact instant a ``missed`` Episode names IS that Episode, settled or not; a
+different instant (the listing was extended or relisted) is a new deadline.
 """
 
 from __future__ import annotations
@@ -41,7 +47,17 @@ def missed_episode(*, monitor_id: str, rule_id: str, lead_ms: int, deadline_ms: 
                    count=1, state=EpisodeState.MISSED, missed_deadline_ms=deadline_ms)
 
 
-def _recorded_deadline(store: LensStore, monitor_id: str, feed_id: str, at_ms: int) -> int | None:
+def continues_missed(previous: Episode | None, deadline_ms: int | None) -> bool:
+    """True when ``deadline_ms`` (the feed's newest recorded deadline) is the one ``previous``, a
+    ``missed`` Episode, already names: that read adds nothing, so it opens nothing. Pure."""
+
+    return (previous is not None and previous.state is EpisodeState.MISSED and deadline_ms is not None
+            and deadline_ms == previous.missed_deadline_ms)
+
+
+def recorded_deadline(store: LensStore, monitor_id: str, feed_id: str, at_ms: int) -> int | None:
+    """The feed's newest non-gap value at or before ``at_ms`` (epoch ms), or None."""
+
     with store.connection() as conn:
         row = conn.execute("SELECT value FROM observations WHERE monitor_id = ? AND feed_id = ? AND value IS NOT NULL "
                            "AND observed_ms <= ? ORDER BY observed_ms DESC, sequence DESC LIMIT 1",
@@ -57,7 +73,7 @@ def record_missed_deadlines(store: LensStore, monitor_id: str, manifest: dict[st
     for rule in manifest["rules"]:
         if RuleForm(rule["form"]) is not RuleForm.ENDS_WITHIN or rule["feed_id"] != feed["id"]:
             continue
-        deadline = _recorded_deadline(store, monitor_id, feed["id"], to_ms(offline_from))
+        deadline = recorded_deadline(store, monitor_id, feed["id"], to_ms(offline_from))
         if deadline is None:
             continue
         episode = missed_episode(monitor_id=monitor_id, rule_id=rule["id"], lead_ms=rule["window_ms"],

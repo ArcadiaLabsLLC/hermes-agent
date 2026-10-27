@@ -57,7 +57,7 @@ from typing import Any, Callable
 from .episode import EPISODE_WRITE_ATTEMPTS, Episode, EpisodeState, observe
 from .feed import is_push_feed
 from .host_budget import HostBudget, host_key, is_private_reader
-from .missed_deadlines import record_missed_deadlines
+from .missed_deadlines import continues_missed, record_missed_deadlines, recorded_deadline
 from .rules import CLOCK_FORMS, DEADLINE_FORMS, RuleForm, Verdict, continuity_limit, evaluate, rule_feed_ids, source_broken_rule_id
 from .sources import read_feed_source
 from .sources.transport import ReadReason, ReadResult, Validators
@@ -331,11 +331,15 @@ class LensPoller:
         previous = store.latest_episode(monitor_id, rule["id"])
         if previous is not None and previous.state is EpisodeState.ACTIVE:
             return False
+        if _continues_missed(store, monitor_id, rule, previous, now):
+            return False  # the deadline a missed Episode names: no confirming read spent on it
         return self._verdict(store, monitor_id, manifest, rule, now, previous) is Verdict.FIRING
 
     def _evaluate(self, store: LensStore, monitor_id: str, manifest: dict[str, Any], rule: dict[str, Any],
                   now: datetime) -> None:
         def step(previous: Episode | None) -> Episode | None:
+            if _continues_missed(store, monitor_id, rule, previous, now):
+                return previous  # one deadline, one admission: the missed Episode already is this read
             verdict = self._verdict(store, monitor_id, manifest, rule, now, previous)
             return observe(monitor_id=monitor_id, rule_id=rule["id"],
                            next_ordinal=(previous.ordinal if previous else 0) + 1,
@@ -403,6 +407,17 @@ def _move_episode(store: LensStore, monitor_id: str, rule_id: str,
             return True
     logger.warning("[LensEpisodeWriteContended] monitor=%s rule=%s", monitor_id, rule_id)
     return False
+
+
+def _continues_missed(store: LensStore, monitor_id: str, rule: dict[str, Any], previous: Episode | None,
+                      now: datetime) -> bool:
+    """``missed_deadlines.continues_missed`` for an ``ends_within`` rule, read at ``now``."""
+
+    if RuleForm(rule["form"]) is not RuleForm.ENDS_WITHIN:
+        return False
+    if previous is None or previous.state is not EpisodeState.MISSED:
+        return False
+    return continues_missed(previous, recorded_deadline(store, monitor_id, rule["feed_id"], to_ms(now)))
 
 
 def _watched_since(pushed: bool) -> datetime | None:

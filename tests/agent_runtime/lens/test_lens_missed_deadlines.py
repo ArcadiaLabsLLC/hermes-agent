@@ -179,3 +179,58 @@ def test_episode_rows_keep_version_one_and_version_two_round_trips():
         Episode.from_json({**active.to_json(), "missed_deadline_ms": 1})
     with pytest.raises(WireError):
         Episode.from_json({**missed.to_json(), "version": 1})
+
+
+# --- RT-LENS-MISSED-THEN-FIRED: one deadline, one admission ------------------------------------
+
+def _missed_then_read(read_ms: float, *, settle: bool = False) -> tuple[LensStore, LensPoller, datetime]:
+    """The missed Episode for D (the outage above), then the first fresh read answering ``read_ms``."""
+
+    from agent_runtime.lens.episode import Decision
+    from agent_runtime.lens.store_decisions import decide_episode
+
+    resume = T0 + timedelta(hours=1)
+    store = _outage(T0 + timedelta(minutes=20), resume=resume)
+    if settle:
+        decide_episode(store, store.latest_episode("auction", "ending").id, Decision.DISMISS, resume)
+    poller = _poller(store, resume, read_ms)
+    assert poller.tick() == 1
+    return store, poller, resume
+
+
+def test_a_fresh_read_of_the_missed_deadline_opens_no_second_episode():
+    from agent_runtime.lens.trigger import LensForge
+
+    store, _, resume = _missed_then_read(float(to_ms(T0 + timedelta(minutes=20))))
+
+    assert [(row["ordinal"], row["state"]) for row in _episodes(store)] == [(1, "missed")]
+    assert LensForge(store_factory=lambda: store, clock=lambda: resume).tick() == ["notified"]
+
+
+def test_the_clock_spends_no_confirming_read_on_the_missed_deadline():
+    store, poller, resume = _missed_then_read(float(to_ms(T0 + timedelta(minutes=20))))
+    later = resume + timedelta(minutes=1)
+    poller.clock = lambda: later
+    before = len(_rows(store))
+
+    assert poller.tick() == 0
+    assert len(_rows(store)) == before
+    assert [(row["ordinal"], row["state"]) for row in _episodes(store)] == [(1, "missed")]
+
+
+def test_a_different_deadline_after_a_missed_one_is_a_new_episode():
+    """Positive control (one variable: the instant read): an extended deadline fires and is admitted."""
+
+    from agent_runtime.lens.trigger import LensForge
+
+    resume = T0 + timedelta(hours=1)
+    store, _, _ = _missed_then_read(float(to_ms(resume + LEAD / 2)))
+
+    assert [(row["ordinal"], row["state"]) for row in _episodes(store)] == [(2, "active"), (1, "missed")]
+    assert sorted(LensForge(store_factory=lambda: store, clock=lambda: resume).tick()) == ["notified", "notified"]
+
+
+def test_a_dismissed_missed_episode_is_still_that_deadline():
+    store, _, _ = _missed_then_read(float(to_ms(T0 + timedelta(minutes=20))), settle=True)
+
+    assert [(row["ordinal"], row["state"], row["decision"]) for row in _episodes(store)] == [(1, "missed", "dismiss")]
