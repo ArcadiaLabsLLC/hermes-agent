@@ -194,7 +194,6 @@ def _cmd_persona_instance_create(args) -> int:
     from agent_runtime.agent_create import require_known_persona
     from agent_runtime.mission_chat_outcome import ChatErrorKind
     display_name = safe_assignment_text(getattr(args, "display_name", None), limit=120)
-    kill_active = bool(getattr(args, "kill_active", False))
     add_instance = bool(getattr(args, "add_instance", False))
     placement_id = safe_assignment_token(getattr(args, "placement_id", None))
     cfg = load_agent_runtime_config()
@@ -254,7 +253,6 @@ def _cmd_persona_instance_create(args) -> int:
                     persona_id=persona_id,
                     display_name=display_name or safe_assignment_text(args.title, limit=120) or persona_id,
                     session_id=getattr(args, "session_id", None),
-                    kill_active=kill_active,
                 )
             if add_instance or coordinator_id:
                 instance = _maybe_stamp_spawned_by(instance, coordinator_id=coordinator_id)
@@ -312,7 +310,6 @@ def _cmd_persona_instance_create(args) -> int:
             "chat_session_id": instance.default_chat_session_id,
             "session_id": instance.default_chat_session_id,
             "chat_busy": False,
-            "killed_previous": bool(kill_active),
             "add_instance": add_instance,
             "placement_id": placement_id or None,
             "coordinator_permission_scope": asdict(coordinator_scope) if coordinator_scope is not None else None,

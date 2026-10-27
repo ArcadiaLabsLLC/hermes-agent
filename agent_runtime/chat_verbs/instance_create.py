@@ -22,7 +22,7 @@ INSTANCE_CREATE_PARAMS = (
 
 def create_persona_instance(params: dict, *, caller: Any | None = None) -> dict:
     """Params: ``persona_id`` and ``display_name`` (required by the verb —
-    ``title`` is its fallback); ``session_id``, ``kill_active``,
+    ``title`` is its fallback); ``session_id``, ``kill_active`` (retired: accepted and ignored),
     ``add_instance`` with ``placement_id`` / ``workspace_id`` / ``realm_id``,
     ``client_message_id``, ``requested_by``. Row: ``persona_instance_id``,
     ``session_id`` (= ``default_chat_session_id``), ``display_name``, ``mode``,
@@ -40,7 +40,6 @@ def create_persona_instance(params: dict, *, caller: Any | None = None) -> dict:
         title=_first_text(params, "title") or "New operator chat",
         display_name=_first_text(params, "display_name"),
         session_id=_first_text(params, "session_id"),
-        kill_active=params.get("kill_active") is True,
         add_instance=params.get("add_instance") is True,
         placement_id=_first_text(params, "placement_id"),
         workspace_id=_first_text(params, "workspace_id"),

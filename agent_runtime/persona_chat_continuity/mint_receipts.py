@@ -73,7 +73,6 @@ def mint_chat_root(
     select: bool = True,
     dispatched_from: dict[str, Any] | None = None,
     client_scope: str | None = None,
-    kill_active: bool = False,
 ) -> MintedChatRoot:
     """Reserve-then-create one persona instance chat root, idempotently.
 
@@ -119,7 +118,6 @@ def mint_chat_root(
         select=select,
         dispatched_from=dispatched_from,
         client_scope=client_scope,
-        kill_active=kill_active,
     ).run()
 
 
@@ -162,7 +160,6 @@ class Mint:
         select: bool,
         dispatched_from: dict[str, Any] | None,
         client_scope: str | None,
-        kill_active: bool,
     ) -> None:
         self.instance_store = instance_store
         self.session_db = session_db
@@ -173,7 +170,6 @@ class Mint:
         self.select = bool(select)
         self.dispatched_from = dispatched_from
         self.client_scope = client_scope
-        self.kill_active = bool(kill_active)
         self.bind_target_id = ""
         self.transaction: PersonaChatMintTransaction | None = None
         self.root = ""
@@ -279,7 +275,6 @@ class Mint:
             persona_id=self.persona_id,
             persona_instance_id=self.instance_id,
             session_id=self.root,
-            kill_active=self.kill_active,
         )
         self.bound_early = True
 

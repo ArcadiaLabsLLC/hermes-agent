@@ -1346,24 +1346,6 @@ def test_open_chat_updates_only_default_chat_pointer_during_live_run(isolate_age
     assert runs.get(run.id).state == RunState.RUNNING
 
 
-def test_open_chat_kill_active_flag_cannot_cancel_run_lifecycle(isolate_agent_runtime_root):
-    instance_store = PersonaInstanceStore()
-    runs = RunStore()
-    run = _seed_live_run_binding(instance_store)
-
-    updated = instance_store.open_chat(
-        persona_id="dev",
-        session_id="persona_chat_personainst_dev_replacement",
-        kill_active=True,
-    )
-
-    assert runs.get(run.id).state == RunState.RUNNING
-    assert updated.id == "personainst_dev"
-    assert updated.session_id == "persona_chat_personainst_dev_replacement"
-    assert updated.current_task_id == "task_live"
-    assert updated.active_run_id == run.id
-
-
 def test_add_instance_mints_distinct_placement_backed_instance(isolate_agent_runtime_root):
     store = PersonaInstanceStore()
     primary = store.create_operator_chat(persona_id="profile_reviewer", display_name="Reviewer")

@@ -217,7 +217,6 @@ class _AdmitPhases:
                 # in persona.instance.update_profile.
                 default_display_name=self.display_name,
                 profile_id=safe_assignment_token(getattr(persona, "hermes_profile", None)),
-                kill_active=False,
             )
         except RetiredPersonaInstanceError as exc:
             # A placement retired between this turn's thread being established and

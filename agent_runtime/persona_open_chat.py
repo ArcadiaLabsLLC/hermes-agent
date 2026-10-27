@@ -199,7 +199,6 @@ def _open_chat_args(
         session_id=_first_text(params, "session_id"),
         new_session=bool(params.get("new_session")),
         client_scope=owner,
-        kill_active=bool(params.get("kill_active")),
         # The launcher spells the replay key ``idempotency_key`` (its
         # ``ArgRef.idempotencyKey`` rides ``--idempotency-key`` on this verb),
         # and ``client_message_id`` is the name the same value carries on the
@@ -222,7 +221,7 @@ def _open_chat_args(
         workspace_id=None,
         realm_id=None,
         # The coordinator-budget arm reads these through ``getattr`` and is
-        # unreachable with ``add_instance``/``kill_active`` off anyway; they are
+        # unreachable with ``add_instance`` off anyway; they are
         # spelled so no arm of the handler ever sees a missing attribute.
         coordinator_id=None,
         coordinator_max_spawns=None,
@@ -267,8 +266,8 @@ def perform_persona_instance_open_chat(
 
     **What this door deliberately cannot reach.** ``--add-instance`` and its
     ``placement_id`` / ``display_name`` / ``workspace_id`` / ``realm_id``
-    companions, and the coordinator-budget arm that only ``--add-instance`` or
-    ``--kill-active`` with a ``coordinator:`` requester can open. MINTING a
+    companions, and the coordinator-budget arm that only ``--add-instance`` with a
+    ``coordinator:`` requester can open (``kill_active`` is accepted and ignored). MINTING a
     placement over the method lane is ``runtime.agent.create``'s job and it does
     the whole of it (roster row, chat root and placement together, with a
     reservation); a second minting door here would be exactly the two-lanes-one-

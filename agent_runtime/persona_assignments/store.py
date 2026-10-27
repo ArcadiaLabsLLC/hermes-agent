@@ -473,7 +473,6 @@ class PersonaInstanceStore:
             display_name=display_name,
             default_display_name=default_display_name,
             profile_id=_profile_id_for_persona_or_template(normalized_persona, ensure_persisted_personas),
-            kill_active=False,
             workspace_id=workspace_id,
             realm_id=realm_id,
         )
