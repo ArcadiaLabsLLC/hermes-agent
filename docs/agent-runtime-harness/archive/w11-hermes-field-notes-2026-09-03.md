@@ -1,3 +1,6 @@
+> **BUILT** — 2026-09-03/06, the wave's own lane — landed before the 2026-09-15 history squash (`0d5b7b8abc`), so its own commits are not reachable; paths it names have since moved (god-file splits) — history only.
+> Archived 2026-10-27 from `planned/` by `FH-PLANNED-TRIAGE-2026-10-27-C`; history only — the domain docs and the code are the truth.
+
 # w11/hermes — field notes, 2026-09-03
 
 The hermes half of wave 11's `hermes` lane. Four rows, all RULED by the operator
@@ -152,7 +155,7 @@ home so the split is discoverable from the index rather than only from 01.
 **(4) The unrun-gate principle.** Named section at the top of 07, argued from
 the conjunction (a green report is "it ran" AND "it passed"; the reader sees one
 verdict), evidenced by `6979bad59`, with three consequences the canon acts on.
-Both citing paragraphs in `planned/serve-small-batch-field-notes-2026-09-02.md`
+Both citing paragraphs in `archive/serve-small-batch-field-notes-2026-09-02.md`
 now link it instead of restating the sentence.
 
 **Commands.** Cite probe 0 unwaived / 0 stale after every edit;

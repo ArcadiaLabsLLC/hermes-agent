@@ -1,3 +1,6 @@
+> **BUILT** — 2026-09-03/06, the wave's own lane — landed before the 2026-09-15 history squash (`0d5b7b8abc`), so its own commits are not reachable; paths it names have since moved (god-file splits) — history only.
+> Archived 2026-10-27 from `planned/` by `FH-PLANNED-TRIAGE-2026-10-27-C`; history only — the domain docs and the code are the truth.
+
 # w13/h1 — field notes, 2026-09-04
 
 Five RULED rows, all hermes. Worktree branch `w13/h1`, base `9ea840bb90`

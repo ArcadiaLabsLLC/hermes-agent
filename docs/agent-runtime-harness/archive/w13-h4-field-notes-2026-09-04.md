@@ -1,3 +1,6 @@
+> **BUILT** — 2026-09-03/06, the wave's own lane — landed before the 2026-09-15 history squash (`0d5b7b8abc`), so its own commits are not reachable; paths it names have since moved (god-file splits) — history only.
+> Archived 2026-10-27 from `planned/` by `FH-PLANNED-TRIAGE-2026-10-27-C`; history only — the domain docs and the code are the truth.
+
 # w13/h4 — field notes, 2026-09-04
 
 Seven rows, all from `mission-control-queue.md`. Worktree branch `w13/h4`, base
@@ -204,7 +207,7 @@ are recorded with it: the eviction machinery already exists one field over
 the same module), and `MissionPromptLayer.content` is already nullable
 launcher-side.
 
-Plan: `planned/w13-h4-stream-golden-prompt-body-budget.md` — three stages, each
+Plan: `archive/w13-h4-stream-golden-prompt-body-budget.md` — three stages, each
 with its red-first test and its must-not-change, all blocked on R-1.
 
 The row's own suggested cut (a fixture persona resolving no prompt context) is

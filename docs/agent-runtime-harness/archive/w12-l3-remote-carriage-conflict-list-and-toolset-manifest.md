@@ -1,3 +1,6 @@
+> **BUILT** — 2026-09-04 by lane w12/l3 (its field notes are archived beside this) — landed before the 2026-09-15 history squash (`0d5b7b8abc`), so its own commits are not reachable; paths it names have since moved (god-file splits) — history only.
+> Archived 2026-10-27 from `planned/` by `FH-PLANNED-TRIAGE-2026-10-27-C`; history only — the domain docs and the code are the truth.
+
 # w12/l3 — remote method carriage, the conflict-list producer, and a toolset manifest
 
 Wave 12, lane `l3`, hermes. Three LARGE rows from the launcher's

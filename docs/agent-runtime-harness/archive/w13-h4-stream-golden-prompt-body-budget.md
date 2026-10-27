@@ -1,3 +1,6 @@
+> **BUILT** — 2026-09-05/06 — hermes stages by w17/ha (pre-squash) and the launcher read in EterniaLauncher `7139170151` (an evicted layer says where its text went).
+> Archived 2026-10-27 from `planned/` by `FH-PLANNED-TRIAGE-2026-10-27-C`; history only — the domain docs and the code are the truth.
+
 # w13/h4 — a projection budget for `prompt_layers[].content` in the patch/delta lane
 
 **Status: R-1 RULED 2026-09-05 (evict with an accounting stub). Stages 1 and 2

@@ -1,3 +1,6 @@
+> **BUILT** — 2026-09-03/06, the wave's own lane — landed before the 2026-09-15 history squash (`0d5b7b8abc`), so its own commits are not reachable; paths it names have since moved (god-file splits) — history only.
+> Archived 2026-10-27 from `planned/` by `FH-PLANNED-TRIAGE-2026-10-27-C`; history only — the domain docs and the code are the truth.
+
 # w14/h3 — field notes, 2026-09-04
 
 Five rows, all hermes, base `3d3a33be3e`, branch `w14/h3`. One commit per row,
@@ -258,7 +261,7 @@ Commit `a431dfdc92`.
 
 `tests/test_coverage_claims_resolve.py::test_every_coverage_claim_names_a_test_that_exists`
 is red at the base. The claim is at line 246 of
-`docs/agent-runtime-harness/planned/w13-h1-field-notes-2026-09-04.md`, which
+`docs/agent-runtime-harness/archive/w13-h1-field-notes-2026-09-04.md`, which
 quotes a pytest `FAILED …` line naming a test in that same file that does not
 exist under it; the gate reads the quoted name as a coverage claim and cannot
 resolve it. The file is untouched by this lane and its last commit is

@@ -1,10 +1,13 @@
+> **BUILT** — 2026-09-04/05 by lanes w14/h2 (S1–S6) and w17/hb — landed before the 2026-09-15 history squash (`0d5b7b8abc`), so its own commits are not reachable; paths it names have since moved (god-file splits) — history only.
+> Archived 2026-10-27 from `planned/` by `FH-PLANNED-TRIAGE-2026-10-27-C`; history only — the domain docs and the code are the truth.
+
 # Flow-graph CANVAS replication — staged plan (w13/h2, 2026-09-04)
 
 **Ruling this builds:** *REPLICATE the canvas with the agent — nodes, layout and
 non-owner edges travel in the same sync the steering already rides. Authored work
 silently missing on a replica is worse than the sync cost.* (operator,
 2026-09-04, adopting option **B** of
-[`flow-graph-replication-ruling.md`](flow-graph-replication-ruling.md).)
+[`flow-graph-replication-ruling.md`](../planned/flow-graph-replication-ruling.md).)
 
 The ruling settles §4 Q1 of that brief. Q2 (whole-document versus per-node
 granularity) is not re-opened here: option B answers it in its own text —

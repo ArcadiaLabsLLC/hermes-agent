@@ -1,3 +1,6 @@
+> **BUILT** — 2026-09-03/06, the wave's own lane — landed before the 2026-09-15 history squash (`0d5b7b8abc`), so its own commits are not reachable; paths it names have since moved (god-file splits) — history only.
+> Archived 2026-10-27 from `planned/` by `FH-PLANNED-TRIAGE-2026-10-27-C`; history only — the domain docs and the code are the truth.
+
 # w14/h2 field notes — 2026-09-04
 
 Four rows, hermes half only. Branch `w14/h2`, base `3d3a33be3e`. Commit per row
@@ -8,7 +11,7 @@ and per stage; nothing pushed.
 ## Row 1 — flow-graph CANVAS replication (RULED replicate; stages S1–S6)
 
 **What the row asked.** Build the staged plan already on main
-(`planned/w13-h2-flow-graph-canvas-replication.md`, hermes `d427c6f5d6`) from
+(`archive/w13-h2-flow-graph-canvas-replication.md`, hermes `d427c6f5d6`) from
 stage 1, red-first, one commit per stage. The previous lane's uncommitted files
 were dropped at landing and were not looked for.
 
@@ -215,9 +218,9 @@ Proven to predate this branch: restored `agent_runtime/snapshot.py` to
 
 `tests/test_coverage_claims_resolve.py::test_every_coverage_claim_names_a_test_that_exists`
 — one failure, and it is a FALSE POSITIVE of the gate rather than a rotted
-citation. `planned/w13-h1-field-notes-2026-09-04.md:246` quotes a flaky pytest
+citation. `archive/w13-h1-field-notes-2026-09-04.md:246` quotes a flaky pytest
 log line verbatim (`FAILED …::test_a_cleared_binding_is_not_stale_because…`) and
-the extractor reads the quoted line as a coverage claim. The file is unchanged
+the extractor reads the quoted line as a coverage claim, though that truncated id does not exist. The file is unchanged
 from the base sha (landed by `8f9f0b8ac3`), so the red predates this branch.
 Left alone: the fix is either the quoted line's spelling in that lane's notes or
 the extractor's handling of quoted log output, and neither is this row.
