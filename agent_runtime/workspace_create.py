@@ -132,7 +132,7 @@ def apply_workspace_create(plan: WorkspaceCreatePlan, *, workspace_id: str | Non
     # (workspace.created / workspace.activated are emitted by the store.)
     if item.realm_id and item.realm_id == RealmStore().active_id():
         store.set_active(item.id)
-    return item, _row(item, plan, copied), warnings
+    return item, _workspace_row(item, plan, copied), warnings
 
 
 def _join_realm(item) -> None:
@@ -144,7 +144,7 @@ def _join_realm(item) -> None:
         RealmStore().save(realm)
 
 
-def _row(item, plan: WorkspaceCreatePlan, copied) -> dict:
+def _workspace_row(item, plan: WorkspaceCreatePlan, copied) -> dict:
     row = workspace_row(item)
     if plan.template is not None:
         row["template_workspace_id"] = plan.template.id

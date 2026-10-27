@@ -209,7 +209,7 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _run(parser: argparse.ArgumentParser, argv: list[str]) -> dict[str, Any]:
+def _run_cli_capture(parser: argparse.ArgumentParser, argv: list[str]) -> dict[str, Any]:
     args = parser.parse_args(argv)
     stdout = io.StringIO()
     with contextlib.redirect_stdout(stdout):
@@ -323,7 +323,7 @@ def main(argv: list[str] | None = None) -> int:
             case_root = Path(temp) / f"case{index}"
             isolate(case_root)
             arrange(name, case_root)
-            _write(name, _run(parser, argv))
+            _write(name, _run_cli_capture(parser, argv))
         _write_manifest()
     if not opts.no_mirror:
         try:

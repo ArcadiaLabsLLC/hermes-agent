@@ -20,7 +20,7 @@ __all__ = [
 _REFUSED = 1
 
 
-def _run(args, body: Callable[[], dict[str, Any]], plain: Callable[[dict[str, Any]], None]) -> int:
+def _run_pending_command(args, body: Callable[[], dict[str, Any]], plain: Callable[[dict[str, Any]], None]) -> int:
     from agent_runtime.review_skill_pending import SkillPendingError
 
     try:
@@ -45,18 +45,18 @@ def _print_listing(payload: dict[str, Any]) -> None:
 def _cmd_skills_pending_list(args) -> int:
     from agent_runtime.review_skill_pending import list_staged
 
-    return _run(args, lambda: list_staged(profile=getattr(args, "profile", None)), _print_listing)
+    return _run_pending_command(args, lambda: list_staged(profile=getattr(args, "profile", None)), _print_listing)
 
 
 def _cmd_skills_pending_approve(args) -> int:
     from agent_runtime.review_skill_pending import approve_staged
 
-    return _run(args, lambda: approve_staged(profile=args.profile, pending_id=args.id),
+    return _run_pending_command(args, lambda: approve_staged(profile=args.profile, pending_id=args.id),
                 lambda payload: print(f"Applied staged skill write {payload['id']} ({payload['profile']})."))
 
 
 def _cmd_skills_pending_reject(args) -> int:
     from agent_runtime.review_skill_pending import reject_staged
 
-    return _run(args, lambda: reject_staged(profile=args.profile, pending_id=args.id),
+    return _run_pending_command(args, lambda: reject_staged(profile=args.profile, pending_id=args.id),
                 lambda payload: print(f"Rejected staged skill write {payload['id']} ({payload['profile']})."))
