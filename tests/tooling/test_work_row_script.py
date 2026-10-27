@@ -40,6 +40,7 @@ def clones(tmp_path: Path, monkeypatch) -> tuple[Path, Path, Path]:
     git("init", "-q", "--bare", "-b", "main", str(origin), cwd=tmp_path)
     mine = tmp_path / "mine"
     git("clone", "-q", str(origin), str(mine), cwd=tmp_path)
+    git("config", "user.name", "Session Lane", cwd=mine)
     (mine / NOTE).parent.mkdir(parents=True)
     (mine / NOTE).write_text(HEAD + ROWS, encoding="utf-8", newline="\n")
     (mine / "README.md").write_text("seed\n", encoding="utf-8")
@@ -60,6 +61,25 @@ def test_claim_by_id_commits_by_pathspec_and_pushes(clones):
     assert git("show", "--name-only", "--format=", "main", cwd=origin).strip() == NOTE
     assert "**TAKEN " in git("show", f"main:{NOTE}", cwd=origin)
     assert git("diff", "--cached", "--name-only", cwd=mine).strip() == "README.md"
+
+
+def test_claim_names_machine_account_and_worktree(clones, monkeypatch):
+    origin, mine, _ = clones
+    monkeypatch.setattr(work_row.socket, "gethostname", lambda: "box-1")
+    assert work_row.main(["claim", "RT-A", "--who", "r-lane", "--repo", str(mine)]) == 0
+    note = git("show", f"main:{NOTE}", cwd=origin)
+    assert "· **TAKEN " in note and " r-lane on box-1 as Session-Lane in mine**" in note
+    assert work_row.main(["claim", "RT-B", "--who", "r-lane", "--machine", "m", "--account", "a", "--worktree", "w",
+                          "--repo", str(mine)]) == 0
+    assert " r-lane on m as a in w**" in git("show", f"main:{NOTE}", cwd=origin)
+
+
+def test_claim_with_an_unreadable_part_refuses(clones, capsys):
+    _, mine, _ = clones
+    before = (mine / NOTE).read_bytes()
+    assert work_row.main(["claim", "RT-A", "--who", "r-lane", "--account", " ", "--repo", str(mine)]) == 2
+    assert "pass --account" in capsys.readouterr().err
+    assert (mine / NOTE).read_bytes() == before
 
 
 def test_non_fast_forward_exits_3_and_touches_nothing_else(clones, capsys):

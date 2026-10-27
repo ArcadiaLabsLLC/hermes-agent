@@ -3,6 +3,12 @@
 
     python scripts/work_row.py <claim|release|set-status|delete|append> <ID> --who <lane>
         [--note <path>] [--status "<segment>"] [--row "<line>"] [--repo <checkout>] [--no-commit]
+        [--machine <host>] [--account <git account>] [--worktree <folder>]
+
+A claim names its place (ADR 0025's 2026-10-26 amendment): ``**TAKEN <date> <lane> on <machine> as
+<git account> in <worktree>**``. ``--machine`` defaults to the hostname, ``--account`` to the
+checkout's ``git config user.name``, ``--worktree`` to the checkout's folder name; a part that cannot
+be read refuses ``invalid`` rather than writing a claim the grammar rejects.
 
 The edit is ``agent_runtime.work_store.grammar.apply`` — the same one-line, by-ID edit the Work
 writer makes (plan ``docs/agent-runtime-harness/planned/work-on-markdown-2026-10-18.md`` §5, §6.2):
@@ -16,6 +22,7 @@ by pathspec under the session's own git identity; a non-fast-forward push exits 
 from __future__ import annotations
 
 import argparse
+import socket
 import subprocess
 import sys
 from collections.abc import Callable
@@ -55,6 +62,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--row")
     parser.add_argument("--repo", default=".")
     parser.add_argument("--no-commit", action="store_true")
+    parser.add_argument("--machine")
+    parser.add_argument("--account")
+    parser.add_argument("--worktree")
     return parser.parse_args(argv)
 
 
@@ -79,6 +89,25 @@ def _note_and_text(repo: Path, args: argparse.Namespace) -> tuple[Path, str]:
     raise WorkRefused(Reason.ROW_GONE if notes else Reason.NOTE_MISSING, args.row_id)
 
 
+def _place_token(value: str | None, part: str) -> str:
+    token = "-".join(str(value or "").split())
+    if not token or "*" in token:
+        raise WorkRefused(Reason.INVALID, f"the claim's {part} is unreadable; pass --{part}")
+    return token
+
+
+def claim_who(args: argparse.Namespace, repo: Path) -> str:
+    """``<lane> on <machine> as <git account> in <worktree>`` — the who a lane claim writes."""
+
+    if " on " in args.who:
+        return args.who
+    machine = args.machine if args.machine is not None else socket.gethostname()
+    account = args.account if args.account is not None else run_git(["config", "user.name"], repo).stdout.strip()
+    worktree = args.worktree if args.worktree is not None else repo.name
+    return (f"{args.who} on {_place_token(machine, 'machine')} as {_place_token(account, 'account')} "
+            f"in {_place_token(worktree, 'worktree')}")
+
+
 def edited_text(text: str, args: argparse.Namespace) -> str:
     op = COMMANDS[args.command]
     if op is Op.APPEND:
@@ -88,7 +117,8 @@ def edited_text(text: str, args: argparse.Namespace) -> str:
     row = find(parse_note(text, slot="", note=""), args.row_id)
     lines = text.split("\n")
     carriage = "\r" if lines[row.line_no - 1].endswith("\r") else ""
-    new = apply(row.raw, op, who=args.who, date=date.today().isoformat(), payload={"status": args.status or ""})
+    who = claim_who(args, Path(args.repo).resolve()) if op is Op.CLAIM else args.who
+    new = apply(row.raw, op, who=who, date=date.today().isoformat(), payload={"status": args.status or ""})
     if new is None:
         del lines[row.line_no - 1]
     else:
