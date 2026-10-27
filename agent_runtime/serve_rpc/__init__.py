@@ -47,6 +47,8 @@ provider                 lanes   ``runtime.provider.*`` (catalog, sign-in, usage
 default_model            lanes   ``runtime.default_model.set`` (the serve profile's
                                  ``model.default`` / ``model.provider``)
 speech                   lanes   ``runtime.speech.*`` (load, recognize, synthesize)
+text                     lanes   ``runtime.text.summarize`` (an auxiliary-task summary;
+                                 ``agent_runtime/text_summary.py``)
 admission                lanes   ``runtime.admission.*`` (the model memory budget)
 health                   lanes   ``runtime.health`` (the ``harness health`` block)
 chat_verbs               lanes   the chat-family argv twins (history, instance
@@ -112,6 +114,7 @@ from agent_runtime.serve_rpc import (
     provider,
     default_model,
     speech,
+    text,
     admission,
     health,
     chat_verbs,

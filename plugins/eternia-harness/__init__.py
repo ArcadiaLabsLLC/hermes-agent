@@ -471,6 +471,9 @@ def register(ctx) -> None:
     from agent_runtime.console_suggestions.generation import register_suggestion_task
 
     register_suggestion_task(ctx)
+    from agent_runtime.text_summary import register_summary_tasks
+
+    register_summary_tasks(ctx)  # runtime.text.summarize's auxiliary slots (message_digest)
     from agent_runtime.provider_access import SharedProviderAccess
 
     ctx.register_provider_access(SharedProviderAccess())
