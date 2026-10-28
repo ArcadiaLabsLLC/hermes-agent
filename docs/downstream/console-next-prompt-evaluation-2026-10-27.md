@@ -63,3 +63,15 @@ performed. This is a status check, not the paid corpus or a generation-success
 claim. The account already had suggestions enabled; its explicit choice was
 preserved. The feature's default remains false. Use the verified shared auth
 owner for the isolated corpus, retaining the configured auxiliary routing.
+
+## Live qualification and corrective rerun — October 27, 2026
+The initial 36 calls completed, but inspection found that the auxiliary Responses adapter retained only the final system message. The helper's trailing language reminder displaced its complete instructions. The raw initial outputs are retained in `console-next-prompt-evaluation-before-fix-2026-10-27.json`; they are not evidence for the corrected prompt. Row `RT-NEXT-PROMPT-SYSTEM-PAYLOAD` tracks the correction.
+The helper now supplies one complete system message. The real adapter payload regression test failed before the fix and passed afterward. Neither the adapter nor task routing changed. The same finite 36-call protocol was repeated, without further sampling or selection. Every rerun output, latency and returned usage is in `console-next-prompt-evaluation-results-2026-10-27.json`. Both variants used `openai-codex` / `gpt-5.6-sol` through the existing plugin facade.
+| Variant | Calls / errors | Non-null | p50 generation ms | p95 ms (nearest rank) | Total tokens |
+| --- | --- | --- | --- | --- | --- |
+| baseline | 18 / 0 | 16 | 1944.23 | 3233.51 | 4553 |
+| candidate | 18 / 0 | 16 | 1887.84 | 5253.88 | 4728 |
+
+Manual agent review: all 16 non-null candidate outputs were relevant to the current request and matched its language (2/2 on each rubric axis); both completed-exchange outputs were NULL. Zero candidate outputs invented performed actions, approvals, private facts or manual results. Pending-permission cases asked for the explanation and did not approve execution. Baseline also preserved language and current intent; one began “No.” in reply to a pending permission, consistent with the user's prohibition but answering the control directly. These observations support correctness in this small corpus, not superiority or statistical safety.
+Cost is unknown: the facade returned `cost_usd: null`. No persona was executed or loaded; the source profile configuration remained byte-identical, and credential grants were not copied. All 72 successful requests across the initial and corrective runs are disclosed. The earlier authentication preflight failure occurred before successful generation.
+Native completion-to-visible latency, primary-turn overhead, human acceptance/edit burden, bundled/paired-remote equivalence and two-persona native behavior remain separate qualification obligations. Provider-generation timing above must not be described as those measurements.

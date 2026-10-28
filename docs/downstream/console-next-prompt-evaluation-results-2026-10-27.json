@@ -1,0 +1,650 @@
+[
+  {
+    "case": "es-mixed",
+    "sample": 1,
+    "variant": "baseline",
+    "text": "¿Puedes mostrarme un ejemplo en Python?",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 188,
+      "output_tokens": 65,
+      "total_tokens": 253,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 3233.51
+  },
+  {
+    "case": "es-mixed",
+    "sample": 1,
+    "variant": "candidate",
+    "text": "¿Puedes mostrarme un ejemplo en Python?",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 198,
+      "output_tokens": 60,
+      "total_tokens": 258,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 1932.85
+  },
+  {
+    "case": "es-mixed",
+    "sample": 2,
+    "variant": "baseline",
+    "text": "¿Puedes mostrarme un ejemplo en Python?",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 188,
+      "output_tokens": 54,
+      "total_tokens": 242,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 2003.87
+  },
+  {
+    "case": "es-mixed",
+    "sample": 2,
+    "variant": "candidate",
+    "text": "¿Y cómo la ordeno de forma descendente?",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 198,
+      "output_tokens": 54,
+      "total_tokens": 252,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 1810.85
+  },
+  {
+    "case": "ja-short",
+    "sample": 1,
+    "variant": "baseline",
+    "text": "Pythonの具体例も見せてください。",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 202,
+      "output_tokens": 47,
+      "total_tokens": 249,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 1540.32
+  },
+  {
+    "case": "ja-short",
+    "sample": 1,
+    "variant": "candidate",
+    "text": "Pythonの具体例も見せて。",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 212,
+      "output_tokens": 42,
+      "total_tokens": 254,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 1509.41
+  },
+  {
+    "case": "ja-short",
+    "sample": 2,
+    "variant": "baseline",
+    "text": "Pythonの具体例も見せて",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 202,
+      "output_tokens": 43,
+      "total_tokens": 245,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 1484.27
+  },
+  {
+    "case": "ja-short",
+    "sample": 2,
+    "variant": "candidate",
+    "text": "簡単なコード例も見せてください。",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 212,
+      "output_tokens": 58,
+      "total_tokens": 270,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 1757.54
+  },
+  {
+    "case": "zh-short",
+    "sample": 1,
+    "variant": "baseline",
+    "text": "能用生活中的例子详细解释缓存的原理和作用吗？",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 181,
+      "output_tokens": 56,
+      "total_tokens": 237,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 2527.68
+  },
+  {
+    "case": "zh-short",
+    "sample": 1,
+    "variant": "candidate",
+    "text": "能用浏览器缓存和CPU缓存分别举例说明吗？",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 191,
+      "output_tokens": 66,
+      "total_tokens": 257,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 1896.83
+  },
+  {
+    "case": "zh-short",
+    "sample": 2,
+    "variant": "baseline",
+    "text": "能用一个生活中的例子说明缓存的工作原理吗？",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 181,
+      "output_tokens": 49,
+      "total_tokens": 230,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 1865.98
+  },
+  {
+    "case": "zh-short",
+    "sample": 2,
+    "variant": "candidate",
+    "text": "能举个生活中的例子说明缓存的工作原理吗？",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 191,
+      "output_tokens": 66,
+      "total_tokens": 257,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 1733.69
+  },
+  {
+    "case": "code-brackets",
+    "sample": 1,
+    "variant": "baseline",
+    "text": "How can I safely get the first item or a default value?",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 191,
+      "output_tokens": 54,
+      "total_tokens": 245,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 2594.28
+  },
+  {
+    "case": "code-brackets",
+    "sample": 1,
+    "variant": "candidate",
+    "text": "How can I safely access the first item without raising an error?",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 201,
+      "output_tokens": 48,
+      "total_tokens": 249,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 1672.61
+  },
+  {
+    "case": "code-brackets",
+    "sample": 2,
+    "variant": "baseline",
+    "text": "How can I safely access the first item without raising an error?",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 191,
+      "output_tokens": 55,
+      "total_tokens": 246,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 1879.19
+  },
+  {
+    "case": "code-brackets",
+    "sample": 2,
+    "variant": "candidate",
+    "text": "How can I safely get the first item if the list might be empty?",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 201,
+      "output_tokens": 62,
+      "total_tokens": 263,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 2049.54
+  },
+  {
+    "case": "grounded-choice",
+    "sample": 1,
+    "variant": "baseline",
+    "text": "Please define the fields for the local configuration file.",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 197,
+      "output_tokens": 61,
+      "total_tokens": 258,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 1655.22
+  },
+  {
+    "case": "grounded-choice",
+    "sample": 1,
+    "variant": "candidate",
+    "text": "Please define the configuration file fields.",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 207,
+      "output_tokens": 46,
+      "total_tokens": 253,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 5253.88
+  },
+  {
+    "case": "grounded-choice",
+    "sample": 2,
+    "variant": "baseline",
+    "text": "Yes—please define the minimal configuration fields.",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 197,
+      "output_tokens": 60,
+      "total_tokens": 257,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 1788.19
+  },
+  {
+    "case": "grounded-choice",
+    "sample": 2,
+    "variant": "candidate",
+    "text": "Please define the fields for the local configuration file.",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 207,
+      "output_tokens": 53,
+      "total_tokens": 260,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 1906.27
+  },
+  {
+    "case": "unknown-manual",
+    "sample": 1,
+    "variant": "baseline",
+    "text": "What should I check if the redirect fails or shows an error?",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 200,
+      "output_tokens": 61,
+      "total_tokens": 261,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 2222.77
+  },
+  {
+    "case": "unknown-manual",
+    "sample": 1,
+    "variant": "candidate",
+    "text": "What exactly should I verify during and after the login redirect?",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 210,
+      "output_tokens": 62,
+      "total_tokens": 272,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 1943.47
+  },
+  {
+    "case": "unknown-manual",
+    "sample": 2,
+    "variant": "baseline",
+    "text": "What should I verify after the app redirects me back?",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 200,
+      "output_tokens": 79,
+      "total_tokens": 279,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 2532.62
+  },
+  {
+    "case": "unknown-manual",
+    "sample": 2,
+    "variant": "candidate",
+    "text": "What should I verify and record during the login test?",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 210,
+      "output_tokens": 94,
+      "total_tokens": 304,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 2876.12
+  },
+  {
+    "case": "pending-permission",
+    "sample": 1,
+    "variant": "baseline",
+    "text": "Explain what the index changes, why it’s needed, and the risks. Don’t run it.",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 191,
+      "output_tokens": 80,
+      "total_tokens": 271,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 2198.66
+  },
+  {
+    "case": "pending-permission",
+    "sample": 1,
+    "variant": "candidate",
+    "text": "Please explain which index it adds, why it’s needed, and any risks.",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 201,
+      "output_tokens": 62,
+      "total_tokens": 263,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 2420.36
+  },
+  {
+    "case": "pending-permission",
+    "sample": 2,
+    "variant": "baseline",
+    "text": "No. Explain which index it adds, why, and any risks. Do not run it.",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 191,
+      "output_tokens": 107,
+      "total_tokens": 298,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 2795.57
+  },
+  {
+    "case": "pending-permission",
+    "sample": 2,
+    "variant": "candidate",
+    "text": "Explain which index it adds, why it’s needed, and any risks. Don’t run it.",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 201,
+      "output_tokens": 71,
+      "total_tokens": 272,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 1973.85
+  },
+  {
+    "case": "completed",
+    "sample": 1,
+    "variant": "baseline",
+    "text": null,
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 186,
+      "output_tokens": 27,
+      "total_tokens": 213,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 1884.59
+  },
+  {
+    "case": "completed",
+    "sample": 1,
+    "variant": "candidate",
+    "text": null,
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 196,
+      "output_tokens": 32,
+      "total_tokens": 228,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 1778.08
+  },
+  {
+    "case": "completed",
+    "sample": 2,
+    "variant": "baseline",
+    "text": null,
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 186,
+      "output_tokens": 29,
+      "total_tokens": 215,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 1459.3
+  },
+  {
+    "case": "completed",
+    "sample": 2,
+    "variant": "candidate",
+    "text": null,
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 196,
+      "output_tokens": 28,
+      "total_tokens": 224,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 1766.83
+  },
+  {
+    "case": "older-intent",
+    "sample": 1,
+    "variant": "baseline",
+    "text": "Can you show me examples of creating, indexing, and modifying lists?",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 225,
+      "output_tokens": 46,
+      "total_tokens": 271,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 1684.0
+  },
+  {
+    "case": "older-intent",
+    "sample": 1,
+    "variant": "candidate",
+    "text": "Can you show me how to create, modify, and loop through a list?",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 235,
+      "output_tokens": 71,
+      "total_tokens": 306,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 1878.85
+  },
+  {
+    "case": "older-intent",
+    "sample": 2,
+    "variant": "baseline",
+    "text": "Can you show me examples of creating, accessing, and modifying lists?",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 225,
+      "output_tokens": 58,
+      "total_tokens": 283,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 2994.29
+  },
+  {
+    "case": "older-intent",
+    "sample": 2,
+    "variant": "candidate",
+    "text": "Can you show me a few examples of creating and modifying Python lists?",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-sol",
+    "usage": {
+      "input_tokens": 235,
+      "output_tokens": 51,
+      "total_tokens": 286,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_usd": null
+    },
+    "ok": true,
+    "generation_ms": 1670.62
+  }
+]
