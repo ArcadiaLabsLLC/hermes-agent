@@ -594,7 +594,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Windows baseline qualification — 2026-10-27
 
-- **`FH-BASELINE-PINS-AND-MUTATION-ANCHORS` — Repair the stale store-epoch pins and registered mutation anchors without weakening their checks** · `tests/agent_runtime/test_store_epoch_gate.py::test_the_pins_equal_the_tree`, `tests/scripts/test_mutation_claims_still_anchor.py::test_every_registered_claim_anchors_where_it_says_it_does` · canonical `--confirm-red` reproduces the same failing nodes alone on suggestion completion and base `6219b86283`; this is existing metadata drift, not the suggestion extraction tombstone · READY 2026-10-27 · **TAKEN 2026-10-27 w1028a-h-plan on vm as Claude in w1028a-h-plan**
 
 ## Filed on arrival — 2026-10-28 (lane w1028a-h-rt)
 

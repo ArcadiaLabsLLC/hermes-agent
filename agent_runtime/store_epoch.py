@@ -103,6 +103,17 @@ MIGRATION_REGISTRY: tuple[dict[str, Any], ...] = (
                   "empty persona_assignments/ as no assignments, which is the live census (0), and mints none",
         "pins_sha256": "6c79a0aa3224ff2c50d9095abba03af719be6bcac551a7cf2a0dc962bee5f2f7",
     },
+    {
+        "id": "messaging-refused-senders-dir",
+        "date": "2026-10-27",
+        "store": "all",
+        "breaking": False,
+        "reason": "additive: paths.messaging_refused_dir names messaging/refused/<platform>.json, the last "
+                  "refused strangers the bridge dropped (ab3f070f7d, RT-MESSAGING-REFUSED-RECENT); no existing "
+                  "path moves and an older edition never reads it. Pinned late by lane w1028a-h-plan "
+                  "(FH-BASELINE-PINS-AND-MUTATION-ANCHORS)",
+        "pins_sha256": "aed485911d1280824f2e77e27a2ecd82687f773c360821ff4979c55073b7017d",
+    },
 )
 
 #: ``1 + count(breaking entries)`` — ``tests/agent_runtime/test_store_epoch_gate.py`` holds it to that.

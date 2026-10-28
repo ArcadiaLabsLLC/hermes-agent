@@ -2897,8 +2897,8 @@
       "path": "hermes_cli/harness_parts/persona/chat_turn_message.py",
       "symbol": "_cmd_mission_chat_message",
       "operator": "drop-measurement",
-      "find": "    _session_db_open_ms = max(\n        0, int((time.monotonic() - _session_db_open_started) * 1000)\n    )\n    from agent_runtime.preparation_reads import InstanceReadEpoch",
-      "replace": "    from agent_runtime.preparation_reads import InstanceReadEpoch",
+      "find": "    _session_db_open_ms = max(\n        0, int((time.monotonic() - _session_db_open_started) * 1000)\n    )\n    if (\n        session_id\n",
+      "replace": "    if (\n        session_id\n",
       "test": [
         "{python}",
         "-m",
