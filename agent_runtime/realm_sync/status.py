@@ -310,12 +310,13 @@ def _level_status_row(realm_id: str, workspaces: list[Workspace]) -> dict[str, A
     """``{publishable, unpublished, held, refused}`` for the workspace LEVEL family.
 
     **A top-level key AS WELL AS a ``store_drift`` family since 2026-10-16**, the
-    canvas family's path: the level's revert arm landed with its drift rows
-    (``realm_sync.level_drift``), and the owner's 2026-10-10 ruling folds this row
-    into ``store_drift.levels`` — kept here for ONE release so an older launcher
-    keeps its count, then deleted (plan ``realm-level-revert-arm-2026-10-15``, S4).
-    ``held`` and ``refused`` stay only here until then: a held or unreadable level
-    has no drift row by construction.
+    canvas family's twin (``_flow_graph_status_row``): the level's revert arm
+    landed with its drift rows (``realm_sync.level_drift``), and the drift COUNT
+    is ``store_drift.levels``. The row stays permanently (owner ruling 2026-10-28,
+    plan ``realm-level-revert-arm-2026-10-15`` "S4 re-decided"): it carries what a
+    drift row cannot say — ``publishable`` (how many levels this realm ships at
+    all), ``held`` (a hold is not drift) and ``refused`` (an unreadable level,
+    which has no revertable row by construction).
 
     ``unpublished`` is the identical hash-vs-baseline compare the publish scan
     makes, spent here as a count — one walk's arithmetic in two shapes, never

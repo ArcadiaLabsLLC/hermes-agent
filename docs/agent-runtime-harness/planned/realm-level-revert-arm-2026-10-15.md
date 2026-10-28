@@ -140,3 +140,8 @@ change for no reader gain.
 
 Because this departs from the letter of the owner's 2026-10-10 ruling, it is the owner's call; the
 row carries the question. The edit / status / revert live check stays with the live phase.
+
+**RULED 2026-10-28 (owner: "yes as recommended — keep the levels row as the canvas family's twin
+and retire S4").** S4 is retired; the top-level `levels` row is permanent, and
+`_level_status_row`'s docstring now carries the canvas wording. Nothing in the launcher changes.
+The edit / status / revert live check is the only work left (row `RT-REALM-LEVEL-REVERT-S4`).
