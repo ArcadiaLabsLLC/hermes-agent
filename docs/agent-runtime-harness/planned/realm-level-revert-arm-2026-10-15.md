@@ -110,3 +110,33 @@ the riskiest part, covered by the existing revert suite), `realm_sync/status.py`
 The last realm-synced family the operator cannot revert, the grandfathered
 lookup ladder, and the double shape (top-level key vs drift rows) for one
 concept.
+
+## S4 re-decided (lane w1028a-h-plan, 2026-10-28)
+
+**S4 cannot be built as written, and the plan recommends retiring it.** Read against the tree:
+
+- `held` and `refused` live only on the top-level row
+  (`agent_runtime/realm_sync/status.py::_level_status_row`): a held level has no drift row by
+  S2's own rule, and a refused (unreadable) one has none by construction, so `store_drift.levels`
+  cannot carry either.
+- `publishable` is not a drift fact at all (how many levels this realm ships).
+- The launcher reads the top-level row as its ONLY source of those three
+  (`EterniaLauncher/lib/features/mission_control/sync/realm_sync_status_report.dart`,
+  `RealmDocumentFamilyStatus.fromStatusJson(body, 'levels')`) and the drift rows from
+  `store_drift.levels` (`LevelStoreDrift.fromStoreDriftJson`) — both, not one as a fallback for the
+  other.
+- The canvas family is already this exact shape and was ruled permanent: a top-level
+  `flow_graphs` row for `publishable` / `held` / `unreadable` beside its `store_drift` family
+  (`_flow_graph_status_row` docstring), with `unpublished` "one walk's arithmetic in two shapes,
+  never two walks".
+
+**Recommendation:** keep the top-level `levels` row permanently as the canvas family's twin, retire
+S4, and replace the "kept here for ONE release" sentence in `_level_status_row`'s docstring with the
+canvas wording. The 2026-10-10 ruling's substance ("one count") holds: the drift COUNT is
+`store_drift.levels`, and the row's `unpublished` is the same hash-vs-baseline compare, not a second
+walk. The alternative — a new home for `held` / `refused` inside `store_drift` that the launcher
+then reads — moves three facts that are not drift into the drift block and costs a paired launcher
+change for no reader gain.
+
+Because this departs from the letter of the owner's 2026-10-10 ruling, it is the owner's call; the
+row carries the question. The edit / status / revert live check stays with the live phase.
