@@ -283,3 +283,27 @@ path and legacy handling are connected; do not loosen Harness authorization.
 Provider generation and settings rendering are verified separately; the feature
 is not yet proven end to end. Native Use/Tab/chord, paired/bundled/persona placement,
 human acceptance/edit burden and visible timing remain open under the paired rows.
+
+## Ownership connection — 2026-10-28
+
+The missing native path is the default chat minted by `runtime.agent.create`.
+Explicit New chat already carries `client_scope` through the existing mint.
+Agent creation now carries the same opaque account scope through its existing
+reservation, persona-instance creation and native session metadata. Replaying a
+creation key under another account (including scoped versus legacy) is refused.
+The method manifest advertises the parameter; Launcher refuses an unsupported
+scoped create or an ownership-mismatched acknowledgement without falling back to
+a second creation path.
+
+Scoped chat sends and steering retain the caller account and exact session through
+the existing request, outbox and retry paths. Legacy unscoped native history is
+not adopted or rewritten. Its existing operator send path remains available, but
+suggestions keep exact-owner validation and explain that a new chat is needed.
+No account registry, shadow transcript, second generator or alternate owner was
+added. The reusable suggestion component remains outside Agent Console.
+
+Persona instructions, stock contextual free-form generation, auxiliary routing
+and the default-off Eternia Harness global setting are unchanged. No DM work.
+Qualification evidence is updated after native composer verification; this
+section records the implementation decision, not a claim that the entire
+provider/runtime placement matrix has passed.

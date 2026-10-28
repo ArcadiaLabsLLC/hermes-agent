@@ -430,6 +430,7 @@ class PersonaInstanceStore:
         session_id: str | None = None,
         workspace_id: str | None = None,
         realm_id: str | None = None,
+        client_scope: str | None = None,
     ) -> PersonaInstance:
         normalized_persona = _normalize_instance_source_persona(persona_id)
         normalized_placement = safe_assignment_token(placement_id)
@@ -495,6 +496,7 @@ class PersonaInstanceStore:
                 root,
                 persona_id=normalized_persona,
                 display_name=bound_display_name,
+                client_scope=client_scope,
             ),
             display_name=display_name,
             default_display_name=default_display_name,

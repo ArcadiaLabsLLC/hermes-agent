@@ -77,6 +77,7 @@ from utils import atomic_json_write
 from . import paths
 from .serde import read_versioned_receipt
 from .locks import HarnessLockUnavailable, agent_create_lock
+from .conversation_owner import client_scope as validate_client_scope
 
 __layer__ = "stores"
 
@@ -119,6 +120,7 @@ class AgentCreateRecord:
     #: ``done`` record identifies a PRE-PLAN receipt, which is never re-entered,
     #: while ``[]`` is a create that explicitly asked for no skills.
     skills: list[str] | None = None
+    client_scope: str | None = None
 
     @property
     def is_new(self) -> bool:
@@ -247,7 +249,7 @@ class AgentCreateReservation:
 
 @contextmanager
 def reserve_agent_create(
-    *, idempotency_key: str, persona_id: str, workspace_id: str
+    *, idempotency_key: str, persona_id: str, workspace_id: str, client_scope: str | None = None
 ) -> Iterator[AgentCreateReservation]:
     """Open (or replay) the reservation for one create, under its own lock.
 
@@ -258,6 +260,7 @@ def reserve_agent_create(
     claims the handler holds its locks "sequentially, never nested".
     """
 
+    owner = validate_client_scope(client_scope)
     key = str(idempotency_key or "").strip()
     if not key:
         raise AgentCreateReservationError(
@@ -270,7 +273,7 @@ def reserve_agent_create(
             if path.exists():
                 record = _read_create_record(path, digest=digest)
                 _validate_scope(
-                    record, persona_id=persona_id, workspace_id=workspace_id
+                    record, persona_id=persona_id, workspace_id=workspace_id, client_scope=owner
                 )
                 yield AgentCreateReservation(record, replayed=True)
             else:
@@ -284,6 +287,7 @@ def reserve_agent_create(
                         key_digest=digest,
                         persona_id=str(persona_id),
                         workspace_id=str(workspace_id),
+                        client_scope=owner,
                         created_at=timestamp,
                         updated_at=timestamp,
                     ),
@@ -297,16 +301,17 @@ def reserve_agent_create(
 
 
 def _validate_scope(
-    record: AgentCreateRecord, *, persona_id: str, workspace_id: str
+    record: AgentCreateRecord, *, persona_id: str, workspace_id: str, client_scope: str | None
 ) -> None:
     """A key names ONE create. Re-using it for another persona or workspace is
     a client bug and is refused rather than answered with the wrong agent."""
 
-    if record.persona_id == str(persona_id) and record.workspace_id == str(workspace_id):
+    if (record.persona_id == str(persona_id) and record.workspace_id == str(workspace_id)
+            and record.client_scope == client_scope):
         return
     raise AgentCreateReservationError(
         "idempotency_conflict",
-        "idempotency_key was already used for a different persona or workspace",
+        "idempotency_key was already used for a different persona, workspace or client scope",
     )
 
 
@@ -319,6 +324,7 @@ def _read_create_record(path, *, digest: str) -> AgentCreateRecord:
             key_digest=str(raw["idempotency_key_sha256"]),
             persona_id=str(raw["persona_id"]),
             workspace_id=str(raw["workspace_id"]),
+            client_scope=validate_client_scope(raw.get("client_scope")),
             state=state,
             persona_instance_id=raw.get("persona_instance_id") or None,
             placement_id=raw.get("placement_id") or None,
@@ -358,6 +364,7 @@ def _write(record: AgentCreateRecord) -> None:
             "idempotency_key_sha256": record.key_digest,
             "persona_id": record.persona_id,
             "workspace_id": record.workspace_id,
+            **({"client_scope": record.client_scope} if record.client_scope is not None else {}),
             "state": record.state,
             "persona_instance_id": record.persona_instance_id,
             "placement_id": record.placement_id,

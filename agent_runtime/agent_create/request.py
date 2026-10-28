@@ -34,6 +34,13 @@ from .outcome import (
 
 __layer__ = "stores"
 
+AGENT_CREATE_METHOD_PARAMS = (
+    "persona_id", "workspace_id", "position", "skills", "idempotency_key",
+    "placement_id", "display_name", "realm_id", "folder", "correlation_id",
+    "client_scope",
+)
+
+
 
 @dataclass(frozen=True)
 class AgentCreateRequest:
@@ -60,6 +67,7 @@ class AgentCreateRequest:
     realm_id: str | None
     folder: str
     correlation_id: str | None
+    client_scope: str | None = None
 
     @property
     def persona_instance_id(self) -> str:
@@ -613,6 +621,12 @@ def normalize_agent_create(
         else None
     )
 
+    from ..conversation_owner import ConversationOwnerError, request_client_scope
+    try:
+        owner = request_client_scope(params)
+    except ConversationOwnerError as exc:
+        raise AgentCreateInvalid("invalid_client_scope", "Invalid conversation owner.") from exc
+
     return AgentCreateRequest(
         persona_id=persona_id,
         workspace_id=workspace_id,
@@ -625,4 +639,5 @@ def normalize_agent_create(
         realm_id=realm_id,
         folder=folder,
         correlation_id=correlation_id,
+        client_scope=owner,
     )

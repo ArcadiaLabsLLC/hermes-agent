@@ -267,6 +267,7 @@ def ensure_durable_persona_chat_root(
     *,
     persona_id: str,
     title: str | None = None,
+    client_scope: str | None = None,
 ) -> str:
     """Make *session_id* durable in the operator chat store, or RAISE.
 
@@ -285,6 +286,7 @@ def ensure_durable_persona_chat_root(
             persona_id=persona_id,
             title=title,
             required=True,
+            client_scope=client_scope,
         )
     return session_id
 

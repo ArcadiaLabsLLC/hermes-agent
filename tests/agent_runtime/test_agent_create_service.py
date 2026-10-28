@@ -463,6 +463,7 @@ def _invalid_reasons_declared_in_the_module() -> set[str]:
 #: One request per arm, each keeping every EARLIER field valid so the refusal
 #: under test is the one the normaliser actually reaches.
 _INVALID_ARM_PARAMS: dict[str, dict] = {
+    "invalid_client_scope": {"client_scope": "not-a-digest"},
     "persona_id_required": {"persona_id": ""},
     "persona_not_found": {"persona_id": "qa_agent"},
     "workspace_id_required": {"workspace_id": ""},

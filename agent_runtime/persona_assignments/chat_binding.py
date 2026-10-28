@@ -57,6 +57,7 @@ def _durable_chat_root(
     *,
     persona_id: str,
     display_name: str | None = None,
+    client_scope: str | None = None,
 ) -> str:
     """The chat root, PERSISTED, on its way into the bind — or nothing binds.
 
@@ -98,6 +99,7 @@ def _durable_chat_root(
             session_id,
             persona_id=persona_id,
             title=f"{title} chat" if title else None,
+            client_scope=client_scope,
         )
 
 

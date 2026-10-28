@@ -365,6 +365,19 @@
       "requested_by",
       "correlation_id"
     ],
+    "runtime.agent.create": [
+      "persona_id",
+      "workspace_id",
+      "position",
+      "skills",
+      "idempotency_key",
+      "placement_id",
+      "display_name",
+      "realm_id",
+      "folder",
+      "correlation_id",
+      "client_scope"
+    ],
     "runtime.board.card.add": [
       "assignee",
       "board_id",

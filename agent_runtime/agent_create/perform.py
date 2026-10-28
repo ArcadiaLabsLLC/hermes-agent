@@ -283,6 +283,7 @@ class AgentCreate:
                 idempotency_key=self.request.idempotency_key,
                 persona_id=self.request.persona_id,
                 workspace_id=self.request.workspace_id,
+                client_scope=self.request.client_scope,
             ) as reservation:
                 self.reservation = reservation
                 return self.resume_or_run(reservation.record)
@@ -490,6 +491,7 @@ class AgentCreate:
                     default_display_name=request.default_display_name,
                     workspace_id=request.workspace_id,
                     realm_id=request.realm_id,
+                    client_scope=request.client_scope,
                 )
         except (RetiredPersonaInstanceError, ValueError, PersonaChatPersistenceError) as exc:
             return refuse_mint(exc, placement_id=request.placement_id)
@@ -529,6 +531,7 @@ class AgentCreate:
             "placement_id": self.request.placement_id,
             "display_name": self.instance.display_name,
             "default_chat_session_id": self.instance.default_chat_session_id,
+            **({"client_scope": self.request.client_scope} if self.request.client_scope is not None else {}),
             "actor_key": actor.actor_key,
             "workspace_id": self.request.workspace_id,
             "phases": {
