@@ -530,7 +530,11 @@ class SubscriptionLanes:
         self._release_subscription(connection)
         self._cancel_owner_queued_requests(self._owner_of(connection))
         self._reclaim_abandoned_streams(connection)
-        self._launcher_connection_closed(connection)
+        # Launcher supervision: the connection that last beat closing is a "drop", not a crash.
+        # Read as an attribute so this lane stays usable without the supervision mixin.
+        watchdog = getattr(self, "launcher_watchdog", None)
+        if watchdog is not None:
+            watchdog.connection_closed(connection)
         if launcher_sink is not None:
             # Stage 7: the Launcher that answered app functions on this sink is
             # gone — drop its cached tool list and fail its open requests now

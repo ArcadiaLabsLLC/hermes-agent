@@ -2,7 +2,7 @@
 
 Plan ``docs/agent-runtime-harness/planned/launcher-mutual-supervision-2026-10-27.md`` slice W1. The
 watchdog (``agent_runtime.launcher_supervision``) owns the watch and the table; this mixin answers
-the op, routes a closed connection to it, and carries out its two effects — latch an end reason,
+the op (``SubscriptionLanes._on_connection_closed`` routes a closed connection to it), and carries out its two effects — latch an end reason,
 drain — through the serve's existing drain path (``ServeSession._on_parent_gone``).
 """
 
@@ -52,10 +52,6 @@ class LauncherSupervision:
         """``--parent-pid``: watch it now; without the flag nothing is armed until a launcher beats."""
         if self.parent_pid is not None:
             self._launcher_watchdog()
-
-    def _launcher_connection_closed(self, connection: Any) -> None:
-        if self.launcher_watchdog is not None:
-            self.launcher_watchdog.connection_closed(connection)
 
     def _op_launcher_beat(self, message: dict[str, Any], sink: Any, connection: Any) -> str | None:
         """``{"op":"launcher_beat",…}`` → ``launcher_beat_ok {seq, watching}``. Local transports only."""
