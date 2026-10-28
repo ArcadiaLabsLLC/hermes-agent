@@ -110,3 +110,56 @@ human acceptance/edit burden and visible timing remain open under the paired row
 
 The fork landing run covered 1,337 files in 531.7 seconds. All 55 suggestion tests and both name census gates passed. Twelve files remained red, including the previously recorded Windows runtime baselines and the Python 3.14-only PM fixture on this Python 3.13 host. The ID-mark and flag-reader failures were reproduced alone on main; the mutation-anchor failure passed alone after rebase (the runner classified it as load), so it is not recorded as a persistent suggestion regression. Remaining baseline census failures are filed in the fork-hygiene queue; Windows runtime failures remain in `RT-WINDOWS-BASELINE-REGRESSIONS` and PM setup in `FORK-SECOND-WORKSTATION-ENV`. The whole repository gate is not green.
 
+
+## Ownership resolved and live native acceptance — October 28, 2026
+
+This update supersedes the October 27 ownership blocker. Commit `9d14178593`
+passes the optional caller account scope through the existing agent-create
+reservation, persona-instance creation and native default-session mint. The
+manifest advertises it. Cross-owner replay, including scoped versus legacy,
+is refused. The exact conversation-owner guard is unchanged; old unscoped
+history is neither claimed nor rewritten. Launcher carries the current caller
+through scoped send/steer/outbox/retry and prevents an argv fallback that would
+lose scope. An unscoped legacy chat shows an actionable suggestion refusal.
+`RT-CONSOLE-CHAT-CREATION-OWNER` is resolved.
+
+The final native Launcher build `6c29574a8e` used clean Developer Hermes
+`9d14178593`. Real `openai-codex` / `gpt-5.6-sol` replies and contextual suggestions
+were observed in the actual Mission Control composer through Launcher MCP.
+The isolated Base persona used Amelia's configured model/provider choice and
+shared authentication; Amelia's live configuration hash stayed unchanged.
+There was no `console_next_prompt` override: generation retained the existing
+inherited auxiliary route. No credential copy or reconnect was required.
+This does not qualify Amelia's own native persona behavior or multiple personas.
+
+Five enabled real turns produced five attempt records. In the native composer:
+Use inserted 73 characters without sending; Tab inserted 49 without sending;
+Ctrl+Shift+Y preserved an 18-character existing draft and appended two newlines
+plus the full 60-character suggestion; dismissal removed a 61-character
+suggestion without inserting or sending. The native check initially found
+Launcher's missing draft-target binding, which was fixed using its existing
+shared delivery and real editor, without a second store or authority.
+
+The actual Eternia Harness global Composer toggle persisted off. A sixth normal
+provider reply completed with no suggestion and the attempt count stayed at five.
+Both isolated namespace head and selected base config reported false at cleanup;
+the owned QA window was closed. Product defaults, live user preferences, persona
+instructions, free-form generation and auxiliary routing were preserved. No DM
+consumer or product confirmation flow was added.
+
+The real default-session creation integration tests prove ownership persistence,
+normal and suggestion owner validation, idempotent replay, and rejection of
+another caller. Removing forwarding fails the persisted-owner assertion. Native
+UI agent creation is not separately claimed: the live composer leg used New chat.
+The required fork gate ran 1,342 files (15,193 passed, 16 failed, one error,
+52 skipped); four failures were new manifest expectations, corrected before the
+269 affected tests passed. Nine other files were gate-classified known failures.
+Both name-census gates passed. The whole repository gate is not all green.
+
+The paired Launcher evidence records native captures and its host-level killing
+mutation: `EterniaLauncher/docs/mission_control/evidence/console-next-prompt-2026-10-26.md`.
+`RT-NEXT-PROMPT-PROVIDER-EVAL` is now READY for its remaining matrix: human
+acceptance/edit burden, cost, native visible latency/primary-turn overhead,
+bundled/paired-remote/two-window/multiple-persona behavior and the additional
+route override/reset/coexistence cases. The successful local leg does not close
+that broader qualification row.

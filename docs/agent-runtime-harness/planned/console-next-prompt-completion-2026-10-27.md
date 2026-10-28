@@ -2,11 +2,19 @@
 
 Status: PLANNED qualification; implementation authorized by the owner on 2026-10-27.
 The shared extraction and completion changes have landed from the owned worktree.
-Automated checks and baseline classification are recorded. Isolated provider and
-paired native qualification remain open; the shared account credentials are healthy
+Automated checks and baseline classification are recorded. The isolated provider
+corpus and Windows Developer/local native composer acceptance have passed. The
+ownership blocker is fixed; broader paired placement and human acceptance
+qualification remain open. The shared account credentials are healthy
 (see the evaluation protocol correction). The former documentation-only hold is
 released. The product default remains off, existing user choices are preserved,
 and no product confirmation flow is added.
+
+Current native evidence and remaining limits are in
+`docs/downstream/console-next-prompt-evaluation-2026-10-27.md` (October 28 update).
+Launcher also corrected its missing Mission Control draft-target binding using
+the existing shared editor delivery. No Harness acceptance/store authority was
+added for that adapter correction.
 
 The original implementation remains built. See [chat canon](../05-chat-turn-lane.md)
 and [qualification evidence](../../downstream/console-next-prompt-2026-10-26.md).
