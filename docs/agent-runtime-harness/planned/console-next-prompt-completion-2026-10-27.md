@@ -340,18 +340,25 @@ No copying of persona system prompts, persona model changes or extra history.
 The current `agent_runtime/serve_rpc/console_suggestions.py` methods and service
 remain authoritative: exact account/persona/session ownership, source revision,
 policy epoch, visibility, bounded scheduling, NULL/error outcomes, read-before-use
-and conditional dismissal. Drawing/hiding preview or editing text must not add
+and conditional dismissal. Mere presentation switches or editing text must not add
 subscriptions, polling, provider calls, leases, receipts or a parallel acceptance
-store. Only a successful insertion is acknowledged as used. Disabling invalidates
+store beyond the existing visibility/acceptance lifecycle. Preserve current
+used-receipt reconciliation and conditional dismissal: focus/typing/clearing or
+undo must not resurrect the same successfully used/dismissed entry. These are
+Launcher presentation regressions to test, not new Harness behavior or storage.
+Only a successful insertion is acknowledged as used. Disabling invalidates
 pending output through the existing policy; an already issued call may finish
 but must not publish. The false default remains under Eternia Harness > Composer;
 live user choices remain untouched.
 
-After the Launcher inline change is authorized and implemented, extend the
-existing `RT-NEXT-PROMPT-PROVIDER-EVAL` evidence with the actual native preview/Tab
+After the Launcher inline change is authorized and implemented, reference its
+focused acceptance evidence from `RT-NEXT-PROMPT-PROVIDER-EVAL`: actual preview/Tab
 journey, unchanged persona and auxiliary route facts, single-producer counts,
 initial-off and disable-in-flight/off-after-reply behavior. Native normal chat
 must still work with suggestions off and generate no new suggestion attempts.
-Keep the broader provider/placement matrix open until separately measured.
+Keep the broader provider/placement matrix open until separately measured. It
+can proceed against the shipped strip while inline remains held; do not add a
+dependency on deferred UI work or duplicate a provider corpus for a display-only
+change. Deterministic Launcher fixtures cover language/length/layout variations.
 No redundant Harness implementation row or DM work is introduced for this UI-only
 change. A newly discovered runtime defect must get its own concrete scoped row.
