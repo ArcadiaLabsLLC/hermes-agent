@@ -1570,8 +1570,9 @@ Two decisions ride with it:
   [planned/office-gesture-prediction-remainder.md](planned/office-gesture-prediction-remainder.md)
 - Collapsing the office write lane to one transport (argv-arm deletion, the
   guarded remove over a population the placement verb shrank, the unbuilt
-  restore verb) →
-  [planned/office-write-lane-collapse.md](planned/office-write-lane-collapse.md)
+  restore verb) → replanned launcher-side as
+  `EterniaLauncher/docs/mission_control/planned/OFFICE_WRITE_LANE_COLLAPSE_2026-10-27.md`
+  (the superseded hermes plan: [archive/office-write-lane-collapse.md](archive/office-write-lane-collapse.md))
 - The page-open write storm and the `laneAbsent` window on cold open →
   [archive/office-page-open-write-storm.md](archive/office-page-open-write-storm.md) (parked 2026-10-27)
 - The board surface's missing RPC lane and fold coverage →

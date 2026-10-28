@@ -9,7 +9,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-10-27 (lane w1027k-plan-misc, launcher)
 
-- **`FH-OFFICE-WRITE-LANE-COLLAPSE-SUPERSEDED` — retire `docs/agent-runtime-harness/planned/office-write-lane-collapse.md`: replanned launcher-side as `EterniaLauncher/docs/mission_control/planned/OFFICE_WRITE_LANE_COLLAPSE_2026-10-27.md` (guarded remove shipped `ede7a64754`; restore row gone)** · `docs/agent-runtime-harness/planned/office-write-lane-collapse.md` · READY 2026-10-27 · **TAKEN 2026-10-27 w1028a-h-plan on vm as Claude in w1028a-h-plan**
 
 ## Filed on arrival — 2026-10-27 (lane w1027j-h-tri-b, planned/ triage)
 

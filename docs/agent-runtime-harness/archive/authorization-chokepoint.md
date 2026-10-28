@@ -506,7 +506,7 @@ expensive option, and its whole value is the non-bypassability.
 - **Whether the argv lane should exist.** Two lanes reach the CLI handlers, and
   collapsing them is
   [single-transport-collapse.md](../archive/single-transport-collapse.md) /
-  [office-write-lane-collapse.md](../planned/office-write-lane-collapse.md).
+  [office-write-lane-collapse.md](office-write-lane-collapse.md).
 
 ---
 

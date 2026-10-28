@@ -42,7 +42,7 @@ the by-design/anomalous lesson the drops chip already taught.
 has not arrived, `missionOfficeRpcRefusal` answers `laneAbsent`, and every office
 verb degrades to the argv lane inside that window — by design, but it is also the
 window in which the fallbacks Row 1 of
-[office-write-lane-collapse](../planned/office-write-lane-collapse.md) wants deleted are
+[office-write-lane-collapse](office-write-lane-collapse.md) wants deleted are
 genuinely reachable.
 
 **What is verified today, and what is not.** The degrade path is live in code:
