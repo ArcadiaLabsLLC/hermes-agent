@@ -1,6 +1,6 @@
 {
-  "source_commit": "c18cb2920a953f4a282c94250bdec63d5f5f0b4c",
-  "exported_at": "2026-10-21",
+  "source_commit": "09f8eada7a95d4f0160adcc29e4c9f44efec5cbf",
+  "exported_at": "2026-10-28",
   "entries": [
     {
       "id": "launcher.account.open_section",
@@ -267,6 +267,14 @@
       "guidance_sha256": null
     },
     {
+      "id": "launcher.communities.mod_queue.list",
+      "name": "launcher_communities_mod_queue_list",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
+      "guidance_sha256": null
+    },
+    {
       "id": "launcher.communities.moderate",
       "name": "launcher_communities_moderate",
       "read_only": false,
@@ -358,6 +366,14 @@
       "id": "launcher.education.course.open_source",
       "name": "launcher_education_course_open_source",
       "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.education.course.outline",
+      "name": "launcher_education_course_outline",
+      "read_only": true,
       "always_loaded": false,
       "reach": "localOnly",
       "guidance_sha256": null
@@ -491,6 +507,14 @@
       "guidance_sha256": null
     },
     {
+      "id": "launcher.emulators.register_games",
+      "name": "launcher_emulators_register_games",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
       "id": "launcher.emulators.remove",
       "name": "launcher_emulators_remove",
       "read_only": false,
@@ -535,6 +559,14 @@
       "name": "launcher_generated_edit",
       "read_only": false,
       "always_loaded": true,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.generated.elements.list",
+      "name": "launcher_generated_elements_list",
+      "read_only": true,
+      "always_loaded": false,
       "reach": "localOnly",
       "guidance_sha256": null
     },
@@ -627,6 +659,30 @@
       "guidance_sha256": null
     },
     {
+      "id": "launcher.home.propose_layout",
+      "name": "launcher_home_propose_layout",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.home.read_layout",
+      "name": "launcher_home_read_layout",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.lens.series.read",
+      "name": "launcher_lens_series_read",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
       "id": "launcher.library.cancel",
       "name": "launcher_library_cancel",
       "read_only": false,
@@ -672,6 +728,54 @@
       "read_only": true,
       "always_loaded": false,
       "reach": "pairedDevice",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.library.lists.add",
+      "name": "launcher_library_lists_add",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.library.lists.create",
+      "name": "launcher_library_lists_create",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.library.lists.delete",
+      "name": "launcher_library_lists_delete",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.library.lists.get",
+      "name": "launcher_library_lists_get",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.library.lists.remove",
+      "name": "launcher_library_lists_remove",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.library.lists.rename",
+      "name": "launcher_library_lists_rename",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
       "guidance_sha256": null
     },
     {
@@ -755,9 +859,33 @@
       "guidance_sha256": null
     },
     {
+      "id": "launcher.messaging.channels.list",
+      "name": "launcher_messaging_channels_list",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
       "id": "launcher.messaging.composer.send",
       "name": "launcher_messaging_composer_send",
       "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.messaging.server.open",
+      "name": "launcher_messaging_server_open",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.messaging.servers.list",
+      "name": "launcher_messaging_servers_list",
+      "read_only": true,
       "always_loaded": false,
       "reach": "localOnly",
       "guidance_sha256": null
@@ -824,6 +952,14 @@
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.notifications.unread.state",
+      "name": "launcher_notifications_unread_state",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "pairedDevice",
       "guidance_sha256": null
     },
     {
@@ -1041,6 +1177,14 @@
       "always_loaded": false,
       "reach": "localOnly",
       "guidance_sha256": null
+    },
+    {
+      "id": "launcher.ui.guide.compose",
+      "name": "launcher_ui_guide_compose",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": "8a685f332918f9bba7d855e1e1b1c8cd5ec21acc13f747526a3a25ab88354dff"
     },
     {
       "id": "launcher.ui.guide.show",
