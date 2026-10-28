@@ -48,7 +48,7 @@ restarts the producer, which is the correct fallback, not a defect.
 
 **L1 — live count** (row `RT-BOOT-RESUBSCRIBE-CORE-REMEASURE`, READY, a live check)
 
-On the Windows box, under the running launcher's own home (`HERMES_HOME=…\profiles\base`;
+On a desktop box (any host), under the running launcher's own home (`HERMES_HOME=…/profiles/base`;
 measuring another profile measures another runtime), three cold boots of the launcher.
 After each, run `hermes harness observe snapshot-builds --since 3m --json`
 (`hermes_cli/harness_parts/observe_commands.py`, derivations in
