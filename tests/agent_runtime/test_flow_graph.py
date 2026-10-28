@@ -189,7 +189,7 @@ def test_reconcile_drawn_standalone_clears_owner_but_keeps_goal(isolate_agent_ru
     after = store.get(dev.id)
     assert after.steered_by == []
     assert after.goal_id == "goal_live"
-    assert after.current_task_id == "goal_live"
+    assert after.current_task_id is None  # a goal stamps no task (RT-TASK-BOUND-VOCABULARY)
 
 
 def test_reconcile_unknown_instance_is_reported_never_created(isolate_agent_runtime_root):

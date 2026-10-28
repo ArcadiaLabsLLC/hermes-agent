@@ -63,7 +63,7 @@ __all__ = [
 # verb chain.
 
 
-def _decode_instance(raw: dict[str, Any]) -> PersonaInstance:
+def _decode_stored_instance(raw: dict[str, Any]) -> PersonaInstance:
     """THE decode of one stored row; ``get`` and ``scan_all`` both go through it.
 
     Two retired meanings are dropped here, once, so no reader carries a branch for them.
@@ -227,7 +227,7 @@ class PersonaInstanceStore:
             if resolved is None:
                 raise
             raw = json.loads(paths.persona_instance_path(resolved).read_text(encoding="utf-8"))
-        return _decode_instance(raw)
+        return _decode_stored_instance(raw)
 
     def _resolve_stored_instance_id(self, raw_id: str) -> str | None:
         """Resolve a caller-supplied id to the id of the row actually on disk.
@@ -547,7 +547,7 @@ class PersonaInstanceStore:
         unreadable = 0
         for path in sorted(directory.glob("*.json")):
             try:
-                instances.append(_decode_instance(json.loads(path.read_text(encoding="utf-8"))))
+                instances.append(_decode_stored_instance(json.loads(path.read_text(encoding="utf-8"))))
             except Exception:
                 unreadable += 1
                 continue

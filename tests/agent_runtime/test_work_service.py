@@ -304,12 +304,11 @@ def test_an_agents_todo_is_a_view_over_every_board_it_can_see(work):
            for row in queue["rows"]}
     assert ids == {on_ws, to_persona, mine}
     assert {owner["kind"] for owner in view["owners"]} == {"workspace", "personal"}
-    # Placed in ANOTHER workspace, the same instance sees only that workspace's boards and the personal one.
-    store = PersonaInstanceStore()
-    row = store.get(alice.id)
-    row.workspace_id = "ws_elsewhere"
-    store.update(row)
-    placed = service.execute("list", {**work.scope, "kind": "agent", "assignee": f"persona:{alice.id}"},
+    # Placed in ANOTHER workspace, an instance sees only that workspace's boards and the personal one. A
+    # placement, not the canonical channel: a canonical carries no workspace (RT-GLOBAL-SINGLETON-CANONICAL).
+    elsewhere = PersonaInstanceStore().add_instance(
+        persona_id=alice.persona_id, placement_id=f"{alice.persona_id}_agent_2", workspace_id="ws_elsewhere")
+    placed = service.execute("list", {**work.scope, "kind": "agent", "assignee": f"persona:{elsewhere.id}"},
                              STDIO_OWNER)
     assert [owner["kind"] for owner in placed["owners"]] == ["personal"]
     with pytest.raises(WorkRefused) as no_one:

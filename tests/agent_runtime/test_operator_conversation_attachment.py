@@ -27,7 +27,9 @@ def fixture(home, monkeypatch, name, *, persona_id="builder"):
         db.create_session(session, source="mission_chat")
         for i in range(44):
             db.append_message(session, "user" if i % 2 == 0 else "assistant", f"{name} message {i}")
-    return dict(install_id=install, workspace_id="ws", persona_id=persona_id,
+    # The stored "ws" is a pointer an old bind stamped; a canonical channel decodes
+    # global, so its identity names no workspace (RT-GLOBAL-SINGLETON-CANONICAL).
+    return dict(install_id=install, workspace_id=None, persona_id=persona_id,
         persona_instance_id=instance, session_id=session)
 
 

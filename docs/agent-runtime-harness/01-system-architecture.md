@@ -72,7 +72,7 @@ prefixed `personainst_` (`models.py:15`), and there are exactly two derivations:
   (its neighbour there), whose tail is the scene `itemId`.
 
 `is_canonical_persona_channel` is the live discriminator between them. A canonical
-channel carries no scene claim: the store's decode (`persona_assignments/store.py::_decode_instance`)
+channel carries no scene claim: the store's decode (`persona_assignments/store.py::_decode_stored_instance`)
 reads its `workspace_id` / `realm_id` as `None`, the bind stamps none, and the reconciler's
 phase 6 clears any an older bind stored (`canonical_scope_cleared`).
 Every id arriving from outside the store passes the single derivation authority

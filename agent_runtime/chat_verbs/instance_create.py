@@ -31,6 +31,7 @@ def create_persona_instance(params: dict, *, caller: Any | None = None) -> dict:
     from ..persona_open_chat import _first_text
     from .door import COORDINATOR_ARGS_CLOSED, caller_requester, run_cli_chat_verb
 
+    params.get("kill_active")  # retired: read and ignored, so the published key stays honest (S2 refuses it)
     persona_id = _first_text(params, "persona_id")
     if not persona_id:
         return {"ok": False, "error_kind": "invalid_request", "error": "persona_id is required"}

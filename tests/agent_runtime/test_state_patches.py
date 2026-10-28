@@ -682,9 +682,11 @@ def test_open_chat_reopen_emits_the_diffed_upsert_with_the_parity_fields(
 
     set_delta_patches(True)
     store = PersonaInstanceStore()
-    created = store.open_chat(
+    # A placement, not the canonical channel: a canonical takes no scope pointer
+    # (RT-GLOBAL-SINGLETON-CANONICAL), and this test needs the bind to move both.
+    created = store.add_instance(
         persona_id="profile_reviewer",
-        session_id="persona_chat_open_reopen",
+        placement_id="reviewer_agent_2",
         display_name="Reviewer",
     )
 

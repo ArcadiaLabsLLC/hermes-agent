@@ -46,7 +46,7 @@ def _raw(instance_id: str) -> dict:
 
 
 def test_a_stored_canonical_pointer_decodes_as_global_through_get_and_scan_all():
-    """Kill-mutation: drop the canonical clause in ``_decode_instance`` → red;
+    """Kill-mutation: drop the canonical clause in ``_decode_stored_instance`` → red;
     apply it in ``get`` only (``scan_all`` decoding raw) → the scan half reds."""
     _seed(CANONICAL)
     store = PersonaInstanceStore()

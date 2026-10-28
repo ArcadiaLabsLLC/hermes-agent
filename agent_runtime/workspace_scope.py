@@ -238,7 +238,7 @@ def exclude_global_canonicals(
     canonical row (no ``workspace_id`` claim) is plumbing, not a level presence,
     so it must not be advertised into a workspace's "On level" roster nor listed
     to an agent as an addressable peer. A stored canonical decodes with no
-    pointer (``persona_assignments.store._decode_instance``), so the pointer
+    pointer (``persona_assignments.store._decode_stored_instance``), so the pointer
     clause below matters only to a predicate whose canonical rows were not read
     through the store. Scope ``None`` (no active workspace) keeps the degrade
     contract: nothing is dropped.
