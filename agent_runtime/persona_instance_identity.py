@@ -712,28 +712,11 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
     held_actions = list(classified["held"])
     pruned_actions: list[dict[str, Any]] = []
     prune_archive_dir = paths.persona_instances_archive_dir() / now().strftime("%Y%m%dT%H%M%SZ_prune")
-    for candidate in classified["prunable"]:
-        instance = surviving_by_id.get(candidate["persona_instance_id"])
-        if instance is None:
-            continue
-        if store._has_live_binding(instance):  # reconciler IS store maintenance
-            held_actions.append({**candidate, "reason": HELD_REASON_ACTIVE})
-            continue
-        pruned_actions.append(dict(candidate))
-        if not apply:
-            continue
-        _archive_row(instance.id, prune_archive_dir)
-        by_id.pop(instance.id, None)
-        store._event(  # the reconciler IS store maintenance
-            "persona_instance.pruned",
-            instance,
-            {
-                "reason": candidate["reason"],
-                "role": instance.role or None,
-                "profile_id": instance.profile_id,
-                "updated_at": candidate.get("updated_at"),
-            },
-        )
+    _reap_candidates(
+        store, classified["prunable"], surviving_by_id, by_id, prune_archive_dir, apply,
+        pruned=pruned_actions, held=held_actions,
+        detail=lambda instance, candidate: {"profile_id": instance.profile_id},
+    )
 
     # Phase 2b — UNPLACED-instance prune. A placement IS its instance (operator
     # ruling, July 2026), so an instance whose only office placement has been
@@ -764,30 +747,11 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
     unplaced_archive_dir = paths.persona_instances_archive_dir() / now().strftime(
         "%Y%m%dT%H%M%SZ_unplaced"
     )
-    for candidate in unplaced_classified["prunable"]:
-        instance = surviving_by_id.get(candidate["persona_instance_id"])
-        if instance is None:
-            continue
-        if store._has_live_binding(instance):  # reconciler IS store maintenance
-            # The cross-store belt phase 2 wears for the same reason: the row's
-            # own fields can be stale about a binding another store holds.
-            unplaced_held.append({**candidate, "reason": HELD_REASON_ACTIVE})
-            continue
-        unplaced_pruned.append(dict(candidate))
-        if not apply:
-            continue
-        _archive_row(instance.id, unplaced_archive_dir)
-        by_id.pop(instance.id, None)
-        store._event(  # the reconciler IS store maintenance
-            "persona_instance.pruned",
-            instance,
-            {
-                "reason": candidate["reason"],
-                "role": instance.role or None,
-                "workspace_id": candidate.get("workspace_id"),
-                "updated_at": candidate.get("updated_at"),
-            },
-        )
+    _reap_candidates(
+        store, unplaced_classified["prunable"], surviving_by_id, by_id, unplaced_archive_dir, apply,
+        pruned=unplaced_pruned, held=unplaced_held,
+        detail=lambda instance, candidate: {"workspace_id": candidate.get("workspace_id")},
+    )
 
     # Phase 3 — referential integrity. Shape-valid rows can still point at an
     # owner that was retired, reaped, or manually removed. Repair those
@@ -975,6 +939,32 @@ def _prune_owner_less_flow_graphs(
         "departed_steering": departed_steering,
         "archive_dir": str(archive_dir) if apply and pruned else None,
     }
+
+
+def _reap_candidates(store, candidates, surviving_by_id, by_id, archive_dir, apply, *, pruned, held, detail) -> None:
+    """Phases 2 and 2b's reap, once: archive each prunable row (never delete) with a typed
+    ``persona_instance.pruned`` event, appending to *pruned* / *held*; ``apply=False`` writes nothing.
+
+    A row with a live binding is HELD even when classified prunable: the cross-store belt, because
+    the row's own fields can be stale about a binding another store holds. *detail* adds the
+    phase's own event field (phase 2 the profile, phase 2b the workspace).
+    """
+
+    for candidate in candidates:
+        instance = surviving_by_id.get(candidate["persona_instance_id"])
+        if instance is None:
+            continue
+        if store._has_live_binding(instance):  # reconciler IS store maintenance
+            held.append({**candidate, "reason": HELD_REASON_ACTIVE})
+            continue
+        pruned.append(dict(candidate))
+        if not apply:
+            continue
+        _archive_row(instance.id, archive_dir)
+        by_id.pop(instance.id, None)
+        payload = {"reason": candidate["reason"], "role": instance.role or None, **detail(instance, candidate)}
+        payload["updated_at"] = candidate.get("updated_at")
+        store._event("persona_instance.pruned", instance, payload)  # the reconciler IS store maintenance
 
 
 def _archive_row(instance_id: str, archive_dir) -> None:

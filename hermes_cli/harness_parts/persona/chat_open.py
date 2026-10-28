@@ -44,7 +44,7 @@ from .chat_coordinator import (
 from .chat_request import _emit_persona_verb_payload, _retired_persona_instance_payload
 from agent_runtime.persona_chat_session import _persona_chat_session_owner
 from .chat_target import _persona_by_id
-from .lifecycle_commands import _placement_discriminability_refusal
+from .lifecycle_commands import _note_retired_kill_active, _placement_discriminability_refusal
 
 __layer__ = "lanes"
 __all__ = [
@@ -81,6 +81,7 @@ def _instance_session_db(instance):
 
 
 def _cmd_persona_instance_open_chat(args) -> int:
+    _note_retired_kill_active(args)
     # Function-local: the convention from before lane H1, when this file was
     # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
     # agent_runtime.mission_chat_outcome; nothing re-spells its values.

@@ -69,7 +69,10 @@ def _cmd_persona_set_context(args) -> int:
 
     raw_id = str(getattr(args, "persona_id", "") or "").strip()
     try:
-        requested = {key: _switch_value(getattr(args, key, None), key) for key in CONTEXT_SWITCHES}
+        # Each flag read by name, so the parser's dests have a reader the flag census can see.
+        flags = {"core_context_files": getattr(args, "core_context_files", None),
+                 "profile_memory": getattr(args, "profile_memory", None)}
+        requested = {key: _switch_value(flags[key], key) for key in CONTEXT_SWITCHES}
     except ValueError as exc:
         data = attach_root_observability(_refusal(
             "invalid_value", f"--{str(exc).replace('_', '-')} takes on or off", persona_id=raw_id))

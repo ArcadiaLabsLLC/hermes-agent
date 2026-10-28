@@ -9,6 +9,7 @@ and no operator or script uses the argv form).
 
 from __future__ import annotations
 
+import sys
 from dataclasses import asdict
 from agent_runtime.call_authorization import CLI_CONSOLE
 from agent_runtime.config import load_agent_runtime_config
@@ -187,7 +188,19 @@ def _instance_session_db(instance):
     )
 
 
+def _note_retired_kill_active(args) -> None:
+    """``--kill-active`` is retired (RT-CHAT-SWAP-KILL-ACTIVE-NOOP S1): accepted and ignored.
+
+    Said on stderr, so an operator who reaches for it is not left believing a run was
+    cancelled, and a ``--json`` reply on stdout stays one document.
+    """
+
+    if getattr(args, "kill_active", False):
+        print("note: --kill-active is retired and was ignored; nothing was cancelled", file=sys.stderr)
+
+
 def _cmd_persona_instance_create(args) -> int:
+    _note_retired_kill_active(args)
     # Function-local: the convention from before lane H1, when this file was
     # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
     # agent_runtime.mission_chat_outcome; nothing re-spells its values.

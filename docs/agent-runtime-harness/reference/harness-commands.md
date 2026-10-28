@@ -2761,7 +2761,7 @@ options:
   --client-message-id CLIENT_MESSAGE_ID
   --display-name DISPLAY_NAME
   --session-id SESSION_ID
-  --kill-active         Cancel the current run/worker before replacing the active chat
+  --kill-active         Retired: accepted and ignored
   --add-instance        Create an additional placement-backed instance instead of targeting the
                         primary placement
   --placement-id PLACEMENT_ID
@@ -2802,7 +2802,7 @@ options:
   --new-session         Mint and select a fresh server-owned chat session for the target instance
   --idempotency-key IDEMPOTENCY_KEY
                         Stable retry key required with --new-session
-  --kill-active         Cancel the current run/worker before replacing the active chat
+  --kill-active         Retired: accepted and ignored
   --add-instance        Open the chat on an additional placement-backed instance
   --placement-id PLACEMENT_ID
                         Scene itemId for an additional placement-backed instance; must end in the
