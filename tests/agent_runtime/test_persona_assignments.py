@@ -634,8 +634,8 @@ def test_persona_instance_steer_cli_attaches_parent_and_goal(monkeypatch, isolat
     instance = PersonaInstanceStore().get("personainst_dev")
     assert instance.spawned_by == "personainst_neko_supervisor"
     assert instance.goal_id == "task_77"
-    assert instance.current_task_id == "task_77"
-    assert instance.mode == "task_bound"
+    assert instance.current_task_id is None  # a goal stamps no task (RT-TASK-BOUND-VOCABULARY)
+    assert instance.mode != "task_bound"
 
 
 def test_persona_instance_steer_cli_detaches_to_standalone(monkeypatch, isolate_agent_runtime_root):
@@ -1323,7 +1323,7 @@ def _seed_live_run_binding(instance_store) -> AgentRun:
     live.mode = "task_bound"
     live.state = WorkerSessionState.RUNNING
     live.current_task_id = "task_live"
-    live.goal_id = "task_live"
+    live.goal_id = None  # mission-shaped: a real task, not a goal (the decode keeps it)
     live.current_assignment_id = "assign_live"
     live.active_run_id = run.id
     live.session_id = "persona_chat_personainst_dev_live"
@@ -4471,8 +4471,9 @@ def test_retire_releases_child_backlinks_without_clearing_child_context(
     assert child.steered_by == [remaining.id]
     assert child.spawned_by == remaining.id
     assert child.goal_id == "goal_live"
-    assert child.current_task_id == "goal_live"
-    assert child.mode == "task_bound"
+    # The goal is a correlation id, never a task binding (RT-TASK-BOUND-VOCABULARY).
+    assert child.current_task_id is None
+    assert child.mode != "task_bound"
 
 
 def test_retire_last_parent_preserves_child_mission_context(
@@ -4497,8 +4498,9 @@ def test_retire_last_parent_preserves_child_mission_context(
     assert child.steered_by == []
     assert child.spawned_by is None
     assert child.goal_id == "goal_live"
-    assert child.current_task_id == "goal_live"
-    assert child.mode == "task_bound"
+    # The goal is a correlation id, never a task binding (RT-TASK-BOUND-VOCABULARY).
+    assert child.current_task_id is None
+    assert child.mode != "task_bound"
 
 
 def test_retired_placement_cannot_be_resurrected_from_its_saved_chat(

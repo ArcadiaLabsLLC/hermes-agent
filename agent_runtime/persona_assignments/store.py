@@ -66,6 +66,8 @@ __all__ = [
 def _decode_instance(raw: dict[str, Any]) -> PersonaInstance:
     """THE decode of one stored row; ``get`` and ``scan_all`` both go through it.
 
+    Two retired meanings are dropped here, once, so no reader carries a branch for them.
+
     A canonical operator channel carries no scene claim (the 2026-07-18 ruling,
     "instance = in-level placement"): its ``workspace_id`` / ``realm_id`` decode as
     ``None`` whatever the row on disk still holds, so no reader can put the persona
@@ -73,6 +75,13 @@ def _decode_instance(raw: dict[str, Any]) -> PersonaInstance:
     (RT-GLOBAL-SINGLETON-CANONICAL; plan ``canonical-channel-global-storage-2026-10-27``).
     """
     instance = from_jsonable(PersonaInstance, raw)
+    if instance.mode == "task_bound" and (instance.current_task_id or None) == (instance.goal_id or None):
+        # A STEER-shaped row: ``--goal`` once stamped ``task_bound`` with the goal as its
+        # task. The goal is a correlation id, so the row is an ordinary instance
+        # (RT-TASK-BOUND-VOCABULARY). A MISSION-shaped row (a task that is not its goal)
+        # decodes unchanged; the reconciler's phase 0 archives it.
+        instance.mode = "configured"
+        instance.current_task_id = None
     if is_canonical_persona_channel(instance):
         instance.workspace_id = None
         instance.realm_id = None
@@ -686,6 +695,7 @@ class PersonaInstanceStore:
     repair_missing_steering_references = repair_lane.repair_missing_steering_references
     repair_missing_chat_session_bindings = repair_lane.repair_missing_chat_session_bindings
     clear_canonical_scope_pointers = repair_lane.clear_canonical_scope_pointers
+    retire_task_bound_rows = repair_lane.retire_task_bound_rows
 
     # chat_binding
     clear_chat_session_binding = chat_binding_lane.clear_chat_session_binding

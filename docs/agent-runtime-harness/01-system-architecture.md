@@ -1037,10 +1037,10 @@ Each links to a `planned/` file carrying its evidence and the gate to open it.
 - 2026-10-27 — **`--kill-active` is accepted and ignored** (S1 shipped: no
   `killed_previous`, no close review); refusing it waits on the launcher →
   [planned/chat-open-kill-active-retirement-2026-10-27.md](planned/chat-open-kill-active-retirement-2026-10-27.md) S2
-- 2026-08-22 — **`mode="task_bound"` is still written** by a flag documented as
-  a correlation id, five readers still branch on it, and `TaskStoreStub` has
-  lost the upstream caller its permanence rests on →
-  [planned/task-bound-vocabulary-retirement.md](planned/task-bound-vocabulary-retirement.md)
+- 2026-10-28 — **`mode="task_bound"` is no longer written** (S1 shipped: `--goal` is a
+  correlation id, steer-shaped rows decode as ordinary, reconcile phase 0 archives mission
+  rows); the mission-row lanes and `TaskStoreStub` remain →
+  [planned/task-bound-mode-retirement-2026-10-27.md](planned/task-bound-mode-retirement-2026-10-27.md)
 - 2026-08-22 — **a writer-less lane store still projects onto `status`**
   (`foreground_runtime`, `runtime_instances`), and two live docstrings describe
   deleted execution lanes →

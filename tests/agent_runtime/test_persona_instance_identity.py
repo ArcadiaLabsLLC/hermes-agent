@@ -444,7 +444,8 @@ def test_classify_orphan_truth_table():
         # Orphan-shaped but PROTECTED → held, not pruned.
         _orphan_row("held_run", active_run_id="run_1"),
         _orphan_row("held_assign", current_assignment_id="a_1"),
-        _orphan_row("held_taskbound", mode="task_bound"),
+        # task_bound mode alone no longer holds (RT-TASK-BOUND-VOCABULARY).
+        _orphan_row("taskbound_mode_only", mode="task_bound"),
         _orphan_row("held_heartbeat", last_heartbeat_at=_FRESH.isoformat()),
         _orphan_row("held_recent", updated_at=_FRESH.isoformat()),
     ]
@@ -460,6 +461,7 @@ def test_classify_orphan_truth_table():
         "pm": "legacy-role",
         # S56: a dead active_worker_session_id no longer protects a row.
         "stale_worker_session_field": "orphan-no-profile",
+        "taskbound_mode_only": "orphan-no-profile",
     }
     # No real agent appears anywhere.
     for real in ("dev", "qa", "neko", "bdev", "base", "alice"):
@@ -467,7 +469,6 @@ def test_classify_orphan_truth_table():
     assert held == {
         "held_run": "active-binding",
         "held_assign": "active-binding",
-        "held_taskbound": "task-bound",
         "held_heartbeat": "fresh-heartbeat",
         "held_recent": "recently-updated",
     }

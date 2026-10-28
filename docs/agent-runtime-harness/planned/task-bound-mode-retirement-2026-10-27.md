@@ -56,7 +56,16 @@ The task lane was removed 2026-07-30, but its vocabulary still writes and reads:
 ## Slices
 
 **S1 — stop the stamp, normalise on decode, archive mission rows** (row
-`RT-TASK-BOUND-VOCABULARY`, READY)
+`RT-TASK-BOUND-VOCABULARY`, shipped 2026-10-28 by lane w1028a-h-persona). As built, against
+the tree: the phase is the reconciler's phase 0 (`persona_assignments/repair.py::retire_task_bound_rows`,
+archive dir `*_task_bound_retire`; a canonical channel is normalised, never archived); the
+deleted branches are the steer stamp, the detach reset, the session-repair mode test and
+`HELD_REASON_TASK_BOUND`. The chat-history and trace "skips" turned out to be the projection
+of MISSION-shaped rows (the synthetic mission row, trace lane 1), which decode keeps
+`task_bound` by decision 4, so they stay with `BUSY_TASK_BOUND` until no stored mission row
+is left — row `RT-TASK-BOUND-MISSION-LANES`. The "keep the summary skip" killing mutation
+cannot apply (the decode alone makes a steered row ordinary); the visible-effect test is the
+profile rebind's `busy_reason`. Tests: `tests/agent_runtime/test_task_bound_retirement.py`.
 
 - `agent_runtime/persona_assignments/steering.py` — no `mode` / `current_task_id` on a
   goal; detach reset removed.

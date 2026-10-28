@@ -80,7 +80,6 @@ PRUNE_REASON_LEGACY_ROLE = "legacy-role"
 PRUNE_REASON_UNPLACED = "unplaced-instance"
 # Held = orphan-shaped but protected from prune; surfaced for accounting, never reaped.
 HELD_REASON_ACTIVE = "active-binding"
-HELD_REASON_TASK_BOUND = "task-bound"
 HELD_REASON_HEARTBEAT = "fresh-heartbeat"
 HELD_REASON_RECENT = "recently-updated"
 
@@ -290,8 +289,8 @@ def _held_reason_for(
     """THE held rules, once, for every prune classifier in this module.
 
     A candidate row is HELD — surfaced for accounting, never reaped — when it
-    shows live activity, is task-bound (owned by the task-bound sweep), or has a
-    fresh heartbeat. ``allow_recent_hold`` adds the min-age grace, which is what
+    shows live activity (a mission-shaped row's ``current_task_id`` included) or has a
+    fresh heartbeat; ``task_bound`` mode alone is no hold (RT-TASK-BOUND-VOCABULARY). ``allow_recent_hold`` adds the min-age grace, which is what
     protects a row that is actively being written from being reaped mid-flight.
 
     It lives here rather than inline because the unplaced-instance classifier
@@ -319,9 +318,6 @@ def _held_reason_for(
     )
     if active:
         return HELD_REASON_ACTIVE
-    mode = str(_row_get(row, "mode", "lifecycle_mode") or "").strip().lower()
-    if mode == "task_bound":
-        return HELD_REASON_TASK_BOUND
     if _within(current, _as_datetime(_row_get(row, "last_heartbeat_at")), heartbeat_fresh_seconds):
         return HELD_REASON_HEARTBEAT
     if allow_recent_hold and _within(
@@ -456,8 +452,8 @@ def classify_orphan_persona_instances(
     A row is an *orphan candidate* when its backing persona/profile is absent from the
     backed universe (``orphan-no-profile``) OR its role/persona is mothballed
     (``legacy-role``). A real product agent (backed and not mothballed) is skipped
-    entirely. A candidate is HELD (never pruned) when it shows any live activity, is
-    task-bound (owned by the task-bound sweep), or has a fresh heartbeat. The
+    entirely. A candidate is HELD (never pruned) when it shows any live activity or
+    has a fresh heartbeat. The
     min-age grace protects ordinary orphans, but not a retired definition: the
     shared lifecycle predicate prevents that row from being rematerialized.
 
@@ -618,7 +614,7 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
     durable registry regardless, so the ``identity_map`` keeps resolving old
     ids in archived history. Running twice is a no-op the second time.
 
-    Seven phases run in order: (1) legacy-id fold, (2) orphan / legacy-role
+    Eight phases run in order: (0) stored ``task_bound`` retirement, (1) legacy-id fold, (2) orphan / legacy-role
     prune, (2b) unplaced-instance prune, (3) missing steering-parent repair,
     (4) missing chat-session-binding repair, (5) owner-less flow-graph prune, (6) canonical
     scope-pointer clear.
@@ -629,7 +625,8 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
     ordinals are cited by name across this repo's docs and tests; it is a second
     ARCHIVE phase and belongs beside the first.
 
-    Phase 5 is LAST by referential ordering, not by convenience. Phases 1-2 are
+    Phase 5 is the last row-reading phase by referential ordering (phase 6 only
+    rewrites pointers inside canonical rows). Phases 0-2 are
     the only phases that add or remove rows and phases 3-4 only repair pointers
     inside surviving rows, so by phase 5 the live-instance set is final and the
     "does this graph's owner still exist?" question is asked exactly once
@@ -640,6 +637,10 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
     write from a second authority.
     """
     store = PersonaInstanceStore(event_log=event_log)
+    # Phase 0 — retire stored ``task_bound`` rows (RT-TASK-BOUND-VOCABULARY): steer-shaped
+    # rows are normalised, mission-shaped rows archived. First, so every later phase reads
+    # the surviving set; a dry run's later phases still see the rows it would archive.
+    task_bound = store.retire_task_bound_rows(apply=apply)
     instances = store.list_all()
     by_id = {instance.id: instance for instance in instances}
     aliases = load_persona_instance_aliases()
@@ -822,6 +823,7 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
     # phase 5 the live-instance set must be FINAL, or an owner-less canvas whose
     # agent this run just archived is held as "owner resolves".
     live_instance_ids -= {item["persona_instance_id"] for item in unplaced_pruned}
+    live_instance_ids -= {item["persona_instance_id"] for item in task_bound["archived"]}
     graph_prune = _prune_owner_less_flow_graphs(
         store=store,
         live_instance_ids=live_instance_ids,
@@ -868,6 +870,10 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
         "graph_departed_steering_count": sum(
             1 for item in graph_prune["departed_steering"] if item.get("changed")
         ),
+        "task_bound_normalised": task_bound["normalised"],
+        "task_bound_archived": task_bound["archived"],
+        "task_bound_normalised_count": len(task_bound["normalised"]),
+        "task_bound_archived_count": len(task_bound["archived"]),
         "canonical_scope_cleared": canonical_scope_cleared,
         "canonical_scope_cleared_count": len(canonical_scope_cleared),
         "alias_count": len(aliases),
