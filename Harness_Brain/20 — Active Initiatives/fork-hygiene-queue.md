@@ -594,6 +594,10 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 - **`FH-SUITE-IDLE-AND-GIT-AUDIT-RUNS` — design sweep D3 owes three runs: the first idle-box run of run_tests_idle.sh (D3.01/D3.09), one whole-tree gate with --git-audit (D3.16), and the 25-file bundle-residual classification (D3.12/D3.14)** · fork hygiene / suite · plan `docs/agent-runtime-harness/planned/design-sweep-d3-2026-10-10.md` · `scripts/run_tests_idle.sh`, `scripts/run_tests_bundled.py` · build: take the runs on an idle box and file one row per lock-taking git test and per classified residual · READY 2026-10-27
 
 
+## Filed on arrival — 2026-10-28 (lane w1028a-h-persona)
+
+- **`FH-LINUX-TEST-VENV-PY312-NO-DEPS` — on the Linux box `vm` the shared test venv `~/.venvs/hermes-test` is Python 3.12 while every pyproject runtime pin is marked `python_version >= '3.14'`, so it holds no runtime dependency (no ruamel: `hermes_yaml` fails to import from the downstream conftest plugin) and every test errors at collection; wave w1028a lanes each built a private 3.14 venv under scratch** · fork / suite · `pyproject.toml` · `scripts/run_tests.sh` · `tests/_downstream/conftest_plugin.py` · READY 2026-10-28 · REQUIRES linux
+
 ## Windows baseline qualification — 2026-10-27
 
 - **`FH-BASELINE-PINS-AND-MUTATION-ANCHORS` — Repair the stale store-epoch pins and registered mutation anchors without weakening their checks** · `tests/agent_runtime/test_store_epoch_gate.py::test_the_pins_equal_the_tree`, `tests/scripts/test_mutation_claims_still_anchor.py::test_every_registered_claim_anchors_where_it_says_it_does` · canonical `--confirm-red` reproduces the same failing nodes alone on suggestion completion and base `6219b86283`; this is existing metadata drift, not the suggestion extraction tombstone · READY 2026-10-27 · **TAKEN 2026-10-27 w1028a-h-plan on vm as Claude in w1028a-h-plan**
