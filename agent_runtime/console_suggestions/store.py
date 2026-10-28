@@ -37,7 +37,9 @@ class SuggestionStore:
         db = sqlite3.connect(self.path, timeout=0.2)
         db.row_factory = sqlite3.Row
         try:
-            db.execute("PRAGMA journal_mode=WAL")
+            # Every operation already takes a short SQLite write transaction.
+            # Changing journal mode on each connection races on a cold database;
+            # keep its existing/default mode and let SQLite serialize writers.
             db.execute("CREATE TABLE IF NOT EXISTS attempts (key TEXT PRIMARY KEY, subject TEXT NOT NULL, "
                        "source_time REAL NOT NULL, created REAL NOT NULL, state TEXT NOT NULL, "
                        "entry_id TEXT NOT NULL, revision INTEGER NOT NULL, text TEXT, reason TEXT, "
