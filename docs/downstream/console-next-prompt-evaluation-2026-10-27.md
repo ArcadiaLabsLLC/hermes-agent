@@ -163,3 +163,34 @@ acceptance/edit burden, cost, native visible latency/primary-turn overhead,
 bundled/paired-remote/two-window/multiple-persona behavior and the additional
 route override/reset/coexistence cases. The successful local leg does not close
 that broader qualification row.
+
+
+## Launcher inline presentation handoff — October 28, 2026
+
+Launcher commits `51b72cdde3` and `26bcdb0486` implement the existing contextual
+follow-up as display-only hint text in the empty editor. A neutral optional
+presentation slot outside Agent Console carries text/actions only. Console keeps
+its one source adapter and guarded validation/draft-delivery path; Tab accepts
+without sending, while explicit Use/chord retains nonempty-draft append behavior.
+No Python, RPC, storage, plugin, prompt/persona or auxiliary-route changes were
+needed. Default remains false under Eternia Harness > Composer. No DM work.
+
+The focused native evidence is in
+`EterniaLauncher/docs/mission_control/evidence/console-next-prompt-2026-10-26.md`
+under "Inline composer acceptance — October 28, 2026": real-provider Tab,
+Use/chord, typing/clearing, dismissal, minimum-window/175% text and off-state normal
+reply passed on the clean native Launcher build `26bcdb0486`, current supported
+Flutter/custom engine 3.47.0, and local Hermes checkout `c1b13abbf0`. The isolated
+Base profile inherited `gpt-5.6-sol` / `openai-codex` with no auxiliary override.
+Amelia's configuration hash remained unchanged. Head/profile suggestions ended
+off; a subsequent normal reply added zero suggestion attempts (12 before/after).
+The toggle was changed during a primary turn; an already-running auxiliary-call
+race was not independently observed and remains qualification work.
+
+Pinned Flutter 3.47.8 focused checks passed (52), and root analysis found no issues.
+The pinned native build is still blocked by Launcher's existing engine-pin row,
+already owned by another lane. Baseline picture failures were reproduced without
+this change. Do not treat this as full SDK/release/placement qualification.
+`RT-NEXT-PROMPT-PROVIDER-EVAL` remains open for its wider matrix and measurements;
+this presentation change neither adds a producer nor requires a repeated provider
+corpus. No new Harness implementation authority or queue row was introduced.

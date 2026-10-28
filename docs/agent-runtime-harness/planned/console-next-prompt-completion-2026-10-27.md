@@ -1,8 +1,10 @@
 # Agent Console follow-up suggestions: completion plan
 
-**October 28 inline amendment: planning only, no runtime implementation.**
-Launcher owns the proposed inline preview under `MC-NEXT-PROMPT-INLINE`.
-Existing implementation authorization does not release that new presentation hold.
+**October 28 inline amendment: implemented in Launcher after explicit owner
+authorization; no runtime code change.** The existing free-form suggestion is
+displayed inside the same editor and accepted through the same guarded draft
+delivery. Personas, inherited auxiliary routing and the false global default
+under Eternia Harness > Composer are unchanged.
 
 Status: PLANNED qualification; implementation authorized by the owner on 2026-10-27.
 The shared extraction and completion changes have landed from the owned worktree.
@@ -319,16 +321,15 @@ Qualification evidence is updated after native composer verification; this
 section records the implementation decision, not a claim that the entire
 provider/runtime placement matrix has passed.
 
-## Inline presentation boundary — October 28, 2026 (planning only)
+## Inline presentation boundary — October 28, 2026 (Launcher implementation)
 
 The owner requested a muted preview inside Launcher's empty composer, accepted
 as ordinary editable text with Tab. The implementation contract is solely
 `EterniaLauncher/docs/mission_control/planned/CONSOLE_NEXT_PROMPT_COMPLETION_2026-10-27.md`
 under its inline amendment, tracked by Launcher `MC-NEXT-PROMPT-INLINE`.
 This is presentation of the existing full free-form follow-up, not a token stream
-or a request to generate completions for every keystroke. The inline work is held
-until implementation is explicitly requested. Prior native strip evidence is not
-inline acceptance evidence.
+or a request to generate completions for every keystroke. The owner subsequently authorized and Launcher implemented the inline change.
+Its focused native evidence is separate from earlier strip captures.
 
 No Python, plugin, storage, RPC, capability version, setting or auxiliary task
 change is planned. `agent_runtime/suggestions/generation.py` remains the reusable
@@ -351,14 +352,21 @@ pending output through the existing policy; an already issued call may finish
 but must not publish. The false default remains under Eternia Harness > Composer;
 live user choices remain untouched.
 
-After the Launcher inline change is authorized and implemented, reference its
+Reference the Launcher inline implementation
 focused acceptance evidence from `RT-NEXT-PROMPT-PROVIDER-EVAL`: actual preview/Tab
 journey, unchanged persona and auxiliary route facts, single-producer counts,
 initial-off and disable-in-flight/off-after-reply behavior. Native normal chat
 must still work with suggestions off and generate no new suggestion attempts.
 Keep the broader provider/placement matrix open until separately measured. It
-can proceed against the shipped strip while inline remains held; do not add a
-dependency on deferred UI work or duplicate a provider corpus for a display-only
-change. Deterministic Launcher fixtures cover language/length/layout variations.
+is not blocked by the presentation change and does not duplicate a provider
+corpus for it. Deterministic Launcher fixtures cover language/length/layout variations.
 No redundant Harness implementation row or DM work is introduced for this UI-only
 change. A newly discovered runtime defect must get its own concrete scoped row.
+
+The implemented seam is `EterniaLauncher/lib/shared/conversation_presentation/composer_preview.dart`:
+optional display data read by the existing editor decoration. It owns no source,
+model, store, lifecycle, delivery or send operation. The Console adapter keeps
+its one existing source/action chain; explicit Use/chord fallback remains for
+nonempty drafts and attachments. The linked Launcher plan/evidence records real
+Mission Control and Intelligence editor tests, native acceptance and the
+remaining wider qualification. No Python or live persona configuration changed.
