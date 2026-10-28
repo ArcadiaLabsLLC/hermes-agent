@@ -220,6 +220,14 @@ preserved, so two leads' maps compose into fan-in instead of clobbering each
 other (`flow_graph.py:19-31`). Non-owner edges drawn on a lead's canvas are
 reported, never applied.
 
+How the launcher renders and clicks that map is launcher truth, not this doc's.
+The archived rule set (single-click a node opens that agent's chat;
+double-click-to-expand deferred) is refuted by the launcher tree of 2026-10-28:
+a single tap toggles selection and a double tap selects the node and opens the
+in-scope bound instance (`EterniaLauncher/lib/features/mission_control/flow/agent_flow_graph_editor.dart`
+`_nodeGestures`), and an owner with no authored map gets an empty, unpersisted
+`runtime:<agent>` canvas (`_seedIfAbsent`).
+
 The persisted truth is `PersonaInstance.steered_by` — an ordered **set** of
 parent instance ids (`models.PersonaInstance`), written through the single
 declarative chokepoint `PersonaInstanceStore.set_parents` (in
@@ -877,6 +885,22 @@ anything per-turn volatile — the Runtime Situation HUD, the queued-skill
 preload — rides the operator's *user* turn instead (`:496-511`,
 `_mission_chat_user_message` at `:533`).
 
+That string is one layer of the full prompt, not the whole of it. The chat lane
+hands it to the agent loop as `system_message`, and the loop's
+`agent/system_prompt.py::build_system_prompt_parts` places it in three ordered
+cache tiers: **stable** first (the Hermes core — identity, the help and tool
+guidance, the coding brief), then **context** (this `system_message`, then the
+project context files when the persona opts into them), then **volatile** (the
+skills index, then profile memory and USER.md — only when
+`include_profile_memory` is set, `persona_runtime.py` passes
+`skip_memory=not include_profile_memory` — then the profile line, the timestamp
+and the runtime environment block). Conversation history is not a prompt layer
+at all: it rides the request as the native `conversation_history` messages, and
+the HUD and skill preload trail the current user turn
+(`_mission_chat_user_message`). Verified 2026-10-28; this replaces the archived
+eight-step order, which put memory before history and history inside the
+prompt.
+
 Visual identity is a separate live lane: `agent/charsheet/` generates
 directional character sheets behind `hermes harness` verbs
 (`hermes_cli/harness_parts/characters/`), and a placement carries its sprite as
@@ -1058,24 +1082,6 @@ Each links to a `planned/` file carrying its evidence and the gate to open it.
   (`4a8d398268`); the merge is canon under
   [Realms and workspaces](#realms-and-workspaces) and
   [Skills](#skills). The plan is stamped SHIPPED at `25dfcb897a`.
-
-## Unverified carry-forward
-
-- **Launcher-side entity rendering.** The archived model
-  ([01-architecture.md](archive/2026-08-22-pre-consolidation/01-architecture.md),
-  Part A/C) states Launcher rules — Library shows templates only; single-click
-  an agent opens its home graph; single-click a node opens that agent's chat;
-  double-click-to-expand is deferred. These are Flutter behaviours in
-  `EterniaLauncher`, outside this repo, and were not verified here. The runtime
-  half of the "home graph" resolution (`graph_id = runtime:<owner>`, one map per
-  owner instance) IS verified above; the click semantics are not.
-- **Neko prompt-layer ordering beyond the chat builder.** The eight-step order
-  in
-  [neko-persona-identity-deploy.md](archive/2026-08-22-pre-consolidation/neko-persona-identity-deploy.md)
-  opens with "Hermes core" and closes with profile memory and conversation
-  history. Steps 2–5 are verified above against
-  `_mission_chat_surface_message`; the Hermes-core preamble and the
-  memory/history tail assemble outside this builder and were not re-derived.
 
 ## Supersedes
 

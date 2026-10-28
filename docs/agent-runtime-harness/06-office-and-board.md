@@ -8,7 +8,7 @@ surface: which verbs the level may call, how a write comes back as a fold instea
 of a 5-second rebuild, and what the operator sees between letting go of a chip and
 the runtime agreeing the actor exists. Every claim below was re-checked against
 code, receipts, or the live diag log on 2026-08-22 — anything that could not be
-is quarantined under `## Unverified carry-forward`, and anything not yet built
+is named as unconfirmed where it is cited, and anything not yet built
 lives in `planned/`, not here. The goal/task mission lane was removed 2026-07-30
 and appears nowhere on this surface.
 
@@ -1446,22 +1446,6 @@ Two decisions ride with it:
     hazard for a concurrent folder edit, which is the guard that counter exists
     for. Do not re-propose it as "so clients notice".
 
-## Unverified carry-forward
-
-- **The `~4.3 s laneAbsent` window on page open.** The degrade path is live in
-  code (`office/mission_office_rpc.dart`) and the plans of 2026-08-16
-  size the window at ~4.3 s, but the current diag log's ISO-timestamped era
-  contains **zero** `laneAbsent` lines, so the number is neither confirmed nor
-  refuted today. Source: `OFFICE_WRITE_VERBS_RPC_PLAN_2026-08-16.md` §4.
-- **The page-open write storm ("item 9").** Named unowned by three separate
-  2026-08-16 plans; not re-derived from a live boot this pass. Source:
-  `OFFICE_WRITE_VERBS_RPC_PLAN_2026-08-16.md` §4 / §5 D-W4.
-- **The office controller's incident-repro test exercises the argv fallback, not
-  the RPC path**, because it never overrides `missionOfficeRpcWriterProvider` —
-  so a regression making the RPC arm always `Unavailable` would leave it green.
-  Flagged 2026-08-17; the override list was not re-audited this pass. Source:
-  `SCOUT_LAUNCHER_LANE_MAP_2026-08-17.md` §4.
-
 ## Open rows
 
 - **The delete lane SHIPPED end to end** (R1/D1/D2/D4 hermes, R2/R3/D3/D4
@@ -1574,7 +1558,12 @@ Two decisions ride with it:
   `EterniaLauncher/docs/mission_control/planned/OFFICE_WRITE_LANE_COLLAPSE_2026-10-27.md`
   (the superseded hermes plan: [archive/office-write-lane-collapse.md](archive/office-write-lane-collapse.md))
 - The page-open write storm and the `laneAbsent` window on cold open →
-  [archive/office-page-open-write-storm.md](archive/office-page-open-write-storm.md) (parked 2026-10-27)
+  [archive/office-page-open-write-storm.md](archive/office-page-open-write-storm.md)
+  (parked 2026-10-27). Both are UNCONFIRMED claims, not stated truth: the
+  ~4.3 s window and "item 9" come from the 2026-08-16 plans, the degrade path
+  is live in `office/mission_office_rpc.dart` but the diag log's ISO-timestamped
+  era holds zero `laneAbsent` lines, and nothing has measured either since;
+  they reopen only on a cold-open receipt.
 - The board surface's missing RPC lane and fold coverage →
   [planned/board-surface-rpc-lane.md](planned/board-surface-rpc-lane.md)
 - Remaining console lane-ambiguity: browsable catalog under a failing lane, the

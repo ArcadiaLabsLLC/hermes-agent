@@ -287,19 +287,18 @@ Executed history stays archived. The duplicate-implementation retirement's rows
   exact-equality launcher pin turns a bump into `mayWrite == false`). The retire's two
   assignment guards went in the same wave (tombstone wave `s76`).
 
-  What the row got RIGHT is the half that is deliberately not built: residual rows
-  whose only settle path is close/archive. `PersonaAssignmentStore`'s read/close
-  surface and `harness persona assignments` / `persona instance close`/`archive`
-  SURVIVE, because retiring them would strand residue on live stores with no verb
-  that can reach it — the same reason the launcher's installer keeps its
-  `persona_assignments` preserved-path rows. Read paths retire; stored bytes do not.
-  Full store retirement is now gated on one thing only: a census showing zero
-  residual rows on every store, and that census does not exist yet.
-- Launcher-side handoff (not this repo): the `close`/`archive` bridge lanes have registry
-  rows and argv builders but no dispatcher. (The `allowedArgs` half of this row is
-  CLOSED: `auto_run`/`max_actions`/`max_seconds` are gone from both create specs, and
-  `message` stays DECLARED on purpose — it feeds client-side reads that never rode the
-  argv.)
+  The residual-row half closed later: `72a4f8d3ba` (RT-FULL-PERSONAASSIGNMENTSTORE)
+  retired `PersonaAssignmentStore` and its `persona instance close`/`archive` settle
+  verbs, and archives residual rows byte-for-byte at plugin load instead of waiting
+  for an operator to settle them (`agent_runtime/store_epoch.py` records the path's
+  departure). Stored bytes still do not retire; they move to the archive.
+- ~~Launcher-side handoff: the `close`/`archive` bridge lanes have registry rows and
+  argv builders but no dispatcher.~~ **CLOSED, verified 2026-10-28** in the launcher
+  tree: `persona.instance.close` / `persona.instance.archive` are gone from its registry
+  (`EterniaLauncher/lib/core/services/hermes/runtime/data/capabilities/harness_persona_capabilities.dart`,
+  the RETIRED S70 comment). The `allowedArgs` half was already CLOSED:
+  `auto_run`/`max_actions`/`max_seconds` are gone from both create specs, and `message`
+  stays DECLARED on purpose — it feeds client-side reads that never rode the argv.
 - The `memory` parallel-authority ruling is owed: under the unbounded runtime default the
   upstream `memory` tool is on every chat lane's schema, so it and profile memory
   (`MEMORY.md` / `USER.md`) are two authorities over one question, and an agent can write
@@ -349,9 +348,17 @@ Executed history stays archived. The duplicate-implementation retirement's rows
   model an exec namespace, and `harness.py` imports ~100 names *so the exec'd parts can
   see them*.
 - `updated_by` on `archive_orphaned_surface` — wire it or drop it (recommendation: wire).
-- Cross-stack, launcher-owned: `runtime.office.unsubscribe` has zero launcher callers
-  (NEW-2); a launcher test asserts `provider_auth_expired`, a code hermes cannot emit;
-  `hermes_cli_contract.json` is stale in both directions.
+- Cross-stack, launcher-owned (verified against the launcher tree 2026-10-28):
+  `runtime.office.unsubscribe` is still served
+  (`agent_runtime/serve_rpc/office_read.py::_runtime_office_unsubscribe`) and still has
+  zero launcher callers (NEW-2); `provider_auth_expired` still has no hermes producer
+  (it is only a row in `hermes_cli/harness_support.py`'s exit-code table), and the
+  launcher still feeds it as a bridge error code
+  (`EterniaLauncher/test/features/mission_control/mission_control_snapshot_test.dart`).
+  ~~`hermes_cli_contract.json` is stale in both directions~~ — refuted: the launcher's
+  `test/features/mission_control/fixtures/hermes_cli_contract.json` is byte-identical to
+  hermes's `tests/fixtures/hermes_cli_contract.json`, which `scripts/dump_cli_contract.py
+  --check` reports fresh (227 command paths).
 - Not swept, so absence of a row is not a clean bill: intra-function dead branches inside
   live handlers of `harness.py` / `serve.py` / `harness_parts/persona/`; `core_cache.py` and
   `realm_sync/` internals; `serve_socket.py` and `serve_office_subscriptions.py` lock
@@ -441,6 +448,21 @@ plan at the canon fold; lane shipped as `45abf82803` + `32f41be19f` +
   office push scope predicate is now a documented union over the patch-coverage
   vocabulary rather than a private `office_actor`-only restatement
   (`agent_runtime/serve_office_subscriptions.py:140-163,285`).
+- The other four were re-checked 2026-10-28 and are **LANDED too**: RD-H2 — an
+  unreadable event log refuses the office subscribe typed `baseline_unavailable`
+  instead of minting baseline 0 (`agent_runtime/serve_rpc/office_read.py::_baseline_unavailable`,
+  `serve_office_subscriptions.BASELINE_UNAVAILABLE`); RD-H4 — the projection carries
+  `actors_unreadable` and a remove over an unreadable archive refuses
+  `archive_unreadable` (`office_read.py`, `agent_runtime/office_store/actor_writes.py`);
+  RD-H5 — `build_provider_visibility` records `block_errors`, the human renderer prints
+  "no signed-in providers" only when detection ran
+  (`hermes_cli/harness_parts/usage/commands.py`), and `_fetch_usage_lane`'s fall-through
+  into the upstream swallow is reaped for a typed `UnknownUsageLaneError`
+  (`hermes_cli/harness_parts/usage/lanes.py`); RD-H6 — item 1 is moot (`read_model.enabled`
+  is readerless, `agent_runtime/runtime_config.py::ReadModelConfig`), item 2's CLI and
+  RPC lanes share one `persona_roster_unavailable` refusal
+  (`agent_runtime/agent_create/request.py`), and item 3's bypass is fenced by
+  `tests/agent_runtime/test_persona_roster_bypass_contract.py`.
 
 **From the seam Stage 1 proof (2026-09-23):**
 
@@ -454,45 +476,19 @@ plan at the canon fold; lane shipped as `45abf82803` + `32f41be19f` +
 
 ---
 
-## Unverified carry-forward
-
-Named with its source, carried because dropping it silently would lose it — but **not**
-re-derived in this pass, so do not quote these as current.
-
-- **RD-H2, RD-H4, RD-H5, RD-H6** (the unreadable-event-log baseline `or 0`; the office
-  projection counting what it could not read; provider absence meaning two things plus
-  the dead lane into the swallow; three seam-parity repairs). Source:
-  `REFACTOR_DEBT_AUDIT_2026-08-17.md` §0 items 2–6 and §3. Its line references are
-  against `40b0f0c53a` and have drifted; no commit in the 08-17→08-21 window names an
-  RD stage, and this pass verified only RD-H1 and RD-H3.
-- **The boot cache-hit measurement** (911 ms vs 11,980 ms ready→authoritative). Source:
-  `tool/mission_boot_receipt_audit.dart` output quoted in the launcher Brain's
-  `chat-turn-latency-observability.md`. The audit tool was not re-run here; the serve log
-  alone does not carry a ready→authoritative span.
-- **All launcher-side rows** above (bridge argv, registry `allowedArgs`, the missing
-  `close`/`archive` dispatcher, `hermes_cli_contract.json`, `provider_auth_expired`,
-  `runtime.office.unsubscribe` callers). They live in a repo this pass did not audit;
-  the hermes half of each is what was verified.
-- **The archived 2026-07-09 cProfile store-read profile** (7,302 `raw_decode`, 13,748
-  `nt.stat`, 5,652 `io.open`, 963 `yaml.load` per build). Source: archived doc 14
-  §"Measured profile". It predates the batch resolver, event rotation and `parse_cache`;
-  it motivates open row 3 but must be re-measured before it can size it.
-
----
-
 ## Supersedes
 
 - [`archive/2026-08-22-pre-consolidation/14-snapshot-core-build-performance.md`](archive/2026-08-22-pre-consolidation/14-snapshot-core-build-performance.md)
   — its Slices 1 and 2, the batch-resolver incident and the 2026-08-14 status correction
   are carried into **Landed optimizations**; its remaining-plan item 1 is open row 3,
-  item 2 is closed above, items 3 and 4 shipped. Its 2026-07-09 profile is unverified
-  carry-forward.
+  item 2 is closed above, items 3 and 4 shipped. Its 2026-07-09 profile is kept, dated,
+  only in open row 3's gate.
 - [`archive/2026-08-22-pre-consolidation/19-deferred-debt-ledger.md`](archive/2026-08-22-pre-consolidation/19-deferred-debt-ledger.md)
   — nine still-open rows carried into the debt register; its executed waves (S44–S70, the
   tombstone-registry consolidation, the S56–S58 contract waves) stay archived as history.
 - [`archive/2026-08-22-pre-consolidation/REFACTOR_DEBT_AUDIT_2026-08-17.md`](archive/2026-08-22-pre-consolidation/REFACTOR_DEBT_AUDIT_2026-08-17.md)
-  — RD-H1 and RD-H3 verified landed and dropped; RD-H2/H4/H5/H6 are unverified
-  carry-forward.
+  — all six RD-H classes verified landed and dropped (RD-H1/H3 2026-08-22, RD-H2/H4/H5/H6
+  2026-10-28).
 - [`archive/2026-08-22-pre-consolidation/DEAD_CODE_AUDIT_PASS_2_2026-08-18.md`](archive/2026-08-22-pre-consolidation/DEAD_CODE_AUDIT_PASS_2_2026-08-18.md)
   — its §4 rulings, §5 not-swept scope, §6 cross-stack rows and its refusals are carried;
   its landed stages (HA-*, HB-*, H-CLI-*, H-P*, R*) stay archived.

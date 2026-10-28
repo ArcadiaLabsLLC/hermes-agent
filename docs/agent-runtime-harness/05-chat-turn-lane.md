@@ -400,7 +400,11 @@ hermes-authored `provider_unavailable` refusal block so the journal settles it t
 `request_assembled` landed 2026-08-22 (`785a35beae`) and splits the old "provider" span:
 `provider_request_started → request_assembled` is hermes assembly, `request_assembled →
 provider_first_byte` is client init + network + provider + whatever precedes the first reply-text
-delta (`:352-375`). **`provider_first_byte` is misnamed and kept:** the emitter marks it on the
+delta (`:352-375`). The mark exists because of one live reading — turn `c59ab99e`, 2026-08-22
+02:00Z, where 1,762 ms of a 13,532 ms "provider first_byte" span was hermes work (doc 07, § the
+recorded field numbers); that figure and the same day's phase-joined TTFT splits (alice 17.8 s,
+qa 9.2 s) are session receipts of that date, read through the launcher's audit tooling, and are
+not today's cost. **`provider_first_byte` is misnamed and kept:** the emitter marks it on the
 turn's FIRST REPLY-TEXT DELTA, not the provider's first byte, so reasoning and tool rounds land
 inside it. It is taken on EVERY lane: a turn without `--stream` hands the runner the emitter's
 `first_reply_text` (the stamp, no frames, no elements) as its stream callback — the argv fallback's
@@ -1305,18 +1309,6 @@ operator's text.
 - **The persona binding is not yet the env authority for spawned children** →
   [plan](planned/persona-binding-env-authority.md).
 
-## Unverified carry-forward
-
-Mechanism exists in code; the NUMBER or live condition was not re-measured here.
-
-- **The 1,762 ms hermes share of turn `c59ab99e`** (`mission_chat_phases.py`, 2026-08-22 tree) and the live
-  phase-joined TTFT splits (alice 17.8 s, qa 9.2 s) — 2026-08-22 session receipts, read through the
-  launcher's audit tooling; not reproducible from this repo.
-- **Tool-schema census** (62 core tools / 93,075 bytes vs 34 deferrable / 32,182; 74% core) —
-  `send-policy-decisions-2026-08-09.md` §T7, a registry census on that date. The conclusion it
-  supports — no chat-lane schema budget, because deferral is already maxed and the only remaining
-  lever is the tool restriction the ruling removed — is a decision, not a measurement.
-
 ## Supersedes
 
 `planned/agent-placement-verb.md` — **deleted 2026-08-27 by the S10 fold-in
@@ -1336,7 +1328,7 @@ superseded for the chat-turn lane by this document.
 | `mission-chat-lane-gap-audit.md` | G3/G4/G5/G5b/G6/G7/G10 landed; G1/G2/G9/G11/G12/G13 resolved *for the default posture* by the unbounded ruling (§4); remainder → `planned/chat-lane-context-and-memory-gaps.md` |
 | `chat-session-presence-authority.md` | §8 |
 | `turn-durability-design.md`, `run-budget-accounting.md` | §7 |
-| `send-policy-decisions-2026-08-09.md` | T5 shipped (§3); T2 and T7 are recorded decisions **not** to build |
+| `send-policy-decisions-2026-08-09.md` | T5 shipped (§3); T2 and T7 are recorded decisions **not** to build (T7's registry census — 62 core tools / 93,075 bytes vs 34 deferrable / 32,182, 74% core — is that date's number; the decision, no chat-lane schema budget because deferral is maxed and the only other lever was the removed tool restriction, does not rest on it) |
 | `AGENT_CREATE_ONE_CALL_PLAN_2026-08-16.md`, `UNIFIED_AGENT_CREATE_CALL_PLAN_2026-08-16.md` | both shipped on the hermes side; §9 |
 | `PROVIDER_LOGIN_FIRST_CLASS_PLAN_2026-08-16.md` | PL-1 (`_provider_visibility_catalog` in `hermes_cli/harness.py`) and PL-2 (`hermes_cli/auth_noninteractive.py`) shipped; PL-3/4/5/6 are launcher-repo work, not tracked here |
 | `PERSONA_PROFILE_BINDING_AUTHORITY_PLAN_2026-08-16.md` | B-1 shipped; remainder → `planned/persona-binding-env-authority.md` |

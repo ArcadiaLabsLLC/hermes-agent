@@ -862,22 +862,23 @@ All others under `archive/2026-08-22-pre-consolidation/`:
   MCF-54(ii); both are now encoded rules (`generation_residue` exists, the
   zero-scan exits exist).
 
-## Unverified carry-forward
+## Recorded field numbers
 
-Field numbers relayed from live runs. The receipts that produced them are
-verified above; the numbers cannot be re-derived from the tree. First two from
-`Launcher_Brain/20 — Active Initiatives/chat-provider-timing-and-speed-2026-08-22.md`.
+Dated measurements from live runs. The receipts that produced them are verified
+above; the numbers are that day's and cannot be re-derived from the tree, so each
+is kept for the mechanism it motivated, never quoted as a current cost.
 
 * **~13% of one turn's "provider first_byte" span was hermes work** — turn
-  `c59ab99e`, 2026-08-22 02:00Z: 1,762 ms of 13,532 ms. This is the measurement
-  `request_assembled` was added to attribute.
-* **The felt gateway-vs-Mission-Control gap was mostly the MODEL** —
-  `gpt-5.6-luna` on openai-codex 0.7–1.6 s probe TTFB; `big-pickle` on
-  opencode-zen (FREE tier) 10.7–12.5 s total, `429 FreeUsageLimitError` under a
-  probe burst. CLOSED 2026-08-23: mission chats ride luna via instance
-  overrides. Live luna TTFB expectation (2.2–3.5 s, reasoning at
-  effort=medium): see the canonical note on doc 08's luna row.
+  `c59ab99e`, 2026-08-22 02:00Z: 1,762 ms of 13,532 ms
+  (`Launcher_Brain/20 — Active Initiatives/chat-provider-timing-and-speed-2026-08-22.md`).
+  This is the measurement `request_assembled` was added to attribute (doc 05).
+* **The felt gateway-vs-Mission-Control gap was mostly the MODEL** — closed
+  2026-08-23 (mission chats ride luna via instance overrides). Doc 08's luna row
+  is the one home of those provider figures and the live TTFB expectation; it is
+  not repeated here.
 * **First-build cost, 5 runtime personas, 2026-08-22**: 4,001 ms (3,054 tool
   visibility / 947 readiness walk); later builds in the same process 183 ms
-  (36 / 146). A code comment at `agent_runtime/snapshot/build_log.py:82-84` — verified
-  as written there, not re-measured here.
+  (36 / 146). Recorded in the comment on
+  `agent_runtime/snapshot/build_log.py::AGENTS_READINESS_SPLIT_RECEIPT` (and in
+  `agent_runtime/snapshot/sections.py`); it is why `sections_ms["agents_readiness"]`
+  carries a split receipt, since one number over both halves attributes neither.

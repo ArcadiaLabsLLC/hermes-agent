@@ -1681,23 +1681,31 @@ counters of the session lineage, not quota and not per turn.
 - **`tests/fixtures/stream_frames/README.md` describes thirteen of its fourteen
   pinned files** — `patch_office_actor.json` has no row in the origin table.
 
-## Unverified carry-forward
+## Two persona-chat event properties and the patch-lane saving (verified 2026-10-28)
 
-- **The persona-chat event lane's two 2026-08-09 properties** — that the
-  auto-title now runs AFTER the chat-root lease releases (so
-  `persona_chat.projected` and `persona_chat.metadata_updated` for one turn are
-  separated by a whole auxiliary-LLM round trip, and the root accepts a send in
-  between), and that `persona_chat.send_refused` omits the message text because
-  the sanitising chokepoints sit inside the lease the refusal never took. All
-  three types are registered (`decision_contract_registry.py:184-196`) and
-  emitted from `hermes_cli/harness_parts/persona/chat_events.py` (`_publish_persona_chat_projection_event`,
-  `_publish_persona_chat_metadata_event`, `_publish_persona_chat_send_refused_event`), but the
-  ORDERING claim and the omission RATIONALE were not re-verified against the
-  lease code. Source: `…/mission-control-stream.md:361-383`.
-- **The measured patch-lane saving** — 486 bytes against an 822,671-byte core,
-  the ~99.96% reduction the S6/S7 acceptance names. Cited at
-  `patch_coverage.py:347` and `agent_runtime/stream/frames.py::heartbeat_frame` as 2026-07/08 measurements;
-  not re-measured here, so a historical figure, not a benchmark.
+- **The auto-title runs after the chat-root lease releases.** The settle step
+  publishes `persona_chat.projected` and emits the terminal frame inside the
+  lease, then only PACKAGES the auto-title
+  (`hermes_cli/harness_parts/persona/chat_turn_commit/settle.py::_defer_auto_title`);
+  the caller runs that thunk once the `persona_chat_root_lease` block has
+  exited, and it publishes `persona_chat.metadata_updated` only when the title
+  actually moved. So for one turn the two events are separated by a whole
+  auxiliary-LLM round trip, and the root accepts the next send in between (the
+  2026-08-09 incident: 46 s of `chat_busy` while the answer sat on screen).
+- **`persona_chat.send_refused` never carries the message text.** Operator text
+  has two sanitising chokepoints — chat persistence and the live-log mirror —
+  and both sit inside the lease a refused send never took; the event carries
+  `client_message_id`, `error_kind` and the identity keys, and `lease_owner`
+  reduced to pid / kind / acquired_at
+  (`hermes_cli/harness_parts/persona/chat_events.py::_publish_persona_chat_send_refused_event`).
+- **The patch lane's saving is a mechanism with one historical figure.** A fully
+  coverable batch ships as a v2 `patch` frame of op-based wire patches and no
+  core (`agent_runtime/stream/frames.py::patch_batch_frame`), under the 4 KB cap
+  `patch_coverage` sizes against. The figure quoted for it — 486 bytes where the
+  full core was 822,671, ~99.96% — is a 2026-07/08 measurement repeated in the
+  code comments (`agent_runtime/patch_coverage.py`, `agent_runtime/config/schema.py`,
+  `agent_runtime/harness_doctor/probes.py`); it was not re-taken and is that
+  vintage's number, not a benchmark of today's core.
 
 ## Supersedes
 

@@ -1007,24 +1007,39 @@ log, 13:45–13:46). The `events` section is not the problem; the two walks are.
   LIVE core-cache lane, not the retired database; any revival names a new
   producer (the projector is gone).
   → [archive/read-model-change-feed.md](archive/read-model-change-feed.md) (parked 2026-10-27)
-- **2026-08-22 — the Unverified carry-forward sections have no burn-down
-  owner.** Seven domain docs carry claims from archived sources that no pass
-  has verified against code; nothing schedules that verification.
-  → [planned/unverified-carryforward-burndown.md](planned/unverified-carryforward-burndown.md)
+- ~~**2026-08-22 — the Unverified carry-forward sections have no burn-down
+  owner.**~~ **CLOSED 2026-10-28** (lane w1028a-h-plan): every claim was verified
+  and promoted, refuted or kept with its date, every domain doc's section is
+  gone, and the burn-down plan was deleted with the last one.
 
 ---
 
-## Unverified carry-forward
+## Two store-write guards (verified 2026-10-28)
 
-Both from archived docs, both touching this domain's stores, neither verified
-against current code in this pass:
-
-- **`state.reconciled` bounded-staleness backstop** — SLO "client staleness ≤ 2×
-  heartbeat interval (~10s) for ANY write, rule-compliant or not"
-  ([12-read-path-freshness-hardening.md](archive/2026-08-22-pre-consolidation/12-read-path-freshness-hardening.md)).
-- **Supersede guard at the store chokepoint** — intent basis, `issued_at` /
-  `intent_issued_at`, `superseded` vs `duplicate` outcomes
-  ([13-write-path-intent-integrity.md](archive/2026-08-22-pre-consolidation/13-write-path-intent-integrity.md)).
+- **`state.reconciled` is the bounded-staleness backstop.** Every store mutation
+  is meant to append an event; one that slips the rule would freeze
+  watermark-gated consumers, which only converge on an offset advance. So each
+  stream lane, at heartbeat cadence (`heartbeat_interval_seconds`, default 5.0),
+  fingerprints the state that is not evented at runtime and, when the
+  fingerprint moved while the offset did not, appends a synthetic
+  `state.reconciled` with `source: stream_watchdog`
+  (`agent_runtime/stream/session.py::stream_frames` docstring;
+  `agent_runtime/stream/frames.py::_append_state_reconciled`, whose tail(1)
+  duplicate guard and append share one lock so the hub and `harness stream`
+  cannot both append). The declared SLO is client staleness ≤ 2× the heartbeat
+  interval (~10 s) for ANY write — a design bound stated at the code, not a
+  measurement — and every `state.reconciled` in a log names a producer bug to
+  fix at source.
+- **The supersede guard on the active pointers.** `WorkspaceStore.set_active`
+  and `RealmStore.set_active` are one write,
+  `agent_runtime/store/base.py::apply_activation`, whose compare-and-set
+  (`_resolve_activation_write`) orders intents by their issue instant
+  (`issued_at`, stored as `intent_issued_at`; a caller with none is stamped
+  `now()`), not by arrival: an older basis answers `superseded`, the same basis
+  and target answers `duplicate`, and both write nothing and emit nothing; only
+  `apply` writes the pointer, then the scope patch, then the `<kind>.activated`
+  event. The three words ride the RPC result as `reason`
+  (`ACTIVATION_APPLY` / `ACTIVATION_SUPERSEDED` / `ACTIVATION_DUPLICATE`).
 
 ---
 
