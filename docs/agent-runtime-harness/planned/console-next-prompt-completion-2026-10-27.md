@@ -1,5 +1,9 @@
 # Agent Console follow-up suggestions: completion plan
 
+**October 28 inline amendment: planning only, no runtime implementation.**
+Launcher owns the proposed inline preview under `MC-NEXT-PROMPT-INLINE`.
+Existing implementation authorization does not release that new presentation hold.
+
 Status: PLANNED qualification; implementation authorized by the owner on 2026-10-27.
 The shared extraction and completion changes have landed from the owned worktree.
 Automated checks and baseline classification are recorded. The isolated provider
@@ -40,8 +44,8 @@ and 24-hour expiry are deliberate product differences. Keep them documented as
 differences, not as prerequisites for a useful suggestion feature or proof of
 superiority. The Launcher plan owns its separate UI parity inventory.
 
-This completion pass extracts reusable helper logic behind the Console adapter
-and extends that single implementation. It does not rebuild the scheduler/store,
+The completed separation extracted reusable helper logic behind the Console
+adapter. The inline amendment does not rebuild the scheduler/store,
 introduce another generator or restore the Desktop REST stack.
 Earlier question-only and empty-draft-only proposals were revised during planning;
 they are not a shipped restriction to remove. Temporary mutation-test changes
@@ -50,7 +54,7 @@ were restored to verify tests; they were not product rollbacks.
 ## Fixed decisions and existing owners
 
 - User-facing surface: Agent Console; feature: Follow-up suggestions. Global
-  Settings > Eternia Harness > Agent Console remains the sole switch location.
+  Settings > Eternia Harness > Composer remains the sole switch location.
 - `agent_runtime/console_suggestions/settings.py::SuggestionSettings` and its
   existing config transaction remain the settings authority. The existing
   `plugins.entries.eternia-harness.settings.console_suggestions_enabled` defaults
@@ -93,16 +97,15 @@ These checks belong to RT-NEXT-PROMPT-PROVIDER-EVAL, not a new routing authority
 
 ## Shared capability and Console adapter — planned separation
 
-`RT-NEXT-PROMPT-SEPARATION` precedes generation parity. The current implementation
-is not yet consumer-neutral: generation combines reusable prompt/cleanup logic
-with Console task registration, while `ConsoleSuggestions` authorizes Console
-subjects and reads persona history. Constructor injection alone does not remove
-those assumptions. Extract the existing capability; do not copy it into a second
-implementation or turn the Console service into an all-chat authority.
+`RT-NEXT-PROMPT-SEPARATION` was completed before native acceptance. The original
+audit found reusable generation mixed with Console task registration. The shared
+helper now lives in `agent_runtime/suggestions/generation.py`; the Console adapter
+retains task registration, authorization and persona history. Preserve that
+separation; do not copy it or turn the Console service into an all-chat authority.
 
 | Responsibility | Planned home and dependency |
 | --- | --- |
-| Free-form prompt construction, language reminder, output cleanup/redaction, generation result shape | Proposed `agent_runtime/suggestions/`; lift existing logic from `agent_runtime/console_suggestions/generation.py::generate_suggestion` and `agent_runtime/suggestions/generation.py::clean_suggestion`. Consume bounded admitted messages and an explicitly supplied completion callable; return text/absence and actual provider/model/usage facts. No Console/persona identity, config lookup, transcript reader or RPC dependency. |
+| Free-form prompt construction, language reminder, output cleanup/redaction, generation result shape | Existing `agent_runtime/suggestions/generation.py`, called by `agent_runtime/console_suggestions/generation.py::generate_suggestion`. Consume bounded admitted messages and an explicitly supplied completion callable; return text/absence and actual provider/model/usage facts. No Console/persona identity, config lookup, transcript reader or RPC dependency. |
 | Plugin registration and serving-head auxiliary connection | Existing `agent_runtime/console_suggestions/generation.py::register_suggestion_task` and the Console generation adapter bind the current plugin context and `console_next_prompt` task to the shared helper. The callback delegates to `ctx.llm.complete`; the shared helper does not select a model, construct a provider client or resolve credentials. |
 | Console authorization, context selection and lifecycle | Existing `agent_runtime/console_suggestions/service.py::ConsoleSuggestions`, Console RPC and `agent_runtime/persona_chat_history/suggestion_context.py::suggestion_context` remain the adapter to existing owners. Validate exact subject, permissions and committed source before reading history or invoking generation; preserve invalidation and use-time checks. |
 | Configuration, scheduling, receipts, retention and notifications | Existing Console settings/service/store/notification owners remain single instances. They coordinate this consumer; they are not a new cross-surface platform. Keep current storage and wire contracts. |
@@ -315,3 +318,40 @@ and the default-off Eternia Harness global setting are unchanged. No DM work.
 Qualification evidence is updated after native composer verification; this
 section records the implementation decision, not a claim that the entire
 provider/runtime placement matrix has passed.
+
+## Inline presentation boundary — October 28, 2026 (planning only)
+
+The owner requested a muted preview inside Launcher's empty composer, accepted
+as ordinary editable text with Tab. The implementation contract is solely
+`EterniaLauncher/docs/mission_control/planned/CONSOLE_NEXT_PROMPT_COMPLETION_2026-10-27.md`
+under its inline amendment, tracked by Launcher `MC-NEXT-PROMPT-INLINE`.
+This is presentation of the existing full free-form follow-up, not a token stream
+or a request to generate completions for every keystroke. The inline work is held
+until implementation is explicitly requested. Prior native strip evidence is not
+inline acceptance evidence.
+
+No Python, plugin, storage, RPC, capability version, setting or auxiliary task
+change is planned. `agent_runtime/suggestions/generation.py` remains the reusable
+helper; `agent_runtime/console_suggestions/generation.py` binds the existing
+plugin facade and `console_next_prompt` task. Existing serving-head inheritance,
+explicit override/reset and stock `next_prompt` coexistence semantics stay intact.
+No copying of persona system prompts, persona model changes or extra history.
+
+The current `agent_runtime/serve_rpc/console_suggestions.py` methods and service
+remain authoritative: exact account/persona/session ownership, source revision,
+policy epoch, visibility, bounded scheduling, NULL/error outcomes, read-before-use
+and conditional dismissal. Drawing/hiding preview or editing text must not add
+subscriptions, polling, provider calls, leases, receipts or a parallel acceptance
+store. Only a successful insertion is acknowledged as used. Disabling invalidates
+pending output through the existing policy; an already issued call may finish
+but must not publish. The false default remains under Eternia Harness > Composer;
+live user choices remain untouched.
+
+After the Launcher inline change is authorized and implemented, extend the
+existing `RT-NEXT-PROMPT-PROVIDER-EVAL` evidence with the actual native preview/Tab
+journey, unchanged persona and auxiliary route facts, single-producer counts,
+initial-off and disable-in-flight/off-after-reply behavior. Native normal chat
+must still work with suggestions off and generate no new suggestion attempts.
+Keep the broader provider/placement matrix open until separately measured.
+No redundant Harness implementation row or DM work is introduced for this UI-only
+change. A newly discovered runtime defect must get its own concrete scoped row.
