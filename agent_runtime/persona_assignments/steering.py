@@ -125,8 +125,6 @@ def detach_parents(store: PersonaInstanceStore, persona_instance_id: str) -> Per
         "goal_id": None,
         "current_task_id": None,
     }
-    if instance.mode == "task_bound":
-        updates["mode"] = "configured"
     store._commit_steer(instance, updates, added=[], removed=removed, detached=True)
     return store.get(instance.id)
 
@@ -260,11 +258,10 @@ def _apply_steer_edges(
         # Denormalized legacy mirror: the primary (first) parent, for old
         # readers still keyed on the scalar. Single writer, single source.
         "spawned_by": normalized[0],
+        # A goal is a correlation id the launcher groups agent rooms by, never a
+        # task binding: no mode and no current_task_id (RT-TASK-BOUND-VOCABULARY).
         "goal_id": resolved_goal,
     }
-    if resolved_goal:
-        updates["mode"] = "task_bound"
-        updates["current_task_id"] = resolved_goal
     added = [pid for pid in normalized if pid not in before]
     removed = [pid for pid in before if pid not in normalized]
     store._commit_steer(instance, updates, added=added, removed=removed, detached=False)

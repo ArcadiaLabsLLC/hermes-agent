@@ -39,7 +39,7 @@ def native(tmp_path, monkeypatch):
     for state, metadata in [("executing", {}), ("native_committed", {"stored_reply": "Here is the explanation.", "native_committed": True}),
                             ("projected", {"projection_committed": True})]:
         transition_mission_chat_turn(session_id=session, client_message_id="message", turn_id="turn", state=state, elements=[], metadata=metadata)
-    target = dict(install_id=install, workspace_id="ws", persona_id="builder", persona_instance_id=instance,
+    target = dict(install_id=install, workspace_id=None, persona_id="builder", persona_instance_id=instance,
         session_id=session, client_scope=scope)
     return home, target
 

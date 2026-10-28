@@ -25,6 +25,7 @@ from agent_runtime.persona_assignments.identity import (
     canonical_persona_instance_id,
     chat_session_is_foreign_to_instance,
     chat_session_owner_instance_id,
+    is_canonical_persona_channel,
     persona_chat_session_id_for,
     persona_instance_id_for,
 )
@@ -290,7 +291,6 @@ def open_chat(
     display_name: str | None = None,
     default_display_name: str | None = None,
     profile_id: str | None = None,
-    kill_active: bool = False,
     workspace_id: str | None = None,
     realm_id: str | None = None,
 ) -> PersonaInstance:
@@ -448,7 +448,10 @@ def _apply_open_fields(
     # authoritative placement-scope claim (the launcher stamps its active
     # scope when minting a placement) and applies on create AND re-open; an
     # omitted one never clears an existing pointer (plain chat re-opens
-    # don't know scope and must not erase it).
+    # don't know scope and must not erase it). A canonical operator channel takes
+    # no pointer at all: it is plumbing, never a placement (RT-GLOBAL-SINGLETON-CANONICAL).
+    if is_canonical_persona_channel(instance):
+        return
     safe_workspace_id = safe_assignment_token(workspace_id) if workspace_id is not None else None
     safe_realm_id = safe_assignment_token(realm_id) if realm_id is not None else None
     if safe_workspace_id:
@@ -707,7 +710,6 @@ def create_operator_chat(
     persona_id: str,
     display_name: str,
     session_id: str | None = None,
-    kill_active: bool = False,
 ) -> PersonaInstance:
     normalized_persona = _normalize_instance_source_persona(persona_id)
     instance_id = persona_instance_id_for(normalized_persona)
@@ -736,5 +738,4 @@ def create_operator_chat(
         ),
         display_name=display_name,
         profile_id=_profile_id_for_persona_or_template(normalized_persona, ensure_persisted_personas),
-        kill_active=kill_active,
     )

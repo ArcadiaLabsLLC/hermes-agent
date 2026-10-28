@@ -64,7 +64,9 @@ the operator ruling of 2026-07-18, "instance = in-level placement", which
 ## Slices
 
 **S1 — canonicals are global on read and write, stored pointers cleared** (row
-`RT-GLOBAL-SINGLETON-CANONICAL`, READY)
+`RT-GLOBAL-SINGLETON-CANONICAL`, shipped 2026-10-27 by lane w1028a-h-persona: the clearing
+phase lives in `persona_assignments/repair.py::clear_canonical_scope_pointers`, called as
+the reconciler's phase 6; tests in `tests/agent_runtime/test_canonical_channel_global_storage.py`)
 
 - `agent_runtime/persona_assignments/store.py` — `_decode_instance`, used by `get` and `scan_all`.
 - `agent_runtime/workspace_scope.py` — docstring of `exclude_global_canonicals` and the module note.

@@ -2167,7 +2167,14 @@ def _task_bound_goal_instance(goal_id: str = "goal_alpha", persona_id: str = "de
     instance.goal_id = goal_id
     instance.current_task_id = goal_id
     instance = store.update(instance)
-    assert instance.mode == "task_bound", instance.mode
+    # Stored task_bound; the decode reads the steer-shaped row as ordinary
+    # (RT-TASK-BOUND-VOCABULARY), so the historical shape is checked on disk.
+    import json as _json
+
+    from agent_runtime import paths as _paths
+
+    stored = _json.loads(_paths.persona_instance_path(instance.id).read_text(encoding="utf-8"))
+    assert stored["mode"] == "task_bound", stored["mode"]
     return instance
 
 

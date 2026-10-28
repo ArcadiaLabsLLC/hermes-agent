@@ -23,9 +23,11 @@ if TYPE_CHECKING:
 __layer__ = "stores"
 
 __all__ = [
+    "clear_canonical_scope_pointers",
     "repair_missing_chat_session_bindings",
     "repair_missing_steering_references",
     "repair_non_instance_steering",
+    "retire_task_bound_rows",
 ]
 
 
@@ -214,8 +216,9 @@ def repair_missing_chat_session_bindings(
       positively-enumerating SessionDB; an unavailable, unreadable or empty
       database repairs nothing at all (see :func:`_session_presence_probe`),
       because a blind read must never reap a live pointer;
-    * ``task_bound`` instances are skipped entirely — a mission turn runs in
-      a session that lives in the run/event stream and is legitimately absent
+    * an instance with a ``current_task_id`` (a mission-shaped row the
+      reconciler's phase 0 has not archived yet) is skipped — a mission turn runs
+      in a session that lives in the run/event stream and is legitimately absent
       from the operator SessionDB;
     * an instance with a live worker/run binding is held;
     * ``apply=False`` is a pure report: no writes, no events.
@@ -249,9 +252,7 @@ def repair_missing_chat_session_bindings(
         pointers = {pointer for pointer in pointers if pointer}
         if not pointers:
             continue
-        if (instance.mode or "").lower() == "task_bound" or safe_optional_token(
-            instance.current_task_id
-        ):
+        if safe_optional_token(instance.current_task_id):
             # Mission sessions live in the run/event stream, not SessionDB.
             continue
         missing = sorted(session_id for session_id in pointers if probe(session_id) == "absent")
@@ -302,3 +303,83 @@ def repair_missing_chat_session_bindings(
         "held": held,
         "held_count": len(held),
     }
+
+
+def clear_canonical_scope_pointers(store: PersonaInstanceStore, *, apply: bool = True) -> list[dict[str, Any]]:
+    """Clear ``workspace_id`` / ``realm_id`` STORED on canonical operator channels.
+
+    The store's decode already reads them as ``None`` (RT-GLOBAL-SINGLETON-CANONICAL), so
+    this is hygiene: it reads the RAW rows (the decode would hide what is stored),
+    rewrites each pointer-bearing canonical through the decode, and emits one
+    ``persona_instance.reconciled`` with ``action: "canonical_scope_cleared"``. ``apply=False``
+    reports and writes nothing; a second apply finds nothing.
+    """
+    import json
+
+    from agent_runtime import paths
+    from agent_runtime.persona_assignments.identity import row_is_canonical_persona_channel
+
+    directory = paths.persona_instances_dir()
+    cleared: list[dict[str, Any]] = []
+    for path in sorted(directory.glob("*.json")) if directory.exists() else []:
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue  # an unreadable row is scan_all's to account, not this phase's
+        if not isinstance(raw, dict) or not row_is_canonical_persona_channel(raw.get("id"), raw.get("persona_id")):
+            continue
+        if not (raw.get("workspace_id") or raw.get("realm_id")):
+            continue
+        item = {"persona_instance_id": raw["id"], "workspace_id": raw.get("workspace_id"),
+                "realm_id": raw.get("realm_id"), "action": "canonical_scope_cleared"}
+        cleared.append(item)
+        if apply:
+            instance = store.get(raw["id"])  # decoded: the pointers already read None
+            store._write(instance)
+            store._event("persona_instance.reconciled", instance, dict(item))
+    return cleared
+
+
+def retire_task_bound_rows(store: PersonaInstanceStore, *, apply: bool = True) -> dict[str, list[dict[str, Any]]]:
+    """Retire every STORED ``mode == "task_bound"`` row (RT-TASK-BOUND-VOCABULARY).
+
+    The decode already reads a steer-shaped row (its task IS its goal) as an
+    ordinary instance; this persists that as ``normalised``. A mission-shaped
+    row (a task that is not its goal) is a retired-lane mission: it is moved to a
+    ``*_retire`` archive (archive-never-delete, a retirement tombstone) and listed
+    as ``archived`` — except a canonical operator channel, which retire never
+    ends and which is normalised instead. One ``persona_instance.reconciled`` per
+    row; ``apply=False`` reports and writes nothing; a second apply finds nothing.
+    """
+    import json
+
+    from hermes_time import now
+
+    from agent_runtime import paths
+    from agent_runtime.persona_assignments.identity import row_is_canonical_persona_channel
+
+    directory = paths.persona_instances_dir()
+    report: dict[str, list[dict[str, Any]]] = {"normalised": [], "archived": []}
+    archive_dir = paths.persona_instances_archive_dir() / f"{now().strftime('%Y%m%dT%H%M%SZ')}_task_bound_retire"
+    for path in sorted(directory.glob("*.json")) if directory.exists() else []:
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue  # an unreadable row is scan_all's to account, not this phase's
+        if not isinstance(raw, dict) or raw.get("mode") != "task_bound":
+            continue
+        task_id, goal_id = raw.get("current_task_id") or None, raw.get("goal_id") or None
+        mission = task_id != goal_id and not row_is_canonical_persona_channel(raw.get("id"), raw.get("persona_id"))
+        action = "task_bound_archived" if mission else "task_bound_normalised"
+        item = {"persona_instance_id": raw.get("id"), "current_task_id": task_id, "goal_id": goal_id, "action": action}
+        report["archived" if mission else "normalised"].append(item)
+        if not apply:
+            continue
+        instance = store.get(raw["id"])
+        if mission:
+            store._archive_instance_row(instance, archive_dir)
+        else:
+            instance.mode, instance.current_task_id = "configured", None  # a canonical mission row too
+            store._write(instance)
+        store._event("persona_instance.reconciled", instance, dict(item))
+    return report

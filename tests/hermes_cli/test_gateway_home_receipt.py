@@ -442,13 +442,14 @@ def _preparse_source() -> str:
         "RESOLUTION_ENV_PROFILE_DIR",
         "RESOLUTION_ACTIVE_PROFILE_MARKER",
         "RESOLUTION_DEFAULT",
+        "RESOLUTION_BINDING_PINNED",
     ],
 )
-def test_the_rung_vocabulary_is_exactly_the_four_named_rungs(constant):
+def test_the_rung_vocabulary_is_exactly_the_five_named_rungs(constant):
     from hermes_cli import gateway_home_receipt
 
     assert getattr(gateway_home_receipt, constant) in RESOLUTION_RUNGS
-    assert len(RESOLUTION_RUNGS) == len(set(RESOLUTION_RUNGS)) == 4
+    assert len(RESOLUTION_RUNGS) == len(set(RESOLUTION_RUNGS)) == 5
 
 
 @pytest.mark.parametrize(
@@ -458,6 +459,7 @@ def test_the_rung_vocabulary_is_exactly_the_four_named_rungs(constant):
         "RESOLUTION_ENV_PROFILE_DIR",
         "RESOLUTION_ACTIVE_PROFILE_MARKER",
         "RESOLUTION_DEFAULT",
+        "RESOLUTION_BINDING_PINNED",
     ],
 )
 def test_each_resolution_rung_is_the_literal_the_preparse_writes(constant):

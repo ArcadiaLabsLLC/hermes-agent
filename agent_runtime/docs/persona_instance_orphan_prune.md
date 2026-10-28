@@ -33,8 +33,9 @@ these rows lingered forever with no prune and no accounting.
   enumerated (empty/failed read), `profile:*` rows are NEVER classified
   `orphan-no-profile` (a missing template is indistinguishable from an
   unreadable catalog — a blind catalog must not reap real profile channels).
-- **Protection (held, never pruned)**: active worker/run/assignment/task binding,
-  `mode == "task_bound"`, or a fresh heartbeat (<24h). Recent `updated_at`
+- **Protection (held, never pruned)**: active worker/run/assignment/task binding
+  or a fresh heartbeat (<24h); `mode == "task_bound"` alone no longer holds
+  (RT-TASK-BOUND-VOCABULARY). Recent `updated_at`
   (<48h) also protects ordinary orphans, but not retired definitions because
   the lifecycle predicate prevents their rematerialization. The reconcile
   prune re-verifies with the cross-store `_has_live_binding` as a belt.

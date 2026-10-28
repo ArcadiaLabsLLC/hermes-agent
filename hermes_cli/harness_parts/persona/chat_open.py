@@ -103,23 +103,6 @@ def _cmd_persona_instance_open_chat(args) -> int:
             _emit_persona_verb_payload(args, data, plain=data["status"])
             return 2
         coordinator_scope = auth.scope
-    elif coordinator_id and bool(getattr(args, "kill_active", False)):
-        coordinator_scope = _coordinator_scope_from_args(args, cfg, persona)
-        try:
-            target = PersonaInstanceStore().get(persona_instance_id_for(persona_id))
-        except Exception:
-            target = None
-        auth = review_coordinator_budget(
-            "persona.instance.close",
-            coordinator_scope,
-            target,
-            actor=coordinator_id,
-            coordinator_id=coordinator_id,
-        )
-        if not auth.ok:
-            data = _coordinator_confirm_payload("persona.instance.close", coordinator_id, auth)
-            _emit_persona_verb_payload(args, data, plain=data["status"])
-            return 2
     if bool(getattr(args, "new_session", False)):
         return _cmd_persona_instance_open_new_chat(
             args,
@@ -305,7 +288,6 @@ def _cmd_persona_instance_open_chat(args) -> int:
                     persona_id=persona_id,
                     persona_instance_id=target_instance_id,
                     session_id=args.session_id,
-                    kill_active=bool(getattr(args, "kill_active", False)),
                 )
             except ValueError as exc:
                 data = {
@@ -382,7 +364,6 @@ def _cmd_persona_instance_open_chat(args) -> int:
             "instance_updated_at": instance_updated_at,
         },
         "chat_busy": False,
-        "killed_previous": bool(getattr(args, "kill_active", False)),
         "add_instance": bool(getattr(args, "add_instance", False)),
         "placement_id": safe_assignment_token(getattr(args, "placement_id", None)) or None,
         "coordinator_permission_scope": asdict(coordinator_scope) if coordinator_scope is not None else None,
@@ -477,7 +458,6 @@ def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_sc
                        or f"{current.display_name} chat"),
                 select=getattr(args, "select_session", True),
                 client_scope=getattr(args, "client_scope", None),
-                kill_active=bool(getattr(args, "kill_active", False)),
             )
     except ConversationOwnerError as exc:
         return _emit_persona_open_chat_error(
@@ -525,7 +505,6 @@ def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_sc
         "session_id": receipt.session_id,
         "mission_chat_root_id": receipt.session_id,
         "chat_busy": False,
-        "killed_previous": bool(getattr(args, "kill_active", False)),
         "add_instance": False,
         "new_session": True,
         "selected": selected,

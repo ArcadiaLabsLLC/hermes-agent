@@ -71,7 +71,10 @@ prefixed `personainst_` (`models.py:15`), and there are exactly two derivations:
 - a **placement-backed** row — `persona_instance_id_for_placement(placement_id)`
   (its neighbour there), whose tail is the scene `itemId`.
 
-`is_canonical_persona_channel` is the live discriminator between them.
+`is_canonical_persona_channel` is the live discriminator between them. A canonical
+channel carries no scene claim: the store's decode (`persona_assignments/store.py::_decode_stored_instance`)
+reads its `workspace_id` / `realm_id` as `None`, the bind stamps none, and the reconciler's
+phase 6 clears any an older bind stored (`canonical_scope_cleared`).
 Every id arriving from outside the store passes the single derivation authority
 `canonical_persona_instance_id` (both in the same file), which folds the two structurally
 recognizable drift schemes; ids predating that chokepoint are folded by
@@ -1055,14 +1058,13 @@ and the final acceptance are in
 
 Each links to a `planned/` file carrying its evidence and the gate to open it.
 
-- 2026-08-22 — **`--kill-active` is a no-op that reports success**: accepted by
-  `open_chat`, never read; the CLI echoes the operator's own flag back as
-  `killed_previous` →
-  [planned/chat-swap-kill-active-guard.md](planned/chat-swap-kill-active-guard.md)
-- 2026-08-22 — **`mode="task_bound"` is still written** by a flag documented as
-  a correlation id, five readers still branch on it, and `TaskStoreStub` has
-  lost the upstream caller its permanence rests on →
-  [planned/task-bound-vocabulary-retirement.md](planned/task-bound-vocabulary-retirement.md)
+- 2026-10-27 — **`--kill-active` is accepted and ignored** (S1 shipped: no
+  `killed_previous`, no close review); refusing it waits on the launcher →
+  [planned/chat-open-kill-active-retirement-2026-10-27.md](planned/chat-open-kill-active-retirement-2026-10-27.md) S2
+- 2026-10-28 — **`mode="task_bound"` is no longer written** (S1 shipped: `--goal` is a
+  correlation id, steer-shaped rows decode as ordinary, reconcile phase 0 archives mission
+  rows); the mission-row lanes and `TaskStoreStub` remain →
+  [planned/task-bound-mode-retirement-2026-10-27.md](planned/task-bound-mode-retirement-2026-10-27.md)
 - 2026-08-22 — **a writer-less lane store still projects onto `status`**
   (`foreground_runtime`, `runtime_instances`), and two live docstrings describe
   deleted execution lanes →
@@ -1070,9 +1072,9 @@ Each links to a `planned/` file carrying its evidence and the gate to open it.
 - Deferred by design — **no node taxonomy, no sub-graph expansion**; the Node
   Charter's four questions are unanswered for every candidate →
   [archive/graph-node-taxonomy-and-subgraphs.md](archive/graph-node-taxonomy-and-subgraphs.md) (parked 2026-10-27)
-- Queued — **the global-singleton persona-instance redesign**, cited at
-  `persona_assignments.persona_instance_id_for` →
-  [planned/global-singleton-persona-instances.md](planned/global-singleton-persona-instances.md)
+- 2026-10-27 — **the global-singleton persona-instance redesign**: canonical channels
+  are global in storage (S1 shipped); the bare-persona SEND fallback stays →
+  [planned/canonical-channel-global-storage-2026-10-27.md](planned/canonical-channel-global-storage-2026-10-27.md)
 - 2026-08-24 — **a character's state vocabulary is fixed at `start`**: there is
   no `characters add-state`, so adding a strip to an installed sheet means
   re-authoring the character →

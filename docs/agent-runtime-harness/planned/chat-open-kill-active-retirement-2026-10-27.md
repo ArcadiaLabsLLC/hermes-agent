@@ -51,7 +51,7 @@ Owner doc: [`../01-system-architecture.md`](../01-system-architecture.md).
 
 ## Slices
 
-**S1 — no more `killed_previous`, no review, key ignored** (row `RT-CHAT-SWAP-KILL-ACTIVE-NOOP`, READY)
+**S1 — no more `killed_previous`, no review, key ignored** (row `RT-CHAT-SWAP-KILL-ACTIVE-NOOP`, shipped)
 
 - `hermes_cli/harness_parts/persona/chat_open.py` — delete the `kill_active` coordinator
   branch and both `killed_previous` keys; `--kill-active` stays parsed but unread.
@@ -74,7 +74,10 @@ Owner doc: [`../01-system-architecture.md`](../01-system-architecture.md).
 
 - `agent_runtime/persona_open_chat.py`, `agent_runtime/chat_verbs/instance_create.py`,
   `agent_runtime/serve_rpc/twin_params.py` — remove `kill_active` from the accepted
-  keys, so a sender is told `-32602` with `reason: "kill_active_retired"`.
+  keys, so a sender is told `-32602` with `reason: "kill_active_retired"`. Dropping the key
+  alone refuses nothing: the lane ignores unknown params by contract
+  (`agent_runtime/serve_rpc/registry.py::manifest`), so S2 adds an explicit refusal in each
+  handler (found by S1's killing mutation, lane w1028a-h-persona).
 - `hermes_cli/harness_parts/parser/persona.py` — remove `--kill-active`.
 - `tests/agent_runtime/serve_rpc_manifest.expected.json` — the two `kill_active`
   entries go.

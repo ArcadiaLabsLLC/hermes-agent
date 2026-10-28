@@ -35,17 +35,16 @@ addressable view:
   kept unplaced canonicals addressable everywhere made an agent's Runtime
   Situation HUD advertise personas that were not on its level (live 2026-07-24:
   a level with two placements advertised five agents, and the agent's fan-out
-  message to the unplaced ones was refused). A canonical row that DOES carry a
-  workspace pointer follows that pointer like any other row; with no active
-  workspace at all (scope ``None``) the exclusion is off — the degrade path
-  never hides the whole roster.
+  message to the unplaced ones was refused). A canonical row never carries a
+  workspace pointer: the store decodes it as ``None`` and the bind stamps none
+  (RT-GLOBAL-SINGLETON-CANONICAL); with no active workspace at all (scope
+  ``None``) the exclusion is off — the degrade path never hides the whole roster.
 - "Placements shadow canonical" (:func:`shadow_canonical_by_placement`): when
   an in-scope placement of a persona exists, that persona's canonical row is
   NOT advertised to — nor bare-persona-resolved for — an AGENT, so a bare
   persona id lands on the deliberate placement instead of the plumbing row.
   Under a real scope the exclusion above already removed global canonicals;
-  the shadow still de-dupes pointer-bearing canonicals and the ``None``-scope
-  degrade path.
+  the shadow still covers the ``None``-scope degrade path.
 
 NOTE the deliberate residual asymmetry: bare-persona SEND resolution still
 falls back to the canonical channel when a persona has no in-scope placement
@@ -238,10 +237,11 @@ def exclude_global_canonicals(
     Instance = in-level placement (operator ruling 2026-07-18): a runtime-global
     canonical row (no ``workspace_id`` claim) is plumbing, not a level presence,
     so it must not be advertised into a workspace's "On level" roster nor listed
-    to an agent as an addressable peer. A canonical row that carries a workspace
-    pointer made a scene claim and is treated by that pointer (it already passed
-    :func:`scope_roster` to get here). Scope ``None`` (no active workspace)
-    keeps the degrade contract: nothing is dropped.
+    to an agent as an addressable peer. A stored canonical decodes with no
+    pointer (``persona_assignments.store._decode_stored_instance``), so the pointer
+    clause below matters only to a predicate whose canonical rows were not read
+    through the store. Scope ``None`` (no active workspace) keeps the degrade
+    contract: nothing is dropped.
 
     Purely subtractive over the ADDRESSABLE view, order preserved, inputs never
     mutated — identity/steering resolution keeps the full roster.

@@ -237,6 +237,7 @@ def _apply_profile_home(env: dict) -> None:
     try:
         if value := get_hermes_home_override():
             env["HERMES_HOME"] = value
+            env["HERMES_PROFILE_PINNED"] = "1"  # fork: a BOUND home, not an ambient root (RT-PERSONA-BINDING-ENV-REPLAN)
     except Exception:
         pass
     from agent_runtime.run_context import apply_run_context_child_env  # fork seam: the run's root + auth home (run-serialization S2)

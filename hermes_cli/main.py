@@ -620,6 +620,9 @@ def _apply_profile_override() -> None:
     if profile_name is None and hermes_home_env and Path(hermes_home_env).parent.name == "profiles":
         os.environ["HERMES_PROFILE_RESOLUTION"] = "namespace" if _namespace else "env_profile_dir"  # fork: receipt
         return
+    if profile_name is None and hermes_home_env and os.environ.get("HERMES_PROFILE_PINNED"):  # fork: a persona binding's
+        os.environ["HERMES_PROFILE_RESOLUTION"] = "binding_pinned"  # child keeps its bound home, never active_profile
+        return
 
     if (profile_name is None and not _under_gateway_supervisor(argv)
             and not _startup_fast.is_desktop_ssh_backend_argv(argv)

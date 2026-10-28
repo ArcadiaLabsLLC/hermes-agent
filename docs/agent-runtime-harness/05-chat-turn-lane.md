@@ -222,6 +222,13 @@ all. It applies and discards nothing; staging approval is a later write verb.
 `test_operator_session_inspection` proves profile isolation, the pending projection, no
 file created and the owner refusal.
 
+A child spawned inside a persona turn carries the binding: the child-env builder
+(`tools/environments/local.py::_apply_profile_home`) states the bound home as `HERMES_HOME`
+and, only when a home was bound, `HERMES_PROFILE_PINNED=1`, so a child `hermes` of a
+`default`-bound turn (whose home is the root) keeps it instead of following the sticky
+`active_profile` (`hermes_cli/main.py::_apply_profile_override`, receipt `binding_pinned`;
+[plan](planned/persona-binding-child-default-profile-2026-10-27.md)).
+
 `runtime.operator.conversation.permissions` uses those same exact-target and
 owner checks, then resolves `permission_state` through
 `tool_permissions.permission_state_for_chat` inside the owning profile scope.
@@ -1306,8 +1313,6 @@ operator's text.
 - **Chat-lane context, memory and affordance gaps** — core-context/profile-memory knobs with no
   operator surface, no shell hooks, no slash commands, no attachment *input*, no per-turn worktree
   isolation, skill surface filter → [plan](planned/chat-lane-context-and-memory-gaps.md).
-- **The persona binding is not yet the env authority for spawned children** →
-  [plan](planned/persona-binding-env-authority.md).
 
 ## Supersedes
 
