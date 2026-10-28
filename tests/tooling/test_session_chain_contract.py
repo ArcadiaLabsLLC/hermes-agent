@@ -11,6 +11,7 @@ mutation is named in its docstring and recorded in the commit that landed it.
 
 from __future__ import annotations
 
+import errno
 import os
 import socket
 import sys
@@ -170,7 +171,13 @@ def test_a_real_loopback_listener_still_connects(family, host):
     """``closed_loopback.py``: the "nothing listens" probe sees a listener on loopback or either wildcard,
     and the connect reaches it. Mutation: make ``port_is_unbound`` return True."""
 
-    with socket.socket(family, socket.SOCK_STREAM) as server:
+    try:
+        server = socket.socket(family, socket.SOCK_STREAM)
+    except OSError as exc:  # a host whose kernel has no IPv6 (EAFNOSUPPORT) has no "::" wildcard to listen on
+        if family == socket.AF_INET6 and exc.errno == errno.EAFNOSUPPORT:
+            pytest.skip("this host has no IPv6 stack")
+        raise
+    with server:
         if family == socket.AF_INET6:
             server.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         server.bind((host, 0))

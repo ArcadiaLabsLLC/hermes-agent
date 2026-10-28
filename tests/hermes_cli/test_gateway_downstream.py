@@ -102,6 +102,8 @@ def test_run_gateway_windows_foreground_keeps_ctrl_c_enabled(monkeypatch):
     _install_fake_gateway_run(monkeypatch, fake_start_gateway)
     monkeypatch.setattr(gateway, "is_windows", lambda: True)
     monkeypatch.setattr(gateway, "supports_systemd_services", lambda: False)
+    # The service-conflict guard asks the real host's Task Scheduler; this test is about console controls.
+    monkeypatch.setattr(gateway, "_is_service_installed", lambda: False)
     monkeypatch.setattr(gateway.sys, "stdin", _TTY())
     monkeypatch.delenv("HERMES_GATEWAY_DETACHED", raising=False)
     monkeypatch.setattr(gateway.signal, "signal", fake_signal)
@@ -132,6 +134,8 @@ def test_run_gateway_windows_detached_absorbs_console_controls(monkeypatch):
     _install_fake_gateway_run(monkeypatch, fake_start_gateway)
     monkeypatch.setattr(gateway, "is_windows", lambda: True)
     monkeypatch.setattr(gateway, "supports_systemd_services", lambda: False)
+    # The service-conflict guard asks the real host's Task Scheduler; this test is about console controls.
+    monkeypatch.setattr(gateway, "_is_service_installed", lambda: False)
     monkeypatch.setattr(gateway.sys, "stdin", _TTY())
     monkeypatch.setenv("HERMES_GATEWAY_DETACHED", "1")
     monkeypatch.setattr(gateway.signal, "signal", fake_signal)
