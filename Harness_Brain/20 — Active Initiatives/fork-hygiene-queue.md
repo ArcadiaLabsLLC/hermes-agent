@@ -597,3 +597,7 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 ## Windows baseline qualification — 2026-10-27
 
 - **`FH-BASELINE-PINS-AND-MUTATION-ANCHORS` — Repair the stale store-epoch pins and registered mutation anchors without weakening their checks** · `tests/agent_runtime/test_store_epoch_gate.py::test_the_pins_equal_the_tree`, `tests/scripts/test_mutation_claims_still_anchor.py::test_every_registered_claim_anchors_where_it_says_it_does` · canonical `--confirm-red` reproduces the same failing nodes alone on suggestion completion and base `6219b86283`; this is existing metadata drift, not the suggestion extraction tombstone · READY 2026-10-27 · **TAKEN 2026-10-27 w1028a-h-plan on vm as Claude in w1028a-h-plan**
+
+## Filed on arrival — 2026-10-28 (lane w1028a-h-rt)
+
+- **`FH-LENS-PULL-DOOR-LEAKS-INTO-STREAM-GOLDENS` — `tests/agent_runtime/test_stream_contract_fixture.py::test_committed_goldens_are_the_generators_bytes` reds (hydrate.json, byte 3700 `1` vs `n`) when `tests/agent_runtime/lens/test_lens_pull_door.py` runs earlier in the same process; green alone; reproduced on `origin/main` 2026-10-28; isolate the Lens store/state the pull-door tests leave behind** · fork / the suite · `tests/agent_runtime/lens/test_lens_pull_door.py`, `tests/agent_runtime/test_stream_contract_fixture.py::test_a_serve_boot_earlier_in_the_process_does_not_reach_the_goldens` · READY 2026-10-28
