@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-27 (launcher orchestrator, commit attribution)
+
+- **`RT-KANBAN-WORKER-COMMIT-MACHINE` — kanban workers commit as `Hermes Kanban Worker <hermes@eternia.local>` with no machine in the identity and no TAKEN mark naming one, so 1,839 eternia-backend commits (2026-05-10 to 2026-10-26) and 5 launcher commits cannot be traced to the box that made them; the identity is set outside this repo (no tracked file spells it), while the brain writer already uses `harness+{machine}@eternia.local` — give kanban workers the same machine-carrying identity, set by the harness rather than a machine's git config** · `agent_runtime/work_store/default_brain.py` · found 2026-10-27 when the owner asked who wrote eternia-backend `a269da37` · READY 2026-10-27
+
 ### Filed on arrival — 2026-10-27 (orchestrator, from lane w1027k-h-rt)
 
 
