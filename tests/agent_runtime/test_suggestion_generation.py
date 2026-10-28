@@ -35,8 +35,8 @@ def test_shared_generation_accepts_only_supplied_context_and_returns_actual_usag
     assert result == {'text': 'ありがとう', 'provider': 'actual-provider', 'model': 'actual-model',
                       'usage': {'total_tokens': 17, 'cost_usd': None}}
     assert len(calls) == 1
-    assert calls[0]['messages'][1:-1] == messages
-    assert 'latest user message' in calls[0]['messages'][-1]['content']
+    assert calls[0]['messages'][1:] == messages
+    assert "latest user's language" in calls[0]['messages'][0]['content']
     assert 'task' not in calls[0] and 'provider' not in calls[0]
 
 
@@ -47,6 +47,22 @@ def test_provider_error_reaches_existing_classifier_without_replacement():
     with pytest.raises(TimeoutError) as caught:
         generate_suggestion([], fail)
     assert caught.value is error
+
+
+def test_codex_payload_keeps_complete_suggestion_policy_and_language():
+    from agent.auxiliary_client import _CodexCompletionsAdapter
+    from agent_runtime.suggestions.generation import SYSTEM
+    adapter = _CodexCompletionsAdapter(
+        SimpleNamespace(base_url='https://chatgpt.com/backend-api/codex'), 'gpt-5.6-sol')
+    payloads = []
+    def complete(**kwargs):
+        payloads.append(adapter._build_responses_kwargs(kwargs)[0])
+        return SimpleNamespace(text='好', provider='openai-codex', model='gpt-5.6-sol',
+                               usage=SimpleNamespace(total_tokens=1))
+    generate_suggestion([{'role': 'user', 'content': '解释缓存'},
+                         {'role': 'assistant', 'content': 'A cache stores reusable data.'}], complete)
+    assert SYSTEM in payloads[0]['instructions']
+    assert 'even if the assistant replied' in payloads[0]['instructions']
 
 
 def test_console_binding_keeps_task_scope_and_unload_local(tmp_path, monkeypatch):
