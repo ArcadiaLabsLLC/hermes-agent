@@ -253,3 +253,33 @@ Console registration/unload scope, stock-versus-Console override/reset, disabled
 work, native persona isolation and stale results. Real provider quality and latency
 are separate from these contract checks; see the paired evidence for measured
 results and limitations. No persona files or live suggestion settings were changed.
+
+## Live qualification corrections — October 27, 2026
+
+Two measured defects were corrected. `RT-NEXT-PROMPT-SYSTEM-PAYLOAD` is closed:
+the shared helper now sends one complete system message, so the existing
+auxiliary Responses converter cannot replace its policy with a trailing reminder.
+The actual converter regression test was red before the fix and green afterward.
+`RT-NEXT-PROMPT-COLD-DB-RACE` is closed: removing the per-connection WAL mode
+transition avoids the observed two-process cold-open race. Existing SQLite
+transactions remain the claim authority; existing WAL databases keep their mode,
+new ones use SQLite's default. No extra lock owner or retry subsystem was added.
+The previously failing two-process claim test and all 55 suggestion tests passed
+in the fork landing run; both name census gates passed too.
+
+The same finite live-provider corpus was rerun after the policy correction:
+36 calls, zero request errors, 16 relevant/language-matched non-null candidate
+outputs and two appropriate NULLs; zero observed invented approvals or results.
+Raw outputs and usage for both runs are retained in the paired evaluation note.
+This is a small agent-reviewed corpus, not human acceptance or native latency.
+
+Native Launcher qualification found a blocker: Console default chats have no
+persisted client scope, but the suggestion adapter supplies an account digest,
+so exact ownership validation refuses `conversation_owner_changed`. This is
+`MC-NEXT-PROMPT-OWNER-BINDING` in
+`EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`.
+Preserve this refusal until the existing conversation creation/send ownership
+path and legacy handling are connected; do not loosen Harness authorization.
+Provider generation and settings rendering are verified separately; the feature
+is not yet proven end to end. Native Use/Tab/chord, paired/bundled/persona placement,
+human acceptance/edit burden and visible timing remain open under the paired rows.

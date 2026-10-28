@@ -63,3 +63,50 @@ performed. This is a status check, not the paid corpus or a generation-success
 claim. The account already had suggestions enabled; its explicit choice was
 preserved. The feature's default remains false. Use the verified shared auth
 owner for the isolated corpus, retaining the configured auxiliary routing.
+
+## Live qualification and corrective rerun — October 27, 2026
+The initial 36 calls completed, but inspection found that the auxiliary Responses adapter retained only the final system message. The helper's trailing language reminder displaced its complete instructions. The raw initial outputs are retained in `console-next-prompt-evaluation-before-fix-2026-10-27.json`; they are not evidence for the corrected prompt. Row `RT-NEXT-PROMPT-SYSTEM-PAYLOAD` tracks the correction.
+The helper now supplies one complete system message. The real adapter payload regression test failed before the fix and passed afterward. Neither the adapter nor task routing changed. The same finite 36-call protocol was repeated, without further sampling or selection. Every rerun output, latency and returned usage is in `console-next-prompt-evaluation-results-2026-10-27.json`. Both variants used `openai-codex` / `gpt-5.6-sol` through the existing plugin facade.
+| Variant | Calls / errors | Non-null | p50 generation ms | p95 ms (nearest rank) | Total tokens |
+| --- | --- | --- | --- | --- | --- |
+| baseline | 18 / 0 | 16 | 1944.23 | 3233.51 | 4553 |
+| candidate | 18 / 0 | 16 | 1887.84 | 5253.88 | 4728 |
+
+Manual agent review: all 16 non-null candidate outputs were relevant to the current request and matched its language (2/2 on each rubric axis); both completed-exchange outputs were NULL. Zero candidate outputs invented performed actions, approvals, private facts or manual results. Pending-permission cases asked for the explanation and did not approve execution. Baseline also preserved language and current intent; one began “No.” in reply to a pending permission, consistent with the user's prohibition but answering the control directly. These observations support correctness in this small corpus, not superiority or statistical safety.
+Cost is unknown: the facade returned `cost_usd: null`. No persona was executed or loaded; the source profile configuration remained byte-identical, and credential grants were not copied. All 72 successful requests across the initial and corrective runs are disclosed. The earlier authentication preflight failure occurred before successful generation.
+Native completion-to-visible latency, primary-turn overhead, human acceptance/edit burden, bundled/paired-remote equivalence and two-persona native behavior remain separate qualification obligations. Provider-generation timing above must not be described as those measurements.
+
+## Live qualification corrections — October 27, 2026
+
+Two measured defects were corrected. `RT-NEXT-PROMPT-SYSTEM-PAYLOAD` is closed:
+the shared helper now sends one complete system message, so the existing
+auxiliary Responses converter cannot replace its policy with a trailing reminder.
+The actual converter regression test was red before the fix and green afterward.
+`RT-NEXT-PROMPT-COLD-DB-RACE` is closed: removing the per-connection WAL mode
+transition avoids the observed two-process cold-open race. Existing SQLite
+transactions remain the claim authority; existing WAL databases keep their mode,
+new ones use SQLite's default. No extra lock owner or retry subsystem was added.
+The previously failing two-process claim test and all 55 suggestion tests passed
+in the fork landing run; both name census gates passed too.
+
+The same finite live-provider corpus was rerun after the policy correction:
+36 calls, zero request errors, 16 relevant/language-matched non-null candidate
+outputs and two appropriate NULLs; zero observed invented approvals or results.
+Raw outputs and usage for both runs are retained in the paired evaluation note.
+This is a small agent-reviewed corpus, not human acceptance or native latency.
+
+Native Launcher qualification found a blocker: Console default chats have no
+persisted client scope, but the suggestion adapter supplies an account digest,
+so exact ownership validation refuses `conversation_owner_changed`. This is
+`MC-NEXT-PROMPT-OWNER-BINDING` in
+`EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`.
+Preserve this refusal until the existing conversation creation/send ownership
+path and legacy handling are connected; do not loosen Harness authorization.
+Provider generation and settings rendering are verified separately; the feature
+is not yet proven end to end. Native Use/Tab/chord, paired/bundled/persona placement,
+human acceptance/edit burden and visible timing remain open under the paired rows.
+
+### Test gate limits
+
+The fork landing run covered 1,337 files in 531.7 seconds. All 55 suggestion tests and both name census gates passed. Twelve files remained red, including the previously recorded Windows runtime baselines and the Python 3.14-only PM fixture on this Python 3.13 host. The ID-mark and flag-reader failures were reproduced alone on main; the mutation-anchor failure passed alone after rebase (the runner classified it as load), so it is not recorded as a persistent suggestion regression. Remaining baseline census failures are filed in the fork-hygiene queue; Windows runtime failures remain in `RT-WINDOWS-BASELINE-REGRESSIONS` and PM setup in `FORK-SECOND-WORKSTATION-ENV`. The whole repository gate is not green.
+

@@ -10,7 +10,8 @@ from agent.redact import redact_for_egress
 
 __layer__ = "lanes"
 SYSTEM = """Suggest one useful next message the human user could send in this conversation.
-Write the actual message, in the latest user's language and style, preferably under 80 characters.
+Write the actual message, in the latest user's language and style, even if the assistant replied
+in another language, preferably under 80 characters.
 It may be a question, request, conversational reply or a statement grounded in what the user already said.
 Never invent actions the user performed, test results, private facts, approvals or successful manual checks.
 Do not answer a pending permission/clarification control. If a manual outcome is unknown, suggest a
@@ -39,11 +40,9 @@ def clean_suggestion(text: str) -> str | None:
 
 
 def generate_suggestion(messages: list[dict], complete) -> dict:
-    reminder = {"role": "system", "content":
-        "Use the language and style of the latest user message above, even if the assistant replied "
-        "in another language. Return only the user's next message, or NULL. A question is not required. "
-        "Do not invent user actions, approvals or manual outcomes."}
-    result = complete(messages=[{"role": "system", "content": SYSTEM}, *messages, reminder],
+    # One complete system message also survives auxiliary adapters that retain
+    # only the last system message when converting to Responses instructions.
+    result = complete(messages=[{"role": "system", "content": SYSTEM}, *messages],
                       max_tokens=256, temperature=0.3)
     return {"text": clean_suggestion(result.text), "provider": result.provider, "model": result.model,
             "usage": vars(result.usage)}
