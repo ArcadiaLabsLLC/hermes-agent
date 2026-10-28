@@ -1558,12 +1558,18 @@ Two decisions ride with it:
   `EterniaLauncher/docs/mission_control/planned/OFFICE_WRITE_LANE_COLLAPSE_2026-10-27.md`
   (the superseded hermes plan: [archive/office-write-lane-collapse.md](archive/office-write-lane-collapse.md))
 - The page-open write storm and the `laneAbsent` window on cold open →
-  [archive/office-page-open-write-storm.md](archive/office-page-open-write-storm.md)
-  (parked 2026-10-27). Both are UNCONFIRMED claims, not stated truth: the
-  ~4.3 s window and "item 9" come from the 2026-08-16 plans, the degrade path
-  is live in `office/mission_office_rpc.dart` but the diag log's ISO-timestamped
-  era holds zero `laneAbsent` lines, and nothing has measured either since;
-  they reopen only on a cold-open receipt.
+  [planned/office-page-open-write-storm.md](planned/office-page-open-write-storm.md)
+  (un-archived and MEASURED 2026-10-28, lane w1028p-officestorm). The storm is
+  a hermes fact: a page-open replay whose payloads equal server truth rewrites
+  N+1 files, bumps N+1 revisions and appends 2(N+1) events per open, because
+  neither `OfficeStore.upsert_actor` nor `update_surface` has a dirty check.
+  The gate is three slices (`RT-OFFICE-NOOP-ACTOR-WRITE`,
+  `RT-OFFICE-NOOP-SURFACE-WRITE`, `RT-OFFICE-NOOP-RECEIPT`): a content-equal
+  write acks the live row, writes nothing and says `noop=1`. The `laneAbsent`
+  window is the serve child's spawn-to-`ready` (5.6 s on the measuring box,
+  21.9 s cold on record) and closes on the greeting that carries the method
+  manifest; what the launcher lets fall into it is the launcher's
+  `MC-OFFICE-ARGV-WRITE-ARMS` observation, defined in the plan's §8.
 - The board surface's missing RPC lane and fold coverage →
   [planned/board-surface-rpc-lane.md](planned/board-surface-rpc-lane.md)
 - Remaining console lane-ambiguity: browsable catalog under a failing lane, the
