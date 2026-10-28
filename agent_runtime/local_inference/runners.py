@@ -30,7 +30,7 @@ _CLIP_MEAN = (0.48145466, 0.4578275, 0.40821073)
 _CLIP_STD = (0.26862954, 0.26130258, 0.27577711)
 
 
-def _session(path: Path) -> Any:
+def _onnx_session(path: Path) -> Any:
     import onnxruntime as ort
 
     options = ort.SessionOptions()
@@ -38,7 +38,7 @@ def _session(path: Path) -> Any:
     return ort.InferenceSession(str(path), sess_options=options, providers=["CPUExecutionProvider"])
 
 
-def _padded(rows: list[list[int]], pad: int) -> tuple[Any, Any]:
+def _padded_ids(rows: list[list[int]], pad: int) -> tuple[Any, Any]:
     import numpy as np
 
     width = max(len(row) for row in rows)
@@ -66,12 +66,12 @@ def _feeds(session: Any, available: dict[str, Any]) -> dict[str, Any]:
 class BertClsEmbedder:
     def __init__(self, spec: LocalModelSpec, folder: Path) -> None:
         self.tokenizer = WordPiece.from_file(folder / "vocab.txt", max_tokens=spec.max_tokens)
-        self.session = _session(folder / "model_quantized.onnx")
+        self.session = _onnx_session(folder / "model_quantized.onnx")
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         import numpy as np
 
-        ids, mask = _padded([self.tokenizer.encode(text) for text in texts], self.tokenizer.pad)
+        ids, mask = _padded_ids([self.tokenizer.encode(text) for text in texts], self.tokenizer.pad)
         feeds = _feeds(self.session, {"input_ids": ids, "attention_mask": mask,
                                       "token_type_ids": np.zeros_like(ids)})
         hidden = self.session.run(None, feeds)[0]
@@ -81,8 +81,8 @@ class BertClsEmbedder:
 class ClipZeroShot:
     def __init__(self, spec: LocalModelSpec, folder: Path) -> None:
         self.tokenizer = ClipBpe.from_files(folder / "vocab.json", folder / "merges.txt", max_tokens=spec.max_tokens)
-        self.text_session = _session(folder / "text_model_quantized.onnx")
-        self.vision_session = _session(folder / "vision_model_quantized.onnx")
+        self.text_session = _onnx_session(folder / "text_model_quantized.onnx")
+        self.vision_session = _onnx_session(folder / "vision_model_quantized.onnx")
 
     @staticmethod
     def _named(session: Any, outputs: list[Any], name: str) -> Any:
@@ -90,7 +90,7 @@ class ClipZeroShot:
         return outputs[names.index(name)] if name in names else outputs[0]
 
     def text_embeds(self, texts: list[str]) -> list[list[float]]:
-        ids, mask = _padded([self.tokenizer.encode(text) for text in texts], self.tokenizer.end)
+        ids, mask = _padded_ids([self.tokenizer.encode(text) for text in texts], self.tokenizer.end)
         outputs = self.text_session.run(None, _feeds(self.text_session, {"input_ids": ids, "attention_mask": mask}))
         return _unit_rows(self._named(self.text_session, outputs, "text_embeds"))
 

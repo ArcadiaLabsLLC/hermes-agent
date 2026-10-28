@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from agent_runtime.prompt_observability import (
     attach_prompt_observability_turn_results,
     load_workspace_agents_context,
@@ -545,13 +547,19 @@ def test_snapshot_includes_situational_hud_for_instance(monkeypatch):
     snapshot = snapshot_prompt_observability(
         personas=[persona],
         persona_instances=[instance],
-        daemon=None,
         realm="default",
         workspace="default",
     )
     situational = snapshot["chat_contexts"][0]["situational_hud"]
     assert situational["scope"] == {"realm": "default", "workspace": "default"}
     assert situational["lane"]["persona_instance_id"] == "personainst_neko"
+
+
+def test_snapshot_prompt_observability_takes_no_daemon():
+    # DC-HUD-DAEMON-PARAM: the kwarg only threaded ``None`` into the HUD, which
+    # never read it; a caller still passing it fails loudly.
+    with pytest.raises(TypeError):
+        snapshot_prompt_observability(personas=[], persona_instances=[], daemon=None)
 
 
 def test_snapshot_situational_hud_without_daemon_scope_still_carries_lane(monkeypatch):
@@ -575,7 +583,7 @@ def test_snapshot_situational_hud_without_daemon_scope_still_carries_lane(monkey
         personas=[persona], persona_instances=[instance]
     )
     situational = snapshot["chat_contexts"][0]["situational_hud"]
-    # No daemon/scope threaded → those sub-blocks are absent, but the lane
+    # No scope threaded → those sub-blocks are absent, but the lane
     # identity (and the always-present key) still hold a stable shape.
     assert "runtime" not in situational
     assert situational["lane"]["persona_instance_id"] == "personainst_dev"

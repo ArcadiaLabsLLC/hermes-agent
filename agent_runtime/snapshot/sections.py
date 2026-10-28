@@ -247,7 +247,6 @@ class SnapshotFrameBuild:
                 personas=self.agents,
                 persona_instances=self.persona_instances,
                 session_db=self.session_db,
-                daemon=None,
                 realm=self.active_realm_name,
                 workspace=self.active_workspace_name,
                 active_workspace_id=self.workspace_store.active_id(),

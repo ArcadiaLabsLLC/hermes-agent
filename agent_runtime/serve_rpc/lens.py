@@ -18,6 +18,8 @@ draft.drop             {monitor_id} -> monitor (a SEALED monitor's pending next-
 enable / pause         {monitor_id} -> monitor (polling of the sealed revision on / off)
 retire                 {monitor_id} -> monitor (stopped for good; its data stays)
 get                    {monitor_id} -> monitor + credentials: [{feed_id, ref, set, rotated_at}]
+                       + equivalence_evidence: null | {draft_digest, stale, members:
+                       {<feed_id>: {why, cited}}} (a proposal's W5 justification; source-derived)
 preview                {manifest} -> {feeds: [{feed_id, status, number, reason, http_status}]}
                        (one read per feed, typed as the poller would store it;
                        NOTHING is written)
@@ -151,8 +153,12 @@ def _credentials_of(monitor: dict) -> list[dict]:
 @method("runtime.lens.get", tier=TIER_CONSOLE)
 def _runtime_lens_get(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     def body() -> dict:
-        monitor = _store().get(_monitor_id(params))
-        return {**monitor, "credentials": _credentials_of(monitor)}
+        from agent_runtime.lens.store_proposals import equivalence_evidence
+
+        store = _store()
+        monitor = store.get(_monitor_id(params))
+        return {**monitor, "credentials": _credentials_of(monitor),
+                "equivalence_evidence": equivalence_evidence(store, monitor)}
 
     return _lens_call(rid, body)
 

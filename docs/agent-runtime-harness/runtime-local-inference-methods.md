@@ -23,6 +23,10 @@ places each file under them):
 | `bge-small-en-v1.5` | WordPiece ids, `[CLS]` row of `last_hidden_state`, L2-normalised | `model_quantized.onnx`, `vocab.txt` | 384 |
 | `clip-vit-base-patch32` | CLIP BPE text embeds per label, image embeds per image, both L2-normalised | `text_model_quantized.onnx`, `vision_model_quantized.onnx`, `vocab.json`, `merges.txt` | 512 |
 
+The same lists, as data, are `tests/fixtures/local_inference_model_files.json`, pinned equal to
+the two tables by `tests/agent_runtime/test_local_inference_model_files_fixture.py`; the Launcher
+mirrors that file beside its catalog so a rename on either side reds.
+
 Both are Xenova's transformers.js int8 exports (the repos keep the `.onnx` files under `onnx/`;
 the folder here is flat). Sizes and SHA-256 are pinned by the Launcher's catalog entry, read from
 the Hugging Face API, not here. The tokenizers are pure Python
@@ -35,9 +39,14 @@ Nothing is fetched: a missing folder is `model_missing`, a folder short of a fil
 (the speech pack not installed) is `engine_missing` with `modules`. A runner that fails to build
 is `load_failed` with `error_class`.
 
-At most two runners stay loaded (least recently used dropped). **They are not reserved through
-`runtime.admission.*`** — its `KINDS` are `stt`, `tts`, `llm` — and that gap is the row
-`RT-LOCAL-INFERENCE-ADMISSION` in `Harness_Brain/20 — Active Initiatives/runtime-queue.md`.
+At most two runners stay loaded (least recently used idle runner dropped). **Every load is
+admitted** by the process's one model budget (`agent_runtime/model_admission.py`, the authority
+behind `runtime.admission.*`) before it touches memory: the runner reserves `2 × the folder's
+file bytes + 64 MiB` in the `ram` pool under kind `embed` (bge) or `vision` (CLIP), as holder
+`local_inference:<model>:<folder digest>`, and releases it when it is dropped or its load fails.
+Between calls a runner is idle and evictable, so a speech or LLM load may unload it (the next
+call reloads); during a call it is busy and refuses. A load that does not fit is `over_budget`.
+`runtime.admission.status` lists these reservations beside the speech and LLM ones.
 
 ## Methods
 
@@ -67,6 +76,7 @@ backend's safety pass stays authoritative.
 |---|---|
 | `-32602` invalid params | `model_unknown` (+ `models`), `models_dir_invalid`, `texts_empty`, `texts_too_many`, `text_invalid`, `text_too_long`, `labels_empty`, `labels_too_many`, `label_invalid`, `label_too_long`, `labels_duplicate`, `top_k_invalid`, `image_invalid`, `image_too_large`, `image_unreadable` |
 | `4001` not found | `model_missing`, `model_partial` (+ `missing`), `engine_missing` (+ `modules`) — each with `model_path` where one exists |
+| `4090` conflict | `over_budget` (+ `pool`, `requested_bytes`, `capacity_bytes`, `reserved_bytes`, `holders`) — the model budget cannot hold the load |
 | `-32000` handler failed | `load_failed` (+ `error_class`), `handler_failed` (+ `error_class`) |
 
 Both replies are deferred onto the transport's worker lane when it has one; inference runs one

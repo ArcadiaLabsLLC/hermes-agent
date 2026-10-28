@@ -55,7 +55,6 @@ def test_resolve_situational_hud_bound_lane_carries_goal_and_thread_count():
     other = _instance(id="personainst_x", display_name="X", goal_id="goal_other")
     hud = resolve_situational_hud(
         instance,
-        daemon={"state": "running", "loops": 3},
         realm="default",
         workspace="default",
         roster=[instance, peer, other],
@@ -81,10 +80,17 @@ def test_resolve_situational_hud_no_longer_carries_a_stage_qa_gate_slice():
 
 
 def test_resolve_situational_hud_missing_daemon_and_scope_degrade_cleanly():
-    hud = resolve_situational_hud(_instance(), daemon=None, realm=None, workspace=None, roster=[])
+    hud = resolve_situational_hud(_instance(), realm=None, workspace=None, roster=[])
     assert "runtime" not in hud
     assert "scope" not in hud
     assert hud["lane"]["display_name"] == "Neko Mission Lead"
+
+
+def test_resolve_situational_hud_takes_no_daemon():
+    # DC-HUD-DAEMON-PARAM: the retired daemon pulse's kwarg was never read; it is
+    # gone, so a caller still threading it fails loudly instead of being ignored.
+    with pytest.raises(TypeError):
+        resolve_situational_hud(_instance(), daemon=None)
 
 
 def test_resolve_situational_hud_none_instance_is_empty():
@@ -129,7 +135,6 @@ def test_roster_line_carries_addressable_handles():
 def test_render_situational_hud_block_says_no_mission_when_unbound():
     hud = resolve_situational_hud(
         _instance(),
-        daemon={"state": "offline", "loops": 0},
         realm="default",
         workspace="default",
         roster=[_instance()],

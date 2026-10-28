@@ -145,7 +145,7 @@ file it is given.
 | `runtime.speech.recognize.cancel` | console | `stream_id` |
 | `runtime.speech.synthesize` | console | `text` (1–4000 chars) |
 | `runtime.admission.status` | read | — |
-| `runtime.admission.reserve` | console | `holder`, `kind` (`llm` \| `stt` \| `tts`, default `llm`), `resource` (`vram` \| `ram`), `bytes`, `lease_seconds?` (default 120, max 3600) |
+| `runtime.admission.reserve` | console | `holder`, `kind` (`llm` \| `stt` \| `tts` \| `embed` \| `vision`, default `llm`), `resource` (`vram` \| `ram`), `bytes`, `lease_seconds?` (default 120, max 3600) |
 | `runtime.admission.release` | console | `holder` |
 
 Tiers follow `runtime.local_llama.*`: `status` reads, every verb that loads a

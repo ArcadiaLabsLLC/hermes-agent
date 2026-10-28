@@ -148,7 +148,6 @@ def situational_hud_for_instance(
 
         return resolve_situational_hud(
             instance,
-            daemon=None,
             realm=realm,
             workspace=scope.name,
             roster=scoped_roster,
