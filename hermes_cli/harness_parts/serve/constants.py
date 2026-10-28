@@ -412,6 +412,10 @@ OPS_EVERY_TRANSPORT: Final[tuple[str, ...]] = (
     "connections",
     "drain",
     "drain_if_idle",
+    # Launcher supervision (plan launcher-mutual-supervision-2026-10-27, W1): the
+    # launcher's heartbeat. Its MEMBERSHIP is the launcher's gate for "this runtime
+    # supervises me" (the launcher plan's L5/L6); local transports only.
+    "launcher_beat",
     "ping",
     # Settle push (2026-10-10): the launcher retires a pushed ``turn_settled``.
     # Its MEMBERSHIP here is the launcher's gate for "this runtime pushes".
@@ -459,8 +463,10 @@ GATEWAY_TRANSPORT = "gateway"
 #: it is a guest on is the wrong default even at ``console`` tier, and "the
 #: operator wanted to restart the runtime from their phone" is a verb somebody
 #: can add deliberately later. The refusal mirrors ``shutdown``'s
-#: (``op_not_available_on_socket``) rather than inventing a shape.
-OPS_GATEWAY_DENIED: tuple[str, ...] = ("drain", "drain_if_idle", "settle_ack")
+#: (``op_not_available_on_socket``) rather than inventing a shape. ``launcher_beat``
+#: (W1 of launcher supervision) is denied for a stronger reason: a beat steers which
+#: pid this runtime watches, and later what it relaunches — never a device's call.
+OPS_GATEWAY_DENIED: tuple[str, ...] = ("drain", "drain_if_idle", "launcher_beat", "settle_ack")
 
 #: The push lanes ``{"op":"subscribe","lane":…}`` accepts. ONE today, and the
 #: value EG-4.2's launcher gate reads: the argv stream stays the backstop until

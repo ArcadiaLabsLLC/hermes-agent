@@ -57,6 +57,7 @@ from hermes_cli.harness_parts.serve.frames import (
 )
 from hermes_cli.harness_parts.serve.handle_message import MessageHandling
 from hermes_cli.harness_parts.serve.lanes import ArgvLanes
+from hermes_cli.harness_parts.serve.launcher_supervision import LauncherSupervision
 from hermes_cli.harness_parts.serve.liveness import LivenessPump
 from hermes_cli.harness_parts.serve.request_pool import RequestPool, TurnClaims
 from hermes_cli.harness_parts.serve.settle_push import SettlePush
@@ -70,7 +71,8 @@ __all__ = ["ServeSession", "serve_loop"]
 
 
 class ServeSession(
-    BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, DrainLane, SettlePush, LivenessPump
+    BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, DrainLane, SettlePush, LivenessPump,
+    LauncherSupervision,
 ):
     """Core dispatch loop over explicit streams. stdio is transport #1; the
     localhost socket is transport #2, and both feed THIS dispatcher.
@@ -230,9 +232,11 @@ class ServeSession(
         self.stream_buffer_limit = stream_buffer_limit
         self.stream_byte_limit = stream_byte_limit
         #: ``--parent-pid``: the process that owns this runtime (a bundled Launcher). When it
-        #: exits — a crash included — the runtime drains itself. ``None``: nothing is watched.
+        #: exits — a crash included — the runtime drains itself. ``None``: nothing is watched
+        #: until a launcher beats. Each ``launcher_beat`` re-targets the watch to its pid
+        #: (``agent_runtime.launcher_supervision``, owned by ``launcher_watchdog``).
         self.parent_pid = parent_pid
-        self.parent_watch: Any = None
+        self.launcher_watchdog: Any = None
 
     def run(self) -> int:
         """Boot, serve until the reader ends, unwind. The process's exit code."""
@@ -335,16 +339,12 @@ class ServeSession(
 
     def _arm_parent_watch(self) -> None:
         """``--parent-pid``: drain when the owning process exits (after the pool exists)."""
-        if self.parent_pid is None:
-            return
-        from agent_runtime.parent_watch import start_parent_watch
+        self._arm_launcher_supervision()
 
-        self.parent_watch = start_parent_watch(self.parent_pid, self._on_parent_gone)
-
-    def _on_parent_gone(self) -> None:
-        """The owner is gone: the same drain a stdio ``drain`` asks for, named for why."""
-        self._note_end(EndReason.PARENT_EXITED)
-        gone = {"event": "parent_exited", "pid": os.getpid(), "boot_id": self.boot_id,
+    def _on_parent_gone(self, reason: str = EndReason.PARENT_EXITED) -> None:
+        """The owner is gone (or quit): the same drain a stdio ``drain`` asks for, named for why."""
+        self._note_end(reason)
+        gone = {"event": str(reason), "pid": os.getpid(), "boot_id": self.boot_id,
                 "parent_pid": self.parent_pid}
         try:
             self.frames.emit(gone)

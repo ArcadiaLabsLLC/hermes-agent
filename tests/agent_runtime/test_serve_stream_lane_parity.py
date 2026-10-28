@@ -55,6 +55,8 @@ from __future__ import annotations
 import importlib.util
 import inspect
 import json
+import os
+import sys
 import threading
 import time
 from contextlib import contextmanager
@@ -307,6 +309,7 @@ def test_stdio_learns_the_op_set_from_ready_and_can_re_ask_version():
             "connections",
             "drain",
             "drain_if_idle",
+            "launcher_beat",
             "ping",
             "settle_ack",
             "shutdown",
@@ -356,6 +359,7 @@ def test_the_socket_greeting_advertises_the_ops_it_will_actually_answer():
                     "connections",
                     "drain",
                     "drain_if_idle",
+                    "launcher_beat",
                     "ping",
                     "settle_ack",
                     "stacks",
@@ -401,6 +405,7 @@ def test_every_advertised_op_is_answered_by_the_dispatcher():
         "unsubscribe": "unsubscribed",
         "cancel": "cancel_denied",
         "settle_ack": "settle_acked",
+        "launcher_beat": "launcher_beat_ok",
     }
     gate = threading.Event()
     try:
@@ -414,6 +419,11 @@ def test_every_advertised_op_is_answered_by_the_dispatcher():
             sink.wait_for(answers["cancel"])
             pipe.send({"op": "settle_ack", "settle_id": "no-such-settle"})
             sink.wait_for(answers["settle_ack"])
+            # A stdio serve with no --parent-pid: the beat watches this test process, which outlives it.
+            pipe.send({"op": "launcher_beat", "seq": 0, "pid": os.getpid(), "state": "running",
+                       "window_visible": True, "executable": sys.executable, "build": None,
+                       "supervise": False})
+            sink.wait_for(answers["launcher_beat"])
             pipe.send({"op": "shutdown"})
             sink.wait_for("shutdown")
         errors = [

@@ -530,6 +530,7 @@ class SubscriptionLanes:
         self._release_subscription(connection)
         self._cancel_owner_queued_requests(self._owner_of(connection))
         self._reclaim_abandoned_streams(connection)
+        self._launcher_connection_closed(connection)
         if launcher_sink is not None:
             # Stage 7: the Launcher that answered app functions on this sink is
             # gone — drop its cached tool list and fail its open requests now

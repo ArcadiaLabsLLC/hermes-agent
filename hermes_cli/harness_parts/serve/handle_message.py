@@ -34,6 +34,7 @@ from hermes_cli.harness_parts.serve.constants import (
 )
 from hermes_cli.harness_parts.serve.drain import _drain_deadline_seconds, _DrainState
 from hermes_cli.harness_parts.serve.manifest import _is_gateway, _pairing_block, ops_manifest
+from hermes_cli.harness_parts.serve.launcher_supervision import LauncherSupervision
 from hermes_cli.harness_parts.serve.settle_push import SettlePush
 
 __layer__ = "lanes"
@@ -1180,6 +1181,7 @@ OP_HANDLERS: Final[Mapping[str, Callable[..., str | None]]] = MappingProxyType(
         "drain": MessageHandling._op_drain,
         "drain_if_idle": MessageHandling._op_drain_if_idle,
         "hello": MessageHandling._op_hello,
+        "launcher_beat": LauncherSupervision._op_launcher_beat,
         "ping": MessageHandling._op_ping,
         "settle_ack": SettlePush._op_settle_ack,
         "shutdown": MessageHandling._op_shutdown,

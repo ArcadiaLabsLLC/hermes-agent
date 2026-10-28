@@ -158,7 +158,12 @@ hung = no beat for 45 s of time the harness was awake.
 
 ## 4. Slices
 
-**W1 — beats, re-targeted watch, quit vs crash recorded** (row `RT-LAUNCHER-WATCHDOG`, READY)
+**W1 — beats, re-targeted watch, quit vs crash recorded** — BUILT 2026-10-28 (lane w1028a-h-plan):
+`agent_runtime/launcher_supervision/` (`contract.py`, `policy.py`, `watchdog.py`) and
+`hermes_cli/harness_parts/serve/launcher_supervision.py`. Two departures from the list below: only
+`launcher_quit` joins `EndReason` (`launcher_restart_limit` lands with W2, its only producer), and
+W1 persists nothing (decision 10's `state.json` lands with W2's budget, the first thing that must
+survive a harness restart). The wire is §2 unchanged; `watching` is always false until G1.
 - `agent_runtime/launcher_supervision/__init__.py`, `contract.py`, `policy.py`, `watchdog.py` — new.
 - `hermes_cli/harness_parts/serve/constants.py` — `launcher_beat` in `OPS_EVERY_TRANSPORT`
   and `OPS_GATEWAY_DENIED`; `hermes_cli/harness_parts/serve/handle_message.py` — `_op_launcher_beat`.

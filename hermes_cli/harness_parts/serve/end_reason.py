@@ -124,6 +124,7 @@ class EndReason(StrEnum):
     CTRL_C = "ctrl_c"
     SIGTERM = "sigterm"
     PARENT_EXITED = "parent_exited"  # --parent-pid: the owning Launcher exited; serve drained itself
+    LAUNCHER_QUIT = "launcher_quit"  # the supervising Launcher beat `quitting` (an explicit Quit), then left
     LOGOFF = "logoff"
     # the fallback
     UNKNOWN_EXIT = "unknown_exit"

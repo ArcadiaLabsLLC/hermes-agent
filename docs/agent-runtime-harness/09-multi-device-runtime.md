@@ -234,6 +234,27 @@ argv exits are three frames so only a true parse failure is ever replayed
 (RL-24; 03 §1). Acceptance: `tests/agent_runtime/test_serve_service_mode.py`,
 `test_serve_socket_child_e2e.py`, `test_serve_request_silence.py`.
 
+**The bundled runtime follows its launcher by heartbeat, not by one pid (owner ruling
+2026-10-27, "Change the bundled-lifetime rule yea it should be more dynamic").** This
+amends embedded-hermes D1's "crashing leaves no bundled Hermes running" on the hermes
+side. A launcher that finds `launcher_beat` in a runtime's ops (local transports only;
+`OPS_GATEWAY_DENIED`) beats every 5 s with its `pid`, `state` (`running` / `suspended` /
+`closing_for_game` / `quitting`), `executable`, `build` and `supervise`, and is answered
+`launcher_beat_ok {seq, watching}`. Each beat re-targets the parent watch to the beat's
+pid (`agent_runtime/launcher_supervision/watchdog.py::LauncherWatchdog`, a
+creation-time check so a reused POSIX pid never passes for the launcher), and the pure
+table in `agent_runtime/launcher_supervision/policy.py` decides what a gone pid, a hang
+or a dropped connection means: after `quitting` the runtime drains with end reason
+`launcher_quit` (latched on the beat, so the launcher's own stop frame ends under that
+word too, and a quitting launcher still alive 30 awake seconds later is not waited on);
+after `running` / `suspended` it is a crash; a dropped connection with the pid alive is
+not a crash; 45 s of awake time without a beat while `running` is a hang (sleep gaps
+excluded). Slice W1 only RECORDS crash and hang (one `launcher_supervision` receipt line
+per decision in `agent.log`); a runtime started with `--parent-pid` still drains when
+its launcher is gone, as before, and one no launcher ever beat to is unchanged.
+`watching` is false until the game watch (G1) lands. Relaunch, the hang kill and the
+restart budget are W2 → [plan](planned/launcher-mutual-supervision-2026-10-27.md).
+
 **Started by the OS instead of a launcher (p10-messaging M5, owner RULED 2026-10-19).** v1's service is a
 documented template, not an installer: [Task Scheduler](reference/service/windows-task.xml),
 [`systemd --user`](reference/service/hermes-serve.service) and [launchd](reference/service/com.eternia.hermes-serve.plist)

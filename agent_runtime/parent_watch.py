@@ -1,16 +1,25 @@
 """Watch the process that owns this runtime; say when it is gone.
 
-Bundled Hermes belongs to its Launcher (embedded-hermes D1: "crashing leaves no
-bundled Hermes running"). The Launcher passes its own PID as
+Bundled Hermes belongs to its Launcher. The Launcher passes its own PID as
 ``harness serve --parent-pid <pid>``; serve arms :func:`start_parent_watch`
 with it and drains when the owner exits — including a crash, which runs no
-stop verb. Without the flag nothing is watched (full Hermes is a service that
-outlives any one Launcher).
+stop verb. Without the flag nothing is watched until a launcher beats (full
+Hermes is a service that outlives any one Launcher).
+
+**Amended 2026-10-28 (the bundled-lifetime rule, owner ruling 2026-10-27):**
+embedded-hermes D1's "crashing leaves no bundled Hermes running" no longer
+binds the harness to ONE pid. A launcher that sends ``launcher_beat`` names
+its pid on every beat, and ``agent_runtime.launcher_supervision`` re-targets
+this watch to it (disarm the old :class:`ParentWatch`, arm a new one), so a
+relaunched launcher is the owner from its first beat. The watch still only
+says "gone"; what that MEANS — Quit, crash, closed for a game — is the
+supervision table's (plan ``launcher-mutual-supervision-2026-10-27`` §3).
 
 Windows opens a ``SYNCHRONIZE`` handle at arm time and waits on it, so a PID
 reused after the owner died is never mistaken for the owner. POSIX polls
 ``os.kill(pid, 0)`` (and ``os.getppid()``, which changes the moment a direct
-parent dies).
+parent dies), and a watch armed with the pid's ``create_time`` also reads a
+live pid whose creation time differs as gone — the pid was reused.
 """
 
 from __future__ import annotations
@@ -22,7 +31,7 @@ from typing import Callable
 
 __layer__ = "policy"
 
-__all__ = ["PARENT_POLL_SECONDS", "ParentWatch", "process_alive", "start_parent_watch"]
+__all__ = ["PARENT_POLL_SECONDS", "ParentWatch", "process_alive", "process_create_time", "start_parent_watch"]
 
 #: How often the POSIX poll looks, and how often the Windows wait re-checks ``stop``.
 PARENT_POLL_SECONDS = 1.0
@@ -53,6 +62,16 @@ def process_alive(pid: int) -> bool:
     except OSError:
         return False
     return True
+
+
+def process_create_time(pid: int) -> float | None:
+    """The OS creation time of ``pid`` now, or ``None`` when it cannot be read (gone, denied)."""
+    try:
+        import psutil
+
+        return float(psutil.Process(pid).create_time())
+    except Exception:
+        return None
 
 
 def _kernel32():
@@ -87,10 +106,12 @@ class ParentWatch:
     """A daemon thread that calls ``on_gone`` once, when ``pid`` exits (or is already gone)."""
 
     def __init__(self, pid: int, on_gone: Callable[[], None], *,
-                 poll_seconds: float = PARENT_POLL_SECONDS) -> None:
+                 poll_seconds: float = PARENT_POLL_SECONDS, create_time: float | None = None) -> None:
         self.pid = pid
         self.on_gone = on_gone
         self.poll_seconds = poll_seconds
+        #: POSIX: the creation time the pid had when this watch was armed (``None``: not checked).
+        self.create_time = create_time
         self.stop = threading.Event()
         self.fired = threading.Event()
         self._handle = _open_sync(pid) if sys.platform == "win32" and pid > 0 else None
@@ -108,7 +129,18 @@ class ParentWatch:
             return _wait(self._handle, int(self.poll_seconds * 1000)) == _WAIT_OBJECT_0
         # A direct parent that died may linger as a zombie ``kill(0)`` still finds; being
         # reparented away from it is the earlier, certain signal.
-        return not process_alive(self.pid) or (self._was_child and os.getppid() != self.pid)
+        return (not process_alive(self.pid) or (self._was_child and os.getppid() != self.pid)
+                or self._reused())
+
+    def _reused(self) -> bool:
+        if self.create_time is None:
+            return False
+        now = process_create_time(self.pid)
+        return now is not None and abs(now - self.create_time) > 0.01
+
+    def disarm(self) -> None:
+        """Stop watching without firing (a re-target): ``on_gone`` is never called after this."""
+        self.stop.set()
 
     def _run(self) -> None:
         try:
@@ -127,7 +159,7 @@ class ParentWatch:
 
 
 def start_parent_watch(pid: int, on_gone: Callable[[], None], *,
-                       poll_seconds: float | None = None) -> ParentWatch:
+                       poll_seconds: float | None = None, create_time: float | None = None) -> ParentWatch:
     """Arm and start a watch. ``poll_seconds`` defaults to :data:`PARENT_POLL_SECONDS`, read now."""
-    return ParentWatch(pid, on_gone,
+    return ParentWatch(pid, on_gone, create_time=create_time,
                        poll_seconds=PARENT_POLL_SECONDS if poll_seconds is None else poll_seconds).start()

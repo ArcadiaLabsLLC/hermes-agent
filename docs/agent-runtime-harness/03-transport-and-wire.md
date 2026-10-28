@@ -798,7 +798,10 @@ block is the set-plus-integer rule these manifests already use.
 now three answers rather than two: `shutdown` is stdio-only (it is the verb of
 the process that owns the pipe), and `drain` is additionally absent from the
 `gateway` answer — it ends the runtime for every other attached client, which a
-paired device does not get to decide even at `console` tier. A device learns
+paired device does not get to decide even at `console` tier. `launcher_beat` (and
+`drain_if_idle` and `settle_ack`) are absent from it too: a beat steers which pid this
+runtime watches as its launcher (09 § The runtime outlives the launcher), which is the
+local launcher's word and never a device's. A device learns
 what it may ask by MEMBERSHIP; the manifest and the dispatcher cannot disagree,
 because both read one tuple (`OPS_EVERY_TRANSPORT` minus `OPS_GATEWAY_DENIED`).
 
