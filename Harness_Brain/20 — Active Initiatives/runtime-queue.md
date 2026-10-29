@@ -31,7 +31,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-29 (lane w1029a-h-fork)
 
-- **`RT-NATIVE-PEER-RETIRE-ORPHANS-COMPUTE-HOST` — on Linux a retired native conversation worker leaves its `tui_gateway.compute_host` child running, re-parented to `systemd --user`, until it exits on its own ~1.4 s later (measured 2026-10-29 on nekwo-ubuntu24, both compute-child params); retirement should stop the compute host before the worker goes, as the supervisor's own shutdown does, so `execution_possible` false means no compute process left** · runtime / conversations · `agent_runtime/conversations/live.py::LiveConversation.retire` · `tests/agent_runtime/test_native_conversation_roundtrip.py::run_profile_a_b_a` (the 5 s bounded wait it carries until this lands) · `tui_gateway/host_supervisor.py` · READY 2026-10-29 · **TAKEN 2026-10-29 w1029b-h-rt on nekwo-ubuntu24 as nekwo in hermes-w1029b-h-rt**
 
 ### Filed on arrival — 2026-10-29 (lane w1029a-h-proj, the Project slot slices)
 
@@ -636,6 +635,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 
 ## Seams
+
+### Filed on arrival — 2026-10-29 (lane w1029b-h-rt)
+
+- **`RT-SEAM-COMPUTE-HOST-STOP-DOOR` — the native worker stops its compute-host child by reading the gateway's private `_compute_host_supervisor` global off `tui_gateway.server` (bound there by `method_ctx.bind_module`), the same reach `agent_runtime/gateway/session_retirement.py` makes through `server._get_compute_host_supervisor()`; an additive public door on `tui_gateway/compute_host_bridge.py` (stop the supervisor if one exists, never make one) would retire both reaches** · seams / conversations · `agent_runtime/conversations/worker_entry.py::stop_compute_host` · `agent_runtime/gateway/session_retirement.py::retire` · `tui_gateway/compute_host_bridge.py::_get_compute_host_supervisor` · READY 2026-10-29
 
 ### Filed on arrival — 2026-10-21 (lane w1021h-daily, `integration/upstream-daily` `4ce03587da`)
 
