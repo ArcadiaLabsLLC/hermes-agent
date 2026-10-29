@@ -129,6 +129,13 @@ batch at its landing, never per lane.
 
 - There is no pre-push hook; nothing gates a push (the checks are tests someone runs —
   `Running the tests.md`).
+- **Every push to `main` is a landing, whoever makes it** — a wave landing, a lane, or a direct
+  push by any agent or person. Before pushing, the pusher runs the queue gates
+  (`bash scripts/run_tests.sh tests/tooling/test_work_queue_row_grammar.py
+  tests/tooling/test_queue_row_guard.py`), their touched tests, and every test that references a
+  shared symbol they changed (`grep -rl <name> tests/`). Any red is fixed before the push (owner
+  2026-10-29, adopting the launcher's 2026-10-27 rule). It is a command, not a hook; one command
+  for all of it is `FH-PREPUSH-ONE-COMMAND`.
 - While the operator is testing a live serve, commit from a worktree and push `HEAD:main`,
   never in the primary checkout: a commit there moves the code tree the serve is built from
   and the Launcher restarts it (three queue-only commits did, 2026-10-05; vault-only paths stop
