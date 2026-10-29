@@ -41,7 +41,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-29 (launcher planning lane w1029p-genui)
 
-- **`RT-LAUNCHER-CATALOG-REVENDOR-GENERATED-TREE` — re-vendor the launcher's app-function catalog twice for the generated virtual file tree: once when `launcher.generated.tree` / `read` / `grep` land (`read` and `grep` always loaded) with `files_json` on create/update, and once when `part` / `offset` / `key` leave `list` / `inspect`; the fixture's always-loaded set and tool names are what the source gates enumerate** · fork / launcher link · `scripts/vendor_launcher_catalog.py` · `tests/fixtures/launcher_app_functions_catalog.json` · plan `EterniaLauncher/docs/companion/subsystems/GENERATED_VIRTUAL_FILE_TREE_2026-10-29.md` · launcher T2 and T6 landed 2026-10-29 (launcher 3a5edba608) · READY 2026-10-29 · **TAKEN 2026-10-29 w1029b-h-rt on nekwo-ubuntu24 as nekwo in hermes-w1029b-h-rt**
 
 ### Filed on arrival — 2026-10-28 (planning lane w1028p-taskbound)
 

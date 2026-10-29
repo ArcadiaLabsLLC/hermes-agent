@@ -1,6 +1,6 @@
 {
-  "source_commit": "09f8eada7a95d4f0160adcc29e4c9f44efec5cbf",
-  "exported_at": "2026-10-28",
+  "source_commit": "e55271d36f859c6565c0502d813eacab0086343f",
+  "exported_at": "2026-10-29",
   "entries": [
     {
       "id": "launcher.account.open_section",
@@ -571,6 +571,14 @@
       "guidance_sha256": null
     },
     {
+      "id": "launcher.generated.grep",
+      "name": "launcher_generated_grep",
+      "read_only": true,
+      "always_loaded": true,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
       "id": "launcher.generated.inspect",
       "name": "launcher_generated_inspect",
       "read_only": true,
@@ -585,6 +593,22 @@
       "always_loaded": true,
       "reach": "localOnly",
       "guidance_sha256": "d7dd23c529bda7c77796e6f6a1e73cf85d1fb64395c3fac19fed80122d291a3e"
+    },
+    {
+      "id": "launcher.generated.read",
+      "name": "launcher_generated_read",
+      "read_only": true,
+      "always_loaded": true,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.generated.tree",
+      "name": "launcher_generated_tree",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
     },
     {
       "id": "launcher.generated.update",
