@@ -1,6 +1,7 @@
 """The serve's half of launcher supervision: the ``launcher_beat`` op and the parent-watch hook.
 
-Plan ``docs/agent-runtime-harness/planned/launcher-mutual-supervision-2026-10-27.md`` slices W1, W2 and G1. The
+Plan ``docs/agent-runtime-harness/planned/launcher-mutual-supervision-2026-10-27.md`` slices W1, W2, G1 and P1
+(the ``play_sessions_pending`` / ``play_sessions_ack`` ops). The
 watchdog (``agent_runtime.launcher_supervision``) owns the watch and the table; this mixin answers
 the op (``SubscriptionLanes._on_connection_closed`` routes a closed connection to it), and carries out its effects — latch an end reason,
 drain through the serve's existing drain path (``ServeSession._on_parent_gone``), and answer whether a
@@ -93,3 +94,37 @@ class LauncherSupervision:
         watching = self._launcher_watchdog().beat(beat, connection=connection)
         sink.emit({"id": message.get("id"), "event": "launcher_beat_ok", "seq": beat.seq, "watching": watching})
         return None
+
+    def _op_play_sessions_pending(self, message: dict[str, Any], sink: Any, connection: Any) -> str | None:
+        """``{"op":"play_sessions_pending"}`` → ``play_sessions_pending_ok {sessions}`` (P1). Reading deletes nothing."""
+
+        if _refused_on_gateway("play_sessions_pending", sink, connection):
+            return None
+        from agent_runtime.launcher_supervision.play_sessions import pending
+
+        sink.emit({"id": message.get("id"), "event": "play_sessions_pending_ok", "sessions": pending()})
+        return None
+
+    def _op_play_sessions_ack(self, message: dict[str, Any], sink: Any, connection: Any) -> str | None:
+        """``{"op":"play_sessions_ack","session_ids":[…]}`` → ``play_sessions_ack_ok {ok}`` — the only delete (P1)."""
+
+        if _refused_on_gateway("play_sessions_ack", sink, connection):
+            return None
+        ids = message.get("session_ids")
+        if not isinstance(ids, list) or not all(isinstance(item, str) and item for item in ids):
+            sink.emit({"id": message.get("id"), "event": "error", "error": "invalid_play_sessions_ack",
+                       "field": "session_ids", "detail": "session_ids is a list of non-empty strings"})
+            return None
+        from agent_runtime.launcher_supervision.play_sessions import ack
+
+        ack(ids)
+        sink.emit({"id": message.get("id"), "event": "play_sessions_ack_ok", "ok": True})
+        return None
+
+
+def _refused_on_gateway(op: str, sink: Any, connection: Any) -> bool:
+    if not _is_gateway(connection):
+        return False
+    sink.emit({"event": "error", "error": "op_not_available_on_gateway",
+               "detail": f"{op} hands back the local launcher's play records; a paired device never sends it"})
+    return True

@@ -130,6 +130,9 @@ class LauncherWatchdog:
             "pid": beat.pid, "executable": beat.executable, "window_visible": beat.window_visible,
             "supervise": beat.supervise})
         if watched:
+            from .play_sessions import prune
+
+            prune(self._clock())  # decision 17: the store's cap holds as records arrive
             with self._lock:
                 self._state, _ = on_game_watch(self._state, True)
         return watched

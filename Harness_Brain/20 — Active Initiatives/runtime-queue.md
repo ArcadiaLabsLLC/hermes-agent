@@ -1074,7 +1074,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-27 (owner: dynamic harness lifetime, mutual supervision)
 
-- **`RT-PLAY-SESSION-HANDBACK` — the harness keeps an observed play-session record per watched game (keyed by the launcher's session id, no duration of its own) and hands it back with the `play_sessions_pending` / `play_sessions_ack` ops, so play time survives the launcher closing for a game** · fork / serve lifecycle · plan `docs/agent-runtime-harness/planned/launcher-mutual-supervision-2026-10-27.md` §4 P1 (decisions 16–18) · `EterniaLauncher/docs/subsystems/HEADLESS_LAUNCHER_PLAN_2026-10-27.md` · RULED 2026-10-27: owner "Change the bundled-lifetime rule yea it should be more dynamic then, if launcher hangs it can relaunch itself and get rehydrated by its harness, or if its harness dies the harness can be rebooted by launcher?" and "agreed" · G1 landed on wave/w1029b-h-rt: the records are `agent_runtime/launcher_supervision/game_watch.py::GameRecord` in `paths.launcher_supervision_games_dir()` · READY 2026-10-29 · **TAKEN 2026-10-29 w1029c-h-b on nekwo-ubuntu24 as nekwo in hermes-w1029c-h-b**
 
 
 ## Windows baseline qualification — 2026-10-27

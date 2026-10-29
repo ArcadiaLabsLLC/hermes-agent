@@ -4,8 +4,8 @@
 process I/O (identity, the one-pid kill, the detached spawn), ``watchdog``
 wires it to the parent watch and the beat clock, ``game_watch`` watches a handed-over game. Slices W1
 (beats, the re-targeted watch, Quit vs crash vs hang), W2 (relaunch, the hang kill, the restart budget)
-and G1 (the game watch, resumed after a harness restart) are built; the play-session handback (P1)
-follows.
+G1 (the game watch, resumed after a harness restart) and P1 (``play_sessions``: the records handed
+back at least once, deleted only by the ack, capped) are built.
 """
 
 from __future__ import annotations
