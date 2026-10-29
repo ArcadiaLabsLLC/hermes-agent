@@ -50,6 +50,13 @@ def log_office_write(
     it is a FACT worth reading, and an omitted key is indistinguishable from an
     old build.
 
+    ``noop`` (the two content writes, ``runtime.office.upsert`` and
+    ``runtime.office.surface.update``): ``1`` when the write was content-equal
+    and wrote nothing (``office_store/noop.py``; ``revision`` is then the LIVE
+    row's), ``0`` when a file was written. Always known, so never ``-`` — it is
+    the field the launcher's page-open observation window greps
+    (``docs/agent-runtime-harness/planned/office-page-open-write-storm.md`` §8).
+
     Never raises: an instrument must not be the reason a write fails.
     """
 

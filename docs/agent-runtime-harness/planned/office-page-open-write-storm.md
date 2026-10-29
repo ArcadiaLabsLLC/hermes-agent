@@ -1,7 +1,10 @@
 # Planned — the page-open write storm and the cold-open degrade window
 
-**Status:** planned 2026-10-28 (lane w1028p-officestorm) for row
-`RT-OFFICE-PAGE-OPEN-WRITE-STORM`. Not built. Un-archived from `archive/`
+**Status:** BUILT 2026-10-29 — S1a (wave/w1029a-h-rt-b), S1b (wave/w1029b-h-rt), S2
+(`RT-OFFICE-NOOP-RECEIPT`, wave/w1029c-h-b); the shipped rule is folded into
+[06 § No-op writes](../06-office-and-board.md#no-op-writes). §8's observation window is the
+launcher's to run. Kept in `planned/` while launcher notes cite this path. Planned 2026-10-28
+(lane w1028p-officestorm) for row `RT-OFFICE-PAGE-OPEN-WRITE-STORM`. Un-archived from `archive/`
 (parked there 2026-10-27 as "never measured since 2026-08-16"); the
 measurement is below, and it is the first one this plan has ever carried.
 **Owner doc:** [06 — Office and board](../06-office-and-board.md).

@@ -120,7 +120,7 @@ def _runtime_office_surface_update(
         return unknown_workspace(rid, workspace_id)
 
     try:
-        surface = store.update_surface(
+        outcome = store.update_surface_outcome(
             workspace_id,
             folders=folders,
             updated_by=updated_by or "operator",
@@ -131,12 +131,16 @@ def _runtime_office_surface_update(
         scope = OfficeWriteScope(rid, workspace_id, {"expect_revision": expect_revision})
         return translate(exc, SURFACE_UPDATE_ERRORS, scope)
 
+    # A folder list equal to the live one once normalized wrote nothing
+    # (``office_store/noop.py``): the ack is the live surface, ``noop=1``.
+    surface = outcome.row
     log_office_write(
         op="runtime.office.surface.update",
         correlation_id=correlation_id,
         workspace=workspace_id,
         folders=len(surface.folders),
         revision=surface.revision,
+        noop=0 if outcome.written else 1,
     )
     result: dict[str, Any] = {
         "workspace_id": surface.workspace_id,
