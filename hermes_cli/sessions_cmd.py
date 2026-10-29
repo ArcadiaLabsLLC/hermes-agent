@@ -1259,8 +1259,6 @@ _PRE_DB_HANDLERS = {
     "discard": _cmd_discard,  # a gateway control (prompt.resolve_unknown), never a direct store write
 }
 _OBSERVATIONAL_DB_ACTIONS = frozenset({"list", "stats", "pinned"})
-# fork RT-SESSIONS-EXPORT-READ-ONLY: export only reads; the launcher's QA import runs it on the owner's store.
-_OBSERVATIONAL_DB_ACTIONS = _OBSERVATIONAL_DB_ACTIONS | {"export"}
 _DB_HANDLERS = {
     "list": _cmd_list, "export": _cmd_export, "delete": _cmd_delete, "rename": _cmd_rename, "pinned": _cmd_pinned,
     "prune": partial(_cmd_prune_or_archive, action="prune"), "pin": partial(_cmd_pin, pinning=True),

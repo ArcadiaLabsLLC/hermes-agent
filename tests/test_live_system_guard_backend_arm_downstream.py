@@ -83,3 +83,29 @@ def test_python_c_code_that_could_spawn_keeps_the_conservative_scan(code):
     with pytest.raises(RuntimeError, match="live-system guard: blocked"):
         subprocess.run([sys.executable, "-c", code], timeout=30,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+
+
+# ``executable=`` names the program the OS runs; argv[0] is only the child's displayed name.
+# The browse-drift legacy-gateway sleeper is ``["hermes", "-c", CODE, <db>, "gateway", "run"]``
+# under ``executable=sys.executable``: a Python ``-c`` child dressed as a gateway for a psutil
+# holder scan, never a backend start (land/w1029c, RT-MAIN-REDS-SQLITE-OPEN-FAMILY).
+_DRESSED_SLEEPER = ["hermes", "-c", "import time\ntime.sleep(0)\n", "state.db", "gateway", "run"]
+
+
+def test_an_interpreter_named_hermes_by_argv0_is_not_a_backend_start():
+    assert backend_spawn_subcommand(_DRESSED_SLEEPER, str, {"executable": sys.executable}) is None
+    proc = subprocess.Popen(_DRESSED_SLEEPER, executable=sys.executable,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    assert proc.wait(timeout=30) == 0
+
+
+def test_the_same_argv_with_no_executable_is_still_refused():
+    # Positive control: the bytes above, minus ``executable=``, run a real ``hermes`` launcher.
+    assert backend_spawn_subcommand(_DRESSED_SLEEPER, str) == "gateway"
+    with pytest.raises(RuntimeError, match="would START a hermes backend"):
+        subprocess.Popen(_DRESSED_SLEEPER, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def test_an_executable_that_is_the_hermes_launcher_is_refused_whatever_argv0_says(tmp_path):
+    argv = ["python", "gateway", "run"]
+    assert backend_spawn_subcommand(argv, str, {"executable": str(tmp_path / "bin" / "hermes")}) == "gateway"

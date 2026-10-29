@@ -221,9 +221,22 @@ def _cmd_tokens(cmd, cmd_to_string) -> list:
     return tokens
 
 
-def backend_spawn_subcommand(cmd, cmd_to_string):
+def _as_executed(cmd, kwargs):
+    """*cmd* with argv[0] replaced by ``executable=`` when one is given.
+
+    With ``executable=`` the OS runs that program and argv[0] is only the name the child
+    sees: ``Popen(["hermes", "-c", CODE, ...], executable=sys.executable)`` is a Python
+    ``-c`` child that merely LOOKS like a hermes process to a psutil holder scan (the
+    browse-drift legacy-gateway sleeper), so the classifier reads the real program."""
+    executable = (kwargs or {}).get("executable")
+    if executable and isinstance(cmd, (list, tuple)) and cmd:
+        return [str(executable), *cmd[1:]]
+    return cmd
+
+
+def backend_spawn_subcommand(cmd, cmd_to_string, kwargs=None):
     """Which backend subcommand this argv would START, or ``None``."""
-    tokens = _cmd_tokens(cmd, cmd_to_string)
+    tokens = _cmd_tokens(_as_executed(cmd, kwargs), cmd_to_string)
     entry = None
     for index, token in enumerate(tokens):
         normalized = str(token).replace("\\", "/").lower()
@@ -246,9 +259,9 @@ def backend_spawn_subcommand(cmd, cmd_to_string):
     return None
 
 
-def refuse_backend_spawn(name, cmd, cmd_to_string, lookalike_ok) -> None:
+def refuse_backend_spawn(name, cmd, cmd_to_string, lookalike_ok, kwargs=None) -> None:
     """Raise when *cmd* would START a hermes backend; a lookalike-marked test may start only a gateway."""
-    backend = backend_spawn_subcommand(cmd, cmd_to_string)
+    backend = backend_spawn_subcommand(cmd, cmd_to_string, kwargs)
     # The existing marker permits only a test-owned gateway lookalike.
     # Other backend entry points remain forbidden even in marked tests.
     if backend is not None and not (backend == "gateway" and lookalike_ok):

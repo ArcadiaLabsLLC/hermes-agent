@@ -264,7 +264,7 @@ def _is_provisioned_tool(token: str) -> bool:
     return path.startswith(tools) and path[len(tools):].count("/") == 1
 
 
-def classify(cmd, env=None) -> str | None:
+def classify(cmd, env=None, executable=None) -> str | None:
     """Return why this spawn is refused, or ``None`` when it is allowed."""
     tokens = _tokens(cmd)
     if not tokens:
@@ -274,7 +274,8 @@ def classify(cmd, env=None) -> str | None:
     # The backend arm is the live guard's own classifier (one owner: the inert
     # ``python -c`` rule and the code-word split live there, nowhere else).
     spawned = bytes(cmd).decode(errors="replace") if isinstance(cmd, (bytes, bytearray)) else cmd
-    backend = backend_spawn_subcommand(spawned, lambda c: "" if c is None else str(c))
+    backend = backend_spawn_subcommand(spawned, lambda c: "" if c is None else str(c),
+                                       {"executable": executable})
     if backend is not None:
         return (
             f"it would START a live hermes backend (`{backend}`). A real boot "
@@ -430,7 +431,7 @@ def _install_spawn_wrappers() -> None:
     class _FencedPopen(real_popen):  # type: ignore[misc, valid-type]
         def __init__(self, cmd, *args, **kwargs):
             if _ARMED:
-                reason = classify(cmd, kwargs.get("env"))
+                reason = classify(cmd, kwargs.get("env"), kwargs.get("executable"))
                 if reason:
                     _refuse("subprocess.Popen", cmd, reason)
             super().__init__(cmd, *args, **kwargs)
@@ -445,7 +446,7 @@ def _install_spawn_wrappers() -> None:
         def _make(primitive, func):
             def _fenced(cmd, *args, **kwargs):
                 if _ARMED:
-                    reason = classify(cmd, kwargs.get("env"))
+                    reason = classify(cmd, kwargs.get("env"), kwargs.get("executable"))
                     if reason:
                         _refuse(f"subprocess.{primitive}", cmd, reason)
                 return func(cmd, *args, **kwargs)

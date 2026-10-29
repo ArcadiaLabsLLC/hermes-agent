@@ -435,7 +435,7 @@ def _live_system_guard(request, monkeypatch):
                 "needed (e.g. an integration test testing the update "
                 "flow against a dedicated throwaway repo)."
             )
-        refuse_backend_spawn(name, cmd, _cmd_to_string, lookalike_ok)  # fork: tests/_downstream/live_guard_classify.py
+        refuse_backend_spawn(name, cmd, _cmd_to_string, lookalike_ok, kwargs)  # fork: tests/_downstream/live_guard_classify.py
         # Block spawning a REAL gateway runtime (``python -m hermes_cli.main
         # gateway run|start|restart``). ``_spawn_hermes_action`` launches it
         # with start_new_session=True, so it outlives the pytest worker; the

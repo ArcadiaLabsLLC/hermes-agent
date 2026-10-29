@@ -467,6 +467,16 @@ def _worker_config_frozen() -> bool:
     return worker_config_snapshot() is not None
 
 
+def _compute_worker() -> bool:
+    """A self-registered daemon worker (upstream ``agent.runtime_session_store``) is compute-only
+    and never opens the canonical ``state.db``; the owner process runs the startup migrations."""
+    try:
+        from agent.runtime_session_store import is_worker_process
+    except ImportError:  # a tree without upstream's worker store has no compute workers
+        return False
+    return is_worker_process()
+
+
 def register(ctx) -> None:
     from agent_runtime.console_suggestions.generation import register_suggestion_task
 
@@ -481,7 +491,8 @@ def register(ctx) -> None:
 
     bind_mission_chat_door()  # ruling Q10: the runtime's door onto the CLI turn handler
     if not _worker_config_frozen():  # the three read and rewrite profile config.yaml files
-        migrate_retired_local_llama_id()
+        if not _compute_worker():  # it also rewrites canonical state.db, which a worker never opens
+            migrate_retired_local_llama_id()
         migrate_legacy_persona_toolsets()
         retire_legacy_harness_blocks()
         seed_persona_profile_defaults()
