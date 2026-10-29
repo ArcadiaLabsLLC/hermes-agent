@@ -311,6 +311,8 @@ def test_stdio_learns_the_op_set_from_ready_and_can_re_ask_version():
             "drain_if_idle",
             "launcher_beat",
             "ping",
+            "play_sessions_ack",
+            "play_sessions_pending",
             "settle_ack",
             "shutdown",
             "stacks",
@@ -361,6 +363,8 @@ def test_the_socket_greeting_advertises_the_ops_it_will_actually_answer():
                     "drain_if_idle",
                     "launcher_beat",
                     "ping",
+                    "play_sessions_ack",
+                    "play_sessions_pending",
                     "settle_ack",
                     "stacks",
                     "subscribe",
@@ -406,6 +410,8 @@ def test_every_advertised_op_is_answered_by_the_dispatcher():
         "cancel": "cancel_denied",
         "settle_ack": "settle_acked",
         "launcher_beat": "launcher_beat_ok",
+        "play_sessions_pending": "play_sessions_pending_ok",
+        "play_sessions_ack": "play_sessions_ack_ok",
     }
     gate = threading.Event()
     try:
@@ -424,6 +430,10 @@ def test_every_advertised_op_is_answered_by_the_dispatcher():
                        "window_visible": True, "executable": sys.executable, "build": None,
                        "supervise": False})
             sink.wait_for(answers["launcher_beat"])
+            pipe.send({"op": "play_sessions_pending"})
+            sink.wait_for(answers["play_sessions_pending"])
+            pipe.send({"op": "play_sessions_ack", "session_ids": ["no-such-session"]})
+            sink.wait_for(answers["play_sessions_ack"])
             pipe.send({"op": "shutdown"})
             sink.wait_for("shutdown")
         errors = [

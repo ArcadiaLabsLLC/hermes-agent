@@ -193,7 +193,11 @@ can relaunch with no beat; the game files live under `launcher_supervision/games
 - `agent_runtime/launcher_supervision/game_watch.py` — new; the beat's `game` and the
   `watching` answer; boot-time resume in `watchdog.py`.
 
-**P1 — play-session handback** (row `RT-PLAY-SESSION-HANDBACK`, after G1)
+**P1 — play-session handback** (row `RT-PLAY-SESSION-HANDBACK`, after G1) — BUILT 2026-10-29 (lane
+w1029c-h-b; 09 § "The runtime outlives the launcher" is the contract). Departures: the replies are
+`play_sessions_pending_ok {sessions}` / `play_sessions_ack_ok {ok}` (the beat's `_ok` pattern); an ack
+deletes only an ENDED record (a `still_running` one is the live watch's file and is kept, logged); the
+cap never drops a still-running record and runs on each new watch and each pending read.
 - `agent_runtime/launcher_supervision/play_sessions.py` — new; `play_sessions_pending` /
   `play_sessions_ack` in `constants.py` (both lists) and `handle_message.py`.
 

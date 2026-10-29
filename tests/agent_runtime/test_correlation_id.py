@@ -698,7 +698,7 @@ def test_the_serve_child_logs_one_office_write_line_per_write_naming_the_token(c
     assert len(lines) == 1
     assert lines[0] == (
         f"office_write op=runtime.office.upsert corr={TOKEN} "
-        f"workspace={WORKSPACE} actor_key={QA_INSTANCE} revision=2"
+        f"workspace={WORKSPACE} actor_key={QA_INSTANCE} revision=2 noop=0"
     )
 
 

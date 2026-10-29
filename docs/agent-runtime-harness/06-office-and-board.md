@@ -151,6 +151,25 @@ copy an encoding's accidents. The resolve echoes the STORE's key and a normalize
 `take`, because `take=remote` writes the key the peer's record carries and a
 sidecar's filename may disagree with its record.
 
+### No-op writes
+
+A content-equal office write writes nothing. When `runtime.office.upsert`'s
+next row equals the LIVE actor outside the stamped fields (`revision`,
+`updated_at`, `updated_by`, `created_at` — `office_store/noop.py`), or
+`runtime.office.surface.update`'s normalized folder list equals the live one,
+no file is written, no revision moves, no patch or event is emitted, and the
+ack is the live row's (`OfficeStore.upsert_actor_outcome` /
+`update_surface_outcome`, which both handlers call). The rule is decided LAST:
+every fence and `expect_revision` run first, so a stale token on an equal
+payload is still `StaleRevision`; a payload equal to an ARCHIVED copy is the
+re-add and writes. The serve child's `office_write` line on both verbs carries
+`noop=1` (wrote nothing; `revision` is the live one) or `noop=0` — always
+known, never `-`. Pinned by `tests/agent_runtime/test_office_noop_actor_write.py`,
+`test_office_noop_surface_write.py` and the replay gate
+`test_serve_rpc_office_page_open_replay.py` (three content-equal page opens:
++0 revisions, +0 office events, twelve `noop=1` lines). Built from
+[planned/office-page-open-write-storm.md](planned/office-page-open-write-storm.md).
+
 ### The fences a placement write passes
 
 `runtime.office.upsert` and `harness office actor-upsert` are two doors onto one
@@ -1563,9 +1582,8 @@ Two decisions ride with it:
   a hermes fact: a page-open replay whose payloads equal server truth rewrites
   N+1 files, bumps N+1 revisions and appends 2(N+1) events per open, because
   neither `OfficeStore.upsert_actor` nor `update_surface` has a dirty check.
-  The gate is three slices (`RT-OFFICE-NOOP-ACTOR-WRITE`,
-  `RT-OFFICE-NOOP-SURFACE-WRITE`, `RT-OFFICE-NOOP-RECEIPT`): a content-equal
-  write acks the live row, writes nothing and says `noop=1`. The `laneAbsent`
+  BUILT 2026-10-29 (S1a, S1b, S2 `RT-OFFICE-NOOP-RECEIPT`) — § No-op writes
+  above is the shipped rule. The `laneAbsent`
   window is the serve child's spawn-to-`ready` (5.6 s on the measuring box,
   21.9 s cold on record) and closes on the greeting that carries the method
   manifest; what the launcher lets fall into it is the launcher's

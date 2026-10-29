@@ -208,17 +208,33 @@ def _brain_entry(url: str) -> dict[str, Any]:
 
 
 def _declare_brain_slot(workspace_id: str, url: str, root: Path, issued_at: str) -> dict[str, Any]:
-    """Declare slot ``brain`` and bind it here when this machine may publish; else STAGE the entry."""
+    """Declare slot ``brain`` and bind it here when this machine may publish; else STAGE the entry.
 
-    from ..workspace_slots import bind, declare_one_slot, require_publish_right
+    A workspace whose slot document ``project_migration`` froze (``migrated_to``) declares into that
+    Project instead — ``ProjectStore.declare_one_slot`` + ``bind_project`` — because ``resolve_slot``
+    never reads a migrated document, so a declaration landing there would reach no reader. The staged
+    entry then names the Project (``project_id``) the Launcher's credentialed declare must target.
+    """
+
+    from ..project_store import ProjectStore
+    from ..workspace_slots import bind, bind_project, declare_one_slot, load_document, require_publish_right
 
     entry = _brain_entry(url)
+    migrated = load_document(workspace_id).get("migrated_to")
+    project_id = migrated if isinstance(migrated, str) and migrated else None
     try:
-        require_publish_right(workspace_id, None)
+        if project_id is not None:
+            ProjectStore().declare_one_slot(project_id, entry, issued_at=issued_at, machine=this_machine())
+        else:
+            require_publish_right(workspace_id, None)
     except SlotRefused as refused:
         if refused.reason != REASON_REALM_PUBLISH_DENIED:
             raise
-        return {"state": "pending", "slot": entry}
+        staged = {"state": "pending", "slot": entry}
+        return {**staged, "project_id": project_id} if project_id is not None else staged
+    if project_id is not None:
+        bind_project(project_id, DEFAULT_BRAIN_SLOT, str(root), issued_at=issued_at)
+        return {"state": "declared", "project_id": project_id}
     declare_one_slot(workspace_id, entry, issued_at=issued_at, machine=this_machine())
     bind(workspace_id, DEFAULT_BRAIN_SLOT, str(root), issued_at=issued_at)
     return {"state": "declared"}

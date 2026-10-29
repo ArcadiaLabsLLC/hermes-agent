@@ -1183,6 +1183,8 @@ OP_HANDLERS: Final[Mapping[str, Callable[..., str | None]]] = MappingProxyType(
         "hello": MessageHandling._op_hello,
         "launcher_beat": LauncherSupervision._op_launcher_beat,
         "ping": MessageHandling._op_ping,
+        "play_sessions_ack": LauncherSupervision._op_play_sessions_ack,
+        "play_sessions_pending": LauncherSupervision._op_play_sessions_pending,
         "settle_ack": SettlePush._op_settle_ack,
         "shutdown": MessageHandling._op_shutdown,
         "stacks": MessageHandling._op_stacks,

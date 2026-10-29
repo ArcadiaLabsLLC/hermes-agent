@@ -417,6 +417,10 @@ OPS_EVERY_TRANSPORT: Final[tuple[str, ...]] = (
     # supervises me" (the launcher plan's L5/L6); local transports only.
     "launcher_beat",
     "ping",
+    # The play-session handback (same plan, P1): the observed game records, read
+    # at least once and deleted only by the ack. Local transports only.
+    "play_sessions_ack",
+    "play_sessions_pending",
     # Settle push (2026-10-10): the launcher retires a pushed ``turn_settled``.
     # Its MEMBERSHIP here is the launcher's gate for "this runtime pushes".
     "settle_ack",
@@ -465,8 +469,10 @@ GATEWAY_TRANSPORT = "gateway"
 #: can add deliberately later. The refusal mirrors ``shutdown``'s
 #: (``op_not_available_on_socket``) rather than inventing a shape. ``launcher_beat``
 #: (W1 of launcher supervision) is denied for a stronger reason: a beat steers which
-#: pid this runtime watches, and later what it relaunches — never a device's call.
-OPS_GATEWAY_DENIED: tuple[str, ...] = ("drain", "drain_if_idle", "launcher_beat", "settle_ack")
+#: pid this runtime watches, and later what it relaunches — never a device's call. The
+#: play-session ops (P1) hand back and delete the local launcher's game records.
+OPS_GATEWAY_DENIED: tuple[str, ...] = (
+    "drain", "drain_if_idle", "launcher_beat", "play_sessions_ack", "play_sessions_pending", "settle_ack")
 
 #: The push lanes ``{"op":"subscribe","lane":…}`` accepts. ONE today, and the
 #: value EG-4.2's launcher gate reads: the argv stream stays the backstop until

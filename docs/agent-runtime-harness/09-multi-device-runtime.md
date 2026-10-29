@@ -273,7 +273,13 @@ relaunches it `game_ended` (unbudgeted) or `crashed` (budgeted), and a launcher 
 first is alive, so the end only records. Each watch is a record in `launcher_supervision/games/`
 from receipt (`outcome` `still_running` / `exited` / `lost`, `last_seen_at` refreshed every 60 s); a
 booting service runtime resumes the still-running ones and closes the gone ones `lost` with
-`ended_at: null` → [plan](planned/launcher-mutual-supervision-2026-10-27.md).
+`ended_at: null`. **Play-session handback (P1):** `play_sessions_pending` (local transports only) answers
+`play_sessions_pending_ok {sessions}` — every record as `{session_id, game_id, ended_at, last_seen_at,
+exit_code, outcome}`, oldest first, deleting nothing (at least once; the launcher de-duplicates by
+`session_id`) — and `play_sessions_ack {session_ids}` → `play_sessions_ack_ok {ok}` is the only delete, of
+ENDED records only (an acked `still_running` record is the live watch's and is kept). The store holds at
+most 64 records and none older than 30 days, oldest ended record dropped first and each drop logged
+(`agent_runtime/launcher_supervision/play_sessions.py`). Hermes computes no duration → [plan](planned/launcher-mutual-supervision-2026-10-27.md).
 
 **Started by the OS instead of a launcher (p10-messaging M5, owner RULED 2026-10-19).** v1's service is a
 documented template, not an installer: [Task Scheduler](reference/service/windows-task.xml),

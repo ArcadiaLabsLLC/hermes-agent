@@ -130,7 +130,7 @@ def _runtime_office_upsert(
         return unknown_workspace(rid, workspace_id)
 
     try:
-        actor = store.upsert_actor(
+        outcome = store.upsert_actor_outcome(
             workspace_id,
             actor_payload,
             updated_by=updated_by or "operator",
@@ -141,12 +141,16 @@ def _runtime_office_upsert(
         scope = OfficeWriteScope(rid, workspace_id, {"expect_revision": expect_revision})
         return translate(exc, UPSERT_ERRORS, scope)
 
+    # A content-equal placement wrote nothing (``office_store/noop.py``): the
+    # ack is the LIVE row's revision, and ``noop=1`` says so in the log line.
+    actor = outcome.row
     log_office_write(
         op="runtime.office.upsert",
         correlation_id=correlation_id,
         workspace=workspace_id,
         actor_key=actor.actor_key,
         revision=actor.revision,
+        noop=0 if outcome.written else 1,
     )
     # Light, and both fields are things the caller could not have computed.
     # ``correlation_id`` rides only when the caller sent one — the ECHO is what

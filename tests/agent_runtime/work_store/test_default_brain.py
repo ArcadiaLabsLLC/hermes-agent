@@ -256,6 +256,54 @@ def test_promotion_in_a_server_bound_realm_stages_the_declaration(workspace, hos
     assert [b.slot for b in board.boards(workspace)] == ["brain"]
 
 
+def _after_migration() -> str:
+    """A stamp past the migration's own (it stamps the frozen document with the wall clock)."""
+
+    from datetime import UTC, datetime
+
+    return datetime.now(UTC).isoformat()
+
+
+def test_promotion_on_a_migrated_workspace_declares_into_its_project(workspace, host):
+    """RT-PROJECT-DEFAULT-BRAIN-DECLARE-MIGRATED: a frozen document is read by no one, so the slot goes to ``ws-<ws>``."""
+
+    from agent_runtime import project_migration
+    from agent_runtime.project_store import load_project
+
+    declare_slots(workspace, slot_decl("tools"))
+    project_migration.migrate_namespace()
+    project_id = project_migration.migrated_project_id(workspace)
+    frozen = load_document(workspace)
+    default_brain.ensure_default_brain(workspace, issued_at=_after_migration())
+    record = _record(workspace)
+    assert record["declaration"] == {"state": "declared", "project_id": project_id}
+    assert load_document(workspace) == frozen  # nothing landed in the migrated document
+    live = workspace_slots.live_slots(load_project(project_id))
+    assert sorted(live) == ["brain", "tools"] and live["brain"]["repo"]["clone_url"] == record["remote_url"]
+    resolved = workspace_slots.resolve_slot(workspace, "brain")
+    assert resolved is not None and resolved.project_id == project_id
+    assert workspace_slots.bound_path("brain", workspace_id=workspace) == paths.default_brain_dir(workspace)
+    assert default_brain.remote_state(workspace) == {"state": "remote", "clone_url": record["remote_url"]}
+
+
+def test_promotion_on_a_migrated_workspace_without_the_project_right_stages_it_naming_the_project(
+        workspace, host, monkeypatch):
+    from agent_runtime import project_migration, project_store
+
+    declare_slots(workspace, slot_decl("tools"))
+    project_migration.migrate_namespace()
+    project_id = project_migration.migrated_project_id(workspace)
+
+    def denied(pid, credentials=None):
+        raise workspace_slots.SlotRefused(workspace_slots.REASON_REALM_PUBLISH_DENIED, "membership_denied")
+
+    monkeypatch.setattr(project_store, "require_project_publish_rights", denied)
+    default_brain.ensure_default_brain(workspace, issued_at=_after_migration())
+    declaration = _record(workspace)["declaration"]
+    assert declaration["state"] == "pending" and declaration["project_id"] == project_id
+    assert "brain" not in workspace_slots.live_slots(project_store.load_project(project_id))
+
+
 def test_not_connected_is_a_receipt_and_the_brain_stays_local(workspace, host, caplog):
     import logging
 
