@@ -762,6 +762,18 @@ def workspace_slots_path(workspace_id: str) -> Path:
     return workspace_slots_dir() / f"{safe_path_token(workspace_id)}.json"
 
 
+def projects_dir() -> Path:
+    """The Launcher Project records hermes keeps (plan project-slots-and-shared-chats-2026-10-29 §2)."""
+
+    return store_root() / "projects"
+
+
+def project_path(project_id: str) -> Path:
+    """One Project's record, keyed by the project id's path token (the PROJECT family)."""
+
+    return projects_dir() / f"{safe_path_token(project_id)}.json"
+
+
 def slot_worktrees_path(workspace_id: str, slot: str) -> Path:
     """The git worktrees seen cut from one repo slot's folder on THIS machine (RT-WORKTREE-RECORDED-ON-SLOT).
 

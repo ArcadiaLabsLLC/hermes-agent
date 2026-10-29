@@ -832,6 +832,24 @@ Deleting an account-local Launcher Project does not cascade into a shared or
 offline workspace: an orphaned opaque reference is inert. Connections grant no
 content access and do not alter slots or agent assignments.
 
+54 KEPT (Projects record, 2026-10-29, RT-PROJECT-RECORD-STORE) — no snapshot key
+moved. Hermes now keeps a Project's record at ``store/projects/<token>.json``
+(``paths.project_path``): ``slots`` in the workspace slot document's exact shape
+(``workspace_slots.apply_declared_set``; ``context`` may carry ``document_dirs`` /
+``adr_dirs``), ``categories.<chats|documents|boards|artifacts|guidance>`` as folder
+declarations ``{slot, subpath, shared, issued_at, revision}``, ``guidance``
+``{description, instructions, issued_at, revision}`` present only while
+``categories.guidance.shared``, and ``machines``. The one writer is
+``project_store.ProjectStore``; a folder category shares only on a slot with a
+clone URL (``category_not_source_controlled``), and every write runs the realm
+publish decision for each realm whose workspace holds the Project
+(``realm_publish_denied`` names the realm). It syncs as realm family ``project``
+(``project_sync.apply_project_pull``, envelope row ``project_sync``). Verbs, all
+``console``: ``runtime.project.show`` / ``.declare`` / ``.category.set`` /
+``.guidance.set``; their keys are in the manifest's ``params`` (the launcher mirror
+in ``test/fixtures/harness_stream/``). Plan
+[project-slots-and-shared-chats-2026-10-29.md](planned/project-slots-and-shared-chats-2026-10-29.md) §2.
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.

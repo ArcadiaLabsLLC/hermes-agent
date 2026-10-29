@@ -182,6 +182,10 @@ def _resolve_artifacts_with_projection(realm_id: str) -> _ResolvedPublish:
     from ..workspace_slots_sync import publish_artifacts as _workspace_slot_artifacts
 
     artifacts.extend(_workspace_slot_artifacts(workspaces))
+    # The Project records the realm's workspaces hold (plan project-slots-and-shared-chats §2).
+    from ..project_sync import publish_artifacts as _project_artifacts
+
+    artifacts.extend(_project_artifacts(workspaces))
     # Personas referenced by synced office placements travel with the office
     # (plan §5): an office-only persona must be materializable on pull. The
     # wanted set was workspace.agent_ids only, which would sync a placement

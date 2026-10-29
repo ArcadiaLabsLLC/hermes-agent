@@ -278,6 +278,13 @@ def _context(value: Any) -> dict[str, Any]:
         if not _inside_checkout(brain_dir):
             raise SlotRefused(REASON_INVALID_DECLARATION, "context.brain_dir is a relative path inside the checkout")
         held["brain_dir"] = brain_dir
+    for key in ("document_dirs", "adr_dirs"):
+        # A Project slot's document and ADR folders (plan project-slots-and-shared-chats §2).
+        dirs = value.get(key) if isinstance(value, dict) else None
+        if dirs is not None:
+            if not isinstance(dirs, list) or not all(_inside_checkout(d) for d in dirs):
+                raise SlotRefused(REASON_INVALID_DECLARATION, f"context.{key} are relative paths inside the checkout")
+            held[key] = list(dirs)
     gate = value.get("gate") if isinstance(value, dict) else None
     if gate is not None:
         # The batch landing gate's commands for this slot (p10-work §3, RT-BATCH-GATE-PER-SLOT-COMMAND).
@@ -349,18 +356,8 @@ def declare(workspace_id: str, slots: Any, *, issued_at: str, machine: str) -> d
     The second write site is :func:`declare_one_slot` (one name, nothing tombstoned).
     """
 
-    if not isinstance(slots, list):
-        raise SlotRefused(REASON_INVALID_DECLARATION, "slots must be a list")
-    declared = dict(normalize_declaration(entry) for entry in slots)
     document = _fresh_document(workspace_id, issued_at)
-    current = document.setdefault("slots", {})
-    for name, body in declared.items():
-        current[name] = _declared_record(current.get(name) or {}, body, issued_at=issued_at, machine=machine)
-    tombstoned = [name for name, slot in current.items() if name not in declared and not slot.get("removed_at")]
-    for name in tombstoned:
-        current[name] = {**current[name], "recipe": _revised(current[name].get("recipe"), bump=True),
-                         "removed_at": issued_at, "issued_at": issued_at}
-    document["issued_at"] = issued_at
+    declared, tombstoned = apply_declared_set(document, slots, issued_at=issued_at, machine=machine)
     document["workspace_id"] = workspace_id
     write_document(workspace_id, document)
     from .persona_slots import drop_removed_slots
@@ -379,15 +376,46 @@ def _fresh_document(workspace_id: str, issued_at: str) -> dict[str, Any]:
     """The document a declare writes into, or ``stale_revision`` when ``issued_at`` is older than its last write."""
 
     document = load_document(workspace_id)
-    last, issued = stamp_epoch(document.get("issued_at")), stamp_epoch(issued_at)
+    refuse_stale(document.get("issued_at"), issued_at)
+    return document
+
+
+def refuse_stale(last_stamp: Any, issued_at: str) -> None:
+    """``stale_revision`` when ``issued_at`` is older than ``last_stamp`` (the record's last write).
+
+    A stored stamp past this machine's horizon (a broken or forged clock, pulled or local) is not
+    believed, so it can never wedge every later declare as ``stale_revision``; the first honest
+    declare replaces it and the check holds again from there. Shared with ``project_store``.
+    """
+
+    last, issued = stamp_epoch(last_stamp), stamp_epoch(issued_at)
     if issued is None:
         raise SlotRefused(REASON_INVALID_DECLARATION, "issued_at must be an ISO-8601 stamp")
-    # A stored stamp past this machine's horizon (a broken or forged clock, pulled or local) is not
-    # believed, so it can never wedge every later declare as ``stale_revision``; the first honest
-    # declare replaces it and the check holds again from there.
     if last is not None and last <= stamp_horizon() and issued < last:
         raise SlotRefused(REASON_STALE_REVISION, "a newer declaration already landed")
-    return document
+
+
+def apply_declared_set(document: dict[str, Any], slots: Any, *, issued_at: str,
+                       machine: str) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    """REPLACE ``document``'s declared set in place: ``(declared, tombstoned names)``.
+
+    The one declare rule for a workspace slot document and a Project record alike: names missing
+    from ``slots`` are tombstoned (revision bumped), never deleted; a tombstoned name declared again
+    comes back; a slot that stays keeps its recipe. ``document["issued_at"]`` is stamped.
+    """
+
+    if not isinstance(slots, list):
+        raise SlotRefused(REASON_INVALID_DECLARATION, "slots must be a list")
+    declared = dict(normalize_declaration(entry) for entry in slots)
+    current = document.setdefault("slots", {})
+    for name, body in declared.items():
+        current[name] = _declared_record(current.get(name) or {}, body, issued_at=issued_at, machine=machine)
+    tombstoned = [name for name, slot in current.items() if name not in declared and not slot.get("removed_at")]
+    for name in tombstoned:
+        current[name] = {**current[name], "recipe": _revised(current[name].get("recipe"), bump=True),
+                         "removed_at": issued_at, "issued_at": issued_at}
+    document["issued_at"] = issued_at
+    return declared, tombstoned
 
 
 def _declared_record(held: dict[str, Any], body: dict[str, Any], *, issued_at: str, machine: str) -> dict[str, Any]:

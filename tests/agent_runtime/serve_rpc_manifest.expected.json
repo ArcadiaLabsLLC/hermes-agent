@@ -283,6 +283,10 @@
     "runtime.prefab.get",
     "runtime.prefab.list",
     "runtime.prefab.set",
+    "runtime.project.category.set",
+    "runtime.project.declare",
+    "runtime.project.guidance.set",
+    "runtime.project.show",
     "runtime.prompt_context.show",
     "runtime.provider.configure",
     "runtime.provider.dependency.install",
@@ -885,6 +889,35 @@
     "runtime.persona.toolset.list": [
       "persona_id"
     ],
+    "runtime.project.category.set": [
+      "project_id",
+      "issued_at",
+      "credential",
+      "credentials",
+      "category",
+      "slot",
+      "subpath",
+      "shared"
+    ],
+    "runtime.project.declare": [
+      "project_id",
+      "issued_at",
+      "credential",
+      "credentials",
+      "name",
+      "slots"
+    ],
+    "runtime.project.guidance.set": [
+      "project_id",
+      "issued_at",
+      "credential",
+      "credentials",
+      "description",
+      "instructions"
+    ],
+    "runtime.project.show": [
+      "project_id"
+    ],
     "runtime.realm.adopt": [
       "credential",
       "dry_run",
@@ -1258,6 +1291,10 @@
     "runtime.prefab.get": "console",
     "runtime.prefab.list": "console",
     "runtime.prefab.set": "console",
+    "runtime.project.category.set": "console",
+    "runtime.project.declare": "console",
+    "runtime.project.guidance.set": "console",
+    "runtime.project.show": "console",
     "runtime.prompt_context.show": "console",
     "runtime.provider.configure": "console",
     "runtime.provider.dependency.install": "console",
