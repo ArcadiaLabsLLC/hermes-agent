@@ -391,6 +391,13 @@ would be inherited by every subprocess a handler spawns, which is a different qu
 
 ## Stage 5 — the hygiene sweeps
 
+**Default scope** (`default_scope_ms`, `hermes_cli/harness_parts/serve/boot_phases.py` →
+`agent_runtime/default_scope.py::ensure_default_scope`). The Default realm and workspace
+(`realm_default` / `ws_default`) for the namespace being served. `harness init` runs once against
+the base root, so a namespace created later had none until this phase; it is idempotent and
+fail-open (a store that needs reconciliation is left to the operator), and `default_scope_created:
+true` rides the ready frame only on the boot that wrote it.
+
 **Orphaned turns** (`orphaned_turn_sweep_ms`, `serve.py` →
 `agent_runtime/persona_chat_continuity/lease.py::repair_orphaned_chat_turns`). A native turn holds the OS-backed root lease for
 its entire execution and the kernel releases it when the holder dies, so "in-flight record AND

@@ -672,6 +672,19 @@ class BootPhases:
 
     def _boot_sweeps_and_ready_frame(self) -> None:
         from agent_runtime.serve_rpc import registry as serve_rpc
+        # The Default realm and workspace for the namespace being served
+        # (RT-SERVE-BOOT-DEFAULT-SCOPE): ``harness init`` runs once against the
+        # base root, so a namespace created later had none. Idempotent, and
+        # fail-open — a scope that needs operator reconciliation stays theirs.
+        default_scope_created = False
+        try:
+            from agent_runtime.default_scope import ensure_default_scope
+
+            scope = ensure_default_scope()
+            default_scope_created = scope.created_realm or scope.created_workspace
+        except Exception:
+            default_scope_created = False
+        self.timeline.mark("default_scope_ms")
         # Orphaned-turn sweep BEFORE the ready frame: serve boot is the moment
         # a launcher restart replaces a dead runtime, and the first hydrate is
         # only requested after ready — so records a dead executor left frozen
@@ -782,6 +795,8 @@ class BootPhases:
             # having to send one and read the answer's tea leaves.
             "ops": ops_manifest(transport="stdio", service=self.service),
         }
+        if default_scope_created:
+            self.ready_frame["default_scope_created"] = True
         if orphaned_repaired:
             self.ready_frame["orphaned_turns_repaired"] = len(orphaned_repaired)
         if dispatches_restored:
