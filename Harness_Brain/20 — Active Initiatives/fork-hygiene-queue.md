@@ -614,4 +614,3 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-29 (orchestrator, found running the CLAUDE.md-reading tests)
 
-- **`FH-CONTEXT-MANIFEST-TEST-STALE` — `tests/agent/test_context_file_sources.py::test_manifest_matches_what_the_prompt_actually_loads` is red on `main`: it still expects `.cursorrules`, `../AGENTS.md`, `CLAUDE.md` and `.cursor/rules/a.mdc` to be `shadowed`, but `6698461eaf` made the `/context` manifest stop calling files the fork loads "shadowed", and the manifest now says `loaded`; update the expected statuses to the fork's real loading and record the red** · `tests/agent/test_context_file_sources.py::test_manifest_matches_what_the_prompt_actually_loads` · `agent/context_file_sources.py` · READY 2026-10-29 · **TAKEN 2026-10-29 w1029a-h-fork on nekwo-ubuntu24 as nekwo in hermes-w1029a-h-fork**
