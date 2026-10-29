@@ -1097,4 +1097,3 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-29 (planning lane w1029p-projects: the Project record, slots re-keyed to `<project>/<slot>`, shared chats)
 
-- **`RT-QUEUE-DELETE-NEEDS-ROW-OWNER` — port the launcher's queue row-history guard to hermes's queue gate: red a push that drops a `RULED` segment or regresses a status date, and name a deleted row another git author filed, unless a commit names it beside an `Authorized-by:` line (ADR 0038)** · `EterniaLauncher/tool/queue/queue_row_guard.dart` · filed 2026-10-29 launcher lane w1029a-qa · launcher guard landed 2026-10-29 (launcher 3a5edba608); owner ruled "Keep it a note": port it as a note for teammate-row deletes, red only on a dropped RULED segment · READY 2026-10-29 · **TAKEN 2026-10-29 w1029b-h-rt on nekwo-ubuntu24 as nekwo in hermes-w1029b-h-rt**
