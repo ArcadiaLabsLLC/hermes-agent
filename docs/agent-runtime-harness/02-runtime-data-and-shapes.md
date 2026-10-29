@@ -916,8 +916,9 @@ snapshot key moved. ``PersonaInstance.recall_shared_projects`` (default false; s
 clock; ``runtime.persona.instance.recall.set`` ``{persona_instance_id, enabled,
 issued_at}``; ``instance.slots.show`` reports it). With it on,
 ``agent_runtime/project_chat_recall.recall_session_search`` (upstream's public
-``session_search`` per store; the agent's tool call is not yet routed to it — that is an
-upstream-file edit awaiting the owner) also searches, read-only, the shared store of
+``session_search`` per store; the agent's tool call reaches it through the append-only
+seam at the end of ``tools/session_search_tool.py``, which wraps the registered handler
+with ``route_registered_handler`` — owner ruling 2026-10-29) also searches, read-only, the shared store of
 every Project the instance's workspace holds whose chats are shared: per-store discovery,
 merged round-robin by per-store rank with the own store first; each shared hit carries
 ``shared_from {project, project_id, author, machine}``, ``shared_label`` and the link

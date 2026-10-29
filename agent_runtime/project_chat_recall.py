@@ -17,9 +17,11 @@ reads the live turn, never a store.
 * :func:`recall_session_search` is the whole recall: upstream's PUBLIC ``session_search`` against the
   own store, the same call against each enabled shared store (no current session there), the merge,
   and an ``@project:<id>/<session>`` link resolved (read or scroll) against that store read-only —
-  refused when the store is not enabled for this agent. It replaces nothing yet: the agent's tool
-  call still reaches upstream's ``session_search`` directly, and routing it here is one edit in an
-  upstream file the footprint ratchet holds (row RT-PROJECT-CHAT-RECALL-ACROSS-STORES, owner decision).
+  refused when the store is not enabled for this agent.
+* :func:`route_registered_handler` is the agent's door: the append-only seam at the end of
+  ``tools/session_search_tool.py`` (owner ruling 2026-10-29, row RT-PROJECT-CHAT-RECALL-ACROSS-STORES)
+  wraps the registered handler, so the tool call recalls across the enabled stores while every
+  direct caller of upstream's ``session_search`` keeps upstream's single-store behaviour.
 """
 
 from __future__ import annotations
@@ -155,6 +157,34 @@ def close_stores(stores: list[SharedStore]) -> None:
             pass
 
 
+def _recall(search, *, profile: Any, session_id: Any, limit: Any,
+            shared_stores: list[SharedStore] | None) -> str:
+    """The recall, over ``search(**overrides)`` — one upstream ``session_search`` call with these overrides."""
+
+    from tools.registry import tool_error
+
+    if str(profile or "").strip():
+        return search()
+    stores = shared_stores_for_current_turn() if shared_stores is None else shared_stores
+    try:
+        link = project_link(session_id)
+        if link:
+            store = store_for_link(link[0], stores)
+            if store is None:
+                return tool_error(f"@project:{link[0]} is not a shared chat store this agent recalls from",
+                                  success=False)
+            return search(db=store.db, current_session_id=None, session_id=link[1])
+        result = search()
+        if stores and not (isinstance(session_id, str) and session_id.strip()):
+            limit = max(1, min(10, int(limit or 3)))
+            result = merge_discover(result, stores, limit=limit, discover=lambda db: search(
+                db=db, limit=limit, current_session_id=None, exclude_session_ids=None))
+        return result
+    finally:
+        if shared_stores is None:
+            close_stores(stores)
+
+
 def recall_session_search(*, shared_stores: list[SharedStore] | None = None, **kwargs: Any) -> str:
     """``tools.session_search_tool.session_search(**kwargs)`` plus the agent's enabled shared stores.
 
@@ -163,27 +193,38 @@ def recall_session_search(*, shared_stores: list[SharedStore] | None = None, **k
     """
 
     from tools.session_search_tool import session_search
-    from tools.registry import tool_error
 
-    if str(kwargs.get("profile") or "").strip():
-        return session_search(**kwargs)
-    stores = shared_stores_for_current_turn() if shared_stores is None else shared_stores
-    try:
-        link = project_link(kwargs.get("session_id"))
-        if link:
-            store = store_for_link(link[0], stores)
-            if store is None:
-                return tool_error(f"@project:{link[0]} is not a shared chat store this agent recalls from",
-                                  success=False)
-            return session_search(**{**kwargs, "db": store.db, "current_session_id": None, "session_id": link[1]})
-        result = session_search(**kwargs)
-        session_id = kwargs.get("session_id")
-        if stores and not (isinstance(session_id, str) and session_id.strip()):
-            limit = max(1, min(10, int(kwargs.get("limit") or 3)))
-            shared_kwargs = {**kwargs, "limit": limit, "current_session_id": None, "exclude_session_ids": None}
-            result = merge_discover(result, stores, limit=limit,
-                                    discover=lambda db: session_search(**{**shared_kwargs, "db": db}))
-        return result
-    finally:
-        if shared_stores is None:
-            close_stores(stores)
+    return _recall(lambda **overrides: session_search(**{**kwargs, **overrides}),
+                   profile=kwargs.get("profile"), session_id=kwargs.get("session_id"),
+                   limit=kwargs.get("limit"), shared_stores=shared_stores)
+
+
+_ROUTED = "_project_chat_recall_routed"
+
+
+def routed_handler(handler: Any) -> Any:
+    """The registered ``session_search`` handler, recalling across the turn's enabled shared stores."""
+
+    if getattr(handler, _ROUTED, False):
+        return handler
+
+    def routed(args: dict[str, Any], **kw: Any) -> str:
+        args = dict(args or {})
+
+        def search(**overrides: Any) -> str:
+            call_kw = {**kw, **{key: overrides.pop(key) for key in ("db", "current_session_id") if key in overrides}}
+            return handler({**args, **overrides}, **call_kw)
+
+        return _recall(search, profile=args.get("profile"), session_id=args.get("session_id"),
+                       limit=args.get("limit"), shared_stores=None)
+
+    setattr(routed, _ROUTED, True)
+    return routed
+
+
+def route_registered_handler(registry: Any) -> None:
+    """Called once by the seam in ``tools/session_search_tool.py`` right after upstream registers the tool."""
+
+    entry = registry.get_entry("session_search", scope=None)
+    if entry is not None:
+        entry.handler = routed_handler(entry.handler)

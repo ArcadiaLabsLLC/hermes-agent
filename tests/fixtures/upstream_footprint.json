@@ -1,7 +1,7 @@
 {
   "measured_at": "2026-10-29",
   "base": "4d04303818",
-  "files": 240,
+  "files": 241,
   "deleted_lines": 1060,
   "heavy": 1,
   "reasons": [
@@ -1240,6 +1240,21 @@
       },
       "reason": "Test half of the agent/context_file_sources.py carry (RT-CONTEXT-MANIFEST-SHADOWED): upstream's parity test expected CLAUDE.md, .cursorrules, .cursor/rules/a.mdc and both AGENTS files shadowed; under the fork's load-every-kind builder they are loaded, so the expected statuses follow (3 lines respelled, one fork: comment). Retires with the context_files.load_all PR, alongside the source carry.",
       "owner_ruling": "2026-10-29 \u00b7 Harness_Brain/20 \u2014 Active Initiatives/fork-hygiene-queue.md FH-CONTEXT-MANIFEST-TEST-STALE, owner-filed: update the expected statuses to the fork's real loading"
+    },
+    {
+      "change": "RT-PROJECT-CHAT-RECALL-ACROSS-STORES (lane w1029b-h-proj)",
+      "before": {
+        "files": 240,
+        "deleted_lines": 1060,
+        "heavy": 1
+      },
+      "after": {
+        "files": 241,
+        "deleted_lines": 1060,
+        "heavy": 1
+      },
+      "reason": "Append-only seam: three lines after upstream's registry.register hand the registered session_search handler to agent_runtime/project_chat_recall.py::route_registered_handler, so the agent's tool call also recalls the shared store of every Project its instance enabled (recall_shared_projects + the Project's chats share); direct callers of session_search keep upstream's single-store behaviour. NO DOOR YET: no hook may wrap a built-in tool's handler. PR candidate: a wrap_dispatch plugin hook around ToolRegistry.dispatch (the tools/registry.py row's candidate).",
+      "owner_ruling": "2026-10-29 \u00b7 Harness_Brain/20 \u2014 Active Initiatives/runtime-queue.md RT-PROJECT-CHAT-RECALL-ACROSS-STORES RULED: owner \"sounds good yea we need that\" \u2014 allow the append-only seam in tools/session_search_tool.py"
     }
   ]
 }
