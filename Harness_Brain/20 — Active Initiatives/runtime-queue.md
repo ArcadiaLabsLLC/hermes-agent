@@ -29,9 +29,9 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
-### Filed on arrival — 2026-10-29 (lane w1029b-h-rt)
+### Filed on arrival — 2026-10-29 (landing w1029b-h-land)
 
-- **`RT-OFFICE-CLASS-KEY-FENCE-NOOP-WRITER` — `test_office_class_key_one_fence.py::test_every_production_writer_of_a_live_actor_file_is_enumerated_and_dispositioned` is red on `main` since S1a (`b826f6fa1a`): the split-out `actor_writes._land_fenced_upsert` writes the live actor file and is in neither the fenced set nor `CARVED_OUT_ACTOR_WRITERS`; disposition it (it runs under `upsert_actor_outcome`'s fences, so it is fenced by its only caller — enumerate it as such)** · fork / office · `agent_runtime/office_store/actor_writes.py::_land_fenced_upsert` · `tests/agent_runtime/test_office_class_key_one_fence.py` · READY 2026-10-29
+- **`RT-SESSIONS-EXPORT-HOME-WRITES` — `hermes sessions export` opens state.db read-only but the CLI boot still writes into HERMES_HOME (logs, SQLite -wal/-shm, and on a bare home the whole skeleton: installs/<id>/bootstrap/default.json, SOUL.md, cron/, memories/…); on a home whose directory is not writable it fails "attempt to write a readonly database", so the launcher's owner-chat import is a read of the store, not of the home** · `hermes_cli/sessions_cmd.py` · found 2026-10-29 by launcher lane w1029b-qa · READY 2026-10-29
 
 ### Filed on arrival — 2026-10-29 (lane w1029b-h-proj)
 
@@ -49,7 +49,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-28 (planning lane w1028p-taskbound)
 
-- **`RT-TASK-BOUND-WIRE-PRUNE` — stop emitting `current_task_id` on `persona_instances`, `kind` / `live_mission` / `task_id` on `persona_chat_history` and `task_id` on `persona_chat_trace` once the launcher no longer decodes them** · fork / wire · `agent_runtime/persona_chat_history/history_rows.py` · `tests/agent_runtime/test_s70_persona_instance_wire_prune.py` · plan `docs/agent-runtime-harness/planned/task-bound-mission-lanes-2026-10-28.md` §Slices S4 · BLOCKED 2026-10-28: launcher — `MC-TASK-BOUND-WIRE-READERS` deletes the launcher's `taskBound` / `currentTaskId` / `isLiveMission` / `taskId` readers first (a decoder that tolerates a missing key is the safe order)
+- **`RT-TASK-BOUND-WIRE-PRUNE` — stop emitting `current_task_id` on `persona_instances`, `kind` / `live_mission` / `task_id` on `persona_chat_history` and `task_id` on `persona_chat_trace` once the launcher no longer decodes them** · fork / wire · `agent_runtime/persona_chat_history/history_rows.py` · `tests/agent_runtime/test_s70_persona_instance_wire_prune.py` · plan `docs/agent-runtime-harness/planned/task-bound-mission-lanes-2026-10-28.md` §Slices S4 · S4 also stops emitting `task_id` on operator channels and conversations: `agent_runtime/operator_channels/instances.py` builds it only from `current_task_id` and the history/trace `task_id`, all null after S3; launcher `MC-CHANNEL-TASK-ID-READERS` moves first (found 2026-10-29 by launcher lane w1029b-mc-tb) · BLOCKED 2026-10-28: launcher — `MC-TASK-BOUND-WIRE-READERS` deletes the launcher's `taskBound` / `currentTaskId` / `isLiveMission` / `taskId` readers first (a decoder that tolerates a missing key is the safe order)
 ### Filed on arrival — 2026-10-28 (lane w1028p-officestorm, the page-open storm plan)
 
 - **`RT-OFFICE-NOOP-RECEIPT` — S2: the two office write handlers switch to the outcome doors, `log_office_write` gains `noop=0|1`, a replay gate pins three content-equal page opens at +0 revisions and +0 events, and the plan folds into 06 § "No-op writes"; this is the landing the launcher's `MC-OFFICE-ARGV-WRITE-ARMS` observation window waits for** · fork / office · `agent_runtime/serve_rpc/office_actor_writes.py` · `agent_runtime/serve_rpc/office_surface_writes.py` · `agent_runtime/serve_rpc/office_read.py::log_office_write` · `docs/agent-runtime-harness/planned/office-page-open-write-storm.md` §4–§5 (T7–T9), §8 · S1a landed on wave/w1029a-h-rt-b, S1b on wave/w1029b-h-rt (`OfficeStore.update_surface_outcome`) · READY 2026-10-29

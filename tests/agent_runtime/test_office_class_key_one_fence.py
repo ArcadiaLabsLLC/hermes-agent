@@ -44,6 +44,7 @@ socket reaches and cheaper than a child by two orders of magnitude.
 from __future__ import annotations
 
 import ast
+import functools
 import inspect
 import json
 import pathlib
@@ -453,10 +454,14 @@ FENCE_GUARDS: dict[str, tuple[str, ...]] = {
 #: The verdict a disposition may open with. A free-text sentence is a disposition
 #: nothing can check; the leading token is the part the witness reads.
 FENCED = "FENCED"
+#: The write half of a fenced writer, split out and called only from under that
+#: writer's fences. Checked, not believed: the named caller must be FENCED for the
+#: same fence, must call this function, and must be its ONLY production caller.
+FENCED_BY_CALLER = "FENCED BY ITS CALLER"
 SANCTIONED_OVERRIDE = "SANCTIONED OVERRIDE"
 UNFENCED = "UNFENCED"
 PRIMITIVE = "THE PRIMITIVE"
-_VERDICTS = (FENCED, SANCTIONED_OVERRIDE, UNFENCED, PRIMITIVE)
+_VERDICTS = (FENCED_BY_CALLER, FENCED, SANCTIONED_OVERRIDE, UNFENCED, PRIMITIVE)
 
 #: Every production function that writes a LIVE actor file, with the disposition
 #: that makes it safe — one per fence, all of them, for each writer. Adding a
@@ -464,8 +469,35 @@ _VERDICTS = (FENCED, SANCTIONED_OVERRIDE, UNFENCED, PRIMITIVE)
 #: column to every block; that is the cost of the pin and much cheaper than the
 #: hole it closes.
 FENCED_ACTOR_WRITERS: dict[tuple[str, str], dict[str, str]] = {
-    # The body (and so the write) moved into ``upsert_actor_outcome`` with the no-op rule
+    # The body moved into ``upsert_actor_outcome`` with the no-op rule
     # (RT-OFFICE-NOOP-ACTOR-WRITE); ``upsert_actor`` returns its ``.row`` and writes nothing itself.
+    # The fences stay there; the write itself moved into ``_land_fenced_upsert`` (S1a,
+    # ``b826f6fa1a``), which the entry below dispositions against them.
+    ("agent_runtime/office_store/actor_writes.py", "_land_fenced_upsert"): {
+        "class_key": (
+            "FENCED BY ITS CALLER — upsert_actor_outcome runs _guard_class_keyed_write "
+            "under office_lock before calling this write half, its only caller"
+        ),
+        "tombstone": (
+            "FENCED BY ITS CALLER — upsert_actor_outcome runs _guard_archived_actor on "
+            "the ``existing is None`` arm before calling this write half"
+        ),
+    },
+}
+
+#: Which fenced writer each FENCED BY ITS CALLER row is fenced by. Kept apart so a
+#: disposition stays keyed by fence alone.
+FENCING_CALLERS: dict[tuple[str, str], tuple[str, str]] = {
+    ("agent_runtime/office_store/actor_writes.py", "_land_fenced_upsert"): (
+        "agent_runtime/office_store/actor_writes.py",
+        "upsert_actor_outcome",
+    ),
+}
+
+#: The fenced entry point whose fences a FENCED BY ITS CALLER row borrows. It no
+#: longer writes the file itself, so it is not in the writer table; the verdict
+#: words below are still checked against its source.
+_FENCING_CALLER_DISPOSITIONS: dict[tuple[str, str], dict[str, str]] = {
     ("agent_runtime/office_store/actor_writes.py", "upsert_actor_outcome"): {
         "class_key": (
             "FENCED — _guard_class_keyed_write, first inside the lock; override is the "
@@ -477,6 +509,9 @@ FENCED_ACTOR_WRITERS: dict[tuple[str, str], dict[str, str]] = {
             "parameter, which is ORTHOGONAL to allow_class_key and never implied by it."
         ),
     },
+}
+
+FENCED_ACTOR_WRITERS.update({
     ("agent_runtime/office_store/conflicts.py", "resolve_conflict"): {
         "class_key": (
             "FENCED — _guard_class_keyed_adoption (peer-authored record, past upsert_actor); "
@@ -509,7 +544,7 @@ FENCED_ACTOR_WRITERS: dict[tuple[str, str], dict[str, str]] = {
             "function precisely to raise the dead."
         ),
     },
-}
+})
 
 #: NOT blessed. Named, with its ruling, so the witness DOCUMENTS the hole instead
 #: of silently passing over it.
@@ -720,6 +755,63 @@ def test_every_writer_declares_itself_against_every_fence():
                 )
 
 
+def _function_source(path: str, function: str) -> str:
+    """The source of ``function`` as it is defined in ``path`` (an OfficeStore
+    method or a module-level function of that file)."""
+
+    target = getattr(OfficeStore, function, None)
+    if target is None:
+        import importlib
+
+        module = importlib.import_module(path.removesuffix(".py").replace("/", "."))
+        target = getattr(module, function)
+    return inspect.getsource(target)
+
+
+@functools.cache
+def _production_callers(name: str) -> frozenset[tuple[str, str]]:
+    """Every (file, enclosing function) in production code that calls ``name``."""
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    callers: set[tuple[str, str]] = set()
+    for package in ("agent_runtime", "hermes_cli", "scripts", "plugins"):
+        for path in sorted((root / package).rglob("*.py")):
+            text = path.read_text(encoding="utf-8")
+            if name not in text:
+                continue
+            rel = path.relative_to(root).as_posix()
+
+            def _visit(node: ast.AST, enclosing: str) -> None:
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    enclosing = node.name
+                elif isinstance(node, ast.Call):
+                    func = node.func
+                    called = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
+                    if called == name:
+                        callers.add((rel, enclosing))
+                for child in ast.iter_child_nodes(node):
+                    _visit(child, enclosing)
+
+            _visit(ast.parse(text), "<module>")
+    return frozenset(callers)
+
+
+def _assert_fenced_by_its_caller(writer: tuple[str, str], fence: str) -> None:
+    """A FENCED BY ITS CALLER row, checked: the named caller is FENCED for the same
+    fence, calls the writer, and is the writer's only production caller."""
+
+    caller = FENCING_CALLERS[writer]
+    caller_row = _FENCING_CALLER_DISPOSITIONS.get(caller) or FENCED_ACTOR_WRITERS[caller]
+    assert caller_row[fence].startswith(FENCED) and not caller_row[fence].startswith(
+        FENCED_BY_CALLER
+    ), f"{writer[1]} borrows {caller[1]}'s {fence} fence, but {caller[1]} is not FENCED for it"
+    callers = _production_callers(writer[1])
+    assert callers == {caller}, (
+        f"{writer[1]} is FENCED BY ITS CALLER {caller[1]}, but its production callers are "
+        f"{sorted(callers)}; a second caller would write past the fences"
+    )
+
+
 def test_the_word_fenced_is_checked_against_the_writers_source_for_every_fence():
     """The table's verdicts, read back out of the code they describe.
 
@@ -736,20 +828,21 @@ def test_the_word_fenced_is_checked_against_the_writers_source_for_every_fence()
     is not describing a function that stopped consulting the guard it names.
     """
 
-    for table in (FENCED_ACTOR_WRITERS, CARVED_OUT_ACTOR_WRITERS):
+    for table in (FENCED_ACTOR_WRITERS, CARVED_OUT_ACTOR_WRITERS, _FENCING_CALLER_DISPOSITIONS):
         for (path, function), dispositions in table.items():
             if not path.startswith("agent_runtime/office_store/"):
                 continue
-            target = getattr(OfficeStore, function, None)
-            if target is None:  # module-level helper (``_write_actor``)
-                from agent_runtime import office_store
-
-                target = getattr(office_store, function)
-            source = inspect.getsource(target)
+            source = _function_source(path, function)
             for fence, disposition in dispositions.items():
                 guards = FENCE_GUARDS[fence]
                 consulted = any(f"{guard}(" in source for guard in guards)
-                if disposition.startswith(FENCED):
+                if disposition.startswith(FENCED_BY_CALLER):
+                    _assert_fenced_by_its_caller((path, function), fence)
+                    assert not consulted, (
+                        f"{function} is dispositioned FENCED BY ITS CALLER for the {fence} "
+                        "fence but consults a guard itself; disposition it FENCED instead"
+                    )
+                elif disposition.startswith(FENCED):
                     assert consulted, (
                         f"{function} is dispositioned FENCED for the {fence} fence but "
                         f"its source calls none of {list(guards)}. Either the guard call "
