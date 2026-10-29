@@ -114,6 +114,17 @@ MIGRATION_REGISTRY: tuple[dict[str, Any], ...] = (
                   "(FH-BASELINE-PINS-AND-MUTATION-ANCHORS)",
         "pins_sha256": "aed485911d1280824f2e77e27a2ecd82687f773c360821ff4979c55073b7017d",
     },
+    {
+        "id": "events-journal-id",
+        "date": "2026-10-29",
+        "store": "all",
+        "breaking": False,
+        "reason": "additive: paths.events_journal_path names events_journal.json, the journal id "
+                  "runtime.events.after mints once so a cursor from another store is never read as an offset "
+                  "here (RT-LAUNCHER-EVENT-CURSOR, lane w1029a-h-rt-b); no existing path moves and an older "
+                  "edition never reads it",
+        "pins_sha256": "0b39ac4fc41732c7e78595bf6a1c3056a1e567b18e054fa63f3bb16720aaa5b1",
+    },
 )
 
 #: ``1 + count(breaking entries)`` — ``tests/agent_runtime/test_store_epoch_gate.py`` holds it to that.

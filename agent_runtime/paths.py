@@ -622,6 +622,12 @@ def events_manifest_path() -> Path:
     return store_root() / "events_manifest.json"
 
 
+def events_journal_path() -> Path:
+    """This store's journal id (``agent_runtime/event_cursor.py``): minted once, so a
+    ``runtime.events.after`` cursor from another store is never read as an offset into this one."""
+    return store_root() / "events_journal.json"
+
+
 def events_archive_dir() -> Path:
     """Rotated event-log slices (C6a): archive-never-delete, offset-load-bearing.
 

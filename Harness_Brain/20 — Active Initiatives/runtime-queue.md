@@ -48,7 +48,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-27 (launcher lane w1027k-plan-host)
 
-- **`RT-LAUNCHER-EVENT-CURSOR` — keep Lens-episode and agent-turn events in a bounded durable journal the launcher can read after a cursor on attach, so launcher webhooks for events produced while no launcher ran are sent once and never lost silently** · `EterniaLauncher/docs/stages/installer-distribution/planned/HOST_OUTBOUND_WEBHOOKS_2026-10-27.md` · plan `docs/agent-runtime-harness/planned/launcher-event-cursor-2026-10-28.md` (the event log is the journal; `runtime.events.after` over a `<journal_id>:<offset>` cursor, three allow-listed kinds, slice E1) · READY 2026-10-28 · **TAKEN 2026-10-29 w1029a-h-rt-b on nekwo-ubuntu24 as nekwo in hermes-w1029a-h-rt-b**
 
 ### Filed on arrival — 2026-10-27 (lane w1027k-h-local)
 

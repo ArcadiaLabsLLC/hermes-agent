@@ -72,6 +72,8 @@ lens                     lanes   ``runtime.lens.*`` (Eternia Lens; code under
 skills_pending           lanes   ``runtime.skills.pending.list/approve/reject`` (staged
                                  skill writes; ``agent_runtime/review_skill_pending.py``)
                                  and ``runtime.skills.changes.list`` (applied changes)
+events_after             lanes   ``runtime.events.after`` (Lens/turn events after a durable
+                                 cursor; ``agent_runtime/event_cursor.py``)
 =======================  ======  ================================================
 
 Each verb family registers its handlers on import; the family import below is
@@ -130,6 +132,7 @@ from agent_runtime.serve_rpc import (
     settles,
     lens,
     skills_pending,
+    events_after,
 )
 from agent_runtime.serve_rpc.protocol import (
     DEFERRED,

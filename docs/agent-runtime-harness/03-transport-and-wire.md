@@ -59,6 +59,21 @@ spent only by a turn that reached `streaming`.
 consumers. Non-spatial room admission uses explicit workspace and persona-instance
 identities; spatial placement remains separate.
 
+## Events after a durable cursor
+
+`agent_runtime/serve_rpc/events_after.py` registers `runtime.events.after` (read tier), the
+launcher webhook source's replay: `{cursor?, types?, limit?}` →
+`{events: [{event_id, type, at, payload}], next_cursor, at_tail, refused?}`. The event log is the
+journal (`agent_runtime/event_cursor.py`): a cursor is `<journal_id>:<logical offset>`, the id
+minted once into `events_journal.json`; a page scans at most `limit` (200, max 500) matches and
+4 MiB, and `next_cursor` passes every byte scanned. Kinds are a closed allow-list
+(`lens.episode.changed`, `lens.receipt.changed`, `persona_chat.turn_ended`) and each payload is
+projected onto its contract's declared fields. No cursor answers the tail; a cursor from another
+journal, past the tail or below `resume_floor_offset` is a `refused` result naming the cursor to
+move to (`journal_mismatch` / `cursor_ahead_of_journal` → `tail_cursor`, `journal_truncated` →
+`floor_cursor` + `lost_bytes`, `journal_unreadable`), and a refused page's `next_cursor` is the one
+sent. Plan: [launcher-event-cursor](planned/launcher-event-cursor-2026-10-28.md).
+
 ## Operator text admission
 
 The method-lane manifest (`ready` / `hello_ok` / `version`, `rpc.limits`) carries
