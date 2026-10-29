@@ -35,6 +35,8 @@ from hermes_state_common import (
     stat_db_file_identity as _stat_db_file_identity,
 )
 from hermes_state_holders import read_only_db_uri
+from hermes_state_ro_snapshot import snapshot_when_unwritable  # fork seam: RT-SESSIONS-EXPORT-HOME-WRITES
+read_only_db_uri = snapshot_when_unwritable(read_only_db_uri)  # fork seam
 from hermes_state_pidns import holder_pid_checkable
 from hermes_state_health import (
     STORAGE_CORRUPT, mark_storage_corrupt, note_storage_error, storage_corrupt_reason, storage_state,

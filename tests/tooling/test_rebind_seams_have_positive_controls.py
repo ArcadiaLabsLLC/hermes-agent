@@ -40,6 +40,10 @@ CONTROLS = {
         "tests/agent_runtime/test_guardrail_mcp_names_downstream.py"
         "::test_a_replayed_registry_spelled_read_is_blocked_as_no_progress"
     ),
+    "hermes_state.py::read_only_db_uri": (
+        "tests/hermes_cli/test_sessions_export_unwritable_home_downstream.py"
+        "::test_export_reads_a_store_in_an_unwritable_home"
+    ),
     "tools/environments/local.py::_find_bash": (
         "tests/tools/test_bash_resolution_memo.py::test_upstreams_own_caller_reaches_the_memo"
     ),
