@@ -1080,7 +1080,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Projects integration — 2026-10-28
 
-- **`RT-PROJECTS-WORKSPACE-AGENTS` — connect existing Hermes workspaces to Launcher Projects for avatars and exact activity** · fork / Projects integration · `EterniaLauncher/docs/mission_control/planned/build-running-work-launcher-2026-10-04.md` §4A; Launcher consumer row `COMP-PROJECTS-OWN-REPO-SLOTS` · RULED 2026-10-28: keep existing owners; add connections and avatars only; no Project manifest, slot migration, content sharing or parallel roster/work store · READY 2026-10-28 · **TAKEN 2026-10-28 projects-agents on MULTIVERSALLABS as MUltiversalLabsInc in projects-agents-hermes**
 
 ## Filed on arrival — 2026-10-28 (orchestrator: owner on chat sharing and the learning loop)
 

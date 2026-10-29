@@ -8,6 +8,16 @@ tags: [program/mission-control, program]
 
 # Mission Control (runtime side)
 
+`projects_connections_cursor::` 2026-10-28 — Existing WorkspaceStore now holds
+revision-checked Project references; workspace, slot, agent and permission
+ownership stays in Hermes. Contract §54 in
+`docs/agent-runtime-harness/02-runtime-data-and-shapes.md`; paired native
+connect/disconnect and many-to-many checks used runtime `60951d679c`, with
+unchanged workspace-slot hashes. Ten focused runtime cases and the generated
+manifest/stream fixtures passed. The fork landing gate's known Windows and
+qualification-census failures remain in fork hygiene; Launcher owns the avatar
+and Console navigation acceptance in its Projects §4A evidence.
+
 `lens_cursor::` 2026-10-26 — Lens implementation, live acceptance and remaining plan extensions reconciled; the domain queues own outstanding work. [Scope and queue pointers](../../docs/agent-runtime-harness/planned/eternia-lens-in-hermes.md#current-implementation-and-queue-coverage).
 
 `next_prompt_cursor::` 2026-10-27 — Completion implementation authorized and built in owned worktrees; shared helpers/presentation outside Console, existing routing/persona/state owners, free-form output and false-default Harness setting preserved. [Completion plan](../../docs/agent-runtime-harness/planned/console-next-prompt-completion-2026-10-27.md) records implementation and remaining paired live qualification. No DM work; optional palette/rebinding remains a documented gap.

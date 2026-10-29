@@ -828,6 +828,9 @@ content export. Existing records default to an empty list and revision zero.
 concurrent edits return ``stale_revision``. Ordinary workspace saves preserve
 the latest references. The producer golden and manifest are mirrored in
 EterniaLauncher's ``test/fixtures/harness_stream/`` in this cross-stack slice.
+Deleting an account-local Launcher Project does not cascade into a shared or
+offline workspace: an orphaned opaque reference is inert. Connections grant no
+content access and do not alter slots or agent assignments.
 
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
