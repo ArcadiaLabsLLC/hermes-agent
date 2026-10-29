@@ -402,9 +402,9 @@ def test_status_and_snapshot_expose_persona_instances_unconditionally(monkeypatc
         "swarm_budget",
     ):
         assert retired not in status, retired
-    # …while the runtime-instance rows deliberately STAY.
-    assert "runtime_instances" in status
-    assert "foreground_runtime" in status
+    # RT-WRITERLESS-GOAL-STATUS-KEYS: the writer-less goal-lane projections went too.
+    assert "runtime_instances" not in status
+    assert "foreground_runtime" not in status
     assert {item["persona_id"] for item in status["persona_instances"]} >= {"dev", "qa", "neko_supervisor", "backend_dev"}
     status_lane_agents = {item["persona_id"]: item for item in status["agents"]}
     assert "personainst_dev" in status_lane_agents

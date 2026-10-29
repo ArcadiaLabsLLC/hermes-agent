@@ -102,9 +102,9 @@ def test_status_surfaces_lanes_repo_locks_and_retired_swarm_budget_shape(isolate
     assert "repo_locks" not in s
     assert "swarm_budget" not in s
     assert "production_envelope" not in s
-    # `runtime_instances` keeps its own `lanes` sub-key -- that block is the
-    # projection the top-level row duplicated, and it still ships.
-    assert "lanes" in s["runtime_instances"]
+    # RT-WRITERLESS-GOAL-STATUS-KEYS: the block the top-level row duplicated went too.
+    assert "runtime_instances" not in s
+    assert "foreground_runtime" not in s
 
 
 def test_status_marks_next_action_blocked_by_open_incident():

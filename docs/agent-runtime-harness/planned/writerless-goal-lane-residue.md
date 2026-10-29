@@ -1,8 +1,10 @@
 # Planned — writer-less goal-lane residue on live surfaces
 
 **Owner domain:** system architecture ([01-system-architecture.md](../01-system-architecture.md))
-**Status:** not done. Two entity-surface leftovers of the removed mission lane
-still project or describe state nothing can produce.
+**Status:** §1's status keys and §2 done (2026-10-29, 2026-10-27). What is left:
+`dirty_state`'s foreground block still reads the store, and
+`runtime_instance(s)_summary` are test-only since the keys went
+(row `RT-WRITERLESS-GOAL-LANE-READ-RESIDUE`).
 **Raised / verified:** 2026-08-22 against HEAD.
 
 ## 1. `GoalRuntimeInstance` lanes: a read lane with no writers
@@ -31,6 +33,12 @@ The precedent for what to do is in the same file: S21 removed
 they were "a foreground lane that no code could ever elect, reported in the
 shape of a live reading" (`:86-88`). The remaining projection is the same
 defect one layer up.
+
+**Fixed 2026-10-29 (lane w1029a-h-rt-a, owner ruling 2026-10-27 "drop both keys"):**
+`build_status` no longer emits `foreground_runtime` or `runtime_instances`. The Launcher
+reader check the gate below asks for: no `lib/` decoder names either key (the one hit,
+`hermes_install_manifest.dart`'s `runtime_instances`, is the directory, not the key).
+`status` is not the snapshot frame, so `SNAPSHOT_CONTRACT_VERSION` does not move.
 
 ## 2. Docstrings naming deleted execution lanes
 

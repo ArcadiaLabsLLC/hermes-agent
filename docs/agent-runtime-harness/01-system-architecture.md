@@ -1068,9 +1068,9 @@ Each links to a `planned/` file carrying its evidence and the gate to open it.
   deleted); the wire keys (`current_task_id`, `kind` / `live_mission` / `task_id`) remain
   until the launcher stops reading them →
   [planned/task-bound-mission-lanes-2026-10-28.md](planned/task-bound-mission-lanes-2026-10-28.md) S4
-- 2026-08-22 — **a writer-less lane store still projects onto `status`**
-  (`foreground_runtime`, `runtime_instances`), and two live docstrings describe
-  deleted execution lanes →
+- 2026-10-29 — **the writer-less lane store no longer projects onto `status`**
+  (`foreground_runtime` / `runtime_instances` dropped; the docstrings were fixed
+  2026-10-27); `dirty_state`'s foreground block still reads it →
   [planned/writerless-goal-lane-residue.md](planned/writerless-goal-lane-residue.md)
 - Deferred by design — **no node taxonomy, no sub-graph expansion**; the Node
   Charter's four questions are unanswered for every candidate →
