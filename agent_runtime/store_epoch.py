@@ -170,6 +170,16 @@ MIGRATION_REGISTRY: tuple[dict[str, Any], ...] = (
                   "never written, and an older edition never reads either",
         "pins_sha256": "07e2910843f70b153038fa7bcdccd31e84d902e7039f9d5e4532b64e69031e5d",
     },
+    {
+        "id": "launcher-supervision-games-dir",
+        "date": "2026-10-29",
+        "store": "all",
+        "breaking": False,
+        "reason": "additive (lane w1029b-h-rt, RT-GAME-PROCESS-WATCH; pinned at landing w1029b-h-land): "
+                  "paths.launcher_supervision_games_dir names store/launcher_supervision/games/, one record per "
+                  "watched game; no existing path moves and an older edition never reads it",
+        "pins_sha256": "6b5efbfffde7c5d874ff60c5f5d2893db9d6fc80e3f381e328b44c78537d64a7",
+    },
 )
 
 #: ``1 + count(breaking entries)`` — ``tests/agent_runtime/test_store_epoch_gate.py`` holds it to that.
