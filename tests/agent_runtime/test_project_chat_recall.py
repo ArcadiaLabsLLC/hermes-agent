@@ -116,3 +116,26 @@ def test_no_module_but_the_fold_and_recall_opens_the_shared_stores():
     assert {"agent_runtime/project_chat_fold.py", "agent_runtime/project_chat_recall.py"} <= hits
     assert hits <= allowed, sorted(hits - allowed)
     assert "agent/background_review.py" not in hits
+
+
+def test_the_agents_registered_tool_call_recalls_across_the_enabled_stores(world):
+    """The seam in tools/session_search_tool.py: the registry's handler, not only the fork's door, merges.
+
+    Positive control: with the switch off the same call answers the own store only.
+    """
+    import tools.session_search_tool  # noqa: F401 — the module whose import registers and routes the tool
+    from tools.registry import registry
+
+    handler = registry.get_entry("session_search", scope=None).handler
+
+    def call(args):
+        with launcher_invocation("operator", "cur", "turn-1", persona_instance_id="personainst_me"):
+            return json.loads(handler(args, db=world, current_session_id="cur"))
+
+    assert [r["session_id"] for r in call({"query": "pineapple"})["results"]] == ["own_old"]
+    _recall(True)
+    found = call({"query": "pineapple"})
+    assert {r["session_id"] for r in found["results"]} == {"own_old", "chat_s"}
+    assert next(r for r in found["results"] if r["session_id"] == "chat_s")["shared_from"]["author"] == "Alice"
+    read = call({"session_id": "@project:p1/chat_s"})
+    assert read["mode"] == "read" and read["messages"][0]["content"] == "the pineapple deploy runbook"

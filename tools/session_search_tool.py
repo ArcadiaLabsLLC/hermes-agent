@@ -805,3 +805,8 @@ registry.register(
                                     "after", "before", "exclude_session_ids")}),
     check_fn=check_session_search_requirements,
     emoji="🔍")
+
+# fork seam: RT-PROJECT-CHAT-RECALL-ACROSS-STORES — the agent's call also recalls its enabled Projects' shared stores
+from agent_runtime.project_chat_recall import route_registered_handler  # noqa: E402
+
+route_registered_handler(registry)

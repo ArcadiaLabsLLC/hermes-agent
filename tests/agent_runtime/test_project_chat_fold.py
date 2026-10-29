@@ -11,6 +11,8 @@ from agent_runtime.project_store import ProjectStore
 from agent_runtime.store import WorkspaceStore
 from agent_runtime.workspace_projects import set_project_connection
 
+T0 = "2026-10-29T10:00:00+00:00"
+
 
 def _line(uid, ts, seq, role, content, machine):
     return {"turn_uid": uid, "seq": seq, "role": role, "ts": ts, "content": content, "parent_turn_uid": None,
@@ -110,3 +112,46 @@ def test_unsharing_the_chats_drops_the_store(tmp_path):
     store.set_category("p1", "chats", slot="launcher", subpath=None, shared=False, issued_at="2026-10-29T11:00:00+00:00")
     assert not paths.project_chat_store_path("p1").exists()
     assert drop_project_chats("p1", reason="again")["removed"] == []
+
+
+def _git(*args, cwd):
+    import subprocess
+
+    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True,
+                   env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
+                        "GIT_COMMITTER_EMAIL": "t@t", "PATH": "/usr/bin:/bin", "HOME": str(cwd)})
+
+
+def test_a_realm_pull_folds_a_peers_shared_turns_on_a_machine_that_sent_none(tmp_path):
+    """RT-PROJECT-CHAT-FOLD-WITHOUT-SENDING: the pull's project_chat_fold applier fetches and folds.
+
+    Positive control: before the applier runs, the reader machine's store holds nothing.
+    """
+    import types
+
+    from agent_runtime.realm_sync.pull import PULL_APPLIERS, _pull_project_chats
+    from agent_runtime.store import RealmStore
+    from agent_runtime.workspace_slots import bind_project
+
+    remote, peer, mine = tmp_path / "remote.git", tmp_path / "peer", tmp_path / "mine"
+    _git("init", "-q", "--bare", "-b", "main", str(remote), cwd=tmp_path)
+    _git("clone", "-q", str(remote), str(peer), cwd=tmp_path)
+    _write(peer / ".eternia" / "chats", "chat_s", "peer-box", _line("u1", 100.0, 1, "user", "from the peer", "peer-box"))
+    _git("add", ".", cwd=peer)
+    _git("commit", "-q", "-m", "peer turn", cwd=peer)
+    _git("push", "-q", "origin", "HEAD:main", cwd=peer)
+    _git("clone", "-q", str(remote), str(mine), cwd=tmp_path)
+    store = ProjectStore()
+    store.declare("p1", [{"name": "launcher", "repo": {"clone_url": "https://example.com/l.git"}}], issued_at=T0,
+                  machine="m")
+    bind_project("p1", "launcher", str(mine), issued_at=T0)
+    store.set_category("p1", "chats", slot="launcher", subpath=None, shared=True, issued_at=T0)
+    realm = RealmStore().create(name="Realm")
+    workspace = WorkspaceStore().create(name="Team", realm_id=realm.id)
+    set_project_connection(workspace.id, "p1", connected=True, expected_revision=0)
+    assert open_shared_store("p1", read_only=True) is None or _messages("p1", "chat_s") == []
+    run = types.SimpleNamespace(realm=realm, project_chats=None)
+    assert _pull_project_chats(run) is False  # a fold changes no realm artifact
+    assert run.project_chats["folded"] == [{"project_id": "p1", "inserted": 1, "stale": False}]
+    assert _messages("p1", "chat_s") == [("u1", "from the peer")]
+    assert "project_chat_fold" in [applier.name for applier in PULL_APPLIERS]

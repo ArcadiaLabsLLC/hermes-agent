@@ -9,9 +9,11 @@ assigned into.
 * **File form.** ``<chats folder>/<session>/<machine>.<namespace>.jsonl`` — one append-only file PER CHAT
   PER WRITER, so two machines continuing one chat never write the same file and git never conflicts —
   plus ``<session>/chat.json`` (title, persona instance, first turn stamp, format). A line is one ACTIVE
-  message: ``{turn_uid, seq, role, ts, content, tool_name?, tool_calls?, parent_turn_uid, author, address}``,
-  keyed by ``messages.message_uid``; content and tool calls pass ``redaction.scrub_secret_values`` /
-  ``scrub_secret_value_tree``. A line is never rewritten.
+  message: ``{turn_uid, seq, role, ts, content, tool_name?, tool_calls?, attachments?, parent_turn_uid,
+  author, address}``, keyed by ``messages.message_uid``; content and tool calls pass
+  ``redaction.scrub_secret_values`` / ``scrub_secret_value_tree``, and an attachment declaration
+  (``MEDIA:`` / ``FILE:`` path line) leaves only as its ``media_handles`` handle
+  (:func:`shared_attachments`). A line is never rewritten.
 * **Cursor.** ``paths.project_chat_export_path(project, session)``: the last exported message id and uid,
   advanced only after the lines are PUBLISHED, so a failed push re-exports from the old cursor and the
   Work writer's ``request_id`` replay keeps the retry from doubling a line.
@@ -123,6 +125,44 @@ def _address(author: dict[str, Any], session_id: str) -> str | None:
         return None
 
 
+#: A shared line names an attachment by its content handle only (plan §5): the declaration line
+#: (``MEDIA:<path>`` / ``FILE:<path>``, ``media_handles.parse_media_declaration``) is replaced by
+#: ``ATTACHMENT:<sha256 handle>``, a prefix no declaration parser admits, so no path leaves the machine.
+ATTACHMENT_PREFIX = "ATTACHMENT:"
+#: The marker for a declared attachment this machine cannot back (the file is gone): typed, pathless.
+ATTACHMENT_UNAVAILABLE = "ATTACHMENT:unavailable"
+
+
+def shared_attachments(content: Any) -> tuple[str, list[dict[str, Any]]]:
+    """``(content with every attachment declaration replaced by its handle marker, attachments)``.
+
+    ``attachments`` is ``[{handle, media_type, size_bytes}]`` in declaration order, or
+    ``{handle: None, status: "unavailable"}`` for one this disk cannot back. Prose that only mentions
+    ``MEDIA:`` (not absolute, not an admitted file) is not a declaration and passes unchanged.
+    """
+
+    from .media_handles import mint_reply_media, parse_media_declaration
+
+    text = content if isinstance(content, str) else str(content)
+    out_lines: list[str] = []
+    attachments: list[dict[str, Any]] = []
+    for line in text.split("\n"):
+        reference = parse_media_declaration(line)
+        if reference is None:
+            out_lines.append(line)
+            continue
+        minted = mint_reply_media(line, max_artifacts=1)
+        if minted:
+            row = minted[0]
+            attachments.append({"handle": row["handle"], "media_type": row["media_type"],
+                                "size_bytes": row["size_bytes"]})
+            out_lines.append(ATTACHMENT_PREFIX + row["handle"])
+        else:
+            attachments.append({"handle": None, "status": "unavailable"})
+            out_lines.append(ATTACHMENT_UNAVAILABLE)
+    return "\n".join(out_lines), attachments
+
+
 def pending_lines(session_db: Any, session_id: str, cursor: dict[str, Any], *,
                   persona_instance_id: str | None = None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """``(lines, next cursor)``: every active message after the cursor, as turn-log lines."""
@@ -141,9 +181,12 @@ def pending_lines(session_db: Any, session_id: str, cursor: dict[str, Any], *,
         if not uid or int(message.get("id") or 0) <= last_id or uid in seen:
             continue
         seq += 1
+        content, attachments = shared_attachments(message.get("content") or "")
         line = {"turn_uid": uid, "seq": seq, "role": message.get("role"), "ts": message.get("timestamp"),
-                "content": scrub_secret_values(message.get("content") or ""), "parent_turn_uid": parent,
+                "content": scrub_secret_values(content), "parent_turn_uid": parent,
                 "author": author, "address": address}
+        if attachments:
+            line["attachments"] = attachments
         if message.get("tool_name"):
             line["tool_name"] = message["tool_name"]
         if message.get("tool_calls"):

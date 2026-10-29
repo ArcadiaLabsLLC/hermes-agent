@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import paths
-from ..workspace_slots import bound_path, live_slots, load_document
+from ..workspace_slots import bound_path
 from .grammar import Row, Status, is_queue, parse_note
 
 #: The personal board's reserved Work id (RT-GENERAL-TODO-G1, plan ``general-todo-2026-10-25.md`` §2.2):

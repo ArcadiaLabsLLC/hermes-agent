@@ -180,6 +180,45 @@ def fold_from_remote(project_id: str) -> dict[str, Any]:
             "stale": writer.stale}
 
 
+#: How many Projects one realm pull folds (each is a git fetch of the chats slot); the rest wait for the next pull.
+FOLD_ON_PULL_LIMIT = 8
+
+
+def fold_realm_projects(realm_id: str, *, limit: int = FOLD_ON_PULL_LIMIT) -> dict[str, Any]:
+    """After a realm pull: fetch-and-fold every Project a workspace of the realm holds whose chats are shared.
+
+    The chats folder travels by git in the chats slot, never in the realm subtree, so without this a
+    machine that only READS a shared chat would fold peers' turns only when it exported one of its own
+    (row RT-PROJECT-CHAT-FOLD-WITHOUT-SENDING). Bounded to ``limit`` Projects per pull, sorted by id;
+    a Project whose chats folder is not bound here, or whose fetch is refused, is accounted and
+    skipped — a fold never fails the pull.
+    """
+
+    from .project_store import category, load_project
+    from .store import WorkspaceStore
+    from .work_store.reasons import WorkRefused
+    from .workspace_slots import SlotRefused
+
+    held = sorted({project_id for ws in WorkspaceStore().list_all(include_archived=False)
+                   if ws.realm_id == realm_id for project_id in ws.project_ids})
+    shared = [project_id for project_id in held if category(load_project(project_id), "chats").get("shared")]
+    folded: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    for project_id in shared[:limit]:
+        try:
+            result = fold_from_remote(project_id)
+        except SlotRefused as exc:
+            skipped.append({"project_id": project_id, "reason": exc.reason})
+            continue
+        except (WorkRefused, OSError) as exc:
+            skipped.append({"project_id": project_id,
+                            "reason": getattr(getattr(exc, "reason", None), "value", type(exc).__name__)})
+            continue
+        folded.append({"project_id": project_id, "inserted": result.get("inserted", 0),
+                       "stale": bool(result.get("stale"))})
+    return {"folded": folded, "skipped": skipped, "deferred": shared[limit:]}
+
+
 def drop_project_chats(project_id: str, *, reason: str) -> dict[str, Any]:
     """Delete the Project's shared store, its fold offsets and its export cursors — and nothing else."""
 

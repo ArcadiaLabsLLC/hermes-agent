@@ -873,15 +873,29 @@ result a ``projects`` grouping. Disconnecting a Project (``runtime.workspace.pro
 result key ``assignments_dropped``) drops ``<project>/*`` from that workspace's instances;
 a Project slot's tombstone drops it everywhere. The migration re-keys assignments
 (step 3). After it, ``runtime.workspace.slots.show`` / ``.declare`` / ``.report`` /
-``.slot.bind`` / ``.slot.env.set`` answer ``slot_migrated`` with ``data.project_id``.
+``.slot.bind`` / ``.slot.env.set`` answer ``slot_migrated`` with ``data.project_id``
+(``workspace_slots.require_unmigrated``; the ``harness workspace slots`` CLI passes the
+same door). Every other reader of a slot's declaration goes through
+``workspace_slots.resolve_slot(workspace_id, slot, project_id=…)`` — owner-ordered like
+``bound_path``, never the frozen document (2026-10-29, RT-PROJECT-SLOT-READERS-REKEY):
+builds' restart unknowns, the batch dispatcher's roles and gates, the default brain, the
+slot overlay, the recipe store and Clone / Run step. ``runtime.workspace.recipe.show``
+keys a Project's slot ``<project>/<slot>``; ``recipe.set`` on one edits the Project record
+(``ProjectStore.set_recipe``). Project-keyed twins: ``runtime.project.recipe.show`` /
+``.recipe.set`` (publish decision per realm, ``credential`` / ``credentials``) and
+``runtime.project.slot.clone`` / ``.recipe.run_step`` (local console; the run record
+carries ``project_id`` and a clone binds the Project's fill).
 
 54 KEPT (Project category folders, 2026-10-29, RT-PROJECT-CATEGORY-FOLDERS) — no
 snapshot key moved. ``categories.documents`` may carry ``context_files`` (relative
-paths; ``runtime.project.category.set`` key ``context_files``); under a slot assignment
-the turn's slot context adds each listed file from this machine's documents folder as
-``## <Project>/documents — <file>`` and, while the guidance share is on, one
-``## <Project> — guidance`` section, with ``kind: project_context`` receipts
-(``agent_runtime/project_categories.py``). Work boards: ``Board.project_id``; a Project
+paths; ``runtime.project.category.set`` key ``context_files``); every instance of a
+workspace holding the Project — assigned or not — gets the turn's ``project_context``
+(``persona_slots.ProjectContext``, its own field beside ``slot_context``, so it never
+supersedes the ``--agents-file`` alias; RT-PROJECT-CONTEXT-WITHOUT-ASSIGNMENT): each listed
+file from this machine's documents folder as ``## <Project>/documents — <file>`` and, while
+the guidance share is on, one ``## <Project> — guidance`` section, after the slot (or alias)
+content, with ``kind: project_context`` receipts under the workspace receipt's
+``projects`` key (``agent_runtime/project_categories.py``). Work boards: ``Board.project_id``; a Project
 lists its boards category's slot (else one board per live slot) and a migrated
 document lists none of its own. ``runtime.project.artifacts.list`` answers
 ``{project_id, here, files: [{name, size}], truncated}``.
@@ -893,7 +907,11 @@ are shared, and runs the publish right of every realm the Project is in. A share
 is written as ``<chats folder>/<session>/<machine>.<namespace>.jsonl`` (one line per
 ACTIVE message: ``turn_uid`` = ``messages.message_uid``, ``seq``, ``role``, ``ts``,
 redacted ``content`` / ``tool_calls``, ``tool_name``, ``parent_turn_uid``, ``author``
-``{persona_instance_id, profile_id, machine_id, namespace}``, ``address``) plus
+``{persona_instance_id, profile_id, machine_id, namespace}``, ``address``; an attachment
+declaration line — ``MEDIA:`` / ``FILE:`` path — leaves as ``ATTACHMENT:sha256:<hex>``,
+or ``ATTACHMENT:unavailable`` when this disk cannot back it, with ``attachments``
+``[{handle, media_type, size_bytes}]`` on the line and never a path:
+``project_chat_export.shared_attachments``, RT-PROJECT-CHAT-ATTACHMENT-HANDLES) plus
 ``<session>/chat.json``, published by the Work writer's new ``chat_turns_appended``
 operation in Hermes's own worktree of the chats slot (pseudo-workspace
 ``project_<id>``), on every turn end and as a backfill on enable; the cursor is
@@ -907,7 +925,12 @@ snapshot key moved. ``store/project_chats/<project>.db`` is a
 writer's ``.jsonl`` in Hermes's worktree of the chats slot at the remote tip by recorded
 byte offset (``store/project_chat_fold/<project>.json``), idempotent by ``turn_uid`` in
 ``(ts, seq)`` order; sessions carry ``source = "project_shared"``. It folds after each
-local export and on ``runtime.project.chat.fold`` (local console). It is dropped, with
+local export, on ``runtime.project.chat.fold`` (local console), and after every realm
+pull: the ``project_chat_fold`` pull applier (``project_chat_fold.fold_realm_projects``)
+fetches and folds each Project a workspace of the realm holds whose chats are shared, at
+most ``FOLD_ON_PULL_LIMIT`` (8) per pull, and the pull envelope reports it unconditionally
+as ``project_chat_fold {folded: [{project_id, inserted, stale}], skipped: [{project_id,
+reason}], deferred: [...]}`` (RT-PROJECT-CHAT-FOLD-WITHOUT-SENDING). It is dropped, with
 its offsets and the export cursors and nothing else, when the chats share turns off or
 the last workspace of the namespace disconnects the Project.
 
@@ -916,8 +939,9 @@ snapshot key moved. ``PersonaInstance.recall_shared_projects`` (default false; s
 clock; ``runtime.persona.instance.recall.set`` ``{persona_instance_id, enabled,
 issued_at}``; ``instance.slots.show`` reports it). With it on,
 ``agent_runtime/project_chat_recall.recall_session_search`` (upstream's public
-``session_search`` per store; the agent's tool call is not yet routed to it — that is an
-upstream-file edit awaiting the owner) also searches, read-only, the shared store of
+``session_search`` per store; the agent's tool call reaches it through the append-only
+seam at the end of ``tools/session_search_tool.py``, which wraps the registered handler
+with ``route_registered_handler`` — owner ruling 2026-10-29) also searches, read-only, the shared store of
 every Project the instance's workspace holds whose chats are shared: per-store discovery,
 merged round-robin by per-store rank with the own store first; each shared hit carries
 ``shared_from {project, project_id, author, machine}``, ``shared_label`` and the link

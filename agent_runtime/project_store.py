@@ -230,6 +230,21 @@ class ProjectStore:
         unshared = self._commit(project_id, record, issued_at=issued_at)
         return {"document": record, "declared": [slot], "tombstoned": [], "categories_unshared": unshared}
 
+    def set_recipe(self, project_id: str, slot: str, steps: Any, *, base_revision: Any, issued_at: str,
+                   machine: str, persona_instance_id: str | None = None) -> int:
+        """Replace one slot's owner recipe steps (``workspace_slot_recipe_store.apply_recipe``); the new revision."""
+
+        from .workspace_slot_recipe_store import apply_recipe
+
+        record = self._open(project_id, issued_at)
+        live = live_slots(record)
+        if slot not in live:
+            raise SlotRefused(REASON_SLOT_NOT_DECLARED, f"{project_id} declares no slot {slot!r}")
+        revision = apply_recipe(slot, live[slot], live, steps, base_revision=base_revision, issued_at=issued_at,
+                                machine=machine, persona_instance_id=persona_instance_id)
+        self._commit(project_id, record, issued_at=issued_at)
+        return revision
+
     def set_category(self, project_id: str, name: str, *, slot: Any, subpath: Any, shared: Any,
                      issued_at: str, context_files: Any = None) -> dict[str, Any]:
         """Declare one category's folder and its share switch (``category_not_source_controlled``).

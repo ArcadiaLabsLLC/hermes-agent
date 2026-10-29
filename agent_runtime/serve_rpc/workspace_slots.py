@@ -59,12 +59,9 @@ def _unmigrated(workspace_id: str) -> str:
     §2): an older launcher gets a typed answer naming where the slots went, never a silent empty table.
     """
 
-    from agent_runtime.workspace_slots import SlotRefused, load_document
+    from agent_runtime.workspace_slots import require_unmigrated
 
-    migrated = load_document(workspace_id).get("migrated_to")
-    if migrated:
-        raise SlotRefused("slot_migrated", str(migrated))
-    return workspace_id
+    return require_unmigrated(workspace_id)
 
 
 def _workspace(params: dict) -> str:
@@ -207,10 +204,13 @@ def _recipe_set(params):
 
     workspace_id = _workspace(params)
     raw = params.get("credential")
-    require_publish_right(workspace_id, None if raw is None else RealmSyncCredential.parse(raw))
+    credential = None if raw is None else RealmSyncCredential.parse(raw)
+    require_publish_right(workspace_id, credential)
+    # A slot a Project declares is edited in that Project's record, under its own publish decision.
     return set_recipe(workspace_id, str(params.get("slot") or ""), params.get("steps"),
                       base_revision=params.get("revision"), issued_at=_issued_at(params), machine=machine_id(),
-                      persona_instance_id=params.get("persona_instance_id"))
+                      persona_instance_id=params.get("persona_instance_id"),
+                      credentials={credential.realm_id: credential} if credential else None)
 
 
 # ── the per-instance assignment (the Agent Console's editor — owner correction 2026-10-04) ──

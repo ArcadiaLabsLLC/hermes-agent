@@ -34,7 +34,7 @@ import time
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone, UTC
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from utils import atomic_json_write
 
@@ -571,6 +571,56 @@ def slots_of_workspace(workspace_id: str) -> list[tuple[str | None, str]]:
     return out
 
 
+REASON_SLOT_MIGRATED = "slot_migrated"
+
+
+def require_unmigrated(workspace_id: str) -> str:
+    """``workspace_id`` while its slot document is still its own; ``slot_migrated`` naming the Project after.
+
+    The door every workspace-keyed slot verb (RPC and CLI) passes before reading or writing the
+    document itself: a document frozen at ``migrated_to`` answers where its slots went, never a
+    stale table or an edit no reader will see (plan project-slots-and-shared-chats §2).
+    """
+
+    migrated = load_document(workspace_id).get("migrated_to")
+    if migrated:
+        raise SlotRefused(REASON_SLOT_MIGRATED, str(migrated))
+    return workspace_id
+
+
+class ResolvedSlot(NamedTuple):
+    """A slot a reader named, with its owner: the Project that declares it, or None for the workspace's own."""
+
+    project_id: str | None
+    slot: str
+    declaration: dict[str, Any]
+
+
+def resolve_slot(workspace_id: str | None, slot: str, *, project_id: str | None = None) -> ResolvedSlot | None:
+    """The live declaration a reader of ``workspace_id`` sees for ``slot`` (bare, or ``<project>/<slot>``).
+
+    The ONE reader door for a slot's declaration, owner-ordered exactly like :func:`bound_path`: an
+    explicit Project, else :func:`slot_owner`'s Project, else the workspace's own document while it is
+    not migrated. A document frozen at ``migrated_to`` is never read here, so a ``runtime.project.*``
+    edit is what every reader sees. None: nothing this workspace sees declares it live.
+    """
+
+    from .project_store import load_project, valid_project_id
+
+    if project_id is None and "/" in slot:
+        project_id, _, slot = slot.partition("/")
+    if project_id is None and workspace_id is not None:
+        project_id = slot_owner(workspace_id, slot)
+        if project_id is None:
+            document = load_document(workspace_id)
+            body = None if document.get("migrated_to") else live_slots(document).get(slot)
+            return ResolvedSlot(None, slot, body) if body is not None else None
+    if not project_id:
+        return None
+    body = live_slots(load_project(valid_project_id(project_id))).get(slot)
+    return ResolvedSlot(project_id, slot, body) if body is not None else None
+
+
 def slot_key(project_id: str | None, slot: str) -> str:
     """How a slot is named where its owner matters: ``<project>/<slot>``, or the bare name for a workspace slot."""
 
@@ -767,6 +817,7 @@ def slot_for_path(path: Any, bound: list[BoundSlot] | tuple[BoundSlot, ...]) -> 
 __all__ = [
     "DEFAULT_CONTEXT_FILES",
     "BoundSlot",
+    "ResolvedSlot",
     "SlotCensus",
     "SlotRefused",
     "authorized_roots_bound_here",
@@ -775,13 +826,15 @@ __all__ = [
     "bound_path",
     "declare",
     "declare_one_slot",
-    "live_slots",
-    "load_document",
     "install_id",
     "legacy_machine_key",
+    "live_slots",
+    "load_document",
     "machine_id",
     "rekey_legacy_report",
     "report_namespace",
+    "require_unmigrated",
+    "resolve_slot",
     "scoped_roots",
     "show",
     "slot_census",

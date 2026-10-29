@@ -237,11 +237,12 @@ def restart_unknowns(build: DetectedBuild, *, now: float) -> UnknownsIndex:
     """What a Restart of ``build`` cannot reproduce — narrowed by the slot's declaration and fill."""
 
     from agent_runtime.workspace_slot_env import slot_fill
-    from agent_runtime.workspace_slots import live_slots, load_document
+    from agent_runtime.workspace_slots import resolve_slot
 
     index = UnknownsIndex()
-    declared = live_slots(load_document(build.slot.workspace_id)).get(build.slot.slot) or {}
-    fill = slot_fill(build.slot.workspace_id, build.slot.slot)
+    resolved = resolve_slot(build.slot.workspace_id, build.slot.slot, project_id=build.slot.project_id)
+    declared = resolved.declaration if resolved else {}
+    fill = slot_fill(build.slot.workspace_id, build.slot.slot, project_id=resolved.project_id if resolved else None)
     toolchain = declared.get("toolchain") or {}
     keys = set(TOOLCHAIN_ENV_KEYS.get(getattr(build.command, "toolchain", ""), TOOLCHAIN_ENV_KEYS["flutter"]))
     if fill is not None:
