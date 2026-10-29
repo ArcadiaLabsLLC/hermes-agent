@@ -92,8 +92,10 @@ __all__ = [
     "fork_authored_lines",
     "is_fork_authored",
     "is_fork_touched",
+    "is_shallow_clone",
     "read_upstream_blobs",
     "repo_root",
+    "unattributable_upstream_paths",
     "upstream_base",
     "upstream_blobs",
     "working_blob",
@@ -146,6 +148,31 @@ def read_recorded_base(root: Path) -> str | None:
     if not base or _git(["merge-base", "--is-ancestor", base, "HEAD"], cwd=root) is None:
         return None
     return base
+
+
+def is_shallow_clone(root: Path) -> bool:
+    """True only when git SAYS ``root`` is a shallow clone; a git failure is not shallow."""
+    out = _git(["rev-parse", "--is-shallow-repository"], cwd=root)
+    return out is not None and out.strip() == b"true"
+
+
+def unattributable_upstream_paths(root: Path) -> frozenset[str]:
+    """Upstream-shipped paths whose line authorship ``root`` cannot answer, or nothing.
+
+    Non-empty only on a SHALLOW clone whose recorded base does not validate: there the
+    ancestry check cannot be asked (every Claude Code cloud session clones shallow), so
+    a finding in a file upstream ships is "not checked: shallow clone" rather than read
+    as the fork's. The abbreviated base cannot be fetched by sha and one fetched commit
+    cannot answer ancestry through a shallow graft (FH-VM-CLONE-SHALLOW-DOCKET-GATES).
+    A FULL clone with an unusable base keeps failing closed: this returns nothing there.
+    """
+    if read_recorded_base(root) is not None or not is_shallow_clone(root):
+        return frozenset()
+    try:
+        _base, paths = read_manifest(root / "tests/fixtures/upstream_manifest.txt")
+    except (OSError, UnicodeError):
+        return frozenset()
+    return frozenset(paths)
 
 
 @functools.lru_cache(maxsize=1)

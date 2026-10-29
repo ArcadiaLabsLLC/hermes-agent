@@ -82,3 +82,22 @@ def test_unusable_release_base_fails_closed(repo, invalid):
     assert scope.upstream_blobs() is None
     assert scope.is_fork_authored("test_sample.py", 1)
 
+    assert scope.unattributable_upstream_paths(repo) == frozenset(), "a FULL clone keeps failing closed"
+
+
+def test_a_shallow_clone_sets_upstream_paths_aside_instead_of_failing_closed(repo, tmp_path_factory):
+    """FH-VM-CLONE-SHALLOW-DOCKET-GATES: the base is outside a depth-1 clone, so ancestry
+    cannot be asked; upstream-shipped paths are "not checked", not handed to the fork."""
+    released = _commit(repo, "# release\n")
+    _manifest(repo, released[:10])
+    _git(repo, "add", "tests")
+    _git(repo, "-c", "user.name=Scope test", "-c", "user.email=scope@example.invalid",
+         "commit", "-qm", "manifest")
+    _commit(repo, "# release\nfork.undo()\n")
+    shallow = tmp_path_factory.mktemp("shallow") / "clone"
+    _git(repo, "clone", "-q", "--depth", "1", repo.as_uri(), str(shallow))
+
+    assert scope.is_shallow_clone(shallow) and not scope.is_shallow_clone(repo)
+    assert scope.read_recorded_base(shallow) is None
+    assert scope.unattributable_upstream_paths(shallow) == frozenset({"test_sample.py"})
+    assert scope.unattributable_upstream_paths(repo) == frozenset(), "the full clone validates its base"
