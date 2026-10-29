@@ -602,7 +602,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 ## Filed on arrival — 2026-10-28 (lane w1028a-h-rt)
 
 
-- **`FH-ID-MARKS-SHARED-KEY-CENSUS` — The shared ID-mark census expects only the bundle-native key but the session-policy launch-options test now belongs to both classes; reconcile the declared marks and their witness** · `tests/test_id_markers_downstream.py` · canonical confirm-red reproduced the same node on HEAD and origin/main 42a3da596d during suggestion qualification · READY 2026-10-27 · **TAKEN 2026-10-29 w1029a-h-fork on nekwo-ubuntu24 as nekwo in hermes-w1029a-h-fork**
 - **`FH-QUALIFICATION-DOC-CENSUS-BASELINES` — Reconcile baseline store epoch and coverage claim census failures reported by the suggestion landing run, preserving the assertions and correcting their actual owners** · `tests/agent_runtime/test_store_epoch_gate.py` · `tests/test_coverage_claims_resolve.py` · coverage points to a missing lens-exit-door test in `docs/agent-runtime-harness/planned/lens-deadline-schedule-equivalence-report-2026-10-27.md`; no suggestion source is named by either failure · READY 2026-10-27
 
 ## Filed on arrival — 2026-10-28 (lane w1028a-h-triage)
