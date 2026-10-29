@@ -18,7 +18,7 @@ _MAX_STATUS_LINES = 10
 _MAX_STATUS_LINE_CHARS = 180
 
 
-def build_dirty_state(*, runs=None, incidents=None, repos=None, runtime_instances=None) -> dict[str, Any]:
+def build_dirty_state(*, runs=None, incidents=None, repos=None) -> dict[str, Any]:
     """Return a redaction-safe dirty-state indicator for Mission Control.
 
     Runtime dirtiness means the Harness still has open work or active/stale run
@@ -35,7 +35,7 @@ def build_dirty_state(*, runs=None, incidents=None, repos=None, runtime_instance
 
     runs = list(runs or [])
     incidents = list(incidents or [])
-    runtime = _runtime_dirty_state(runs=runs, incidents=incidents, runtime_instances=list(runtime_instances or []))
+    runtime = _runtime_dirty_state(runs=runs, incidents=incidents)
     repo_items = repo_dirty_states(repos or DEFAULT_DIRTY_REPOS)
     repo_dirty = any(item.get("dirty") or item.get("error") for item in repo_items)
     runtime_dirty = bool(runtime["dirty"])
@@ -93,15 +93,17 @@ def repo_dirty_states(repos) -> list[dict[str, Any]]:
 # S54 removed ``no_product_edit_dirty_check``. ``build_dirty_state`` is the live
 # projection; this per-task variant lost its caller with the mission lane.
 
-def _runtime_dirty_state(*, runs, incidents, runtime_instances=None) -> dict[str, Any]:
+def _runtime_dirty_state(*, runs, incidents) -> dict[str, Any]:
     active_runs = [run for run in runs if _run_state(run) in ACTIVE_RUN_STATES]
     stale_runs = [run for run in runs if _run_state(run) == RunState.STALE]
     open_incidents = [incident for incident in incidents if getattr(incident, "closed_at", None) is None]
-    foreground = _foreground_runtime_state(runtime_instances or [], active_runs=active_runs)
     dirty = bool(active_runs or open_incidents or stale_runs)
+    # RT-WRITERLESS-GOAL-LANE-READ-RESIDUE: the ``foreground`` block went. It elected a
+    # "foreground" lane off ``GoalRuntimeInstanceStore``, which has had no writer since S53,
+    # so it could only report the frozen 2026-07-30 migration rows; no reader (hermes or
+    # Launcher) consumed it.
     return {
         "dirty": dirty,
-        "foreground": foreground,
         "active_runs": len(active_runs),
         "stale_runs": len(stale_runs),
         "open_incidents": len(open_incidents),
@@ -163,22 +165,6 @@ def _summary(*, runtime: dict[str, Any], repos: list[dict[str, Any]]) -> str:
         extra = "" if len(repo_dirty) <= 4 else f" +{len(repo_dirty) - 4}"
         parts.append(f"repo_dirty={labels}{extra}")
     return "; ".join(parts) if parts else "clean"
-
-
-def _foreground_runtime_state(runtime_instances, *, active_runs) -> dict[str, Any]:
-    foreground = None
-    for instance in runtime_instances:
-        if str(getattr(instance, "lane", "")) == "foreground" and str(getattr(instance, "state", "")) in {"active", "waiting"}:
-            foreground = instance
-    foreground_task_id = str(getattr(foreground, "task_id", "") or "") if foreground else None
-    foreground_active_runs = [run for run in active_runs if str(getattr(run, "task_id", "") or "") == foreground_task_id]
-    return {
-        "foreground_task_id": foreground_task_id,
-        "foreground_runtime_instance_id": str(getattr(foreground, "id", "") or "") if foreground else None,
-        "foreground_active_runs": len(foreground_active_runs),
-        "foreground_active_run_ids": _ids(foreground_active_runs),
-        "foreground_clean": not foreground_active_runs,
-    }
 
 
 def _run_state(run) -> RunState:

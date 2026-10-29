@@ -634,6 +634,12 @@ def launcher_supervision_state_path() -> Path:
     return store_root() / "launcher_supervision" / "state.json"
 
 
+def launcher_supervision_games_dir() -> Path:
+    """One record per game the harness watched for its launcher
+    (``agent_runtime/launcher_supervision/game_watch.py``), kept until the play-session handback."""
+    return store_root() / "launcher_supervision" / "games"
+
+
 def events_archive_dir() -> Path:
     """Rotated event-log slices (C6a): archive-never-delete, offset-load-bearing.
 

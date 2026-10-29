@@ -159,11 +159,8 @@ def run_profile_a_b_a(tmp_path, compute, shared):
             assert time.monotonic() < deadline, "settled sessions did not retire"
             time.sleep(.05)
         assert all(not peer.execution_possible for peer in peers)
-        # On POSIX the retired worker's compute host is orphaned to a subreaper and exits on its
-        # own ~1.4 s later (measured 2026-10-29, nekwo-ubuntu24); row RT-NATIVE-PEER-RETIRE-ORPHANS-COMPUTE-HOST.
-        gone_by = time.monotonic() + 5
-        while any(_still_running(child) for child in compute_children) and time.monotonic() < gone_by:
-            time.sleep(.05)
+        # A retired worker stops its compute host before it exits (worker_entry.stop_compute_host), so
+        # "no execution possible" already means no compute process left — no wait.
         assert not any(_still_running(child) for child in compute_children)
         assert not service._workers._workers
         requests_before = len(Provider.requests)

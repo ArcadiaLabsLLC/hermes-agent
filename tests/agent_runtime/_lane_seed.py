@@ -1,7 +1,7 @@
 """Seed a persisted lane row straight to disk, for READ-side tests.
 
 Every lane writer was deleted at S53, so a test that needs a persisted lane to
-read back cannot mint one through ``GoalRuntimeInstanceStore``. Seeding the row
+read back cannot mint one (the store itself went with RT-WRITERLESS-GOAL-LANE-READ-RESIDUE). Seeding the row
 directly exercises the surviving read path against real on-disk state instead
 of dropping the coverage — the same move ``test_status`` makes for runs.
 Moved here from the S53 removal gate when the removal gates were deleted
@@ -31,7 +31,7 @@ def seed_lane_row(
     instance = GoalRuntimeInstance(
         id=instance_id,
         task_id=task_id,
-        lane=instance_id,
+        lane=fields.pop("lane", instance_id),
         state=state,
         created_at=ts,
         updated_at=ts,

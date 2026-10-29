@@ -27,9 +27,8 @@ import json
 import pytest
 from agent_runtime import yaml_io
 
-from agent_runtime import migrations, paths, persona_profile_binding, runtime_instances, snapshot, status
+from agent_runtime import migrations, paths, persona_profile_binding, snapshot, status
 from agent_runtime.config import AgentRuntimeConfig, load_agent_runtime_config
-from agent_runtime.runtime_instances import GoalRuntimeInstanceStore
 from tests.agent_runtime._lane_seed import seed_lane_row
 
 #: One historical row per retired event family, each written before its
@@ -173,30 +172,24 @@ def test_the_operator_summary_still_renders_a_surviving_type():
     assert operator_event_summary(closed) == "Closed dev run as completed after hand_off."
 
 
-def test_the_lane_read_path_projects_a_persisted_row(isolate_agent_runtime_root):
+def test_a_persisted_lane_row_reaches_no_status_key(isolate_agent_runtime_root):
+    """The writer-less lane store is gone whole (RT-WRITERLESS-GOAL-STATUS-KEYS took the two
+    status keys, RT-WRITERLESS-GOAL-LANE-READ-RESIDUE the ``dirty_state`` foreground block and
+    the store). A row on disk is the positive control: it is there, and nothing projects it."""
+
     seeded = seed_lane_row(
         "goalrt_liveread",
         task_id="task_live",
-        state="running",
-        priority=2,
-        current_stage_id="stage_1",
-        current_owner="dev",
+        state="active",
+        lane="foreground",
     )
-    store = GoalRuntimeInstanceStore()
+    assert paths.runtime_instance_path(seeded.id).exists()
 
-    assert [row.id for row in store.list_all()] == [seeded.id]
-    summary = runtime_instances.runtime_instance_summary(store.get(seeded.id))
-    assert summary["lane_id"] == seeded.id
-    assert summary["lane_kind"] == "production"
-    assert summary["priority"] == 2
-    assert summary["current_stage_id"] == "stage_1"
-    assert summary["current_owner"] == "dev"
-
-    # RT-WRITERLESS-GOAL-STATUS-KEYS: status no longer projects the frozen lane store,
-    # even with a persisted row on disk (positive control for the absence).
-    # Kill-mutation: restore the ``runtime_instances`` key in ``build_status`` → red.
     data = status.build_status()
+    # Kill-mutation: restore the ``runtime_instances`` key in ``build_status`` → red.
     assert "runtime_instances" not in data and "foreground_runtime" not in data
+    # Kill-mutation: restore ``_foreground_runtime_state`` in ``_runtime_dirty_state`` → red.
+    assert "foreground" not in data["dirty_state"]["runtime"]
 
 
 def test_a_stale_persona_row_carrying_the_removed_worker_field_is_not_busy():

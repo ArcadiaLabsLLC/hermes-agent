@@ -1,10 +1,11 @@
 # Planned — writer-less goal-lane residue on live surfaces
 
 **Owner domain:** system architecture ([01-system-architecture.md](../01-system-architecture.md))
-**Status:** §1's status keys and §2 done (2026-10-29, 2026-10-27). What is left:
-`dirty_state`'s foreground block still reads the store, and
-`runtime_instance(s)_summary` are test-only since the keys went
-(row `RT-WRITERLESS-GOAL-LANE-READ-RESIDUE`).
+**Status:** §1 and §2 done (2026-10-29, 2026-10-27). The read half went 2026-10-29
+(lane w1029b-h-rt): `dirty_state`'s foreground block and `agent_runtime/runtime_instances.py`
+(the store and both summaries) are deleted — no hermes or Launcher reader consumed either.
+What still names the directory (model, paths, checkpoint class, poll fingerprint) is row
+`DC-RUNTIME-INSTANCES-DIR-RESIDUE` in the dead-code queue.
 **Raised / verified:** 2026-08-22 against HEAD.
 
 ## 1. `GoalRuntimeInstance` lanes: a read lane with no writers

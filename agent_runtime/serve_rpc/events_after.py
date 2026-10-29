@@ -13,9 +13,12 @@ are ``agent_runtime/event_cursor.py``; this module owns what a caller may see:
   (``decision_contract_registry``), so a key added to an event later does not
   reach a receiver until this module's contract names it;
 * the reply: ``{events: [{event_id, type, at, payload}], next_cursor, at_tail,
-  refused?: {reason, tail_cursor?, floor_cursor?, lost_bytes?}}``. A refusal
-  is a result, not an error: it names the cursor to move to, and its
-  ``next_cursor`` is the cursor sent (a refused page never advances anyone).
+  refused?: {reason, tail_cursor?, floor_cursor?, lost_bytes?}, skipped?:
+  [{reason, from_cursor, to_cursor, bytes}]}``. A refusal is a result, not an
+  error: it names the cursor to move to, and its ``next_cursor`` is the cursor
+  sent (a refused page never advances anyone). ``skipped`` names each
+  unreadable journal line (``journal_line_unreadable``) the page passed: the
+  page still advances, and the span is the evidence of what was not read.
 
 Tier ``read``: identity keys and states, never message text.
 """
@@ -135,6 +138,16 @@ def _runtime_events_after(rid: Any, params: dict, context: RpcContext | None = N
         "next_cursor": format_cursor(page.journal, page.next_offset),
         "at_tail": page.at_tail,
     }
+    if page.skipped:
+        reply["skipped"] = [
+            {
+                "reason": span.reason,
+                "from_cursor": format_cursor(page.journal, span.start),
+                "to_cursor": format_cursor(page.journal, span.end),
+                "bytes": span.end - span.start,
+            }
+            for span in page.skipped
+        ]
     if page.refused is not None:
         refused: dict[str, Any] = {"reason": page.refused.value}
         if page.resume_offset is not None:

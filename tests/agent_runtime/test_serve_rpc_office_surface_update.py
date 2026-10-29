@@ -257,12 +257,12 @@ def test_a_non_string_folder_entry_is_refused_rather_than_stringified():
 
 
 def test_a_missing_folders_key_is_refused_and_does_not_bump_the_revision():
-    """``update_surface(folders=None)`` is a legal STORE call — it bumps the
-    revision, emits ``change=saved`` and moves no folders.
+    """``update_surface(folders=None)`` is a legal STORE call — it moves no
+    folders, so on a live surface it is the content-equal no-op
+    (``office_store/noop.py``).
 
-    That is right for the CLI (``harness office set-folders`` with no value) and
-    wrong for this lane: a client that forgot the parameter would spend a
-    revision, invalidate its own guard token and change nothing.
+    The lane still refuses it: a client that forgot the parameter has a bug,
+    and answering ok would hide it.
     """
 
     _seed()

@@ -2,9 +2,10 @@
 
 ``contract`` parses the ``launcher_beat`` op, ``policy`` is the pure transition table, ``relaunch`` is the
 process I/O (identity, the one-pid kill, the detached spawn), ``watchdog``
-wires it to the parent watch and the beat clock. Slices W1 (beats, the re-targeted watch, Quit vs crash
-vs hang) and W2 (relaunch, the hang kill, the restart budget) are built; the game watch (G1) and the
-play-session handback (P1) follow.
+wires it to the parent watch and the beat clock, ``game_watch`` watches a handed-over game. Slices W1
+(beats, the re-targeted watch, Quit vs crash vs hang), W2 (relaunch, the hang kill, the restart budget)
+and G1 (the game watch, resumed after a harness restart) are built; the play-session handback (P1)
+follows.
 """
 
 from __future__ import annotations
