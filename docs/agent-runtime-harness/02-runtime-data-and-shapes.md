@@ -817,6 +817,18 @@ carries a ``messaging`` block (``running_work/lanes_messaging.py``). A row adds
 ruling: nothing left the wire. The goldens and ``work_list_empty.json`` moved; the
 launcher mirror is owed (``tests/fixtures/stream_frames/README.md``).
 
+54 KEPT (Projects connections, 2026-10-28) — ``workspaces[]`` gains
+``project_ids`` and ``project_assignment_revision``. These are references to
+Launcher Projects, not a Project manifest, agent roster, slot declaration or
+content export. Existing records default to an empty list and revision zero.
+``runtime.workspace.project.set`` adds or removes one reference through
+``WorkspaceStore.update_project_connections`` with ``workspace_id``,
+``project_id``, ``connected``, ``expected_revision`` and optional realm
+``credential``. It uses the existing console tier and realm publish right;
+concurrent edits return ``stale_revision``. Ordinary workspace saves preserve
+the latest references. The producer golden and manifest are mirrored in
+EterniaLauncher's ``test/fixtures/harness_stream/`` in this cross-stack slice.
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.

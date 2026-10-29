@@ -344,6 +344,7 @@
     "runtime.work.start",
     "runtime.workspace.conversations",
     "runtime.workspace.create",
+    "runtime.workspace.project.set",
     "runtime.workspace.recipe.run_step",
     "runtime.workspace.recipe.set",
     "runtime.workspace.recipe.show",
@@ -984,6 +985,13 @@
       "stale_ok",
       "status",
       "view"
+    ],
+    "runtime.workspace.project.set": [
+      "workspace_id",
+      "project_id",
+      "connected",
+      "expected_revision",
+      "credential"
     ]
   },
   "tiers": {
@@ -1311,6 +1319,7 @@
     "runtime.work.start": "console",
     "runtime.workspace.conversations": "console",
     "runtime.workspace.create": "console",
+    "runtime.workspace.project.set": "console",
     "runtime.workspace.recipe.run_step": "console",
     "runtime.workspace.recipe.set": "console",
     "runtime.workspace.recipe.show": "console",
