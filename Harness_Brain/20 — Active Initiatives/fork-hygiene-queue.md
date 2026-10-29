@@ -598,7 +598,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-28 (lane w1028a-h-persona)
 
-- **`FH-LINUX-TEST-VENV-PY312-NO-DEPS` — on the Linux box `vm` the shared test venv `~/.venvs/hermes-test` is Python 3.12 while every pyproject runtime pin is marked `python_version >= '3.14'`, so it holds no runtime dependency (no ruamel: `hermes_yaml` fails to import from the downstream conftest plugin) and every test errors at collection; wave w1028a lanes each built a private 3.14 venv under scratch** · fork / suite · `pyproject.toml` · `scripts/run_tests.sh` · `tests/_downstream/conftest_plugin.py` · READY 2026-10-28 · REQUIRES linux · **TAKEN 2026-10-29 w1029a-h-fork on nekwo-ubuntu24 as nekwo in hermes-w1029a-h-fork**
 
 ## Windows baseline qualification — 2026-10-27
 
@@ -610,7 +609,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-28 (lane w1028a-h-triage)
 
-- **`FH-LINUX-TEST-VENV314-NO-EXTRAS` — the 3.14 test venv the w1028a lanes built on `vm` (`~/.venvs/hermes-test314`) carries no `anthropic`, `aiohttp` or `acp`, so six files red at import or provider preflight there: `tests/agent_runtime/test_anthropic_keepalive.py`, `tests/agent_runtime/test_anthropic_stream_gap_receipt.py`, `tests/agent_runtime/test_conversation_model_api_mode.py`, `tests/agent_runtime/test_persona_chat_actor_prewarm.py`, `tests/gateway/test_session_stream_order.py`, `tests/test_no_frozen_hermes_home.py`; build the venv from the declared extras the Windows venv has** · fork / suite · `pyproject.toml` · `scripts/run_tests.sh` · `--confirm-red` pre-existing against `4e1f07d087` (land/w1028a triage) · READY 2026-10-28 · REQUIRES linux · **TAKEN 2026-10-29 w1029a-h-fork on nekwo-ubuntu24 as nekwo in hermes-w1029a-h-fork**
 - **`FH-VM-CLONE-SHALLOW-DOCKET-GATES` — the hermes clone on `vm` is shallow (`git rev-parse --is-shallow-repository` = true), so `tests/test_coverage_claims_resolve.py` and `tests/test_docket_stage_claims.py` refuse every landing gate there by design; unshallow the box's clone (`git fetch --unshallow`, or `--filter=blob:none` as CI does) before the next gate** · fork / suite · `tests/test_docket_stage_claims.py` · `--confirm-red` pre-existing against `4e1f07d087` (land/w1028a triage) · READY 2026-10-28 · **TAKEN 2026-10-29 w1029a-h-fork on nekwo-ubuntu24 as nekwo in hermes-w1029a-h-fork**
 
 ## Filed on arrival — 2026-10-29 (orchestrator, found running the CLAUDE.md-reading tests)
