@@ -9,7 +9,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-10-29 (land w1029a-h)
 
-- **`FH-LANDING-BRIEF-WHOLE-TREE-GATE` — the w1029a landing brief named `bash scripts/run_tests.sh -j 16` (no paths) as "the full fork suite"; that is a whole-tree run ADR 0016 forbids (62k tests, ~60 reds from upstream files on Linux by mid-run), and the landing switched to `scripts/run_tests_bundled.sh tests`; the launcher-side landing brief template should name the bundled gate** · `Harness_Brain/30 — Decisions/0016 — No whole-tree run, ever.md` · `scripts/run_tests_bundled.sh` · READY 2026-10-29 · **TAKEN 2026-10-29 w1029b-h-fork on nekwo-ubuntu24 as nekwo in hermes-w1029b-h-fork**
 
 ## Filed on arrival — 2026-10-29 (lane w1029a-h-fork)
 
