@@ -63,9 +63,9 @@ from .workspace_slots import (
     REASON_SLOT_NOT_DECLARED,
     SlotRefused,
     bind,
+    bind_project,
     bound_path,
-    live_slots,
-    load_document,
+    resolve_slot,
     stamp_epoch,
 )
 
@@ -143,8 +143,9 @@ def classify_clone_failure(output: str) -> str:
 # ── guards shared by both verbs ──────────────────────────────────────────────
 
 
-def _guard_replay(workspace_id: str, slot: str, step_id: str, issued_at: str) -> None:
-    held = latest_runs(workspace_id, slot).get(step_id)
+def _guard_replay(workspace_id: str | None, slot: str, step_id: str, issued_at: str,
+                  project_id: str | None = None) -> None:
+    held = latest_runs(workspace_id, slot, project_id=project_id).get(step_id)
     if held is None:
         return
     if held.get("status") == RUN_RUNNING:
@@ -182,16 +183,31 @@ def clone_argv(slot: dict[str, Any], dest: Path) -> list[str]:
     return ["git", "clone", "--branch", branch, "--", url, str(dest)]
 
 
-def clone_slot(workspace_id: str, slot: str, dest_path: str, *, issued_at: str, registry: Any = None,
-               watch: bool = True) -> dict[str, Any]:
-    """Spawn the clone of ``slot`` into ``dest_path`` as a background terminal row."""
+def _declared(workspace_id: str | None, slot: str, project_id: str | None):
+    resolved = resolve_slot(workspace_id, slot, project_id=project_id)
+    if resolved is None:
+        raise SlotRefused(REASON_SLOT_NOT_DECLARED, f"{project_id or workspace_id} declares no slot {slot!r}")
+    return resolved
 
-    declared = live_slots(load_document(workspace_id)).get(slot)
-    if declared is None:
-        raise SlotRefused(REASON_SLOT_NOT_DECLARED, f"{workspace_id} declares no slot {slot!r}")
+
+def _here(resolved, workspace_id: str | None, slot: str) -> Path | None:
+    return (bound_path(slot, project_id=resolved.project_id) if resolved.project_id
+            else bound_path(slot, workspace_id=workspace_id))
+
+
+def clone_slot(workspace_id: str | None, slot: str, dest_path: str, *, issued_at: str, registry: Any = None,
+               watch: bool = True, project_id: str | None = None) -> dict[str, Any]:
+    """Spawn the clone of ``slot`` into ``dest_path`` as a background terminal row.
+
+    ``slot`` is read where it is declared (``workspace_slots.resolve_slot``): a Project's slot is
+    cloned into, and bound as, that Project's fill — from its workspace's verb or the Project's own.
+    """
+
+    resolved = _declared(workspace_id, slot, project_id)
+    slot, declared = resolved.slot, resolved.declaration
     if (declared.get("repo") or {}).get("local") is True:
         raise SlotRefused(REASON_SLOT_LOCAL_ONLY, f"{slot} is a local slot with no clone URL; it lives on one machine")
-    held = bound_path(slot, workspace_id=workspace_id)
+    held = _here(resolved, workspace_id, slot)
     if held is not None and held.is_dir():
         raise SlotRefused(REASON_SLOT_ALREADY_BOUND, f"{slot} is bound here at {held}; Locate rebinds it")
     dest = Path(str(dest_path or "")).expanduser()
@@ -201,28 +217,31 @@ def clone_slot(workspace_id: str, slot: str, dest_path: str, *, issued_at: str, 
         raise SlotRefused(REASON_DEST_NOT_EMPTY, f"{dest} exists and is not an empty directory")
     argv = clone_argv(declared, dest)
     with LOCK:
-        _guard_replay(workspace_id, slot, CLONE_STEP_ID, issued_at)
+        _guard_replay(workspace_id, slot, CLONE_STEP_ID, issued_at, resolved.project_id)
         registry = registry or spawning_registry()
         session = registry.spawn_local(shlex.join(argv), cwd=str(_existing_ancestor(dest.parent)),
                                        env_vars=dict(CLONE_ENV), persist_on_release=True)
-        run = _start({"workspace_id": workspace_id, "slot": slot, "step_id": CLONE_STEP_ID, "kind": RUN_KIND_CLONE,
+        run = _start({"workspace_id": workspace_id, "project_id": resolved.project_id, "slot": slot,
+                      "step_id": CLONE_STEP_ID, "kind": RUN_KIND_CLONE,
                       "dest_path": str(dest), "issued_at": issued_at, "started_at": _now()}, session, registry, watch)
-    return {"slot": slot, "run": run, "argv": argv}
+    return {"slot": slot, "project_id": resolved.project_id, "run": run, "argv": argv}
 
 
 # ── Run step ─────────────────────────────────────────────────────────────────
 
 
-def run_step(workspace_id: str, slot: str, step_id: str, *, issued_at: str, registry: Any = None,
-             watch: bool = True) -> dict[str, Any]:
-    """Spawn one owner ``command`` step under its slot's environment, on THIS explicit request."""
+def run_step(workspace_id: str | None, slot: str, step_id: str, *, issued_at: str, registry: Any = None,
+             watch: bool = True, project_id: str | None = None) -> dict[str, Any]:
+    """Spawn one owner ``command`` step under its slot's environment, on THIS explicit request.
+
+    A step's ``cwd_slot`` is resolved with the same owner as its slot: a Project's step runs in
+    that Project's checkout of the named slot.
+    """
 
     from .workspace_slot_overlay import SlotBinding, overlay_for
 
-    live = live_slots(load_document(workspace_id))
-    declared = live.get(slot)
-    if declared is None:
-        raise SlotRefused(REASON_SLOT_NOT_DECLARED, f"{workspace_id} declares no slot {slot!r}")
+    resolved = _declared(workspace_id, slot, project_id)
+    slot, declared = resolved.slot, resolved.declaration
     steps, _ = materialize(slot, declared)
     step = next((s for s in steps if s["id"] == step_id), None)
     if step is None:
@@ -230,31 +249,34 @@ def run_step(workspace_id: str, slot: str, step_id: str, *, issued_at: str, regi
     if step["kind"] != STEP_COMMAND:
         raise SlotRefused(REASON_STEP_NOT_RUNNABLE, f"{step_id} is a derived {step['kind']} step; it is done by hand")
     cwd_slot = step.get("cwd_slot") or slot
-    path = bound_path(cwd_slot, workspace_id=workspace_id)
-    if cwd_slot not in live or path is None or not path.is_dir():
+    cwd = resolve_slot(workspace_id, cwd_slot, project_id=resolved.project_id)
+    path = _here(cwd, workspace_id, cwd_slot) if cwd is not None else None
+    if path is None or not path.is_dir():
         raise SlotRefused(REASON_SLOT_UNBOUND_HERE, f"{cwd_slot} is not bound on this machine")
-    overlay = overlay_for(SlotBinding(workspace_id, cwd_slot, str(path)))
+    overlay = overlay_for(SlotBinding(str(workspace_id or ""), cwd_slot, str(path), project_id=cwd.project_id))
     argv = overlay.resolve_argv([str(a) for a in step["argv"]])
     with LOCK:
-        _guard_replay(workspace_id, slot, step_id, issued_at)
+        _guard_replay(workspace_id, slot, step_id, issued_at, resolved.project_id)
         registry = registry or spawning_registry()
         session = registry.spawn_local(shlex.join(argv), cwd=str(path),
                                        env_vars=overlay.apply({"PATH": os.environ.get("PATH", "")}),
                                        persist_on_release=True)
-        run = _start({"workspace_id": workspace_id, "slot": slot, "step_id": step_id, "kind": RUN_KIND_COMMAND,
+        run = _start({"workspace_id": workspace_id, "project_id": resolved.project_id, "slot": slot,
+                      "step_id": step_id, "kind": RUN_KIND_COMMAND,
                       "cwd_slot": cwd_slot, "env_source": overlay.env_source, "issued_at": issued_at,
                       "started_at": _now()}, session, registry, watch)
-    return {"slot": slot, "step_id": step_id, "run": run, "argv": argv, "env_source": overlay.env_source}
+    return {"slot": slot, "project_id": resolved.project_id, "step_id": step_id, "run": run, "argv": argv,
+            "env_source": overlay.env_source}
 
 
 # ── settling ─────────────────────────────────────────────────────────────────
 
 
-def _rereport(workspace_id: str) -> None:
-    from .workspace_slots_probe import report
+def _rereport(run: dict[str, Any]) -> None:
+    from .workspace_slots_probe import report, report_project
 
     try:
-        report(workspace_id)
+        report_project(run["project_id"]) if run.get("project_id") else report(run["workspace_id"])
     except SlotRefused as exc:  # no machine identity: the run still settles
         logger.warning("slot run settled but the re-report was refused: %s", exc.reason)
 
@@ -268,16 +290,18 @@ def _ending(run: dict[str, Any], session: Any) -> dict[str, Any]:
     code = getattr(session, "exit_code", None)
     if code == 0 and run.get("kind") == RUN_KIND_CLONE:
         try:
-            bound = bind(run["workspace_id"], run["slot"], run["dest_path"], issued_at=_now())
+            bound = (bind_project(run["project_id"], run["slot"], run["dest_path"], issued_at=_now())
+                     if run.get("project_id") else bind(run["workspace_id"], run["slot"], run["dest_path"],
+                                                         issued_at=_now()))
         except SlotRefused as exc:
             return {"status": RUN_FAILED, "reason": END_BIND_REFUSED, "evidence": exc.reason, "exit_code": 0}
         return {"status": RUN_SUCCEEDED, "exit_code": 0, "warnings": bound.get("warnings") or []}
     if code == 0:
-        _rereport(run["workspace_id"])
+        _rereport(run)
         return {"status": RUN_SUCCEEDED, "exit_code": 0}
     reason = classify_clone_failure(tail) if run.get("kind") == RUN_KIND_CLONE else END_COMMAND_FAILED
     if run.get("kind") == RUN_KIND_COMMAND:
-        _rereport(run["workspace_id"])
+        _rereport(run)
     return {"status": RUN_FAILED, "reason": reason, "exit_code": code, "evidence": redacted_tail(tail)}
 
 
@@ -294,11 +318,13 @@ def settle_run(run_id: str, registry: Any = None) -> dict[str, Any] | None:
         return update_run(run_id, ended_at=_now(), **_ending(run, session))
 
 
-def settle_runs(workspace_id: str | None = None, registry: Any = None) -> list[dict[str, Any]]:
-    """Settle every still-running run (of one workspace, or all) this machine recorded."""
+def settle_runs(workspace_id: str | None = None, registry: Any = None, *,
+                project_id: str | None = None) -> list[dict[str, Any]]:
+    """Settle every still-running run (of one workspace, one Project, or all) this machine recorded."""
 
     return [settle_run(str(run["run_id"]), registry) for run in all_runs()
-            if run.get("status") == RUN_RUNNING and workspace_id in (None, run.get("workspace_id"))]
+            if run.get("status") == RUN_RUNNING and workspace_id in (None, run.get("workspace_id"))
+            and project_id in (None, run.get("project_id"))]
 
 
 def watch_run(run_id: str, registry: Any, *, interval: float = WATCH_INTERVAL_SECONDS,

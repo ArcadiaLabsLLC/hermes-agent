@@ -157,13 +157,13 @@ def _venv_bin(venv: str) -> str:
 def overlay_for(binding: SlotBinding) -> SlotEnvOverlay:
     """The overlay of one bound slot: the machine fill, the slot's ``.env``, the venv."""
 
-    from .project_store import load_project
     from .workspace_slot_env import slot_fill
-    from .workspace_slots import live_slots, load_document, secret_keys
+    from .workspace_slots import resolve_slot, secret_keys
 
-    fill = slot_fill(binding.workspace_id, binding.slot, project_id=binding.project_id)
-    document = load_project(binding.project_id) if binding.project_id else load_document(binding.workspace_id)
-    declared = live_slots(document).get(binding.slot) or {}
+    resolved = resolve_slot(binding.workspace_id, binding.slot, project_id=binding.project_id)
+    fill = slot_fill(binding.workspace_id, binding.slot,
+                     project_id=resolved.project_id if resolved else binding.project_id)
+    declared = resolved.declaration if resolved else {}
     dotenv_name = (fill.dotenv if fill else None) or ((declared.get("toolchain") or {}).get("dotenv") or {}).get("path")
     dotenv = read_dotenv(Path(binding.path) / dotenv_name) if dotenv_name else {}
     # A key the declaration marks secret reaches a command ONLY from the slot's .env — never

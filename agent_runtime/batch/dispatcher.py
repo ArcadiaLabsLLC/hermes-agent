@@ -477,20 +477,25 @@ def _workspace_roster(workspace_id: str) -> list[Member]:
 
 
 def _slot_roles(workspace_id: str) -> dict[str, str]:
-    from ..workspace_slots import live_slots, load_document
+    from ..persona_slots import visible_slots
 
-    return {name: str((slot.get("context") or {}).get("role") or "")
-            for name, slot in live_slots(load_document(workspace_id)).items()}
+    roles: dict[str, str] = {}
+    for seen in visible_slots(workspace_id).values():  # the boards key by bare slot name; the first owner wins
+        roles.setdefault(seen.name, str((seen.record.get("context") or {}).get("role") or ""))
+    return roles
 
 
 def _slot_gates(workspace_id: str) -> dict[str, tuple[str, ...] | None]:
     """Each board's landing gate (``gate.slot_gate``): declared, by toolchain kind, the default brain's no-op, or None."""
 
     from ..work_store.board import boards
-    from ..workspace_slots import live_slots, load_document
+    from ..workspace_slots import resolve_slot
 
-    slots = live_slots(load_document(workspace_id))
-    return {board.slot: slot_gate(slots.get(board.slot), is_default=board.is_default) for board in boards(workspace_id)}
+    def declared(board) -> dict | None:
+        resolved = resolve_slot(workspace_id, board.slot, project_id=board.project_id)
+        return resolved.declaration if resolved else None
+
+    return {board.slot: slot_gate(declared(board), is_default=board.is_default) for board in boards(workspace_id)}
 
 
 def _budget(workspace_id: str) -> Budget:

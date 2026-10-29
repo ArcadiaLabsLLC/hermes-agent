@@ -44,9 +44,8 @@ from ..workspace_slots import (
     REASON_REALM_PUBLISH_DENIED,
     SlotRefused,
     bound_path,
-    live_slots,
     install_id,
-    load_document,
+    resolve_slot,
     stamp_epoch,
 )
 from . import receipts
@@ -294,16 +293,33 @@ def _auto_promote(workspace_id: str, issued_at: str) -> None:
                       reason=getattr(refused.reason, "value", refused.reason))
 
 
+def _declared_brain(workspace_id: str) -> dict[str, Any]:
+    """The live ``brain`` declaration this workspace sees — its own document's, or its Project's after migration."""
+
+    resolved = resolve_slot(workspace_id, DEFAULT_BRAIN_SLOT)
+    return resolved.declaration if resolved else {}
+
+
+def _bind_declared_brain(workspace_id: str, path: str, issued_at: str) -> None:
+    """Bind the declared ``brain`` where its readers look: the owning Project's fill, else the workspace's."""
+
+    from ..workspace_slots import bind, bind_project
+
+    resolved = resolve_slot(workspace_id, DEFAULT_BRAIN_SLOT)
+    if resolved is not None and resolved.project_id:
+        bind_project(resolved.project_id, DEFAULT_BRAIN_SLOT, path, issued_at=issued_at)
+    else:
+        bind(workspace_id, DEFAULT_BRAIN_SLOT, path, issued_at=issued_at)
+
+
 def _settle_pending(workspace_id: str, record: dict[str, Any], issued_at: str) -> None:
     """A staged declaration the Launcher has since declared (same clone URL): bind it here, mark it declared."""
 
-    from ..workspace_slots import bind
-
-    declared = live_slots(load_document(workspace_id)).get(DEFAULT_BRAIN_SLOT) or {}
+    declared = _declared_brain(workspace_id)
     url = (declared.get("repo") or {}).get("clone_url")
     if declaration_state(record) != "pending" or not url or url != record.get("remote_url"):
         return
-    bind(workspace_id, DEFAULT_BRAIN_SLOT, str(record["path"]), issued_at=issued_at)
+    _bind_declared_brain(workspace_id, str(record["path"]), issued_at)
     _write_binding(workspace_id, {**record, "declaration": {"state": "declared"}})
 
 
@@ -312,9 +328,8 @@ def _adopt_declared_brain(workspace_id: str, root: Path, issued_at: str) -> Boar
 
     from ..git_cmd import run_git
     from ..git_remote_adopt import AdoptRefused, adopt_remote
-    from ..workspace_slots import bind
 
-    declared = live_slots(load_document(workspace_id)).get(DEFAULT_BRAIN_SLOT) or {}
+    declared = _declared_brain(workspace_id)
     repo = declared.get("repo") or {}
     url, branch = repo.get("clone_url"), str(repo.get("default_branch") or "main")
     here = bound_path(DEFAULT_BRAIN_SLOT, workspace_id=workspace_id)
@@ -328,7 +343,7 @@ def _adopt_declared_brain(workspace_id: str, root: Path, issued_at: str) -> Boar
     except AdoptRefused as refused:
         receipts.emit("work.brain_adopt_refused", workspace_id=workspace_id, reason=refused.reason)
         return None
-    bind(workspace_id, DEFAULT_BRAIN_SLOT, str(target), issued_at=issued_at)
+    _bind_declared_brain(workspace_id, str(target), issued_at)
     receipts.emit("work.brain_adopted", workspace_id=workspace_id, url=url, path=target.name)
     return next((board for board in declared_boards(workspace_id)
                  if board.slot == DEFAULT_BRAIN_SLOT and has_brain_here(board)), None)

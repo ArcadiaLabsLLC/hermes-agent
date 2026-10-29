@@ -24,6 +24,10 @@ PROJECT_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     "runtime.project.slot.env.set": ("project_id", "slot", "env", "env_keep", "tool_paths", "path_prepend", "dotenv",
                                      "venv", "issued_at"),
     "runtime.project.report": ("project_id",),
+    "runtime.project.recipe.show": ("project_id",),
+    "runtime.project.recipe.set": (*_WRITE, "slot", "steps", "revision", "persona_instance_id"),
+    "runtime.project.slot.clone": ("project_id", "slot", "dest_path", "issued_at"),
+    "runtime.project.recipe.run_step": ("project_id", "slot", "step_id", "issued_at"),
     "runtime.project.artifacts.list": ("project_id",),
     "runtime.project.chat.share": ("project_id", "session_id", "shared", "credential", "credentials"),
     "runtime.project.chat.fold": ("project_id",),
@@ -174,6 +178,61 @@ def _project_report(params):
     from agent_runtime.workspace_slots_probe import report_project
 
     return report_project(valid_project_id(params.get("project_id")))
+
+
+# ── the setup recipe of a Project's slots (the workspace verbs' Project-keyed twins) ──
+
+
+@method("runtime.project.recipe.show", tier=TIER_CONSOLE)
+@_project_refusals
+def _project_recipe_show(params):
+    from agent_runtime.project_store import valid_project_id
+    from agent_runtime.workspace_slot_recipe_store import show_project_recipe
+    from agent_runtime.workspace_slot_setup import settle_runs
+
+    project_id = valid_project_id(params.get("project_id"))
+    settle_runs(project_id=project_id)  # a run a watcher missed (serve restarted) ends before it is read
+    return show_project_recipe(project_id)
+
+
+@method("runtime.project.recipe.set", tier=TIER_CONSOLE)
+@_project_refusals
+def _project_recipe_set(params):
+    """Replace one Project slot's owner steps; the Project's publish decision for every realm holding it."""
+
+    from agent_runtime.project_store import valid_project_id
+    from agent_runtime.workspace_slot_recipe_store import set_recipe
+    from agent_runtime.workspace_slots import machine_id
+
+    return set_recipe(None, str(params.get("slot") or ""), params.get("steps"), base_revision=params.get("revision"),
+                      issued_at=_issued_at(params), machine=machine_id(),
+                      persona_instance_id=params.get("persona_instance_id"),
+                      project_id=valid_project_id(params.get("project_id")),
+                      credentials=_project_store_for(params)._credentials)
+
+
+@method("runtime.project.slot.clone", tier=TIER_CONSOLE)
+@_project_refusals
+def _project_slot_clone(params):
+    """Clone a Project's slot into ``dest_path``; success binds the Project's fill on this machine."""
+
+    from agent_runtime.project_store import valid_project_id
+    from agent_runtime.workspace_slot_setup import clone_slot
+
+    return clone_slot(None, str(params.get("slot") or ""), str(params.get("dest_path") or ""),
+                      issued_at=_issued_at(params), project_id=valid_project_id(params.get("project_id")))
+
+
+@method("runtime.project.recipe.run_step", tier=TIER_CONSOLE)
+@_project_refusals
+def _project_recipe_run_step(params):
+    """Run ONE owner command step of a Project's slot, on this explicit request only."""
+
+    from agent_runtime.project_store import valid_project_id
+    from agent_runtime.workspace_slot_setup import run_step
+
+    return run_step(None, str(params.get("slot") or ""), str(params.get("step_id") or ""),
+                    issued_at=_issued_at(params), project_id=valid_project_id(params.get("project_id")))
 
 
 @method("runtime.project.artifacts.list", tier=TIER_CONSOLE)

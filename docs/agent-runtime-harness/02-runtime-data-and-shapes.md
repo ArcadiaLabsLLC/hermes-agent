@@ -873,7 +873,18 @@ result a ``projects`` grouping. Disconnecting a Project (``runtime.workspace.pro
 result key ``assignments_dropped``) drops ``<project>/*`` from that workspace's instances;
 a Project slot's tombstone drops it everywhere. The migration re-keys assignments
 (step 3). After it, ``runtime.workspace.slots.show`` / ``.declare`` / ``.report`` /
-``.slot.bind`` / ``.slot.env.set`` answer ``slot_migrated`` with ``data.project_id``.
+``.slot.bind`` / ``.slot.env.set`` answer ``slot_migrated`` with ``data.project_id``
+(``workspace_slots.require_unmigrated``; the ``harness workspace slots`` CLI passes the
+same door). Every other reader of a slot's declaration goes through
+``workspace_slots.resolve_slot(workspace_id, slot, project_id=…)`` — owner-ordered like
+``bound_path``, never the frozen document (2026-10-29, RT-PROJECT-SLOT-READERS-REKEY):
+builds' restart unknowns, the batch dispatcher's roles and gates, the default brain, the
+slot overlay, the recipe store and Clone / Run step. ``runtime.workspace.recipe.show``
+keys a Project's slot ``<project>/<slot>``; ``recipe.set`` on one edits the Project record
+(``ProjectStore.set_recipe``). Project-keyed twins: ``runtime.project.recipe.show`` /
+``.recipe.set`` (publish decision per realm, ``credential`` / ``credentials``) and
+``runtime.project.slot.clone`` / ``.recipe.run_step`` (local console; the run record
+carries ``project_id`` and a clone binds the Project's fill).
 
 54 KEPT (Project category folders, 2026-10-29, RT-PROJECT-CATEGORY-FOLDERS) — no
 snapshot key moved. ``categories.documents`` may carry ``context_files`` (relative

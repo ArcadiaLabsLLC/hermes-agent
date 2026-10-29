@@ -51,36 +51,39 @@ def _emit_workspace_slot_verb(args, kind: str, action) -> int:
 
 
 def _cmd_workspace_slots_show(args) -> int:
-    from agent_runtime.workspace_slots import show
+    from agent_runtime.workspace_slots import require_unmigrated, show
 
-    return _emit_workspace_slot_verb(args, "workspace_slots", lambda: show(str(args.workspace_id)))
+    return _emit_workspace_slot_verb(args, "workspace_slots", lambda: show(require_unmigrated(str(args.workspace_id))))
 
 
 def _cmd_workspace_slots_declare(args) -> int:
-    from agent_runtime.workspace_slots import declare, machine_id, require_publish_right
+    from agent_runtime.workspace_slots import declare, machine_id, require_publish_right, require_unmigrated
 
     def action():
         slots = json.loads(Path(str(args.slots_file)).read_text(encoding="utf-8-sig"))
-        require_publish_right(str(args.workspace_id))
-        return declare(str(args.workspace_id), slots, issued_at=_issued_at(args), machine=machine_id())
+        workspace_id = require_unmigrated(str(args.workspace_id))
+        require_publish_right(workspace_id)
+        return declare(workspace_id, slots, issued_at=_issued_at(args), machine=machine_id())
 
     return _emit_workspace_slot_verb(args, "workspace_slots_declare", action)
 
 
 def _cmd_workspace_slots_bind(args) -> int:
-    from agent_runtime.workspace_slots import bind
+    from agent_runtime.workspace_slots import bind, require_unmigrated
 
     return _emit_workspace_slot_verb(args, "workspace_slot_bind",
-                lambda: bind(str(args.workspace_id), str(args.slot), str(args.path), issued_at=_issued_at(args)))
+                lambda: bind(require_unmigrated(str(args.workspace_id)), str(args.slot), str(args.path),
+                             issued_at=_issued_at(args)))
 
 
 def _cmd_workspace_slots_env_set(args) -> int:
     from agent_runtime.workspace_slot_env import set_slot_fill
-    from agent_runtime.workspace_slots import REASON_SLOT_NOT_DECLARED, SlotRefused, live_slots, load_document, secret_keys
+    from agent_runtime.workspace_slots import (REASON_SLOT_NOT_DECLARED, SlotRefused, live_slots, load_document,
+                                               require_unmigrated, secret_keys)
     from agent_runtime.workspace_slots_probe import report
 
     def action():
-        workspace_id, slot = str(args.workspace_id), str(args.slot)
+        workspace_id, slot = require_unmigrated(str(args.workspace_id)), str(args.slot)
         declared = live_slots(load_document(workspace_id)).get(slot)
         if declared is None:
             raise SlotRefused(REASON_SLOT_NOT_DECLARED, slot)
@@ -96,9 +99,11 @@ def _cmd_workspace_slots_env_set(args) -> int:
 
 
 def _cmd_workspace_slots_report(args) -> int:
+    from agent_runtime.workspace_slots import require_unmigrated
     from agent_runtime.workspace_slots_probe import report
 
-    return _emit_workspace_slot_verb(args, "workspace_slots_report", lambda: report(str(args.workspace_id)))
+    return _emit_workspace_slot_verb(args, "workspace_slots_report",
+                                     lambda: report(require_unmigrated(str(args.workspace_id))))
 
 
 def _cmd_workspace_slots_clone(args) -> int:
