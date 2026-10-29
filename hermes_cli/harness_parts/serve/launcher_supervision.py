@@ -1,9 +1,10 @@
 """The serve's half of launcher supervision: the ``launcher_beat`` op and the parent-watch hook.
 
-Plan ``docs/agent-runtime-harness/planned/launcher-mutual-supervision-2026-10-27.md`` slice W1. The
+Plan ``docs/agent-runtime-harness/planned/launcher-mutual-supervision-2026-10-27.md`` slices W1–W2. The
 watchdog (``agent_runtime.launcher_supervision``) owns the watch and the table; this mixin answers
-the op (``SubscriptionLanes._on_connection_closed`` routes a closed connection to it), and carries out its two effects — latch an end reason,
-drain — through the serve's existing drain path (``ServeSession._on_parent_gone``).
+the op (``SubscriptionLanes._on_connection_closed`` routes a closed connection to it), and carries out its effects — latch an end reason,
+drain through the serve's existing drain path (``ServeSession._on_parent_gone``), and answer whether a
+relaunch may still fire.
 """
 
 from __future__ import annotations
@@ -32,6 +33,15 @@ class _ServeEffects:
 
     def drain(self, word: str, pid: int | None) -> None:
         self._session._on_parent_gone(word)
+
+    def may_relaunch(self) -> bool:
+        """Not once anything has latched an end (a drain, stdin EOF, logoff, SIGTERM) or the park is stopping."""
+        session = self._session
+        recorder = getattr(session, "end_reason", None)
+        if recorder is not None and recorder.latched is not None:
+            return False
+        stop = getattr(session, "service_stop", None)
+        return not (stop is not None and stop.is_set())
 
 
 class LauncherSupervision:

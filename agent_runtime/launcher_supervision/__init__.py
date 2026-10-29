@@ -1,8 +1,10 @@
 """The bundled harness supervises its launcher (plan ``launcher-mutual-supervision-2026-10-27``).
 
-``contract`` parses the ``launcher_beat`` op, ``policy`` is the pure transition table, ``watchdog``
-wires it to the parent watch and the beat clock. Slice W1: beats, the re-targeted watch, and Quit vs
-crash vs hang recorded; relaunch (W2), the game watch (G1) and the play-session handback (P1) follow.
+``contract`` parses the ``launcher_beat`` op, ``policy`` is the pure transition table, ``relaunch`` is the
+process I/O (identity, the one-pid kill, the detached spawn), ``watchdog``
+wires it to the parent watch and the beat clock. Slices W1 (beats, the re-targeted watch, Quit vs crash
+vs hang) and W2 (relaunch, the hang kill, the restart budget) are built; the game watch (G1) and the
+play-session handback (P1) follow.
 """
 
 from __future__ import annotations

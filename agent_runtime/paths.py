@@ -628,6 +628,12 @@ def events_journal_path() -> Path:
     return store_root() / "events_journal.json"
 
 
+def launcher_supervision_state_path() -> Path:
+    """The harness's supervision record of its launcher (``agent_runtime/launcher_supervision/``):
+    the relaunch budget, so a harness restart does not reset it, and the last beat it acted on."""
+    return store_root() / "launcher_supervision" / "state.json"
+
+
 def events_archive_dir() -> Path:
     """Rotated event-log slices (C6a): archive-never-delete, offset-load-bearing.
 

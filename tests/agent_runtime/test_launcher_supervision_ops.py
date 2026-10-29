@@ -25,10 +25,10 @@ from hermes_cli.harness_parts.serve.manifest import ops_manifest
 from tests.hermes_cli.test_harness_serve_parent_watch import WAIT, _owner, _serve, no_console_handler  # noqa: F401
 
 
-def _beat_frame(pid: int, state: str = "running", seq: int = 1) -> dict:
+def _beat_frame(pid: int, state: str = "running", seq: int = 1, *, supervise: bool = True) -> dict:
     return {"op": "launcher_beat", "id": f"beat-{seq}", "seq": seq, "pid": pid, "state": state,
             "window_visible": True, "executable": sys.executable, "build": {"commit": "test"},
-            "supervise": True}
+            "supervise": supervise}
 
 
 def _send(pipe, frame: dict) -> None:
@@ -59,7 +59,8 @@ def test_a_beat_moves_the_watch_and_the_first_owner_exiting_then_changes_nothing
     try:
         pipe, sink, thread, result = _serve(first.pid)
         sink.wait_for("ready")
-        _send(pipe, _beat_frame(second.pid))
+        # supervise: false so the second owner's exit drains (a supervised one is relaunched, W2).
+        _send(pipe, _beat_frame(second.pid, supervise=False))
         ok = sink.wait_for("launcher_beat_ok")
         assert (ok["seq"], ok["watching"]) == (1, False)
         first.kill()

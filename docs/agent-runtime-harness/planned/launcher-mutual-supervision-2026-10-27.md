@@ -175,7 +175,11 @@ survive a harness restart). The wire is §2 unchanged; `watching` is always fals
 - In W1 a crash or hang is DETECTED and recorded and the serve drains as today; nothing
   is relaunched yet, so W1 ships safely before W2.
 
-**W2 — relaunch, kill-on-hang, budget** (row `RT-LAUNCHER-RELAUNCH`, after W1)
+**W2 — relaunch, kill-on-hang, budget** — BUILT 2026-10-29 (lane w1029a-h-rt-b; 09 § "The runtime
+outlives the launcher" is the contract). Departures: a `suspended` crash WITH a `game` keeps W1's row
+until G1 (decision 6's wait needs the game watch); "OS ending" (decision 9) is read as any latched end
+reason, which also covers a non-service serve's stdin EOF; `state.json` holds the budget and the last
+beat, not the watched pid's creation time (re-read at arm).
 - `agent_runtime/launcher_supervision/relaunch.py` — new; `policy.py` gains the relaunch,
   backoff and budget rows; `watchdog.py` persists the budget.
 
