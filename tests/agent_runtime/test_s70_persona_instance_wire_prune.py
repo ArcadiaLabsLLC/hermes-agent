@@ -8,9 +8,11 @@ but the two properties that make the cut safe:
 1. **The two alias removals lost no information.** ``current_work_assignment_id``
    and ``attached_task_id`` were byte-identical duplicates of the canonical key
    beside them. The ledger recorded ``attached_task_id`` as writer-less; it was
-   not — ``current_task_id`` is written live by the steer/``goal_id`` lane — so
-   the only honest justification for cutting it is that the value still ships
-   under the canonical name. That is what ``test_the_alias_cut_kept_the_value``
+   not at the time (2026-08-09). Since RT-TASK-BOUND-MISSION-LANES
+   ``current_task_id`` is stored-only, always null on a live row, and leaves the
+   wire with ``RT-TASK-BOUND-WIRE-PRUNE``; until then the only honest
+   justification for the alias cut is that the value still ships under the
+   canonical name. That is what ``test_the_alias_cut_kept_the_value``
    asserts, and it is the assertion that would have caught cutting a field that
    merely *looked* like a duplicate.
 

@@ -200,9 +200,12 @@ The archived entity model called `PersonaInstance.mode` derived. It is not:
 `PersonaInstanceStore.open_chat` writes `instance.mode = "chat"`,
 `clear_chat_session_binding` reverts the last unbind to `"configured"`, and
 `create_free_floating` minted `"free_floating"` (all in
-`persona_assignments.py`). The vocabulary also
-still contains `"task_bound"`, which is still written — see
-[Open rows](#open-rows).
+`persona_assignments.py`). `"task_bound"` is stored-only: nothing writes it,
+the decode reads any stored `task_bound` row as `"configured"`, and every serve
+boot runs reconcile phase 0, which archives a mission-shaped row and normalises a
+steer-shaped one (`agent_runtime/persona_assignments/repair.py::retire_task_bound_rows`).
+`current_task_id` stays a model field, always `None` on a live row, until the wire
+prune — see [Open rows](#open-rows).
 
 ## The agent graph — enforcement-free
 
@@ -1061,10 +1064,11 @@ Each links to a `planned/` file carrying its evidence and the gate to open it.
 - 2026-10-27 — **`--kill-active` is accepted and ignored** (S1 shipped: no
   `killed_previous`, no close review); refusing it waits on the launcher →
   [planned/chat-open-kill-active-retirement-2026-10-27.md](planned/chat-open-kill-active-retirement-2026-10-27.md) S2
-- 2026-10-28 — **`mode="task_bound"` is no longer written** (S1 shipped: `--goal` is a
-  correlation id, steer-shaped rows decode as ordinary, reconcile phase 0 archives mission
-  rows); the mission-row lanes and `TaskStoreStub` remain →
-  [planned/task-bound-mode-retirement-2026-10-27.md](planned/task-bound-mode-retirement-2026-10-27.md)
+- 2026-10-29 — **`task_bound` is stored-only and drained at serve boot** (S0–S3 shipped:
+  `update-profile --goal` writes no task, boot runs phase 0, the mission-row readers are
+  deleted); the wire keys (`current_task_id`, `kind` / `live_mission` / `task_id`) remain
+  until the launcher stops reading them →
+  [planned/task-bound-mission-lanes-2026-10-28.md](planned/task-bound-mission-lanes-2026-10-28.md) S4
 - 2026-08-22 — **a writer-less lane store still projects onto `status`**
   (`foreground_runtime`, `runtime_instances`), and two live docstrings describe
   deleted execution lanes →

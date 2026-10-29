@@ -731,7 +731,11 @@ def test_repair_missing_chat_session_bindings_ignores_blank_legacy_pointers():
     assert _binding_cleared_events() == []
 
 
-def test_repair_missing_chat_session_bindings_skips_task_bound_mission_sessions():
+def test_repair_missing_chat_session_bindings_repairs_a_stored_mission_row():
+    """RT-TASK-BOUND-MISSION-LANES: no ``current_task_id`` skip — the mission lane is
+    gone, so a dangling pointer on a not-yet-archived mission row is stale like any
+    other. Kill-mutation: restore the skip in ``repair_missing_chat_session_bindings``
+    → the pointer survives, red."""
     instance = _bind(
         "personainst_worker",
         persona_id="dev",
@@ -746,11 +750,9 @@ def test_repair_missing_chat_session_bindings_skips_task_bound_mission_sessions(
         session_db=_FakeSessionDB(["persona_chat_other"])
     )
 
-    # A mission turn runs in a session that lives in the run/event stream, not
-    # the operator SessionDB — absent there is normal, not stale.
-    assert report["repaired_count"] == 0
-    assert PersonaInstanceStore().get("personainst_worker").session_id == "mission_run_session"
-    assert _binding_cleared_events() == []
+    assert report["repaired_count"] == 1
+    assert PersonaInstanceStore().get("personainst_worker").session_id is None
+    assert len(_binding_cleared_events()) == 1
 
 
 def test_repair_missing_chat_session_bindings_refuses_on_blind_database():

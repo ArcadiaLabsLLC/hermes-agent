@@ -79,21 +79,24 @@ def test_a_steer_shaped_row_decodes_as_ordinary_through_get_and_scan_all():
         assert instance.goal_id == "g1"
 
 
-def test_a_mission_shaped_row_decodes_unchanged():
-    """Positive control. Kill-mutation: normalise every ``task_bound`` row → red."""
+def test_a_mission_shaped_row_decodes_configured_and_keeps_its_task():
+    """RT-TASK-BOUND-MISSION-LANES: no reader branches on ``task_bound``, so every stored
+    one decodes ``configured``; the mission shape keeps its task for the archive record.
+    Kill-mutation: restore the ``current_task_id == goal_id`` guard on the ``mode`` write
+    → ``mode == "task_bound"``, red."""
     _seed(MISSION, task="task_9", goal=None)
     for instance in _both_reads(PersonaInstanceStore(), MISSION):
-        assert instance.mode == "task_bound"
+        assert instance.mode == "configured"
         assert instance.current_task_id == "task_9"
 
 
 def test_a_steered_instance_is_not_refused_as_busy_by_the_profile_rebind():
-    """The visible effect. Kill-mutation: drop the decode normalisation → ``task_bound``."""
+    """The visible effect. Kill-mutation: restore the ``BUSY_TASK_BOUND`` arm → the MISSION half reds."""
     _seed(STEERED, task="g1", goal="g1")
     _seed(MISSION, task="task_9", goal=None)
     reasons = {row["persona_instance_id"]: row["busy_reason"] for row in _instance_rows_for_persona(PERSONA)}
     assert reasons[STEERED] is None
-    assert reasons[MISSION] == "task_bound"  # a real mission row is still busy until archived
+    assert reasons[MISSION] is None  # no busy reason reads ``current_task_id`` any more
 
 
 def test_phase_0_normalises_steer_rows_archives_mission_rows_once():

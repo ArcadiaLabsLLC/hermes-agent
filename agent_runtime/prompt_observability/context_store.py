@@ -586,7 +586,6 @@ def _backfill_derived_fields(
         chat = _chat_metadata(
             session_db=session_db,
             session_id=safe_assignment_text(item.get("session_id"), limit=200),
-            task_id=safe_assignment_text(item.get("task_id"), limit=160),
         )
         if chat:
             item["chat_id"] = chat.get("id")

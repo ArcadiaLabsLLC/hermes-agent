@@ -84,7 +84,8 @@ BUSY_ACTIVE_RUN = "active_run"
 # S56 removed BUSY_ACTIVE_WORKER with the worker session store: its arm read
 # ``active_worker_session_id``, a field no writer can set any more.
 BUSY_ASSIGNMENT_IN_FLIGHT = "assignment_in_flight"
-BUSY_TASK_BOUND = "task_bound"
+# RT-TASK-BOUND-MISSION-LANES removed BUSY_TASK_BOUND: ``current_task_id`` has no
+# live writer, and a stored mission row is archived at serve boot.
 BUSY_NON_IDLE_STATE = "non_idle_state"
 
 #: Persona-instance states that are not "in flight". Everything else
@@ -251,8 +252,6 @@ def instance_busy_reason(
         return BUSY_ACTIVE_RUN
     if _clean(row.get("current_assignment_id")):
         return BUSY_ASSIGNMENT_IN_FLIGHT
-    if _clean(row.get("current_task_id")):
-        return BUSY_TASK_BOUND
     state = _state_text(row.get("state"))
     if state not in _IDLE_STATES:
         return BUSY_NON_IDLE_STATE
@@ -877,7 +876,6 @@ __all__ = [
     "BUSY_ASSIGNMENT_IN_FLIGHT",
     "BUSY_LIVE_BINDING",
     "BUSY_NON_IDLE_STATE",
-    "BUSY_TASK_BOUND",
     "REBIND_EVENT_TYPE",
     "STATUS_APPLIED",
     "STATUS_PARTIALLY_APPLIED",

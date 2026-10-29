@@ -24,7 +24,6 @@ from .history_rows import (
     _history_row,
     _infer_persona_id,
     _list_sessions,
-    _mission_assignment_for,
     _model_config,
     _persisted_persona_instance_id,
     _persona_chat_candidate_sort_key,
@@ -46,7 +45,6 @@ def persona_chat_history_summary(
     limit: int = 50,
     message_tail: int = DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
     accountant: ProjectionAccountant | None = None,
-    persona_assignments: Iterable[Any] | None = None,
     omitted_session_ids: set[str] | None = None,
     only_instance_ids: frozenset[str] | None = None,
     only_session_ids: frozenset[str] | None = None,
@@ -58,26 +56,12 @@ def persona_chat_history_summary(
     projects sessions already bound to a persona instance; it includes a
     bounded redaction-safe message tail and never starts/ticks a model turn. The
     optional ``session_db`` parameter keeps tests hermetic and lets production
-    use the normal ``hermes_state.SessionDB`` lazily. ``persona_assignments``
-    is an already-loaded assignment list — synthetic live-mission rows anchor
-    their timestamps to the bound assignment's persisted ``created_at`` (R3);
-    this helper never scans the assignment store itself.
-
-    NO PRODUCTION CALLER SUPPLIES IT since AX2 (2026-08-31): the snapshot and
-    status builders were the two, and both stopped opening the assignment store
-    when the ``persona_assignments`` wire block left the frame. The parameter and
-    the R3 anchor are exercised by tests only, and they are kept rather than cut
-    because they belong to the ``task_bound`` synthetic-mission-row lane BELOW
-    them, not to the assignment lane: that whole arm — the ``task_bound`` mode
-    check, the synthetic row, this anchor — retires together under
-    ``planned/task-bound-vocabulary-retirement.md``. Cutting the anchor here
-    would leave the row it dates still being emitted, with its timestamps
-    silently degraded to ``null``, which is a worse tree than the one this note
-    describes.
+    use the normal ``hermes_state.SessionDB`` lazily.
 
     Built by :class:`HistorySummary`: index the instances, then the candidates
-    from the session pools, the bound sessions and the live missions, then the
-    activity bound.
+    from the session pools and the bound sessions, then the activity bound.
+    (The ``task_bound`` synthetic mission row, its ``persona_assignments`` R3
+    anchor and its ``task_id`` key retired with RT-TASK-BOUND-MISSION-LANES.)
 
     ``only_instance_ids`` narrows the HYDRATED rows to those instances (the
     harness query core's per-instance read). The FULL instance list still goes
@@ -86,7 +70,7 @@ def persona_chat_history_summary(
     fallback adopt a sibling instance's session.
 
     The bound keeps ``limit`` rows ranked by activity (:meth:`HistorySummary.activity_key`):
-    every instance's bound chat and live mission first, then the most recently
+    every instance's bound chat first, then the most recently
     active, so a chat in use is never omitted for being old. The kept rows are
     still EMITTED in creation order — the directory's order contract.
 
@@ -108,7 +92,6 @@ def persona_chat_history_summary(
         limit=limit,
         message_tail=message_tail,
         accountant=accountant,
-        persona_assignments=persona_assignments,
         omitted_session_ids=omitted_session_ids,
         only_instance_ids=only_instance_ids,
         only_session_ids=only_session_ids,
@@ -135,12 +118,11 @@ def persona_chat_history_summary(
                 summary.session_candidates(head.db, head=head)
         summary.session_candidates(db)
         summary.bound_candidates(db)
-        summary.live_mission_candidates()
         return summary.rows(db)
 
 
-#: One candidate row: ``(raw session row, instance, session id, kind, task id)``.
-Candidate = tuple[dict[str, Any], PersonaInstance, str, str, "str | None"]
+#: One candidate row: ``(raw session row, instance, session id, kind)``.
+Candidate = tuple[dict[str, Any], PersonaInstance, str, str]
 
 
 @dataclass
@@ -151,7 +133,6 @@ class HistorySummary:
     limit: int
     message_tail: int
     accountant: ProjectionAccountant | None
-    persona_assignments: Iterable[Any] | None
     omitted_session_ids: set[str] | None
     only_instance_ids: frozenset[str] | None = None
     only_session_ids: frozenset[str] | None = None
@@ -195,19 +176,6 @@ class HistorySummary:
             session_id = safe_assignment_text(
                 getattr(instance, "default_chat_session_id", None), limit=200
             )
-            active_session_id = safe_assignment_text(
-                getattr(instance, "session_id", None), limit=200
-            )
-            # A task-bound mission mirrors its live run id into the default-chat
-            # pointer. That id belongs to the mission/event lane, not SessionDB;
-            # the synthetic mission row below is its authoritative projection.
-            if (
-                safe_assignment_token(getattr(instance, "mode", None)) == "task_bound"
-                and getattr(instance, "current_task_id", None)
-                and session_id
-                and session_id == active_session_id
-            ):
-                session_id = None
             if session_id:
                 self.bound_by_session[session_id] = instance
 
@@ -294,7 +262,7 @@ class HistorySummary:
                 # mark it seen so a drop is only accounted once.
                 self.seen.add(session_id)
                 continue
-            self.candidates.append((raw, instance, session_id, "chat", None))
+            self.candidates.append((raw, instance, session_id, "chat"))
             self.seen.add(session_id)
 
     def _drop_unmatched(self, session_id: str, persisted_instance_id: str | None) -> None:
@@ -369,51 +337,7 @@ class HistorySummary:
                     self.accountant.consider(1)
                     self.accountant.drop("session_not_in_db", entity_id=session_id)
                 continue
-            self.candidates.append((raw, instance, session_id, "chat", None))
-            self.seen.add(session_id)
-            if self.accountant is not None:
-                self.accountant.consider(1)
-
-    def live_mission_candidates(self) -> None:
-        # Live mission sessions. A task-bound instance runs its mission turns in a
-        # session that lives in the run/event stream, not the operator SessionDB, so
-        # the loops above never surface it — leaving the console on a stale operator
-        # chat with nothing to switch to. Emit a minimal, live-marked row (no
-        # messages; the persona_chat_trace lane carries the actual mission activity)
-        # so the session is selectable and the console can switch to what is running.
-        # This is NOT resurrecting a deleted chat: it is an active mission, and the
-        # row only exists while the instance is bound to a task.
-        assignment_rows = [item for item in (self.persona_assignments or []) if item is not None]
-        assignments_by_id: dict[str, Any] = {}
-        for item in assignment_rows:
-            assignment_id = safe_assignment_text(getattr(item, "id", None), limit=160)
-            if assignment_id:
-                assignments_by_id[assignment_id] = item
-        for instance in self.persona_instances:
-            if safe_assignment_token(getattr(instance, "mode", None)) != "task_bound":
-                continue
-            session_id = safe_assignment_text(getattr(instance, "session_id", None), limit=200)
-            task_id = safe_assignment_text(getattr(instance, "current_task_id", None), limit=160)
-            if not session_id or not task_id or session_id in self.seen:
-                continue
-            goal = safe_assignment_text(getattr(instance, "current_chat_goal", None), limit=120)
-            # R3 anchor: PersonaInstance persists no assigned_at, and its updated_at
-            # restamps on every derive_from_workers pass — the bound assignment's
-            # created_at is the only byte-stable "assigned at" truth in reach. Both
-            # synthetic timestamps use it (never build time); unknown stays null so
-            # it sorts as unknown rather than newest.
-            assignment = _mission_assignment_for(instance, assignments_by_id, assignment_rows, task_id=task_id)
-            assigned = iso_timestamp(getattr(assignment, "created_at", None)) if assignment is not None else None
-            if assigned is None:
-                assigned = iso_timestamp(getattr(instance, "assigned_at", None))
-            synthetic = {
-                "id": session_id,
-                "title": goal or "Mission run",
-                "message_count": 0,
-                "started_at": assigned,
-                "last_active": assigned,
-            }
-            self.candidates.append((synthetic, instance, session_id, "mission", task_id))
+            self.candidates.append((raw, instance, session_id, "chat"))
             self.seen.add(session_id)
             if self.accountant is not None:
                 self.accountant.consider(1)
@@ -421,16 +345,16 @@ class HistorySummary:
     def activity_key(self, candidate: Candidate) -> tuple[bool, str, tuple[bool, str, str]]:
         """The bound's rank: pinned first, then freshest activity, then creation order.
 
-        Pinned is an instance's bound chat (its ``default_chat_session_id``) or a
-        live mission row: the chat an operator channel renders is never omitted,
+        Pinned is an instance's bound chat (its ``default_chat_session_id``): the
+        chat an operator channel renders is never omitted,
         however idle (live 2026-10-05: the ``personainst_base`` and
         ``personainst_backend_dev`` bound chats ranked 67th and 100th of 100 by
         activity). Activity is the freshest of the row's own ``last_active`` /
         ``ended_at`` / ``started_at`` and its compression descendants'.
         """
 
-        raw, _instance, session_id, kind, _task_id = candidate
-        pinned = kind == "mission" or session_id in self.bound_by_session
+        raw, _instance, session_id, _kind = candidate
+        pinned = session_id in self.bound_by_session
         activity = max(_raw_activity(raw) or "", self.activity_by_root.get(session_id, ""))
         return (pinned, activity, _persona_chat_candidate_sort_key(candidate))
 
@@ -460,13 +384,13 @@ class HistorySummary:
         if self.omitted_session_ids is not None:
             self.omitted_session_ids.update(
                 session_id
-                for _raw, _instance, session_id, _kind, _task_id in candidates[len(visible_candidates):]
+                for _raw, _instance, session_id, _kind in candidates[len(visible_candidates):]
                 if session_id
             )
         if self.omitted_ranked is not None:
             self.omitted_ranked.extend(
                 session_id
-                for _raw, _instance, session_id, _kind, _task_id in candidates[len(visible_candidates):]
+                for _raw, _instance, session_id, _kind in candidates[len(visible_candidates):]
                 if session_id
             )
         if self.only_session_ids is not None:
@@ -478,7 +402,7 @@ class HistorySummary:
                 if candidate[2] in self.only_session_ids
             ]
         visible: list[dict[str, Any]] = []
-        for raw, instance, session_id, kind, task_id in visible_candidates:
+        for raw, instance, session_id, kind in visible_candidates:
             row = _history_row(
                 raw,
                 persona_id=instance.persona_id,
@@ -488,8 +412,6 @@ class HistorySummary:
                 message_tail=self.message_tail,
                 kind=kind,
             )
-            if task_id is not None:
-                row["task_id"] = task_id
             visible.append(row)
         if self.accountant is not None:
             self.accountant.include(len(visible))

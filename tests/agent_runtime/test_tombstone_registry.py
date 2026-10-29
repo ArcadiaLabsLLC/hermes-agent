@@ -4190,6 +4190,18 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "models.AutonomyLevel.APPLY_WITH_REVIEW",
         scope=_AR,
     ),
+    *rows(
+        "s-w1029a-h-rt-a",
+        "HEAD",
+        Form.CODE,
+        "runtime-queue RT-TASK-BOUND-MISSION-LANES: task_bound is stored-only and "
+        "drained at serve boot, so the mission-row readers (the busy reason, the "
+        "synthetic Mission run row and its R3 assignment anchor) are deleted",
+        "BUSY_TASK_BOUND",
+        "live_mission_candidates",
+        "_mission_assignment_for",
+        scope=_AR,
+    ),
 )
 
 

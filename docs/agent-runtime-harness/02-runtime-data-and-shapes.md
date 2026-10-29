@@ -615,7 +615,8 @@ move together under the removal rule recorded at 46.
 every ``persona_instances`` row. Two were duplicate ALIASES that
 projected byte-identical values to the canonical key beside them —
 ``current_work_assignment_id`` (= ``current_assignment_id``) and
-``attached_task_id`` (= ``current_task_id``); ``attached_task_id`` also
+``attached_task_id`` (= ``current_task_id``, stored-only and always null on a live
+row since RT-TASK-BOUND-MISSION-LANES); ``attached_task_id`` also
 leaves the ``state_patches`` projection in this wave, because a patch
 lane that kept emitting a key the full rebuild dropped would make the
 two lanes disagree about the row's shape. Four were writer-less since

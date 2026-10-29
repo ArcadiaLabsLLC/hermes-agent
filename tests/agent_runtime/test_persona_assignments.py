@@ -1712,7 +1712,7 @@ def test_persona_instance_update_profile_persists_runtime_overrides_only(isolate
     assert updated.display_name == "Alice Mission Lead"
     assert updated.current_chat_goal == "Keep the operator channel warm."
     assert updated.goal_id == "task_123"
-    assert updated.current_task_id == "task_123"
+    assert updated.current_task_id is None  # RT-TASK-BOUND-UPDATE-GOAL-STAMP: the goal is not a task
     assert updated.skill_overrides == ["agent-runtime-harness", "technical-writing"]
 
     summary = persona_instance_summary(updated)
@@ -5099,7 +5099,6 @@ def test_covering_the_clear_would_drop_the_chat_history_row_it_also_moves(
     before = persona_chat_history_summary(
         persona_instances=[store.get(instance.id)],
         session_db=db,
-        persona_assignments=[],
     )
     assert [row["session_id"] for row in before] == ["persona_chat_history_move"]
 
@@ -5112,7 +5111,6 @@ def test_covering_the_clear_would_drop_the_chat_history_row_it_also_moves(
     after = persona_chat_history_summary(
         persona_instances=[store.get(instance.id)],
         session_db=db,
-        persona_assignments=[],
     )
     assert after == [], (
         "the chat-history row survived the clear; if that is now true the "

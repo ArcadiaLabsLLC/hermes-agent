@@ -40,7 +40,10 @@ def _instance(session_id, *, persona_id="dev", mode="chat", task_id=None):
     )
 
 
-def test_task_bound_mirrored_chat_pointer_projects_mission_without_db_drop():
+def test_a_stored_mission_rows_dangling_pointer_is_an_ordinary_db_drop():
+    """RT-TASK-BOUND-MISSION-LANES: the mission lane is gone, so a mission row's
+    mirrored pointer is a stale binding like any other — no synthetic row, and the
+    ``session_not_in_db`` anomaly the session-binding repair retires."""
     accountant = ProjectionAccountant("persona_chat_history")
     rows = persona_chat_history_summary(
         persona_instances=[
@@ -50,10 +53,8 @@ def test_task_bound_mirrored_chat_pointer_projects_mission_without_db_drop():
         accountant=accountant,
     )
 
-    assert [(row["session_id"], row["kind"]) for row in rows] == [
-        ("persona_chat_personainst_dev_live", "mission")
-    ]
-    assert "session_not_in_db" not in accountant.summary()["reasons"]
+    assert rows == []
+    assert accountant.summary()["reasons"].get("session_not_in_db") == 1
 
 
 def test_history_limit_reports_exact_omitted_session_ids():

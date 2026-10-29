@@ -158,7 +158,9 @@ def test_prompt_layers_situational_hud_reports_operator_turn_placement():
     assert empty_layer["included"] is False
 
 
-def test_prompt_observability_names_live_task_bound_chat_without_session_row():
+def test_prompt_observability_invents_no_mission_title_for_a_task_id():
+    """RT-TASK-BOUND-MISSION-LANES: no ``"Mission run"`` / ``source="task_bound"``
+    fallback. Kill-mutation: restore the fallback in ``_chat_metadata`` → red."""
     context = mission_chat_prompt_observability(
         persona=SimpleNamespace(
             id="dev",
@@ -173,8 +175,8 @@ def test_prompt_observability_names_live_task_bound_chat_without_session_row():
     )
 
     assert context["chat_id"] == "persona_chat_personainst_dev_live"
-    assert context["chat_title"] == "Mission run"
-    assert context["chat"]["source"] == "task_bound"
+    assert context["chat_title"] is None
+    assert "source" not in context["chat"]
 
 
 def test_workspace_agents_context_is_loaded_and_reported_from_selected_file(tmp_path):
