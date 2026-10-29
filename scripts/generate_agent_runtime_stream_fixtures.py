@@ -1025,15 +1025,22 @@ def main() -> int:
     the golden gate wrote ``no_slots_declared`` where a CLI snapshot reads
     ``not_in_process`` (hydrate.json byte 3123). The flag is pinned off for the
     run and restored after.
+
+    The Lens watcher's state is this process's memory too: a ``LensPoller.tick()``
+    earlier in a bundled run stamps ``WATCHER.last_tick`` and hydrate.json read a
+    number where a CLI snapshot reads ``"last_tick_ms":null`` (byte 3700). The run
+    folds a never-started watcher (every frame, worker threads included, reads the
+    module's ``WATCHER`` at call time) and hands the process's own back.
     """
     from agent_runtime.builds import detect
+    from agent_runtime.lens import poller
 
-    owned = detect._ENABLED
-    detect._ENABLED = False
+    owned, watcher = detect._ENABLED, poller.WATCHER
+    detect._ENABLED, poller.WATCHER = False, poller.WatcherState()
     try:
         return _write_goldens()
     finally:
-        detect._ENABLED = owned
+        detect._ENABLED, poller.WATCHER = owned, watcher
 
 
 def _write_goldens() -> int:

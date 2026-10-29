@@ -246,6 +246,21 @@ def test_a_serve_boot_earlier_in_the_process_does_not_reach_the_goldens(tmp_path
     assert detect.detection_enabled() is True
 
 
+def test_a_lens_tick_earlier_in_the_process_does_not_reach_the_goldens(tmp_path, monkeypatch):
+    """A bundled run whose Lens pull-door test ticked a poller first left
+    ``WATCHER.last_tick`` stamped, and hydrate.json read a number at byte 3700
+    where a CLI snapshot reads ``null``. The generator folds a never-started
+    watcher and leaves this process's own state alone."""
+    from datetime import datetime, timezone
+
+    from agent_runtime.lens import poller
+
+    stamped = datetime(2026, 10, 28, 12, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(poller, "WATCHER", poller.WatcherState(running=True, since=stamped, last_tick=stamped))
+    _assert_the_generator_writes_the_goldens(tmp_path, monkeypatch)
+    assert poller.WATCHER.last_tick == stamped
+
+
 def _assert_the_generator_writes_the_goldens(tmp_path, monkeypatch):
     generator = _generator_module()
     staged = tmp_path / "stream_frames"

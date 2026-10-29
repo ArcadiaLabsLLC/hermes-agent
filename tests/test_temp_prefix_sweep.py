@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import sys
 import time
 
 from tests._downstream.temp_prefixes import HERMES_TEMP_PREFIXES, sweep_system_temp, system_temp_dirs
@@ -54,7 +55,9 @@ def test_the_redirect_root_is_never_a_system_temp_dir(tmp_path):
     env = {"TEMP": str(root), "TMP": str(root / "run-1"), "TMPDIR": str(system), "LOCALAPPDATA": str(tmp_path / "none")}
     (root / "run-1").mkdir()
 
-    assert system_temp_dirs(env, str(root)) == [os.path.realpath(system)]
+    # A POSIX host always adds its own /tmp (the system default the variables may not name).
+    host_default = [] if sys.platform == "win32" or not os.path.isdir("/tmp") else [os.path.realpath("/tmp")]
+    assert system_temp_dirs(env, str(root)) == [os.path.realpath(system), *host_default]
 
 
 def test_the_plugin_names_each_removed_entry_in_the_root_log(tmp_path):

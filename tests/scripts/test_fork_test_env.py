@@ -95,6 +95,54 @@ def test_no_hermes_python_uses_the_shared_venv(tmp_path):
     assert proc.stdout.strip().splitlines()[-1] == f"HP={(tmp_path / 'venv').as_posix()}/bin/python"
 
 
+def _shim_venv(tmp_path: Path, version: tuple[int, int], present: tuple[str, ...]) -> Path:
+    """A shared venv whose python answers the readiness probe as a venv of ``version`` with
+    only ``present`` importable: the probe's own source runs under this interpreter with
+    ``sys.version_info`` and ``importlib.util.find_spec`` replaced before it."""
+    venv = tmp_path / "venv"
+    exe = venv / "bin" / "python"
+    exe.parent.mkdir(parents=True)
+    prelude = (
+        "import importlib.util, sys; _real = importlib.util.find_spec; "
+        f"sys.version_info = {version!r} + (0, 'final', 0); "
+        f"importlib.util.find_spec = lambda n, *a: _real('json') if n in {present!r} else None"
+    )
+    real = Path(sys.executable).as_posix()
+    exe.write_text(
+        "#!/bin/sh\n"
+        '[ "$1" = "-c" ] || exit 0\n'
+        f"PRELUDE=\"{prelude}\"\n"
+        f'exec "{real}" -c "$PRELUDE\n$2"\n',
+        encoding="utf-8",
+    )
+    exe.chmod(0o755)
+    return venv
+
+
+_SENTINELS = ("ruamel.yaml", "anthropic", "aiohttp", "acp")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the shim venv is a POSIX sh script")
+def test_a_shared_venv_on_an_interpreter_below_the_runtime_pins_is_refused(tmp_path):
+    venv = _shim_venv(tmp_path, (3, 12), _SENTINELS)
+    proc = _door('fork_shared_test_venv_fallback; echo "HP=$HERMES_PYTHON"', {"HERMES_TEST_VENV": venv.as_posix()})
+    assert proc.returncode == 1, proc.stdout + proc.stderr
+    assert "runs Python 3.12; the runtime pins are python_version >= 3.14" in proc.stderr
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the shim venv is a POSIX sh script")
+def test_a_shared_venv_without_the_test_extras_is_refused_naming_them(tmp_path):
+    venv = _shim_venv(tmp_path, (3, 14), ("ruamel.yaml",))
+    proc = _door('fork_shared_test_venv_fallback; echo "HP=$HERMES_PYTHON"', {"HERMES_TEST_VENV": venv.as_posix()})
+    assert proc.returncode == 1, proc.stdout + proc.stderr
+    assert "lacks anthropic, aiohttp, acp (built without the CI test job extras)" in proc.stderr
+    # Positive control: the same shim with every sentinel present is accepted.
+    ready = _shim_venv(tmp_path / "ready", (3, 14), _SENTINELS)
+    proc = _door('fork_shared_test_venv_fallback; echo "HP=$HERMES_PYTHON"', {"HERMES_TEST_VENV": ready.as_posix()})
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip().splitlines()[-1] == f"HP={ready.as_posix()}/bin/python"
+
+
 @pytest.mark.skipif(sys.platform == "win32" and not Path(BASH).is_file(), reason="Git Bash not installed")
 def test_an_interpreter_inside_the_store_root_is_refused(tmp_path):
     py = Path(sys.executable).as_posix()

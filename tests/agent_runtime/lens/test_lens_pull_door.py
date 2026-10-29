@@ -172,10 +172,13 @@ def _proposal(**feed_overrides) -> dict:
             "automation": {"level": "notify", "when": "always", "daily_turn_cap": 4}}
 
 
-def test_lens_propose_previews_for_real_and_stores_a_draft_it_never_seals():
+def test_lens_propose_previews_for_real_and_stores_a_draft_it_never_seals(monkeypatch):
     import httpx
 
+    from agent_runtime.lens import poller
     from agent_runtime.lens.poller import LensPoller
+
+    monkeypatch.setattr(poller, "WATCHER", poller.WatcherState())  # tick() stamps the process's watcher
     from agent_runtime.lens.tool import handle_lens_propose, propose_monitor
 
     store, requests = LensStore(), []

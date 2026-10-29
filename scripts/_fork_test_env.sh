@@ -45,8 +45,37 @@ fork_shared_test_venv_fallback() {
       echo "       create it, or set HERMES_PYTHON / HERMES_TEST_VENV (Running the tests.md)" >&2
       exit 1
     fi
+    fork_refuse_unbuilt_shared_venv "$HERMES_PYTHON" "$_SHARED_VENV" || exit 1
     echo "▶ no HERMES_PYTHON — using the shared test venv: $HERMES_PYTHON"
   fi
+}
+
+# Fork (rows FH-LINUX-TEST-VENV-PY312-NO-DEPS, FH-LINUX-TEST-VENV314-NO-EXTRAS, 2026-10-29):
+# a shared venv that has pytest is not yet one the suite can run on. Every runtime pin
+# in pyproject.toml is marked `python_version >= '3.14'`, so a 3.12 venv holds no runtime
+# dependency and every file errors at collection; a 3.14 venv built without the CI test
+# extras reds the files that import them. Both are refused here, naming what is missing
+# and the recipe, instead of surfacing as hundreds of collection errors. The modules are
+# SENTINELS, one per layer the build recipe adds (runtime pins, `--extra anthropic`,
+# `--extra all`'s messaging and ACP), not an enumeration of the extras.
+fork_refuse_unbuilt_shared_venv() {
+  local why
+  why="$("$1" -c 'import importlib.util, sys
+if sys.version_info < (3, 14):
+    print("runs Python %d.%d; the runtime pins are python_version >= 3.14, so it holds none of them" % sys.version_info[:2])
+    raise SystemExit
+def absent(name):
+    try:
+        return importlib.util.find_spec(name) is None
+    except ImportError:  # a dotted name whose parent package is missing
+        return True
+missing = [m for m in ("ruamel.yaml", "anthropic", "aiohttp", "acp") if absent(m)]
+if missing:
+    print("lacks " + ", ".join(missing) + " (built without the CI test job extras)")' 2>&1)" || why="did not start: $why"
+  [ -z "$why" ] && return 0
+  echo "error: the shared test venv at $2 $why" >&2
+  echo "       rebuild it from the lock (docs/downstream-development.md, the shared test venv recipe), or set HERMES_PYTHON" >&2
+  return 1
 }
 
 # Fork (rows 2026-10-15): say which interpreter runs the tests, and refuse one

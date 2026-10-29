@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-29 (lane w1029a-h-fork)
+
+- **`RT-NATIVE-PEER-RETIRE-ORPHANS-COMPUTE-HOST` — on Linux a retired native conversation worker leaves its `tui_gateway.compute_host` child running, re-parented to `systemd --user`, until it exits on its own ~1.4 s later (measured 2026-10-29 on nekwo-ubuntu24, both compute-child params); retirement should stop the compute host before the worker goes, as the supervisor's own shutdown does, so `execution_possible` false means no compute process left** · runtime / conversations · `agent_runtime/conversations/live.py::LiveConversation.retire` · `tests/agent_runtime/test_native_conversation_roundtrip.py::run_profile_a_b_a` (the 5 s bounded wait it carries until this lands) · `tui_gateway/host_supervisor.py` · READY 2026-10-29
+
 ### Filed on arrival — 2026-10-29 (launcher planning lane w1029p-genui)
 
 - **`RT-LAUNCHER-CATALOG-REVENDOR-GENERATED-TREE` — re-vendor the launcher's app-function catalog twice for the generated virtual file tree: once when `launcher.generated.tree` / `read` / `grep` land (`read` and `grep` always loaded) with `files_json` on create/update, and once when `part` / `offset` / `key` leave `list` / `inspect`; the fixture's always-loaded set and tool names are what the source gates enumerate** · fork / launcher link · `scripts/vendor_launcher_catalog.py` · `tests/fixtures/launcher_app_functions_catalog.json` · plan `EterniaLauncher/docs/companion/planned/GENERATED_VIRTUAL_FILE_TREE_2026-10-29.md` · BLOCKED 2026-10-29: launcher — `COMP-GENERATED-TREE-VERBS` exports the first catalog change and `COMP-GENERATED-PART-RETIRE` the second; run the script after each lands

@@ -144,6 +144,25 @@ the CPython 3.12.5 venv it replaced stays at `X:/Eternia/.venvs/hermes-test`
 until nothing uses it). Build a replacement beside the live one and move the
 junction only once `tests/tooling` passes on it.
 
+On Linux and macOS the same recipe builds `~/.venvs/hermes-test-314` (the
+interpreter is `bin/python`), and
+`~/.venvs/hermes-test` is a symlink to it:
+
+```bash
+UV_PROJECT_ENVIRONMENT=~/.venvs/hermes-test-314 uv sync --locked --python 3.14 \
+  --no-install-project --extra all --group dev --group test --extra anthropic \
+  --extra mistral --extra fal --extra modal --extra parallel-web
+uv pip install --python ~/.venvs/hermes-test-314/bin/python -r requirements-fork-dev.txt
+ln -sfn ~/.venvs/hermes-test-314 ~/.venvs/hermes-test
+```
+
+`scripts/run_tests.sh` refuses a shared venv that is below Python 3.14 (every
+runtime pin is marked `python_version >= '3.14'`, so such a venv holds none of
+them) or lacks one of the recipe's sentinel modules (`ruamel.yaml`,
+`anthropic`, `aiohttp`, `acp`), naming what is missing
+(`scripts/_fork_test_env.sh::fork_refuse_unbuilt_shared_venv`) — before that,
+both read as hundreds of collection errors.
+
 ### The fork landing gate
 
 Weakness escalation per domain — what a lane records when work reveals architecture below the bar, and which queue the row goes to — is [`CLAUDE.md`](../CLAUDE.md) § "Weakness escalation"; the god-file program that applies it is `docs/agent-runtime-harness/archive/god-file-program-2026-09-24.md`.

@@ -37,8 +37,10 @@ def test_an_owned_older_or_other_process_is_not(proc):
 
 
 @pytest.mark.timeout(60)
+@pytest.mark.live_system_guard_bypass  # the cleanup kills the test's own orphan, re-parented outside its subtree on POSIX
 def test_scan_finds_a_real_orphan_of_the_shape(tmp_path):
-    """Positive control through psutil: a live child whose parent has exited."""
+    """Positive control through psutil: a live child whose parent has exited (on POSIX,
+    re-parented to init or a subreaper)."""
     pytest.importorskip("psutil")
     started = time.time()
     marker = tmp_path / "pid.txt"
@@ -72,3 +74,15 @@ def test_a_recycled_parent_pid_does_not_hide_the_orphan():
     assert lo.parent_alive(42, child_started, {42: NOW - 5.0}) is True  # the real parent, still running
     assert lo.parent_alive(42, child_started, {}) is False
     assert lo.parent_alive(None, child_started, {42: NOW - 5.0}) is False
+
+
+def test_a_posix_reaper_that_adopted_the_orphan_is_not_its_parent():
+    """POSIX re-parents an orphan to PID 1 or a subreaper (``systemd --user``): that adopter
+    was created long before the child and is alive, and it still is not the parent."""
+    created = {1: NOW - 900.0, 77: NOW - 600.0, 88: NOW - 5.0}
+    reapers = lo.reaper_pids([{"pid": 1, "name": "systemd"}, {"pid": 77, "name": "systemd"},
+                              {"pid": 88, "name": "python3"}, {"pid": "x"}])
+    assert reapers == frozenset({1, 77})
+    assert lo.parent_alive(77, NOW, created, reapers) is False
+    assert lo.parent_alive(1, NOW, created, reapers) is False
+    assert lo.parent_alive(88, NOW, created, reapers) is True  # positive control: a real parent

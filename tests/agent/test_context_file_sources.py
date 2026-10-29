@@ -42,9 +42,10 @@ def test_manifest_matches_what_the_prompt_actually_loads(project, tmp_path_facto
     prompt = build_context_files_prompt(cwd=str(sub), home_override=home)
 
     statuses = {s["label"]: s["status"] for s in sources}
+    # fork: the fork's builder loads every present kind (RT-CONTEXT-MANIFEST-SHADOWED), so none is shadowed.
     assert statuses == {
-        ".hermes.md": "loaded", "../AGENTS.md": "shadowed", "AGENTS.override.md": "empty", "AGENTS.md": "shadowed",
-        "CLAUDE.md": "shadowed", ".cursorrules": "shadowed", ".cursor/rules/a.mdc": "shadowed", "SOUL.md": "loaded",
+        ".hermes.md": "loaded", "../AGENTS.md": "loaded", "AGENTS.override.md": "empty", "AGENTS.md": "loaded",
+        "CLAUDE.md": "loaded", ".cursorrules": "loaded", ".cursor/rules/a.mdc": "loaded", "SOUL.md": "loaded",
     }
     for src in sources:
         body = Path(src["path"]).read_text().strip() if src["chars"] else ""
@@ -56,7 +57,7 @@ def test_manifest_matches_what_the_prompt_actually_loads(project, tmp_path_facto
     statuses = {s["label"]: s["status"] for s in list_context_file_sources(cwd=str(sub), home_override=home)}
     prompt = build_context_files_prompt(cwd=str(sub), home_override=home)
     assert statuses["../AGENTS.md"] == statuses["AGENTS.md"] == "loaded" and "root agents rules" in prompt
-    assert statuses["CLAUDE.md"] == "shadowed" and "claude rules" not in prompt
+    assert statuses["CLAUDE.md"] == "loaded" and "claude rules" in prompt
 
 
 def test_truncated_and_suppressed_statuses_follow_the_builder(project, monkeypatch, tmp_path_factory):

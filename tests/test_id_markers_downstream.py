@@ -30,6 +30,15 @@ _BUNDLE_NATIVE = (
     "test_bundle_stages_git_tree_and_runs_native_children_before_manifest"
 )
 
+#: A fork replacement (fork_marks: the eternia-harness refuse_tool_call hook makes
+#: upstream's one-hook count false on every host) AND an upstream Windows red at
+#: v0.22.4 (upstream_reds_v0224) — cross-class on purpose: each mark retires with
+#: its own class (row FH-ID-MARKS-SHARED-KEY-CENSUS, lane w1029a-h-fork).
+_LAUNCH_OPTIONS = (
+    "tests/gateway/test_session_policy.py::"
+    "test_launch_options_reach_the_owner_frozen_and_hooks_consented"
+)
+
 #: pytest's own marks and the plugins' — not the fork's to register.
 _BUILTIN_MARKS = frozenset({"xfail", "skip", "skipif", "timeout"})
 
@@ -47,9 +56,18 @@ def test_a_key_in_two_classes_carries_both_marks():
     that overrode instead would silently drop one."""
 
     assert [mark.name for mark in hooks.ID_MARKS[_BUNDLE_NATIVE]] == ["timeout", "xfail"]
-    # This set moves only when a lane adds a cross-class row on purpose — and
-    # then says so here (_BUNDLE_NATIVE: lane h11-env, 2026-09-29).
-    assert hooks.SHARED_KEYS == frozenset({_BUNDLE_NATIVE})
+    launch = hooks.ID_MARKS[_LAUNCH_OPTIONS]
+    assert [mark.name for mark in launch] == ["xfail", "xfail"]
+    assert "refuse_tool_call" in launch[0].kwargs["reason"] and "v0.22.4" in launch[1].kwargs["reason"]
+
+
+def test_the_cross_class_keys_are_the_declared_ones():
+    """This set moves only when a lane adds a cross-class row on purpose — and
+    then says so here (_BUNDLE_NATIVE: lane h11-env, 2026-09-29; _LAUNCH_OPTIONS:
+    lane w1029a-h-fork, 2026-10-29). Both are win32 rows, so a POSIX host holds none."""
+
+    expected = {_BUNDLE_NATIVE, _LAUNCH_OPTIONS} if sys.platform == "win32" else set()
+    assert hooks.SHARED_KEYS == frozenset(expected)
 
 
 _UNDO_MODULE = """

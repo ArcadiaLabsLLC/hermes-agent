@@ -187,7 +187,16 @@ def _wsl_launcher_present() -> bool:
     return bool(system_root) and os.path.isfile(os.path.join(system_root, "System32", "bash.exe"))
 
 
-def _hermes_resolves_a_bash() -> bool:
+def _hermes_resolves_a_windows_bash() -> bool:
+    """The host class the MSYS-bash rows describe: Windows, with a bash Hermes resolves.
+
+    A POSIX host resolves a bash too, but never an MSYS one, so the probe's False
+    there is the premise absent rather than a row gone stale (row
+    FH-LINUX-ROOT-HOST-TEST-ASSUMPTIONS, 2026-10-29)."""
+    import os
+
+    if os.name != "nt":
+        return False
     try:
         import pm.shell
 
@@ -237,7 +246,7 @@ def shell_true_is_not_posix() -> bool:
     return done.stdout.strip() != "2"
 
 
-@describes_host(_hermes_resolves_a_bash)
+@describes_host(_hermes_resolves_a_windows_bash)
 @_memo
 def resolved_bash_spells_posix_mount_paths() -> bool:
     """True where the bash Hermes resolves (``pm.shell.bash()``) is an MSYS bash:
