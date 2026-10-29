@@ -14,7 +14,7 @@ from agent_runtime.persona_assignments import (
 from agent_runtime.runtime_instances import GoalRuntimeInstanceStore, runtime_instances_summary
 from tests.agent_runtime._lane_seed import seed_lane_row
 from agent_runtime.states import TaskState
-from agent_runtime.store import TaskStore, WorkspaceStore, RealmStore
+from agent_runtime.store import WorkspaceStore, RealmStore
 
 
 def _task(task_id: str, *, goal_id: str | None = None, workspace_id: str | None = None, stage_id: str = "scope") -> Task:
@@ -142,9 +142,6 @@ def test_workspace_create_in_active_realm_auto_activates(isolate_agent_runtime_r
 def test_goal_id_current_stage_and_assignment_grouping(
     isolate_agent_runtime_root, persisted_persona_samples
 ):
-    store = TaskStore()
-    assert not hasattr(store, "create")
-    assert not hasattr(store, "get_goal")
     persona = next(item for item in ensure_persisted_personas(load_agent_runtime_config()) if item.id == "neko_supervisor")
     first = PersonaInstanceStore().ensure_for_persona(persona)
     second = PersonaInstanceStore().ensure_for_persona(persona)

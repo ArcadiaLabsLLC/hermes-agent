@@ -10,7 +10,7 @@ from types import SimpleNamespace
 Task = SimpleNamespace
 from agent_runtime.states import RunState, TaskState
 from agent_runtime.status import build_status
-from agent_runtime.store import IncidentStore, RunStore, TaskStore
+from agent_runtime.store import IncidentStore, RunStore
 from agent_runtime.runtime_instances import GoalRuntimeInstanceStore
 
 
@@ -27,7 +27,6 @@ def _assert_no_mission_status() -> None:
     assert "running_runs" not in status
     assert "next_actions" not in status
     assert "undispatchable_missions" not in status
-    assert not hasattr(TaskStore(), "create")
 
 
 

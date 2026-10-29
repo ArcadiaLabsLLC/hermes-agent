@@ -4,7 +4,8 @@ Nothing in S1 deletes a feature; every item relocates, extracts, or de-gates
 something so the KEEP set survives the deletions in S3-S12. These tests pin the
 contracts those later stages will lean on:
 
-1. the permanent ``TaskStore`` stub for upstream ``tools/board_tool.py`` (ruling R-3),
+1. (retired: the ``TaskStore`` stub, deleted with RT-TASK-STORE-STUB-FATE once
+   ``tools/board_tool.py`` stopped importing it),
 2. ``promote_profile_to_persona`` at its new home in ``agent_runtime.persona_profiles``,
    still reachable from the upstream import path.
 
@@ -16,72 +17,9 @@ toolset gating it protects.
 
 from __future__ import annotations
 
-import json
 
-import pytest
 
 from agent_runtime import paths
-
-
-# ── item 1: the permanent TaskStore stub ──────────────────────────────────
-
-
-def test_stub_get_always_raises_not_found():
-    from agent_runtime.errors import NotFound
-    from agent_runtime.task_store_stub import TaskStoreStub
-
-    with pytest.raises(NotFound):
-        TaskStoreStub().get("task_anything")
-
-
-def test_stub_accepts_the_event_log_keyword_the_real_store_took():
-    from agent_runtime.task_store_stub import TaskStoreStub
-
-    # Construction shape is part of the contract: existing `TaskStore(event_log=...)`
-    # call sites must not have to change to keep constructing it.
-    stub = TaskStoreStub(event_log=None)
-    assert not hasattr(stub, "event_log")
-
-
-def test_stub_exposes_nothing_but_get():
-    from agent_runtime.task_store_stub import TaskStoreStub
-
-    # Deliberate: a future caller wanting task data should fail loudly rather than
-    # receive an empty list and conclude the mission lane still works.
-    for name in ("list_all", "create", "update", "list_for_workspace", "get_goal"):
-        assert not hasattr(TaskStoreStub(), name), name
-
-
-def test_upstream_board_resolution_falls_through_when_taskstore_is_the_stub(monkeypatch):
-    """The seam the stub exists for: upstream ``tools/board_tool.py``.
-
-    ``_resolve_board_target`` calls ``TaskStore().get(task_id)`` inside
-    ``try/except Exception: pass``. With the stub in place that raises, so the
-    resolution falls through to the active workspace — the correct post-removal
-    answer, since there are no bound goals left.
-    """
-
-    from agent_runtime import board_models, store as store_mod
-    from agent_runtime.store import WorkspaceStore
-    from agent_runtime.task_store_stub import TaskStoreStub
-    from tools.registry import discover_builtin_tools, registry
-
-    discover_builtin_tools()
-    workspace = WorkspaceStore().create(name="Active")
-    WorkspaceStore().set_active(workspace.id)
-
-    monkeypatch.setattr(store_mod, "TaskStore", TaskStoreStub)
-
-    result = json.loads(
-        registry.dispatch(
-            "board_card_add",
-            {"title": "Card with a dead task id"},
-            task_id="task_that_no_longer_exists",
-            session_id=None,
-        )
-    )
-    assert result["ok"] is True
-    assert result["board_id"] == board_models.default_board_id(workspace.id)
 
 
 # ── item 2: promote_profile_to_persona re-homed ───────────────────────────

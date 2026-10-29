@@ -974,11 +974,10 @@ was a terminal dead-end and whose proof gates could hard-block a transition.
 Judgment moved to the agent in the chat lane; the runtime keeps identity,
 continuity, scope and evidence.
 
-Two things were deliberately kept: `agent_runtime/blueprints/resolve.py`, a
+One thing was deliberately kept: `agent_runtime/blueprints/resolve.py`, a
 permanent re-export of `promote_profile_to_persona` for the upstream
-profile-promotion endpoint, and `task_store_stub.TaskStoreStub` (re-exported as
-`TaskStore` at `store/__init__.py:79`) under ruling R-3 — though its stated cause has
-since changed; see Open rows. Personas and profiles were **not** deleted:
+profile-promotion endpoint. (`TaskStoreStub`, kept under ruling R-3 for an import
+`tools/board_tool.py` later dropped, was deleted 2026-10-29 — RT-TASK-STORE-STUB-FATE.) Personas and profiles were **not** deleted:
 nothing under `.hermes/profiles/` was touched, only the hardcoded logic that
 declared them.
 

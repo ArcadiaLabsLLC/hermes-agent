@@ -10,7 +10,6 @@ from types import SimpleNamespace
 
 Task = SimpleNamespace
 from agent_runtime.states import TaskState
-from agent_runtime.store import TaskStore
 
 
 def test_dirty_state_reports_runtime_temp_state(monkeypatch):
@@ -25,7 +24,6 @@ def test_dirty_state_reports_runtime_temp_state(monkeypatch):
 
 def test_new_goal_hygiene_cancels_stage47_temp_state_and_orphan_runs():
     assert importlib.util.find_spec("agent_runtime.goal_hygiene") is None
-    assert not hasattr(TaskStore(), "create")
 
 
 def test_retired_persona_diagnostics_module_stays_gone():

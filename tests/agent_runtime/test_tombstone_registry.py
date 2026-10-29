@@ -4202,6 +4202,23 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "_mission_assignment_for",
         scope=_AR,
     ),
+    *rows(
+        "s-w1029a-h-rt-a",
+        "HEAD",
+        Form.MODULE,
+        "runtime-queue RT-TASK-STORE-STUB-FATE (owner ruling 2026-10-27, \"the rest of "
+        "the reccomendations sound good too\"): tools/board_tool.py no longer imports "
+        "TaskStore and nothing constructed the stub; a re-import now fails at import time",
+        "agent_runtime.task_store_stub",
+    ),
+    *rows(
+        "s-w1029a-h-rt-a",
+        "HEAD",
+        Form.ATTR,
+        "runtime-queue RT-TASK-STORE-STUB-FATE: the TaskStore re-export left with the stub",
+        "TaskStore",
+        scope=("agent_runtime.store",),
+    ),
 )
 
 

@@ -10,7 +10,7 @@ Task = SimpleNamespace
 from agent_runtime.runtime_instances import GoalRuntimeInstanceStore, runtime_instance_summary
 from tests.agent_runtime._lane_seed import seed_lane_row
 from agent_runtime.states import RunState, TaskState
-from agent_runtime.store import RunStore, TaskStore
+from agent_runtime.store import RunStore
 
 
 def _task(task_id: str, state=TaskState.CREATED) -> Task:
@@ -28,7 +28,6 @@ def _task(task_id: str, state=TaskState.CREATED) -> Task:
 
 def test_new_goal_hygiene_preserves_open_tasks_without_parking(isolate_agent_runtime_root):
     assert importlib.util.find_spec("agent_runtime.goal_hygiene") is None
-    assert not hasattr(TaskStore(), "create")
 
 
 def test_activate_runtime_uses_lanes_without_parking(isolate_agent_runtime_root):
@@ -41,10 +40,6 @@ def test_new_goal_hygiene_cancels_stale_foreign_active_run(isolate_agent_runtime
 
 def test_new_goal_hygiene_reports_fresh_foreign_active_run(isolate_agent_runtime_root):
     assert importlib.util.find_spec("agent_runtime.goal_hygiene") is None
-
-
-def test_archive_preserves_runtime_instance_manifest(isolate_agent_runtime_root):
-    assert not hasattr(TaskStore(), "archive")
 
 
 def test_lane_summary_fields_project_a_persisted_row(isolate_agent_runtime_root):

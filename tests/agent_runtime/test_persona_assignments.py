@@ -53,7 +53,7 @@ from agent_runtime.snapshot import build_snapshot
 from agent_runtime.serde import to_jsonable
 from agent_runtime.states import RunState, TaskState, WorkerSessionState
 from agent_runtime.status import build_status
-from agent_runtime.store import AgentStore, RunStore, TaskStore
+from agent_runtime.store import AgentStore, RunStore
 from tests.agent_runtime.conftest import release_to_implementation
 from tests.agent_runtime.persona_instance_mint import mint_free_floating
 from utils import atomic_json_write
@@ -123,33 +123,6 @@ def _assignment_config() -> AgentRuntimeConfig:
     # the enterprise_worker_sessions gate block was deleted.
     return AgentRuntimeConfig()
 
-
-def _assert_task_store_stub() -> None:
-    store = TaskStore(event_log=EventLog())
-    assert not hasattr(store, "create")
-    assert not hasattr(store, "update")
-    assert not hasattr(store, "cancel")
-    with pytest.raises(Exception):
-        store.get("retired_task")
-
-
-class _FakeSessionDB:
-    def __init__(self, messages_by_session: dict[str, list[dict]]):
-        self.messages_by_session = messages_by_session
-
-    def list_sessions_rich(self, source=None, limit=100, **_kwargs):
-        return [
-            {
-                "id": session_id,
-                "session_id": session_id,
-                "source": "agent_runtime_persona_chat",
-                "title": session_id,
-            }
-            for session_id in self.messages_by_session
-        ][:limit]
-
-    def get_messages(self, session_id, include_inactive=False):
-        return self.messages_by_session.get(session_id, [])
 
 
 def test_persona_instance_store_ensures_a_singleton_per_persona(isolate_agent_runtime_root):
@@ -227,20 +200,8 @@ def test_persona_instance_ensure_clears_a_stale_execution_binding(isolate_agent_
     assert instance.session_id is None
 
 
-def test_persona_instance_derivation_does_not_mark_idle_worker_active(isolate_agent_runtime_root):
-    _assert_task_store_stub()
 
 
-def test_dead_worker_of_settled_task_does_not_resurrect_binding(isolate_agent_runtime_root):
-    _assert_task_store_stub()
-
-
-def test_task_terminal_reaps_task_bound_persona_instances(isolate_agent_runtime_root):
-    _assert_task_store_stub()
-
-
-def test_task_archive_moves_task_bound_persona_instance_evidence(isolate_agent_runtime_root):
-    _assert_task_store_stub()
 
 
 def test_free_floating_instance_mint_reuses_canonical_idle_placement(isolate_agent_runtime_root):
@@ -4352,28 +4313,10 @@ def test_profile_visibility_uses_configured_custom_role_without_rewriting_raw_id
     assert persona.hermes_profile == "researcher"
 
 
-def test_task_store_cancel_closes_persona_assignments():
-    _assert_task_store_stub()
 
 
-def test_task_store_update_terminal_transition_releases_assignments():
-    _assert_task_store_stub()
 
 
-def test_task_store_update_failed_transition_releases_assignments():
-    _assert_task_store_stub()
-
-
-def test_task_store_update_non_terminal_transition_keeps_assignments():
-    _assert_task_store_stub()
-
-
-def test_contention_warning_self_heals_assignment_held_by_terminal_goal():
-    _assert_task_store_stub()
-
-
-def test_contention_warning_still_fires_for_genuinely_open_goal():
-    _assert_task_store_stub()
 
 
 # ---------------------------------------------------------------------------

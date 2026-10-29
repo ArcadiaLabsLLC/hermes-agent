@@ -10,8 +10,8 @@ Board resolution (§10): explicit ``board_id`` arg > the active workspace's
 default board; typed ``invalid_request`` when none resolves — never a silent
 cross-workspace write. §10's middle rung — the lane's bound goal's workspace
 default board — is GONE with the mission lane, so `task_id` no longer
-participates: `agent_runtime.store` exports `TaskStore` as `TaskStoreStub`,
-whose `.get()` always raises. Agent writes carry ``created_by=<persona_id>`` resolved
+participates (the `TaskStore` name itself is gone, RT-TASK-STORE-STUB-FATE).
+Agent writes carry ``created_by=<persona_id>`` resolved
 from the chat session, so operator- and agent-authored cards render distinctly.
 
 Cards are planning state only and never start tracked work.
@@ -89,11 +89,9 @@ def _resolve_board_target(args, task_id):
             return None, None, "invalid_request: board_id not found"
         return explicit, None, None
 
-    # The bound-goal rung is GONE, not merely unused: `agent_runtime.store`
-    # exports `TaskStore` as `TaskStoreStub`, whose `.get()` is `-> NoReturn`
-    # and always raises `NotFound`. The branch reading it could only ever fall
-    # through to the line below, so `task_id` no longer participates in
-    # resolution at all and the docstring above says two rungs, not three.
+    # The bound-goal rung is GONE with the mission lane (and `TaskStore` with
+    # it), so `task_id` no longer participates in resolution at all and the
+    # docstring above says two rungs, not three.
     active = WorkspaceStore().active_id()
     if active:
         return board_models.default_board_id(active), active, None

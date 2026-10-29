@@ -51,7 +51,7 @@ from agent_runtime.state_patches import (
     emit_state_patch,
 )
 from agent_runtime.states import TaskState
-from agent_runtime.store import AgentStore, TaskStore
+from agent_runtime.store import AgentStore
 from tests.agent_runtime.persona_instance_mint import mint_free_floating
 
 
@@ -428,9 +428,6 @@ def test_flag_off_profile_update_emits_no_patch(set_delta_patches, isolate_agent
 # --------------------------------------------------------------------------- #
 # Chokepoint: persona-instance reap → remove
 # --------------------------------------------------------------------------- #
-def test_flag_on_task_terminal_reap_emits_instance_remove(set_delta_patches, isolate_agent_runtime_root):
-    assert not hasattr(TaskStore(), "update")
-
 
 # --------------------------------------------------------------------------- #
 # Chokepoint: open_chat — the pair ``persona_instance.chat_opened`` never had
@@ -839,9 +836,3 @@ def _task_model(task_id: str, state: TaskState) -> Task:
     )
 
 
-def test_flag_on_task_transition_emits_refresh(set_delta_patches, isolate_agent_runtime_root):
-    assert not hasattr(TaskStore(), "update")
-
-
-def test_flag_off_task_transition_emits_no_patch(set_delta_patches, isolate_agent_runtime_root):
-    assert not hasattr(TaskStore(), "update")

@@ -45,8 +45,7 @@ from agent_runtime.snapshot import (
 # (section absent) and on the rows still on disk, neither of which needed a
 # production helper to state.
 ARCHIVED_TASK_SEED_COUNT = 30
-from agent_runtime.states import TaskState
-from agent_runtime.store import IncidentStore, TaskStore, _write_model
+from agent_runtime.store import IncidentStore, _write_model
 from agent_runtime import paths
 
 
@@ -228,22 +227,6 @@ def test_history_eviction_drops_bytes(isolate_agent_runtime_root):
 # --------------------------------------------------------------------------- #
 # log-backed paged history queries (the replacements)
 # --------------------------------------------------------------------------- #
-
-
-def _create_goal(title="Goal", description="do it"):
-    n = now()
-    task = Task(
-        id="goal_hist",
-        title=title,
-        description=description,
-        state=TaskState.RUNNING,
-        created_at=n,
-        updated_at=n,
-        requested_by="tony",
-    )
-    task.goal_id = "goal_hist"
-    TaskStore().create(task)
-    return task
 
 
 def test_goal_history_pages_eventlog_by_id(isolate_agent_runtime_root, parser):

@@ -48,8 +48,8 @@ class GoalRuntimeInstanceStore:
         return sorted(items, key=lambda item: (item.updated_at, item.id))
 
     # S21: `active_foreground()` and `park_foreground_except()` were removed here.
-    # `active_foreground` walked lanes into `TaskStore.get`, which the permanent
-    # `TaskStoreStub` (ruling R-3) raises `NotFound` from unconditionally — every
+    # `active_foreground` walked lanes into `TaskStore.get`, which the retired-lane
+    # stub (deleted with RT-TASK-STORE-STUB-FATE) raised `NotFound` from — every
     # iteration hit `continue`, so it returned `None` by construction rather than
     # because no lane was live. `park_foreground_except` was `return []`. Neither
     # had a production caller. The foreground/background split itself belonged to
