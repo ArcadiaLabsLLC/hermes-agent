@@ -35,7 +35,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-29 (lane w1029b-h-proj)
 
-- **`RT-PROJECT-CHAT-FOLD-REALMLESS` — a Project assigned into no realm can still share its chats (`require_project_publish_rights` answers the local allow with no realm), but its peers fold only on their own export or an explicit `runtime.project.chat.fold`: the fetch-and-fold fan-out rides the realm pull (`project_chat_fold.fold_realm_projects`), which a realm-less Project never gets; it wants a bounded serve-tick fold over this namespace's shared, realm-less Projects** · fork / chat / sharing · `agent_runtime/project_chat_fold.py::fold_realm_projects` · `agent_runtime/project_store.py::require_project_publish_rights` · READY 2026-10-29 · **TAKEN 2026-10-29 w1029c-h-b on nekwo-ubuntu24 as nekwo in hermes-w1029c-h-b**
 
 ### Filed on arrival — 2026-10-29 (lane w1029a-h-fork)
 

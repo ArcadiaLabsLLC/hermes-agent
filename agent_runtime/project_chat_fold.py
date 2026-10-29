@@ -17,7 +17,9 @@ treats it as an agent's chat persistence.
 * **The folder** is the chats folder as this machine sees it at the remote tip: Hermes's own worktree
   of the chats slot (``project_chat_export.chats_writer``), synced before a fold — which carries every
   writer's pushed lines, this machine's own included, so the store is complete on every machine.
-* **When**: after every local export (the turn-end hook) and on ``runtime.project.chat.fold``.
+* **When**: after every local export (the turn-end hook), on ``runtime.project.chat.fold``, after each realm
+  pull (:func:`fold_realm_projects`), and — for a Project no realm holds — on the serve's bounded tick
+  (``hermes_cli.harness_parts.serve.queued_turns.start_realmless_fold_ticker``, round-robin, ``REALMLESS_FOLD_LIMIT`` per tick).
 * **Drop** (:func:`drop_project_chats`): when the chats share turns off, or the last workspace of this
   namespace disconnects the Project, the store, its offsets and the export cursors go — and nothing
   else: the agent's own ``state.db``, the git folder and every other Project's store are untouched.
@@ -194,17 +196,63 @@ def fold_realm_projects(realm_id: str, *, limit: int = FOLD_ON_PULL_LIMIT) -> di
     skipped — a fold never fails the pull.
     """
 
-    from .project_store import category, load_project
     from .store import WorkspaceStore
-    from .work_store.reasons import WorkRefused
-    from .workspace_slots import SlotRefused
 
     held = sorted({project_id for ws in WorkspaceStore().list_all(include_archived=False)
                    if ws.realm_id == realm_id for project_id in ws.project_ids})
-    shared = [project_id for project_id in held if category(load_project(project_id), "chats").get("shared")]
+    shared = _chats_shared(held)
+    return _fold_each(shared[:limit], deferred=shared[limit:])
+
+
+def realmless_shared_projects() -> list[str]:
+    """The shared-chat Projects of this namespace that no realm holds — no realm pull ever folds them, sorted."""
+
+    from .project_store import project_realms
+    from .store import WorkspaceStore
+
+    held = sorted({project_id for ws in WorkspaceStore().list_all(include_archived=False)
+                   for project_id in ws.project_ids})
+    return _chats_shared([project_id for project_id in held if not project_realms(project_id)])
+
+
+#: How often the serve folds its realm-less shared Projects, and how many one tick fetches.
+REALMLESS_FOLD_TICK_S = 300.0
+REALMLESS_FOLD_LIMIT = FOLD_ON_PULL_LIMIT
+
+
+def fold_realmless_projects(*, limit: int = REALMLESS_FOLD_LIMIT, cursor: int = 0) -> dict[str, Any]:
+    """One serve tick's fetch-and-fold of the realm-less shared Projects (row RT-PROJECT-CHAT-FOLD-REALMLESS).
+
+    A Project assigned into no realm may still share its chats (``require_project_publish_rights`` is the
+    local allow with no realm), but no realm pull reaches it. ``limit`` Projects per tick, starting at
+    ``cursor`` (mod the count) so a namespace with more than ``limit`` of them is folded round-robin;
+    ``next_cursor`` is where the next tick starts. Same accounting as :func:`fold_realm_projects`.
+    """
+
+    shared = realmless_shared_projects()
+    if not shared:
+        return {"folded": [], "skipped": [], "deferred": [], "next_cursor": 0}
+    start = cursor % len(shared)
+    ring = shared[start:] + shared[:start]
+    return {**_fold_each(ring[:limit], deferred=ring[limit:]),
+            "next_cursor": (start + min(limit, len(shared))) % len(shared)}
+
+
+def _chats_shared(project_ids: list[str]) -> list[str]:
+    from .project_store import category, load_project
+
+    return [project_id for project_id in project_ids if category(load_project(project_id), "chats").get("shared")]
+
+
+def _fold_each(project_ids: list[str], *, deferred: list[str]) -> dict[str, Any]:
+    """Fetch-and-fold each Project; a refused or unbound one is accounted in ``skipped``, never raised."""
+
+    from .work_store.reasons import WorkRefused
+    from .workspace_slots import SlotRefused
+
     folded: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
-    for project_id in shared[:limit]:
+    for project_id in project_ids:
         try:
             result = fold_from_remote(project_id)
         except SlotRefused as exc:
@@ -216,7 +264,7 @@ def fold_realm_projects(realm_id: str, *, limit: int = FOLD_ON_PULL_LIMIT) -> di
             continue
         folded.append({"project_id": project_id, "inserted": result.get("inserted", 0),
                        "stale": bool(result.get("stale"))})
-    return {"folded": folded, "skipped": skipped, "deferred": shared[limit:]}
+    return {"folded": folded, "skipped": skipped, "deferred": list(deferred)}
 
 
 def drop_project_chats(project_id: str, *, reason: str) -> dict[str, Any]:
