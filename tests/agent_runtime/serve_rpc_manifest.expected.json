@@ -283,6 +283,7 @@
     "runtime.prefab.get",
     "runtime.prefab.list",
     "runtime.prefab.set",
+    "runtime.project.artifacts.list",
     "runtime.project.category.set",
     "runtime.project.declare",
     "runtime.project.guidance.set",
@@ -892,6 +893,9 @@
     "runtime.persona.toolset.list": [
       "persona_id"
     ],
+    "runtime.project.artifacts.list": [
+      "project_id"
+    ],
     "runtime.project.category.set": [
       "project_id",
       "issued_at",
@@ -900,7 +904,8 @@
       "category",
       "slot",
       "subpath",
-      "shared"
+      "shared",
+      "context_files"
     ],
     "runtime.project.declare": [
       "project_id",
@@ -1314,6 +1319,7 @@
     "runtime.prefab.get": "console",
     "runtime.prefab.list": "console",
     "runtime.prefab.set": "console",
+    "runtime.project.artifacts.list": "console",
     "runtime.project.category.set": "console",
     "runtime.project.declare": "console",
     "runtime.project.guidance.set": "console",

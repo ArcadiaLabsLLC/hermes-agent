@@ -18,12 +18,13 @@ _WRITE = ("project_id", "issued_at", "credential", "credentials")
 PROJECT_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     "runtime.project.show": ("project_id",),
     "runtime.project.declare": (*_WRITE, "name", "slots"),
-    "runtime.project.category.set": (*_WRITE, "category", "slot", "subpath", "shared"),
+    "runtime.project.category.set": (*_WRITE, "category", "slot", "subpath", "shared", "context_files"),
     "runtime.project.guidance.set": (*_WRITE, "description", "instructions"),
     "runtime.project.slot.bind": ("project_id", "slot", "path", "issued_at"),
     "runtime.project.slot.env.set": ("project_id", "slot", "env", "env_keep", "tool_paths", "path_prepend", "dotenv",
                                      "venv", "issued_at"),
     "runtime.project.report": ("project_id",),
+    "runtime.project.artifacts.list": ("project_id",),
 }
 
 #: ``SlotRefused.reason`` → the JSON-RPC error code it rides; anything else rides ERR_CONFLICT.
@@ -107,7 +108,8 @@ def _project_declare(params):
 def _project_category_set(params):
     return _store(params).set_category(params.get("project_id"), str(params.get("category") or ""),
                                        slot=params.get("slot"), subpath=params.get("subpath"),
-                                       shared=params.get("shared"), issued_at=_issued_at(params))
+                                       shared=params.get("shared"), issued_at=_issued_at(params),
+                                       context_files=params.get("context_files"))
 
 
 @method("runtime.project.guidance.set", tier=TIER_CONSOLE)
@@ -159,3 +161,13 @@ def _project_report(params):
     from agent_runtime.workspace_slots_probe import report_project
 
     return report_project(valid_project_id(params.get("project_id")))
+
+
+@method("runtime.project.artifacts.list", tier=TIER_CONSOLE)
+@_guarded
+def _project_artifacts_list(params):
+    """The artifacts folder's names and sizes on this machine; hermes never writes there (plan §7)."""
+
+    from agent_runtime.project_categories import artifacts_list
+
+    return artifacts_list(params.get("project_id"))

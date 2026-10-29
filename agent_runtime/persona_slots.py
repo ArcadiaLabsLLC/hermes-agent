@@ -344,6 +344,12 @@ def load_slot_context(instance: Any) -> SlotContext | None:
             receipts.append(_file_receipt(slot, file, loaded))
             if getattr(loaded, "content", None):
                 sections.append(SlotContextSection(slot, file, loaded.content))
+    # The workspace's Projects' documents (listed files only) and shared guidance (plan §7, H-P4).
+    from .project_categories import project_context
+
+    project_sections, project_receipts = project_context(workspace_id)
+    sections.extend(SlotContextSection(slot, file, content) for slot, file, content in project_sections)
+    receipts.extend(project_receipts)
     primary, source = resolve_primary(instance)
     primary_path = dict(bound).get(primary) if primary else None
     return SlotContext(tuple(sections), tuple(receipts), primary, source, primary_path, tuple(bound), workspace_id,

@@ -874,6 +874,17 @@ a Project slot's tombstone drops it everywhere. The migration re-keys assignment
 (step 3). After it, ``runtime.workspace.slots.show`` / ``.declare`` / ``.report`` /
 ``.slot.bind`` / ``.slot.env.set`` answer ``slot_migrated`` with ``data.project_id``.
 
+54 KEPT (Project category folders, 2026-10-29, RT-PROJECT-CATEGORY-FOLDERS) — no
+snapshot key moved. ``categories.documents`` may carry ``context_files`` (relative
+paths; ``runtime.project.category.set`` key ``context_files``); under a slot assignment
+the turn's slot context adds each listed file from this machine's documents folder as
+``## <Project>/documents — <file>`` and, while the guidance share is on, one
+``## <Project> — guidance`` section, with ``kind: project_context`` receipts
+(``agent_runtime/project_categories.py``). Work boards: ``Board.project_id``; a Project
+lists its boards category's slot (else one board per live slot) and a migrated
+document lists none of its own. ``runtime.project.artifacts.list`` answers
+``{project_id, here, files: [{name, size}], truncated}``.
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.

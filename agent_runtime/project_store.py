@@ -231,8 +231,12 @@ class ProjectStore:
         return {"document": record, "declared": [slot], "tombstoned": [], "categories_unshared": unshared}
 
     def set_category(self, project_id: str, name: str, *, slot: Any, subpath: Any, shared: Any,
-                     issued_at: str) -> dict[str, Any]:
-        """Declare one category's folder and its share switch (``category_not_source_controlled``)."""
+                     issued_at: str, context_files: Any = None) -> dict[str, Any]:
+        """Declare one category's folder and its share switch (``category_not_source_controlled``).
+
+        ``context_files`` (documents only) REPLACES the files offered as context, relative to the
+        folder; ``None`` keeps the list the record holds.
+        """
 
         if name not in CATEGORIES:
             raise SlotRefused(REASON_UNKNOWN_CATEGORY, str(name))
@@ -252,9 +256,15 @@ class ProjectStore:
             if shared and not source_controlled(record, slot):
                 raise SlotRefused(REASON_CATEGORY_NOT_SOURCE_CONTROLLED,
                                   f"{name} sits in no source-controlled slot; only a cloned slot is shared")
+        extra = {k: v for k, v in held.items() if k not in {"slot", "subpath", "shared", "issued_at", "revision"}}
+        if context_files is not None:
+            if name != "documents":
+                raise SlotRefused(REASON_INVALID_DECLARATION, "context_files belong to the documents category")
+            if not isinstance(context_files, list) or not all(_inside_checkout(f) for f in context_files):
+                raise SlotRefused(REASON_INVALID_DECLARATION, "context_files are relative paths inside the folder")
+            extra["context_files"] = list(dict.fromkeys(context_files))
         record.setdefault("categories", {})[name] = {
-            **{k: v for k, v in held.items() if k not in {"slot", "subpath", "shared", "issued_at", "revision"}},
-            "slot": slot, "subpath": subpath, "shared": shared, "issued_at": issued_at,
+            **extra, "slot": slot, "subpath": subpath, "shared": shared, "issued_at": issued_at,
             "revision": int(held.get("revision") or 0) + 1}
         self._commit(project_id, record, issued_at=None)
         return {"project_id": project_id, "category": name, "record": record["categories"][name]}

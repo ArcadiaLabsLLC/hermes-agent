@@ -110,7 +110,13 @@ def _held_category(name: str, entry: Any, now: float) -> dict[str, Any] | None:
             return None
     elif not _inside_checkout(subpath):
         return None
-    return {"slot": slot, "subpath": subpath, "shared": shared, "issued_at": issued_at, "revision": revision}
+    held = {"slot": slot, "subpath": subpath, "shared": shared, "issued_at": issued_at, "revision": revision}
+    files = entry.get("context_files")
+    if files is not None:
+        if name != "documents" or not isinstance(files, list) or not all(_inside_checkout(f) for f in files):
+            return None
+        held["context_files"] = list(files)
+    return held
 
 
 def _held_guidance(entry: Any, now: float) -> dict[str, Any] | None:
