@@ -27,7 +27,6 @@ from agent_runtime.persona_profile_binding import (
     BUSY_ASSIGNMENT_IN_FLIGHT,
     BUSY_LIVE_BINDING,
     BUSY_NON_IDLE_STATE,
-    BUSY_TASK_BOUND,
     REBIND_EVENT_TYPE,
     PersonaProfileRebindError,
     binding_files,
@@ -192,7 +191,9 @@ def test_binding_index_reports_the_config_store_disagreement(profiles, monkeypat
         # instance busy.
         ({"state": "idle", "active_worker_session_id": "ws_1"}, {}, None),
         ({"state": "idle", "current_assignment_id": "as_1"}, {}, BUSY_ASSIGNMENT_IN_FLIGHT),
-        ({"state": "idle", "current_task_id": "task_1"}, {}, BUSY_TASK_BOUND),
+        # RT-TASK-BOUND-MISSION-LANES deleted BUSY_TASK_BOUND: ``current_task_id`` has no
+        # live writer, so a stored one no longer makes an instance busy.
+        ({"state": "idle", "current_task_id": "task_1"}, {}, None),
         ({"state": "running"}, {}, BUSY_NON_IDLE_STATE),
         ({"state": WorkerSessionState.WAITING_ON_TOOL}, {}, BUSY_NON_IDLE_STATE),
         # A stale pointer must never outrank the store-verified liveness check.
@@ -257,7 +258,7 @@ def test_rebind_repairs_a_drifted_projection_without_moving_the_persona(profiles
 def test_rebind_refuses_while_an_instance_is_busy_and_writes_nothing(profiles):
     _seed(_persona())
     busy = PersonaInstanceStore().get("personainst_widget_agent_aaa")
-    busy.current_task_id = "task_live"
+    busy.current_assignment_id = "assign_live"  # current_task_id is no busy signal since RT-TASK-BOUND-MISSION-LANES
     PersonaInstanceStore()._write(busy)
     before = _store_bytes()
 

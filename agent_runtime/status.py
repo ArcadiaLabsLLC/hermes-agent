@@ -19,7 +19,7 @@ from .persona_lifecycle import is_runtime_persona
 from .profile_readiness import profile_readiness_for_persona
 from .provider_health import provider_health_for_personas
 from .migrations import effective_config_summary
-from .runtime_instances import GoalRuntimeInstanceStore, runtime_instances_summary
+from .runtime_instances import GoalRuntimeInstanceStore
 from .states import RunState
 from .store import ACTIVE_RUN_STATES, AgentStore, IncidentStore, RunStore
 from .snapshot import parity_envelope, persona_session_db_scope
@@ -101,16 +101,16 @@ def _build_status_in_runtime_scope(run_store: RunStore | None = None, incident_s
         #     hand-written prose keyed on flags, several of its claims false
         #     against this tree (see the S56 removal contract); `swarm` and
         #     `swarm_budget` echoed a config block nothing enforced.
-        # `runtime_instances` KEEPS its own `lanes` sub-key: that block is the
-        # projection, and removing the top-level duplicate changes no number a
-        # reader could not still get.
+        # RT-WRITERLESS-GOAL-STATUS-KEYS (owner ruling 2026-10-27) then removed
+        # `foreground_runtime` and `runtime_instances` themselves: both projected
+        # the writer-less GoalRuntimeInstanceStore (no writer since S53), so they
+        # could only report what the 2026-07-30 migration left on disk. No
+        # Launcher reader decodes either key.
         "recursive_supervision": {
             "enabled": _recursive_supervision_enabled(cfg),
         },
-        "foreground_runtime": runtime_instances_summary(runtime_instances),
         "observability": build_observability(runs=runs, incidents=incidents, events=recent_events, execution_mode=execution_mode),
         "agents": [_agent_status(a) for a in agents],
-        "runtime_instances": runtime_instances_summary(runtime_instances),
     }
     # S56: the persona-instance roster is UNCONDITIONAL. It used to be gated on
     # `enterprise_worker_sessions.enabled AND .persona_instance_runtime`, a

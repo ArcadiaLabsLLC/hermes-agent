@@ -391,6 +391,14 @@ would be inherited by every subprocess a handler spawns, which is a different qu
 
 ## Stage 5 — the hygiene sweeps
 
+**Default scope** (`default_scope_ms`, `hermes_cli/harness_parts/serve/boot_phases.py` →
+`agent_runtime/default_scope.py::ensure_default_scope`). The Default realm and workspace
+(`realm_default` / `ws_default`) for the namespace being served. `harness init` runs once against
+the base root, so a namespace created later had none until this phase; it is idempotent and
+fail-open (a store that needs reconciliation is left to the operator), it writes no active pointer
+(`seed_active_pointers=False` — a boot is not an operator intent), and `default_scope_created:
+true` rides the ready frame only on the boot that wrote it.
+
 **Orphaned turns** (`orphaned_turn_sweep_ms`, `serve.py` →
 `agent_runtime/persona_chat_continuity/lease.py::repair_orphaned_chat_turns`). A native turn holds the OS-backed root lease for
 its entire execution and the kernel releases it when the holder dies, so "in-flight record AND
@@ -399,6 +407,13 @@ a live turn in another process and is skipped. It runs BEFORE `ready` — the fi
 requested after — so repaired records project as typed `turn_interrupted` markers in that hydrate
 instead of a console stuck "running" forever. When anything flips, a `state.reconciled` event is
 appended so already-connected watermark-gated consumers converge too. Best-effort.
+
+**Stored `task_bound` rows** (`task_bound_retire_ms`,
+`agent_runtime/persona_assignments/repair.py::retire_task_bound_rows`). Reconcile phase 0 and
+only phase 0 — the merge / rename / prune phases stay operator decisions behind
+`harness persona-instance reconcile --dry-run`. Steer-shaped rows are normalised, mission-shaped
+rows archived, once per row ever; fail-open, and `task_bound_retired` rides the ready frame when
+nonzero.
 
 **Detached dispatches** (`dispatch_restore_ms`, `serve.py`). Same moment, same reason:
 a row still marked `running` whose owning process is provably gone can never finish, and the

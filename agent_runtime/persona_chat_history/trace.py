@@ -38,21 +38,12 @@ def persona_chat_trace_summary(
     The curated persona chat history intentionally keeps dropping tool/system
     noise; trace rows live in this separate channel and are merged client-side.
 
-    Two disjoint lanes feed a persona instance's trace, merged chronologically:
-
-    * **historical task-run trace** — persisted events from the retired task lane,
-      keyed on ``task_id`` (``session_id`` is ``None``). Grouped per task so each
-      task's event log is scanned once and the fetch window can be sized for
-      *all* its agents at once — a flat per-persona window let a busy
-      multi-agent task starve a quiet persona's trace out of the window.
-    * **chat-turn trace** — tool calls an operator chat turn makes via
-      ``ChatProgressSink``, keyed on ``session_id`` (``task_id`` is ``None``).
-      Surfaced for *any* instance with a bound session, regardless of mode, so a
-      conversational tool call shows in the operator channel's Trace lane even
-      when no task is attached.
-
-    The lanes never overlap (task events carry no ``session_id``; chat events
-    carry no ``task_id``), so merging is a plain union with no double counting.
+    One lane feeds a persona instance's trace: the **chat-turn trace** — tool
+    calls an operator chat turn makes via ``ChatProgressSink``, keyed on
+    ``session_id``, surfaced for any instance with a bound session. The
+    historical task-run lane (``log.for_task`` per ``task_bound`` instance)
+    retired with RT-TASK-BOUND-MISSION-LANES; ``task_id`` stays on the row,
+    always ``None``, until the wire prune (``RT-TASK-BOUND-WIRE-PRUNE``).
     """
 
     # No event log, no trace lane to project — an honest empty page. This read
@@ -83,39 +74,13 @@ def persona_chat_trace_summary(
             acc = _TraceAccumulator(
                 instance_id=instance_id,
                 persona_id=persona_id,
-                task_id=safe_assignment_text(getattr(instance, "current_task_id", None), limit=160),
                 session_id=safe_assignment_text(getattr(instance, "session_id", None), limit=200),
             )
             accumulators[instance_id] = acc
             order.append(instance_id)
         return acc
 
-    # --- Lane 1: task-run trace, grouped per task. ---
-    # Trace and history use the same canonical persona ID for joins.
-    members_by_task: dict[str, list[tuple[Any, str]]] = {}
-    for instance in instances:
-        mode = safe_assignment_token(getattr(instance, "mode", None))
-        if mode != "task_bound":
-            continue
-        task_id = safe_assignment_text(getattr(instance, "current_task_id", None), limit=160)
-        persona_id = canonical_chat_persona_id(getattr(instance, "persona_id", None))
-        if not task_id or not persona_id:
-            continue
-        members_by_task.setdefault(task_id, []).append((instance, persona_id))
-
-    for task_id, members in members_by_task.items():
-        fetch_limit = _trace_fetch_limit(tail, len(members))
-        trace_by_persona: dict[str, list[Any]] = {}
-        for event in _fetch_trace_events(log.for_task, task_id, limit=fetch_limit):
-            if getattr(event, "type", None) not in _TRACE_EVENT_TYPES:
-                continue
-            event_persona = canonical_chat_persona_id(getattr(event, "persona_id", None))
-            if event_persona:
-                trace_by_persona.setdefault(event_persona, []).append(event)
-        for instance, persona_id in members:
-            _accumulator(instance, persona_id).extend(trace_by_persona.get(persona_id, []))
-
-    # --- Lane 2: conversational chat-turn trace, keyed on the bound session. ---
+    # --- The conversational chat-turn trace, keyed on the bound session. ---
     for instance in instances:
         session_id = safe_assignment_text(getattr(instance, "session_id", None), limit=200)
         persona_id = canonical_chat_persona_id(getattr(instance, "persona_id", None))
@@ -159,7 +124,7 @@ def persona_chat_trace_summary(
         row: dict[str, Any] = {
             "persona_instance_id": acc.instance_id,
             "persona_id": acc.persona_id,
-            "task_id": acc.task_id,
+            "task_id": None,  # always null since the task lane retired; S4 drops the key
             "entries": entries,
         }
         if acc.session_id:
@@ -192,12 +157,11 @@ class _TraceAccumulator:
     """Collects a persona instance's trace events across lanes, then renders
     them chronologically into a bounded list of redaction-safe entry dicts."""
 
-    __slots__ = ("_events", "cut_turn_ids", "instance_id", "persona_id", "session_id", "task_id")
+    __slots__ = ("_events", "cut_turn_ids", "instance_id", "persona_id", "session_id")
 
-    def __init__(self, *, instance_id: str, persona_id: str, task_id: str | None, session_id: str | None):
+    def __init__(self, *, instance_id: str, persona_id: str, session_id: str | None):
         self.instance_id = instance_id
         self.persona_id = persona_id
-        self.task_id = task_id or None
         self.session_id = session_id or None
         #: Turns the tail retention dropped at least one entry of — filled by
         #: :meth:`entries`, read by the turn pager.

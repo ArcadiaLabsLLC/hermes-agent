@@ -75,7 +75,7 @@ def test_status_keeps_every_field_an_operator_can_still_learn_from(isolate_agent
         "runtime_config",
         "agents",
         "observability",
-        "runtime_instances",
+        # (`runtime_instances` left with RT-WRITERLESS-GOAL-STATUS-KEYS: writer-less since S53.)
         "parity",
         "event_contract_hash",
     ):
@@ -87,7 +87,9 @@ def test_status_keeps_every_field_an_operator_can_still_learn_from(isolate_agent
     # `harness status`") is preserved by moving the pin to the surviving path,
     # and the removal is asserted so the reversal stays visible here.
     assert "lanes" not in data
-    assert "lanes" in data["runtime_instances"]
+    # RT-WRITERLESS-GOAL-STATUS-KEYS (owner ruling 2026-10-27) then dropped the
+    # block itself: no writer has produced a lane since S53.
+    assert "runtime_instances" not in data
 
 
 # --------------------------------------------------------------------------

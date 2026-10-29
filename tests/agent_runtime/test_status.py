@@ -10,7 +10,7 @@ from types import SimpleNamespace
 Task = SimpleNamespace
 from agent_runtime.states import RunState, TaskState
 from agent_runtime.status import build_status
-from agent_runtime.store import IncidentStore, RunStore, TaskStore
+from agent_runtime.store import IncidentStore, RunStore
 from agent_runtime.runtime_instances import GoalRuntimeInstanceStore
 
 
@@ -27,7 +27,6 @@ def _assert_no_mission_status() -> None:
     assert "running_runs" not in status
     assert "next_actions" not in status
     assert "undispatchable_missions" not in status
-    assert not hasattr(TaskStore(), "create")
 
 
 
@@ -103,9 +102,9 @@ def test_status_surfaces_lanes_repo_locks_and_retired_swarm_budget_shape(isolate
     assert "repo_locks" not in s
     assert "swarm_budget" not in s
     assert "production_envelope" not in s
-    # `runtime_instances` keeps its own `lanes` sub-key -- that block is the
-    # projection the top-level row duplicated, and it still ships.
-    assert "lanes" in s["runtime_instances"]
+    # RT-WRITERLESS-GOAL-STATUS-KEYS: the block the top-level row duplicated went too.
+    assert "runtime_instances" not in s
+    assert "foreground_runtime" not in s
 
 
 def test_status_marks_next_action_blocked_by_open_incident():

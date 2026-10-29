@@ -34,7 +34,6 @@ __all__ = [
     "_history_row",
     "_infer_persona_id",
     "_list_sessions",
-    "_mission_assignment_for",
     "_model_config",
     "_persisted_persona_instance_id",
     "_persona_chat_candidate_sort_key",
@@ -91,37 +90,6 @@ def _get_session_row(db: Any, session_id: str) -> dict[str, Any] | None:
     except Exception:
         return None
     return raw if isinstance(raw, dict) else None
-
-
-def _mission_assignment_for(
-    instance: Any,
-    assignments_by_id: dict[str, Any],
-    assignment_rows: list[Any],
-    *,
-    task_id: str,
-) -> Any | None:
-    """Resolve the assignment record a task-bound instance is running under.
-
-    Primary join is ``instance.current_assignment_id``; when that is unset the
-    newest assignment matching ``(persona_instance_id, task_id)`` vouches. Both
-    lookups stay inside the caller-provided list — no store scan.
-    """
-
-    assignment_id = safe_assignment_text(getattr(instance, "current_assignment_id", None), limit=160)
-    if assignment_id and assignment_id in assignments_by_id:
-        return assignments_by_id[assignment_id]
-    instance_id = safe_assignment_text(getattr(instance, "id", None), limit=160)
-    if not instance_id:
-        return None
-    candidates = [
-        item
-        for item in assignment_rows
-        if safe_assignment_text(getattr(item, "persona_instance_id", None), limit=160) == instance_id
-        and safe_assignment_text(getattr(item, "task_id", None), limit=160) == task_id
-    ]
-    if not candidates:
-        return None
-    return max(candidates, key=lambda item: iso_timestamp(getattr(item, "created_at", None)) or "")
 
 
 def _history_row(
@@ -391,9 +359,9 @@ def _persisted_persona_instance_id(raw: dict[str, Any]) -> str | None:
 
 
 def _persona_chat_candidate_sort_key(
-    candidate: tuple[dict[str, Any], PersonaInstance, str, str, str | None]
+    candidate: tuple[dict[str, Any], PersonaInstance, str, str]
 ) -> tuple[bool, str, str]:
-    raw, _instance, session_id, _kind, _task_id = candidate
+    raw, _instance, session_id, _kind = candidate
     created_at = iso_timestamp(raw.get("started_at"))
     return (created_at is not None, created_at or "", session_id)
 

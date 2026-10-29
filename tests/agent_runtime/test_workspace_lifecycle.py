@@ -18,7 +18,7 @@ Task = SimpleNamespace
 from agent_runtime.office_store import OfficeStore
 from agent_runtime.realm_sync import _apply_workspace_tombstones, resolve_realm_sync_artifacts
 from agent_runtime.states import TaskState
-from agent_runtime.store import RealmStore, TaskStore, WorkspaceStore
+from agent_runtime.store import RealmStore, WorkspaceStore
 from agent_runtime.workspace_template import copy_workspace_content, normalize_copy_scopes
 
 
@@ -101,7 +101,6 @@ def test_delete_clears_active_pointer():
 
 def test_delete_no_longer_checks_retired_goals():
     workspace = WorkspaceStore().create(name="Busy")
-    assert not hasattr(TaskStore(), "create")
     deleted = WorkspaceStore().delete(workspace.id)
     assert deleted["deleted"] is True
     assert not paths.workspace_path(workspace.id).exists()

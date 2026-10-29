@@ -53,7 +53,7 @@ from agent_runtime.snapshot import build_snapshot
 from agent_runtime.serde import to_jsonable
 from agent_runtime.states import RunState, TaskState, WorkerSessionState
 from agent_runtime.status import build_status
-from agent_runtime.store import AgentStore, RunStore, TaskStore
+from agent_runtime.store import AgentStore, RunStore
 from tests.agent_runtime.conftest import release_to_implementation
 from tests.agent_runtime.persona_instance_mint import mint_free_floating
 from utils import atomic_json_write
@@ -123,33 +123,6 @@ def _assignment_config() -> AgentRuntimeConfig:
     # the enterprise_worker_sessions gate block was deleted.
     return AgentRuntimeConfig()
 
-
-def _assert_task_store_stub() -> None:
-    store = TaskStore(event_log=EventLog())
-    assert not hasattr(store, "create")
-    assert not hasattr(store, "update")
-    assert not hasattr(store, "cancel")
-    with pytest.raises(Exception):
-        store.get("retired_task")
-
-
-class _FakeSessionDB:
-    def __init__(self, messages_by_session: dict[str, list[dict]]):
-        self.messages_by_session = messages_by_session
-
-    def list_sessions_rich(self, source=None, limit=100, **_kwargs):
-        return [
-            {
-                "id": session_id,
-                "session_id": session_id,
-                "source": "agent_runtime_persona_chat",
-                "title": session_id,
-            }
-            for session_id in self.messages_by_session
-        ][:limit]
-
-    def get_messages(self, session_id, include_inactive=False):
-        return self.messages_by_session.get(session_id, [])
 
 
 def test_persona_instance_store_ensures_a_singleton_per_persona(isolate_agent_runtime_root):
@@ -227,20 +200,8 @@ def test_persona_instance_ensure_clears_a_stale_execution_binding(isolate_agent_
     assert instance.session_id is None
 
 
-def test_persona_instance_derivation_does_not_mark_idle_worker_active(isolate_agent_runtime_root):
-    _assert_task_store_stub()
 
 
-def test_dead_worker_of_settled_task_does_not_resurrect_binding(isolate_agent_runtime_root):
-    _assert_task_store_stub()
-
-
-def test_task_terminal_reaps_task_bound_persona_instances(isolate_agent_runtime_root):
-    _assert_task_store_stub()
-
-
-def test_task_archive_moves_task_bound_persona_instance_evidence(isolate_agent_runtime_root):
-    _assert_task_store_stub()
 
 
 def test_free_floating_instance_mint_reuses_canonical_idle_placement(isolate_agent_runtime_root):
@@ -441,9 +402,9 @@ def test_status_and_snapshot_expose_persona_instances_unconditionally(monkeypatc
         "swarm_budget",
     ):
         assert retired not in status, retired
-    # …while the runtime-instance rows deliberately STAY.
-    assert "runtime_instances" in status
-    assert "foreground_runtime" in status
+    # RT-WRITERLESS-GOAL-STATUS-KEYS: the writer-less goal-lane projections went too.
+    assert "runtime_instances" not in status
+    assert "foreground_runtime" not in status
     assert {item["persona_id"] for item in status["persona_instances"]} >= {"dev", "qa", "neko_supervisor", "backend_dev"}
     status_lane_agents = {item["persona_id"]: item for item in status["agents"]}
     assert "personainst_dev" in status_lane_agents
@@ -1712,7 +1673,7 @@ def test_persona_instance_update_profile_persists_runtime_overrides_only(isolate
     assert updated.display_name == "Alice Mission Lead"
     assert updated.current_chat_goal == "Keep the operator channel warm."
     assert updated.goal_id == "task_123"
-    assert updated.current_task_id == "task_123"
+    assert updated.current_task_id is None  # RT-TASK-BOUND-UPDATE-GOAL-STAMP: the goal is not a task
     assert updated.skill_overrides == ["agent-runtime-harness", "technical-writing"]
 
     summary = persona_instance_summary(updated)
@@ -4352,28 +4313,10 @@ def test_profile_visibility_uses_configured_custom_role_without_rewriting_raw_id
     assert persona.hermes_profile == "researcher"
 
 
-def test_task_store_cancel_closes_persona_assignments():
-    _assert_task_store_stub()
 
 
-def test_task_store_update_terminal_transition_releases_assignments():
-    _assert_task_store_stub()
 
 
-def test_task_store_update_failed_transition_releases_assignments():
-    _assert_task_store_stub()
-
-
-def test_task_store_update_non_terminal_transition_keeps_assignments():
-    _assert_task_store_stub()
-
-
-def test_contention_warning_self_heals_assignment_held_by_terminal_goal():
-    _assert_task_store_stub()
-
-
-def test_contention_warning_still_fires_for_genuinely_open_goal():
-    _assert_task_store_stub()
 
 
 # ---------------------------------------------------------------------------
@@ -5099,7 +5042,6 @@ def test_covering_the_clear_would_drop_the_chat_history_row_it_also_moves(
     before = persona_chat_history_summary(
         persona_instances=[store.get(instance.id)],
         session_db=db,
-        persona_assignments=[],
     )
     assert [row["session_id"] for row in before] == ["persona_chat_history_move"]
 
@@ -5112,7 +5054,6 @@ def test_covering_the_clear_would_drop_the_chat_history_row_it_also_moves(
     after = persona_chat_history_summary(
         persona_instances=[store.get(instance.id)],
         session_db=db,
-        persona_assignments=[],
     )
     assert after == [], (
         "the chat-history row survived the clear; if that is now true the "

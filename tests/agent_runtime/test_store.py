@@ -1,19 +1,16 @@
 import json
 
-import pytest
 
 import agent_runtime.store as store_module
 from hermes_time import now
 
 from agent_runtime import paths
-from agent_runtime.errors import NotFound
-from agent_runtime.events import EventLog
 from agent_runtime.models import AgentPersona, AgentRun, Event, Incident
 from types import SimpleNamespace
 
 Task = SimpleNamespace
 from agent_runtime.states import RunState, TaskState
-from agent_runtime.store import AgentStore, IncidentStore, RunStore, TaskStore
+from agent_runtime.store import AgentStore, IncidentStore, RunStore
 from agent_runtime.snapshot import build_snapshot
 
 
@@ -30,58 +27,12 @@ def make_task(task_id="task_abc", state=TaskState.CREATED):
     )
 
 
-def assert_task_store_stub() -> None:
-    store = TaskStore(event_log=EventLog())
-    assert not hasattr(store, "create")
-    assert not hasattr(store, "update")
-    assert not hasattr(store, "archive")
-    with pytest.raises(NotFound):
-        store.get("retired")
 
 
-def test_task_store_create_update_round_trip_and_records_events():
-    assert_task_store_stub()
 
 
-def test_task_store_dual_reads_legacy_tasks_directory(isolate_agent_runtime_root):
-    assert_task_store_stub()
 
 
-def test_task_store_invalid_get_raises_not_found():
-    with pytest.raises(NotFound):
-        TaskStore().get("missing")
-
-
-def test_task_store_filters_open_and_by_state():
-    assert_task_store_stub()
-
-
-def test_task_store_list_all_tolerates_concurrent_archive_move(monkeypatch):
-    assert_task_store_stub()
-
-
-def test_task_store_cancel_marks_task_cancelled_with_reason_event():
-    assert_task_store_stub()
-
-
-def test_task_store_cancel_redacts_sensitive_reason_and_preserves_terminal_task():
-    assert_task_store_stub()
-
-
-def test_archive_active_refusal_creates_no_empty_batch_and_explains_reason(tmp_path, monkeypatch):
-    assert_task_store_stub()
-
-
-def test_archive_writes_prepare_and_final_manifest_before_archived_event(tmp_path, monkeypatch):
-    assert_task_store_stub()
-
-
-def test_archive_preserves_incidents_and_removes_live_blocker(tmp_path, monkeypatch):
-    assert_task_store_stub()
-
-
-def test_archive_writes_task_event_slice_and_compaction_preserves_unarchived_rows(tmp_path, monkeypatch):
-    assert_task_store_stub()
 
 
 def test_agent_store_save_get_and_list():

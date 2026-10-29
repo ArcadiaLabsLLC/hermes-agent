@@ -726,6 +726,46 @@ def test_boot_reports_the_long_calls_it_found_lost(monkeypatch):
     assert "long_calls_lost" not in _run([SHUTDOWN], dispatch=lambda argv: 0)[1]
 
 
+def test_boot_gives_a_fresh_namespace_its_default_scope(tmp_path, monkeypatch):
+    """RT-SERVE-BOOT-DEFAULT-SCOPE: ``harness init`` runs once against the base
+    root, so a namespace created later is served with no Default realm unless
+    the boot writes one — once, and the second boot writes nothing."""
+
+    from agent_runtime import paths
+
+    own = tmp_path / "hermes-namespaces" / "qa"
+    monkeypatch.setenv("HERMES_NAMESPACE", "qa")
+    monkeypatch.setenv("HERMES_DEPENDENCY_ROOT", str(tmp_path / ".hermes"))
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "appdata"))
+    monkeypatch.setenv("HERMES_HOME", str(own / "profiles" / "base"))
+    monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(own / "agent-runtime"))
+    monkeypatch.delenv("HERMES_HEAD_HOME", raising=False)
+    assert paths.store_root() == own / "agent-runtime"
+    assert not list(paths.realms_dir().glob("realm_default*"))
+
+    first = _run([SHUTDOWN], dispatch=lambda argv: 0)[1]
+
+    assert first["event"] == "ready"
+    assert first["default_scope_created"] is True
+    assert list(paths.realms_dir().glob("realm_default*"))
+    assert list(paths.workspaces_dir().glob("ws_default*"))
+    assert "default_scope_created" not in _run([SHUTDOWN], dispatch=lambda argv: 0)[1]
+
+
+def test_a_default_scope_that_cannot_be_written_does_not_fail_the_boot(monkeypatch):
+    from agent_runtime import default_scope
+
+    def boom(**kwargs):
+        raise OSError("read-only store")
+
+    monkeypatch.setattr(default_scope, "ensure_default_scope", boom)
+
+    frames = _run([SHUTDOWN], dispatch=lambda argv: 0)
+
+    assert frames[1]["event"] == "ready"
+    assert "default_scope_created" not in frames[1]
+
+
 # ── Boot instrumentation (T5/T9) ────────────────────────────────────────────
 #
 # A cold boot is the one worth attributing and the one nobody is watching a
@@ -850,6 +890,7 @@ def test_ready_frame_attributes_every_boot_phase():
         "chat_registry_ms",
         "head_publish_ms",
         "store_root_ms",
+        "default_scope_ms",
         "orphaned_turn_sweep_ms",
         "dispatch_restore_ms",
         "long_call_sweep_ms",

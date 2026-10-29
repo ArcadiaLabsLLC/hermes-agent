@@ -75,13 +75,15 @@ def _decode_stored_instance(raw: dict[str, Any]) -> PersonaInstance:
     (RT-GLOBAL-SINGLETON-CANONICAL; plan ``canonical-channel-global-storage-2026-10-27``).
     """
     instance = from_jsonable(PersonaInstance, raw)
-    if instance.mode == "task_bound" and (instance.current_task_id or None) == (instance.goal_id or None):
-        # A STEER-shaped row: ``--goal`` once stamped ``task_bound`` with the goal as its
-        # task. The goal is a correlation id, so the row is an ordinary instance
-        # (RT-TASK-BOUND-VOCABULARY). A MISSION-shaped row (a task that is not its goal)
-        # decodes unchanged; the reconciler's phase 0 archives it.
+    if instance.mode == "task_bound":
+        # ``task_bound`` is stored-only: nothing writes it, so no reader branches on it
+        # (RT-TASK-BOUND-MISSION-LANES). A STEER-shaped row (its task IS its goal, a
+        # correlation id) drops the task too. A MISSION-shaped row (a task that is not
+        # its goal) keeps ``current_task_id`` so the archive record is whole; phase 0
+        # reads the RAW row for its shape and archives it, at every serve boot.
+        if (instance.current_task_id or None) == (instance.goal_id or None):
+            instance.current_task_id = None
         instance.mode = "configured"
-        instance.current_task_id = None
     if is_canonical_persona_channel(instance):
         instance.workspace_id = None
         instance.realm_id = None

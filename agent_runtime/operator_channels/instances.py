@@ -225,9 +225,6 @@ def _channel_key_for_instance(instance: PersonaInstance) -> str:
     persona_id = canonical_chat_persona_id(getattr(instance, "persona_id", None)) or "unknown"
     if session_id and mode in _CHAT_INSTANCE_MODES:
         return f"session:{session_id}"
-    task_id = safe_assignment_text(getattr(instance, "current_task_id", None), limit=160)
-    if task_id:
-        return f"task:{task_id}:{persona_id}:{_safe_instance_id(instance)}"
     return f"instance:{_safe_instance_id(instance) or persona_instance_id_for(persona_id)}"
 
 

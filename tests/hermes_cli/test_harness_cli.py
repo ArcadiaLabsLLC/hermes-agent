@@ -22,7 +22,6 @@ from agent_runtime.store import (
     IncidentStore,
     RealmStore,
     RunStore,
-    TaskStore,
     WorkspaceStore,
 )
 from hermes_cli.harness_parts import agent_commands
@@ -235,7 +234,6 @@ def test_harness_task_create_is_removed_without_store_mutation(tmp_path, monkeyp
 
     with pytest.raises(SystemExit):
         parser().parse_args(["harness", "task", "create", "--title", "T", "--description", "D", "--json"])
-    assert vars(TaskStore()) == {}
 
 
 def test_harness_parser_exposes_task_archive_ready_json():

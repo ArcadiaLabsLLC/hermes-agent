@@ -15,7 +15,7 @@ from agent_runtime.persona_assignments.scan import (
     PersonaScanRefusal,
 )
 from agent_runtime.persona_assignments.vocabulary import _BINDING_REPAIR_REASON
-from agent_runtime.serde import safe_assignment_text, safe_optional_token
+from agent_runtime.serde import safe_assignment_text
 
 if TYPE_CHECKING:
     from agent_runtime.persona_assignments.store import PersonaInstanceStore
@@ -216,10 +216,6 @@ def repair_missing_chat_session_bindings(
       positively-enumerating SessionDB; an unavailable, unreadable or empty
       database repairs nothing at all (see :func:`_session_presence_probe`),
       because a blind read must never reap a live pointer;
-    * an instance with a ``current_task_id`` (a mission-shaped row the
-      reconciler's phase 0 has not archived yet) is skipped — a mission turn runs
-      in a session that lives in the run/event stream and is legitimately absent
-      from the operator SessionDB;
     * an instance with a live worker/run binding is held;
     * ``apply=False`` is a pure report: no writes, no events.
     """
@@ -251,9 +247,6 @@ def repair_missing_chat_session_bindings(
         # target and wrote nothing.
         pointers = {pointer for pointer in pointers if pointer}
         if not pointers:
-            continue
-        if safe_optional_token(instance.current_task_id):
-            # Mission sessions live in the run/event stream, not SessionDB.
             continue
         missing = sorted(session_id for session_id in pointers if probe(session_id) == "absent")
         if not missing:

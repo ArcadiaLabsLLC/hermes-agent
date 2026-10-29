@@ -327,7 +327,8 @@ Executed history stays archived. The duplicate-implementation retirement's rows
 - `contract_manifest` — keep the constant after `contracts dump`, re-word the KEPT pin's
   rationale.
 - Pet-gallery empty keys — keep for shape parity, comment why.
-- `task_store_stub.py` retirement, after H-P2, with its four pinning tests.
+- `task_store_stub.py` retirement — DONE 2026-10-29 (RT-TASK-STORE-STUB-FATE): the stub,
+  its `TaskStore` re-export and its pinning tests deleted; tombstoned.
 - `mobile_core/` — RULED 2026-09-28 (embedded-hermes plan D0 item 2, lane w1-hclean): the
   July duplicates (`core`, `auth`, `providers`, `events`, `exceptions`, `_vendor/`, the
   provider catalog, three tools, five tests, the README and dependency certification) are

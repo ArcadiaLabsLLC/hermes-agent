@@ -28,9 +28,6 @@ realms      stores  ``RealmStore``
 workspaces  stores  ``WorkspaceStore`` (imports ``realms`` for the delete cascade)
 ==========  ======  ===========================================================
 
-``TaskStore`` is the permanent ``task_store_stub.TaskStoreStub`` alias (ruling
-R-3): upstream-owned readers resolve the name here, so it never moves.
-
 Stores written: the model files under ``paths.store_root()`` (agents,
 workspaces, realms, the two active pointers) — ``base._write_model`` only.
 """
@@ -79,6 +76,5 @@ from agent_runtime.store.realms import (  # the package's export floor
 from agent_runtime.store.workspaces import (  # the package's export floor
     WorkspaceStore,
 )
-from agent_runtime.task_store_stub import TaskStoreStub as TaskStore  # ruling R-3
 
 __layer__ = "stores"

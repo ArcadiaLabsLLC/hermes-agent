@@ -71,19 +71,6 @@ def _worktree_with_changes(source_repo: Path, *, task_id: str = "task_dd01", run
 # depended on them; the janitor coverage below is untouched.
 
 
-def test_no_archive_choke_point_survives_to_run_a_directive(isolate_agent_runtime_root):
-    """The executors' only caller was ``ArchiveStore.archive_tasks`` on the
-    ``TaskStore``. Ruling R-3 keeps the store as a permanent stub — pinned here
-    so nobody re-grows an archive hook and wires a settle-time promote to it."""
-
-    from agent_runtime.store import TaskStore
-    from agent_runtime.task_store_stub import TaskStoreStub
-
-    assert TaskStore is TaskStoreStub
-    assert not hasattr(TaskStore(), "archive")
-    assert vars(TaskStore(event_log=object())) == {}
-
-
 def test_janitor_uses_the_suite_isolated_worktree_bases(
     isolate_agent_runtime_root, tmp_path, monkeypatch
 ):

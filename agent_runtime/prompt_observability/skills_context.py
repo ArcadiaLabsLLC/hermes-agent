@@ -444,7 +444,6 @@ def _chat_metadata(
     *,
     session_db: Any | None,
     session_id: str | None,
-    task_id: str | None = None,
 ) -> dict[str, Any]:
     safe_id = safe_assignment_text(session_id, limit=200)
     if not safe_id:
@@ -464,9 +463,6 @@ def _chat_metadata(
             if not title:
                 title = safe_assignment_text(raw.get("title"), limit=160)
             source = safe_assignment_token(raw.get("source"))
-    if not title and safe_assignment_text(task_id, limit=160):
-        title = "Mission run"
-        source = source or "task_bound"
     data: dict[str, Any] = {
         "id": safe_id,
         "title": title,

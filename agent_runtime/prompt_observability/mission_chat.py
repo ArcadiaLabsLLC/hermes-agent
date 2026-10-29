@@ -243,7 +243,7 @@ class MissionChatObservability:
         ).hexdigest()[:16]
         self.surface = safe_assignment_text(self.surface_prompt, limit=4000) or ""
         self.history = _chat_history_context(session_db=self.session_db, session_id=self.session_id)
-        self.chat = _chat_metadata(session_db=self.session_db, session_id=self.session_id, task_id=self.task_id)
+        self.chat = _chat_metadata(session_db=self.session_db, session_id=self.session_id)
         self.queued_names = _tokens(self.queued_skills)
         self.required_names = _tokens(self.required_preload_skills)
         self.loaded_names = _tokens(self.preloaded_skills_loaded)

@@ -112,9 +112,10 @@ ENTITY_CLASSES: tuple[EntityClass, ...] = (
     # the module, the `RepoBundle` model, `paths.repo_bundle_path` and the
     # `migration_status` count are all gone, so nothing can name that class.)
     # `runtime_instances` is DELIBERATELY KEPT despite also being writer-less
-    # since S53: its rows still ship on the status wire (`runtime_instances` /
-    # `foreground_runtime`), so a checkpoint that omitted them would drop state a
-    # reader can still see.
+    # since S53: the two status keys that shipped its rows went with
+    # RT-WRITERLESS-GOAL-STATUS-KEYS, but `dirty_state`'s foreground block still
+    # reads them, so a checkpoint that omitted them would drop state a reader can
+    # still see.
 )
 
 ENTITY_CLASS_NAMES: tuple[str, ...] = tuple(entity.name for entity in ENTITY_CLASSES)

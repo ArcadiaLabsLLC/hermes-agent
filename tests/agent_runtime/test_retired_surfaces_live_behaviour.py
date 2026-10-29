@@ -192,8 +192,11 @@ def test_the_lane_read_path_projects_a_persisted_row(isolate_agent_runtime_root)
     assert summary["current_stage_id"] == "stage_1"
     assert summary["current_owner"] == "dev"
 
+    # RT-WRITERLESS-GOAL-STATUS-KEYS: status no longer projects the frozen lane store,
+    # even with a persisted row on disk (positive control for the absence).
+    # Kill-mutation: restore the ``runtime_instances`` key in ``build_status`` → red.
     data = status.build_status()
-    assert [row["lane_id"] for row in data["runtime_instances"]["lanes"]] == [seeded.id]
+    assert "runtime_instances" not in data and "foreground_runtime" not in data
 
 
 def test_a_stale_persona_row_carrying_the_removed_worker_field_is_not_busy():

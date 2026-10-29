@@ -9,12 +9,11 @@ leaking into the Agent Console).
 
 import json
 from datetime import datetime, timezone, UTC
-from types import SimpleNamespace
 
 from hermes_time import now
 
 from agent_runtime.events import EventLog
-from agent_runtime.models import Event, PersonaAssignment, PersonaInstance
+from agent_runtime.models import Event, PersonaInstance
 from agent_runtime.projection_accountant import ProjectionAccountant
 from agent_runtime.mission_chat_turns import (
     mark_stale_inflight_turns_interrupted,
@@ -495,7 +494,7 @@ def test_history_hydrates_only_visible_newest_fifty_with_equivalent_accounting()
     assert accountant.summary()["dropped"] == len(sessions) - 50
 
 
-def test_persona_chat_history_rows_always_emit_kind():
+def test_persona_chat_history_emits_no_mission_row_for_a_stored_mission_instance():
     db = FakeHistorySessionDB(
         [
             {
@@ -528,104 +527,14 @@ def test_persona_chat_history_rows_always_emit_kind():
         session_db=db,
     )
 
-    assert {row["kind"] for row in rows} == {"chat", "mission"}
-    assert all(row["kind"] in {"chat", "mission"} for row in rows)
-    assert next(row for row in rows if row["kind"] == "chat")["live_mission"] is False
-    assert next(row for row in rows if row["kind"] == "mission")["live_mission"] is True
-
-
-def test_synthetic_mission_row_anchors_to_assignment_created_at():
-    # R3: PersonaInstance persists no assigned_at, so the synthetic row anchors
-    # to the bound PersonaAssignment's created_at via current_assignment_id.
-    db = FakeHistorySessionDB([])
-    assignment = _persona_assignment(
-        "assign_1",
-        instance_id="personainst_dev",
-        task_id="task_1",
-        created_at=datetime(2026, 6, 22, 21, 0, 2, 500000, tzinfo=UTC),
-        updated_at=datetime(2026, 6, 22, 21, 30, 0, tzinfo=UTC),
-    )
-    instance = _mission_persona_instance("personainst_dev", "dev", "task_1", assignment_id="assign_1")
-
-    first = persona_chat_history_summary(
-        persona_instances=[instance], session_db=db, persona_assignments=[assignment]
-    )
-    second = persona_chat_history_summary(
-        persona_instances=[instance], session_db=db, persona_assignments=[assignment]
-    )
-
-    assert first[0]["kind"] == "mission"
-    assert first[0]["created_at"] == "2026-06-22T21:00:02.500000Z"
-    # updated_at anchors to the SAME assignment moment (spec Slice 2 baseline:
-    # last_active = assigned) so consecutive builds stay byte-identical even
-    # while assignment state transitions bump the assignment's own updated_at.
-    assert first[0]["updated_at"] == "2026-06-22T21:00:02.500000Z"
-    assert first[0]["created_at"] == second[0]["created_at"]
-    assert first[0]["updated_at"] == second[0]["updated_at"]
-
-
-def test_synthetic_mission_row_matches_assignment_by_instance_and_task():
-    # When current_assignment_id is unset, the newest assignment for the same
-    # (persona_instance_id, task_id) vouches — still no store scan.
-    db = FakeHistorySessionDB([])
-    older = _persona_assignment(
-        "assign_old",
-        instance_id="personainst_dev",
-        task_id="task_1",
-        created_at=datetime(2026, 6, 22, 20, 0, 0, tzinfo=UTC),
-    )
-    newer = _persona_assignment(
-        "assign_new",
-        instance_id="personainst_dev",
-        task_id="task_1",
-        created_at=datetime(2026, 6, 22, 21, 0, 2, 500000, tzinfo=UTC),
-    )
-    other_task = _persona_assignment(
-        "assign_other",
-        instance_id="personainst_dev",
-        task_id="task_2",
-        created_at=datetime(2026, 6, 23, 9, 0, 0, tzinfo=UTC),
-    )
-    instance = _mission_persona_instance("personainst_dev", "dev", "task_1", assignment_id=None)
-
-    rows = persona_chat_history_summary(
-        persona_instances=[instance],
-        session_db=db,
-        persona_assignments=[older, newer, other_task],
-    )
-
-    assert rows[0]["kind"] == "mission"
-    assert rows[0]["created_at"] == "2026-06-22T21:00:02.500000Z"
-    assert rows[0]["updated_at"] == "2026-06-22T21:00:02.500000Z"
-
-
-def test_synthetic_mission_row_falls_back_to_instance_assigned_at():
-    # Forward-compat duck path: if an instance ever grows assigned_at, it backs
-    # the anchor when no assignment record is resolvable.
-    db = FakeHistorySessionDB([])
-    instance = SimpleNamespace(
-        id="personainst_dev",
-        persona_id="dev",
-        role="dev",
-        display_name="Dev",
-        profile_id=None,
-        runtime_root="test-runtime",
-        state=WorkerSessionState.IDLE,
-        mode="task_bound",
-        session_id="mission_dev",
-        current_task_id="task_1",
-        current_chat_goal="Implement the fix",
-        current_assignment_id=None,
-        assigned_at=1782162002.5,
-    )
-
-    first = persona_chat_history_summary(persona_instances=[instance], session_db=db)
-    second = persona_chat_history_summary(persona_instances=[instance], session_db=db)
-
-    assert first[0]["kind"] == "mission"
-    assert first[0]["created_at"] == "2026-06-22T21:00:02.500000Z"
-    assert first[0]["updated_at"] == "2026-06-22T21:00:02.500000Z"
-    assert first[0]["updated_at"] == second[0]["updated_at"]
+    # RT-TASK-BOUND-MISSION-LANES: a stored mission-shaped instance gets no
+    # synthetic "Mission run" row and no ``task_id`` key; the chat row still
+    # emits ``kind`` / ``live_mission`` until the wire prune.
+    # Kill-mutation: restore ``live_mission_candidates`` → the mission row reappears, red.
+    assert [(row["session_id"], row["kind"], row["live_mission"]) for row in rows] == [
+        ("chat_neko", "chat", False)
+    ]
+    assert all("task_id" not in row for row in rows)
 
 
 def test_iso_timestamp_normalizes_datetime_values():
@@ -634,28 +543,6 @@ def test_iso_timestamp_normalizes_datetime_values():
 
     assert iso_timestamp(aware) == "2026-06-22T21:00:02.500000Z"
     assert iso_timestamp(naive) == "2026-06-22T21:00:02.500000Z"
-
-
-def test_synthetic_mission_row_keeps_unknown_timestamp_null():
-    db = FakeHistorySessionDB([])
-    instance = PersonaInstance(
-        id="personainst_dev",
-        persona_id="dev",
-        role="dev",
-        display_name="Dev",
-        profile_id=None,
-        runtime_root="test-runtime",
-        state=WorkerSessionState.IDLE,
-        mode="task_bound",
-        session_id="mission_dev",
-        current_task_id="task_1",
-    )
-
-    rows = persona_chat_history_summary(persona_instances=[instance], session_db=db)
-
-    assert rows[0]["kind"] == "mission"
-    assert rows[0]["created_at"] is None
-    assert rows[0]["updated_at"] is None
 
 
 def test_safe_recent_messages_returns_deeper_bounded_tail():
@@ -1148,7 +1035,8 @@ def test_persona_chat_trace_projects_tool_events_by_persona_without_raw_secrets(
         Event(
             ts=ts,
             type="run.tool.started",
-            task_id="task_chat",
+            task_id=None,
+            session_id="task_chat",
             run_id="run_dev",
             persona_id="dev",
             payload={
@@ -1164,7 +1052,8 @@ def test_persona_chat_trace_projects_tool_events_by_persona_without_raw_secrets(
         Event(
             ts=ts,
             type="run.tool.finished",
-            task_id="task_chat",
+            task_id=None,
+            session_id="task_chat",
             run_id="run_qa",
             persona_id="qa",
             payload={
@@ -1177,7 +1066,8 @@ def test_persona_chat_trace_projects_tool_events_by_persona_without_raw_secrets(
         Event(
             ts=ts,
             type="run.progress",
-            task_id="task_chat",
+            task_id=None,
+            session_id="task_chat",
             run_id="run_dev",
             persona_id="dev",
             payload={
@@ -1206,50 +1096,6 @@ def test_persona_chat_trace_projects_tool_events_by_persona_without_raw_secrets(
     assert [entry["run_id"] for entry in by_persona["qa"]["entries"]] == ["run_qa"]
 
 
-def test_busy_task_does_not_starve_a_quiet_personas_trace():
-    events = EventLog()
-    ts = now()
-    # The quiet persona's only trace event is the OLDEST row in a shared task log.
-    events.append(
-        Event(
-            ts=ts,
-            type="run.tool.finished",
-            task_id="busy",
-            run_id="run_qa",
-            persona_id="qa",
-            payload={"tool_name": "pytest", "summary": "qa ran the suite"},
-        )
-    )
-    # A burst from another agent that would push qa past a flat tail*4 window.
-    for index in range(20):
-        events.append(
-            Event(
-                ts=ts,
-                type="run.progress",
-                task_id="busy",
-                run_id="run_dev",
-                persona_id="dev",
-                payload={"summary": f"dev step {index}"},
-            )
-        )
-
-    rows = persona_chat_trace_summary(
-        persona_instances=[
-            _persona_instance("personainst_dev", "dev", "busy"),
-            _persona_instance("personainst_qa", "qa", "busy"),
-        ],
-        event_log=events,
-        message_tail=2,
-    )
-
-    by_persona = {row["persona_id"]: row for row in rows}
-    # The quiet persona stays represented despite the dev burst (window is sized
-    # for all the task's agents, not a flat per-persona slice).
-    assert [entry["run_id"] for entry in by_persona["qa"]["entries"]] == ["run_qa"]
-    # The busy persona is still bounded to message_tail.
-    assert len(by_persona["dev"]["entries"]) == 2
-
-
 def test_trace_entry_carries_operator_detail_fields():
     events = EventLog()
     ts = now()
@@ -1257,7 +1103,8 @@ def test_trace_entry_carries_operator_detail_fields():
         Event(
             ts=ts,
             type="run.tool.finished",
-            task_id="task_detail",
+            task_id=None,
+            session_id="task_detail",
             run_id="run_dev",
             persona_id="dev",
             payload={
@@ -1275,7 +1122,8 @@ def test_trace_entry_carries_operator_detail_fields():
         Event(
             ts=ts,
             type="run.tool.finished",
-            task_id="task_detail",
+            task_id=None,
+            session_id="task_detail",
             run_id="run_dev",
             persona_id="dev",
             payload={
@@ -1291,7 +1139,8 @@ def test_trace_entry_carries_operator_detail_fields():
         Event(
             ts=ts,
             type="run.tool.started",
-            task_id="task_detail",
+            task_id=None,
+            session_id="task_detail",
             run_id="run_dev",
             persona_id="dev",
             payload={
@@ -1335,7 +1184,8 @@ def test_trace_entry_carries_the_dispatch_target_thread():
         Event(
             ts=ts,
             type="run.tool.started",
-            task_id="task_relay",
+            task_id=None,
+            session_id="task_relay",
             run_id="run_neko",
             persona_id="neko_supervisor",
             payload={
@@ -1351,7 +1201,8 @@ def test_trace_entry_carries_the_dispatch_target_thread():
         Event(
             ts=ts,
             type="run.tool.finished",
-            task_id="task_relay",
+            task_id=None,
+            session_id="task_relay",
             run_id="run_neko",
             persona_id="neko_supervisor",
             payload={
@@ -1395,7 +1246,8 @@ def test_trace_entry_carries_the_dispatch_reply_and_its_author():
         Event(
             ts=ts,
             type="run.tool.started",
-            task_id="task_reply",
+            task_id=None,
+            session_id="task_reply",
             run_id="run_neko",
             persona_id="neko_supervisor",
             payload={
@@ -1411,7 +1263,8 @@ def test_trace_entry_carries_the_dispatch_reply_and_its_author():
         Event(
             ts=ts,
             type="run.tool.finished",
-            task_id="task_reply",
+            task_id=None,
+            session_id="task_reply",
             run_id="run_neko",
             persona_id="neko_supervisor",
             payload={
@@ -1452,7 +1305,8 @@ def test_trace_entry_carries_the_patch_artifact_path_and_counts():
         Event(
             ts=ts,
             type="run.tool.finished",
-            task_id="task_patch",
+            task_id=None,
+            session_id="task_patch",
             run_id="run_patch",
             persona_id="neko_supervisor",
             payload={
@@ -1502,7 +1356,8 @@ def test_trace_entry_carries_generic_tool_io():
         Event(
             ts=ts,
             type="run.tool.finished",
-            task_id="task_tool_io",
+            task_id=None,
+            session_id="task_tool_io",
             run_id="run_dev",
             persona_id="dev",
             payload={
@@ -1540,7 +1395,8 @@ def test_trace_entry_never_retruncates_a_sink_ceiling_tool_io_block():
         Event(
             ts=now(),
             type="run.tool.finished",
-            task_id="task_tool_io_max",
+            task_id=None,
+            session_id="task_tool_io_max",
             run_id="run_dev",
             persona_id="dev",
             payload={
@@ -1598,7 +1454,8 @@ def test_trace_entry_carries_reasoning_summary_but_never_the_placeholder():
         Event(
             ts=ts,
             type="run.progress",
-            task_id="task_detail",
+            task_id=None,
+            session_id="task_detail",
             run_id="run_dev",
             persona_id="dev",
             payload={
@@ -1613,7 +1470,8 @@ def test_trace_entry_carries_reasoning_summary_but_never_the_placeholder():
         Event(
             ts=ts,
             type="run.progress",
-            task_id="task_detail",
+            task_id=None,
+            session_id="task_detail",
             run_id="run_dev",
             persona_id="dev",
             payload={
@@ -1647,7 +1505,8 @@ def test_incident_flood_does_not_starve_trace_window():
             Event(
                 ts=ts,
                 type="run.tool.finished",
-                task_id="task_flooded",
+                task_id=None,
+                session_id="task_flooded",
                 run_id=f"run_dev_{index}",
                 persona_id="dev",
                 payload={"tool_name": "read_file", "summary": f"dev tool {index}"},
@@ -1709,57 +1568,6 @@ def test_persona_chat_trace_projects_session_keyed_chat_tool_calls():
     assert row["session_id"] == "chat_neko"
     assert [entry["event"] for entry in row["entries"]] == ["tool_started", "tool_finished"]
     assert row["entries"][0]["summary"] == "echo PARITY_OK_2026"
-
-
-def test_persona_chat_trace_merges_task_and_session_lanes_for_one_instance():
-    events = EventLog()
-    early = now()
-    # Lane 1: a task-run tool event (task-keyed, no session lineage).
-    events.append(
-        Event(
-            ts=early,
-            type="run.tool.started",
-            task_id="task_live",
-            run_id="run_dev",
-            persona_id="dev",
-            payload={"tool_name": "pytest", "summary": "running suite"},
-        )
-    )
-    # Lane 2: a later conversational tool call on the same instance's session.
-    events.append(
-        Event(
-            ts=now(),
-            type="run.tool.finished",
-            task_id=None,
-            run_id=None,
-            persona_id="dev",
-            payload={"tool_name": "terminal", "status": "passed", "command_label": "git status"},
-            session_id="chat_dev",
-        )
-    )
-
-    instance = PersonaInstance(
-        id="personainst_dev",
-        persona_id="dev",
-        role="dev",
-        display_name="dev",
-        profile_id=None,
-        runtime_root="test-runtime",
-        state=WorkerSessionState.IDLE,
-        mode="task_bound",
-        current_task_id="task_live",
-        session_id="chat_dev",
-    )
-
-    rows = persona_chat_trace_summary(persona_instances=[instance], event_log=events)
-
-    assert len(rows) == 1
-    row = rows[0]
-    # Both lanes merge into one chronologically-ordered trace, no double counting.
-    assert [entry["event"] for entry in row["entries"]] == ["tool_started", "tool_finished"]
-    assert [entry["tool_name"] for entry in row["entries"]] == ["pytest", "terminal"]
-    assert row["task_id"] == "task_live"
-    assert row["session_id"] == "chat_dev"
 
 
 def test_persona_chat_trace_projects_canonical_profile_persona():
@@ -1860,9 +1668,9 @@ def test_persona_chat_trace_tolerates_event_log_without_for_session():
     assert rows == []
 
 
-def _mission_persona_instance(
-    instance_id: str, persona_id: str, task_id: str, *, assignment_id: str | None
-) -> PersonaInstance:
+def _persona_instance(instance_id: str, persona_id: str, session_id: str) -> PersonaInstance:
+    """A chat instance whose trace rides the session lane (the task lane retired with
+    RT-TASK-BOUND-MISSION-LANES); the entry-rendering tests use it as their vehicle."""
     return PersonaInstance(
         id=instance_id,
         persona_id=persona_id,
@@ -1871,48 +1679,8 @@ def _mission_persona_instance(
         profile_id=None,
         runtime_root="test-runtime",
         state=WorkerSessionState.IDLE,
-        mode="task_bound",
-        session_id=f"mission_{persona_id}",
-        current_task_id=task_id,
-        current_assignment_id=assignment_id,
-        current_chat_goal="Implement the fix",
-    )
-
-
-def _persona_assignment(
-    assignment_id: str,
-    *,
-    instance_id: str,
-    task_id: str,
-    created_at: datetime,
-    updated_at: datetime | None = None,
-) -> PersonaAssignment:
-    return PersonaAssignment(
-        id=assignment_id,
-        persona_instance_id=instance_id,
-        persona_id="dev",
-        kind="task",
-        state="running",
-        title="Mission",
-        message="Do the mission",
-        created_by="operator",
-        created_at=created_at,
-        updated_at=updated_at or created_at,
-        task_id=task_id,
-    )
-
-
-def _persona_instance(instance_id: str, persona_id: str, task_id: str) -> PersonaInstance:
-    return PersonaInstance(
-        id=instance_id,
-        persona_id=persona_id,
-        role="dev",
-        display_name=persona_id,
-        profile_id=None,
-        runtime_root="test-runtime",
-        state=WorkerSessionState.IDLE,
-        mode="task_bound",
-        current_task_id=task_id,
+        mode="chat",
+        session_id=session_id,
     )
 
 
