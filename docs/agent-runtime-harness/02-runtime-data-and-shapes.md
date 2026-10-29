@@ -888,11 +888,14 @@ carries ``project_id`` and a clone binds the Project's fill).
 
 54 KEPT (Project category folders, 2026-10-29, RT-PROJECT-CATEGORY-FOLDERS) — no
 snapshot key moved. ``categories.documents`` may carry ``context_files`` (relative
-paths; ``runtime.project.category.set`` key ``context_files``); under a slot assignment
-the turn's slot context adds each listed file from this machine's documents folder as
-``## <Project>/documents — <file>`` and, while the guidance share is on, one
-``## <Project> — guidance`` section, with ``kind: project_context`` receipts
-(``agent_runtime/project_categories.py``). Work boards: ``Board.project_id``; a Project
+paths; ``runtime.project.category.set`` key ``context_files``); every instance of a
+workspace holding the Project — assigned or not — gets the turn's ``project_context``
+(``persona_slots.ProjectContext``, its own field beside ``slot_context``, so it never
+supersedes the ``--agents-file`` alias; RT-PROJECT-CONTEXT-WITHOUT-ASSIGNMENT): each listed
+file from this machine's documents folder as ``## <Project>/documents — <file>`` and, while
+the guidance share is on, one ``## <Project> — guidance`` section, after the slot (or alias)
+content, with ``kind: project_context`` receipts under the workspace receipt's
+``projects`` key (``agent_runtime/project_categories.py``). Work boards: ``Board.project_id``; a Project
 lists its boards category's slot (else one board per live slot) and a migrated
 document lists none of its own. ``runtime.project.artifacts.list`` answers
 ``{project_id, here, files: [{name, size}], truncated}``.

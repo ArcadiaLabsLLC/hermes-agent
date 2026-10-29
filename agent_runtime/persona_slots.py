@@ -276,6 +276,12 @@ class SlotContextSection:
         return f"## {self.slot} — {self.file}"
 
 
+def sections_text(sections: Any) -> str:
+    """Sections as the system message carries them: each under its heading, blank-line separated."""
+
+    return "\n\n".join(f"{section.heading}\n\n{section.content.strip()}" for section in sections)
+
+
 @dataclass(frozen=True)
 class SlotContext:
     """The assigned slots' context for one turn: sections, receipts, and the primary."""
@@ -310,7 +316,7 @@ class SlotContext:
 
     @property
     def content(self) -> str:
-        return "\n\n".join(f"{section.heading}\n\n{section.content.strip()}" for section in self.sections)
+        return sections_text(self.sections)
 
     @property
     def dedup_receipt(self) -> dict[str, Any] | None:
@@ -334,6 +340,37 @@ def _unbound_receipt(slot: str, document: dict[str, Any]) -> dict[str, Any]:
     machines = binding_machines(document, slot)
     return {"slot": slot, "label": slot, "kind": "workspace_context", "included": False, "status": "slot_unbound_here",
             "evidence": "bound on " + (", ".join(machines) if machines else "no reporting machine")}
+
+
+@dataclass(frozen=True)
+class ProjectContext:
+    """The workspace's Projects' listed documents and shared guidance for one turn (plan §7, H-P4).
+
+    Its own turn-context field, beside the slot context: it reaches every instance of a workspace
+    holding the Project — assigned or not — and never supersedes the ``--agents-file`` alias.
+    """
+
+    sections: tuple[SlotContextSection, ...] = ()
+    receipts: tuple[dict[str, Any], ...] = ()
+
+    @property
+    def content(self) -> str:
+        return sections_text(self.sections)
+
+
+def load_project_context(instance: Any) -> ProjectContext | None:
+    """The instance's workspace's Project context, or None when the workspace holds nothing to offer."""
+
+    from .project_categories import project_context
+
+    workspace_id = getattr(instance, "workspace_id", None)
+    if not workspace_id:
+        return None
+    sections, receipts = project_context(workspace_id)
+    if not sections and not receipts:
+        return None
+    return ProjectContext(tuple(SlotContextSection(slot, file, content) for slot, file, content in sections),
+                          tuple(receipts))
 
 
 def load_slot_context(instance: Any) -> SlotContext | None:
@@ -367,12 +404,6 @@ def load_slot_context(instance: Any) -> SlotContext | None:
             receipts.append(_file_receipt(slot, file, loaded))
             if getattr(loaded, "content", None):
                 sections.append(SlotContextSection(slot, file, loaded.content))
-    # The workspace's Projects' documents (listed files only) and shared guidance (plan §7, H-P4).
-    from .project_categories import project_context
-
-    project_sections, project_receipts = project_context(workspace_id)
-    sections.extend(SlotContextSection(slot, file, content) for slot, file, content in project_sections)
-    receipts.extend(project_receipts)
     primary, source = resolve_primary(instance)
     primary_path = dict(bound).get(primary) if primary else None
     return SlotContext(tuple(sections), tuple(receipts), primary, source, primary_path, tuple(bound), workspace_id,

@@ -7,7 +7,7 @@ from hermes_time import now
 from agent_runtime import paths, project_migration, serve_rpc
 from agent_runtime.models import PersonaInstance
 from agent_runtime.persona_assignments import PersonaInstanceStore
-from agent_runtime.persona_slots import load_slot_context, set_instance_slots
+from agent_runtime.persona_slots import ProjectContext, load_project_context, set_instance_slots
 from agent_runtime.project_store import ProjectStore
 from agent_runtime.states import WorkerSessionState
 from agent_runtime.store import WorkspaceStore
@@ -36,7 +36,7 @@ def _setup(tmp_path, *names):
 
 
 def _context():
-    return load_slot_context(PersonaInstanceStore().get("personainst_a"))
+    return load_project_context(PersonaInstanceStore().get("personainst_a")) or ProjectContext()
 
 
 def test_only_the_listed_documents_load_as_sections(tmp_path):
@@ -87,3 +87,28 @@ def test_the_artifacts_folder_is_listed_never_written(tmp_path):
                                       "params": {"project_id": "p1"}})["result"]
     assert reply == {"project_id": "p1", "here": True, "files": [{"name": "deck/slides.pdf", "size": 7}],
                      "truncated": False}
+
+
+def test_an_unassigned_instance_gets_the_projects_guidance_and_keeps_its_agents_file(tmp_path):
+    """RT-PROJECT-CONTEXT-WITHOUT-ASSIGNMENT: the project block is its own turn field, not the slot context.
+
+    Positive control: the same instance, assigned, carries the same block after its slot sections.
+    """
+    from agent_runtime.mission_chat_turn_context import DEFAULT_RESOLVERS, _turn_workspace, workspace_content
+
+    _setup(tmp_path, "launcher")
+    store = ProjectStore()
+    store.set_category("p1", "guidance", slot=None, subpath=None, shared=True, issued_at=T0)
+    store.set_guidance("p1", description="A launcher.", instructions="Prefer tokens.", issued_at=T0)
+    agents = tmp_path / "AGENTS.md"
+    agents.write_text("the alias file", encoding="utf-8")
+    set_instance_slots("personainst_a", [], issued_at="2026-10-29T12:00:00+00:00")
+    instance = PersonaInstanceStore().get("personainst_a")
+    slot_context, alias, receipt, _workdir, project = _turn_workspace(DEFAULT_RESOLVERS, None, instance, str(agents))
+    assert slot_context is None and alias.content.strip() == "the alias file"  # the alias is not superseded
+    content = workspace_content(slot_context, alias, project)
+    assert "the alias file" in content and "## Eternia — guidance\n\nA launcher.\n\nPrefer tokens." in content
+    assert [r["label"] for r in receipt["projects"]] == ["Eternia/guidance"]
+    set_instance_slots("personainst_a", ["p1/launcher"], issued_at="2026-10-29T13:00:00+00:00")
+    assigned = _turn_workspace(DEFAULT_RESOLVERS, None, PersonaInstanceStore().get("personainst_a"), None)
+    assert assigned[0] is not None and "## Eternia — guidance" in workspace_content(assigned[0], None, assigned[4])

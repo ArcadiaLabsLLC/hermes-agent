@@ -1048,10 +1048,11 @@ def _first_turn_workspace(persona: Any, instance: Any) -> _FirstTurnWorkspace:
     docstring); ``receipt`` the repo-slot receipt the signature folds (build plan §3.3);
     ``workdir`` the grounding the turn resolves from the same inputs (D1.12 S1)."""
 
-    from .mission_chat_turn_context import DEFAULT_RESOLVERS, _turn_workspace
+    from .mission_chat_turn_context import DEFAULT_RESOLVERS, _turn_workspace, workspace_content
 
-    slot_context, _agents, receipt, workdir = _turn_workspace(DEFAULT_RESOLVERS, persona, instance, None)
-    content = None if slot_context is None else (slot_context.content or None)
+    slot_context, _agents, receipt, workdir, project_context = _turn_workspace(DEFAULT_RESOLVERS, persona, instance,
+                                                                               None)
+    content = workspace_content(slot_context, None, project_context)
     return _FirstTurnWorkspace(content, receipt, workdir)
 
 
