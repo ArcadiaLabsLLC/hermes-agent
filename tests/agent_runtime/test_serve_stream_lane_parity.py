@@ -39,7 +39,7 @@ The four gaps, and what each is pinned with
 
 Fixtures: NONE are added. The parity comparison needs volatile stamps removed,
 and the normalizer it uses is the one the committed goldens are generated with
-(``scripts/generate_agent_runtime_stream_fixtures.py:_normalize``), imported
+(``scripts/stream_fixture_normalize.py:_normalize``, read through the generator), imported
 rather than copied — a second normalizer here could disagree with the one that
 wrote ``tests/fixtures/stream_frames/`` and the disagreement would look like
 parity. The goldens themselves are read (never written) as the third leg: the

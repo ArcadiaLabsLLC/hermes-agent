@@ -171,11 +171,11 @@
   },
   {
    "arms": 4,
-   "site": "scripts/generate_agent_runtime_stream_fixtures.py|_normalize|isinstance|value"
+   "site": "scripts/stream_fixture_normalize.py|_normalize|isinstance|value"
   },
   {
    "arms": 3,
-   "site": "scripts/generate_agent_runtime_stream_fixtures.py|_offset_rank_map.walk|isinstance|value"
+   "site": "scripts/stream_fixture_normalize.py|_offset_rank_map.walk|isinstance|value"
   },
   {
    "arms": 3,

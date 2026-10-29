@@ -9,7 +9,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-10-29 (land w1029a-h)
 
-- **`FH-STREAM-FIXTURE-GENERATOR-AT-CEILING` — `scripts/generate_agent_runtime_stream_fixtures.py` sits at 799 of 800 code lines after the landing joined one wrapped call to clear the W0-G1 red the Lens-watcher pin raised; the next edit reds the ceiling again, so lift the volatile-value normalization (`_normalize`, `_offset_rank_map`) into its own module (moving the two `ladder_routing_grandfathered.json` sites with it)** · `scripts/generate_agent_runtime_stream_fixtures.py::_normalize` · `tests/tooling/test_downstream_size_ceiling.py` · READY 2026-10-29 · **TAKEN 2026-10-29 w1029b-h-fork on nekwo-ubuntu24 as nekwo in hermes-w1029b-h-fork**
 - **`FH-LANDING-BRIEF-WHOLE-TREE-GATE` — the w1029a landing brief named `bash scripts/run_tests.sh -j 16` (no paths) as "the full fork suite"; that is a whole-tree run ADR 0016 forbids (62k tests, ~60 reds from upstream files on Linux by mid-run), and the landing switched to `scripts/run_tests_bundled.sh tests`; the launcher-side landing brief template should name the bundled gate** · `Harness_Brain/30 — Decisions/0016 — No whole-tree run, ever.md` · `scripts/run_tests_bundled.sh` · READY 2026-10-29 · **TAKEN 2026-10-29 w1029b-h-fork on nekwo-ubuntu24 as nekwo in hermes-w1029b-h-fork**
 
 ## Filed on arrival — 2026-10-29 (lane w1029a-h-fork)
