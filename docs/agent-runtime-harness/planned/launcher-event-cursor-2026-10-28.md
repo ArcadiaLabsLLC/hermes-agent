@@ -2,7 +2,7 @@
 
 **Status:** planned 2026-10-28 (lane w1028a-h-plan) for row `RT-LAUNCHER-EVENT-CURSOR`. E1 built 2026-10-29 (lane w1029a-h-rt-b; the contract is [03 § Events after a durable cursor](../03-transport-and-wire.md)); W4 is the launcher's. One delta from §2.6: a refused page's `next_cursor` is the cursor sent, never the tail.
 **Consumer:** the launcher's webhook source W4 (`DIST-WEBHOOK-LENS-SOURCE`,
-`EterniaLauncher/docs/stages/installer-distribution/planned/HOST_OUTBOUND_WEBHOOKS_2026-10-27.md`
+`EterniaLauncher/docs/stages/installer-distribution/HOST_OUTBOUND_WEBHOOKS_2026-10-27.md`
 H5 and W4), which writes an event's outbox rows and its cursor in one transaction, so it needs a
 cursor that names a durable position and a replay that is complete or says it is not.
 **Owner doc:** [03 — Transport and wire](../03-transport-and-wire.md) (the method lane).
