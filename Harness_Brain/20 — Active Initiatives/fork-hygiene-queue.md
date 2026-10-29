@@ -612,7 +612,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-28 (lane w1028a-h-triage)
 
-- **`FH-VM-CLONE-SHALLOW-DOCKET-GATES` — on a shallow clone `tests/test_docket_stage_claims.py` now reports "not checked: shallow clone" and `tests/test_coverage_claims_resolve.py` sets upstream-shipped files' claims aside (fork files and docs still checked); the ruled targeted fetch cannot exist: the dockets and the footprint base cite ABBREVIATED shas, which git cannot fetch by sha, and one fetched commit cannot answer ancestry through the shallow graft (measured 2026-10-29: a sha fetch pulled 1.1 GB and still answered no; the only working repair is a commits-only deepen, `--filter=tree:0 --deepen`, which reached the full 62k-commit graph at depth 4096 in ~11 s locally)** · `tests/_fork_scope.py::unattributable_upstream_paths` · `tests/test_docket_stage_claims.py::_ancestry_unanswerable` · RULED 2026-10-29: owner "yea rescope, sounds like alot of compute on a gate for no reason" · BLOCKED 2026-10-29: owner decision — should a shallow clone deepen the commit graph (commits only, no trees or blobs) so these gates check, or stay "not checked"? · Recommend: stay "not checked" — full clones and CI (`fetch-depth: 0`) still check, and a commits-only deepen is the --unshallow of the graph the ruling declined
 
 ## Filed on arrival — 2026-10-29 (orchestrator, found running the CLAUDE.md-reading tests)
 
