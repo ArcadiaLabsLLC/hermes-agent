@@ -6,6 +6,34 @@ from agent_runtime.workspace_create import create_workspace, WorkspaceCreationRe
 
 __layer__ = "lanes"
 
+PROJECT_CONNECTION_METHOD = "runtime.workspace.project.set"
+PROJECT_CONNECTION_PARAMS = ("workspace_id", "project_id", "connected", "expected_revision", "credential")
+
+
+@method(PROJECT_CONNECTION_METHOD, tier=TIER_CONSOLE)
+def runtime_workspace_project_set(rid, params, context=None):
+    from agent_runtime.errors import NotFound
+    from agent_runtime.locks import HarnessLockUnavailable
+    from agent_runtime.realm_membership import RealmSyncCredential
+    from agent_runtime.workspace_slots import SlotRefused
+    from agent_runtime.workspace_projects import set_project_connection
+
+    try:
+        raw = params.get("credential")
+        credential = None if raw is None else RealmSyncCredential.parse(raw)
+        result = set_project_connection(
+            params.get("workspace_id"), params.get("project_id"),
+            connected=params.get("connected"), expected_revision=params.get("expected_revision"),
+            credential=credential,
+        )
+        return ok(rid, result)
+    except SlotRefused as exc:
+        return err(rid, ERR_CONFLICT, "Workspace connection needs review.", {"reason": exc.reason})
+    except HarnessLockUnavailable:
+        return err(rid, ERR_CONFLICT, "Workspace connection is busy.", {"reason": "workspace_busy"})
+    except (ValueError, NotFound):
+        return err(rid, ERR_INVALID_PARAMS, "Workspace connection is unavailable.")
+
 
 @method("runtime.workspace.conversations", tier=TIER_CONSOLE)
 def runtime_conversations_workspace(rid, params, context=None):

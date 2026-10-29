@@ -254,6 +254,7 @@ def manifest() -> dict[str, Any]:
     from ..subagents.params import METHOD_PARAMS as SUBAGENT_METHOD_PARAMS
     from ..conversations.model import MIGRATE_METHOD, MIGRATE_PARAMS
     from ..work.model import READ_METHOD_PARAMS as WORK_READ_METHOD_PARAMS
+    from .workspace import PROJECT_CONNECTION_METHOD, PROJECT_CONNECTION_PARAMS
 
     return {
         "contract": RPC_CONTRACT_VERSION,
@@ -273,6 +274,7 @@ def manifest() -> dict[str, Any]:
                 **BOARD_METHOD_PARAMS,
                 **SUBAGENT_METHOD_PARAMS,
                 **WORK_READ_METHOD_PARAMS,
+                PROJECT_CONNECTION_METHOD: PROJECT_CONNECTION_PARAMS,
                 MIGRATE_METHOD: MIGRATE_PARAMS,
             }.items())
         },

@@ -66,6 +66,8 @@ def workspace_summary(
         "name": workspace.name,
         "slug": workspace.slug,
         "realm_id": workspace.realm_id,
+        "project_ids": list(workspace.project_ids),
+        "project_assignment_revision": workspace.project_assignment_revision,
         # Keep the legacy ``agents``/``agent_ids`` pair internally coherent:
         # both describe exact live rows placed in this workspace.  Emitting
         # roster persona ids here made pointerless canonical operator rows look

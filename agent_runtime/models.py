@@ -103,6 +103,10 @@ class Workspace:
     realm_id: str | None = None
     archived: bool = False
     schema_version: int = 1
+    # Launcher Project references only. Existing workspace/instance owners keep
+    # slots and access; a connection never assigns slots or shares content.
+    project_ids: list[str] = field(default_factory=list)
+    project_assignment_revision: int = 0
 
 
 @dataclass(slots=True)

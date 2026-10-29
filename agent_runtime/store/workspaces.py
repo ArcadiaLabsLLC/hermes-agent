@@ -7,12 +7,14 @@ from __future__ import annotations
 
 import shutil
 import uuid
+from collections.abc import Callable
 
 from hermes_time import now
 
 from .. import paths
 from ..errors import AlreadyExists, NotFound, WorkspaceDeleteBlocked
 from ..events import EventLog
+from ..locks import _file_lock
 from ..models import Realm, Workspace, WorkspaceLift
 from ..serde import safe_id
 from ..store_events import emit_store_event
@@ -90,6 +92,26 @@ class WorkspaceStore:
         return sorted(items, key=lambda item: (item.name.lower(), item.id))
 
     def save(self, item: Workspace, *, emit_event: bool = True) -> Workspace:
+        # Project references have a revisioned command. An older rename/roster
+        # record must not overwrite a connection committed while it was held.
+        with _file_lock(paths.store_root() / "workspace_write_locks" / f"{paths.safe_path_token(item.id)}.lock", timeout_seconds=2.0):
+            if paths.workspace_path(item.id).exists():
+                current = self.get(item.id)
+                item.project_ids = current.project_ids
+                item.project_assignment_revision = current.project_assignment_revision
+            return self._save_unlocked(item, emit_event=emit_event)
+
+    def update_project_connections(self, workspace_id: str, change: Callable[[Workspace], None]) -> Workspace:
+        """Apply the connection command to the current workspace, under its writer lock."""
+        with _file_lock(paths.store_root() / "workspace_write_locks" / f"{paths.safe_path_token(workspace_id)}.lock", timeout_seconds=2.0):
+            item = self.get(workspace_id)
+            revision = item.project_assignment_revision
+            change(item)
+            if revision == item.project_assignment_revision:
+                return item
+            return self._save_unlocked(item)
+
+    def _save_unlocked(self, item: Workspace, *, emit_event: bool = True) -> Workspace:
         """``emit_event=False`` is for named mutators (rename/archive/…) that
         append their own, more specific event — never for skipping emission."""
         item.updated_at = now()

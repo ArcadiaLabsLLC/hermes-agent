@@ -1,0 +1,36 @@
+"""Workspace connections to Launcher Projects; references, never another roster.
+
+Slots, instance placement, instructions and work retain their existing owners.
+A connection neither assigns slots nor shares content. WorkspaceStore is the
+single writer; this command adds revision and realm authorization checks.
+"""
+
+from . import paths
+from .models import Workspace
+from .store import WorkspaceStore
+from .workspace_slots import SlotRefused, require_publish_right
+
+__layer__ = "stores"
+
+
+def set_project_connection(workspace_id: str, project_id: str, *, connected: bool,
+                           expected_revision: int, credential=None) -> dict:
+    for key, value in (("workspace_id", workspace_id), ("project_id", project_id)):
+        if not isinstance(value, str) or not value or paths.safe_path_token(value) != value:
+            raise SlotRefused("invalid_reference", key)
+    if not isinstance(connected, bool) or type(expected_revision) is not int or expected_revision < 0:
+        raise SlotRefused("invalid_declaration", "connected and expected_revision are required")
+    def change(workspace: Workspace) -> None:
+        require_publish_right(workspace_id, credential)
+        if workspace.archived and connected:
+            raise SlotRefused("workspace_archived")
+        if workspace.project_assignment_revision != expected_revision:
+            raise SlotRefused("stale_revision")
+        present = project_id in workspace.project_ids
+        if present != connected:
+            workspace.project_ids = ([*workspace.project_ids, project_id] if connected
+                                     else [value for value in workspace.project_ids if value != project_id])
+            workspace.project_assignment_revision += 1
+    workspace = WorkspaceStore().update_project_connections(workspace_id, change)
+    return {"workspace_id": workspace.id, "project_ids": workspace.project_ids,
+            "revision": workspace.project_assignment_revision}
