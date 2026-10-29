@@ -20,6 +20,7 @@ module          layer   owns
 ==============  ======  ========================================================
 models          models  scans, typed outcomes, the position-policy hook, caps
 normalize       policy  write-time payload normalization, display-name checks
+noop            policy  the content-equal no-op rule, ``WriteOutcome``
 files           stores  THE file writes (surface, live actor, archived actor)
 patches         stores  the ``state.patched`` producers
 guards          stores  the tombstone and class-key fences

@@ -25,6 +25,7 @@ from agent_runtime.office_store.models import (
     ActorScan,
     OfficePositionPolicy,
 )
+from agent_runtime.office_store.noop import WriteOutcome, unchanged
 from agent_runtime.office_store.normalize import (
     _canonical_actor_key,
     _normalize_actor_persona_ref,
@@ -45,6 +46,7 @@ __all__ = [
     "remove_actor",
     "restore_actor",
     "upsert_actor",
+    "upsert_actor_outcome",
 ]
 
 
@@ -61,7 +63,47 @@ def upsert_actor(
     dry_run: bool = False,
     position_policy: OfficePositionPolicy | None = None,
 ) -> OfficeActor:
+    """Write ONE actor placement and return the row — :func:`upsert_actor_outcome`'s
+    row, for the callers that do not ask whether a file was written."""
+
+    return upsert_actor_outcome(
+        store,
+        workspace_id,
+        payload,
+        updated_by=updated_by,
+        expect_revision=expect_revision,
+        allow_class_key=allow_class_key,
+        resurrect=resurrect,
+        correlation_id=correlation_id,
+        dry_run=dry_run,
+        position_policy=position_policy,
+    ).row
+
+
+def upsert_actor_outcome(
+    store: OfficeStore,
+    workspace_id: str,
+    payload: dict[str, Any],
+    *,
+    updated_by: str = "operator",
+    expect_revision: int | None = None,
+    allow_class_key: bool = False,
+    resurrect: bool = False,
+    correlation_id: str | None = None,
+    dry_run: bool = False,
+    position_policy: OfficePositionPolicy | None = None,
+) -> WriteOutcome[OfficeActor]:
     """Write ONE actor placement, creating the surface if it does not exist.
+
+    THE NO-OP (``office_store/noop.py``): a payload whose next row equals the
+    LIVE row outside the stamped fields writes no file, bumps no revision,
+    emits no patch and no event, and returns the live row with
+    ``written=False``. It is decided LAST — after every fence and after
+    ``check_revision`` — so a refusal that stands for a changed payload stands
+    for an equal one too (a stale token on an equal payload is still
+    ``StaleRevision``). A payload equal to an ARCHIVED copy is not live and
+    writes the re-add as before, and so does an equal live row whose key the
+    ledger or the archive still holds (that write is the cleanup).
 
     THE ORDER: refuse an unresolvable workspace BEFORE the lock, run every
     fence INSIDE it, and author the surface only once the write is going to
@@ -183,7 +225,9 @@ def upsert_actor(
             # Full validation (payload/items/secret-name), conflict guard, and
             # revision check ran above; return the would-be actor in memory.
             # Write nothing, touch no ledger, emit no event.
-            return actor
+            return WriteOutcome(actor, written=False)
+        if existing is not None and _is_noop(store, wsid, existing, actor, archived_path):
+            return WriteOutcome(existing, written=False)
         # THE surface creation, here rather than before the lock: every
         # fence above has passed, so this is the first line of an upsert
         # that is actually going to happen. ``_ensure_surface_locked``
@@ -193,7 +237,19 @@ def upsert_actor(
         _write_actor(actor)
         _settle_written(store, surface, actor, actor_key, created=existing is None, archived_path=archived_path,
                         ts=ts, item_count=len(items), correlation_id=correlation_id, scan=scan)
-    return store.get_actor(wsid, actor_key)
+    return WriteOutcome(store.get_actor(wsid, actor_key), written=True)
+
+
+def _is_noop(
+    store: OfficeStore, wsid: str, existing: OfficeActor, actor: OfficeActor, archived_path: Path
+) -> bool:
+    """Is this upsert the no-op? Only a LIVE equal row with nothing left to
+    clean up — no archive copy, no ledger entry, an existing surface — is."""
+    if existing.state != "active" or not unchanged(existing, actor):
+        return False
+    if archived_path.exists() or not store.surface_exists(wsid):
+        return False
+    return existing.actor_key not in store.get_surface(wsid).archived_actor_keys
 
 
 @dataclass(frozen=True, slots=True)

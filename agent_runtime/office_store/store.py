@@ -25,10 +25,14 @@ Hard invariants this store upholds:
   secret-assignment scanner, so one member's name can never hard-fail another
   member's realm publish (plan §4.2). The publish-time scan stays as
   defense-in-depth.
-- **Upserts are naturally idempotent** (keyed by ``actor_key``; identical
-  content re-writes converge on the same file), so no idempotency ledger is
-  needed — the board's ledger exists because ``add_card`` mints a new id per
-  call; office writes don't.
+- **A content-equal upsert is a no-op** (keyed by ``actor_key``; a payload
+  equal to the live row outside the stamped fields writes no file, bumps no
+  revision and emits nothing — ``office_store/noop.py``), so no idempotency
+  ledger is needed — the board's ledger exists because ``add_card`` mints a
+  new id per call; office writes don't. (This line used to say identical
+  re-writes "converge on the same file"; they did not — the revision and
+  ``updated_at`` moved on every write, measured in
+  ``docs/agent-runtime-harness/planned/office-page-open-write-storm.md`` §1.1.)
 """
 
 from __future__ import annotations
@@ -179,6 +183,7 @@ class OfficeStore:
 
     # actor_writes
     upsert_actor = actor_writes_lane.upsert_actor
+    upsert_actor_outcome = actor_writes_lane.upsert_actor_outcome
     remove_actor = actor_writes_lane.remove_actor
     restore_actor = actor_writes_lane.restore_actor
 
