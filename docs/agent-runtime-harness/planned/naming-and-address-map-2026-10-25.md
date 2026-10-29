@@ -100,10 +100,10 @@ Facts the tree rests on:
 | `persona` / `persona-instance` | the role / the agent you chat with; players see "role" and "agent" |
 | `chat` / `turn` / `chat-folder` | a conversation / one turn / a chat's scratch space inside the namespace |
 | `realm` / `realm-workspace` / `repo-slot` | the shared world / its team workspace / a named repository it declares |
-| `slot-folder` | a workspace-owned repo slot's folder on one machine in one namespace |
+| `slot-folder` | a repo slot's folder on one machine in one namespace; workspace-owned today, a Project's slot in the owner's open direction (`EterniaLauncher` `COMP-PROJECTS-SLOTS-AND-SHARING`) |
 | `development-workspace` | a git worktree cut from a slot's repository |
 | `upstream-project` | upstream's per-profile record in `projects.db`; separate from Launcher Projects |
-| `launcher-project` | the Launcher's account-local home for folders, chats, context and outputs; a Hermes workspace holds only its opaque id in `project_ids` |
+| `launcher-project` | the Launcher's account-local home for folders, chats, context and outputs; a Hermes workspace holds its id in `project_ids` (built); in the owner's open direction it declares its slots and its categories share as source-controlled folders (`EterniaLauncher` `COMP-PROJECTS-SLOTS-AND-SHARING`) |
 | `centrifugo-channel-namespace` | the server's realtime channel group, always written in full |
 
 Player-facing copy uses the short word only where it has one meaning: "Workspace" (realm workspace), "Agent
@@ -121,13 +121,15 @@ Each segment carries its kind, so a bare id never names anything. One typed addr
 (hermes and launcher) with one print/parse format; every audit line, turn record and agent commit trailer
 (`RT-AGENT-COMMIT-ATTRIBUTION`) prints it.
 
-Owner correction, 2026-10-28: keep existing owners; add Project connections and
-avatars. A workspace may reference several Launcher Projects and a Project may
-connect to several workspaces. This does not move slots, share Project content,
-grant access or create a runtime Project store. The implemented reference contract
-is in `docs/agent-runtime-harness/02-runtime-data-and-shapes.md` §54; Launcher presentation is in
-`EterniaLauncher/docs/mission_control/planned/build-running-work-launcher-2026-10-04.md`
-§4A. The former proposal for Project-owned slots is superseded.
+Connections slice, 2026-10-28 (built; scoped by Maximus Shaban's correction "keep existing owners; add Project
+connections and avatars"): a workspace may reference several Launcher Projects and a Project may connect to several
+workspaces. That slice does not move slots, share Project content, grant access or create a runtime Project store.
+The implemented reference contract is in `docs/agent-runtime-harness/02-runtime-data-and-shapes.md` §54; Launcher
+presentation is in `EterniaLauncher/docs/mission_control/planned/build-running-work-launcher-2026-10-04.md` §4A.
+The owner's direction is NOT superseded (2026-10-29, ADR 0038 in `EterniaLauncher/Launcher_Brain/30 — Decisions/`):
+Projects declare their slots, workspaces are assigned Projects (the `project_ids` above) and their agents read the
+Projects' slots and data, and a Project's chats, documents, boards and artifacts share as source-controlled folders.
+It is open as `COMP-PROJECTS-SLOTS-AND-SHARING` in the launcher; its plan amends these rows.
 
 ## The board (owner, 2026-10-25)
 
