@@ -340,3 +340,22 @@ def test_default_scope_reconciliation_refuses_fixed_duplicate_with_scoped_data()
 
     assert RealmStore().get(DEFAULT_REALM_ID).archived is False
     assert WorkspaceStore().get(DEFAULT_WORKSPACE_ID).archived is False
+
+
+def test_the_boot_form_never_moves_an_operator_off_a_live_workspace():
+    """RT-SERVE-BOOT-DEFAULT-SCOPE: serve boot materializes the Default scope but writes no
+    active pointer, so a live workspace whose realm pointer was never set stays chosen (the
+    init form, the positive control, re-points it). Kill-mutation: drop the
+    ``seed_active_pointers`` early return → the boot half reds."""
+    realm = RealmStore().create(name="Synced realm")
+    chosen = WorkspaceStore().create(name="Chosen", realm_id=realm.id)
+    WorkspaceStore().set_active(chosen.id)
+    assert RealmStore().active_id() is None
+
+    booted = ensure_default_scope(seed_active_pointers=False)
+    assert booted.created_realm and booted.created_workspace
+    assert WorkspaceStore().active_id() == chosen.id
+    assert RealmStore().active_id() is None
+
+    ensure_default_scope()
+    assert WorkspaceStore().active_id() == DEFAULT_WORKSPACE_ID

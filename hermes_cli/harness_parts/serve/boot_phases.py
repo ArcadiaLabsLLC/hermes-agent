@@ -680,7 +680,7 @@ class BootPhases:
         try:
             from agent_runtime.default_scope import ensure_default_scope
 
-            scope = ensure_default_scope()
+            scope = ensure_default_scope(seed_active_pointers=False)
             default_scope_created = scope.created_realm or scope.created_workspace
         except Exception:
             default_scope_created = False

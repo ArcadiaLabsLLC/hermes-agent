@@ -33,7 +33,9 @@ class DefaultScope:
     adopted_legacy_realm: bool = False
 
 
-def ensure_default_scope(*, agent_ids: list[str] | None = None) -> DefaultScope:
+def ensure_default_scope(
+    *, agent_ids: list[str] | None = None, seed_active_pointers: bool = True
+) -> DefaultScope:
     """Materialize the launcher's durable local baseline scope.
 
     ``harness init`` is idempotent, so this coordinator must be too. New stores
@@ -41,6 +43,13 @@ def ensure_default_scope(*, agent_ids: list[str] | None = None) -> DefaultScope:
     adopted in place so startup never creates a case-variant twin. Existing
     operator state is preserved: ids, roster edits, names, sibling workspaces,
     and a valid active server realm/workspace are never overwritten.
+
+    ``seed_active_pointers=False`` is the serve-boot form
+    (RT-SERVE-BOOT-DEFAULT-SCOPE): the baseline is materialized and selectable,
+    but neither active pointer is written. A boot is not an operator intent: it
+    must never pull an operator off a workspace they chose (even one whose realm
+    pointer was never set), and a pointer it stamped would supersede an older
+    pending ``use`` intent under the activation compare-and-set.
     """
 
     realm_store = RealmStore()
@@ -145,6 +154,15 @@ def ensure_default_scope(*, agent_ids: list[str] | None = None) -> DefaultScope:
 
     # Seed active pointers only when no valid choice exists. Re-running init
     # after joining a realm must not pull the operator back to Default.
+    result = DefaultScope(
+        realm=realm,
+        workspace=workspace,
+        created_realm=created_realm,
+        created_workspace=created_workspace,
+        adopted_legacy_realm=adopted_legacy_realm,
+    )
+    if not seed_active_pointers:
+        return result
     active_realm_id = realm_store.active_id()
     if active_realm_id is None or not _realm_exists(realm_store, active_realm_id):
         realm_store.set_active(realm.id)
@@ -161,13 +179,7 @@ def ensure_default_scope(*, agent_ids: list[str] | None = None) -> DefaultScope:
     ):
         workspace_store.set_active(workspace.id)
 
-    return DefaultScope(
-        realm=realm,
-        workspace=workspace,
-        created_realm=created_realm,
-        created_workspace=created_workspace,
-        adopted_legacy_realm=adopted_legacy_realm,
-    )
+    return result
 
 
 def preview_default_scope_migration() -> dict:
