@@ -126,3 +126,36 @@ def test_the_reconciler_runs_phase_0_and_its_dry_run_writes_nothing():
     assert _raw(STEERED)["mode"] == "task_bound"
     assert reconcile_persona_instances(apply=True)["task_bound_normalised_count"] == 1
     assert reconcile_persona_instances(apply=True)["task_bound_normalised_count"] == 0
+
+
+def _boot_ready_frame() -> dict:
+    import io
+
+    from hermes_cli.harness_parts.serve import serve_loop
+
+    out = io.StringIO()
+    assert serve_loop(iter([json.dumps({"op": "shutdown"}) + "\n"]), out, pool_size=1, dispatch=lambda argv: 0) == 0
+    return next(f for f in map(json.loads, out.getvalue().splitlines()) if f.get("event") == "ready")
+
+
+def test_serve_boot_runs_phase_0_once():
+    """RT-TASK-BOUND-BOOT-SWEEP. Kill-mutation: drop the ``retire_task_bound_rows`` call from
+    ``_boot_sweeps_and_ready_frame`` → the archive glob is empty, red."""
+    _seed(STEERED, task="g1", goal="g1")
+    _seed(MISSION, task="task_9", goal=None)
+
+    assert _boot_ready_frame()["task_bound_retired"] == 2
+
+    assert _raw(STEERED)["mode"] == "configured" and _raw(STEERED).get("current_task_id") is None
+    assert len(list(paths.persona_instances_archive_dir().glob(f"*_retire/{MISSION}.json"))) == 1
+    assert "task_bound_retired" not in _boot_ready_frame()
+
+
+def test_a_phase_0_that_raises_does_not_fail_the_boot(monkeypatch):
+    """Kill-mutation: remove the ``try/except`` around the boot sweep → the boot errors."""
+    def boom(self, *, apply=True):
+        raise OSError("store unreadable")
+
+    monkeypatch.setattr(PersonaInstanceStore, "retire_task_bound_rows", boom)
+    ready = _boot_ready_frame()
+    assert ready["event"] == "ready" and "task_bound_retired" not in ready

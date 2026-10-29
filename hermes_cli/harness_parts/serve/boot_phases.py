@@ -699,6 +699,18 @@ class BootPhases:
         except Exception:
             orphaned_repaired = []
         self.timeline.mark("orphaned_turn_sweep_ms")
+        # Reconcile phase 0 only (RT-TASK-BOUND-BOOT-SWEEP): every box drains its
+        # stored ``task_bound`` rows — steer-shaped normalised, mission-shaped
+        # archived — without an operator reconcile. Idempotent and fail-open.
+        task_bound_retired = 0
+        try:
+            from agent_runtime.persona_assignments import PersonaInstanceStore
+
+            retired = PersonaInstanceStore().retire_task_bound_rows(apply=True)
+            task_bound_retired = len(retired["normalised"]) + len(retired["archived"])
+        except Exception:
+            task_bound_retired = 0
+        self.timeline.mark("task_bound_retire_ms")
         # Same moment, same reason, for detached dispatches: a row still marked
         # ``running`` whose owning process is provably gone can never finish, and
         # the sender is owed that answer too. Reclassifying it here — BEFORE the
@@ -799,6 +811,8 @@ class BootPhases:
             self.ready_frame["default_scope_created"] = True
         if orphaned_repaired:
             self.ready_frame["orphaned_turns_repaired"] = len(orphaned_repaired)
+        if task_bound_retired:
+            self.ready_frame["task_bound_retired"] = task_bound_retired
         if dispatches_restored:
             self.ready_frame["dispatches_restored"] = dispatches_restored
         if long_calls_lost:

@@ -407,6 +407,13 @@ requested after — so repaired records project as typed `turn_interrupted` mark
 instead of a console stuck "running" forever. When anything flips, a `state.reconciled` event is
 appended so already-connected watermark-gated consumers converge too. Best-effort.
 
+**Stored `task_bound` rows** (`task_bound_retire_ms`,
+`agent_runtime/persona_assignments/repair.py::retire_task_bound_rows`). Reconcile phase 0 and
+only phase 0 — the merge / rename / prune phases stay operator decisions behind
+`harness persona-instance reconcile --dry-run`. Steer-shaped rows are normalised, mission-shaped
+rows archived, once per row ever; fail-open, and `task_bound_retired` rides the ready frame when
+nonzero.
+
 **Detached dispatches** (`dispatch_restore_ms`, `serve.py`). Same moment, same reason:
 a row still marked `running` whose owning process is provably gone can never finish, and the
 sender is owed that answer. Identity-verified — a recycled PID is not the old owner — and
