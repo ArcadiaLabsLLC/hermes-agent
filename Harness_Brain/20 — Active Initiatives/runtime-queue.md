@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-29 (launcher planning lane w1029p-genui)
+
+- **`RT-LAUNCHER-CATALOG-REVENDOR-GENERATED-TREE` — re-vendor the launcher's app-function catalog twice for the generated virtual file tree: once when `launcher.generated.tree` / `read` / `grep` land (`read` and `grep` always loaded) with `files_json` on create/update, and once when `part` / `offset` / `key` leave `list` / `inspect`; the fixture's always-loaded set and tool names are what the source gates enumerate** · fork / launcher link · `scripts/vendor_launcher_catalog.py` · `tests/fixtures/launcher_app_functions_catalog.json` · plan `EterniaLauncher/docs/companion/planned/GENERATED_VIRTUAL_FILE_TREE_2026-10-29.md` · BLOCKED 2026-10-29: launcher — `COMP-GENERATED-TREE-VERBS` exports the first catalog change and `COMP-GENERATED-PART-RETIRE` the second; run the script after each lands
+
 ### Filed on arrival — 2026-10-28 (planning lane w1028p-taskbound)
 
 - **`RT-TASK-BOUND-UPDATE-GOAL-STAMP` — `persona instance update --goal` still writes the goal as the task: `_apply_chat_fields` sets `current_task_id = goal_id` without flipping `mode`, so S1's decode (keyed on `mode == "task_bound"`) never normalises it and every `current_task_id` reader fires (`BUSY_TASK_BOUND`, the repair skip, the `task:` channel key, the launcher's "Mission linked")** · fork / persona · `agent_runtime/persona_assignments/profile_writes.py::_apply_chat_fields` · `hermes_cli/harness_parts/parser/persona.py:353` · plan `docs/agent-runtime-harness/planned/task-bound-mission-lanes-2026-10-28.md` §Slices S0 · READY 2026-10-28
