@@ -212,6 +212,24 @@ def test_an_urgent_only_monitor_still_forges_its_scheduled_run():
     assert "lens_propose" in message
 
 
+def test_a_receipt_names_its_episodes_rule_so_a_scheduled_run_is_told_from_a_breach():
+    # RT-LENS-RECEIPT-RULE-ID: the launcher labels a ``schedule:run`` receipt "scheduled run" by this key.
+    forge = _Forge()
+    store = _enabled(_monitor(schedule=DAILY_AT_8, when="urgent"))
+    store.save_episode(_breach())
+    _tick(store, T0)
+    _door(store, T0, forge)
+
+    receipts = store.receipts(monitor_id="status")
+    assert {row["rule_id"]: row["outcome"] for row in receipts} == {
+        SCHEDULE_RULE_ID: "forged", "cpu_hot": "skipped_severity"}
+    assert all(store.receipt(row["episode_id"])["rule_id"] == row["rule_id"] for row in receipts)
+    # A receipt whose Episode row is gone still reads, with no rule to name.
+    store.save_receipt({"episode_id": "b" * 64, "monitor_id": "status", "turn_id": "x", "started_ms": to_ms(T0),
+                        "outcome": ReceiptOutcome.FORGED.value, "tool_admission": "read_only"})
+    assert store.receipt("b" * 64)["rule_id"] is None
+
+
 def test_a_scheduled_run_spends_the_cap():
     forge = _Forge()
     store = _enabled(_monitor(schedule=DAILY_AT_8, cap=1))

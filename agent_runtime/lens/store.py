@@ -46,8 +46,9 @@ from typing import Any, Callable, Iterator
 
 from .episode import Episode
 from .store_episode_rows import canonical_body, episode_body, episode_state_moves, stale_pairs, write_episode
-from .store_receipt_rows import (RECEIPT_COLUMNS as _RECEIPT_COLUMNS, insert_receipts,
-                                 receipt_json as _receipt_json, receipt_row as _receipt_row, settle_receipts_full)
+from .store_receipt_rows import (RECEIPT_COLUMNS as _RECEIPT_COLUMNS, RECEIPT_READ as _RECEIPT_READ,
+                                 insert_receipts, receipt_json as _receipt_json, receipt_row as _receipt_row,
+                                 settle_receipts_full)
 from .feed import Observation
 from .manifest import read_manifest
 from .seal import SealedManifest, seal_manifest
@@ -590,8 +591,7 @@ class LensStore:
 
     def receipt(self, episode_id: str) -> dict[str, Any]:
         with self._db() as conn:
-            row = conn.execute(f"SELECT {', '.join(_RECEIPT_COLUMNS)} FROM receipts WHERE episode_id = ?",
-                               (episode_id,)).fetchone()
+            row = conn.execute(f"{_RECEIPT_READ} WHERE r.episode_id = ?", (episode_id,)).fetchone()
         if row is None:
             raise LensStoreError(StoreRefusal.RECEIPT_NOT_FOUND)
         return _receipt_json(row)
@@ -607,11 +607,12 @@ class LensStore:
 
         if not self.exists():
             return []
-        sql, args = f"SELECT {', '.join(_RECEIPT_COLUMNS)} FROM receipts", []
+        sql, args = _RECEIPT_READ, []
         if monitor_id is not None:
-            sql, args = sql + " WHERE monitor_id = ?", [monitor_id]
+            sql, args = sql + " WHERE r.monitor_id = ?", [monitor_id]
         with self._db() as conn:
-            rows = conn.execute(sql + " ORDER BY started_ms DESC, episode_id LIMIT ?", [*args, int(limit)]).fetchall()
+            rows = conn.execute(sql + " ORDER BY r.started_ms DESC, r.episode_id LIMIT ?",
+                                [*args, int(limit)]).fetchall()
         return [_receipt_json(row) for row in rows]
 
     def receipt_rollups(self, monitor_id: str) -> list[dict[str, Any]]:

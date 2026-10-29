@@ -23,6 +23,12 @@ logger = logging.getLogger("agent_runtime.lens.store")
 
 RECEIPT_COLUMNS = ("episode_id", "monitor_id", "turn_id", "session_id", "started_ms", "finished_ms", "outcome",
                    "artifact_handles", "files", "tool_admission", "digest_id")
+#: A receipt READ: the stored columns plus its Episode's ``rule_id``, joined rather than stored twice (row
+#: ``RT-LENS-RECEIPT-RULE-ID`` — a ``schedule:run`` receipt is told from a breach's by it). ``NULL`` when the
+#: Episode row is gone; callers append their own ``WHERE`` / ``ORDER BY`` over the ``r`` alias.
+RECEIPT_READ = (f"SELECT {', '.join(f'r.{column}' for column in RECEIPT_COLUMNS)}, e.rule_id "
+                "FROM receipts r "
+                "LEFT JOIN episodes e ON e.id = r.episode_id")
 #: The log receipt a fence refusal leaves (observability is a log receipt, never a wire key).
 RECEIPTS_FULL_RECEIPT = "[LensReceiptsFull] monitor=%s episode=%s"
 
@@ -62,7 +68,9 @@ def receipt_row(receipt: dict[str, Any]) -> tuple[Any, ...]:
 
 
 def receipt_json(row: tuple[Any, ...]) -> dict[str, Any]:
-    out = dict(zip(RECEIPT_COLUMNS, row))
+    """One :data:`RECEIPT_READ` row as the receipt record (``rule_id`` last, ``None`` for a gone Episode)."""
+
+    out = dict(zip((*RECEIPT_COLUMNS, "rule_id"), row, strict=True))
     out["artifact_handles"] = json.loads(out["artifact_handles"])
     out["files"] = json.loads(out["files"])
     return {"version": 1, **out}
