@@ -44,7 +44,7 @@ def test_the_serve_reads_each_boards_gate_from_its_slot(monkeypatch):
              "odd": {"toolchain": {"kind": ""}, "context": {}}}
     monkeypatch.setattr(workspace_slots, "load_document", lambda _ws: {"slots": slots})
     monkeypatch.setattr(workspace_slots, "live_slots", lambda document: document["slots"])
-    monkeypatch.setattr(board, "boards", lambda _ws: [SimpleNamespace(slot=name, is_default=False) for name in slots]
-                        + [SimpleNamespace(slot="brain", is_default=True)])
+    monkeypatch.setattr(board, "boards", lambda _ws: [SimpleNamespace(slot=name, is_default=False, project_id=None) for name in slots]
+                        + [SimpleNamespace(slot="brain", is_default=True, project_id=None)])
     assert dispatcher._slot_gates("ws-1") == {"hermes": (LANDING_GATE,), "site": ("cargo test",), "odd": None,
                                               "brain": (GATE_NONE,)}
