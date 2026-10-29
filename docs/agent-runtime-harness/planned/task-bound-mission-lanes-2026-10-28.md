@@ -162,8 +162,8 @@ S2 in the wave's lander, though it is correct in any order by the decode hardeni
   `test_task_archive_moves_task_bound_persona_instance_evidence`,
   `test_persona_chat_history_summary_ignores_task_bound_worker_sessions`),
   `test_persona_instance_identity.py::test_reconcile_never_folds_task_bound_or_cross_persona_rows`
-  (keep its cross-persona half), `test_persona_instance_identity.py::test_repair_missing_chat_session_bindings_skips_task_bound_mission_sessions`
-  (inverted: the pointer is now repaired), `test_persona_profile_binding.py::test_instance_busy_reason_table`,
+  (keep its cross-persona half), `test_persona_instance_identity.py::test_repair_missing_chat_session_bindings_repairs_a_stored_mission_row`
+  (inverted and renamed from the skip test: the pointer is now repaired), `test_persona_profile_binding.py::test_instance_busy_reason_table`,
   `test_task_bound_retirement.py::test_a_steered_instance_is_not_refused_as_busy_by_the_profile_rebind`
   (the MISSION expectation becomes `None`). `test_tombstone_registry.py` gains
   `BUSY_TASK_BOUND`, `live_mission_candidates`, `_mission_assignment_for`.
