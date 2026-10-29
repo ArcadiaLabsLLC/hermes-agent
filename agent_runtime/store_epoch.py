@@ -168,7 +168,7 @@ MIGRATION_REGISTRY: tuple[dict[str, Any], ...] = (
                   "store/project_chats/<project>.db (a SessionDB that is never a chat head) and "
                   "project_chat_fold_path its fold offsets; no existing path moves, an agent's own state.db is "
                   "never written, and an older edition never reads either",
-        "pins_sha256": "2a01c95f60dde66bd0d12d364091f678f28c308e381bcf756d6bc898f3285a93",
+        "pins_sha256": "07e2910843f70b153038fa7bcdccd31e84d902e7039f9d5e4532b64e69031e5d",
     },
 )
 
