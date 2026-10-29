@@ -966,7 +966,8 @@ def test_a_raising_store_becomes_a_typed_error_and_the_loop_keeps_serving():
     _seed()
 
     class _Exploding(office_store_module.OfficeStore):
-        def upsert_actor(self, *args, **kwargs):
+        # The handler's door since RT-OFFICE-NOOP-RECEIPT (the outcome door, not the row door).
+        def upsert_actor_outcome(self, *args, **kwargs):
             raise RuntimeError("disk on fire")
 
     original = office_store_module.OfficeStore
