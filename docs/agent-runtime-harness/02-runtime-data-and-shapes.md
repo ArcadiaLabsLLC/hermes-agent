@@ -925,7 +925,12 @@ snapshot key moved. ``store/project_chats/<project>.db`` is a
 writer's ``.jsonl`` in Hermes's worktree of the chats slot at the remote tip by recorded
 byte offset (``store/project_chat_fold/<project>.json``), idempotent by ``turn_uid`` in
 ``(ts, seq)`` order; sessions carry ``source = "project_shared"``. It folds after each
-local export and on ``runtime.project.chat.fold`` (local console). It is dropped, with
+local export, on ``runtime.project.chat.fold`` (local console), and after every realm
+pull: the ``project_chat_fold`` pull applier (``project_chat_fold.fold_realm_projects``)
+fetches and folds each Project a workspace of the realm holds whose chats are shared, at
+most ``FOLD_ON_PULL_LIMIT`` (8) per pull, and the pull envelope reports it unconditionally
+as ``project_chat_fold {folded: [{project_id, inserted, stale}], skipped: [{project_id,
+reason}], deferred: [...]}`` (RT-PROJECT-CHAT-FOLD-WITHOUT-SENDING). It is dropped, with
 its offsets and the export cursors and nothing else, when the chats share turns off or
 the last workspace of the namespace disconnects the Project.
 

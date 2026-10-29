@@ -32,6 +32,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 ### Filed on arrival — 2026-10-29 (lane w1029b-h-proj)
 
 - **`RT-PROJECT-DEFAULT-BRAIN-DECLARE-MIGRATED` — promoting the default brain declares slot `brain` into the workspace document even after `project_migration` froze it: `default_brain._declare_brain_slot` calls `workspace_slots.declare_one_slot(workspace_id, …)`, so on a migrated workspace the declaration lands in a document no reader opens (`resolve_slot` skips a `migrated_to` document); it should declare into the workspace's `ws-<workspace>` Project through `ProjectStore.declare_one_slot` and bind with `bind_project`** · fork / slots · `agent_runtime/work_store/default_brain.py::_declare_brain_slot` · `agent_runtime/workspace_slots.py::resolve_slot` · READY 2026-10-29
+- **`RT-PROJECT-CHAT-FOLD-REALMLESS` — a Project assigned into no realm can still share its chats (`require_project_publish_rights` answers the local allow with no realm), but its peers fold only on their own export or an explicit `runtime.project.chat.fold`: the fetch-and-fold fan-out rides the realm pull (`project_chat_fold.fold_realm_projects`), which a realm-less Project never gets; it wants a bounded serve-tick fold over this namespace's shared, realm-less Projects** · fork / chat / sharing · `agent_runtime/project_chat_fold.py::fold_realm_projects` · `agent_runtime/project_store.py::require_project_publish_rights` · READY 2026-10-29
 
 ### Filed on arrival — 2026-10-29 (lane w1029a-h-fork)
 
@@ -39,7 +40,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-29 (lane w1029a-h-proj, the Project slot slices)
 
-- **`RT-PROJECT-CHAT-FOLD-WITHOUT-SENDING` — a machine folds peers' shared turns only when it exports one of its own or the launcher calls `runtime.project.chat.fold`: plan §6 names "after each realm-sync pull that touched the folder", but the chats folder travels by git in the chats slot, not by realm sync, so no pull ever touches it; a reader-only machine needs a bounded fetch-and-fold trigger (serve tick per shared Project, or the realm pull fanning out to `fold_from_remote` for Projects whose chats are shared)** · fork / chat / sharing · `agent_runtime/project_chat_fold.py::fold_from_remote` · `agent_runtime/realm_sync/pull.py::PULL_APPLIERS` · READY 2026-10-29 · **TAKEN 2026-10-29 w1029b-h-proj on nekwo-ubuntu24 as nekwo in hermes-w1029b-h-proj**
 
 ### Filed on arrival — 2026-10-29 (launcher planning lane w1029p-genui)
 
