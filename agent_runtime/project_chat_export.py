@@ -280,9 +280,12 @@ def export_after_turn(session_db: Any, session_id: str | None, *, persona_instan
     def run() -> None:
         from .work_store import receipts
 
+        from .project_chat_fold import fold_from_remote
+
         for project_id in projects:
             try:
                 export_session(project_id, str(session_id), session_db, persona_instance_id=persona_instance_id)
+                fold_from_remote(project_id)  # the store carries this machine's turns and every peer's pushed ones
             except Exception as exc:  # a failed export retries from its cursor on the next turn end
                 receipts.emit("project_chat.export_failed", project_id=project_id, session_id=session_id,
                               error=type(exc).__name__, reason=getattr(exc, "reason", None))

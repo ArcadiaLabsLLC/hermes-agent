@@ -780,6 +780,18 @@ def project_chat_export_path(project_id: str, session_id: str) -> Path:
     return store_root() / "project_chat_exports" / safe_path_token(project_id) / f"{safe_path_token(session_id)}.json"
 
 
+def project_chat_store_path(project_id: str) -> Path:
+    """A Project's SHARED chat store (plan project-slots-and-shared-chats §6): never a chat head."""
+
+    return store_root() / "project_chats" / f"{safe_path_token(project_id)}.db"
+
+
+def project_chat_fold_path(project_id: str) -> Path:
+    """The fold's per-file byte offsets for one Project's chats folder (machine-local, never synced)."""
+
+    return store_root() / "project_chat_fold" / f"{safe_path_token(project_id)}.json"
+
+
 def slot_worktrees_path(owner_id: str, slot: str) -> Path:
     """The git worktrees seen cut from one repo slot's folder on THIS machine (RT-WORKTREE-RECORDED-ON-SLOT).
 

@@ -138,6 +138,17 @@ MIGRATION_REGISTRY: tuple[dict[str, Any], ...] = (
                   "cursor; no existing path moves and an older edition never reads it",
         "pins_sha256": "28c1b9b459e5015cf347efd45bb80642350d80495969c476589ba43e26d4309b",
     },
+    {
+        "id": "project-shared-chat-store",
+        "date": "2026-10-29",
+        "store": "all",
+        "breaking": False,
+        "reason": "additive (lane w1029a-h-proj, RT-PROJECT-CHAT-SHARED-FOLD): paths.project_chat_store_path names "
+                  "store/project_chats/<project>.db (a SessionDB that is never a chat head) and "
+                  "project_chat_fold_path its fold offsets; no existing path moves, an agent's own state.db is "
+                  "never written, and an older edition never reads either",
+        "pins_sha256": "2a01c95f60dde66bd0d12d364091f678f28c308e381bcf756d6bc898f3285a93",
+    },
 )
 
 #: ``1 + count(breaking entries)`` — ``tests/agent_runtime/test_store_epoch_gate.py`` holds it to that.

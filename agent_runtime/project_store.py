@@ -267,6 +267,11 @@ class ProjectStore:
             **extra, "slot": slot, "subpath": subpath, "shared": shared, "issued_at": issued_at,
             "revision": int(held.get("revision") or 0) + 1}
         self._commit(project_id, record, issued_at=None)
+        if name == "chats" and held.get("shared") and not shared:
+            from .project_chat_fold import drop_project_chats
+
+            # Unsharing the chats drops the shared store and nothing else (plan §6).
+            drop_project_chats(project_id, reason="chats_unshared")
         return {"project_id": project_id, "category": name, "record": record["categories"][name]}
 
     def set_guidance(self, project_id: str, *, description: Any, instructions: Any, issued_at: str) -> dict[str, Any]:

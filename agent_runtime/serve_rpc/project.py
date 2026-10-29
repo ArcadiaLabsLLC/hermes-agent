@@ -26,6 +26,7 @@ PROJECT_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     "runtime.project.report": ("project_id",),
     "runtime.project.artifacts.list": ("project_id",),
     "runtime.project.chat.share": ("project_id", "session_id", "shared", "credential", "credentials"),
+    "runtime.project.chat.fold": ("project_id",),
 }
 
 #: ``SlotRefused.reason`` → the JSON-RPC error code it rides; anything else rides ERR_CONFLICT.
@@ -196,3 +197,14 @@ def _project_chat_share(params):
     store = _store(params)
     return share(params.get("project_id"), session_id, params.get("shared"), session_db=session_db,
                  credentials=store._credentials)
+
+
+@method("runtime.project.chat.fold", tier=TIER_CONSOLE)
+@_guarded
+def _project_chat_fold(params):
+    """Fetch the Project's chats folder to its remote tip and fold new turns into its shared store (plan §6)."""
+
+    from agent_runtime.project_chat_fold import fold_from_remote
+    from agent_runtime.project_store import valid_project_id
+
+    return fold_from_remote(valid_project_id(params.get("project_id")))

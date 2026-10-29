@@ -899,6 +899,17 @@ operation in Hermes's own worktree of the chats slot (pseudo-workspace
 ``store/project_chat_exports/<project>/<session>.json``. Unshare removes
 ``<session>/`` in one commit.
 
+54 KEPT (Project shared chat store, 2026-10-29, RT-PROJECT-CHAT-SHARED-FOLD) — no
+snapshot key moved. ``store/project_chats/<project>.db`` is a
+``project_chat_fold.ProjectSharedSessionDB`` (a ``SessionDB`` with a UNIQUE index on
+``messages.message_uid``; ``is_canonical_session_persistence`` False), folded from every
+writer's ``.jsonl`` in Hermes's worktree of the chats slot at the remote tip by recorded
+byte offset (``store/project_chat_fold/<project>.json``), idempotent by ``turn_uid`` in
+``(ts, seq)`` order; sessions carry ``source = "project_shared"``. It folds after each
+local export and on ``runtime.project.chat.fold`` (local console). It is dropped, with
+its offsets and the export cursors and nothing else, when the chats share turns off or
+the last workspace of the namespace disconnects the Project.
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.

@@ -301,6 +301,7 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
         "runtime.project.slot.bind",
         "runtime.project.slot.env.set",
         "runtime.project.report",
+        "runtime.project.chat.fold",
         "runtime.workspace.slot.env.set",
         "runtime.workspace.slots.report",
         # Phase B (row H11): Clone and a recipe command step SPAWN on this machine.
