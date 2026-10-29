@@ -183,7 +183,13 @@ beat, not the watched pid's creation time (re-read at arm).
 - `agent_runtime/launcher_supervision/relaunch.py` — new; `policy.py` gains the relaunch,
   backoff and budget rows; `watchdog.py` persists the budget.
 
-**G1 — game watch** (row `RT-GAME-PROCESS-WATCH`, after W2)
+**G1 — game watch** (row `RT-GAME-PROCESS-WATCH`, after W2) — BUILT 2026-10-29 (lane w1029b-h-rt;
+09 § "The runtime outlives the launcher" is the contract). Departures: a crash under `suspended` over
+a watched game relaunches `crashed` through the budget at the game's end (decision 6 named no reason);
+`exit_code` stays `null` (psutil cannot read a non-child's exit status on POSIX); the record carries
+the verified beat's launcher (`pid`, `executable`, `window_visible`, `supervise`) so a resumed watch
+can relaunch with no beat; the game files live under `launcher_supervision/games/` and are
+`paths.launcher_supervision_games_dir()`.
 - `agent_runtime/launcher_supervision/game_watch.py` — new; the beat's `game` and the
   `watching` answer; boot-time resume in `watchdog.py`.
 

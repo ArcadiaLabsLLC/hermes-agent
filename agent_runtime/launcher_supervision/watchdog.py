@@ -11,6 +11,12 @@ file its pid runs (decision 8 — otherwise ``launcher_identity_mismatch``, answ
 relaunch fires on a timer after its backoff and only while the serve is not ending (decision 9 —
 :meth:`SupervisionEffects.may_relaunch`); and the budget is persisted to
 ``paths.launcher_supervision_state_path()`` so a harness restart does not reset it (decision 10).
+
+G1 adds the game watch (:mod:`.game_watch`): a supervised, verified beat carrying a ``game`` on a
+``--service`` runtime (§2 clarification 3) is handed to the :class:`~.game_watch.GameWatcher`, and the
+beat's ``watching`` answer is whether that game is now watched; the game's end is fed to the table
+(:func:`.policy.on_game_ended`), and :meth:`LauncherWatchdog.start` resumes the records a previous
+harness left on disk (decision 15).
 """
 
 from __future__ import annotations
@@ -24,9 +30,10 @@ from typing import Any, Protocol
 
 from .. import parent_watch, paths
 from ..serde import write_json_atomic
-from .contract import LauncherBeat
+from .contract import LauncherBeat, LauncherState
+from .game_watch import GameRecord, GameWatcher
 from .policy import (TICK_SECONDS, Decision, RelaunchReason, SupervisionState, on_beat, on_connection_dropped,
-                     on_pid_gone, on_tick)
+                     on_game_ended, on_game_watch, on_pid_gone, on_resume_game_watch, on_tick)
 from .relaunch import Relauncher, relaunch_argv
 
 __layer__ = "lanes"
@@ -66,7 +73,8 @@ class LauncherWatchdog:
 
     def __init__(self, *, parent_pid: int | None, effects: SupervisionEffects,
                  tick_seconds: float = TICK_SECONDS, clock: Callable[[], float] = time.time,
-                 poll_seconds: float | None = None, relauncher: Relauncher | None = None) -> None:
+                 poll_seconds: float | None = None, relauncher: Relauncher | None = None,
+                 service: bool = False, game_watcher: GameWatcher | None = None) -> None:
         self._lock = threading.Lock()
         self._state = SupervisionState(bound=parent_pid is not None, watched_pid=parent_pid,
                                        relaunches=_load_relaunches())
@@ -81,6 +89,8 @@ class LauncherWatchdog:
         self._beat_connection: Any = None
         self._stopped = threading.Event()
         self._ticker: threading.Thread | None = None
+        self._service = service
+        self._games = game_watcher or GameWatcher(on_ended=self._game_ended, clock=clock)
 
     @property
     def state(self) -> SupervisionState:
@@ -91,21 +101,58 @@ class LauncherWatchdog:
         """Arm the initial watch on ``--parent-pid`` (nothing without it until a beat names a pid)."""
         if self._state.watched_pid is not None:
             self._arm(self._state.watched_pid)
+        if self._service:
+            self._resume_games()
         return self
 
+    def _resume_games(self) -> None:
+        resumed = self._games.resume()
+        if not resumed:
+            return
+        launcher = resumed[-1].launcher or {}
+        executable = launcher.get("executable")
+        pid = launcher.get("pid")
+        if not isinstance(executable, str) or not isinstance(pid, int) or isinstance(pid, bool):
+            with self._lock:
+                self._state, _ = on_game_watch(self._state, True)
+            return
+        beat = LauncherBeat(seq=0, pid=pid, state=LauncherState.CLOSING_FOR_GAME,
+                            window_visible=bool(launcher.get("window_visible", True)), executable=executable,
+                            build=None, supervise=bool(launcher.get("supervise", False)))
+        with self._lock:
+            self._state, _ = on_resume_game_watch(self._state, beat)
+
+    def _watch_game(self, beat: LauncherBeat) -> bool:
+        """Hand a verified, supervised beat's ``game`` to the watcher (service runtimes only)."""
+        if beat.game is None or not beat.supervise or not self._service:
+            return False
+        watched = self._games.handed(beat.game, launcher={
+            "pid": beat.pid, "executable": beat.executable, "window_visible": beat.window_visible,
+            "supervise": beat.supervise})
+        if watched:
+            with self._lock:
+                self._state, _ = on_game_watch(self._state, True)
+        return watched
+
+    def _game_ended(self, record: GameRecord, still_watched: bool) -> None:
+        with self._lock:
+            self._state, decisions = on_game_ended(self._state, now=self._clock(), still_watched=still_watched)
+        self._apply(decisions)
+
     def beat(self, beat: LauncherBeat, *, connection: Any = None) -> bool:
-        """Feed one parsed beat; answers ``watching`` (no game watch before G1, so always False)."""
+        """Feed one parsed beat; answers ``watching`` — whether the beat's ``game`` is now watched."""
         if beat.supervise and (beat.pid, beat.executable) != self._verified:
             if not self._relauncher.same_executable(beat.pid, beat.executable):
                 logger.warning(RELAUNCH_RECEIPT, "launcher_identity_mismatch", "-", beat.pid, "-", "-")
                 return False
             self._verified = (beat.pid, beat.executable)
+        watching = self._watch_game(beat)
         with self._lock:
             self._state, decisions = on_beat(self._state, beat)
             self._beat_connection = connection
         self._apply(decisions)
         self._ensure_ticker()
-        return False
+        return watching
 
     def connection_closed(self, connection: Any) -> None:
         """The connection that last beat closed; any other connection's close is not ours."""
@@ -118,6 +165,7 @@ class LauncherWatchdog:
 
     def stop(self) -> None:
         self._stopped.set()
+        self._games.stop()
         watch = self._watch
         if watch is not None:
             watch.disarm()

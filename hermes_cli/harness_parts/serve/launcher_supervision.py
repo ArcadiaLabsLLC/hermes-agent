@@ -1,6 +1,6 @@
 """The serve's half of launcher supervision: the ``launcher_beat`` op and the parent-watch hook.
 
-Plan ``docs/agent-runtime-harness/planned/launcher-mutual-supervision-2026-10-27.md`` slices W1–W2. The
+Plan ``docs/agent-runtime-harness/planned/launcher-mutual-supervision-2026-10-27.md`` slices W1, W2 and G1. The
 watchdog (``agent_runtime.launcher_supervision``) owns the watch and the table; this mixin answers
 the op (``SubscriptionLanes._on_connection_closed`` routes a closed connection to it), and carries out its effects — latch an end reason,
 drain through the serve's existing drain path (``ServeSession._on_parent_gone``), and answer whether a
@@ -44,6 +44,13 @@ class _ServeEffects:
         return not (stop is not None and stop.is_set())
 
 
+def _games_on_disk() -> bool:
+    from agent_runtime import paths
+
+    directory = paths.launcher_supervision_games_dir()
+    return directory.is_dir() and any(directory.glob("*.json"))
+
+
 class LauncherSupervision:
     """Mixed into ``ServeSession``; ``launcher_watchdog`` is created at boot or by the first beat."""
 
@@ -55,12 +62,15 @@ class LauncherSupervision:
                 from agent_runtime.launcher_supervision import LauncherWatchdog
 
                 self.launcher_watchdog = LauncherWatchdog(parent_pid=self.parent_pid,
-                                                          effects=_ServeEffects(self)).start()
+                                                          effects=_ServeEffects(self),
+                                                          service=bool(getattr(self, "service", False))).start()
             return self.launcher_watchdog
 
     def _arm_launcher_supervision(self) -> None:
-        """``--parent-pid``: watch it now; without the flag nothing is armed until a launcher beats."""
-        if self.parent_pid is not None:
+        """``--parent-pid``: watch it now. A ``--service`` runtime that finds a watched game a previous
+        harness left on disk arms too, to resume that watch (G1, decision 15). Otherwise nothing is
+        armed until a launcher beats."""
+        if self.parent_pid is not None or (getattr(self, "service", False) and _games_on_disk()):
             self._launcher_watchdog()
 
     def _op_launcher_beat(self, message: dict[str, Any], sink: Any, connection: Any) -> str | None:

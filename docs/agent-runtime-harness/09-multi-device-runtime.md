@@ -261,9 +261,19 @@ ignored (`launcher_identity_mismatch`). Backoff 2 s / 10 s / 30 s; at most 3 rel
 60 awake seconds spends the budget again; the fourth drains with end reason
 `launcher_restart_limit`. Nothing relaunches once the runtime is ending (any latched end reason:
 a drain, stdin EOF — which is how a NON-service serve still follows its launcher — logoff,
-SIGTERM). `quitting`, `closing_for_game`, `supervise: false` and a `suspended` launcher handed a
-`game` keep W1's rows: a `--parent-pid` runtime drains, any other records. `watching` is false
-until the game watch (G1) lands → [plan](planned/launcher-mutual-supervision-2026-10-27.md).
+SIGTERM). `quitting`, `supervise: false`, and `closing_for_game` / a `suspended` launcher handed a
+`game` with NO game watched keep W1's rows: a `--parent-pid` runtime drains, any other records.
+**Game watch (G1):** on a `--service` runtime, a supervised beat's `game` is watched when one of its
+locators resolves at receipt — the handed-over `pid` (with its creation time), a process of this
+user running `executable`, or one under `install_dir` — and `watching` answers that; a non-service
+runtime always answers `false` (`agent_runtime/launcher_supervision/game_watch.py`, `psutil`, polled
+every 5 s, 60 s start grace, ended after two consecutive misses). While a game is watched, a launcher
+that closed for it, or crashed while `suspended` over it, does not end the runtime: the game's end
+relaunches it `game_ended` (unbudgeted) or `crashed` (budgeted), and a launcher that beats again
+first is alive, so the end only records. Each watch is a record in `launcher_supervision/games/`
+from receipt (`outcome` `still_running` / `exited` / `lost`, `last_seen_at` refreshed every 60 s); a
+booting service runtime resumes the still-running ones and closes the gone ones `lost` with
+`ended_at: null` → [plan](planned/launcher-mutual-supervision-2026-10-27.md).
 
 **Started by the OS instead of a launcher (p10-messaging M5, owner RULED 2026-10-19).** v1's service is a
 documented template, not an installer: [Task Scheduler](reference/service/windows-task.xml),
