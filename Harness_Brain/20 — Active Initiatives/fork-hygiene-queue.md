@@ -7,6 +7,10 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+## Filed on arrival — 2026-10-29 (lane w1029a-h-fork)
+
+- **`FH-POSIX-RUNNER-IGNORES-TEST-TMP-ROOT` — on POSIX `HERMES_TEST_TMP_ROOT` never reaches the per-file runner's own scratch: `_runner_scratch_root` hard-codes `/var/tmp/hermes-pytest-<uid>` and `run_tests.sh`'s `env -i` forwards TEMP/TMP only through the Windows list and never TMPDIR, so the named root moves only in-repo children (through the conftest plugin); decide whether a named root should own the runner scratch on POSIX too (an additive seam beside `scripts/_fork_runner.py`) or stay Windows-only by design, and say which in `docs/downstream-development.md`** · fork / suite · `scripts/run_tests_parallel.py::_runner_scratch_root` · `scripts/_fork_test_env.sh::fork_test_tmp_root` · `tests/scripts/test_run_tests_tmp_root.py` (asserts the per-host scratch today) · NEEDS PLAN 2026-10-29: whether the POSIX runner scratch follows a named root, and the AF_UNIX path-length budget if it does
+
 ## Filed on arrival — 2026-10-27 (lane w1027k-plan-misc, launcher)
 
 
