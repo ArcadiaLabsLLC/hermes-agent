@@ -1751,6 +1751,14 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "lane.transition_rejected",
         "foreground_runtime.closed",
     ),
+    *rows(
+        "s-writerless-read",
+        "HEAD",
+        Form.MODULE,
+        "the writer-less lane store's read half: its last reader, dirty_state's "
+        "foreground block, went with it (RT-WRITERLESS-GOAL-LANE-READ-RESIDUE)",
+        "agent_runtime.runtime_instances",
+    ),
     # -- S54 — 30 individually dead symbols across 21 modules ---------------
     *rows(
         "s54",

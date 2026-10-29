@@ -11,8 +11,6 @@ Task = SimpleNamespace
 from agent_runtime.persona_assignments import (
     PersonaInstanceStore,
 )
-from agent_runtime.runtime_instances import GoalRuntimeInstanceStore, runtime_instances_summary
-from tests.agent_runtime._lane_seed import seed_lane_row
 from agent_runtime.states import TaskState
 from agent_runtime.store import WorkspaceStore, RealmStore
 
@@ -147,35 +145,6 @@ def test_goal_id_current_stage_and_assignment_grouping(
     second = PersonaInstanceStore().ensure_for_persona(persona)
     assert first.id == second.id
     assert first.mode in {"chat", "configured"}
-
-
-def test_lanes_stay_a_flat_list_with_no_foreground_election(isolate_agent_runtime_root):
-    """S53 retargeted this from ``test_lane_only_create_lane_does_not_park``.
-
-    The original name described a WRITER guarantee (``create_lane`` does not
-    park a sibling), and that writer is gone -- deleted with the lane write lane
-    for want of a production caller. What it actually pinned is a READ-side
-    finding and survives intact: lanes are a flat list, there is no foreground
-    election, and every persisted row comes back out of ``list_all``. Rows are
-    seeded on disk because nothing can mint one any more.
-    """
-
-    first = seed_lane_row("goalrt_one", task_id="task_one", state="running")
-    second = seed_lane_row("goalrt_two", task_id="task_two", state="running")
-    store = GoalRuntimeInstanceStore()
-
-    assert first.lane == first.id
-    assert second.lane == second.id
-    assert store.get(first.id).state == "running"
-    assert store.get(second.id).state == "running"
-    # S21 removed `active_foreground()`: it walked lanes into `TaskStore.get`,
-    # which the permanent `TaskStoreStub` always raises `NotFound` from, so it
-    # returned `None` by construction and not because no lane was elected. The
-    # honest pin is that lanes are a flat list with no foreground election.
-    assert not hasattr(store, "active_foreground")
-    lanes = runtime_instances_summary(store.list_all())["lanes"]
-    assert {row["lane_id"] for row in lanes} == {first.id, second.id}
-    assert "foreground" not in runtime_instances_summary(store.list_all())
 
 
 def test_stage42_goal_list_and_error_envelopes(isolate_agent_runtime_root):

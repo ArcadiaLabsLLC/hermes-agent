@@ -19,7 +19,6 @@ from .persona_lifecycle import is_runtime_persona
 from .profile_readiness import profile_readiness_for_persona
 from .provider_health import provider_health_for_personas
 from .migrations import effective_config_summary
-from .runtime_instances import GoalRuntimeInstanceStore
 from .states import RunState
 from .store import ACTIVE_RUN_STATES, AgentStore, IncidentStore, RunStore
 from .snapshot import parity_envelope, persona_session_db_scope
@@ -59,11 +58,10 @@ def _build_status_in_runtime_scope(run_store: RunStore | None = None, incident_s
     execution_mode = "manual"
     catalog_agents = agent_store.list_all() or ensure_persisted_personas(cfg)
     agents = [agent for agent in catalog_agents if is_runtime_persona(agent)]
-    runtime_instances = GoalRuntimeInstanceStore(event_log=event_log).list_all()
     active_runs = [r for r in runs if r.state in ACTIVE_RUN_STATES]
     queued_runs = [r for r in active_runs if r.state == RunState.QUEUED]
     waiting_runs = [r for r in active_runs if r.state in {RunState.WAITING_ON_TOOL, RunState.WAITING_ON_APPROVAL}]
-    dirty_state = build_dirty_state(runs=runs, incidents=incidents, runtime_instances=runtime_instances)
+    dirty_state = build_dirty_state(runs=runs, incidents=incidents)
     recent_events = event_log.tail(20)
     data = {
         # S28 completed the S21 cut this comment used to defer: `open_tasks` and

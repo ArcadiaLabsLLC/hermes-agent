@@ -64,3 +64,7 @@ Delete it. When the last row of an instalment closes, the program ledger (`god-f
 
 ## Filed on arrival — 2026-10-27 (lane w1027k-h-rt)
 
+
+## Filed on arrival — 2026-10-29 (lane w1029b-h-rt)
+
+- **`DC-RUNTIME-INSTANCES-DIR-RESIDUE` — the `runtime_instances` store directory is writer-less (S53) and reader-less since its store module went; retire what still names it: the `GoalRuntimeInstance` model, `paths.runtime_instances_dir` / `runtime_instance_path`, the checkpoint `EntityClass`, the serve poll fingerprint's `"runtime_instances"` entry and `tests/agent_runtime/_lane_seed.py` — the checkpoint class first, since dropping it changes what an existing checkpoint restores** · fork / status · `agent_runtime/checkpoint.py::ENTITY_CLASSES` · `agent_runtime/models.py::GoalRuntimeInstance` · `hermes_cli/harness_parts/serve/constants.py::_FINGERPRINT_STORE_DIRS` · `docs/agent-runtime-harness/planned/writerless-goal-lane-residue.md` · READY 2026-10-29

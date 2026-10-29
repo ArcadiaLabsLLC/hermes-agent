@@ -34,8 +34,6 @@ pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 from agent_runtime import observability
 from agent_runtime.decision_contract_registry import event_catalog
 from agent_runtime.events import ALLOWED_EVENT_TYPES, OPERATOR_SUMMARY_EVENT_TYPES, Event, operator_event_summary
-from agent_runtime.runtime_instances import GoalRuntimeInstanceStore, runtime_instances_summary
-from tests.agent_runtime._lane_seed import seed_lane_row
 from agent_runtime.status import build_status
 from agent_runtime.stream import _delta_op
 from hermes_time import now
@@ -92,37 +90,7 @@ def test_status_keeps_every_field_an_operator_can_still_learn_from(isolate_agent
     assert "runtime_instances" not in data
 
 
-# --------------------------------------------------------------------------
-# runtime_instances.py — a foreground lane that cannot resolve
-# --------------------------------------------------------------------------
-
-
-
-
-def test_the_lane_summary_drops_its_hardcoded_foreground_block(isolate_agent_runtime_root):
-    summary = runtime_instances_summary([])
-
-    for key in ("foreground", "foreground_active_count", "background_parked_count", "background_task_ids"):
-        assert key not in summary, f"runtime_instances_summary still publishes constant {key!r}"
-    # Keep-side: the lane rows themselves are real and stay.
-    assert "instances" in summary
-    assert "lanes" in summary
-
-
-def test_the_lane_summary_still_carries_real_lanes(isolate_agent_runtime_root):
-    """S53 note: the lane is now SEEDED on disk rather than minted through
-    ``create_lane``, which was deleted with the write lane. The assertion is
-    unchanged and still the point of the test -- S21's finding was that the
-    summary's foreground fields were constants while the lane ROWS are real, and
-    the rows are still real."""
-
-    lane = seed_lane_row("goalrt_s21", task_id="task_s21", state="running")
-    store = GoalRuntimeInstanceStore()
-
-    summary = runtime_instances_summary(store.list_all())
-
-    assert [row["lane_id"] for row in summary["lanes"]] == [lane.id]
-    assert summary["instances"] == summary["lanes"]
+# runtime_instances.py went whole with RT-WRITERLESS-GOAL-LANE-READ-RESIDUE (tombstone row).
 
 
 # --------------------------------------------------------------------------
