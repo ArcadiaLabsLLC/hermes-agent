@@ -184,7 +184,7 @@ def chats_writer(project_id: str) -> tuple[Any, str]:
     return writer, PurePosixPath(str(held["subpath"])).relative_to(writer.brain_root).as_posix()
 
 
-def _publish(project_id: str, session_id: str, request_id: str, payload: dict[str, Any]) -> Any:
+def _publish_chat_turns(project_id: str, session_id: str, request_id: str, payload: dict[str, Any]) -> Any:
     from .work_store.grammar import Op, RowRef
     from .work_store.writer import RowOp
 
@@ -222,7 +222,7 @@ def export_session(project_id: str, session_id: str, session_db: Any, *,
             "format": EXPORT_FORMAT, "session_id": session_id, "title": session.get("title"),
             "persona_instance_id": lines[0]["author"].get("persona_instance_id"),
             "mission_chat_root_id": session_id, "first_turn_at": lines[0]["ts"]}, indent=2, sort_keys=True) + "\n"}
-    receipt = _publish(project_id, session_id, f"chat.{paths.safe_path_token(session_id)}.{lines[-1]['turn_uid']}",
+    receipt = _publish_chat_turns(project_id, session_id, f"chat.{paths.safe_path_token(session_id)}.{lines[-1]['turn_uid']}",
                        payload)
     _write_cursor(project_id, session_id, {**following, "chat_written": True, "updated_at": _now()})
     receipts.emit("project_chat.exported", project_id=project_id, session_id=session_id, lines=len(lines),
@@ -259,7 +259,7 @@ def _unshare(project_id: str, session_id: str) -> dict[str, Any]:
     receipt = None
     if load_cursor(project_id, session_id) is not None:
         stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%f")
-        receipt = _publish(project_id, session_id, f"chat.{paths.safe_path_token(session_id)}.unshare.{stamp}",
+        receipt = _publish_chat_turns(project_id, session_id, f"chat.{paths.safe_path_token(session_id)}.unshare.{stamp}",
                            {"remove": [paths.safe_path_token(session_id)]})
     paths.project_chat_export_path(project_id, session_id).unlink(missing_ok=True)
     receipts.emit("project_chat.unshared", project_id=project_id, session_id=session_id,

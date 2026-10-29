@@ -69,28 +69,33 @@ def slot_env_path() -> Path:
 
 
 def _read() -> dict[str, Any]:
-    payload = read_versioned_document(slot_env_path(), schema_version=SLOT_ENV_SCHEMA_VERSION, collection="workspaces")
+    return read_versioned_document(slot_env_path(), schema_version=SLOT_ENV_SCHEMA_VERSION, collection="workspaces")
+
+
+def _projects(payload: dict[str, Any]) -> dict[str, Any]:
+    """The ``projects`` collection, created on the payload when a write needs it."""
+
     if not isinstance(payload.get("projects"), dict):
         payload["projects"] = {}
-    return payload
+    return payload["projects"]
 
 
-def _entry(payload: dict[str, Any], workspace_id: str | None, slot: str, project_id: str | None) -> Any:
+def _fill_entry(payload: dict[str, Any], workspace_id: str | None, slot: str, project_id: str | None) -> Any:
     if project_id is not None:
-        return (payload["projects"].get(project_id) or {}).get(slot)
+        return (_projects(payload).get(project_id) or {}).get(slot)
     entry = (payload["workspaces"].get(workspace_id) or {}).get(slot)
     if entry is None and workspace_id:
         from .workspace_slots import slot_owner
 
         owner = slot_owner(workspace_id, slot)
-        entry = (payload["projects"].get(owner) or {}).get(slot) if owner else None
+        entry = (_projects(payload).get(owner) or {}).get(slot) if owner else None
     return entry
 
 
 def slot_fill(workspace_id: str | None, slot: str, *, project_id: str | None = None) -> SlotFill | None:
     """This machine's fill for ``slot`` in ``workspace_id`` (or Project ``project_id``), or None when none was set."""
 
-    entry = _entry(_read(), workspace_id, slot, project_id)
+    entry = _fill_entry(_read(), workspace_id, slot, project_id)
     if not isinstance(entry, dict):
         return None
     return SlotFill(
@@ -172,7 +177,7 @@ def set_slot_fill(
     payload = _read()
     payload["schema_version"] = SLOT_ENV_SCHEMA_VERSION
     if project_id is not None:
-        payload["projects"].setdefault(project_id, {})[slot] = entry
+        _projects(payload).setdefault(project_id, {})[slot] = entry
     else:
         payload["workspaces"].setdefault(workspace_id, {})[slot] = entry
     _write(payload)
@@ -188,11 +193,11 @@ def copy_workspace_fills(workspace_id: str, project_id: str) -> int:
 
     payload = _read()
     copying = {slot: entry for slot, entry in (payload["workspaces"].get(workspace_id) or {}).items()
-               if slot not in (payload["projects"].get(project_id) or {})}
+               if slot not in (_projects(payload).get(project_id) or {})}
     if not copying:
         return 0
     payload["schema_version"] = SLOT_ENV_SCHEMA_VERSION
-    payload["projects"].setdefault(project_id, {}).update(copying)
+    _projects(payload).setdefault(project_id, {}).update(copying)
     _write(payload)
     return len(copying)
 

@@ -190,11 +190,11 @@ def apply_project_pull(realm_id: str, subtree: Path, *, now: float | None = None
             continue
         write_project(owner, merged)
         summary.merged.append(path.stem)
-        _drop_newly_removed(owner, local, merged)
+        _drop_project_slots_removed_by_merge(owner, local, merged)
     return summary
 
 
-def _drop_newly_removed(project_id: str, before: dict[str, Any], after: dict[str, Any]) -> None:
+def _drop_project_slots_removed_by_merge(project_id: str, before: dict[str, Any], after: dict[str, Any]) -> None:
     """A peer's tombstone that won the merge leaves every local assignment of that slot too."""
 
     from .persona_slots import drop_project_slots

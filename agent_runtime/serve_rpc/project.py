@@ -54,7 +54,7 @@ _REFUSAL_CODES = {
 }
 
 
-def _guarded(handler):
+def _project_refusals(handler):
     def run(rid, params, context=None):
         from agent_runtime.work_store.reasons import WorkRefused
         from agent_runtime.workspace_slot_env import SlotEnvRefused
@@ -72,7 +72,7 @@ def _guarded(handler):
     return run
 
 
-def _store(params: dict):
+def _project_store_for(params: dict):
     """A :class:`ProjectStore` carrying the request's realm credentials, keyed by realm id."""
 
     from agent_runtime.project_store import ProjectStore
@@ -100,7 +100,7 @@ def _issued_at(params: dict) -> str:
 
 
 @method("runtime.project.show", tier=TIER_CONSOLE)
-@_guarded
+@_project_refusals
 def _project_show(params):
     from agent_runtime.project_store import show
 
@@ -108,27 +108,27 @@ def _project_show(params):
 
 
 @method("runtime.project.declare", tier=TIER_CONSOLE)
-@_guarded
+@_project_refusals
 def _project_declare(params):
     from agent_runtime.workspace_slots import machine_id
 
-    return _store(params).declare(params.get("project_id"), params.get("slots"), issued_at=_issued_at(params),
+    return _project_store_for(params).declare(params.get("project_id"), params.get("slots"), issued_at=_issued_at(params),
                                   machine=machine_id(), name=params.get("name"))
 
 
 @method("runtime.project.category.set", tier=TIER_CONSOLE)
-@_guarded
+@_project_refusals
 def _project_category_set(params):
-    return _store(params).set_category(params.get("project_id"), str(params.get("category") or ""),
+    return _project_store_for(params).set_category(params.get("project_id"), str(params.get("category") or ""),
                                        slot=params.get("slot"), subpath=params.get("subpath"),
                                        shared=params.get("shared"), issued_at=_issued_at(params),
                                        context_files=params.get("context_files"))
 
 
 @method("runtime.project.guidance.set", tier=TIER_CONSOLE)
-@_guarded
+@_project_refusals
 def _project_guidance_set(params):
-    return _store(params).set_guidance(params.get("project_id"), description=params.get("description"),
+    return _project_store_for(params).set_guidance(params.get("project_id"), description=params.get("description"),
                                        instructions=params.get("instructions"), issued_at=_issued_at(params))
 
 
@@ -136,7 +136,7 @@ def _project_guidance_set(params):
 
 
 @method("runtime.project.slot.bind", tier=TIER_CONSOLE)
-@_guarded
+@_project_refusals
 def _project_slot_bind(params):
     from agent_runtime.workspace_slots import bind_project
 
@@ -145,7 +145,7 @@ def _project_slot_bind(params):
 
 
 @method("runtime.project.slot.env.set", tier=TIER_CONSOLE)
-@_guarded
+@_project_refusals
 def _project_slot_env_set(params):
     from agent_runtime.project_store import load_project, valid_project_id
     from agent_runtime.workspace_slot_env import fill_shape, set_slot_fill
@@ -168,7 +168,7 @@ def _project_slot_env_set(params):
 
 
 @method("runtime.project.report", tier=TIER_CONSOLE)
-@_guarded
+@_project_refusals
 def _project_report(params):
     from agent_runtime.project_store import valid_project_id
     from agent_runtime.workspace_slots_probe import report_project
@@ -177,7 +177,7 @@ def _project_report(params):
 
 
 @method("runtime.project.artifacts.list", tier=TIER_CONSOLE)
-@_guarded
+@_project_refusals
 def _project_artifacts_list(params):
     """The artifacts folder's names and sizes on this machine; hermes never writes there (plan §7)."""
 
@@ -187,7 +187,7 @@ def _project_artifacts_list(params):
 
 
 @method("runtime.project.chat.share", tier=TIER_CONSOLE)
-@_guarded
+@_project_refusals
 def _project_chat_share(params):
     """Share one chat into a Project (backfill, then every turn end) or stop sharing it (plan §5)."""
 
@@ -197,13 +197,13 @@ def _project_chat_share(params):
     session_id = str(params.get("session_id") or "")
     session_db = (open_chat_session_db(resolve_chat_session_scope(session_id=session_id), access=SessionDbAccess.READ)
                   if session_id and params.get("shared") is True else None)
-    store = _store(params)
+    store = _project_store_for(params)
     return share(params.get("project_id"), session_id, params.get("shared"), session_db=session_db,
                  credentials=store._credentials)
 
 
 @method("runtime.project.chat.fold", tier=TIER_CONSOLE)
-@_guarded
+@_project_refusals
 def _project_chat_fold(params):
     """Fetch the Project's chats folder to its remote tip and fold new turns into its shared store (plan §6)."""
 

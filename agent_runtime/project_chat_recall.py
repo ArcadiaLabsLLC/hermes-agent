@@ -14,8 +14,12 @@ reads the live turn, never a store.
   ``current_lineage``, hidden sources — do not apply there) and merges by PER-STORE rank, round-robin,
   own store first: FTS5 BM25 scores are not comparable across databases. Every shared hit carries
   ``shared_from {project, project_id, author, machine}`` and the link ``@project:<id>/<session>``.
-* :func:`read_project_link` resolves such a link (read or scroll) against that Project's store,
-  read-only, and refuses it when the store is not enabled for this agent.
+* :func:`recall_session_search` is the whole recall: upstream's PUBLIC ``session_search`` against the
+  own store, the same call against each enabled shared store (no current session there), the merge,
+  and an ``@project:<id>/<session>`` link resolved (read or scroll) against that store read-only —
+  refused when the store is not enabled for this agent. It replaces nothing yet: the agent's tool
+  call still reaches upstream's ``session_search`` directly, and routing it here is one edit in an
+  upstream file the footprint ratchet holds (row RT-PROJECT-CHAT-RECALL-ACROSS-STORES, owner decision).
 """
 
 from __future__ import annotations
@@ -149,3 +153,37 @@ def close_stores(stores: list[SharedStore]) -> None:
             store.db.close()
         except Exception:  # a read-only handle that fails to close leaks nothing durable
             pass
+
+
+def recall_session_search(*, shared_stores: list[SharedStore] | None = None, **kwargs: Any) -> str:
+    """``tools.session_search_tool.session_search(**kwargs)`` plus the agent's enabled shared stores.
+
+    ``shared_stores`` None = the current turn's (empty unless the agent enabled recall across
+    Projects). Another profile's store (``profile=``) is never mixed with a Project's.
+    """
+
+    from tools.session_search_tool import session_search
+    from tools.registry import tool_error
+
+    if str(kwargs.get("profile") or "").strip():
+        return session_search(**kwargs)
+    stores = shared_stores_for_current_turn() if shared_stores is None else shared_stores
+    try:
+        link = project_link(kwargs.get("session_id"))
+        if link:
+            store = store_for_link(link[0], stores)
+            if store is None:
+                return tool_error(f"@project:{link[0]} is not a shared chat store this agent recalls from",
+                                  success=False)
+            return session_search(**{**kwargs, "db": store.db, "current_session_id": None, "session_id": link[1]})
+        result = session_search(**kwargs)
+        session_id = kwargs.get("session_id")
+        if stores and not (isinstance(session_id, str) and session_id.strip()):
+            limit = max(1, min(10, int(kwargs.get("limit") or 3)))
+            shared_kwargs = {**kwargs, "limit": limit, "current_session_id": None, "exclude_session_ids": None}
+            result = merge_discover(result, stores, limit=limit,
+                                    discover=lambda db: session_search(**{**shared_kwargs, "db": db}))
+        return result
+    finally:
+        if shared_stores is None:
+            close_stores(stores)

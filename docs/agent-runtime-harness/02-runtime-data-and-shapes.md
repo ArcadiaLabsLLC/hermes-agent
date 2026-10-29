@@ -913,9 +913,10 @@ the last workspace of the namespace disconnects the Project.
 54 KEPT (recall across stores, 2026-10-29, RT-PROJECT-CHAT-RECALL-ACROSS-STORES) — no
 snapshot key moved. ``PersonaInstance.recall_shared_projects`` (default false; slot-lane
 clock; ``runtime.persona.instance.recall.set`` ``{persona_instance_id, enabled,
-issued_at}``; ``instance.slots.show`` reports it). With it on, ``session_search`` (a seam
-APPENDED to ``tools/session_search_tool.py``; policy in
-``agent_runtime/project_chat_recall.py``) also searches, read-only, the shared store of
+issued_at}``; ``instance.slots.show`` reports it). With it on,
+``agent_runtime/project_chat_recall.recall_session_search`` (upstream's public
+``session_search`` per store; the agent's tool call is not yet routed to it — that is an
+upstream-file edit awaiting the owner) also searches, read-only, the shared store of
 every Project the instance's workspace holds whose chats are shared: per-store discovery,
 merged round-robin by per-store rank with the own store first; each shared hit carries
 ``shared_from {project, project_id, author, machine}``, ``shared_label`` and the link

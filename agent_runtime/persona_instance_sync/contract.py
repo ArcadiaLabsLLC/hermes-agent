@@ -45,6 +45,8 @@ PROJECTION_RELATIVE_PATH = "store/persona_instances.yaml"
 #: - ``assigned_slots`` / ``primary_slot`` / ``slots_issued_at`` (build plan §3.3):
 #:   slot NAMES are portable (the workspace declares them); the local path a slot
 #:   resolves to never travels — it is each machine's own ``roots.<slot>``.
+#:   ``recall_shared_projects`` (RT-PROJECT-CHAT-RECALL-ACROSS-STORES) rides the same
+#:   clock: a choice about the agent, portable, never a store or a path.
 #: - ``model_override_issued_at`` is a supersession CLOCK and travels WITH the
 #:   four override fields it orders, or a stale local write silently wins on the
 #:   receiver (``StaleModelOverrideWrite``).
@@ -62,6 +64,7 @@ PERSONA_INSTANCE_ALLOWED_KEYS: frozenset[str] = frozenset(
         "provider",
         "realm_id",
         "reasoning_effort",
+        "recall_shared_projects",
         "skill_overrides",
         "slots_issued_at",
         "spawned_by",

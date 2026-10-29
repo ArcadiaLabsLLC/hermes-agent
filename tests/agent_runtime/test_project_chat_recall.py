@@ -18,7 +18,7 @@ from agent_runtime.project_store import ProjectStore
 from agent_runtime.states import WorkerSessionState
 from agent_runtime.store import WorkspaceStore
 from agent_runtime.workspace_projects import set_project_connection
-from tools.session_search_tool import session_search
+from agent_runtime.project_chat_recall import recall_session_search
 
 T0 = "2026-10-29T10:00:00+00:00"
 REPO = Path(__file__).resolve().parents[2]
@@ -60,7 +60,7 @@ def world(tmp_path):
 
 def _search(own, **kwargs):
     with launcher_invocation("operator", "cur", "turn-1", persona_instance_id="personainst_me"):
-        return json.loads(session_search(db=own, current_session_id="cur", **kwargs))
+        return json.loads(recall_session_search(db=own, current_session_id="cur", **kwargs))
 
 
 def _recall(enabled):
