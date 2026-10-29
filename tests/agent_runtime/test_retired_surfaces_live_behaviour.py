@@ -13,7 +13,7 @@ asserted one behaviour:
 * the validator still has a real arm, and a default config validates clean (S57);
 * the persona roster is emitted whatever the retired flag says (S56);
 * the operator summary still renders a surviving type (S52);
-* the lane READ path still projects a persisted row, into ``status`` too (S53);
+* a persisted lane row left on disk reaches no status key and no checkpoint class (S53);
 * a stale persona row carrying the removed worker field is not busy (S56).
 
 Pins elsewhere that already covered one of these were not duplicated: the chat
@@ -29,7 +29,6 @@ from agent_runtime import yaml_io
 
 from agent_runtime import migrations, paths, persona_profile_binding, snapshot, status
 from agent_runtime.config import AgentRuntimeConfig, load_agent_runtime_config
-from tests.agent_runtime._lane_seed import seed_lane_row
 
 #: One historical row per retired event family, each written before its
 #: deregistration: role envelopes (S44), operator takeover (S49), repo-bundle
@@ -175,21 +174,28 @@ def test_the_operator_summary_still_renders_a_surviving_type():
 def test_a_persisted_lane_row_reaches_no_status_key(isolate_agent_runtime_root):
     """The writer-less lane store is gone whole (RT-WRITERLESS-GOAL-STATUS-KEYS took the two
     status keys, RT-WRITERLESS-GOAL-LANE-READ-RESIDUE the ``dirty_state`` foreground block and
-    the store). A row on disk is the positive control: it is there, and nothing projects it."""
+    the store, DC-RUNTIME-INSTANCES-DIR-RESIDUE the model, the path helpers and the checkpoint
+    class). A row an old release left on disk is the positive control: it is there, and nothing
+    projects it."""
 
-    seeded = seed_lane_row(
-        "goalrt_liveread",
-        task_id="task_live",
-        state="active",
-        lane="foreground",
-    )
-    assert paths.runtime_instance_path(seeded.id).exists()
+    from agent_runtime import checkpoint
+
+    legacy = paths.store_root() / "runtime_instances"
+    legacy.mkdir(parents=True, exist_ok=True)
+    row = legacy / "goalrt_liveread.json"
+    row.write_text(json.dumps({"id": "goalrt_liveread", "task_id": "task_live", "state": "active"}),
+                   encoding="utf-8")
+    assert row.exists()
 
     data = status.build_status()
     # Kill-mutation: restore the ``runtime_instances`` key in ``build_status`` → red.
     assert "runtime_instances" not in data and "foreground_runtime" not in data
     # Kill-mutation: restore ``_foreground_runtime_state`` in ``_runtime_dirty_state`` → red.
     assert "foreground" not in data["dirty_state"]["runtime"]
+    # Kill-mutation: restore the ``runtime_instances`` EntityClass in ``ENTITY_CLASSES`` → red.
+    envelope = checkpoint.build_checkpoint(["runtime_instances", "runs"])
+    assert "runtime_instances" not in envelope["classes"]
+    assert "runtime_instances" in envelope["requested_absent"]
 
 
 def test_a_stale_persona_row_carrying_the_removed_worker_field_is_not_busy():

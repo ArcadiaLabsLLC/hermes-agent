@@ -642,7 +642,8 @@ _FINGERPRINT_STORE_DIRS = (
     # module).
     # Stat'ing it every poll was cost against a directory that cannot move. Same
     # rule S56 applied to "worker_sessions".
-    "runtime_instances",
+    # "runtime_instances" left by the same rule (DC-RUNTIME-INSTANCES-DIR-RESIDUE):
+    # writer-less since S53.
     "persona_instances",
     "persona_assignments",
     "workspaces",

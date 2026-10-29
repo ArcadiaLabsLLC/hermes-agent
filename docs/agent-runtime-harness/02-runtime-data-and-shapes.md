@@ -56,7 +56,7 @@ whose `persona_id` is its own `desk_<8 base36>` address, CONTRACT 43). It is rea
 `office_store/normalize.py::normalize_actor_kind` (an unknown word is `ActorKindInvalid`,
 `actor_kind_invalid`) and decides the write, not the file: the actor file does not store it.
 
-`paths.py` also declares `runs/`, `runtime_instances/`, `incidents/` and
+`paths.py` also declares `runs/`, `incidents/` and
 `prompt_observability_archive/`. None exist in the live root — they are created
 on first write, and a store with no such write has no directory.
 

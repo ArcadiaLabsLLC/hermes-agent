@@ -47,6 +47,12 @@ def _get_compute_host_supervisor(cfg: dict | None = None):
         return _compute_host_supervisor
 
 
+def existing_compute_host_supervisor():
+    """The supervisor this process made, or ``None``; never makes one (fork door, RT-SEAM-COMPUTE-HOST-STOP-DOOR).
+    Call it on ``tui_gateway.server``: bind_module rebinds it onto server's globals, where the singleton lives."""
+    return _compute_host_supervisor
+
+
 def _compute_host_turn_frame(
     rid: str, sid: str, session: dict, text: Any, image_paths: list[str] | None = None,
     queued_prompt_generation: int | None = None, display_kind: str | None = None,

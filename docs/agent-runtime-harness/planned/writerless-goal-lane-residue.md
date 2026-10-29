@@ -4,8 +4,9 @@
 **Status:** §1 and §2 done (2026-10-29, 2026-10-27). The read half went 2026-10-29
 (lane w1029b-h-rt): `dirty_state`'s foreground block and `agent_runtime/runtime_instances.py`
 (the store and both summaries) are deleted — no hermes or Launcher reader consumed either.
-What still names the directory (model, paths, checkpoint class, poll fingerprint) is row
-`DC-RUNTIME-INSTANCES-DIR-RESIDUE` in the dead-code queue.
+What still named the directory (model, paths, checkpoint class, poll fingerprint) went
+2026-10-29 too (lane w1029c-h-a, `DC-RUNTIME-INSTANCES-DIR-RESIDUE`); an old release's
+directory on disk is now inert.
 **Raised / verified:** 2026-08-22 against HEAD.
 
 ## 1. `GoalRuntimeInstance` lanes: a read lane with no writers

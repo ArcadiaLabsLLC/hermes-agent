@@ -23,7 +23,6 @@
   "agent_runtime/_upstream_doors.py|tools.delegate_tool_config|_get_worktree_isolation",
   "agent_runtime/_upstream_doors.py|tools.delegate_tool|_child_compression_cap_tokens",
   "agent_runtime/_upstream_doors.py|tools.process_registry.ProcessRegistry|_terminate_host_pid",
-  "agent_runtime/_upstream_doors.py|tui_gateway.server|_compute_host_supervisor",
   "agent_runtime/auth_extensions.py|hermes_cli.auth|_auth_file_path",
   "agent_runtime/auth_extensions.py|hermes_cli.auth|_auth_store_lock",
   "agent_runtime/auth_extensions.py|hermes_cli.auth|_read_codex_tokens",

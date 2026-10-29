@@ -29,9 +29,13 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-29 (lane w1029c-h-a)
+
+- **`RT-MAIN-REDS-SQLITE-OPEN-FAMILY` — five files red on `origin/main` ff61b7cc10 alone (`--confirm-red` verdict pre-existing, measured 2026-10-29): the daemon-worker "never opens canonical state.db" family (`test_worker_compression_execution`, `test_worker_rotation_execution`, `test_worker_rotation_adoption`, `test_worker_lifecycle_execution`; `test_worker_ledger_tool_execution` and `test_worker_agent_execution` show the same `opens: [<home>/state/state.db]` on a branch and crash on main), `test_browse_schema_drift::test_legacy_gateway_holding_the_store_without_a_lock_is_not_written`, the three `test_gateway_chat_commands_live` classic-view cases and `test_sessions_export_md_cli::test_sessions_export_verified_delete_keeps_file` ("attempt to write a readonly database" — the verified-delete export opens the store read-only and then deletes); no row named them** · `tests/gateway/test_worker_ledger_tool_execution.py` · `tests/hermes_cli/test_sessions_export_md_cli.py` · `tests/hermes_cli/test_browse_schema_drift.py` · `tests/hermes_cli/test_gateway_chat_commands_live.py` · READY 2026-10-29
+
 ### Filed on arrival — 2026-10-29 (landing w1029b-h-land)
 
-- **`RT-SESSIONS-EXPORT-HOME-WRITES` — `hermes sessions export` opens state.db read-only but the CLI boot still writes into HERMES_HOME (logs, SQLite -wal/-shm, and on a bare home the whole skeleton: installs/<id>/bootstrap/default.json, SOUL.md, cron/, memories/…); on a home whose directory is not writable it fails "attempt to write a readonly database", so the launcher's owner-chat import is a read of the store, not of the home** · `hermes_cli/sessions_cmd.py` · found 2026-10-29 by launcher lane w1029b-qa · READY 2026-10-29 · **TAKEN 2026-10-29 w1029c-h-a on nekwo-ubuntu24 as nekwo in hermes-w1029c-h-a**
+- **`RT-SESSIONS-EXPORT-HOME-WRITES` — `hermes sessions export` still writes into the HERMES_HOME it reads when that home is writable: the boot's scratch prune (`cache/scratch/.last_prune`), the file log handlers (`logs/agent.log`, `errors.log`), `maybe_run_boot_bootstrap` (`installs/<id>/bootstrap/default.json`) and `ensure_hermes_home`'s skeleton (SOUL.md, cron/, memories/, sessions/…), so the launcher's owner-chat import touches the owner's home; the unwritable-home half ("attempt to write a readonly database") is fixed by the `hermes_state.py` `read_only_db_uri` seam** · `hermes_cli/sessions_cmd.py` · `hermes_state_ro_snapshot.py` · `hermes_cli/main.py` · `hermes_cli/boot_bootstrap.py` · `hermes_cli/config_home.py` · `hermes_logging.py` · found 2026-10-29 by launcher lane w1029b-qa · BLOCKED 2026-10-29: owner decision — four upstream boot writers in four upstream files would each need an additive guard; is a read-only CLI verb allowed that footprint? · Recommend: yes — one fork-owned predicate (`hermes_cli/read_only_invocation.py`, the `sessions export|list|stats` argv without `--delete-after-verified`) read by a one-line guard at each writer (logging to stderr only, no scratch prune, no boot bootstrap, no skeleton), one upstream PR candidate for the whole set
 
 ### Filed on arrival — 2026-10-29 (lane w1029b-h-proj)
 
@@ -642,7 +646,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-10-29 (lane w1029b-h-rt)
 
-- **`RT-SEAM-COMPUTE-HOST-STOP-DOOR` — the native worker stops its compute-host child by reading the gateway's private `_compute_host_supervisor` global off `tui_gateway.server` (bound there by `method_ctx.bind_module`), the same reach `agent_runtime/gateway/session_retirement.py` makes through `server._get_compute_host_supervisor()`; an additive public door on `tui_gateway/compute_host_bridge.py` (stop the supervisor if one exists, never make one) would retire both reaches** · seams / conversations · `agent_runtime/conversations/worker_entry.py::stop_compute_host` · `agent_runtime/gateway/session_retirement.py::retire` · `tui_gateway/compute_host_bridge.py::_get_compute_host_supervisor` · READY 2026-10-29 · **TAKEN 2026-10-29 w1029c-h-a on nekwo-ubuntu24 as nekwo in hermes-w1029c-h-a**
 
 ### Filed on arrival — 2026-10-21 (lane w1021h-daily, `integration/upstream-daily` `4ce03587da`)
 

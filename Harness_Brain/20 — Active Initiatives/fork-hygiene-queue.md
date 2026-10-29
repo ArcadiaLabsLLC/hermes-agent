@@ -609,7 +609,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 
 - **`FH-QUALIFICATION-DOC-CENSUS-BASELINES` — Reconcile baseline store epoch and coverage claim census failures reported by the suggestion landing run, preserving the assertions and correcting their actual owners** · `tests/agent_runtime/test_store_epoch_gate.py` · `tests/test_coverage_claims_resolve.py` · coverage points to a missing lens-exit-door test in `docs/agent-runtime-harness/planned/lens-deadline-schedule-equivalence-report-2026-10-27.md`; no suggestion source is named by either failure · READY 2026-10-27
-- **`FH-PREPUSH-ONE-COMMAND` — CLAUDE.md now makes every push to `main` a landing (owner 2026-10-29), but hermes has no one command for the pre-push checks the launcher runs as `dart tool/prepush/run.dart`: add `scripts/prepush.sh` that runs the queue grammar and row-guard gates, the cheap whole-tree text gates and the pusher's touched tests in one go, prints its plan, and exits non-zero on any red; then point CLAUDE.md at it** · `CLAUDE.md` § Git discipline · `EterniaLauncher/tool/prepush/run.dart` · filed 2026-10-29 orchestrator · READY 2026-10-29 · **TAKEN 2026-10-29 w1029c-h-a on nekwo-ubuntu24 as nekwo in hermes-w1029c-h-a**
 
 ## Filed on arrival — 2026-10-28 (lane w1028a-h-triage)
 

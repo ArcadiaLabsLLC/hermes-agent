@@ -370,32 +370,8 @@ class OfficeSurface:
     schema_version: int = 1
 
 
-@dataclass(slots=True)
-class GoalRuntimeInstance:
-    id: str
-    task_id: str
-    lane: str
-    state: str
-    created_at: datetime
-    updated_at: datetime
-    run_generation: int = 1
-    active_run_ids: list[str] = field(default_factory=list)
-    parked_reason: str | None = None
-    lease_owner: str | None = None
-    lane_kind: str = "production"
-    priority: int = 5
-    state_reason: str | None = None
-    current_stage_id: str | None = None
-    current_owner: str | None = None
-    persona_instance_ids: list[str] = field(default_factory=list)
-    repo_bundle_locks: list[dict[str, Any]] = field(default_factory=list)
-    daemon_lease_id: str | None = None
-    budget_counters: dict[str, int] = field(default_factory=dict)
-    last_decision_type: str | None = None
-    last_progress_at: datetime | None = None
-    open_incident_ids: list[str] = field(default_factory=list)
-    latest_proof_ids: list[str] = field(default_factory=list)
-    schema_version: int = 1
+# DC-RUNTIME-INSTANCES-DIR-RESIDUE removed ``GoalRuntimeInstance``: its store lost every writer at
+# S53 and its last reader with RT-WRITERLESS-GOAL-LANE-READ-RESIDUE.
 
 
 #: Stored autonomy spellings outside the enum. ``review`` was the field's old

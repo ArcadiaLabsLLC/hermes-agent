@@ -457,7 +457,7 @@ def subagent_uses_compute(session):
 def subagent_compute_supervisor():
     from tui_gateway import server
 
-    return server._compute_host_supervisor
+    return server.existing_compute_host_supervisor()
 
 
 # Step 6 (RT-AGENT-CONSOLE-STEP-6): the delegation defaults the Agent Console shows are the

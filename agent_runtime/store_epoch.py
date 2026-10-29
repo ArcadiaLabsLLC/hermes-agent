@@ -180,6 +180,17 @@ MIGRATION_REGISTRY: tuple[dict[str, Any], ...] = (
                   "watched game; no existing path moves and an older edition never reads it",
         "pins_sha256": "6b5efbfffde7c5d874ff60c5f5d2893db9d6fc80e3f381e328b44c78537d64a7",
     },
+    {
+        "id": "runtime-instances-residue",
+        "date": "2026-10-29",
+        "store": "all",
+        "breaking": False,
+        "reason": "subtractive (lane w1029c-h-a, DC-RUNTIME-INSTANCES-DIR-RESIDUE): GoalRuntimeInstance and "
+                  "paths.runtime_instances_dir / runtime_instance_path leave; nothing has written "
+                  "store/runtime_instances/ since S53, the directory is not deleted, and an older edition reads "
+                  "it exactly as before",
+        "pins_sha256": "471019867cdb4b16f515fbf53d6f2d2c250d78f7140b0d8ef31133475b8f7143",
+    },
 )
 
 #: ``1 + count(breaking entries)`` — ``tests/agent_runtime/test_store_epoch_gate.py`` holds it to that.
