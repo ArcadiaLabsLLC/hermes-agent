@@ -907,7 +907,11 @@ are shared, and runs the publish right of every realm the Project is in. A share
 is written as ``<chats folder>/<session>/<machine>.<namespace>.jsonl`` (one line per
 ACTIVE message: ``turn_uid`` = ``messages.message_uid``, ``seq``, ``role``, ``ts``,
 redacted ``content`` / ``tool_calls``, ``tool_name``, ``parent_turn_uid``, ``author``
-``{persona_instance_id, profile_id, machine_id, namespace}``, ``address``) plus
+``{persona_instance_id, profile_id, machine_id, namespace}``, ``address``; an attachment
+declaration line — ``MEDIA:`` / ``FILE:`` path — leaves as ``ATTACHMENT:sha256:<hex>``,
+or ``ATTACHMENT:unavailable`` when this disk cannot back it, with ``attachments``
+``[{handle, media_type, size_bytes}]`` on the line and never a path:
+``project_chat_export.shared_attachments``, RT-PROJECT-CHAT-ATTACHMENT-HANDLES) plus
 ``<session>/chat.json``, published by the Work writer's new ``chat_turns_appended``
 operation in Hermes's own worktree of the chats slot (pseudo-workspace
 ``project_<id>``), on every turn end and as a backfill on enable; the cursor is

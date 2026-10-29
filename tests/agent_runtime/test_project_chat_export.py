@@ -101,3 +101,33 @@ def test_a_chat_is_refused_when_the_projects_chats_are_not_shared(project, chat)
         export.share("p1", "chat_1", True, session_db=chat)
     assert refused.value.reason == "category_not_shared"
     assert export.load_cursor("p1", "chat_1") is None
+
+
+def test_an_attachment_leaves_as_its_handle_never_its_path(tmp_path):
+    """RT-PROJECT-CHAT-ATTACHMENT-HANDLES: a MEDIA: declaration line exports as ATTACHMENT:<handle>.
+
+    Positive control: prose that only mentions the protocol (not an absolute image path) is unchanged.
+    """
+    from hermes_state import SessionDB
+
+    from agent_runtime.media_handles import handle_for_bytes
+
+    image = tmp_path / "shots" / "screen.png"
+    image.parent.mkdir()
+    image.write_bytes(b"\x89PNG fake bytes")
+    db = SessionDB(db_path=tmp_path / "own.db")
+    try:
+        db.create_session("chat_a", "harness")
+        db.append_message("chat_a", "user", f"look at this\nMEDIA:{image}\nMEDIA:{tmp_path / 'gone.png'}\n"
+                                            "the MEDIA:<absolute path> line is how you attach")
+        lines, _ = export.pending_lines(db, "chat_a", {})
+    finally:
+        db.close()
+    line, = lines
+    assert str(tmp_path) not in line["content"] and str(tmp_path) not in json.dumps(line)
+    assert line["content"].splitlines() == ["look at this", f"ATTACHMENT:{handle_for_bytes(image.read_bytes())}",
+                                            "ATTACHMENT:unavailable",
+                                            "the MEDIA:<absolute path> line is how you attach"]
+    assert line["attachments"] == [{"handle": handle_for_bytes(image.read_bytes()), "media_type": "image/png",
+                                    "size_bytes": image.stat().st_size},
+                                   {"handle": None, "status": "unavailable"}]
