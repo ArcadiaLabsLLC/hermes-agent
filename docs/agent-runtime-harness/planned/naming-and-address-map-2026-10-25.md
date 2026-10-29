@@ -100,9 +100,10 @@ Facts the tree rests on:
 | `persona` / `persona-instance` | the role / the agent you chat with; players see "role" and "agent" |
 | `chat` / `turn` / `chat-folder` | a conversation / one turn / a chat's scratch space inside the namespace |
 | `realm` / `realm-workspace` / `repo-slot` | the shared world / its team workspace / a named repository it declares |
-| `slot-folder` | a repo slot's folder on one machine in one namespace; it points at a `project` |
+| `slot-folder` | a workspace-owned repo slot's folder on one machine in one namespace |
 | `development-workspace` | a git worktree cut from a slot's repository |
-| `project` | upstream's per-profile project (folders, chats, context) |
+| `upstream-project` | upstream's per-profile record in `projects.db`; separate from Launcher Projects |
+| `launcher-project` | the Launcher's account-local home for folders, chats, context and outputs; a Hermes workspace holds only its opaque id in `project_ids` |
 | `centrifugo-channel-namespace` | the server's realtime channel group, always written in full |
 
 Player-facing copy uses the short word only where it has one meaning: "Workspace" (realm workspace), "Agent
@@ -113,12 +114,20 @@ data" (a namespace), "Sandbox" (a launcher-profile namespace), "agent", "role".
 ```
 machine:<machine-id>/namespace:<id>/persona-instance:<id>/chat:<id>/turn:<id>
 realm:<id>/realm-workspace:<id>/repo-slot:<name>                       (shared, synced)
-machine:<machine-id>/namespace:<id>/slot-folder:<workspace>/<slot>     (the join → project, worktrees)
+machine:<machine-id>/namespace:<id>/slot-folder:<workspace>/<slot>     (workspace-owned folder, worktrees)
 ```
 
 Each segment carries its kind, so a bare id never names anything. One typed address value on each side
 (hermes and launcher) with one print/parse format; every audit line, turn record and agent commit trailer
 (`RT-AGENT-COMMIT-ATTRIBUTION`) prints it.
+
+Owner correction, 2026-10-28: keep existing owners; add Project connections and
+avatars. A workspace may reference several Launcher Projects and a Project may
+connect to several workspaces. This does not move slots, share Project content,
+grant access or create a runtime Project store. The implemented reference contract
+is in `docs/agent-runtime-harness/02-runtime-data-and-shapes.md` §54; Launcher presentation is in
+`EterniaLauncher/docs/mission_control/planned/build-running-work-launcher-2026-10-04.md`
+§4A. The former proposal for Project-owned slots is superseded.
 
 ## The board (owner, 2026-10-25)
 
