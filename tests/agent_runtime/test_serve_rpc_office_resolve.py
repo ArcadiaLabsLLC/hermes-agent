@@ -124,7 +124,11 @@ def _seed(workspace_id: str = WORKSPACE):
     store = _store()
     seed_workspace_record(workspace_id)
     store.ensure_surface(workspace_id, created_by="seed")
-    store.upsert_actor(workspace_id, _actor_payload(), updated_by="seed-operator")
+    # The first write differs (a content-equal upsert is a no-op, RT-OFFICE-NOOP-ACTOR-WRITE), so the
+    # second lands the canonical payload at revision 2.
+    first = _actor_payload()
+    first["items"][0]["position"] = [-7.0, -2.0]
+    store.upsert_actor(workspace_id, first, updated_by="seed-operator")
     store.upsert_actor(workspace_id, _actor_payload(), updated_by="seed-operator")
     assert store.get_actor(workspace_id, QA_INSTANCE).revision == 2
     return store

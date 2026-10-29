@@ -153,7 +153,9 @@ def test_stale_revision_guard():
     actor = store.upsert_actor(ws, _actor_payload("dev"))
     with pytest.raises(StaleRevision):
         store.upsert_actor(ws, _actor_payload("dev"), expect_revision=actor.revision + 5)
-    updated = store.upsert_actor(ws, _actor_payload("dev"), expect_revision=actor.revision)
+    moved = _actor_payload("dev")
+    moved["items"][0]["position"] = [9.0, 2.0]  # an equal payload is a no-op (RT-OFFICE-NOOP-ACTOR-WRITE)
+    updated = store.upsert_actor(ws, moved, expect_revision=actor.revision)
     assert updated.revision == actor.revision + 1
 
 
@@ -307,8 +309,10 @@ def test_an_unreadable_archive_refuses_the_re_add_instead_of_minting_revision_1(
     ws = _make_workspace()
     store = OfficeStore()
     actor = store.upsert_actor(ws, _actor_payload("dev"))
-    for _ in range(6):
-        actor = store.upsert_actor(ws, _actor_payload("dev"))
+    for step in range(6):
+        moved = _actor_payload("dev")  # each write differs: an equal one is a no-op (RT-OFFICE-NOOP-ACTOR-WRITE)
+        moved["items"][0]["position"] = [float(step + 2), 2.0]
+        actor = store.upsert_actor(ws, moved)
     assert actor.revision == 7
     store.remove_actor(ws, "dev")
     archived_path = paths.office_archived_actor_path(ws, "dev")
@@ -897,7 +901,9 @@ def test_upsert_dry_run_is_byte_identical_and_eventless():
     before_bytes = path.read_bytes()
     before_events = _office_event_count()
 
-    would_be = store.upsert_actor(ws, _actor_payload("dev"), dry_run=True)
+    changed = _actor_payload("dev")  # a CHANGED payload: an equal one is a no-op (RT-OFFICE-NOOP-ACTOR-WRITE)
+    changed["items"][0]["position"] = [9.0, 2.0]
+    would_be = store.upsert_actor(ws, changed, dry_run=True)
     assert would_be.revision == 2, "dry-run must report the would-be (bumped) revision"
     assert path.read_bytes() == before_bytes, "dry-run must not rewrite the actor file"
     assert _office_event_count() == before_events, "dry-run must emit no event"
@@ -908,7 +914,7 @@ def test_upsert_dry_run_is_byte_identical_and_eventless():
     # TYPE rather than as ``+2`` so the pairing is the thing under test — a bare
     # count would go green again if either half were replaced by an unrelated
     # event.
-    real = store.upsert_actor(ws, _actor_payload("dev"))
+    real = store.upsert_actor(ws, changed)
     assert real.revision == 2
     assert path.read_bytes() != before_bytes
     emitted = [event.type for _, event in EventLog().iter_from_offset(0)][before_events:]
