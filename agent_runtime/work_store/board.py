@@ -75,6 +75,8 @@ class Board:
     is_default: bool
     #: The checkout git runs against: the slot's bound path, or the default brain's directory.
     checkout: Path | None = None
+    #: The Project that declares the slot (plan project-slots-and-shared-chats §7), None for a workspace's own.
+    project_id: str | None = None
 
 
 def brain_dir_of(root: Path | None, slot: dict[str, Any]) -> str | None:
@@ -89,9 +91,10 @@ def brain_dir_of(root: Path | None, slot: dict[str, Any]) -> str | None:
     return found[0].relative_to(root).as_posix() if found else None
 
 
-def _slot_board(workspace_id: str, name: str, slot: dict[str, Any], read_roots: Mapping[str, Path]) -> Board:
+def _slot_board(workspace_id: str, name: str, slot: dict[str, Any], read_roots: Mapping[str, Path],
+                project_id: str | None = None) -> Board:
     repo = slot.get("repo") or {}
-    path = bound_path(name, workspace_id=workspace_id)
+    path = bound_path(name, project_id=project_id) if project_id else bound_path(name, workspace_id=workspace_id)
     bound_here = bool(path and path.is_dir())
     read_root = read_roots.get(name) or (path if bound_here else None)
     local = repo.get("local") is True
@@ -106,14 +109,21 @@ def _slot_board(workspace_id: str, name: str, slot: dict[str, Any], read_roots: 
         bound_here=bound_here,
         is_default=False,
         checkout=path if bound_here else None,
+        project_id=project_id,
     )
 
 
 def declared_boards(workspace_id: str, *, read_roots: Mapping[str, Path] | None = None) -> list[Board]:
-    """One board per live DECLARED slot, sorted by name, bound here or not (an unbound one is never read)."""
+    """One board per live DECLARED slot, sorted by name, bound here or not (an unbound one is never read).
 
-    slots = live_slots(load_document(workspace_id))
-    return [_slot_board(workspace_id, name, slots[name], read_roots or {}) for name in sorted(slots)]
+    The slots are the workspace's own document's and its Projects' (``project_categories.board_slots``:
+    a Project's boards category picks its board; a migrated document lists none of its own).
+    """
+
+    from ..project_categories import board_slots
+
+    return [_slot_board(workspace_id, name, slot, read_roots or {}, project_id)
+            for project_id, name, slot in board_slots(workspace_id)]
 
 
 def first_repo_brain(workspace_id: str) -> Board | None:

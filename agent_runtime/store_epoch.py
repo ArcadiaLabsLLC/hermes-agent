@@ -135,6 +135,41 @@ MIGRATION_REGISTRY: tuple[dict[str, Any], ...] = (
                   "moves and an older edition never reads it",
         "pins_sha256": "f0a749e771eccd3e88a99b559b53aa4bf24141f4139cfdf9b614caf79a8ca2cb",
     },
+    {
+        "id": "project-records-and-project-slot-fills",
+        "date": "2026-10-29",
+        "store": "all",
+        "breaking": False,
+        "reason": "additive (lane w1029a-h-proj, RT-PROJECT-RECORD-STORE / RT-PROJECT-SLOT-REKEY): paths.projects_dir / "
+                  "project_path name store/projects/<id>.json (family project); machine_roots.json schema 4 adds "
+                  "project_roots beside slot_folders and machine_slot_env.json a projects collection beside "
+                  "workspaces; slot_worktrees_path's first segment may be a Project id. Each workspace slot document "
+                  "migrates into Project ws-<workspace> and stays in place stamped migrated_to, and its fills, env fills "
+                  "and worktree records are COPIED to the Project's keys, so an older edition still reads every "
+                  "document and every workspace-keyed fill it wrote; nothing moves out from under it",
+        "pins_sha256": "dd4409ded46ab00a47cfbe3ea4562647b696ad907e30a5bb4c58473ecd325501",
+    },
+    {
+        "id": "project-chat-export-cursors",
+        "date": "2026-10-29",
+        "store": "all",
+        "breaking": False,
+        "reason": "additive (lane w1029a-h-proj, RT-PROJECT-CHAT-TURN-LOGS): paths.project_chat_export_path names "
+                  "store/project_chat_exports/<project>/<session>.json, a shared chat's machine-local export "
+                  "cursor; no existing path moves and an older edition never reads it",
+        "pins_sha256": "28c1b9b459e5015cf347efd45bb80642350d80495969c476589ba43e26d4309b",
+    },
+    {
+        "id": "project-shared-chat-store",
+        "date": "2026-10-29",
+        "store": "all",
+        "breaking": False,
+        "reason": "additive (lane w1029a-h-proj, RT-PROJECT-CHAT-SHARED-FOLD): the paths table names "
+                  "store/project_chats/<project>.db (a SessionDB that is never a chat head) and "
+                  "project_chat_fold_path its fold offsets; no existing path moves, an agent's own state.db is "
+                  "never written, and an older edition never reads either",
+        "pins_sha256": "2a01c95f60dde66bd0d12d364091f678f28c308e381bcf756d6bc898f3285a93",
+    },
 )
 
 #: ``1 + count(breaking entries)`` — ``tests/agent_runtime/test_store_epoch_gate.py`` holds it to that.

@@ -774,13 +774,44 @@ def workspace_slots_path(workspace_id: str) -> Path:
     return workspace_slots_dir() / f"{safe_path_token(workspace_id)}.json"
 
 
-def slot_worktrees_path(workspace_id: str, slot: str) -> Path:
+def projects_dir() -> Path:
+    """The Launcher Project records hermes keeps (plan project-slots-and-shared-chats-2026-10-29 §2)."""
+
+    return store_root() / "projects"
+
+
+def project_path(project_id: str) -> Path:
+    """One Project's record, keyed by the project id's path token (the PROJECT family)."""
+
+    return projects_dir() / f"{safe_path_token(project_id)}.json"
+
+
+def project_chat_export_path(project_id: str, session_id: str) -> Path:
+    """One shared chat's export cursor (plan project-slots-and-shared-chats §5): machine-local, never synced."""
+
+    return store_root() / "project_chat_exports" / safe_path_token(project_id) / f"{safe_path_token(session_id)}.json"
+
+
+def project_chat_store_path(project_id: str) -> Path:
+    """A Project's SHARED chat store (plan project-slots-and-shared-chats §6): never a chat head."""
+
+    return store_root() / "project_chats" / f"{safe_path_token(project_id)}.db"
+
+
+def project_chat_fold_path(project_id: str) -> Path:
+    """The fold's per-file byte offsets for one Project's chats folder (machine-local, never synced)."""
+
+    return store_root() / "project_chat_fold" / f"{safe_path_token(project_id)}.json"
+
+
+def slot_worktrees_path(owner_id: str, slot: str) -> Path:
     """The git worktrees seen cut from one repo slot's folder on THIS machine (RT-WORKTREE-RECORDED-ON-SLOT).
 
-    Machine-local like the slot fill it describes: under no realm-sync family, never synced.
+    ``owner_id`` is the Project that declares the slot (``<project>/<slot>``), or the workspace whose own
+    document still declares it. Machine-local like the slot fill it describes: never synced.
     """
 
-    return store_root() / "slot_worktrees" / safe_path_token(workspace_id) / f"{safe_path_token(slot)}.json"
+    return store_root() / "slot_worktrees" / safe_path_token(owner_id) / f"{safe_path_token(slot)}.json"
 
 
 def work_dir() -> Path:

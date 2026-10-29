@@ -3,11 +3,17 @@
 Plan ``docs/agent-runtime-harness/planned/naming-and-address-map-2026-10-25.md`` § The address::
 
     machine:<machine-id>/namespace:<id>/persona-instance:<id>/chat:<id>/turn:<id>
-    realm:<id>/realm-workspace:<id>/repo-slot:<name>                       (shared, synced)
-    machine:<machine-id>/namespace:<id>/slot-folder:<workspace>/<slot>     (the join)
+    project:<id>/repo-slot:<name>                                          (shared, synced)
+    machine:<machine-id>/namespace:<id>/slot-folder:<project>/<slot>       (the join)
+    realm:<id>/realm-workspace:<id>/repo-slot:<name>                       (read, never printed again)
+
+A repo slot is declared by a Project and named ``<project>/<slot>`` (plan
+``project-slots-and-shared-chats-2026-10-29.md`` §3, §8): ``slot-folder``'s pair is ``<project>/<slot>``
+(a workspace-document slot not yet migrated still prints its workspace id there), and the
+``realm:/realm-workspace:/repo-slot:`` chain stays parseable for old turn records.
 
 :class:`Address` is the value; ``str(address)`` prints it and :func:`parse` reads it back, the one format
-both ways. An address is any non-empty PREFIX of one of the three chains above (``machine:…/namespace:…``
+both ways. An address is any non-empty PREFIX of one of the four chains above (``machine:…/namespace:…``
 is an address; ``chat:…`` alone is not). ``namespace:base`` names the base root (``BASE_ID``), which is
 not a namespace but is where a process with no ``HERMES_NAMESPACE`` keeps its data. Editions are never a
 segment (ruling 9): the edition that ran a turn is a stamp beside the address (``ran_by``).
@@ -36,11 +42,13 @@ class Kind(StrEnum):
     REALM_WORKSPACE = "realm-workspace"
     REPO_SLOT = "repo-slot"
     SLOT_FOLDER = "slot-folder"
+    PROJECT = "project"
 
 
-#: The three chains, in order. An address is a non-empty prefix of one of them.
+#: The four chains, in order. An address is a non-empty prefix of one of them.
 CHAINS: tuple[tuple[Kind, ...], ...] = (
     (Kind.MACHINE, Kind.NAMESPACE, Kind.PERSONA_INSTANCE, Kind.CHAT, Kind.TURN),
+    (Kind.PROJECT, Kind.REPO_SLOT),
     (Kind.REALM, Kind.REALM_WORKSPACE, Kind.REPO_SLOT),
     (Kind.MACHINE, Kind.NAMESPACE, Kind.SLOT_FOLDER),
 )
@@ -57,7 +65,7 @@ class AddressError(ValueError):
 @dataclass(frozen=True, slots=True)
 class Segment:
     kind: Kind
-    #: For ``slot-folder`` this is ``<workspace>/<slot>`` — the one segment whose id is a pair.
+    #: For ``slot-folder`` this is ``<project>/<slot>`` — the one segment whose id is a pair.
     id: str
 
     def __str__(self) -> str:
@@ -67,7 +75,7 @@ class Segment:
 def _check_id(kind: Kind, value: str) -> str:
     parts = value.split("/") if kind is Kind.SLOT_FOLDER else [value]
     if (kind is Kind.SLOT_FOLDER and len(parts) != 2) or not all(_ID.fullmatch(part) for part in parts):
-        want = "<workspace>/<slot>" if kind is Kind.SLOT_FOLDER else "an id with no '/' or whitespace"
+        want = "<project>/<slot>" if kind is Kind.SLOT_FOLDER else "an id with no '/' or whitespace"
         raise AddressError(f"{kind.value}: {value!r} is not {want}")
     return value
 
@@ -115,7 +123,7 @@ def parse(text: str) -> Address:
             raise AddressError(f"{tokens[i]!r} has no ':' — a bare kind names nothing")
         if kind is Kind.SLOT_FOLDER:
             if i + 1 >= len(tokens):
-                raise AddressError("slot-folder needs <workspace>/<slot>")
+                raise AddressError("slot-folder needs <project>/<slot>")
             value, i = f"{value}/{tokens[i + 1]}", i + 1
         segments.append(Segment(kind, value))
         i += 1

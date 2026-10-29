@@ -833,6 +833,97 @@ Deleting an account-local Launcher Project does not cascade into a shared or
 offline workspace: an orphaned opaque reference is inert. Connections grant no
 content access and do not alter slots or agent assignments.
 
+54 KEPT (Projects record, 2026-10-29, RT-PROJECT-RECORD-STORE) — no snapshot key
+moved. Hermes now keeps a Project's record at ``store/projects/<token>.json``
+(``paths.project_path``): ``slots`` in the workspace slot document's exact shape
+(``workspace_slots.apply_declared_set``; ``context`` may carry ``document_dirs`` /
+``adr_dirs``), ``categories.<chats|documents|boards|artifacts|guidance>`` as folder
+declarations ``{slot, subpath, shared, issued_at, revision}``, ``guidance``
+``{description, instructions, issued_at, revision}`` present only while
+``categories.guidance.shared``, and ``machines``. The one writer is
+``project_store.ProjectStore``; a folder category shares only on a slot with a
+clone URL (``category_not_source_controlled``), and every write runs the realm
+publish decision for each realm whose workspace holds the Project
+(``realm_publish_denied`` names the realm). It syncs as realm family ``project``
+(``project_sync.apply_project_pull``, envelope row ``project_sync``). Verbs, all
+``console``: ``runtime.project.show`` / ``.declare`` / ``.category.set`` /
+``.guidance.set``; their keys are in the manifest's ``params`` (the launcher mirror
+in ``test/fixtures/harness_stream/``). Plan
+[project-slots-and-shared-chats-2026-10-29.md](planned/project-slots-and-shared-chats-2026-10-29.md) §2.
+
+54 KEPT (Project slot fill, 2026-10-29, RT-PROJECT-SLOT-REKEY) — no snapshot key
+moved. A slot is named ``<project>/<slot>``. ``machine_roots.json`` schema 4 adds
+``project_roots.<project>.<slot>`` (one fill per Project per machine, kept by every
+write that does not pass it) and ``machine_slot_env.json`` a ``projects`` collection;
+``workspace_slots.bound_path(slot, project_id=…)`` reads it and a workspace-keyed read
+resolves through ``slot_owner`` to the Project declaring the slot. ``BoundSlot`` gains
+``project_id``. Each workspace slot document migrates once, at serve boot, into Project
+``ws-<workspace>`` (``project_migration``; receipt ``project_migration.completed``), its
+fills COPIED (an older edition keeps its own) and the document stamped ``migrated_to``,
+which the slot merge carries. Verbs ``runtime.project.slot.bind`` / ``.slot.env.set`` /
+``.report`` are local-console only, like their workspace twins.
+
+54 KEPT (Project slots for agents, 2026-10-29, RT-PROJECT-SLOTS-FOR-AGENTS) — no
+snapshot key moved. ``PersonaInstance.assigned_slots`` / ``primary_slot`` hold
+``<project>/<slot>`` for a Project's slot (a bare name stays a slot of the workspace's
+own, unmigrated document); ``persona_slots.visible_slots`` is what an instance may be
+assigned — its workspace's document plus every Project in ``project_ids``.
+``runtime.persona.instance.slots.show`` rows gain ``project_id`` and ``slot`` and the
+result a ``projects`` grouping. Disconnecting a Project (``runtime.workspace.project.set``,
+result key ``assignments_dropped``) drops ``<project>/*`` from that workspace's instances;
+a Project slot's tombstone drops it everywhere. The migration re-keys assignments
+(step 3). After it, ``runtime.workspace.slots.show`` / ``.declare`` / ``.report`` /
+``.slot.bind`` / ``.slot.env.set`` answer ``slot_migrated`` with ``data.project_id``.
+
+54 KEPT (Project category folders, 2026-10-29, RT-PROJECT-CATEGORY-FOLDERS) — no
+snapshot key moved. ``categories.documents`` may carry ``context_files`` (relative
+paths; ``runtime.project.category.set`` key ``context_files``); under a slot assignment
+the turn's slot context adds each listed file from this machine's documents folder as
+``## <Project>/documents — <file>`` and, while the guidance share is on, one
+``## <Project> — guidance`` section, with ``kind: project_context`` receipts
+(``agent_runtime/project_categories.py``). Work boards: ``Board.project_id``; a Project
+lists its boards category's slot (else one board per live slot) and a migrated
+document lists none of its own. ``runtime.project.artifacts.list`` answers
+``{project_id, here, files: [{name, size}], truncated}``.
+
+54 KEPT (Project chat turn logs, 2026-10-29, RT-PROJECT-CHAT-TURN-LOGS) — no snapshot
+key moved. ``runtime.project.chat.share`` (``project_id``, ``session_id``, ``shared``,
+realm ``credential(s)``) is refused ``category_not_shared`` unless the Project's chats
+are shared, and runs the publish right of every realm the Project is in. A shared chat
+is written as ``<chats folder>/<session>/<machine>.<namespace>.jsonl`` (one line per
+ACTIVE message: ``turn_uid`` = ``messages.message_uid``, ``seq``, ``role``, ``ts``,
+redacted ``content`` / ``tool_calls``, ``tool_name``, ``parent_turn_uid``, ``author``
+``{persona_instance_id, profile_id, machine_id, namespace}``, ``address``) plus
+``<session>/chat.json``, published by the Work writer's new ``chat_turns_appended``
+operation in Hermes's own worktree of the chats slot (pseudo-workspace
+``project_<id>``), on every turn end and as a backfill on enable; the cursor is
+``store/project_chat_exports/<project>/<session>.json``. Unshare removes
+``<session>/`` in one commit.
+
+54 KEPT (Project shared chat store, 2026-10-29, RT-PROJECT-CHAT-SHARED-FOLD) — no
+snapshot key moved. ``store/project_chats/<project>.db`` is a
+``project_chat_fold.ProjectSharedSessionDB`` (a ``SessionDB`` with a UNIQUE index on
+``messages.message_uid``; ``is_canonical_session_persistence`` False), folded from every
+writer's ``.jsonl`` in Hermes's worktree of the chats slot at the remote tip by recorded
+byte offset (``store/project_chat_fold/<project>.json``), idempotent by ``turn_uid`` in
+``(ts, seq)`` order; sessions carry ``source = "project_shared"``. It folds after each
+local export and on ``runtime.project.chat.fold`` (local console). It is dropped, with
+its offsets and the export cursors and nothing else, when the chats share turns off or
+the last workspace of the namespace disconnects the Project.
+
+54 KEPT (recall across stores, 2026-10-29, RT-PROJECT-CHAT-RECALL-ACROSS-STORES) — no
+snapshot key moved. ``PersonaInstance.recall_shared_projects`` (default false; slot-lane
+clock; ``runtime.persona.instance.recall.set`` ``{persona_instance_id, enabled,
+issued_at}``; ``instance.slots.show`` reports it). With it on,
+``agent_runtime/project_chat_recall.recall_session_search`` (upstream's public
+``session_search`` per store; the agent's tool call is not yet routed to it — that is an
+upstream-file edit awaiting the owner) also searches, read-only, the shared store of
+every Project the instance's workspace holds whose chats are shared: per-store discovery,
+merged round-robin by per-store rank with the own store first; each shared hit carries
+``shared_from {project, project_id, author, machine}``, ``shared_label`` and the link
+``@project:<id>/<session>``, which read and scroll resolve against that store. The own
+store's current-lineage exclusion is unchanged. Memory extraction opens no shared store.
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.

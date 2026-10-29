@@ -90,6 +90,8 @@ class SyncFamily(StrEnum):
     PREFAB = "prefab"
     #: The repo-slot documents (build plan §3.1): key-wise at three depths.
     WORKSPACE_SLOTS = "workspace_slots"
+    #: The Launcher Project record (plan project-slots-and-shared-chats §2): the slot rules plus categories.
+    PROJECT = "project"
     PROFILE_FILE = "profile_file"
     ARTIFACT = "artifact"
 
@@ -339,6 +341,8 @@ SYNC_PATH_FAMILIES: Final[tuple[SyncPathFamily, ...]] = (
         _prefix("store/workspace_slots/"),
         owner="workspace_slots_sync.apply_workspace_slots_pull",
     ),
+    # The Project records: the slot document's key-wise merge plus the category declarations.
+    SyncPathFamily(SyncFamily.PROJECT, _prefix("store/projects/"), owner="project_sync.apply_project_pull"),
     SyncPathFamily(
         SyncFamily.PROFILE_FILE,
         _prefix("store/profile_files/"),

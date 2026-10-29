@@ -270,6 +270,7 @@
     "runtime.persona.instance.create",
     "runtime.persona.instance.detail",
     "runtime.persona.instance.open_chat",
+    "runtime.persona.instance.recall.set",
     "runtime.persona.instance.set_model",
     "runtime.persona.instance.slots.set",
     "runtime.persona.instance.slots.show",
@@ -284,6 +285,16 @@
     "runtime.prefab.get",
     "runtime.prefab.list",
     "runtime.prefab.set",
+    "runtime.project.artifacts.list",
+    "runtime.project.category.set",
+    "runtime.project.chat.fold",
+    "runtime.project.chat.share",
+    "runtime.project.declare",
+    "runtime.project.guidance.set",
+    "runtime.project.report",
+    "runtime.project.show",
+    "runtime.project.slot.bind",
+    "runtime.project.slot.env.set",
     "runtime.prompt_context.show",
     "runtime.provider.configure",
     "runtime.provider.dependency.install",
@@ -877,6 +888,11 @@
       "install_id",
       "client_scope"
     ],
+    "runtime.persona.instance.recall.set": [
+      "persona_instance_id",
+      "enabled",
+      "issued_at"
+    ],
     "runtime.persona.toolset.approve": [
       "mode",
       "persona_id",
@@ -885,6 +901,69 @@
     ],
     "runtime.persona.toolset.list": [
       "persona_id"
+    ],
+    "runtime.project.artifacts.list": [
+      "project_id"
+    ],
+    "runtime.project.category.set": [
+      "project_id",
+      "issued_at",
+      "credential",
+      "credentials",
+      "category",
+      "slot",
+      "subpath",
+      "shared",
+      "context_files"
+    ],
+    "runtime.project.chat.fold": [
+      "project_id"
+    ],
+    "runtime.project.chat.share": [
+      "project_id",
+      "session_id",
+      "shared",
+      "credential",
+      "credentials"
+    ],
+    "runtime.project.declare": [
+      "project_id",
+      "issued_at",
+      "credential",
+      "credentials",
+      "name",
+      "slots"
+    ],
+    "runtime.project.guidance.set": [
+      "project_id",
+      "issued_at",
+      "credential",
+      "credentials",
+      "description",
+      "instructions"
+    ],
+    "runtime.project.report": [
+      "project_id"
+    ],
+    "runtime.project.show": [
+      "project_id"
+    ],
+    "runtime.project.slot.bind": [
+      "project_id",
+      "slot",
+      "path",
+      "issued_at"
+    ],
+    "runtime.project.slot.env.set": [
+      "project_id",
+      "slot",
+      "env",
+      "env_keep",
+      "tool_paths",
+      "path_prepend",
+      "dotenv",
+      "venv",
+      "issued_at"
     ],
     "runtime.realm.adopt": [
       "credential",
@@ -1246,6 +1325,7 @@
     "runtime.persona.instance.create": "console",
     "runtime.persona.instance.detail": "read",
     "runtime.persona.instance.open_chat": "console",
+    "runtime.persona.instance.recall.set": "console",
     "runtime.persona.instance.set_model": "console",
     "runtime.persona.instance.slots.set": "console",
     "runtime.persona.instance.slots.show": "console",
@@ -1260,6 +1340,16 @@
     "runtime.prefab.get": "console",
     "runtime.prefab.list": "console",
     "runtime.prefab.set": "console",
+    "runtime.project.artifacts.list": "console",
+    "runtime.project.category.set": "console",
+    "runtime.project.chat.fold": "console",
+    "runtime.project.chat.share": "console",
+    "runtime.project.declare": "console",
+    "runtime.project.guidance.set": "console",
+    "runtime.project.report": "console",
+    "runtime.project.show": "console",
+    "runtime.project.slot.bind": "console",
+    "runtime.project.slot.env.set": "console",
     "runtime.prompt_context.show": "console",
     "runtime.provider.configure": "console",
     "runtime.provider.dependency.install": "console",

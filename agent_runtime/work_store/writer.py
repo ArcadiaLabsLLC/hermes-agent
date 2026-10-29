@@ -44,7 +44,8 @@ from .models import OPERATOR
 from .reasons import Reason, WorkRefused
 
 __layer__ = "stores"
-__all__ = ["OPERATOR", "REPLAY_BUDGET", "Receipt", "RowOp", "Writer", "checkout_token", "drop_worktrees", "remove_worktree"]
+__all__ = ["OPERATOR", "REPLAY_BUDGET", "Receipt", "RowOp", "Writer", "checkout_token", "drop_worktrees", "remove_worktree",
+           "work_worktree_for"]
 
 REPLAY_BUDGET = 8
 REQUEST_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,200}$")
@@ -112,6 +113,20 @@ def remove_worktree(worktree: Path, *, repo: Path | None) -> None:
         shutil.rmtree(worktree, ignore_errors=True)
     if repo is not None and (repo / ".git").exists():
         run_git(["worktree", "prune"], repo=repo, timeout=60, stdin=subprocess.DEVNULL)
+
+
+def work_worktree_for(workspace_id: str, slot: str, token: str) -> Path:
+    """Hermes's worktree of a slot's checkout, keyed by ``<project>/<slot>`` when a Project declares it.
+
+    A worktree cut before the slot moved into a Project sits at the bare-slot key and stays in use
+    there until it is recut (a live git worktree is never renamed under git's feet — plan §4 step 2).
+    """
+
+    from ..workspace_slots import slot_key, slot_owner
+
+    keyed = paths.work_worktree_dir(workspace_id, slot_key(slot_owner(workspace_id, slot), slot), token)
+    legacy = paths.work_worktree_dir(workspace_id, slot, token)
+    return legacy if not keyed.exists() and legacy.exists() else keyed
 
 
 def drop_worktrees(workspace_id: str, slot: str) -> list[Path]:
@@ -254,8 +269,8 @@ class Writer:
         if clone is None or not (clone / ".git").exists():
             raise WorkRefused(Reason.SLOT_UNBOUND, self.board.slot)
         if self._worktree is None:
-            token = checkout_token(clone, run=self._run)
-            self._worktree = paths.work_worktree_dir(self.board.workspace_id, self.board.slot, token)
+            self._worktree = work_worktree_for(self.board.workspace_id, self.board.slot,
+                                               checkout_token(clone, run=self._run))
         return clone
 
     def _common_dir(self, repo: Path) -> str:
@@ -443,7 +458,9 @@ class Writer:
     # ── steps 7–8: commit and push ───────────────────────────────────────
 
     def _commit(self, op: RowOp, changed: list[str]) -> str:
-        self._must(["add", "--", *changed], Reason.COMMIT_FAILED, repo=self.worktree)
+        present = [path for path in changed if (self.worktree / path).exists()]  # a ``git rm`` is already staged
+        if present:
+            self._must(["add", "--", *present], Reason.COMMIT_FAILED, repo=self.worktree)
         note = PurePosixPath(op.ref.note).name
         subject = f"work: {op.op.value} {op.ref.id} {op.who} (ws {self.board.workspace_id}, {op.ref.slot}/{note})"
         body = f"request_id: {op.request_id}"
@@ -481,7 +498,23 @@ class Writer:
         return self._receipt(replace(op, ref=ref), hit[0], replays=replays, pushed=not self.board.local,
                              replayed=True)
 
+    def _chat_turns(self, op: RowOp) -> list[str]:
+        """``chat_turns_appended``: ``payload.appends`` / ``payload.files`` under the root, and each of
+        ``payload.remove`` (a folder relative to the root) ``git rm``'d — machine-written logs, never rows."""
+
+        written = self._write_files(op.payload.get("files") or {}) + self._append_files(op.payload.get("appends") or {})
+        for relative in op.payload.get("remove") or []:
+            target = PurePosixPath(self.brain_root, str(relative))
+            if ".." in target.parts or target.is_absolute():
+                raise WorkRefused(Reason.INVALID, f"payload remove {relative!r} leaves the root")
+            if (self.worktree / target).exists():
+                self._must(["rm", "-r", "-q", "--", target.as_posix()], Reason.COMMIT_FAILED, repo=self.worktree)
+                written.append(target.as_posix())
+        return written
+
     def _edit(self, op: RowOp) -> list[str]:
+        if op.op is Op.CHAT_TURNS_APPENDED:
+            return self._chat_turns(op)
         if op.op is Op.APPEND:
             return self._append(op)
         return self._bulk_delete(op) if op.op is Op.DELETE and "ids" in op.payload else self._line_edit(op)

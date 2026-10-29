@@ -198,20 +198,47 @@ def report(
     the row says so, ``adopted_existing_root: true`` (call 8g).
     """
 
+    document = load_document(workspace_id)
+    entry, me = _probe_into(document, lambda name: slot_fill(workspace_id, name),
+                            lambda name: bound_path(name, workspace_id=workspace_id),
+                            run=run, now=now, fresh_binds=fresh_binds)
+    write_document(workspace_id, document)
+    return {"machine": me, **entry}
+
+
+def report_project(
+    project_id: str, *, run: Runner | None = None, now: float | None = None, fresh_binds: frozenset[str] = frozenset()
+) -> dict[str, Any]:
+    """:func:`report` for a Project's slots: ``machines.<me>`` of the Project record (plan §3)."""
+
+    from .project_store import load_project, write_project
+
+    record = load_project(project_id)
+    entry, me = _probe_into(record, lambda name: slot_fill(None, name, project_id=project_id),
+                            lambda name: bound_path(name, project_id=project_id),
+                            run=run, now=now, fresh_binds=fresh_binds)
+    record["project_id"] = project_id
+    write_project(project_id, record)
+    return {"machine": me, **entry}
+
+
+def _probe_into(document: dict[str, Any], fill_for: Callable[[str], SlotFill | None],
+                bound_for: Callable[[str], Path | None], *, run: Runner | None, now: float | None,
+                fresh_binds: frozenset[str]) -> tuple[dict[str, Any], str]:
+    """Probe every live slot of ``document`` and set its ``machines.<me>``; ``(entry, me)``."""
+
     import time
 
     me = machine_id()
-    document = load_document(workspace_id)
     rekey_legacy_report(document, me, legacy_machine_key())
     previous = ((document.get("machines") or {}).get(me) or {}).get("slots") or {}
     stamp = time.time() if now is None else now
     slots = {}
     for name, slot in live_slots(document).items():
-        row = _SlotProbe(name, slot, slot_fill(workspace_id, name), run or _run, stamp).row(bound_path(name, workspace_id=workspace_id))
+        row = _SlotProbe(name, slot, fill_for(name), run or _run, stamp).row(bound_for(name))
         if row["bound"] and name not in previous and name not in fresh_binds:
             row["adopted_existing_root"] = True
         slots[name] = row
     entry = {"reported_at": _now_iso(), "namespace": report_namespace(), "slots": slots}
     document.setdefault("machines", {})[me] = entry
-    write_document(workspace_id, document)
-    return {"machine": me, **entry}
+    return entry, me

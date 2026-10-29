@@ -594,6 +594,11 @@ class PersonaInstance:
     assigned_slots: list[str] = field(default_factory=list)
     primary_slot: str | None = None
     slots_issued_at: datetime | None = None
+    # RT-PROJECT-CHAT-RECALL-ACROSS-STORES: this agent's recall also searches the
+    # shared chat store of every Project its workspace holds whose chats are
+    # shared. Off by default; ``runtime.persona.instance.recall.set`` edits it on
+    # the slot lane's clock (``slots_issued_at``). Memory extraction never reads it.
+    recall_shared_projects: bool = False
     # S70 (contract 54) removed ``context_receipt_id`` / ``compression_receipt_id``
     # / ``tool_budget_used`` / ``watchdog_warning_count`` from this record. Their
     # only writers died with the worker/goal lanes; ``ensure_for_personas`` was

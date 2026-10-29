@@ -92,6 +92,9 @@ class Op(StrEnum):
     DELETE = "delete"
     ASSIGN = "assign"
     SET_SKILLS = "set_skills"
+    #: Not a row edit: a Project's machine-written chat logs (plan project-slots-and-shared-chats §5) —
+    #: appended lines, whole files and removed folders under the writer's root, one commit.
+    CHAT_TURNS_APPENDED = "chat_turns_appended"
 
 
 @dataclass(frozen=True)
@@ -459,6 +462,10 @@ def _append(line: str, *, who: str, date: str, payload: dict) -> str:
     raise WorkRefused(Reason.INVALID, "APPEND is not a line edit; the caller appends payload.row under the note's last heading")
 
 
+def _not_a_line_edit(line: str, *, who: str, date: str, payload: dict) -> str:
+    raise WorkRefused(Reason.INVALID, "chat_turns_appended edits no row; the writer appends the chat logs")
+
+
 _EDITS: dict[Op, Callable[..., str | None]] = {
     Op.CLAIM: _claim_line,
     Op.RELEASE: _release,
@@ -467,6 +474,7 @@ _EDITS: dict[Op, Callable[..., str | None]] = {
     Op.APPEND: _append,
     Op.ASSIGN: _assign,
     Op.SET_SKILLS: _set_skills,
+    Op.CHAT_TURNS_APPENDED: _not_a_line_edit,
 }
 
 
