@@ -80,7 +80,10 @@ def register(server):
             sid = params["session_id"]
             try:
                 if session.get("_compute_host_active") and server._session_uses_compute_host(session):
-                    reply = server._get_compute_host_supervisor().observe(sid, operation, params)
+                    supervisor = server.existing_compute_host_supervisor()
+                    if supervisor is None:  # what observe raises on a child-less supervisor, without making one
+                        raise RuntimeError("compute host is not running")
+                    reply = supervisor.observe(sid, operation, params)
                     return {**reply, "id": rid}
                 value = operations[operation](session, params)
                 return server._ok(rid, value)

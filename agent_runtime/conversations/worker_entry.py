@@ -35,8 +35,8 @@ def stop_compute_host() -> None:
     """
     import sys
 
-    server = sys.modules.get("tui_gateway.server")
-    supervisor = getattr(server, "_compute_host_supervisor", None) if server is not None else None
+    server = sys.modules.get("tui_gateway.server")  # never imported here: no server, no child
+    supervisor = server.existing_compute_host_supervisor() if server is not None else None
     if supervisor is None:
         return
     try:

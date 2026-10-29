@@ -642,7 +642,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-10-29 (lane w1029b-h-rt)
 
-- **`RT-SEAM-COMPUTE-HOST-STOP-DOOR` — the native worker stops its compute-host child by reading the gateway's private `_compute_host_supervisor` global off `tui_gateway.server` (bound there by `method_ctx.bind_module`), the same reach `agent_runtime/gateway/session_retirement.py` makes through `server._get_compute_host_supervisor()`; an additive public door on `tui_gateway/compute_host_bridge.py` (stop the supervisor if one exists, never make one) would retire both reaches** · seams / conversations · `agent_runtime/conversations/worker_entry.py::stop_compute_host` · `agent_runtime/gateway/session_retirement.py::retire` · `tui_gateway/compute_host_bridge.py::_get_compute_host_supervisor` · READY 2026-10-29 · **TAKEN 2026-10-29 w1029c-h-a on nekwo-ubuntu24 as nekwo in hermes-w1029c-h-a**
 
 ### Filed on arrival — 2026-10-21 (lane w1021h-daily, `integration/upstream-daily` `4ce03587da`)
 

@@ -34,7 +34,10 @@ def retire(server, sid, session, execution_id):
             if not eligible(server, sid, session, execution_id):
                 return {"status": "protected"}
         if session.get("_compute_host_active") and server._session_uses_compute_host(session):
-            reply = server._get_compute_host_supervisor().observe(sid, "session.retire", {
+            supervisor = server.existing_compute_host_supervisor()
+            if supervisor is None:  # what observe raises on a child-less supervisor, without making one
+                raise RuntimeError("compute host is not running")
+            reply = supervisor.observe(sid, "session.retire", {
                 "session_id": sid, "execution_id": execution_id})
             if reply.get("result", {}).get("status") != "retired":
                 return {"status": "protected"}
