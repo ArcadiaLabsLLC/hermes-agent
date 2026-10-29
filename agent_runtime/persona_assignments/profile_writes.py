@@ -227,9 +227,6 @@ def _apply_chat_fields(
         if instance.goal_id != value:
             instance.goal_id = value
             changed = True
-        if value and instance.current_task_id != value:
-            instance.current_task_id = value
-            changed = True
     return changed
 
 

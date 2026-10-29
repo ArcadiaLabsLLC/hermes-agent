@@ -59,6 +59,17 @@ def test_steer_with_a_goal_stamps_no_mode_and_no_task():
     assert stored.get("current_task_id") is None
 
 
+def test_update_profile_with_a_goal_writes_no_task():
+    """RT-TASK-BOUND-UPDATE-GOAL-STAMP. Kill-mutation: restore the ``current_task_id`` write in
+    ``_apply_chat_fields`` → the task half reds."""
+    _seed(STEERED, task=None, goal=None, mode="configured")
+    PersonaInstanceStore().update_profile(STEERED, goal_id="g1")
+    stored = _raw(STEERED)
+    assert stored["goal_id"] == "g1"
+    assert stored["mode"] == "configured"
+    assert stored.get("current_task_id") is None
+
+
 def test_a_steer_shaped_row_decodes_as_ordinary_through_get_and_scan_all():
     """Kill-mutation: normalise in ``get`` only (``scan_all`` decoding raw) → the scan half reds."""
     _seed(STEERED, task="g1", goal="g1")
