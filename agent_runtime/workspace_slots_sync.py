@@ -147,13 +147,19 @@ def merge_documents(local: dict[str, Any], remote: dict[str, Any]) -> dict[str, 
     for machine in sorted(set(local_machines) | set(remote_machines)):
         machines[machine] = _newer(local_machines.get(machine), remote_machines.get(machine), _report_rank)
     issued = max((local.get("issued_at") or "", remote.get("issued_at") or ""), key=lambda s: stamp_epoch(s) or 0.0)
-    return {
+    merged = {
         "schema_version": local.get("schema_version") or remote.get("schema_version"),
         "workspace_id": local.get("workspace_id") or remote.get("workspace_id"),
         "issued_at": issued,
         "slots": slots,
         "machines": machines,
     }
+    # A document moved into a Project (``project_migration``, plan project-slots-and-shared-chats §4)
+    # stays moved whichever side moved it: the stamp is never lost to a merge with an unmigrated peer.
+    migrated = local.get("migrated_to") or remote.get("migrated_to")
+    if isinstance(migrated, str) and migrated and paths.safe_path_token(migrated) == migrated:
+        merged["migrated_to"] = migrated
+    return merged
 
 
 # ── a peer's document, validated entry by entry ──────────────────────────────

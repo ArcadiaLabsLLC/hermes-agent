@@ -298,6 +298,9 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
         # its checkout paths, its environment, its own accounting row. A paired console
         # device may read a workspace's slots; it never binds the operator's disk.
         "runtime.workspace.slot.bind",
+        "runtime.project.slot.bind",
+        "runtime.project.slot.env.set",
+        "runtime.project.report",
         "runtime.workspace.slot.env.set",
         "runtime.workspace.slots.report",
         # Phase B (row H11): Clone and a recipe command step SPAWN on this machine.

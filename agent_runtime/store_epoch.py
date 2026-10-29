@@ -114,6 +114,20 @@ MIGRATION_REGISTRY: tuple[dict[str, Any], ...] = (
                   "(FH-BASELINE-PINS-AND-MUTATION-ANCHORS)",
         "pins_sha256": "aed485911d1280824f2e77e27a2ecd82687f773c360821ff4979c55073b7017d",
     },
+    {
+        "id": "project-records-and-project-slot-fills",
+        "date": "2026-10-29",
+        "store": "all",
+        "breaking": False,
+        "reason": "additive (lane w1029a-h-proj, RT-PROJECT-RECORD-STORE / RT-PROJECT-SLOT-REKEY): paths.projects_dir / "
+                  "project_path name store/projects/<id>.json (family project); machine_roots.json schema 4 adds "
+                  "project_roots beside slot_folders and machine_slot_env.json a projects collection beside "
+                  "workspaces; slot_worktrees_path's first segment may be a Project id. Each workspace slot document "
+                  "migrates into Project ws-<workspace> and stays in place stamped migrated_to, and its fills, env fills "
+                  "and worktree records are COPIED to the Project's keys, so an older edition still reads every "
+                  "document and every workspace-keyed fill it wrote; nothing moves out from under it",
+        "pins_sha256": "dd4409ded46ab00a47cfbe3ea4562647b696ad907e30a5bb4c58473ecd325501",
+    },
 )
 
 #: ``1 + count(breaking entries)`` — ``tests/agent_runtime/test_store_epoch_gate.py`` holds it to that.

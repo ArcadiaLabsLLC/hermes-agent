@@ -140,6 +140,12 @@ Project declares; `slot-folder` is a Project's slot's folder on one machine in o
 `RT-PROJECT-SLOTS-FOR-AGENTS`, `RT-PROJECT-CATEGORY-FOLDERS`, `RT-PROJECT-CHAT-TURN-LOGS`, `RT-PROJECT-CHAT-SHARED-FOLD`,
 `RT-PROJECT-CHAT-RECALL-ACROSS-STORES`.
 
+Built 2026-10-29 (`RT-PROJECT-SLOT-REKEY`, lane w1029a-h-proj): `agent_runtime/address.py` carries `Kind.PROJECT`
+and the chain `project:<id>/repo-slot:<name>`; `slot-folder`'s pair reads `<project>/<slot>` (a workspace document
+not yet migrated still prints its workspace id there); the `realm:/realm-workspace:/repo-slot:` chain parses. The fill
+is `machine_roots.json` schema 4 `project_roots.<project>.<slot>` (one per Project per machine); every workspace
+document migrates once into Project `ws-<workspace>` (`agent_runtime/project_migration.py`, stamped `migrated_to`).
+
 ## The board (owner, 2026-10-25)
 
 Our board is the **Mission Board**, and it is where the brains' TODO is shown: its Queues view is the brain

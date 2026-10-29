@@ -20,6 +20,10 @@ PROJECT_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     "runtime.project.declare": (*_WRITE, "name", "slots"),
     "runtime.project.category.set": (*_WRITE, "category", "slot", "subpath", "shared"),
     "runtime.project.guidance.set": (*_WRITE, "description", "instructions"),
+    "runtime.project.slot.bind": ("project_id", "slot", "path", "issued_at"),
+    "runtime.project.slot.env.set": ("project_id", "slot", "env", "env_keep", "tool_paths", "path_prepend", "dotenv",
+                                     "venv", "issued_at"),
+    "runtime.project.report": ("project_id",),
 }
 
 #: ``SlotRefused.reason`` → the JSON-RPC error code it rides; anything else rides ERR_CONFLICT.
@@ -32,18 +36,23 @@ _REFUSAL_CODES = {
     "unknown_category": ERR_INVALID_PARAMS,
     "guidance_too_long": ERR_INVALID_PARAMS,
     "category_not_source_controlled": ERR_INVALID_PARAMS,
+    "invalid_path": ERR_INVALID_PARAMS,
+    "invalid_fill": ERR_INVALID_PARAMS,
+    "secret_in_env": ERR_INVALID_PARAMS,
     "slot_not_declared": ERR_NOT_FOUND,
+    "path_not_found": ERR_NOT_FOUND,
     "realm_publish_denied": ERR_HANDLER_FAILED,
 }
 
 
 def _guarded(handler):
     def run(rid, params, context=None):
+        from agent_runtime.workspace_slot_env import SlotEnvRefused
         from agent_runtime.workspace_slots import SlotRefused
 
         try:
             return ok(rid, handler(params or {}))
-        except SlotRefused as exc:
+        except (SlotRefused, SlotEnvRefused) as exc:
             return err(rid, _REFUSAL_CODES.get(exc.reason, ERR_CONFLICT), "The Project request was refused.",
                        {"reason": exc.reason, "detail": exc.detail})
     return run
@@ -106,3 +115,47 @@ def _project_category_set(params):
 def _project_guidance_set(params):
     return _store(params).set_guidance(params.get("project_id"), description=params.get("description"),
                                        instructions=params.get("instructions"), issued_at=_issued_at(params))
+
+
+# ── this machine's fill of a Project's slots (LOCAL_CONSOLE_METHODS: never from a paired device) ──
+
+
+@method("runtime.project.slot.bind", tier=TIER_CONSOLE)
+@_guarded
+def _project_slot_bind(params):
+    from agent_runtime.workspace_slots import bind_project
+
+    return bind_project(params.get("project_id"), str(params.get("slot") or ""), str(params.get("path") or ""),
+                        issued_at=_issued_at(params))
+
+
+@method("runtime.project.slot.env.set", tier=TIER_CONSOLE)
+@_guarded
+def _project_slot_env_set(params):
+    from agent_runtime.project_store import load_project, valid_project_id
+    from agent_runtime.workspace_slot_env import fill_shape, set_slot_fill
+    from agent_runtime.workspace_slots import REASON_SLOT_NOT_DECLARED, SlotRefused, live_slots, secret_keys
+    from agent_runtime.workspace_slots_probe import report_project
+
+    project_id, slot = valid_project_id(params.get("project_id")), str(params.get("slot") or "")
+    declared = live_slots(load_project(project_id)).get(slot)
+    if declared is None:
+        raise SlotRefused(REASON_SLOT_NOT_DECLARED, slot)
+    keep = params.get("env_keep")
+    fill = set_slot_fill(None, slot, env=params.get("env"), tool_paths=params.get("tool_paths"),
+                         path_prepend=params.get("path_prepend"), dotenv=params.get("dotenv"), venv=params.get("venv"),
+                         secret_keys=secret_keys(declared), issued_at=_issued_at(params), env_keep=keep,
+                         project_id=project_id)
+    row = report_project(project_id)["slots"].get(slot, {})
+    return {"project_id": project_id, "slot": slot, "env_keys": sorted(fill.env), "report": row,
+            "fill": fill_shape(None, slot, project_id=project_id),
+            "env_keep_missing": sorted(set(keep or ()) - set(fill.env))}
+
+
+@method("runtime.project.report", tier=TIER_CONSOLE)
+@_guarded
+def _project_report(params):
+    from agent_runtime.project_store import valid_project_id
+    from agent_runtime.workspace_slots_probe import report_project
+
+    return report_project(valid_project_id(params.get("project_id")))

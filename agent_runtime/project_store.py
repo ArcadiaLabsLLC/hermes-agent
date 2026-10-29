@@ -275,6 +275,23 @@ class ProjectStore:
         return {"project_id": project_id, "guidance": record["guidance"]}
 
 
+    def adopt_workspace_document(self, project_id: str, *, name: str, document: dict[str, Any]) -> dict[str, Any]:
+        """The slot migration's write (plan §4 step 1): ``document``'s slots VERBATIM (tombstones included)
+        and its machine reports into ``project_id``, set-to-value so a retried migration writes the same
+        bytes. This machine's own write — no realm right is asked; the record syncs under it afterwards."""
+
+        import copy
+
+        record = load_project(valid_project_id(project_id))
+        record.update({"project_id": project_id, "name": record.get("name") or _project_name(name[:NAME_MAX_CHARS]),
+                       "slots": copy.deepcopy(document.get("slots") or {}),
+                       "machines": copy.deepcopy(document.get("machines") or {}),
+                       "issued_at": document.get("issued_at") or record.get("issued_at") or ""})
+        record.setdefault("categories", {})
+        self._commit(project_id, record, issued_at=None)
+        return record
+
+
 def _project_name(value: Any) -> str:
     if not isinstance(value, str) or len(value) > NAME_MAX_CHARS:
         raise SlotRefused(REASON_INVALID_DECLARATION, f"name is text of at most {NAME_MAX_CHARS} characters")
@@ -282,10 +299,20 @@ def _project_name(value: Any) -> str:
 
 
 def show(project_id: str) -> dict[str, Any]:
-    """The record plus the realms it is assigned into (read-only; this machine's fill is H-P2's)."""
+    """The record, the realms it is assigned into, and THIS machine's fill per slot (never another's path)."""
+
+    from .workspace_slot_env import fill_shape
+    from .workspace_slots import bound_path
 
     record = load_project(valid_project_id(project_id))
-    return {"document": record, "realms": project_realms(project_id),
+    here = {}
+    for name in sorted(live_slots(record)):
+        path = bound_path(name, project_id=project_id)
+        bound_here = bool(path and path.is_dir())
+        here[name] = {"bound_here": bound_here, "path": str(path) if path else None,
+                      "folder_missing": bool(path) and not bound_here,
+                      "fill": fill_shape(None, name, project_id=project_id)}
+    return {"document": record, "here": here, "realms": project_realms(project_id),
             "exists": paths.project_path(project_id).is_file()}
 
 

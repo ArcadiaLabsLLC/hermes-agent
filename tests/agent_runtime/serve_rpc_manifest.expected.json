@@ -286,7 +286,10 @@
     "runtime.project.category.set",
     "runtime.project.declare",
     "runtime.project.guidance.set",
+    "runtime.project.report",
     "runtime.project.show",
+    "runtime.project.slot.bind",
+    "runtime.project.slot.env.set",
     "runtime.prompt_context.show",
     "runtime.provider.configure",
     "runtime.provider.dependency.install",
@@ -915,8 +918,28 @@
       "description",
       "instructions"
     ],
+    "runtime.project.report": [
+      "project_id"
+    ],
     "runtime.project.show": [
       "project_id"
+    ],
+    "runtime.project.slot.bind": [
+      "project_id",
+      "slot",
+      "path",
+      "issued_at"
+    ],
+    "runtime.project.slot.env.set": [
+      "project_id",
+      "slot",
+      "env",
+      "env_keep",
+      "tool_paths",
+      "path_prepend",
+      "dotenv",
+      "venv",
+      "issued_at"
     ],
     "runtime.realm.adopt": [
       "credential",
@@ -1294,7 +1317,10 @@
     "runtime.project.category.set": "console",
     "runtime.project.declare": "console",
     "runtime.project.guidance.set": "console",
+    "runtime.project.report": "console",
     "runtime.project.show": "console",
+    "runtime.project.slot.bind": "console",
+    "runtime.project.slot.env.set": "console",
     "runtime.prompt_context.show": "console",
     "runtime.provider.configure": "console",
     "runtime.provider.dependency.install": "console",

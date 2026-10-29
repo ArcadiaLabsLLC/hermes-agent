@@ -850,6 +850,18 @@ publish decision for each realm whose workspace holds the Project
 in ``test/fixtures/harness_stream/``). Plan
 [project-slots-and-shared-chats-2026-10-29.md](planned/project-slots-and-shared-chats-2026-10-29.md) §2.
 
+54 KEPT (Project slot fill, 2026-10-29, RT-PROJECT-SLOT-REKEY) — no snapshot key
+moved. A slot is named ``<project>/<slot>``. ``machine_roots.json`` schema 4 adds
+``project_roots.<project>.<slot>`` (one fill per Project per machine, kept by every
+write that does not pass it) and ``machine_slot_env.json`` a ``projects`` collection;
+``workspace_slots.bound_path(slot, project_id=…)`` reads it and a workspace-keyed read
+resolves through ``slot_owner`` to the Project declaring the slot. ``BoundSlot`` gains
+``project_id``. Each workspace slot document migrates once, at serve boot, into Project
+``ws-<workspace>`` (``project_migration``; receipt ``project_migration.completed``), its
+fills COPIED (an older edition keeps its own) and the document stamped ``migrated_to``,
+which the slot merge carries. Verbs ``runtime.project.slot.bind`` / ``.slot.env.set`` /
+``.report`` are local-console only, like their workspace twins.
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.

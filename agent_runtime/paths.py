@@ -774,13 +774,14 @@ def project_path(project_id: str) -> Path:
     return projects_dir() / f"{safe_path_token(project_id)}.json"
 
 
-def slot_worktrees_path(workspace_id: str, slot: str) -> Path:
+def slot_worktrees_path(owner_id: str, slot: str) -> Path:
     """The git worktrees seen cut from one repo slot's folder on THIS machine (RT-WORKTREE-RECORDED-ON-SLOT).
 
-    Machine-local like the slot fill it describes: under no realm-sync family, never synced.
+    ``owner_id`` is the Project that declares the slot (``<project>/<slot>``), or the workspace whose own
+    document still declares it. Machine-local like the slot fill it describes: never synced.
     """
 
-    return store_root() / "slot_worktrees" / safe_path_token(workspace_id) / f"{safe_path_token(slot)}.json"
+    return store_root() / "slot_worktrees" / safe_path_token(owner_id) / f"{safe_path_token(slot)}.json"
 
 
 def work_dir() -> Path:
