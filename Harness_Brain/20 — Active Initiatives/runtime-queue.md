@@ -1077,7 +1077,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-28 (orchestrator: owner direction on slots, projects and workspaces)
 
-- **`RT-NAMING-MAP-LAUNCHER-PROJECT` — the naming and address map defines `project` as upstream's per-profile project and says a `slot-folder` "points at a `project`", while the launcher's Projects (a different record hermes has no id for) are about to own repo slots and sit in realm workspaces as slots; amend "The qualified names" and "The address" when the launcher plan settles the shape, and point the Glossary at the map** · fork / naming · `docs/agent-runtime-harness/planned/naming-and-address-map-2026-10-25.md` · `Harness_Brain/00 — Maps/Glossary.md` · BLOCKED 2026-10-28: launcher — `COMP-PROJECTS-OWN-REPO-SLOTS` the plan that decides the project / slot / workspace shape
+- **`RT-NAMING-MAP-LAUNCHER-PROJECT` — distinguish Launcher Projects from upstream projects in the naming map and Glossary; existing Hermes workspaces keep repo-slot ownership and hold only opaque Project connections** · fork / naming · `docs/agent-runtime-harness/planned/naming-and-address-map-2026-10-25.md` · `Harness_Brain/00 — Maps/Glossary.md` · RULED 2026-10-28: keep existing owners; add connections and avatars; supersedes the slot-ownership proposal · READY 2026-10-28 · **TAKEN 2026-10-28 projects-agents on MULTIVERSALLABS as MUltiversalLabsInc in projects-agents-hermes**
 
 ## Projects integration — 2026-10-28
 
