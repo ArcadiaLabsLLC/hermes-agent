@@ -226,17 +226,38 @@ def upsert_actor_outcome(
             # revision check ran above; return the would-be actor in memory.
             # Write nothing, touch no ledger, emit no event.
             return WriteOutcome(actor, written=False)
-        if existing is not None and _is_noop(store, wsid, existing, actor, archived_path):
-            return WriteOutcome(existing, written=False)
-        # THE surface creation, here rather than before the lock: every
-        # fence above has passed, so this is the first line of an upsert
-        # that is actually going to happen. ``_ensure_surface_locked``
-        # rather than ``ensure_surface`` because ``office_lock`` is not
-        # reentrant and this frame already holds it.
-        surface = store._ensure_surface_locked(wsid, created_by=updated_by)
-        _write_actor(actor)
-        _settle_written(store, surface, actor, actor_key, created=existing is None, archived_path=archived_path,
-                        ts=ts, item_count=len(items), correlation_id=correlation_id, scan=scan)
+        return _land_fenced_upsert(store, wsid, actor_key, actor, existing, archived_path, ts=ts, updated_by=updated_by,
+                                   item_count=len(items), correlation_id=correlation_id, scan=scan)
+
+
+def _land_fenced_upsert(
+    store: OfficeStore,
+    wsid: str,
+    actor_key: str,
+    actor: OfficeActor,
+    existing: OfficeActor | None,
+    archived_path: Path,
+    *,
+    ts: Any,
+    updated_by: str,
+    item_count: int,
+    correlation_id: str | None,
+    scan: Any,
+) -> WriteOutcome[OfficeActor]:
+    """The write half of :func:`upsert_actor_outcome`, called under its ``office_lock`` once
+    every fence has passed: the no-op check, then the surface creation and the write."""
+
+    if existing is not None and _is_noop(store, wsid, existing, actor, archived_path):
+        return WriteOutcome(existing, written=False)
+    # THE surface creation, here rather than before the lock: every
+    # fence has passed, so this is the first line of an upsert
+    # that is actually going to happen. ``_ensure_surface_locked``
+    # rather than ``ensure_surface`` because ``office_lock`` is not
+    # reentrant and the calling frame already holds it.
+    surface = store._ensure_surface_locked(wsid, created_by=updated_by)
+    _write_actor(actor)
+    _settle_written(store, surface, actor, actor_key, created=existing is None, archived_path=archived_path,
+                    ts=ts, item_count=item_count, correlation_id=correlation_id, scan=scan)
     return WriteOutcome(store.get_actor(wsid, actor_key), written=True)
 
 

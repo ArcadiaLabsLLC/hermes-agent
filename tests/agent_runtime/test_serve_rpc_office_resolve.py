@@ -121,6 +121,11 @@ def _seed(workspace_id: str = WORKSPACE):
     quantity here happens to equal.
     """
 
+    from agent_runtime.default_scope import ensure_default_scope
+
+    # The serve boot ensures the Default realm and workspace (RT-SERVE-BOOT-DEFAULT-SCOPE); doing it here
+    # keeps those writes out of the batch a test reads after its RPC.
+    ensure_default_scope(seed_active_pointers=False)
     store = _store()
     seed_workspace_record(workspace_id)
     store.ensure_surface(workspace_id, created_by="seed")

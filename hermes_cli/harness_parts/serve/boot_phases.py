@@ -670,8 +670,10 @@ class BootPhases:
                 pass
         self.timeline.mark("service_foundations_ms")
 
-    def _boot_sweeps_and_ready_frame(self) -> None:
-        from agent_runtime.serve_rpc import registry as serve_rpc
+    def _run_boot_sweeps(self) -> dict[str, Any]:
+        """Every boot sweep, in order, each fail-open and timed; returns the ready-frame keys
+        the sweeps earned (only the ones that did something, in frame order)."""
+
         # The Default realm and workspace for the namespace being served
         # (RT-SERVE-BOOT-DEFAULT-SCOPE): ``harness init`` runs once against the
         # base root, so a namespace created later had none. Idempotent, and
@@ -759,6 +761,23 @@ class BootPhases:
         from agent_runtime.builds.sweep import boot_builds
 
         boot_builds()
+        earned: dict[str, Any] = {}
+        if default_scope_created:
+            earned["default_scope_created"] = True
+        if orphaned_repaired:
+            earned["orphaned_turns_repaired"] = len(orphaned_repaired)
+        if task_bound_retired:
+            earned["task_bound_retired"] = task_bound_retired
+        if dispatches_restored:
+            earned["dispatches_restored"] = dispatches_restored
+        if long_calls_lost:
+            earned["long_calls_lost"] = len(long_calls_lost)
+        return earned
+
+    def _boot_sweeps_and_ready_frame(self) -> None:
+        from agent_runtime.serve_rpc import registry as serve_rpc
+
+        earned = self._run_boot_sweeps()
         self.ready_frame: dict[str, Any] = {
             "event": "ready",
             "pid": os.getpid(),
@@ -820,16 +839,7 @@ class BootPhases:
             # having to send one and read the answer's tea leaves.
             "ops": ops_manifest(transport="stdio", service=self.service),
         }
-        if default_scope_created:
-            self.ready_frame["default_scope_created"] = True
-        if orphaned_repaired:
-            self.ready_frame["orphaned_turns_repaired"] = len(orphaned_repaired)
-        if task_bound_retired:
-            self.ready_frame["task_bound_retired"] = task_bound_retired
-        if dispatches_restored:
-            self.ready_frame["dispatches_restored"] = dispatches_restored
-        if long_calls_lost:
-            self.ready_frame["long_calls_lost"] = len(long_calls_lost)
+        self.ready_frame.update(earned)
         # Every phase this boot actually paid, on the frame the supervisor
         # already waits for — and the same line in agent.log, because the boot
         # worth attributing (the cold one) is the boot nobody is watching a

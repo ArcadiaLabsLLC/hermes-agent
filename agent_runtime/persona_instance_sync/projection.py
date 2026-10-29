@@ -154,6 +154,12 @@ def _wire_mapping(value: dict) -> dict[str, Any]:
     return {str(key): _wire_value(item) for key, item in sorted(value.items(), key=lambda kv: str(kv[0]))}
 
 
+#: Switches whose OFF value is their absence, so a body from an edition that predates the
+#: key and a body that carries it off hash alike — a fresh replica's projection must equal
+#: the remote hash its baseline was minted at (``recall_shared_projects``, default off).
+_OMITTED_WHEN_OFF: frozenset[str] = frozenset({"recall_shared_projects"})
+
+
 def project_persona_instance(record: Any, *, dropped: list[str] | None = None) -> dict[str, Any]:
     """Project ONE persona-instance record through the allowlist.
 
@@ -182,6 +188,8 @@ def project_persona_instance(record: Any, *, dropped: list[str] | None = None) -
             continue
         value = getattr(record, name, None)
         if name not in ("id", "persona_id") and (value is None or value == [] or value == {}):
+            continue
+        if name in _OMITTED_WHEN_OFF and value is False:
             continue
         try:
             body[name] = _wire_value(value)

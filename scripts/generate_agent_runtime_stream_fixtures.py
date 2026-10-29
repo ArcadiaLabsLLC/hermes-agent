@@ -475,9 +475,7 @@ def _normalize(
         return 0
     if isinstance(value, str):
         root = str(isolated_root)
-        redacted = value.replace(root, "<isolated-root>").replace(
-            root.replace("\\", "/"), "<isolated-root>"
-        )
+        redacted = value.replace(root, "<isolated-root>").replace(root.replace("\\", "/"), "<isolated-root>")
         if redacted == value:
             return value
         # The ROOT is redacted; the TAIL after the placeholder was not, so it

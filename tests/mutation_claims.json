@@ -730,7 +730,7 @@
     {
       "id": "d1-tombstone-fence-refuses-live-rows-too",
       "path": "agent_runtime/office_store/actor_writes.py",
-      "symbol": "upsert_actor",
+      "symbol": "upsert_actor_outcome",
       "operator": "widen-guard-condition",
       "find": "        if existing is None:\n            store._guard_archived_actor(",
       "replace": "        if True:\n            store._guard_archived_actor(",
@@ -1498,7 +1498,7 @@
     {
       "id": "hh10-the-placement-read-leaves-the-lock-again",
       "path": "agent_runtime/office_store/actor_writes.py",
-      "symbol": "upsert_actor",
+      "symbol": "upsert_actor_outcome",
       "operator": "resolve-slot-outside-office-lock",
       "find": "    items = request.items\n    if not dry_run:",
       "replace": "    items = _place_unaimed(request, position_policy, store.scan_actors(wsid)) if position_policy else request.items\n    position_policy = None\n    if not dry_run:",
@@ -3181,7 +3181,7 @@
     {
       "id": "uaf-surface-authored-before-the-fences-again",
       "path": "agent_runtime/office_store/actor_writes.py",
-      "symbol": "upsert_actor",
+      "symbol": "upsert_actor_outcome",
       "operator": "restore-ensure-surface-above-the-lock",
       "find": "        store._refuse_unresolvable_workspace(wsid)\n    with office_lock(wsid):",
       "replace": "        store.ensure_surface(wsid, created_by=updated_by)\n    with office_lock(wsid):",
@@ -3196,7 +3196,7 @@
     {
       "id": "uaf-fence-refusal-still-authors-the-office",
       "path": "agent_runtime/office_store/actor_writes.py",
-      "symbol": "upsert_actor",
+      "symbol": "upsert_actor_outcome",
       "operator": "restore-ensure-surface-above-the-lock",
       "find": "        store._refuse_unresolvable_workspace(wsid)\n    with office_lock(wsid):",
       "replace": "        store.ensure_surface(wsid, created_by=updated_by)\n    with office_lock(wsid):",
