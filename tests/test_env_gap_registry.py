@@ -126,9 +126,35 @@ def _this_host_carries_the_gaps() -> bool:
 
     for directory in _FENCED_DIRS:
         loaded = _load_registry(directory)
-        if loaded is not None and firing_skip_rows(loaded[0]):
+        if loaded is not None and firing_skip_rows(_unscoped(loaded[0])):
             return True
     return False
+
+
+def _unscoped(registry: EnvGapSkipRegistry) -> EnvGapSkipRegistry:
+    """The rows whose probe carries no ``describes_host`` scope.
+
+    A SCOPED row firing says only that this host is in that row's own class — it
+    is judged there by ``stale_skip_rows`` whatever else fires. Letting it stand
+    for the fleet put every Windows row under a stale verdict on a Linux box whose
+    shared test venv sits outside the checkout (``_test_python_outside_project_venv``
+    fires there; row FH-LINUX-ROOT-HOST-TEST-ASSUMPTIONS, 2026-10-29)."""
+
+    return {
+        file_name: kept
+        for file_name, groups in registry.items()
+        if (kept := [group for group in groups if not hasattr(group[0], "host_check")])
+    }
+
+
+def _scoped(registry: EnvGapSkipRegistry) -> EnvGapSkipRegistry:
+    """The complement of :func:`_unscoped`: the rows judged on their own host class."""
+
+    return {
+        file_name: kept
+        for file_name, groups in registry.items()
+        if (kept := [group for group in groups if hasattr(group[0], "host_check")])
+    }
 
 
 @pytest.mark.parametrize("directory", _FENCED_DIRS)
@@ -181,6 +207,13 @@ def test_every_skip_row_still_describes_a_real_gap(directory: str) -> None:
             "bool on this host. A probe is read for truthiness at collection, "
             "so a non-bool is a row that fences by accident:\n  "
             + "\n  ".join(sorted(malformed))
+        )
+        # A scoped row still has standing on its own host class, wherever the fleet's are.
+        stale = stale_skip_rows(_scoped(registry))
+        assert not stale, (
+            f"These host-scoped rows in _ENV_GAP_SKIPS ({location}) have a probe that "
+            "no longer reports a gap on the host class they describe — delete the row:\n  "
+            + "\n  ".join(stale)
         )
         return
 

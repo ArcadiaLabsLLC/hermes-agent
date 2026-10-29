@@ -59,13 +59,35 @@ def match(procs: Iterable[Proc], run_started: float) -> list[Proc]:
     )
 
 
-def parent_alive(ppid: int | None, child_started: float, created: dict[int, float]) -> bool:
-    """Whether the child's PARENT still runs: a live process at ``ppid`` that was created
-    no later than the child. Windows recycles PIDs, so a bare ``pid_exists(ppid)`` reads a
-    newer process that took the dead parent's PID as the parent — in a busy test process
-    that is exactly when an orphan goes unreported."""
+#: POSIX re-parents an orphan to init or a subreaper (``systemd --user`` on a desktop
+#: session, ``launchd`` on macOS), so its ``ppid`` names a live process that is not the
+#: parent that started it. Windows never re-parents, so no Windows process is in this set.
+_REAPER_NAMES = frozenset({"init", "systemd", "launchd"})
 
-    if not ppid or ppid not in created:
+
+def reaper_pids(infos: Iterable[dict]) -> frozenset[int]:
+    """The PIDs an orphan is re-parented to on POSIX: PID 1 and the named reapers."""
+
+    pids = set()
+    for info in infos:
+        try:
+            pid = int(info["pid"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if pid == 1 or str(info.get("name") or "").lower() in _REAPER_NAMES:
+            pids.add(pid)
+    return frozenset(pids)
+
+
+def parent_alive(ppid: int | None, child_started: float, created: dict[int, float],
+                 reapers: frozenset[int] = frozenset()) -> bool:
+    """Whether the child's PARENT still runs: a live process at ``ppid`` that was created
+    no later than the child and is not a POSIX reaper that adopted it. Windows recycles
+    PIDs, so a bare ``pid_exists(ppid)`` reads a newer process that took the dead parent's
+    PID as the parent — in a busy test process that is exactly when an orphan goes
+    unreported; POSIX re-parents instead, and the adopter is not the parent either."""
+
+    if not ppid or ppid not in created or ppid in reapers:
         return False
     return created[ppid] <= child_started + _PID_CLOCK_SLACK
 
@@ -78,7 +100,7 @@ def scan(run_started: float) -> list[Proc]:
     except ImportError:
         return []
     infos = []
-    for proc in psutil.process_iter(["pid", "create_time", "cmdline", "ppid"]):
+    for proc in psutil.process_iter(["pid", "create_time", "cmdline", "ppid", "name"]):
         try:
             infos.append(dict(proc.info))
         except (psutil.Error, OSError):
@@ -89,11 +111,12 @@ def scan(run_started: float) -> list[Proc]:
             created[int(info["pid"])] = float(info.get("create_time") or 0.0)
         except (KeyError, TypeError, ValueError):
             continue
+    reapers = reaper_pids(infos)
     rows = []
     for info in infos:
         try:
             started = float(info.get("create_time") or 0.0)
-            alive = parent_alive(info.get("ppid"), started, created)
+            alive = parent_alive(info.get("ppid"), started, created, reapers)
             rows.append(Proc(int(info["pid"]), started, info.get("cmdline") or [], alive))
         except (KeyError, TypeError, ValueError):
             continue

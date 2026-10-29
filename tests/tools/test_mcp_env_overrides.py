@@ -128,6 +128,21 @@ class TestGetProcessMcpEnvOverrides:
 # _build_safe_env merge order
 # ---------------------------------------------------------------------------
 
+def _child_home_baseline(env: dict) -> dict:
+    """The safe baseline plus the fork's B-2 ``HERMES_HOME`` (``_inject_child_hermes_home``).
+
+    The injection reads ``get_hermes_home()``: on POSIX it resolves under a cleared
+    environment (``Path.home()`` reads the password database), on Windows it raises
+    without ``USERPROFILE`` and nothing is injected — so the expectation is the
+    baseline the host actually builds, never a host's accident."""
+    from hermes_constants import get_hermes_home
+
+    try:
+        return {**env, "HERMES_HOME": str(get_hermes_home())}
+    except Exception:
+        return dict(env)
+
+
 class TestBuildSafeEnvMergeOrder:
     """Layer precedence: baseline < durable < process overlay < runtime."""
 
@@ -135,7 +150,8 @@ class TestBuildSafeEnvMergeOrder:
         with patch.dict("os.environ",
                         {"PATH": "/usr/bin", "SECRET": "no"}, clear=True):
             result = _build_safe_env(None)
-        assert result == {"PATH": "/usr/bin"}
+            baseline = _child_home_baseline({"PATH": "/usr/bin"})
+        assert result == baseline
 
     def test_durable_overrides_baseline(self):
         with patch.dict("os.environ", {"PATH": "/usr/bin"}, clear=True):
@@ -207,7 +223,8 @@ class TestBuildSafeEnvMergeOrder:
         env = {"PATH": "/usr/bin"}
         with patch.dict("os.environ", env, clear=True):
             result = _build_safe_env(None, server_name="foo", runtime_env={})
-        assert result == {"PATH": "/usr/bin"}
+            baseline = _child_home_baseline({"PATH": "/usr/bin"})
+        assert result == baseline
 
     def test_no_xdg_leak_from_namespaced_prefix(self):
         # Sanity: a stray HERMES_MCP_ENV_... entry must not pollute the

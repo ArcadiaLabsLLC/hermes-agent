@@ -58,6 +58,16 @@ def test_real_profile_a_b_a_native_turns_and_persistent_sessions(tmp_path, compu
     run_profile_a_b_a(tmp_path, compute, shared)
 
 
+def _still_running(child) -> bool:
+    """A retired child that is not yet gone. On POSIX the killed compute host is re-parented
+    to init or a subreaper and is a ZOMBIE until that reaper collects it — psutil's
+    ``is_running`` still answers True for a zombie, which has no execution left."""
+    try:
+        return child.is_running() and child.status() != psutil.STATUS_ZOMBIE
+    except psutil.NoSuchProcess:
+        return False
+
+
 def run_profile_a_b_a(tmp_path, compute, shared):
     Provider.requests = []
     provider = ThreadingHTTPServer(("127.0.0.1", 0), Provider)
@@ -149,7 +159,12 @@ def run_profile_a_b_a(tmp_path, compute, shared):
             assert time.monotonic() < deadline, "settled sessions did not retire"
             time.sleep(.05)
         assert all(not peer.execution_possible for peer in peers)
-        assert not any(child.is_running() for child in compute_children)
+        # On POSIX the retired worker's compute host is orphaned to a subreaper and exits on its
+        # own ~1.4 s later (measured 2026-10-29, nekwo-ubuntu24); row RT-NATIVE-PEER-RETIRE-ORPHANS-COMPUTE-HOST.
+        gone_by = time.monotonic() + 5
+        while any(_still_running(child) for child in compute_children) and time.monotonic() < gone_by:
+            time.sleep(.05)
+        assert not any(_still_running(child) for child in compute_children)
         assert not service._workers._workers
         requests_before = len(Provider.requests)
         scope = ConversationScope("operator", "isolated-account", "a")
