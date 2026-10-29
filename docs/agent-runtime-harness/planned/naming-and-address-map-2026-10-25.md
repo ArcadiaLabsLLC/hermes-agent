@@ -131,6 +131,15 @@ Projects declare their slots, workspaces are assigned Projects (the `project_ids
 Projects' slots and data, and a Project's chats, documents, boards and artifacts share as source-controlled folders.
 It is open as `COMP-PROJECTS-SLOTS-AND-SHARING` in the launcher; its plan amends these rows.
 
+Planned 2026-10-29 (`project-slots-and-shared-chats-2026-10-29.md` §8, lane w1029p-projects): `launcher-project` declares
+its slots and hermes stores its record at `store/projects/<id>.json` (family `project`); `repo-slot` is a repository a
+Project declares; `slot-folder` is a Project's slot's folder on one machine in one namespace. The address becomes
+`project:<id>/repo-slot:<name>` (shared) and `machine:<id>/namespace:<id>/slot-folder:<project>/<slot>` (the join);
+`realm:/realm-workspace:/repo-slot:` stays parseable for old turn records and is never printed again. Rows:
+`RT-PROJECT-RECORD-STORE`, `RT-PROJECT-SLOT-REKEY` (lands this amendment in `agent_runtime/address.py`),
+`RT-PROJECT-SLOTS-FOR-AGENTS`, `RT-PROJECT-CATEGORY-FOLDERS`, `RT-PROJECT-CHAT-TURN-LOGS`, `RT-PROJECT-CHAT-SHARED-FOLD`,
+`RT-PROJECT-CHAT-RECALL-ACROSS-STORES`.
+
 ## The board (owner, 2026-10-25)
 
 Our board is the **Mission Board**, and it is where the brains' TODO is shown: its Queues view is the brain
