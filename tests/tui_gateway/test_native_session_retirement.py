@@ -116,6 +116,6 @@ def test_native_eligibility_is_rechecked_after_child_retirement(owner, monkeypat
         session["queued_prompt"] = {"text": "arrived meanwhile"}
         return {"result": {"status": "retired"}}
 
-    monkeypatch.setattr(server, "_get_compute_host_supervisor", lambda: Mock(observe=observe))
+    monkeypatch.setattr(server, "existing_compute_host_supervisor", lambda: Mock(observe=observe))
     assert retire() == {"status": "protected"}
     server._teardown_popped_session.assert_not_called()
