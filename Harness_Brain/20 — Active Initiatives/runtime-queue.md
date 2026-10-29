@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-29 (lane w1029b-h-rt)
+
+- **`RT-OFFICE-CLASS-KEY-FENCE-NOOP-WRITER` — `test_office_class_key_one_fence.py::test_every_production_writer_of_a_live_actor_file_is_enumerated_and_dispositioned` is red on `main` since S1a (`b826f6fa1a`): the split-out `actor_writes._land_fenced_upsert` writes the live actor file and is in neither the fenced set nor `CARVED_OUT_ACTOR_WRITERS`; disposition it (it runs under `upsert_actor_outcome`'s fences, so it is fenced by its only caller — enumerate it as such)** · fork / office · `agent_runtime/office_store/actor_writes.py::_land_fenced_upsert` · `tests/agent_runtime/test_office_class_key_one_fence.py` · READY 2026-10-29
+
 ### Filed on arrival — 2026-10-29 (lane w1029a-h-fork)
 
 

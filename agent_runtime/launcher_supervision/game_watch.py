@@ -239,12 +239,12 @@ class ProcessProbe:
             real = os.path.realpath(exe)
             if target is not None and os.path.normcase(real) == os.path.normcase(target):
                 return True
-            if folder is not None and _under(real, folder):
+            if folder is not None and _inside_folder(real, folder):
                 return True
         return False
 
 
-def _under(path: str, folder: str) -> bool:
+def _inside_folder(path: str, folder: str) -> bool:
     try:
         return os.path.normcase(os.path.commonpath([path, folder])) == os.path.normcase(folder)
     except ValueError:  # different drives
@@ -255,7 +255,7 @@ def _record_path(session_id: str):
     return paths.launcher_supervision_games_dir() / f"{session_id}.json"
 
 
-def _write(record: GameRecord) -> None:
+def _write_game_record(record: GameRecord) -> None:
     try:
         write_json_atomic(_record_path(record.session_id), record.to_json())
     except OSError as exc:
@@ -314,7 +314,7 @@ class GameWatcher:
             return False
         with self._lock:
             self._records[record.session_id] = record
-        _write(record)
+        _write_game_record(record)
         logger.info(GAME_RECEIPT, "game_watching", record.session_id, record.game_id or "-", record.outcome)
         self._ensure_thread()
         return True
@@ -334,7 +334,7 @@ class GameWatcher:
                 logger.info(GAME_RECEIPT, "game_resumed", record.session_id, record.game_id or "-", record.outcome)
                 continue
             lost = replace(record, outcome=Outcome.LOST)
-            _write(lost)
+            _write_game_record(lost)
             logger.info(GAME_RECEIPT, "game_lost", lost.session_id, lost.game_id or "-", lost.outcome)
         if resumed:
             self._ensure_thread()
@@ -346,7 +346,7 @@ class GameWatcher:
         for record in records:
             updated, write = on_poll(record, self._probe.running(record), self._clock())
             if write:
-                _write(updated)
+                _write_game_record(updated)
             with self._lock:
                 if updated.active:
                     self._records[updated.session_id] = updated
