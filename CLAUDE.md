@@ -66,6 +66,7 @@ Work tracking (adopted from the launcher's ADR 0025):
   owner runs lanes on several machines; launcher ADR 0025's 2026-10-26 amendment), commit that
   alone, push, then cut the worktree. The Work engine's `persona:<instance_id>` claim is
   unchanged. A row already marked `TAKEN` is someone else's. The landing commit deletes the row.
+- **Never delete a teammate's row on your own judgement.** A row another person filed, or one carrying their `RULED` segment, is deleted, narrowed or closed only on that person's explicit authorization in their own words, quoted in the commit (`Authorized-by:`); an inference ("superseded", "rulings taken as recommended", a correction given for another scope) is not authorization. Deliver part of it and leave the remainder on the row; when unsure, ask and leave the row (`EterniaLauncher/Launcher_Brain/30 — Decisions/0038 — A teammate's row is deleted only on that teammate's explicit authorization.md`, owner ruling 2026-10-29).
 - **File a finding when it arrives, not at the end of the session.** A report, a review
   verdict, an audit result is EVIDENCE; the queue rows point at it. The one exception is a
   finding you are fixing in this change, where the commit is the record.
