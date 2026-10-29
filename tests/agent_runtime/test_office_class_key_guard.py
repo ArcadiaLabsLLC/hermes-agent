@@ -394,7 +394,8 @@ def test_cli_idempotent_resave_of_a_live_class_keyed_actor_is_not_refused():
         "--actor-json", json.dumps(_payload("backend_dev", agent_item_id=INSTANCE)), "--json",
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    assert json.loads(result.stdout)["revision"] == 2
+    # 1, not 2: the re-save is content-equal, so it is acked as the no-op it is (RT-OFFICE-NOOP-ACTOR-WRITE).
+    assert json.loads(result.stdout)["revision"] == 1
     assert _keys(workspace) == {"backend_dev"}
 
 

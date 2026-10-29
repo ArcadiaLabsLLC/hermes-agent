@@ -249,11 +249,21 @@ or a dropped connection means: after `quitting` the runtime drains with end reas
 word too, and a quitting launcher still alive 30 awake seconds later is not waited on);
 after `running` / `suspended` it is a crash; a dropped connection with the pid alive is
 not a crash; 45 s of awake time without a beat while `running` is a hang (sleep gaps
-excluded). Slice W1 only RECORDS crash and hang (one `launcher_supervision` receipt line
-per decision in `agent.log`); a runtime started with `--parent-pid` still drains when
-its launcher is gone, as before, and one no launcher ever beat to is unchanged.
-`watching` is false until the game watch (G1) lands. Relaunch, the hang kill and the
-restart budget are W2 → [plan](planned/launcher-mutual-supervision-2026-10-27.md).
+excluded). Every decision is one `launcher_supervision` receipt line in `agent.log`.
+**Relaunch (W2):** a `supervise: true` launcher that crashes while `running` (or `suspended`
+with no `game`), or hangs, is relaunched from its last beat's `executable` as
+`<executable> --harness-relaunch=<crashed|hung>` (plus `--start-hidden` when the beat had
+`window_visible: false`), out of the harness's process tree and with no `HERMES_*` in its
+environment (`agent_runtime/launcher_supervision/relaunch.py`). A hang first kills that one pid,
+never its tree. The beat's `executable` must be the file its pid runs, or the beat is answered and
+ignored (`launcher_identity_mismatch`). Backoff 2 s / 10 s / 30 s; at most 3 relaunches per rolling
+10 minutes, persisted in `launcher_supervision/state.json`, and a relaunch no beat answers within
+60 awake seconds spends the budget again; the fourth drains with end reason
+`launcher_restart_limit`. Nothing relaunches once the runtime is ending (any latched end reason:
+a drain, stdin EOF — which is how a NON-service serve still follows its launcher — logoff,
+SIGTERM). `quitting`, `closing_for_game`, `supervise: false` and a `suspended` launcher handed a
+`game` keep W1's rows: a `--parent-pid` runtime drains, any other records. `watching` is false
+until the game watch (G1) lands → [plan](planned/launcher-mutual-supervision-2026-10-27.md).
 
 **Started by the OS instead of a launcher (p10-messaging M5, owner RULED 2026-10-19).** v1's service is a
 documented template, not an installer: [Task Scheduler](reference/service/windows-task.xml),

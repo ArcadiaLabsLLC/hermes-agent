@@ -464,7 +464,9 @@ _VERDICTS = (FENCED, SANCTIONED_OVERRIDE, UNFENCED, PRIMITIVE)
 #: column to every block; that is the cost of the pin and much cheaper than the
 #: hole it closes.
 FENCED_ACTOR_WRITERS: dict[tuple[str, str], dict[str, str]] = {
-    ("agent_runtime/office_store/actor_writes.py", "upsert_actor"): {
+    # The body (and so the write) moved into ``upsert_actor_outcome`` with the no-op rule
+    # (RT-OFFICE-NOOP-ACTOR-WRITE); ``upsert_actor`` returns its ``.row`` and writes nothing itself.
+    ("agent_runtime/office_store/actor_writes.py", "upsert_actor_outcome"): {
         "class_key": (
             "FENCED — _guard_class_keyed_write, first inside the lock; override is the "
             "explicit allow_class_key parameter"
@@ -653,7 +655,7 @@ def test_every_production_writer_of_a_live_actor_file_is_enumerated_and_disposit
 
     # The two fenced entry points really do consult the fence, in source, so the
     # table's word "FENCED" is checked rather than asserted.
-    for method_name in ("upsert_actor", "resolve_conflict"):
+    for method_name in ("upsert_actor_outcome", "resolve_conflict"):
         source = inspect.getsource(getattr(OfficeStore, method_name))
         assert "_guard_class_keyed_" in source, method_name
         assert "allow_class_key" in source, (

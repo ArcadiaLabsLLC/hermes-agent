@@ -125,6 +125,7 @@ class EndReason(StrEnum):
     SIGTERM = "sigterm"
     PARENT_EXITED = "parent_exited"  # --parent-pid: the owning Launcher exited; serve drained itself
     LAUNCHER_QUIT = "launcher_quit"  # the supervising Launcher beat `quitting` (an explicit Quit), then left
+    LAUNCHER_RESTART_LIMIT = "launcher_restart_limit"  # the supervised Launcher crashed/hung past its relaunch budget
     LOGOFF = "logoff"
     # the fallback
     UNKNOWN_EXIT = "unknown_exit"
@@ -211,6 +212,12 @@ class _ServeEndReason:
         self._reason: str | None = None
         self._written = False
         self._lock = threading.Lock()
+
+    @property
+    def latched(self) -> str | None:
+        """The cause latched so far; ``None`` while nothing is ending this runtime."""
+
+        return self._reason
 
     def note(self, reason: str) -> None:
         """Latch a cause. First one wins; never raises."""

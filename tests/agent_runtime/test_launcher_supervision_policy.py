@@ -27,22 +27,27 @@ def _beaten(state: LauncherState = LauncherState.RUNNING, *, bound: bool = True,
     return policy.on_beat(start, _beat(state, supervise=supervise))[0]
 
 
+_CRASHED = policy.RelaunchReason.CRASHED
+
+
 @pytest.mark.parametrize(
-    ("state", "bound", "supervise", "record", "drain"),
+    ("state", "bound", "supervise", "record", "drain", "relaunch"),
     [
-        (LauncherState.QUITTING, True, True, Record.QUIT, policy.END_LAUNCHER_QUIT),
-        (LauncherState.RUNNING, True, True, Record.CRASHED, policy.END_PARENT_EXITED),
-        (LauncherState.SUSPENDED, True, True, Record.CRASHED, policy.END_PARENT_EXITED),
-        (LauncherState.CLOSING_FOR_GAME, True, True, Record.CLOSED_FOR_GAME, policy.END_PARENT_EXITED),
-        (LauncherState.RUNNING, True, False, Record.EXITED_UNSUPERVISED, policy.END_PARENT_EXITED),
+        (LauncherState.QUITTING, True, True, Record.QUIT, policy.END_LAUNCHER_QUIT, None),
+        # W2: a supervised crash relaunches instead of draining, bound or not.
+        (LauncherState.RUNNING, True, True, Record.CRASHED, None, _CRASHED),
+        (LauncherState.SUSPENDED, True, True, Record.CRASHED, None, _CRASHED),
+        (LauncherState.CLOSING_FOR_GAME, True, True, Record.CLOSED_FOR_GAME, policy.END_PARENT_EXITED, None),
+        (LauncherState.RUNNING, True, False, Record.EXITED_UNSUPERVISED, policy.END_PARENT_EXITED, None),
+        (LauncherState.RUNNING, False, True, Record.CRASHED, None, _CRASHED),
         # A runtime nobody started with --parent-pid (a service) records and keeps serving.
-        (LauncherState.RUNNING, False, True, Record.CRASHED, None),
-        (LauncherState.QUITTING, False, True, Record.QUIT, None),
+        (LauncherState.RUNNING, False, False, Record.EXITED_UNSUPERVISED, None, None),
+        (LauncherState.QUITTING, False, True, Record.QUIT, None, None),
     ],
 )
-def test_a_gone_pid_is_told_apart_by_the_last_beat(state, bound, supervise, record, drain):
+def test_a_gone_pid_is_told_apart_by_the_last_beat(state, bound, supervise, record, drain, relaunch):
     _, decisions = policy.on_pid_gone(_beaten(state, bound=bound, supervise=supervise), 100)
-    assert [(d.record, d.drain) for d in decisions] == [(record, drain)]
+    assert [(d.record, d.drain, d.relaunch) for d in decisions] == [(record, drain, relaunch)]
 
 
 def test_a_gone_pid_with_no_beat_ever_drains_exactly_as_before():
@@ -99,9 +104,10 @@ def _tick(state: SupervisionState, seconds: float, *, start: float = 1000.0, ste
 
 
 def test_forty_five_awake_seconds_without_a_beat_is_a_hang_recorded_once():
-    state, decisions = _tick(_beaten(), 45.0)
+    # Unsupervised (a debug build): the hang is recorded, never killed or relaunched.
+    state, decisions = _tick(_beaten(supervise=False), 45.0)
     assert [d.record for d in decisions] == [Record.HUNG]
-    assert all(d.drain is None for d in decisions), "W1 records a hang; it never drains or kills"
+    assert all(d.drain is None and d.kill_pid is None and d.relaunch is None for d in decisions)
     assert _tick(state, 20.0, start=2000.0)[1] == []
 
 

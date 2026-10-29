@@ -808,8 +808,8 @@ def test_a_re_add_over_an_unreadable_archive_refuses_typed_and_acks_no_revision_
     from agent_runtime import paths
 
     store = _seed()
-    for _ in range(6):
-        store.upsert_actor(WORKSPACE, _actor_payload(1.0, 1.0), updated_by="seed-operator")
+    for step in range(6):  # each write differs: an equal one is a no-op (RT-OFFICE-NOOP-ACTOR-WRITE)
+        store.upsert_actor(WORKSPACE, _actor_payload(1.0 + step, 1.0), updated_by="seed-operator")
     assert store.get_actor(WORKSPACE, QA_INSTANCE).revision == 7
     store.remove_actor(WORKSPACE, QA_INSTANCE)
     archived_path = paths.office_archived_actor_path(WORKSPACE, QA_INSTANCE)

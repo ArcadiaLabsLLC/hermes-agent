@@ -333,6 +333,7 @@ def test_every_word_the_runtime_can_write_is_in_the_ruled_vocabulary() -> None:
             "sigterm",
             "parent_exited",
             "launcher_quit",
+            "launcher_restart_limit",
             "logoff",
             "unknown_exit",
         }
