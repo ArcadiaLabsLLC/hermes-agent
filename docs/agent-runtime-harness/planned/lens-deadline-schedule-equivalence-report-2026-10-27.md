@@ -244,9 +244,10 @@ the Episode chat `read_only`, which blocks `write_file`, `patch`, `terminal` (`t
 and drops the code-execution toolsets (the 2026-10-25 live record:
 [live-sitting-results-2026-10-25.md](live-sitting-results-2026-10-25.md), `toolsets_dropped [terminal,
 browser, vision, code_execution]`). So `artifacts.collect`'s `files` list is always empty live, and
-`test_lens_exit_door.py::test_a_turn_that_wrote_report_md_lists_it_on_the_receipt` passes only because its
-fake turn writes the file from outside the permission store — a capture that carries a write the real
-turn cannot make.
+the exit-door test then named `test_a_turn_that_wrote_report_md_lists_it_on_the_receipt` passed only because its
+fake turn wrote the file from outside the permission store — a capture that carried a write the real
+turn cannot make. (Retired by `4d5a1c049a`, RT-LENS-ARTIFACT-REPLY-REPORT: the door writes the turn's reply
+as `report.md`, pinned by `test_lens_exit_door.py::test_the_reply_is_the_report_md_on_the_receipt`.)
 
 ### Decisions
 
