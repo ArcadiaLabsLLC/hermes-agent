@@ -885,6 +885,20 @@ lists its boards category's slot (else one board per live slot) and a migrated
 document lists none of its own. ``runtime.project.artifacts.list`` answers
 ``{project_id, here, files: [{name, size}], truncated}``.
 
+54 KEPT (Project chat turn logs, 2026-10-29, RT-PROJECT-CHAT-TURN-LOGS) — no snapshot
+key moved. ``runtime.project.chat.share`` (``project_id``, ``session_id``, ``shared``,
+realm ``credential(s)``) is refused ``category_not_shared`` unless the Project's chats
+are shared, and runs the publish right of every realm the Project is in. A shared chat
+is written as ``<chats folder>/<session>/<machine>.<namespace>.jsonl`` (one line per
+ACTIVE message: ``turn_uid`` = ``messages.message_uid``, ``seq``, ``role``, ``ts``,
+redacted ``content`` / ``tool_calls``, ``tool_name``, ``parent_turn_uid``, ``author``
+``{persona_instance_id, profile_id, machine_id, namespace}``, ``address``) plus
+``<session>/chat.json``, published by the Work writer's new ``chat_turns_appended``
+operation in Hermes's own worktree of the chats slot (pseudo-workspace
+``project_<id>``), on every turn end and as a backfill on enable; the cursor is
+``store/project_chat_exports/<project>/<session>.json``. Unshare removes
+``<session>/`` in one commit.
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.

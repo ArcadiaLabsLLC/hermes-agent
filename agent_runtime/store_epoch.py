@@ -128,6 +128,16 @@ MIGRATION_REGISTRY: tuple[dict[str, Any], ...] = (
                   "document and every workspace-keyed fill it wrote; nothing moves out from under it",
         "pins_sha256": "dd4409ded46ab00a47cfbe3ea4562647b696ad907e30a5bb4c58473ecd325501",
     },
+    {
+        "id": "project-chat-export-cursors",
+        "date": "2026-10-29",
+        "store": "all",
+        "breaking": False,
+        "reason": "additive (lane w1029a-h-proj, RT-PROJECT-CHAT-TURN-LOGS): paths.project_chat_export_path names "
+                  "store/project_chat_exports/<project>/<session>.json, a shared chat's machine-local export "
+                  "cursor; no existing path moves and an older edition never reads it",
+        "pins_sha256": "28c1b9b459e5015cf347efd45bb80642350d80495969c476589ba43e26d4309b",
+    },
 )
 
 #: ``1 + count(breaking entries)`` — ``tests/agent_runtime/test_store_epoch_gate.py`` holds it to that.

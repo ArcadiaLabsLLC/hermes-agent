@@ -458,7 +458,9 @@ class Writer:
     # ── steps 7–8: commit and push ───────────────────────────────────────
 
     def _commit(self, op: RowOp, changed: list[str]) -> str:
-        self._must(["add", "--", *changed], Reason.COMMIT_FAILED, repo=self.worktree)
+        present = [path for path in changed if (self.worktree / path).exists()]  # a ``git rm`` is already staged
+        if present:
+            self._must(["add", "--", *present], Reason.COMMIT_FAILED, repo=self.worktree)
         note = PurePosixPath(op.ref.note).name
         subject = f"work: {op.op.value} {op.ref.id} {op.who} (ws {self.board.workspace_id}, {op.ref.slot}/{note})"
         body = f"request_id: {op.request_id}"
@@ -496,7 +498,23 @@ class Writer:
         return self._receipt(replace(op, ref=ref), hit[0], replays=replays, pushed=not self.board.local,
                              replayed=True)
 
+    def _chat_turns(self, op: RowOp) -> list[str]:
+        """``chat_turns_appended``: ``payload.appends`` / ``payload.files`` under the root, and each of
+        ``payload.remove`` (a folder relative to the root) ``git rm``'d — machine-written logs, never rows."""
+
+        written = self._write_files(op.payload.get("files") or {}) + self._append_files(op.payload.get("appends") or {})
+        for relative in op.payload.get("remove") or []:
+            target = PurePosixPath(self.brain_root, str(relative))
+            if ".." in target.parts or target.is_absolute():
+                raise WorkRefused(Reason.INVALID, f"payload remove {relative!r} leaves the root")
+            if (self.worktree / target).exists():
+                self._must(["rm", "-r", "-q", "--", target.as_posix()], Reason.COMMIT_FAILED, repo=self.worktree)
+                written.append(target.as_posix())
+        return written
+
     def _edit(self, op: RowOp) -> list[str]:
+        if op.op is Op.CHAT_TURNS_APPENDED:
+            return self._chat_turns(op)
         if op.op is Op.APPEND:
             return self._append(op)
         return self._bulk_delete(op) if op.op is Op.DELETE and "ids" in op.payload else self._line_edit(op)

@@ -285,6 +285,7 @@
     "runtime.prefab.set",
     "runtime.project.artifacts.list",
     "runtime.project.category.set",
+    "runtime.project.chat.share",
     "runtime.project.declare",
     "runtime.project.guidance.set",
     "runtime.project.report",
@@ -907,6 +908,13 @@
       "shared",
       "context_files"
     ],
+    "runtime.project.chat.share": [
+      "project_id",
+      "session_id",
+      "shared",
+      "credential",
+      "credentials"
+    ],
     "runtime.project.declare": [
       "project_id",
       "issued_at",
@@ -1321,6 +1329,7 @@
     "runtime.prefab.set": "console",
     "runtime.project.artifacts.list": "console",
     "runtime.project.category.set": "console",
+    "runtime.project.chat.share": "console",
     "runtime.project.declare": "console",
     "runtime.project.guidance.set": "console",
     "runtime.project.report": "console",

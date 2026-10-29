@@ -25,6 +25,7 @@ PROJECT_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
                                      "venv", "issued_at"),
     "runtime.project.report": ("project_id",),
     "runtime.project.artifacts.list": ("project_id",),
+    "runtime.project.chat.share": ("project_id", "session_id", "shared", "credential", "credentials"),
 }
 
 #: ``SlotRefused.reason`` → the JSON-RPC error code it rides; anything else rides ERR_CONFLICT.
@@ -40,6 +41,9 @@ _REFUSAL_CODES = {
     "invalid_path": ERR_INVALID_PARAMS,
     "invalid_fill": ERR_INVALID_PARAMS,
     "secret_in_env": ERR_INVALID_PARAMS,
+    "category_not_shared": ERR_CONFLICT,
+    "chats_folder_unbound": ERR_CONFLICT,
+    "session_not_found": ERR_NOT_FOUND,
     "slot_not_declared": ERR_NOT_FOUND,
     "path_not_found": ERR_NOT_FOUND,
     "realm_publish_denied": ERR_HANDLER_FAILED,
@@ -48,11 +52,16 @@ _REFUSAL_CODES = {
 
 def _guarded(handler):
     def run(rid, params, context=None):
+        from agent_runtime.work_store.reasons import WorkRefused
         from agent_runtime.workspace_slot_env import SlotEnvRefused
         from agent_runtime.workspace_slots import SlotRefused
 
         try:
             return ok(rid, handler(params or {}))
+        except WorkRefused as exc:  # the chats folder's git publication refused (push, worktree, fence)
+            return err(rid, ERR_CONFLICT, "The Project's chats folder could not publish.",
+                       {"reason": getattr(getattr(exc, "reason", None), "value", "work_refused"),
+                        "detail": str(exc)})
         except (SlotRefused, SlotEnvRefused) as exc:
             return err(rid, _REFUSAL_CODES.get(exc.reason, ERR_CONFLICT), "The Project request was refused.",
                        {"reason": exc.reason, "detail": exc.detail})
@@ -171,3 +180,19 @@ def _project_artifacts_list(params):
     from agent_runtime.project_categories import artifacts_list
 
     return artifacts_list(params.get("project_id"))
+
+
+@method("runtime.project.chat.share", tier=TIER_CONSOLE)
+@_guarded
+def _project_chat_share(params):
+    """Share one chat into a Project (backfill, then every turn end) or stop sharing it (plan §5)."""
+
+    from agent_runtime.chat_session_scope import SessionDbAccess, open_chat_session_db, resolve_chat_session_scope
+    from agent_runtime.project_chat_export import share
+
+    session_id = str(params.get("session_id") or "")
+    session_db = (open_chat_session_db(resolve_chat_session_scope(session_id=session_id), access=SessionDbAccess.READ)
+                  if session_id and params.get("shared") is True else None)
+    store = _store(params)
+    return share(params.get("project_id"), session_id, params.get("shared"), session_db=session_db,
+                 credentials=store._credentials)
