@@ -11,7 +11,8 @@ things are worth pinning and one of them is a regression:
   opening a port onto a LAN should have to say which interface; "guessed one for
   you" is not a sentence this runtime should be able to say about a listener
   that executes agents with tools.
-* **the key is ``remote_gateway``.** Stage 0a declared it as ``gateway``, which
+* **the key is ``remote_gateway`` (``remote_gateway_listen`` / ``_port`` under the
+  harness plugin's settings since 919eb8f0da).** Stage 0a declared it as ``gateway``, which
   is already a top-level key in ``config_defaults``' single dict literal — so
   Python kept the later entry and dropped Stage 0a's at parse time. Its receipts
   say the keys were "declared, read by nothing", and the second half is exactly
@@ -35,10 +36,15 @@ def config(monkeypatch):
     def _install(block):
         state["block"] = block
         import hermes_cli.config as config_module
+        from agent_runtime.harness_settings import SETTINGS_PATH
 
-        monkeypatch.setattr(
-            config_module, "load_config_readonly", lambda: {"remote_gateway": block}
-        )
+        # The keys live under the harness plugin's settings since 919eb8f0da; the legacy
+        # ``remote_gateway.*`` block is migrated (``harness_settings_legacy``), never read.
+        settings = {f"remote_gateway_{key}": value for key, value in (block or {}).items()}
+        tree: dict = settings
+        for segment in reversed(SETTINGS_PATH):
+            tree = {segment: tree}
+        monkeypatch.setattr(config_module, "load_config_readonly", lambda: tree)
 
     return _install
 

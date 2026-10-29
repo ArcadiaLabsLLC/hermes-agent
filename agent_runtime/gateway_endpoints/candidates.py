@@ -41,9 +41,9 @@ SOURCE_UNKNOWN = "unknown"
 
 def gateway_listen_config() -> tuple[str | None, int]:
     """``(host, port)`` from the harness settings ``remote_gateway_listen`` /
-    ``remote_gateway_port`` (``agent_runtime.harness_settings``, which still
-    reads the legacy ``remote_gateway.*`` block during the transition);
-    ``(None, …)`` means off.
+    ``remote_gateway_port`` (``agent_runtime.harness_settings``; a legacy
+    ``remote_gateway.*`` block is migrated by ``harness_settings_legacy``, never
+    read here); ``(None, …)`` means off.
 
     The FIRST reader of the keys Stage 0a declared — and the read that found
     they had never existed: Stage 0a put them under ``"gateway"``, which is
