@@ -164,10 +164,6 @@ def native_route_chat_folder_owner(profile: str) -> str:
     return NATIVE_ROUTE_CHAT_FOLDER_PREFIX + safe_path_token(profile)
 
 
-def runtime_instances_dir() -> Path:
-    return store_root() / "runtime_instances"
-
-
 def workspaces_dir() -> Path:
     return store_root() / "workspaces"
 
@@ -760,8 +756,8 @@ def persona_instance_path(persona_instance_id: str) -> Path:
 # directory helpers that survived solely to address its retired tree.
 
 
-def runtime_instance_path(instance_id: str) -> Path:
-    return runtime_instances_dir() / f"{safe_path_token(instance_id)}.json"
+# DC-RUNTIME-INSTANCES-DIR-RESIDUE removed ``runtime_instances_dir`` / ``runtime_instance_path``:
+# the directory has had no writer since S53 and no reader since its store module went.
 
 
 def workspace_path(workspace_id: str) -> Path:

@@ -4227,6 +4227,26 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "TaskStore",
         scope=("agent_runtime.store",),
     ),
+    *rows(
+        "s-w1029c-h-a",
+        "HEAD",
+        Form.ATTR,
+        "dead-code DC-RUNTIME-INSTANCES-DIR-RESIDUE: the runtime_instances directory has had no "
+        "writer since S53 and no reader since its store module went, so its model left",
+        "GoalRuntimeInstance",
+        scope=("agent_runtime.models",),
+    ),
+    *rows(
+        "s-w1029c-h-a",
+        "HEAD",
+        Form.ATTR,
+        "dead-code DC-RUNTIME-INSTANCES-DIR-RESIDUE: the path helpers of the writer-less, "
+        "reader-less runtime_instances directory (the checkpoint class and the poll fingerprint "
+        "entry went with them)",
+        "runtime_instances_dir",
+        "runtime_instance_path",
+        scope=("agent_runtime.paths",),
+    ),
 )
 
 

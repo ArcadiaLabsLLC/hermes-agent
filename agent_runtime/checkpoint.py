@@ -93,7 +93,6 @@ ENTITY_CLASSES: tuple[EntityClass, ...] = (
     EntityClass("persona_assignments", paths.persona_assignments_dir),
     EntityClass("runs", paths.runs_dir),
     EntityClass("incidents", paths.incidents_dir),
-    EntityClass("runtime_instances", paths.runtime_instances_dir),
     EntityClass("workspaces", paths.workspaces_dir),
     EntityClass("realms", paths.realms_dir),
     EntityClass("agents", paths.agents_dir),
@@ -111,12 +110,11 @@ ENTITY_CLASSES: tuple[EntityClass, ...] = (
     # — no production code imports `RepoBundleStore` any more. (S57 finished it:
     # the module, the `RepoBundle` model, `paths.repo_bundle_path` and the
     # `migration_status` count are all gone, so nothing can name that class.)
-    # `runtime_instances` is writer-less since S53 and, since
-    # RT-WRITERLESS-GOAL-LANE-READ-RESIDUE deleted the store and `dirty_state`'s
-    # foreground block, reader-less too. It is still captured here only until
-    # its own retirement row lands (`DC-RUNTIME-INSTANCES-DIR-RESIDUE`, the
-    # dead-code queue): dropping a checkpoint class changes what an existing
-    # checkpoint restores, which is that row's decision, not this cut's.
+    # `runtime_instances` went by the same rule (DC-RUNTIME-INSTANCES-DIR-RESIDUE):
+    # writer-less since S53, reader-less since RT-WRITERLESS-GOAL-LANE-READ-RESIDUE.
+    # A checkpoint is a read-only fetch envelope with no restore of its own, so an
+    # existing envelope that carries the class restores nothing; a fresh
+    # `--classes runtime_instances` request reports it in `requested_absent`.
 )
 
 ENTITY_CLASS_NAMES: tuple[str, ...] = tuple(entity.name for entity in ENTITY_CLASSES)
