@@ -291,9 +291,13 @@
     "runtime.project.chat.share",
     "runtime.project.declare",
     "runtime.project.guidance.set",
+    "runtime.project.recipe.run_step",
+    "runtime.project.recipe.set",
+    "runtime.project.recipe.show",
     "runtime.project.report",
     "runtime.project.show",
     "runtime.project.slot.bind",
+    "runtime.project.slot.clone",
     "runtime.project.slot.env.set",
     "runtime.prompt_context.show",
     "runtime.provider.configure",
@@ -942,6 +946,25 @@
       "description",
       "instructions"
     ],
+    "runtime.project.recipe.run_step": [
+      "project_id",
+      "slot",
+      "step_id",
+      "issued_at"
+    ],
+    "runtime.project.recipe.set": [
+      "project_id",
+      "issued_at",
+      "credential",
+      "credentials",
+      "slot",
+      "steps",
+      "revision",
+      "persona_instance_id"
+    ],
+    "runtime.project.recipe.show": [
+      "project_id"
+    ],
     "runtime.project.report": [
       "project_id"
     ],
@@ -952,6 +975,12 @@
       "project_id",
       "slot",
       "path",
+      "issued_at"
+    ],
+    "runtime.project.slot.clone": [
+      "project_id",
+      "slot",
+      "dest_path",
       "issued_at"
     ],
     "runtime.project.slot.env.set": [
@@ -1346,9 +1375,13 @@
     "runtime.project.chat.share": "console",
     "runtime.project.declare": "console",
     "runtime.project.guidance.set": "console",
+    "runtime.project.recipe.run_step": "console",
+    "runtime.project.recipe.set": "console",
+    "runtime.project.recipe.show": "console",
     "runtime.project.report": "console",
     "runtime.project.show": "console",
     "runtime.project.slot.bind": "console",
+    "runtime.project.slot.clone": "console",
     "runtime.project.slot.env.set": "console",
     "runtime.prompt_context.show": "console",
     "runtime.provider.configure": "console",
