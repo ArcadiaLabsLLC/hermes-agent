@@ -252,3 +252,14 @@ def _instance_slots_set(params):
 
     return set_instance_slots(str(params.get("persona_instance_id") or ""), params.get("slots"), params.get("primary"),
                               issued_at=str(params.get("issued_at") or ""))
+
+
+@method("runtime.persona.instance.recall.set", tier=TIER_CONSOLE)
+@_assignment
+def _instance_recall_set(params):
+    """Turn this agent's recall across its Projects' shared chat stores on or off (default off)."""
+
+    from agent_runtime.persona_slots import set_instance_recall
+
+    return set_instance_recall(str(params.get("persona_instance_id") or ""), params.get("enabled"),
+                               issued_at=str(params.get("issued_at") or ""))

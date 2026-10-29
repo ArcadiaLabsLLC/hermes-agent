@@ -149,6 +149,28 @@ def set_instance_slots(instance_id: str, slots: Any, primary: Any = None, *, iss
     return show_instance_slots(instance_id)
 
 
+def set_instance_recall(instance_id: str, enabled: Any, *, issued_at: str) -> dict[str, Any]:
+    """``recall_shared_projects`` on one instance (plan project-slots-and-shared-chats §6), on the slot clock."""
+
+    from .workspace_slots import stamp_epoch
+
+    if not isinstance(enabled, bool):
+        raise SlotAssignmentRefused(REASON_INVALID_REQUEST, "enabled must be a boolean")
+    issued = stamp_epoch(issued_at)
+    if issued is None:
+        raise SlotAssignmentRefused(REASON_INVALID_REQUEST, "issued_at must be an ISO-8601 stamp")
+    instance = _slot_instance(instance_id)
+    if not instance.workspace_id:
+        raise SlotAssignmentRefused(REASON_INSTANCE_HAS_NO_WORKSPACE, "the canonical persona channel has no Projects")
+    held = instance.slots_issued_at
+    if held is not None and issued < held.timestamp():
+        raise SlotAssignmentRefused(REASON_STALE_REVISION, "a newer assignment already landed")
+    instance.recall_shared_projects = enabled
+    instance.slots_issued_at = datetime.fromisoformat(issued_at)
+    _store().update(instance)
+    return show_instance_slots(instance_id)
+
+
 def show_instance_slots(instance_id: str) -> dict[str, Any]:
     """``{workspace_id, slots: [{name, project_id, slot, bound_here, path, status}], projects, primary_slot,
     primary_source}`` — ``projects`` groups the assigned keys by the Project that declares them
@@ -170,7 +192,8 @@ def show_instance_slots(instance_id: str) -> dict[str, Any]:
     primary, source = resolve_primary(instance)
     return {"persona_instance_id": instance.id, "workspace_id": instance.workspace_id, "slots": rows,
             "projects": [{"project_id": pid or None, "slots": keys} for pid, keys in projects.items()],
-            "primary_slot": primary, "primary_source": source}
+            "primary_slot": primary, "primary_source": source,
+            "recall_shared_projects": bool(getattr(instance, "recall_shared_projects", False))}
 
 
 def _bound(held: VisibleSlot, workspace_id: str) -> Path | None:

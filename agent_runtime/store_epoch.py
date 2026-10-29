@@ -143,7 +143,7 @@ MIGRATION_REGISTRY: tuple[dict[str, Any], ...] = (
         "date": "2026-10-29",
         "store": "all",
         "breaking": False,
-        "reason": "additive (lane w1029a-h-proj, RT-PROJECT-CHAT-SHARED-FOLD): paths.project_chat_store_path names "
+        "reason": "additive (lane w1029a-h-proj, RT-PROJECT-CHAT-SHARED-FOLD): the paths table names "
                   "store/project_chats/<project>.db (a SessionDB that is never a chat head) and "
                   "project_chat_fold_path its fold offsets; no existing path moves, an agent's own state.db is "
                   "never written, and an older edition never reads either",

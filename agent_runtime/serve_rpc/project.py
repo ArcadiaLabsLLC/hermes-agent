@@ -27,6 +27,9 @@ PROJECT_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     "runtime.project.artifacts.list": ("project_id",),
     "runtime.project.chat.share": ("project_id", "session_id", "shared", "credential", "credentials"),
     "runtime.project.chat.fold": ("project_id",),
+    # Registered in ``serve_rpc.workspace_slots`` beside the slot assignment verbs; listed here with the
+    # rest of the Project contract the launcher mirrors.
+    "runtime.persona.instance.recall.set": ("persona_instance_id", "enabled", "issued_at"),
 }
 
 #: ``SlotRefused.reason`` → the JSON-RPC error code it rides; anything else rides ERR_CONFLICT.

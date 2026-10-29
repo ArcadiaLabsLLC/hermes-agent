@@ -269,6 +269,7 @@
     "runtime.persona.instance.create",
     "runtime.persona.instance.detail",
     "runtime.persona.instance.open_chat",
+    "runtime.persona.instance.recall.set",
     "runtime.persona.instance.set_model",
     "runtime.persona.instance.slots.set",
     "runtime.persona.instance.slots.show",
@@ -886,6 +887,11 @@
       "install_id",
       "client_scope"
     ],
+    "runtime.persona.instance.recall.set": [
+      "persona_instance_id",
+      "enabled",
+      "issued_at"
+    ],
     "runtime.persona.toolset.approve": [
       "mode",
       "persona_id",
@@ -1317,6 +1323,7 @@
     "runtime.persona.instance.create": "console",
     "runtime.persona.instance.detail": "read",
     "runtime.persona.instance.open_chat": "console",
+    "runtime.persona.instance.recall.set": "console",
     "runtime.persona.instance.set_model": "console",
     "runtime.persona.instance.slots.set": "console",
     "runtime.persona.instance.slots.show": "console",
