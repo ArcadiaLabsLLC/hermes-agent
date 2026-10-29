@@ -175,6 +175,7 @@ class OfficeStore:
     _refuse_unresolvable_workspace = surface_writes_lane._refuse_unresolvable_workspace
     _ensure_surface_locked = surface_writes_lane._ensure_surface_locked
     update_surface = surface_writes_lane.update_surface
+    update_surface_outcome = surface_writes_lane.update_surface_outcome
 
     # conflicts
     scan_conflicts = conflicts_lane.scan_conflicts

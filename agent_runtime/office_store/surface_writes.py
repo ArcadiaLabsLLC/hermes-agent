@@ -7,6 +7,7 @@ method, so ``store.<name>(...)`` reads exactly as before).
 
 from __future__ import annotations
 
+import copy
 from typing import TYPE_CHECKING
 
 from hermes_time import now
@@ -16,6 +17,7 @@ from agent_runtime.errors import WorkspaceUnresolved
 from agent_runtime.locks import office_lock
 from agent_runtime.models import OfficeSurface
 from agent_runtime.office_store.files import _write_surface
+from agent_runtime.office_store.noop import WriteOutcome, unchanged
 from agent_runtime.office_store.normalize import _normalize_folders, _safe_actor_ref
 from agent_runtime.serde import safe_id
 from agent_runtime.store_conflicts import check_revision
@@ -30,6 +32,7 @@ __all__ = [
     "_refuse_unresolvable_workspace",
     "ensure_surface",
     "update_surface",
+    "update_surface_outcome",
 ]
 
 
@@ -147,6 +150,41 @@ def update_surface(
     correlation_id: str | None = None,
     dry_run: bool = False,
 ) -> OfficeSurface:
+    """Write the surface and return the row — :func:`update_surface_outcome`'s
+    ``.row``, for the callers that do not ask whether a file was written."""
+
+    return update_surface_outcome(
+        store,
+        workspace_id,
+        folders=folders,
+        updated_by=updated_by,
+        expect_revision=expect_revision,
+        correlation_id=correlation_id,
+        dry_run=dry_run,
+    ).row
+
+
+def update_surface_outcome(
+    store: OfficeStore,
+    workspace_id: str,
+    *,
+    folders: list[str] | None = None,
+    updated_by: str = "operator",
+    expect_revision: int | None = None,
+    correlation_id: str | None = None,
+    dry_run: bool = False,
+) -> WriteOutcome[OfficeSurface]:
+    """The surface update, answering whether it wrote.
+
+    A content-equal update — the NORMALIZED folder list equals the live one
+    (``noop.unchanged``; the normalization adds the defaults, dedupes and caps,
+    so ``[]`` and ``["Desks", "Agents", "Desks"]`` equal the default surface) —
+    writes no file, bumps no revision, emits no patch and no domain event, and
+    answers the live row with ``written=False``. ``check_revision`` runs first,
+    so a stale token on an equal list is still refused. A dry run is
+    ``written=False`` with the would-be row, as before.
+    """
+
     wsid = safe_id(workspace_id)
     if not wsid:
         raise ValueError("invalid_request")
@@ -175,6 +213,7 @@ def update_surface(
                 wsid, created_at=now(), updated_by=_safe_actor_ref(updated_by)
             )
         check_revision(surface.revision, expect_revision)
+        live = copy.deepcopy(surface)
         change = []
         if folders is not None:
             surface.folders = _normalize_folders(folders)
@@ -185,7 +224,9 @@ def update_surface(
         if dry_run:
             # Full validation + revision check ran; return the would-be
             # surface in memory. Write nothing, emit no event.
-            return surface
+            return WriteOutcome(surface, written=False)
+        if unchanged(live, surface):
+            return WriteOutcome(live, written=False)
         _write_surface(surface)
         if surface_existed:
             store._emit_surface_patch(surface, correlation_id=correlation_id)
@@ -196,4 +237,4 @@ def update_surface(
             change=",".join(change) or "saved",
             revision=surface.revision,
         )
-    return store.get_surface(wsid)
+    return WriteOutcome(store.get_surface(wsid), written=True)
