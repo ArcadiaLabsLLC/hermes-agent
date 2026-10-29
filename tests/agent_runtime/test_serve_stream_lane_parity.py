@@ -759,7 +759,29 @@ def test_the_lanes_frames_have_the_committed_goldens_shape():
     golden = json.loads((FIXTURES / "hydrate.json").read_text(encoding="utf-8"))
     producer_only, golden_only = _shape_drift(hydrate, golden)
     assert golden_only == []
+    # The serve's boot ensures the Default realm and workspace for the namespace
+    # it serves (RT-SERVE-BOOT-DEFAULT-SCOPE), so the hub's hydrate carries one
+    # row in each list the golden — generated off an empty store — carries
+    # EMPTY. An empty golden list witnesses no row fields, so paths under it are
+    # not drift the golden can judge; those two lists are NAMED, so a row under
+    # any other list the golden leaves empty still reds.
+    under_empty = {
+        path.split("[]", 1)[0]
+        for path in producer_only
+        if "[]" in path and _golden_list_is_empty(golden, path.split("[]", 1)[0])
+    }
+    assert under_empty == {"core.realms", "core.workspaces"}
+    producer_only = [p for p in producer_only if p.split("[]", 1)[0] not in under_empty]
     assert producer_only == ["delta_patches", "fold_entities"]
+
+
+def _golden_list_is_empty(golden: dict, dotted: str) -> bool:
+    node: object = golden
+    for part in dotted.split("."):
+        if not isinstance(node, dict) or part not in node:
+            return False
+        node = node[part]
+    return node == []
 
 
 def test_the_two_lanes_encode_the_same_frame_with_different_whitespace():
