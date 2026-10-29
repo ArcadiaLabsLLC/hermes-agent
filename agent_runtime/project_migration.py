@@ -19,7 +19,8 @@ For each ``store/workspace_slots/<ws>.json`` with live slots whose workspace rec
    ``workspace_slots.slot_owner``. Hermes's own Work worktrees are NOT renamed under git:
    ``work_store.writer.work_worktree_for`` keeps using a worktree at its old ``<slot>-<token>`` path until it
    is recut at ``<project>/<slot>``.
-3. Instance assignments are re-keyed by the persona slot owner (``RT-PROJECT-SLOTS-FOR-AGENTS``).
+3. Every instance of the workspace has its bare slot names re-keyed to ``ws-<ws>/<slot>``
+   (``persona_slots.rekey_workspace_assignments``, ``slots_issued_at`` stamped).
 4. The old document stays, stamped ``migrated_to: "ws-<ws>"`` with a fresh ``issued_at``; realm sync
    still merges it (the stamp survives the merge) and every reader then reads the Project.
 
@@ -96,13 +97,18 @@ def migrate_workspace(workspace: Any, document: dict[str, Any]) -> dict[str, Any
     _copy_path_fills(workspace_id, project_id)
     env_copied = copy_workspace_fills(workspace_id, project_id)
     worktrees = _copy_worktree_records(workspace_id, project_id)
+    # 3. the assignments
+    from .persona_slots import rekey_workspace_assignments
+    from .workspace_slots import live_slots
+
+    instances = rekey_workspace_assignments(workspace_id, project_id, frozenset(live_slots(document)))
     # 4. the stamp
     document = {**document, "migrated_to": project_id, "issued_at": datetime.now(UTC).isoformat()}
     write_document(workspace_id, document)
     after = {"slots": len(load_project(project_id).get("slots") or {}),
              "fills": len(scoped_roots().project_roots.get(project_id) or {})}
     return {"workspace_id": workspace_id, "project_id": project_id, "before": before, "after": after,
-            "env_fills": env_copied, "worktree_records": worktrees,
+            "env_fills": env_copied, "worktree_records": worktrees, "instances": len(instances),
             "equal": before["slots"] == after["slots"] and before["fills"] <= after["fills"]}
 
 

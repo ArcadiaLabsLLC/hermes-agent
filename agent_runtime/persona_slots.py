@@ -6,7 +6,11 @@ The authority is the instance record (``assigned_slots``, ``primary_slot``,
 declares and fills slots and never assigns agents.
 
 * **A subset, never "all".** Every assigned name is a live slot the instance's workspace
-  declares (``slot_not_in_workspace``); empty means NONE. A slot may sit in several
+  sees (``slot_not_in_workspace``); empty means NONE. A slot a Project declares is assigned as
+  ``<project>/<slot>`` (plan project-slots-and-shared-chats §3) and is visible only while the
+  workspace holds that Project in ``project_ids``; a bare name is a slot of the workspace's own,
+  not-yet-migrated document. Disconnecting a Project drops ``<project>/*`` from every instance of
+  that workspace in the same write (:func:`drop_project_slots`). A slot may sit in several
   instances' lists at once (OWNER 2026-10-04 example): ``set`` touches one record, so
   assigning a slot to the frontend agent never takes it from the backend agent. A slot the
   workspace removes is dropped from every assignment in the same write
@@ -88,10 +92,38 @@ def _slot_instance(instance_id: str):
         raise SlotAssignmentRefused(REASON_INSTANCE_NOT_FOUND, instance_id) from exc
 
 
+@dataclass(frozen=True)
+class VisibleSlot:
+    """A slot an instance of a workspace may be assigned: its key, owner, record and the document it lives in."""
+
+    key: str
+    name: str
+    project_id: str | None
+    record: dict[str, Any]
+    document: dict[str, Any]
+
+
+def visible_slots(workspace_id: str) -> dict[str, VisibleSlot]:
+    """Every live slot a workspace's instances may be assigned, by key (``<project>/<slot>`` or a bare name)."""
+
+    from .project_store import load_project
+    from .workspace_slots import live_slots, load_document, slot_key, slots_of_workspace
+
+    documents: dict[str | None, dict[str, Any]] = {}
+    out: dict[str, VisibleSlot] = {}
+    for project_id, name in slots_of_workspace(workspace_id):
+        if project_id not in documents:
+            documents[project_id] = load_project(project_id) if project_id else load_document(workspace_id)
+        document = documents[project_id]
+        key = slot_key(project_id, name)
+        out[key] = VisibleSlot(key, name, project_id, live_slots(document)[name], document)
+    return out
+
+
 def set_instance_slots(instance_id: str, slots: Any, primary: Any = None, *, issued_at: str) -> dict[str, Any]:
     """REPLACE one instance's assignment and primary; refusals are typed."""
 
-    from .workspace_slots import live_slots, load_document, stamp_epoch
+    from .workspace_slots import stamp_epoch
 
     if not isinstance(slots, list) or not all(isinstance(name, str) and name for name in slots):
         raise SlotAssignmentRefused(REASON_INVALID_REQUEST, "slots must be a list of slot names")
@@ -101,7 +133,7 @@ def set_instance_slots(instance_id: str, slots: Any, primary: Any = None, *, iss
     instance = _slot_instance(instance_id)
     if not instance.workspace_id:
         raise SlotAssignmentRefused(REASON_INSTANCE_HAS_NO_WORKSPACE, "the canonical persona channel has no assignment")
-    declared = live_slots(load_document(instance.workspace_id))
+    declared = visible_slots(instance.workspace_id)
     unknown = [name for name in slots if name not in declared]
     if unknown:
         raise SlotAssignmentRefused(REASON_SLOT_NOT_IN_WORKSPACE, ", ".join(unknown))
@@ -118,37 +150,90 @@ def set_instance_slots(instance_id: str, slots: Any, primary: Any = None, *, iss
 
 
 def show_instance_slots(instance_id: str) -> dict[str, Any]:
-    """``{workspace_id, slots: [{name, bound_here, path, status}], primary_slot, primary_source}``."""
-
-    from .workspace_slots import bound_path, live_slots, load_document
+    """``{workspace_id, slots: [{name, project_id, slot, bound_here, path, status}], projects, primary_slot,
+    primary_source}`` — ``projects`` groups the assigned keys by the Project that declares them
+    (``null`` for the workspace's own document)."""
 
     instance = _slot_instance(instance_id)
-    declared = live_slots(load_document(instance.workspace_id)) if instance.workspace_id else {}
+    declared = visible_slots(instance.workspace_id) if instance.workspace_id else {}
     rows = []
+    projects: dict[str, list[str]] = {}
     for name in instance.assigned_slots or []:
-        path = bound_path(name, workspace_id=instance.workspace_id) if name in declared else None
+        held = declared.get(name)
+        path = _bound(held, instance.workspace_id) if held else None
         bound = bool(path and path.is_dir())
-        status = "bound" if bound else ("unbound_here" if name in declared else "not_declared")
-        rows.append({"name": name, "bound_here": bound, "path": str(path) if bound else None, "status": status})
+        status = "bound" if bound else ("unbound_here" if held else "not_declared")
+        rows.append({"name": name, "project_id": held.project_id if held else None,
+                     "slot": held.name if held else name, "bound_here": bound,
+                     "path": str(path) if bound else None, "status": status})
+        projects.setdefault(held.project_id if held and held.project_id else "", []).append(name)
     primary, source = resolve_primary(instance)
     return {"persona_instance_id": instance.id, "workspace_id": instance.workspace_id, "slots": rows,
+            "projects": [{"project_id": pid or None, "slots": keys} for pid, keys in projects.items()],
             "primary_slot": primary, "primary_source": source}
 
 
-def drop_removed_slots(workspace_id: str, removed: set[str] | frozenset[str]) -> list[str]:
-    """Drop ``removed`` slot names from every instance of ``workspace_id``; returns the ids touched."""
+def _bound(held: VisibleSlot, workspace_id: str) -> Path | None:
+    from .workspace_slots import bound_path
 
-    if not removed:
-        return []
+    if held.project_id:
+        return bound_path(held.name, project_id=held.project_id)
+    return bound_path(held.name, workspace_id=workspace_id)
+
+
+def drop_removed_slots(workspace_id: str, removed: set[str] | frozenset[str]) -> list[str]:
+    """Drop ``removed`` slot keys from every instance of ``workspace_id``; returns the ids touched."""
+
+    return _drop_where(lambda instance: instance.workspace_id == workspace_id, lambda key: key in removed)
+
+
+def drop_project_slots(project_id: str, *, workspace_id: str | None = None,
+                       removed: set[str] | frozenset[str] | None = None) -> list[str]:
+    """Drop ``<project>/*`` (or only ``<project>/<removed>``) from every instance of ``workspace_id``
+    (every workspace when ``None``); the ids touched. A Project's disconnect and a Project slot's
+    tombstone both leave every assignment in the same write."""
+
+    prefix = f"{project_id}/"
+    return _drop_where(
+        lambda instance: workspace_id is None or instance.workspace_id == workspace_id,
+        lambda key: key.startswith(prefix) and (removed is None or key[len(prefix):] in removed))
+
+
+def _drop_where(owns, drops) -> list[str]:
     store = _store()
     touched = []
     for instance in store.list_all():
-        if instance.workspace_id != workspace_id or not set(instance.assigned_slots or []) & set(removed):
+        keys = list(instance.assigned_slots or [])
+        if not owns(instance) or not any(drops(key) for key in keys):
             continue
         store.patch_fields(
             instance.id,
-            assigned_slots=[name for name in instance.assigned_slots if name not in removed],
-            primary_slot=None if instance.primary_slot in removed else instance.primary_slot,
+            assigned_slots=[key for key in keys if not drops(key)],
+            primary_slot=None if instance.primary_slot and drops(instance.primary_slot) else instance.primary_slot,
+        )
+        touched.append(instance.id)
+    return touched
+
+
+def rekey_workspace_assignments(workspace_id: str, project_id: str, names: set[str] | frozenset[str]) -> list[str]:
+    """The slot migration's step 3 (plan §4): bare names of a migrated document become ``<project>/<slot>``.
+
+    Set-to-value per instance (a key already re-keyed is left as it is), ``slots_issued_at`` stamped.
+    """
+
+    store = _store()
+    touched = []
+    stamp = datetime.now().astimezone()
+    for instance in store.list_all():
+        keys = list(instance.assigned_slots or [])
+        if instance.workspace_id != workspace_id or not any(key in names for key in keys):
+            continue
+        store.patch_fields(
+            instance.id,
+            assigned_slots=list(dict.fromkeys(f"{project_id}/{key}" if key in names else key for key in keys)),
+            primary_slot=(f"{project_id}/{instance.primary_slot}" if instance.primary_slot in names
+                          else instance.primary_slot),
+            slots_issued_at=stamp,
         )
         touched.append(instance.id)
     return touched
@@ -183,6 +268,9 @@ class SlotContext:
     dedup_against: str | None = None
     #: ``(slot, file)`` of every section dropped because the cwd chain carries it whole.
     dedup_dropped: tuple[tuple[str, str], ...] = ()
+    #: ``(assigned key, (slot name, project id | None))`` for each bound slot (a Project's slot keys as
+    #: ``<project>/<slot>``; its env overlay reads the Project's fill and declaration).
+    owners: tuple[tuple[str, tuple[str, str | None]], ...] = ()
 
     @property
     def bindings(self) -> tuple[Any, ...]:
@@ -190,7 +278,12 @@ class SlotContext:
 
         from .workspace_slot_overlay import SlotBinding
 
-        return tuple(SlotBinding(self.workspace_id, slot, path) for slot, path in self.bound)
+        owned = dict(self.owners)
+        bindings = []
+        for slot, path in self.bound:
+            name, project_id = owned.get(slot, (slot, None))
+            bindings.append(SlotBinding(self.workspace_id, name, path, project_id))
+        return tuple(bindings)
 
     @property
     def content(self) -> str:
@@ -224,26 +317,28 @@ def load_slot_context(instance: Any) -> SlotContext | None:
     """The turn's slot context, or None when the instance has no assignment (EMPTY ⇒ nothing, never all)."""
 
     from .prompt_observability.workspace_agents import load_workspace_agents_context
-    from .workspace_slots import DEFAULT_CONTEXT_FILES, bound_path, live_slots, load_document
+    from .workspace_slots import DEFAULT_CONTEXT_FILES
 
     assigned = list(getattr(instance, "assigned_slots", None) or [])
     workspace_id = getattr(instance, "workspace_id", None)
     if not assigned or not workspace_id:
         return None
-    document = load_document(workspace_id)
-    declared = live_slots(document)
+    declared = visible_slots(workspace_id)
     sections: list[SlotContextSection] = []
     receipts: list[dict[str, Any]] = []
     bound: list[tuple[str, str]] = []
+    owners: dict[str, tuple[str, str | None]] = {}
     for slot in assigned:
-        path = bound_path(slot, workspace_id=workspace_id) if slot in declared else None
+        held = declared.get(slot)
+        path = _bound(held, workspace_id) if held else None
         if path is None or not path.is_dir():
-            receipts.append(_unbound_receipt(slot, document) if slot in declared else
+            receipts.append(_unbound_receipt(held.name, held.document) | {"slot": slot, "label": slot} if held else
                             {"slot": slot, "label": slot, "kind": "workspace_context", "included": False,
                              "status": "slot_not_declared"})
             continue
         bound.append((slot, str(path)))
-        files = (declared[slot].get("context") or {}).get("files") or list(DEFAULT_CONTEXT_FILES)
+        owners[slot] = (held.name, held.project_id)
+        files = (held.record.get("context") or {}).get("files") or list(DEFAULT_CONTEXT_FILES)
         for file in files:
             loaded = load_workspace_agents_context(str(Path(path) / file), allowed_names=None)
             receipts.append(_file_receipt(slot, file, loaded))
@@ -251,7 +346,8 @@ def load_slot_context(instance: Any) -> SlotContext | None:
                 sections.append(SlotContextSection(slot, file, loaded.content))
     primary, source = resolve_primary(instance)
     primary_path = dict(bound).get(primary) if primary else None
-    return SlotContext(tuple(sections), tuple(receipts), primary, source, primary_path, tuple(bound), workspace_id)
+    return SlotContext(tuple(sections), tuple(receipts), primary, source, primary_path, tuple(bound), workspace_id,
+                       owners=tuple(sorted(owners.items())))
 
 
 # ── not twice: the slot sections against the prompt builder's cwd chain (D1.12) ──

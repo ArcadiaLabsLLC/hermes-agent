@@ -213,8 +213,12 @@ class ProjectStore:
         if name is not None:
             record["name"] = _project_name(name)
         unshared = self._commit(project_id, record, issued_at=issued_at)
+        from .persona_slots import drop_project_slots
+
+        # A removed slot leaves every assignment of it, in every workspace holding the Project (§3).
+        dropped = drop_project_slots(project_id, removed=frozenset(tombstoned)) if tombstoned else []
         return {"document": record, "declared": sorted(declared), "tombstoned": sorted(tombstoned),
-                "categories_unshared": unshared}
+                "categories_unshared": unshared, "assignments_dropped": dropped}
 
     def declare_one_slot(self, project_id: str, entry: Any, *, issued_at: str, machine: str) -> dict[str, Any]:
         """Declare ONE slot, leaving every other slot as it is (nothing tombstoned)."""

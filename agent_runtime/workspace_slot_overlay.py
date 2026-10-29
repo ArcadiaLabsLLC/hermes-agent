@@ -34,11 +34,12 @@ _DOTENV_LINE_RE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*
 
 @dataclass(frozen=True)
 class SlotBinding:
-    """One slot bound on this machine: which workspace, which slot, the checkout."""
+    """One slot bound on this machine: which workspace, which slot, the checkout — and the Project declaring it."""
 
     workspace_id: str
     slot: str
     path: str
+    project_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -156,11 +157,13 @@ def _venv_bin(venv: str) -> str:
 def overlay_for(binding: SlotBinding) -> SlotEnvOverlay:
     """The overlay of one bound slot: the machine fill, the slot's ``.env``, the venv."""
 
+    from .project_store import load_project
     from .workspace_slot_env import slot_fill
     from .workspace_slots import live_slots, load_document, secret_keys
 
-    fill = slot_fill(binding.workspace_id, binding.slot)
-    declared = live_slots(load_document(binding.workspace_id)).get(binding.slot) or {}
+    fill = slot_fill(binding.workspace_id, binding.slot, project_id=binding.project_id)
+    document = load_project(binding.project_id) if binding.project_id else load_document(binding.workspace_id)
+    declared = live_slots(document).get(binding.slot) or {}
     dotenv_name = (fill.dotenv if fill else None) or ((declared.get("toolchain") or {}).get("dotenv") or {}).get("path")
     dotenv = read_dotenv(Path(binding.path) / dotenv_name) if dotenv_name else {}
     # A key the declaration marks secret reaches a command ONLY from the slot's .env — never
@@ -190,7 +193,8 @@ def env_overlay(cwd: Any, bindings: Iterable[SlotBinding] | None = None) -> Slot
         else:
             from .workspace_slots import authorized_roots_bound_here
 
-            bindings = [SlotBinding(b.workspace_id, b.slot, str(b.path)) for b in authorized_roots_bound_here()]
+            bindings = [SlotBinding(b.workspace_id, b.slot, str(b.path), b.project_id)
+                        for b in authorized_roots_bound_here()]
     binding = _deepest(str(cwd or ""), bindings)
     return None if binding is None else overlay_for(binding)
 

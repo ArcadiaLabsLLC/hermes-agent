@@ -40,5 +40,11 @@ def set_project_connection(workspace_id: str, project_id: str, *, connected: boo
                                      else [value for value in workspace.project_ids if value != project_id])
             workspace.project_assignment_revision += 1
     workspace = WorkspaceStore().update_project_connections(workspace_id, change)
+    dropped: list[str] = []
+    if not connected:
+        from .persona_slots import drop_project_slots
+
+        # The Project's slots leave every instance of THIS workspace with the reference (plan §3, H-P3).
+        dropped = drop_project_slots(project_id, workspace_id=workspace_id)
     return {"workspace_id": workspace.id, "project_ids": workspace.project_ids,
-            "revision": workspace.project_assignment_revision}
+            "revision": workspace.project_assignment_revision, "assignments_dropped": dropped}

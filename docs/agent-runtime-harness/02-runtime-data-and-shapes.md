@@ -862,6 +862,18 @@ fills COPIED (an older edition keeps its own) and the document stamped ``migrate
 which the slot merge carries. Verbs ``runtime.project.slot.bind`` / ``.slot.env.set`` /
 ``.report`` are local-console only, like their workspace twins.
 
+54 KEPT (Project slots for agents, 2026-10-29, RT-PROJECT-SLOTS-FOR-AGENTS) — no
+snapshot key moved. ``PersonaInstance.assigned_slots`` / ``primary_slot`` hold
+``<project>/<slot>`` for a Project's slot (a bare name stays a slot of the workspace's
+own, unmigrated document); ``persona_slots.visible_slots`` is what an instance may be
+assigned — its workspace's document plus every Project in ``project_ids``.
+``runtime.persona.instance.slots.show`` rows gain ``project_id`` and ``slot`` and the
+result a ``projects`` grouping. Disconnecting a Project (``runtime.workspace.project.set``,
+result key ``assignments_dropped``) drops ``<project>/*`` from that workspace's instances;
+a Project slot's tombstone drops it everywhere. The migration re-keys assignments
+(step 3). After it, ``runtime.workspace.slots.show`` / ``.declare`` / ``.report`` /
+``.slot.bind`` / ``.slot.env.set`` answer ``slot_migrated`` with ``data.project_id``.
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.

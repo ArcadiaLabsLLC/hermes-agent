@@ -184,7 +184,19 @@ def apply_project_pull(realm_id: str, subtree: Path, *, now: float | None = None
             continue
         write_project(owner, merged)
         summary.merged.append(path.stem)
+        _drop_newly_removed(owner, local, merged)
     return summary
+
+
+def _drop_newly_removed(project_id: str, before: dict[str, Any], after: dict[str, Any]) -> None:
+    """A peer's tombstone that won the merge leaves every local assignment of that slot too."""
+
+    from .persona_slots import drop_project_slots
+
+    was_live = {name for name, slot in (before.get("slots") or {}).items() if not (slot or {}).get("removed_at")}
+    now_removed = {name for name, slot in (after.get("slots") or {}).items() if (slot or {}).get("removed_at")}
+    if was_live & now_removed:
+        drop_project_slots(project_id, removed=frozenset(was_live & now_removed))
 
 
 def publish_artifacts(workspaces: list[Any]) -> list[Any]:
