@@ -153,3 +153,59 @@ def test_a_cursor_past_the_tail_is_refused_and_bad_params_are_named():
 
 def test_the_journal_id_is_minted_once():
     assert event_cursor.journal_id() == event_cursor.journal_id()
+
+
+def _raw_append(data: bytes) -> None:
+    from agent_runtime import paths
+
+    with open(paths.events_path(), "ab") as handle:
+        handle.write(data)
+
+
+def test_a_corrupt_line_mid_journal_is_skipped_and_named_not_a_stall():
+    """RT-EVENT-CURSOR-CORRUPT-LINE-STALL: a whole line that will not decode is passed, with its span."""
+
+    start = _call()["next_cursor"]
+    _episode(1)
+    corrupt_start = event_rotation.log_end_offset()
+    _raw_append(b'{"ts": not json at all}\n')
+    corrupt_end = event_rotation.log_end_offset()
+    _episode(2)
+
+    page = _call(cursor=start)
+
+    assert [event["payload"]["ordinal"] for event in page["events"]] == [1, 2]
+    assert page["at_tail"] is True
+    journal = event_cursor.journal_id()
+    assert page["skipped"] == [{
+        "reason": "journal_line_unreadable",
+        "from_cursor": f"{journal}:{corrupt_start}",
+        "to_cursor": f"{journal}:{corrupt_end}",
+        "bytes": corrupt_end - corrupt_start,
+    }]
+    # A page that meets no corrupt line carries no ``skipped`` key.
+    assert "skipped" not in _call(cursor=page["events"][-1]["event_id"])
+
+
+def test_a_torn_tail_ends_the_page_and_is_read_whole_on_the_next():
+    """Positive control for the skip: a line with no newline yet is still being appended."""
+
+    start = _call()["next_cursor"]
+    _episode(1)
+    before_tear = event_rotation.log_end_offset()
+    event = Event(ts=now(), type="lens.episode.changed", task_id=None, run_id=None, persona_id=None,
+                  payload={"monitor_id": "status", "episode_id": f"{2:064x}", "state": "active",
+                           "rule_id": "cpu_hot", "ordinal": 2})
+    from agent_runtime.serde import to_jsonable
+    import json as _json
+
+    line = _json.dumps(to_jsonable(event)).encode("utf-8")
+    _raw_append(line[:10])
+
+    page = _call(cursor=start)
+    assert [event["payload"]["ordinal"] for event in page["events"]] == [1]
+    assert "skipped" not in page
+    assert page["next_cursor"] == f"{event_cursor.journal_id()}:{before_tear}"
+
+    _raw_append(line[10:] + b"\n")
+    assert [event["payload"]["ordinal"] for event in _call(cursor=page["next_cursor"])["events"]] == [2]

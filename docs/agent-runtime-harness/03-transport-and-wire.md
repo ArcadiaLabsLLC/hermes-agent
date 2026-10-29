@@ -72,7 +72,9 @@ projected onto its contract's declared fields. No cursor answers the tail; a cur
 journal, past the tail or below `resume_floor_offset` is a `refused` result naming the cursor to
 move to (`journal_mismatch` / `cursor_ahead_of_journal` → `tail_cursor`, `journal_truncated` →
 `floor_cursor` + `lost_bytes`, `journal_unreadable`), and a refused page's `next_cursor` is the one
-sent. Plan: [launcher-event-cursor](planned/launcher-event-cursor-2026-10-28.md).
+sent. A newline-terminated line that will not decode is passed, not stalled on: the page advances and
+names it in `skipped: [{reason: journal_line_unreadable, from_cursor, to_cursor, bytes}]`; only a torn
+tail (no newline yet) ends a page for the next read to take whole. Plan: [launcher-event-cursor](planned/launcher-event-cursor-2026-10-28.md).
 
 ## Operator text admission
 

@@ -37,6 +37,8 @@ __all__ = [
     "JournalRefusal",
     "Page",
     "SCAN_BUDGET_BYTES",
+    "UNREADABLE_LINE",
+    "SkippedSpan",
     "format_cursor",
     "journal_id",
     "parse_cursor",
@@ -60,6 +62,19 @@ class JournalRefusal(StrEnum):
     JOURNAL_UNREADABLE = "journal_unreadable"
 
 
+#: The reason a skipped span carries: a whole line (newline-terminated) that does not decode.
+UNREADABLE_LINE = "journal_line_unreadable"
+
+
+@dataclass(frozen=True, slots=True)
+class SkippedSpan:
+    """One unreadable line a page passed: logical offsets ``[start, end)``."""
+
+    start: int
+    end: int
+    reason: str = UNREADABLE_LINE
+
+
 @dataclass(frozen=True, slots=True)
 class Page:
     """One bounded read: ``events`` as ``(end offset of the line, event)``, and where to read next."""
@@ -72,6 +87,8 @@ class Page:
     #: The offset a refused caller moves to (the tail, or the floor for a truncation).
     resume_offset: int | None = None
     lost_bytes: int | None = None
+    #: Unreadable lines the page scanned past, oldest first.
+    skipped: list[SkippedSpan] = field(default_factory=list)
 
 
 def journal_id() -> str:
@@ -137,15 +154,17 @@ def read_after(
         return Page(journal, floor, False, refused=JournalRefusal.JOURNAL_TRUNCATED, resume_offset=floor,
                     lost_bytes=floor - offset)
     budget = SCAN_BUDGET_BYTES if scan_budget is None else scan_budget
-    events, position = _scan(offset, wanted, limit=limit, scan_budget=budget)
-    return Page(journal, position, position >= event_rotation.log_end_offset(), events)
+    events, position, skipped = _scan(offset, wanted, limit=limit, scan_budget=budget)
+    return Page(journal, position, position >= event_rotation.log_end_offset(), events, skipped=skipped)
 
 
 def _scan(offset: int, wanted: Callable[[Event], bool], *, limit: int,
-          scan_budget: int) -> tuple[list[tuple[int, Event]], int]:
-    """Matches from ``offset`` and the end of the last line scanned (always at least one line, if any)."""
+          scan_budget: int) -> tuple[list[tuple[int, Event]], int, list[SkippedSpan]]:
+    """Matches from ``offset``, the end of the last line scanned (always at least one line, if
+    any), and the unreadable lines passed on the way."""
 
     events: list[tuple[int, Event]] = []
+    skipped: list[SkippedSpan] = []
     position = offset
     lines = EventLog().iter_from_offset(offset)
     while len(events) < limit:
@@ -153,11 +172,40 @@ def _scan(offset: int, wanted: Callable[[Event], bool], *, limit: int,
             end, event = next(lines)
         except StopIteration:
             break
-        except (ValueError, UnicodeDecodeError):
-            break  # a line still being appended: the next page reads it whole
+        except ValueError:  # JSON and UTF-8 decode errors alike
+            span = _whole_line_at(position)
+            if span is None:
+                break  # a torn tail, still being appended: the next page reads it whole
+            if span[1] - offset > scan_budget and position > offset:
+                break
+            skipped.append(SkippedSpan(*span))
+            position = span[1]
+            lines = EventLog().iter_from_offset(position)
+            continue
         if end - offset > scan_budget and position > offset:
             break
         position = end
         if wanted(event):
             events.append((end, event))
-    return events, position
+    return events, position, skipped
+
+
+def _whole_line_at(offset: int) -> tuple[int, int] | None:
+    """The logical span of the first non-blank line at or after ``offset``, or ``None`` when that
+    line has no terminating newline yet (a torn tail) or there is none."""
+
+    for slice_path, slice_start, seek_within in event_rotation.offset_reads(offset):
+        try:
+            handle = open(slice_path, "rb")
+        except FileNotFoundError:
+            continue
+        with handle:
+            handle.seek(seek_within)
+            for raw in handle:
+                if not raw.strip():
+                    continue
+                end = slice_start + handle.tell()
+                if not raw.endswith(b"\n"):
+                    return None
+                return end - len(raw), end
+    return None

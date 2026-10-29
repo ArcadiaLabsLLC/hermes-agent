@@ -56,7 +56,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-29 (lane w1029a-h-rt-b)
 
-- **`RT-EVENT-CURSOR-CORRUPT-LINE-STALL` — `runtime.events.after` stops a page at a line that will not decode (meant for a line still being appended), so a corrupt line in the MIDDLE of the journal pins every later read at that offset with no refusal; tell a torn tail (no trailing newline) from a corrupt line and answer the latter with a typed `journal_line_unreadable` that skips it, naming the byte span** · fork / transport · `agent_runtime/event_cursor.py::_scan` · `agent_runtime/events.py::EventLog.iter_from_offset` · READY 2026-10-29 · **TAKEN 2026-10-29 w1029b-h-rt on nekwo-ubuntu24 as nekwo in hermes-w1029b-h-rt**
 
 ### Filed on arrival — 2026-10-27 (launcher lane w1027k-plan-host)
 
