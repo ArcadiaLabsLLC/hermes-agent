@@ -764,8 +764,19 @@ def test_every_coverage_claim_names_a_test_that_exists(scan) -> None:
     covered -- see the module docstring and the failure text below.
     """
 
+    from tests._fork_scope import unattributable_upstream_paths
+
     claims, _ = scan
-    bad = [(claim, reason) for claim, reason in _unresolved(claims) if _fork_owns(claim)]
+    unattributable = unattributable_upstream_paths(REPO_ROOT)
+    unresolved = _unresolved(claims)
+    not_checked = [c for c, _ in unresolved if c.source in unattributable and not c.source.endswith(".md")]
+    if not_checked:
+        warnings.warn(
+            f"{len(not_checked)} unresolved claim(s) in upstream-shipped files are not checked: "
+            "shallow clone (their line authorship needs the recorded base's ancestry)",
+            stacklevel=1,
+        )
+    bad = [(c, reason) for c, reason in unresolved if c not in not_checked and _fork_owns(c)]
     if not bad:
         return
     report = "\n".join(

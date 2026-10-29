@@ -84,7 +84,10 @@ Every lane, every peer session (`ListAgents`), the live serve and the gate share
    after.
 3. Lower the footprint fixture; run its two gates.
 4. Send peer sessions **"freeze"**; merge `origin/main` once; run the gate once
-   ([[Running the tests]] § "What a landing runs, once"); a session-chain edit runs the chain's contract
+   ([[Running the tests]] § "What a landing runs, once"). A landing brief names the gate as
+   `scripts/run_tests_bundled.sh tests > .landlog 2>&1; echo "EXIT=$?" >> .landlog` — never a pathless
+   run_tests.sh, which is the whole tree (w1029a's brief called that "the full fork suite": 62k
+   tests, ~60 upstream reds on Linux); a session-chain edit runs the chain's contract
    plus a sample, at a landing and at a release merge alike; nothing runs the whole tree (owner rulings 2026-10-16 and 2026-10-17, [[0016 — No whole-tree run, ever]]). Never gate before the last lane is merged, and
    never restart the gate because a peer landed — Phase B paid three ~75-minute passes for both.
 5. Triage each named red with `scripts/run_tests_bundled.sh --confirm-red <file>` (pre-existing / load /

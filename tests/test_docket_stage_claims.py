@@ -144,11 +144,11 @@ def remain_claims(text: str) -> list[tuple[list[str], str]]:
     ]
 
 
-def _git(*args: str) -> subprocess.CompletedProcess:
+def _git(*args: str, cwd: Path = REPO_ROOT) -> subprocess.CompletedProcess:
     if shutil.which("git") is None:
         pytest.skip("git is not on PATH")
     return subprocess.run(
-        ["git", *args], cwd=REPO_ROOT, check=False, capture_output=True, text=True
+        ["git", *args], cwd=cwd, check=False, capture_output=True, text=True
     )
 
 
@@ -167,30 +167,34 @@ def _in_this_history(sha: str) -> bool:
     return _IN_THIS_HISTORY[sha]
 
 
-def _assert_the_clone_can_answer_ancestry() -> None:
-    """The precondition this whole gate rests on, checked rather than assumed.
+def _ancestry_unanswerable(root: Path = REPO_ROOT) -> str | None:
+    """Why ``root`` cannot answer ancestry, or ``None`` when it can.
 
     ``merge-base --is-ancestor`` answers NO for every sha in a shallow clone,
-    and this gate reads a run of NOs as "these dockets claim a landing that
-    never happened". That is not a weaker gate, it is a FALSE ACCUSATION: in
-    run 33969282189 it named seven backed stages across two dockets, because
-    the CI slice job checked out at ``actions/checkout``'s default
-    ``fetch-depth: 1``. A gate that cannot tell "not an ancestor" from "this
-    clone has no ancestors" must say which one it is looking at.
+    and this gate would read a run of NOs as "these dockets claim a landing that
+    never happened" -- a FALSE ACCUSATION: in run 33969282189 it named seven
+    backed stages across two dockets, because the CI slice job checked out at
+    ``actions/checkout``'s default ``fetch-depth: 1`` (the CI slice jobs now pass
+    ``fetch-depth: 0`` with ``filter: blob:none``).
 
-    Deliberately an assertion, not a skip: a hermes checkout that cannot answer
-    ancestry is a broken environment for this file, and a skip here is how the
-    gate goes quiet for a month again.
+    On a shallow clone the claims are reported "not checked: shallow clone"
+    rather than red (owner ruling 2026-10-29, FH-VM-CLONE-SHALLOW-DOCKET-GATES:
+    every Claude Code cloud session clones shallow). No fetch repairs it
+    cheaply: the dockets cite ABBREVIATED shas, which git cannot fetch by sha,
+    and one fetched commit cannot answer ancestry through the shallow graft.
     """
 
-    shallow = _git("rev-parse", "--is-shallow-repository").stdout.strip()
-    assert shallow == "false", (
-        "this clone is SHALLOW, so `git merge-base --is-ancestor` answers no "
-        "for every cited commit and this gate would accuse every backed docket "
-        "in the corpus. Check out with full history — the CI slice jobs pass "
-        "`fetch-depth: 0` with `filter: blob:none` for exactly this "
-        f"(`git rev-parse --is-shallow-repository` said {shallow!r})."
-    )
+    shallow = _git("rev-parse", "--is-shallow-repository", cwd=root).stdout.strip()
+    if shallow == "true":
+        return "not checked: shallow clone (`git rev-parse --is-shallow-repository` said 'true')"
+    assert shallow == "false", f"git could not say whether this clone is shallow: {shallow!r}"
+    return None
+
+
+def _assert_the_clone_can_answer_ancestry() -> None:
+    reason = _ancestry_unanswerable()
+    if reason is not None:
+        pytest.skip(reason)
 
 
 def _dockets() -> list[str]:
@@ -282,6 +286,23 @@ def test_ancestry_is_the_question_asked_not_existence():
     # assertions above still pass while the gate below sees nothing.
     parent = _git("rev-parse", "HEAD~1").stdout.strip()
     assert parent and _in_this_history(parent)
+
+
+def test_a_shallow_clone_is_not_checked_rather_than_accused(tmp_path):
+    """FH-VM-CLONE-SHALLOW-DOCKET-GATES, with its positive control: the full source
+    clone answers ancestry, its depth-1 clone reports "not checked"."""
+
+    full, shallow = tmp_path / "full", tmp_path / "shallow"
+    full.mkdir()
+    _git("init", "-q", cwd=full)
+    for text in ("one", "two"):
+        (full / "f.txt").write_text(text, encoding="utf-8")
+        _git("add", "f.txt", cwd=full)
+        _git("-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-qm", text, cwd=full)
+    _git("clone", "-q", "--depth", "1", full.as_uri(), str(shallow), cwd=tmp_path)
+
+    assert _ancestry_unanswerable(full) is None
+    assert (_ancestry_unanswerable(shallow) or "").startswith("not checked: shallow clone")
 
 
 def test_a_done_claim_whose_only_sha_is_foreign_is_unbacked():
