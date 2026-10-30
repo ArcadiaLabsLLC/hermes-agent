@@ -8,9 +8,13 @@ turn, every tool call (command, exit, duration, timed out), the files it wrote, 
 branches it created or removed, its commits, and its model and tokens.
 
 ``namespace`` names the store that answered by KIND and id — the account namespace (``acct-…``), an
-account sandbox, a profile namespace, or ``base`` — plus the store root and this machine's install
-id, so "which namespace" never means two things. Strictly read-only: nothing is minted, swept or
-repaired (the machine id is READ, ``gateway_identity.read_install_identity``).
+account sandbox, a profile namespace, or ``base`` — plus the store root, that store's install id
+(one namespace's data root, re-minted by a reseed: ``gateway_identity.read_install_identity``) and
+this PC's machine id (``machine_identity.read_machine_id``), so "which namespace" and "which
+machine" never mean two things. Each turn carries the ``address`` its journal record was stamped
+with (``mission_chat_turns.journal._turn_stamps``); absent stays absent. Strictly read-only:
+nothing is minted, swept or repaired — both ids are READ, never minted
+(RT-TURN-AUDIT-CARRIES-ADDRESS).
 
 Worktrees and branches are derived from the stored terminal commands (a regex over-approximation,
 like ``turn_outcome.classify_command``): each row carries the call's exit code, so a failed
@@ -163,6 +167,7 @@ def _audit_turn_row(record: dict[str, Any], price: Callable[[dict[str, Any]], di
     usage = record.get(TURN_USAGE_KEY)
     return {
         "turn_id": record.get("turn_id"),
+        "address": record.get("address"),
         "client_message_id": record.get("client_message_id"),
         "state": record.get("state"),
         "started_at": record.get("started_at"),
@@ -184,10 +189,12 @@ def _audit_turn_row(record: dict[str, Any], price: Callable[[dict[str, Any]], di
 
 
 def audit_namespace() -> dict[str, Any]:
-    """The store that answers: namespace kind and id, store root, and this machine's install id."""
+    """The store that answers: namespace kind and id, store root, that store's install id, and the
+    PC's machine id (``None`` when hermes has never minted one — this read never mints)."""
 
     from agent_runtime import paths
     from agent_runtime.gateway_identity import read_install_identity
+    from agent_runtime.machine_identity import read_machine_id
     from agent_runtime.namespace import namespace_kind, namespace_stamp
 
     ns_id = namespace_stamp()
@@ -197,8 +204,8 @@ def audit_namespace() -> dict[str, Any]:
         "kind": namespace_kind(ns_id) if ns_id else "base",
         "id": ns_id or "base",
         "store_root": str(store_root),
-        "machine": {"install_id": identity.install_id, "display_name": identity.display_name,
-                    "state": identity.state},
+        "machine": {"machine_id": read_machine_id(), "install_id": identity.install_id,
+                    "display_name": identity.display_name, "state": identity.state},
     }
 
 

@@ -63,6 +63,38 @@ def test_audit_lists_one_instances_turns_with_every_tool_call(isolate_agent_runt
     assert turn_audit(session_id="chat_c")["turns"][0]["usage"] is None
 
 
+# RT-TURN-AUDIT-CARRIES-ADDRESS. Mutation: drop ``"address"`` from ``_audit_turn_row`` -> the turn
+# reads None; drop ``machine_id`` from ``audit_namespace`` -> KeyError; mint in the read -> the
+# id-less read below stops reading None.
+def test_audit_carries_each_turns_address_and_the_machine_id_beside_the_install_id(isolate_agent_runtime_root):
+    from agent_runtime import address as addr
+    from agent_runtime.machine_identity import read_machine_id
+
+    _seed("chat_m", "turn_m", instance="inst_m", elements=[])
+    machine = read_machine_id()
+    assert machine and machine.startswith("mach_")  # the journal's address minted it on the first write
+
+    audit = turn_audit(persona_instance_id="inst_m")
+
+    [turn] = audit["turns"]
+    parsed = addr.parse(turn["address"])
+    assert parsed.get("machine") == machine and parsed.get("turn") == "turn_m"
+    assert audit["namespace"]["machine"]["machine_id"] == machine
+    assert "install_id" in audit["namespace"]["machine"]
+
+
+def test_the_audit_namespace_reads_the_machine_id_and_never_mints_one(isolate_agent_runtime_root):
+    from agent_runtime import machine_identity as mi
+    from agent_runtime.chat_verbs.turn_audit import audit_namespace
+
+    mi._KNOWN.clear()
+    path = mi.machine_id_path()
+    if path.exists():
+        path.unlink()
+    assert audit_namespace()["machine"]["machine_id"] is None
+    assert not path.exists()
+
+
 def test_audit_refuses_an_unfiltered_read():
     assert turn_audit()["error_kind"] == "invalid_request"
 

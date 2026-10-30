@@ -35,7 +35,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-30 (launcher planning lane w1030p-mcaddr: `MC-ADDRESS-VALUE-LAUNCHER`)
 
-- **`RT-TURN-AUDIT-CARRIES-ADDRESS` — `runtime.chat.turn_audit` passes each record's `address` through `_audit_turn_row` and `audit_namespace()` adds `machine.machine_id` (`read_machine_id()`, never minted) beside `install_id`, whose docstring stops calling the install id "the machine id"; the launcher's `MC-ADDR-AUDIT-WIRE-ADDRESS` reads them** · `agent_runtime/chat_verbs/turn_audit.py::_audit_turn_row` · `agent_runtime/mission_chat_turns/journal.py::_turn_stamps` · `EterniaLauncher/docs/mission_control/planned/ADDRESS_VALUE_SITES_2026-10-30.md` §S4 · READY 2026-10-30 · **TAKEN 2026-10-30 w1030b-h on nekwo-ubuntu24 as nekwo in hm-w1030b-h**
 
 ### Filed on arrival — 2026-10-29 (lane w1029c-h-a)
 

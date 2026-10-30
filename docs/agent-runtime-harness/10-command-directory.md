@@ -156,8 +156,9 @@ hermes harness mission-chat steer --session-id SESSION_ID --client-message-id UN
 ```
 
 Audit what an instance's turns did — every tool call (command, exit, duration, timed out),
-files written, worktrees and branches, commits, model and tokens — and which namespace and
-machine answered (**READ**; RPC twin `runtime.chat.turn_audit`):
+files written, worktrees and branches, commits, model and tokens, each turn's address — and
+which namespace answered, with its install id and this PC's machine id (**READ**, never mints;
+RPC twin `runtime.chat.turn_audit`):
 
 ```bash
 hermes harness mission-chat audit --persona-instance-id INSTANCE_ID --limit 5 --json
