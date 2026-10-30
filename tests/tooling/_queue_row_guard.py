@@ -27,6 +27,7 @@ import re
 import subprocess
 import sys
 from collections.abc import Callable, Iterable, Mapping
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -214,7 +215,11 @@ def run(root: Path = REPO, *, upstream: str = "origin/main") -> GuardReport:
         return None
 
     deleted = {row_id: row for row_id, row in base_rows.items() if row_id not in head_rows}
-    filers = {row_id: filer_of(row) for row_id, row in deleted.items()}
+    # Each filer is one history-wide ``git log -S`` (~1.5 s on this vault); they are independent, so
+    # they run side by side and a push deleting N rows pays about one, not N (the prepush budget,
+    # FH-PREPUSH-PROGRESS-BUDGET).
+    with ThreadPoolExecutor(max_workers=max(1, min(8, len(deleted)))) as pool:
+        filers = dict(zip(deleted, pool.map(filer_of, deleted.values()), strict=True))
     return GuardReport(base, len(base_rows), findings(
         base=base_rows, head=head_rows, pusher=pusher, filer_of=lambda row: filers.get(row.id),
         authorized=authorized_row_ids(messages)))

@@ -133,7 +133,9 @@ batch at its landing, never per lane.
   push by any agent or person. Before pushing, the pusher runs `bash scripts/prepush.sh
   <tests that reference a shared symbol they changed>` (found with `grep -rl <name> tests/`): it
   prints its plan, then runs the queue gates, the cheap whole-tree text gates and every test file
-  the branch touched, and exits non-zero on any red. Any red is fixed before the push (owner
+  the branch touched, and exits non-zero on any red. Each step declares a budget and a deadline:
+  past budget it heartbeats and raises a desktop notification, at the deadline it is killed and
+  named (owner 2026-10-30, `FH-PREPUSH-PROGRESS-BUDGET`). Any red is fixed before the push (owner
   2026-10-29, adopting the launcher's 2026-10-27 rule). It is a command, not a hook.
 - While the operator is testing a live serve, commit from a worktree and push `HEAD:main`,
   never in the primary checkout: a commit there moves the code tree the serve is built from
