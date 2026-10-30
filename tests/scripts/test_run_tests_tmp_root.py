@@ -43,7 +43,7 @@ def _inside(path: str, root: Path) -> bool:
 
 @pytest.mark.timeout(300)
 def test_the_runner_scratch_and_the_child_temp_land_under_the_named_root(tmp_path, real_bash):
-    root = tmp_path / "root"
+    root = tmp_path / ("root-" + "x" * 40)  # over the 40-byte AF_UNIX budget on every host
     root.mkdir()
     out = tmp_path / "seen.json"
     case = tmp_path / "case" / "test_tmp_probe.py"
@@ -65,9 +65,27 @@ def test_the_runner_scratch_and_the_child_temp_land_under_the_named_root(tmp_pat
 
     assert result.returncode == 0, result.stdout[-3000:] + result.stderr[-3000:]
     assert "test temp root (runner and children): " in result.stdout
+    if sys.platform != "win32":  # FH-TEST-TMP-ROOT-SUN-PATH-BUDGET: warned, and still followed
+        assert f"⚠ test temp root is {len(os.fsencode(str(root)))} bytes; over the 40-byte AF_UNIX budget" in result.stdout
     seen = json.loads(out.read_text(encoding="utf-8"))
     # Every platform: the runner's scratch follows the named root (``_fork_runner.scratch_root``,
     # FH-RUNNER-SCRATCH-FOLLOWS-TEST-TMP-ROOT); on POSIX it used to stay on /var/tmp.
     scratch = root
     assert seen["temproot"] and _inside(seen["temproot"], scratch), seen
     assert _inside(seen["gettempdir"], scratch), seen
+
+
+# FH-TEST-TMP-ROOT-SUN-PATH-BUDGET. Mutation: compare against 400 instead of 40 -> the long root
+# prints no warning. Positive control: the same call with a short root prints none.
+@pytest.mark.skipif(sys.platform == "win32", reason="the AF_UNIX budget is POSIX-only; Windows uses named pipes")
+@pytest.mark.parametrize(("name", "warned"), [("r", False), ("r" * 41, True)])
+def test_a_root_over_the_af_unix_budget_is_warned_and_still_followed(tmp_path, real_bash, name, warned):
+    (tmp_path / name).mkdir()
+    script = (f'REPO_ROOT={str(_REPO)!r}; . {str(_REPO / "scripts" / "_fork_test_env.sh")!r}; '
+              f'HERMES_TEST_TMP_ROOT={name}; fork_test_tmp_root; echo "TMPDIR=$TMPDIR"')
+    result = subprocess.run([real_bash, "-c", script], cwd=str(tmp_path), capture_output=True, text=True,
+                            encoding="utf-8", errors="replace", timeout=60, check=False,
+                            env={**os.environ, "ETERNIA_HEAVY_SLOT_DIR": str(tmp_path)})
+    assert result.returncode == 0, result.stderr
+    assert f"TMPDIR={name}" in result.stdout  # followed either way
+    assert ("over the 40-byte AF_UNIX budget" in result.stdout) is warned, result.stdout

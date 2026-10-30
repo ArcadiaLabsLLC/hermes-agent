@@ -175,6 +175,16 @@ fork_heavy_slot_dir() {
 # `hermes-test-home-*` landed in %TEMP% (or /var/tmp) otherwise. Unset, it defaults to a `test-tmp` directory beside the checkout or
 # beside the primary checkout of a worktree (the operator's X:\Eternia\test-tmp);
 # neither existing leaves today's behaviour.
+#
+# The AF_UNIX budget (FH-TEST-TMP-ROOT-SUN-PATH-BUDGET, plan
+# posix-runner-scratch-root_2026-10-30 D3): the deepest in-tree socket path is
+# <root>/run-XXXXXXXX/hwg-XXXXXXXX/state/gateway.loop-tick.<pid>.sock = root + 63
+# bytes (gateway/shutdown_watchdog.py::get_loop_tick_socket_path names the leaf;
+# Linux pids are at most 7 digits). sun_path is 108 on Linux and 104 on macOS/BSD
+# (103 usable), so a root over 40 bytes can push socket tests to "AF_UNIX path
+# too long". A warning, not a refusal: the root is still followed. POSIX only —
+# Windows uses named pipes (git-bash has cygpath).
+FORK_TEST_TMP_ROOT_SUN_PATH_BUDGET=40
 fork_test_tmp_root() {
   fork_heavy_slot_dir
   if [ -z "${HERMES_TEST_TMP_ROOT:-}" ]; then
@@ -189,6 +199,12 @@ fork_test_tmp_root() {
   if [ -n "${HERMES_TEST_TMP_ROOT:-}" ] && [ -d "$HERMES_TEST_TMP_ROOT" ]; then
     export HERMES_TEST_TMP_ROOT TMP="$HERMES_TEST_TMP_ROOT" TEMP="$HERMES_TEST_TMP_ROOT" TMPDIR="$HERMES_TEST_TMP_ROOT"
     echo "▶ test temp root (runner and children): $HERMES_TEST_TMP_ROOT"
+    local _root_bytes
+    _root_bytes="$(printf '%s' "$HERMES_TEST_TMP_ROOT" | LC_ALL=C wc -c | tr -d ' ')"
+    if ! command -v cygpath >/dev/null 2>&1 \
+      && [ "$_root_bytes" -gt "$FORK_TEST_TMP_ROOT_SUN_PATH_BUDGET" ]; then
+      echo "⚠ test temp root is ${_root_bytes} bytes; over the ${FORK_TEST_TMP_ROOT_SUN_PATH_BUDGET}-byte AF_UNIX budget, socket tests may fail with \"AF_UNIX path too long\""
+    fi
   fi
 }
 

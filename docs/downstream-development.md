@@ -287,7 +287,9 @@ dir — the runner's own `hermes-pytest` scratch and every child's temp move
 under it on every platform, through `scripts/_fork_runner.py::scratch_root`;
 forwarded through `run_tests.sh`'s hermetic env; never name the Hermes home or
 a dot-dir, which relocate the basetemp and hide every fixture from the
-hidden-dir search tests) and the fact that `tests/acp` cannot collect from a git
+hidden-dir search tests; on POSIX keep it at most 40 bytes — the deepest
+in-tree socket path is the root plus 63 bytes and macOS's `sun_path` is 104,
+so `run_tests.sh` warns about a longer root and still follows it) and the fact that `tests/acp` cannot collect from a git
 worktree (`No module named 'acp'`; the editable install resolves to the
 primary checkout — run it from the primary, or name your lanes explicitly).
 
