@@ -260,3 +260,13 @@ def test_a_real_spawn_carries_the_relaunch_flag_and_no_hermes_env(tmp_path, monk
     argv, hermes_keys = json.loads(out.read_text(encoding="utf-8"))
     assert argv == ["--harness-relaunch=crashed", "--start-hidden"]
     assert hermes_keys == []
+
+
+# RT-RELAUNCH-GAME-ENDED-SHOWN. Positive control: a hidden crash relaunch keeps the flag; the same
+# hidden beat relaunched ``game_ended`` drops it. Mutation: drop the reason guard -> the second reds.
+@pytest.mark.parametrize(("reason", "hidden_flag"), [("crashed", True), ("hung", True), ("game_ended", False)])
+def test_a_hidden_beat_starts_hidden_except_after_a_game(reason, hidden_flag):
+    argv = relaunch.relaunch_argv("/opt/launcher", reason, start_hidden=True)
+    assert argv[:2] == ["/opt/launcher", f"--harness-relaunch={reason}"]
+    assert (relaunch.START_HIDDEN_FLAG in argv) is hidden_flag
+    assert relaunch.START_HIDDEN_FLAG not in relaunch.relaunch_argv("/opt/launcher", reason, start_hidden=False)

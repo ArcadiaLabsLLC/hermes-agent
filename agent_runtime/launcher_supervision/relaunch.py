@@ -9,8 +9,8 @@ Plan ``docs/agent-runtime-harness/planned/launcher-mutual-supervision-2026-10-27
 * **Kill** — the one pid (``psutil.Process.kill``: ``TerminateProcess`` / ``SIGKILL``), never its tree,
   so a game the launcher started survives; refused when the pid's creation time is not the one the
   watch recorded (a reused pid is not the launcher).
-* **Spawn** — ``[executable, --harness-relaunch=<reason>, (--start-hidden)]``, out of the harness's
-  process tree (``windows_detach_flags`` on Windows, ``start_new_session`` on POSIX), with the
+* **Spawn** — ``[executable, --harness-relaunch=<reason>, (--start-hidden)]`` (never hidden for
+  ``game_ended``: the launcher reopens shown after a game), out of the harness's process tree (``windows_detach_flags`` on Windows, ``start_new_session`` on POSIX), with the
   harness's environment minus every ``HERMES_*`` variable.
 """
 
@@ -20,6 +20,8 @@ import os
 import subprocess
 import sys
 from collections.abc import Mapping, Sequence
+
+from .policy import RelaunchReason
 
 __layer__ = "lanes"
 
@@ -71,9 +73,18 @@ def kill_one(pid: int, create_time: float | None) -> bool:
         return False
 
 
+#: The reason whose relaunch is always SHOWN: the launcher parked itself for a game (its last beat,
+#: ``closing_for_game``, says ``window_visible: false``) and the owner ruled it reopens shown when the
+#: game ends — the launcher ignores the flag on this reason, so it is never sent (row
+#: ``RT-RELAUNCH-GAME-ENDED-SHOWN``; launcher ``lib/core/lifecycle/harness_relaunch.dart``).
+_ALWAYS_SHOWN_REASON = RelaunchReason.GAME_ENDED
+
+
 def relaunch_argv(executable: str, reason: str, *, start_hidden: bool) -> list[str]:
+    """The relaunch argv; ``--start-hidden`` only when the last beat was hidden AND the reason is not
+    ``game_ended`` (:data:`_ALWAYS_SHOWN_REASON`), so the argv says what the launcher will do."""
     argv = [executable, f"{RELAUNCH_FLAG}={reason}"]
-    if start_hidden:
+    if start_hidden and reason != _ALWAYS_SHOWN_REASON:
         argv.append(START_HIDDEN_FLAG)
     return argv
 

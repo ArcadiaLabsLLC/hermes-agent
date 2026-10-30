@@ -1111,4 +1111,3 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-30 (launcher lane w1030a-dist: relaunch after a game)
 
-- **`RT-RELAUNCH-GAME-ENDED-SHOWN` — the relaunch after a watched game ends adds `--start-hidden` because the launcher's last beat (`closing_for_game`, while parked) said `window_visible: false`; the owner ruled the launcher reopens shown, which the launcher now enforces by ignoring the flag on `game_ended` — drop it hermes-side so argv says what happens** · fork / launcher supervision · `agent_runtime/launcher_supervision/relaunch.py` · launcher `lib/core/services/hermes/runtime/data/serve/mission_serve_supervision.dart` · READY 2026-10-30 · **TAKEN 2026-10-30 w1030b-h on nekwo-ubuntu24 as nekwo in hm-w1030b-h**

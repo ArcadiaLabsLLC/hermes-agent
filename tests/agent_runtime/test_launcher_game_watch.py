@@ -28,8 +28,8 @@ _GAME = {"session_id": "play_1", "canonical_game_id": "game_x", "mapping_id": "m
 
 
 def _beat(state: LauncherState = LauncherState.RUNNING, *, pid: int = 100, supervise: bool = True, seq: int = 1,
-          game: dict | None = None) -> LauncherBeat:
-    return LauncherBeat(seq=seq, pid=pid, state=state, window_visible=True, executable="/opt/launcher",
+          game: dict | None = None, window_visible: bool = True) -> LauncherBeat:
+    return LauncherBeat(seq=seq, pid=pid, state=state, window_visible=window_visible, executable="/opt/launcher",
                         build=None, supervise=supervise, game=game)
 
 
@@ -221,12 +221,15 @@ def test_a_game_none_of_whose_locators_resolve_is_not_watched():
         dog.stop()
 
 
+# RT-RELAUNCH-GAME-ENDED-SHOWN: the parked launcher's last beat is hidden, and the relaunch still
+# carries no ``--start-hidden``. Mutation: drop the reason guard in ``relaunch_argv`` -> the flag is sent.
 def test_the_launcher_closed_for_a_game_is_relaunched_game_ended_when_the_game_ends():
     now = {"t": 1000.0}
     probe, relauncher, effects = _Probe(True), _Relauncher(), _Effects()
     dog = _watchdog(service=True, probe=probe, relauncher=relauncher, effects=effects, clock=lambda: now["t"])
     try:
-        assert dog.beat(_beat(LauncherState.CLOSING_FOR_GAME, pid=os.getpid(), game=_GAME)) is True
+        assert dog.beat(_beat(LauncherState.CLOSING_FOR_GAME, pid=os.getpid(), game=_GAME,
+                              window_visible=False)) is True
         dog._pid_gone(os.getpid())
         assert effects.drained == [], "a launcher closed for a watched game does not end the runtime"
         probe.is_running = False

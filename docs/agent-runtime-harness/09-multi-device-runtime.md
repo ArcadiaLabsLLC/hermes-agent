@@ -269,7 +269,8 @@ user running `executable`, or one under `install_dir` — and `watching` answers
 runtime always answers `false` (`agent_runtime/launcher_supervision/game_watch.py`, `psutil`, polled
 every 5 s, 60 s start grace, ended after two consecutive misses). While a game is watched, a launcher
 that closed for it, or crashed while `suspended` over it, does not end the runtime: the game's end
-relaunches it `game_ended` (unbudgeted) or `crashed` (budgeted), and a launcher that beats again
+relaunches it `game_ended` (unbudgeted, and always shown: never `--start-hidden`, though the
+parked launcher's last beat said `window_visible: false`) or `crashed` (budgeted), and a launcher that beats again
 first is alive, so the end only records. Each watch is a record in `launcher_supervision/games/`
 from receipt (`outcome` `still_running` / `exited` / `lost`, `last_seen_at` refreshed every 60 s); a
 booting service runtime resumes the still-running ones and closes the gone ones `lost` with
