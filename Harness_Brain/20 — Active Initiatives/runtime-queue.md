@@ -1099,3 +1099,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-29 (planning lane w1029p-projects: the Project record, slots re-keyed to `<project>/<slot>`, shared chats)
 
+
+## Filed on arrival — 2026-10-30 (launcher lane w1029f-proj: shared chats)
+
+- **`RT-PROJECT-CHAT-SHARE-READ` — `runtime.project.show` (or a chat verb) answers which sessions this machine shares into the Project, so the launcher's shared badge survives a relaunch, "Stop sharing" is offered after one, and the Console chat header can show it; today only the write answers and the state lives in `project_chat_exports/` cursors** · fork / projects · `agent_runtime/project_chat_export.py::shared_projects_of` · `agent_runtime/serve_rpc/project.py::PROJECT_METHOD_PARAMS` · READY 2026-10-30
