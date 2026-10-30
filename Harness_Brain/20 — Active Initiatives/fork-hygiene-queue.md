@@ -12,8 +12,8 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-10-29 (lane w1029a-h-fork)
 
-- **`FH-RUNNER-SCRATCH-FOLLOWS-TEST-TMP-ROOT` — the named test-temp root owns the per-file runner's own scratch on every platform: `scripts/_fork_runner.py::scratch_root` seam, one additive line in `scripts/run_tests_parallel.py::_runner_scratch_root`, the shell test asserts `scratch = root` on POSIX too, ledger regenerated, docs say which** · fork / suite · `docs/agent-runtime-harness/planned/posix-runner-scratch-root_2026-10-30.md` § S1 · READY 2026-10-30
-- **`FH-TEST-TMP-ROOT-SUN-PATH-BUDGET` — `fork_test_tmp_root` warns on POSIX when `HERMES_TEST_TMP_ROOT` is longer than the 40-byte AF_UNIX budget (deepest in-tree socket path is root + 63 bytes; macOS sun_path 104) and still follows it** · fork / suite · `docs/agent-runtime-harness/planned/posix-runner-scratch-root_2026-10-30.md` § S2 · READY 2026-10-30
+- **`FH-RUNNER-SCRATCH-FOLLOWS-TEST-TMP-ROOT` — the named test-temp root owns the per-file runner's own scratch on every platform: `scripts/_fork_runner.py::scratch_root` seam, one additive line in `scripts/run_tests_parallel.py::_runner_scratch_root`, the shell test asserts `scratch = root` on POSIX too, ledger regenerated, docs say which** · fork / suite · `docs/agent-runtime-harness/planned/posix-runner-scratch-root_2026-10-30.md` § S1 · READY 2026-10-30 · **TAKEN 2026-10-30 w1030b-h on nekwo-ubuntu24 as nekwo in hm-w1030b-h**
+- **`FH-TEST-TMP-ROOT-SUN-PATH-BUDGET` — `fork_test_tmp_root` warns on POSIX when `HERMES_TEST_TMP_ROOT` is longer than the 40-byte AF_UNIX budget (deepest in-tree socket path is root + 63 bytes; macOS sun_path 104) and still follows it** · fork / suite · `docs/agent-runtime-harness/planned/posix-runner-scratch-root_2026-10-30.md` § S2 · READY 2026-10-30 · **TAKEN 2026-10-30 w1030b-h on nekwo-ubuntu24 as nekwo in hm-w1030b-h**
 
 ## Filed on arrival — 2026-10-27 (lane w1027k-plan-misc, launcher)
 
