@@ -63,7 +63,7 @@ from typing import Dict, List, Optional, Tuple
 # "skipped on this host" note and the lanes can never disagree.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scripts.ci.list_os_marked_tests import gated_specs, spec_hosts
-from scripts._fork_runner import pytest_argv as _fork_pytest_argv, run_once as _fork_run_once
+from scripts._fork_runner import pytest_argv as _fork_pytest_argv, run_once as _fork_run_once, scratch_root as _fork_scratch_root
 
 
 def _sweep_killed_run_roots(root: str) -> None:
@@ -106,6 +106,7 @@ def _runner_scratch_root() -> str:
         root = os.path.join(tempfile.gettempdir(), name)
     else:
         root = f"/var/tmp/{name}"  # no-tmp: ok — /var/tmp is disk-backed by FHS, never tmpfs
+    root = _fork_scratch_root(name, root)  # Fork: scripts/_fork_runner.py
     os.makedirs(root, exist_ok=True)
     return root
 

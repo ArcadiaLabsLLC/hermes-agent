@@ -491,3 +491,15 @@ def test_run_once_answers_no_for_a_file_on_another_drive(monkeypatch) -> None:
 
     monkeypatch.setattr(_fork_runner.os.path, "relpath", cross_drive)
     assert _fork_runner.run_once(listed_file, listed) is False
+
+
+# FH-RUNNER-SCRATCH-FOLLOWS-TEST-TMP-ROOT. Mutation: make ``scratch_root`` return ``default``
+# unconditionally -> the "set to a dir" arm reds on every platform.
+def test_the_runner_scratch_follows_the_named_root_only_when_it_is_a_directory(tmp_path: Path) -> None:
+    from scripts._fork_runner import TEST_TMP_ROOT_ENV, scratch_root
+
+    default = str(tmp_path / "default")
+    assert scratch_root("hermes-pytest-1", default, {}) == default
+    assert scratch_root("hermes-pytest-1", default, {TEST_TMP_ROOT_ENV: str(tmp_path / "missing")}) == default
+    assert scratch_root("hermes-pytest-1", default, {TEST_TMP_ROOT_ENV: str(tmp_path)}) == os.path.join(
+        str(tmp_path), "hermes-pytest-1")

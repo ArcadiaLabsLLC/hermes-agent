@@ -283,8 +283,11 @@ services and run in their own dedicated jobs — name them explicitly, e.g.
 Any parallel-only failure is compared as a SET against a serial confirmation
 run of just that file before it is believed. Two knobs worth knowing:
 `HERMES_TEST_TMP_ROOT` (point it at a dedicated, Defender-excluded throwaway
-dir — the suite's temp moves under it; forwarded through `run_tests.sh`'s
-hermetic env) and the fact that `tests/acp` cannot collect from a git
+dir — the runner's own `hermes-pytest` scratch and every child's temp move
+under it on every platform, through `scripts/_fork_runner.py::scratch_root`;
+forwarded through `run_tests.sh`'s hermetic env; never name the Hermes home or
+a dot-dir, which relocate the basetemp and hide every fixture from the
+hidden-dir search tests) and the fact that `tests/acp` cannot collect from a git
 worktree (`No module named 'acp'`; the editable install resolves to the
 primary checkout — run it from the primary, or name your lanes explicitly).
 

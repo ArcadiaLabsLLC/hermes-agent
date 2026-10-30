@@ -170,8 +170,9 @@ fork_heavy_slot_dir() {
 
 # Fork (design sweep D3.08): the test-temp root is set ONCE, here, for the runner
 # and every child it spawns — the runner's own scratch (run_tests_parallel.py's
-# `hermes-pytest`) and the root conftest's `hermes-test-home-*` landed in %TEMP%
-# otherwise. Unset, it defaults to a `test-tmp` directory beside the checkout or
+# `hermes-pytest`, placed under the root on every platform by
+# scripts/_fork_runner.py::scratch_root) and the root conftest's
+# `hermes-test-home-*` landed in %TEMP% (or /var/tmp) otherwise. Unset, it defaults to a `test-tmp` directory beside the checkout or
 # beside the primary checkout of a worktree (the operator's X:\Eternia\test-tmp);
 # neither existing leaves today's behaviour.
 fork_test_tmp_root() {

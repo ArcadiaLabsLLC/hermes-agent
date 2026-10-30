@@ -24,6 +24,20 @@ COVERAGE_RC_ENV = "HERMES_TEST_COVERAGE_RC"
 RUN_ONCE_LIST = Path(__file__).resolve().parent / "test_files_run_once.txt"
 #: the argument that makes this file a Job Object wrapper (``__main__``)
 JOB_FLAG = "--job"
+#: the one named test-temp root (design sweep D3.08; ``scripts/_fork_test_env.sh::fork_test_tmp_root``)
+TEST_TMP_ROOT_ENV = "HERMES_TEST_TMP_ROOT"
+
+
+def scratch_root(name: str, default: str, environ=None) -> str:
+    """Where the runner's own ``name`` scratch lives: under the named test-temp root when it is an
+    existing directory, else ``default`` (row ``FH-RUNNER-SCRATCH-FOLLOWS-TEST-TMP-ROOT``, plan
+    ``docs/agent-runtime-harness/planned/posix-runner-scratch-root_2026-10-30.md`` D2).
+
+    On Windows this equals upstream's answer by value (``run_tests.sh`` exports the root as TEMP);
+    on POSIX it moves the scratch off ``/var/tmp`` so one root holds the runner and its children."""
+
+    root = (os.environ if environ is None else environ).get(TEST_TMP_ROOT_ENV, "").strip()
+    return os.path.join(root, name) if root and os.path.isdir(root) else default
 
 
 def run_once_list(path: Path = RUN_ONCE_LIST) -> frozenset[str]:

@@ -1,6 +1,6 @@
 # Planned — the named test-temp root owns the runner's own scratch on POSIX too
 
-**Status:** planned 2026-10-30 (planning lane w1030p-h), row
+**Status:** S1 built 2026-10-30 (lane w1030b-h); planned 2026-10-30 (planning lane w1030p-h), row
 `FH-POSIX-RUNNER-IGNORES-TEST-TMP-ROOT` (fork-hygiene queue). Continues design sweep
 [D3.08](design-sweep-d3-2026-10-10.md)
 (built `b802ea9d57`). Owner doc: [`../../downstream-development.md`](../../downstream-development.md).

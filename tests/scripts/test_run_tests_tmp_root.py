@@ -4,7 +4,9 @@
 conftest plugin redirects them); the runner process kept ``%TEMP%``, so its
 ``hermes-pytest`` scratch root — every child's basetemp lives under it — and
 upstream's import-time ``hermes-test-home-*`` landed in the system temp dir.
-``scripts/run_tests.sh`` now exports the root as TEMP/TMP for the runner too.
+``scripts/run_tests.sh`` now exports the root as TEMP/TMP for the runner too, and on POSIX —
+where upstream hard-codes ``/var/tmp/hermes-pytest-<uid>`` — the fork seam
+``scripts/_fork_runner.py::scratch_root`` puts the scratch under the root as well.
 
 The probe file sits outside the repository, so no repo conftest touches the
 child's temp: what it reports is what the runner handed it.
@@ -64,11 +66,8 @@ def test_the_runner_scratch_and_the_child_temp_land_under_the_named_root(tmp_pat
     assert result.returncode == 0, result.stdout[-3000:] + result.stderr[-3000:]
     assert "test temp root (runner and children): " in result.stdout
     seen = json.loads(out.read_text(encoding="utf-8"))
-    # Windows: the runner's scratch follows TEMP, which the named root replaces. POSIX: upstream's
-    # runner keeps its scratch on the disk-backed per-user /var/tmp root by design (never tmpfs /tmp;
-    # short enough for AF_UNIX sockets), and the named root reaches an in-repo child through the
-    # conftest plugin instead — this out-of-repo probe sees the runner's own hand-off.
-    scratch = root if sys.platform == "win32" or not os.path.isdir("/var/tmp") else Path(
-        f"/var/tmp/hermes-pytest-{os.getuid()}")  # no-tmp: ok — the runner's POSIX scratch root
+    # Every platform: the runner's scratch follows the named root (``_fork_runner.scratch_root``,
+    # FH-RUNNER-SCRATCH-FOLLOWS-TEST-TMP-ROOT); on POSIX it used to stay on /var/tmp.
+    scratch = root
     assert seen["temproot"] and _inside(seen["temproot"], scratch), seen
     assert _inside(seen["gettempdir"], scratch), seen

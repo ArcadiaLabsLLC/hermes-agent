@@ -236,7 +236,8 @@ A test whose wait bound exceeds 30 seconds declares `@pytest.mark.timeout(N)`: `
   bundled runner, which sources it) uses a `test-tmp` directory beside the checkout or beside a
   worktree's primary checkout when the variable is unset, and exports it as TEMP/TMP for the RUNNER
   too, so its `hermes-pytest` scratch and upstream's `hermes-test-home-*` stay out of `%TEMP%`
-  (D3.08). The plugin's hourly prune also removes this repo's own aged leftovers from the system
+  (D3.08); on POSIX `scripts/_fork_runner.py::scratch_root` moves that scratch off
+  `/var/tmp/hermes-pytest-<uid>` the same way, so one root holds the runner and its children. The plugin's hourly prune also removes this repo's own aged leftovers from the system
   temp dir (`tests/_downstream/temp_prefixes.py`) and names each in `<root>/.temp-sweep.log`. Bare
   pytest gets none of this — one more reason not to run it.
 - A failure seen only in a parallel or bundled run is compared as a SET against a serial
