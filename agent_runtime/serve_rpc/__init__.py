@@ -66,6 +66,7 @@ course                   lanes   ``runtime.course.*`` (agent authoring on a git
                                  course; ``agent_runtime/course_authoring.py``)
 characters               lanes   ``runtime.characters.list/status/thumb/sprite/recolour``
                                  (the character-sheet read twins; recolour writes)
+character_assignment     lanes   ``runtime.character.assignment.*`` (shared agent identity)
 settles                  lanes   ``runtime.settles.list/rearm`` (the settle-push
                                  outbox's operator verbs)
 lens                     lanes   ``runtime.lens.*`` (Eternia Lens; code under
@@ -91,6 +92,7 @@ from agent_runtime.call_authorization import STDIO_OWNER, authorize_call
 from agent_runtime.serve_rpc import (
     protocol,
     registry,
+    character_assignment,
     dispatch,
     params,
     office_read,

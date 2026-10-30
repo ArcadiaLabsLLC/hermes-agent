@@ -8,6 +8,7 @@ import logging
 from typing import Any, Iterable
 
 from ..config import AgentRuntimeConfig, ensure_persisted_personas
+from ..character_assignment import resolve_character_assignment
 from ..events import EventLog
 from ..models import EVENT_PAYLOAD_LIMIT_BYTES
 from .emit import delta_patches_enabled, emit_state_patch
@@ -77,6 +78,7 @@ def _persona_instance_wire_row(instance: Any, persona: Any) -> dict[str, Any]:
     # standin's fallback is None, mirrored here by ``getattr(persona, ...)``.
     profile_id = instance.profile_id or getattr(persona, "hermes_profile", None)
     return {
+        "character_assignment": resolve_character_assignment(instance, persona),
         "steered_by": list(instance.steered_by),
         "spawned_by": instance.spawned_by,
         "goal_id": instance.goal_id,

@@ -3183,8 +3183,8 @@
       "path": "agent_runtime/office_store/actor_writes.py",
       "symbol": "upsert_actor_outcome",
       "operator": "restore-ensure-surface-above-the-lock",
-      "find": "        store._refuse_unresolvable_workspace(wsid)\n    with office_lock(wsid):",
-      "replace": "        store.ensure_surface(wsid, created_by=updated_by)\n    with office_lock(wsid):",
+      "find": "        store._refuse_unresolvable_workspace(wsid)\n    with character_legacy_assignment_lock(request.persona_instance_id, request.persona_id), office_lock(wsid):",
+      "replace": "        store.ensure_surface(wsid, created_by=updated_by)\n    with character_legacy_assignment_lock(request.persona_instance_id, request.persona_id), office_lock(wsid):",
       "test": [
         "{python}",
         "-m",
@@ -3198,8 +3198,8 @@
       "path": "agent_runtime/office_store/actor_writes.py",
       "symbol": "upsert_actor_outcome",
       "operator": "restore-ensure-surface-above-the-lock",
-      "find": "        store._refuse_unresolvable_workspace(wsid)\n    with office_lock(wsid):",
-      "replace": "        store.ensure_surface(wsid, created_by=updated_by)\n    with office_lock(wsid):",
+      "find": "        store._refuse_unresolvable_workspace(wsid)\n    with character_legacy_assignment_lock(request.persona_instance_id, request.persona_id), office_lock(wsid):",
+      "replace": "        store.ensure_surface(wsid, created_by=updated_by)\n    with character_legacy_assignment_lock(request.persona_instance_id, request.persona_id), office_lock(wsid):",
       "test": [
         "{python}",
         "-m",

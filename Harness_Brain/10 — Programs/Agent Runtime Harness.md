@@ -13,6 +13,8 @@ The Hermes-native runtime serving Mission Control and Intelligence: operator roo
 independent conversations, discussions, personas, workspaces, office and board.
 Shared service authority does not mean a shared conversation identity.
 
+`character_cursor::` 2026-10-30 — [Shared character assignment](../../docs/agent-runtime-harness/character-assignment.md): P1b uses existing persona/instance records and store writers; verified legacy choices migrate with receipts, while ambiguous defaults, portrait reconciliation and rollback qualification remain explicit exits.
+
 `operator_stop_cursor::` 2026-10-06 — [Stop audit](../../docs/downstream/operator-stop-audit-2026-10-06.md): console admission scope joined by exact native journal evidence; read-only terminal confirmation added. Live cancellation latency remains unmeasured.
 
 `identity_cursor::` 2026-10-02 — [Instance-conversation foundation](../../docs/agent-runtime-harness/archive/instance-conversations-2026-10-01.md)

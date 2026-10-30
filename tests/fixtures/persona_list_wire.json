@@ -7,6 +7,13 @@
       "api_mode": null,
       "backing_profile": "beta",
       "blocked_tools_count": 20,
+      "character_assignment": {
+        "asset_reference": null,
+        "authority": "legacy",
+        "instance": null,
+        "mode": "inherit",
+        "persona": null
+      },
       "chat_session_id": null,
       "current_assignment_id": null,
       "current_chat_goal": null,
@@ -159,6 +166,13 @@
       "api_mode": null,
       "backing_profile": "alpha",
       "blocked_tools_count": 20,
+      "character_assignment": {
+        "asset_reference": null,
+        "authority": "legacy",
+        "instance": null,
+        "mode": "inherit",
+        "persona": null
+      },
       "chat_session_id": null,
       "current_assignment_id": null,
       "current_chat_goal": null,
@@ -307,6 +321,13 @@
       "api_mode": null,
       "backing_profile": "alpha",
       "blocked_tools_count": 20,
+      "character_assignment": {
+        "asset_reference": null,
+        "authority": "legacy",
+        "instance": null,
+        "mode": "inherit",
+        "persona": null
+      },
       "chat_session_id": null,
       "current_assignment_id": null,
       "current_chat_goal": null,

@@ -25,8 +25,8 @@ OTHER = "persona_chat_of_someone_else"
 def heads(tmp_path, monkeypatch):
     """``HERMES_HEAD_HOME=profiles/base`` holds qa's legacy chats; qa runs in profile ``alice``."""
 
-    import agent_runtime.config.roster as roster
-    import agent_runtime.profile_context as profile_context
+    from agent_runtime.config import roster
+    from agent_runtime import profile_context
     from hermes_state import SessionDB
 
     root = tmp_path / ".hermes"
@@ -36,7 +36,8 @@ def heads(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(store_root))
     monkeypatch.setenv("HERMES_HOME", str(base))
     monkeypatch.setenv("HERMES_HEAD_HOME", str(base))
-    persona = SimpleNamespace(id="qa", hermes_profile=None)
+    from agent_runtime.models import AgentPersona
+    persona = AgentPersona(id="qa", display_name="QA", role="qa", model=None, provider=None, api_mode=None, hermes_profile=None)
     monkeypatch.setattr(roster, "ensure_persisted_personas", lambda *a, **k: [persona])
     monkeypatch.setattr(profile_context, "profile_exists", lambda name: name == "alice")
     monkeypatch.setattr(profile_context, "get_profile_dir", lambda name: {"alice": alice}[name])

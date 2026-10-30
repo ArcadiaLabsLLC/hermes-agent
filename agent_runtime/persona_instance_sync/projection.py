@@ -392,6 +392,12 @@ def refuse_persona_instance(instance_id: str, body: Any):
             "key(s) outside the instance allowlist: " + ", ".join(unexpected),
         )
 
+    from ..character_assignment import CharacterAssignmentRefused, validate_character_record
+    try:
+        validate_character_record(body.get("character_assignment"))
+    except CharacterAssignmentRefused as exc:
+        return Refusal(instance_id, exc.reason.value, exc.detail)
+
     persona_id = str(body.get("persona_id") or "")
     declared_id = str(body.get("id") or "")
     if not persona_id or not declared_id:

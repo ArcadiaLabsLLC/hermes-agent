@@ -25,12 +25,16 @@ from tests.agent_runtime.office_seed import seed_workspace_record
 WORKSPACE = "ws_rekey_test"
 
 
-def _instance_file(persona_instance_id: str) -> None:
+def _instance_file(persona_instance_id: str, persona_id: str) -> None:
     from agent_runtime import paths
 
     path = paths.persona_instance_path(persona_instance_id)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"id": persona_instance_id}), encoding="utf-8")
+    path.write_text(json.dumps({
+        "id": persona_instance_id, "persona_id": persona_id, "role": "dev",
+        "display_name": "Rekey test", "profile_id": None, "runtime_root": "",
+        "state": "idle",
+    }), encoding="utf-8")
 
 
 def _store():
@@ -56,7 +60,7 @@ def _seed_desk_first(store) -> None:
     """The shape of three of the four live ``ws_codex-test-workspace_28d285``
     actors: desk first in file order, agent second."""
 
-    _instance_file("personainst_backend_dev_agent_29fdd71a")
+    _instance_file("personainst_backend_dev_agent_29fdd71a", "backend_dev")
     seed_workspace_record(WORKSPACE)
     store.ensure_surface(WORKSPACE, created_by="seed")
     store.upsert_actor(
@@ -221,7 +225,7 @@ def test_the_agent_first_ordering_is_handled_the_same_as_desk_first(capsys):
     ``desk-qa``. Nothing here may index items positionally or pattern-match a
     desk id."""
 
-    _instance_file("personainst_qa_agent_9c8a382f")
+    _instance_file("personainst_qa_agent_9c8a382f", "qa")
     store = _store()
     seed_workspace_record(WORKSPACE)
     store.ensure_surface(WORKSPACE, created_by="seed")
@@ -248,7 +252,7 @@ def test_a_deskless_actor_rekeys_too():
     desk at all. A migration that assumed a desk would skip the entire second
     live workspace."""
 
-    _instance_file("personainst_dev_agent_8f685ad1")
+    _instance_file("personainst_dev_agent_8f685ad1", "dev")
     store = _store()
     seed_workspace_record(WORKSPACE)
     store.ensure_surface(WORKSPACE, created_by="seed")
@@ -330,8 +334,8 @@ def test_an_instance_bound_actor_is_left_alone_even_if_its_item_points_elsewhere
     successful migration.
     """
 
-    _instance_file("personainst_dev_agent_3ebfce41")
-    _instance_file("personainst_dev_agent_8f685ad1")
+    _instance_file("personainst_dev_agent_3ebfce41", "dev")
+    _instance_file("personainst_dev_agent_8f685ad1", "dev")
     store = _store()
     seed_workspace_record(WORKSPACE)
     store.ensure_surface(WORKSPACE, created_by="seed")

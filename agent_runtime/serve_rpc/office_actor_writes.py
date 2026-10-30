@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from agent_runtime.call_authorization import TIER_CONSOLE
+from agent_runtime.character_assignment import CharacterAssignmentRefused
 from agent_runtime.errors import (
     ActorArchived,
     AgentRuntimeError,
@@ -399,6 +400,7 @@ UPSERT_ERRORS: Mapping[type[BaseException], Translation] = {
     # secret-shaped display name. One reason, because the client's response
     # to all of them is identical: fix the payload, it is a launcher bug.
     # The store's own sentence rides ``message`` so the dev knows which.
+    CharacterAssignmentRefused: refusal(ERR_CONFLICT, lambda exc: exc.reason.value),
     ValueError: refusal(ERR_INVALID_PARAMS, "actor_invalid"),
 }
 

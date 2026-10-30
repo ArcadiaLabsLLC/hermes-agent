@@ -12,6 +12,8 @@ from hermes_time import now
 from utils import atomic_json_write
 
 from agent_runtime import paths
+from agent_runtime.character_assignment import CharacterAssignmentChange, CharacterAssignmentReplication, preserve_character_assignment
+from agent_runtime.locks import agent_record_write_lock
 from agent_runtime.agent_create_phases import timed_create_subphase
 from agent_runtime.config.roster import ensure_persisted_personas
 from agent_runtime.errors import PersonaInstancesUnreadable
@@ -210,7 +212,7 @@ class PersonaInstanceStore:
         """Write the canonical row and announce it — the cold path, unchanged."""
 
         instance = self._instance_row(persona, instance_id)
-        self._write(instance)
+        self._write(instance, repair_unreadable=True)
         self._event("persona_instance.created", instance, {})
         return instance
 
@@ -624,12 +626,50 @@ class PersonaInstanceStore:
                 pass
         return False
 
-    def _write(self, instance: PersonaInstance) -> None:
+    def _write(self, instance: PersonaInstance, *, character_change: CharacterAssignmentChange | CharacterAssignmentReplication | None = None, repair_unreadable: bool = False) -> PersonaInstance:
         if self.preparation_epoch is not None:
             self.preparation_epoch.invalidate()
         path = paths.persona_instance_path(instance.id)
         path.parent.mkdir(parents=True, exist_ok=True)
-        atomic_json_write(path, to_jsonable(instance), indent=2, sort_keys=True)
+        with agent_record_write_lock("instance", instance.id):
+            try:
+                stored = json.loads(path.read_text(encoding="utf-8"))
+            except FileNotFoundError:
+                stored = {}
+            except json.JSONDecodeError:
+                # Only the existing, once-per-row repair door may replace
+                # corrupt JSON. Ordinary saves must not erase unknown data.
+                if not repair_unreadable:
+                    raise
+                stored = {}
+            if isinstance(character_change, CharacterAssignmentChange):
+                # A character-only edit never writes a stale chat/profile row.
+                instance = _decode_stored_instance(stored)
+            elif isinstance(character_change, CharacterAssignmentReplication) and stored:
+                from agent_runtime.persona_instance_sync.contract import PERSONA_INSTANCE_ALLOWED_KEYS
+                fresh = _decode_stored_instance(stored)
+                for name in PERSONA_INSTANCE_ALLOWED_KEYS - {"id", "persona_id", "steered_by"}:
+                    setattr(fresh, name, getattr(instance, name))
+                fresh.updated_at = instance.updated_at
+                instance = fresh
+            elif not stored and character_change is None and instance.character_assignment is None:
+                # New identities can inherit a migrated persona immediately.
+                # Existing rows with legacy placement choices stay untouched.
+                from agent_runtime.config.roster import ensure_persisted_personas
+                persona = next((p for p in ensure_persisted_personas() if p.id == instance.persona_id), None)
+                if persona is not None and persona.character_assignment is not None:
+                    instance.character_assignment = CharacterAssignmentChange(
+                        0, "inherit", None, "initial-persona-inheritance",
+                    ).apply(None)
+            preserve_character_assignment(instance, stored, character_change)
+            atomic_json_write(path, to_jsonable(instance), indent=2, sort_keys=True)
+        return instance
+
+    def set_character_assignment(self, instance_id: str, change: CharacterAssignmentChange) -> PersonaInstance:
+        instance = self.get(instance_id)
+        instance = self._write(instance, character_change=change)
+        self._emit_state_patch(instance, {"character_assignment": instance.character_assignment})
+        return instance
 
     def _event(self, event_type: str, instance: PersonaInstance, payload: dict[str, Any]) -> None:
         self.event_log.append(Event(ts=now(), type=event_type, task_id=instance.current_task_id, run_id=instance.active_run_id, persona_id=instance.persona_id, payload={**payload, "persona_instance_id": instance.id}))

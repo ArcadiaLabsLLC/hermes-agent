@@ -23,8 +23,8 @@ SESSION_ID = "persona_chat_personainst_qa_agent_c0ffee00"
 def heads(tmp_path, monkeypatch):
     """``HERMES_HEAD_HOME=profiles/base``; persona ``qa`` runs in profile ``alice``."""
 
-    import agent_runtime.config.roster as roster
-    import agent_runtime.profile_context as profile_context
+    from agent_runtime.config import roster
+    from agent_runtime import profile_context
 
     root = tmp_path / ".hermes"
     store_root = root / "agent-runtime"
@@ -37,7 +37,8 @@ def heads(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HEAD_HOME", str(base))
     monkeypatch.setattr(profile_context, "profile_exists", lambda name: name == "alice")
     monkeypatch.setattr(profile_context, "get_profile_dir", lambda name: {"alice": alice}[name])
-    persona = SimpleNamespace(id="qa", hermes_profile="alice")
+    from agent_runtime.models import AgentPersona
+    persona = AgentPersona(id="qa", display_name="QA", role="qa", model=None, provider=None, api_mode=None, hermes_profile="alice")
     monkeypatch.setattr(roster, "ensure_persisted_personas", lambda *a, **k: [persona])
     return SimpleNamespace(base=base, alice=alice, persona=persona)
 

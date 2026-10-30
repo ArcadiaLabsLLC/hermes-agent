@@ -617,3 +617,8 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-29 (orchestrator, found running the CLAUDE.md-reading tests)
 
+
+
+## Filed on arrival — 2026-10-30 (character migration validation)
+
+- **`FH-WINDOWS-PREPUSH-SHELL` — Qualify the pre-push script test harness on native Windows without selecting WSL through a bare executable name** · `tests/scripts/test_prepush_sh.py::_run` · isolated unmodified main `19e49b3c57` reproduces 12 failures; the fixture invokes bare `bash` while its availability check uses `shutil.which`, and Windows selects the System32 WSL shim; the actual migration pre-push invocation uses explicit Git Bash · preserve every deadline, notification and selection assertion; qualify shell resolution and generated script line endings · READY 2026-10-30 · REQUIRES windows

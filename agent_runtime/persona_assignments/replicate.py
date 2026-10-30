@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING, Any
 from hermes_time import now
 
 from agent_runtime import paths
+from agent_runtime.character_assignment import CharacterAssignmentReplication
+from agent_runtime.locks import character_legacy_assignment_lock
 from agent_runtime.config.roster import ensure_persisted_personas
 from agent_runtime.models import PersonaInstance
 from agent_runtime.persona_assignments.chat_binding import _durable_chat_root
@@ -119,7 +121,12 @@ def replicate_instance(
         setattr(instance, name, _coerce_travel_value(name, value))
     instance.updated_at = now()
 
-    store._write(instance)
+    existing_character = adopt_existing.character_assignment if adopt_existing is not None else None
+    with character_legacy_assignment_lock(instance.id, instance.persona_id):
+        instance = store._write(instance, character_change=CharacterAssignmentReplication(
+            expected_record=existing_character,
+            incoming_record=body.get("character_assignment", existing_character),
+        ))
     if created:
         emit_persona_instance_create(store.event_log, instance)
     else:

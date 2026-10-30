@@ -53,6 +53,7 @@ PROJECTION_RELATIVE_PATH = "store/persona_instances.yaml"
 PERSONA_INSTANCE_ALLOWED_KEYS: frozenset[str] = frozenset(
     {
         "api_mode",
+        "character_assignment",
         "assigned_slots",
         "display_name",
         "id",

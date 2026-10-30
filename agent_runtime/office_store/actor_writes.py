@@ -15,7 +15,8 @@ from hermes_time import now
 
 from agent_runtime import office_models, paths
 from agent_runtime.errors import ArchiveUnreadable, NotFound
-from agent_runtime.locks import office_lock
+from agent_runtime.locks import character_legacy_assignment_lock, office_lock
+from agent_runtime.character_assignment_legacy import guard_legacy_character_edit
 from agent_runtime.models import OfficeActor, OfficeItem, OfficeSurface
 from agent_runtime.office_store.files import _write_actor, _write_surface
 from agent_runtime.office_store.models import (
@@ -177,7 +178,7 @@ def upsert_actor_outcome(
         # fences would make an unresolved workspace hear a class-key
         # sentence about a placement it can never make.
         store._refuse_unresolvable_workspace(wsid)
-    with office_lock(wsid):
+    with character_legacy_assignment_lock(request.persona_instance_id, request.persona_id), office_lock(wsid):
         # THE class-key fence, first and inside the lock (EG-6.6). First
         # because that is the precedence the four caller-side copies had —
         # they all ran before any store call — and inside the lock because
@@ -219,6 +220,7 @@ def upsert_actor_outcome(
             )
         archived = _read_archived(actor_key, archived_path) if existing is None else None
         check_revision(existing.revision if existing else None, expect_revision)
+        guard_legacy_character_edit(request, existing, items)
         ts = now()
         actor = _next_actor(request, items, existing, archived, ts=ts, updated_by=updated_by)
         if dry_run:

@@ -107,6 +107,7 @@ RETIRED_PERSONA_CONFIG_KEYS: frozenset[str] = frozenset({LEGACY_PERSONA_TOOLSETS
 PERSONA_DEF_ALLOWED_KEYS: frozenset[str] = frozenset(
     {
         "api_mode",
+        "character_assignment",
         "autonomy",
         "chat_lane_restore_toolsets",
         "display_name",
@@ -465,9 +466,12 @@ def adopt_persona_def(
     except Exception:  # no store row: the config lane owns this persona
         record = None
     if record is None:
-        atomic_roundtrip_yaml_update(
-            path, f"agent_runtime.personas.{persona_id}", merge_persona_def(local_raw, remote_body)
-        )
+        from .locks import agent_record_write_lock
+        with agent_record_write_lock("persona", persona_id):
+            local_raw = raw_persona_overrides(load_raw_config(path)).get(persona_id)
+            atomic_roundtrip_yaml_update(
+                path, f"agent_runtime.personas.{persona_id}", merge_persona_def(local_raw, remote_body)
+            )
         return "config"
 
     types = _record_field_types()
@@ -484,7 +488,16 @@ def adopt_persona_def(
         if getattr(record, name) != value:
             updates[name] = value
     if updates:
-        store.save(replace(record, **updates))
+        from .character_assignment import CharacterAssignmentReplication
+        character = updates.pop("character_assignment", record.character_assignment)
+        # An older peer omitting the optional field cannot relinquish the
+        # receiver's established record authority.
+        if "character_assignment" not in remote_body:
+            character = record.character_assignment
+        if character != record.character_assignment:
+            store.save(replace(record, **updates), character_change=CharacterAssignmentReplication(record.character_assignment, character))
+        elif updates:
+            store.save(replace(record, **updates))
 
     only = config_only_keys()
     current = dict(local_raw) if isinstance(local_raw, dict) else {}
@@ -767,6 +780,9 @@ def merge_persona_def(local_raw: Any, remote_body: dict[str, Any]) -> dict[str, 
         and str(key) not in PERSONA_DEF_ALLOWED_KEYS
         and str(key) not in RETIRED_PERSONA_CONFIG_KEYS
     }
+    if isinstance(local_raw, dict) and local_raw.get("character_assignment") is not None and remote_body.get("character_assignment") is None:
+        # A pre-capability publisher has no assignment opinion.
+        remote_body = {**remote_body, "character_assignment": local_raw["character_assignment"]}
     return {**preserved, **remote_body}
 
 
@@ -774,7 +790,13 @@ def persona_def_admission_refusal(persona_id: str, remote_body: dict[str, Any]):
     """The shared ``sync_admission.Refusal`` for one incoming definition, or
     ``None`` — the door the pull holds, in the shape the revert lane reads."""
 
-    from .sync_admission import refuse_entity
+    from .sync_admission import Refusal, refuse_entity
+    from .character_assignment import CharacterAssignmentRefused, validate_character_record
+
+    try:
+        validate_character_record(remote_body.get("character_assignment"), persona=True)
+    except CharacterAssignmentRefused as exc:
+        return Refusal(persona_id, exc.reason.value, exc.detail)
 
     return refuse_entity(
         persona_id,

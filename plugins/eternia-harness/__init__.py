@@ -446,6 +446,20 @@ def migrate_legacy_office_schema() -> None:
         logging.getLogger(__name__).warning("office legacy-schema migration failed", exc_info=True)
 
 
+def migrate_shared_character_assignments() -> None:
+    """Move provable legacy choices through the agent record owner once."""
+    try:
+        from agent_runtime.character_assignment_migration import migrate_authored_character_assignments
+
+        report = migrate_authored_character_assignments()
+        if report.get("error"):
+            logging.getLogger(__name__).warning("character assignment migration held: %s", report["error"])
+        elif report["migrated"]:
+            logging.getLogger(__name__).info("character assignment migration: %s", report)
+    except Exception:  # retain all unmigrated choices; a migration cannot prevent startup
+        logging.getLogger(__name__).warning("character assignment migration failed", exc_info=True)
+
+
 def seed_persona_profile_defaults() -> None:
     """Owner ruling 2026-10-03: hermes fills the approved seed keys into every persona's
     bound profile ``config.yaml`` — absent keys only (``agent_runtime.persona_seed_defaults``)."""
@@ -497,6 +511,7 @@ def register(ctx) -> None:
         retire_legacy_harness_blocks()
         seed_persona_profile_defaults()
     migrate_legacy_office_schema()  # a store migration, not a config.yaml rewrite
+    migrate_shared_character_assignments()
     retire_persona_assignment_store()  # a store migration too: archive the retired store's rows
     from agent_runtime.harness_toolset import ensure_harness_core
 

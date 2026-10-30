@@ -436,6 +436,8 @@ class AgentPersona:
     # existed load unchanged.
     skills_override_issued_at: datetime | None = None
     schema_version: int = 1
+    # Existing persona authority owns the inherited character default.
+    character_assignment: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         # Every constructor and ``replace`` path lands on the enum, aliases included.
@@ -590,6 +592,9 @@ class PersonaInstance:
     last_heartbeat_at: datetime | None = None
     updated_at: datetime | None = None
     schema_version: int = 1
+    # None retains legacy assignment until the acknowledged migration. A v1
+    # record distinguishes inherit / explicitly unassigned / assigned.
+    character_assignment: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         # Back-compat: a legacy record (or any writer) that only set the scalar

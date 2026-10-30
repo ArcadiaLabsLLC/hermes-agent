@@ -646,8 +646,10 @@ def recorded_instance_chat_head(session_id: str) -> InstanceChatHead:
     """The chat head the persona instance bound to *session_id* recorded.
 
     Reads the ONE persona-instance store (via :mod:`agent_runtime.paths`'
-    resolved store root — no parallel lookup path), matching on the canonical
-    ``default_chat_session_id`` binding. Never raises; every failure mode is a
+    resolved store root — no parallel lookup path), matching the exact minted
+    owner before the legacy ``default_chat_session_id`` binding. Independent
+    conversations keep their owner's head when another chat is selected.
+    Never raises; every failure mode is a
     typed :class:`InstanceChatHeadStatus`, because "the lookup could not run"
     must never masquerade as "no record exists".
     """
@@ -656,12 +658,15 @@ def recorded_instance_chat_head(session_id: str) -> InstanceChatHead:
     if not normalized:
         return InstanceChatHead(InstanceChatHeadStatus.NO_INSTANCE)
     try:
-        from .persona_assignments import PersonaInstanceStore
+        from .persona_assignments import PersonaInstanceStore, chat_session_owner_instance_id
 
         instances = PersonaInstanceStore().list_all()
     except Exception:
         return InstanceChatHead(InstanceChatHeadStatus.UNRESOLVABLE)
-    match = None
+    owner = chat_session_owner_instance_id(normalized)
+    match = next((instance for instance in instances if instance.id == owner), None)
+    if match is not None:
+        return _instance_chat_head(match)
     for instance in instances:
         if getattr(instance, "default_chat_session_id", None) == normalized:
             match = instance

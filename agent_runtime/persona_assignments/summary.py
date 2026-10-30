@@ -10,6 +10,7 @@ from dataclasses import replace
 from typing import Any
 
 from agent_runtime.agent_create_phases import timed_create_subphase
+from agent_runtime.character_assignment import resolve_character_assignment
 from agent_runtime.models import AgentPersona, PersonaInstance
 from agent_runtime.persona_assignments.identity import _display_name_for_template
 from agent_runtime.persona_profiles import declared_lane_toolsets, effective_toolsets
@@ -114,6 +115,7 @@ def persona_instance_summary(
         override=None, instance=instance,
     )
     summary = {
+        "character_assignment": resolve_character_assignment(instance, visibility_persona),
         "agent_profile_id": instance.id,
         "agent_profile_display_name": instance.display_name,
         "source_persona_id": instance.persona_id,

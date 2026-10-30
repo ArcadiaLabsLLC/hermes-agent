@@ -146,11 +146,11 @@ _PROCESS_BY_DESIGN = {
 
 def test_no_writer_calls_the_process_acquisition_bare():
     offenders = sorted(
-        str(path.relative_to(REPO))
+        path.relative_to(REPO).as_posix()
         for tree in ("agent_runtime", "hermes_cli", "gateway", "tools")
         for path in (REPO / tree).rglob("*.py")
         if _BARE_PROCESS_ACQUIRE.search(path.read_text(encoding="utf-8"))
-        and str(path.relative_to(REPO)) not in _PROCESS_BY_DESIGN
+        and path.relative_to(REPO).as_posix() not in _PROCESS_BY_DESIGN
     )
     assert offenders == []
 

@@ -63,6 +63,7 @@ def persona_records_from_config(cfg: AgentRuntimeConfig | None = None):
         p.provider = overrides.get("provider", p.provider)
         p.model = overrides.get("model", p.model)
         p.api_mode = overrides.get("api_mode", p.api_mode)
+        p.character_assignment = overrides.get("character_assignment", p.character_assignment)
         p.autonomy = _autonomy(persona_id, overrides.get("autonomy", p.autonomy), p.autonomy)
         p.hermes_profile = overrides.get("hermes_profile", p.hermes_profile)
         p.soul_overlay_path = overrides.get("soul_overlay_path", p.soul_overlay_path)

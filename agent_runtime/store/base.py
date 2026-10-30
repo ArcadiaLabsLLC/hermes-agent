@@ -15,6 +15,8 @@ from hermes_time import now
 from utils import atomic_json_write
 
 from .. import paths
+from ..character_assignment import CharacterAssignmentChange, CharacterAssignmentReplication, preserve_character_assignment
+from ..locks import agent_record_write_lock
 from ..errors import NotFound
 from ..events import EventLog
 from ..models import AgentPersona, AgentRun, Incident
@@ -235,8 +237,33 @@ class AgentStore:
     def __init__(self, event_log: EventLog | None = None):
         self.event_log = event_log or EventLog()
 
-    def save(self, persona: AgentPersona) -> AgentPersona:
-        _write_model(paths.agent_path(persona.id), persona)
+    def save(self, persona: AgentPersona, *, character_change: CharacterAssignmentChange | CharacterAssignmentReplication | None = None) -> AgentPersona:
+        path = paths.agent_path(persona.id)
+        with agent_record_write_lock("persona", persona.id):
+            try:
+                stored = read_json(path)
+            except FileNotFoundError:
+                stored = {}
+            if isinstance(character_change, CharacterAssignmentChange) and stored:
+                persona = from_jsonable(AgentPersona, stored)
+            config_only = character_change is not None and not stored
+            assignment_source = stored
+            if not stored:
+                from ..config.roster import ensure_persisted_personas
+                configured = next((p for p in ensure_persisted_personas() if p.id == persona.id), None)
+                if configured is not None:
+                    assignment_source = {"character_assignment": configured.character_assignment}
+                    if config_only:
+                        persona = configured
+            preserve_character_assignment(persona, assignment_source, character_change)
+            if config_only:
+                # Keep a config-defined persona config-defined. Materializing
+                # a whole AgentPersona here would freeze its other defaults.
+                from hermes_constants import get_config_path
+                from utils import atomic_roundtrip_yaml_update
+                atomic_roundtrip_yaml_update(get_config_path(), f"agent_runtime.personas.{persona.id}.character_assignment", persona.character_assignment)
+            else:
+                _write_model(path, persona)
         emit_store_event(
             self.event_log,
             "persona.updated",

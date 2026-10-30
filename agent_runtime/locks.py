@@ -281,6 +281,28 @@ def archive_lock() -> Iterator[None]:
 
 
 @contextlib.contextmanager
+def agent_record_write_lock(kind: str, record_id: str) -> Iterator[None]:
+    """Serialize a persona/instance row write, including character CAS.
+
+    Leaf lock: callers may hold office or chat locks; no code inside this lock
+    acquires those locks or emits events. It is distinct from chat-root leases.
+    """
+    with _file_lock(paths.lock_dir() / "agent_records" / kind / f"{paths.safe_path_token(record_id)}.lock"):
+        yield
+
+
+@contextlib.contextmanager
+def character_legacy_assignment_lock(instance_id: str | None, persona_id: str | None) -> Iterator[None]:
+    """Legacy office writes and their one-time migration share this fence.
+
+    Order: character legacy fence, office lock, agent record leaf lock.
+    """
+    subject = f"instance_{instance_id}" if instance_id else f"persona_{persona_id}"
+    with _file_lock(paths.lock_dir() / "character_migration" / f"{paths.safe_path_token(subject)}.lock"):
+        yield
+
+
+@contextlib.contextmanager
 def events_lock() -> Iterator[None]:
     with _file_lock(paths.lock_dir() / "events.lock"):
         yield
