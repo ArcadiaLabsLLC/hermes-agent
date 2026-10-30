@@ -12,6 +12,9 @@ the default posture: `_blocked_tool_names_for_chat` returns `[]` under `unbounde
 the cost policy (`:639-660`). What remains open is everything the ruling did not touch —
 context, memory injection, and operator affordances.
 
+**Owner ruling 2026-10-27** (`RT-CHAT-LANE-GAPS-RULING`): R2, R3 and R5 are PARKED —
+nothing is built for them until the owner reopens one. R6 is kept and BUILT (below).
+
 ---
 
 ## R1 — Core context files and profile memory have no operator surface
@@ -116,3 +119,12 @@ justification was the same cost policy the ruling bypasses. If it is wanted, it 
 typed drop row on the same list as the MCP and capability drops — the G5 pattern
 (`persona_runtime.chat_lane_capability_drops:688`) — so a missing skill is an explained
 absence rather than an unexplained one.
+
+**Built (R6).** The filter stays. `agent_runtime/chat_lane_scope.py::chat_lane_capability_drops`
+now leads its list with one `DROP_KIND_SKILL` row (code `skill_dropped_by_chat_lane_surface`,
+`agent_runtime/chat_lane_toolsets.py::chat_lane_skill_drops`) per ASSIGNED skill whose
+manifest excludes the lane's surface or mode, on every permission mode (the filter is not the
+cost policy). The row's `restorable_via` names the SKILL.md key, not the restore knob; the
+HUD renders it as its own `skills_dropped` line. Unassigned skills are not reported; an
+unresolved one stays readiness's row. Pinned by
+`tests/agent_runtime/test_chat_lane_skill_surface_drops.py`.

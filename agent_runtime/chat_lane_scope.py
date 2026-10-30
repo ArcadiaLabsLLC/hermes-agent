@@ -10,11 +10,13 @@ reuses it so the operator sees the same scope the turn ships.
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from .chat_lane_toolsets import (
     ChatLaneDrop,
     chat_lane_blocked_tools,
+    chat_lane_skill_drops,
     chat_lane_tool_drops,
     chat_lane_toolset_drops,
     scope_chat_lane_toolsets,
@@ -32,6 +34,7 @@ from .mcp_lane import mission_chat_mcp_lane_line
 from .mission_chat_workdir import mission_chat_workdir_for_persona
 from .models import AgentPersona
 from .persona_profiles import effective_toolsets
+from .persona_seed_defaults import PERSONA_ROOT_NODE_MODE, PERSONA_SKILL_SURFACE
 from .personas import _blocked_tool_names_with_registry_hygiene, blocked_tool_names
 from .tool_permissions import (
     extra_blocked_tools_for_permission_mode,
@@ -43,6 +46,8 @@ if TYPE_CHECKING:
     from .tool_visibility import ToolVisibilityOptions
 
 __layer__ = "stores"
+
+logger = logging.getLogger(__name__)
 
 
 def _blocked_tool_names_for_chat(persona: AgentPersona, *, session_id: str | None) -> list[str]:
@@ -150,15 +155,22 @@ def chat_lane_capability_drops(
     --permission-mode`` preview); left ``None`` the stored chat permission for
     ``session_id`` is resolved, exactly as a live turn would.
 
+    R6 (owner ruling 2026-10-27): the lane's skill SURFACE filter is kept, and
+    what it hides from the persona's ASSIGNED skills rides this list as
+    ``DROP_KIND_SKILL`` rows. That filter is not part of the cost policy — the
+    chat turn passes its surface on every permission mode — so those rows are
+    reported under ``unbounded`` too, and lead the list.
+
     Pure accounting: it registers nothing, restores nothing, and is never
     consulted to decide what a turn ships.
     """
 
+    skill_drops = _chat_lane_skill_surface_drops(persona)
     mode = str(permission_mode or "").strip() or permission_options_for_chat(
         persona, session_id=session_id
     ).permission_mode
     if permission_mode_is_unbounded(mode):
-        return ()
+        return skill_drops
     restore = chat_lane_restore_toolsets(persona.id)
     resolved = _augment_chat_capabilities(persona, list(effective_toolsets(persona)))
     kept = scope_chat_lane_toolsets(resolved, restore=restore)
@@ -168,13 +180,56 @@ def chat_lane_capability_drops(
     # import free of ``model_tools``.
     from model_tools import get_toolset_for_tool
 
-    return chat_lane_toolset_drops(
+    return skill_drops + chat_lane_toolset_drops(
         resolved, restore=restore, persona_id=persona.id
     ) + chat_lane_tool_drops(
         restore=restore,
         persona_id=persona.id,
         enabled_toolsets=kept,
         toolset_for_tool=get_toolset_for_tool,
+    )
+
+
+def _chat_lane_skill_surface_drops(persona: AgentPersona) -> tuple[ChatLaneDrop, ...]:
+    """The persona's assigned skills the chat lane's skill surface hides (R6).
+
+    Asks the SAME verdict the turn's prompt builder and ``skill_view`` gate on
+    (``skill_runtime_compatibility`` at ``PERSONA_SKILL_SURFACE`` /
+    ``PERSONA_ROOT_NODE_MODE``, the values the chat turn's run request carries),
+    over the one batched resolve readiness uses. A persona with no assigned skills
+    pays nothing. Resolved in the caller's home context, as readiness resolves;
+    an unresolved skill is readiness's row, not a drop. Never raises: accounting
+    must not fail the turn or the preview it rides.
+    """
+
+    declared = [
+        str(name).strip()
+        for name in (getattr(persona, "skills", None) or ())
+        if str(name or "").strip()
+    ]
+    if not declared:
+        return ()
+    try:
+        from .skill_resolution import resolve_skills, skill_runtime_compatibility
+
+        resolutions = resolve_skills(declared)
+        verdicts = [
+            (
+                name,
+                skill_runtime_compatibility(
+                    resolutions[name].candidate,
+                    surface=PERSONA_SKILL_SURFACE,
+                    root_node_mode=PERSONA_ROOT_NODE_MODE,
+                ),
+            )
+            for name in dict.fromkeys(declared)
+            if resolutions.get(name) is not None and resolutions[name].status == "resolved"
+        ]
+    except Exception:
+        logger.debug("chat-lane skill surface accounting failed", exc_info=True)
+        return ()
+    return chat_lane_skill_drops(
+        verdicts, surface=PERSONA_SKILL_SURFACE, root_node_mode=PERSONA_ROOT_NODE_MODE
     )
 
 

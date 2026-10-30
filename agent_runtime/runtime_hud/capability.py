@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Iterable, Mapping
 
-from agent_runtime.chat_lane_toolsets import DROP_KIND_TOOL, DROP_KIND_TOOLSET
+from agent_runtime.chat_lane_toolsets import DROP_KIND_SKILL, DROP_KIND_TOOL, DROP_KIND_TOOLSET
 from agent_runtime.permission_modes import permission_mode_is_unbounded
 from agent_runtime.terminal_envelope.records import ENVELOPE_DECISION_LOG
 
@@ -24,7 +24,14 @@ __layer__ = "policy"
 _DROP_BUCKETS: Mapping[str, str] = {
     DROP_KIND_TOOLSET: "toolsets_dropped",
     DROP_KIND_TOOL: "tools_dropped",
+    DROP_KIND_SKILL: "skills_dropped",
 }
+
+#: Drop kinds whose ``restorable_via`` is a ROOT ``config.yaml`` key, the only
+#: kind the "Dropped on this lane" line's restore clause may name. A skill drop's
+#: ``restorable_via`` is a key in the skill's own SKILL.md (R6), so it rides
+#: its own line instead of being reported as a config setting.
+_CONFIG_RESTORED_KINDS = frozenset({DROP_KIND_TOOLSET, DROP_KIND_TOOL})
 
 
 def _capped(names: Iterable[Any]) -> tuple[list[str], int]:
@@ -106,6 +113,8 @@ def resolve_capability_block(
         if not subject or bucket is None:
             continue
         dropped[bucket].append(subject)
+        if getattr(drop, "kind", None) not in _CONFIG_RESTORED_KINDS:
+            continue
         key = str(getattr(drop, "restorable_via", "") or "").strip()
         if key and key not in restorable:
             restorable.append(key)
@@ -267,6 +276,17 @@ def render_capability_block(capability: dict[str, Any] | None) -> str:
             "NOT a permission problem and no permission mode you can reach restores "
             f"it.{restore} Report the absence plainly; do not hunt for a mode and do "
             "not improvise a workaround."
+        )
+
+    skills = capability.get("skills_dropped") or []
+    if skills:
+        lines.append(
+            f"- Skill{'' if len(skills) == 1 else 's'} {_names(skills)} "
+            f"{'is' if len(skills) == 1 else 'are'} assigned to you but not available on "
+            "this lane: the skill's own SKILL.md (`metadata.hermes.surfaces` / `modes`) "
+            "excludes it, so it is not in your skills index and skill_view refuses it. By "
+            "design, NOT a permission problem — only an operator editing that manifest "
+            "changes it. Report the absence plainly; do not improvise the skill's steps."
         )
 
     deferred = section(capability, "deferred")

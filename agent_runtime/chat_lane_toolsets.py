@@ -101,9 +101,26 @@ TOOLSET_DROPPED_BY_CHAT_LANE_POLICY = "toolset_dropped_by_chat_lane_policy"
 #: keeping the rest of its toolset. Subject key: ``tool``.
 TOOL_DROPPED_BY_CHAT_LANE_POLICY = "tool_dropped_by_chat_lane_policy"
 
+#: ``requirement_failures[].code`` for an ASSIGNED skill the chat lane's skill
+#: surface filter hides (R6 of the chat-lane gaps plan): its ``SKILL.md`` declares
+#: ``metadata.hermes.surfaces`` / ``modes`` that exclude the lane's surface or
+#: mode, so it is neither in the lane's skills index nor loadable by
+#: ``skill_view`` there. Subject key: ``skill``.
+SKILL_DROPPED_BY_CHAT_LANE_SURFACE = "skill_dropped_by_chat_lane_surface"
+
 #: Drop kinds — which subject key a :class:`ChatLaneDrop` renders under.
 DROP_KIND_TOOLSET = "toolset"
 DROP_KIND_TOOL = "tool"
+DROP_KIND_SKILL = "skill"
+
+#: The compatibility verdict reasons (``skill_resolution.skill_frontmatter_runtime_compatibility``)
+#: that are a SURFACE drop, each mapped to the manifest key that decides it. An
+#: ``unresolved`` skill is not here on purpose: that is a readiness fault with its
+#: own row (``profile_readiness``), not something this lane's filter took away.
+SKILL_SURFACE_DROP_KEYS: dict[str, str] = {
+    "surface_not_supported": "metadata.hermes.surfaces",
+    "mode_not_supported": "metadata.hermes.modes",
+}
 
 
 #: Toolsets a conversational chat lane never needs, dropped by default so their
@@ -189,6 +206,8 @@ class ChatLaneDrop:
         lane = str(entry_point_lane or "").strip() or "unknown"
         role_text = str(role or "").strip()
         role_clause = f" (role '{role_text}')" if role_text else ""
+        if self.kind == DROP_KIND_SKILL:
+            return self._skill_row(role_text=role_text, role_clause=role_clause, lane=lane)
         is_toolset = self.kind == DROP_KIND_TOOLSET
         noun = "toolset" if is_toolset else "tool"
         outcome = (
@@ -219,6 +238,72 @@ class ChatLaneDrop:
                 "the work on a worker lane, which never passes through this policy."
             ),
         }
+
+
+    def _skill_row(self, *, role_text: str, role_clause: str, lane: str) -> dict[str, Any]:
+        """A skill drop's row: same shape, its own fix. The surface filter is a
+        property of the skill's MANIFEST, not of a permission mode or the restore
+        knob, so neither is offered — the hint names the manifest key instead."""
+
+        detail = f" {self.detail}" if self.detail else ""
+        return {
+            "code": self.code,
+            self.kind: self.subject,
+            "role": role_text,
+            "entry_point_lane": lane,
+            "restorable_via": self.restorable_via,
+            "summary": (
+                f"The '{self.subject}' skill is assigned to this persona{role_clause}, "
+                f"but its SKILL.md excludes the chat lane's skill surface on the "
+                f"'{lane}' lane — it is not in the skills index there and skill_view "
+                f"refuses it.{detail}"
+            ),
+            "fix_hint": (
+                "By design, not a permission problem: the skill's own manifest "
+                "declares where it runs, and no permission mode or "
+                "`chat_lane_restore_toolsets` entry changes that. Add the lane's "
+                f"surface to `{self.restorable_via}` in that SKILL.md if it should run "
+                "here, or run the work on a lane its manifest admits."
+            ),
+        }
+
+
+def chat_lane_skill_drops(
+    verdicts: Iterable[tuple[str, dict[str, Any] | None]],
+    *,
+    surface: str,
+    root_node_mode: bool = False,
+) -> tuple[ChatLaneDrop, ...]:
+    """The assigned skills the chat lane's skill SURFACE filter hides, typed (R6).
+
+    ``verdicts`` pairs each assigned skill id with its compatibility verdict for
+    the lane's ``surface`` / mode — the SAME ``skill_frontmatter_runtime_compatibility``
+    answer the prompt builder and ``skill_view`` gate on, computed by the caller
+    (this module reads no manifest). Only a verdict whose ``reason`` is a surface or
+    mode exclusion is a drop; a compatible, unresolved or unknown verdict produces
+    nothing. Order-preserving and deduped over the input."""
+
+    mode = "root_node" if root_node_mode else "standard"
+    drops: list[ChatLaneDrop] = []
+    seen: set[str] = set()
+    for skill_id, verdict in verdicts or ():
+        name = str(skill_id or "").strip()
+        reason = str((verdict or {}).get("reason") or "") if isinstance(verdict, dict) else ""
+        key = SKILL_SURFACE_DROP_KEYS.get(reason)
+        if not name or key is None or name in seen:
+            continue
+        seen.add(name)
+        wanted = f"surface '{surface}'" if reason == "surface_not_supported" else f"mode '{mode}'"
+        drops.append(
+            ChatLaneDrop(
+                subject=name,
+                kind=DROP_KIND_SKILL,
+                code=SKILL_DROPPED_BY_CHAT_LANE_SURFACE,
+                restorable_via=key,
+                detail=f"Its `{key}` does not list the lane's {wanted}.",
+            )
+        )
+    return tuple(drops)
 
 
 def chat_lane_toolset_drops(
