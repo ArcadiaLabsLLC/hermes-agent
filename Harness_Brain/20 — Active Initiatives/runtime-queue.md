@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Shared character assignment — 2026-10-30
+
+- **`RT-CHARACTER-ASSIGNMENT-MIGRATION` — Move character assignment onto the runtime-owned agent records with persona inheritance and one writer** · `agent_runtime/models.py::PersonaInstance` · `agent_runtime/persona_assignments/store.py::PersonaInstanceStore` · `EterniaLauncher/docs/spatial/CHARACTER_IDENTITY_3D_PILOT_PLAN_2026-10-30.md` · RULED 2026-10-30: owner "go ahead with the migration onto the agent record"; preserve persona inheritance, existing characters/settings and the existing instance system, with one identity across office/profile/chat and no parallel authority · runtime contract, revision-checked writes, migration receipts, conflict/clear/inherit handling, legacy-client fencing and coordinated client cutover · READY 2026-10-30 · **TAKEN 2026-10-30 character-migration on MUltiversalLabsInc as Maximus Shaban in character-migration**
+
 ### Filed on arrival — 2026-10-30 (launcher planning lane w1030p-mcaddr: `MC-ADDRESS-VALUE-LAUNCHER`)
 
 - **`RT-TURN-AUDIT-CARRIES-ADDRESS` — `runtime.chat.turn_audit` passes each record's `address` through `_audit_turn_row` and `audit_namespace()` adds `machine.machine_id` (`read_machine_id()`, never minted) beside `install_id`, whose docstring stops calling the install id "the machine id"; the launcher's `MC-ADDR-AUDIT-WIRE-ADDRESS` reads them** · `agent_runtime/chat_verbs/turn_audit.py::_audit_turn_row` · `agent_runtime/mission_chat_turns/journal.py::_turn_stamps` · `EterniaLauncher/docs/mission_control/planned/ADDRESS_VALUE_SITES_2026-10-30.md` §S4 · READY 2026-10-30
