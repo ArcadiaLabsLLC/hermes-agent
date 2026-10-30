@@ -119,11 +119,6 @@ def _stale_holder(row, now: float) -> bool:
     return float(row["expires_at"]) <= now or _compression_lock_holder_process_is_dead(row["holder"])
 
 
-def _through_row_filter(through_row_id: Optional[int]) -> tuple[str, tuple]:
-    """``(" AND id <= ?", (id,))`` bounding a read to rows up to *through_row_id*; nothing when None."""
-    return (" AND id <= ?", (through_row_id,)) if through_row_id is not None else ("", ())
-
-
 class SessionMessagesMixin(SessionDetachedResultsMixin, SessionTodoResultMixin):
     """Message append/replace/rewind, reactions, resume conversations, replay dedupe (detached results: the base)."""
 
@@ -1470,37 +1465,33 @@ class SessionMessagesMixin(SessionDetachedResultsMixin, SessionTodoResultMixin):
             return best if best is not None else session_id
 
     def _fetch_conversation_rows(self, session_ids: list[str], active_clause: str, *, with_session_id: bool,
-                                 with_compacted: bool = False, through_row_id: Optional[int] = None):
+                                 with_compacted: bool = False):
         """``_CONVERSATION_ROW_COLUMNS`` rows for *session_ids* ORDER BY id (timestamps are not monotonic
         and would break tool-call adjacency). ``with_compacted``: the display set (``active_clause`` is
         ignored) with the ``compacted`` column, plus the removed rows' identities for ``drop_removed``."""
-        through, through_args = _through_row_filter(through_row_id)  # fork: a turn's history up to its row
         rows = self._read_all(
             f"SELECT {'session_id, ' if with_session_id else ''}{'compacted, ' if with_compacted else ''}"
             f"{self._CONVERSATION_ROW_COLUMNS} "
             f"FROM messages WHERE session_id IN ({_placeholders(session_ids)})"
-            f"{_DISPLAY_ACTIVE_CLAUSE if with_compacted else active_clause}{through} ORDER BY id",
-            (*session_ids, *through_args))
-        return self._with_removed_identities(rows, session_ids, through_row_id) if with_compacted else rows
+            f"{_DISPLAY_ACTIVE_CLAUSE if with_compacted else active_clause} ORDER BY id", tuple(session_ids))
+        return self._with_removed_identities(rows, session_ids) if with_compacted else rows
 
-    def _with_removed_identities(self, rows, session_ids: list[str], through_row_id: Optional[int] = None) -> list[Any]:
+    def _with_removed_identities(self, rows, session_ids: list[str]) -> list[Any]:
         """*rows* (ordered by id) merged with the identities of the lineage's removed rows (``active=0,
         compacted=0``), which ``_dedupe_display_generations(drop_removed=True)`` needs only to hide a copy, never
         to show: no body (a legacy row without a stored display identity keeps its content for the key)."""
-        through, through_args = _through_row_filter(through_row_id)
         removed = self._read_all(
             "SELECT session_id, id, role, timestamp, tool_call_id, tool_calls, tool_name, display_kind, display_metadata, "
             "message_uid, absorbed_message_uids, display_identity, active, compacted, "
             "CASE WHEN display_identity IS NULL THEN content END AS content "
-            f"FROM messages WHERE session_id IN ({_placeholders(session_ids)}) AND active = 0 AND compacted = 0{through} "
-            "ORDER BY id", (*session_ids, *through_args))
+            f"FROM messages WHERE session_id IN ({_placeholders(session_ids)}) AND active = 0 AND compacted = 0 "
+            "ORDER BY id", tuple(session_ids))
         return sorted([*rows, *removed], key=lambda row: row["id"]) if removed else list(rows)
 
     def get_messages_as_conversation(self, session_id: str, include_ancestors: bool = False,
                                      include_inactive: bool = False, repair_alternation: bool = False,
                                      include_row_ids: bool = False,
-                                     include_compacted: bool = False,
-                                     through_row_id: Optional[int] = None) -> list[dict[str, Any]]:
+                                     include_compacted: bool = False) -> list[dict[str, Any]]:
         """Load messages in OpenAI format. ``include_compacted`` (deduped display history) is for DISPLAY reads
         only: the model-fed restore must not regrow what compaction summarized away. ``repair_alternation``
         repairs the loaded list for LIVE REPLAY callers (a durable ``user;user`` pair would re-trigger the
@@ -1509,8 +1500,7 @@ class SessionMessagesMixin(SessionDetachedResultsMixin, SessionTodoResultMixin):
         display = include_compacted and not include_inactive  # removed rows too: see drop_removed
         rows = self._fetch_conversation_rows(
             self._resume_lineage_ids(session_id) if include_ancestors else [session_id],
-            self._active_clause(include_inactive, include_compacted), with_session_id=False, with_compacted=display,
-            through_row_id=through_row_id)
+            self._active_clause(include_inactive, include_compacted), with_session_id=False, with_compacted=display)
         if include_compacted:
             rows = self._dedupe_display_generations(rows, drop_removed=display)
         return self._rows_to_conversation(rows, session_id=session_id, include_ancestors=include_ancestors,

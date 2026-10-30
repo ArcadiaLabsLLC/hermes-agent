@@ -61,8 +61,7 @@ def _project_history(server, session, position):
     with server._session_db(session) as db:
         if db is None:
             raise RuntimeError("History is unavailable")
-        history = db.get_messages_as_conversation(position["session_key"], include_ancestors=True,
-            include_compacted=True, include_row_ids=True, through_row_id=position["through_row"])
+        history = db.display_history_through(position["session_key"], position["through_row"])
     return server._history_to_messages(history, profile_home=session.get("profile_home"))
 
 

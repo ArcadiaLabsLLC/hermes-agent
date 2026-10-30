@@ -108,6 +108,19 @@ class SessionHistoryControlsMixin:
             f"SELECT COALESCE(MAX(id), 0) FROM messages WHERE session_id IN ({','.join('?' for _ in session_ids)})",
             tuple(session_ids))[0])
 
+    def display_history_through(self, session_id: str, through_row_id: int) -> list[dict]:
+        """The lineage's deduped display history (row ids on) as it stood at row *through_row_id*.
+
+        The bound drops later rows BEFORE dedupe, so output written after a recovery position can
+        neither appear nor displace a copy inside it. It lives here, not as a keyword on upstream's
+        ``get_messages_as_conversation``, whose signature a worker's ``RuntimeSessionStore`` mirrors.
+        """
+        rows = [row for row in self._fetch_conversation_rows(  # display set: the clause is ignored
+            self._resume_lineage_ids(session_id), "", with_session_id=False, with_compacted=True)
+            if row["id"] <= through_row_id]
+        return self._rows_to_conversation(self._dedupe_display_generations(rows, drop_removed=True),
+            session_id=session_id, include_ancestors=True, repair_alternation=False, include_row_ids=True)
+
     def history_control_snapshot(self, session_id: str) -> dict:
         """References and revision only; the native rows retain all message bytes."""
         with self._read_ctx() as conn:
