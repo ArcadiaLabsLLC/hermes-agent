@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-30 (launcher planning lane w1030p-mcaddr: `MC-ADDRESS-VALUE-LAUNCHER`)
+
+- **`RT-TURN-AUDIT-CARRIES-ADDRESS` — `runtime.chat.turn_audit` passes each record's `address` through `_audit_turn_row` and `audit_namespace()` adds `machine.machine_id` (`read_machine_id()`, never minted) beside `install_id`, whose docstring stops calling the install id "the machine id"; the launcher's `MC-ADDR-AUDIT-WIRE-ADDRESS` reads them** · `agent_runtime/chat_verbs/turn_audit.py::_audit_turn_row` · `agent_runtime/mission_chat_turns/journal.py::_turn_stamps` · `EterniaLauncher/docs/mission_control/planned/ADDRESS_VALUE_SITES_2026-10-30.md` §S4 · READY 2026-10-30
+
 ### Filed on arrival — 2026-10-29 (lane w1029c-h-a)
 
 - **`RT-MAIN-REDS-SQLITE-OPEN-FAMILY` — remainder after land/w1029c: the three `test_gateway_chat_commands_live` classic-view cases red with `FileNotFoundError: 'tmux'` — the Linux dev box has no `tmux` on PATH (the worker family, `test_browse_schema_drift` and `test_sessions_export_md_cli` were fixed at land/w1029c)** · `tests/hermes_cli/test_gateway_chat_commands_live.py` · RULED 2026-10-29: owner — "rest of recoomendations are good" — install `tmux` on nekwo-ubuntu24 · BLOCKED 2026-10-29: owner sitting — run `sudo apt install tmux` on nekwo-ubuntu24, then a lane re-runs the file alone
