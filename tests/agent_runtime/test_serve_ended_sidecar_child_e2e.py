@@ -437,7 +437,9 @@ def test_a_boot_prunes_the_sidecar_directory_to_the_newest_twenty(
     rows = list_serve_ended(root)
     # The boot prunes to 20; this runtime's OWN record is written afterwards,
     # on its way out, and the next boot is what re-floors the directory.
-    planted = {row["pid"] for row in rows if row["pid"] >= 900000}
+    # Selected by boot_id, never by pid range: Linux pid_max is 4194304, so the
+    # child's own pid can sit above the planted 900000 block (1337765, 2026-10-29).
+    planted = {row["pid"] for row in rows if str(row.get("boot_id", "")).startswith("planted")}
     assert planted == set(range(900005, 900025))
     assert child.pid in {row["pid"] for row in rows}
     assert len(rows) == 21
