@@ -50,6 +50,9 @@ Read in this order for a full picture; each stands alone for its own territory.
   namespace, agent profile, persona instance, realm workspace and repo slot as one typed address;
   the as-built map verified 2026-10-25 and the owner's rulings; the hermes half shipped 2026-10-25..26,
   the launcher half is its row `MC-ADDRESS-VALUE-LAUNCHER`.
+- [POSIX runner scratch under the named test-temp root](planned/posix-runner-scratch-root_2026-10-30.md) —
+  `HERMES_TEST_TMP_ROOT` owns the per-file runner's own scratch on POSIX too (one additive line
+  upstream, the seam in `scripts/_fork_runner.py`) and the 40-byte AF_UNIX budget a named root keeps.
 - [Chat head per agent profile](planned/chat-head-per-profile-2026-10-26.md),
   [chat folder in the namespace](archive/chat-folder-in-namespace-2026-10-26.md) — the build plans for
   naming-map rulings 4 and 5. Ruling 6's plan, [machine roots' two halves](archive/machine-roots-two-halves-2026-10-26.md),
