@@ -1,7 +1,7 @@
 {
-  "measured_at": "2026-10-29",
+  "measured_at": "2026-10-30",
   "base": "4d04303818",
-  "files": 240,
+  "files": 241,
   "deleted_lines": 1052,
   "heavy": 1,
   "reasons": [
@@ -1255,6 +1255,21 @@
       },
       "reason": "Append-only seam: three lines after upstream's registry.register hand the registered session_search handler to agent_runtime/project_chat_recall.py::route_registered_handler, so the agent's tool call also recalls the shared store of every Project its instance enabled (recall_shared_projects + the Project's chats share); direct callers of session_search keep upstream's single-store behaviour. NO DOOR YET: no hook may wrap a built-in tool's handler. PR candidate: a wrap_dispatch plugin hook around ToolRegistry.dispatch (the tools/registry.py row's candidate).",
       "owner_ruling": "2026-10-29 \u00b7 Harness_Brain/20 \u2014 Active Initiatives/runtime-queue.md RT-PROJECT-CHAT-RECALL-ACROSS-STORES RULED: owner \"sounds good yea we need that\" \u2014 allow the append-only seam in tools/session_search_tool.py"
+    },
+    {
+      "change": "RT-LOCAL-RECOVERY-FROZEN-SAFE-TOOLS (lane w1029e-h): two additive seam lines in hermes_cli/tools_config.py",
+      "before": {
+        "files": 240,
+        "deleted_lines": 1052,
+        "heavy": 1
+      },
+      "after": {
+        "files": 241,
+        "deleted_lines": 1052,
+        "heavy": 1
+      },
+      "reason": "eternia-harness registers skill_search into the BUILT-IN skills toolset, so _get_plugin_toolset_keys named skills and _enabled_plugin_toolsets re-enabled it for an explicit platform_toolsets.cli: [] (safe mode stripped the whole toolset). One additive line in _get_platform_tools drops built-in keys from the plugin key set (upstream PR candidate: upstream's own _get_effective_configurable_toolsets already skips a plugin key that is built-in). A second additive line adds the fork's opt-in schedule toolset to _DEFAULT_OFF_TOOLSETS (carry: the name is fork-only). Control: tests/hermes_cli/test_plugin_toolset_defaults_downstream.py.",
+      "owner_ruling": "2026-10-29 \u00b7 Harness_Brain/20 \u2014 Active Initiatives/runtime-queue.md RT-LOCAL-RECOVERY-FROZEN-SAFE-TOOLS RULED segment (owner: rest of recommendations are good)"
     }
   ]
 }

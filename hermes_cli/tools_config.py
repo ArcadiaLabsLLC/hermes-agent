@@ -108,6 +108,7 @@ def gui_toolset_label(label: str) -> str:
 # auto-enables when xAI creds exist; its check_fn still gates the schema. ``spotify`` and ``a2a`` are plugin
 # toolsets (catalog / bundled plugin) that stay opt-in once installed.
 _DEFAULT_OFF_TOOLSETS = {"spotify", "discord", "discord_admin", "video", "video_gen", "x_search", "a2a", "kanban"}
+_DEFAULT_OFF_TOOLSETS.add("schedule")  # fork seam: eternia-harness's opt-in scheduler toolset (RT-LOCAL-RECOVERY-FROZEN-SAFE-TOOLS)
 
 # Config-only capabilities: provider setup in `hermes tools` (TOOL_CATEGORIES) but not model toolsets — zero
 # schemas, own switch (``stt.enabled``), never in ``platform_toolsets`` or the per-platform checklist.
@@ -610,6 +611,7 @@ def _get_platform_tools(config: dict, platform: str, *, include_default_mcp_serv
 
     configurable_keys = _configurable_keys()
     plugin_ts_keys = _get_plugin_toolset_keys()
+    plugin_ts_keys = plugin_ts_keys - configurable_keys  # fork seam: a built-in toolset stays built-in (RT-LOCAL-RECOVERY-FROZEN-SAFE-TOOLS)
     platform_default_keys = _platform_default_keys()
     # Plugin toolsets are first-class on a saved list: ``[hermes-cli, a2a]`` must survive filtering.
     # Plugin-provided toolsets are first-class on a platform-toolsets list — explicit config like

@@ -42,14 +42,27 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # Upstream's wire snapshots (v0.21.6) pin the registry's tool descriptions; the
     # fork's llm_request brief rewrites them. The fixture turns the brief off for these.
     # v0.21.6's #82010 test expects platform_toolsets.cli: [] to resolve to no toolsets; the
-    # fork's eternia-harness plugin registers a default-on plugin toolset ("skills", for
-    # skill_search) and upstream's _enabled_plugin_toolsets keeps default-on plugin toolsets
-    # on an explicit empty list (queue row, release merge v0.21.6).
+    # fork's plugins register default-on plugin toolsets (catalog, desktop_ui, lens, project)
+    # and upstream's _enabled_plugin_toolsets keeps default-on plugin toolsets on an explicit
+    # empty list (queue row, release merge v0.21.6). "skills" left this list 2026-10-30
+    # (RT-LOCAL-RECOVERY-FROZEN-SAFE-TOOLS: a built-in toolset a plugin also names stays built-in).
     "tests/tui_gateway/test_gui_surface_toolsets.py::TestExplicitEmptySelection::"
     "test_explicit_empty_list_yields_no_toolsets": (
         _fork_replaces(
-            "plugins/eternia-harness skill_search toolset 'skills' (a default-on plugin toolset)",
+            "plugins' default-on plugin toolsets (catalog, desktop_ui, lens, project)",
             "tests/agent_runtime/test_chat_lane_toolsets.py",
+        ),
+    ),
+    # The local recovery probe asserts a frozen-safe recovered turn carries NO tools; the
+    # eternia-lens plugin's ``lens`` toolset is a default-on plugin toolset, and its tools
+    # defer, so the request carries the tool_search/tool_describe/tool_call bridge
+    # (RT-LOCAL-RECOVERY-FROZEN-SAFE-TOOLS, owner 2026-10-29: id-mark it for whatever
+    # plugin toolset stays on by default; ``skills`` and ``schedule`` no longer do).
+    "tests/gateway/test_local_session_recovery.py::"
+    "test_real_daemon_recovers_only_authorized_never_started_local_work": (
+        _fork_replaces(
+            "plugins/eternia-lens toolset 'lens' (a default-on plugin toolset whose deferred tools add the bridge)",
+            "tests/hermes_cli/test_plugin_toolset_defaults_downstream.py",
         ),
     ),
     **{
