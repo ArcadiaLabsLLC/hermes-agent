@@ -7,6 +7,10 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+## Filed on arrival — 2026-10-30 (owner: push checks hang)
+
+- **`FH-PREPUSH-PROGRESS-BUDGET` — `scripts/prepush.sh`: every step declares its budget and the whole default path stays within a few seconds (measure each step; a step that cannot fit moves to an explicitly named slower lane, never silently dropped); it prints its plan first, then a heartbeat naming the running step once past budget, and a hard deadline that kills the step and fails naming it; past budget or on a failure it raises a desktop notification through one small OS adapter (notify-send / osascript / the Windows toast), with no notification and no extra cost on a green run inside budget; the same contract as launcher `PREPUSH-PROGRESS-BUDGET` and backend `OPS-PREPUSH-PROGRESS-BUDGET`** · `scripts/prepush.sh` · RULED 2026-10-30: owner 2026-10-30: "can we solve the problem of pre push hooks they often hang so we should have a notification system with a performance budget of no more than a few seconds" · READY 2026-10-30
+
 ## Filed on arrival — 2026-10-29 (land w1029a-h)
 
 
