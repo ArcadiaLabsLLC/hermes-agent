@@ -84,6 +84,19 @@ def decorated_dropper(mp):
 
 def keeps_its_stub(monkeypatch):
     monkeypatch.setattr("os.sep", "x")
+
+def _helper_that_drops(mp):
+    mp.setattr("os.sep", "x")
+    mp.undo()
+
+def _relay(mp):
+    return _helper_that_drops(mp)
+
+def drops_through_a_helper(monkeypatch):
+    _relay(monkeypatch)
+
+def calls_an_unrelated_helper(monkeypatch):
+    keeps_its_stub(monkeypatch)
 """
 
 
@@ -100,8 +113,10 @@ class _Item:
 
 def test_a_mid_body_undo_is_found_by_the_ast_and_scoped_at_collection(tmp_path):
     """No id row: an upstream test that calls ``.undo()`` in its body gets the
-    scoped-undo mark at collection, whatever the receiver is spelled; one that
-    does not, or that takes no ``monkeypatch``, gets nothing."""
+    scoped-undo mark at collection, whatever the receiver is spelled, and so does
+    one that reaches ``.undo()`` through same-file helpers (row
+    RT-DISPLAY-READ-SHARED-MONKEYPATCH-UNDO); one that does not, or that takes
+    no ``monkeypatch``, gets nothing."""
 
     import importlib.util
 
@@ -115,11 +130,13 @@ def test_a_mid_body_undo_is_found_by_the_ast_and_scoped_at_collection(tmp_path):
         _Item("x.py::decorated_dropper", mod.decorated_dropper),
         _Item("x.py::keeps_its_stub", mod.keeps_its_stub),
         _Item("x.py::no_fixture", mod.drops_its_stub, fixturenames=()),
+        _Item("x.py::drops_through_a_helper", mod.drops_through_a_helper),
+        _Item("x.py::calls_an_unrelated_helper", mod.calls_an_unrelated_helper),
     ]
     hooks.pytest_collection_modifyitems(SimpleNamespace(args=[], rootpath=tmp_path), items)
 
     scoped = [item.nodeid for item in items if item.get_closest_marker("scoped_monkeypatch_undo")]
-    assert scoped == ["x.py::drops_its_stub", "x.py::decorated_dropper"]
+    assert scoped == ["x.py::drops_its_stub", "x.py::decorated_dropper", "x.py::drops_through_a_helper"]
 
 
 @pytest.mark.skipif(
