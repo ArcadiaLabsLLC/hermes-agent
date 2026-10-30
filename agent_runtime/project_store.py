@@ -333,8 +333,10 @@ def _project_name(value: Any) -> str:
 
 
 def show(project_id: str) -> dict[str, Any]:
-    """The record, the realms it is assigned into, and THIS machine's fill per slot (never another's path)."""
+    """The record, the realms it is assigned into, THIS machine's fill per slot (never another's path), and the
+    sessions THIS machine shares into it (``shared_chats``)."""
 
+    from .project_chat_export import shared_sessions_of
     from .workspace_slot_env import fill_shape
     from .workspace_slots import bound_path
 
@@ -347,7 +349,7 @@ def show(project_id: str) -> dict[str, Any]:
                       "folder_missing": bool(path) and not bound_here,
                       "fill": fill_shape(None, name, project_id=project_id)}
     return {"document": record, "here": here, "realms": project_realms(project_id),
-            "exists": paths.project_path(project_id).is_file()}
+            "exists": paths.project_path(project_id).is_file(), "shared_chats": shared_sessions_of(project_id)}
 
 
 def stamp_order(value: Any) -> float:

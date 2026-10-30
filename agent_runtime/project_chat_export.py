@@ -57,11 +57,7 @@ def _refused(reason: str, detail: str = ""):
 
 
 def load_cursor(project_id: str, session_id: str) -> dict[str, Any] | None:
-    try:
-        record = json.loads(paths.project_chat_export_path(project_id, session_id).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    return record if isinstance(record, dict) and record.get("shared") else None
+    return _shared_record(paths.project_chat_export_path(project_id, session_id))
 
 
 def _write_cursor(project_id: str, session_id: str, record: dict[str, Any]) -> None:
@@ -75,7 +71,31 @@ def shared_projects_of(session_id: str) -> list[str]:
 
     root = paths.store_root() / "project_chat_exports"
     name = f"{paths.safe_path_token(session_id)}.json"
-    return sorted(path.parent.name for path in root.glob(f"*/{name}")) if root.is_dir() else []
+    return sorted(path.parent.name for path in root.glob(f"*/{name}")
+                  if _shared_record(path) is not None) if root.is_dir() else []
+
+
+def shared_sessions_of(project_id: str) -> list[str]:
+    """The sessions this machine exports into ``project_id`` — ``runtime.project.show``'s ``shared_chats``.
+
+    Read from the record's own ``session_id`` (the file name is a lossy path token), so the launcher's
+    shared badge and "Stop sharing" survive a relaunch.
+    """
+
+    folder = paths.store_root() / "project_chat_exports" / paths.safe_path_token(project_id)
+    if not folder.is_dir():
+        return []
+    sessions = (str(record["session_id"]) for record in map(_shared_record, folder.glob("*.json"))
+                if record is not None and record.get("session_id"))
+    return sorted(set(sessions))
+
+
+def _shared_record(path: Path) -> dict[str, Any] | None:
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return record if isinstance(record, dict) and record.get("shared") else None
 
 
 def writer_file_name() -> str:

@@ -131,3 +131,22 @@ def test_an_attachment_leaves_as_its_handle_never_its_path(tmp_path):
     assert line["attachments"] == [{"handle": handle_for_bytes(image.read_bytes()), "media_type": "image/png",
                                     "size_bytes": image.stat().st_size},
                                    {"handle": None, "status": "unavailable"}]
+
+
+def test_project_show_answers_which_chats_this_machine_shares_into_it(project, chat):
+    """RT-PROJECT-CHAT-SHARE-READ: the share state survives a relaunch because ``show`` reads the cursors."""
+
+    from agent_runtime.project_store import show
+
+    assert show("p1")["shared_chats"] == []
+    export.share("p1", "chat_1", True, session_db=chat)
+    assert show("p1")["shared_chats"] == ["chat_1"] and export.shared_projects_of("chat_1") == ["p1"]
+    # A cursor that does not say ``shared`` is not a share (control: the same file with the flag is one).
+    cursor = export.cursor_path("p1", "chat_1")
+    record = json.loads(cursor.read_text(encoding="utf-8"))
+    cursor.write_text(json.dumps({**record, "shared": False}), encoding="utf-8")
+    assert show("p1")["shared_chats"] == [] and export.shared_projects_of("chat_1") == []
+    cursor.write_text(json.dumps(record), encoding="utf-8")
+    assert show("p1")["shared_chats"] == ["chat_1"]
+    export.share("p1", "chat_1", False, session_db=None)
+    assert show("p1")["shared_chats"] == []

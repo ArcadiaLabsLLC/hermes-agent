@@ -916,7 +916,10 @@ or ``ATTACHMENT:unavailable`` when this disk cannot back it, with ``attachments`
 operation in Hermes's own worktree of the chats slot (pseudo-workspace
 ``project_<id>``), on every turn end and as a backfill on enable; the cursor is
 ``store/project_chat_exports/<project>/<session>.json``. Unshare removes
-``<session>/`` in one commit.
+``<session>/`` in one commit. ``runtime.project.show`` answers ``shared_chats``, the
+sorted session ids THIS machine shares into the Project (each cursor's own
+``session_id`` with ``shared: true``; ``project_chat_export.shared_sessions_of``,
+2026-10-30, RT-PROJECT-CHAT-SHARE-READ).
 
 54 KEPT (Project shared chat store, 2026-10-29, RT-PROJECT-CHAT-SHARED-FOLD) — no
 snapshot key moved. ``store/project_chats/<project>.db`` is a
