@@ -135,25 +135,41 @@ def _narrowed_files(config) -> set[str]:
 @functools.cache
 def _undo_calling_def_lines(path: str) -> frozenset[int]:
     """Every line a ``def`` (or one of its decorators) starts on, for each function in *path*
-    whose body calls ``<expr>.undo()``. A file without the text ``.undo(`` is never parsed."""
+    whose body calls ``<expr>.undo()``, directly or through a same-file function it calls by
+    name. A file without the text ``.undo(`` is never parsed."""
     try:
         text = Path(path).read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return frozenset()
     if ".undo(" not in text:
         return frozenset()
+    defs = [n for n in ast.walk(ast.parse(text)) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+    calls = {id(d): [c for c in ast.walk(d) if isinstance(c, ast.Call)] for d in defs}
+    undoing = {
+        id(d) for d in defs
+        if any(isinstance(c.func, ast.Attribute) and c.func.attr == "undo" for c in calls[id(d)])
+    }
+    # A def that calls (by bare name) a same-file def that undoes, undoes too: upstream's
+    # display-read tests hand ``monkeypatch`` to a module helper that calls ``.undo()``.
+    while True:
+        names = {d.name for d in defs if id(d) in undoing}
+        grown = {
+            id(d) for d in defs
+            if any(isinstance(c.func, ast.Name) and c.func.id in names for c in calls[id(d)])
+        } - undoing
+        if not grown:
+            break
+        undoing |= grown
     lines: set[int] = set()
-    for node in ast.walk(ast.parse(text)):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and any(
-            isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute) and call.func.attr == "undo"
-            for call in ast.walk(node)
-        ):
-            lines.update({node.lineno, *(deco.lineno for deco in node.decorator_list)})
+    for d in defs:
+        if id(d) in undoing:
+            lines.update({d.lineno, *(deco.lineno for deco in d.decorator_list)})
     return frozenset(lines)
 
 
 def body_calls_monkeypatch_undo(item) -> bool:
-    """True when *item* takes ``monkeypatch`` and its test function's own body calls ``.undo()``."""
+    """True when *item* takes ``monkeypatch`` and its test function's body calls ``.undo()``,
+    directly or through a same-file helper."""
     func = getattr(item, "function", None)
     if func is None or "monkeypatch" not in getattr(item, "fixturenames", ()):
         return False
