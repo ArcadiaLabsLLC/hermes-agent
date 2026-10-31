@@ -278,10 +278,22 @@ def refuse_blocked_tool(tool_name=None, session_id="", **_context):
     return None if message is None else {"action": "block", "message": message}
 
 
+def _generated_tree_write(tool_name, args):
+    if tool_name not in ("write_file", "patch"):
+        return None
+    from agent_runtime.generated_tree_teach import generated_tree_write_refusal
+    from agent_runtime.launcher_app_functions import offered_to_bound_link
+    from tools.terminal_scope import terminal_env
+
+    host_paths = terminal_env("TERMINAL_ENV", "local").strip().lower() in ("", "local")
+    return generated_tree_write_refusal(tool_name, args, offered=offered_to_bound_link, host_paths=host_paths)
+
+
 def refuse_tool_call(tool_name=None, args=None, task_id="", session_id="", **_context):
     """``pre_tool_call`` hook: a blocked tool, a background review's write to a SHARED skill
-    (staged for the owner, ``agent_runtime.review_skill_gate``), then a ``flutter build`` that
-    collides with the live Launcher (``agent_runtime.flutter_build_guard``). One callback for all three.
+    (staged for the owner, ``agent_runtime.review_skill_gate``), a host write to a generated-document
+    path (``agent_runtime.generated_tree_teach``), then a ``flutter build`` that collides with the live
+    Launcher (``agent_runtime.flutter_build_guard``). One callback for all four.
     """
     from agent_runtime.flutter_build_guard import flutter_build_refusal
     from agent_runtime.review_skill_gate import review_shared_skill_write
@@ -292,6 +304,9 @@ def refuse_tool_call(tool_name=None, args=None, task_id="", session_id="", **_co
     staged = review_shared_skill_write(tool_name, args)
     if staged is not None:
         return staged
+    taught = _generated_tree_write(tool_name, args)
+    if taught is not None:
+        return taught
     message = flutter_build_refusal(tool_name, args, task_id=task_id)
     return None if message is None else {"action": "block", "message": message}
 

@@ -29,6 +29,7 @@ than naming a tool the turn does not have.
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Callable
 from typing import Any
 
@@ -38,6 +39,7 @@ __all__ = [
     "GENERATED_ROOTS",
     "generated_tree_path",
     "generated_tree_read_result",
+    "generated_tree_write_refusal",
 ]
 
 #: The generated-document tree's top-level segments (case-exact).
@@ -51,8 +53,10 @@ _READ_VERB = "launcher_generated_read"
 _GREP_VERB = "launcher_generated_grep"
 _TREE_VERB = "launcher_generated_tree"
 _INSPECT_VERB = "launcher_generated_inspect"
+_EDIT_VERB = "launcher_generated_edit"
 
 Offered = Callable[[str], bool]
+HostHas = Callable[[str], bool]
 
 
 def generated_tree_path(path: Any) -> str | None:
@@ -108,3 +112,47 @@ def generated_tree_read_result(tool_name: Any = None, args: Any = None, result: 
         return None
     payload["generated_tree"] = {"path": path, "use": verb, "why": _why(path, verb)}
     return json.dumps(payload, ensure_ascii=False)
+
+
+def host_has_root(segment: str) -> bool:
+    """Does this host have a top-level ``/<segment>`` directory? (The write rule's probe.)"""
+
+    return os.path.isdir("/" + segment)
+
+
+def _write_paths(tool_name: Any, args: dict) -> list[Any]:
+    """Every path a ``write_file`` / ``patch`` call names: ``path``, or each V4A header's
+    (a Move's both ends). A V4A body that does not parse names none; upstream refuses it."""
+
+    if tool_name == "write_file":
+        return [args.get("path")]
+    if (args.get("mode") or "replace") != "patch":
+        return [args.get("path")]
+    from tools.patch_parser import parse_v4a_patch
+
+    operations, error = parse_v4a_patch(str(args.get("patch") or ""))
+    if error:
+        return []
+    return [p for op in operations for p in (op.file_path, op.new_path) if p]
+
+
+def generated_tree_write_refusal(tool_name: Any, args: Any, *, offered: Offered, host_paths: bool,
+                                 host_has: HostHas = host_has_root) -> dict | None:
+    """``pre_tool_call``: a ``write_file`` / ``patch`` naming a generated-tree path, on a host
+    with no such top-level directory, is blocked naming the Launcher's edit verb; else None.
+
+    ``host_paths`` is whether the file tools write the host filesystem (a sandbox backend
+    keeps upstream's behaviour, plan §1 Q1 clause 2).
+    """
+
+    if tool_name not in ("write_file", "patch") or not host_paths:
+        return None
+    paths = _write_paths(tool_name, args if isinstance(args, dict) else {})
+    hit = next((p for p in paths if (root := generated_tree_path(p.strip() if isinstance(p, str) else p))
+                and not host_has(root)), None)
+    if hit is None or not offered(_EDIT_VERB):
+        return None
+    return {"action": "block", "message": (
+        f"{hit} is a generated-document path; {tool_name} writes the host filesystem, so nothing was "
+        f"written. Edit the document with {_EDIT_VERB} (its by-path replace / write operations), with "
+        f"the document_id from {_INSPECT_VERB}.")}

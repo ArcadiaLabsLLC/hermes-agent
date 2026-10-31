@@ -64,7 +64,7 @@ _TEACH_REASON = ("the generated-tree teach (RT-GENERATED-TREE-TEACH-*): named on
                  "verb disables the teach instead of naming a tool the turn lacks")
 ALLOWED: dict[tuple[str, str], str] = {
     ("agent_runtime/generated_tree_teach.py", f"launcher_generated_{verb}"): _TEACH_REASON
-    for verb in ("read", "grep", "tree", "inspect")
+    for verb in ("read", "grep", "tree", "inspect", "edit")
 }
 
 

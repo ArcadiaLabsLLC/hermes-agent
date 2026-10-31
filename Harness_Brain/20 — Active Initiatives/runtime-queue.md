@@ -35,7 +35,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-30 (owner: generated-tree parity with coding-harness file tools)
 
-- **`RT-GENERATED-TREE-TEACH-WRITE` — `write_file` / `patch` (V4A header paths included) naming a `/doc` · `/runtime` · `/ref` path, on a host with no such top-level directory and a link offering `launcher_generated_edit`, is a `pre_tool_call` block naming that verb, so nothing lands at `C:\doc` or `/doc`** · `docs/agent-runtime-harness/planned/generated-tree-host-path-teach-2026-10-31.md` §1–§2, §4 · `plugins/eternia-harness/__init__.py::refuse_tool_call` · READY 2026-10-31 · **TAKEN 2026-10-31 w1031b-h on nekwo-ubuntu24 as nekwo in hm-w1031b-h**
 - **`RT-GENERATED-TREE-TEACH-NEW-VERBS` — when the launcher's `launcher.generated.patch` / `.write` / `glob` land, the teach's verb map names them (`patch` → patch, `write_file` → write, `search_files files` → glob)** · `docs/agent-runtime-harness/planned/generated-tree-host-path-teach-2026-10-31.md` §4 · BLOCKED 2026-10-31: launcher — `COMP-GENERATED-TREE-PATCH-VERB` and its siblings `COMP-GENERATED-TREE-WRITE-VERB`, `COMP-GENERATED-TREE-GLOB` in `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/companion-queue.md`
 
 ### Shared character assignment — 2026-10-30
