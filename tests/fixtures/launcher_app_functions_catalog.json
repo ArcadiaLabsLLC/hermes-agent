@@ -1,5 +1,5 @@
 {
-  "source_commit": "9fa47d9fb093821f3a2a931ad6106625753d79f3",
+  "source_commit": "11f7acfeca33ce3a0612983233712093f64ef05b",
   "exported_at": "2026-10-31",
   "entries": [
     {
@@ -1435,6 +1435,150 @@
       "guidance_sha256": null
     },
     {
+      "id": "launcher.world.level.group.add",
+      "name": "launcher_world_level_group_add",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.world.level.group.break",
+      "name": "launcher_world_level_group_break",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.world.level.group.create",
+      "name": "launcher_world_level_group_create",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.world.level.group.remove",
+      "name": "launcher_world_level_group_remove",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.world.level.group.rename",
+      "name": "launcher_world_level_group_rename",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.world.level.history.redo",
+      "name": "launcher_world_level_history_redo",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.world.level.history.undo",
+      "name": "launcher_world_level_history_undo",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.world.level.library",
+      "name": "launcher_world_level_library",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.world.level.object.add",
+      "name": "launcher_world_level_object_add",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.world.level.object.delete",
+      "name": "launcher_world_level_object_delete",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.world.level.object.duplicate",
+      "name": "launcher_world_level_object_duplicate",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.world.level.object.elevate",
+      "name": "launcher_world_level_object_elevate",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.world.level.object.inspect",
+      "name": "launcher_world_level_object_inspect",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.world.level.object.move",
+      "name": "launcher_world_level_object_move",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.world.level.object.rotate",
+      "name": "launcher_world_level_object_rotate",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.world.level.object.scale",
+      "name": "launcher_world_level_object_scale",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.world.level.object.set",
+      "name": "launcher_world_level_object_set",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.world.level.objects",
+      "name": "launcher_world_level_objects",
+      "read_only": true,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
       "id": "launcher.world.level.rename",
       "name": "launcher_world_level_rename",
       "read_only": false,
@@ -1461,6 +1605,14 @@
     {
       "id": "launcher.world.level.save_as",
       "name": "launcher_world_level_save_as",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.world.level.selection.set",
+      "name": "launcher_world_level_selection_set",
       "read_only": false,
       "always_loaded": false,
       "reach": "localOnly",
