@@ -59,6 +59,8 @@ __all__ = [
     "SOCKET_LOCK_FILENAME",
     "SOCKET_OWNER_DRAINING_KEY",
     "SOCKET_OWNER_FILENAME",
+    "SOCKET_OWNER_SPAWN_TOKEN_ENV",
+    "SOCKET_OWNER_SPAWN_TOKEN_KEY",
     "_REJECT_LINGER_SECONDS",
     "LockOutcome",
     "RejectReason",
@@ -244,6 +246,18 @@ LOCK_OUTCOME_HELD = LockOutcome.HELD
 #: serving". Both are a live pid holding the lock; only one of them is going to
 #: let go.
 SOCKET_OWNER_DRAINING_KEY = "draining_at"
+
+
+#: The environment variable Eternia's one hermes spawn gate sets to a token it
+#: minted for that spawn (EterniaLauncher ``lib/core/process/owned_spawn_token.dart``,
+#: ``kOwnedSpawnEnvironmentVariable``). Every descendant inherits it, so it finds
+#: a detached grandchild no ancestry walk can see.
+SOCKET_OWNER_SPAWN_TOKEN_ENV = "ETERNIA_OWNED_SPAWN"
+
+#: The owner-record key that carries :data:`SOCKET_OWNER_SPAWN_TOKEN_ENV`'s value
+#: when it is set (RT-OWNER-RECORD-SPAWN-TOKEN), so the client's recovery-lane
+#: reap can scan for a PREVIOUS instance's descendants (``MissionServeSocketOwner.spawnToken``).
+SOCKET_OWNER_SPAWN_TOKEN_KEY = "spawn_token"
 
 
 #: How long a contender will wait for an owner it can PROVE is leaving (RS-4).

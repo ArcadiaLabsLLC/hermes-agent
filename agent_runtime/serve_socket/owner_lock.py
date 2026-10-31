@@ -37,6 +37,8 @@ from agent_runtime.serve_socket.vocabulary import (
     SOCKET_LOCK_FILENAME,
     SOCKET_OWNER_DRAINING_KEY,
     SOCKET_OWNER_FILENAME,
+    SOCKET_OWNER_SPAWN_TOKEN_ENV,
+    SOCKET_OWNER_SPAWN_TOKEN_KEY,
 )
 
 __layer__ = "stores"
@@ -486,12 +488,19 @@ class SocketOwnerLock:
         Every record carries ``namespace`` (RT-NAMESPACE-STAMP): the id, ``""`` for the base root —
         the store identity a sweep judges a serve by — and ``install {base_root, edition}``
         (RT-NAMESPACE-OWNER-INSTALL-STAMP): which install serves it, since both editions share one store.
+        It carries ``spawn_token`` when Eternia spawned this serve with ``ETERNIA_OWNED_SPAWN``
+        (RT-OWNER-RECORD-SPAWN-TOKEN): the token a later reap scans for, since this serve's detached
+        descendants inherit it. Absent or blank, the key is omitted and the reap is the pid walk alone.
         """
 
         if not self._acquired:
             return
         try:
-            write_json_atomic(self._owner_path, {**store_identity(), **record})
+            row = {**store_identity(), **record}
+            token = (os.environ.get(SOCKET_OWNER_SPAWN_TOKEN_ENV) or "").strip()
+            if token:
+                row[SOCKET_OWNER_SPAWN_TOKEN_KEY] = token
+            write_json_atomic(self._owner_path, row)
         except Exception:
             pass
 

@@ -747,7 +747,12 @@ a loser cannot read the bytes of the file it just lost. The sidecar is also
 where a leaving owner announces itself: :meth:`SocketOwnerLock.mark_draining`
 stamps ``draining_at`` on it as the FIRST act of the drain, before the listener
 closes, so no window exists in which the lane refuses new connections while
-still advertising itself as healthy.
+still advertising itself as healthy. When Eternia spawned the serve with
+``ETERNIA_OWNED_SPAWN`` set, :meth:`SocketOwnerLock.publish_owner` also writes
+that value as ``spawn_token`` (RT-OWNER-RECORD-SPAWN-TOKEN, 2026-10-31): every
+descendant inherits the variable, so the client's recovery-lane reap scans for
+it to find a previous instance's detached descendants no pid walk can see.
+Unset or blank, the key is absent. It is a process tag, not a secret.
 
 **A DEAD owner is not an owner** (R-L2, 2026-09-04). The sidecar outlives its
 process — a killed serve never gets to unlink it — and until this stage a boot

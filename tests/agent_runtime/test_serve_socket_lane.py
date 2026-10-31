@@ -359,11 +359,16 @@ def test_the_ready_frame_publishes_the_port_and_the_registry_records_it():
         assert rows[0]["port"] == port
         assert rows[0]["socket_started_at"]
 
-        # Discovery works from the sidecar too, and neither file leaks the token.
+        # Discovery works from the sidecar too, and neither file leaks the token. Checked against
+        # the SECRET, not the word: the row's argv names whatever test files ran, and the owner
+        # record may carry Eternia's `spawn_token` (RT-OWNER-RECORD-SPAWN-TOKEN), which is no secret.
         owner = read_socket_owner(_store_root())
         assert owner["port"] == port
-        assert "token" not in json.dumps(owner)
-        assert "token" not in json.dumps(rows[0])
+        secret = read_token(_store_root()) or ""
+        assert secret, "no socket secret on disk — this proves nothing"
+        assert secret not in json.dumps(owner)
+        assert secret not in json.dumps(rows[0])
+        assert "token" not in owner and "token" not in rows[0]
 
 
 def test_a_stdio_only_serve_says_the_socket_is_disabled_and_records_no_port():
