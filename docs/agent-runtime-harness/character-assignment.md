@@ -87,6 +87,34 @@ is evidence for reconciliation, not a second writable assignment authority.
 Coordinated rollback tooling and reconciliation of unverified legacy defaults
 remain separate rollout exits; this contract does not silently perform either.
 
+### Recovery qualification (2026-10-31)
+
+The explicit `set` command can reconcile an inherited or conflicting legacy
+inventory after review, including an instance choice of `inherit`. Its receipt
+retains the original inventory and fingerprint; changing the persona default
+then changes that instance's effective character without editing its record.
+An existing unmigrated sibling keeps its legacy authority. A custom profile
+portrait remains an override, not evidence of a matching character/model.
+
+`tests/agent_runtime/test_character_assignment_recovery.py` qualifies these
+choices and a **quiescent, record-aware recovery** using isolated stores:
+
+- Capture acknowledged persona/instance records, receipts, office history and
+  the applicable profile homes together after stopping their writers.
+- Restore that same checkpoint with a runtime/client pair that understands
+  version 1 assignments. Reopen the records and verify the exact subject,
+  inherited/cleared/assigned choice, profile bytes and revision before writes.
+- Repeated acknowledged operations remain idempotent, stale editors still
+  refuse, startup does not replay migration, and legacy placement commands can
+  move actors but cannot change their character.
+
+This is recovery of the captured generation, not permission to discard later
+edits or to run an old binary against migrated data. Rolling back to a
+pre-migration backup loses subsequent choices. No automated live-store restore,
+old-schema downgrade or mass reconciliation was added. Such rollback remains
+outside the qualified path; retained conflicts and portrait relationships still
+require a concrete user choice through their existing owners.
+
 ## Validation
 
 Behavior is exercised by `tests/agent_runtime/test_character_assignment_records.py`

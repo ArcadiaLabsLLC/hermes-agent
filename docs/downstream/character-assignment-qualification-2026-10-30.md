@@ -90,3 +90,27 @@ the accepted run. The ordinary config-persona save fix is included in that run.
 The wider initial gate remains recorded above with its failures. The completed
 changed-symbol, integration-repair and per-file results qualify this migration;
 they do not reclassify unrelated baseline failures as a clean whole-fork run.
+
+## Reviewed reconciliation and recovery checks — 2026-10-31
+
+The follow-up adds four behavioral checks in
+`tests/agent_runtime/test_character_assignment_recovery.py`. They exercise the
+existing command and store owners; no assignment writer, default, live store or
+record codec changes. The reviewed inherited choice keeps its inventory receipt
+and follows later persona changes while an unmigrated sibling remains untouched.
+Quiescent recovery checks all three durable modes, exact IDs, existing settings,
+custom portrait bytes through the existing avatar RPC, retry acknowledgement,
+stale revision rejection, startup idempotence and the legacy placement fence.
+
+The new file plus the existing record, migration and avatar RPC files completed
+with **36 passing tests across four files**, exit 0. The new tests failed with
+assertion errors when live inheritance was disabled (two failures), and when
+the legacy character fence was bypassed (three failures). Both production
+mutations were restored byte-for-byte. The queue/text, citation and touched-test
+prepush checks also completed with exit 0 before the dependency-row landing.
+
+The supported recovery boundary is documented in
+`docs/agent-runtime-harness/character-assignment.md`. This evidence does not
+qualify an old-runtime downgrade or reconcile actual conflicting user artwork.
+The original rollout row remains open for those explicit exits; it is not
+deleted or treated as superseded by successful tests.
