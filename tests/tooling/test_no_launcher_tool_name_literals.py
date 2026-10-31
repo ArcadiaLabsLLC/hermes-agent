@@ -57,8 +57,15 @@ FORK_NAMES: dict[str, str] = {
     "launcher_app_functions_catalog": "fixture file tests/fixtures/launcher_app_functions_catalog.json, named by scripts/vendor_launcher_catalog.py",
 }
 
-#: (path, token) -> why it may be written. Empty: the one live leak was rewritten (R10).
-ALLOWED: dict[tuple[str, str], str] = {}
+#: (path, token) -> why it may be written. The one live leak was rewritten (R10); what is
+#: here is a teach whose names are inert unless the bound link lists them this turn.
+_TEACH_REASON = ("the generated-tree teach (RT-GENERATED-TREE-TEACH-*): named only when the bound "
+                 "link's catalog offers it this turn (offered_to_bound_link), so a renamed or withdrawn "
+                 "verb disables the teach instead of naming a tool the turn lacks")
+ALLOWED: dict[tuple[str, str], str] = {
+    ("agent_runtime/generated_tree_teach.py", f"launcher_generated_{verb}"): _TEACH_REASON
+    for verb in ("read", "grep", "tree", "inspect")
+}
 
 
 def _catalog() -> list[dict]:

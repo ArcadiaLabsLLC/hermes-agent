@@ -74,6 +74,7 @@ __all__ = [
     "forget_launcher_connection",
     "latest_answerer",
     "mutating_app_function_tools",
+    "offered_to_bound_link",
     "refresh_app_function_tools",
     "reset_launcher_link",
 ]
@@ -389,7 +390,7 @@ def _bound_catalog_entries() -> dict[str, AppFunctionEntry] | None:
         return {entry.name: entry for entry in held[1]}
 
 
-def _offered_to_bound_link(name: str) -> bool:
+def offered_to_bound_link(name: str) -> bool:
     """Is *name* in the bound link's catalog? (A turn with no link: False, as before.)"""
 
     entries = _bound_catalog_entries()
@@ -459,7 +460,7 @@ def _sync_registry_union() -> None:
             toolset=APP_FUNCTIONS_TOOLSET,
             schema=entry.schema(),
             handler=lambda args, _name=name, _entry=entry, **_kw: _call_bound(_name, _entry, args),
-            check_fn=no_cache_check_fn(partial(_offered_to_bound_link, name)),
+            check_fn=no_cache_check_fn(partial(offered_to_bound_link, name)),
             description=entry.description,
             dynamic_schema_overrides=partial(_bound_schema, name),
         )

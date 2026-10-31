@@ -352,6 +352,15 @@ def terminal_block_result(**kwargs):
     return classify_terminal_block(**kwargs)
 
 
+def generated_tree_result(**kwargs):
+    """``transform_tool_result`` hook: a host miss on a generated-document path names the
+    Launcher's tree verb (``agent_runtime.generated_tree_teach``); teach, never route."""
+    from agent_runtime.generated_tree_teach import generated_tree_read_result
+    from agent_runtime.launcher_app_functions import offered_to_bound_link
+
+    return generated_tree_read_result(**kwargs, offered=offered_to_bound_link)
+
+
 def record_usage_ledger_row(**kwargs):
     """``post_api_request`` hook: one per-call usage row for a bound persona-turn ledger."""
     from agent_runtime.usage_ledger import on_post_api_request
@@ -542,6 +551,7 @@ def register(ctx) -> None:
     install_stream_observers(ctx.register_hook)
     ctx.register_hook("transform_tool_result", skill_view_result)
     ctx.register_hook("transform_tool_result", terminal_block_result)
+    ctx.register_hook("transform_tool_result", generated_tree_result)
     ctx.register_hook("pre_gateway_dispatch", answer_queue_status)
     # Joins the built-in `skills` toolset by registry membership: a platform bundle reaches it through
     # `skills` (hermes_cli.tools_config._get_platform_tools maps a bundle onto its member toolsets), and
