@@ -8,6 +8,11 @@ tags: [program/mission-control, program]
 
 # Mission Control (runtime side)
 
+`message_skills_cursor::` 2026-10-31 — Composer skill selection travels in the
+existing message envelope and preload builder, preserving per-message identity
+through queued follow-ups/replays. Native inspection reports required preloads.
+Evidence: `docs/downstream/message-bound-skills-2026-10-31.md`.
+
 `projects_connections_cursor::` 2026-10-28 — Existing WorkspaceStore now holds
 revision-checked Project references; workspace, slot, agent and permission
 ownership stays in Hermes. Contract §54 in

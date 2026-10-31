@@ -250,6 +250,7 @@ class _RunPhases:
             min_relay_seconds=relay_policy.MIN_RELAY_BUDGET_SECONDS,
             agents_file=getattr(args, "agents_file", None),
             surface_prompt=getattr(args, "surface_prompt", "") or "",
+            requested_skills=getattr(args, "skills", None) or (),
             root_registries=self.turn_root_registries,
             run_workdir=getattr(args, RUN_WORKDIR_ARG, None),
         )

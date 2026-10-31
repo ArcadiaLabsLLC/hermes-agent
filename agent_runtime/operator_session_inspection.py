@@ -122,7 +122,14 @@ def _operator_skill_document(persona: AgentPersona, params: dict[str, Any], *, c
         try:
             reader = skill_inspection_reader()
             if params["operation"] == "list":
-                return {"skills": reader.catalog(can_load=can_load)}
+                from .skill_resolution import required_preload_skill_ids
+
+                required = set(required_preload_skill_ids(
+                    list(persona.skills or []), surface="mission_chat", root_node_mode=False))
+                return {"skills": [
+                    {**row, "requiredEveryTurn": row["id"] in required or row["name"] in required}
+                    for row in reader.catalog(can_load=can_load)
+                ]}
             identifier = params.get("skill_id")
             if not isinstance(identifier, str) or not identifier or len(identifier) > 512:
                 raise OperatorConversationRefused("invalid_skill_id")

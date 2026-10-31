@@ -525,6 +525,7 @@ def build_mission_chat_turn_context(
     resolvers: MissionChatTurnResolvers = DEFAULT_RESOLVERS,
     root_registries: dict[str, Any] | None = None,
     run_workdir: str | None = None,
+    requested_skills: Sequence[str] = (),
 ) -> MissionChatTurnContext:
     """Resolve one mission-chat turn's whole context. Order is load-bearing.
 
@@ -554,6 +555,7 @@ def build_mission_chat_turn_context(
         native_history=history,
         resolvers=resolvers,
         root_registries=root_registries,
+        requested_skills=requested_skills,
     )
     timings["context_skill_preload_ms"] = _elapsed_ms(_started)
 
@@ -850,6 +852,7 @@ def _resolve_skill_preload(
     native_history: Iterable[dict[str, Any]] | None,
     resolvers: MissionChatTurnResolvers,
     root_registries: dict[str, Any] | None = None,
+    requested_skills: Sequence[str] = (),
 ) -> MissionChatSkillPreload:
     """Consume the queued skills, load the preload, wrap it in its envelope.
 
@@ -863,12 +866,18 @@ def _resolve_skill_preload(
     (owner ruling L1.13, 2026-10-10); the skill index still lists it.
     """
 
+    from .chat_verbs.queue_skill import require_loadable_turn_skills
+
+    # Validate before consuming anything. This selection belongs to the durable
+    # message, so another client or a queued follow-up cannot consume it.
+    selected = require_loadable_turn_skills(requested_skills)
     queued = list(
         resolvers.consume_queued_skills(
             persona_id=str(getattr(persona, "id", "") or ""), session_id=session_id
         )
         or []
     )
+    queued = list(dict.fromkeys([*queued, *selected]))
     required = list(
         dict.fromkeys(
             _required_preload_skills(resolvers, getattr(persona, "skills", []) or [], root_registries)

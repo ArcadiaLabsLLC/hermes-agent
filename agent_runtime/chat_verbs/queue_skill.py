@@ -10,7 +10,8 @@ from __future__ import annotations
 from typing import Any, Iterable
 
 __layer__ = "lanes"
-__all__ = ["QUEUE_SKILL_CAPABILITY", "queue_skills_next_turn"]
+__all__ = ["QUEUE_SKILL_CAPABILITY", "queue_skills_next_turn",
+           "require_loadable_turn_skills", "turn_skill_names"]
 
 QUEUE_SKILL_CAPABILITY = "mission.chat.queue_skill_for_next_turn"
 
@@ -31,6 +32,29 @@ def _rejected_skills(skills: list[str]) -> dict[str, str]:
         if not compatibility["compatible"]:
             rejected[skill] = compatibility["reason"]
     return rejected
+
+
+def turn_skill_names(raw: Any) -> list[str]:
+    """Normalize a message-bound selection without silently discarding a name."""
+    from ..persona_assignments import safe_assignment_token
+
+    if raw is None:
+        return []
+    if not isinstance(raw, (list, tuple)) or any(
+        not isinstance(name, str) or not safe_assignment_token(name) for name in raw
+    ):
+        raise ValueError("skills must be a list of non-empty skill names")
+    return list(dict.fromkeys(safe_assignment_token(name) for name in raw))
+
+
+def require_loadable_turn_skills(raw: Any) -> list[str]:
+    """The next-turn verb and message-bound selections share one resolver."""
+    names = turn_skill_names(raw)
+    rejected = _rejected_skills(names) if names else {}
+    if rejected:
+        detail = ", ".join(f"{name}: {reason}" for name, reason in rejected.items())
+        raise ValueError(f"Selected skills are not loadable ({detail})")
+    return names
 
 
 def queue_skills_next_turn(

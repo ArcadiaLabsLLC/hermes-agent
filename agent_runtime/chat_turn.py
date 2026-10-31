@@ -189,6 +189,7 @@ CHAT_MESSAGE_PARAMS: tuple[str, ...] = (
     "provider",
     "retry_of",
     "session_id",
+    "skills",
     "stream",
     "surface_prompt",
     "title",
@@ -373,6 +374,16 @@ def _correlation_id(params: dict) -> str | None:
     return token
 
 
+def _message_skill_argv(params: dict) -> list[str]:
+    from .chat_verbs.queue_skill import turn_skill_names
+
+    try:
+        names = turn_skill_names(params.get("skills"))
+    except ValueError as error:
+        raise ChatTurnInvalid("skills_invalid", str(error)) from error
+    return [arg for name in names for arg in ("--skill", name)]
+
+
 def normalize_chat_message(params: dict) -> ChatTurnRequest:
     """``runtime.chat.message`` params → the argv a local send would have used."""
 
@@ -396,6 +407,7 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
     clarify_token = _text(params, "clarify_token", limit=MAX_CLARIFY_TOKEN_LENGTH)
     surface_prompt = _text(params, "surface_prompt", limit=MAX_SURFACE_PROMPT_LENGTH)
     intent_hint = _text(params, "intent_hint", limit=MAX_INTENT_HINT_LENGTH)
+    skill_argv = _message_skill_argv(params)
     new_session = _flag(params, "new_session")
     stream = _flag(params, "stream")
     correlation_id = _correlation_id(params)
@@ -466,6 +478,7 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
     ]
     if session_id:
         argv += ["--session-id", session_id]
+    argv += skill_argv
     if persona_instance_id:
         argv += ["--persona-instance-id", persona_instance_id]
     if title:

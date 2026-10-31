@@ -1,5 +1,12 @@
 # 05 — The chat turn lane: one turn, end to end
 
+Message-local skill selection: `runtime.chat.message.skills` carries a list
+of explicit preload names, lowered to repeatable `mission-chat message --skill`.
+It remains part of that message through the existing journal/replay path and
+joins the existing preload resolver, rather than writing the session's
+next-turn queue. Invalid selection refuses before queue consumption.
+Implementation and validation: [message-bound skills](../downstream/message-bound-skills-2026-10-31.md).
+
 This document's operator lane sends one message to one persona instance and
 runs a bounded, receipted, durable turn. The old goal/task mission lane remains
 removed. Independent conversations and discussion runs share runtime authority
