@@ -610,7 +610,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 ## Filed on arrival — 2026-10-28 (lane w1028a-h-rt)
 
 
-- **`FH-QUALIFICATION-DOC-CENSUS-BASELINES` — Reconcile baseline store epoch and coverage claim census failures reported by the suggestion landing run, preserving the assertions and correcting their actual owners** · `tests/agent_runtime/test_store_epoch_gate.py` · `tests/test_coverage_claims_resolve.py` · coverage points to a missing lens-exit-door test in `docs/agent-runtime-harness/planned/lens-deadline-schedule-equivalence-report-2026-10-27.md`; no suggestion source is named by either failure · READY 2026-10-27 · **TAKEN 2026-10-30 w1030c-h on nekwo-ubuntu24 as nekwo in hm-w1030c-h**
 
 ## Filed on arrival — 2026-10-28 (lane w1028a-h-triage)
 
