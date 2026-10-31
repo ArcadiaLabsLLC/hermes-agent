@@ -164,3 +164,10 @@ are the supported rollback boundary.
 
 The model renderer and Aura publication remain separate client-owned stages.
 No renderer claim, model asset, instance system or assignment store was replaced.
+
+Final isolated classification completed: all eleven remaining failing files
+reproduced the same failing node IDs on unmodified bases `ce6a7188ed` or
+`bf6a9a3890` (the latter adds queue records only). The child-job file passed alone;
+the three RPC-manifest files passed after the producer-generated expectation fix.
+All fifteen canonical comparisons completed; none was accepted from a timeout or
+incomplete process. The separate scheduler instability remains recorded above.
