@@ -1,6 +1,6 @@
 {
-  "source_commit": "e55271d36f859c6565c0502d813eacab0086343f",
-  "exported_at": "2026-10-29",
+  "source_commit": "9fa47d9fb093821f3a2a931ad6106625753d79f3",
+  "exported_at": "2026-10-31",
   "entries": [
     {
       "id": "launcher.account.open_section",
@@ -595,6 +595,22 @@
       "guidance_sha256": "d7dd23c529bda7c77796e6f6a1e73cf85d1fb64395c3fac19fed80122d291a3e"
     },
     {
+      "id": "launcher.generated.move",
+      "name": "launcher_generated_move",
+      "read_only": false,
+      "always_loaded": false,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.generated.patch",
+      "name": "launcher_generated_patch",
+      "read_only": false,
+      "always_loaded": true,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
       "id": "launcher.generated.read",
       "name": "launcher_generated_read",
       "read_only": true,
@@ -613,6 +629,14 @@
     {
       "id": "launcher.generated.update",
       "name": "launcher_generated_update",
+      "read_only": false,
+      "always_loaded": true,
+      "reach": "localOnly",
+      "guidance_sha256": null
+    },
+    {
+      "id": "launcher.generated.write",
+      "name": "launcher_generated_write",
       "read_only": false,
       "always_loaded": true,
       "reach": "localOnly",
@@ -952,7 +976,7 @@
       "read_only": false,
       "always_loaded": true,
       "reach": "localOnly",
-      "guidance_sha256": "54841e113b0ed1213890d4094660c54da9ef1cb1328f788461a82986a98a105e"
+      "guidance_sha256": "6a0d53208d8b2f9bd53d1c5d626e148804c283db3000963d23d69ef82df5205d"
     },
     {
       "id": "launcher.navigation.open_overlay",
