@@ -104,6 +104,8 @@ def test_skills_use_the_named_profile_and_durable_session_evidence(placed_agent,
         assert not (profiles.get_profile_dir(name) / "skills" / ".usage.json").exists()
         assert "error" in inspect("skills", {**params, "operation": "detail", "skill_id": "../config.yaml"})
     params = targets[0]
+    from agent_runtime.runtime_hud.envelopes import render_skill_preload_envelope
+
     workspace = tmp_path / "project"
     (workspace / ".git").mkdir(parents=True)
     project_skill = workspace / PROJECT_SKILLS_SUBDIRS[0] / "workspace-review" / "SKILL.md"
@@ -119,10 +121,16 @@ def test_skills_use_the_named_profile_and_durable_session_evidence(placed_agent,
             "id": "load-one", "type": "function", "function": {"name": "skill_view",
                 "arguments": json.dumps({"name": "alpha"})}}])
         db.append_message(params["session_id"], "tool", json.dumps({"success": True}), tool_call_id="load-one")
+        db.append_message(params["session_id"], "user", "Use this skill\n\n" + render_skill_preload_envelope(
+            skill_names=["composer-review"], skill_preload_content="Active for this session"))
+        db.append_message(params["session_id"], "assistant", "Done")
+        db.append_message(params["session_id"], "user", "Follow up without another skill selection")
     assert inspect("skills", {**params, "operation": "detail", "skill_id": "workspace-review"})["result"]["skill"]["content"].endswith("Read and review code.")
     assert "error" in inspect("skills", {**targets[1], "operation": "detail", "skill_id": "workspace-review"})
     history = inspect("skills", {**params, "operation": "history"})["result"]
-    assert history["loaded"] == [{"id": "alpha", "count": 1}] and history["historyComplete"]
+    assert history["loaded"] == [{"id": "alpha", "count": 1}, {"id": "composer-review", "count": 1}]
+    assert history["historyComplete"] and history["preloadHistoryIncluded"]
+    assert inspect("skills", {**targets[1], "operation": "history"})["result"]["loaded"] == []
     persist_mission_chat_turn(session_id=params["session_id"], client_message_id="in-progress",
         turn_id="in-progress", state="running", elements=[])
     assert not inspect("skills", {**params, "operation": "history"})["result"]["historyComplete"]

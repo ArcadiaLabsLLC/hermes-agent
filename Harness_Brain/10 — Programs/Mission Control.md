@@ -10,7 +10,8 @@ tags: [program/mission-control, program]
 
 `message_skills_cursor::` 2026-10-31 — Composer skill selection travels in the
 existing message envelope and preload builder, preserving per-message identity
-through queued follow-ups/replays. Native inspection reports required preloads.
+through queued follow-ups/replays. Native inspection reports required preloads
+and preload load history; message identity does not expire session guidance.
 Evidence: `docs/downstream/message-bound-skills-2026-10-31.md`.
 
 `projects_connections_cursor::` 2026-10-28 — Existing WorkspaceStore now holds

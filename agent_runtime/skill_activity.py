@@ -29,9 +29,22 @@ def skill_load_evidence(tool: str, arguments, *, result=None, finished=False) ->
 
 
 def skill_load_history(messages: list[dict]) -> list[dict]:
-    """Join tool results to their actual calls; prose mentions are not evidence."""
+    """Native preload snapshots and successful tool calls are load evidence.
+
+    Unchanged envelope stubs refer to an earlier snapshot, not another load.
+    This is also the operator composer's chat activity source; never infer
+    active instructions from a client draft or a prose mention.
+    """
+    from .runtime_hud.envelopes import extract_runtime_context_envelope, extract_skill_preload_envelope
+
     calls, loaded = {}, {}
     for message in messages:
+        if message.get("role") == "user":
+            content, _ = extract_runtime_context_envelope(message.get("content"))
+            _, preload = extract_skill_preload_envelope(content)
+            if preload and preload.get("delivery", "snapshot") == "snapshot":
+                for name in preload["skills"]:
+                    loaded[name] = {"id": name, "count": loaded.get(name, {}).get("count", 0) + 1}
         for call in message.get("tool_calls") or ():
             function = call.get("function", {})
             evidence = skill_load_evidence(function.get("name"), function.get("arguments"))

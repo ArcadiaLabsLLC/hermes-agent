@@ -17,8 +17,8 @@ from agent_runtime.persona_chat_durability import default_persona_session_db
 from tools.delegate_tool_child_run import _register_child
 from tools.delegate_tool_registry import _unregister_subagent
 from tests.agent_runtime.test_operator_session_inspection import target, inspect
-from tests.agent_runtime.test_serve_rpc_open_chat import qa_persona, placed_agent  # noqa: F401 (fixtures)
-from tests.agent_runtime.test_instance_conversation_owner import chat_head  # noqa: F401 (autouse fixture)
+from tests.agent_runtime.test_serve_rpc_open_chat import qa_persona, placed_agent  # fixtures
+from tests.agent_runtime.test_instance_conversation_owner import chat_head  # autouse fixture
 
 
 class Child:
@@ -37,7 +37,7 @@ def world(placed_agent, tmp_path, monkeypatch):
     seen = SimpleNamespace(cwd=[], steers=[], rejected={})
     monkeypatch.setattr(runtime_cwd, "set_session_cwd", lambda cwd: seen.cwd.append(cwd) or "token")
     monkeypatch.setattr(runtime_cwd, "reset_session_cwd", lambda token: None)
-    reader = SimpleNamespace(catalog=lambda can_load: [{"id": "git", "can_load": can_load}],
+    reader = SimpleNamespace(catalog=lambda can_load: [{"id": "git", "name": "git", "can_load": can_load}],
                              detail=lambda skill_id, can_load: {"id": skill_id, "can_load": can_load})
     monkeypatch.setattr(skill_inspection, "skill_inspection_reader", lambda: reader)
     monkeypatch.setattr(queue_skill, "_rejected_skills",
@@ -68,7 +68,7 @@ def _skills(world, operation, **extra):
 def test_a_child_ref_reads_the_childs_catalog_not_the_parents(world):
     listed = _skills(world, "list", child_ref=world.ref)
     assert "result" in listed, listed
-    assert listed["result"]["skills"] == [{"id": "git", "can_load": True}]
+    assert listed["result"]["skills"] == [{"id": "git", "name": "git", "can_load": True}]
     assert listed["result"]["lent"] == [] and listed["result"]["child_ref"] == world.ref
     assert world.seen.cwd == [world.child.cwd], "the child's own working directory"
     detail = _skills(world, "detail", child_ref=world.ref, skill_id="git")["result"]

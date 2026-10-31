@@ -149,6 +149,7 @@ def _operator_skill_history(db: Any, session_id: str) -> dict[str, Any]:
     unsettled = any(turn["state"] in INFLIGHT_TURN_STATES | SETTLING_TURN_STATES
                     for turn in mission_chat_turn_records(session_id=session_id))
     return {"loaded": skill_load_history(history),
+            "preloadHistoryIncluded": True,
             "historyComplete": not unsettled and not unsettled_chat_receipts(session_id)}
 
 
