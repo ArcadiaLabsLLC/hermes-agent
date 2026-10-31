@@ -3429,8 +3429,8 @@ usage: hermes harness mission-chat message [-h] --persona PERSONA_ID
                                            [--requested-by REQUESTED_BY]
                                            [--client-message-id CLIENT_MESSAGE_ID]
                                            [--idempotency-key IDEMPOTENCY_KEY] [--retry-of RETRY_OF]
-                                           [--image IMAGES] [--file FILES] [--stream]
-                                           [--max-seconds MAX_SECONDS]
+                                           [--image IMAGES] [--file FILES] [--skill SKILLS]
+                                           [--stream] [--max-seconds MAX_SECONDS]
                                            [--compression-threshold-tokens COMPRESSION_THRESHOLD_TOKENS]
                                            [--compression-protect-first-n COMPRESSION_PROTECT_FIRST_N]
                                            [--compression-protect-last-n COMPRESSION_PROTECT_LAST_N]
@@ -3474,6 +3474,8 @@ options:
   --file FILES          A reviewed file stored by runtime.chat.message, by reference
                         (sha256:<hex>.<ext>); repeatable, at most 8 (limits.files); staged for the
                         agent as a FILE:<path> line it reads with read_file, never inlined
+  --skill SKILLS        Preload a skill for this message only; repeatable, carried with this turn's
+                        durable request
   --stream              Emit operator-chat deltas and the final payload as NDJSON
   --max-seconds MAX_SECONDS
                         Wall budget for this turn (default:
