@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-31 (launcher lanes w1031b-level, -grep, -diag)
+
+- **`RT-VENDOR-W1031B-CATALOG` — re-vendor the launcher app-function catalog after launcher wave w1031b lands: 19 new `launcher.world.level.*` entries, the V4A `patch` argument on `launcher.generated.patch`, and grep's regex default (`literal`)** · `scripts/vendor_launcher_catalog.py` · `tests/fixtures/launcher_app_functions_catalog.json` · BLOCKED 2026-10-31: launcher — `LEVEL-AGENT-S7-PROOF` lands with launcher wave w1031b (then vendor from launcher main)
+
 ### Filed on arrival — 2026-10-31 (launcher lane w1031b-spawn)
 
 - **`RT-OWNER-RECORD-SPAWN-TOKEN` — `serve_socket.owner.json` writes `spawn_token` from `os.environ["ETERNIA_OWNED_SPAWN"]` when set, so Eternia's recovery-lane reap can scan for a previous instance's detached descendants (client half landed in EterniaLauncher 4effbf2ed8: `MissionServeSocketOwner.spawnToken`, `killHostProcessTree` `environmentToken`)** · `agent_runtime/serve_socket/owner_lock.py` · `EterniaLauncher/docs/mission_control/subsystems/POSIX_OWNED_SPAWN_TOKEN_KILL_2026-10-31.md` · READY 2026-10-31
