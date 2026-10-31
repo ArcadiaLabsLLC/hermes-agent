@@ -1123,9 +1123,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 - **`RT-WINDOWS-SUPERVISION-FIXTURE-IDENTITY` — Triage the two launcher-supervision fixture identity failures on native Windows while retaining the real-process safety fence** · `tests/agent_runtime/test_launcher_relaunch.py::test_the_hang_kill_takes_the_launcher_and_spares_its_child` · `tests/agent_runtime/test_launcher_supervision_ops.py::test_only_the_connection_that_beat_can_drop_it` · both fail on isolated unmodified main `19e49b3c57` as well as the migration landing-gate run; the connection test records `launcher_identity_mismatch` instead of the expected drop; no character code runs in either owning seam · separate fixture identity from any actual supervisor defect; do not weaken live-system protection or change another lane's relaunch behavior · READY 2026-10-30 · REQUIRES windows
 
-## Filed on arrival — 2026-10-30 (launcher live check: an agent asked to declare Project slots)
-
-
 ## Filed on arrival — 2026-10-31 (launcher planning lane w1031a-planc: remote companion portraits)
 
 - **`RT-PETS-THUMB-RPC` — Register `runtime.pets.thumb` (`tier=TIER_READ`, a new `pets` lane family) with params `{slug, url?}` answering `{ok, slug, handle: sha256:<hex>, media_type: image/png, data_base64}` from `agent/pet/store.py::thumbnail_png` and `media_handles.handle_for_bytes`, or `{ok: false, reason: not_installed | unavailable}`; bytes inline because the media scope is derived from chat logs and admits no registration; update `serve_rpc_manifest.expected.json`** · `agent_runtime/serve_rpc/media.py` · `hermes_cli/harness_parts/pets_commands.py::_cmd_pets_thumb` · launcher plan `eternia_launcher/docs/mission_control/planned/REMOTE_COMPANION_PORTRAIT_TRANSPORT_2026-10-31.md` §H1; the launcher half is `MC-REMOTE-PORTRAIT-THUMB-CLIENT` · READY 2026-10-31
