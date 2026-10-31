@@ -578,6 +578,8 @@ def ensure_hermes_home():
     assert_named_profile_home_live(home)
     if key in _HERMES_HOME_ENSURED and home.is_dir():
         return
+    if __import__("hermes_read_only_invocation").is_read_only_invocation():  # fork seam: RT-SESSIONS-EXPORT-HOME-WRITES
+        return
     from hermes_cli.config_home import initialize_home
     initialize_home(home, _HERMES_HOME_SUBDIRS, _HERMES_HOME_ENSURED)
 

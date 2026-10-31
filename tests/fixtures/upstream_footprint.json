@@ -1,7 +1,7 @@
 {
-  "measured_at": "2026-10-30",
+  "measured_at": "2026-10-31",
   "base": "4d04303818",
-  "files": 241,
+  "files": 244,
   "deleted_lines": 1052,
   "heavy": 1,
   "reasons": [
@@ -1270,6 +1270,51 @@
       },
       "reason": "eternia-harness registers skill_search into the BUILT-IN skills toolset, so _get_plugin_toolset_keys named skills and _enabled_plugin_toolsets re-enabled it for an explicit platform_toolsets.cli: [] (safe mode stripped the whole toolset). One additive line in _get_platform_tools drops built-in keys from the plugin key set (upstream PR candidate: upstream's own _get_effective_configurable_toolsets already skips a plugin key that is built-in). A second additive line adds the fork's opt-in schedule toolset to _DEFAULT_OFF_TOOLSETS (carry: the name is fork-only). Control: tests/hermes_cli/test_plugin_toolset_defaults_downstream.py.",
       "owner_ruling": "2026-10-29 \u00b7 Harness_Brain/20 \u2014 Active Initiatives/runtime-queue.md RT-LOCAL-RECOVERY-FROZEN-SAFE-TOOLS RULED segment (owner: rest of recommendations are good)"
+    },
+    {
+      "change": "RT-SESSIONS-EXPORT-HOME-WRITES (lane w1031a-h)",
+      "before": {
+        "files": 241,
+        "deleted_lines": 1052,
+        "heavy": 1
+      },
+      "after": {
+        "files": 242,
+        "deleted_lines": 1052,
+        "heavy": 1
+      },
+      "reason": "RT-SESSIONS-EXPORT-HOME-WRITES: an additive 2-line # fork seam guard reads hermes_read_only_invocation.is_read_only_invocation() and skips this boot writer for `hermes sessions export`, so the launcher's owner-chat import leaves a writable home untouched. Upstream PR candidate: the predicate and the four guards (with hermes_cli/config.py::ensure_hermes_home). Control: tests/hermes_cli/test_sessions_export_home_writes_downstream.py",
+      "owner_ruling": "2026-10-30 \u00b7 Harness_Brain/20 \u2014 Active Initiatives/runtime-queue.md RT-SESSIONS-EXPORT-HOME-WRITES RULED (owner: \"just do the upstream edits if its safer\")"
+    },
+    {
+      "change": "RT-SESSIONS-EXPORT-HOME-WRITES (lane w1031a-h)",
+      "before": {
+        "files": 242,
+        "deleted_lines": 1052,
+        "heavy": 1
+      },
+      "after": {
+        "files": 243,
+        "deleted_lines": 1052,
+        "heavy": 1
+      },
+      "reason": "RT-SESSIONS-EXPORT-HOME-WRITES: an additive 2-line # fork seam guard reads hermes_read_only_invocation.is_read_only_invocation() and skips this boot writer for `hermes sessions export`, so the launcher's owner-chat import leaves a writable home untouched. Upstream PR candidate: the predicate and the four guards (with hermes_cli/config.py::ensure_hermes_home). Control: tests/hermes_cli/test_sessions_export_home_writes_downstream.py",
+      "owner_ruling": "2026-10-30 \u00b7 Harness_Brain/20 \u2014 Active Initiatives/runtime-queue.md RT-SESSIONS-EXPORT-HOME-WRITES RULED (owner: \"just do the upstream edits if its safer\")"
+    },
+    {
+      "change": "RT-SESSIONS-EXPORT-HOME-WRITES (lane w1031a-h)",
+      "before": {
+        "files": 243,
+        "deleted_lines": 1052,
+        "heavy": 1
+      },
+      "after": {
+        "files": 244,
+        "deleted_lines": 1052,
+        "heavy": 1
+      },
+      "reason": "RT-SESSIONS-EXPORT-HOME-WRITES: an additive 2-line # fork seam guard reads hermes_read_only_invocation.is_read_only_invocation() and skips this boot writer for `hermes sessions export`, so the launcher's owner-chat import leaves a writable home untouched. Upstream PR candidate: the predicate and the four guards (with hermes_cli/config.py::ensure_hermes_home). Control: tests/hermes_cli/test_sessions_export_home_writes_downstream.py",
+      "owner_ruling": "2026-10-30 \u00b7 Harness_Brain/20 \u2014 Active Initiatives/runtime-queue.md RT-SESSIONS-EXPORT-HOME-WRITES RULED (owner: \"just do the upstream edits if its safer\")"
     }
   ]
 }
