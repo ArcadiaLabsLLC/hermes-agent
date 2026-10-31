@@ -38,6 +38,7 @@ from .project_store import (
     PROJECT_SCHEMA_VERSION,
     enforce_share_rule,
     stamp_order,
+    valid_migration_origin,
     valid_root_name,
     write_project,
 )
@@ -53,6 +54,7 @@ REASON_DOCUMENT_MALFORMED = "project_document_malformed"
 REASON_DOCUMENT_MISFILED = "project_document_misfiled"
 REASON_INVALID_CATEGORY = "invalid_category"
 REASON_INVALID_GUIDANCE = "invalid_guidance"
+REASON_INVALID_MIGRATED_FROM = "invalid_migrated_from"
 
 
 def _rank(entry: dict[str, Any]) -> tuple[int, float]:
@@ -87,6 +89,10 @@ def merge_projects(local: dict[str, Any], remote: dict[str, Any]) -> dict[str, A
     guidance = _newer(local.get("guidance"), remote.get("guidance"))
     if isinstance(guidance, dict):
         merged["guidance"] = guidance
+    # Set once by the slot migration and never edited: either side's record, the local one first.
+    origin = valid_migration_origin(local.get("migrated_from")) or valid_migration_origin(remote.get("migrated_from"))
+    if origin is not None:
+        merged["migrated_from"] = origin
     enforce_share_rule(merged)
     return merged
 
@@ -152,6 +158,12 @@ def held_project(remote: dict[str, Any], *, me: str | None = None,
               and len(remote["name"]) <= NAME_MAX_CHARS else "",
               "issued_at": held.get("issued_at") or "", "slots": held["slots"], "categories": categories,
               "machines": held["machines"]}
+    if remote.get("migrated_from") is not None:
+        origin = valid_migration_origin(remote["migrated_from"])
+        if origin is None:
+            refused.append({"field": "migrated_from", "reason": REASON_INVALID_MIGRATED_FROM})
+        else:
+            record["migrated_from"] = origin
     if "guidance" in remote:
         guidance = _held_guidance(remote["guidance"], now)
         if guidance is None:

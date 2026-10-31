@@ -7,7 +7,8 @@ idempotent under crash and retry: the migration identity is the workspace id, th
 
 For each ``store/workspace_slots/<ws>.json`` with live slots whose workspace record exists:
 
-1. Project ``ws-<ws>`` named "<workspace name> slots" takes the document's slots VERBATIM (tombstones
+1. Project ``ws-<ws>`` named "<workspace name> repos", with ``migrated_from: {workspace_id, workspace_name}``
+   so a reader can say where it came from (RT-MIGRATED-PROJECT-NAME), takes the document's slots VERBATIM (tombstones
    included) and its ``machines`` (``ProjectStore.adopt_workspace_document``), and is connected to the
    workspace (``set_project_connection(machine_own=True)``). A workspace that already holds connected
    Projects still gets its own ``ws-`` Project: nothing is merged by clone URL or path.
@@ -41,6 +42,18 @@ __layer__ = "stores"
 PROJECT_PREFIX = "ws-"
 
 
+def migrated_project_name(workspace_name: str) -> str:
+    """The name a migrated Project takes: what it holds, the workspace's repos."""
+
+    return f"{workspace_name} repos"
+
+
+def legacy_migrated_project_name(workspace_name: str) -> str:
+    """The name the migration gave before RT-MIGRATED-PROJECT-NAME, renamed on the next boot."""
+
+    return f"{workspace_name} slots"
+
+
 def migrated_project_id(workspace_id: str) -> str:
     return f"{PROJECT_PREFIX}{workspace_id}"
 
@@ -53,12 +66,13 @@ def migrate_namespace() -> dict[str, Any]:
     from .workspace_slots import live_slots, load_document_from
 
     directory = paths.workspace_slots_dir()
-    migrated, skipped, already = [], [], 0
+    migrated, skipped, already, renamed = [], [], 0, 0
     for path in sorted(directory.glob("*.json")) if directory.is_dir() else []:
         document = load_document_from(path)
         workspace_id = str(document.get("workspace_id") or path.stem)
         if document.get("migrated_to"):
             already += 1
+            renamed += _rename_legacy(workspace_id, str(document["migrated_to"]))
             continue
         if not isinstance(document.get("slots"), dict) or not live_slots(document):
             continue
@@ -68,9 +82,9 @@ def migrate_namespace() -> dict[str, Any]:
             skipped.append({"workspace_id": workspace_id, "reason": "workspace_not_found"})
             continue
         migrated.append(migrate_workspace(workspace, document))
-    receipt = {"migrated": migrated, "skipped": skipped, "already_migrated": already,
+    receipt = {"migrated": migrated, "skipped": skipped, "already_migrated": already, "renamed": renamed,
                "equal": all(row["equal"] for row in migrated)}
-    if migrated or skipped:
+    if migrated or skipped or renamed:
         from .work_store import receipts
 
         receipts.emit("project_migration.completed", **receipt)
@@ -80,7 +94,7 @@ def migrate_namespace() -> dict[str, Any]:
 def migrate_workspace(workspace: Any, document: dict[str, Any]) -> dict[str, Any]:
     """Steps 1, 2 and 4 for one workspace; its counts, old and new."""
 
-    from .project_store import ProjectStore, load_project
+    from .project_store import ProjectStore, load_project, migration_origin
     from .workspace_projects import set_project_connection
     from .workspace_slot_env import copy_workspace_fills
     from .workspace_slots import scoped_roots, write_document
@@ -89,7 +103,8 @@ def migrate_workspace(workspace: Any, document: dict[str, Any]) -> dict[str, Any
     before = {"slots": len(document.get("slots") or {}),
               "fills": len(scoped_roots().workspace_roots.get(workspace_id) or {})}
     # 1. the Project, then its connection (both set-to-value)
-    ProjectStore().adopt_workspace_document(project_id, name=f"{workspace.name} slots", document=document)
+    ProjectStore().adopt_workspace_document(project_id, name=migrated_project_name(workspace.name), document=document,
+                                            migrated_from=migration_origin(workspace))
     if project_id not in workspace.project_ids:
         set_project_connection(workspace_id, project_id, connected=True,
                                expected_revision=workspace.project_assignment_revision, machine_own=True)
@@ -110,6 +125,25 @@ def migrate_workspace(workspace: Any, document: dict[str, Any]) -> dict[str, Any
     return {"workspace_id": workspace_id, "project_id": project_id, "before": before, "after": after,
             "env_fills": env_copied, "worktree_records": worktrees, "instances": len(instances),
             "equal": before["slots"] == after["slots"] and before["fills"] <= after["fills"]}
+
+
+def _rename_legacy(workspace_id: str, project_id: str) -> int:
+    """A Project migrated under the old name takes the new one and its origin (1), else 0."""
+
+    from .errors import NotFound
+    from .project_store import ProjectStore, migration_origin
+    from .store import WorkspaceStore
+    from .workspace_slots import SlotRefused
+
+    if project_id != migrated_project_id(workspace_id):
+        return 0  # a Project the migration did not make keeps whatever it is called
+    try:
+        workspace = WorkspaceStore().get(workspace_id)
+        return int(ProjectStore().rename_legacy_migrated(
+            project_id, legacy_name=legacy_migrated_project_name(workspace.name),
+            name=migrated_project_name(workspace.name), migrated_from=migration_origin(workspace)))
+    except (NotFound, SlotRefused):
+        return 0
 
 
 def _copy_path_fills(workspace_id: str, project_id: str) -> None:

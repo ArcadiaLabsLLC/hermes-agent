@@ -49,7 +49,8 @@ def test_the_migration_moves_every_slot_fill_and_record_with_equal_counts(namesp
     assert by_ws[a]["env_fills"] == 1 and by_ws[a]["worktree_records"] == 1
     # The Project holds the slots VERBATIM and the workspace is connected to it.
     assert load_project(f"ws-{a}")["slots"] == load_document(a)["slots"]
-    assert load_project(f"ws-{a}")["name"] == "Alpha slots"
+    assert load_project(f"ws-{a}")["name"] == "Alpha repos"
+    assert load_project(f"ws-{a}")["migrated_from"] == {"workspace_id": a, "workspace_name": "Alpha"}
     assert WorkspaceStore().get(a).project_ids == [f"ws-{a}"]
     # The fills are the Project's now, and a workspace-keyed reader still finds them.
     roots = scoped_roots()
