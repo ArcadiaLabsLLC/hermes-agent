@@ -83,12 +83,27 @@ def _error_context(refusal: ProviderRefusal, *, now: float) -> dict[str, Any]:
 
 
 def _pool_for(provider: str, agent: Any) -> Any:
-    pool = getattr(agent, "_credential_pool", None)
-    if pool is not None and str(getattr(pool, "provider", "") or "").strip().lower() == provider.lower():
-        return pool
-    from agent.credential_pool import load_pool
+    """The pool the run dispatched from, keyed the way the runtime keys it.
 
-    return load_pool(provider)
+    A custom OpenAI-compatible provider's pool is stored under its durable
+    ``providers.<key>`` slug or the legacy ``custom:<name>``, never under the
+    refusal's provider word (``custom`` or the configured name), so the key is
+    resolved through the pool's own authority
+    (:func:`agent.credential_pool.resolve_runtime_pool_key`) against the run's
+    endpoint — the same identity boundary the runtime selects through
+    (RT-REFUSAL-POOL-CUSTOM-PROVIDER-KEY).
+    """
+
+    from agent.credential_pool import credential_pool_matches_provider, load_pool, resolve_runtime_pool_key
+
+    base_url = getattr(agent, "base_url", None)
+    base_url = base_url if isinstance(base_url, str) else None
+    pool = getattr(agent, "_credential_pool", None)
+    if pool is not None and getattr(pool, "provider", None) and credential_pool_matches_provider(
+        pool, provider, base_url=base_url
+    ):
+        return pool
+    return load_pool(resolve_runtime_pool_key(provider, base_url) or provider)
 
 
 def record_provider_refusal(exc: BaseException, *, agent: Any = None, now: float | None = None) -> Optional[str]:

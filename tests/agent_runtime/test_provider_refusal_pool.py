@@ -149,3 +149,56 @@ def test_a_harness_authored_unavailable_block_is_not_a_credential_fact():
 
     assert record_provider_refusal(ProfileRunnerError("x", provider_error=block)) is None
     assert _health("row0") == {"state": "healthy"}
+
+
+# RT-REFUSAL-POOL-CUSTOM-PROVIDER-KEY: a custom provider's pool is keyed `custom:<name>`,
+# never by the refusal's provider word, so the refusal must resolve the runtime's key.
+CUSTOM_ENDPOINT = "https://lab.example/v1"
+CUSTOM_POOL_KEY = "custom:lab-box"
+
+
+def _seed_custom(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "agent.credential_pool._iter_custom_providers",
+        lambda config=None: iter([("lab-box", {"name": "Lab Box", "base_url": CUSTOM_ENDPOINT})]),
+    )
+    row = PooledCredential(
+        provider=CUSTOM_POOL_KEY, id="lab0", label="lab", source="manual",
+        auth_type="api_key", access_token="lab-only-key", priority=0,
+    )
+    write_credential_pool(CUSTOM_POOL_KEY, [row.to_dict()])
+
+
+def _custom_health() -> dict:
+    return _credential_health(next(e for e in load_pool(CUSTOM_POOL_KEY).entries() if e.id == "lab0"))
+
+
+class _CustomAgent:
+    api_key = None
+    base_url = CUSTOM_ENDPOINT
+
+
+def test_a_named_custom_provider_refusal_marks_its_custom_keyed_pool(monkeypatch):
+    _seed_custom(monkeypatch)
+    assert _custom_health() == {"state": "healthy"}
+
+    marked = record_provider_refusal(
+        ProfileRunnerError("x", provider_error={**LIVE_BLOCK, "provider": "lab-box"}), agent=_CustomAgent()
+    )
+
+    assert marked == "lab0"
+    assert _custom_health()["state"] == "rate_limited"
+
+
+def test_positive_control_a_custom_refusal_from_another_endpoint_borrows_no_pool(monkeypatch):
+    """Same bytes, one variable: the endpoint. The name alone must not lend the pool."""
+
+    _seed_custom(monkeypatch)
+
+    class Elsewhere(_CustomAgent):
+        base_url = "https://elsewhere.example/v1"
+
+    assert record_provider_refusal(
+        ProfileRunnerError("x", provider_error={**LIVE_BLOCK, "provider": "lab-box"}), agent=Elsewhere()
+    ) is None
+    assert _custom_health() == {"state": "healthy"}
