@@ -84,8 +84,8 @@ An old runtime binary is not a supported writer of migrated records: its older
 codec discards unknown fields. Do not downgrade a migrated store in place or
 claim the legacy codec can preserve an explicit clear. The retained source data
 is evidence for reconciliation, not a second writable assignment authority.
-Coordinated rollback tooling and reconciliation of unverified legacy defaults
-remain separate rollout exits; this contract does not silently perform either.
+Explicit reconciliation and compensating rollback use the review and restore
+commands below. Neither silently selects from conflicting legacy choices.
 
 ### Recovery qualification (2026-10-31)
 
@@ -111,9 +111,10 @@ choices and a **quiescent, record-aware recovery** using isolated stores:
 This is recovery of the captured generation, not permission to discard later
 edits or to run an old binary against migrated data. Rolling back to a
 pre-migration backup loses subsequent choices. No automated live-store restore,
-old-schema downgrade or mass reconciliation was added. Such rollback remains
-outside the qualified path; retained conflicts and portrait relationships still
-require a concrete user choice through their existing owners.
+old-schema downgrade or mass reconciliation was added. Such downgrade remains
+outside the qualified path. The Shared character review described below gives
+retained conflicts and persona defaults an explicit choice through their existing
+owner; custom portraits remain independent overrides.
 
 ## Validation
 
@@ -125,3 +126,31 @@ the runtime field and RPC contract.
 
 The [qualification record](../downstream/character-assignment-qualification-2026-10-30.md)
 separates completed checks, repaired regressions and unrelated baseline failures.
+
+
+### Explicit review and compensating rollback (2026-10-31)
+
+The client profile's Shared character review consumes `preview_migration` for
+an exact instance or its persona default. A first save submits the inventory
+fingerprint actually shown to the user; changed inventories and revisions
+refuse. Inherit, explicitly unassigned and assigned remain distinct. Choosing a
+persona default affects only its inheriting record-owned instances; explicit
+and unmigrated siblings retain their choices. Custom portrait bytes stay under
+the existing profile-avatar owner, as independent overrides. Review never
+asserts that a portrait depicts the selected character.
+
+`runtime.character.assignment.restore_previous` (console tier) accepts the same
+exact subject, expected revision and operation ID. It restores the immediately
+previous **record-owned choice** as a new revision inside the existing store
+lock. The version-1 assignment carries additive `previous_choice` (mode, asset,
+revision) and `operation_kind` fields. No second history store or writer exists.
+Receipts and unrelated settings are retained; duplicate restore operations are
+idempotent and stale restores refuse. Inheritance is restored as a live link,
+not a copy of the persona's former character. The first migration cannot restore
+ambiguous legacy authority; it must be explicitly reconciled instead.
+
+This is the supported appearance rollback paired with the record-aware recovery
+procedure above. Rollback of deployment must retain a version-1-capable runtime
+and client; removing the review UI does not remove record ownership. In-place
+old-binary/schema downgrade remains unsupported. No live user inventory is mass
+reconciled by installing this change.

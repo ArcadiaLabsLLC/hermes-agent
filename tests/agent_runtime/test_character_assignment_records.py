@@ -184,3 +184,54 @@ def test_new_instance_inherits_migrated_persona_without_cutting_over_old_sibling
     assert store.get(legacy.id).character_assignment is None
     persona = AgentStore().save(persona, character_change=CharacterAssignmentChange(1, "assigned", "chara:aura", "changed-default"))
     assert resolve_character_assignment(restarted, persona)["asset_reference"] == "chara:aura"
+
+
+@pytest.mark.parametrize("mode,asset", [("inherit", None), ("unassigned", None), ("assigned", "existing-character")])
+def test_restore_is_a_cas_revision_not_a_second_assignment_writer(character_records, mode, asset):
+    from agent_runtime.character_assignment_service import restore_character_assignment
+    persona, instance = character_records
+    store = PersonaInstanceStore()
+    receipt = {"version": 1, "sources": [{"source": "client_legacy", "value": "kept"}]}
+    first = store.set_character_assignment(instance.id, CharacterAssignmentChange(0, mode, asset, "first", receipt))
+    stale = store.get(instance.id)
+    store.set_character_assignment(instance.id, CharacterAssignmentChange(1, "assigned", "new-look", "edit"))
+    request = {"kind": "instance", "id": instance.id, "persona_id": persona.id,
+        "expected_revision": 2, "operation_id": "restore"}
+    restored = restore_character_assignment(request)
+    assert restored["revision"] == 3
+    assert restored["assignment"]["mode"] == mode
+    assert restored["assignment"]["asset_reference"] == asset
+    assert restored["assignment"]["migration_receipt"] == receipt
+    assert restore_character_assignment(request) == restored
+    stale.display_name = "Keep other settings"
+    store.update(stale)
+    assert store.get(instance.id).character_assignment == restored["assignment"]
+    assert store.get(instance.id).display_name == "Keep other settings"
+    with pytest.raises(CharacterAssignmentRefused, match="current assignment"):
+        restore_character_assignment({**request, "operation_id": "stale-restore"})
+    assert first.character_assignment["mode"] == mode
+    if mode == "inherit":
+        AgentStore().save(persona, character_change=CharacterAssignmentChange(0, "assigned", "new-persona-default", "default"))
+        assert resolve_character_assignment(store.get(instance.id), AgentStore().get(persona.id))["asset_reference"] == "new-persona-default"
+
+
+def test_first_migration_never_restores_ambiguous_legacy_authority(character_records):
+    _persona, instance = character_records
+    store = PersonaInstanceStore()
+    first = store.set_character_assignment(instance.id, CharacterAssignmentChange(0, "inherit", None, "first"))
+    with pytest.raises(CharacterAssignmentRefused, match="No previous record-owned"):
+        store.set_character_assignment(instance.id, CharacterAssignmentChange(1, "inherit", None, "restore", restore_previous=True))
+    assert store.get(instance.id).character_assignment == first.character_assignment
+
+
+def test_unchanged_save_keeps_the_previous_distinct_choice(character_records):
+    _, instance = character_records
+    store = PersonaInstanceStore()
+    store.set_character_assignment(instance.id, CharacterAssignmentChange(0, "inherit", None, "first"))
+    store.set_character_assignment(instance.id, CharacterAssignmentChange(1, "assigned", "new-look", "edit"))
+    same = store.set_character_assignment(instance.id, CharacterAssignmentChange(2, "assigned", "new-look", "same"))
+    assert same.character_assignment["previous_choice"]["mode"] == "inherit"
+    restored = store.set_character_assignment(instance.id, CharacterAssignmentChange(3, "inherit", None, "undo", restore_previous=True))
+    assert restored.character_assignment["mode"] == "inherit"
+    with pytest.raises(CharacterAssignmentRefused, match="Operation id"):
+        store.set_character_assignment(instance.id, CharacterAssignmentChange(3, "inherit", None, "undo"))

@@ -52,6 +52,8 @@ REFUSAL = {
     "next_expected": "check the provider key, then resend",
     "session_id": SESSION,
     "turn_id": "turn-77",
+    "persona_instance_id": "personainst_exact_sibling",
+    "persona_id": "shared-persona",
 }
 
 
@@ -108,6 +110,9 @@ def test_a_settle_reaches_a_socket_client_while_the_stream_producer_is_raising()
             assert exit_frame["code"] == 1
             # Durable BEFORE the exit frame.
             record = read_settle(settle_id_for(SESSION, CMID))
+            assert record.persona_instance_id == "personainst_exact_sibling"
+            assert record.persona_id == "shared-persona"
+            assert record.frame()["persona_instance_id"] == "personainst_exact_sibling"
             assert record is not None and record.exit_code == 1
 
             settled = _read_until(connection, "turn_settled")
@@ -385,3 +390,26 @@ def test_a_plain_new_session_send_settles_with_its_turn_and_minted_root():
             record = read_settle(settle_id_for("sess-minted-9", "cm-plain-1"))
     assert record is not None
     assert (record.session_id, record.turn_id) == ("sess-minted-9", "cm-plain-1")
+
+
+@pytest.mark.parametrize("payload", [REFUSAL, {**REFUSAL, "ok": True, "error_kind": None}])
+def test_exact_owner_survives_outbox_read_retry_and_ack(payload):
+    outcome = settles.outcome_from_payload(payload)
+    record = record_settle(client_message_id=CMID, session_id=SESSION,
+        request_id="owner-test", exit_code=0 if payload["ok"] else 1, outcome=outcome)
+    assert read_settle(record.settle_id) == record
+    assert record.frame()["persona_instance_id"] == payload["persona_instance_id"]
+    assert record.frame()["persona_id"] == payload["persona_id"]
+    retry = record_settle(client_message_id=CMID, session_id=SESSION,
+        request_id="retry", exit_code=0, outcome=TurnOutcome(persona_instance_id="wrong-sibling"))
+    assert retry == record
+    assert ack_settle(record.settle_id) is True
+    assert read_settle(record.settle_id).persona_instance_id == payload["persona_instance_id"]
+
+
+def test_missing_owner_stays_unknown_instead_of_borrowing_a_persona_default():
+    outcome = settles.outcome_from_payload({"session_id": SESSION, "turn_id": "turn-old"})
+    record = record_settle(client_message_id=CMID, session_id=SESSION,
+        request_id="old-runtime", exit_code=0, outcome=outcome)
+    assert record.frame()["persona_instance_id"] is None
+    assert record.frame()["persona_id"] is None

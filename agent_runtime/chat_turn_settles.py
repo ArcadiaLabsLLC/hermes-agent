@@ -98,6 +98,10 @@ class TurnOutcome:
     #: The answer was "accepted and queued" (a busy root): the turn has not run,
     #: so this is not its settle. Its settle is recorded when it runs.
     queued: bool = False
+    # From the turn's validated terminal payload, never from request argv or
+    # the persona's current/default chat pointer (which may name a sibling).
+    persona_instance_id: str | None = None
+    persona_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -128,6 +132,8 @@ class SettleRecord:
     #: written before it existed, or by a writer with no serve). Owner ruling
     #: 2026-10-10 (L5.10): a non-owner serve pushes only records it wrote.
     recorded_by: str | None = None
+    persona_instance_id: str | None = None
+    persona_id: str | None = None
 
     def as_row(self) -> dict[str, Any]:
         """The stored record as one listing row (the operator verbs' shape)."""
@@ -144,6 +150,8 @@ class SettleRecord:
             "client_message_id": self.client_message_id,
             "session_id": self.session_id,
             "turn_id": self.turn_id,
+            "persona_instance_id": self.persona_instance_id,
+            "persona_id": self.persona_id,
             "request_id": self.request_id,
             "exit_code": self.exit_code,
             "refusal_class": self.refusal_class,
@@ -251,6 +259,8 @@ def _outcome_from(data: dict[str, Any]) -> TurnOutcome:
         fix_hint=_scrubbed(fix_hint),
         summary=_scrubbed(summary),
         queued=data.get("queued") is True,
+        persona_instance_id=_settle_text(data.get("persona_instance_id")),
+        persona_id=_settle_text(data.get("persona_id")),
     )
 
 
@@ -315,6 +325,8 @@ def record_settle(
             next_attempt_at=stamp,
             updated_at=stamp,
             recorded_by=_settle_text(recorded_by),
+            persona_instance_id=outcome.persona_instance_id,
+            persona_id=outcome.persona_id,
         )
         _write(record)
         return record

@@ -1,13 +1,13 @@
 """Revision-checked agent character commands; independent of office/rendering.
 
-The four method names are the capability boundary. Older runtimes continue to
+The declared method names are the capability boundary. Older runtimes continue to
 use their existing writer. Once activated, an old client receives an explicit
 refusal if it attempts to edit the legacy placement character.
 """
 
 from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
 from agent_runtime.character_assignment import CharacterAssignmentReason, CharacterAssignmentRefused
-from agent_runtime.character_assignment_service import preview_character_migration, read_character_assignment, write_character_assignment
+from agent_runtime.character_assignment_service import preview_character_migration, read_character_assignment, restore_character_assignment, write_character_assignment
 from agent_runtime.errors import NotFound
 from agent_runtime.serve_rpc.protocol import ERR_CONFLICT, ERR_INVALID_PARAMS, ERR_NOT_FOUND, err, ok
 from agent_runtime.serve_rpc.registry import method
@@ -46,3 +46,8 @@ def _runtime_character_assignment_set(rid, params, context=None):
 @method("runtime.character.assignment.migrate", tier=TIER_CONSOLE)
 def _runtime_character_assignment_migrate(rid, params, context=None):
     return _character_response(rid, params, write_character_assignment, migrate=True)
+
+
+@method("runtime.character.assignment.restore_previous", tier=TIER_CONSOLE)
+def _runtime_character_assignment_restore(rid, params, context=None):
+    return _character_response(rid, params, restore_character_assignment)

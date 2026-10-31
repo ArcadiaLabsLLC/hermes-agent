@@ -65,3 +65,16 @@ directory; each record carries the full frame, attempts and timestamps.
 `subscription_dropped` gains `refusal_class` and `fix_hint` keys ONLY when the producer
 raised an exception that declares them (`code` / `fix_hint` attributes); every other
 drop keeps its exact byte shape.
+
+
+### Exact character owner (2026-10-31)
+
+The existing `turn_settled` outbox record/frame now retains optional
+`persona_instance_id` and `persona_id` from the validated terminal result.
+Both direct and queued producers pass through the same outcome decoder. Request
+arguments, current persona pointers and disappearance from running work are not
+ownership or success evidence. Missing fields on older records remain null.
+The existing settle ID, first-write deduplication, retry and ack lifecycle are
+unchanged. Clients scope records by the authenticated runtime connection and
+may present one brief acknowledgement for a fresh, successful, exactly owned
+turn; persistent completed status and delayed replay do not restart an emote.

@@ -85,24 +85,41 @@ class CharacterAssignmentChange:
     asset_reference: str | None
     operation_id: str
     migration_receipt: dict[str, Any] | None = None
+    restore_previous: bool = False
 
     def apply(self, current: Any, *, persona: bool = False) -> dict[str, Any]:
-        validate_character_choice(self.mode, self.asset_reference, persona=persona)
         if type(self.expected_revision) is not int or self.expected_revision < 0:
             raise CharacterAssignmentRefused(CharacterAssignmentReason.INVALID, "A read revision is required.")
         if not isinstance(self.operation_id, str) or not self.operation_id.strip() or len(self.operation_id) > 128:
             raise CharacterAssignmentRefused(CharacterAssignmentReason.INVALID, "An operation id is required.")
         current = validate_character_record(current, persona=persona)
-        choice = {"mode": self.mode, "asset_reference": self.asset_reference}
+        if self.restore_previous and current and current.get("operation_id") == self.operation_id:
+            if current.get("operation_kind") == "restore":
+                return deepcopy(current)
+            raise CharacterAssignmentRefused(CharacterAssignmentReason.CONFLICT, "Operation id was reused for another choice.")
+        previous = current.get("previous_choice") if current else None
+        if self.restore_previous:
+            if not isinstance(previous, dict):
+                raise CharacterAssignmentRefused(CharacterAssignmentReason.CONFLICT, "No previous record-owned choice is available. Review the retained legacy inventory instead.")
+            choice = {"mode": previous.get("mode"), "asset_reference": previous.get("asset_reference")}
+        else:
+            choice = {"mode": self.mode, "asset_reference": self.asset_reference}
+        validate_character_choice(choice["mode"], choice["asset_reference"], persona=persona)
         if current is not None and current.get("operation_id") == self.operation_id:
-            if all(current.get(key) == value for key, value in choice.items()):
+            if current.get("operation_kind", "set") == "set" and all(current.get(key) == value for key, value in choice.items()):
                 return deepcopy(current)
             raise CharacterAssignmentRefused(CharacterAssignmentReason.CONFLICT, "Operation id was reused for another choice.")
         if (current["revision"] if current else 0) != self.expected_revision:
             raise CharacterAssignmentRefused(CharacterAssignmentReason.STALE, "Read the current assignment before saving.")
+        previous_choice = deepcopy(previous)
+        if current and any(current.get(key) != value for key, value in choice.items()):
+            previous_choice = {"mode": current["mode"], "asset_reference": current.get("asset_reference"),
+                               "revision": current["revision"]}
         return {
             "version": 1, "revision": self.expected_revision + 1,
             **choice, "operation_id": self.operation_id,
+            "operation_kind": "restore" if self.restore_previous else "set",
+            "previous_choice": previous_choice,
             "migration_receipt": deepcopy(current.get("migration_receipt") if current else self.migration_receipt),
         }
 

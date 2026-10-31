@@ -50,7 +50,7 @@ def preview_character_migration(params: dict[str, Any]) -> dict[str, Any]:
         return {**result, "sources": sources, "source_fingerprint": character_source_fingerprint(sources)}
 
 
-def write_character_assignment(params: dict[str, Any], *, migrate: bool = False) -> dict[str, Any]:
+def write_character_assignment(params: dict[str, Any], *, migrate: bool = False, restore_previous: bool = False) -> dict[str, Any]:
     record = _character_subject(params)
     instance_id = record.id if params["kind"] == "instance" else None
     with character_legacy_assignment_lock(instance_id, params["persona_id"]):
@@ -58,6 +58,8 @@ def write_character_assignment(params: dict[str, Any], *, migrate: bool = False)
         receipt = None
         mode, asset = params.get("mode"), params.get("asset_reference")
         if current["assignment"] is None:
+            if restore_previous:
+                raise CharacterAssignmentRefused(CharacterAssignmentReason.CONFLICT, "Legacy ownership cannot be restored by a character command.")
             sources = character_legacy_sources(instance_id=instance_id, persona_id=params["persona_id"], local_sources=params.get("local_sources", []))
             fingerprint = character_source_fingerprint(sources)
             if params.get("source_fingerprint") != fingerprint:
@@ -68,10 +70,15 @@ def write_character_assignment(params: dict[str, Any], *, migrate: bool = False)
         elif migrate:
             # Migration retries never replay a legacy choice over a later edit.
             return current
-        change = CharacterAssignmentChange(params.get("expected_revision"), mode, asset, params.get("operation_id"), receipt)
+        change = CharacterAssignmentChange(params.get("expected_revision"), mode, asset, params.get("operation_id"), receipt, restore_previous=restore_previous)
         if instance_id is not None:
             saved = PersonaInstanceStore().set_character_assignment(instance_id, change)
         else:
             saved = AgentStore().save(record, character_change=change)
         assignment = saved.character_assignment
         return {"kind": params["kind"], "id": saved.id, "persona_id": params["persona_id"], "assignment": assignment, "revision": assignment["revision"]}
+
+
+def restore_character_assignment(params: dict[str, Any]) -> dict[str, Any]:
+    """Compensating revision through the same store; ownership never rolls back."""
+    return write_character_assignment(params, restore_previous=True)
