@@ -8,6 +8,8 @@ from __future__ import annotations
 import time
 from typing import Any, Callable
 
+from agent_runtime.profile_context import persona_profile_context
+from agent_runtime.provider_refusal_pool import record_provider_refusal
 from agent_runtime.run_budget import (
     RunBudgetLedger,
 )
@@ -161,10 +163,15 @@ class ProfileAgentRunner:
             result.raw["profile_timing"] = dict(profile_timing)
         if result.raw.get("failed") and result.raw.get("error"):
             detail = str(result.raw.get("error"))
-            raise ProfileRunnerError(
+            error = ProfileRunnerError(
                 detail,
                 provider_error=result.raw.get("provider_error"),
             )
+            # RT-SINGLE-CREDENTIAL-REFUSAL-NOT-POOLED: a refusal marks its credential, so the
+            # provider probe stops answering `healthy` for a key the provider just refused.
+            with persona_profile_context(binding, runtime_root=request.runtime_root):
+                record_provider_refusal(error, agent=agent)
+            raise error
         return result
 
     def _admit_mcp_servers(

@@ -31,7 +31,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-31 (launcher planning lane w1031c-plan)
 
-- **`RT-SINGLE-CREDENTIAL-REFUSAL-NOT-POOLED` — A provider refusal on a single-credential provider (HuggingFace `usage_limit_reached`, live 2026-10-30) never reaches `agent/credential_pool.py::_mark_exhausted` (only the pool-rotation callers in `agent/agent_runtime_helpers.py` and `agent/auxiliary_client.py` do), so `hermes_cli/harness_parts/provider_visibility.py::_credential_health` keeps answering `healthy` after the turn was refused; the client folds the refusal itself (`EterniaLauncher/docs/mission_control/planned/PROVIDER_REFUSAL_LEDGER_2026-10-31.md`) but hermes is the authority and should mark the credential from `mission_chat_outcome.py::provider_refusal` with its `retry_at`** · `agent_runtime/mission_chat_outcome.py::provider_refusal` · `hermes_cli/harness_parts/provider_visibility.py::_credential_health` · READY 2026-10-31 · **TAKEN 2026-10-31 w1031d-h on nekwo-ubuntu24 as nekwo in hm-w1031d-h**
 
 ### Filed on arrival — 2026-10-30 (owner: generated-tree parity with coding-harness file tools)
 
