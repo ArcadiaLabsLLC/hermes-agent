@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-31 (launcher lane w1031b-spawn)
+
+- **`RT-OWNER-RECORD-SPAWN-TOKEN` — `serve_socket.owner.json` writes `spawn_token` from `os.environ["ETERNIA_OWNED_SPAWN"]` when set, so Eternia's recovery-lane reap can scan for a previous instance's detached descendants (client half landed in EterniaLauncher 4effbf2ed8: `MissionServeSocketOwner.spawnToken`, `killHostProcessTree` `environmentToken`)** · `agent_runtime/serve_socket/owner_lock.py` · `EterniaLauncher/docs/mission_control/subsystems/POSIX_OWNED_SPAWN_TOKEN_KILL_2026-10-31.md` · READY 2026-10-31
+
 ### Filed on arrival — 2026-10-31 (launcher planning lane w1031b-planb)
 
 - **`RT-PROFILE-AVATAR-RPC` — Register `runtime.profiles.avatar` (`tier=TIER_READ`, a new `profiles` lane family) with params `{profile}` answering `{ok, profile, handle: sha256:<hex>, media_type: image/png|image/jpeg|image/webp, data_base64}` from `<profile home>/assets/avatar.{png,jpg,jpeg,webp}` resolved through `agent_runtime/profile_context.py::_profile_home_for_token` and `media_handles.handle_for_bytes`, or `{ok: false, reason: invalid_profile | not_found | unavailable}`; bytes inline because the media scope is derived from chat logs; update `serve_rpc_manifest.expected.json`** · `agent_runtime/serve_rpc/media.py` · `agent_runtime/profile_artifact_sync.py::_profile_home` · `EterniaLauncher/docs/mission_control/planned/REMOTE_PROFILE_AVATAR_TRANSPORT_2026-10-31.md` §H1; the launcher half is `MC-REMOTE-AVATAR-CLIENT` · READY 2026-10-31
