@@ -66,6 +66,8 @@ course                   lanes   ``runtime.course.*`` (agent authoring on a git
                                  course; ``agent_runtime/course_authoring.py``)
 characters               lanes   ``runtime.characters.list/status/thumb/sprite/recolour``
                                  (the character-sheet read twins; recolour writes)
+pets                     lanes   ``runtime.pets.thumb`` (a pet's idle-frame portrait,
+                                 bytes inline; ``agent/pet/store.py``)
 character_assignment     lanes   ``runtime.character.assignment.*`` (shared agent identity)
 settles                  lanes   ``runtime.settles.list/rearm`` (the settle-push
                                  outbox's operator verbs)
@@ -133,6 +135,7 @@ from agent_runtime.serve_rpc import (
     course,
     client,
     characters,
+    pets,
     settles,
     lens,
     skills_pending,

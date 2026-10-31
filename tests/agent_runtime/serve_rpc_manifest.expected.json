@@ -285,6 +285,7 @@
     "runtime.persona.set_model",
     "runtime.persona.toolset.approve",
     "runtime.persona.toolset.list",
+    "runtime.pets.thumb",
     "runtime.prefab.clear",
     "runtime.prefab.get",
     "runtime.prefab.list",
@@ -485,6 +486,7 @@
       "provider",
       "retry_of",
       "session_id",
+      "skills",
       "stream",
       "surface_prompt",
       "title",
@@ -909,6 +911,10 @@
     ],
     "runtime.persona.toolset.list": [
       "persona_id"
+    ],
+    "runtime.pets.thumb": [
+      "slug",
+      "url"
     ],
     "runtime.project.artifacts.list": [
       "project_id"
@@ -1373,6 +1379,7 @@
     "runtime.persona.set_model": "console",
     "runtime.persona.toolset.approve": "console",
     "runtime.persona.toolset.list": "console",
+    "runtime.pets.thumb": "read",
     "runtime.prefab.clear": "console",
     "runtime.prefab.get": "console",
     "runtime.prefab.list": "console",

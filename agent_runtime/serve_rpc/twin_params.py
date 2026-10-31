@@ -14,6 +14,7 @@ __all__ = [
     "COURSE_METHOD_PARAMS",
     "HEALTH_METHOD_PARAMS",
     "PERSONA_TOOLSET_METHOD_PARAMS",
+    "PETS_METHOD_PARAMS",
     "REALM_METHOD_PARAMS",
     "SKILLS_PENDING_METHOD_PARAMS",
     "SKILL_CHANGES_METHOD_PARAMS",
@@ -28,6 +29,9 @@ CHARACTERS_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     "runtime.characters.thumb": ("attempt", "direction", "draft", "frame", "row", "scale", "square"),
     "runtime.characters.sprite": ("include_sheet", "slug"),
 }
+
+#: ``runtime.pets.thumb`` (``serve_rpc/pets.py``), the method twin of ``harness pets thumb``.
+PETS_METHOD_PARAMS: dict[str, tuple[str, ...]] = {"runtime.pets.thumb": ("slug", "url")}
 
 #: ``runtime.health`` (``serve_rpc/health.py``) takes none and refuses any.
 HEALTH_METHOD_PARAMS: dict[str, tuple[str, ...]] = {"runtime.health": ()}
@@ -90,6 +94,7 @@ PERSONA_TOOLSET_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
 #: Every twin family's rows, merged; the manifest publishes this.
 TWIN_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     **CHARACTERS_METHOD_PARAMS,
+    **PETS_METHOD_PARAMS,
     **HEALTH_METHOD_PARAMS,
     **CHAT_VERB_METHOD_PARAMS,
     **REALM_METHOD_PARAMS,
