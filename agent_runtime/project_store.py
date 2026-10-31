@@ -309,14 +309,18 @@ class ProjectStore:
         return {"project_id": project_id, "guidance": record["guidance"]}
 
 
-    def adopt_workspace_document(self, project_id: str, *, name: str, document: dict[str, Any]) -> dict[str, Any]:
+    def adopt_workspace_document(self, project_id: str, *, name: str, document: dict[str, Any],
+                                 migrated_from: dict[str, Any] | None = None) -> dict[str, Any]:
         """The slot migration's write (plan §4 step 1): ``document``'s slots VERBATIM (tombstones included)
         and its machine reports into ``project_id``, set-to-value so a retried migration writes the same
-        bytes. This machine's own write — no realm right is asked; the record syncs under it afterwards."""
+        bytes. This machine's own write — no realm right is asked; the record syncs under it afterwards.
+        ``migrated_from`` (:func:`migration_origin`) records the workspace the slots came from."""
 
         import copy
 
         record = load_project(valid_project_id(project_id))
+        if valid_migration_origin(migrated_from) is not None:
+            record["migrated_from"] = valid_migration_origin(migrated_from)
         record.update({"project_id": project_id, "name": record.get("name") or _project_name(name[:NAME_MAX_CHARS]),
                        "slots": copy.deepcopy(document.get("slots") or {}),
                        "machines": copy.deepcopy(document.get("machines") or {}),
@@ -324,6 +328,44 @@ class ProjectStore:
         record.setdefault("categories", {})
         self._commit(project_id, record, issued_at=None)
         return record
+
+
+    def rename_legacy_migrated(self, project_id: str, *, legacy_name: str, name: str,
+                               migrated_from: dict[str, Any]) -> bool:
+        """A Project the slot migration made before RT-MIGRATED-PROJECT-NAME: still named ``legacy_name``
+        (``"<workspace> slots"``) takes ``name`` and its ``migrated_from``. A name anyone changed since
+        is theirs and stays; True when the record was rewritten. Like the migration, this machine's
+        own set-to-value write (every machine of the realm runs it, so the copies converge)."""
+
+        if not paths.project_path(valid_project_id(project_id)).is_file():
+            return False  # nothing to rename; never write an empty record into being
+        record = load_project(project_id)
+        if record.get("name") != legacy_name and record.get("migrated_from") is not None:
+            return False
+        if record.get("name") == legacy_name:
+            record["name"] = _project_name(name[:NAME_MAX_CHARS])
+        if record.get("migrated_from") is None and valid_migration_origin(migrated_from) is not None:
+            record["migrated_from"] = valid_migration_origin(migrated_from)
+        self._commit(project_id, record, issued_at=None)
+        return True
+
+
+def migration_origin(workspace: Any) -> dict[str, str]:
+    """``migrated_from`` for a Project the slot migration makes from ``workspace``: its id and its name then."""
+
+    return {"workspace_id": str(workspace.id), "workspace_name": str(workspace.name or "")[:NAME_MAX_CHARS]}
+
+
+def valid_migration_origin(value: Any) -> dict[str, str] | None:
+    """``value`` as a ``migrated_from`` record (a safe-token ``workspace_id`` and a short name), or None."""
+
+    if not isinstance(value, dict):
+        return None
+    workspace_id, workspace_name = value.get("workspace_id"), value.get("workspace_name")
+    if (not isinstance(workspace_id, str) or not workspace_id or paths.safe_path_token(workspace_id) != workspace_id
+            or not isinstance(workspace_name, str) or len(workspace_name) > NAME_MAX_CHARS):
+        return None
+    return {"workspace_id": workspace_id, "workspace_name": workspace_name}
 
 
 def _project_name(value: Any) -> str:
@@ -375,6 +417,7 @@ def list_projects() -> list[dict[str, Any]]:
             continue
         record = load_project(project_id)
         rows.append({"project_id": project_id, "name": record.get("name") or "",
+                     "migrated_from": record.get("migrated_from"),
                      "exists": paths.project_path(project_id).is_file(), "slots": sorted(live_slots(record)),
                      "workspaces": sorted(connected.get(project_id, []), key=lambda row: row["workspace_id"])})
     return rows
@@ -412,11 +455,13 @@ __all__ = [
     "list_projects",
     "load_project",
     "migrated_next_step",
+    "migration_origin",
     "project_realms",
     "project_workspaces",
     "require_project_publish_rights",
     "show",
     "source_controlled",
+    "valid_migration_origin",
     "valid_project_id",
     "write_project",
 ]

@@ -135,7 +135,10 @@ Decided (plan), `agent_runtime/project_migration.py`, run once per namespace on 
 and idempotent under crash/retry (the migration identity is the workspace id):
 
 1. For every `store/workspace_slots/<ws>.json` with live slots: create Project `ws-<workspace-id>` named
-   "<workspace name> slots" (a Project the launcher adopts into its catalog on open — launcher plan §4),
+   "<workspace name> repos" with `migrated_from: {workspace_id, workspace_name}` (RT-MIGRATED-PROJECT-NAME,
+   2026-10-31: "<workspace> slots" read as a stray Connect-menu entry; a Project still carrying that name is
+   renamed by the next boot's pass, a name someone chose stays) (a Project the launcher adopts into its
+   catalog on open — launcher plan §4),
    copy every slot record VERBATIM (tombstones included) into `store/projects/ws-<ws>.json`, copy `machines`,
    and connect it: `project_ids += ["ws-<ws>"]` through `set_project_connection` with the local allow (the
    migration is this machine's own write; the record then syncs under the realm's right as any publish does).
