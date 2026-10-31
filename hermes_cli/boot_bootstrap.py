@@ -241,6 +241,8 @@ def run_boot_bootstrap(project_root: Path) -> dict:
 def maybe_run_boot_bootstrap(project_root: Path) -> None:
     """The one call boot paths use. Never raises: a bootstrap problem must
     not stop the gateway/serve/CLI from starting."""
+    if __import__("hermes_read_only_invocation").is_read_only_invocation():  # fork seam: RT-SESSIONS-EXPORT-HOME-WRITES
+        return
     try:
         run_boot_bootstrap(Path(project_root))
     except Exception as exc:

@@ -1067,6 +1067,8 @@ def export_scratch_tmp_env() -> bool:
     """Boot hook: apply :func:`apply_scratch_tmp_env` to this process and reset ``tempfile``'s
     cached default so ``tempfile.gettempdir()`` follows. Call again after anything that
     re-homes the process (``--profile`` resolution); a user-set temp var is never overridden."""
+    if __import__("hermes_read_only_invocation").is_read_only_invocation():  # fork seam: RT-SESSIONS-EXPORT-HOME-WRITES
+        return False
     changed = apply_scratch_tmp_env(os.environ)
     if changed:
         import tempfile

@@ -366,6 +366,8 @@ def setup_logging(
     global _logging_initialized
     global _fallback_warned
     home = hermes_home or get_hermes_home()
+    if __import__("hermes_read_only_invocation").is_read_only_invocation():  # fork seam: RT-SESSIONS-EXPORT-HOME-WRITES
+        return home / "logs"
     log_dir = mkdir_under_hermes_home(home / "logs")
 
     # Stdout is block-buffered when piped (no TTY); line-buffer it so a
