@@ -110,7 +110,11 @@ hung = no beat for 45 s of time the harness was awake.
    `[executable, --harness-relaunch=<reason>, (--start-hidden)]` with
    `hermes_cli/_subprocess_compat.py::windows_detach_flags` on Windows and
    `start_new_session=True` on POSIX, so the GUI is not in the harness's process tree; the
-   environment is the harness's own minus `HERMES_*`.
+   environment is the replaced launcher's own minus `HERMES_*` — read from its pid when its
+   beat is verified, else the harness's own only when that launcher spawned the harness or
+   the harness is a `--service` runtime, else no relaunch (`relaunch_no_environment`)
+   (amended 2026-10-31, row `RT-RELAUNCH-ENV-FROM-SPAWNER`: a serve shared by several
+   launchers relaunched one of them with its spawner's environment).
 9. **The OS ending the session is not a crash.** A harness that has seen `logoff`,
    `ctrl_close` or `SIGTERM` (`EndReason`) relaunches nothing; the first backoff (2 s) gives
    the OS time to deliver that when the launcher dies first.

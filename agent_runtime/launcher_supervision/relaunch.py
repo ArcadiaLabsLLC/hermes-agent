@@ -11,7 +11,10 @@ Plan ``docs/agent-runtime-harness/planned/launcher-mutual-supervision-2026-10-27
   watch recorded (a reused pid is not the launcher).
 * **Spawn** — ``[executable, --harness-relaunch=<reason>, (--start-hidden)]`` (never hidden for
   ``game_ended``: the launcher reopens shown after a game), out of the harness's process tree (``windows_detach_flags`` on Windows, ``start_new_session`` on POSIX), with the
-  harness's environment minus every ``HERMES_*`` variable.
+  environment of the LAUNCHER it replaces minus every ``HERMES_*`` variable — read from that launcher's
+  pid when its identity is verified (:func:`launcher_environ`), because one serve can be shared by several
+  launchers and its own environment is only its spawner's (row ``RT-RELAUNCH-ENV-FROM-SPAWNER``; the
+  watchdog decides which environment applies).
 """
 
 from __future__ import annotations
@@ -30,6 +33,7 @@ __all__ = [
     "START_HIDDEN_FLAG",
     "Relauncher",
     "kill_one",
+    "launcher_environ",
     "relaunch_argv",
     "relaunch_env",
     "same_executable",
@@ -90,14 +94,25 @@ def relaunch_argv(executable: str, reason: str, *, start_hidden: bool) -> list[s
 
 
 def relaunch_env(environ: Mapping[str, str]) -> dict[str, str]:
-    """The harness's environment minus ``HERMES_*``: the launcher picks its own runtime, not this one's."""
+    """``environ`` minus ``HERMES_*``: the launcher picks its own runtime, not this one's."""
     return {key: value for key, value in environ.items() if not key.upper().startswith("HERMES_")}
 
 
-def spawn_detached(argv: Sequence[str]) -> int | None:
-    """Start ``argv`` outside this process tree; its pid, or ``None`` when it could not start."""
+def launcher_environ(pid: int) -> dict[str, str] | None:
+    """The environment ``pid`` runs with; ``None`` when it cannot be read (gone, denied, unsupported)."""
+    try:
+        import psutil
+
+        environ = psutil.Process(pid).environ()
+    except Exception:
+        return None
+    return dict(environ) if environ else None
+
+
+def spawn_detached(argv: Sequence[str], environ: Mapping[str, str]) -> int | None:
+    """Start ``argv`` outside this process tree with ``environ`` minus ``HERMES_*``; its pid, or ``None``."""
     kwargs: dict = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL,
-                    "env": relaunch_env(os.environ), "close_fds": True}
+                    "env": relaunch_env(environ), "close_fds": True}
     if sys.platform == "win32":
         from hermes_cli._subprocess_compat import windows_detach_flags, windows_detach_flags_without_breakaway
 
@@ -114,13 +129,16 @@ def spawn_detached(argv: Sequence[str]) -> int | None:
 
 
 class Relauncher:
-    """The three effects as one injectable object (tests substitute it)."""
+    """The effects as one injectable object (tests substitute it)."""
 
     def same_executable(self, pid: int, executable: str) -> bool:
         return same_executable(pid, executable)
 
+    def environment(self, pid: int) -> dict[str, str] | None:
+        return launcher_environ(pid)
+
     def kill(self, pid: int, create_time: float | None) -> bool:
         return kill_one(pid, create_time)
 
-    def spawn(self, argv: Sequence[str]) -> int | None:
-        return spawn_detached(argv)
+    def spawn(self, argv: Sequence[str], environ: Mapping[str, str]) -> int | None:
+        return spawn_detached(argv, environ)
