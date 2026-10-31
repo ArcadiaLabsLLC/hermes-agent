@@ -17,12 +17,20 @@ G1 adds the game watch (:mod:`.game_watch`): a supervised, verified beat carryin
 beat's ``watching`` answer is whether that game is now watched; the game's end is fed to the table
 (:func:`.policy.on_game_ended`), and :meth:`LauncherWatchdog.start` resumes the records a previous
 harness left on disk (decision 15).
+
+A relaunch runs with the environment of the launcher it replaces (row ``RT-RELAUNCH-ENV-FROM-SPAWNER``),
+chosen by :meth:`LauncherWatchdog._relaunch_environ`: the one read from that launcher's pid when its
+identity was verified; else the serve's own when that launcher is the serve's ``--parent-pid`` (the serve
+inherited it) or the serve is a ``--service`` runtime no launcher spawned (decision 8's default, which a
+resumed game watch needs); else nothing is spawned (``relaunch_no_environment``) — a serve several
+launchers share never hands one of them its spawner's environment.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 import time
 from collections.abc import Callable
@@ -82,6 +90,9 @@ class LauncherWatchdog:
         self._relauncher = relauncher or Relauncher()
         self._create_times: dict[int, float | None] = {}
         self._verified: tuple[int, str] | None = None
+        #: The verified launcher's pid and the environment read from it then (``None``: unreadable).
+        self._launcher_environ: tuple[int, dict[str, str] | None] | None = None
+        self._spawner_pid = parent_pid
         self._tick_seconds = tick_seconds
         self._clock = clock
         self._poll_seconds = poll_seconds
@@ -149,6 +160,7 @@ class LauncherWatchdog:
                 logger.warning(RELAUNCH_RECEIPT, "launcher_identity_mismatch", "-", beat.pid, "-", "-")
                 return False
             self._verified = (beat.pid, beat.executable)
+            self._launcher_environ = (beat.pid, self._relauncher.environment(beat.pid))
         watching = self._watch_game(beat)
         with self._lock:
             self._state, decisions = on_beat(self._state, beat)
@@ -225,10 +237,23 @@ class LauncherWatchdog:
         if self._stopped.is_set() or not self._effects.may_relaunch():
             logger.info(RELAUNCH_RECEIPT, "relaunch_skipped", reason.value, beat.pid, "-", "-")
             return
+        environ = self._relaunch_environ(beat.pid)
+        if environ is None:
+            logger.warning(RELAUNCH_RECEIPT, "relaunch_no_environment", reason.value, beat.pid, "-", "-")
+            return
         argv = relaunch_argv(beat.executable, reason.value, start_hidden=not beat.window_visible)
-        new_pid = self._relauncher.spawn(argv)
+        new_pid = self._relauncher.spawn(argv, environ)
         logger.info(RELAUNCH_RECEIPT, "relaunched" if new_pid else "relaunch_unspawned", reason.value,
                     beat.pid, new_pid or "-", "-")
+
+    def _relaunch_environ(self, pid: int) -> dict[str, str] | None:
+        """The environment the launcher ``pid`` ran with, or ``None`` when this serve cannot know it."""
+        captured = self._launcher_environ
+        if captured is not None and captured[0] == pid and captured[1] is not None:
+            return captured[1]
+        if pid == self._spawner_pid or self._service:
+            return dict(os.environ)
+        return None
 
     def _apply(self, decisions: list[Decision]) -> None:
         if any(decision.relaunch is not None or decision.drain is not None for decision in decisions):

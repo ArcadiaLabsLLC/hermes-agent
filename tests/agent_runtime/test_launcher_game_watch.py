@@ -172,7 +172,10 @@ class _Relauncher:
     def kill(self, pid, create_time):
         return True
 
-    def spawn(self, argv):
+    def environment(self, pid):
+        return {"LAUNCHER_OWN": "1"}
+
+    def spawn(self, argv, environ):
         self.spawned.append(list(argv))
         self.spawn_done.set()
         return 4242

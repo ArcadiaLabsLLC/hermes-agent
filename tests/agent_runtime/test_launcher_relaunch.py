@@ -117,19 +117,24 @@ def test_the_restart_limit_word_is_a_serve_end_reason():
 
 
 class _Relauncher:
-    def __init__(self, *, same: bool = True) -> None:
-        self.same, self.spawned, self.killed = same, [], []
+    def __init__(self, *, same: bool = True, environ: dict | None = None) -> None:
+        self.same, self.spawned, self.killed, self.environs = same, [], [], []
+        self.environ = {"LAUNCHER_OWN": "1"} if environ is None else environ
         self.spawn_done = threading.Event()
 
     def same_executable(self, pid, executable):
         return self.same
 
+    def environment(self, pid):
+        return self.environ or None
+
     def kill(self, pid, create_time):
         self.killed.append(pid)
         return True
 
-    def spawn(self, argv):
+    def spawn(self, argv, environ):
         self.spawned.append(list(argv))
+        self.environs.append(dict(environ))
         self.spawn_done.set()
         return 4242
 
@@ -148,9 +153,10 @@ class _Effects:
         return self.may
 
 
-def _watchdog(relauncher, effects, *, clock=lambda: 1000.0) -> LauncherWatchdog:
-    return LauncherWatchdog(parent_pid=None, effects=effects, tick_seconds=3600.0, clock=clock,
-                            relauncher=relauncher)
+def _watchdog(relauncher, effects, *, clock=lambda: 1000.0, parent_pid: int | None = None,
+              service: bool = False) -> LauncherWatchdog:
+    return LauncherWatchdog(parent_pid=parent_pid, effects=effects, tick_seconds=3600.0, clock=clock,
+                            relauncher=relauncher, service=service, poll_seconds=3600.0)
 
 
 def test_a_beat_whose_executable_is_not_its_pids_file_supervises_nothing(monkeypatch, caplog):
@@ -185,6 +191,54 @@ def test_nothing_relaunches_once_the_runtime_is_ending(monkeypatch, caplog):
         assert relauncher.spawned == []
     finally:
         watchdog.stop()
+
+
+# RT-RELAUNCH-ENV-FROM-SPAWNER. A serve several launchers share relaunches each one with the environment
+# read from ITS pid, never the serve's own (its spawner's). Mutation: make ``_relaunch_environ`` return
+# ``dict(os.environ)`` unconditionally -> this reds with the serve's environment.
+def test_a_shared_serve_relaunches_a_launcher_with_that_launchers_environment(monkeypatch):
+    monkeypatch.setattr(policy, "BACKOFF_SECONDS", (0.0, 0.0, 0.0))
+    monkeypatch.setenv("STAGEC_QA_MCP_OWNER", "the-spawners-lane")
+    relauncher = _Relauncher(environ={"STAGEC_QA_MCP_OWNER": "this-launchers-lane"})
+    watchdog = _watchdog(relauncher, _Effects())
+    try:
+        watchdog.beat(_beat(pid=os.getpid()))
+        watchdog._pid_gone(os.getpid())
+        assert relauncher.spawn_done.wait(2.0)
+    finally:
+        watchdog.stop()
+    assert relauncher.environs == [{"STAGEC_QA_MCP_OWNER": "this-launchers-lane"}]
+
+
+# An unreadable launcher environment falls back to the serve's own only where the serve's own IS that
+# launcher's: the launcher spawned it (``--parent-pid``), or it is a ``--service`` runtime. Otherwise
+# nothing spawns. Mutation: drop the ``pid == self._spawner_pid or self._service`` guard -> row 1 spawns.
+@pytest.mark.parametrize(("spawner", "service", "spawns"), [(False, False, False), (True, False, True),
+                                                             (False, True, True)])
+def test_an_unreadable_launcher_environment_relaunches_only_where_the_serves_is_its(monkeypatch, caplog,
+                                                                                   spawner, service, spawns):
+    import logging
+
+    monkeypatch.setattr(policy, "BACKOFF_SECONDS", (0.0, 0.0, 0.0))
+    monkeypatch.setenv("STAGEC_QA_MCP_OWNER", "the-serves-own")
+    relauncher = _Relauncher(environ={})  # unreadable
+    watchdog = _watchdog(relauncher, _Effects(), parent_pid=os.getpid() if spawner else None, service=service)
+    try:
+        with caplog.at_level(logging.INFO, logger="agent_runtime.launcher_supervision.watchdog"):
+            watchdog.beat(_beat(pid=os.getpid()))
+            watchdog._pid_gone(os.getpid())
+            assert relauncher.spawn_done.wait(1.0) is spawns
+            if not spawns:
+                deadline = time.monotonic() + 2.0
+                while "event=relaunch_no_environment" not in caplog.text and time.monotonic() < deadline:
+                    time.sleep(0.02)
+    finally:
+        watchdog.stop()
+    if spawns:
+        assert [env.get("STAGEC_QA_MCP_OWNER") for env in relauncher.environs] == ["the-serves-own"]
+    else:
+        assert relauncher.spawned == []
+        assert "event=relaunch_no_environment" in caplog.text
 
 
 def test_the_budget_survives_a_harness_restart(monkeypatch):
@@ -251,8 +305,8 @@ def test_a_real_spawn_carries_the_relaunch_flag_and_no_hermes_env(tmp_path, monk
                         f"{sys.executable} -c 'import json, os, sys; json.dump([sys.argv[1:], "
                         f"sorted(k for k in os.environ if k.startswith(\"HERMES_\"))], open(\"{out}\", \"w\"))' \"$@\"\n")
     launcher.chmod(0o755)
-    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-    pid = relaunch.spawn_detached(relaunch.relaunch_argv(str(launcher), "crashed", start_hidden=True))
+    pid = relaunch.spawn_detached(relaunch.relaunch_argv(str(launcher), "crashed", start_hidden=True),
+                                  {**os.environ, "HERMES_HOME": str(tmp_path)})
     assert pid
     deadline = time.monotonic() + 10
     while not out.exists() and time.monotonic() < deadline:
@@ -270,3 +324,19 @@ def test_a_hidden_beat_starts_hidden_except_after_a_game(reason, hidden_flag):
     assert argv[:2] == ["/opt/launcher", f"--harness-relaunch={reason}"]
     assert (relaunch.START_HIDDEN_FLAG in argv) is hidden_flag
     assert relaunch.START_HIDDEN_FLAG not in relaunch.relaunch_argv("/opt/launcher", reason, start_hidden=False)
+
+
+def test_a_launchers_environment_is_read_from_its_pid():
+    owner = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"],
+                             env={**os.environ, "STAGEC_QA_MCP_OWNER": "lane-b"})
+    try:
+        deadline = time.monotonic() + 10
+        environ = relaunch.launcher_environ(owner.pid)
+        while (environ or {}).get("STAGEC_QA_MCP_OWNER") != "lane-b" and time.monotonic() < deadline:
+            time.sleep(0.05)
+            environ = relaunch.launcher_environ(owner.pid)
+        assert environ is not None and environ["STAGEC_QA_MCP_OWNER"] == "lane-b"
+    finally:
+        owner.kill()
+        owner.wait(10)
+    assert relaunch.launcher_environ(owner.pid) is None, "a gone pid is unreadable"
