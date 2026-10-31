@@ -1,4 +1,4 @@
-"""The scope families: ``workspace`` and ``realm`` (with realm sync and the realm skill/agent selections).
+"""The scope families: ``workspace``, ``project`` and ``realm`` (with realm sync and the realm skill/agent selections).
 
 One ``add_<family>(subs)`` per ``hermes harness`` family, in the order the
 contract fixture lists them; ``parser.PARSER_FAMILIES`` is the only reader.
@@ -9,12 +9,14 @@ from __future__ import annotations
 from .common_args import _add_stage42_global_args
 from .lazy import lazy_module
 
+project_commands = lazy_module("hermes_cli.harness_parts.project_commands")
 realm_commands = lazy_module("hermes_cli.harness_parts.realm_commands")
 workspace_commands = lazy_module("hermes_cli.harness_parts.workspace_commands")
 workspace_slots_commands = lazy_module("hermes_cli.harness_parts.workspace_slots_commands")
 
 __layer__ = "wiring"
 __all__ = [
+    "add_project",
     "add_realm",
     "add_workspace",
 ]
@@ -145,6 +147,69 @@ def _add_workspace_slots(workspace_subs) -> None:
     clone.add_argument("--issued-at", dest="issued_at", default=None)
     _add_stage42_global_args(clone)
     clone.set_defaults(func=workspace_slots_commands._cmd_workspace_slots_clone)
+
+
+def _project_target(subs, name: str, help_text: str, *, slot: bool = False):
+    """One ``project`` verb's parser with its ``project_id`` (and ``slot``) positionals and the stage42 flags."""
+    parser = subs.add_parser(name, help=help_text)
+    parser.add_argument("project_id")
+    if slot:
+        parser.add_argument("slot")
+    _add_stage42_global_args(parser)
+    return parser
+
+
+def add_project(subs) -> None:
+    """``hermes harness project`` — a Project's repo slots, the ``runtime.project.*`` verbs as argv."""
+    project = subs.add_parser("project", help="Projects: the repo slots a workspace's agents work in")
+    project_subs = project.add_subparsers(dest="project_command", required=True)
+    listing = project_subs.add_parser("list", help="Every Project with its slots and the workspaces it is connected to")
+    _add_stage42_global_args(listing)
+    listing.set_defaults(func=project_commands._cmd_project_list)
+    show = _project_target(project_subs, "show", "The Project record, its realms and this machine's fill (read-only)")
+    show.set_defaults(func=project_commands._cmd_project_show)
+    report = _project_target(project_subs, "report", "Re-probe this machine's fill of the Project's slots")
+    report.set_defaults(func=project_commands._cmd_project_report)
+    declare = _project_target(project_subs, "declare", "Replace the Project's declared slots (missing names are "
+                              "tombstoned); creates the Project")
+    declare.set_defaults(func=project_commands._cmd_project_declare)
+    declare.add_argument("--slots-file", dest="slots_file", required=True, help="JSON list of {name, repo, toolchain, context}")
+    declare.add_argument("--name", default=None, help="The Project's display name")
+    declare.add_argument("--issued-at", dest="issued_at", default=None, help="ISO-8601 issue time; an older declaration is refused")
+    slot = project_subs.add_parser("slot", help="One slot on THIS machine: bind, clone, environment fill")
+    slot_subs = slot.add_subparsers(dest="project_slot_command", required=True)
+    bind = _project_target(slot_subs, "bind", "Bind a declared slot to a local checkout on THIS machine", slot=True)
+    bind.set_defaults(func=project_commands._cmd_project_slot_bind)
+    bind.add_argument("path", help="Absolute path to the checkout on this machine")
+    bind.add_argument("--issued-at", dest="issued_at", default=None)
+    clone = _project_target(slot_subs, "clone", "Clone a declared slot into a path on THIS machine, then bind it", slot=True)
+    clone.set_defaults(func=project_commands._cmd_project_slot_clone)
+    clone.add_argument("dest_path", help="Absolute path the checkout lands at (absent or an empty directory)")
+    clone.add_argument("--issued-at", dest="issued_at", default=None)
+    env_set = _project_target(slot_subs, "env-set", "Replace this machine's environment fill for a slot "
+                              "(secrets belong in .env)", slot=True)
+    env_set.set_defaults(func=project_commands._cmd_project_slot_env_set)
+    env_set.add_argument("--env", action="append", default=[], help="KEY=VALUE (repeatable)")
+    env_set.add_argument("--keep", dest="env_keep", action="append", default=[], help="Keep this key's stored value (repeatable)")
+    env_set.add_argument("--tool-path", dest="tool_path", action="append", default=[], help="TOOL=PATH (repeatable)")
+    env_set.add_argument("--path-prepend", dest="path_prepend", action="append", default=[], help="Directory put in front of PATH (repeatable)")
+    env_set.add_argument("--dotenv", default=None, help="The .env file, relative to the checkout")
+    env_set.add_argument("--venv", default=None, help="A virtualenv whose bin/Scripts directory is prepended")
+    env_set.add_argument("--issued-at", dest="issued_at", default=None)
+    recipe = project_subs.add_parser("recipe", help="The setup recipe of the Project's slots")
+    recipe_subs = recipe.add_subparsers(dest="project_recipe_command", required=True)
+    recipe_show = _project_target(recipe_subs, "show", "Every slot's setup recipe and its last runs (read-only)")
+    recipe_show.set_defaults(func=project_commands._cmd_project_recipe_show)
+    recipe_set = _project_target(recipe_subs, "set", "Replace one slot's owner steps", slot=True)
+    recipe_set.set_defaults(func=project_commands._cmd_project_recipe_set)
+    recipe_set.add_argument("--steps-file", dest="steps_file", required=True, help="JSON list of owner steps")
+    recipe_set.add_argument("--revision", type=int, required=True, help="The recipe revision this edit replaces")
+    recipe_set.add_argument("--persona-instance-id", dest="persona_instance_id", default=None)
+    recipe_set.add_argument("--issued-at", dest="issued_at", default=None)
+    run_step = _project_target(recipe_subs, "run-step", "Run ONE owner command step of a slot on THIS machine and wait", slot=True)
+    run_step.set_defaults(func=project_commands._cmd_project_recipe_run_step)
+    run_step.add_argument("step_id")
+    run_step.add_argument("--issued-at", dest="issued_at", default=None)
 
 
 def add_realm(subs) -> None:

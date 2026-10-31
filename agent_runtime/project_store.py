@@ -352,6 +352,34 @@ def show(project_id: str) -> dict[str, Any]:
             "exists": paths.project_path(project_id).is_file(), "shared_chats": shared_sessions_of(project_id)}
 
 
+def list_projects() -> list[dict[str, Any]]:
+    """Every Project this namespace knows — a record under ``store/projects/`` or a live workspace's
+    reference — with its name, live slot names and the workspaces it is connected to, by id.
+
+    The agent's way in (``hermes harness project list``, RT-PROJECT-SLOTS-AGENT-VERBS): a workspace's
+    slots live on its connected Projects, so a reader that starts from a workspace needs this map.
+    A reference with no record yet reads ``exists: false`` and no slots."""
+
+    from .store import WorkspaceStore
+
+    connected: dict[str, list[dict[str, Any]]] = {}
+    for ws in WorkspaceStore().list_all(include_archived=False):
+        for project_id in ws.project_ids:
+            connected.setdefault(project_id, []).append(
+                {"workspace_id": ws.id, "name": ws.name, "realm_id": ws.realm_id})
+    folder = paths.projects_dir()
+    on_disk = {path.stem for path in folder.glob("*.json")} if folder.is_dir() else set()
+    rows = []
+    for project_id in sorted(on_disk | set(connected)):
+        if paths.safe_path_token(project_id) != project_id:
+            continue
+        record = load_project(project_id)
+        rows.append({"project_id": project_id, "name": record.get("name") or "",
+                     "exists": paths.project_path(project_id).is_file(), "slots": sorted(live_slots(record)),
+                     "workspaces": sorted(connected.get(project_id, []), key=lambda row: row["workspace_id"])})
+    return rows
+
+
 def stamp_order(value: Any) -> float:
     """A record stamp as an epoch for ranking (unusable = 0)."""
 
@@ -362,6 +390,18 @@ def valid_root_name(value: Any) -> bool:
     return isinstance(value, str) and bool(_ROOT_NAME_RE.match(value))
 
 
+def migrated_next_step(project_id: Any) -> str:
+    """A ``slot_migrated`` refusal's detail for a CLI reader: the Project's id FIRST (what the RPC
+    detail carries), then its name and the verbs that now read and edit those slots."""
+
+    project_id = str(project_id)
+    name = load_project(project_id).get("name") if paths.safe_path_token(project_id) == project_id else ""
+    named = f" ({name!r})" if name else ""
+    return (f"{project_id} — this workspace's slots moved to Project {project_id}{named}; read them with "
+            f"`hermes harness project show {project_id}` and edit them with `hermes harness project declare` / "
+            f"`project slot bind|clone|env-set` (`hermes harness project list` shows every Project and its workspaces)")
+
+
 __all__ = [
     "CATEGORIES",
     "FOLDER_CATEGORIES",
@@ -369,7 +409,9 @@ __all__ = [
     "ProjectStore",
     "category",
     "enforce_share_rule",
+    "list_projects",
     "load_project",
+    "migrated_next_step",
     "project_realms",
     "project_workspaces",
     "require_project_publish_rights",
@@ -378,3 +420,4 @@ __all__ = [
     "valid_project_id",
     "write_project",
 ]
+

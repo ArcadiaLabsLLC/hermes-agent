@@ -44,9 +44,19 @@ def _emit_workspace_slot_verb(args, kind: str, action) -> int:
     slot document read from a wrong root is an empty document, not a refusal (D3.17)."""
     from agent_runtime.root_observability import attach_root_observability
     from agent_runtime.workspace_slot_env import SlotEnvRefused
-    from agent_runtime.workspace_slots import SlotRefused
+    from agent_runtime.workspace_slots import REASON_SLOT_MIGRATED, SlotRefused
 
-    return run_refusing_verb(args, kind, action, refusals=(SlotRefused, SlotEnvRefused), plain=(ValueError,),
+    def guided():
+        try:
+            return action()
+        except SlotRefused as exc:  # a migrated document: name the Project and the verbs that now answer
+            if exc.reason != REASON_SLOT_MIGRATED:
+                raise
+            from agent_runtime.project_store import migrated_next_step
+
+            raise SlotRefused(exc.reason, migrated_next_step(exc.detail)) from exc
+
+    return run_refusing_verb(args, kind, guided, refusals=(SlotRefused, SlotEnvRefused), plain=(ValueError,),
                              stamp=lambda envelope: attach_root_observability(envelope))
 
 
