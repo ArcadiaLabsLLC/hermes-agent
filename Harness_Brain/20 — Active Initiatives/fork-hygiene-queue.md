@@ -624,4 +624,4 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-31 (composer skill-selection checks)
 
-- **`FH-RUFF-BASELINE-20261031` — Restore the full-tree scripts/check Ruff baseline after rule drift.** · `agent_runtime/chat_head_migration.py` (`PYI036`), `agent_runtime/correlation_acceptance.py` (`RUF022`, `FURB162`, `UP017`) and the other unchanged fork-owned hits; scoped changed-file Ruff and the code-health ratchet pass, but the full-tree Ruff lane remains red · READY 2026-10-31
+- **`FH-RUFF-BASELINE-20261031` — Restore the full-tree scripts/check Ruff baseline after rule drift.** · `agent_runtime/chat_head_migration.py` (`PYI036`), `agent_runtime/correlation_acceptance.py` (`RUF022`, `FURB162`, `UP017`) and the other unchanged fork-owned hits; scoped changed-file Ruff and the code-health ratchet pass, but the full-tree Ruff lane remains red · READY 2026-10-31 · **TAKEN 2026-10-31 w1031b-h on nekwo-ubuntu24 as nekwo in hm-w1031b-h**
