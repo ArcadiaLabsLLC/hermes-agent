@@ -68,6 +68,8 @@ characters               lanes   ``runtime.characters.list/status/thumb/sprite/r
                                  (the character-sheet read twins; recolour writes)
 pets                     lanes   ``runtime.pets.thumb`` (a pet's idle-frame portrait,
                                  bytes inline; ``agent/pet/store.py``)
+profiles                 lanes   ``runtime.profiles.avatar`` (a profile's avatar image,
+                                 bytes inline; ``profile_context._profile_home_for_token``)
 character_assignment     lanes   ``runtime.character.assignment.*`` (shared agent identity)
 settles                  lanes   ``runtime.settles.list/rearm`` (the settle-push
                                  outbox's operator verbs)
@@ -136,6 +138,7 @@ from agent_runtime.serve_rpc import (
     client,
     characters,
     pets,
+    profiles,
     settles,
     lens,
     skills_pending,

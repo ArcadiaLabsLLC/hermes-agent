@@ -15,6 +15,7 @@ __all__ = [
     "HEALTH_METHOD_PARAMS",
     "PERSONA_TOOLSET_METHOD_PARAMS",
     "PETS_METHOD_PARAMS",
+    "PROFILES_METHOD_PARAMS",
     "REALM_METHOD_PARAMS",
     "SKILLS_PENDING_METHOD_PARAMS",
     "SKILL_CHANGES_METHOD_PARAMS",
@@ -32,6 +33,9 @@ CHARACTERS_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
 
 #: ``runtime.pets.thumb`` (``serve_rpc/pets.py``), the method twin of ``harness pets thumb``.
 PETS_METHOD_PARAMS: dict[str, tuple[str, ...]] = {"runtime.pets.thumb": ("slug", "url")}
+
+#: ``runtime.profiles.avatar`` (``serve_rpc/profiles.py``), a profile's avatar bytes for a remote reader.
+PROFILES_METHOD_PARAMS: dict[str, tuple[str, ...]] = {"runtime.profiles.avatar": ("profile",)}
 
 #: ``runtime.health`` (``serve_rpc/health.py``) takes none and refuses any.
 HEALTH_METHOD_PARAMS: dict[str, tuple[str, ...]] = {"runtime.health": ()}
@@ -95,6 +99,7 @@ PERSONA_TOOLSET_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
 TWIN_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     **CHARACTERS_METHOD_PARAMS,
     **PETS_METHOD_PARAMS,
+    **PROFILES_METHOD_PARAMS,
     **HEALTH_METHOD_PARAMS,
     **CHAT_VERB_METHOD_PARAMS,
     **REALM_METHOD_PARAMS,
