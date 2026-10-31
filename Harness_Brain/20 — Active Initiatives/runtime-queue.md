@@ -29,6 +29,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+- **`RT-RELAUNCH-ENV-FROM-SPAWNER` — a launcher relaunch takes the SERVE's own environment (`relaunch_env(os.environ)`), not the environment of the launcher whose beat it acts on, so a serve shared by several launchers relaunches one of them with the spawner's environment (seen on launcher nekwo-ubuntu24 2026-10-31: orphans carrying another QA lane's STAGEC_QA_MCP_OWNER); relaunch only the launcher that spawned the serve, or carry the environment with the beat** · `agent_runtime/launcher_supervision/relaunch.py::relaunch_env` · READY 2026-10-31
 ### Filed on arrival — 2026-10-31 (lane w1031d-h)
 
 
