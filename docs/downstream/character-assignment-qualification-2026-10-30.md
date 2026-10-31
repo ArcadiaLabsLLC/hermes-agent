@@ -112,5 +112,55 @@ prepush checks also completed with exit 0 before the dependency-row landing.
 The supported recovery boundary is documented in
 `docs/agent-runtime-harness/character-assignment.md`. This evidence does not
 qualify an old-runtime downgrade or reconcile actual conflicting user artwork.
-The original rollout row remains open for those explicit exits; it is not
-deleted or treated as superseded by successful tests.
+At that checkpoint the rollout row remained open for explicit review and recovery
+product support. The following P1c acceptance closes that independent implementation
+scope; actual user conflicts remain retained until explicitly reviewed.
+
+
+## P1c / P2d acceptance — 2026-10-31
+
+Candidate `65e05b4c62` extends the existing settlement outbox and record writer.
+Successful and refused terminal payloads retain their validated exact persona and
+instance owner through disk reload, retry and ACK. No owner is borrowed from a
+persona default or a current selection. A real sandboxed successful provider turn
+was also captured by the existing client fixture generator from integrated
+candidate `2791bf79b0`; it emitted both owner fields.
+
+The existing assignment writer now retains the previous distinct record choice.
+`runtime.character.assignment.restore_previous` uses that same store and CAS,
+retains the original migration receipt, and writes a new revision. Idempotent
+retries, stale drafts, unchanged saves and live inheritance have direct coverage.
+It refuses to restore first migration into ambiguous legacy authority. Ordinary
+profile settings and realm/instance identity retain their existing owners.
+The client supplies explicit instance/persona review and preserves custom portrait
+overrides without inventing an artwork relationship. No live user inventory was
+mass-reconciled or replaced. Old-binary in-place downgrade remains unsupported;
+record-aware compensating edits and the prior quiescent recovery qualification
+are the supported rollback boundary.
+
+### Validation
+
+- Final changed-symbol consumers and the two required name/dispatch censuses:
+  **213 passing checks across 11 files**, zero failures. Queue/text checks and
+  citation checks also completed with exit 0 through `scripts/prepush.sh`.
+  Ruff passed on the changed Python files.
+- Dropping the owner at `record_settle` made both exact-owner tests fail.
+  Bypassing the revision comparison made all three restore-mode tests fail.
+  Both production mutations were restored byte-for-byte before the accepted run.
+- The initial wider fork gate was **not clean**: 1,378 files, 15,548 passing tests,
+  30 failures, zero errors and 66 skips. Six failures in three RPC-manifest tests
+  were this slice's additive-method expectation and were corrected by regenerating
+  the manifest from its producer. All three files then passed alone.
+- Unrelated failures were compared one file at a time with `origin/main`, using
+  the canonical `--confirm-red` command. Existing phone, supervision, turn-cost,
+  work-brain and prepush-shell failures retain their original queue owners.
+  Additional absent-flag, project root-observability, writing-command skeleton,
+  child-collection, legibility and generated-tree findings were filed separately.
+  They are not fixed, suppressed or reclassified by this character change.
+- A scheduler config test was unstable: its initial bundle failed then passed
+  alone, a later isolated comparison failed only on candidate, and a subsequent
+  isolated candidate passed without a production repair. Its qualification is
+  tracked as `FH-SCHEDULER-CONFIG-TEST-STABILITY`; this is not a clean-suite claim.
+
+The model renderer and Aura publication remain separate client-owned stages.
+No renderer claim, model asset, instance system or assignment store was replaced.
