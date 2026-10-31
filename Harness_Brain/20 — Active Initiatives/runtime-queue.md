@@ -47,7 +47,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-30 (owner: generated-tree parity with coding-harness file tools)
 
-- **`RT-GENERATED-TREE-TEACH-NEW-VERBS` — when the launcher's `launcher.generated.patch` / `.write` / `glob` land, the teach's verb map names them (`patch` → patch, `write_file` → write, `search_files files` → glob)** · `docs/agent-runtime-harness/planned/generated-tree-host-path-teach-2026-10-31.md` §4 · BLOCKED 2026-10-31: launcher — `COMP-GENERATED-TREE-PATCH-VERB` and its siblings `COMP-GENERATED-TREE-WRITE-VERB`, `COMP-GENERATED-TREE-GLOB` in `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/companion-queue.md`
+- **`RT-GENERATED-TREE-TEACH-NEW-VERBS` — when the launcher's `launcher.generated.patch` / `.write` / `glob` land, the teach's verb map names them (`patch` → patch, `write_file` → write, `search_files files` → glob)** · `docs/agent-runtime-harness/planned/generated-tree-host-path-teach-2026-10-31.md` §4 · its launcher blockers landed: `c00b27d46e` patch, `019330254c` write, `dbcc28354f` glob (a `glob` argument on `launcher.generated.tree` and `file_glob` on `.grep`, not a verb of its own) · READY 2026-10-31
 
 ### Shared character assignment — 2026-10-30
 
