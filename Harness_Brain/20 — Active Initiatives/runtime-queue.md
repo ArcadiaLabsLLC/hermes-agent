@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-31 (lane w1031d-h)
+
+- **`RT-REFUSAL-POOL-CUSTOM-PROVIDER-KEY` — `record_provider_refusal` marks the pool entry for the refusal's `provider`, but a custom OpenAI-compatible provider's pool is keyed `custom:<name>`, so a refusal from one can miss its pool and its credential keeps answering `healthy`; resolve the pool key the runner used, not the refusal's provider word** · `agent_runtime/provider_refusal_pool.py::record_provider_refusal` · `agent/credential_pool.py` · READY 2026-10-31
+
 ### Filed on arrival — 2026-10-31 (launcher planning lane w1031c-plan)
 
 
