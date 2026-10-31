@@ -116,6 +116,7 @@
         "persona",
         "persona-instance",
         "pets",
+        "project",
         "prompt-context",
         "providers",
         "query",
@@ -10174,6 +10175,1331 @@
           "action": "store",
           "choices": null,
           "name": "slug",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        }
+      ],
+      "subcommands": []
+    },
+    "harness project": {
+      "exclusive_groups": [],
+      "options": {
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "project"
+      ],
+      "positionals": [],
+      "subcommands": [
+        "declare",
+        "list",
+        "recipe",
+        "report",
+        "show",
+        "slot"
+      ]
+    },
+    "harness project declare": {
+      "exclusive_groups": [],
+      "options": {
+        "--fields": {
+          "action": "store",
+          "canonical": "--fields",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--issued-at": {
+          "action": "store",
+          "canonical": "--issued-at",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--name": {
+          "action": "store",
+          "canonical": "--name",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--no-color": {
+          "action": "store_true",
+          "canonical": "--no-color",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--output": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--quiet": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--slots-file": {
+          "action": "store",
+          "canonical": "--slots-file",
+          "choices": null,
+          "nargs": 1,
+          "required": true,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-o": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-q": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "project",
+        "declare"
+      ],
+      "positionals": [
+        {
+          "action": "store",
+          "choices": null,
+          "name": "project_id",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        }
+      ],
+      "subcommands": []
+    },
+    "harness project list": {
+      "exclusive_groups": [],
+      "options": {
+        "--fields": {
+          "action": "store",
+          "canonical": "--fields",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--no-color": {
+          "action": "store_true",
+          "canonical": "--no-color",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--output": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--quiet": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-o": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-q": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "project",
+        "list"
+      ],
+      "positionals": [],
+      "subcommands": []
+    },
+    "harness project recipe": {
+      "exclusive_groups": [],
+      "options": {
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "project",
+        "recipe"
+      ],
+      "positionals": [],
+      "subcommands": [
+        "run-step",
+        "set",
+        "show"
+      ]
+    },
+    "harness project recipe run-step": {
+      "exclusive_groups": [],
+      "options": {
+        "--fields": {
+          "action": "store",
+          "canonical": "--fields",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--issued-at": {
+          "action": "store",
+          "canonical": "--issued-at",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--no-color": {
+          "action": "store_true",
+          "canonical": "--no-color",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--output": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--quiet": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-o": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-q": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "project",
+        "recipe",
+        "run-step"
+      ],
+      "positionals": [
+        {
+          "action": "store",
+          "choices": null,
+          "name": "project_id",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        },
+        {
+          "action": "store",
+          "choices": null,
+          "name": "slot",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        },
+        {
+          "action": "store",
+          "choices": null,
+          "name": "step_id",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        }
+      ],
+      "subcommands": []
+    },
+    "harness project recipe set": {
+      "exclusive_groups": [],
+      "options": {
+        "--fields": {
+          "action": "store",
+          "canonical": "--fields",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--issued-at": {
+          "action": "store",
+          "canonical": "--issued-at",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--no-color": {
+          "action": "store_true",
+          "canonical": "--no-color",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--output": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--persona-instance-id": {
+          "action": "store",
+          "canonical": "--persona-instance-id",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--quiet": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--revision": {
+          "action": "store",
+          "canonical": "--revision",
+          "choices": null,
+          "nargs": 1,
+          "required": true,
+          "type": "int"
+        },
+        "--steps-file": {
+          "action": "store",
+          "canonical": "--steps-file",
+          "choices": null,
+          "nargs": 1,
+          "required": true,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-o": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-q": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "project",
+        "recipe",
+        "set"
+      ],
+      "positionals": [
+        {
+          "action": "store",
+          "choices": null,
+          "name": "project_id",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        },
+        {
+          "action": "store",
+          "choices": null,
+          "name": "slot",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        }
+      ],
+      "subcommands": []
+    },
+    "harness project recipe show": {
+      "exclusive_groups": [],
+      "options": {
+        "--fields": {
+          "action": "store",
+          "canonical": "--fields",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--no-color": {
+          "action": "store_true",
+          "canonical": "--no-color",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--output": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--quiet": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-o": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-q": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "project",
+        "recipe",
+        "show"
+      ],
+      "positionals": [
+        {
+          "action": "store",
+          "choices": null,
+          "name": "project_id",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        }
+      ],
+      "subcommands": []
+    },
+    "harness project report": {
+      "exclusive_groups": [],
+      "options": {
+        "--fields": {
+          "action": "store",
+          "canonical": "--fields",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--no-color": {
+          "action": "store_true",
+          "canonical": "--no-color",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--output": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--quiet": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-o": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-q": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "project",
+        "report"
+      ],
+      "positionals": [
+        {
+          "action": "store",
+          "choices": null,
+          "name": "project_id",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        }
+      ],
+      "subcommands": []
+    },
+    "harness project show": {
+      "exclusive_groups": [],
+      "options": {
+        "--fields": {
+          "action": "store",
+          "canonical": "--fields",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--no-color": {
+          "action": "store_true",
+          "canonical": "--no-color",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--output": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--quiet": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-o": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-q": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "project",
+        "show"
+      ],
+      "positionals": [
+        {
+          "action": "store",
+          "choices": null,
+          "name": "project_id",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        }
+      ],
+      "subcommands": []
+    },
+    "harness project slot": {
+      "exclusive_groups": [],
+      "options": {
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "project",
+        "slot"
+      ],
+      "positionals": [],
+      "subcommands": [
+        "bind",
+        "clone",
+        "env-set"
+      ]
+    },
+    "harness project slot bind": {
+      "exclusive_groups": [],
+      "options": {
+        "--fields": {
+          "action": "store",
+          "canonical": "--fields",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--issued-at": {
+          "action": "store",
+          "canonical": "--issued-at",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--no-color": {
+          "action": "store_true",
+          "canonical": "--no-color",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--output": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--quiet": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-o": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-q": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "project",
+        "slot",
+        "bind"
+      ],
+      "positionals": [
+        {
+          "action": "store",
+          "choices": null,
+          "name": "project_id",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        },
+        {
+          "action": "store",
+          "choices": null,
+          "name": "slot",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        },
+        {
+          "action": "store",
+          "choices": null,
+          "name": "path",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        }
+      ],
+      "subcommands": []
+    },
+    "harness project slot clone": {
+      "exclusive_groups": [],
+      "options": {
+        "--fields": {
+          "action": "store",
+          "canonical": "--fields",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--issued-at": {
+          "action": "store",
+          "canonical": "--issued-at",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--no-color": {
+          "action": "store_true",
+          "canonical": "--no-color",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--output": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--quiet": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-o": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-q": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "project",
+        "slot",
+        "clone"
+      ],
+      "positionals": [
+        {
+          "action": "store",
+          "choices": null,
+          "name": "project_id",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        },
+        {
+          "action": "store",
+          "choices": null,
+          "name": "slot",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        },
+        {
+          "action": "store",
+          "choices": null,
+          "name": "dest_path",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        }
+      ],
+      "subcommands": []
+    },
+    "harness project slot env-set": {
+      "exclusive_groups": [],
+      "options": {
+        "--dotenv": {
+          "action": "store",
+          "canonical": "--dotenv",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--env": {
+          "action": "append",
+          "canonical": "--env",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--fields": {
+          "action": "store",
+          "canonical": "--fields",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--issued-at": {
+          "action": "store",
+          "canonical": "--issued-at",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--keep": {
+          "action": "append",
+          "canonical": "--keep",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--no-color": {
+          "action": "store_true",
+          "canonical": "--no-color",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--output": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--path-prepend": {
+          "action": "append",
+          "canonical": "--path-prepend",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--quiet": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--tool-path": {
+          "action": "append",
+          "canonical": "--tool-path",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--venv": {
+          "action": "store",
+          "canonical": "--venv",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-o": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-q": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "project",
+        "slot",
+        "env-set"
+      ],
+      "positionals": [
+        {
+          "action": "store",
+          "choices": null,
+          "name": "project_id",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        },
+        {
+          "action": "store",
+          "choices": null,
+          "name": "slot",
           "nargs": 1,
           "required": true,
           "type": null

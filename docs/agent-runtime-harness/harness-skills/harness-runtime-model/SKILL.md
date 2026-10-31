@@ -35,7 +35,7 @@ There is no assignment surface.
 **The Mission Board is planning state only.** A card never starts, routes, or changes anything.
 
 `hermes` == `python -m hermes_cli.main`. There is no `hermes harness runtime`
-command. Always `--json`. Never use raw DB / Python / ad-hoc scripts to inspect.
+command. Always `--json`. Never use raw DB / Python / ad-hoc scripts / hand-edited store files to inspect or mutate.
 
 ## Operating loop — load the reference that matches the task
 
@@ -76,8 +76,6 @@ QA judges work, never patches code.
   row) — without the last, say "admitted, not exercised". "There is a (live) QA session"
   names ids `live_qa` returned VERBATIM — never `session_search` (history, not state), an
   id cut from a chat root, a grep hit, the Launcher window; a QA task takes a FRESH instance.
-- Use first-class harness CLI verbs. Never inspect or mutate runtime state with raw
-  DB access, ad-hoc Python, or hand-editing store files.
 - **Archive-never-delete**, including the verb named `delete` (a full alias of
   `retire`, which archives and preserves chat history). There is no hard-delete verb
   to reach for.
@@ -119,7 +117,7 @@ QA judges work, never patches code.
 | a chat session's transcript | `hermes harness persona chat history --session-id <root> --json` |
 | stored agent-graph documents | `hermes harness flow list --json` · `hermes harness flow show <graph_id> --json` |
 | planning boards and cards | `hermes harness board list --json` · `hermes harness board show <board_id> --json` |
-| realms / workspaces | `hermes harness realm list --json` · `hermes harness workspace list --json` |
+| realms / workspaces / Projects (repo slots: `references/operations.md`) | `hermes harness realm list --json` · `workspace list --json` · `project list --json` |
 | aggregate read-model (what the Launcher renders) | `hermes harness snapshot --json` — evidence capture only, **never a lookup** (~900 KB, tens of seconds a call) |
 | shared skills substrate | `hermes harness skills inventory --json` · `skills catalog --json` |
 | level agents shown in Mission Control | Stage C MCP `mcp_launcher_qa_get_buttons` with `scope=mission_control.agent` |

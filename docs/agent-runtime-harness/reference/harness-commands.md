@@ -54,6 +54,19 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness workspace slots env-set](#hermes-harness-workspace-slots-env-set)
 - [hermes harness workspace slots report](#hermes-harness-workspace-slots-report)
 - [hermes harness workspace slots clone](#hermes-harness-workspace-slots-clone)
+- [hermes harness project](#hermes-harness-project)
+- [hermes harness project list](#hermes-harness-project-list)
+- [hermes harness project show](#hermes-harness-project-show)
+- [hermes harness project report](#hermes-harness-project-report)
+- [hermes harness project declare](#hermes-harness-project-declare)
+- [hermes harness project slot](#hermes-harness-project-slot)
+- [hermes harness project slot bind](#hermes-harness-project-slot-bind)
+- [hermes harness project slot clone](#hermes-harness-project-slot-clone)
+- [hermes harness project slot env-set](#hermes-harness-project-slot-env-set)
+- [hermes harness project recipe](#hermes-harness-project-recipe)
+- [hermes harness project recipe show](#hermes-harness-project-recipe-show)
+- [hermes harness project recipe set](#hermes-harness-project-recipe-set)
+- [hermes harness project recipe run-step](#hermes-harness-project-recipe-run-step)
 - [hermes harness realm](#hermes-harness-realm)
 - [hermes harness realm list](#hermes-harness-realm-list)
 - [hermes harness realm show](#hermes-harness-realm-show)
@@ -228,10 +241,10 @@ before changing state. Alias paths share the canonical command's flags.
 
 ```text
 usage: hermes harness [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color] [--fields FIELDS]
-                      {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,conversation,observe,contracts,worktree,persona-instance,query,agent,install-harness-skills,snapshot,stream,serve,work,builds,pets,characters} ...
+                      {execution-identity,auth,init,roots,gateway,workspace,project,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,conversation,observe,contracts,worktree,persona-instance,query,agent,install-harness-skills,snapshot,stream,serve,work,builds,pets,characters} ...
 
 positional arguments:
-  {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,conversation,observe,contracts,worktree,persona-instance,query,agent,install-harness-skills,snapshot,stream,serve,work,builds,pets,characters}
+  {execution-identity,auth,init,roots,gateway,workspace,project,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,conversation,observe,contracts,worktree,persona-instance,query,agent,install-harness-skills,snapshot,stream,serve,work,builds,pets,characters}
     execution-identity  Identify this Hermes installation without starting a service
     auth                Connect a provider without a terminal prompt
     init                Initialize the harness store
@@ -239,6 +252,7 @@ positional arguments:
     gateway             This runtime root's remote-gateway install identity — the name and id a
                         phone's install picker shows
     workspace           Manage Harness workspaces
+    project             Projects: the repo slots a workspace's agents work in
     realm               Manage Harness realms
     flow                Operator flow-graph documents: ingest the Launcher's authored agent map
                         whole and set the referenced instances' steering relations
@@ -1104,6 +1118,278 @@ options:
   -q, --quiet
   --no-color
   --fields FIELDS
+```
+
+## hermes harness project
+
+```text
+usage: hermes harness project [-h] {list,show,report,declare,slot,recipe} ...
+
+positional arguments:
+  {list,show,report,declare,slot,recipe}
+    list                Every Project with its slots and the workspaces it is connected to
+    show                The Project record, its realms and this machine's fill (read-only)
+    report              Re-probe this machine's fill of the Project's slots
+    declare             Replace the Project's declared slots (missing names are tombstoned); creates
+                        the Project
+    slot                One slot on THIS machine: bind, clone, environment fill
+    recipe              The setup recipe of the Project's slots
+
+options:
+  -h, --help            show this help message and exit
+```
+
+## hermes harness project list
+
+```text
+usage: hermes harness project list [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
+                                   [--fields FIELDS]
+
+options:
+  -h, --help            show this help message and exit
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+```
+
+## hermes harness project show
+
+```text
+usage: hermes harness project show [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
+                                   [--fields FIELDS]
+                                   project_id
+
+positional arguments:
+  project_id
+
+options:
+  -h, --help            show this help message and exit
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+```
+
+## hermes harness project report
+
+```text
+usage: hermes harness project report [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
+                                     [--fields FIELDS]
+                                     project_id
+
+positional arguments:
+  project_id
+
+options:
+  -h, --help            show this help message and exit
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+```
+
+## hermes harness project declare
+
+```text
+usage: hermes harness project declare [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
+                                      [--fields FIELDS] --slots-file SLOTS_FILE [--name NAME]
+                                      [--issued-at ISSUED_AT]
+                                      project_id
+
+positional arguments:
+  project_id
+
+options:
+  -h, --help            show this help message and exit
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+  --slots-file SLOTS_FILE
+                        JSON list of {name, repo, toolchain, context}
+  --name NAME           The Project's display name
+  --issued-at ISSUED_AT
+                        ISO-8601 issue time; an older declaration is refused
+```
+
+## hermes harness project slot
+
+```text
+usage: hermes harness project slot [-h] {bind,clone,env-set} ...
+
+positional arguments:
+  {bind,clone,env-set}
+    bind                Bind a declared slot to a local checkout on THIS machine
+    clone               Clone a declared slot into a path on THIS machine, then bind it
+    env-set             Replace this machine's environment fill for a slot (secrets belong in .env)
+
+options:
+  -h, --help            show this help message and exit
+```
+
+## hermes harness project slot bind
+
+```text
+usage: hermes harness project slot bind [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
+                                        [--fields FIELDS] [--issued-at ISSUED_AT]
+                                        project_id slot path
+
+positional arguments:
+  project_id
+  slot
+  path                  Absolute path to the checkout on this machine
+
+options:
+  -h, --help            show this help message and exit
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+  --issued-at ISSUED_AT
+```
+
+## hermes harness project slot clone
+
+```text
+usage: hermes harness project slot clone [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
+                                         [--fields FIELDS] [--issued-at ISSUED_AT]
+                                         project_id slot dest_path
+
+positional arguments:
+  project_id
+  slot
+  dest_path             Absolute path the checkout lands at (absent or an empty directory)
+
+options:
+  -h, --help            show this help message and exit
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+  --issued-at ISSUED_AT
+```
+
+## hermes harness project slot env-set
+
+```text
+usage: hermes harness project slot env-set [-h] [-o {json,table,yaml,wide}] [--json] [-q]
+                                           [--no-color] [--fields FIELDS] [--env ENV]
+                                           [--keep ENV_KEEP] [--tool-path TOOL_PATH]
+                                           [--path-prepend PATH_PREPEND] [--dotenv DOTENV]
+                                           [--venv VENV] [--issued-at ISSUED_AT]
+                                           project_id slot
+
+positional arguments:
+  project_id
+  slot
+
+options:
+  -h, --help            show this help message and exit
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+  --env ENV             KEY=VALUE (repeatable)
+  --keep ENV_KEEP       Keep this key's stored value (repeatable)
+  --tool-path TOOL_PATH
+                        TOOL=PATH (repeatable)
+  --path-prepend PATH_PREPEND
+                        Directory put in front of PATH (repeatable)
+  --dotenv DOTENV       The .env file, relative to the checkout
+  --venv VENV           A virtualenv whose bin/Scripts directory is prepended
+  --issued-at ISSUED_AT
+```
+
+## hermes harness project recipe
+
+```text
+usage: hermes harness project recipe [-h] {show,set,run-step} ...
+
+positional arguments:
+  {show,set,run-step}
+    show               Every slot's setup recipe and its last runs (read-only)
+    set                Replace one slot's owner steps
+    run-step           Run ONE owner command step of a slot on THIS machine and wait
+
+options:
+  -h, --help           show this help message and exit
+```
+
+## hermes harness project recipe show
+
+```text
+usage: hermes harness project recipe show [-h] [-o {json,table,yaml,wide}] [--json] [-q]
+                                          [--no-color] [--fields FIELDS]
+                                          project_id
+
+positional arguments:
+  project_id
+
+options:
+  -h, --help            show this help message and exit
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+```
+
+## hermes harness project recipe set
+
+```text
+usage: hermes harness project recipe set [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
+                                         [--fields FIELDS] --steps-file STEPS_FILE
+                                         --revision REVISION
+                                         [--persona-instance-id PERSONA_INSTANCE_ID]
+                                         [--issued-at ISSUED_AT]
+                                         project_id slot
+
+positional arguments:
+  project_id
+  slot
+
+options:
+  -h, --help            show this help message and exit
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+  --steps-file STEPS_FILE
+                        JSON list of owner steps
+  --revision REVISION   The recipe revision this edit replaces
+  --persona-instance-id PERSONA_INSTANCE_ID
+  --issued-at ISSUED_AT
+```
+
+## hermes harness project recipe run-step
+
+```text
+usage: hermes harness project recipe run-step [-h] [-o {json,table,yaml,wide}] [--json] [-q]
+                                              [--no-color] [--fields FIELDS] [--issued-at ISSUED_AT]
+                                              project_id slot step_id
+
+positional arguments:
+  project_id
+  slot
+  step_id
+
+options:
+  -h, --help            show this help message and exit
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+  --issued-at ISSUED_AT
 ```
 
 ## hermes harness realm

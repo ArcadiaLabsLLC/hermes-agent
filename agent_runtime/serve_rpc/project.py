@@ -7,6 +7,8 @@ realm verbs take, ``credentials`` a list of them when the Project is assigned in
 server-bound realms (each admits only its own realm). Every refusal is a typed ``data.reason``.
 """
 
+from collections.abc import Callable
+
 from agent_runtime.call_authorization import TIER_CONSOLE
 from agent_runtime.serve_rpc.protocol import ERR_CONFLICT, ERR_HANDLER_FAILED, ERR_INVALID_PARAMS, ERR_NOT_FOUND, err, ok
 from agent_runtime.serve_rpc.registry import method
@@ -76,6 +78,23 @@ def _project_refusals(handler):
     return run
 
 
+#: Each ``runtime.project.*`` verb's body (``params`` -> result, raising the typed refusals), by method name.
+#: The RPC registration wraps it in :func:`_project_refusals`; ``hermes harness project`` (the agent's
+#: door, RT-PROJECT-SLOTS-AGENT-VERBS) calls the SAME body, so the two can never answer differently.
+PROJECT_VERBS: dict[str, Callable[[dict], dict]] = {}
+
+
+def _project_verb(name: str):
+    """Register ``name`` as a console-tier RPC method over the body, and the body in :data:`PROJECT_VERBS`."""
+
+    def dec(handler):
+        PROJECT_VERBS[name] = handler
+        method(name, tier=TIER_CONSOLE)(_project_refusals(handler))
+        return handler
+
+    return dec
+
+
 def _project_store_for(params: dict):
     """A :class:`ProjectStore` carrying the request's realm credentials, keyed by realm id."""
 
@@ -103,16 +122,14 @@ def _issued_at(params: dict) -> str:
     return slot_issued_at(params)
 
 
-@method("runtime.project.show", tier=TIER_CONSOLE)
-@_project_refusals
+@_project_verb("runtime.project.show")
 def _project_show(params):
     from agent_runtime.project_store import show
 
     return show(params.get("project_id"))
 
 
-@method("runtime.project.declare", tier=TIER_CONSOLE)
-@_project_refusals
+@_project_verb("runtime.project.declare")
 def _project_declare(params):
     from agent_runtime.workspace_slots import machine_id
 
@@ -120,8 +137,7 @@ def _project_declare(params):
                                   machine=machine_id(), name=params.get("name"))
 
 
-@method("runtime.project.category.set", tier=TIER_CONSOLE)
-@_project_refusals
+@_project_verb("runtime.project.category.set")
 def _project_category_set(params):
     return _project_store_for(params).set_category(params.get("project_id"), str(params.get("category") or ""),
                                        slot=params.get("slot"), subpath=params.get("subpath"),
@@ -129,8 +145,7 @@ def _project_category_set(params):
                                        context_files=params.get("context_files"))
 
 
-@method("runtime.project.guidance.set", tier=TIER_CONSOLE)
-@_project_refusals
+@_project_verb("runtime.project.guidance.set")
 def _project_guidance_set(params):
     return _project_store_for(params).set_guidance(params.get("project_id"), description=params.get("description"),
                                        instructions=params.get("instructions"), issued_at=_issued_at(params))
@@ -139,8 +154,7 @@ def _project_guidance_set(params):
 # ── this machine's fill of a Project's slots (LOCAL_CONSOLE_METHODS: never from a paired device) ──
 
 
-@method("runtime.project.slot.bind", tier=TIER_CONSOLE)
-@_project_refusals
+@_project_verb("runtime.project.slot.bind")
 def _project_slot_bind(params):
     from agent_runtime.workspace_slots import bind_project
 
@@ -148,8 +162,7 @@ def _project_slot_bind(params):
                         issued_at=_issued_at(params))
 
 
-@method("runtime.project.slot.env.set", tier=TIER_CONSOLE)
-@_project_refusals
+@_project_verb("runtime.project.slot.env.set")
 def _project_slot_env_set(params):
     from agent_runtime.project_store import load_project, valid_project_id
     from agent_runtime.workspace_slot_env import fill_shape, set_slot_fill
@@ -171,8 +184,7 @@ def _project_slot_env_set(params):
             "env_keep_missing": sorted(set(keep or ()) - set(fill.env))}
 
 
-@method("runtime.project.report", tier=TIER_CONSOLE)
-@_project_refusals
+@_project_verb("runtime.project.report")
 def _project_report(params):
     from agent_runtime.project_store import valid_project_id
     from agent_runtime.workspace_slots_probe import report_project
@@ -183,8 +195,7 @@ def _project_report(params):
 # ── the setup recipe of a Project's slots (the workspace verbs' Project-keyed twins) ──
 
 
-@method("runtime.project.recipe.show", tier=TIER_CONSOLE)
-@_project_refusals
+@_project_verb("runtime.project.recipe.show")
 def _project_recipe_show(params):
     from agent_runtime.project_store import valid_project_id
     from agent_runtime.workspace_slot_recipe_store import show_project_recipe
@@ -195,8 +206,7 @@ def _project_recipe_show(params):
     return show_project_recipe(project_id)
 
 
-@method("runtime.project.recipe.set", tier=TIER_CONSOLE)
-@_project_refusals
+@_project_verb("runtime.project.recipe.set")
 def _project_recipe_set(params):
     """Replace one Project slot's owner steps; the Project's publish decision for every realm holding it."""
 
@@ -211,8 +221,7 @@ def _project_recipe_set(params):
                       credentials=_project_store_for(params)._credentials)
 
 
-@method("runtime.project.slot.clone", tier=TIER_CONSOLE)
-@_project_refusals
+@_project_verb("runtime.project.slot.clone")
 def _project_slot_clone(params):
     """Clone a Project's slot into ``dest_path``; success binds the Project's fill on this machine."""
 
@@ -223,8 +232,7 @@ def _project_slot_clone(params):
                       issued_at=_issued_at(params), project_id=valid_project_id(params.get("project_id")))
 
 
-@method("runtime.project.recipe.run_step", tier=TIER_CONSOLE)
-@_project_refusals
+@_project_verb("runtime.project.recipe.run_step")
 def _project_recipe_run_step(params):
     """Run ONE owner command step of a Project's slot, on this explicit request only."""
 
@@ -235,8 +243,7 @@ def _project_recipe_run_step(params):
                     issued_at=_issued_at(params), project_id=valid_project_id(params.get("project_id")))
 
 
-@method("runtime.project.artifacts.list", tier=TIER_CONSOLE)
-@_project_refusals
+@_project_verb("runtime.project.artifacts.list")
 def _project_artifacts_list(params):
     """The artifacts folder's names and sizes on this machine; hermes never writes there (plan §7)."""
 
@@ -245,8 +252,7 @@ def _project_artifacts_list(params):
     return artifacts_list(params.get("project_id"))
 
 
-@method("runtime.project.chat.share", tier=TIER_CONSOLE)
-@_project_refusals
+@_project_verb("runtime.project.chat.share")
 def _project_chat_share(params):
     """Share one chat into a Project (backfill, then every turn end) or stop sharing it (plan §5)."""
 
@@ -261,8 +267,7 @@ def _project_chat_share(params):
                  credentials=store._credentials)
 
 
-@method("runtime.project.chat.fold", tier=TIER_CONSOLE)
-@_project_refusals
+@_project_verb("runtime.project.chat.fold")
 def _project_chat_fold(params):
     """Fetch the Project's chats folder to its remote tip and fold new turns into its shared store (plan §6)."""
 

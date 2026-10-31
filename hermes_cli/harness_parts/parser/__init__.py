@@ -11,7 +11,7 @@ its ``func=`` handlers BY NAME through ``lazy`` — the tree imports no handler)
 * ``machine`` — init, roots, gateway, status/providers/usage/doctor/health/verify,
   config, migrate, observe, contracts, worktree, install-harness-skills, snapshot,
   stream, serve (with its two lazy ``_cmd_serve*`` trampolines), work, builds;
-* ``scope`` — workspace, realm;
+* ``scope`` — workspace, project, realm;
 * ``auth`` — non-interactive provider setup over native credential handlers;
 * ``surfaces`` — flow, checkpoint, skills, prompt-context, board, office, level, map;
 * ``persona`` — persona, mission-chat, persona-instance, query, agent;
@@ -56,7 +56,7 @@ from .machine import (
     add_worktree,
 )
 from .persona import add_agent, add_mission_chat, add_persona, add_persona_instance, add_query
-from .scope import add_realm, add_workspace
+from .scope import add_project, add_realm, add_workspace
 from .execution_identity import add_execution_identity
 from .lazy import LazyHandlerParser
 from .surfaces import (
@@ -81,6 +81,7 @@ PARSER_FAMILIES: Final[tuple[Callable[[object], None], ...]] = (
     add_roots,
     add_gateway,
     add_workspace,
+    add_project,
     add_realm,
     add_flow,
     add_checkpoint,
