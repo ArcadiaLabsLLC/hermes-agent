@@ -47,6 +47,9 @@ Read in this order for a full picture; each stands alone for its own territory.
 - [Agent Console suggestion completion](planned/console-next-prompt-completion-2026-10-27.md) — 2026-10-27 completion recommendations; documentation only, implementation deferred by the owner.
 
 - [Agent Console follow-up suggestions](05-chat-turn-lane.md#opt-in-follow-up-drafts) — implemented through existing native owners; off by default. Historical design is archived and live qualification remains named in the domain queue.
+- [Generated-tree host-path teach](planned/generated-tree-host-path-teach-2026-10-31.md) — a host file
+  tool handed a `/doc` · `/runtime` · `/ref` path answers the `launcher_generated_*` verb to use (teach,
+  never route); how a generated path is told from a real host one. Build rows `RT-GENERATED-TREE-TEACH-*`.
 - [Naming and address map](planned/naming-and-address-map-2026-10-25.md) — machine, install,
   namespace, agent profile, persona instance, realm workspace and repo slot as one typed address;
   the as-built map verified 2026-10-25 and the owner's rulings; the hermes half shipped 2026-10-25..26,
