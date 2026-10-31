@@ -17,7 +17,7 @@ import pytest
 from agent_runtime import course_tool, turn_secrets
 from tests._downstream.split_package_source import patch_where_bound
 from tests.agent_runtime.test_course_authoring import COURSE, GITHUB_URL, SECRET, FakeGitHub, _credential, _url
-from tests.agent_runtime.test_course_authoring import remote  # noqa: F401 — the bare-remote fixture
+from tests.agent_runtime.test_course_authoring import remote
 
 TURN = "turn_course_1"
 
@@ -55,7 +55,7 @@ def _call(handler, args) -> dict:
     return json.loads(handler(args))
 
 
-def test_every_tool_refuses_course_credential_missing_without_a_turn_credential(remote, persona):  # noqa: F811
+def test_every_tool_refuses_course_credential_missing_without_a_turn_credential(remote, persona):
     """Killing mutation: deleting ``_turn_credential``'s None check turns the refusal into an AttributeError."""
 
     calls = [(course_tool.handle_course_checkout, {"course_public_id": COURSE}),
@@ -76,13 +76,13 @@ def test_every_tool_refuses_course_credential_missing_without_a_turn_credential(
             course_tool.REASON_CREDENTIAL_MISSING)
 
 
-def test_a_credential_for_another_course_refuses_subject_mismatch(remote, persona):  # noqa: F811
+def test_a_credential_for_another_course_refuses_subject_mismatch(remote, persona):
     with _turn({"course_credential": _credential(_url(remote))}):
         answer = _call(course_tool.handle_course_checkout, {"course_public_id": "crs_other"})
     assert answer["error"] == "credential_subject_mismatch"
 
 
-def test_a_commit_is_authored_by_the_turns_persona_on_its_branch_and_never_echoes_the_secret(remote, persona):  # noqa: F811
+def test_a_commit_is_authored_by_the_turns_persona_on_its_branch_and_never_echoes_the_secret(remote, persona):
     """Killing mutation: ``_course_turn_persona`` answering a fixed ``agent`` id lands ``agent/agent/intro``."""
 
     with _turn({"course_credential": _credential(_url(remote))}):
@@ -111,7 +111,7 @@ def test_a_pull_request_rides_the_turns_credential_and_persona(monkeypatch, pers
     assert {call[2] for call in github.calls} == {SECRET} and SECRET not in answer
 
 
-def test_a_call_outside_a_persona_turn_refuses_persona_unknown(remote):  # noqa: F811
+def test_a_call_outside_a_persona_turn_refuses_persona_unknown(remote):
     turn_secrets.put(TURN, {"course_credential": _credential(_url(remote))})
     try:
         with turn_secrets.bound(TURN):

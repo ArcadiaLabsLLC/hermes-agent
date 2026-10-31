@@ -22,11 +22,11 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Iterable
 
 __layer__ = "policy"
-__all__ = ["HOPS", "Hop", "VERDICT_JOINED", "VERDICT_MISSING", "VERDICT_OUT_OF_ORDER", "join_token", "read_hops"]
+__all__ = ["HOPS", "VERDICT_JOINED", "VERDICT_MISSING", "VERDICT_OUT_OF_ORDER", "Hop", "join_token", "read_hops"]
 
 #: The three hops, in the order a gesture must produce them.
 HOPS = ("send", "serve", "fold")
@@ -59,11 +59,11 @@ def _receipt_hop(line: str, token: str, source: str) -> Hop | None:
     if hop is None or token not in str(row.get("corr") or "").split(","):
         return None
     try:
-        at = datetime.fromisoformat(str(row.get("at") or "").replace("Z", "+00:00"))
+        at = datetime.fromisoformat(str(row.get("at") or ""))
     except ValueError:
         return None
-    at = at if at.tzinfo is not None else at.replace(tzinfo=timezone.utc)
-    return Hop(hop, at.astimezone(timezone.utc), source, str(row.get("detail") or ""))
+    at = at if at.tzinfo is not None else at.replace(tzinfo=UTC)
+    return Hop(hop, at.astimezone(UTC), source, str(row.get("detail") or ""))
 
 
 def _serve_hop(line: str, token: str, source: str, serve_offset: timedelta) -> Hop | None:
@@ -71,7 +71,7 @@ def _serve_hop(line: str, token: str, source: str, serve_offset: timedelta) -> H
     if match is None or match["corr"] != token:
         return None
     local = datetime.strptime(match["stamp"], "%Y-%m-%d %H:%M:%S,%f")
-    return Hop("serve", (local - serve_offset).replace(tzinfo=timezone.utc), source, match["op"])
+    return Hop("serve", (local - serve_offset).replace(tzinfo=UTC), source, match["op"])
 
 
 def read_hops(token: str, sources: Iterable[tuple[str, Iterable[str]]], *, serve_offset: timedelta) -> list[Hop]:

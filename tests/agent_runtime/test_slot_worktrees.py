@@ -25,7 +25,7 @@ def test_the_slot_checkout_itself_is_never_a_development_workspace():
 def test_a_worktree_first_seen_at_a_turn_end_is_that_turns_and_its_removal_is_recorded(tmp_path):
     repo = tmp_path / "launcher"
     listing = {"text": _porcelain()}
-    run = lambda _repo: listing["text"]  # noqa: E731
+    run = lambda _repo: listing["text"]
     assert sw.observe("ws_1", "launcher", repo, phase=sw.PHASE_START, turn=TURN, run=run) == {"created": [], "removed": []}
     listing["text"] = _porcelain(("C:/wt/x", "feat"))
     assert sw.observe("ws_1", "launcher", repo, phase=sw.PHASE_END, turn=TURN, run=run)["created"] == ["C:/wt/x"]
@@ -39,13 +39,13 @@ def test_a_worktree_first_seen_at_a_turn_end_is_that_turns_and_its_removal_is_re
 
 
 def test_a_worktree_first_seen_at_a_turn_start_was_cut_outside_any_turn(tmp_path):
-    run = lambda _repo: _porcelain(("C:/wt/operator", "op"))  # noqa: E731
+    run = lambda _repo: _porcelain(("C:/wt/operator", "op"))
     sw.observe("ws_1", "launcher", tmp_path, phase=sw.PHASE_START, turn=TURN, run=run)
     assert sw.load_ledger("ws_1", "launcher")["worktrees"]["C:/wt/operator"]["created_by_turn"] is None
 
 
 def test_an_unreadable_listing_infers_nothing(tmp_path):
-    run = lambda _repo: _porcelain(("C:/wt/x", "feat"))  # noqa: E731
+    run = lambda _repo: _porcelain(("C:/wt/x", "feat"))
     sw.observe("ws_1", "launcher", tmp_path, phase=sw.PHASE_END, turn=TURN, run=run)
     assert sw.observe("ws_1", "launcher", tmp_path, phase=sw.PHASE_END, turn=TURN, run=lambda _r: None) == {
         "created": [], "removed": []}

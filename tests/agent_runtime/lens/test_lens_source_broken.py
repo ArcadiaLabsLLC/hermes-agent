@@ -22,7 +22,7 @@ from datetime import timedelta
 
 import httpx
 import pytest
-from test_lens_exit_door import T0, _monitor, door  # noqa: F401  (door is a fixture)
+from test_lens_exit_door import T0, _monitor, door
 
 from agent_runtime.lens.episode import Episode, EpisodeState
 from agent_runtime.lens.poller import LensPoller
@@ -131,7 +131,7 @@ def test_an_investigate_monitor_forges_a_repair_turn_carrying_both_skeletons_ins
     assert "[LENS EPISODE — status · source_broken:api · #1]" in args.message
     assert "stopped answering in the shape it was sealed against" in args.message
     fence = re.compile(re.escape(UNTRUSTED_EVIDENCE_OPEN + "\n") + "(.*?)" + re.escape("\n" + UNTRUSTED_EVIDENCE_CLOSE),
-                       re.S)
+                       re.DOTALL)
     bodies = fence.findall(args.message)
     assert len(bodies) == 2, "the sources and the shapes are each fenced"
     assert '"known_good"' in bodies[1] and "$.cpu" in bodies[1] and "$.cpu_pct" in bodies[1]

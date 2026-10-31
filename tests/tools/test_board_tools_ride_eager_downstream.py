@@ -25,7 +25,7 @@ def _assembled_names(defer: frozenset[str], names: list[str]) -> tuple[set[str],
 
 
 def test_the_never_defer_board_set_is_every_tool_the_board_toolset_registers():
-    import tools.board_tool  # noqa: F401  (registers the board toolset)
+    import tools.board_tool
     from tools.registry import registry
     from tools.tool_search_downstream import BOARD_TOOLS
 
@@ -35,7 +35,7 @@ def test_the_never_defer_board_set_is_every_tool_the_board_toolset_registers():
 
 
 def test_a_board_tool_stays_eager_even_when_a_persona_defers_it():
-    import tools.board_tool  # noqa: F401
+    import tools.board_tool
     from tools.tool_search_downstream import BOARD_TOOLS
 
     neighbour = "cronjob"  # a registered tool the same defer list really does defer

@@ -123,7 +123,7 @@ def test_the_agents_registered_tool_call_recalls_across_the_enabled_stores(world
 
     Positive control: with the switch off the same call answers the own store only.
     """
-    import tools.session_search_tool  # noqa: F401 — the module whose import registers and routes the tool
+    import tools.session_search_tool
     from tools.registry import registry
 
     handler = registry.get_entry("session_search", scope=None).handler

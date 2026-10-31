@@ -15,7 +15,7 @@ from agent_runtime.conversations import worker_entry
 
 
 class _Supervisor:
-    made: list["_Supervisor"] = []
+    made: list[_Supervisor] = []
 
     def __init__(self, **_kwargs):
         self.stopped = 0
@@ -32,7 +32,7 @@ def server(monkeypatch):
     _Supervisor.made = []
     monkeypatch.setattr(host_supervisor, "HostSupervisor", _Supervisor)
     monkeypatch.setattr(gateway_server, "_compute_host_supervisor", None)
-    monkeypatch.setattr(gateway_server, "_load_dashboard_process_isolation_config", lambda: {})
+    monkeypatch.setattr(gateway_server, "_load_dashboard_process_isolation_config", dict)
     return gateway_server
 
 

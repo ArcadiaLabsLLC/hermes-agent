@@ -141,7 +141,7 @@ def test_a_dropped_connection_with_the_pid_alive_is_not_a_crash():
 
 
 def test_a_quitting_launcher_alive_thirty_awake_seconds_later_is_drained_not_waited_on():
-    state, decisions = _tick(_beaten(LauncherState.QUITTING), 30.0)
+    _state, decisions = _tick(_beaten(LauncherState.QUITTING), 30.0)
     assert [(d.record, d.drain) for d in decisions] == [(Record.QUIT, "launcher_quit")]
     assert _tick(_beaten(LauncherState.QUITTING), 29.0)[1] == []
     assert _tick(_beaten(LauncherState.QUITTING, bound=False), 60.0)[1] == []

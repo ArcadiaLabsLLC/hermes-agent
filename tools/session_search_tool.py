@@ -807,6 +807,6 @@ registry.register(
     emoji="🔍")
 
 # fork seam: RT-PROJECT-CHAT-RECALL-ACROSS-STORES — the agent's call also recalls its enabled Projects' shared stores
-from agent_runtime.project_chat_recall import route_registered_handler  # noqa: E402
+from agent_runtime.project_chat_recall import route_registered_handler
 
 route_registered_handler(registry)

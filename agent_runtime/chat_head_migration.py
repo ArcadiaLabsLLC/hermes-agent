@@ -177,7 +177,7 @@ class _quiesced:
             self._stack.close()
             raise _Busy("chat_busy") from exc
 
-    def __exit__(self, *exc: Any) -> None:
+    def __exit__(self, *exc: object) -> None:
         self._stack.close()
 
 

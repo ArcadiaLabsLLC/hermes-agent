@@ -90,7 +90,7 @@ def test_a_review_write_to_a_shared_skill_is_staged_with_its_prior_text_kept(ski
     from tools import write_approval as wa
     from tools.skill_manager_tool import apply_skill_pending
 
-    home, shared = skill_roots
+    _home, shared = skill_roots
     assert review_shared_skill_write("skill_manage", _patch("shared-skill")) is None  # foreground
     assert _as_review(lambda: review_shared_skill_write("skill_manage", _patch("local-skill"))) is None
 

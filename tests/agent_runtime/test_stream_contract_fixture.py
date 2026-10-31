@@ -24,7 +24,7 @@ import hashlib
 import importlib.util
 import json
 import re
-from datetime import datetime, timedelta, timezone, UTC
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -251,11 +251,11 @@ def test_a_lens_tick_earlier_in_the_process_does_not_reach_the_goldens(tmp_path,
     ``WATCHER.last_tick`` stamped, and hydrate.json read a number at byte 3700
     where a CLI snapshot reads ``null``. The generator folds a never-started
     watcher and leaves this process's own state alone."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from agent_runtime.lens import poller
 
-    stamped = datetime(2026, 10, 28, 12, 0, tzinfo=timezone.utc)
+    stamped = datetime(2026, 10, 28, 12, 0, tzinfo=UTC)
     monkeypatch.setattr(poller, "WATCHER", poller.WatcherState(running=True, since=stamped, last_tick=stamped))
     _assert_the_generator_writes_the_goldens(tmp_path, monkeypatch)
     assert poller.WATCHER.last_tick == stamped

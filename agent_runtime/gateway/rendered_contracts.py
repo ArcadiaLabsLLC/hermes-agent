@@ -21,10 +21,10 @@ if TYPE_CHECKING:
 
 __all__ = ["CANONICAL_METHODS", "EVENTS", "METHODS", "SERVER_REQUESTS", "freeze"]
 
-METHODS: dict[str, "MethodContract"] = {}
-CANONICAL_METHODS: dict[str, "MethodContract"] = {}
-SERVER_REQUESTS: dict[str, "ServerRequestContract"] = {}
-EVENTS: dict[str, "EventContract"] = {}
+METHODS: dict[str, MethodContract] = {}
+CANONICAL_METHODS: dict[str, MethodContract] = {}
+SERVER_REQUESTS: dict[str, ServerRequestContract] = {}
+EVENTS: dict[str, EventContract] = {}
 
 
 def freeze() -> None:
@@ -47,4 +47,4 @@ def freeze() -> None:
 # Imported here, after ``freeze`` exists: a process whose first import is this module still gets
 # the catalog (the package's ``__init__`` calls ``freeze`` on its way out), and one already inside
 # the package's ``__init__`` gets the partly built package back and is called from there.
-import tui_gateway.contracts  # noqa: E402,F401
+import tui_gateway.contracts

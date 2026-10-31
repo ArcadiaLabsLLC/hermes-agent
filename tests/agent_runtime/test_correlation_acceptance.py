@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from agent_runtime.correlation_acceptance import (
     VERDICT_JOINED,
@@ -42,7 +42,7 @@ def _serve_line(at: datetime, corr: str | None) -> str:
 
     handler = _Capture()
     formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
-    formatter.converter = lambda secs: datetime.fromtimestamp(secs, timezone.utc).timetuple()
+    formatter.converter = lambda secs: datetime.fromtimestamp(secs, UTC).timetuple()
     handler.setFormatter(formatter)
     logger = office_read.logger
     logger.addHandler(handler)
@@ -58,7 +58,7 @@ def _serve_line(at: datetime, corr: str | None) -> str:
 
 
 def _gesture(send_s: float, serve_s: float, fold_s: float, *, corr: str = TOKEN):
-    t0 = datetime(2026, 10, 27, 12, 0, 0, tzinfo=timezone.utc)
+    t0 = datetime(2026, 10, 27, 12, 0, 0, tzinfo=UTC)
     receipts = [
         _receipt("office_write_sent", t0 + timedelta(seconds=send_s), TOKEN, "runtime.office.remove"),
         _receipt("fold_applied", t0 + timedelta(seconds=fold_s), f"g-other-9,{corr}", "entries:1"),

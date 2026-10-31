@@ -56,7 +56,7 @@ class ClipBpe:
         self._memo: dict[str, tuple[str, ...]] = {}
 
     @classmethod
-    def from_files(cls, vocab_path: Path, merges_path: Path, *, max_tokens: int = 77) -> "ClipBpe":
+    def from_files(cls, vocab_path: Path, merges_path: Path, *, max_tokens: int = 77) -> ClipBpe:
         vocab = json.loads(Path(vocab_path).read_text(encoding="utf-8"))
         merges = []
         for line in Path(merges_path).read_text(encoding="utf-8").splitlines():

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 
-from tests.hermes_cli.test_persona_set_skills import _dispatch, _row_on_disk, _seed_persona, hermetic_runtime_root  # noqa: F401
+from tests.hermes_cli.test_persona_set_skills import _dispatch, _row_on_disk, _seed_persona, hermetic_runtime_root
 
 
 def _set_context(persona_id: str, *flags: str) -> list[str]:

@@ -46,6 +46,7 @@ uses ``recovery_threshold`` (hysteresis) and also needs a complete window.
 
 from __future__ import annotations
 
+import itertools
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Sequence
@@ -484,7 +485,7 @@ def evaluate_missing_data(rule: dict[str, Any], observations: Sequence[Observati
         return Verdict.UNKNOWN
     times = [start, *(obs.observed_at for obs in inside), now]
     limit = continuity_limit(expected_interval)
-    covered = pushed or all(later - earlier <= limit for earlier, later in zip(times, times[1:]))
+    covered = pushed or all(later - earlier <= limit for earlier, later in itertools.pairwise(times))
     return Verdict.FIRING if covered else Verdict.UNKNOWN
 
 

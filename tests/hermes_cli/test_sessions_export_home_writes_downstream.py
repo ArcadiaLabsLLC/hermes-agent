@@ -82,7 +82,7 @@ def _run_cli(home: Path, *args: str) -> subprocess.CompletedProcess:
     env["PYTHONPATH"] = str(REPO_ROOT)
     return subprocess.run(
         [sys.executable, "-m", "hermes_cli.main", *args],
-        cwd=REPO_ROOT, env=env, capture_output=True, text=True, timeout=120,
+        cwd=REPO_ROOT, env=env, capture_output=True, text=True, timeout=120, check=False,
     )
 
 

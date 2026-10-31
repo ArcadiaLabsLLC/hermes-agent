@@ -539,7 +539,7 @@ class _ObservedStreamManager:
     def __enter__(self) -> Any:
         return _ObservedMessageStream(self._hermes_inner.__enter__(), self._hermes_resource)
 
-    def __exit__(self, *exc: Any) -> Any:
+    def __exit__(self, *exc: object) -> Any:
         return self._hermes_inner.__exit__(*exc)
 
     def __getattr__(self, name: str) -> Any:

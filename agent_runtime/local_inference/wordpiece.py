@@ -86,7 +86,7 @@ class WordPiece:
         self.pad = vocab.get("[PAD]", 0)
 
     @classmethod
-    def from_file(cls, path: Path, *, max_tokens: int = 512) -> "WordPiece":
+    def from_file(cls, path: Path, *, max_tokens: int = 512) -> WordPiece:
         lines = Path(path).read_text(encoding="utf-8").splitlines()
         return cls({token: index for index, token in enumerate(lines)}, max_tokens=max_tokens)
 

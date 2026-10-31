@@ -24,7 +24,7 @@ from __future__ import annotations
 import copy
 from datetime import timedelta
 
-from test_lens_exit_door import T0, _armed, _episode, _monitor, door  # noqa: F401  (door is a fixture)
+from test_lens_exit_door import T0, _armed, _episode, _monitor, door
 
 from agent_runtime.lens.seal import seal_manifest
 from agent_runtime.lens.store import to_ms
@@ -182,6 +182,6 @@ def test_a_digest_carries_each_missed_members_outage_and_no_other_member_gets_on
     assert "Episode #1: monitor status's rule cpu_hot (urgent) MISSED its deadline" in args.message
     assert "The watcher was offline from 2026-10-19T11:50:00Z to 2026-10-19T11:59:00Z" in args.message
     assert "Episode #2:" not in args.message
-    typed = json.loads(re.search(r"^\{.*\}$", args.message, re.M).group(0))
+    typed = json.loads(re.search(r"^\{.*\}$", args.message, re.MULTILINE).group(0))
     offline = {entry["episode"]["ordinal"]: entry.get("offline") for entry in typed["episodes"]}
     assert offline == {1: {"from_ms": to_ms(before), "until_ms": to_ms(offline_at)}, 2: None}

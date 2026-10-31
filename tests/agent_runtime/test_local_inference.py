@@ -81,7 +81,7 @@ def runners(monkeypatch):
         loads.append((spec.model, folder.name))
         return made[spec.runner]
 
-    inference.set_service(inference.LocalInferenceService(loader=loader, absent_modules=lambda: [],
+    inference.set_service(inference.LocalInferenceService(loader=loader, absent_modules=list,
                                                           authority=_authority()))
     yield made, loads
     inference.set_service(None)
@@ -163,7 +163,7 @@ def test_a_runner_of_the_wrong_width_fails_loud(models_dir, runners):
 def test_loaded_runners_are_bounded(models_dir, tmp_path):
     # Kill: drop the ``MAX_LOADED`` trim -> three runners stay loaded, red.
     authority = _authority()
-    service = inference.LocalInferenceService(loader=lambda spec, folder: _FakeEmbedder(), absent_modules=lambda: [],
+    service = inference.LocalInferenceService(loader=lambda spec, folder: _FakeEmbedder(), absent_modules=list,
                                               authority=authority)
     for index in range(3):
         other = tmp_path / f"m{index}"
@@ -181,7 +181,7 @@ def test_loaded_runners_are_bounded(models_dir, tmp_path):
 
 def _service(authority, loader=None):
     return inference.LocalInferenceService(loader=loader or (lambda spec, folder: _FakeEmbedder()),
-                                           absent_modules=lambda: [], authority=authority)
+                                           absent_modules=list, authority=authority)
 
 
 def _embed(service, models_dir):

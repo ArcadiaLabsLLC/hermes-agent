@@ -34,10 +34,10 @@ from agent_runtime.serde import write_json_atomic
 __layer__ = "stores"
 
 __all__ = [
-    "JournalRefusal",
-    "Page",
     "SCAN_BUDGET_BYTES",
     "UNREADABLE_LINE",
+    "JournalRefusal",
+    "Page",
     "SkippedSpan",
     "format_cursor",
     "journal_id",

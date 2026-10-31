@@ -146,7 +146,7 @@ def test_the_project_clone_twin_binds_the_projects_fill(migrated, tmp_path):
 def test_the_cli_and_rpc_slot_verbs_answer_slot_migrated(migrated, capsys):
     from hermes_cli.harness_parts.workspace_slots_commands import _cmd_workspace_slots_env_set
 
-    workspace, project = migrated
+    workspace, _project = migrated
     reply = call("runtime.workspace.slot.env.set", {"workspace_id": workspace, "slot": "launcher", "env": {},
                                                      "issued_at": LATER})
     assert reply["error"]["data"]["reason"] == "slot_migrated"

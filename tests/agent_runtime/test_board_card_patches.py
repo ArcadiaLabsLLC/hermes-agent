@@ -196,7 +196,7 @@ def test_a_forced_interleaving_never_inverts_revision_against_offset(
     Move the emit past the lock and B writes, emits and finishes first — the
     revisions land inverted in offset order."""
 
-    store, board, first_id, _ = seeded_board
+    _store, board, first_id, _ = seeded_board
     set_delta_patches(True)
     import agent_runtime.board_store.store as store_module
 

@@ -35,7 +35,7 @@ from tui_gateway.contracts.connectors import (
 )
 from tui_gateway.contracts.connectors_operation import ConnectionSettleReason, ConnectionTargetState
 from tui_gateway.contracts.registry import CANONICAL_METHODS, EVENTS, METHODS, SERVER_REQUESTS
-from agent_runtime.gateway.rendered_contracts import CANONICAL_METHODS, EVENTS, METHODS, SERVER_REQUESTS  # noqa: E402,F811 — fork seam: render the import-time catalog, never the lanes' additions
+from agent_runtime.gateway.rendered_contracts import CANONICAL_METHODS, EVENTS, METHODS, SERVER_REQUESTS
 from tools.connectors.contract import SettleReason, TargetState
 from tools.connectors.gateway.wire import ConnectionStatus
 from tools.connectors.portal.tools_cache import ToolsRead

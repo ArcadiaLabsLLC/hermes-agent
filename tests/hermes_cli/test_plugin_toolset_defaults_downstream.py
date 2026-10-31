@@ -6,7 +6,7 @@ for an explicit ``platform_toolsets.cli: []``. The plugin's ``schedule`` toolset
 ``lens`` toolset stays a default-on plugin toolset: that residue is the probe's id-marked xfail
 (``tests/_downstream/id_markers/fork_marks.py``).
 """
-import hermes_cli.tools_config as tools_config
+from hermes_cli import tools_config
 
 
 def _resolve(monkeypatch, plugin_keys, toolsets):

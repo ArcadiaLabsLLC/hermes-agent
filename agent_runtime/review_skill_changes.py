@@ -41,8 +41,13 @@ from typing import Any
 
 __layer__ = "lanes"
 __all__ = [
-    "CHANGES_FILE", "DIFF_LIMIT", "list_changes", "on_post_tool_call", "turn_of_pending",
-    "record_staged", "record_staged_outcome",
+    "CHANGES_FILE",
+    "DIFF_LIMIT",
+    "list_changes",
+    "on_post_tool_call",
+    "record_staged",
+    "record_staged_outcome",
+    "turn_of_pending",
 ]
 
 logger = logging.getLogger(__name__)

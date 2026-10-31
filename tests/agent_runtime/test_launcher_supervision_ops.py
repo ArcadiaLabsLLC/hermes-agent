@@ -22,7 +22,7 @@ from agent_runtime.launcher_supervision import LauncherWatchdog, parse_beat
 from agent_runtime.serve_registry import read_serve_ended
 from hermes_cli.harness_parts.serve import handle_message
 from hermes_cli.harness_parts.serve.manifest import ops_manifest
-from tests.hermes_cli.test_harness_serve_parent_watch import WAIT, _owner, _serve, no_console_handler  # noqa: F401
+from tests.hermes_cli.test_harness_serve_parent_watch import WAIT, _owner, _serve, no_console_handler
 
 
 def _beat_frame(pid: int, state: str = "running", seq: int = 1, *, supervise: bool = True) -> dict:

@@ -15,7 +15,7 @@ Gates and their killing mutation (red recorded in the row's commit):
 from __future__ import annotations
 
 import pytest
-from test_lens_exit_door import T0, _episode, _monitor, door  # noqa: F401 — ``door`` is a fixture
+from test_lens_exit_door import T0, _episode, _monitor, door
 
 from agent_runtime.lens.episode import Decision
 from agent_runtime.lens.store import LensStore, MonitorState, ReceiptOutcome
@@ -51,7 +51,7 @@ def _forge(store: LensStore) -> LensForge:
 
 
 @pytest.mark.parametrize("decision", [Decision.DISMISS, Decision.SNOOZE_15M])
-def test_a_decision_between_the_doors_read_and_its_receipt_forges_no_turn(door, decision):  # noqa: F811
+def test_a_decision_between_the_doors_read_and_its_receipt_forges_no_turn(door, decision):
     store = _armed()
     episode_id = _episode(1).id
     store.interleave = lambda: decide_episode(store, episode_id, decision, T0)
@@ -68,7 +68,7 @@ def test_a_decision_between_the_doors_read_and_its_receipt_forges_no_turn(door, 
     assert _forge(store).tick() == [] and door.calls == []
 
 
-def test_a_notification_is_skipped_too(door):  # noqa: F811
+def test_a_notification_is_skipped_too(door):
     store = _armed(level="notify")
     episode_id = _episode(1).id
     store.interleave = lambda: decide_episode(store, episode_id, Decision.DISMISS, T0)
@@ -78,7 +78,7 @@ def test_a_notification_is_skipped_too(door):  # noqa: F811
     assert store.receipts_today("status", T0) == 0, "a skip spends no cap"
 
 
-def test_positive_control_no_decision_forges_the_turn(door):  # noqa: F811
+def test_positive_control_no_decision_forges_the_turn(door):
     store = _armed()
 
     assert _forge(store).tick() == ["forged"]

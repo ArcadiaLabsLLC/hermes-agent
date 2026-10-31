@@ -96,7 +96,7 @@ def _fork_rebinds(path: str, upstream: frozenset[str]) -> set[str]:
 def _git_grep(pattern: str) -> dict[str, list[str]]:
     """``path -> matching lines`` over the tracked tree (fast: one ``git grep``, no Python read loop)."""
     out = subprocess.run(["git", "grep", "-nE", pattern, "--", "*.py"], cwd=ROOT, capture_output=True,
-                         text=True, encoding="utf-8").stdout
+                         text=True, encoding="utf-8", check=False).stdout
     hits: dict[str, list[str]] = {}
     for row in out.splitlines():
         path, _line, text = row.split(":", 2)
@@ -131,4 +131,4 @@ def test_every_rebind_seam_has_a_registered_positive_control():
 def test_each_registered_control_exists(site):
     file, name = CONTROLS[site].split("::")
     source = (ROOT / file).read_text(encoding="utf-8")
-    assert re.search(rf"^def {re.escape(name)}\(", source, re.M), CONTROLS[site]
+    assert re.search(rf"^def {re.escape(name)}\(", source, re.MULTILINE), CONTROLS[site]

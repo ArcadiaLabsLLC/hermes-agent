@@ -48,7 +48,7 @@ _monitored_code = None
 def _on_register_start(code, _offset):
     frame = sys._getframe(1)
     if frame.f_code is not code:
-        return None
+        return
     name = frame.f_locals.get("name")
     modules = set()
     outer = frame.f_back
@@ -58,7 +58,7 @@ def _on_register_start(code, _offset):
         outer = outer.f_back
     if isinstance(name, str):
         _import_registrars[name] = frozenset(modules)
-    return None
+    return
 
 
 def _watch_register(registry) -> None:

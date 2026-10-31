@@ -98,7 +98,7 @@ def test_the_roster_reads_each_agents_chat_from_its_own_head_opening_each_head_o
 def test_positive_control_process_records_read_only_the_process_head(heads, opens):
     """Same chats, one variable changed: the kind. Alice's store is never opened."""
 
-    rows, accountant = _summary(_agents(heads, CHAT_HEAD_KIND_PROCESS))
+    rows, _accountant = _summary(_agents(heads, CHAT_HEAD_KIND_PROCESS))
 
     assert set(rows) == {BASE_ROOT}
     assert str(heads["alice"] / "state.db") not in opens

@@ -40,12 +40,12 @@ if TYPE_CHECKING:  # the realm lane loads on the first verb, not with the method
 
 __layer__ = "stores"
 __all__ = [
+    "VERB_LOCK",
     "CheckoutReceipt",
     "CommitReceipt",
     "CourseRefusal",
     "CourseRefused",
     "PullRequestReceipt",
-    "VERB_LOCK",
     "admit",
     "checkout",
     "commit",

@@ -119,7 +119,7 @@ def test_positive_control_the_turn_stamp_still_corrects_a_process_record(heads):
 
 
 def test_chat_head_for_is_the_home_the_persona_runs_in(heads, monkeypatch):
-    import agent_runtime.profile_context as profile_context
+    from agent_runtime import profile_context
 
     monkeypatch.setattr(profile_context, "profile_exists", lambda name: name == "alice")
     monkeypatch.setattr(profile_context, "get_profile_dir", lambda name: heads[name])

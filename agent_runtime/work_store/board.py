@@ -34,9 +34,9 @@ PERSONAL_BOARD_ID = "personal"
 __layer__ = "stores"
 __all__ = [
     "BINDING_FILE",
-    "PERSONAL_BOARD_ID",
     "DEFAULT_BRAIN_QUEUE_DIR",
     "DEFAULT_BRAIN_SLOT",
+    "PERSONAL_BOARD_ID",
     "Board",
     "binding_path",
     "board_rows",
