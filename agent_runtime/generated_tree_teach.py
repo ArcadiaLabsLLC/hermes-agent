@@ -1,7 +1,7 @@
 """A generated-document path handed to a host file tool is taught, never routed.
 
 Plan ``docs/agent-runtime-harness/planned/generated-tree-host-path-teach-2026-10-31.md``
-(RT-GENERATED-TREE-TEACH-READ / -WRITE). The Launcher's generated-document tree is rooted
+(RT-GENERATED-TREE-TEACH-READ / -WRITE / -NEW-VERBS). The Launcher's generated-document tree is rooted
 at ``/doc``, ``/runtime`` and ``/ref``; a model that hands one of those paths to
 ``read_file`` / ``search_files`` gets a HOST miss it then reasons about, and one that hands
 it to ``write_file`` / ``patch`` can CREATE it (``C:\\doc\\x`` on Windows).
@@ -54,6 +54,13 @@ _GREP_VERB = "launcher_generated_grep"
 _TREE_VERB = "launcher_generated_tree"
 _INSPECT_VERB = "launcher_generated_inspect"
 _EDIT_VERB = "launcher_generated_edit"
+#: The Launcher's tool-shaped writes (``launcher.generated.patch`` / ``.write``, plan §4
+#: RT-GENERATED-TREE-TEACH-NEW-VERBS): ``patch`` and ``write_file`` each have a twin, so the
+#: teach names the twin and the model keeps the argument shape it already reached for. A
+#: Launcher without them is taught the by-path ``edit`` as before.
+_PATCH_VERB = "launcher_generated_patch"
+_WRITE_VERB = "launcher_generated_write"
+_WRITE_TWINS = {"write_file": _WRITE_VERB, "patch": _PATCH_VERB}
 
 Offered = Callable[[str], bool]
 HostHas = Callable[[str], bool]
@@ -70,9 +77,23 @@ def generated_tree_path(path: Any) -> str | None:
     return first if first in GENERATED_ROOTS else None
 
 
-def _why(path: str, verb: str) -> str:
-    return (f"{path} is a generated document's tree path, not a host file; call {verb} with the "
-            f"document_id from {_INSPECT_VERB} (a /ref path needs none).")
+def _why(path: str, verb: str, filter_hint: str = "") -> str:
+    return (f"{path} is a generated document's tree path, not a host file; call {verb}{filter_hint} "
+            f"with the document_id from {_INSPECT_VERB} (a /ref path needs none).")
+
+
+def _filter_hint(tool_name: Any, args: dict) -> str:
+    """A ``search_files`` name filter, carried to the verb that takes it: ``target='files'``'s
+    ``pattern`` is the tree's ``glob``, a content search's ``file_glob`` is grep's
+    (``launcher.generated.tree`` / ``.grep``; glob is an argument there, not a verb)."""
+
+    if tool_name != "search_files":
+        return ""
+    if (args.get("target") or "content") == "files":
+        name, value = "glob", args.get("pattern")
+    else:
+        name, value = "file_glob", args.get("file_glob")
+    return f" with {name}={value!r}" if isinstance(value, str) and value.strip() else ""
 
 
 def _read_verb(tool_name: Any, args: dict) -> tuple[str, str] | None:
@@ -110,7 +131,8 @@ def generated_tree_read_result(tool_name: Any = None, args: Any = None, result: 
         return None
     if not offered(verb):
         return None
-    payload["generated_tree"] = {"path": path, "use": verb, "why": _why(path, verb)}
+    hint = _filter_hint(tool_name, args if isinstance(args, dict) else {})
+    payload["generated_tree"] = {"path": path, "use": verb, "why": _why(path, verb, hint)}
     return json.dumps(payload, ensure_ascii=False)
 
 
@@ -139,7 +161,9 @@ def _write_paths(tool_name: Any, args: dict) -> list[Any]:
 def generated_tree_write_refusal(tool_name: Any, args: Any, *, offered: Offered, host_paths: bool,
                                  host_has: HostHas = host_has_root) -> dict | None:
     """``pre_tool_call``: a ``write_file`` / ``patch`` naming a generated-tree path, on a host
-    with no such top-level directory, is blocked naming the Launcher's edit verb; else None.
+    with no such top-level directory, is blocked naming the Launcher's twin verb
+    (``launcher_generated_write`` / ``_patch``), or its by-path edit verb when the bound link
+    offers no twin; else None.
 
     ``host_paths`` is whether the file tools write the host filesystem (a sandbox backend
     keeps upstream's behaviour, plan §1 Q1 clause 2).
@@ -150,9 +174,19 @@ def generated_tree_write_refusal(tool_name: Any, args: Any, *, offered: Offered,
     paths = _write_paths(tool_name, args if isinstance(args, dict) else {})
     hit = next((p for p in paths if (root := generated_tree_path(p.strip() if isinstance(p, str) else p))
                 and not host_has(root)), None)
-    if hit is None or not offered(_EDIT_VERB):
+    if hit is None:
+        return None
+    lead = (f"{hit} is a generated-document path; {tool_name} writes the host filesystem, so nothing "
+            "was written.")
+    twin = _WRITE_TWINS[tool_name]
+    if offered(twin):
+        shape = ("path and content" if twin == _WRITE_VERB
+                 else "path, old_string and new_string, or patch as a V4A patch")
+        return {"action": "block", "message": (
+            f"{lead} Use {twin} instead, with the same {shape}, plus the document_id and read_version "
+            f"from {_INSPECT_VERB}.")}
+    if not offered(_EDIT_VERB):
         return None
     return {"action": "block", "message": (
-        f"{hit} is a generated-document path; {tool_name} writes the host filesystem, so nothing was "
-        f"written. Edit the document with {_EDIT_VERB} (its by-path replace / write operations), with "
+        f"{lead} Edit the document with {_EDIT_VERB} (its by-path replace / write operations), with "
         f"the document_id from {_INSPECT_VERB}.")}

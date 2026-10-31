@@ -51,8 +51,8 @@ collision. The `document_id` is the model's to supply, as the Launcher verbs alr
 |---|---|---|---|
 | `read_file` | miss + Q1 | the miss, plus `generated_tree: {path, use, why}` | `launcher_generated_read` |
 | `search_files` (`content`) | miss + Q1 | the same | `launcher_generated_grep` |
-| `search_files` (`files`) | miss + Q1 | the same | `launcher_generated_tree` |
-| `write_file`, `patch` | Q1 (before running) | `pre_tool_call` block: "a generated-document path; this tool writes the host filesystem" | `launcher_generated_edit` (by-path `replace` / `write` operations) |
+| `search_files` (`files`) | miss + Q1 | the same | `launcher_generated_tree`, its `pattern` as the tree's `glob` (a content search's `file_glob` rides to grep's) |
+| `write_file`, `patch` | Q1 (before running) | `pre_tool_call` block: "a generated-document path; this tool writes the host filesystem" | the twin, `launcher_generated_write` / `launcher_generated_patch` (built, NEW-VERBS); `launcher_generated_edit` (by-path `replace` / `write` operations) when the link offers no twin |
 
 `why` says it once: the path is a generated document's tree path, not a host file; call the named verb with
 the `document_id` from `launcher_generated_inspect`. The hook never calls a Launcher verb itself (teach,
