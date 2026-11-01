@@ -1136,6 +1136,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 - **`RT-WRITING-COMMAND-HOME-SKELETON` — Qualify the writing-command positive control beside read-only session export** · `tests/hermes_cli/test_sessions_export_home_writes_downstream.py::test_positive_control_a_writing_command_still_builds_the_skeleton` · the character landing gate found SOUL.md absent after the writing command; preserve read-only export behavior and determine whether the producer or its positive-control expectation is stale · READY 2026-10-31 · REQUIRES windows
 - **`RT-SUBAGENTS-READ-CATCHALL-SILENT` — `runtime.operator.conversation.subagents.*` turns any exception into `subagent_unavailable` without logging it, so a live roster refusal (client `COMP-WORK-AGENTS-ROSTER-UNAVAILABLE-LIVE`, seen by launcher lane w1031k-live 2026-10-31) cannot be traced from the box; log the exception with the operation** · `agent_runtime/serve_rpc/operator_subagents.py::_subagent_reply` · READY 2026-10-31
+- **`RT-WORK-LIST-SLOTLESS-PROJECTS` — `runtime.work.list` says nothing about a Project the workspace holds that has no live folder slot, so the launcher's Queues tab cannot draw "<Project> has no folder slots." (launcher `MC-WORKSPACE-TODO-ALL-PROJECTS` C2, lane w1031k-todo); the shape: a top-level `projects[] {project_id, project_name, slots}` beside `boards`, listing every held Project** · `agent_runtime/project_categories.py::board_slots` · `agent_runtime/work/store.py::list_work` · READY 2026-10-31
 
 ## Filed on arrival — 2026-10-31 (lane w1031j-h-rt)
 
