@@ -1153,5 +1153,4 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-11-01 (launcher lane w1101b-mcwork)
 
-- **`RT-SLOT-RECEIPTS-IN-PROMPT-CONTEXT` — surface the per-slot context receipts (`default_choice` / `not_default` / `missing`, from `persona_slots.load_slot_context`) in a frame the Eternia client reads (prompt context `context_files` or the turn's workspace receipt); today they exist only in the actor signature's `workspace_agents` dict (`mission_chat_turn_context.py::_workspace_context`); client side `MC-SLOT-CONTEXT-DEFAULT-CHOICE-SHOWN`** · `agent_runtime/mission_chat_turn_context.py` · READY 2026-11-01 · **TAKEN 2026-11-01 w1101c-h on nekwo-ubuntu24 as nekwo in hm-w1101c-h**
 - **`RT-LEVEL-SKILL-PRELOAD` — preload the launcher's `eternia-level-editing` skill beside `launcher-mcp-operations` for runs admitted `launcher_qa`, and hold it to the freshness check like the first** · `agent_runtime/mcp_admission/vocabulary.py::MCP_OPERATING_SKILLS` · `EterniaLauncher/agent_prompts/skills/eternia-level-editing/SKILL.md` · READY 2026-11-01 · **TAKEN 2026-11-01 w1101c-h on nekwo-ubuntu24 as nekwo in hm-w1101c-h**

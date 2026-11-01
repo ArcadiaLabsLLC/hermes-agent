@@ -337,6 +337,7 @@ class _RunPhases:
             workspace_id=workspace.id,
             workspace_name=workspace.name,
             workspace_agents=turn_context.workspace_agents,
+            workspace_receipt=turn_context.workspace_agents_receipt,
             situational_hud=turn_context.situational_hud,
             situational_hud_revision=turn_context.situational_hud_revision,
             situational_hud_delivery=turn_context.situational_hud_delivery,

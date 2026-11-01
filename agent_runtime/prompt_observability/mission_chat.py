@@ -71,6 +71,26 @@ def mission_chat_prompt_observability(**request: Any) -> dict[str, Any]:
     return MissionChatObservability(**request).build()
 
 
+def _safe_workspace_receipt(receipt: Any) -> dict[str, Any] | None:
+    """A detached copy of the workspace receipt with every ``preview`` dropped, or None.
+
+    The receipt builders already pop previews; this keeps the row from ever carrying
+    file text even if a future receipt forgets (preview is operator content, never a field).
+    """
+
+    if not isinstance(receipt, dict):
+        return None
+
+    def scrub(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {str(k): scrub(v) for k, v in value.items() if k != "preview"}
+        if isinstance(value, (list, tuple)):
+            return [scrub(item) for item in value]
+        return value
+
+    return scrub(receipt)
+
+
 def _observability_timings(skill_block_started: float) -> dict[str, int]:
     """The skill block's three disjoint sub-spans and the catalog-cache bit.
 
@@ -175,6 +195,11 @@ class MissionChatObservability:
     workspace_id: str | None = None
     workspace_name: str | None = None
     workspace_agents: WorkspaceAgentsContext | None = None
+    #: The turn's workspace receipt (``MissionChatTurnContext.workspace_agents_receipt``): under an
+    #: assignment it lists every assigned slot's file receipts — ``default_choice`` on the loaded
+    #: one-file default, ``not_default`` / ``missing`` on the other — which ``context_files``
+    #: cannot carry, because under an assignment there is no alias row (RT-SLOT-RECEIPTS-IN-PROMPT-CONTEXT).
+    workspace_receipt: dict[str, Any] | None = None
     situational_hud: dict[str, Any] | None = None
     situational_hud_revision: str | None = None
     situational_hud_delivery: str | None = None
@@ -620,6 +645,9 @@ class MissionChatObservability:
     def _skill_fields(self) -> dict[str, Any]:
         return {
             "context_files": self.context_files,
+            # The same receipt the actor signature folds (``workspace_agents``), so the
+            # Context peek shows which slot file loaded and why; None off a turn.
+            "workspace_context_receipt": _safe_workspace_receipt(self.workspace_receipt),
             "used_skills": self.used_skills,
             "queued_skills": self.queued_names,
             "required_preload_skills": self.required_names,
