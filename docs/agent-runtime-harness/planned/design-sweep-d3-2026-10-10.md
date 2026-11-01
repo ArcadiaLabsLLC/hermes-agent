@@ -26,7 +26,7 @@ landing runs the gate once per batch.
 
 ## D3.01 = L2.06 — the send-window GIL-hog stall floor is scheduler-dependent
 
-**BUILT** (lane build-1011-B4): stage 1 `43d6127890`, stage 2 `7d945d3d62`, stage 3 `81eb8ed09b` (on the move `8091bb0acf`). Differs from the plan: `scripts/run_tests.sh` is an upstream file, so `scripts/run_tests_idle.sh` sources it and injects `HERMES_TEST_IDLE_BOX=1` into its `env -i`; the bundled runner prints the idle-box line at selection, beside the skip-list lines; `load_known_reds` skips the `kind: idle` line. Owed: the first idle run on an idle box, and the landing closes the four fork-hygiene rows that carry the ruling by pointing here.
+**BUILT** (lane build-1011-B4): stage 1 `43d6127890`, stage 2 `7d945d3d62`, stage 3 `81eb8ed09b` (on the move `8091bb0acf`). Differs from the plan: `scripts/run_tests.sh` is an upstream file, so `scripts/run_tests_idle.sh` sources it and injects `HERMES_TEST_IDLE_BOX=1` into its `env -i`; the bundled runner prints the idle-box line at selection, beside the skip-list lines; `load_known_reds` skips the `kind: idle` line. Owed: the first idle run on an idle box — TAKEN 2026-11-01 (lane w1101b-perf, load 0.8): 4 files, 10 passed, 1 failed in 110 s; the red is turn 0's `anchor->request_sent` 600 ms against the slowest warm turn 187 + 100 on a quiet box, filed `RT-TURN0-REQUEST-SENT-IDLE-RED` — and the landing closes the four fork-hygiene rows that carry the ruling by pointing here.
 
 **Verdict: PLAN** (one design for the GIL-hog positive controls; D3.09 points here).
 
@@ -683,6 +683,8 @@ bare-pytest trap, fork-hygiene row "Running the tests.md misleads on one-file ru
 
 ## D3.14 = L8.13 — classify the validated-suite residuals (97 nodes in 25 files)
 
+**RUN 2026-11-01** (lane w1101b-perf): 24 of the 25 files (the 25th is deleted) pass whole, 315 passed / 0 failed — none of the 97 nodes reproduces; `docs/downstream/validated-suite-residuals-2026-10.md`.
+
 **Verdict: INVESTIGATION** (the failing set is stable and known; the classification is a
 25-file run on a clean worktree, not the validated suite).
 
@@ -800,7 +802,7 @@ with one accepted PATH write? (2) Accept the carried install.ps1 hunk until the 
 
 ## D3.16 = L8.20 — a gate run leaves a stale `index.lock` in the worktree it runs from
 
-**BUILT** (lane build-1011-B4): stage 1 `078fa50bff`, stage 2 `b80e56bac8`, stage 3 in the commit that carries this line. Differs from the plan: `scripts/run_tests.sh` is an upstream file, so the variable is set by the fork-only ROOT `conftest.py` (every pytest process under the checkout) and by the bundled runner's `_git`; the audit is a `subprocess.Popen` audit hook enabled by the runner's `--git-audit`. Owed: the landing's next gate runs with `--git-audit` and files one row per test running a lock-taking verb against the checkout.
+**BUILT** (lane build-1011-B4): stage 1 `078fa50bff`, stage 2 `b80e56bac8`, stage 3 in the commit that carries this line. Differs from the plan: `scripts/run_tests.sh` is an upstream file, so the variable is set by the fork-only ROOT `conftest.py` (every pytest process under the checkout) and by the bundled runner's `_git`; the audit is a `subprocess.Popen` audit hook enabled by the runner's `--git-audit`. Owed: the landing's next gate runs with `--git-audit` and files one row per test running a lock-taking verb against the checkout — RUN 2026-11-01 (lane w1101b-perf, 1,382 files, 986 audited git calls in the checkout): no index-writing verb; five files run an optional-lock verb (`status`, `diff`) with only the env guard holding the lock off, filed `FH-GIT-AUDIT-*` in `fork-hygiene-queue.md`.
 
 **Verdict: PLAN** (the hypothesis is sound and the fix is one environment line in three
 fork-owned places; the positive gate is cheap).
