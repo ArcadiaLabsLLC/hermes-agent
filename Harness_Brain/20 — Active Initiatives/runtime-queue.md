@@ -1135,6 +1135,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ## Character completion qualification findings — 2026-10-31
 
 - **`RT-WRITING-COMMAND-HOME-SKELETON` — Qualify the writing-command positive control beside read-only session export** · `tests/hermes_cli/test_sessions_export_home_writes_downstream.py::test_positive_control_a_writing_command_still_builds_the_skeleton` · the character landing gate found SOUL.md absent after the writing command; preserve read-only export behavior and determine whether the producer or its positive-control expectation is stale · READY 2026-10-31 · REQUIRES windows
+- **`RT-SUBAGENTS-READ-CATCHALL-SILENT` — `runtime.operator.conversation.subagents.*` turns any exception into `subagent_unavailable` without logging it, so a live roster refusal (client `COMP-WORK-AGENTS-ROSTER-UNAVAILABLE-LIVE`, seen by launcher lane w1031k-live 2026-10-31) cannot be traced from the box; log the exception with the operation** · `agent_runtime/serve_rpc/operator_subagents.py::_subagent_reply` · READY 2026-10-31
 
 ## Filed on arrival — 2026-10-31 (lane w1031j-h-rt)
 
