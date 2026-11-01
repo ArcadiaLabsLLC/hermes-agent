@@ -629,3 +629,7 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 - **`FH-CHILD-JOB-COLLECTION-ROOT` — Keep the child-job lifetime proof scoped to its intended test root** · `tests/test_child_job_downstream.py::test_a_marked_tests_child_dies_with_its_os_exit_and_an_unmarked_ones_survives` · the wider character gate collected an unrelated disappearing Flutter temp directory and failed before the child PID evidence existed; qualify explicit collection roots while preserving the real-process kill/survival assertions · READY 2026-10-31 · REQUIRES windows
 
 ## Filed on arrival — 2026-11-01 (owner ruling, launcher ADR 0038 amendment)
+
+## Filed on arrival — 2026-11-01 (release merge lane, branch `merge/upstream-v0.22.5`)
+
+- **`FH-LEDGER-ROW-DRIFT-V0225` — two footprint-ledger reasons no longer describe their file's fork hunk: `hermes_cli/web_server_config.py` names a `config_switch` gate (PR #128843) where the only hunk left is the lazy `_wake_word_providers` import, and `gateway/run.py` names `mcp_job_finished` where the code uses `tools.fork_completion_events`; rewrite both reasons from the hunks** · fork / upstream sync · `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md` · supersession pass of merge `41a204e31e` · READY 2026-11-01

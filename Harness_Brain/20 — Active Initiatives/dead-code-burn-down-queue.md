@@ -67,3 +67,6 @@ Delete it. When the last row of an instalment closes, the program ledger (`god-f
 
 ## Filed on arrival — 2026-10-29 (lane w1029b-h-rt)
 
+## Filed on arrival — 2026-11-01 (release merge lane, branch `merge/upstream-v0.22.5`)
+
+- **`DC-AGENT-FACTORY-SANITIZE-CLIENT-SOURCE-ALIAS` — `tui_gateway/agent_factory.py`'s fork alias `_sanitize_client_source = _resolve_session_source` has no caller in the tree (compute_host's fallback resolves its source directly since `a079bc6e1c`); delete it and update the file's ledger row** · `tui_gateway/agent_factory.py` · supersession pass of merge `41a204e31e` · READY 2026-11-01

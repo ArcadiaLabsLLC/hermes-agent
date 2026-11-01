@@ -667,6 +667,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams
 
+### Filed on arrival — 2026-11-01 (release merge lane, branch `merge/upstream-v0.22.5`)
+
+- **`RT-SEAM-ENV-LOADER-RESOLVE-HOME-DOTENV` — upstream v0.22.5's new `hermes_cli.env_loader.resolve_home_dotenv(home)` reads `<home>/.env` straight from disk through `_parse_dotenv_file`, past the fork's `agent_runtime.host_store.secret_files.view()` seam in the same file, so `hermes_cli.left_core_migration` (`TERMINAL_ENV` lookup, singularity detection) misses a `.env` held in a bound host store; route it through the view or a door** · seams · `hermes_cli/env_loader.py` · supersession pass of merge `41a204e31e` · READY 2026-11-01
+
 ### Filed on arrival — 2026-10-29 (lane w1029b-h-rt)
 
 
