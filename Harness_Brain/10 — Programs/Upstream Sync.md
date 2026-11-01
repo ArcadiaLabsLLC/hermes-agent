@@ -27,6 +27,7 @@ Goal (owner, 2026-09-21): **easy upstream syncs without much conflict.** The for
 - Fork gates apply to fork-authored lines only (`tests/_fork_scope.is_fork_authored`); no registers of upstream tests — owner 2026-09-24.
 - Cadence RULED 2026-09-26 (owner): the merge runs **twice a week** (Monday and Thursday), not weekly — 1,831 commits in one merge cost a day of conflicts. `rerere.enabled` + `rerere.autoupdate` are set on the primary clone so a conflict resolved once replays at the next merge.
 - Growth RULED 2026-09-26 (owner): a new feature lands behind the plugin surface FIRST; it touches an upstream file only with a ledger row that names its retirement, in the same commit. The two 2026-09-24/25 batches that raised the footprint (auth transport, ACP identity) are lane AUTH-DESIGN's to bring back.
+- Rolling release branch RULED 2026-11-01 (owner, "we should have a rolling release branch"; "stable release is what matters"): `integration/upstream-release` is the stable twin of `integration/upstream-daily`. Each stable upstream tag (no `canary` or `rc`) is merged into it by the release merge, with `merge/upstream-<tag>` kept as the per-release record, and `main` takes it fast-forward only on the owner's word. First tip b27c61470e (v0.22.5, merge 41a204e31e), not yet on `main`.
 
 ## Each merge — the supersession pass
 
