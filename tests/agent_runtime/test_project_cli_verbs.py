@@ -56,6 +56,8 @@ def test_the_cli_declare_creates_the_project_and_show_answers_what_the_rpc_answe
     shown = _printed(capsys)
     rpc = _rpc("runtime.project.show", {"project_id": "live-qa"})["result"]
     assert {k: v for k, v in shown.items() if k in rpc} == rpc
+    # RT-PROJECT-JSON-ROOT-OBSERVABILITY: the envelope names the root that answered.
+    assert "resolution" in shown and "resolution" not in rpc
 
 
 def test_the_cli_binds_and_fills_a_project_slot_on_this_machine(tmp_path, capsys):

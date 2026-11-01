@@ -55,8 +55,12 @@ def _emit_project_verb(args, kind: str, action) -> int:
                              plain=(ValueError,), stamp=lambda envelope: attach_root_observability(envelope))
 
 
-def _run_project_rpc_body(args, kind: str, method: str, params: dict[str, Any]) -> int:
-    """Run the RPC body of ``method`` over ``params`` and print its ``kind`` envelope."""
+def _emit_project_rpc_body(args, kind: str, method: str, params: dict[str, Any]) -> int:
+    """Run the RPC body of ``method`` over ``params`` and print its ``kind`` envelope.
+
+    An ``_emit_*`` seam, so the root-observability gate follows it to the stamp in
+    :func:`_emit_project_verb` (``tests/hermes_cli/test_harness_json_root_observability.py``).
+    """
 
     from agent_runtime.serve_rpc.project import PROJECT_VERBS
 
@@ -70,11 +74,11 @@ def _cmd_project_list(args) -> int:
 
 
 def _cmd_project_show(args) -> int:
-    return _run_project_rpc_body(args, "project", "runtime.project.show", {"project_id": args.project_id})
+    return _emit_project_rpc_body(args, "project", "runtime.project.show", {"project_id": args.project_id})
 
 
 def _cmd_project_report(args) -> int:
-    return _run_project_rpc_body(args, "project_report", "runtime.project.report", {"project_id": args.project_id})
+    return _emit_project_rpc_body(args, "project_report", "runtime.project.report", {"project_id": args.project_id})
 
 
 def _cmd_project_declare(args) -> int:
@@ -90,7 +94,7 @@ def _cmd_project_declare(args) -> int:
 
 
 def _cmd_project_slot_bind(args) -> int:
-    return _run_project_rpc_body(args, "project_slot_bind", "runtime.project.slot.bind",
+    return _emit_project_rpc_body(args, "project_slot_bind", "runtime.project.slot.bind",
                  {"project_id": args.project_id, "slot": args.slot, "path": args.path, "issued_at": _project_issued_at(args)})
 
 
@@ -122,7 +126,7 @@ def _cmd_project_slot_clone(args) -> int:
 
 
 def _cmd_project_recipe_show(args) -> int:
-    return _run_project_rpc_body(args, "project_recipe", "runtime.project.recipe.show", {"project_id": args.project_id})
+    return _emit_project_rpc_body(args, "project_recipe", "runtime.project.recipe.show", {"project_id": args.project_id})
 
 
 def _cmd_project_recipe_set(args) -> int:
