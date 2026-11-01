@@ -60,9 +60,16 @@ def test_the_redirect_root_is_never_a_system_temp_dir(tmp_path):
     assert system_temp_dirs(env, str(root)) == [os.path.realpath(system), *host_default]
 
 
-def test_the_plugin_names_each_removed_entry_in_the_root_log(tmp_path):
+def test_the_plugin_names_each_removed_entry_in_the_root_log(tmp_path, monkeypatch):
+    from tests._downstream import temp_prefixes
     from tests._downstream.conftest_plugin import _sweep_system_temp_named
 
+    # The host's own /tmp is never this test's (FH-TEMP-PREFIX-SWEEP-BUNDLE-LEAK): on POSIX the
+    # sweep always adds it, so an aged ``hermes-test-home-*`` there was removed -- for real -- and
+    # named beside the planted entry. Point the host default at an empty fake.
+    host = tmp_path / "host-tmp"
+    host.mkdir()
+    monkeypatch.setattr(temp_prefixes, "POSIX_HOST_TEMP_DIR", str(host))
     root = tmp_path / "root"
     root.mkdir()
     temp = tmp_path / "Temp"
