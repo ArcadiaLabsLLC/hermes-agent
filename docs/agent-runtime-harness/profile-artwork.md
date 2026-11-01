@@ -70,11 +70,16 @@ files reproduced exactly the same 22 failing node IDs on both revisions:
 - Prepush shell tests: twelve nodes (`FH-WINDOWS-PREPUSH-SHELL`).
 - Spatial entry vocabulary census: one node (`FH-LEVEL-ENTRY-VOCABULARY-CENSUS`).
 
-The eighth file, `test_default_brain.py`, passed all 21 checks alone on both
-revisions; its bundled failure is not claimed fixed. These comparisons completed
-with named assertions, not timeouts or collection crashes. The earlier official
-comparison wrapper was cancelled while waiting for a slot and supplies no
-validation evidence. Existing queue findings and other lanes' claims remain open.
+The eighth file, `test_default_brain.py`, initially passed all 21 checks under
+direct pytest on both revisions. The canonical runner's hermetic one-file
+comparison then reproduced the same failing node on both:
+`test_second_machine_with_a_local_brain_moves_its_rows_in`. Its longer Windows
+fixture path fails during git worktree creation (`RT-WINDOWS-BASELINE-REGRESSIONS`).
+That completed comparison is `pre-existing`, so all 23 gate failures have an
+unchanged-base counterpart. They are not claimed fixed. These comparisons
+completed with named assertions, not timeouts or collection crashes. The earlier
+official comparison wrapper was cancelled while waiting for a slot and supplies
+no validation evidence. Existing queue findings and other lanes' claims remain open.
 
 Portrait-specific mutations were killed and restored for the reviewed-handle
 comparison, PNG validation, exact subject, atomic write, and preservation of
