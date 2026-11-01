@@ -271,8 +271,14 @@ READ_ONLY_EXCLUDED_TOOLS: Mapping[str, tuple[str, ...]] = {
 #: Keyed by server, not by role, for the same reason the tool tables are: the
 #: manual belongs to the SURFACE. A second role admitted the same server would
 #: need the same manual, and a role admitted nothing needs none.
+#:
+#: ``eternia-level-editing`` (RT-LEVEL-SKILL-PRELOAD, 2026-11-01) is the second
+#: ``launcher_qa`` manual: the level app functions (``launcher.world.level.*``) an
+#: admitted run reaches through ``mcp_launcher_qa_call_app_function``. Authored in the
+#: launcher checkout like the first, so the same two gates and the same freshness
+#: check (``agent_runtime.skill_freshness``) hold it.
 MCP_OPERATING_SKILLS: Mapping[str, tuple[str, ...]] = {
-    "launcher_qa": ("launcher-mcp-operations",),
+    "launcher_qa": ("launcher-mcp-operations", "eternia-level-editing"),
 }
 
 #: An admitted server's operating manual (:data:`MCP_OPERATING_SKILLS`) is live at a

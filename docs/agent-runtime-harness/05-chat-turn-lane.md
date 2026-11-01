@@ -940,8 +940,11 @@ discriminator**: the honest one is a non-empty admitted SET
 `render_mcp_admission_line` (`:1713`) puts one compact line on the volatile tail, kept a SEPARATE
 voice from the capability block — its denials resolve at a different lifecycle point and it has its
 own kill switch, and folding them would give one fact two voices. `MCP_OPERATING_SKILLS`
-(`:292-294`) also preloads the surface's operating manual; admitting a tool surface without its
-manual burned the live 2026-07-29 QA turn.
+(`agent_runtime/mcp_admission/vocabulary.py`) also names the surface's operating manuals —
+`launcher_qa`: `launcher-mcp-operations` and `eternia-level-editing` (RT-LEVEL-SKILL-PRELOAD) — which a
+run admitted the server AND granted the skill gets in its skill index (read on demand since L1.13), each
+named on the admission line when it is behind its shipped source (RT-SKILL-FRESHNESS-CHECK); admitting
+a tool surface without its manual burned the live 2026-07-29 QA turn.
 
 ### 5a. MCP progress on the `tool.progress` beat (2026-10-02)
 

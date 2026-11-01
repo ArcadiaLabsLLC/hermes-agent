@@ -136,6 +136,34 @@ def test_the_admission_line_tells_the_agent_its_admitted_manual_is_stale(tmp_pat
     assert chat_lane_scope.mission_chat_admission_line(ungranted, session_id=None) == fresh
 
 
+def test_the_level_editing_manual_is_held_to_the_same_freshness_check(tmp_path, monkeypatch):
+    """RT-LEVEL-SKILL-PRELOAD: an admitted, granted ``eternia-level-editing`` behind its
+    launcher source is named on the admission line like the first manual."""
+
+    from agent_runtime import chat_lane_scope
+    from agent_runtime.mcp_admission import McpAdmission
+    from agent_runtime.mcp_admission.vocabulary import LANE_MISSION_CHAT
+    from tests.agent_runtime.persona_samples import sample_personas
+
+    level = "eternia-level-editing"
+    admission = McpAdmission(lane=LANE_MISSION_CHAT, role="qa", permission_mode="profile_default", enabled=True,
+                             requested=("launcher_qa",), server_names=("launcher_qa",),
+                             server_configs={"launcher_qa": {"command": "noop"}})
+    monkeypatch.setattr(chat_lane_scope, "admission_enabled", lambda: True)
+    monkeypatch.setattr(chat_lane_scope, "resolve_mcp_admission", lambda *_a, **_k: admission)
+    monkeypatch.setattr(chat_lane_scope, "permission_options_for_chat",
+                        lambda *_a, **_k: types.SimpleNamespace(permission_mode="profile_default"))
+    qa = {persona.id: persona for persona in sample_personas()}["qa"]
+    qa = dataclasses.replace(qa, skills=[*qa.skills, level])
+    _package(get_shared_skills_dir(), "1.0.0", slug=level)
+    _promoted_from(str(_package(tmp_path / "launcher" / "agent_prompts" / "skills", "1.1.0", slug=level)), slug=level)
+
+    line = chat_lane_scope.mission_chat_admission_line(qa, session_id=None)
+
+    assert f"Operating manual {level} is stale ({MCP_OPERATING_SKILL_STALE})" in line
+    assert "version 1.0.0" in line and "version 1.1.0" in line
+
+
 def test_a_from_path_promotion_records_an_absolute_source(tmp_path, monkeypatch):
     from hermes_cli.harness_parts.skills_promotion_commands import _source_from_path
 

@@ -1150,7 +1150,3 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ## Filed on arrival — 2026-11-01 (lane w1101b-perf, the first idle-box run)
 
 - **`RT-TURN0-REQUEST-SENT-IDLE-RED` — the cause is cut (turn 0's write-ahead resolved `run_provenance.ran_by` cold — the build stamp's git probes and the ~400 ms `build-stamp-code-tree` digest — plus five first-write imports; the prewarm now pays both, and the counts guard reds on either); left: one idle-box run of `scripts/run_tests_idle.sh` showing turn 0 within the slowest warm turn + 100 (the lane's box was at load 11)** · `tests/agent_runtime/test_turn_cost_guard_downstream.py::test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard` · `agent_runtime/profile_runner/execute.py::_warm_run_provenance` · `scripts/run_tests_idle.sh` · READY 2026-11-01 · **TAKEN 2026-11-01 w1101b-h-test on nekwo-ubuntu24 as nekwo in hm-w1101b-test**
-
-## Filed on arrival — 2026-11-01 (launcher lane w1101b-mcwork)
-
-- **`RT-LEVEL-SKILL-PRELOAD` — preload the launcher's `eternia-level-editing` skill beside `launcher-mcp-operations` for runs admitted `launcher_qa`, and hold it to the freshness check like the first** · `agent_runtime/mcp_admission/vocabulary.py::MCP_OPERATING_SKILLS` · `EterniaLauncher/agent_prompts/skills/eternia-level-editing/SKILL.md` · READY 2026-11-01 · **TAKEN 2026-11-01 w1101c-h on nekwo-ubuntu24 as nekwo in hm-w1101c-h**

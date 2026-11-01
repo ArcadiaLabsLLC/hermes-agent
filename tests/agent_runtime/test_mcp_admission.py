@@ -672,6 +672,27 @@ def test_the_live_turn_resolves_the_manual_for_an_admitted_persona(
     ) == ["launcher-mcp-operations"]
 
 
+def test_an_admitted_launcher_qa_run_resolves_the_level_editing_manual_beside_the_first(
+    qa_profile, monkeypatch
+):
+    """RT-LEVEL-SKILL-PRELOAD: ``eternia-level-editing`` is the second ``launcher_qa``
+    manual, under the same two gates — admitted and granted — in grant order."""
+
+    from agent_runtime import chat_lane_bundle
+
+    _enable_root_admission(monkeypatch)
+    both = dataclasses.replace(_qa_with_manual(), skills=[*_qa_with_manual().skills, "eternia-level-editing"])
+
+    assert chat_lane_bundle.mission_chat_operating_skills(both, session_id=None) == [
+        "launcher-mcp-operations",
+        "eternia-level-editing",
+    ]
+    # Never invented: the run granted only the first manual reads only the first.
+    assert chat_lane_bundle.mission_chat_operating_skills(_qa_with_manual(), session_id=None) == [
+        "launcher-mcp-operations"
+    ]
+
+
 def test_the_seeded_dev_persona_grants_the_admitted_surfaces_manual():
     """Same pairing the seeded `qa` row keeps, for the other seeded persona that
     declares the surface.
