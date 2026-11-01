@@ -594,7 +594,7 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
         # cannot use is work for nobody. Reported, not raised.
         raise _PrewarmRefused(OUTCOME_SKIPPED_PROFILE_UNREADY)
 
-    workspace = _first_turn_workspace(persona, instance)  # ONE slot/workdir resolve (C2)
+    workspace = _first_turn_workspace(persona, instance, chat_session_id=root)  # ONE slot/workdir resolve (C2)
     # Composed, then folded exactly as the turn folds it: the composite is the
     # reuse key, the per-component digests ride along so the first real turn's
     # refusal (if any) names the component that moved. Seeding them HERE is
@@ -1040,18 +1040,20 @@ class _FirstTurnWorkspace(NamedTuple):
     workdir: Any
 
 
-def _first_turn_workspace(persona: Any, instance: Any) -> _FirstTurnWorkspace:
+def _first_turn_workspace(persona: Any, instance: Any, *, chat_session_id: str | None = None) -> _FirstTurnWorkspace:
     """The turn's own workspace resolve (slot dedup included, D1.12), once per prepare.
 
     ``content`` is what the turn folds into its system message under an assignment (None
     without one: the launcher's per-turn ``--agents-file`` is never guessed, module
     docstring); ``receipt`` the repo-slot receipt the signature folds (build plan §3.3);
-    ``workdir`` the grounding the turn resolves from the same inputs (D1.12 S1)."""
+    ``workdir`` the grounding the turn resolves from the same inputs (D1.12 S1) -- the chat's
+    own folder (``chat_session_id``, chat-folder rung 4) included, or the prewarmed prompt
+    names a cwd the turn does not run in and is discarded as ``runtime_identity_changed``."""
 
     from .mission_chat_turn_context import DEFAULT_RESOLVERS, _turn_workspace, workspace_content
 
-    slot_context, _agents, receipt, workdir, project_context = _turn_workspace(DEFAULT_RESOLVERS, persona, instance,
-                                                                               None)
+    slot_context, _agents, receipt, workdir, project_context = _turn_workspace(
+        DEFAULT_RESOLVERS, persona, instance, None, chat_session_id=chat_session_id)
     content = workspace_content(slot_context, None, project_context)
     return _FirstTurnWorkspace(content, receipt, workdir)
 

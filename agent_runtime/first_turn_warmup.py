@@ -102,6 +102,9 @@ FIRST_TURN_MODULES = (
     # ticketed steer parts (the counts guard saw all six on turn 0 at the release merge, 2026-10-22).
     "agent.image_replay", "agent.steering", "gateway.session_contract", "gateway.session_cron",
     "tools.hook_output_spill", "tools.tool_output_limits",
+    # ... and the harness review prompts the eternia-harness plugin arms on the turn's agent
+    # (``plugins/eternia-harness`` lazy-imports them; the counts guard saw it on turn 0, 2026-10-31).
+    "agent_runtime.review_prompts",
 )
 
 

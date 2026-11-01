@@ -312,6 +312,24 @@ def test_a_handler_the_harness_parser_binds_by_name_is_an_import(tmp_path):
     assert reached == {("pkg.doctor_commands", False)}
 
 
+def test_a_builtin_dunder_import_with_a_literal_name_is_an_import(tmp_path):
+    """The ``# fork seam`` lines in upstream files spell ``__import__("hermes_read_only_invocation")``
+    (RT-SESSIONS-EXPORT-HOME-WRITES); a walk blind to it left the module out of the phone wheel and
+    every ``save_env_value`` raised ModuleNotFoundError (RT-WINDOWS-BASELINE-REGRESSIONS)."""
+    from scripts.bundle_profile_closure import _imports
+
+    path = tmp_path / "config.py"
+    path.write_text(
+        'def ensure():\n'
+        '    if __import__("pkg.read_only").is_read_only():\n'
+        '        return\n'
+        'other = __widget__("pkg.not_an_import")\n',  # positive control: another dunder call is not an import
+        encoding="utf-8",
+    )
+    reached = {(dotted, eager) for dotted, eager, _guarded, _line in _imports(path, "pkg.config", False)}
+    assert reached == {("pkg.read_only", False)}
+
+
 def test_planning_the_core_and_every_pack_over_two_site_sets_is_one_walk_and_one_parse_per_file(tmp_path):
     """Lane h-bundle-speed (2026-10-16): the packager plans the core and every engine pack with
     ``plan_jobs`` — ONE walk and one parse per file however many selections and site sets it

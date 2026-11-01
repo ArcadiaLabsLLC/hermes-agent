@@ -253,7 +253,13 @@ def manifest() -> dict[str, Any]:
                               TWIN_METHOD_PARAMS)
     from ..subagents.params import METHOD_PARAMS as SUBAGENT_METHOD_PARAMS
     from ..conversations.model import MIGRATE_METHOD, MIGRATE_PARAMS
-    from ..work.model import READ_METHOD_PARAMS as WORK_READ_METHOD_PARAMS
+    from ..loop_tool_lifecycles import shipped
+
+    # The Work read params ride beside the Work methods: a wheel without the package (the
+    # phone's, bundled-phone.yaml) has neither, as ``_ensure_work_methods`` registers none.
+    WORK_READ_METHOD_PARAMS: dict[str, tuple[str, ...]] = {}
+    if shipped("agent_runtime.work"):
+        from ..work.model import READ_METHOD_PARAMS as WORK_READ_METHOD_PARAMS
     from .workspace import PROJECT_CONNECTION_METHOD, PROJECT_CONNECTION_PARAMS
     from .project import PROJECT_METHOD_PARAMS
 

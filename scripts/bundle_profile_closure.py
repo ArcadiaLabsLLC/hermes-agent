@@ -228,9 +228,11 @@ def _is_type_checking(test: ast.expr) -> bool:
         isinstance(test, ast.Attribute) and test.attr == "TYPE_CHECKING")
 
 
-#: Calls whose first literal argument is a module they import: importlib's, and the
-#: ``hermes harness`` parser's handlers bound by name (``hermes_cli/harness_parts/parser/lazy.py``).
-_LITERAL_IMPORT_CALLS = frozenset({"import_module", "lazy_module"})
+#: Calls whose first literal argument is a module they import: importlib's, the builtin
+#: ``__import__`` (the one-line ``# fork seam`` spelling in upstream files, e.g.
+#: ``__import__("hermes_read_only_invocation")``), and the ``hermes harness`` parser's handlers
+#: bound by name (``hermes_cli/harness_parts/parser/lazy.py``).
+_LITERAL_IMPORT_CALLS = frozenset({"__import__", "import_module", "lazy_module"})
 
 
 def _literal_import_module(node: ast.AST) -> str | None:

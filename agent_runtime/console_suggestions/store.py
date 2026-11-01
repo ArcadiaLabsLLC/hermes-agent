@@ -8,10 +8,22 @@ import os
 from pathlib import Path
 import sqlite3
 import time
+from types import SimpleNamespace
 from uuid import uuid4
 
-from agent_runtime.serve_registry import default_process_probe
 from .settings import SuggestionRefused
+
+try:
+    from agent_runtime.serve_registry import default_process_probe
+except ImportError as _probe_exc:  # the phone profile switches the desktop serve's pid registry off
+    if _probe_exc.name != "agent_runtime.serve_registry":
+        raise
+
+    def default_process_probe():
+        """No pid registry in this bundle: every question answers ``None``, "could not determine",
+        so ``_prune`` never declares a live attempt dead on a guess."""
+        unknown = lambda _pid: None  # noqa: E731
+        return SimpleNamespace(alive=unknown, start_time=unknown, cmdline=unknown)
 
 __layer__ = "stores"
 
