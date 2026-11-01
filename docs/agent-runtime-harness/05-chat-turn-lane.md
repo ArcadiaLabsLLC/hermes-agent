@@ -870,7 +870,11 @@ Under a slot assignment each assigned slot's declared `context.files` load, each
 (`agent_runtime/persona_slots.py::load_slot_context`); a declaration that names none loads ONE file —
 `AGENTS.md` when it has content of its own, else `CLAUDE.md`, never one that only points at the other
 (`persona_slots.default_context_choice`, owner ruling 2026-11-01; the loaded file's receipt carries
-`default_choice`, the other's `not_default` or `missing` with the reason). When the persona sets
+`default_choice`, the other's `not_default` or `missing` with the reason). The sections ride the `context` tier of
+the system prompt — after the static-prefix cache breakpoint, before the end-of-system one — so on a
+five-turn, two-slot chat turns 2–5 read them from cache and a changed file re-writes only that turn's
+tail; the resident actor's reuse key carries each file's `sha256`, so unchanged files keep one cached
+prompt (`tests/agent_runtime/test_slot_context_cache_prefix.py`, RT-SLOT-CONTEXT-IN-CACHED-PREFIX). When the persona sets
 `include_core_context_files` AND the workdir is grounded, upstream's prompt builder also injects the
 cwd chain for that workdir, so `persona_slots.slot_context_for_prompt` drops every slot section whose
 content (BOM, newlines and outer whitespace normalised) the chain carries WHOLE — found through
