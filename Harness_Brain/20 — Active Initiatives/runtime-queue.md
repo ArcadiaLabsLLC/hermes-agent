@@ -34,7 +34,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-31 (owner sitting: the launcher's Board › Queues refused `branch_missing`)
 
-- **`RT-WORK-INDEX-SELF-HEAL` — The Work writer reports a corrupt worktree index as `branch_missing`: two workspace brain worktrees under the namespace (`agent-runtime/work/ws_default`, `agent-runtime/work/ws_testv4_afb811`) had a 358-byte all-zero `.git/worktrees/<name>/index`, written one second apart on 2026-10-30 16:14, and every `runtime.work.list` for those workspaces failed at the writer's `reset --hard` with "bad signature 0x00000000 / index file corrupt" until the owner moved the two files aside by hand on 2026-10-31** · The writer already hard-resets the worktree before every operation and the index holds no state worth keeping, so on git's "index file corrupt" it should move the index aside and retry the reset once, and the refusal should say `index_corrupt` rather than `branch_missing`; the personal brain and the clone's own index were untouched · launcher half `MC-QUEUES-REFUSAL-WORDS` (the board paints the reason) · `agent_runtime/work_store/writer.py::_must`, `agent_runtime/work_store/reasons.py` · READY 2026-10-31 · **TAKEN 2026-10-31 w1031j-h-work on nekwo-ubuntu24 as nekwo in hm-w1031j-work**
 
 ### Filed on arrival — 2026-10-31 (lane w1031d-h)
 

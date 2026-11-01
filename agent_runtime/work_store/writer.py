@@ -10,7 +10,8 @@ is never touched. Steps, in the §5 table's numbering:
    shipped at all is the lanes caller's check: ``agent_runtime/work/service.py``);
 1. ``worktree prune`` then, when absent, ``worktree add --no-checkout`` + ``sparse-checkout set``;
 2. ``remote get-url origin`` + ``fetch origin <branch>`` (refs only; skipped for a local slot);
-3. ``reset --hard <tip>`` then ``status --porcelain`` must be empty (``clean -fdq`` once);
+3. ``reset --hard <tip>`` (an unreadable index is moved aside and the reset retried once, else
+   ``index_corrupt``) then ``status --porcelain`` must be empty (``clean -fdq`` once);
 4. idempotency — a commit at the tip whose body carries ``request_id: <rid>`` replays its receipt;
 5. read the note at the tip, check the op's precondition (the ``_PRECONDITIONS`` table);
 6. the one-line edit, written temp + ``os.replace``;
@@ -51,6 +52,8 @@ REPLAY_BUDGET = 8
 REQUEST_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,200}$")
 _NON_FAST_FORWARD = ("! [rejected]", "fetch first", "non-fast-forward", "[remote rejected] (cannot lock ref")
 _CREDENTIAL = re.compile(r"://[^/@\s]+@")
+#: git's words for an unreadable index (a zeroed ``.git/worktrees/<name>/index``, RT-WORK-INDEX-SELF-HEAL).
+_INDEX_CORRUPT = "index file corrupt"
 
 
 @dataclass(frozen=True)
@@ -260,10 +263,30 @@ class Writer:
                          timeout=120, stdin=subprocess.DEVNULL)
 
     def _must(self, args: list[str], reason: Reason, *, repo: Path, config: tuple[str, ...] = ()) -> str:
+        """Run git; a failure refuses ``reason`` — or ``index_corrupt`` when git says the index is unreadable."""
+
         done = self._git(args, repo=repo, config=config)
         if done.returncode != 0:
-            raise WorkRefused(reason, f"git {args[0]}: {_tail(done.stderr)}")
+            said = Reason.INDEX_CORRUPT if _INDEX_CORRUPT in str(done.stderr) else reason
+            raise WorkRefused(said, f"git {args[0]}: {_tail(done.stderr)}")
         return str(done.stdout or "")
+
+    def _heal_index(self) -> bool:
+        """Move hermes's worktree index aside (it holds no state: every operation hard-resets first).
+
+        True when an index file was moved; the move is ``<index>.corrupt-<utc stamp>`` beside it, never a
+        delete, and the ``work.index_healed`` receipt names both paths.
+        """
+
+        done = self._git(["rev-parse", "--path-format=absolute", "--git-path", "index"], repo=self.worktree)
+        index = Path(str(done.stdout or "").strip()) if done.returncode == 0 else None
+        if index is None or not index.is_file():
+            return False
+        aside = index.with_name(f"{index.name}.corrupt-{self._now().strftime('%Y%m%dT%H%M%S%f')}")
+        os.replace(index, aside)
+        receipts.emit("work.index_healed", slot=self.board.slot, workspace_id=self.board.workspace_id,
+                      index=str(index), moved_to=str(aside))
+        return True
 
     # ── steps 0–3: sync (a read runs these only) ─────────────────────────
 
@@ -338,7 +361,13 @@ class Writer:
         return bool(self._must(["status", "--porcelain"], Reason.WORKTREE_DIRTY, repo=self.worktree).strip())
 
     def _reset(self) -> None:
-        self._must(["reset", "-q", "--hard", self.tip], Reason.BRANCH_MISSING, repo=self.worktree)
+        try:
+            self._must(["reset", "-q", "--hard", self.tip], Reason.BRANCH_MISSING, repo=self.worktree)
+        except WorkRefused as refused:
+            # A corrupt index: moved aside and the reset retried ONCE; a second failure is the refusal.
+            if refused.reason is not Reason.INDEX_CORRUPT or not self._heal_index():
+                raise
+            self._must(["reset", "-q", "--hard", self.tip], Reason.BRANCH_MISSING, repo=self.worktree)
         if self._dirty():
             self._git(["clean", "-fdq"], repo=self.worktree)
             if self._dirty():

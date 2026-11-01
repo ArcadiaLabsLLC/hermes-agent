@@ -75,6 +75,8 @@ class Reason(StrEnum):
     SKILLS_NOT_LOADABLE = "skills_not_loadable"
     # A ref with no Project that two of the workspace's Projects answer (RT-WORK-BOARD-PER-PROJECT-SLOT): never guessed.
     SLOT_AMBIGUOUS = "slot_ambiguous"
+    # Hermes's worktree index stays unreadable after it was moved aside once (RT-WORK-INDEX-SELF-HEAL).
+    INDEX_CORRUPT = "index_corrupt"
 
 
 class WorkRefused(ValueError):

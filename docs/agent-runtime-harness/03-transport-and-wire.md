@@ -1802,8 +1802,10 @@ re-derives the owner set and a missing or changed owner refuses. The idempotency
 (`replayed: true`). The operator's console writes as `who: operator` and may release or re-status a row
 another claimant holds; a paired device writes as `device:<id>` and may not borrow the operator's name.
 The git reasons are `slot_unbound`, `git_unavailable`, `machine_identity_unavailable`, `worktree_failed`,
-`remote_missing`, `fetch_failed`, `branch_missing`, `worktree_dirty`, `note_missing`, `grammar_invalid`,
-`commit_failed`, `push_refused`, `push_contended` — one per failure branch of the plan's §5 step table.
+`remote_missing`, `fetch_failed`, `branch_missing`, `worktree_dirty`, `index_corrupt` (hermes's worktree
+index stayed unreadable after the writer moved it aside once and retried the reset — `work.index_healed`
+logs each move), `note_missing`, `grammar_invalid`, `commit_failed`, `push_refused`, `push_contended` —
+one per failure branch of the plan's §5 step table.
 Every write logs one receipt line `work.row_<op>` (`agent_runtime/work_store/receipts.py`); the serve log
 is the receipt log.
 

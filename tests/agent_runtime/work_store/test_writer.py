@@ -284,3 +284,35 @@ def test_a_qa_namespace_never_pushes_to_a_network_remote(repo, monkeypatch):
         assert refused.value.reason is Reason.PUSH_REFUSED, url
         assert not any(call[:1] in (["push"], ["commit"]) for call in calls), url
     assert git("rev-parse", "main", cwd=repo.origin).strip() == before
+
+
+def _zero_index(worktree: Path) -> Path:
+    index = Path(git("rev-parse", "--path-format=absolute", "--git-path", "index", cwd=worktree).strip())
+    index.write_bytes(b"\0" * 358)  # the shape found on 2026-10-30: a 358-byte all-zero index
+    return index
+
+
+def test_a_zeroed_worktree_index_is_moved_aside_and_the_write_lands(repo):
+    """RT-WORK-INDEX-SELF-HEAL. Mutation: drop the heal-and-retry in ``_reset`` -> refused index_corrupt."""
+    writer = Writer(repo.board, machine_id="m1")
+    index = _zero_index(writer.sync())
+    receipt = writer.apply(op(Op.CLAIM))
+    assert receipt.commit and "**TAKEN " in note_text(repo.other)
+    assert [p.name for p in index.parent.glob("index.corrupt-*")] and index.read_bytes()[:4] == b"DIRC"
+
+
+def test_an_index_that_stays_corrupt_refuses_index_corrupt_not_branch_missing(repo):
+    """Mutation: map git's "index file corrupt" to the caller's reason in ``_must`` -> branch_missing."""
+    writer = Writer(repo.board, machine_id="m1")
+    _zero_index(writer.sync())
+    stuck = Writer(repo.board, machine_id="m1", run=recording([], lambda a: subprocess.CompletedProcess(
+        a, 128, "", "error: bad signature 0x00000000\nfatal: index file corrupt\n") if a[:1] == ["reset"] else None))
+    with pytest.raises(WorkRefused) as refused:
+        stuck.apply(op(Op.CLAIM))
+    assert refused.value.reason is Reason.INDEX_CORRUPT and "index file corrupt" in refused.value.detail
+    # Positive control: an ordinary reset failure keeps its own word.
+    other = Writer(repo.board, machine_id="m1", run=recording([], lambda a: subprocess.CompletedProcess(
+        a, 128, "", "fatal: ambiguous argument 'origin/main'\n") if a[:1] == ["reset"] else None))
+    with pytest.raises(WorkRefused) as plain:
+        other.apply(op(Op.CLAIM, rid="r2"))
+    assert plain.value.reason is Reason.BRANCH_MISSING
