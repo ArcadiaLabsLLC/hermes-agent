@@ -105,7 +105,6 @@
   "agent_runtime/_upstream_doors.py|hermes_cli.profiles|_iter_named_profile_dirs",
   "agent_runtime/_upstream_doors.py|tools.delegate_tool_registry|_active_subagents",
   "agent_runtime/_upstream_doors.py|tools.delegate_tool_registry|_active_subagents_lock",
-  "agent_runtime/_upstream_doors.py|tools.delegate_tool_registry|_is_descendant_of",
   "agent_runtime/_upstream_doors.py|tools.delegate_tool_registry|_subagent_transport_matches",
   "agent_runtime/_upstream_doors.py|tools.mcp_tool_loop|_wait_for_server_session_ready",
   "agent_runtime/_upstream_doors.py|tools.mcp_tool_registration|_register_server_tools",

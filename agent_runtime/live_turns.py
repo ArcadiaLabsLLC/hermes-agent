@@ -205,13 +205,6 @@ def persona_instance_of(agent: Any) -> str | None:
                      if turn.agent is agent and turn.persona_instance_id), None)
 
 
-def conversation_agents(session_id: str, persona_instance_id: str) -> tuple[Any, ...]:
-    """Pin the live parent objects for an already-authorized operator conversation."""
-    with _lock:
-        return tuple(turn.agent for turn in _turns.values()
-                     if turn.session_id == session_id and turn.persona_instance_id == persona_instance_id)
-
-
 def _activity(agent: Any) -> tuple[int | None, float | None]:
     """``(api_calls, seconds_since_activity)`` off the agent's own summary, else Nones."""
 

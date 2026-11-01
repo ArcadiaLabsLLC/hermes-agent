@@ -151,7 +151,8 @@ def test_operator_unclassified_failure_cannot_claim_a_command_did_not_run(monkey
     assert operator_subagents._subagent_reply("list", 1, {})["error"]["data"]["reason"] == "subagent_unavailable"
 
 
-def test_operator_mutations_require_current_live_parent(placed_agent, tmp_path):
+def test_an_async_operator_child_stays_addressable_after_its_spawning_turn(placed_agent, tmp_path):
+    """RT-SUBAGENTS-ASYNC-CHILD-NO-REF: the conversation, not a live parent turn, owns its children."""
     from agent_runtime.live_turns import live_turn
     from agent_runtime.persona_chat_durability import default_persona_session_db
     from tests.agent_runtime.test_operator_session_inspection import target, inspect
@@ -160,19 +161,23 @@ def test_operator_mutations_require_current_live_parent(placed_agent, tmp_path):
     parent = Child("parent")
     parent.session_id = params["session_id"]
     child = Child("operator-child", parent)
+    later = Child("later-turn")  # a later turn of the same chat: never the async child's ancestor
+    later.session_id = params["session_id"]
     with closing(default_persona_session_db()) as db:
         from pathlib import Path
         child._session_db, child.logs_dir = db, Path(db.db_path).parent / "sessions"
         _register_child(child, parent, "task", owner_session_id=None, owner_transport=None, owner_session_record=None)
         try:
+            # The spawning turn has ended and no turn is live.
             roster = inspect("subagents.list", params)["result"]
-            assert not roster["children"][0]["controllable"]
-            selected = {**params, "child_ref": roster["children"][0]["child_ref"],
-                        "expected_generation": roster["generation"], "request_id": "operator"}
-            assert "error" in inspect("subagents.stop", selected)
-            with live_turn(turn_id="proof", session_id=params["session_id"],
-                           persona_instance_id=params["persona_instance_id"], agent=parent):
-                assert inspect("subagents.list", params)["result"]["children"][0]["controllable"]
+            row = roster["children"][0]
+            assert row["child_ref"] and row["controllable"]
+            with live_turn(turn_id="later", session_id=params["session_id"],
+                           persona_instance_id=params["persona_instance_id"], agent=later):
+                during = inspect("subagents.list", params)["result"]["children"][0]
+                assert during["child_ref"] == row["child_ref"] and during["controllable"]
+                selected = {**params, "child_ref": during["child_ref"],
+                            "expected_generation": roster["generation"], "request_id": "operator"}
                 from agent_runtime.call_authorization import UNKNOWN_CALLER
                 from tests.agent_runtime.test_serve_rpc_open_chat import _device
                 from tests.agent_runtime.test_instance_conversation_owner import OTHER
@@ -184,7 +189,10 @@ def test_operator_mutations_require_current_live_parent(placed_agent, tmp_path):
                     assert "error" in inspect("subagents.stop", selected, caller)
                 assert not child._interrupt_requested
                 assert inspect("subagents.stop", selected)["result"]["status"] == "interrupt_requested"
-            assert child._interrupt_requested and not parent._interrupt_requested
+            assert child._interrupt_requested and not parent._interrupt_requested and not later._interrupt_requested
+            # Positive control for the durable-lineage authority: another profile's child is never addressed.
+            child.logs_dir = tmp_path / "other-profile" / "sessions"
+            assert inspect("subagents.list", params)["result"]["children"] == []
         finally:
             _unregister_subagent("operator-child", agent=child)
 

@@ -23,10 +23,6 @@ FIELDS = ("subagent_id", "parent_id", "depth", "goal", "delegation_id", "model",
 MAX_CHILDREN = 256
 
 
-def has_live_ancestor(record, parents):
-    return not parents or any(upstream.subagent_is_descendant(record.get("agent"), parent) for parent in parents)
-
-
 def same_native_profile(record, parent, home):
     child = record.get("agent")
     child_db = getattr(getattr(child, "_session_db", None), "db_path", None)

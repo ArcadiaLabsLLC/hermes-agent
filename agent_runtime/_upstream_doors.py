@@ -62,7 +62,6 @@ __all__ = [
     "skills_walker",
     "strip_quotes",
     "subagent_compute_supervisor",
-    "subagent_is_descendant",
     "subagent_registry",
     "subagent_session_authority",
     "subagent_transport_matches",
@@ -422,12 +421,6 @@ def subagent_registry():
     from tools.delegate_tool_registry import _active_subagents, _active_subagents_lock
 
     return _active_subagents, _active_subagents_lock
-
-
-def subagent_is_descendant(child, parent):
-    from tools.delegate_tool_registry import _is_descendant_of
-
-    return _is_descendant_of(child, parent)
 
 
 def subagent_transport_matches(record, transport):

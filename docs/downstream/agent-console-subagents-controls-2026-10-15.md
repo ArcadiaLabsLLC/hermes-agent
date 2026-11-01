@@ -22,7 +22,7 @@ Peer grants and the existing conversation route owners are unchanged.
 | `child_ref` | Required opaque exact-child reference from list; signs owner, native child object and start generation; a recyclable child ID alone grants nothing |
 | `request_id` | Required nonempty ID, at most 128 characters; Launcher generates one per deliberate action; the receipt binds its operation, child and correction |
 | `text` | Steer only; nonblank, at most 8192 UTF-8 bytes; delivered by native `steer_subagent` / `AIAgent.steer` |
-| `controllable` | List fact from current exact owner checks; operator controls additionally require an actual current live parent ancestor |
+| `controllable` | List fact from current exact owner checks (operator: the durable lineage below for the conversation's lifetime; the live-parent requirement was retired 2026-11-01, RT-SUBAGENTS-ASYNC-CHILD-NO-REF) |
 | `version`, `generation`, `observed_at` | Existing observation envelope, plus echoed conversation identity |
 | `operation`, `subagent_id`, `request_id`, `child_ref` | Receipt attribution; operation/child ID may be null when no receipt exists |
 | `status` | `queued`, `interrupt_requested`, `not_accepting`, `refused`, or `unknown`; queued does not assert delivery, and stop requested does not assert completion |
@@ -61,8 +61,13 @@ candidates; no upstream PR or upstream adoption is claimed.
 
 The native helper rechecks the signed exact record at acceptance under its own
 lock. Stop uses its native recursive interruption, preserving the parent and
-sibling branches. Operator controls require current live ancestry in addition
-to the actual SessionDB, compression lineage and captured profile home.
+sibling branches. Operator controls rest on the actual SessionDB, compression lineage and
+captured profile home. (Amended 2026-11-01, RT-SUBAGENTS-ASYNC-CHILD-NO-REF:
+they no longer also require a live parent turn. That requirement hid an async
+child once its spawning turn ended — no turn live meant no control, and a later
+turn's agent is never its ancestor, so the roster read `child_ref: null`. The
+durable lineage is the spine upstream's own `delegate_task` control falls back
+to when the parent object is gone.)
 
 A receipt is reserved before dispatch; duplicate request IDs cannot reexecute.
 Reusing an ID with different content refuses. Missing/late/malformed replies or

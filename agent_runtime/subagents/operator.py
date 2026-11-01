@@ -3,14 +3,13 @@ from pathlib import Path
 from dataclasses import dataclass
 
 from agent_runtime import paths
-from agent_runtime.live_turns import conversation_agents
 from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.operator_conversation import OperatorConversationRefused
 from agent_runtime.operator_session_inspection import operator_session_read, inspection_identity, _inspection_persona
 from agent_runtime.profile_context import resolve_persona_profile, persona_profile_context
 from .model import (HISTORY_OPERATIONS, SETTINGS_OPERATIONS, SPAWNING_OPERATIONS, Refusal, SubagentError,
                     public_capabilities, validate_request)
-from .native import has_live_ancestor, inspect_records, registry_snapshot
+from .native import inspect_records, registry_snapshot
 from .references import references
 
 __layer__ = "lanes"
@@ -54,13 +53,17 @@ class _Owner:
     def visible(self, record):
         return _belongs(record, self.db, self.params["session_id"], self.home)
 
+    # A child stays addressable (``child_ref``) and controllable for its conversation's lifetime
+    # (RT-SUBAGENTS-ASYNC-CHILD-NO-REF): authority is the durable lineage ``_belongs`` proves — the
+    # child's own SessionDB and profile home, and its ``owner_agent_session_id`` resolving to this
+    # conversation's tip — the same spine upstream's own ``delegate_task`` list/steer/stop falls back
+    # to when the parent object is gone. Requiring a LIVE parent turn hid an async child whose
+    # spawning turn had ended: no turn live meant no control, and a later turn's agent is never its
+    # ancestor, so the child read ``child_ref: null``.
     def exact(self, record):
-        parents = conversation_agents(self.params["session_id"], self.instance_id)
-        return self.visible(record) and has_live_ancestor(record, parents)
+        return self.visible(record)
 
-    def controllable(self, record):
-        parents = conversation_agents(self.params["session_id"], self.instance_id)
-        return bool(parents) and self.visible(record) and has_live_ancestor(record, parents)
+    controllable = exact
 
     def revalidate(self):
         with operator_session_read(self.params) as (instance, session):
