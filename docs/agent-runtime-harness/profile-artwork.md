@@ -47,3 +47,35 @@ outside that loop. After restoration, all 22 lock/portrait checks passed and
 100 independent pairs of concurrent portrait writers each produced one save and
 one stale-revision refusal. The original failing bundle and its isolated retry
 are retained as diagnostic evidence, not reported as a clean first pass.
+
+## Qualification boundaries
+
+The first complete fork landing run reported 9,804 passing tests, 23 failures,
+63 skips and no errors across 1,384 files. That run exposed the seed race above;
+its isolated portrait retry passed, but did not qualify the race away. A fresh
+landing run after the shared-lock repair is required before acceptance.
+
+Each of the eight final red files was then run alone on the candidate and on
+unchanged base `f6ac4265f4`, using the same Python 3.14 test environment. Seven
+files reproduced exactly the same 22 failing node IDs on both revisions:
+
+- Embedded phone session: two nodes (`RT-WINDOWS-BASELINE-REGRESSIONS`).
+- Supervised relaunch and connection-drop fixtures: one node each
+  (`RT-WINDOWS-SUPERVISION-FIXTURE-IDENTITY`).
+- Stream fixture byte/shape checks: four nodes; the missing producer field is
+  `core.prompt_observability.chat_contexts[].workspace_context_receipt`
+  (`FH-STREAM-WORKSPACE-RECEIPT-GOLDENS`).
+- Sessions-export writing positive control: one node
+  (`RT-WRITING-COMMAND-HOME-SKELETON`).
+- Prepush shell tests: twelve nodes (`FH-WINDOWS-PREPUSH-SHELL`).
+- Spatial entry vocabulary census: one node (`FH-LEVEL-ENTRY-VOCABULARY-CENSUS`).
+
+The eighth file, `test_default_brain.py`, passed all 21 checks alone on both
+revisions; its bundled failure is not claimed fixed. These comparisons completed
+with named assertions, not timeouts or collection crashes. The earlier official
+comparison wrapper was cancelled while waiting for a slot and supplies no
+validation evidence. Existing queue findings and other lanes' claims remain open.
+
+Portrait-specific mutations were killed and restored for the reviewed-handle
+comparison, PNG validation, exact subject, atomic write, and preservation of
+real persona/instance records. No test ceiling or assertion was weakened.
