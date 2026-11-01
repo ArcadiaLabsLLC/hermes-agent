@@ -18,6 +18,8 @@ import importlib
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
 from agent_runtime.profile_runner.model_input_observability import _model_input_observability
 from agent_runtime.profile_runner.models import AgentRunRequest
 from agent_runtime.prompt_guidance import (
@@ -30,6 +32,15 @@ from tests.agent.test_system_prompt import _make_agent
 
 _SECTION = "eternia-harness.tool-guidance"
 _HANDOFF = ("delegate_task", "agent_chat_send")
+
+
+@pytest.fixture(autouse=True)
+def _scratch_workspace(tmp_path, monkeypatch):
+    """The prompt build's git probe runs in a scratch repo, never the checkout
+    (FH-GIT-AUDIT-TOOL-GUIDANCE-STATUS)."""
+    from tests._downstream.scratch_workspace import scratch_git_workspace
+
+    return scratch_git_workspace(tmp_path, monkeypatch)
 
 
 def _plugin():
