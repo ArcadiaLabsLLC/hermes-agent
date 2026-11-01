@@ -292,6 +292,7 @@
     "runtime.prefab.list",
     "runtime.prefab.set",
     "runtime.profiles.avatar",
+    "runtime.profiles.avatar.set",
     "runtime.project.artifacts.list",
     "runtime.project.category.set",
     "runtime.project.chat.fold",
@@ -921,6 +922,11 @@
     "runtime.profiles.avatar": [
       "profile"
     ],
+    "runtime.profiles.avatar.set": [
+      "data_base64",
+      "expected_handle",
+      "profile"
+    ],
     "runtime.project.artifacts.list": [
       "project_id"
     ],
@@ -1393,6 +1399,7 @@
     "runtime.prefab.list": "console",
     "runtime.prefab.set": "console",
     "runtime.profiles.avatar": "read",
+    "runtime.profiles.avatar.set": "console",
     "runtime.project.artifacts.list": "console",
     "runtime.project.category.set": "console",
     "runtime.project.chat.fold": "console",

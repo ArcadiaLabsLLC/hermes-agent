@@ -35,7 +35,10 @@ CHARACTERS_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
 PETS_METHOD_PARAMS: dict[str, tuple[str, ...]] = {"runtime.pets.thumb": ("slug", "url")}
 
 #: ``runtime.profiles.avatar`` (``serve_rpc/profiles.py``), a profile's avatar bytes for a remote reader.
-PROFILES_METHOD_PARAMS: dict[str, tuple[str, ...]] = {"runtime.profiles.avatar": ("profile",)}
+PROFILES_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
+    "runtime.profiles.avatar": ("profile",),
+    "runtime.profiles.avatar.set": ("data_base64", "expected_handle", "profile"),
+}
 
 #: ``runtime.health`` (``serve_rpc/health.py``) takes none and refuses any.
 HEALTH_METHOD_PARAMS: dict[str, tuple[str, ...]] = {"runtime.health": ()}
