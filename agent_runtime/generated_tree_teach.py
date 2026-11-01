@@ -54,7 +54,7 @@ _GREP_VERB = "launcher_generated_grep"
 _TREE_VERB = "launcher_generated_tree"
 _INSPECT_VERB = "launcher_generated_inspect"
 _EDIT_VERB = "launcher_generated_edit"
-#: The Launcher's tool-shaped writes (``launcher.generated.patch`` / ``.write``, plan §4
+#: The Launcher's tool-shaped writes (the two constants below, plan §4
 #: RT-GENERATED-TREE-TEACH-NEW-VERBS): ``patch`` and ``write_file`` each have a twin, so the
 #: teach names the twin and the model keeps the argument shape it already reached for. A
 #: Launcher without them is taught the by-path ``edit`` as before.
@@ -85,7 +85,7 @@ def _why(path: str, verb: str, filter_hint: str = "") -> str:
 def _filter_hint(tool_name: Any, args: dict) -> str:
     """A ``search_files`` name filter, carried to the verb that takes it: ``target='files'``'s
     ``pattern`` is the tree's ``glob``, a content search's ``file_glob`` is grep's
-    (``launcher.generated.tree`` / ``.grep``; glob is an argument there, not a verb)."""
+    (:data:`_TREE_VERB` / :data:`_GREP_VERB`; glob is an argument there, not a verb)."""
 
     if tool_name != "search_files":
         return ""
