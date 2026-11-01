@@ -187,3 +187,39 @@ def test_operator_mutations_require_current_live_parent(placed_agent, tmp_path):
             assert child._interrupt_requested and not parent._interrupt_requested
         finally:
             _unregister_subagent("operator-child", agent=child)
+
+
+def test_an_unclassified_failure_is_logged_with_its_operation_and_exception(monkeypatch, caplog):
+    """RT-SUBAGENTS-READ-CATCHALL-SILENT: the wire says only `subagent_unavailable`; the log says why."""
+    import logging
+
+    from agent_runtime.serve_rpc import operator_subagents
+
+    def failure(*_):
+        raise RuntimeError("roster store went away")
+
+    monkeypatch.setattr(operator_subagents, "inspect_operator", failure)
+    with caplog.at_level(logging.INFO, logger=operator_subagents.__name__):
+        reply = operator_subagents._subagent_reply("list", 1, {})
+    assert reply["error"]["data"]["reason"] == "subagent_unavailable"
+    [record] = [r for r in caplog.records if r.name == operator_subagents.__name__]
+    assert record.levelno == logging.ERROR and "subagents.list" in record.getMessage()
+    assert record.exc_info and "roster store went away" in str(record.exc_info[1])
+
+
+def test_a_classified_refusal_is_logged_with_its_reason(monkeypatch, caplog):
+    """Positive control beside the arm above: a classified refusal logs its reason, without a traceback."""
+    import logging
+
+    from agent_runtime.serve_rpc import operator_subagents
+    from agent_runtime.subagents.model import Refusal, SubagentError
+
+    def refusal(*_):
+        raise SubagentError(Refusal.STALE)
+
+    monkeypatch.setattr(operator_subagents, "inspect_operator", refusal)
+    with caplog.at_level(logging.INFO, logger=operator_subagents.__name__):
+        operator_subagents._subagent_reply("list", 1, {})
+    [record] = [r for r in caplog.records if r.name == operator_subagents.__name__]
+    assert record.levelno == logging.INFO and "subagent_reference_stale" in record.getMessage()
+    assert not record.exc_info
