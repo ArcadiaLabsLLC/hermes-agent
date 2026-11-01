@@ -376,9 +376,15 @@ def add_row(path: str, *, reason: str, change: str, disposition: str = "carry", 
 # --------------------------------------------------------------------------- git
 
 
+#: The working-tree ``diff`` and ``status`` refresh the index opportunistically unless told not to
+#: (taking ``index.lock`` in the checkout this measures); every footprint git says so itself rather
+#: than leaning on a caller's ``GIT_OPTIONAL_LOCKS=0`` (D3.16 audit, FH-GIT-AUDIT-UPSTREAM-FOOTPRINT-DIFF).
+GIT_NO_LOCKS = "--no-optional-locks"
+
+
 def _git(*args: str) -> str:
     result = subprocess.run(
-        ["git", "-C", str(ROOT), *args],
+        ["git", GIT_NO_LOCKS, "-C", str(ROOT), *args],
         capture_output=True,
         text=True,
         encoding="utf-8",
