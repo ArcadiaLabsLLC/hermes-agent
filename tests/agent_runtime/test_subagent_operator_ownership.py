@@ -15,7 +15,7 @@ from tests.agent_runtime.test_operator_session_inspection import target, inspect
 from tests.agent_runtime.test_serve_rpc_open_chat import qa_persona, placed_agent, _device
 from tests.agent_runtime.test_instance_conversation_owner import chat_head, OTHER
 from tests.agent_runtime.test_subagent_worker_ownership import Child
-from tests.agent_runtime.test_native_conversation import runtime  # noqa: F401  (fixture)
+from tests.agent_runtime.test_native_conversation import runtime  # fixture
 
 
 def test_operator_children_remain_private_to_exact_conversation(placed_agent, tmp_path):
