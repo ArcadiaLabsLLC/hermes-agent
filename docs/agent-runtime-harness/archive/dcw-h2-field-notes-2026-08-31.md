@@ -145,7 +145,7 @@ halves, and the second was NOT optional:
 
 Deliberate non-coverage, each recorded at the site: newly imported modules are
 LEFT alone (lazy imports are normal); a non-`str` key is skipped
-(`test_setup_openclaw_migration.py` mocks
+(`test_setup_openclaw_migration.py`, removed from this tree with the OpenClaw migration at upstream v0.22.5 `d7db4d109d`, mocks
 `importlib.util.spec_from_file_location`, so production's
 `sys.modules[spec.name] = module` files a module under a MagicMock — tripping
 over it ERRORed two green tests in `test_state_db_guard.py`).

@@ -89,6 +89,7 @@ DYNAMIC_IMPORTS: dict[str, tuple[str, ...]] = {
         "agent.secret_sources.registry", "agent.secret_sources.base",
         "agent.tts_registry", "agent.tts_provider",
         "agent.transcription_registry", "agent.transcription_provider",
+        "agent.delegation_registry", "agent.delegation_provider",
         "agent.provider_access",
     ),
     "agent.secret_sources.registry": (

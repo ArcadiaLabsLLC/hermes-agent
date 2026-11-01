@@ -361,7 +361,7 @@ if _WIN:
         )},
         # Host-conditional (lane w5-fh, 2026-10-02): each was a strict XPASS on a host
         # without the condition, so the condition is the classification.
-        'tests/hermes_cli/test_anon_sign_in_flow.py::test_the_scope_is_entered_for_the_preconditions_and_the_persist_but_never_around_a_wait': (
+        'tests/hermes_cli/test_anon_sign_in_flow.py::test_the_scope_is_entered_for_the_precondition_and_the_persist_but_never_around_a_wait': (
             _up_red_when(sys.version_info < (3, 13), (
                 "orders events by time.monotonic(), which is GetTickCount64 (15.6 ms) on "
                 "Windows before CPython 3.13, so a yield shares the scope's tick; "

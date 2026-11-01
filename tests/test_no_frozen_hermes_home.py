@@ -110,10 +110,6 @@ FROZEN_LEDGER: dict[str, tuple[frozenset[str], str]] = {
         frozenset({"CACHE_PATH", "_CACHE_PATH_AT_IMPORT"}),
         "upstream: gateway sticker cache",
     ),
-    "hermes_cli/claw.py": (
-        frozenset({"_OPENCLAW_SCRIPT_INSTALLED"}),
-        "upstream: openclaw install marker path",
-    ),
     "hermes_cli/web_server_gateway.py": (
         frozenset({"_ACTION_LOG_DIR"}),
         "upstream: dashboard action log directory",
