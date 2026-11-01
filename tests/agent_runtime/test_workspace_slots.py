@@ -71,8 +71,8 @@ def test_declare_replaces_the_declared_set_and_tombstones_what_left(workspace):
     assert reply["result"]["tombstoned"] == ["backend"]
     slots = load_document(workspace)["slots"]
     assert slots["backend"]["removed_at"] == LATER and slots["launcher"]["removed_at"] is None
-    # context.files defaults to BOTH files (owner correction 2026-10-04).
-    assert slots["launcher"]["context"]["files"] == ["CLAUDE.md", "AGENTS.md"]
+    # No context.files declared stores none: the one-file default resolves per turn (owner 2026-11-01).
+    assert slots["launcher"]["context"]["files"] is None
     # An older declaration cannot undo a newer one.
     stale = _declare(workspace, [_slot("launcher"), _slot("backend")], issued_at=ISSUED)
     assert stale["error"]["data"]["reason"] == "stale_revision"

@@ -866,8 +866,11 @@ old ~3 s construction (`planned/chat-turn-prep-cost.md` §4.2 Stage 2; re-armed 
 The turn's workdir is resolved ONCE, in `build_mission_chat_turn_context` (its three inputs — the
 persona, the loaded `AGENTS.md` pointer, the primary slot's path — are first in hand there), and
 handed to `mission_chat_reply(workdir=)`; the reply resolves only for a caller that hands none.
-Under a slot assignment each assigned slot's `CLAUDE.md` / `AGENTS.md` loads as its own section
-(`agent_runtime/persona_slots.py::load_slot_context`). When the persona sets
+Under a slot assignment each assigned slot's declared `context.files` load, each as its own section
+(`agent_runtime/persona_slots.py::load_slot_context`); a declaration that names none loads ONE file —
+`AGENTS.md` when it has content of its own, else `CLAUDE.md`, never one that only points at the other
+(`persona_slots.default_context_choice`, owner ruling 2026-11-01; the loaded file's receipt carries
+`default_choice`, the other's `not_default` or `missing` with the reason). When the persona sets
 `include_core_context_files` AND the workdir is grounded, upstream's prompt builder also injects the
 cwd chain for that workdir, so `persona_slots.slot_context_for_prompt` drops every slot section whose
 content (BOM, newlines and outer whitespace normalised) the chain carries WHOLE — found through

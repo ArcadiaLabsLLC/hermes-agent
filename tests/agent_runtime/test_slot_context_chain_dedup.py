@@ -21,6 +21,7 @@ from agent.prompt_builder import CONTEXT_FILE_MAX_CHARS, build_context_files_pro
 from agent_runtime import persona_slots
 from agent_runtime.persona_runtime import _mission_chat_surface_message
 from tests.agent_runtime.test_mission_chat_turn_context import (
+    BOTH,
     _Persona,
     _build,
     _slot_instance,
@@ -39,7 +40,8 @@ class _CorePersona(_Persona):
 def _git_slots(tmp_path, files_by_slot):
     """Each slot a git repo; files written as BYTES so a Windows text-mode write adds no CRLF."""
 
-    workspace, roots = _slot_workspace(tmp_path, {slot: {} for slot in files_by_slot})
+    # Both files declared: these arms are about the chain dedup, not the one-file default.
+    workspace, roots = _slot_workspace(tmp_path, {slot: {} for slot in files_by_slot}, context_files=BOTH)
     for slot, files in files_by_slot.items():
         subprocess.run(["git", "init", "-q", roots[slot]], check=True)
         for name, body in files.items():

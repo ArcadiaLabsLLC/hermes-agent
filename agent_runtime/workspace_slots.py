@@ -52,8 +52,12 @@ from .workspace_slot_recipe import text_carries_credential, url_carries_credenti
 __layer__ = "stores"
 
 SLOTS_SCHEMA_VERSION = 1
-#: ``context.files`` when a declaration names none (owner correction 2026-10-04: BOTH).
-DEFAULT_CONTEXT_FILES = ("CLAUDE.md", "AGENTS.md")
+#: The candidates a slot whose declaration names no ``context.files`` picks ONE of, per turn
+#: (owner ruling 2026-11-01, "one of them by default", superseding the 2026-10-04 "BOTH"):
+#: ``AGENTS.md`` when it has content of its own, else ``CLAUDE.md`` — never a file that only points
+#: at the other (``persona_slots.default_context_choice``). Such a declaration stores ``files: null``;
+#: a declared list, both files included, is the override and loads whole (RT-SLOT-ONE-CONTEXT-FILE-DEFAULT).
+DEFAULT_CONTEXT_FILES = ("AGENTS.md", "CLAUDE.md")
 
 REASON_INVALID_SLOT_NAME = "invalid_slot_name"
 REASON_INVALID_CLONE_URL = "invalid_clone_url"
@@ -269,10 +273,12 @@ def _toolchain(value: Any) -> dict[str, Any]:
 
 def _context(value: Any) -> dict[str, Any]:
     value = value or {}
-    files = value.get("files") if isinstance(value, dict) and value.get("files") is not None else list(DEFAULT_CONTEXT_FILES)
-    if not isinstance(files, list) or not all(_inside_checkout(f) for f in files):
+    files = value.get("files") if isinstance(value, dict) else None
+    if files is not None and (not isinstance(files, list) or not all(_inside_checkout(f) for f in files)):
         raise SlotRefused(REASON_INVALID_DECLARATION, "context.files are relative paths inside the checkout")
-    held = {"role": str((value or {}).get("role") or ""), "files": list(files)}
+    # None (or []) is the one-file default, resolved per turn; never materialized, so a later
+    # change to the default reaches every declaration that did not choose.
+    held = {"role": str((value or {}).get("role") or ""), "files": list(files) if files else None}
     brain_dir = value.get("brain_dir") if isinstance(value, dict) else None
     if brain_dir is not None:
         # The Work board's pinned queue directory (work-on-markdown §6.1).

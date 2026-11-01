@@ -1491,7 +1491,11 @@ def test_the_digests_carry_no_component_VALUES():
 # and real machine roots: the default ``load_slot_context`` resolver is not faked.
 
 
-def _slot_workspace(tmp_path, files_by_slot):
+#: An explicit both-files declaration — the override of the one-file default (RT-SLOT-ONE-CONTEXT-FILE-DEFAULT).
+BOTH = ["CLAUDE.md", "AGENTS.md"]
+
+
+def _slot_workspace(tmp_path, files_by_slot, *, context_files=None):
     from agent_runtime.machine_roots import machine_roots_cache_clear, write_machine_roots
     from agent_runtime.store import WorkspaceStore
     from agent_runtime.workspace_slots import declare
@@ -1506,7 +1510,8 @@ def _slot_workspace(tmp_path, files_by_slot):
             (checkout / name).write_text(body, encoding="utf-8")
         roots[slot] = str(checkout)
     write_machine_roots(roots, dry_run=False)
-    declare(workspace, [{"name": slot, "repo": {"clone_url": f"https://x/{slot}.git"}} for slot in files_by_slot],
+    context = {"context": {"files": context_files}} if context_files is not None else {}
+    declare(workspace, [{"name": slot, "repo": {"clone_url": f"https://x/{slot}.git"}, **context} for slot in files_by_slot],
             issued_at="2026-10-04T12:00:00+00:00", machine="mach_test")
     return workspace, roots
 
@@ -1523,8 +1528,9 @@ def _slot_build(instance, **overrides):
     return _build(instance=instance, resolvers=resolvers, **overrides)
 
 
-def test_one_slot_with_both_files_is_two_sections_headed_by_the_slot(tmp_path):
-    workspace, _roots = _slot_workspace(tmp_path, {"launcher": {"CLAUDE.md": "claude rules", "AGENTS.md": "agent rules"}})
+def test_one_slot_declaring_both_files_is_two_sections_headed_by_the_slot(tmp_path):
+    workspace, _roots = _slot_workspace(tmp_path, {"launcher": {"CLAUDE.md": "claude rules", "AGENTS.md": "agent rules"}},
+                                        context_files=BOTH)
     context = _slot_build(_slot_instance(workspace, ["launcher"]))
     content = context.workspace_agents_content
     assert content.index("## launcher — CLAUDE.md\n\nclaude rules") < content.index("## launcher — AGENTS.md\n\nagent rules")
@@ -1532,11 +1538,61 @@ def test_one_slot_with_both_files_is_two_sections_headed_by_the_slot(tmp_path):
     assert labels == ["launcher/CLAUDE.md", "launcher/AGENTS.md"]
 
 
+POINTER_AGENTS = "# Canonical Context\n\n[`CLAUDE.md`](CLAUDE.md) is the single canonical agent-context file."
+
+
+def test_an_undeclared_slot_over_a_pointer_agents_md_loads_only_claude_md(tmp_path):
+    """RT-SLOT-ONE-CONTEXT-FILE-DEFAULT: Eternia's shape — a big CLAUDE.md, an AGENTS.md that only points at it.
+
+    Mutation: make ``default_context_choice`` return ``AGENTS.md`` whenever it has content -> red.
+    """
+    workspace, _roots = _slot_workspace(tmp_path, {"launcher": {"CLAUDE.md": "claude rules", "AGENTS.md": POINTER_AGENTS}})
+    context = _slot_build(_slot_instance(workspace, ["launcher"]))
+    assert context.workspace_agents_content == "## launcher — CLAUDE.md\n\nclaude rules"
+    by_label = {item["label"]: item for item in context.workspace_agents_receipt["slots"]}
+    assert by_label["launcher/CLAUDE.md"]["default_choice"] == "agents_md_points_at_claude_md"
+    assert (by_label["launcher/AGENTS.md"]["status"], by_label["launcher/AGENTS.md"]["evidence"]) == (
+        "not_default", "agents_md_points_at_claude_md")
+
+
+def test_an_undeclared_slot_over_a_substantive_agents_md_loads_only_agents_md(tmp_path):
+    workspace, _roots = _slot_workspace(tmp_path, {"launcher": {"CLAUDE.md": "claude rules", "AGENTS.md": "agent rules"}})
+    context = _slot_build(_slot_instance(workspace, ["launcher"]))
+    assert context.workspace_agents_content == "## launcher — AGENTS.md\n\nagent rules"
+    by_label = {item["label"]: item for item in context.workspace_agents_receipt["slots"]}
+    assert by_label["launcher/AGENTS.md"]["default_choice"] == "agents_md_has_own_content"
+    assert by_label["launcher/CLAUDE.md"]["status"] == "not_default"
+
+
+def test_an_explicit_both_declaration_still_loads_both_over_a_pointer(tmp_path):
+    """Positive control for the default: the declaration's list is the override, whatever the files say."""
+    workspace, _roots = _slot_workspace(tmp_path, {"launcher": {"CLAUDE.md": "claude rules", "AGENTS.md": POINTER_AGENTS}},
+                                        context_files=BOTH)
+    context = _slot_build(_slot_instance(workspace, ["launcher"]))
+    assert context.workspace_agents_content.count("## launcher — ") == 2
+    assert all("default_choice" not in item for item in context.workspace_agents_receipt["slots"])
+
+
+@pytest.mark.parametrize(("agents", "claude", "expected"), [
+    ("agent rules", "claude rules", ("AGENTS.md", "agents_md_has_own_content")),
+    (POINTER_AGENTS, "claude rules", ("CLAUDE.md", "agents_md_points_at_claude_md")),
+    (None, "claude rules", ("CLAUDE.md", "agents_md_missing_or_empty")),
+    ("  \n", "claude rules", ("CLAUDE.md", "agents_md_missing_or_empty")),
+    (POINTER_AGENTS, None, ("AGENTS.md", "claude_md_missing_or_empty")),
+    ("see CLAUDE.md\n" + "x" * 5000, "claude rules", ("AGENTS.md", "agents_md_has_own_content")),
+    (None, None, (None, "agents_md_missing_or_empty")),
+], ids=["own", "pointer", "no-agents", "blank-agents", "pointer-no-claude", "big-names-claude", "neither"])
+def test_default_context_choice_table(agents, claude, expected):
+    from agent_runtime.persona_slots import default_context_choice
+
+    assert default_context_choice(agents, claude) == expected
+
+
 def test_two_slots_load_four_sections_and_only_the_primary_grounds_the_workdir(tmp_path):
     workspace, roots = _slot_workspace(tmp_path, {
         "backend": {"CLAUDE.md": "be claude", "AGENTS.md": "be agents"},
         "launcher": {"CLAUDE.md": "fe claude", "AGENTS.md": "fe agents"},
-    })
+    }, context_files=BOTH)
     context = _slot_build(_slot_instance(workspace, ["backend", "launcher"], primary="launcher"))
     assert context.workspace_agents_content.count("## ") == 4
     assert context.primary_slot_path == roots["launcher"]

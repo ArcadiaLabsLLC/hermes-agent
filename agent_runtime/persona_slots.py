@@ -20,11 +20,14 @@ declares and fills slots and never assigns agents.
   ``explicit | first_assigned | none`` — so a default is never mistaken for a choice.
   Instructions load for ALL assigned slots, never only the primary.
 * **The context**: for each assigned slot BOUND here, each of the declaration's
-  ``context.files`` (default ``CLAUDE.md`` AND ``AGENTS.md``) loads through the per-file
-  loader (128 KB each, no total cap) as its OWN section headed by the slot name
-  (``## launcher — CLAUDE.md``). Receipts list every assigned slot and every file —
-  an unbound slot (``slot_unbound_here``, naming the machines that bind it) and a missing
-  file (``missing``) included.
+  ``context.files`` loads through the per-file loader (128 KB each, no total cap) as its OWN
+  section headed by the slot name (``## launcher — CLAUDE.md``). A declaration that names none
+  loads ONE file (owner ruling 2026-11-01): ``AGENTS.md`` when it has content of its own, else
+  ``CLAUDE.md``, never one that only points at the other (:func:`default_context_choice`); the
+  loaded file's receipt carries ``default_choice`` and the other's says why it did not load
+  (``not_default``, or ``missing``). Receipts list every assigned slot and every file — an
+  unbound slot (``slot_unbound_here``, naming the machines that bind it) and a missing file
+  (``missing``) included.
 * **Not twice** (D1.12): when the persona opts into core context files and the turn is
   grounded, upstream's prompt builder injects the cwd chain's ``AGENTS.md`` / ``CLAUDE.md``
   for the workdir itself. A slot section whose content that chain carries WHOLE is dropped
@@ -327,6 +330,61 @@ class SlotContext:
         return {"against": self.dedup_against, "dropped": [list(item) for item in self.dedup_dropped]}
 
 
+#: A file at most this big that names the other file is a POINTER to it, not content of its own
+#: (Eternia's 2 KB ``AGENTS.md`` reads "CLAUDE.md … is the single canonical agent-context file").
+POINTER_MAX_BYTES = 4096
+
+DEFAULT_AGENTS_HAS_OWN_CONTENT = "agents_md_has_own_content"
+DEFAULT_AGENTS_POINTS_AT_CLAUDE = "agents_md_points_at_claude_md"
+DEFAULT_AGENTS_ABSENT = "agents_md_missing_or_empty"
+DEFAULT_CLAUDE_ABSENT = "claude_md_missing_or_empty"
+
+
+def points_at(content: str, other: str) -> bool:
+    """Whether ``content`` is only a pointer at the file named ``other``: short, and naming it."""
+
+    return len(content.encode("utf-8")) <= POINTER_MAX_BYTES and other.lower() in content.lower()
+
+
+def default_context_choice(agents: str | None, claude: str | None) -> tuple[str | None, str]:
+    """``(file to load, reason)`` for a slot whose declaration names no ``context.files``.
+
+    ``agents`` / ``claude`` are the files' contents (None or blank when absent). Pure, so the rule
+    is pinned without a checkout (RT-SLOT-ONE-CONTEXT-FILE-DEFAULT).
+    """
+
+    agents = agents if agents and agents.strip() else None
+    claude = claude if claude and claude.strip() else None
+    if agents is not None and not points_at(agents, "CLAUDE.md"):
+        return "AGENTS.md", DEFAULT_AGENTS_HAS_OWN_CONTENT
+    if claude is not None:
+        return "CLAUDE.md", DEFAULT_AGENTS_POINTS_AT_CLAUDE if agents is not None else DEFAULT_AGENTS_ABSENT
+    if agents is not None:
+        return "AGENTS.md", DEFAULT_CLAUDE_ABSENT
+    return None, DEFAULT_AGENTS_ABSENT
+
+
+def _default_file_receipts(slot: str, path: Path, load: Any) -> tuple[list[dict[str, Any]], list[SlotContextSection]]:
+    """The one-file default for one bound slot: the chosen file loaded, the other one's receipt saying why not."""
+
+    loaded = {"AGENTS.md": load(str(path / "AGENTS.md"), allowed_names=None)}
+    agents = getattr(loaded["AGENTS.md"], "content", None)
+    if not agents or points_at(agents, "CLAUDE.md"):
+        loaded["CLAUDE.md"] = load(str(path / "CLAUDE.md"), allowed_names=None)
+    chosen, reason = default_context_choice(agents, getattr(loaded.get("CLAUDE.md"), "content", None))
+    receipts: list[dict[str, Any]] = []
+    sections: list[SlotContextSection] = []
+    for file in ("CLAUDE.md", "AGENTS.md"):
+        if file == chosen:
+            receipts.append(_file_receipt(slot, file, loaded[file]) | {"default_choice": reason})
+            sections.append(SlotContextSection(slot, file, loaded[file].content))
+            continue
+        here = (path / file).is_file()
+        receipts.append({"slot": slot, "file": file, "label": f"{slot}/{file}", "kind": "workspace_context",
+                         "included": False, "status": "not_default" if here else "missing", "evidence": reason})
+    return receipts, sections
+
+
 def _file_receipt(slot: str, file: str, loaded: Any) -> dict[str, Any]:
     receipt = dict(getattr(loaded, "receipt", None) or {})
     receipt.pop("preview", None)
@@ -377,7 +435,6 @@ def load_slot_context(instance: Any) -> SlotContext | None:
     """The turn's slot context, or None when the instance has no assignment (EMPTY ⇒ nothing, never all)."""
 
     from .prompt_observability.workspace_agents import load_workspace_agents_context
-    from .workspace_slots import DEFAULT_CONTEXT_FILES
 
     assigned = list(getattr(instance, "assigned_slots", None) or [])
     workspace_id = getattr(instance, "workspace_id", None)
@@ -398,7 +455,12 @@ def load_slot_context(instance: Any) -> SlotContext | None:
             continue
         bound.append((slot, str(path)))
         owners[slot] = (held.name, held.project_id)
-        files = (held.record.get("context") or {}).get("files") or list(DEFAULT_CONTEXT_FILES)
+        files = (held.record.get("context") or {}).get("files")
+        if not files:
+            default_receipts, default_sections = _default_file_receipts(slot, Path(path), load_workspace_agents_context)
+            receipts.extend(default_receipts)
+            sections.extend(default_sections)
+            continue
         for file in files:
             loaded = load_workspace_agents_context(str(Path(path) / file), allowed_names=None)
             receipts.append(_file_receipt(slot, file, loaded))
