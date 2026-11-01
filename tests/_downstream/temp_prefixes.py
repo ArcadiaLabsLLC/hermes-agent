@@ -31,6 +31,10 @@ HERMES_TEMP_PREFIXES: tuple[str, ...] = (
 #: An entry younger than this may belong to a run still in flight.
 SWEEP_KEEP_SECONDS = 24 * 3600
 
+#: The POSIX system default :func:`system_temp_dirs` always adds. A module constant so a test
+#: of the sweep can point it at a fake dir instead of the host's real ``/tmp``.
+POSIX_HOST_TEMP_DIR = "/tmp"
+
 
 def _inside(path: str, root: str) -> bool:
     try:
@@ -53,7 +57,7 @@ def system_temp_dirs(environ: Mapping[str, str], redirect_root: str) -> list[str
         if local:
             candidates.append(os.path.join(local, "Temp"))
     else:
-        candidates.append("/tmp")
+        candidates.append(POSIX_HOST_TEMP_DIR)
     seen: list[str] = []
     for candidate in candidates:
         if not candidate or not os.path.isdir(candidate) or _inside(candidate, redirect_root):
