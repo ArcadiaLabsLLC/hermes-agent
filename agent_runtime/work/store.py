@@ -321,8 +321,12 @@ def list_work(scope, params, *, context=None, assignees: frozenset[str] | None =
     slot, project_id = params.get("slot"), _project_param(params)
     listed = [b for b in view.boards if (slot is None or b.slot == slot)
               and (project_id is None or b.project_id == project_id or project_id in b.owners)]
+    from agent_runtime.project_categories import held_projects
+
+    projects = [p for p in held_projects(scope.workspace_id) if project_id is None or p["project_id"] == project_id]
     return {"boards": [{**board_wire(b, view.writer_of(b)),
                         "queues": _queues(b, view.writer_of(b), keep, context)} for b in listed],
+            "projects": projects,
             "cursor": None, "read_at": _now().isoformat(timespec="seconds"), "stale": view.stale}
 
 

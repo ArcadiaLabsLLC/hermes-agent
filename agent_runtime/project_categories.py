@@ -138,6 +138,29 @@ def board_slots(workspace_id: str) -> list[BoardSlot]:
     return out
 
 
+def held_projects(workspace_id: str) -> list[dict[str, Any]]:
+    """Every Project the workspace holds, in its order: ``{project_id, project_name, slots}``.
+
+    ``slots`` is the Project's live slot names, sorted, and may be EMPTY — the one fact
+    :func:`board_slots` cannot carry, because a Project with no live slot lists no board
+    (RT-WORK-LIST-SLOTLESS-PROJECTS; the launcher's Queues tab draws "<Project> has no folder slots.").
+    """
+
+    from .errors import NotFound
+    from .store import WorkspaceStore
+
+    try:
+        held = WorkspaceStore().get(workspace_id).project_ids
+    except NotFound:
+        return []
+    out: list[dict[str, Any]] = []
+    for project_id in held:
+        record = load_project(project_id)
+        out.append({"project_id": project_id, "project_name": _label(record, project_id),
+                    "slots": sorted(live_slots(record))})
+    return out
+
+
 def artifacts_list(project_id: str) -> dict[str, Any]:
     """The artifacts folder's files on this machine: ``{files: [{name, size}], here, truncated}``."""
 

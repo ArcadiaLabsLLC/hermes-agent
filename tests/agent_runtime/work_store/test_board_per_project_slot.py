@@ -148,3 +148,22 @@ def test_a_ref_with_no_project_that_two_projects_answer_refuses_slot_ambiguous(t
                                               "task_id": "BE-1", "status": "BLOCKED 2026-10-31: upstream — x"},
                                   "operator")
     assert reply["task"]["status_word"] == "BLOCKED"
+
+
+def test_a_held_project_with_no_folder_slot_is_listed_with_no_slots(two):
+    """RT-WORK-LIST-SLOTLESS-PROJECTS: ``projects[]`` names every held Project, a slot-less one too.
+
+    Mutation: list only the Projects that have a board (``if not slots: continue`` in ``held_projects``) -> red.
+    """
+    ProjectStore().declare("p3", [], issued_at=T0, machine="m", name="Gamma")
+    set_project_connection(two.ws, "p3", connected=True, expected_revision=2)
+    listing = work_store.list_work(two.scope, {})
+    assert [b["project_id"] for b in listing["boards"]] == ["p1", "p2"]
+    assert listing["projects"] == [
+        {"project_id": "p1", "project_name": "Alpha", "slots": ["launcher"]},
+        {"project_id": "p2", "project_name": "Beta", "slots": ["launcher"]},
+        {"project_id": "p3", "project_name": "Gamma", "slots": []}]
+    # Positive control: the project filter narrows projects[] like boards[], and a slot filter does not.
+    assert work_store.list_work(two.scope, {"project_id": "p3"})["projects"] == [
+        {"project_id": "p3", "project_name": "Gamma", "slots": []}]
+    assert len(work_store.list_work(two.scope, {"slot": "launcher"})["projects"]) == 3
