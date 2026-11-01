@@ -26,10 +26,12 @@ turn-path catalog walk); ``submit_accepted`` puts a chat turn on the shared lane
 the turn's worker).
 
 h-send-window: the open starts with the serve's skill-catalog memo COLD (its first chat), and
-no turn -- turn 0 included -- may walk the catalog or import a module between ``agent_ready``
-and ``request_sent``. Killing mutations: ``FIRST_TURN_MODULES`` back to its first three names
-(turn 0 imports the Relay binding and ~25 modules); the warm-up's ``skill_catalog`` step
-dropped (turn 0 walks the catalog inline).
+no turn -- turn 0 included -- may walk the catalog or import a module between ``write_ahead``
+and ``request_sent``, or resolve the process's build stamp. Killing mutations: ``FIRST_TURN_MODULES``
+back to its first three names (turn 0 imports the Relay binding and ~25 modules); the warm-up's
+``skill_catalog`` step dropped (turn 0 walks the catalog inline); the warm-up's ``run_provenance``
+step dropped (turn 0's write-ahead resolves ``ran_by`` cold: ~450 ms of ``git`` and the code-tree
+digest, RT-TURN0-REQUEST-SENT-IDLE-RED).
 
 h-turn1-conn: the fake answers keep-alive (as the live edge does), the pre-connect runs against
 it, and turn 0's title upgrade races the turn for the shared pool as it did live. Turn 0 must
@@ -327,7 +329,9 @@ class _Serve:
 
 
 class _SendPathImports:
-    """Modules first imported between a turn's ``agent_ready`` and ``request_sent`` marks.
+    """Modules first imported between a turn's ``write_ahead`` and ``request_sent`` marks (the
+    write-ahead's first journal write imports the turn address and its neighbours), and every
+    cold build-stamp resolve inside a turn (``run_provenance.ran_by`` -> ``build_stamp._resolve``).
 
     Count, not time: every one is a lazy import the chat-open prewarm could have paid
     (``agent_runtime.first_turn_warmup.FIRST_TURN_MODULES``); live turn 1 paid 111-422 ms
@@ -344,7 +348,7 @@ class _SendPathImports:
 
         def mark(marks, name):
             value = real(marks, name)
-            if name == "agent_ready":
+            if name == "write_ahead":
                 self._open[id(marks)] = set(sys.modules)
             elif name == "request_sent" and id(marks) in self._open:
                 self.turns[self._turn] = sorted(set(sys.modules) - self._open.pop(id(marks)))
@@ -353,6 +357,18 @@ class _SendPathImports:
             return value
 
         monkeypatch.setattr(TurnPhaseMarks, "mark", mark)
+
+        from agent_runtime import build_stamp
+
+        self.stamp_resolves: dict[int, int] = {}
+        real_resolve = build_stamp._resolve
+
+        def resolve():
+            if self._open:  # inside a turn's write_ahead -> request_sent window (never the prewarm's)
+                self.stamp_resolves[self._turn] = self.stamp_resolves.get(self._turn, 0) + 1
+            return real_resolve()
+
+        monkeypatch.setattr(build_stamp, "_resolve", resolve)
 
 
 def _stream_gate(start: int, builds: _BuildCounter) -> tuple[list[str], int, int]:
@@ -589,8 +605,12 @@ def _run_guard(monkeypatch, capsys) -> tuple[list[str], list[str], list[str]]:
                 turn_thread = serve.handlers[f"m-{index}"][0]
                 inline = [name for name in serve.walks if name == turn_thread]
                 if send_imports.turns.get(index):
-                    violations.append(f"turn {index}: imported {send_imports.turns[index]} between agent_ready "
+                    violations.append(f"turn {index}: imported {send_imports.turns[index]} between write_ahead "
                                       "and request_sent (the prewarm's first-turn warm-up owns them)")
+                if send_imports.stamp_resolves.get(index):
+                    violations.append(f"turn {index}: resolved the build stamp {send_imports.stamp_resolves[index]} "
+                                      "time(s) between write_ahead and request_sent (the prewarm's run_provenance "
+                                      "step owns it)")
                 if inline:
                     violations.append(f"turn {index}: {len(inline)} inline catalog walk(s) on the turn's thread")
                 windows = [_fields(m) for m in log.receipts("send_window_receipt ")[windows_seen:]]

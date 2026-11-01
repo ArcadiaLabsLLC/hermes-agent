@@ -88,8 +88,23 @@ def _warm_skill_catalog(agent) -> None:
     _installed_skill_catalog()
 
 
+def _warm_run_provenance(agent) -> None:
+    """Resolve the process's ``ran_by`` stamp the turn's write-ahead records (RT-TURN0-REQUEST-SENT-IDLE-RED).
+
+    ``mission_chat_turns.journal._turn_stamps`` stamps every turn record with
+    ``run_provenance.ran_by()``, cached once per process; cold, it is the build stamp's
+    ``git rev-parse`` + ``status`` + the ``ls-tree`` code-tree digest (~400 ms of CPU on the
+    ``build-stamp-code-tree`` thread), and turn 0's ``write_ahead -> agent_ready`` paid it:
+    the idle-box guard read turn 0 at 600-726 ms against warm turns of 177-217.
+    """
+
+    from agent_runtime.run_provenance import ran_by
+
+    ran_by()
+
+
 #: Warm-up steps that read a store; ``first_turn_warmup`` is policy and may not import one.
-_FIRST_TURN_STORE_STEPS = (("skill_catalog", _warm_skill_catalog),)
+_FIRST_TURN_STORE_STEPS = (("skill_catalog", _warm_skill_catalog), ("run_provenance", _warm_run_provenance))
 
 __all__ = [
     "RUNTIME_RESOLVE_CACHE_TTL_SECONDS",
