@@ -631,8 +631,25 @@ def test_harness_config_show_and_migrate_check_are_redaction_safe(tmp_path, monk
     assert migration_data["check_only"] is True
 
 
+def _verify_against_a_temp_repo(tmp_path, monkeypatch) -> Path:
+    """Point ``harness verify``'s repo summary (``_git_summary``: ``git status --short``, which
+    refreshes the index unless optional locks are off) at a scratch repo, never this checkout
+    (FH-GIT-AUDIT-HARNESS-CLI-STATUS)."""
+    from hermes_cli.harness_parts import verify_commands
+
+    repo = tmp_path / "harness-repo"
+    repo.mkdir()
+    env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
+           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid"}
+    for args in (["init", "-q"], ["commit", "-q", "--allow-empty", "-m", "seed"]):
+        subprocess.run(["git", *args], cwd=repo, env=env, check=True, capture_output=True)
+    monkeypatch.setattr(verify_commands, "harness_repo_root", lambda: repo)
+    return repo
+
+
 def test_harness_verify_skip_tests_emits_proof_packet(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "runtime"))
+    repo = _verify_against_a_temp_repo(tmp_path, monkeypatch)
     # The packet's shape is the subject; the four sub-commands are each a cold
     # ``hermes_cli.main`` boot (well past the 30 s test bound together), and the
     # runner itself is pinned by test_run_verify_command_survives_non_cp1252_bytes_in_child_output.
@@ -653,6 +670,8 @@ def test_harness_verify_skip_tests_emits_proof_packet(tmp_path, monkeypatch, cap
     assert packet["schema_version"] == 1
     assert packet["mode"] == "temp-root"
     assert packet["runtime_root"] == str(tmp_path / "runtime")
+    assert packet["harness_repo"]["path"] == str(repo) and packet["harness_repo"]["git_head"]
+    assert packet["harness_repo"]["dirty"] is False
     assert {item["label"] for item in packet["commands"]} >= {"harness status", "harness snapshot", "harness config show"}
     assert packet["tests"] == []
     assert packet["runtime_config"]["validation"]["ok"] is True
@@ -665,6 +684,7 @@ def test_harness_verify_live_mode_compares_against_this_machines_default_root(tm
     from hermes_cli.harness_parts import verify_commands
 
     native = tmp_path / "native-home"
+    _verify_against_a_temp_repo(tmp_path, monkeypatch)
     monkeypatch.setattr(verify_commands, "_run_verify_command", lambda label, command, *, cwd: {"label": label, "exit_code": 0})
     monkeypatch.setattr(verify_commands, "_live_store_root", lambda: native / "agent-runtime")
 
