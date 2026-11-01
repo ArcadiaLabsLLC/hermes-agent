@@ -7,6 +7,8 @@ so they render in the volatile tier's plugin block, gated on the session's tool 
 
 from unittest.mock import patch
 
+import pytest
+
 from tests.agent.test_system_prompt import (  # upstream names the moved tests use
     _make_agent,
     _prompt_parts,
@@ -22,6 +24,15 @@ from agent_runtime.prompt_guidance import (
 )
 
 _SECTION_ID = "eternia-harness.tool-guidance"
+
+
+@pytest.fixture(autouse=True)
+def _scratch_workspace(tmp_path, monkeypatch):
+    """The prompt build's git probe runs in a scratch repo, never the checkout
+    (FH-GIT-AUDIT-SYSTEM-PROMPT-STATUS)."""
+    from tests._downstream.scratch_workspace import scratch_git_workspace
+
+    return scratch_git_workspace(tmp_path, monkeypatch)
 
 
 def _volatile(agent):
@@ -92,3 +103,12 @@ class TestT6bToolGuidance:
         for line in (TOOL_DESCRIBE_GUIDANCE, SHELL_TOOL_PREFERENCE_GUIDANCE, CLARIFY_CHOICES_GUIDANCE,
                      BROWSER_PRECONDITION_GUIDANCE, SKILL_MANAGE_CONFIRM_GUIDANCE):
             assert line in first
+
+
+def test_the_workspace_probe_runs_in_the_scratch_repo(_scratch_workspace):
+    """Positive control for the autouse fixture: the coding workspace block names the scratch
+    repo and its one commit, so the probe the fixture moved really ran there."""
+    parts = _prompt_parts(_make_agent(valid_tool_names=["terminal", "tool_describe"]))
+    text = "\n".join(str(value) for value in parts.values())
+    assert f"- Root: {_scratch_workspace}" in text
+    assert " seed" in text
