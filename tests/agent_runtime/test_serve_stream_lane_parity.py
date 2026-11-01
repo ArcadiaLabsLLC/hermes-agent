@@ -1188,8 +1188,14 @@ def test_an_office_lanes_restart_free_join_does_not_suppress_a_stream_hydrate():
         _until(lambda: delivered_stream, what="the stream join to be fed")
         assert delivered_stream[0]["type"] == "hydrate"
         # And the restart the stream join forced re-baselined the room, which is
-        # the cost O-H5 avoids for its own joins and never for this one.
-        assert any(frame["type"] == "hydrate" for frame in delivered_office[1:])
+        # the cost O-H5 avoids for its own joins and never for this one. Waited,
+        # not read once: every subscriber has its own pump thread, so the stdio
+        # sink can hold the new hydrate before the office pump has delivered it
+        # (the bundled gate's red, FH-SERVE-STREAM-LANE-PARITY-BUNDLE-LEAK).
+        _until(
+            lambda: any(frame["type"] == "hydrate" for frame in list(delivered_office[1:])),
+            what="the office join to be re-baselined by the stream join's restart",
+        )
     finally:
         gate.set()
         hub.stop(join_timeout=2.0)
