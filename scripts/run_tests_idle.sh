@@ -18,6 +18,15 @@
 # to the hermetic environment. The run then appends one line,
 # {"kind": "idle", …}, to .pytest_cache/hermes_bundled_runs.jsonl; quote it in
 # the landing report.
+#
+# "Idle" is two facts, and both must hold (FH-IDLE-BOX-CHECK-IGNORES-HOST-LOAD,
+# 2026-11-01): no pytest / suite runner of this repo alive, AND the host's
+# 1-minute load average under HERMES_IDLE_LOAD_FRACTION (default 0.10) of its
+# online cores — on a box shared with other repos' lanes the first fact alone
+# let the timing files run at load 9-18 on 52 cores, and their budgets red on
+# load, not code. A host with no load average (no /proc/loadavg, no
+# `sysctl vm.loadavg`) is judged on processes alone, and says so.
+# HERMES_IDLE_LOADAVG_FILE names the loadavg file (default /proc/loadavg).
 
 set -euo pipefail
 
@@ -39,6 +48,23 @@ busy_processes() {
       | tr -d '\r'
   else
     ps -eo pid=,args= | grep -E 'pytest|run_tests' | grep -v -E 'run_tests_idle|grep -E' || true
+  fi
+}
+
+__IDLE_LOADAVG_FILE="${HERMES_IDLE_LOADAVG_FILE:-/proc/loadavg}"
+__IDLE_LOAD_FRACTION="${HERMES_IDLE_LOAD_FRACTION:-0.10}"
+
+# "<1-min load> <online cores>", or nothing when this host reports no load average.
+host_load() {
+  local load="" cores=""
+  if [ -r "$__IDLE_LOADAVG_FILE" ]; then
+    read -r load _ < "$__IDLE_LOADAVG_FILE" || true
+  elif command -v sysctl >/dev/null 2>&1 && sysctl -n vm.loadavg >/dev/null 2>&1; then
+    load="$(sysctl -n vm.loadavg | tr -d '{}' | awk '{print $1}')"
+  fi
+  cores="$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || true)"
+  if [[ "$load" =~ ^[0-9]+(\.[0-9]+)?$ ]] && [[ "$cores" =~ ^[1-9][0-9]*$ ]]; then
+    printf '%s %s\n' "$load" "$cores"
   fi
 }
 
@@ -69,15 +95,36 @@ if [ "${__HERMES_IDLE_INNER:-}" = 1 ]; then
   run_listed "$@"
 fi
 
+if ! [[ "$__IDLE_LOAD_FRACTION" =~ ^(0|[1-9][0-9]*)?(\.[0-9]+)?$ ]] || [ -z "${__IDLE_LOAD_FRACTION//[.0]/}" ]; then
+  echo "error: HERMES_IDLE_LOAD_FRACTION must be a positive number, got '$__IDLE_LOAD_FRACTION'" >&2
+  exit 2
+fi
 busy="$(busy_processes)"
-if [ -n "$busy" ]; then
+measured="$(host_load)"
+loaded=""
+load_note="host load: unavailable on this host — judged on processes alone"
+if [ -n "$measured" ]; then
+  read -r load cores <<< "$measured"
+  ceiling="$(awk -v c="$cores" -v f="$__IDLE_LOAD_FRACTION" 'BEGIN { printf "%.2f", c * f }')"
+  figures="1-min load average $load on $cores cores (ceiling $ceiling = $__IDLE_LOAD_FRACTION x cores)"
+  load_note="host load: $figures"
+  if awk -v l="$load" -v m="$ceiling" 'BEGIN { exit !(l >= m) }'; then
+    loaded="$figures"
+  fi
+fi
+if [ -n "$busy" ] || [ -n "$loaded" ]; then
   echo "refusing: the box is not idle — timing files run on an idle box only (owner ruling 2026-10-10)." >&2
-  echo "running suite processes:" >&2
-  printf '  %s\n' "$busy" >&2
+  if [ -n "$busy" ]; then
+    echo "running suite processes:" >&2
+    printf '  %s\n' "$busy" >&2
+  fi
+  if [ -n "$loaded" ]; then
+    echo "host is loaded: $loaded" >&2
+  fi
   exit 3
 fi
 if [ "${1:-}" = "--check" ]; then
-  echo "idle: no pytest or suite runner process is alive"
+  echo "idle: no pytest or suite runner process is alive; $load_note"
   exit 0
 fi
 

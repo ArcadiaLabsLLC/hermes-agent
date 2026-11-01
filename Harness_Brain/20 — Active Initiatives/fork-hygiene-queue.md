@@ -629,7 +629,3 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 - **`FH-CHILD-JOB-COLLECTION-ROOT` — Keep the child-job lifetime proof scoped to its intended test root** · `tests/test_child_job_downstream.py::test_a_marked_tests_child_dies_with_its_os_exit_and_an_unmarked_ones_survives` · the wider character gate collected an unrelated disappearing Flutter temp directory and failed before the child PID evidence existed; qualify explicit collection roots while preserving the real-process kill/survival assertions · READY 2026-10-31 · REQUIRES windows
 
 ## Filed on arrival — 2026-11-01 (owner ruling, launcher ADR 0038 amendment)
-
-## Filed on arrival — 2026-11-01 (lane w1101b-perf, the D3 runs)
-
-- **`FH-IDLE-BOX-CHECK-IGNORES-HOST-LOAD` — `scripts/run_tests_idle.sh` calls a box idle when no pytest or `run_tests` process is alive, so it ran the timing files at load average 9-18 (other repos' lanes on the shared box, 2026-11-01 w1101b-h-test) and their budgets red on load, not code; gate the run on the host load too (e.g. 1-min loadavg under a fraction of the core count, `os.getloadavg`), refusing with the measured figure** · `scripts/run_tests_idle.sh` · READY 2026-11-01 · **TAKEN 2026-11-01 w1101c-h on nekwo-ubuntu24 as nekwo in hm-w1101c-h**

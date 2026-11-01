@@ -371,7 +371,9 @@ When a batch touches `agent_runtime/send_window_receipt.py`, `agent_runtime/stre
 `agent_runtime/transport_phase_trace.py` or the turn-cost path (anything
 `tests/agent_runtime/test_turn_cost_guard_downstream.py` imports), the landing runs
 `scripts/run_tests_idle.sh` AFTER the gate, with nothing else running. It refuses (exit 3) and names
-every live pytest / `run_tests` process while the box is busy; `--check` asks only that. It runs the
+every live pytest / `run_tests` process while the box is busy, and the measured 1-min load average
+while it is at or over `HERMES_IDLE_LOAD_FRACTION` (default 0.10) of the online cores — other repos'
+lanes load a shared box without running a pytest here; `--check` asks only that. It runs the
 list at one worker with `HERMES_TEST_IDLE_BOX=1` and appends `{"kind": "idle", …}` to
 the checkout's `.pytest_cache/hermes_bundled_runs.jsonl` (a receipt; the gate's own record is the
 store's `runs.jsonl`, and the known-red read skips an idle line either way): quote it in the
