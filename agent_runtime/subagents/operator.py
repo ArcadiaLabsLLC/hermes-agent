@@ -9,7 +9,7 @@ from agent_runtime.operator_conversation import OperatorConversationRefused
 from agent_runtime.operator_session_inspection import operator_session_read, inspection_identity, _inspection_persona
 from agent_runtime.profile_context import resolve_persona_profile, persona_profile_context
 from .model import (HISTORY_OPERATIONS, SETTINGS_OPERATIONS, SPAWNING_OPERATIONS, Refusal, SubagentError,
-                    include_history_capabilities, validate_request)
+                    public_capabilities, validate_request)
 from .native import has_live_ancestor, inspect_records, registry_snapshot
 from .references import references
 
@@ -105,7 +105,7 @@ def inspect_operator(operation: str, params: dict) -> dict:
             records = [record for record in registry_snapshot() if checked.visible(record)]
             data = inspect_records(operation, params, owner=owner, visible=records,
                                    exact=checked.exact, revalidate=checked.revalidate, controllable=checked.controllable)
-        return {**identity, **include_history_capabilities(operation, data)}
+        return {**identity, **public_capabilities(operation, data)}
 
 
 def inspect_operator_child_skills(operation: str, params: dict) -> dict:

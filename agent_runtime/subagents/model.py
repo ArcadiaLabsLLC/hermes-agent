@@ -27,10 +27,17 @@ REQUIRED_PARAMS.update({"history": (), "result": ("expected_generation", "histor
 OPERATIONS = tuple(REQUIRED_PARAMS)
 
 
-def include_history_capabilities(operation, reply):
-    """Only the public owner routes serve stored observations and profile defaults, not workers."""
+def public_capabilities(operation, reply):
+    """What the two serve routes (``runtime.conversation`` / ``runtime.operator.conversation``) add.
+
+    Only they serve stored observations and profile defaults, not workers; and only they sit behind
+    the serve dispatcher, which refuses any request whose ``execution_id`` names another checkout
+    (``execution_identity_mismatch``), so only they declare ``execution_identity_guard``
+    (RT-SUBAGENTS-CAPS-EXECUTION-GUARD). A worker's ``eternia.subagents.capabilities`` does not.
+    """
     if operation == "capabilities":
-        return {**reply, "operations": [*reply["operations"], *SETTINGS_OPERATIONS, *HISTORY_OPERATIONS]}
+        return {**reply, "operations": [*reply["operations"], *SETTINGS_OPERATIONS, *HISTORY_OPERATIONS],
+                "execution_identity_guard": True}
     return reply
 
 

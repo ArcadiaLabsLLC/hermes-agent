@@ -15,6 +15,7 @@ from tests.agent_runtime.test_operator_session_inspection import target, inspect
 from tests.agent_runtime.test_serve_rpc_open_chat import qa_persona, placed_agent, _device
 from tests.agent_runtime.test_instance_conversation_owner import chat_head, OTHER
 from tests.agent_runtime.test_subagent_worker_ownership import Child
+from tests.agent_runtime.test_native_conversation import runtime  # noqa: F401  (fixture)
 
 
 def test_operator_children_remain_private_to_exact_conversation(placed_agent, tmp_path):
@@ -55,6 +56,37 @@ def test_operator_children_remain_private_to_exact_conversation(placed_agent, tm
             assert "error" in inspect("subagents.tail", selected)
         finally:
             _unregister_subagent("owned-child", agent=child)
+
+
+def test_operator_subagent_capabilities_declare_the_enforced_execution_guard(placed_agent):
+    """RT-SUBAGENTS-CAPS-EXECUTION-GUARD: a client that sends ``execution_id`` needs the flag to trust the reply."""
+    from agent_runtime.execution_identity import execution_identity
+    from tests.agent_runtime.test_operator_session_inspection import LOCAL_CONSOLE
+
+    params = target(placed_agent["persona_instance_id"])
+
+    def call(execution_id):
+        return serve_rpc.handle_request(dict(jsonrpc="2.0", id="caps", execution_id=execution_id,
+            method="runtime.operator.conversation.subagents.capabilities", params=params),
+            context=serve_rpc.RpcContext(caller=LOCAL_CONSOLE))
+
+    good = call(execution_identity()["execution_id"])
+    assert "result" in good, good
+    assert good["result"]["execution_identity_guard"] is True
+    # Positive control for the guard the flag promises: the same request naming another checkout is refused.
+    assert call("other-checkout")["error"]["data"]["reason"] == "execution_identity_mismatch"
+
+
+def test_conversation_subagent_capabilities_declare_the_guard_over_the_worker_reply(runtime, monkeypatch):
+    """The runtime.conversation route adds the flag; the worker's own ``eternia.subagents`` reply never carries it."""
+    from tests.agent_runtime.test_native_conversation import opened
+
+    service, factory, _ = runtime
+    scope, sid = opened(runtime)
+    worker_reply = {"version": 1, "generation": "g", "observed_at": 0.0, "operations": ["list"], "tail_bytes": 1}
+    monkeypatch.setattr(factory.workers[0], "call", lambda method, params: {"data": dict(worker_reply)})
+    assert service.subagents(scope, sid, "capabilities", {})["execution_identity_guard"] is True
+    assert "execution_identity_guard" not in service.subagents(scope, sid, "list", {})
 
 
 def test_manifest_discovers_only_implemented_console_private_operations():
