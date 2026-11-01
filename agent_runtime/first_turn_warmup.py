@@ -105,6 +105,11 @@ FIRST_TURN_MODULES = (
     # ... and the harness review prompts the eternia-harness plugin arms on the turn's agent
     # (``plugins/eternia-harness`` lazy-imports them; the counts guard saw it on turn 0, 2026-10-31).
     "agent_runtime.review_prompts",
+    # ... and the write-ahead's own: the turn address and the checkpoint / slot-worktree reads its
+    # first journal write imports (the idle-box guard saw all five between ``write_ahead`` and
+    # ``agent_ready`` on turn 0 only, RT-TURN0-REQUEST-SENT-IDLE-RED, 2026-11-01).
+    "agent_runtime.address", "agent_runtime.machine_identity", "agent_runtime.slot_worktrees",
+    "agent_runtime.turn_checkpoints", "agent_runtime.workspace_slot_overlay",
 )
 
 
