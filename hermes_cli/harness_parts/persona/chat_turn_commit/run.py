@@ -51,6 +51,7 @@ from agent_runtime.prompt_observability import (
 )
 from agent_runtime.skill_root_freshness import TurnRootRegistries
 from agent_runtime.tool_turn_history import persist_tool_turn_actual
+from hermes_cli.flag_binding import list_flag_or_empty
 from agent_runtime.transport_dispatch_evidence import begin_turn_attempts
 from ..chat_admission import (
     _prewarm_constructions_overlapped,
@@ -250,7 +251,9 @@ class _RunPhases:
             min_relay_seconds=relay_policy.MIN_RELAY_BUDGET_SECONDS,
             agents_file=getattr(args, "agents_file", None),
             surface_prompt=getattr(args, "surface_prompt", "") or "",
-            requested_skills=getattr(args, "skills", None) or (),
+            # The builder iterates the selection and an empty one selects nothing,
+            # so it cannot tell an absent ``--skill`` from an empty one.
+            requested_skills=list_flag_or_empty(args, "skills"),
             root_registries=self.turn_root_registries,
             run_workdir=getattr(args, RUN_WORKDIR_ARG, None),
         )
