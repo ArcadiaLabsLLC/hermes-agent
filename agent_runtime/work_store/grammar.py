@@ -20,6 +20,7 @@ import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
 from enum import StrEnum
+from typing import Any
 
 from .models import PERSONA_PREFIX, Domain
 from .reasons import Reason, WorkRefused
@@ -99,11 +100,34 @@ class Op(StrEnum):
 
 @dataclass(frozen=True)
 class RowRef:
-    """A task's key on a board: the slot, the note (repo-relative, posix) and the row ID."""
+    """A task's key on a board: the slot, the note (repo-relative, posix), the row ID and the slot's owner.
+
+    ``project_id`` is the Project that declares the slot (RT-WORK-BOARD-PER-PROJECT-SLOT): None for the
+    workspace's own slot, and for a ref saved before boards were keyed by ``(project, slot)`` — such a
+    ref resolves through the owner rule (``board.pick``), and two Projects answering it refuse
+    ``slot_ambiguous``. Defaulted, so every persisted three-field ref still loads.
+    """
 
     slot: str
     note: str
     id: str
+    project_id: str | None = None
+
+    @property
+    def key(self) -> str:
+        """The board key the ref addresses: ``<project>/<slot>``, or the bare slot (``workspace_slots.slot_key``)."""
+        return f"{self.project_id}/{self.slot}" if self.project_id else self.slot
+
+    def items(self) -> list[str]:
+        """The persisted list form: ``[slot, note, id]``, plus ``project_id`` when it is set."""
+        return [self.slot, self.note, self.id, *([self.project_id] if self.project_id else [])]
+
+    @classmethod
+    def of(cls, item: Any) -> RowRef | None:
+        """A ref from its list form (three or four strings); None for anything else."""
+        if not isinstance(item, (list, tuple)) or len(item) not in (3, 4):
+            return None
+        return cls(*(str(part) for part in item))
 
 
 @dataclass(frozen=True)
@@ -278,7 +302,8 @@ def row_defects(line: str) -> list[str]:
 # ── parse ────────────────────────────────────────────────────────────────────
 
 
-def parse_row(line: str, *, slot: str, note: str, line_no: int, heading: str = "") -> Row | None:
+def parse_row(line: str, *, slot: str, note: str, line_no: int, heading: str = "",
+              project_id: str | None = None) -> Row | None:
     """The row on ``line``, or None when the line is not a row. A defective row still parses."""
 
     if not ROW.match(line):
@@ -294,7 +319,7 @@ def parse_row(line: str, *, slot: str, note: str, line_no: int, heading: str = "
     hosts = next((h for h in map(requires_hosts, segments[1:]) if h is not None), ())
     taken = TAKEN.search(line)
     return Row(
-        ref=RowRef(slot, note, id_match.group(1) if id_match else ""),
+        ref=RowRef(slot, note, id_match.group(1) if id_match else "", project_id),
         title=title.group(1).strip() if title else "",
         status=Status(status.group(1)) if status else None,
         status_date=status.group(2) if status else None,
@@ -335,8 +360,8 @@ def _body_lines(lines: list[str]) -> Iterable[tuple[int, str]]:
             yield i, line
 
 
-def parse_note(text: str, *, slot: str, note: str) -> list[Row]:
-    """Every row of one queue note, each with the ``##``/``###`` heading it sits under."""
+def parse_note(text: str, *, slot: str, note: str, project_id: str | None = None) -> list[Row]:
+    """Every row of one queue note, each with the ``##``/``###`` heading it sits under (refs owned by ``project_id``)."""
 
     lines = text.split("\n")
     rows: list[Row] = []
@@ -345,7 +370,7 @@ def parse_note(text: str, *, slot: str, note: str) -> list[Row]:
         if line.startswith("#"):
             heading = line.lstrip("#").strip()
             continue
-        row = parse_row(line, slot=slot, note=note, line_no=i + 1, heading=heading)
+        row = parse_row(line, slot=slot, note=note, line_no=i + 1, heading=heading, project_id=project_id)
         if row is None:
             continue
         following = lines[i + 1].rstrip("\r") if i + 1 < len(lines) else ""

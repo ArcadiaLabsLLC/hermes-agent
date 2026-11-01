@@ -173,7 +173,7 @@ class LaneRecord:
 
     def wire(self) -> dict[str, Any]:
         return {"id": self.id, "kind": self.lane.kind.value, "state": self.state.value, "persona": self.persona,
-                "rows": [[r.slot, r.note, r.id] for r in self.rows], "run_id": self.run_id or None,
+                "rows": [r.items() for r in self.rows], "run_id": self.run_id or None,
                 "stop_requested": self.stop_requested, "verdict": self.verdict.value if self.verdict else None,
                 "tool_calls": self.tool_calls, "commits": list(self.commits), "done_rows": self.done_rows,
                 "heavy": self.lane.heavy, "quiet_box": self.lane.quiet_box, "after": list(self.lane.after),

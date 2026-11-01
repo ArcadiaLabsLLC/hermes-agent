@@ -64,7 +64,7 @@ def trigger_from_wire(raw: Mapping[str, Any]) -> Trigger:
 
 def _assignment_wire(action: RunAssignment) -> dict[str, Any]:
     wire = asdict(action.assignment)
-    wire["rows"] = [[ref.slot, ref.note, ref.id] for ref in action.assignment.rows]
+    wire["rows"] = [ref.items() for ref in action.assignment.rows]
     wire["goal_mode"] = action.assignment.goal_mode.value
     return {"type": "run_assignment", "assignment": wire}
 

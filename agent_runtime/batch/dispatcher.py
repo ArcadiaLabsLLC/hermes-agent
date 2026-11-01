@@ -235,7 +235,7 @@ class BatchDispatcher:
             except WorkRefused as refused:
                 lost.append([ref.slot, ref.note, ref.id, refused.reason.value])
         lines = [self._lane_line(record.id, move(LANE_MOVES, record.state, LaneEvent.CLAIM), {
-            "rows": [[r.slot, r.note, r.id] for r in claimed], "persona": record.persona, "lost": lost})]
+            "rows": [r.items() for r in claimed], "persona": record.persona, "lost": lost})]
         if not claimed:
             lines.append(self._lane_line(record.id, LaneState.STOPPED, {"reason": "no row could be claimed"}))
         self.manifests.append(workspace_id, batch.id, lines, f"{batch.id}:{record.id}:claimed")

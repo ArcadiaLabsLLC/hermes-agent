@@ -896,7 +896,9 @@ file from this machine's documents folder as ``## <Project>/documents — <file>
 the guidance share is on, one ``## <Project> — guidance`` section, after the slot (or alias)
 content, with ``kind: project_context`` receipts under the workspace receipt's
 ``projects`` key (``agent_runtime/project_categories.py``). Work boards: ``Board.project_id``; a Project
-lists its boards category's slot (else one board per live slot) and a migrated
+lists a board per live slot, keyed ``(project, slot)`` — its boards category names
+the Project's default board, never a filter (RT-WORK-BOARD-PER-PROJECT-SLOT,
+2026-10-31; ``RowRef.project_id`` defaulted, so saved refs load) — and a migrated
 document lists none of its own. ``runtime.project.artifacts.list`` answers
 ``{project_id, here, files: [{name, size}], truncated}``.
 

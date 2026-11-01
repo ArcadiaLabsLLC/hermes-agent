@@ -11,9 +11,11 @@ its receipt rather than reading anything else.
   loads, however it is named.
 * ``guidance``: the Project's description + instructions, one section headed by the Project name,
   only while the guidance share is on (the record carries the text only then).
-* ``boards``: the Project's Work board is the category's slot (``work_store.board.declared_boards``
-  reads :func:`board_slots`); a Project with no boards slot lists a board per live slot, as a
-  workspace document does, and a migrated document lists none of its own — one publisher per board.
+* ``boards``: every live slot of every Project lists a Work board (``work_store.board.declared_boards``
+  reads :func:`board_slots`), keyed by ``(project, slot)``; the category's slot is the Project's
+  DEFAULT board — listed first under it, where a slot-less ``runtime.work.start`` and the default
+  brain's rows land — never a filter (RT-WORK-BOARD-PER-PROJECT-SLOT). A migrated document lists none
+  of its own — one publisher per board.
 * ``artifacts``: hermes only LISTS the folder (``runtime.project.artifacts.list``: relative names and
   byte sizes); the launcher writes there, hermes never does.
 
@@ -24,7 +26,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from .project_store import GUIDANCE, category, load_project, valid_project_id
 from .workspace_slots import _inside_checkout, live_slots
@@ -100,36 +102,40 @@ def project_context(workspace_id: str) -> tuple[list[tuple[str, str, str]], list
     return sections, receipts
 
 
-def board_slots(workspace_id: str) -> list[tuple[str | None, str, dict[str, Any]]]:
-    """``(project_id | None, slot, record)`` for each board the workspace lists, by name, one per name.
+class BoardSlot(NamedTuple):
+    """One live slot a workspace lists a Work board for, with its owner (None: the workspace's own)."""
 
-    The workspace's own (unmigrated) document first, then each Project in ``project_ids``: its boards
-    category's slot when one is declared, else every live slot. A name an earlier owner already listed
-    is shadowed and accounted (``work.board_slot_shadowed``), never listed twice.
+    project_id: str | None
+    slot: str
+    declaration: dict[str, Any]
+    #: The owning Project's name (``_label``), None for the workspace's own.
+    project_name: str | None = None
+    #: The slot is its Project's default board (the ``boards`` category, D1 of the launcher plan
+    #: workspace-todo-all-projects-2026-10-31).
+    project_default: bool = False
+
+
+def board_slots(workspace_id: str) -> list[BoardSlot]:
+    """Every live slot the workspace sees, one entry per ``(owner, slot)``: its own document's, then each Project's.
+
+    The ``boards`` category no longer filters (RT-WORK-BOARD-PER-PROJECT-SLOT): it names the Project's
+    DEFAULT board (``project_default``), the one a slot-less ``runtime.work.start`` and the default
+    brain's move pick first. Two owners of one name are both listed; ``work_store.board.declared_boards``
+    keys them by ``(project, slot)`` and merges the two that name one checkout.
     """
 
-    from .workspace_slots import slots_of_workspace
-    from .work_store import receipts
+    from .workspace_slots import load_document, slots_of_workspace
 
-    out: dict[str, tuple[str | None, str, dict[str, Any]]] = {}
+    out: list[BoardSlot] = []
     records: dict[str, dict[str, Any]] = {}
     for project_id, name in slots_of_workspace(workspace_id):
-        if project_id is not None:
-            record = records.setdefault(project_id, load_project(project_id))
-            chosen = category(record, BOARDS).get("slot")
-            if chosen in live_slots(record) and name != chosen:
-                continue
-            slot = live_slots(record)[name]
-        else:
-            from .workspace_slots import load_document
-
-            slot = live_slots(load_document(workspace_id))[name]
-        if name in out:
-            receipts.emit("work.board_slot_shadowed", workspace_id=workspace_id, slot=name,
-                          kept=out[name][0], shadowed=project_id)
+        if project_id is None:
+            out.append(BoardSlot(None, name, live_slots(load_document(workspace_id))[name]))
             continue
-        out[name] = (project_id, name, slot)
-    return [out[name] for name in sorted(out)]
+        record = records.setdefault(project_id, load_project(project_id))
+        chosen = category(record, BOARDS).get("slot")
+        out.append(BoardSlot(project_id, name, live_slots(record)[name], _label(record, project_id), name == chosen))
+    return out
 
 
 def artifacts_list(project_id: str) -> dict[str, Any]:

@@ -105,7 +105,7 @@ def arm_run(root: str, a: Assignment, args: Mapping[str, Any], *, cwd: str | Non
         raise WorkRefused(Reason.EXECUTOR_BUSY, f"chat root {root} already works a goal")
     gates = a.brief.tests if a.goal_gates else ()
     chat_goal.arm(root, a.brief.objective or a.brief.title, acceptance=a.brief.acceptance, gates=gates, goals=goals)
-    rows = tuple((ref.slot, ref.note, ref.id) for ref in a.rows)
+    rows = tuple(tuple(ref.items()) for ref in a.rows)
     chat_goal.bind(chat_goal.GoalBinding(root, a.request_id, rows, dict(args), first_cmid(a.request_id), cwd=cwd))
     receipts.emit("work.goal_arm", root=root, request_id=a.request_id, gates=len(gates))
 

@@ -275,7 +275,7 @@ class PersonaTurnExecutor:
         until_done = a.goal_mode is GoalMode.UNTIL_DONE
         origin = {**dict(origin), "owner": None, "gateway": False, ORIGIN_KIND_KEY: OriginKind.WORK.value,
                   "work": a.request_id,
-                  "rows": [[ref.slot, ref.note, ref.id] for ref in a.rows], "goal": until_done,
+                  "rows": [ref.items() for ref in a.rows], "goal": until_done,
                   **({goal_turns.SKILLS_ORIGIN: list(a.skills)} if a.skills else {})}
         if a.skills:
             self._lend(instance, root, a)
@@ -425,7 +425,7 @@ class PersonaTurnExecutor:
 
     def _work_settled(self, entry: send_queue.QueuedSend, exit_code: int, payload: dict | None) -> None:
         origin = entry.args.get(send_queue.ORIGIN_ARG) or {}
-        rows = tuple(RowRef(*map(str, item)) for item in origin.get("rows") or [] if len(item) == 3)
+        rows = tuple(ref for ref in map(RowRef.of, origin.get("rows") or []) if ref is not None)
         self._report(str(origin.get("work")), entry.root_session_id, entry.client_message_id, entry.queued_at, rows,
                      outcome_of(exit_code, payload, rows))
 

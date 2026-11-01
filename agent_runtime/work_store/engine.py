@@ -36,7 +36,7 @@ import re
 import threading
 from collections import Counter
 from collections.abc import Callable, Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -45,7 +45,7 @@ from typing import Any
 from .. import paths
 from ..serde import write_json_atomic
 from . import receipts
-from .board import board_rows
+from .board import board_rows, pick
 from .executor import Assignment, Brief, Executor, Outcome, RowEnding, Run, RunStatus, StopReason, Verdict
 from .grammar import Op, Row, RowRef, Status, render_status, segment_text
 from .reasons import Reason, WorkRefused
@@ -311,13 +311,16 @@ class WorkEngine:
             live = {record.ref: record for record in records()
                     if record.workspace_id == workspace_id and record.state is not RecordState.CLOSED}
             for board in view.boards:
-                writer = view.writers.get(board.slot)
+                writer = view.writers.get(board.key)
                 if writer is None or board.read_root is None:
                     continue
                 for row in board_rows(board):
-                    if row.taken is None or row.taken.persona_instance_id is None or row.ref in held:
+                    # A ref saved before boards were keyed by Project carries none: it is the same row.
+                    legacy = replace(row.ref, project_id=None)
+                    if (row.taken is None or row.taken.persona_instance_id is None
+                            or row.ref in held or legacy in held):
                         continue  # untaken (the engine never claims), a session lane's claim, or a batch lane's
-                    handed = self._hand_off(workspace_id, row, writer, live.get(row.ref))
+                    handed = self._hand_off(workspace_id, row, writer, live.get(row.ref) or live.get(legacy))
                     counts.update([handed] if handed else [])
         return counts
 
@@ -357,7 +360,8 @@ class WorkEngine:
             workspace_id, row, writer = self._locate(assignment.rows[0])
             if row.taken is not None and row.taken.who != who:
                 raise WorkRefused(Reason.ALREADY_TAKEN, row.taken.who)
-            live = next((r.request_id for r in records() if r.ref == row.ref and r.state is not RecordState.CLOSED),
+            live = next((r.request_id for r in records()
+                         if r.ref in (row.ref, replace(row.ref, project_id=None)) and r.state is not RecordState.CLOSED),
                         None)
             if live is not None:
                 raise WorkRefused(Reason.ALREADY_TAKEN, f"run {live}")
@@ -374,17 +378,17 @@ class WorkEngine:
             return self._begin(record, lambda: self.executor.start_from(assignment, origin))
 
     def _locate(self, ref: RowRef) -> tuple[str, Row, Any]:
-        """The workspace, the row and the writer of the row ``ref`` names (by slot and ID)."""
+        """The workspace, the row and the writer of the row ``ref`` names (by its board — slot + Project — and ID)."""
 
         for workspace_id in self._workspaces():
             view = self._sync(workspace_id)
-            for board in view.boards:
-                writer = view.writers.get(board.slot)
-                if board.slot != ref.slot or writer is None or board.read_root is None:
-                    continue
-                row = next((r for r in board_rows(board) if r.ref.id == ref.id), None)
-                if row is not None:
-                    return workspace_id, row, writer
+            board = pick(view.boards, ref.slot, ref.project_id)
+            writer = view.writers.get(board.key) if board is not None else None
+            if board is None or writer is None or board.read_root is None:
+                continue
+            row = next((r for r in board_rows(board) if r.ref.id == ref.id), None)
+            if row is not None:
+                return workspace_id, row, writer
         raise WorkRefused(Reason.ROW_GONE, f"{ref.slot}/{ref.id}")
 
     def _assignment(self, row: Row, writer: Any, request_id: str) -> Assignment:
@@ -496,7 +500,8 @@ class WorkEngine:
         from .writer import RowOp
 
         view = self._sync(record.workspace_id)
-        writer = view.writers.get(record.ref.slot)
+        board = pick(view.boards, record.ref.slot, record.ref.project_id)
+        writer = view.writers.get(board.key) if board is not None else None
         if writer is None:
             raise WorkRefused(Reason.SLOT_UNBOUND, record.ref.slot)
         commits = []

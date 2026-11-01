@@ -73,6 +73,8 @@ class Reason(StrEnum):
     URL_MISMATCH = "url_mismatch"
     # A lent skill set with a skill that does not resolve or cannot load (p10-work S1, RT-ETERNIA-SKILLS-LENDS-SKILLS).
     SKILLS_NOT_LOADABLE = "skills_not_loadable"
+    # A ref with no Project that two of the workspace's Projects answer (RT-WORK-BOARD-PER-PROJECT-SLOT): never guessed.
+    SLOT_AMBIGUOUS = "slot_ambiguous"
 
 
 class WorkRefused(ValueError):

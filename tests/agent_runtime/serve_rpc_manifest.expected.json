@@ -1093,6 +1093,7 @@
       "kind",
       "observe",
       "owner",
+      "project_id",
       "slot",
       "stale_ok",
       "task_id"
@@ -1105,6 +1106,7 @@
       "kind",
       "observe",
       "owner",
+      "project_id",
       "slot",
       "stale_ok",
       "status",

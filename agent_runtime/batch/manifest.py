@@ -148,7 +148,7 @@ def automation_of(text: str | None) -> Automation:
 
 
 def _rows(raw: Iterable[Any]) -> tuple[RowRef, ...]:
-    return tuple(RowRef(*map(str, item)) for item in raw or () if len(item) == 3)
+    return tuple(ref for ref in map(RowRef.of, raw or ()) if ref is not None)
 
 
 #: How each lane-line key lands on the record (absent keys leave the record as it was).
@@ -268,7 +268,7 @@ def held_refs(workspace_id: str, view: Any) -> set[RowRef]:
     board = manifest_board(view.boards)
     if board is None:
         return set()
-    texts = read_texts(view.read_roots.get(board.slot), board.brain_dir)
+    texts = read_texts(view.read_roots.get(board.key), board.brain_dir)
     return {ref for text in texts.values() if (batch := fold(text)) is not None for ref in _held_by(batch)}
 
 
@@ -340,5 +340,5 @@ class BrainManifestStore:
         writer = self._writer(board)
         relative = manifest_path(batch_id)
         payload = {"appends": {relative: "".join(line + "\n" for line in lines)}, "files": dict(files or {})}
-        ref = RowRef(board.slot, f"{_brain_root(board.brain_dir)}/{relative}", batch_id)
+        ref = RowRef(board.slot, f"{_brain_root(board.brain_dir)}/{relative}", batch_id, board.project_id)
         writer.apply(RowOp(ref, Op.APPEND, DISPATCHER, request_id, payload))

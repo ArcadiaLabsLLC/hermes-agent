@@ -126,7 +126,7 @@ class Lane:
         brief = self.brief
         return {"id": self.id, "kind": self.kind.value,
                 "domain": None if self.domain is None else [self.domain.slot, self.domain.note, self.domain.heading],
-                "rows": [[r.slot, r.note, r.id] for r in self.rows], "persona": self.persona,
+                "rows": [r.items() for r in self.rows], "persona": self.persona,
                 "heavy": self.heavy, "quiet_box": self.quiet_box, "after": list(self.after), "effort": self.effort,
                 "files": list(self.files),
                 "gates": {slot: None if cmds is None else list(cmds) for slot, cmds in self.gates.items()},
@@ -141,7 +141,7 @@ class Lane:
         return cls(
             id=str(raw["id"]), kind=LaneKind(raw["kind"]),
             domain=Domain(*raw["domain"]) if raw.get("domain") else None,
-            rows=tuple(RowRef(*map(str, r)) for r in raw.get("rows") or ()),
+            rows=tuple(ref for ref in map(RowRef.of, raw.get("rows") or ()) if ref is not None),
             persona=raw.get("persona") or None,
             brief=Brief(title=str(brief["title"]), objective=str(brief["objective"]),
                         inputs=tuple(brief.get("inputs") or ()), constraints=tuple(brief.get("constraints") or ()),

@@ -31,7 +31,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-31 (launcher plan MC-WORKSPACE-TODO-ALL-PROJECTS, owner-approved)
 
-- **`RT-WORK-BOARD-PER-PROJECT-SLOT` — `runtime.work.list` lists a board for EVERY live slot of every Project the workspace holds (the `boards` category stops filtering and names the Project's default board), keys boards, writers, refs and the work RPC params by `(project_id, slot)` through the existing `slot_key` / `resolve_slot` (a `RowRef` gains a defaulted `project_id`, so persisted run records and schedule rows still load; an owner-less ref two Projects answer refuses `slot_ambiguous`), merges two Projects naming the same checkout into one board carrying both, and puts `project_id`, `project_name`, `projects` and `checkout` on `board_wire`; the brain markdown stays the only store. The launcher half is `MC-WORKSPACE-TODO-ALL-PROJECTS`, which waits on this row** · `agent_runtime/project_categories.py::board_slots` · `agent_runtime/work/store.py::board_wire` · `agent_runtime/work_store/board.py::declared_boards` · READY 2026-10-31 · RULED 2026-10-31: owner approved the plan's D1–D3 ("Approve all three") — the launcher repo's plan workspace-todo-all-projects-2026-10-31 (docs/mission_control/planned), sections H1–H4 and §5 for the tests · **TAKEN 2026-10-31 w1031j-h-work on nekwo-ubuntu24 as nekwo in hm-w1031j-work**
 
 ### Filed on arrival — 2026-10-31 (owner sitting: the launcher's Board › Queues refused `branch_missing`)
 

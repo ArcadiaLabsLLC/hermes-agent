@@ -268,7 +268,7 @@ def _agent_view(params, context, install):
         raise WorkRefused(Reason.INVALID, "an agent view names assignee: persona:<instance_id>")
     token = store._assignee_token(assigned)
     tokens, visible = _agent_reach(install, token)
-    read = {key: value for key, value in params.items() if key not in ("assignee", "kind", "owner", "slot")}
+    read = {key: value for key, value in params.items() if key not in ("assignee", "kind", "owner", "project_id", "slot")}
     owners = []
     for scope in visible:
         entry = {"owner": scope.owner, "workspace_id": scope.workspace_id, "kind": scope.kind,

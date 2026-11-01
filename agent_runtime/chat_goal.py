@@ -166,7 +166,7 @@ def execute(op: str, params: Mapping[str, Any], *, goals: Callable[[str], Any] =
 class GoalBinding:
     root_session_id: str
     request_id: str
-    rows: tuple[tuple[str, str, str], ...]
+    rows: tuple[tuple[str, ...], ...]  # RowRef.items(): (slot, note, id[, project_id])
     #: The persisted args of the run's first queued send; a continuation is these with a new message.
     turn_args: Mapping[str, Any] = field(default_factory=dict)
     #: The client message id of the run's latest queued send (its first, then each continuation's).

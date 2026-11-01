@@ -52,7 +52,8 @@ class BoardSource:
 
     def _writer(self, ref: RowRef, workspace_id: str) -> Any:
         view = self._view(workspace_id, slot=ref.slot)
-        writer = view.writers.get(ref.slot)
+        board = boards_store.pick(view.boards, ref.slot, ref.project_id)
+        writer = view.writers.get(board.key) if board is not None else None
         if writer is None:
             raise WorkRefused(Reason.SLOT_UNBOUND, ref.slot)
         return writer

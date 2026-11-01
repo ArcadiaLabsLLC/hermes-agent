@@ -224,8 +224,11 @@ opened at that path (the schema, FTS and `search_messages` come for free) with a
 - `documents`: the folder hermes offers as context — `load_slot_context` adds the documents folder's files
   that the launcher's selected-context list names (a `context_files` list in the category record, relative
   paths), each a section like a slot's `CLAUDE.md`; it reads nothing not listed.
-- `boards`: the Project's Work brain directory — `context.brain_dir` of the category's slot, so
-  `runtime.work.list` lists the board under the Project; the board publisher stays the Work writer, one
+- `boards`: every live slot of the Project lists a Work board in `runtime.work.list`, keyed by
+  `(project, slot)` and carrying `project_id` / `project_name`; the category's slot is the Project's
+  DEFAULT board (listed first under it, where a slot-less `runtime.work.start` and the default brain's
+  rows land), never a filter (`RT-WORK-BOARD-PER-PROJECT-SLOT`, 2026-10-31). Two Projects naming one
+  checkout share ONE board (`projects` lists both). The board publisher stays the Work writer, one
   publisher per board (never both the workspace's old family and a Project path).
 - `artifacts`: a folder hermes only LISTS (`runtime.project.artifacts.list` over the fill, names and sizes);
   what is written there is the launcher's owner-serialised outputs. Hermes writes nothing into it.

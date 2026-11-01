@@ -64,12 +64,15 @@ def test_guidance_loads_only_while_shared(tmp_path):
     assert _context().sections == ()
 
 
-def test_a_project_board_is_the_boards_slot_and_a_migrated_document_lists_none_twice(tmp_path):
+def test_every_project_slot_is_a_board_the_boards_slot_is_its_default_and_a_migrated_document_lists_none_twice(
+        tmp_path):
+    """RT-WORK-BOARD-PER-PROJECT-SLOT H1: the boards category names the default board, never a filter."""
     workspace = _setup(tmp_path, "launcher", "backend")
-    assert [(b.slot, b.project_id) for b in declared_boards(workspace)] == [("backend", "p1"), ("launcher", "p1")]
+    assert [(b.slot, b.project_id, b.project_default) for b in declared_boards(workspace)] == [
+        ("backend", "p1", False), ("launcher", "p1", False)]
     ProjectStore().set_category("p1", "boards", slot="launcher", subpath=None, shared=True, issued_at=T0)
-    assert [(b.slot, b.project_id, b.checkout) for b in declared_boards(workspace)] == [
-        ("launcher", "p1", tmp_path / "launcher")]
+    assert [(b.slot, b.project_id, b.checkout, b.project_default) for b in declared_boards(workspace)] == [
+        ("backend", "p1", tmp_path / "backend", False), ("launcher", "p1", tmp_path / "launcher", True)]
     legacy = WorkspaceStore().create(name="Legacy").id
     declare(legacy, [{"name": "brain", "repo": {"local": True}}], issued_at=T0, machine="m")
     assert [(b.slot, b.project_id) for b in declared_boards(legacy)] == [("brain", None)]
