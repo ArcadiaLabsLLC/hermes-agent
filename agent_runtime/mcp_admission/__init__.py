@@ -120,7 +120,7 @@ first; no module imports one above it (W0-G6)::
       __init__.py       lanes   this docstring + map; re-exports the importers' and the tests' names
       vocabulary.py     models  the MCP_* denial codes and MCP_DENIAL_CODES, LANE_MISSION_CHAT, the toolset prefix,
                                 TRANSPORT_WARM / _COLD, the parked-wake bound, the read-only
-                                tool tables, MCP_OPERATING_SKILLS, the two defaults
+                                tool tables, MCP_OPERATING_SKILLS (+ MCP_OPERATING_SKILL_STALE), the two defaults
                                 (a vocabulary module: exempt from the floor)
       outcomes.py       models  McpAdmissionDenial, McpAdmission, McpAdmissionOutcome,
                                 McpTeardownOutcome, McpCallBudget; render_mcp_admission_line

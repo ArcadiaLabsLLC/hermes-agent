@@ -274,7 +274,16 @@ def mission_chat_admission_line(
         )
     except Exception:  # pragma: no cover - a context line must never fail a turn
         return ""
-    return render_mcp_admission_line(admission)
+    line = render_mcp_admission_line(admission)
+    if not line:
+        return ""
+    # The admitted manuals' freshness rides the same voice (RT-SKILL-FRESHNESS-CHECK):
+    # it is a fact about the MCP surface this turn has, and only an admitted server's
+    # granted manual is checked, so a persona with no admission reads nothing new.
+    from agent_runtime.skill_freshness import render_stale_manual_clause, stale_skills
+
+    manuals = admitted_operating_skill_ids(admission, granted_skills=getattr(persona, "skills", None) or ())
+    return line + render_stale_manual_clause(stale_skills(manuals))
 
 
 def mission_chat_operating_skills(

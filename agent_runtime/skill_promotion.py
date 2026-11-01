@@ -135,6 +135,26 @@ def _provenance_path(skill: str) -> Path:
     return _provenance_root() / f"{skill.replace('/', '__')}.json"
 
 
+def promotion_source_path(skill: str) -> Path | None:
+    """The absolute package directory ``skill``'s live copy was last promoted FROM, or None.
+
+    Only a ``--from-path`` promotion names one (``source.kind == "path"``), and only an
+    absolute path is answered: a relative one was recorded against a working directory
+    nobody knows now. Read by :mod:`agent_runtime.skill_freshness`, which compares the
+    live copy's ``version:`` with that source's (RT-SKILL-FRESHNESS-CHECK).
+    """
+
+    try:
+        record = json.loads(_provenance_path(skill).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    source = record.get("source") if isinstance(record, dict) else None
+    if not isinstance(source, dict) or source.get("kind") != "path" or not source.get("path"):
+        return None
+    path = Path(str(source["path"]))
+    return path if path.is_absolute() else None
+
+
 def _archive_root() -> Path:
     return get_shared_skills_dir() / _ARCHIVE_DIRNAME
 

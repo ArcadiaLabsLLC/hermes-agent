@@ -96,7 +96,9 @@ def _source_from_profile(profile: str, skill: str, args):
 
 
 def _source_from_path(path: str, skill: str, args):
-    source_dir = Path(path).expanduser()
+    # Resolved, so the provenance names a directory a later freshness check can still find
+    # (``skill_promotion.promotion_source_path``); the documented spelling is relative.
+    source_dir = Path(path).expanduser().resolve()
     if not (source_dir / "SKILL.md").is_file():
         raise _PromotionSourceError("not_found", "No SKILL.md at that path.", {"skill": skill})
     return source_dir, {"kind": "path", "path": str(source_dir)}, bool(getattr(args, "move_source", False))

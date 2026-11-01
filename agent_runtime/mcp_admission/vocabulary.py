@@ -275,6 +275,14 @@ MCP_OPERATING_SKILLS: Mapping[str, tuple[str, ...]] = {
     "launcher_qa": ("launcher-mcp-operations",),
 }
 
+#: An admitted server's operating manual (:data:`MCP_OPERATING_SKILLS`) is live at a
+#: lower ``version:`` than the source that ships it — the launcher checkout it was
+#: promoted from, or a realm inbox copy the hash-guarded door held
+#: (``agent_runtime.skill_freshness``, RT-SKILL-FRESHNESS-CHECK). Not a denial: the
+#: tools are admitted and the manual is still readable, so it is told to the agent
+#: on the admission line and never joins :data:`MCP_DENIAL_CODES`.
+MCP_OPERATING_SKILL_STALE = "mcp_operating_skill_stale"
+
 _DEFAULT_CONNECT_TIMEOUT_SECONDS = 20.0
 
 #: Per-run budget of ADMITTED MCP tool calls, before an operator config edit.
