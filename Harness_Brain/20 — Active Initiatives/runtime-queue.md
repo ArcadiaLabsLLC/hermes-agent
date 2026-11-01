@@ -1150,3 +1150,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ## Filed on arrival — 2026-11-01 (lane w1101b-perf, the first idle-box run)
 
 - **`RT-TURN0-REQUEST-SENT-IDLE-RED` — the cause is cut (turn 0's write-ahead resolved `run_provenance.ran_by` cold — the build stamp's git probes and the ~400 ms `build-stamp-code-tree` digest — plus five first-write imports; the prewarm now pays both, and the counts guard reds on either); left: one idle-box run of `scripts/run_tests_idle.sh` showing turn 0 within the slowest warm turn + 100 (the lane's box was at load 11)** · `tests/agent_runtime/test_turn_cost_guard_downstream.py::test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard` · `agent_runtime/profile_runner/execute.py::_warm_run_provenance` · `scripts/run_tests_idle.sh` · READY 2026-11-01 · **TAKEN 2026-11-01 w1101b-h-test on nekwo-ubuntu24 as nekwo in hm-w1101b-test**
+
+## Filed on arrival — 2026-11-01 (launcher lane w1101b-mcwork)
+
+- **`RT-SLOT-RECEIPTS-IN-PROMPT-CONTEXT` — surface the per-slot context receipts (`default_choice` / `not_default` / `missing`, from `persona_slots.load_slot_context`) in a frame the Eternia client reads (prompt context `context_files` or the turn's workspace receipt); today they exist only in the actor signature's `workspace_agents` dict (`mission_chat_turn_context.py::_workspace_context`); client side `MC-SLOT-CONTEXT-DEFAULT-CHOICE-SHOWN`** · `agent_runtime/mission_chat_turn_context.py` · READY 2026-11-01
