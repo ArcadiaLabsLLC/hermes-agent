@@ -11,6 +11,47 @@ def test_task_lock_uses_task_specific_lock_file(isolate_agent_runtime_root):
         assert (isolate_agent_runtime_root / "locks" / "task_task_abc.lock").exists()
 
 
+def test_first_seed_contention_retries_before_entering_writer(tmp_path, monkeypatch):
+    """A Windows first-open seed can collide with the peer's byte lock.
+
+    Mutation: move _prepare outside the retry loop; the injected EACCES then
+    escapes rather than admitting the writer after the peer releases.
+    """
+    import errno
+    import io
+    from agent_runtime import locks
+
+    prepare = locks._prepare
+    attempts = []
+
+    def contended_seed(handle):
+        assert isinstance(handle, io.FileIO), "a refused seed must not remain buffered"
+        attempts.append(handle)
+        if len(attempts) == 1:
+            raise OSError(errno.EACCES, "peer holds the newly seeded byte")
+        prepare(handle)
+
+    monkeypatch.setattr(locks, "_prepare", contended_seed)
+    with _file_lock(tmp_path / "fresh.lock", timeout_seconds=5):
+        assert len(attempts) == 2
+
+
+def test_seed_contention_respects_the_same_deadline(tmp_path, monkeypatch):
+    """Seeding cannot evade the acquisition budget or flush a deferred write."""
+    import errno
+    from agent_runtime import locks
+
+    def contended_seed(handle):
+        raise OSError(errno.EACCES, "peer holds the seed byte")
+
+    ticks = iter([0.0, 2.0])
+    monkeypatch.setattr(locks.time, "monotonic", lambda: next(ticks))
+    monkeypatch.setattr(locks, "_prepare", contended_seed)
+    with pytest.raises(HarnessLockUnavailable):
+        with _file_lock(tmp_path / "fresh.lock", timeout_seconds=1):
+            pytest.fail("a contended seed entered the writer")
+
+
 def _contend(path, *, timeout_seconds: float) -> list:
     """Take ``path`` on another thread and report what happened, never hang.
 
