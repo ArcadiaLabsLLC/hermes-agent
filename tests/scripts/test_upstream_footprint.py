@@ -279,7 +279,7 @@ def test_every_reader_moved_to_load_config_readonly_says_so_in_the_ledger():
     must carry that spelling. Over-approximates a move (any added import), the safe direction."""
     import subprocess
 
-    from scripts.upstream_footprint import DEFAULT_LEDGER, ROOT
+    from scripts.upstream_footprint import DEFAULT_LEDGER, GIT_NO_LOCKS, ROOT
     from tests._downstream.fork_readonly_readers import READER_MOVED, readonly_reader_moves
 
     fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
@@ -288,7 +288,7 @@ def test_every_reader_moved_to_load_config_readonly_says_so_in_the_ledger():
     # The whole tree, narrowed by -G (no path argv: one naming hermes_cli/main.py trips the
     # live-system guard), then to the ledger's upstream files.
     diff = subprocess.run(
-        ["git", "diff", "-U0", "--no-renames", "-Gload_config_readonly", fixture["base"]],
+        ["git", GIT_NO_LOCKS, "diff", "-U0", "--no-renames", "-Gload_config_readonly", fixture["base"]],
         cwd=ROOT, capture_output=True, text=True, encoding="utf-8", check=True, timeout=120,
     ).stdout
     moves = readonly_reader_moves(diff) & set(paths)
@@ -350,3 +350,18 @@ def test_a_manifest_refreshed_inside_a_release_merge_takes_the_incoming_base(tmp
     assert manifest.read_text(encoding="utf-8").splitlines()[0] == f"# base {tag[:10]}"
     # --base wins over both, and is resolved to a commit.
     assert fp.refresh_base("HEAD") == git("rev-parse", "HEAD")[:10]
+
+
+def test_every_footprint_git_takes_no_optional_lock(monkeypatch):
+    """The checkout's working-tree ``diff`` must not refresh its index (``index.lock``): ``_git``
+    passes ``--no-optional-locks`` on every call, whatever the caller's environment
+    (FH-GIT-AUDIT-UPSTREAM-FOOTPRINT-DIFF)."""
+    import subprocess
+
+    from scripts import upstream_footprint as fp
+
+    seen: list[list[str]] = []
+    monkeypatch.setattr(fp.subprocess, "run", lambda argv, **_kw: seen.append(list(argv))
+                        or subprocess.CompletedProcess(argv, 0, stdout="", stderr=""))
+    fp._git("diff", "--numstat", "-z", "--no-renames", "HEAD")
+    assert seen and seen[0][:2] == ["git", "--no-optional-locks"], seen

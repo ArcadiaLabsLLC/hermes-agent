@@ -632,4 +632,3 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-11-01 (lane w1101b-perf, the D3 runs)
 
-- **`FH-GIT-AUDIT-UPSTREAM-FOOTPRINT-DIFF` — `tests/scripts/test_upstream_footprint.py` runs `scripts/upstream_footprint.py`'s working-tree `git diff --numstat` and `git diff -U0` against the checkout itself (3 calls), the opportunistic index refresh held off only by the env `GIT_OPTIONAL_LOCKS=0`; run it over a temp clone, or pass `--no-optional-locks` in the script's `_git` (D3.16 audit, 2026-11-01 gate)** · `tests/scripts/test_upstream_footprint.py` · `scripts/upstream_footprint.py` · READY 2026-11-01 · **TAKEN 2026-11-01 w1101b-h-test on nekwo-ubuntu24 as nekwo in hm-w1101b-test**
