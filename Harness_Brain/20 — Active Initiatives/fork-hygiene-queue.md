@@ -629,3 +629,7 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 - **`FH-CHILD-JOB-COLLECTION-ROOT` — Keep the child-job lifetime proof scoped to its intended test root** · `tests/test_child_job_downstream.py::test_a_marked_tests_child_dies_with_its_os_exit_and_an_unmarked_ones_survives` · the wider character gate collected an unrelated disappearing Flutter temp directory and failed before the child PID evidence existed; qualify explicit collection roots while preserving the real-process kill/survival assertions · READY 2026-10-31 · REQUIRES windows
 
 ## Filed on arrival — 2026-11-01 (owner ruling, launcher ADR 0038 amendment)
+
+## Profile artwork qualification findings — 2026-11-01
+
+- **`FH-LEVEL-ENTRY-VOCABULARY-CENSUS` — Reconcile the spatial skill vocabulary with the app-function entry ownership census** · `agent_runtime/mcp_admission/vocabulary.py` · `tests/tooling/test_no_launcher_entry_id_literals.py::test_no_launcher_entry_id_outside_the_allow_list` · the profile artwork landing gate reports the existing `launcher.world.level` literal outside the allowed protocol catalog; inspect the owning intent contract before changing the vocabulary or census, preserving the spatial lane's claims and entry ownership rule · READY 2026-11-01
