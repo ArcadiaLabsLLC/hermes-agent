@@ -28,7 +28,7 @@ from agent_runtime.resolution import resolve_runtime, runtime_resolution_scope
 from agent_runtime.serde import to_jsonable
 from agent_runtime.snapshot_build_census import census_builds, parse_duration
 from agent_runtime.snapshot_worker import executor as executor_mod
-from agent_runtime.snapshot_worker.peer import WorkerLoss, WorkerLost
+from agent_runtime.snapshot_worker.peer import BUILD_METHOD, WorkerLoss, WorkerLost
 from agent_runtime.store import WorkspaceStore
 from tests._downstream import _seams
 
@@ -142,13 +142,30 @@ def test_a_worker_killed_mid_request_falls_back_in_process(caplog):
     caplog.set_level(logging.INFO)
     binding = executor_mod.WorkerBinding(_home())
     peer = binding._live_peer()
-    killer = threading.Timer(0.5, peer.process.kill)
-    killer.start()
+    # The gate (FH-SNAPSHOT-WORKER-COLD-BUILD-TIMING-RED): the build's reply is HELD -- never
+    # routed -- and the worker is killed the instant the request is on its pipe, so the kill is the
+    # only answer the build can get, however fast the box builds (a 0.5 s timer lost that race).
+    held: set[str] = set()
+    real_route, real_write = peer._route, peer.write
+
+    def route(frame):
+        if "method" not in frame and frame.get("id") in held:
+            return
+        real_route(frame)
+
+    def write(frame):
+        if frame.get("method") == BUILD_METHOD:
+            held.add(frame["id"])
+        real_write(frame)
+        if frame.get("method") == BUILD_METHOD:
+            peer.process.kill()
+
+    peer._route, peer.write = route, write
     try:
-        assert binding.build() is None  # the cold build cannot answer in 0.5 s
+        assert binding.build() is None
     finally:
-        killer.cancel()
         binding.close()
+    assert held, "the build request never reached the worker"
     lost = _messages(caplog, "snapshot_worker op=lost ")
     assert lost and _fields(lost[0])["reason"] == "exited", lost
     assert _fields(lost[0])["fallback"] == "in_process"
