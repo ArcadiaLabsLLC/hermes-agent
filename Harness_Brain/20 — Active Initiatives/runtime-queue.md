@@ -1135,3 +1135,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ## Character completion qualification findings — 2026-10-31
 
 - **`RT-WRITING-COMMAND-HOME-SKELETON` — Qualify the writing-command positive control beside read-only session export** · `tests/hermes_cli/test_sessions_export_home_writes_downstream.py::test_positive_control_a_writing_command_still_builds_the_skeleton` · the character landing gate found SOUL.md absent after the writing command; preserve read-only export behavior and determine whether the producer or its positive-control expectation is stale · READY 2026-10-31 · REQUIRES windows
+
+## Filed on arrival — 2026-10-31 (lane w1031j-h-rt)
+
+- **`RT-PHONE-SUGGESTION-STALE-ATTEMPTS` — On the phone wheel a suggestion attempt left `generating` by a killed app is never pruned, so its subject answers `capacity_limited` until the 7-day sweep** · `agent_runtime/console_suggestions/store.py::SuggestionStore._prune` · the phone has no `serve_registry` probe, so the stand-in answers "could not determine" and `_prune` keeps every foreign-pid row; decide a phone-safe liveness (the stdlib `hermes_cli/_subprocess_compat.py::pid_exists_stdlib` the psutil row names) or a boot-epoch sweep of rows from an earlier process · READY 2026-10-31
