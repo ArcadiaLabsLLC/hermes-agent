@@ -1138,4 +1138,3 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-31 (lane w1031j-h-rt)
 
-- **`RT-PHONE-SUGGESTION-STALE-ATTEMPTS` — On the phone wheel a suggestion attempt left `generating` by a killed app is never pruned, so its subject answers `capacity_limited` until the 7-day sweep** · `agent_runtime/console_suggestions/store.py::SuggestionStore._prune` · the phone has no `serve_registry` probe, so the stand-in answers "could not determine" and `_prune` keeps every foreign-pid row; decide a phone-safe liveness (the stdlib `hermes_cli/_subprocess_compat.py::pid_exists_stdlib` the psutil row names) or a boot-epoch sweep of rows from an earlier process · READY 2026-10-31 · **TAKEN 2026-10-31 w1031k-h-rt on nekwo-ubuntu24 as nekwo in hm-w1031k-rt**

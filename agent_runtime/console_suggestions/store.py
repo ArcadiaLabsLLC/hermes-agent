@@ -13,17 +13,31 @@ from uuid import uuid4
 
 from .settings import SuggestionRefused
 
+#: This process's identity for the stand-in probe below: a pid alone cannot tell this process from
+#: an earlier one the OS gave the same pid.
+_PROCESS_TOKEN = uuid4().hex
+
+
+def single_process_probe(pid: int | None = None, token: str | None = None):
+    """The phone's liveness: the embedded serve is the ONLY Hermes process on the device, so a
+    ``generating`` row is live exactly when THIS process wrote it, and any other writer -- another
+    pid, or this pid under an earlier token -- was an earlier process the OS killed.
+
+    Not ``pid_exists_stdlib``: on iOS it spawns ``ps`` (no ``/proc``), a subprocess the phone gate
+    refuses, and an app sandbox cannot see a foreign pid anyway. ``cmdline`` stays unknown."""
+    own_pid = os.getpid() if pid is None else pid
+    own_token = _PROCESS_TOKEN if token is None else token
+    return SimpleNamespace(alive=lambda other: other == own_pid,
+                           start_time=lambda other: own_token if other == own_pid else None,
+                           cmdline=lambda _pid: None)
+
+
 try:
     from agent_runtime.serve_registry import default_process_probe
 except ImportError as _probe_exc:  # the phone profile switches the desktop serve's pid registry off
     if _probe_exc.name != "agent_runtime.serve_registry":
         raise
-
-    def default_process_probe():
-        """No pid registry in this bundle: every question answers ``None``, "could not determine",
-        so ``_prune`` never declares a live attempt dead on a guess."""
-        unknown = lambda _pid: None  # noqa: E731
-        return SimpleNamespace(alive=unknown, start_time=unknown, cmdline=unknown)
+    default_process_probe = single_process_probe
 
 __layer__ = "stores"
 
