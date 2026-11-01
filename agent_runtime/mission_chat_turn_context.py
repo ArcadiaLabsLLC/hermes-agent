@@ -562,13 +562,9 @@ def build_mission_chat_turn_context(
     slot_context, workspace_agents, workspace_agents_receipt, workdir, project_context = _turn_workspace(
         resolvers, persona, instance, agents_file, run_workdir, chat_session_id=session_id)
 
-    # Composed ONCE, then folded two ways: the composite is the reuse key the
-    # registry compares, the per-component digests are what let a mismatch name
-    # the input that moved. Deriving them from the same components dict is what
-    # keeps the diff honest — a second composition could name a component the
-    # key was never built from.
+    # Composed ONCE and folded two ways (``_turn_signature``).
     _started = time.monotonic()
-    signature_components = mission_chat_runtime_signature_components(
+    runtime_signature, runtime_signature_digests = _turn_signature(
         persona=persona,
         instance=instance,
         config=config,
@@ -578,12 +574,6 @@ def build_mission_chat_turn_context(
         workspace_agents_receipt=workspace_agents_receipt,
         surface_prompt=surface_prompt,
         resolvers=resolvers,
-    )
-    runtime_signature = mission_chat_runtime_signature_from_components(
-        signature_components
-    )
-    runtime_signature_digests = mission_chat_runtime_signature_digests(
-        signature_components
     )
     # The composition AND both folds, as one span: they read the same components
     # dict and splitting them would bill a hash separately from the resolve that
@@ -610,17 +600,7 @@ def build_mission_chat_turn_context(
     # rides the HUD dict for operator parity (the CONTEXT peek shows exactly what
     # the agent was told) AND the volatile tail for the agent — never the hashed
     # body.
-    capability = resolvers.capability_block(persona, session_id=session_id) or {}
-    # The deferred / unavailable split is the SETTLED receipt of the actor this turn reuses
-    # (after MCP admission and the constructor's extras), joined here per turn — the account
-    # above is memoized with the bundle and never computes a preview surface. No receipt yet
-    # ⇒ no deferred line; never a failed turn.
-    try:
-        capability = with_tool_surface(
-            capability, resolvers.settled_tool_surface(session_id, signature=runtime_signature)
-        )
-    except Exception:  # pragma: no cover - a context line must never fail a turn
-        logger.debug("settled tool surface unavailable for this turn", exc_info=True)
+    capability = _turn_capability(resolvers, persona, session_id=session_id, runtime_signature=runtime_signature)
 
     _started = time.monotonic()
     situational_hud = (
@@ -659,6 +639,42 @@ def build_mission_chat_turn_context(
         lane_workspace=resolvers.lane_workspace(instance) or LaneWorkspace(),
         workdir=workdir,
     )
+
+
+def _turn_signature(**components_kwargs: Any) -> tuple[Any, Any]:
+    """``(runtime signature, per-component digests)``, both folded from ONE composition.
+
+    Composed once, then folded two ways: the composite is the reuse key the registry
+    compares, the per-component digests are what let a mismatch name the input that
+    moved. Deriving them from the same components dict is what keeps the diff honest.
+    """
+
+    components = mission_chat_runtime_signature_components(**components_kwargs)
+    return (
+        mission_chat_runtime_signature_from_components(components),
+        mission_chat_runtime_signature_digests(components),
+    )
+
+
+def _turn_capability(
+    resolvers: MissionChatTurnResolvers, persona: Any, *, session_id: str, runtime_signature: Any
+) -> dict[str, Any]:
+    """This lane's capability account joined with the settled tool surface of the reused actor.
+
+    The deferred / unavailable split is the SETTLED receipt of the actor this turn reuses
+    (after MCP admission and the constructor's extras), joined here per turn — the account
+    is memoized with the bundle and never computes a preview surface. No receipt yet
+    ⇒ no deferred line; never a failed turn.
+    """
+
+    capability = resolvers.capability_block(persona, session_id=session_id) or {}
+    try:
+        capability = with_tool_surface(
+            capability, resolvers.settled_tool_surface(session_id, signature=runtime_signature)
+        )
+    except Exception:  # pragma: no cover - a context line must never fail a turn
+        logger.debug("settled tool surface unavailable for this turn", exc_info=True)
+    return capability
 
 
 def _turn_workspace(
