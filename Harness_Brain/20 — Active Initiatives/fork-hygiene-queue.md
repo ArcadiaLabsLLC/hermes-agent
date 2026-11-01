@@ -631,4 +631,4 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-11-01 (owner ruling, launcher ADR 0038 amendment)
 
-- **`FH-QUEUE-GUARD-FILER-ARM-RETIRE` — retire the queue row guard's filer arm (`RT-QUEUE-DELETE-NEEDS-ROW-OWNER`): launcher ADR 0038's 2026-11-01 amendment (owner 2026-11-01: "doesn't matter who filed them do them all if they are ready, remove any contradictory rulings") retired the rule it enforces; keep the other arms, delete the filer arm and its tests** · `tests/tooling/_queue_row_guard.py` · READY 2026-11-01
+- **`FH-QUEUE-GUARD-FILER-ARM-RETIRE` — retire the queue row guard's filer arm (`RT-QUEUE-DELETE-NEEDS-ROW-OWNER`): launcher ADR 0038's 2026-11-01 amendment (owner 2026-11-01: "doesn't matter who filed them do them all if they are ready, remove any contradictory rulings") retired the rule it enforces; keep the other arms, delete the filer arm and its tests** · `tests/tooling/_queue_row_guard.py` · READY 2026-11-01 · **TAKEN 2026-11-01 w1101a-h-rt on nekwo-ubuntu24 as nekwo in hm-w1101a-rt**
