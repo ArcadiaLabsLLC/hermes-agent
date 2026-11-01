@@ -8,12 +8,24 @@ container renders fresh — so a first build and the compaction re-render carry 
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
 from agent.system_prompt import (
     _restore_plugin_prompt_sections,
     build_system_prompt,
     invalidate_system_prompt,
 )
 from hermes_cli.plugins_dispatch import RenderedPluginSystemPromptSection
+
+
+@pytest.fixture(autouse=True)
+def _scratch_workspace(tmp_path, monkeypatch):
+    """The prompt build's git probe runs in a scratch repo, never the checkout
+    (FH-GIT-AUDIT-COMPACTION-PROMPT-STATUS)."""
+    from tests._downstream.scratch_workspace import scratch_git_workspace
+
+    return scratch_git_workspace(tmp_path, monkeypatch)
+
 
 _SECTION = RenderedPluginSystemPromptSection(
     id="fork.test-section", content="FORK SECTION BODY", position="after_memory", plugin="fork-test")
