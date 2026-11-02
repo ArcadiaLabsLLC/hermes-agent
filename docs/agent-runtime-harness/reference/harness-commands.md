@@ -144,6 +144,7 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness persona chat](#hermes-harness-persona-chat)
 - [hermes harness persona chat delete](#hermes-harness-persona-chat-delete)
 - [hermes harness persona chat history](#hermes-harness-persona-chat-history)
+- [hermes harness persona chat tool-io](#hermes-harness-persona-chat-tool-io)
 - [hermes harness persona chat-head](#hermes-harness-persona-chat-head)
 - [hermes harness persona chat-head migrate](#hermes-harness-persona-chat-head-migrate)
 - [hermes harness persona set-model](#hermes-harness-persona-set-model)
@@ -2847,15 +2848,17 @@ options:
 ## hermes harness persona chat
 
 ```text
-usage: hermes harness persona chat [-h] {delete,history} ...
+usage: hermes harness persona chat [-h] {delete,history,tool-io} ...
 
 positional arguments:
-  {delete,history}
-    delete          Delete a persona chat session and clear active persona bindings
-    history         Page a persona chat session's complete redaction-safe transcript
+  {delete,history,tool-io}
+    delete              Delete a persona chat session and clear active persona bindings
+    history             Page a persona chat session's complete redaction-safe transcript
+    tool-io             Read one tool call's full redacted input and result (the transcript keeps a
+                        head-cut copy)
 
 options:
-  -h, --help        show this help message and exit
+  -h, --help            show this help message and exit
 ```
 
 ## hermes harness persona chat delete
@@ -2885,6 +2888,21 @@ options:
   --session-id SESSION_ID
   --limit LIMIT         Page size (clamped 1..40)
   --before BEFORE       Opaque cursor returned by the previous page
+  --json
+```
+
+## hermes harness persona chat tool-io
+
+```text
+usage: hermes harness persona chat tool-io [-h] --session-id SESSION_ID --tool-call-id TOOL_CALL_ID
+                                           [--offset OFFSET] [--json]
+
+options:
+  -h, --help            show this help message and exit
+  --session-id SESSION_ID
+  --tool-call-id TOOL_CALL_ID
+                        The tool element's tool_call_id
+  --offset OFFSET       Window start; pass the previous answer's next_offset
   --json
 ```
 

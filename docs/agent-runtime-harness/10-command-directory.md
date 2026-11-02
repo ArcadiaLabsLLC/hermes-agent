@@ -148,10 +148,13 @@ read the transcript and runtime state. A provider refusal is not a successful tu
 reaches the agent as a `FILE:<path>` line it reads with `read_file`.
 Do not blindly retry an outcome-unknown response; see [chat error handling](05-chat-turn-lane.md).
 
-Read the transcript (**READ**) or steer an in-flight turn (**EXECUTE**):
+Read the transcript (**READ**), one tool call's full input and result — a turn element
+carries a head-cut copy; `tool-io` joins its `tool_call_id` to the whole SessionDB record
+(**READ**) — or steer an in-flight turn (**EXECUTE**):
 
 ```bash
 hermes harness persona chat history --session-id SESSION_ID --json
+hermes harness persona chat tool-io --session-id SESSION_ID --tool-call-id TOOL_CALL_ID --json
 hermes harness mission-chat steer --session-id SESSION_ID --client-message-id UNIQUE_REQUEST_ID --message "Limit this to inspection; do not edit." --json
 ```
 

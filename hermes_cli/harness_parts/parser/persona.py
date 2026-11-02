@@ -172,6 +172,14 @@ def _add_persona_chat_and_model_verbs(persona_subs) -> None:
     persona_chat_history.add_argument("--before", default=None, help="Opaque cursor returned by the previous page")
     persona_chat_history.add_argument("--json", action="store_true")
     persona_chat_history.set_defaults(func=runtime_commands._cmd_persona_chat_history)
+    persona_chat_tool_io = persona_chat_subs.add_parser(
+        "tool-io", help="Read one tool call's full redacted input and result (the transcript keeps a head-cut copy)"
+    )
+    persona_chat_tool_io.add_argument("--session-id", dest="session_id", required=True)
+    persona_chat_tool_io.add_argument("--tool-call-id", dest="tool_call_id", required=True, help="The tool element's tool_call_id")
+    persona_chat_tool_io.add_argument("--offset", type=int, default=0, help="Window start; pass the previous answer's next_offset")
+    persona_chat_tool_io.add_argument("--json", action="store_true")
+    persona_chat_tool_io.set_defaults(func=runtime_commands._cmd_persona_chat_tool_io)
     chat_head = persona_subs.add_parser("chat-head", help="Where each agent's chats live (its own profile's state.db)")
     chat_head_subs = chat_head.add_subparsers(dest="persona_chat_head_command", required=True)
     migrate = chat_head_subs.add_parser(

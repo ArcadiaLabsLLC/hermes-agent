@@ -50,6 +50,7 @@ _ATTACH_CALL = "attach_root_observability"
 # and reads the keys off the result. Do not add a name without a row there.
 ATTACHING_DELEGATES = {
     "persona_chat_history_page": True,
+    "persona_chat_tool_io": True,
     "realm_sync_revert": False,
     # agent_runtime.realm_verbs: the realm verbs' one implementation, both doors.
     "realm_sync_status": False,
@@ -89,6 +90,7 @@ HOME_ATTACHING_DELEGATES = frozenset({"_characters_emit", "_characters_verb", "_
 # is how the envelope SHOWS which one.
 CHAT_SCOPE_REQUIRED = {
     "_cmd_persona_chat_history",
+    "_cmd_persona_chat_tool_io",
     "_cmd_persona_instance_chat_bindings",
     "_cmd_status",
 }
@@ -375,11 +377,15 @@ def test_every_attaching_delegate_attaches(monkeypatch, tmp_path):
     from agent_runtime import realm_revert
     from agent_runtime import realm_sync, realm_verbs, store
     from tests._downstream.split_package_source import patch_where_bound
-    from agent_runtime.chat_verbs.history import persona_chat_history_page
+    from agent_runtime.chat_verbs.history import persona_chat_history_page, persona_chat_tool_io
 
     monkeypatch.setattr(
         "agent_runtime.persona_chat_history.persona_chat_session_messages",
         lambda **kw: {"ok": True, "messages": [], "count": 0},
+    )
+    monkeypatch.setattr(
+        "agent_runtime.persona_chat_history.content.read_chat_content",
+        lambda params: {"ok": False, "error_kind": "content_unavailable"},
     )
     monkeypatch.setattr(realm_revert, "revert_realm_sync", lambda realm_id, **kw: {"reverted": []})
     monkeypatch.setattr("agent_runtime.realm_sync.realm_sync_status", lambda realm_id, **kw: {"id": realm_id})
@@ -404,6 +410,7 @@ def test_every_attaching_delegate_attaches(monkeypatch, tmp_path):
     monkeypatch.setattr(realm_verbs, "realm_skill_selection_envelope", lambda realm: {"id": realm})
     produced = {
         "persona_chat_history_page": persona_chat_history_page("s1"),
+        "persona_chat_tool_io": persona_chat_tool_io("s1", "call_1"),
         "realm_sync_revert": realm_verbs.realm_sync_revert("realm_x"),
         "realm_sync_status": realm_verbs.realm_sync_status("realm_x"),
         "realm_sync_pull": realm_verbs.realm_sync_pull("realm_x"),

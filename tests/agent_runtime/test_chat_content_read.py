@@ -143,3 +143,34 @@ def test_history_and_full_read_share_the_same_redacted_display(tmp_path, monkeyp
     assert answer["text"] == row["text"] == displayed["display_text"]
     assert "fixture-secret" not in answer["text"]
     assert ("Safe tail" in answer["text"]) is observe
+
+
+def test_tool_io_argv_door_returns_the_full_redacted_halves_by_tool_call_id(tmp_path, monkeypatch, capsys):
+    """RT-CHAT-HISTORY-TOOL-IO-CUT: ``persona chat tool-io`` joins the element's id to SessionDB's full copy."""
+    import argparse
+
+    from hermes_cli.harness_parts.parser.persona import _add_persona_chat_and_model_verbs
+
+    target = fixture(tmp_path / "home", monkeypatch, "Test")
+    arguments = json.dumps({"api_key": "fixture-private", "source": "x" * 3000})
+    result_body = "full result " * 300
+    with closing(SessionDB(tmp_path / "home" / "state.db")) as db:
+        db.append_message(target["session_id"], "assistant", None, tool_calls=[{
+            "id": "real-call", "type": "function", "function": {"name": "inspect", "arguments": arguments}}])
+        db.append_message(target["session_id"], "tool", result_body, tool_call_id="real-call", tool_name="inspect")
+    parser = argparse.ArgumentParser(prog="persona")
+    _add_persona_chat_and_model_verbs(parser.add_subparsers(dest="persona_command"))
+    args = parser.parse_args(["chat", "tool-io", "--session-id", target["session_id"],
+                              "--tool-call-id", "real-call", "--json"])
+    assert args.func(args) == 0
+    answer = json.loads(capsys.readouterr().out)
+    assert answer["tool_call_id"] == "real-call"
+    assert answer["tool_result"]["text"] == result_body  # whole, not the 1800-char element cut
+    assert answer["tool_input"]["total_chars"] > 3000
+    assert "fixture-private" not in answer["tool_input"]["text"]
+    assert answer["chat_scope"]
+    missing = parser.parse_args(["chat", "tool-io", "--session-id", target["session_id"],
+                                 "--tool-call-id", "foreign-call", "--json"])
+    assert missing.func(missing) == 2
+    refused = json.loads(capsys.readouterr().out)
+    assert refused["tool_input"]["error_kind"] == "content_unavailable"
