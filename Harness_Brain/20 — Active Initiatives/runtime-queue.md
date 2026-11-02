@@ -31,7 +31,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-11-02 (launcher planning lane w1101e-p-apikey: an API key pasted once, a usage-source toggle on the chip)
 
-- **`RT-DASHBOARD-ANTHROPIC-CARD-EFFECTIVE-SOURCE` — the dashboard's "Anthropic Account" card lists the Hermes PKCE grant first and reports it as the sign-in while `resolve_anthropic_token` resolves env `ANTHROPIC_API_KEY` ahead of it, so with both stored the card says the Account and every turn spends the key (read 2026-11-02 while planning the Launcher's paste; the Launcher never reads this card — its Anthropic lane is the pool rows of `runtime.provider.list`); the card should name the EFFECTIVE source through the same reader `RT-ANTHROPIC-CREDENTIAL-SOURCE-CHOICE` adds, and say when a stored grant is benched by the choice** · `EterniaLauncher/docs/mission_control/planned/PROVIDER_API_KEY_AND_USAGE_SOURCE_2026-11-02.md` · `hermes_cli/web_server_oauth.py::_anthropic_oauth_status` · `agent/anthropic_credentials.py::resolve_anthropic_token` · BLOCKED 2026-11-02: another lane — `RT-ANTHROPIC-CREDENTIAL-SOURCE-CHOICE` the reader it must call · **TAKEN 2026-11-02 w1101e-h2 on nekwo-ubuntu24 as nekwo in hm-w1101e-h2**
 
 ### Filed on arrival — 2026-11-01 (launcher lane w1101d-mcboot: a console turn waiting out a 429 shows "Thinking")
 
