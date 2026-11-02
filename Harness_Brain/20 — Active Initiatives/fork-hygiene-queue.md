@@ -635,4 +635,3 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Profile artwork qualification findings — 2026-11-01
 
-- **`FH-LEVEL-ENTRY-VOCABULARY-CENSUS` — Reconcile the spatial skill vocabulary with the app-function entry ownership census** · `agent_runtime/mcp_admission/vocabulary.py` · `tests/tooling/test_no_launcher_entry_id_literals.py::test_no_launcher_entry_id_outside_the_allow_list` · the profile artwork landing gate reports the existing `launcher.world.level` literal outside the allowed protocol catalog; inspect the owning intent contract before changing the vocabulary or census, preserving the spatial lane's claims and entry ownership rule · READY 2026-11-01 · **TAKEN 2026-11-01 w1101d-h-misc on nekwo-ubuntu24 as nekwo in hm-w1101d-misc**
