@@ -647,4 +647,3 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-11-02 (landing w1101f)
 
-- **`FH-PREPUSH-TOUCHED-OVER-BUDGET-PERSONA-ASSIGNMENTS` — `scripts/prepush.sh`'s `touched` step ran past its 60 s budget twice on the w1101f landing: 74.5 s (17 files) and 93.7 s (16 files), the wall set by one file** · `tests/agent_runtime/test_persona_assignments.py` 73.6 s alone at `-j 8` (next: `test_serve_rpc_open_chat.py` 31.6 s, `test_persona_spelling_authority.py` 26.3 s) · box load avg 16–26 on 52 cores (other lanes running), so not an idle measurement · measure `test_persona_assignments.py` on an idle box and split or fixture-share its slow tests so a touched run that names it fits 60 s; raise the budget only on an idle measurement · READY 2026-11-02 · **TAKEN 2026-11-02 w1101g-h2 on nekwo-ubuntu24 as nekwo in hm-w1101g-h2**
