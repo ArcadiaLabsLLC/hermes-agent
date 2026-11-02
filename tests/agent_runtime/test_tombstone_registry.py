@@ -4211,6 +4211,18 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         scope=_AR,
     ),
     *rows(
+        "s-w1101f-h",
+        "HEAD",
+        Form.CODE,
+        "runtime-queue RT-TASK-BOUND-WIRE-PRUNE: once no row carries a mission kind or a "
+        "task id, the live-mission-shadow warning and the trace_empty arm (with its "
+        "dormant-channel exemption) were unreachable and are deleted",
+        "_live_mission_shadow_warnings",
+        "_LIVE_MISSION_RESTAMP_EPSILON_SECONDS",
+        "is_dormant_channel",
+        scope=_AR,
+    ),
+    *rows(
         "s-w1029a-h-rt-a",
         "HEAD",
         Form.MODULE,

@@ -1060,3 +1060,24 @@ def test_the_detector_feeders_raise_instead_of_answering_not_signed_in(monkeypat
     )
     with pytest.raises(_DetectorTimedOut):
         usage_providers._openrouter_usage_login_detected()
+
+
+def test_every_usage_window_carries_its_scope():
+    """RT-USAGE-WINDOW-SCOPE-SERIALIZE: ``scope`` reaches the wire, so the launcher can tell an
+    Opus-only week from the account cap. KILLING MUTATION: drop ``"scope": window.scope`` from
+    ``_serialize_usage_window`` -> KeyError, red."""
+    from hermes_cli.harness_parts.usage.serialize import _serialize_usage_window
+
+    account = _serialize_usage_window(AccountUsageWindow(label="Current week", used_percent=10.0))
+    opus = _serialize_usage_window(AccountUsageWindow(label="Opus week", used_percent=95.0, scope="model"))
+    assert account["scope"] == "account"
+    assert opus["scope"] == "model"
+    # The Anthropic reader marks exactly its model-family weeks as model-scoped.
+    from agent.account_usage import _usage_windows
+
+    windows = _usage_windows(
+        {"seven_day": {"utilization": 0.1}, "seven_day_opus": {"utilization": 0.9}},
+        (("seven_day", "Current week"), ("seven_day_opus", "Opus week")), "utilization", "resets_at",
+        fraction=True, model_scoped={"seven_day_opus"},
+    )
+    assert [_serialize_usage_window(w)["scope"] for w in windows] == ["account", "model"]

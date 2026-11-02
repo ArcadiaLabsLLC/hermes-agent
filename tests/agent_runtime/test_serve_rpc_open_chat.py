@@ -645,82 +645,49 @@ def test_every_code_in_the_refusal_table_is_one_serve_rpc_declares():
     assert all(isinstance(kind, str) for kind in table)
 
 
-# ── kill_active, retired: accepted, ignored, echoed nowhere (RT-CHAT-SWAP-KILL-ACTIVE-NOOP S1) ──
+# ── kill_active, retired and refused on every chat-open lane (RT-KILL-ACTIVE-REFUSE, plan S2) ──
 
 
-def _argv_open_chat(extra: list[str], capsys) -> tuple[int, dict]:
+def _argv_parse(extra: list[str]):
     from hermes_cli import harness
 
     root = argparse.ArgumentParser()
     harness.build_parser(root.add_subparsers(dest="cmd"))
-    args = root.parse_args(
-        ["harness", "persona", "instance", "open-chat", "--persona", PERSONA, *extra, "--json"]
-    )
-    code = args.func(args)
-    return code, json.loads(capsys.readouterr().out)
+    return root.parse_args(["harness", "persona", "instance", *extra])
 
 
-def test_kill_active_is_still_accepted_and_binds_as_without_it(placed_agent):
-    """Positive control: the launcher still sends the key, so it is not refused.
+def test_kill_active_is_refused_on_open_chat_and_create_and_binds_nothing(placed_agent):
+    """``-32602`` ``kill_active_retired`` on both RPC lanes, with no pointer moved.
 
-    The lane ignores unknown params by contract (``serve_rpc.registry.manifest``),
-    so "accepted" is the manifest's ``params`` block the launcher's lowering
-    gates on. Kill-mutation: drop ``kill_active`` from ``OPEN_CHAT_METHOD_PARAMS``.
+    KILLING MUTATION: drop the ``"kill_active" in params`` refusal from
+    ``perform_persona_instance_open_chat`` -> the open binds (the lane ignores unknown
+    params by contract), red.
     """
 
-    assert "kill_active" in serve_rpc.manifest()["params"][OPEN_CHAT_METHOD]
+    assert "kill_active" not in serve_rpc.manifest()["params"][OPEN_CHAT_METHOD]
+    assert "kill_active" not in serve_rpc.manifest()["params"]["runtime.persona.instance.create"]
     instance_id = placed_agent["persona_instance_id"]
+    before = PersonaInstanceStore().get(instance_id).session_id
+    for value in (True, False):
+        refused = _call({"persona_id": PERSONA, "persona_instance_id": instance_id,
+                         "new_session": True, "idempotency_key": f"ka-{value}", "kill_active": value})
+        assert refused["error"]["code"] == serve_rpc.ERR_INVALID_PARAMS, refused
+        assert refused["error"]["data"]["reason"] == "kill_active_retired"
+    assert PersonaInstanceStore().get(instance_id).session_id == before
+    created = serve_rpc.handle_request({"jsonrpc": "2.0", "id": "ka-create", "method": "runtime.persona.instance.create",
+                                        "params": {"persona_id": PERSONA, "display_name": "D", "kill_active": True}})
+    assert created["error"]["code"] == serve_rpc.ERR_INVALID_PARAMS, created
+    assert created["error"]["data"]["reason"] == "kill_active_retired"
+    # POSITIVE CONTROL: the same open without the key binds.
     minted = _call({"persona_id": PERSONA, "persona_instance_id": instance_id,
-                    "new_session": True, "idempotency_key": "ka-1", "kill_active": True})
-    row = minted["result"]
-    assert row["ok"] is True
-    assert PersonaInstanceStore().get(instance_id).session_id == row["session_id"]
-
-    rebound = _call({"persona_id": PERSONA, "session_id": row["session_id"], "kill_active": True},
-                    rid="oc-ka-rebind")["result"]
-    assert rebound["ok"] is True
-    assert rebound["session_id"] == row["session_id"]
+                    "new_session": True, "idempotency_key": "ka-ok"})["result"]
+    assert minted["ok"] is True
 
 
-def test_kill_active_reports_no_killed_previous_on_either_arm(placed_agent, capsys):
-    """Nothing is killed, so nothing says it was.
+def test_the_kill_active_flag_is_gone_from_the_cli():
+    """``--kill-active`` left both argv verbs; argparse refuses it."""
 
-    Kill-mutation: restore ``"killed_previous": bool(getattr(args, "kill_active", False))``
-    in either row of ``chat_open.py`` → the key is back, red.
-    """
-
-    instance_id = placed_agent["persona_instance_id"]
-    code, minted = _argv_open_chat(
-        ["--persona-instance-id", instance_id, "--new-session", "--idempotency-key", "ka-2",
-         "--kill-active"], capsys)
-    assert code == 0 and minted["ok"] is True
-    assert "killed_previous" not in minted
-
-    code, rebound = _argv_open_chat(["--session-id", minted["session_id"], "--kill-active"], capsys)
-    assert code == 0 and rebound["ok"] is True
-    assert "killed_previous" not in rebound
-
-
-def test_a_coordinator_kill_active_open_reviews_no_close(placed_agent, capsys, monkeypatch):
-    """The close review guarded a close that never happened; it is gone.
-
-    Kill-mutation: restore the ``elif coordinator_id and kill_active`` branch in
-    ``_cmd_persona_instance_open_chat`` → the refusing review answers, exit 2.
-    """
-
-    reviewed: list[str] = []
-
-    def _refuse(verb, *args, **kwargs):
-        reviewed.append(verb)
-        return argparse.Namespace(ok=False, scope=None, reason="refused", confirm_required=True)
-
-    monkeypatch.setattr(chat_open, "review_coordinator_budget", _refuse)
-    minted = _call({"persona_id": PERSONA, "persona_instance_id": placed_agent["persona_instance_id"],
-                    "new_session": True, "idempotency_key": "ka-3"})["result"]
-
-    code, row = _argv_open_chat(
-        ["--session-id", minted["session_id"], "--kill-active", "--requested-by", "coordinator:boss"],
-        capsys)
-    assert code == 0, row
-    assert row["ok"] is True
-    assert "persona.instance.close" not in reviewed
+    for verb in (["open-chat", "--persona", PERSONA], ["create", "--persona", PERSONA, "--title", "T"]):
+        assert _argv_parse(verb).func is not None
+        with pytest.raises(SystemExit):
+            _argv_parse([*verb, "--kill-active"])

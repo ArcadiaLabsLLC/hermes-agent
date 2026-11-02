@@ -15,23 +15,24 @@ __layer__ = "lanes"
 __all__ = ["INSTANCE_CREATE_PARAMS", "create_persona_instance"]
 
 INSTANCE_CREATE_PARAMS = (
-    "persona_id", "display_name", "title", "session_id", "kill_active", "add_instance",
+    "persona_id", "display_name", "title", "session_id", "add_instance",
     "placement_id", "workspace_id", "realm_id", "client_message_id", "requested_by",
 )
 
 
 def create_persona_instance(params: dict, *, caller: Any | None = None) -> dict:
     """Params: ``persona_id`` and ``display_name`` (required by the verb —
-    ``title`` is its fallback); ``session_id``, ``kill_active`` (retired: accepted and ignored),
+    ``title`` is its fallback); ``session_id``,
     ``add_instance`` with ``placement_id`` / ``workspace_id`` / ``realm_id``,
     ``client_message_id``, ``requested_by``. Row: ``persona_instance_id``,
     ``session_id`` (= ``default_chat_session_id``), ``display_name``, ``mode``,
     ``placement_id`` and the rest of the argv row."""
     from ..mission_chat_door import INSTANCE_CREATE_VERB
-    from ..persona_open_chat import _first_text
+    from ..persona_open_chat import KILL_ACTIVE_RETIRED, KILL_ACTIVE_RETIRED_MESSAGE, _first_text
     from .door import COORDINATOR_ARGS_CLOSED, caller_requester, run_cli_chat_verb
 
-    params.get("kill_active")  # retired: read and ignored, so the published key stays honest (S2 refuses it)
+    if "kill_active" in params:  # RT-KILL-ACTIVE-REFUSE: retired, refused -32602
+        return {"ok": False, "error_kind": KILL_ACTIVE_RETIRED, "error": KILL_ACTIVE_RETIRED_MESSAGE}
     persona_id = _first_text(params, "persona_id")
     if not persona_id:
         return {"ok": False, "error_kind": "invalid_request", "error": "persona_id is required"}

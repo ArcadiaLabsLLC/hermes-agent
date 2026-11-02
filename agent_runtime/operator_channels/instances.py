@@ -74,14 +74,6 @@ class ChannelIdentity:
         return getattr(self.canonical, name, None) if self.canonical is not None else None
 
     @property
-    def task_id(self) -> str | None:
-        return first_present_text(
-            self._canonical_attr("current_task_id"),
-            self.history.get("task_id") if self.history else None,
-            self.trace.get("task_id") if self.trace else None,
-        )
-
-    @property
     def goal_id(self) -> str | None:
         return first_present_text(
             self._canonical_attr("goal_id"),
@@ -130,23 +122,6 @@ def is_newborn_channel(identity: ChannelIdentity, messages: list[Any]) -> bool:
         bool(identity.session_id)
         and identity.history is None
         and identity.trace is None
-        and identity.task_id is None
-        and not messages
-    )
-
-
-def is_dormant_channel(identity: ChannelIdentity, messages: list[Any]) -> bool:
-    """An instance channel that has never had anything to trace.
-
-    No session, no history, no task binding, and an empty conversation;
-    flagging it would emit a permanent false-positive parity warning for every
-    idle seeded/probe persona instance.
-    """
-
-    return (
-        identity.history is None
-        and identity.session_id is None
-        and identity.task_id is None
         and not messages
     )
 
@@ -352,7 +327,6 @@ def _merged_trace(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
     return {
         "persona_instance_id": first.get("persona_instance_id"),
         "persona_id": first.get("persona_id"),
-        "task_id": first.get("task_id"),
         "session_id": first.get("session_id"),
         "entries": entries,
     }

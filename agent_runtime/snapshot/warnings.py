@@ -25,7 +25,6 @@ __layer__ = "stores"
 
 __all__ = [
     "PARITY_WARNINGS",
-    "_LIVE_MISSION_RESTAMP_EPSILON_SECONDS",
     "_event_summary_warnings",
     "_parity_warnings",
     "_parse_iso_timestamp",
@@ -246,51 +245,6 @@ def _chat_timestamp_warnings(frame: _WarningFrame) -> list[dict]:
     return warnings
 
 
-def _live_mission_shadow_warnings(frame: _WarningFrame) -> list[dict]:
-    """A mission chat row restamped at build time that shadows every real chat for its persona."""
-
-    data, warnings = frame.data, []
-    chat_rows = frame.chat_rows
-    chat_latest_by_persona: dict[str, datetime] = {}
-    mission_latest_by_persona: dict[str, tuple[datetime, str | None]] = {}
-    for row in chat_rows:
-        persona_id = canonical_chat_persona_id(row.get("persona_id")) or ""
-        if not persona_id:
-            continue
-        timestamp = _parse_iso_timestamp(row.get("updated_at")) or _parse_iso_timestamp(row.get("created_at"))
-        if timestamp is None:
-            continue
-        if row.get("kind") == "mission" or row.get("live_mission") is True:
-            current = mission_latest_by_persona.get(persona_id)
-            if current is None or timestamp > current[0]:
-                mission_latest_by_persona[persona_id] = (timestamp, row.get("session_id"))
-        else:
-            current = chat_latest_by_persona.get(persona_id)
-            if current is None or timestamp > current:
-                chat_latest_by_persona[persona_id] = timestamp
-    build_moment = data.get("generated_at")
-    if not isinstance(build_moment, datetime):
-        build_moment = _parse_iso_timestamp(build_moment)
-    for persona_id, (mission_time, session_id) in mission_latest_by_persona.items():
-        chat_time = chat_latest_by_persona.get(persona_id)
-        if chat_time is None or mission_time <= chat_time:
-            continue
-        # Mission rows anchor to the persisted assignment created_at, which is
-        # legitimately newer than every chat right after a mission is assigned.
-        # The regression this guard exists for is BUILD-TIME restamping — only a
-        # mission timestamp hugging the snapshot's own generated_at is drift.
-        if build_moment is not None and abs((mission_time - build_moment).total_seconds()) > _LIVE_MISSION_RESTAMP_EPSILON_SECONDS:
-            continue
-        warnings.append(
-            {
-                "code": "persona_chat_history.live_mission_shadow",
-                "entity_id": session_id,
-                "detail": "mission chat-history row tracks snapshot build time and shadows every real chat for the persona",
-            }
-        )
-    return warnings
-
-
 def _operator_channel_warnings(frame: _WarningFrame) -> list[dict]:
     """The Agent Console channel projection: missing, malformed, dangling FKs, and its own warnings."""
 
@@ -447,15 +401,8 @@ PARITY_WARNINGS: tuple[tuple[str, Callable[[_WarningFrame], list[dict]]], ...] =
     ("unplaced_instances", _unplaced_instance_warnings),
     ("referential", _referential_warnings),
     ("chat_timestamps", _chat_timestamp_warnings),
-    ("live_mission_shadow", _live_mission_shadow_warnings),
     ("operator_channels", _operator_channel_warnings),
 )
-
-
-# A mission row anchored to its assignment's persisted created_at only matches
-# the snapshot's own build moment in the transient poll right after assignment;
-# a timestamp that hugs generated_at on every build is the restamping regression.
-_LIVE_MISSION_RESTAMP_EPSILON_SECONDS = 10.0
 
 
 def _parse_iso_timestamp(value) -> datetime | None:

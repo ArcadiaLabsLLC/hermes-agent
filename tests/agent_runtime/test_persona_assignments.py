@@ -474,7 +474,6 @@ def test_persona_instance_create_without_display_name_refuses_and_mints_nothing(
             client_message_id=None,
             display_name=None,
             session_id=None,
-            kill_active=False,
             add_instance=False,
             placement_id=None,
             json=True,
@@ -549,7 +548,6 @@ def test_coordinator_create_beyond_spawn_scope_returns_confirm_without_creating(
             client_message_id=None,
             display_name="Spawned Dev",
             session_id=None,
-            kill_active=False,
             add_instance=True,
             placement_id="scene_child_1_agent_2",
             json=True,
@@ -750,7 +748,6 @@ def test_persona_instance_open_chat_binds_old_chat_without_ticking(
         Namespace(
             persona_id="dev",
             session_id="chat_old_123",
-            kill_active=False,
             json=True,
         )
     )
@@ -780,7 +777,6 @@ def test_persona_instance_open_chat_binds_old_chat_without_ticking(
         Namespace(
             persona_id="dev",
             session_id="chat_old_123",
-            kill_active=False,
             json=True,
         )
     ) == 0
@@ -813,7 +809,6 @@ def test_persona_instance_open_chat_new_session_mints_exact_instance_and_replays
         session_id=None,
         new_session=True,
         idempotency_key="new-chat-dev-1",
-        kill_active=False,
         add_instance=False,
         json=True,
     )
@@ -869,7 +864,6 @@ def test_persona_instance_open_chat_new_session_retry_recovers_reserved_root(
         session_id=None,
         new_session=True,
         idempotency_key="new-chat-recover-1",
-        kill_active=False,
         add_instance=False,
         json=True,
     )
@@ -933,7 +927,6 @@ def test_persona_instance_open_chat_new_session_rejects_idempotency_scope_confli
             session_id=None,
             new_session=True,
             idempotency_key="shared-key-is-a-client-bug",
-            kill_active=False,
             add_instance=False,
             json=True,
         )
@@ -960,7 +953,6 @@ def test_persona_instance_open_chat_can_target_additional_placement(monkeypatch,
         Namespace(
             persona_id="profile_reviewer",
             session_id="chat_old_123",
-            kill_active=False,
             add_instance=True,
             placement_id="reviewer_agent_2",
             json=True,
@@ -1008,7 +1000,6 @@ def test_persona_instance_open_chat_session_persistence_failure_is_typed_and_not
         Namespace(
             persona_id="dev",
             session_id="chat_persist_failure_123",
-            kill_active=False,
             json=True,
         )
     )
@@ -1044,7 +1035,6 @@ def test_open_chat_cli_targets_the_session_owner_not_the_canonical(monkeypatch, 
             session_id=None,
             new_session=True,
             idempotency_key="open-sibling-owner",
-            kill_active=False,
             json=True,
         )
     )
@@ -1216,7 +1206,6 @@ def test_open_chat_cli_add_instance_threads_explicit_display_name(
         Namespace(
             persona_id="qa",
             session_id=None,
-            kill_active=False,
             add_instance=True,
             placement_id="qa_agent_2",
             display_name="QA Agent (2)",
@@ -1257,7 +1246,6 @@ def test_open_chat_cli_add_instance_omitted_name_uses_persona_config_not_title_c
         Namespace(
             persona_id="qa",
             session_id=None,
-            kill_active=False,
             add_instance=True,
             placement_id="qa_agent_2",
             display_name=None,
@@ -1376,8 +1364,6 @@ def test_persona_chat_history_summary_projects_bound_sessions_redaction_safe(iso
             "session_id": "chat_old_123",
             "persona_id": "dev",
             "persona_instance_id": "personainst_dev",
-            "kind": "chat",
-            "live_mission": False,
             "title": "Untitled persona chat",
             "last_message_preview": "Please inspect the proof packet.",
             "message_count": 7,
@@ -1830,8 +1816,7 @@ def test_snapshot_preserves_open_chat_and_emits_history(monkeypatch, isolate_age
     assert pointer["session_id"] == "chat_old_123"
     assert pointer["persona_id"] == "dev"
     assert pointer["persona_instance_id"] == "personainst_dev"
-    assert pointer["kind"] == "chat"
-    assert pointer["live_mission"] is False
+    assert "kind" not in pointer and "live_mission" not in pointer  # RT-TASK-BOUND-WIRE-PRUNE
     assert pointer["title"] == "Launcher Dev operator channel"
     assert pointer["last_message_preview"] == "Continue the old chat safely."
     assert pointer["message_count"] == 3
@@ -2147,7 +2132,6 @@ def test_persona_instance_create_persists_empty_operator_chat_history(
             json=True,
             client_message_id=None,
             session_id=None,
-            kill_active=False,
             add_instance=False,
             placement_id=None,
         )
@@ -2617,7 +2601,7 @@ def test_a_draft_chats_first_send_pins_its_model_to_the_new_session_only(
     first_thread = instance.session_id
     assert chat_open._cmd_persona_instance_open_chat(Namespace(
         persona_id="dev", persona_instance_id=instance.id, session_id=None, new_session=True,
-        idempotency_key="draft-chat-1", kill_active=False, add_instance=False, json=True,
+        idempotency_key="draft-chat-1", add_instance=False, json=True,
     )) == 0
     draft_session = json.loads(capsys.readouterr().out)["session_id"]
     assert draft_session and draft_session != first_thread
@@ -4598,7 +4582,6 @@ def test_open_chat_cli_reports_a_retired_root_as_retired_not_unknown(
         Namespace(
             persona_id=instance.persona_id,
             session_id=session_id,
-            kill_active=False,
             add_instance=False,
             json=True,
         )
@@ -4645,7 +4628,6 @@ def test_open_chat_cli_still_rejects_a_genuinely_unknown_root(
         Namespace(
             persona_id=instance.persona_id,
             session_id=f"persona_chat_{instance.id}_abcdef123456",
-            kill_active=False,
             add_instance=False,
             json=True,
         )

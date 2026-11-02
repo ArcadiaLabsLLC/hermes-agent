@@ -394,7 +394,6 @@ def test_open_chat_accepts_the_colon_token_cross(
             persona_instance_id=owner.id,
             session_id=owner.session_id,
             add_instance=False,
-            kill_active=False,
             json=True,
         )
     )
@@ -420,7 +419,6 @@ def test_open_chat_still_refuses_a_foreign_root(
             persona_instance_id=None,
             session_id=owner.session_id,
             add_instance=False,
-            kill_active=False,
             json=True,
         )
     )
@@ -448,7 +446,6 @@ def test_open_new_chat_instance_mismatch_accepts_the_colon_token_cross(
             persona_instance_id=owner.id,
             session_id=None,
             add_instance=False,
-            kill_active=False,
             json=True,
         ),
         persona_id="profile_alice",  # token form vs the stored colon form
@@ -474,7 +471,6 @@ def test_open_new_chat_still_refuses_a_genuinely_foreign_instance(
             persona_instance_id=foreign.id,
             session_id=None,
             add_instance=False,
-            kill_active=False,
             json=True,
         ),
         persona_id="profile_alice",

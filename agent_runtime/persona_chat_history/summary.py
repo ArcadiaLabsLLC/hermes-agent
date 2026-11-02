@@ -121,8 +121,8 @@ def persona_chat_history_summary(
         return summary.rows(db)
 
 
-#: One candidate row: ``(raw session row, instance, session id, kind)``.
-Candidate = tuple[dict[str, Any], PersonaInstance, str, str]
+#: One candidate row: ``(raw session row, instance, session id)``.
+Candidate = tuple[dict[str, Any], PersonaInstance, str]
 
 
 @dataclass
@@ -262,7 +262,7 @@ class HistorySummary:
                 # mark it seen so a drop is only accounted once.
                 self.seen.add(session_id)
                 continue
-            self.candidates.append((raw, instance, session_id, "chat"))
+            self.candidates.append((raw, instance, session_id))
             self.seen.add(session_id)
 
     def _drop_unmatched(self, session_id: str, persisted_instance_id: str | None) -> None:
@@ -337,7 +337,7 @@ class HistorySummary:
                     self.accountant.consider(1)
                     self.accountant.drop("session_not_in_db", entity_id=session_id)
                 continue
-            self.candidates.append((raw, instance, session_id, "chat"))
+            self.candidates.append((raw, instance, session_id))
             self.seen.add(session_id)
             if self.accountant is not None:
                 self.accountant.consider(1)
@@ -353,7 +353,7 @@ class HistorySummary:
         ``ended_at`` / ``started_at`` and its compression descendants'.
         """
 
-        raw, _instance, session_id, _kind = candidate
+        raw, _instance, session_id = candidate
         pinned = session_id in self.bound_by_session
         activity = max(_raw_activity(raw) or "", self.activity_by_root.get(session_id, ""))
         return (pinned, activity, _persona_chat_candidate_sort_key(candidate))
@@ -384,13 +384,13 @@ class HistorySummary:
         if self.omitted_session_ids is not None:
             self.omitted_session_ids.update(
                 session_id
-                for _raw, _instance, session_id, _kind in candidates[len(visible_candidates):]
+                for _raw, _instance, session_id in candidates[len(visible_candidates):]
                 if session_id
             )
         if self.omitted_ranked is not None:
             self.omitted_ranked.extend(
                 session_id
-                for _raw, _instance, session_id, _kind in candidates[len(visible_candidates):]
+                for _raw, _instance, session_id in candidates[len(visible_candidates):]
                 if session_id
             )
         if self.only_session_ids is not None:
@@ -402,7 +402,7 @@ class HistorySummary:
                 if candidate[2] in self.only_session_ids
             ]
         visible: list[dict[str, Any]] = []
-        for raw, instance, session_id, kind in visible_candidates:
+        for raw, instance, session_id in visible_candidates:
             row = _history_row(
                 raw,
                 persona_id=instance.persona_id,
@@ -410,7 +410,6 @@ class HistorySummary:
                 session_id=session_id,
                 session_db=self._db_for(instance, db),
                 message_tail=self.message_tail,
-                kind=kind,
             )
             visible.append(row)
         if self.accountant is not None:

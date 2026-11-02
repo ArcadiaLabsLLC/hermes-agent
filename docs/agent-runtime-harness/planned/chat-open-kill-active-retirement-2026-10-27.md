@@ -1,7 +1,9 @@
 # Planned — retire `kill_active` / `killed_previous` from chat open
 
 **Status:** planned 2026-10-27 (planning lane w1027k-h-plan), replanning row
-`RT-CHAT-SWAP-KILL-ACTIVE-NOOP`. Supersedes
+`RT-CHAT-SWAP-KILL-ACTIVE-NOOP`; S1 shipped 2026-10-28, S2 (`RT-KILL-ACTIVE-REFUSE`) shipped
+2026-11-02 — `kill_active` is refused `-32602` `kill_active_retired` on
+`runtime.persona.instance.open_chat` and `.create`, `--kill-active` is gone; the plan is complete. Supersedes
 [`chat-swap-kill-active-guard.md`](chat-swap-kill-active-guard.md) (left in place).
 Owner doc: [`../01-system-architecture.md`](../01-system-architecture.md).
 
@@ -70,7 +72,7 @@ Owner doc: [`../01-system-architecture.md`](../01-system-architecture.md).
 - `tests/fixtures/hermes_cli_contract.json` — regenerate if the `--kill-active` help text
   is part of the dump.
 
-**S2 — refuse the key** (row `RT-KILL-ACTIVE-REFUSE`, BLOCKED on the launcher row below)
+**S2 — refuse the key** (row `RT-KILL-ACTIVE-REFUSE`, shipped)
 
 - `agent_runtime/persona_open_chat.py`, `agent_runtime/chat_verbs/instance_create.py`,
   `agent_runtime/serve_rpc/twin_params.py` — remove `kill_active` from the accepted

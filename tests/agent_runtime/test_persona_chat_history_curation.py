@@ -553,13 +553,12 @@ def test_persona_chat_history_emits_no_mission_row_for_a_stored_mission_instance
     )
 
     # RT-TASK-BOUND-MISSION-LANES: a stored mission-shaped instance gets no
-    # synthetic "Mission run" row and no ``task_id`` key; the chat row still
-    # emits ``kind`` / ``live_mission`` until the wire prune.
-    # Kill-mutation: restore ``live_mission_candidates`` → the mission row reappears, red.
-    assert [(row["session_id"], row["kind"], row["live_mission"]) for row in rows] == [
-        ("chat_neko", "chat", False)
-    ]
-    assert all("task_id" not in row for row in rows)
+    # synthetic "Mission run" row and no ``task_id`` key; RT-TASK-BOUND-WIRE-PRUNE
+    # then took ``kind`` / ``live_mission`` off every row.
+    # Kill-mutation: restore ``live_mission_candidates`` → the mission row reappears, red;
+    # put ``"live_mission": False`` back in ``_history_row`` → red.
+    assert [row["session_id"] for row in rows] == ["chat_neko"]
+    assert all(key not in row for row in rows for key in ("task_id", "kind", "live_mission"))
 
 
 def test_iso_timestamp_normalizes_datetime_values():
@@ -1623,7 +1622,7 @@ def test_persona_chat_trace_projects_session_keyed_chat_tool_calls():
     assert len(rows) == 1
     row = rows[0]
     assert row["persona_instance_id"] == "personainst_neko"
-    assert row["task_id"] is None
+    assert "task_id" not in row, "RT-TASK-BOUND-WIRE-PRUNE: the trace row carries no task id"
     assert row["session_id"] == "chat_neko"
     assert [entry["event"] for entry in row["entries"]] == ["tool_started", "tool_finished"]
     assert row["entries"][0]["summary"] == "echo PARITY_OK_2026"

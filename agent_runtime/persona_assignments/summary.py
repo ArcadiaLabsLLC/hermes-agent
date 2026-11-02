@@ -175,7 +175,9 @@ def persona_instance_summary(
         # missed: ``attached_task_id`` was NOT writer-less — ``current_task_id``
         # is written live by the steer/goal-id lane — it was merely redundant.
         "current_assignment_id": instance.current_assignment_id,
-        "current_task_id": instance.current_task_id,
+        # RT-TASK-BOUND-WIRE-PRUNE removed ``current_task_id``: stored-only and always
+        # null on a live row since RT-TASK-BOUND-MISSION-LANES, and the launcher decodes
+        # it no more (MC-TASK-BOUND-WIRE-READERS).
         # S56 removed ``active_worker_session_id`` from this row (contract 47).
         # Its only writer was ``update_from_worker``, which went with the worker
         # session store; the field could never be non-null again.

@@ -23,3 +23,7 @@ status: open
 - **`FX-BAD-HOST` — Unknown host row** · READY 2026-10-26 · REQUIRES windos
 - **`FX-TWO-REQUIRES` — Two REQUIRES segments row** · READY 2026-10-26 · REQUIRES windows · REQUIRES linux
 - **`FX-CLAIM-NO-PLACE` — Claim naming no machine row** · READY 2026-10-27 · **TAKEN 2026-10-27 w1027a-mc**
+- **`FX-EMPTY-GROUP` — Empty group row** · group: · READY 2026-11-01
+- **`FX-UPPER-GROUP` — Uppercase group row** · group: Companion · READY 2026-11-01
+- **`FX-CODE-GROUP` — Code-span group row** · group: `a` · READY 2026-11-01
+- **`FX-TWO-GROUPS` — Two group segments row** · group: a · group: b · READY 2026-11-01

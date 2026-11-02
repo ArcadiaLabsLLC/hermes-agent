@@ -1,7 +1,8 @@
 # Planned — drain the stored mission rows at serve boot; retire the mission-row readers
 
 **Status:** planned 2026-10-28 (planning lane w1028p-taskbound), row
-`RT-TASK-BOUND-MISSION-LANES`. Continues
+`RT-TASK-BOUND-MISSION-LANES`; S0–S3 shipped 2026-10-29, S4 (`RT-TASK-BOUND-WIRE-PRUNE`)
+shipped 2026-11-02 — the plan is complete. Continues
 [`task-bound-mode-retirement-2026-10-27.md`](task-bound-mode-retirement-2026-10-27.md)
 (S1 shipped 2026-10-28; its decisions 1–5 stand). Owner doc:
 [`../01-system-architecture.md`](../01-system-architecture.md).
