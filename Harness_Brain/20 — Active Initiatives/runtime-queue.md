@@ -7,6 +7,8 @@ tags: [queue, program/mission-control, runtime]
 
 # Runtime — the hermes half of the Mission Control queue
 
+- **`RT-QA-CHECKOUT-DEPENDENCY-IDENTITY` — A pinned QA worktree cannot borrow the machine checkout's committed dependency environment: the lender root is correct but install_key still hashes the worktree, so no committed environment is found and startup fails importing ruamel; qualify a read-only lender checkout identity without copying environments or changing assignment data** · `pm/environments.py::install_key` · `pm/_fork_dependency_borrow.py` · `EterniaLauncher/tool/stagec_qa_mcp_server/lib/launch/launch_flow.dart` · native appearance QA on client 82e842f64a / runtime 975f506f3e; primary checkout has a selected environment, isolated candidate does not · NEEDS PLAN 2026-11-02: extend the existing dependency-borrow contract and paired QA receipt tests; use the primary checkout after landing for this appearance acceptance
+
 - **`RT-AGENT-APPEARANCE-PORTRAIT` — Add revision-checked exact-instance portrait choices through the existing persona/instance and media owners; preserve shared backing-profile artwork and character inheritance, expose one appearance save contract for the client** · group: agent-appearance · `agent_runtime/profile_avatar.py` · `agent_runtime/character_assignment.py` · READY 2026-11-02 · **TAKEN 2026-11-02 appearance-identity on MUltiversalLabsInc as Maximus Shaban in appearance-rt**
 
 
