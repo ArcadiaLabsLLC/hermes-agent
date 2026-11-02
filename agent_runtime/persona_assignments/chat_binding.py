@@ -295,8 +295,14 @@ def open_chat(
     profile_id: str | None = None,
     workspace_id: str | None = None,
     realm_id: str | None = None,
+    correlation_id: str | None = None,
 ) -> PersonaInstance:
     """Bind a persona instance to a durable chat session without running a turn.
+
+    ``correlation_id`` is the opening GESTURE's token (correlation-id plan P2):
+    it rides the ``persona_instance.chat_opened`` event and its paired
+    ``state.patched`` row, normalized at both, so the launcher's send and the
+    serve's write join on one grep. ``None`` keeps both byte-identical.
 
     Persona instances are intentionally chat-shaped: selecting an old chat can
     re-open the same live persona instance history by rebinding the instance
@@ -377,6 +383,7 @@ def open_chat(
         moved_to=after,
         session_id=normalized_session,
         previous_chat_head=previous_chat_head,
+        correlation_id=correlation_id,
     )
 
 
@@ -527,9 +534,16 @@ def _commit_chat_opened(
     moved_to: tuple[Any, ...],
     session_id: str,
     previous_chat_head: str | None,
+    correlation_id: str | None = None,
 ) -> PersonaInstance:
     """Write the bound row, emit its ``state.patched`` pair, append ``chat_opened``."""
+    from ..state_patches.models import CORRELATION_ID_KEY
+    from ..state_patches.payload import normalize_correlation_id
+
+    token = normalize_correlation_id(correlation_id)
     event_payload: dict[str, Any] = {"session_id": session_id}
+    if token is not None:
+        event_payload[CORRELATION_ID_KEY] = token
     if instance.chat_head_home:
         event_payload["chat_head_home"] = instance.chat_head_home
     if previous_chat_head and previous_chat_head != instance.chat_head_home:
@@ -573,7 +587,7 @@ def _commit_chat_opened(
     #   the floor rather than the norm.
     if created:
         with timed_create_subphase("create_patch_ms"):
-            emit_persona_instance_create(store.event_log, updated)
+            emit_persona_instance_create(store.event_log, updated, correlation_id=token)
     else:
         moved = [
             field
@@ -583,7 +597,7 @@ def _commit_chat_opened(
             if was != is_now
         ]
         emit_persona_instance_patch(
-            store.event_log, updated, [*moved, "updated_at"]
+            store.event_log, updated, [*moved, "updated_at"], correlation_id=token
         )
     with timed_create_subphase("event_append_ms"):
         store._event("persona_instance.chat_opened", updated, event_payload)

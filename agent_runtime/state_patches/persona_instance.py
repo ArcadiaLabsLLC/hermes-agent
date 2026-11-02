@@ -142,10 +142,13 @@ def emit_persona_instance_patch(
     instance: Any,
     changed_store_fields: Iterable[str],
     *,
+    correlation_id: str | None = None,
     config: AgentRuntimeConfig | None = None,
 ) -> bool:
     """Emit a persona-instance ``upsert`` for the wire fields a steer/profile
-    write affected. Dark (and projection-free) unless the flag is on."""
+    write affected. Dark (and projection-free) unless the flag is on.
+    ``correlation_id`` is the gesture token (EG-2.3), normalized by
+    :func:`emit_state_patch`; ``None`` keeps the row byte-identical."""
 
     fields = list(changed_store_fields)
     if not fields:
@@ -161,6 +164,7 @@ def emit_persona_instance_patch(
         entity_id=instance.id,
         op=PATCH_OP_UPSERT,
         changed=changed,
+        correlation_id=correlation_id,
         task_id=getattr(instance, "current_task_id", None),
         run_id=getattr(instance, "active_run_id", None),
         persona_id=getattr(instance, "persona_id", None),
@@ -217,6 +221,7 @@ def emit_persona_instance_create(
     event_log: EventLog,
     instance: Any,
     *,
+    correlation_id: str | None = None,
     config: AgentRuntimeConfig | None = None,
 ) -> bool:
     """Emit the CREATE patch for a brand-new persona instance: a complete-row
@@ -272,6 +277,7 @@ def emit_persona_instance_create(
             entity=PERSONA_INSTANCE_ENTITY,
             entity_id=instance.id,
             op=PATCH_OP_REFRESH,
+            correlation_id=correlation_id,
             persona_id=getattr(instance, "persona_id", None),
             config=config,
         )
@@ -282,6 +288,7 @@ def emit_persona_instance_create(
         op=PATCH_OP_UPSERT,
         changed=row,
         created=True,
+        correlation_id=correlation_id,
         task_id=getattr(instance, "current_task_id", None),
         run_id=getattr(instance, "active_run_id", None),
         persona_id=getattr(instance, "persona_id", None),

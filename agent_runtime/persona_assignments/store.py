@@ -437,7 +437,11 @@ class PersonaInstanceStore:
         workspace_id: str | None = None,
         realm_id: str | None = None,
         client_scope: str | None = None,
+        correlation_id: str | None = None,
     ) -> PersonaInstance:
+        # ``correlation_id``: the placing gesture's token, handed to
+        # ``open_chat`` (correlation-id plan P2) — the argv
+        # ``persona instance open-chat --add-instance`` door's half of the join.
         normalized_persona = _normalize_instance_source_persona(persona_id)
         normalized_placement = safe_assignment_token(placement_id)
         if not normalized_placement:
@@ -509,6 +513,7 @@ class PersonaInstanceStore:
             profile_id=_profile_id_for_persona_or_template(normalized_persona, ensure_persisted_personas),
             workspace_id=workspace_id,
             realm_id=realm_id,
+            correlation_id=correlation_id,
         )
 
     def _session_owned_by_other_instance(self, session_id: str, instance_id: str) -> bool:

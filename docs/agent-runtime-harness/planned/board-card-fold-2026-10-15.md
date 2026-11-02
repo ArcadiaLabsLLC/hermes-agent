@@ -42,6 +42,28 @@ read a Launcher card move as `fold_applied … ops:board_card.upsert=1` with the
 declined. Row `RT-BOARD-CARD-FOLD-RUNTIME` is closed; archive / restore / rebalance stay with
 `RT-BOARD-CARD-FOLD-ARCHIVE`.
 
+## Build status (lane w1101f-hb, 2026-11-02) — archive / restore / rebalance
+
+Row `RT-BOARD-CARD-FOLD-ARCHIVE`, hermes half BUILT:
+
+- **Archive** emits a `board_card` `remove` (no `changed`) from `archive_card_locked`'s new
+  `patch` hook, after the file writes and before `board.card.archived`. The fold splices the
+  card, recounts, and mirrors `archived_card_ids` (append if absent, cap `ARCHIVED_LEDGER_CAP`).
+- **Restore** emits the `created: true` complete-row upsert a create already emits; the fold
+  also drops the id from the mirrored ledger (a no-op for a plain create).
+- **Rebalance** emits one upsert per rewritten card (`CardOrdering`'s `patch` hook) before
+  `board.rebalanced`; no revision moves, the fielded fold accepts an equal revision.
+- **Coverage:** `board.rebalanced` rides bare `board_card` (the fielded fold already folds
+  it); the `remove` op and `board.card.archived` / `.restored` ride the new token
+  `board_card_lifecycle` (`patch_coverage.BOARD_CARD_LIFECYCLE_CAPABILITY`), because the fielded
+  fold answers a remove with `patch_unknown_op` and does not mirror the ledger.
+- **Refresh, not a row:** a no-tombstone archive (no ledger write), a flip of the realm-bound
+  board row's `unpublished` (the ledger is in the board's content hash), and a cut or short
+  card list (the archived card counted back in). The board def's `updated_at` moves with no
+  launcher reader (the office precedent).
+- **Left:** the launcher half — fold the `remove`, mirror the ledger, declare
+  `board_card_lifecycle`, mirror `patch_coverage_manifest.json` — then a live archive / restore.
+
 ## In plain English
 
 Board writes now have fast RPC twins (build-1011-C4), but after each write the

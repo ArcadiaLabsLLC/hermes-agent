@@ -265,6 +265,12 @@ def _add_persona_instance_lifecycle_verbs(persona_instance_subs) -> None:
     persona_instance_open.add_argument("--realm-id", dest="realm_id", default=None, help="Mission Control realm the placement belongs to (scope-provenance pointer; only meaningful with --add-instance)")
     persona_instance_open.add_argument("--display-name", default=None, help="Authoritative name for a deliberately placed additional instance; ignored unless --add-instance")
     persona_instance_open.add_argument("--requested-by", default="cli")
+    # Correlation-id plan P2: the gesture token, on the door the launcher's
+    # add-instance placement still takes (its method lane pins the minting
+    # keys closed). Rides ``persona_instance.chat_opened`` and its paired row;
+    # absent → both byte-identical. Not on ``--new-session``: that branch is a
+    # chat-root mint with no placement gesture behind it.
+    persona_instance_open.add_argument("--correlation-id", dest="correlation_id", default=None)
     _add_coordinator_permission_args(persona_instance_open)
     persona_instance_open.add_argument("--json", action="store_true")
     persona_instance_open.set_defaults(func=chat_open._cmd_persona_instance_open_chat)
