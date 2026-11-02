@@ -17,6 +17,7 @@ from typing import Any, Dict, Optional
 
 from agent.api_error_summary import is_provider_stream_parse_error
 from agent.provider_failure import attach_provider_failure
+from agent_runtime.provider_retry_wait import emit_provider_retry_wait
 from agent.error_classifier import RETRYABLE_CLIENT_REASONS, FailoverReason, classify_api_error
 from agent.turn_overflow import recover_from_overflow
 from agent.turn_recovery import (
@@ -412,6 +413,7 @@ def settle_unrecovered_error(
         is_rate_limited=is_rate_limited, is_zai_coding_overload=_is_zai_coding_overload,
         base_url=_base, model=_model,
     )
+    emit_provider_retry_wait(agent, classified, error_context, wait_seconds=wait_time, attempt=retry_count, max_attempts=max_retries)
     # Same preserve-redirect rule as the invalid-response wait: a steering correction
     # must survive backoff, not die as "Operation interrupted".
     _interrupted = interruptible_backoff_sleep(

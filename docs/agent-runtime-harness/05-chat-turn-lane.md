@@ -990,6 +990,24 @@ The agent's `status_callback` has that ONE convention: the fork's dict timing re
 `agent_runtime/receipt_sink.py::receipt_callback` to the profile runner's `ReceiptSink.receipt`
 only, so a CLI / gateway / TUI / api_server callback never receives one.
 
+### 5c. A provider retry wait on the `provider.retry_wait` frame (2026-11-02)
+
+A streamed turn that sits out a provider retry (a 429 or another refusal, a 5xx, a dropped stream)
+carries one `provider.retry_wait` v2 frame per wait, written when the wait starts:
+`{"type": "provider.retry_wait", "protocol_version": 2, "turn_id", "after_seq", "retry_in_seconds",
+"attempt", "max_attempts", "provider_refusal"?}`. `provider_refusal` is the settled refusal's own
+block (`ProviderRefusal.as_dict` through `safe_provider_refusal`: `status_code`, `reason`, `provider`,
+`model`, `reset_at`, `resets_in_seconds`, …) and is present only when the waited-on error IS a
+refusal (`PROVIDER_REFUSAL_STATUS_CODES`); a 5xx wait says only when the retry runs. Before it the
+wait was spoken only on `thinking_callback`, which the profile runner never wires, so a 600 s 429
+wait read "Thinking" in the console (row `RT-CHAT-PROVIDER-RETRY-WAIT-FRAME`, launcher
+`MC-CONSOLE-PROVIDER-429-BACKOFF-SHOWS-THINKING`). Presentation-only like `context.compaction`: no
+element `seq`, no segment end, no EventLog row; the next frame of any kind supersedes it. The path:
+`agent/turn_api_error.py::settle_unrecovered_error` (one seam call after `compute_error_backoff`) →
+`agent_runtime/provider_retry_wait.py::emit_provider_retry_wait` → the agent's `ReceiptSink.receipt`
+→ `ChatProgressSink._forward_provider_retry_wait` → `_ChatProtocolV2Emitter._provider_retry_wait`;
+every hop re-reads it through `safe_provider_retry_wait`'s closed set.
+
 ## 6. Terminal envelope grants
 
 `agent_runtime/terminal_envelope/` is the ONE deterministic answer to "may this command run on

@@ -76,6 +76,7 @@ __all__ = [
     "TurnOutcome",
     "classify_turn_failure",
     "provider_refusal",
+    "provider_refusal_from_block",
 ]
 
 
@@ -491,7 +492,14 @@ def provider_refusal(exc: BaseException) -> ProviderRefusal | None:
     after its first byte. Those settle ``outcome_unknown`` exactly as before.
     """
 
-    block = getattr(exc, "provider_error", None)
+    return provider_refusal_from_block(getattr(exc, "provider_error", None))
+
+
+def provider_refusal_from_block(block: object) -> ProviderRefusal | None:
+    """:func:`provider_refusal` for a bare ``provider_error`` block — the same verdict whether
+    the block rides a terminal result or a retry wait the turn is still sitting out
+    (``agent_runtime.provider_retry_wait``)."""
+
     if not isinstance(block, dict):
         return None
     try:
