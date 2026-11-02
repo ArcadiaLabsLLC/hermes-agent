@@ -623,6 +623,40 @@ def test_safe_recent_messages_projects_persisted_turn_elements(isolate_agent_run
     assert mission_chat_turn_elements(session_id="s1", client_message_id="missing") == []
 
 
+def test_turn_elements_ride_once_on_the_turns_last_agent_row(isolate_agent_runtime_root):
+    """RT-CHAT-HISTORY-TURN-REPEATED: a turn that spoke three times ships its elements once."""
+
+    persist_mission_chat_turn(
+        session_id="s1",
+        client_message_id="client_1",
+        turn_id="turn_1",
+        elements=[
+            {"kind": "segment", "id": "seg_1", "turn_id": "turn_1", "seq": 1,
+             "seg_type": "plan", "text": "I will inspect."},
+            {"kind": "segment", "id": "seg_2", "turn_id": "turn_1", "seq": 2,
+             "seg_type": "answer", "text": "Done."},
+        ],
+    )
+    db = FakeSessionDB(
+        [
+            {"id": "op_1", "role": "user", "content": "Go", "platform_message_id": "client_1"},
+            {"id": "a_1", "role": "assistant", "content": "I will inspect.",
+             "platform_message_id": "client_1:assistant:1"},
+            {"id": "a_2", "role": "assistant", "content": "Still looking.",
+             "platform_message_id": "client_1:assistant:2"},
+            {"id": "a_3", "role": "assistant", "content": "Done.",
+             "platform_message_id": "client_1:assistant:3"},
+        ]
+    )
+
+    rows, _status, _unread = _safe_recent_messages(db, session_id="s1")
+
+    agent_rows = [row for row in rows if row["role"] == "agent"]
+    assert [row["text"] for row in agent_rows] == ["I will inspect.", "Still looking.", "Done."]
+    assert [bool(row.get("turn_elements")) for row in agent_rows] == [False, False, True]
+    assert [item["id"] for item in agent_rows[-1]["turn_elements"]] == ["seg_1", "seg_2"]
+
+
 def test_mission_chat_turn_persists_durable_partial_prefix(isolate_agent_runtime_root):
     # Mid-turn (before turn.end) the emitter persists on every update, so a
     # dropped stream / reload still has the segments-so-far prefix. Here the

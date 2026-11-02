@@ -295,12 +295,11 @@ class _AgentCurator:
     def after_row(self, state: CurationState, row: dict[str, Any], ctx: RowContext) -> None:
         if not ctx.client_message_id:
             return
-        record = state.turn_records_by_message.get(str(ctx.logical_client_message_id or ""), {})
-        elements = mission_chat_turn_elements(
-            session_id=record.get("_history_source_session") or state.session_id,
-            client_message_id=ctx.logical_client_message_id,
-        )
+        elements = state.turn_elements_for(ctx.logical_client_message_id)
         if elements:
+            # Placed on every agent row of the turn here; ``CurationState``
+            # keeps it only on the turn's LAST visible agent row once that row
+            # is appended (RT-CHAT-HISTORY-TURN-REPEATED).
             row["turn_elements"] = elements
         # "What bounded this turn?" — carried verbatim off the turn record
         # (see mission_chat_turns._JOURNAL_RUN_BUDGET_FIELD). The row shapes
@@ -353,6 +352,13 @@ class CurationState:
     # visible turns are tracked separately and subtract candidates at the end.
     visible_agent_logical_ids: set[str] = field(default_factory=set)
     silent_turn_candidates: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # A turn's element list belongs to the TURN, not to each of its text-step
+    # rows: a turn that spoke three times used to ship its whole element list
+    # three times, and the launcher expanded every copy into rows. The list is
+    # read once per logical turn and rides only on the latest appended agent
+    # row of that turn; the earlier step rows keep their text only.
+    turn_elements_by_logical_id: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    turn_element_rows: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     @classmethod
     def for_session(cls, session_id: str, *, session_db=None, raw_messages=()) -> CurationState:
@@ -418,6 +424,23 @@ class CurationState:
             from .text import message_preview
             row = message_preview(row, PERSONA_CHAT_MESSAGE_TEXT_LIMIT)
         self.rows.append(row)
+        if "turn_elements" in row and ctx.logical_client_message_id:
+            earlier = self.turn_element_rows.get(ctx.logical_client_message_id)
+            if earlier is not None:
+                earlier.pop("turn_elements", None)
+            self.turn_element_rows[ctx.logical_client_message_id] = row
+
+    def turn_elements_for(self, logical_client_message_id: str | None) -> list[dict[str, Any]]:
+        """The turn's element list, read from the journal once per logical turn."""
+
+        key = str(logical_client_message_id or "")
+        if key not in self.turn_elements_by_logical_id:
+            record = self.turn_records_by_message.get(key, {})
+            self.turn_elements_by_logical_id[key] = mission_chat_turn_elements(
+                session_id=record.get("_history_source_session") or self.session_id,
+                client_message_id=logical_client_message_id,
+            )
+        return self.turn_elements_by_logical_id[key]
 
     def _silent_candidate(self, ctx: RowContext, raw_content: Any) -> None:
         # The curator says "not presentable AS WRITTEN", which covers both
