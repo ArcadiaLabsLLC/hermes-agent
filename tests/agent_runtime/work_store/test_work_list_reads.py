@@ -8,6 +8,7 @@ Both found live (launcher MC-WORKSPACE-TODO-ALL-PROJECTS, w1101d steps 4 and 5).
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
@@ -71,3 +72,41 @@ def test_a_brain_create_brain_made_lists_at_once(tmp_path, workspace):
     # A second create answers the brain it already made, writing nothing.
     again = work_store.create_brain(scope, {"request_id": "brain-2", "slot": "launcher", "project_id": "p1"}, "operator")
     assert again["receipt"] is None
+
+
+def _two(tmp_path: Path, workspace: str) -> SimpleNamespace:
+    alpha, beta = _repo(tmp_path, "alpha", "AL-1"), _repo(tmp_path, "beta", "BE-1")
+    _project(workspace, "p1", alpha, revision=0)
+    _project(workspace, "p2", beta, revision=1)
+    scope = SimpleNamespace(workspace_id=workspace)
+    worktree = work_store.synced(workspace).writers["p2/launcher"].worktree
+    lock = Path(git("rev-parse", "--path-format=absolute", "--git-path", "index.lock", cwd=worktree).strip())
+    lock.write_bytes(b"")  # a git that crashed (or still runs) holding beta's worktree index
+    return SimpleNamespace(scope=scope, lock=lock)
+
+
+def test_one_boards_refusal_is_that_boards_answer_and_every_other_board_lists(tmp_path, workspace):
+    """Mutation: re-raise in ``synced``'s per-board ``except`` -> the whole list refuses."""
+    two = _two(tmp_path, workspace)
+    alpha, beta = work_store.list_work(two.scope, {})["boards"]
+    assert (alpha["project_id"], _rows(alpha), alpha["refused"]) == ("p1", ["AL-1"], None)
+    assert (beta["project_id"], beta["readable"], beta["queues"]) == ("p2", False, [])
+    assert beta["refused"]["reason"] == "index_locked" and "index.lock" in beta["refused"]["detail"]
+    # A write naming the refused board answers its refusal, not ``no_brain``.
+    try:
+        work_store.inspect(two.scope, {"slot": "launcher", "project_id": "p2", "task_id": "BE-1"})
+    except work_store.WorkRefused as refused:
+        assert refused.reason.value == "index_locked"
+    else:
+        raise AssertionError("inspect of a refused board answered")
+
+
+def test_a_held_lock_is_index_locked_and_a_stale_one_is_moved_aside(tmp_path, workspace):
+    """Mutation: drop the ``_INDEX_LOCKED`` arm of ``_must`` -> ``branch_missing``; drop the heal -> beta refused."""
+    two = _two(tmp_path, workspace)
+    assert work_store.list_work(two.scope, {})["boards"][1]["refused"]["reason"] == "index_locked"
+    old = two.lock.stat().st_mtime - 3600
+    os.utime(two.lock, (old, old))
+    alpha, beta = work_store.list_work(two.scope, {})["boards"]
+    assert (_rows(alpha), _rows(beta), beta["refused"]) == (["AL-1"], ["BE-1"], None)
+    assert not two.lock.exists() and list(two.lock.parent.glob("index.lock.stale-*"))

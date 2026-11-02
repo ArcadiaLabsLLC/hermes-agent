@@ -77,6 +77,8 @@ class Reason(StrEnum):
     SLOT_AMBIGUOUS = "slot_ambiguous"
     # Hermes's worktree index stays unreadable after it was moved aside once (RT-WORK-INDEX-SELF-HEAL).
     INDEX_CORRUPT = "index_corrupt"
+    # Hermes's worktree ``index.lock`` is held by a live git (a stale one is moved aside; RT-WORK-LIST-ONE-BOARD-REFUSAL).
+    INDEX_LOCKED = "index_locked"
 
 
 class WorkRefused(ValueError):

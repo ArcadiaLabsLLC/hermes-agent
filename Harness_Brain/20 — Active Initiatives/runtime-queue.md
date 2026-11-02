@@ -34,7 +34,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-11-02 (launcher lane w1101f-mcq: Board › Queues after Create brain, w1101d-live)
 
-- **`RT-WORK-LIST-ONE-BOARD-REFUSAL` — one board's sync failure refuses the WHOLE `runtime.work.list`: `synced` lets the first `Writer.sync` `WorkRefused` propagate, so a slot whose reset fails hides every other brain's rows (live: 783 rows hidden by one scratch slot); and `_reset` maps ANY `git reset --hard` failure to `branch_missing`, so git's stale-`index.lock` text ("…opened by 'git commit'. Please make sure all …") arrived as a branch code and stayed on every retry; answer such a board in the list with its own `refused: {reason, detail}` and every other board read, and give a held lock its own reason (or heal a stale one, as `RT-WORK-INDEX-SELF-HEAL` does a corrupt index) — test: two boards, one whose reset fails, list answers the other's rows and the failed board's refusal; mutation: re-raise in `synced` → red** · `agent_runtime/work/store.py::synced` · `agent_runtime/work_store/writer.py::Writer._reset` · names launcher `MC-QUEUES-ONE-SLOT-FAILS-WHOLE-READ` (BLOCKED on this; draws the per-board refusal on its slot) · found live 2026-11-02 (launcher w1101d-live, `EterniaLauncher/docs/stages/qa-reboot/live/2026-11-01/MC-WORKSPACE-TODO-ALL-PROJECTS/w1101d/README.md` step 5) · READY 2026-11-02 · **TAKEN 2026-11-02 w1101g-h on nekwo-ubuntu24 as nekwo in hm-w1101g-h**
 
 ### Filed on arrival — 2026-11-02 (lane w1101e-h: a provider retry wait on the console)
 

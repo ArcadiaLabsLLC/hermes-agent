@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -50,6 +50,8 @@ class Synced:
     #: Keyed by :attr:`Board.key` (``<project>/<slot>``, bare for the workspace's own).
     writers: dict[str, Writer]
     stale: bool
+    #: Keyed like ``writers``: the board whose sync refused, and why (RT-WORK-LIST-ONE-BOARD-REFUSAL).
+    refused: dict[str, WorkRefused] = field(default_factory=dict)
 
     @property
     def read_roots(self) -> dict[str, Path]:
@@ -137,13 +139,21 @@ def worktree_brain(board: Board) -> Board:
 def synced(workspace_id: str, *, stale_ok: bool = False, slot: str | None = None) -> Synced:
     normalize_default_brain(workspace_id)
     writers: dict[str, Writer] = {}
+    refused: dict[str, WorkRefused] = {}
     for board in map(worktree_brain, boards_store.boards(workspace_id)):
         if board.bound_here and board.brain_dir and slot in (None, board.slot):
-            writers[board.key] = writer_for(board)
-            writers[board.key].sync(stale_ok=stale_ok)
+            writer = writer_for(board)
+            try:
+                writer.sync(stale_ok=stale_ok)
+            except WorkRefused as refusal:
+                # One board's refusal is that board's answer, never the whole read's
+                # (RT-WORK-LIST-ONE-BOARD-REFUSAL): every other board still syncs and lists.
+                refused[board.key] = refusal
+                continue
+            writers[board.key] = writer
     roots = {key: writer.worktree for key, writer in writers.items()}
     return Synced(boards_store.boards(workspace_id, read_roots=roots), writers,
-                  any(writer.stale for writer in writers.values()))
+                  any(writer.stale for writer in writers.values()), refused)
 
 
 def observed(workspace_id: str, *, slot: str | None = None) -> Synced:
@@ -181,6 +191,8 @@ def _view_board(view: Synced, slot: Any, project_id: Any = None) -> Board:
     board = boards_store.pick(view.boards, slot, project_id) if slot is not None else None
     if board is None or not board.bound_here:
         raise WorkRefused(Reason.SLOT_UNBOUND, f"{project_id}/{slot}" if project_id else str(slot))
+    if board.key in view.refused:
+        raise view.refused[board.key]
     if board.key not in view.writers:
         raise WorkRefused(Reason.NO_BRAIN, board.key)
     return board
@@ -285,10 +297,12 @@ def project(row: Row, writer: Writer | None, *, context=None, detail: bool = Fal
     return value
 
 
-def board_wire(board: Board, writer: Writer | None) -> dict[str, Any]:
+def board_wire(board: Board, writer: Writer | None, refusal: WorkRefused | None = None) -> dict[str, Any]:
     """A board on the wire, with its owner: ``project_id`` / ``project_name`` (None for the workspace's
     own), ``projects`` (every Project a merged board answers for), ``checkout`` (THIS machine's path,
-    the disclosure ``slots.show`` makes) and ``project_default`` (RT-WORK-BOARD-PER-PROJECT-SLOT)."""
+    the disclosure ``slots.show`` makes) and ``project_default`` (RT-WORK-BOARD-PER-PROJECT-SLOT).
+    ``refused`` is ``{reason, detail}`` when the board's sync refused (``readable`` false, no queues),
+    else None (RT-WORK-LIST-ONE-BOARD-REFUSAL)."""
 
     return {"slot": board.slot, "label": "Work" if board.is_default else board.slot, "brain_dir": board.brain_dir,
             "project_id": board.project_id, "project_name": board.project_name,
@@ -298,7 +312,8 @@ def board_wire(board: Board, writer: Writer | None) -> dict[str, Any]:
             "bound_here": board.bound_here, "local": board.local,
             "is_default": board.is_default, "default_branch": board.default_branch,
             "committed_at": writer.note_committed_at(board.brain_dir) if writer and board.brain_dir else None,
-            "readable": writer is not None}
+            "readable": writer is not None,
+            "refused": {"reason": refusal.reason.value, "detail": refusal.detail} if refusal is not None else None}
 
 
 def _row_now(writer: Writer, ref: RowRef) -> Row | None:
@@ -353,7 +368,7 @@ def list_work(scope, params, *, context=None, assignees: frozenset[str] | None =
     from agent_runtime.project_categories import held_projects
 
     projects = [p for p in held_projects(scope.workspace_id) if project_id is None or p["project_id"] == project_id]
-    return {"boards": [{**board_wire(b, view.writer_of(b)),
+    return {"boards": [{**board_wire(b, view.writer_of(b), view.refused.get(b.key)),
                         "queues": _queues(b, view.writer_of(b), keep, context)} for b in listed],
             "projects": projects,
             "cursor": None, "read_at": _now().isoformat(timespec="seconds"), "stale": view.stale}
