@@ -116,6 +116,17 @@ provider (or not signed in): `{contract, provider, available: false,
 unavailable_reason: "no_usage_source"}`. A Nous portal failure reads
 `available: false` with `unavailable_reason` = the exception class name.
 The upstream snapshot's `raw` body is never sent.
+Every view carries `credential_source` (`list`'s block; null off the table).
+While a provider's effective source is `api_key` (Anthropic), the view is
+`available: true`, `source: "api_key"`, `windows: []`, `unavailable_reason:
+null`, `details: ["Monthly API credits are spent by this key; the balance is
+not readable with an API key — see Console › Billing"]` (Anthropic exposes no
+credit balance to a user key), plus `plan_windows: [window…]` — the Account's
+plan windows read with the stored grant passed explicitly, `[]` when no grant
+is stored or the read failed; the Launcher shows them as "Plan limits — not
+spent while the API key is chosen". `plan_windows` is absent otherwise. The
+argv `hermes harness usage --json` lanes carry the same two keys
+(`agent_runtime/provider_usage_source.py` serves both doors).
 
 **signin.\*** — one session view:
 

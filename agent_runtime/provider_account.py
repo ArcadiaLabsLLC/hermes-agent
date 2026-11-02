@@ -54,6 +54,11 @@ def _iso(value: datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
 
 
+def _window_view(w: Any) -> dict:
+    return {"label": w.label, "used_percent": w.used_percent, "reset_at": _iso(w.reset_at), "detail": w.detail,
+            "scope": w.scope}
+
+
 def _usage_view(provider: str, snapshot: Any) -> dict:
     from .provider_account_view import account_view
 
@@ -67,11 +72,7 @@ def _usage_view(provider: str, snapshot: Any) -> dict:
         "title": snapshot.title,
         "plan": snapshot.plan,
         "fetched_at": _iso(snapshot.fetched_at),
-        "windows": [
-            {"label": w.label, "used_percent": w.used_percent, "reset_at": _iso(w.reset_at), "detail": w.detail,
-             "scope": w.scope}
-            for w in snapshot.windows
-        ],
+        "windows": [_window_view(w) for w in snapshot.windows],
         "details": list(snapshot.details),
         "unavailable_reason": snapshot.unavailable_reason,
     }
@@ -84,19 +85,32 @@ def _nous_snapshot() -> Any:
 
 
 def provider_usage(provider: str) -> dict:
-    """The account's limits and rate-limit windows, or ``available: false``."""
+    """The account's limits and rate-limit windows, or ``available: false``.
+
+    Every view carries ``credential_source`` (``list``'s block, null off the table); while the API
+    key is the effective source it also carries ``plan_windows``, the Account's plan windows read
+    with the stored grant (``agent_runtime/provider_usage_source.py``)."""
     from agent.account_usage import fetch_account_usage
+
+    from .provider_usage_source import sourced_usage
 
     if provider == "nous":
         try:
             snapshot = _nous_snapshot()
         except Exception as exc:  # fail open like upstream's /usage, class name only
-            return _usage_view(provider, None) | {"unavailable_reason": type(exc).__name__}
+            return _usage_view(provider, None) | {"unavailable_reason": type(exc).__name__,
+                                                   "credential_source": None}
+        sourced = None
     else:
-        snapshot = fetch_account_usage(provider)
+        sourced = sourced_usage(provider, lambda: fetch_account_usage(provider))
+        snapshot = sourced.snapshot
     from .provider_account_metadata import usage_snapshot
 
-    return _usage_view(provider, usage_snapshot(provider, snapshot))
+    view = _usage_view(provider, usage_snapshot(provider, snapshot))
+    view["credential_source"] = sourced.credential_source if sourced else None
+    if sourced is not None and sourced.spends_api_key:
+        view["plan_windows"] = [_window_view(w) for w in getattr(sourced.plan, "windows", ())]
+    return view
 
 
 def _known(provider: str) -> None:
