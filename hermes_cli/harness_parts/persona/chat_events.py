@@ -9,6 +9,7 @@ from __future__ import annotations
 from types import MappingProxyType
 from typing import Callable, Final, Mapping
 import json
+import re
 import sys
 import time
 import uuid
@@ -741,6 +742,18 @@ class _ChatProtocolV2Emitter:
             self.elements.append(tool)
         tool["state"] = "finished"
         tool["settled_at"] = now_iso_micro()
+        # A settled element must not keep saying "Started tool <name>: …"
+        # (RT-TOOL-ROW-SAYS-STARTED): `args` keeps what the call was ABOUT —
+        # the started line minus its lead-in — and `summary` takes the
+        # finished payload's own line ("Finished tool <name>: passed in <n>ms"),
+        # falling back to that same lead-in-free text when the finish has none.
+        settled_args = _without_started_lead_in(tool.get("args"))
+        if settled_args is not None:
+            tool["args"] = settled_args
+        finished_summary = safe_text(payload.get("summary"), limit=_STREAM_TEXT_LIMIT)
+        settled_summary = finished_summary or _without_started_lead_in(tool.get("summary"))
+        if settled_summary is not None:
+            tool["summary"] = settled_summary
         tool["status"] = safe_text(payload.get("status"), limit=_STREAM_TEXT_LIMIT) or "ok"
         tool["duration_ms"] = payload.get("duration_ms")
         started = tool.get("started_mono")
@@ -915,6 +928,17 @@ _PROGRESS_EVENTS: Final[Mapping[str, Callable[[_ChatProtocolV2Emitter, dict[str,
 
 #: The mission-chat stream's one-line text bound (``safe_text``'s limit on this lane).
 _STREAM_TEXT_LIMIT = 800
+
+#: The started progress line's lead-in (`agent_runtime.profile_runner.tool_payloads._tool_started_payload`:
+#: "Started tool <name>" then ": <target>" when there is one).
+_STARTED_LEAD_IN = re.compile(r"^\s*Started tool\b[^:]*:?\s*")
+
+
+def _without_started_lead_in(text: object) -> str | None:
+    """``text`` minus a "Started tool <name>: " lead-in; ``None`` when it carried none."""
+    if not isinstance(text, str) or not _STARTED_LEAD_IN.match(text):
+        return None
+    return _STARTED_LEAD_IN.sub("", text, count=1)
 
 
 def _tool_name_from_progress(payload: dict[str, object]) -> str:
