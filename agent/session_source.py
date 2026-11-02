@@ -46,7 +46,4 @@ def is_attended(agent: Any) -> bool:
     from gateway.session_finite import finite_turn_required
     if finite_turn_required() is True:
         return False
-    from agent_runtime.turn_attendance import attended_override  # fork seam: a Mission Control chat turn
-    if (attended := attended_override()) is not None:
-        return attended
     return session_source_for(platform) in ATTENDED_SOURCES

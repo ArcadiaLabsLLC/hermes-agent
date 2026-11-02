@@ -53,7 +53,6 @@ from agent_runtime.skill_root_freshness import TurnRootRegistries
 from agent_runtime.tool_turn_history import persist_tool_turn_actual
 from hermes_cli.flag_binding import list_flag_or_empty
 from agent_runtime.transport_dispatch_evidence import begin_turn_attempts
-from agent_runtime.turn_attendance import attended_for_requester
 from ..chat_admission import (
     _prewarm_constructions_overlapped,
     _registry_probe_rounds,
@@ -629,7 +628,6 @@ class _RunPhases:
                 ),
                 user_image_paths=getattr(self, "user_image_paths", ()),
                 relay_sender_marker=self.relay_sender_marker,
-                attended=attended_for_requester(getattr(args, "requested_by", None)),
                 root_chat_session_id=self.session_id,
                 client_message_id=self.client_message_id,
                 runtime_registry=self.runtime_registry,

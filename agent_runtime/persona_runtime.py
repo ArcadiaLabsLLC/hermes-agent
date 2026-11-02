@@ -10,7 +10,6 @@ from .chat_lane_skill_index import chat_lane_index_skills
 from .mcp_admission import LANE_MISSION_CHAT
 from .model_api_mode import turn_api_mode
 from .launcher_invocation import launcher_invocation
-from .turn_attendance import attended_turn
 from .models import AgentPersona
 from .mission_chat_clarify import MissionChatClarifyCapture
 from .mission_chat_prompts import (
@@ -105,9 +104,6 @@ class GPTPersonaRuntime:
         # operator. ``None`` on every operator/CLI send — those rows stay
         # byte-identical.
         relay_sender_marker: str | None = None,
-        # Whether a person is reading this turn as it streams (``turn_attendance``): the caller
-        # decides from ``requested_by``; None leaves upstream's session-source rule in charge.
-        attended: bool | None = None,
         root_chat_session_id: str | None = None,
         client_message_id: str | None = None,
         runtime_registry=None,
@@ -199,7 +195,7 @@ class GPTPersonaRuntime:
             before_first_trace=pre_trace_callback,
             on_trace=trace_callback,
         )
-        with attended_turn(attended), slot_env_scope(slot_bindings, workdir.path if workdir.grounded else None), launcher_invocation(
+        with slot_env_scope(slot_bindings, workdir.path if workdir.grounded else None), launcher_invocation(
                 "operator", root_chat_session_id or perm_session_id, turn_id,
                 persona_instance_id=persona_instance_id, profile=binding.hermes_profile):
             result = self._runner.run(
