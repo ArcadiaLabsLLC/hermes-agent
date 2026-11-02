@@ -30,8 +30,8 @@ per-field allowlist, no re-derivation. So coverage is defined at the OP level:
   run traces, the ``state.reconciled`` watchdog, ``persona_assignment.*`` (the
   ``persona_assignments`` frame section is a ``{active, recent}`` projection, not
   an id-keyed table the launcher can fold a remove into), ``task.*`` domain
-  events, board/flow writes (except a card create/edit/move under the
-  ``board_card`` token), every office write EXCEPT the actor-only upsert
+  events, board/flow writes (except a card create/edit/move/rebalance under
+  the ``board_card`` token and an archive/restore under ``board_card_lifecycle``), every office write EXCEPT the actor-only upsert
   (see ``LIVE_COVERED_DOMAIN_EVENT_TYPES``), and — the known uncovered case the
   plan names — ``planning.py`` chokepoint-less mutations (no ``state.patched``
   at all).
@@ -220,6 +220,20 @@ PERSONA_CHAT_OPEN_CAPABILITY = "persona_chat_open"
 #: never declares it and keeps its core (with the un-sequenced ``as_of_offset``
 #: overlay ahead of it); an old runtime ignores the string.
 RUNNING_WORK_SECTION_CAPABILITY = "running_work_section"
+
+#: The SEVENTH token, ``office_actor_lifecycle``'s twin for the board
+#: (row RT-BOARD-CARD-FOLD-ARCHIVE, 2026-11-02), and for its reason: a WIDENED
+#: OP on an entity fielded launchers already declare. The ``board_card`` fold
+#: they ship (MC-BOARD-CARD-FOLD) answers a ``remove`` with
+#: ``patch_unknown_op`` → a re-hydrate, the patch AND the core.
+#:
+#: It names what the client must do beyond folding rows: splice a card out on
+#: ``remove`` and mirror the board row's ``archived_card_ids`` ledger (append
+#: on an archive, drop on a restore's ``created`` upsert). So it gates the
+#: ``remove`` op AND the two lifecycle events — ``board.card.restored`` pairs
+#: with the ``created: true`` upsert a fielded client already folds, but the
+#: ledger drop beside it is the part only a token-naming client does.
+BOARD_CARD_LIFECYCLE_CAPABILITY = "board_card_lifecycle"
 
 #: Domain events that ride alongside their ``state.patched`` in the same
 #: coalesced batch (same chokepoint) and carry no fold state of their own — the
@@ -482,13 +496,36 @@ LIVE_COVERED_DOMAIN_EVENT_TYPES: frozenset[str] = frozenset(
         # express, and each emits ``refresh``. A move that has to rebalance its
         # column appends ``board.rebalanced`` (sibling ``order_key`` rewrites
         # with no row each), which stays uncovered and demotes that batch.
-        # Still UNCOVERED, deliberately: ``board.card.archived`` /
-        # ``.restored`` (they rewrite the board def's ``archived_card_ids`` and
-        # ``updated_at``), ``board.rebalanced``, ``board.card.conflict_resolved``
-        # and the board-def writes.
+        #
+        # ``board.rebalanced`` (row RT-BOARD-CARD-FOLD-ARCHIVE, 2026-11-02):
+        # pairs with one ``board_card`` upsert per card the sweep rewrote
+        # (``board_store.patches.emit_rebalance_patches``, inside the move's
+        # ``board_lock``). A rebalance moves sibling ``order_key``s and
+        # ``updated_at`` and nothing on the board def, and bumps no revision —
+        # the fielded fold accepts an equal revision, refusing only an older
+        # one — so it rides bare ``board_card``.
+        #
+        # ``board.card.archived`` / ``.restored`` (same row): pair with a
+        # ``remove`` / a ``created: true`` upsert. THE DERIVABILITY AUDIT: each
+        # moves the card list, ``active_card_count``, the board def's
+        # ``archived_card_ids`` and its ``updated_at``. The ledger delta is
+        # exactly determined (archive appends if absent, capped at
+        # ``ARCHIVED_LEDGER_CAP``; restore drops if present), which is what
+        # :data:`BOARD_CARD_LIFECYCLE_CAPABILITY` asks the client to mirror; the
+        # board ``updated_at`` has no launcher reader (the office precedent's
+        # surface ``updated_at``). What a client CANNOT derive takes the
+        # accounted ``refresh``: the diagnostic no-tombstone archive (no ledger
+        # write), a flip of the realm-bound board row's ``unpublished`` (the
+        # ledger is in the board's content hash), a cut or short card list.
+        #
+        # Still UNCOVERED, deliberately: ``board.card.conflict_resolved`` and
+        # the board-def writes.
         "board.card.created",
         "board.card.edited",
         "board.card.moved",
+        "board.rebalanced",
+        "board.card.archived",
+        "board.card.restored",
     }
 )
 
@@ -532,6 +569,13 @@ TOKEN_GATED_DOMAIN_EVENT_TYPES: dict[str, str] = {
     "board.card.created": BOARD_CARD_ENTITY,
     "board.card.edited": BOARD_CARD_ENTITY,
     "board.card.moved": BOARD_CARD_ENTITY,
+    "board.rebalanced": BOARD_CARD_ENTITY,
+    # The two lifecycle events ride the lifecycle token, as the office's do not
+    # need to (``office.actor.removed`` free-rides because its pair's gate is
+    # the token): a restore's pair is a create a token-less client folds, so the
+    # EVENT has to carry the gate the ledger mirror needs.
+    "board.card.archived": BOARD_CARD_LIFECYCLE_CAPABILITY,
+    "board.card.restored": BOARD_CARD_LIFECYCLE_CAPABILITY,
 }
 
 COVERED_DOMAIN_EVENT_TYPES: frozenset[str] = (
@@ -685,6 +729,16 @@ def state_patch_is_office_lifecycle(payload: Any) -> bool:
     return payload.get("op") == PATCH_OP_REMOVE or payload.get("created") is True
 
 
+def state_patch_is_board_card_remove(payload: Any) -> bool:
+    """Whether a ``board_card`` patch is the WIDENED ``remove`` (an archive) —
+    the op :data:`BOARD_CARD_LIFECYCLE_CAPABILITY` gates. Answered off the
+    payload, like its office sibling."""
+
+    if not isinstance(payload, dict):
+        return False
+    return state_patch_entity(payload) == BOARD_CARD_ENTITY and payload.get("op") == PATCH_OP_REMOVE
+
+
 def state_patch_is_persona_instance_create(payload: Any) -> bool:
     """Whether a ``persona_instance`` patch is the WIDENED create-upsert (D3).
 
@@ -761,6 +815,8 @@ def event_is_patch_coverable(
             return OFFICE_ACTOR_LIFECYCLE_CAPABILITY in declared
         if state_patch_is_persona_instance_create(payload):
             return PERSONA_INSTANCE_CREATE_CAPABILITY in declared
+        if state_patch_is_board_card_remove(payload):
+            return BOARD_CARD_LIFECYCLE_CAPABILITY in declared
         if state_patch_entity(payload) == OFFICE_SURFACE_ENTITY:
             return OFFICE_SURFACE_FOLD_CAPABILITY in declared
         return True
@@ -836,6 +892,8 @@ def event_required_fold_tokens(event: Any) -> frozenset[str] | None:
             required.add(OFFICE_ACTOR_LIFECYCLE_CAPABILITY)
         if state_patch_is_persona_instance_create(payload):
             required.add(PERSONA_INSTANCE_CREATE_CAPABILITY)
+        if state_patch_is_board_card_remove(payload):
+            required.add(BOARD_CARD_LIFECYCLE_CAPABILITY)
         if entity == OFFICE_SURFACE_ENTITY:
             required.add(OFFICE_SURFACE_FOLD_CAPABILITY)
         return frozenset(required)

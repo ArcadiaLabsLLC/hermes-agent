@@ -330,7 +330,6 @@ Reconciled against the built code and the plan, not inferred from an absent old 
 
 ### Filed on arrival — 2026-10-10 (guard fix, build batch 2 C1–C4, filed by the orchestrator)
 
-- **`RT-BOARD-CARD-FOLD-ARCHIVE` — A card archive / restore / column rebalance still demotes its batch to the full core: the `board_card` fold covers create, edit and move only, because archive and restore rewrite the board def's `archived_card_ids` and `updated_at` and a rebalance rewrites sibling `order_key`s with no row each** · fork / board · `agent_runtime/patch_coverage.py::LIVE_COVERED_DOMAIN_EVENT_TYPES`, `agent_runtime/board_store/files.py::archive_card_locked`, `agent_runtime/board_store/card_mechanics.py::CardOrdering.rebalance` · evidence: plan `docs/agent-runtime-harness/planned/board-card-fold-2026-10-15.md` § Build status · lane: a `board_card` remove (+ the ledger delta a client can derive) for archive, a complete-row create for restore, one row per rebalanced card; only after S4's live proof says the covered three are worth it · unblocked 2026-11-02: S3 (launcher `MC-BOARD-CARD-FOLD`) and S4's live proof landed — a Launcher card move read `fold_applied … ops:board_card.upsert=1` with no forced full-core refresh (launcher `00ed91337c`, `EterniaLauncher/docs/stages/qa-reboot/live/2026-10-31/MC-BOARD-CARD-FOLD/notes.md`) · READY 2026-11-02 · **TAKEN 2026-11-02 w1101f-hb on nekwo-ubuntu24 as nekwo in hm-w1101f-hb**
 
 ### Filed on arrival — 2026-10-10 (build batch 1, build-1011-B1..B5, filed by the orchestrator)
 

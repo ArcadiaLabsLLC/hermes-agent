@@ -115,7 +115,16 @@ def archive_card_locked(
     updated_by: str,
     emit: Callable[..., None] | None,
     record_tombstone: bool = True,
+    patch: Callable[[BoardCard], None] | None = None,
 ) -> None:
+    """Archive ``card`` under the caller's ``board_lock``.
+
+    ``patch`` is the store's ``board_card`` producer
+    (``patches.emit_card_remove``), called after every file write and BEFORE
+    the paired ``board.card.archived`` — the lock is what orders the two.
+    ``None`` for the silent realm-pull arm, which appends no event either.
+    """
+
     card.state = "archived"
     card.revision += 1
     card.updated_at = now()
@@ -132,6 +141,8 @@ def archive_card_locked(
         board.archived_card_ids = [*board.archived_card_ids, card.card_id][-ARCHIVED_LEDGER_CAP:]
         board.updated_at = now()
         _write_board(board)
+    if patch is not None:
+        patch(card)
     if emit is not None:
         emit(
             "board.card.archived",
