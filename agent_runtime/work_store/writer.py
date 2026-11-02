@@ -10,8 +10,8 @@ is never touched. Steps, in the §5 table's numbering:
    shipped at all is the lanes caller's check: ``agent_runtime/work/service.py``);
 1. ``worktree prune`` then, when absent, ``worktree add --no-checkout`` + ``sparse-checkout set``;
 2. ``remote get-url origin`` + ``fetch origin <branch>`` (refs only; skipped for a local slot);
-3. ``reset --hard <tip>`` (an unreadable index is moved aside and the reset retried once, else
-   ``index_corrupt``) then ``status --porcelain`` must be empty (``clean -fdq`` once);
+3. ``reset --hard <tip>`` (an unreadable index, or an ``index.lock`` older than any writer git call, is
+   moved aside and the reset retried once, else ``index_corrupt`` / ``index_locked``) then ``status --porcelain`` must be empty (``clean -fdq`` once);
 4. idempotency — a commit at the tip whose body carries ``request_id: <rid>`` replays its receipt;
 5. read the note at the tip, check the op's precondition (the ``_PRECONDITIONS`` table);
 6. the one-line edit, written temp + ``os.replace``;
@@ -54,6 +54,10 @@ _NON_FAST_FORWARD = ("! [rejected]", "fetch first", "non-fast-forward", "[remote
 _CREDENTIAL = re.compile(r"://[^/@\s]+@")
 #: git's words for an unreadable index (a zeroed ``.git/worktrees/<name>/index``, RT-WORK-INDEX-SELF-HEAL).
 _INDEX_CORRUPT = "index file corrupt"
+#: git's words for a held ``index.lock`` (RT-WORK-LIST-ONE-BOARD-REFUSAL): "Unable to create '….lock': File exists".
+_INDEX_LOCKED = re.compile(r"Unable to create '([^']*index\.lock)': File exists")
+#: A lock older than this is stale: every git call the writer makes times out at 120 s, so none of ours holds it.
+STALE_LOCK_SECONDS = 300
 
 
 @dataclass(frozen=True)
@@ -264,10 +268,15 @@ class Writer:
                          timeout=120, stdin=subprocess.DEVNULL)
 
     def _must(self, args: list[str], reason: Reason, *, repo: Path, config: tuple[str, ...] = ()) -> str:
-        """Run git; a failure refuses ``reason`` — or ``index_corrupt`` when git says the index is unreadable."""
+        """Run git; a failure refuses ``reason`` — or ``index_corrupt`` when git says the index is unreadable,
+        ``index_locked`` when its ``index.lock`` is held."""
 
         done = self._git(args, repo=repo, config=config)
         if done.returncode != 0:
+            locked = _INDEX_LOCKED.search(str(done.stderr))
+            if locked is not None:
+                # git's lock advice runs past the 200-character tail; the detail names the held file instead.
+                raise WorkRefused(Reason.INDEX_LOCKED, f"git {args[0]}: {locked.group(1)} is held")
             said = Reason.INDEX_CORRUPT if _INDEX_CORRUPT in str(done.stderr) else reason
             raise WorkRefused(said, f"git {args[0]}: {_tail(done.stderr)}")
         return str(done.stdout or "")
@@ -279,14 +288,36 @@ class Writer:
         delete, and the ``work.index_healed`` receipt names both paths.
         """
 
-        done = self._git(["rev-parse", "--path-format=absolute", "--git-path", "index"], repo=self.worktree)
-        index = Path(str(done.stdout or "").strip()) if done.returncode == 0 else None
+        index = self._git_path("index")
         if index is None or not index.is_file():
             return False
         aside = index.with_name(f"{index.name}.corrupt-{self._now().strftime('%Y%m%dT%H%M%S%f')}")
         os.replace(index, aside)
         receipts.emit("work.index_healed", slot=self.board.slot, workspace_id=self.board.workspace_id,
                       index=str(index), moved_to=str(aside))
+        return True
+
+    def _git_path(self, name: str) -> Path | None:
+        done = self._git(["rev-parse", "--path-format=absolute", "--git-path", name], repo=self.worktree)
+        return Path(str(done.stdout or "").strip()) if done.returncode == 0 else None
+
+    def _heal_lock(self) -> bool:
+        """Move a STALE ``index.lock`` of hermes's worktree aside (RT-WORK-LIST-ONE-BOARD-REFUSAL).
+
+        Stale is older than :data:`STALE_LOCK_SECONDS`: no writer git call lives that long, so the lock is
+        a crashed process's leftover. A younger lock may be live and is never touched (``index_locked``).
+        The move is ``index.lock.stale-<utc stamp>`` beside it, logged ``work.index_lock_healed``.
+        """
+
+        lock = self._git_path("index.lock")
+        if lock is None or not lock.is_file():
+            return False
+        if self._now().timestamp() - lock.stat().st_mtime < STALE_LOCK_SECONDS:
+            return False
+        aside = lock.with_name(f"{lock.name}.stale-{self._now().strftime('%Y%m%dT%H%M%S%f')}")
+        os.replace(lock, aside)
+        receipts.emit("work.index_lock_healed", slot=self.board.slot, workspace_id=self.board.workspace_id,
+                      lock=str(lock), moved_to=str(aside))
         return True
 
     # ── steps 0–3: sync (a read runs these only) ─────────────────────────
@@ -365,8 +396,10 @@ class Writer:
         try:
             self._must(["reset", "-q", "--hard", self.tip], Reason.BRANCH_MISSING, repo=self.worktree)
         except WorkRefused as refused:
-            # A corrupt index: moved aside and the reset retried ONCE; a second failure is the refusal.
-            if refused.reason is not Reason.INDEX_CORRUPT or not self._heal_index():
+            # A corrupt index or a stale lock: moved aside and the reset retried ONCE; a second failure
+            # is the refusal (a held lock stays ``index_locked``, never ``branch_missing``).
+            heal = {Reason.INDEX_CORRUPT: self._heal_index, Reason.INDEX_LOCKED: self._heal_lock}.get(refused.reason)
+            if heal is None or not heal():
                 raise
             self._must(["reset", "-q", "--hard", self.tip], Reason.BRANCH_MISSING, repo=self.worktree)
         if self._dirty():
