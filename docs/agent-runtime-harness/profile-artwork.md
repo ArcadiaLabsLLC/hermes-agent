@@ -50,10 +50,17 @@ are retained as diagnostic evidence, not reported as a clean first pass.
 
 ## Qualification boundaries
 
-The first complete fork landing run reported 9,804 passing tests, 23 failures,
-63 skips and no errors across 1,384 files. That run exposed the seed race above;
-its isolated portrait retry passed, but did not qualify the race away. A fresh
-landing run after the shared-lock repair is required before acceptance.
+The completed fork landing run after the shared-lock repair reported 15,236
+passing tests, 23 failures, 66 skips and no errors across 1,384 files. All 15
+portrait tests and all seven shared-lock tests passed inside their original
+bundles. The 25 sampled cache hits were audited clean. The earlier 9,804-pass run
+exposed the seed race; its isolated retry was diagnostic, not acceptance.
+
+One unrelated runner test, `tests/scripts/test_run_tests_tmp_root.py`, failed
+inside its bundle while collecting a disappearing Flutter temporary directory,
+then passed alone. The canonical one-file confirmation returned `load` with
+HEAD green alone. That retained first-attempt failure is covered by
+`FH-CHILD-JOB-COLLECTION-ROOT`; the final counts do not claim a clean first pass.
 
 Each of the eight final red files was then run alone on the candidate and on
 unchanged base `f6ac4265f4`, using the same Python 3.14 test environment. Seven

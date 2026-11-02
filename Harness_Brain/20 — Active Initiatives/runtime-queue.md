@@ -35,9 +35,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Profile artwork — 2026-11-01 (owner approved)
 
-- **`RT-LOCK-FIRST-WRITE-CONTENTION` — Keep first-acquisition Windows byte seeding inside the existing bounded file-lock contention protocol; two fresh portrait writers currently race in _prepare.flush and return unavailable before the CAS comparison, reproduced at iteration 12 of an isolated two-writer probe** · `agent_runtime/locks.py::_file_lock` · READY 2026-11-01 · REQUIRES windows · **TAKEN 2026-11-01 profile-artwork on MUltiversalLabsInc as Maximus Shaban in profile-artwork-runtime**
 
-- **`RT-PROFILE-AVATAR-WRITE` — Add a revision-checked artwork update beside runtime.profiles.avatar using the existing profile asset owner; preserve profile settings, character assignments and persona links, with bounded image validation and an acknowledged content handle for client refresh** · `agent_runtime/serve_rpc/profiles.py` · `EterniaLauncher/lib/app/agent_console/agent_console_profile_binding.dart` · READY 2026-11-01 · **TAKEN 2026-11-01 profile-artwork on MUltiversalLabsInc as Maximus Shaban in profile-artwork-runtime**
 
 ### Filed on arrival — 2026-10-31 (launcher plan MC-WORKSPACE-TODO-ALL-PROJECTS, owner-approved)
 
