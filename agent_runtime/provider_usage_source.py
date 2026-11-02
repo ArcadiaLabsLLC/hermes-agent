@@ -47,15 +47,14 @@ class SourcedUsage:
 
 
 def _plan_snapshot() -> Any:
-    from agent.account_usage import _fetch_anthropic_account_usage
-
+    from ._upstream_doors import anthropic_account_usage
     from .provider_credential_source import account_usage_token
 
     token = account_usage_token()
     if not token:
         return None
     try:
-        return _fetch_anthropic_account_usage(api_key=token)
+        return anthropic_account_usage(token)
     except Exception:  # the plan half is extra; a failed read shows no plan windows
         return None
 

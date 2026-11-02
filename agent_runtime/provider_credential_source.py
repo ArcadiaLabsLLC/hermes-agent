@@ -150,17 +150,25 @@ def benched_entry_ids(provider: str, entries: Iterable[Any]) -> frozenset[str]:
 # ── the resolver ─────────────────────────────────────────────────────────────
 
 
+def _env(*names: str) -> str:
+    from ._upstream_doors import anthropic_env
+
+    return anthropic_env(*names)
+
+
 def _account_token() -> Optional[str]:
     """The ladder's account half, in the ladder's order: env OAuth token, pool grant, borrowed login."""
     import functools
 
     from agent import anthropic_credentials as creds
 
+    from . import _upstream_doors as doors
+
     read = functools.cache(creds.read_claude_code_credentials)
-    token = creds._first_env("ANTHROPIC_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN")
+    token = doors.anthropic_env("ANTHROPIC_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN")
     if token:
-        return creds._prefer_refreshable_claude_code_token(token, read()) or token
-    return creds._resolve_anthropic_pool_token(skip_borrowed=True) or creds._resolve_claude_code_token_from_credentials(read())
+        return doors.anthropic_prefer_refreshable_token(token, read()) or token
+    return doors.anthropic_pool_account_token() or doors.anthropic_resolve_claude_code_token(read())
 
 
 def resolve_chosen_anthropic_token(model: Optional[str] = None) -> Optional[str]:
@@ -171,15 +179,15 @@ def resolve_chosen_anthropic_token(model: Optional[str] = None) -> Optional[str]
     chosen = chosen_credential_source("anthropic")
     if chosen is None:
         return None
-    from agent import anthropic_credentials as creds
+    from . import _upstream_doors as doors
 
-    api_key = creds._first_env("ANTHROPIC_API_KEY")
+    api_key = doors.anthropic_env("ANTHROPIC_API_KEY")
     if chosen == API_KEY and api_key:
-        return creds._available_anthropic_token(api_key, model) or ""
+        return doors.anthropic_token_unless_benched(api_key, model) or ""
     account = _account_token()
     if account:
-        return creds._available_anthropic_token(account, model) or ""
-    return creds._available_anthropic_token(api_key, model) or ""
+        return doors.anthropic_token_unless_benched(account, model) or ""
+    return doors.anthropic_token_unless_benched(api_key, model) or ""
 
 
 # ── the fact a client reads ──────────────────────────────────────────────────
@@ -189,7 +197,7 @@ def _account_stored() -> bool:
     from agent import anthropic_credentials as creds
     from agent.credential_sources import adopt_external_logins_enabled
 
-    if creds._first_env("ANTHROPIC_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"):
+    if _env("ANTHROPIC_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"):
         return True
     if (creds.read_hermes_oauth_credentials() or {}).get("accessToken"):
         return True
@@ -197,11 +205,13 @@ def _account_stored() -> bool:
 
 
 def _manual_families() -> set[str]:
-    from agent.credential_pool import PooledCredential, _is_manual_source, read_credential_pool
+    from agent.credential_pool import PooledCredential, read_credential_pool
+
+    from ._upstream_doors import pool_source_is_manual
 
     families: set[str] = set()
     for payload in read_credential_pool("anthropic"):
-        if not isinstance(payload, dict) or not _is_manual_source(str(payload.get("source") or "")):
+        if not isinstance(payload, dict) or not pool_source_is_manual(str(payload.get("source") or "")):
             continue
         entry = PooledCredential.from_dict("anthropic", payload)
         if _has_secret(entry):
@@ -213,29 +223,25 @@ def present_credential_sources(provider: str) -> dict[str, bool]:
     """``{source_id: stored?}`` for every source the provider declares. Reads, never refreshes."""
     if provider != "anthropic":
         return {source_id: False for source_id, _label in credential_source_ids(provider)}
-    from agent import anthropic_credentials as creds
-
     try:
         manual = _manual_families()
     except Exception:
         manual = set()
     return {
         ACCOUNT: _account_stored() or ACCOUNT in manual,
-        API_KEY: bool(creds._first_env("ANTHROPIC_API_KEY")) or API_KEY in manual,
+        API_KEY: bool(_env("ANTHROPIC_API_KEY")) or API_KEY in manual,
     }
 
 
-def _effective(provider: str, chosen: Optional[str], present: dict[str, bool]) -> Optional[str]:
+def _effective_source(provider: str, chosen: Optional[str], present: dict[str, bool]) -> Optional[str]:
     if chosen is not None:
         if present.get(chosen):
             return chosen
         return next((source_id for source_id, stored in present.items() if stored), None)
     # Unset: upstream's ladder — env account token, env key, stored grant, then a pooled key.
-    from agent import anthropic_credentials as creds
-
-    if creds._first_env("ANTHROPIC_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"):
+    if _env("ANTHROPIC_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"):
         return ACCOUNT
-    if creds._first_env("ANTHROPIC_API_KEY"):
+    if _env("ANTHROPIC_API_KEY"):
         return API_KEY
     if present.get(ACCOUNT):
         return ACCOUNT
@@ -256,7 +262,7 @@ def credential_source_block(provider: str) -> Optional[dict]:
         present = {source_id: False for source_id, _label in table}
     return {
         "chosen": chosen,
-        "effective": _effective(provider, chosen, present),
+        "effective": _effective_source(provider, chosen, present),
         "sources": [{"id": source_id, "label": label, "present": bool(present.get(source_id))}
                     for source_id, label in table],
     }
@@ -271,7 +277,7 @@ def account_usage_token() -> Optional[str]:
     from agent import anthropic_credentials as creds
     from agent.credential_sources import adopt_external_logins_enabled
 
-    token = creds._first_env("ANTHROPIC_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN")
+    token = _env("ANTHROPIC_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN")
     if token:
         return token
     stored = (creds.read_hermes_oauth_credentials() or {}).get("accessToken")

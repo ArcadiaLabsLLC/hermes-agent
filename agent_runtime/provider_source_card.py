@@ -34,17 +34,18 @@ def _effective_status(effective: str, truncate: Callable[[Any], str],
                       token_status: Callable[[str, str, dict], dict]) -> Optional[dict]:
     from agent import anthropic_credentials as creds
 
+    from ._upstream_doors import anthropic_env, anthropic_oauth_file
     from .provider_credential_source import API_KEY
 
     if effective == API_KEY:
-        value = creds._first_env("ANTHROPIC_API_KEY")
+        value = anthropic_env("ANTHROPIC_API_KEY")
         return _env_status("ANTHROPIC_API_KEY", value, truncate) if value else None
-    var = next((name for name in _ACCOUNT_ENV if creds._first_env(name)), None)
+    var = next((name for name in _ACCOUNT_ENV if anthropic_env(name)), None)
     if var is not None:  # an env account token outranks the stored grant in the resolver
-        return _env_status(var, creds._first_env(var), truncate)
+        return _env_status(var, anthropic_env(var), truncate)
     grant = creds.read_hermes_oauth_credentials()
     if grant and grant.get("accessToken"):
-        return token_status("hermes_pkce", f"Hermes PKCE ({creds._get_hermes_oauth_file()})", grant)
+        return token_status("hermes_pkce", f"Hermes PKCE ({anthropic_oauth_file()})", grant)
     return None  # a borrowed Claude Code login: it has its own card
 
 

@@ -2563,8 +2563,9 @@ def _seed_anthropic_singletons(seed: _Seeder) -> None:
         return (_env_file.get(key) or _get_secret(key, "") or "").strip()
 
     anthropic_oauth_env = _env_val("ANTHROPIC_TOKEN") or _env_val("CLAUDE_CODE_OAUTH_TOKEN")
-    chosen = _fork_source.chosen_credential_source("anthropic")  # fork seam: a choice benches, never prunes
-    if _env_val("ANTHROPIC_API_KEY") and not anthropic_oauth_env and chosen is None:
+    # fork seam: an explicit credential_source opts out of the key-only prune below (the pool benches instead)
+    anthropic_oauth_env = anthropic_oauth_env or _fork_source.chosen_credential_source("anthropic")
+    if _env_val("ANTHROPIC_API_KEY") and not anthropic_oauth_env:
         # Prune stale autodiscovered OAuth entries from a previous OAuth
         # session so a transient 401 cannot revive them.
         seed.changed |= _retain_sources_not_in(seed.entries, {"hermes_pkce", "claude_code"})
