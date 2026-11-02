@@ -7,6 +7,11 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+## Filed on arrival — 2026-11-02 (appearance acceptance)
+
+- **`FH-WINDOWS-PRECOMPILE-SHELL` — The precompile-scope fixtures select the Windows WSL bash shim instead of Git Bash and fail both small-run classification checks; preserve their assertions while qualifying shell resolution** · `tests/scripts/test_run_tests_precompile_scope.py` · candidate and unchanged 07ce68314d reproduce the same two failed nodes and WSL startup failure · READY 2026-11-02 · REQUIRES windows
+- **`FH-TASK-BOUND-TRACE-COVERAGE-CITATION` — Reconcile the task-bound mission lane plan's nonexistent operator-channel trace test citation with actual coverage, or explicitly record the uncovered behavior** · `docs/agent-runtime-harness/planned/task-bound-mission-lanes-2026-10-28.md` · `tests/test_coverage_claims_resolve.py` names test_operator_channel_trace_empty_fires_for_task_bound_channel_without_trace; unchanged 07ce68314d reproduces the same single claim, and no assertion is changed by appearance work · READY 2026-11-02
+
 ## Filed on arrival — 2026-11-02 (landing w1101e, hermes)
 
 

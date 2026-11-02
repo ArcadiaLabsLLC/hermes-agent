@@ -180,6 +180,26 @@ def _legacy_destination(parts: tuple[str, ...]) -> str | None:
     return None
 
 
+def _profile_file_content_refusal(kind: str, dest: str, data: bytes) -> tuple[str, str] | None:
+    """Admit shared profile content, including immutable agent portrait bytes."""
+    import base64
+
+    from .media_handles import handle_for_bytes
+    from .profile_avatar import ProfileAvatarRefused, _portrait_png
+    from .sync_admission import content_refusal
+
+    found = content_refusal(data)
+    if found is not None or kind != "profile_portrait":
+        return found
+    try:
+        _portrait_png(base64.b64encode(data).decode("ascii"))
+        if handle_for_bytes(data) == f"sha256:{Path(dest).stem}":
+            return None
+    except (ProfileAvatarRefused, ValueError):
+        pass
+    return "invalid_portrait", "Portrait bytes must match their bounded PNG content identity."
+
+
 def read_remote_profile_files(
     subtree: Path,
 ) -> tuple[dict[str, RemoteProfileFile], list[dict[str, str]], str | None, list[str]]:
@@ -206,7 +226,7 @@ def read_remote_profile_files(
     published", never "removed".
     """
 
-    from .sync_admission import Refusal, content_refusal, path_refusal
+    from .sync_admission import Refusal, path_refusal
 
     subtree = Path(subtree)
     entries: dict[str, RemoteProfileFile] = {}
@@ -232,21 +252,10 @@ def read_remote_profile_files(
         except OSError as exc:
             refusals.append(Refusal(key, "unreadable_artifact", f"could not read published file: {exc}"))
             return
-        found = content_refusal(data)
+        found = _profile_file_content_refusal(kind, dest, data)
         if found is not None:
             refusals.append(Refusal(key, found[0], found[1]))
             return
-        if kind == "profile_portrait":
-            from .profile_avatar import ProfileAvatarRefused, _portrait_png
-            from .media_handles import handle_for_bytes
-            import base64
-            try:
-                _portrait_png(base64.b64encode(data).decode("ascii"))
-                if handle_for_bytes(data) != f"sha256:{Path(dest).stem}":
-                    raise ValueError("Portrait content does not match its identity.")
-            except (ProfileAvatarRefused, ValueError):
-                refusals.append(Refusal(key, "invalid_portrait", "Portrait bytes must match their bounded PNG content identity."))
-                return
         prior = entries.get(key)
         if prior is not None:
             if prior.layout == "profile_files" and layout == "legacy_profiles":
