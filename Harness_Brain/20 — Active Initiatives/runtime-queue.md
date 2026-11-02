@@ -698,10 +698,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams
 
-### Filed on arrival — 2026-11-02 (launcher planning lane w1101e-p-apikey: an API key pasted once, a usage-source toggle on the chip)
-
-- **`RT-ANTHROPIC-CREDENTIAL-SOURCE-CHOICE` — pasting `ANTHROPIC_API_KEY` into a home that is signed into the Anthropic Account silently flips every turn onto the key (`resolve_anthropic_token` ranks env `ANTHROPIC_API_KEY` ahead of the pool's `hermes_pkce` grant) and `load_pool("anthropic")` PRUNES the `hermes_pkce` / `claude_code` rows (the `_env_val("ANTHROPIC_API_KEY") and not anthropic_oauth_env` branch, there so a 401/429 rotation cannot flip a session onto OAuth), so the Launcher's lane loses its Account row and the usage chip goes "Limits unavailable" with no way to keep the key and spend the plan; honour an explicit `providers.anthropic.credential_source` (`account` | `api_key`, unset = today's ladder so a CLI user who hand-wrote a key sees no change): `resolve_anthropic_token` skips `ANTHROPIC_API_KEY` on `account` (`ANTHROPIC_TOKEN` / `CLAUDE_CODE_OAUTH_TOKEN` are Account tokens and keep their rank), and `load_pool` BENCHES the unchosen family in `_available_entries` instead of pruning it, keeping the rotation guarantee `tests/agent/test_anthropic_borrowed_row_authority.py` and `tests/agent/test_anthropic_model_cooldowns.py` pin; the reader is fork-owned (`agent_runtime/provider_credential_source.py`: one cached `load_config_readonly()` read of the `providers.anthropic` block, ≤ 1 ms warm, the read `provider_disabled` already pays), the seam edits are one import and one call each** · `EterniaLauncher/docs/mission_control/planned/PROVIDER_API_KEY_AND_USAGE_SOURCE_2026-11-02.md::D2` · `agent/anthropic_credentials.py::resolve_anthropic_token` · `agent/credential_pool.py::_normalize_pool_priorities` · READY 2026-11-02 · **TAKEN 2026-11-02 w1101e-h2 on nekwo-ubuntu24 as nekwo in hm-w1101e-h2**
-
 ### Filed on arrival — 2026-10-29 (lane w1029b-h-rt)
 
 
