@@ -205,42 +205,10 @@ fi
 # Pre-building the bytecode cache once here (instead of each subprocess
 # compiling on first import) avoids redundant work across ~2000 processes.
 # Uses git to list tracked .py files (skips venv, node_modules, etc).
-#
-# Fork (FH-PREPUSH-GATES-COLD-BYTECODE-DEADLINE): two cuts, because in a fresh
-# worktree the cold precompile alone outran prepush's 120 s gates deadline.
-#  * Never the files pytest REWRITES (``test_*.py``, ``*_test.py``,
-#    ``conftest.py``): pytest loads those through its assertion-rewriting
-#    importer and its own ``-pytest-`` pyc, so compileall's pyc for them is
-#    never read. 8.2k of 12.8k tracked files; cold 42.9 s -> 21.4 s measured.
-#  * Not at all for a SMALL run that names only test files (at most
-#    HERMES_TEST_PRECOMPILE_MAX_FILES, default 64): each process compiles only
-#    what it imports and Python caches every module on first import, so a
-#    whole-tree pass costs a small run far more than it saves.
-#    HERMES_TEST_PRECOMPILE=always|never overrides the choice.
-_is_small_file_run() {
-  local limit="${HERMES_TEST_PRECOMPILE_MAX_FILES:-64}" count=0 skip_next=0 arg
-  for arg in "$@"; do
-    if [ "$skip_next" = 1 ]; then skip_next=0; continue; fi
-    case "$arg" in
-      --files|--files=*|--files-from|--files-from=*|--paths|--paths=*|--slice|--slice=*|--generate-slices) return 1 ;;
-      -j|--jobs|--file-timeout|--file-retries|-k|-m|-p|-o|-c|-r|-W) skip_next=1; continue ;;
-      -*) continue ;;
-    esac
-    case "$arg" in *.py) [ -f "$arg" ] || return 1 ;; *) return 1 ;; esac
-    count=$((count + 1))
-  done
-  [ "$count" -gt 0 ] && [ "$count" -le "$limit" ]
-}
-case "${HERMES_TEST_PRECOMPILE:-auto}" in
-  always) _precompile=1 ;;
-  never) _precompile=0 ;;
-  *) if _is_small_file_run "$@"; then _precompile=0; else _precompile=1; fi ;;
-esac
-if [ "$_precompile" = 1 ]; then
-  echo "▶ pre-compiling bytecode cache"
-  "$PYTHON" -m compileall -q -j 0 -- $(git ls-files '*.py' | grep -Ev '(^|/)(test_[^/]*|[^/]*_test|conftest)\.py$') >/dev/null 2>&1 || true
-else
-  echo "▶ bytecode cache: a small file run compiles what it imports (no whole-tree pass)"
+fork_bytecode_precompile "$@"  # fork (FH-PREPUSH-GATES-COLD-BYTECODE-DEADLINE): the narrowed pass, scripts/_fork_test_env.sh
+if [ "${_fork_precompile_owned:-0}" != 1 ]; then
+echo "▶ pre-compiling bytecode cache"
+"$PYTHON" -m compileall -q -j 0 -- $(git ls-files '*.py') >/dev/null 2>&1 || true
 fi
 
 echo "▶ launching test runner"

@@ -1,5 +1,8 @@
 """FH-PREPUSH-GATES-COLD-BYTECODE-DEADLINE: ``scripts/run_tests.sh`` precompiles only what a run reads.
 
+The narrowed pass lives in the fork's door, ``scripts/_fork_test_env.sh::fork_bytecode_precompile``;
+``run_tests.sh`` keeps upstream's whole-tree lines verbatim behind its flag (an additive hunk).
+
 In a fresh landing worktree the whole-tree ``compileall`` outran prepush's 120 s gates deadline
 before a gate ran. Two cuts: a small run naming only test files skips the pass (each process compiles
 what it imports, cached on first import), and the pass never compiles the files pytest rewrites.
@@ -18,14 +21,15 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[2]
-SCRIPT = (REPO / "scripts" / "run_tests.sh").read_text(encoding="utf-8")
+SCRIPT = (REPO / "scripts" / "_fork_test_env.sh").read_text(encoding="utf-8")
+RUNNER = (REPO / "scripts" / "run_tests.sh").read_text(encoding="utf-8")
 
 pytestmark = pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
 
 
 def _function() -> str:
     match = re.search(r"^_is_small_file_run\(\) \{\n.*?^\}\n", SCRIPT, re.MULTILINE | re.DOTALL)
-    assert match, "run_tests.sh lost _is_small_file_run"
+    assert match, "_fork_test_env.sh lost _is_small_file_run"
     return match.group(0)
 
 
@@ -61,3 +65,10 @@ def test_the_whole_tree_pass_skips_what_pytest_rewrites():
     for path in ("agent_runtime/turn_attendance.py", "tests/agent_runtime/_serve_rpc_manifest.py",
                  "tests/fixtures/latest_test_data.py", "agent/testing.py"):
         assert not rewritten.search(path), path
+
+
+def test_run_tests_hands_the_pass_to_the_fork_door_and_skips_upstreams():
+    door = RUNNER.index('fork_bytecode_precompile "$@"')
+    guard = RUNNER.index('if [ "${_fork_precompile_owned:-0}" != 1 ]; then')
+    assert door < guard < RUNNER.index("-m compileall")
+    assert re.search(r"^  _fork_precompile_owned=1$", SCRIPT, re.MULTILINE)
