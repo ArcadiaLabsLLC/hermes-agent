@@ -870,7 +870,9 @@ Under a slot assignment each assigned slot's declared `context.files` load, each
 (`agent_runtime/persona_slots.py::load_slot_context`); a declaration that names none loads ONE file —
 `AGENTS.md` when it has content of its own, else `CLAUDE.md`, never one that only points at the other
 (`persona_slots.default_context_choice`, owner ruling 2026-11-01; the loaded file's receipt carries
-`default_choice`, the other's `not_default` or `missing` with the reason; the turn's prompt-context row
+`default_choice`, the other's `not_default` or `missing` with the reason; an agent's own per-slot pick —
+`CLAUDE.md` / `AGENTS.md` toggles plus one custom `.md`, `slots.set`'s `context_files` — outranks both,
+its receipts saying `override_choice: slot_override` or `override_off`, RT-SLOT-CONTEXT-FILE-PICKS; the turn's prompt-context row
 carries the whole workspace receipt, slot receipts included, as `workspace_context_receipt` — None off a
 turn — because under an assignment `context_files` has no workspace row, RT-SLOT-RECEIPTS-IN-PROMPT-CONTEXT). The sections ride the `context` tier of
 the system prompt — after the static-prefix cache breakpoint, before the end-of-system one — so on a

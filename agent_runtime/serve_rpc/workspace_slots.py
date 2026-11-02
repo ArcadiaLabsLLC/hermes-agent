@@ -220,6 +220,7 @@ _ASSIGNMENT_CODES = {
     "instance_not_found": ERR_NOT_FOUND,
     "slot_not_in_workspace": ERR_INVALID_PARAMS,
     "primary_not_assigned": ERR_INVALID_PARAMS,
+    "context_files_invalid": ERR_INVALID_PARAMS,
     "instance_has_no_workspace": ERR_CONFLICT,
     "stale_revision": ERR_CONFLICT,
 }
@@ -251,7 +252,8 @@ def _instance_slots_set(params):
     from agent_runtime.persona_slots import set_instance_slots
 
     return set_instance_slots(str(params.get("persona_instance_id") or ""), params.get("slots"), params.get("primary"),
-                              issued_at=str(params.get("issued_at") or ""))
+                              issued_at=str(params.get("issued_at") or ""),
+                              context_files=params.get("context_files"))
 
 
 @method("runtime.persona.instance.recall.set", tier=TIER_CONSOLE)

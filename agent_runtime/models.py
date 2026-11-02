@@ -577,6 +577,17 @@ class PersonaInstance:
     # shared. Off by default; ``runtime.persona.instance.recall.set`` edits it on
     # the slot lane's clock (``slots_issued_at``). Memory extraction never reads it.
     recall_shared_projects: bool = False
+    # RT-SLOT-CONTEXT-FILE-PICKS: a per-slot override of which context files load,
+    # keyed by assigned slot key. ``slot_context_files[slot]`` is the subset of
+    # ``CLAUDE.md`` / ``AGENTS.md`` the agent switched ON for that slot (an empty
+    # list loads neither); a slot ABSENT from it keeps today's ruling (the
+    # declaration's ``context.files``, else the one-file default). It is a choice
+    # about the agent and travels. ``slot_context_custom[slot]`` is THIS machine's
+    # one picked ``.md`` (an absolute path), honoured only under an override; it
+    # never travels — a local path is each machine's own, like a slot's fill. Both
+    # ride the slot lane's clock (``slots_issued_at``).
+    slot_context_files: dict[str, list[str]] = field(default_factory=dict)
+    slot_context_custom: dict[str, str] = field(default_factory=dict)
     # S70 (contract 54) removed ``context_receipt_id`` / ``compression_receipt_id``
     # / ``tool_budget_used`` / ``watchdog_warning_count`` from this record. Their
     # only writers died with the worker/goal lanes; ``ensure_for_personas`` was

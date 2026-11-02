@@ -28,6 +28,12 @@ declares and fills slots and never assigns agents.
   (``not_default``, or ``missing``). Receipts list every assigned slot and every file — an
   unbound slot (``slot_unbound_here``, naming the machines that bind it) and a missing file
   (``missing``) included.
+* **The agent's own pick** (RT-SLOT-CONTEXT-FILE-PICKS): an instance may OVERRIDE, per assigned
+  slot, which files load — ``CLAUDE.md`` and ``AGENTS.md`` as on/off toggles plus one custom
+  ``.md`` (an absolute path, this machine's own). An override outranks the declaration's list and
+  the one-file default; every loaded file's receipt carries ``override_choice: slot_override`` and a
+  toggled-off one says ``override_off``. No override keeps today's ruling. ``slots.set`` accepts it
+  as ``context_files``, ``slots.show`` returns it on each slot row (:func:`context_files_override`).
 * **Not twice** (D1.12): when the persona opts into core context files and the turn is
   grounded, upstream's prompt builder injects the cwd chain's ``AGENTS.md`` / ``CLAUDE.md``
   for the workdir itself. A slot section whose content that chain carries WHOLE is dropped
@@ -54,6 +60,12 @@ REASON_INSTANCE_HAS_NO_WORKSPACE = "instance_has_no_workspace"
 REASON_INSTANCE_NOT_FOUND = "instance_not_found"
 REASON_STALE_REVISION = "stale_revision"
 REASON_INVALID_REQUEST = "invalid_request"
+REASON_CONTEXT_FILES_INVALID = "context_files_invalid"
+
+#: The two files an override toggles, in the order their sections load.
+OVERRIDE_TOGGLE_FILES: tuple[str, ...] = ("CLAUDE.md", "AGENTS.md")
+#: The reason every receipt under an override names.
+OVERRIDE_CHOICE = "slot_override"
 
 PRIMARY_SOURCE_EXPLICIT = "explicit"
 PRIMARY_SOURCE_FIRST_ASSIGNED = "first_assigned"
@@ -123,8 +135,55 @@ def visible_slots(workspace_id: str) -> dict[str, VisibleSlot]:
     return out
 
 
-def set_instance_slots(instance_id: str, slots: Any, primary: Any = None, *, issued_at: str) -> dict[str, Any]:
-    """REPLACE one instance's assignment and primary; refusals are typed."""
+def _parse_context_files(context_files: Any, slots: list[str]) -> tuple[dict[str, list[str]], dict[str, str]]:
+    """``slots.set``'s ``context_files`` → ``(toggles, custom paths)``; refusals are typed.
+
+    ``{<assigned slot>: {"files": [subset of CLAUDE.md / AGENTS.md], "custom_path": abs .md | null} | null}``.
+    A slot mapped to ``null`` (or left out) has no override.
+    """
+
+    if not isinstance(context_files, dict):
+        raise SlotAssignmentRefused(REASON_CONTEXT_FILES_INVALID, "context_files must be an object keyed by slot")
+    toggles: dict[str, list[str]] = {}
+    custom: dict[str, str] = {}
+    for slot, pick in context_files.items():
+        if slot not in slots:
+            raise SlotAssignmentRefused(REASON_CONTEXT_FILES_INVALID, f"{slot}: not an assigned slot")
+        if pick is None:
+            continue
+        files = pick.get("files") if isinstance(pick, dict) else None
+        if not isinstance(files, list) or not all(isinstance(name, str) and name in OVERRIDE_TOGGLE_FILES
+                                                  for name in files):
+            raise SlotAssignmentRefused(REASON_CONTEXT_FILES_INVALID,
+                                        f"{slot}: files must be a subset of {list(OVERRIDE_TOGGLE_FILES)}")
+        toggles[slot] = [name for name in OVERRIDE_TOGGLE_FILES if name in files]
+        path = pick.get("custom_path")
+        if path is None:
+            continue
+        if not isinstance(path, str) or not Path(path).is_absolute() or not path.lower().endswith(".md"):
+            raise SlotAssignmentRefused(REASON_CONTEXT_FILES_INVALID,
+                                        f"{slot}: custom_path must be an absolute path to a .md file")
+        custom[slot] = path
+    return toggles, custom
+
+
+def context_files_override(instance: Any, slot: str) -> dict[str, Any] | None:
+    """``{"files": [...], "custom_path": str | None}`` — the slot's override on this machine, or None (no
+    override: the declaration's list, else the one-file default)."""
+
+    toggles = getattr(instance, "slot_context_files", None) or {}
+    if slot not in toggles:
+        return None
+    return {"files": list(toggles[slot]), "custom_path": (getattr(instance, "slot_context_custom", None) or {}).get(slot)}
+
+
+def set_instance_slots(instance_id: str, slots: Any, primary: Any = None, *, issued_at: str,
+                       context_files: Any = None) -> dict[str, Any]:
+    """REPLACE one instance's assignment and primary; refusals are typed.
+
+    ``context_files`` (optional) REPLACES the per-slot context override map; omitted, the
+    overrides of slots still assigned are kept. Either way an unassigned slot's override leaves.
+    """
 
     from .workspace_slots import stamp_epoch
 
@@ -142,11 +201,18 @@ def set_instance_slots(instance_id: str, slots: Any, primary: Any = None, *, iss
         raise SlotAssignmentRefused(REASON_SLOT_NOT_IN_WORKSPACE, ", ".join(unknown))
     if primary is not None and primary not in slots:
         raise SlotAssignmentRefused(REASON_PRIMARY_NOT_ASSIGNED, str(primary))
+    if context_files is not None:
+        toggles, custom = _parse_context_files(context_files, slots)
+    else:
+        toggles = {k: v for k, v in (instance.slot_context_files or {}).items() if k in slots}
+        custom = {k: v for k, v in (instance.slot_context_custom or {}).items() if k in toggles}
     held = instance.slots_issued_at
     if held is not None and issued < held.timestamp():
         raise SlotAssignmentRefused(REASON_STALE_REVISION, "a newer assignment already landed")
     instance.assigned_slots = list(dict.fromkeys(slots))
     instance.primary_slot = primary or None
+    instance.slot_context_files = toggles
+    instance.slot_context_custom = custom
     instance.slots_issued_at = datetime.fromisoformat(issued_at)
     _store().update(instance)
     return show_instance_slots(instance_id)
@@ -175,9 +241,10 @@ def set_instance_recall(instance_id: str, enabled: Any, *, issued_at: str) -> di
 
 
 def show_instance_slots(instance_id: str) -> dict[str, Any]:
-    """``{workspace_id, slots: [{name, project_id, slot, bound_here, path, status}], projects, primary_slot,
-    primary_source}`` — ``projects`` groups the assigned keys by the Project that declares them
-    (``null`` for the workspace's own document)."""
+    """``{workspace_id, slots: [{name, project_id, slot, bound_here, path, status, context_files}], projects,
+    primary_slot, primary_source}`` — ``projects`` groups the assigned keys by the Project that declares them
+    (``null`` for the workspace's own document); ``context_files`` is the slot's override
+    (:func:`context_files_override`, ``null`` = today's ruling)."""
 
     instance = _slot_instance(instance_id)
     declared = visible_slots(instance.workspace_id) if instance.workspace_id else {}
@@ -190,7 +257,8 @@ def show_instance_slots(instance_id: str) -> dict[str, Any]:
         status = "bound" if bound else ("unbound_here" if held else "not_declared")
         rows.append({"name": name, "project_id": held.project_id if held else None,
                      "slot": held.name if held else name, "bound_here": bound,
-                     "path": str(path) if bound else None, "status": status})
+                     "path": str(path) if bound else None, "status": status,
+                     "context_files": context_files_override(instance, name)})
         projects.setdefault(held.project_id if held and held.project_id else "", []).append(name)
     primary, source = resolve_primary(instance)
     return {"persona_instance_id": instance.id, "workspace_id": instance.workspace_id, "slots": rows,
@@ -236,6 +304,8 @@ def _drop_where(owns, drops) -> list[str]:
             instance.id,
             assigned_slots=[key for key in keys if not drops(key)],
             primary_slot=None if instance.primary_slot and drops(instance.primary_slot) else instance.primary_slot,
+            slot_context_files={k: v for k, v in (instance.slot_context_files or {}).items() if not drops(k)},
+            slot_context_custom={k: v for k, v in (instance.slot_context_custom or {}).items() if not drops(k)},
         )
         touched.append(instance.id)
     return touched
@@ -259,6 +329,10 @@ def rekey_workspace_assignments(workspace_id: str, project_id: str, names: set[s
             assigned_slots=list(dict.fromkeys(f"{project_id}/{key}" if key in names else key for key in keys)),
             primary_slot=(f"{project_id}/{instance.primary_slot}" if instance.primary_slot in names
                           else instance.primary_slot),
+            slot_context_files={(f"{project_id}/{k}" if k in names else k): v
+                                for k, v in (instance.slot_context_files or {}).items()},
+            slot_context_custom={(f"{project_id}/{k}" if k in names else k): v
+                                 for k, v in (instance.slot_context_custom or {}).items()},
             slots_issued_at=stamp,
         )
         touched.append(instance.id)
@@ -385,6 +459,33 @@ def _default_file_receipts(slot: str, path: Path, load: Any) -> tuple[list[dict[
     return receipts, sections
 
 
+def _override_file_receipts(slot: str, path: Path, override: dict[str, Any],
+                            load: Any) -> tuple[list[dict[str, Any]], list[SlotContextSection]]:
+    """The agent's own pick for one bound slot: each toggled-on file and the custom ``.md`` loaded, each
+    toggled-off file's receipt saying so; every receipt names the override as its reason."""
+
+    receipts: list[dict[str, Any]] = []
+    sections: list[SlotContextSection] = []
+    on = override.get("files") or []
+    for file in OVERRIDE_TOGGLE_FILES:
+        if file not in on:
+            receipts.append({"slot": slot, "file": file, "label": f"{slot}/{file}", "kind": "workspace_context",
+                             "included": False, "status": "override_off", "evidence": OVERRIDE_CHOICE})
+            continue
+        loaded = load(str(path / file), allowed_names=None)
+        receipts.append(_file_receipt(slot, file, loaded) | {"override_choice": OVERRIDE_CHOICE})
+        if getattr(loaded, "content", None):
+            sections.append(SlotContextSection(slot, file, loaded.content))
+    custom = override.get("custom_path")
+    if custom:
+        file = Path(custom).name
+        loaded = load(custom, allowed_names=None)
+        receipts.append(_file_receipt(slot, file, loaded) | {"override_choice": OVERRIDE_CHOICE, "custom_path": custom})
+        if getattr(loaded, "content", None):
+            sections.append(SlotContextSection(slot, file, loaded.content))
+    return receipts, sections
+
+
 def _file_receipt(slot: str, file: str, loaded: Any) -> dict[str, Any]:
     receipt = dict(getattr(loaded, "receipt", None) or {})
     receipt.pop("preview", None)
@@ -455,6 +556,13 @@ def load_slot_context(instance: Any) -> SlotContext | None:
             continue
         bound.append((slot, str(path)))
         owners[slot] = (held.name, held.project_id)
+        override = context_files_override(instance, slot)
+        if override is not None:
+            override_receipts, override_sections = _override_file_receipts(
+                slot, Path(path), override, load_workspace_agents_context)
+            receipts.extend(override_receipts)
+            sections.extend(override_sections)
+            continue
         files = (held.record.get("context") or {}).get("files")
         if not files:
             default_receipts, default_sections = _default_file_receipts(slot, Path(path), load_workspace_agents_context)
