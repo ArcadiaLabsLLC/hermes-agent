@@ -110,7 +110,7 @@ when the pack was already on the import path.
 
 **usage** —
 `{contract, provider, available, source, title, plan, fetched_at,
-windows: [{label, used_percent, reset_at, detail}], details: [str],
+windows: [{label, used_percent, reset_at, detail, scope}], details: [str],
 unavailable_reason}`. Times are ISO-8601. With no usage source for the
 provider (or not signed in): `{contract, provider, available: false,
 unavailable_reason: "no_usage_source"}`. A Nous portal failure reads
