@@ -59,6 +59,17 @@ biting hardest exactly where the diagnostic was needed most. Whoever takes the
 remaining lanes should check each door's real callers before deciding one has no
 gesture behind it.
 
+- **Built 2026-11-02 (lane w1101f-hb), hermes half:** `harness persona instance
+  open-chat --correlation-id` → `PersonaInstanceStore.add_instance(correlation_id=)` /
+  `open_chat(correlation_id=)` → the `persona_instance.chat_opened` payload and its paired
+  `state.patched` row (create and re-open arms), normalized at both, absent → byte-identical.
+  Pinned by `tests/hermes_cli/test_persona_open_chat_correlation_id.py`. Not on
+  `--new-session` (a chat-root mint, no placement gesture). **Steer checked and left:** the
+  launcher's `persona.instance.steer` callers (the Agent Flow doc push) mint no gesture token,
+  so per the retire lesson there is no door to join. **Left:** the launcher arg
+  (`persona.instance.open_chat` gains `correlation_id` in `allowedArgs` and an
+  `optionalFlag('--correlation-id', …)` segment, fed from the placement gesture's minted
+  token), then P1's live run.
 - The plan names this the **partial-coverage window** and sequences it LAST on
   purpose: argv surface changes fan wide.
 - Threading pattern is fixed by the shipped half: an optional argv flag →

@@ -8212,6 +8212,14 @@
           "required": false,
           "type": "int"
         },
+        "--correlation-id": {
+          "action": "store",
+          "canonical": "--correlation-id",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
         "--display-name": {
           "action": "store",
           "canonical": "--display-name",

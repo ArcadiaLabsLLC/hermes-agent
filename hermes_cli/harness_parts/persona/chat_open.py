@@ -184,6 +184,7 @@ def _cmd_persona_instance_open_chat(args) -> int:
                 default_display_name=honest_default_display_name,
                 workspace_id=safe_assignment_token(getattr(args, "workspace_id", None)) or None,
                 realm_id=safe_assignment_token(getattr(args, "realm_id", None)) or None,
+                correlation_id=getattr(args, "correlation_id", None),
             )
             instance = _maybe_stamp_spawned_by(instance, coordinator_id=coordinator_id)
         else:
@@ -289,6 +290,7 @@ def _cmd_persona_instance_open_chat(args) -> int:
                     persona_id=persona_id,
                     persona_instance_id=target_instance_id,
                     session_id=args.session_id,
+                    correlation_id=getattr(args, "correlation_id", None),
                 )
             except ValueError as exc:
                 data = {

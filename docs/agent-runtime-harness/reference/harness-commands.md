@@ -3090,6 +3090,7 @@ usage: hermes harness persona instance open-chat [-h] --persona PERSONA_ID
                                                  [--workspace-id WORKSPACE_ID] [--realm-id REALM_ID]
                                                  [--display-name DISPLAY_NAME]
                                                  [--requested-by REQUESTED_BY]
+                                                 [--correlation-id CORRELATION_ID]
                                                  [--coordinator-id COORDINATOR_ID]
                                                  [--coordinator-max-spawns COORDINATOR_MAX_SPAWNS]
                                                  [--coordinator-spawns-used COORDINATOR_SPAWNS_USED]
@@ -3120,6 +3121,7 @@ options:
                         Authoritative name for a deliberately placed additional instance; ignored
                         unless --add-instance
   --requested-by REQUESTED_BY
+  --correlation-id CORRELATION_ID
   --coordinator-id COORDINATOR_ID
                         Coordinator persona id when --requested-by is coordinator; coordinator:<id>
                         carries it inline
