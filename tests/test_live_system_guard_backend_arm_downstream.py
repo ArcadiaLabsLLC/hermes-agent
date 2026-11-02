@@ -109,3 +109,25 @@ def test_the_same_argv_with_no_executable_is_still_refused():
 def test_an_executable_that_is_the_hermes_launcher_is_refused_whatever_argv0_says(tmp_path):
     argv = ["python", "gateway", "run"]
     assert backend_spawn_subcommand(argv, str, {"executable": str(tmp_path / "bin" / "hermes")}) == "gateway"
+
+
+# ``hermes update``'s import-health probe carries ``sys.argv = ['hermes', 'update']`` and the
+# first-party roots (``'gateway'`` ...) as data inside ``runtime_command``'s ``exec`` wrapper:
+# an import check, never a backend (FH-UPDATE-TESTS-RED-ON-LINUX-MAIN). The marker alone
+# does not exempt code that calls anything outside the probe's own calls.
+def _update_import_probe_argv(tmp_path, extra=""):
+    from hermes_cli._launchers import runtime_command
+    code = ("import importlib, json, sys\nsys.argv = ['hermes', 'update']\n"
+            "for name in ('hermes_cli.main',):\n    importlib.import_module(name)\n"
+            f"roots = ('gateway', 'tui_gateway')\n{extra}"
+            "sys.stdout.write('\\n__HERMES_IMPORT_HEALTH_abc__' + json.dumps([]))\n")
+    return runtime_command(tmp_path, code=code)
+
+
+def test_the_update_import_probe_is_not_a_backend_start(tmp_path):
+    assert backend_spawn_subcommand(_update_import_probe_argv(tmp_path), str) is None
+
+
+def test_a_marked_probe_that_could_spawn_keeps_the_conservative_scan(tmp_path):
+    argv = _update_import_probe_argv(tmp_path, "__import__('subprocess').run(['hermes', 'gateway', 'run'])\n")
+    assert backend_spawn_subcommand(argv, str) == "gateway"

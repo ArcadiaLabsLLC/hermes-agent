@@ -1002,3 +1002,10 @@ tests/e2e/core/upgrade/test_update_userstate_import.py · upstream: the whole fi
 tests/e2e/core/upgrade/test_update_userstate_realistic.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · 4d04303818
 tests/e2e/core/upgrade/test_upgrade_path.py · upstream: the whole file fails on the pure tag v0.22.2 (collection error, crash or timeout) · 4d04303818
 tests/tui_gateway/test_multi_client_fanout.py::test_overflow_closes_only_the_slow_peer_and_healthy_keeps_streaming · upstream: nondeterministic on the pure tag v0.22.4 (pass then red; classify_reds_on_tag 2026-10-22) · 4d04303818
+
+# env: no prepared Node on the Linux box (FH-SCRIPTS-BUILD-TESTS-RED-WITHOUT-NODE, w1101g-h2 2026-11-02): each node below
+# was run once, bare and named, on fork main b855f858a2 and seen red; re-run bare once Node is on the test PATH
+tests/scripts/test_agent_build.py::test_payload_smoke_uses_relocated_manifest_commands · env: no Node on PATH (scripts/smoke-payload.sh: `node: command not found`) · 4d04303818
+tests/scripts/test_source_build_env.py::test_posix_build_children_stamp_old_and_new_without_changing_parent[node] · env: no Node on PATH (FileNotFoundError: 'node') · 4d04303818
+tests/scripts/test_source_driver.py::test_pm_observer_accepts_ready_fixture_and_leaves_failed_fixture_untouched · env: no Node on PATH (all seven faults red at `assert node`) · 4d04303818
+tests/scripts/test_fresh_source_install.py::test_current_installer_publishes_real_dependencies_and_warm_path[None] · env: install.sh's products stage (tui/web build) fails with no prepared Node on the box (`products_build_failed`) · 4d04303818

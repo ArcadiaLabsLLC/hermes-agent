@@ -175,12 +175,12 @@ def clear_chat_session_binding(
       ``persona_instance.chat_opened`` note in ``patch_coverage`` says the
       producer and the coverage entry must land together to avoid.
 
-    Both halves are pinned as behaviour in ``test_persona_assignments.py``
+    Both halves are pinned as behaviour in ``test_persona_assignments_retire.py``
     (the clear's batch demotes; covering it would drop a chat-history row),
     so this is a checkable claim rather than an assurance.
 
     The two paths are therefore both legitimate and both accounted for, and
-    the count is fenced: ``test_persona_assignments.py`` walks this module's
+    the count is fenced: ``test_persona_assignments_retire.py`` walks this module's
     AST and fails if a THIRD function ever writes ``default_chat_session_id``
     or ``session_id`` on an instance.
     """

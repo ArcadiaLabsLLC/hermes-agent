@@ -406,7 +406,7 @@ LIVE_COVERED_DOMAIN_EVENT_TYPES: frozenset[str] = frozenset(
         # ``clear_chat_session_binding`` deliberately emits no ``state.patched``
         # at all — a patch there is unreachable, and the coverage entry that
         # would reach it is unsafe. Both halves are pinned in
-        # ``test_persona_assignments.py``.
+        # ``test_persona_assignments_retire.py``.
         #
         # Every entry here is gated by ``test_stream_patch.py``'s both-ways
         # partition test: a live entry must have a registered contract, so none

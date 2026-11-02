@@ -78,8 +78,8 @@ CROSS_REPO = re.compile(r"^\s*\(?(launcher|backend|EterniaLauncher|eternia-backe
 BLOCKER_ID_CEILING = 0
 
 #: Rows citing a ``planned/`` doc with no ``group:`` segment when the rule landed (2026-11-02).
-#: Shrink-only: lower it in the commit that groups a row (``RT-QUEUE-ROW-GROUP-BACKFILL`` takes it to 0).
-GROUP_MISSING_CEILING = 51
+#: Shrink-only; ``RT-QUEUE-ROW-GROUP-BACKFILL`` took it to 0 (2026-11-02): every plan row now names its group.
+GROUP_MISSING_CEILING = 0
 
 
 def split_segments(line: str) -> list[str]:

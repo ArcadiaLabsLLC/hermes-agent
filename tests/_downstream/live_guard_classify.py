@@ -181,11 +181,50 @@ def _python_c_code_is_inert(code: str) -> bool:
     return not any(part in name.lower() for name in imports for part in _BACKEND_NAME_PARTS)
 
 
+# ``hermes update``'s import-health probe (``hermes_cli/update_cmd_validation.py``) is a
+# ``python -I -c`` child that only IMPORTS the critical modules and prints a marker. Its
+# CODE carries ``sys.argv = ['hermes', 'update']`` and the first-party roots tuple
+# (``'gateway'``, ``'tui_gateway'`` ...) as data, which the word scan read as
+# ``hermes ... gateway`` (FH-UPDATE-TESTS-RED-ON-LINUX-MAIN, 2026-11-02). It is recognised
+# by its marker AND by calling only names from this list, through the
+# ``runtime_command`` wrapper's ``exec("<literal>")`` too: no call here can start a process.
+_IMPORT_PROBE_MARKER = "__HERMES_IMPORT_HEALTH_"
+_IMPORT_PROBE_CALLS = frozenset({
+    "pop", "insert", "get", "__setitem__", "str", "__import__", "get_default_hermes_root",
+    "exec", "import_module", "split", "getattr", "startswith", "append", "type", "write",
+    "dumps",
+})
+
+
+def _import_probe_calls_only(code: str, depth: int = 0) -> bool:
+    try:
+        tree = ast.parse(code)
+    except (SyntaxError, ValueError):
+        return False
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
+        if name not in _IMPORT_PROBE_CALLS:
+            return False
+        if name == "exec":
+            arg = node.args[0] if len(node.args) == 1 and not node.keywords else None
+            if not (isinstance(arg, ast.Constant) and isinstance(arg.value, str)
+                    and depth < 2 and _import_probe_calls_only(arg.value, depth + 1)):
+                return False
+    return True
+
+
+def _is_update_import_probe(code: str) -> bool:
+    return _IMPORT_PROBE_MARKER in code and _import_probe_calls_only(code)
+
+
 def _without_inert_python_c_code(raw: list) -> list:
     """*raw* without CODE when it is ``python [opts] -c CODE`` and CODE is inert."""
     if len(raw) >= 3 and raw[-2] == "-c" and _PYTHON_BASENAME_RE.match(
         str(raw[0]).replace("\\", "/").rsplit("/", 1)[-1].lower()
-    ) and _python_c_code_is_inert(str(raw[-1])):
+    ) and (_python_c_code_is_inert(str(raw[-1])) or _is_update_import_probe(str(raw[-1]))):
         return raw[:-1]
     return raw
 
