@@ -29,6 +29,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-11-01 (launcher lane w1101d-p-voice: agent voice call plan)
+
+- **`RT-CHAT-TURN-INPUT-MODE` — `runtime.chat.message` accepts `input_mode` ∈ {`typed`, `voice`} (argv `--input-mode`, default `typed`), recorded on the turn's operator row in the turn record and carried on `persona chat history` rows, so a spoken turn survives a restart as spoken (the launcher's microphone glyph is live-only until then); test: a `voice` turn's history row carries `input_mode: voice`, mutation: drop the field from the history projection → red** · `agent_runtime/chat_turn.py` · `agent_runtime/mission_chat_turn_context.py` · `EterniaLauncher/docs/mission_control/planned/AGENT_VOICE_CALL_CONTRACT_2026-11-01.md` · BLOCKED 2026-11-01: launcher — `MC-AGENT-VOICE-CALL-CONTRACT` owner question Q1 (build the agent voice call); the launcher follow-up is `MC-AGENT-VOICE-TURN-HISTORY-MARK`
+
 ### Filed on arrival — 2026-11-01 (launcher planning lane w1101d-p-groups: queue row groups)
 
 - **`RT-QUEUE-ROW-GROUP-GRAMMAR` — the hermes twin of the queue row group: a ` · group: <slug>` segment (one bare lowercase slug `[a-z0-9][a-z0-9.-]*`) read by the lint (`tests/tooling/test_work_queue_row_grammar.py`: GROUP, "group shape" / "2 group segments", `GROUP_MISSING_CEILING` 55 for plan-citing rows with no group) and by the Work engine (`agent_runtime/work_store/grammar.py` `Row.group` and `Op.SET_GROUP`; `agent_runtime/work/store.py` `project()["group"]`, `group?` on `runtime.work.list` and `runtime.work.start`), the shared fixtures copied byte-identical, the verb table and the ADR 0011 bullet** · group: queue-row-groups · plan `EterniaLauncher/docs/mission_control/planned/QUEUE_ROW_GROUPS_2026-11-01.md` §S2 · BLOCKED 2026-11-01: launcher — `BRAIN-QUEUE-ROW-GROUPS-S1` the launcher grammar, fixtures and ADR 0025 amendment land first
