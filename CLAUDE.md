@@ -137,6 +137,9 @@ batch at its landing, never per lane.
   past budget it heartbeats and raises a desktop notification, at the deadline it is killed and
   named (owner 2026-10-30, `FH-PREPUSH-PROGRESS-BUDGET`). Any red is fixed before the push (owner
   2026-10-29, adopting the launcher's 2026-10-27 rule). It is a command, not a hook.
+- A prepush step or test lane that runs past its budget gets a row in the fork-hygiene queue the
+  moment it is seen (check, budget, measured time, box load) and the next wave optimises the check;
+  raise a budget only on an idle-box measurement (owner 2026-11-01: "also make sure we are optimising the gates if they go out of buget").
 - While the operator is testing a live serve, commit from a worktree and push `HEAD:main`,
   never in the primary checkout: a commit there moves the code tree the serve is built from
   and the Launcher restarts it (three queue-only commits did, 2026-10-05; vault-only paths stop
