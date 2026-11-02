@@ -192,6 +192,19 @@ def _lift_reopened_cooldowns(pool, entries: list, provider: str = "") -> list:
         return entries
 
 
+def _credential_source(provider: str) -> Optional[dict]:
+    """``{chosen, effective, sources}`` for a provider ``PROVIDER_CREDENTIAL_SOURCES`` declares, else
+    None — the ONE fact a client reads for "which stored credential do turns spend", so it never
+    infers it from pool rows (the unchosen family can be pruned or benched). A raise reads as None:
+    it never breaks the credential payload."""
+    try:
+        from agent_runtime.provider_credential_source import credential_source_block
+
+        return credential_source_block(provider)
+    except Exception:
+        return None
+
+
 def build_provider_visibility() -> dict:
     """Typed, machine-readable snapshot of every credential pool — the contract
     the Launcher's provider/model surfaces consume instead of scraping the
@@ -235,7 +248,8 @@ def build_provider_visibility() -> dict:
                     "token_preview": _credential_token_preview(entry),
                 }
             )
-        providers_out.append({"id": provider, "credentials": credentials})
+        providers_out.append({"id": provider, "credentials": credentials,
+                              "credential_source": _credential_source(provider)})
     payload: dict = {
         "schema": "hermes.provider_visibility/v2",
         "providers": providers_out,
