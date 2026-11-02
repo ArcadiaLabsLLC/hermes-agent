@@ -7538,7 +7538,8 @@
       "positionals": [],
       "subcommands": [
         "delete",
-        "history"
+        "history",
+        "tool-io"
       ]
     },
     "harness persona chat delete": {
@@ -7667,6 +7668,67 @@
         "persona",
         "chat",
         "history"
+      ],
+      "positionals": [],
+      "subcommands": []
+    },
+    "harness persona chat tool-io": {
+      "exclusive_groups": [],
+      "options": {
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--offset": {
+          "action": "store",
+          "canonical": "--offset",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": "int"
+        },
+        "--session-id": {
+          "action": "store",
+          "canonical": "--session-id",
+          "choices": null,
+          "nargs": 1,
+          "required": true,
+          "type": null
+        },
+        "--tool-call-id": {
+          "action": "store",
+          "canonical": "--tool-call-id",
+          "choices": null,
+          "nargs": 1,
+          "required": true,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "persona",
+        "chat",
+        "tool-io"
       ],
       "positionals": [],
       "subcommands": []
