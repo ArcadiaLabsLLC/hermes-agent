@@ -12,11 +12,8 @@ from .character_assignment import CharacterAssignmentReason, CharacterAssignment
 from .character_assignment_service import _character_subject, write_character_assignment
 from .media_handles import handle_for_bytes
 from .profile_avatar import AVATAR_UPLOAD_MAX_BYTES, AvatarRefusal, ProfileAvatarRefused, _portrait_png, agent_portrait_asset_path
-from .profile_context import _profile_home_for_token
 
 __layer__ = "stores"
-
-
 
 
 def write_agent_appearance(params: dict) -> dict:

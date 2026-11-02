@@ -122,11 +122,17 @@ def test_older_peer_cannot_drop_portrait_ownership(appearance):
 
 
 def test_realm_asset_roundtrip_uses_existing_file_owner_and_refuses_tampering(appearance, tmp_path):
-    from agent_runtime.realm_sync.persona_artifacts import _persona_artifacts
+    from agent_runtime.realm_sync.persona_artifacts import _instance_portrait_artifacts
+    from agent_runtime.persona_instance_sync import project_persona_instances
     from agent_runtime.profile_artifact_sync import read_remote_profile_files
     subject, _ = appearance
     write_agent_appearance(request(subject))
-    assets, held = _persona_artifacts(next(p for p in ensure_persisted_personas() if p.id == subject["persona_id"]))
+    sibling = {**subject, "id": "personainst_appearance_agent_bbccddee"}
+    write_agent_appearance(request(sibling, color="green"))
+    records = {p.id: p for p in PersonaInstanceStore().list_all()}
+    projection = project_persona_instances([subject["id"]], records=records)
+    assets, held = _instance_portrait_artifacts(projection)
+    assert not _instance_portrait_artifacts(project_persona_instances([], records=records))[0]
     portrait = [a for a in assets if a.kind == "profile_portrait"]
     assert len(portrait) == 1 and not any(r["kind"] == "profile_portrait" for r in held)
     path = tmp_path / portrait[0].relative_path

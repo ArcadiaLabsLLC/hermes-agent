@@ -32,6 +32,7 @@ from .persona_artifacts import (
     _flow_graph_artifact,
     _office_wanted_persona_ids,
     _persona_artifacts,
+    _instance_portrait_artifacts,
     _persona_config_artifact,
     _persona_instance_artifact,
     _raw_active_config,
@@ -223,6 +224,9 @@ def _resolve_artifacts_with_projection(realm_id: str) -> _ResolvedPublish:
     )
     if instance_projection.instances:
         artifacts.append(_persona_instance_artifact(instance_projection))
+    portrait_artifacts, portrait_withheld = _instance_portrait_artifacts(instance_projection)
+    artifacts.extend(portrait_artifacts)
+    profile_files_withheld.extend(portrait_withheld)
     # The CANVAS projection: the operator's drawing for those same desks, on the
     # SAME id list for the same reason — a canvas is addressed to an owner
     # instance, so a desk this publish does not ship has no canvas to ship
