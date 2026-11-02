@@ -1381,6 +1381,7 @@ def test_persona_chat_history_summary_projects_bound_sessions_redaction_safe(iso
             "title": "Untitled persona chat",
             "last_message_preview": "Please inspect the proof packet.",
             "message_count": 7,
+            "visible_message_count": 0,
             "created_at": "1970-01-01T00:00:10.000000Z",
             "updated_at": "1970-01-01T00:00:20.000000Z",
             "state": "open",

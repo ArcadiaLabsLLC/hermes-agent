@@ -36,7 +36,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-11-01 (lane chat-rows: Neko calculator chat, `persona chat history` transcript audit)
 
-- **`RT-CHAT-VISIBLE-MESSAGE-COUNT` — the chat summary's `message_count` is SessionDB's `sessions.message_count` summed across the lineage (`_lineage_aggregate`), which counts every stored row (user, assistant tool-call steps, tool results), so the launcher's Conversations panel labels the Neko chat "24 messages" while `persona chat history` returns `total_count` 7 (the curated operator/agent rows the chat shows); expose the curated count on the summary (or rename the stored-row count) so the panel and the chat agree — the launcher half is `MC-CONVERSATION-COUNT-MISMATCH`** · `agent_runtime/persona_chat_history/history_rows.py::_lineage_aggregate` · `agent_runtime/persona_chat_history/messages.py` · `EterniaLauncher/lib/features/mission_control/console/instance_picker/console_conversation_card.dart::consoleConversationMessageCountLabel` · READY 2026-11-01 · **TAKEN 2026-11-01 w1101d-h-chat on nekwo-ubuntu24 as nekwo in hm-w1101d-chat**
 
 ### Filed on arrival — 2026-11-01 (owner: folder-slot context file toggles)
 

@@ -112,9 +112,12 @@ def _history_row(
         redacted_fallback="Preview hidden by redaction boundary",
         limit=180,
     )
-    messages, messages_status, messages_unread = _safe_recent_messages(
-        session_db, session_id=session_id, limit=message_tail
-    )
+    # The full curated transcript, read once: its tail is the frame's
+    # ``messages`` and its length is ``visible_message_count`` — the rows the
+    # chat actually shows (``persona chat history``'s ``total_count``), beside
+    # SessionDB's stored-row ``message_count`` (RT-CHAT-VISIBLE-MESSAGE-COUNT).
+    curated, messages_status, messages_unread = _safe_curated_messages(session_db, session_id=session_id)
+    messages = curated[-_bounded_message_tail(message_tail):]
     active_session_id = session_id
     try:
         active_session_id = session_db.resolve_resume_session_id(session_id)
@@ -181,9 +184,13 @@ def _history_row(
         "live_mission": bool(kind == "mission" or raw.get("live_mission")),
         "title": title,
         "last_message_preview": preview,
+        # Every STORED row across the lineage (user, assistant tool-call steps,
+        # tool results) — usage accounting, not what the chat shows.
         "message_count": lineage_aggregate.get(
             "message_count", positive_int(raw.get("message_count"), default=0)
         ),
+        # The operator/agent rows the transcript shows; absent when it was not read.
+        **({"visible_message_count": len(curated)} if messages_unread is None else {}),
         "created_at": iso_timestamp(raw.get("started_at")),
         "updated_at": iso_timestamp(
             lineage_aggregate.get("last_active")

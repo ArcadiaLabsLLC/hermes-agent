@@ -385,6 +385,31 @@ def test_history_row_activity_uses_latest_message_when_raw_session_has_no_last_a
     assert rows[0]["updated_at"] == "2026-06-22T21:01:04.000000Z"
 
 
+def test_history_row_counts_the_rows_the_chat_shows_beside_the_stored_rows():
+    """RT-CHAT-VISIBLE-MESSAGE-COUNT: the panel said "6 messages" for a chat that shows 2."""
+    db = FakeHistorySessionDB(
+        [{"id": "chat_neko", "title": "Neko", "message_count": 6, "started_at": 1782162000.0}],
+        messages=[
+            {"id": "m1", "role": "user", "content": "hi"},
+            {"id": "m2", "role": "assistant", "content": None,
+             "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "read_file", "arguments": "{}"}}]},
+            {"id": "m3", "role": "tool", "content": "file body", "tool_call_id": "c1"},
+            {"id": "m4", "role": "assistant", "content": None,
+             "tool_calls": [{"id": "c2", "type": "function", "function": {"name": "read_file", "arguments": "{}"}}]},
+            {"id": "m5", "role": "tool", "content": "file body", "tool_call_id": "c2"},
+            {"id": "m6", "role": "assistant", "content": "hello"},
+        ],
+    )
+
+    row = persona_chat_history_summary(
+        persona_instances=[_chat_persona_instance("personainst_neko", "neko_supervisor", "chat_neko")],
+        session_db=db,
+    )[0]
+
+    assert row["message_count"] == 6  # stored rows: usage accounting, unchanged
+    assert row["visible_message_count"] == 2 == len(row["messages"])
+
+
 def test_history_row_normalizes_iso_and_drops_garbage_timestamps():
     db = FakeHistorySessionDB(
         [
