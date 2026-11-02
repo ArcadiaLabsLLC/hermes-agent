@@ -34,6 +34,14 @@ S0 measured on the owner's PC (`live-sitting-results-2026-10-25.md` § Timing ba
   drifted since `c8ba19b105`'s lens events); the launcher must mirror them with S3.
 - **Left:** S3 (launcher fold, declare `board_card`) and S4 (live proof).
 
+## Build status (lane w1101f-rescope, 2026-11-02)
+
+S3 and S4 are done on the launcher side: `MC-BOARD-CARD-FOLD` landed the launcher fold, and its
+live proof (launcher `00ed91337c`, `EterniaLauncher/docs/stages/qa-reboot/live/2026-10-31/MC-BOARD-CARD-FOLD/notes.md`)
+read a Launcher card move as `fold_applied … ops:board_card.upsert=1` with the forced refresh
+declined. Row `RT-BOARD-CARD-FOLD-RUNTIME` is closed; archive / restore / rebalance stay with
+`RT-BOARD-CARD-FOLD-ARCHIVE`.
+
 ## In plain English
 
 Board writes now have fast RPC twins (build-1011-C4), but after each write the
