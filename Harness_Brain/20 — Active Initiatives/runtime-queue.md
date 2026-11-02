@@ -32,6 +32,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Project Slots native acceptance — 2026-11-02
+
+- **`RT-PROJECT-LOCAL-FOLDER-READINESS` — A bound local Project slot without Git remains one setup step short: the probe returns not_a_repo before checking repo.local, while the derived recipe says Clone or locate and clone_slot refuses local-only slots; make a bound existing local folder report its actual readiness and offer only meaningful local actions, without inventing a repository** · `agent_runtime/workspace_slots_probe.py::_SlotProbe.checkout` · `agent_runtime/workspace_slot_recipe.py::derived_steps` · `agent_runtime/workspace_slot_setup.py::clone_slot` · found live 2026-11-02 in Eternia Project Slots: Browse a fresh notes directory, add and bind succeeds, Open folder reads README, Re-check still says 1 step to do: Clone or locate notes; runtime b855f858a2, client b27d918672; the client preserves runtime authority rather than marking it ready · READY 2026-11-02
+
 ### Filed on arrival — 2026-11-02 (lane w1101g-h: work.list reads every board)
 
 - **`RT-WORK-DEFAULT-MOVE-FAILS-LIST` — `runtime.work.list` still refuses WHOLE when the default brain's move refuses: `synced` runs `normalize_default_brain` before its per-board isolation, so a `WorkRefused` from the default brain's `Writer.sync` or the move's `apply` (a held lock, a dirty worktree, a push refusal into the target brain) hides every board, the failure RT-WORK-LIST-ONE-BOARD-REFUSAL fixed for the boards themselves; catch it in `synced`, list the default board with its own `refused` and every other board read — test: a default brain whose worktree index is locked, list answers the repo boards; mutation: re-raise → red** · `agent_runtime/work/store.py::synced` · `agent_runtime/work/store.py::normalize_default_brain` · READY 2026-11-02
