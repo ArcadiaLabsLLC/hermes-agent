@@ -7,6 +7,8 @@ tags: [queue, program/mission-control, runtime]
 
 # Runtime — the hermes half of the Mission Control queue
 
+- **`RT-AGENT-APPEARANCE-PORTRAIT` — Add revision-checked exact-instance portrait choices through the existing persona/instance and media owners; preserve shared backing-profile artwork and character inheritance, expose one appearance save contract for the client** · group: agent-appearance · `agent_runtime/profile_avatar.py` · `agent_runtime/character_assignment.py` · READY 2026-11-02 · **TAKEN 2026-11-02 appearance-identity on MUltiversalLabsInc as Maximus Shaban in appearance-rt**
+
 
 
 ## Ownership refresh — 2026-10-08
