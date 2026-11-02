@@ -26,6 +26,7 @@ from agent_runtime.mission_chat_turns.states import (
 )
 from agent_runtime.models import Event
 from agent_runtime.persona_assignments import safe_assignment_text, safe_assignment_token
+from agent_runtime.provider_retry_wait import PROVIDER_RETRY_WAIT_FRAME, safe_provider_retry_wait
 from agent_runtime.serde import safe_block, safe_int, safe_text
 from hermes_cli.harness_parts.persona.tool_heartbeat import ToolHeartbeat
 from hermes_time import now
@@ -444,6 +445,10 @@ class _ChatProtocolV2Emitter:
         if event_type == "run.progress" and compaction_state(payload) is not None:
             self._compaction(compaction_state(payload))
             return
+        retry_wait = safe_provider_retry_wait(payload) if event_type == "run.progress" else None
+        if retry_wait is not None:
+            self._provider_retry_wait(retry_wait)
+            return
         handler = _PROGRESS_EVENTS.get(event_type)
         if handler is None:
             return
@@ -515,6 +520,26 @@ class _ChatProtocolV2Emitter:
                 "after_seq": self._seq,
             }
         )
+
+    def _provider_retry_wait(self, wait: dict[str, object]) -> None:
+        """One ``provider.retry_wait`` v2 frame per retry the turn sits out: the provider's
+        refusal (when the waited-on error is one) and when the retry runs, so the console
+        stops reading a 600 s wait as "Thinking". Presentation-only, like
+        ``context.compaction``: no element seq, no segment end; the next frame of any kind
+        (a reply delta, a tool, ``turn.end``) supersedes it."""
+
+        frame: dict[str, object] = {
+            "type": PROVIDER_RETRY_WAIT_FRAME,
+            "protocol_version": 2,
+            "turn_id": self.turn_id,
+            "after_seq": self._seq,
+            "retry_in_seconds": wait["retry_in_seconds"],
+            "attempt": wait["attempt"],
+            "max_attempts": wait["max_attempts"],
+        }
+        if "provider_refusal" in wait:
+            frame["provider_refusal"] = wait["provider_refusal"]
+        self._emit_chat_frame(frame)
 
     def end_segment(self, *, state: str = "settled") -> None:
         segment = self._current_segment

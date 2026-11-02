@@ -76,6 +76,7 @@ __all__ = [
     "TurnOutcome",
     "classify_turn_failure",
     "provider_refusal",
+    "provider_refusal_from_block",
 ]
 
 
@@ -347,6 +348,10 @@ AMBIGUOUS_400_FAILURE_REASONS = frozenset(
 #: (epoch) for a ``Retry-After`` header, and forwards ``x-ratelimit-reset``
 #: verbatim, which providers send as either.
 _RESET_AT_EPOCH_FLOOR = 1_000_000_000
+#: At or above this, an epoch is in MILLISECONDS (10^12 ms is 2001-09-09; as seconds it is
+#: ~31,700 years out). Some providers send ``x-ratelimit-reset`` in ms, and read as seconds it
+#: became a reset tens of millennia away — which ``reset_outlasts_retries`` would act on.
+_RESET_AT_EPOCH_MS_FLOOR = 1_000_000_000_000
 
 
 @dataclass(frozen=True, slots=True)
@@ -477,6 +482,8 @@ def _reset_delta_seconds(value: object, *, now: float | None = None) -> float | 
             return parsed.timestamp() - moment
     if number is None:
         return None
+    if number >= _RESET_AT_EPOCH_MS_FLOOR:
+        number /= 1000.0
     return number - moment if number >= _RESET_AT_EPOCH_FLOOR else number
 
 
@@ -491,7 +498,14 @@ def provider_refusal(exc: BaseException) -> ProviderRefusal | None:
     after its first byte. Those settle ``outcome_unknown`` exactly as before.
     """
 
-    block = getattr(exc, "provider_error", None)
+    return provider_refusal_from_block(getattr(exc, "provider_error", None))
+
+
+def provider_refusal_from_block(block: object) -> ProviderRefusal | None:
+    """:func:`provider_refusal` for a bare ``provider_error`` block — the same verdict whether
+    the block rides a terminal result or a retry wait the turn is still sitting out
+    (``agent_runtime.provider_retry_wait``)."""
+
     if not isinstance(block, dict):
         return None
     try:
