@@ -46,6 +46,7 @@ __all__ = [
     "_runtime_provider_signin_complete",
     "_runtime_provider_signin_poll",
     "_runtime_provider_signout",
+    "_runtime_provider_source_set",
     "_runtime_provider_usage",
 ]
 
@@ -57,7 +58,10 @@ MAX_CODE_CHARS = 2048
 
 #: Provider refusals that name a bad request rather than a failed operation.
 _INVALID_PARAM_REASONS = frozenset({"provider_unknown", "auth_mode_unsupported", "auth_mode_unknown",
-                                    "base_url_invalid"})
+                                    "base_url_invalid", "source_unsupported", "source_unknown"})
+
+#: Provider refusals that name a state of the home rather than a bad request.
+_CONFLICT_REASONS = frozenset({"source_absent"})
 
 _FAMILY_CODES = {"invalid_params": ERR_INVALID_PARAMS, "conflict": ERR_CONFLICT, "not_found": ERR_NOT_FOUND}
 
@@ -85,7 +89,8 @@ def _answer(rid: Any, method_name: str, work: Callable[[], dict]) -> dict:
     except SignInRefused as refusal:
         return _refused(rid, method_name, refusal.reason, _FAMILY_CODES[refusal.code], **refusal.data)
     except ProviderRefused as refusal:
-        code = ERR_INVALID_PARAMS if refusal.reason in _INVALID_PARAM_REASONS else ERR_HANDLER_FAILED
+        code = (ERR_INVALID_PARAMS if refusal.reason in _INVALID_PARAM_REASONS
+                else ERR_CONFLICT if refusal.reason in _CONFLICT_REASONS else ERR_HANDLER_FAILED)
         return _refused(rid, method_name, refusal.reason, code, refusal.message, **refusal.data)
     except Exception as exc:  # class name only, never the message
         return _failed(rid, method_name, exc)
@@ -254,3 +259,19 @@ def _runtime_provider_configure(rid: Any, params: dict, context: RpcContext | No
         return _refused(rid, "runtime.provider.configure", "base_url_invalid", ERR_INVALID_PARAMS)
     return _answer(rid, "runtime.provider.configure",
                    lambda: provider_account.provider_configure(provider, auth_mode.lower(), base_url))
+
+
+@method("runtime.provider.source.set", tier=TIER_CONSOLE)
+def _runtime_provider_source_set(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """Choose which stored credential the provider's turns spend (``providers.<id>.credential_source``).
+    Params: ``provider``, ``source``. Selects nothing else."""
+    from agent_runtime import provider_account
+
+    provider, refusal = _provider_or_refuse(rid, "runtime.provider.source.set", params)
+    if refusal is not None:
+        return refusal
+    source = _text_param(params, "source")
+    if source is None:
+        return _refused(rid, "runtime.provider.source.set", "source_required", ERR_INVALID_PARAMS)
+    return _answer(rid, "runtime.provider.source.set",
+                   lambda: provider_account.provider_source_set(provider, source.lower()))

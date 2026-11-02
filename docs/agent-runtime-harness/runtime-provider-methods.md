@@ -23,6 +23,7 @@ moving `RPC_CONTRACT_VERSION`.
 | `runtime.provider.refresh` | console | `provider`; `credential?` (index, id or label) | `hermes auth refresh` (`auth_refresh_command`) |
 | `runtime.provider.signout` | console | `provider` | `hermes auth logout` (`auth_logout_command`) |
 | `runtime.provider.configure` | console | `provider`, `auth_mode`; `base_url?` | `agent_runtime/provider_account.py::provider_configure`: writes `model.provider`, `model.auth_mode` (and `model.base_url`) on the bound provider home's `config.yaml` through the round-trip YAML writer — only a provider `PROVIDER_AUTH_MODES` declares, only a declared mode, no secret (a `needs_key` mode is keyed through `auth set-key`); it selects the provider because the mode is read only for the selected one |
+| `runtime.provider.source.set` | console | `provider`, `source` | `agent_runtime/provider_account.py::provider_source_set`: writes `providers.<provider>.credential_source` on the bound provider home's `config.yaml` through the round-trip YAML writer — only a provider `PROVIDER_CREDENTIAL_SOURCES` declares, only a declared source with a credential stored; chooses which STORED credential turns spend (`agent_runtime/provider_credential_source.py`) and selects nothing else (not `model.provider`: that is `configure`) |
 | `runtime.provider.dependency.install` | console | `provider` | `agent_runtime/provider_dependencies.py`: `uv pip install` of the provider's one extra into this runtime's environment; `pm` sync (new generation) only on a resolver conflict |
 | `runtime.provider.pack.activate` | console | `site_packages` (absolute) | `agent_runtime/provider_packs.py`: `site.addsitedir` of an unpacked provider pack this bundle built (its `engine-pack.json` names a pack in `bundle-manifest.json` `packs`, same commit), so the SDK imports without a restart |
 
@@ -45,6 +46,7 @@ table (`HermesProviderMethod.timeoutFor`).
 | `runtime.provider.refresh` | `hermes auth refresh`: token endpoint calls under upstream's HTTP timeouts; no single bound, and a lost reply leaves the outcome unknown | 30 s |
 | `runtime.provider.signout` | `hermes auth logout`: as refresh | 30 s |
 | `runtime.provider.configure` | up to three round-trip YAML writes of one local file | 10 s |
+| `runtime.provider.source.set` | local credential-presence reads and one round-trip YAML write of one local file | 10 s |
 | `runtime.provider.signin.begin` | spawns the login child and answers in state `starting` without waiting on it | 15 s |
 | `runtime.provider.list` | local files, plus — only for a credential in cooldown — upstream's throttled Codex quota probe (`_probe_codex_quota_restored`, `timeout=10.0`, after an expired-token refresh) | 30 s |
 | `runtime.provider.signin.poll` | in-memory session read | 10 s |
@@ -61,6 +63,16 @@ source, selected, health, token_preview}]}], environment?, api_keys?,
 auth_logins?, local_llama?, catalog?, block_errors?}`. `catalog` rows are the
 real login catalog plus `browser_login: bool` and `browser_login_methods:
 [flow…]`. `token_preview` is at most the last four characters.
+Each `providers[]` row carries `credential_source`: for a provider
+`PROVIDER_CREDENTIAL_SOURCES` declares (today `anthropic`: `account` "Claude
+account", `api_key` "API key") `{chosen, effective, sources: [{id, label,
+present}]}`, else null. `chosen` is `providers.<id>.credential_source` (null =
+unset: the provider's own ladder, where an env `ANTHROPIC_API_KEY` wins);
+`effective` is the source a turn spends now (null with nothing stored) — the
+chosen one while it has a credential stored, else the other; `present` is
+"a credential of this family is stored". Read it instead of inferring from the
+pool rows: with the choice unset a stored key prunes the account rows, and
+with it set the unchosen family's rows stay listed but benched.
 `dependencies` (owner ruling 2026-10-15) is `{sdk_free, providers: [{provider,
 missing: [distribution…], extra, installable}]}` — only providers this
 interpreter cannot run for lack of their SDK. `extra: null` means no extra
@@ -86,6 +98,12 @@ environment generation: `restart_required: true`).
 `provider_required`, `auth_mode_required`, `auth_mode_unsupported` (the provider has one implicit
 mode), `auth_mode_unknown` (+ `auth_modes`), `base_url_invalid` (not http(s)), `configure_failed`
 (+ the exception class).
+
+**source.set** — `{contract, provider, source, effective, sources: [{id, label, present}]}`
+(`effective` and `sources` as `list`'s `credential_source`); refusals `provider_required`,
+`source_required`, `source_unsupported` (the provider declares no sources), `source_unknown`
+(+ `sources`), `source_absent` (+ `source`: nothing of that family is stored — sign in or paste
+the key first), `source_failed` (+ the exception class).
 
 **pack.activate** — `{contract, pack, site_packages, activated}`; `activated: false`
 when the pack was already on the import path.
@@ -143,6 +161,9 @@ from `get_auth_status` before and after).
 | -32602 | `login_id_required` | `signin.poll/complete/cancel` |
 | -32602 | `code_invalid` | `signin.complete`: missing, over 2048 chars, or holding CR/LF/NUL |
 | -32602 | `provider_unknown` (+`provider`) | `refresh`, `signout` |
+| -32602 | `source_required` / `source_unsupported` (+`provider`) / `source_unknown` (+`provider`, `sources`) | `source.set` |
+| 4090 | `source_absent` (+`provider`, `source`) | `source.set`: no credential of that family is stored |
+| -32000 | `source_failed` (+`provider`; `message` is the exception class) | `source.set` |
 | 4001 | `login_not_found` (+`login_id`) | `signin.poll/complete/cancel` |
 | 4090 | `login_in_progress` (+`login_id` of the live one) | `signin.begin` |
 | 4090 | `login_not_awaiting_code` (+`state`) | `signin.complete` |
