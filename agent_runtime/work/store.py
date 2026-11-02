@@ -28,7 +28,7 @@ from agent_runtime.work_store.default_brain import (
 from agent_runtime.work_store.grammar import (
     ASSIGNEE, GROUP_SLUG, STATUS, Assignee, Op, Row, RowRef, find, mint_id, parse_note,
 )
-from agent_runtime.work_store.writer import OPERATOR, Writer, RowOp
+from agent_runtime.work_store.writer import OPERATOR, Writer, RowOp, checkout_token, work_worktree_for
 
 from agent_runtime.errors import NotFound
 
@@ -114,10 +114,30 @@ def normalize_default_brain(workspace_id: str) -> dict[str, Any] | None:
                          commit=commit)
 
 
+def worktree_brain(board: Board) -> Board:
+    """``board``, its brain found in HERMES'S worktree of the slot when its checkout holds none.
+
+    ``create_brain`` commits a slot's brain in hermes's own worktree and pushes it to the slot's origin;
+    the operator's checkout never holds it until the operator pulls, so discovery in the checkout alone
+    kept the slot brain-less on every read (RT-WORK-LIST-READS-CREATED-BRAIN). The worktree is the one
+    the slot's writer resolves (``work_worktree_for`` keyed by the checkout); no git runs but the
+    checkout token's ``rev-parse``.
+    """
+
+    if board.brain_dir is not None or not board.bound_here or board.checkout is None:
+        return board
+    worktree = work_worktree_for(board.workspace_id, board.slot, checkout_token(board.checkout),
+                                 project_id=board.project_id)
+    if not (worktree / ".git").exists():
+        return board
+    found = boards_store.brain_dir_of(worktree, {})
+    return board if found is None else replace(board, read_root=worktree, brain_dir=found)
+
+
 def synced(workspace_id: str, *, stale_ok: bool = False, slot: str | None = None) -> Synced:
     normalize_default_brain(workspace_id)
     writers: dict[str, Writer] = {}
-    for board in boards_store.boards(workspace_id):
+    for board in map(worktree_brain, boards_store.boards(workspace_id)):
         if board.bound_here and board.brain_dir and slot in (None, board.slot):
             writers[board.key] = writer_for(board)
             writers[board.key].sync(stale_ok=stale_ok)
@@ -137,7 +157,7 @@ def observed(workspace_id: str, *, slot: str | None = None) -> Synced:
 
     writers: dict[str, Writer] = {}
     stale = False
-    for board in boards_store.boards(workspace_id):
+    for board in map(worktree_brain, boards_store.boards(workspace_id)):
         if not (board.bound_here and board.brain_dir and slot in (None, board.slot)):
             continue
         writer = writer_for(board)
@@ -562,6 +582,7 @@ def create_brain(scope, params, actor, *, context=None):
     found = boards_store.pick(boards_store.boards(scope.workspace_id), params["slot"], _project_param(params))
     if found is None or not found.bound_here:
         raise WorkRefused(Reason.SLOT_UNBOUND, str(params["slot"]))
+    found = worktree_brain(found)
     if found.brain_dir is not None:
         return {"board": board_wire(found, None), "receipt": None}
     board = replace(found, brain_dir=QUEUE_DIR)
