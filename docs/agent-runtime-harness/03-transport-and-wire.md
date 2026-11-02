@@ -1405,7 +1405,7 @@ existed the log named none of them:
 |---|---|---|
 | socket/stdio op lane | `subscribe` / `stream_lane` | `serve.py` |
 | RPC office lane | `runtime.office.subscribe` / `office_patch` | `serve_office_subscriptions.py:902` |
-| argv CLI | `harness_stream` / `cli_stream` | `runtime_commands.py:669-670` |
+| argv CLI | `harness_stream` / `cli_stream` | `runtime_commands.py:607-608` |
 
 `op` is the call as the client made it, `purpose` is what the attachment is FOR
 — neither implies the other. `pid` rides LAST here and on both build families
