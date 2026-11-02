@@ -79,7 +79,7 @@ outside that loop. After restoration, all 22 lock/portrait checks passed and
 one stale-revision refusal. The original failing bundle and its isolated retry
 are retained as diagnostic evidence, not reported as a clean first pass.
 
-## Qualification boundaries
+## Shared-profile upload qualification (2026-11-01)
 
 The completed fork landing run after the shared-lock repair reported 15,236
 passing tests, 23 failures, 66 skips and no errors across 1,384 files. All 15
@@ -122,3 +122,47 @@ no validation evidence. Existing queue findings and other lanes' claims remain o
 Portrait-specific mutations were killed and restored for the reviewed-handle
 comparison, PNG validation, exact subject, atomic write, and preservation of
 real persona/instance records. No test ceiling or assertion was weakened.
+
+
+## Exact-agent appearance qualification (2026-11-02)
+
+The seven checks in `tests/agent_runtime/test_agent_appearance_portrait.py`
+exercise instance-specific bytes, sibling isolation, restart, live persona
+inheritance, stale settings saves, atomic revisions, idempotence, concurrent
+writers, older-peer preservation and the admitted realm projection. Uploads
+use real PNG bytes and the existing profile asset and assignment owners.
+
+The first required fork run completed 1,393 files with 15,710 passes, 22 final
+failures, no errors and 66 skips. It caught one change-owned legibility failure:
+portrait admission had enlarged `read_remote_profile_files`. Extraction into
+`_profile_file_content_refusal` kept admission in the same owner, and all 59
+portrait, merge and architecture checks passed after restoration. Ruff passed
+on every changed Python file. Killed and restored mutations covered bypassed
+revision checks, dropped portraits during ordinary assignment edits, publishing
+an excluded sibling's portrait and bypassed PNG content-identity admission.
+
+All 21 remaining failed node IDs were reproduced on unchanged `07ce68314d`
+using the same test interpreter. Existing rows retain the embedded-phone,
+supervision, Windows worktree-path and home-skeleton failures. The shell-fixture
+failures remain `FH-WINDOWS-PREPUSH-SHELL` and `FH-WINDOWS-PRECOMPILE-SHELL`;
+the missing trace-test citation is `FH-TASK-BOUND-TRACE-COVERAGE-CITATION`.
+No assertions, skip lists or other lanes' claims were weakened or removed.
+
+The first run also recorded a bundle-only office-baseline fingerprint failure
+that passed alone on both candidate and unchanged base. It is retained as
+`FH-CORE-CACHE-REALM-BASELINE-BUNDLE`, not described as a clean first attempt
+or a proven unchanged-base bundle failure.
+
+The final code run completed all 1,393 selected files: 6,472 executed checks
+passed, 22 failed, none errored and 47 skipped, with 878 cached green files and
+a clean 25-file cache audit. The 22nd failure was a missing group on this lane's
+new coverage-citation finding; its queue metadata was corrected without touching
+production code. The final prepush rechecks that queue gate and shared consumers.
+The other 21 failures match the unchanged-base node set above. All seven new
+portrait checks passed inside their original bundle. The previously observed
+core-cache check also passed bundled this time.
+
+A retained runner isolation failure collected an unrelated disappearing Flutter
+temporary directory, then passed alone. It remains covered by
+`FH-CHILD-JOB-COLLECTION-ROOT`; this run is not claimed wholly green or clean on
+its first attempts. No test assertion, expected ceiling or skip was changed.
