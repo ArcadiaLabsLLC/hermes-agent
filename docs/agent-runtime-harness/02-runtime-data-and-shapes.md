@@ -940,6 +940,17 @@ reason}], deferred: [...]}`` (RT-PROJECT-CHAT-FOLD-WITHOUT-SENDING). It is dropp
 its offsets and the export cursors and nothing else, when the chats share turns off or
 the last workspace of the namespace disconnects the Project.
 
+54 KEPT (slot context picks, 2026-11-01, RT-SLOT-CONTEXT-FILE-PICKS) — no snapshot key
+moved. ``PersonaInstance.slot_context_files`` (``{<assigned slot>: [subset of CLAUDE.md /
+AGENTS.md]}``, travels) and ``slot_context_custom`` (``{<assigned slot>: absolute .md}``,
+this machine's own, LOCAL_ONLY) ride the slot-lane clock. ``runtime.persona.instance.slots.set``
+takes optional ``context_files`` ``{<slot>: {files, custom_path} | null}`` — present it
+REPLACES the override map (``{}`` clears all), absent it keeps the overrides of slots still
+assigned; a bad pick is ``context_files_invalid``. ``instance.slots.show`` rows carry
+``context_files`` (``null`` = no override: the declaration's list, else the one-file
+default). The loader honours an override first; its receipts say ``override_choice:
+slot_override`` (loaded) or ``override_off`` (toggled off).
+
 54 KEPT (recall across stores, 2026-10-29, RT-PROJECT-CHAT-RECALL-ACROSS-STORES) — no
 snapshot key moved. ``PersonaInstance.recall_shared_projects`` (default false; slot-lane
 clock; ``runtime.persona.instance.recall.set`` ``{persona_instance_id, enabled,

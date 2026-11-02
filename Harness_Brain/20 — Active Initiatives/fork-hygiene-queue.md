@@ -9,7 +9,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-11-01 (profile artwork qualification)
 
-- **`FH-STREAM-WORKSPACE-RECEIPT-GOLDENS` — Regenerate and inspect the cross-stack stream fixtures for the workspace_context_receipt added by 3e74d28861; the producer-shape check reports core.prompt_observability.chat_contexts[].workspace_context_receipt missing from delta_agent_create_narrow_profile.json, with three byte-equality checks also red; preserve both repositories' matching manifests** · `tests/agent_runtime/test_stream_contract_fixture.py` · `tests/fixtures/stream_frames/` · `EterniaLauncher/test/fixtures/harness_stream/` · READY 2026-11-01 · **TAKEN 2026-11-01 w1101d-h-misc on nekwo-ubuntu24 as nekwo in hm-w1101d-misc**
 
 ## Filed on arrival — 2026-10-30 (owner: push checks hang)
 
@@ -636,4 +635,3 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Profile artwork qualification findings — 2026-11-01
 
-- **`FH-LEVEL-ENTRY-VOCABULARY-CENSUS` — Reconcile the spatial skill vocabulary with the app-function entry ownership census** · `agent_runtime/mcp_admission/vocabulary.py` · `tests/tooling/test_no_launcher_entry_id_literals.py::test_no_launcher_entry_id_outside_the_allow_list` · the profile artwork landing gate reports the existing `launcher.world.level` literal outside the allowed protocol catalog; inspect the owning intent contract before changing the vocabulary or census, preserving the spatial lane's claims and entry ownership rule · READY 2026-11-01 · **TAKEN 2026-11-01 w1101d-h-misc on nekwo-ubuntu24 as nekwo in hm-w1101d-misc**

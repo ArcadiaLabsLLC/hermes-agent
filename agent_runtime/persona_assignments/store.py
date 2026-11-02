@@ -326,7 +326,8 @@ class PersonaInstanceStore:
 
     #: The repo-slot assignment (build plan §3.3) and its clock, ``slots_issued_at``.
     _SLOT_LANE_FIELDS: tuple[str, ...] = ("assigned_slots", "primary_slot", "slots_issued_at",
-                                          "recall_shared_projects")
+                                          "recall_shared_projects", "slot_context_files",
+                                          "slot_context_custom")
 
     def _keep_newer_slot_assignment(self, instance: PersonaInstance) -> None:
         """A whole-row copy older than the stored slot assignment takes the stored one.

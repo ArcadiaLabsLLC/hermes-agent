@@ -47,6 +47,9 @@ PROJECTION_RELATIVE_PATH = "store/persona_instances.yaml"
 #:   resolves to never travels — it is each machine's own ``roots.<slot>``.
 #:   ``recall_shared_projects`` (RT-PROJECT-CHAT-RECALL-ACROSS-STORES) rides the same
 #:   clock: a choice about the agent, portable, never a store or a path.
+#:   ``slot_context_files`` (RT-SLOT-CONTEXT-FILE-PICKS) is the same kind of choice
+#:   (which of CLAUDE.md / AGENTS.md load per slot) and travels; its sibling
+#:   ``slot_context_custom`` is a local PATH and is LOCAL_ONLY below.
 #: - ``model_override_issued_at`` is a supersession CLOCK and travels WITH the
 #:   four override fields it orders, or a stale local write silently wins on the
 #:   receiver (``StaleModelOverrideWrite``).
@@ -67,6 +70,7 @@ PERSONA_INSTANCE_ALLOWED_KEYS: frozenset[str] = frozenset(
         "reasoning_effort",
         "recall_shared_projects",
         "skill_overrides",
+        "slot_context_files",
         "slots_issued_at",
         "spawned_by",
         "steered_by",
@@ -115,6 +119,7 @@ PERSONA_INSTANCE_LOCAL_ONLY_KEYS: frozenset[str] = frozenset(
         "schema_version",
         "session_id",
         "skill_manifest_hash",
+        "slot_context_custom",
         "token_budget_used",
     }
 )

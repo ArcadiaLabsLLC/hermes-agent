@@ -78,7 +78,9 @@ def test_every_persona_instance_field_is_classified():
     # 35 since build plan H5b (2026-10-04): assigned_slots, primary_slot, slots_issued_at — all travel.
     # 36 since RT-CHAT-HEAD-CH2-LADDER (2026-10-27): chat_head_kind, local-only beside chat_head_home.
     # 37 since RT-PROJECT-CHAT-RECALL-ACROSS-STORES (2026-10-29): recall_shared_projects travels.
-    assert len(names) == 38, "the contract classifies character assignment with the existing 37 fields"
+    # 40 since RT-SLOT-CONTEXT-FILE-PICKS (2026-11-01): slot_context_files travels,
+    # slot_context_custom (a local path) is local-only.
+    assert len(names) == 40, "the contract classifies the slot context picks with the existing 38 fields"
 
     unclassified = names - (
         PERSONA_INSTANCE_ALLOWED_KEYS
@@ -101,8 +103,10 @@ def test_every_persona_instance_field_is_classified():
     assert PERSONA_INSTANCE_ALLOWED_KEYS & PERSONA_INSTANCE_NEVER_TRAVELS_KEYS == set()
     assert PERSONA_INSTANCE_DERIVED_KEYS & PERSONA_INSTANCE_LOCAL_ONLY_KEYS == set()
     # The plan's counts, pinned so a silent reclassification reads as a change.
-    assert len(PERSONA_INSTANCE_ALLOWED_KEYS) == 19  # Character assignment is portable identity, not live runtime state.
-    assert len(PERSONA_INSTANCE_NEVER_TRAVELS_KEYS) == 19  # +1 chat_head_kind (RT-CHAT-HEAD-CH2-LADDER)
+    # +1 slot_context_files (RT-SLOT-CONTEXT-FILE-PICKS); character assignment is portable identity.
+    assert len(PERSONA_INSTANCE_ALLOWED_KEYS) == 20
+    # +1 chat_head_kind (RT-CHAT-HEAD-CH2-LADDER), +1 slot_context_custom (RT-SLOT-CONTEXT-FILE-PICKS).
+    assert len(PERSONA_INSTANCE_NEVER_TRAVELS_KEYS) == 20
     assert len(PERSONA_INSTANCE_DERIVED_KEYS) == 6
 
 
