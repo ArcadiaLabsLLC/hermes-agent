@@ -97,7 +97,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-28 (planning lane w1028p-taskbound)
 
-- **`RT-TASK-BOUND-WIRE-PRUNE` — stop emitting `current_task_id` on `persona_instances`, `kind` / `live_mission` / `task_id` on `persona_chat_history` and `task_id` on `persona_chat_trace` once the launcher no longer decodes them** · fork / wire · `agent_runtime/persona_chat_history/history_rows.py` · `tests/agent_runtime/test_s70_persona_instance_wire_prune.py` · plan `docs/agent-runtime-harness/planned/task-bound-mission-lanes-2026-10-28.md` §Slices S4 · S4 also stops emitting `task_id` on operator channels and conversations: `agent_runtime/operator_channels/instances.py` builds it only from `current_task_id` and the history/trace `task_id`, all null after S3; launcher `MC-CHANNEL-TASK-ID-READERS` moves first (found 2026-10-29 by launcher lane w1029b-mc-tb) · unblocked 2026-11-02: launcher `MC-TASK-BOUND-WIRE-READERS` landed `9b9e989969` and `MC-CHANNEL-TASK-ID-READERS` landed `cdc1613338` — the launcher decodes none of the keys · READY 2026-11-02 · **TAKEN 2026-11-02 w1101f-h on nekwo-ubuntu24 as nekwo in hm-w1101f-h**
 ### Filed on arrival — 2026-10-28 (lane w1028p-officestorm, the page-open storm plan)
 
 
@@ -1115,7 +1114,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-27 (planned/ triage lane w1027j-h-tri-c)
 
-- **`RT-OPERATOR-CHANNEL-TASK-ID-RESIDUE` — the operator-channel `task_id` resolver still reads `current_task_id` and the history / trace `task_id` keys, and its task-bound `trace_empty` arms branch on it; after RT-TASK-BOUND-MISSION-LANES only a not-yet-archived mission row can feed it, so it retires with the wire prune** · fork / operator channels · `agent_runtime/operator_channels/instances.py::ChannelIdentity.task_id` · `agent_runtime/operator_channels/summary.py` · plan `docs/agent-runtime-harness/planned/task-bound-mission-lanes-2026-10-28.md` §Slices S4 · BLOCKED 2026-10-29: hermes — `RT-TASK-BOUND-WIRE-PRUNE` stops emitting the keys it reads first
 - **`RT-SNAPSHOT-OFFPROC-S4-CLEAN-READ` — the snapshot off-GIL plan's S4 clean read was never taken: ten warm turns and one cold, reading `builds_overlapped`, the hot-window columns and `executor=` on every `snapshot_build_core` line** · runtime / snapshot · `docs/agent-runtime-harness/archive/snapshot-offproc-2026-10-06.md` § S4 · READY 2026-10-27
 
 ## Filed on arrival — 2026-10-27 (owner: dynamic harness lifetime, mutual supervision)

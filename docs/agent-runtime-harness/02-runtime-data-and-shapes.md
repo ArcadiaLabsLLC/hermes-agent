@@ -638,6 +638,25 @@ reader-side decision that needs its own ruling — not a wire cleanup.
 This is a wire removal, so the contract and Launcher pin move together
 under the removal rule recorded at 46.
 
+54 KEPT (RT-TASK-BOUND-WIRE-PRUNE, 2026-11-02) — the task-bound wire keys
+leave: ``current_task_id`` from every ``persona_instances`` row (snapshot
+and ``state_patches`` lanes together), ``kind`` / ``live_mission`` from
+every ``persona_chat_history`` row, ``task_id`` from every
+``persona_chat_trace`` row and from every ``operator_channels`` row and
+its ``conversation``; with them go the ``persona_chat_history.live_mission_shadow``
+and ``trace_empty`` warnings, unreachable once no row carries a mission
+kind or a task id. Each value was constant on a live frame since
+RT-TASK-BOUND-MISSION-LANES (null / ``"chat"`` / ``false``), and the
+Launcher removed every reader FIRST (``MC-TASK-BOUND-WIRE-READERS``
+``9b9e989969``, ``MC-CHANNEL-TASK-ID-READERS`` ``cdc1613338``), the order
+the plan (``planned/task-bound-mission-lanes-2026-10-28.md`` § S4) chose so
+the pin need not travel. Why rule (a) does not bump here: it exists so a
+consumer that still READS a leaving field learns of it through the pin;
+none does, and a bump would fail-close every Launcher at 54 (``health()``
+is exact equality) for a change it cannot observe. ``harness_trace``
+entries keep their per-event ``task_id`` — that is the event's own field,
+not the row key retired here.
+
 54 KEPT (running_work contract/ambient split, 2026-08-09) — the
 ``running_work`` section stops folding MACHINE-LOCAL state into its
 per-source ``detail`` prose, gains a typed ``live_enrichment_error`` on

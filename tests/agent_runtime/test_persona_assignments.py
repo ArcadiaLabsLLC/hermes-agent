@@ -1376,8 +1376,6 @@ def test_persona_chat_history_summary_projects_bound_sessions_redaction_safe(iso
             "session_id": "chat_old_123",
             "persona_id": "dev",
             "persona_instance_id": "personainst_dev",
-            "kind": "chat",
-            "live_mission": False,
             "title": "Untitled persona chat",
             "last_message_preview": "Please inspect the proof packet.",
             "message_count": 7,
@@ -1830,8 +1828,7 @@ def test_snapshot_preserves_open_chat_and_emits_history(monkeypatch, isolate_age
     assert pointer["session_id"] == "chat_old_123"
     assert pointer["persona_id"] == "dev"
     assert pointer["persona_instance_id"] == "personainst_dev"
-    assert pointer["kind"] == "chat"
-    assert pointer["live_mission"] is False
+    assert "kind" not in pointer and "live_mission" not in pointer  # RT-TASK-BOUND-WIRE-PRUNE
     assert pointer["title"] == "Launcher Dev operator channel"
     assert pointer["last_message_preview"] == "Continue the old chat safely."
     assert pointer["message_count"] == 3

@@ -84,7 +84,6 @@ def _persona_instance_wire_row(instance: Any, persona: Any) -> dict[str, Any]:
         "goal_id": instance.goal_id,
         "mode": instance.mode,
         "lifecycle_mode": instance.mode,
-        "current_task_id": instance.current_task_id,
         "display_name": instance.display_name,
         "agent_profile_display_name": instance.display_name,
         "current_chat_goal": instance.current_chat_goal,

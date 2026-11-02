@@ -100,7 +100,6 @@ def _history_row(
     session_id: str,
     session_db: Any | None = None,
     message_tail: int = DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
-    kind: str = "chat",
 ) -> dict[str, Any]:
     persona_id = canonical_chat_persona_id(persona_id) or "unknown"
     raw_title = safe_assignment_text(raw.get("title"), limit=120)
@@ -180,8 +179,6 @@ def _history_row(
             instance_id or persona_instance_id_for(persona_id),
             limit=160,
         ),
-        "kind": "mission" if kind == "mission" or bool(raw.get("live_mission")) else "chat",
-        "live_mission": bool(kind == "mission" or raw.get("live_mission")),
         "title": title,
         "last_message_preview": preview,
         # Every STORED row across the lineage (user, assistant tool-call steps,
@@ -366,9 +363,9 @@ def _persisted_persona_instance_id(raw: dict[str, Any]) -> str | None:
 
 
 def _persona_chat_candidate_sort_key(
-    candidate: tuple[dict[str, Any], PersonaInstance, str, str]
+    candidate: tuple[dict[str, Any], PersonaInstance, str]
 ) -> tuple[bool, str, str]:
-    raw, _instance, session_id, _kind = candidate
+    raw, _instance, session_id = candidate
     created_at = iso_timestamp(raw.get("started_at"))
     return (created_at is not None, created_at or "", session_id)
 

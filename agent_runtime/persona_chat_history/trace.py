@@ -124,7 +124,6 @@ def persona_chat_trace_summary(
         row: dict[str, Any] = {
             "persona_instance_id": acc.instance_id,
             "persona_id": acc.persona_id,
-            "task_id": None,  # always null since the task lane retired; S4 drops the key
             "entries": entries,
         }
         if acc.session_id:

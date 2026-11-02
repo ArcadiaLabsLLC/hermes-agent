@@ -12,6 +12,17 @@ and parses them through its real decode + read-model pipeline
 split is structural, not an oversight, and the script names both halves
 (`GENERATED_FRAME_FILES` / `PINNED_ONLY_FILES`).
 
+> **CROSS-STACK COPY STATUS (w1101f-h, 2026-11-02) — launcher copy OWED (launcher row `MC-HARNESS-STREAM-TASK-BOUND-PRUNE-MIRROR`).**
+> Six generated goldens moved for one reason: RT-TASK-BOUND-WIRE-PRUNE took
+> `current_task_id` off `persona_instances` rows, `kind` / `live_mission` off
+> `persona_chat_history` rows and `task_id` off `persona_chat_trace` /
+> `operator_channels` rows and conversations. The same regeneration settles the
+> `visible_message_count` key RT-CHAT-VISIBLE-MESSAGE-COUNT (`32d8b80fa3`) added to
+> `persona_chat_history` rows without regenerating. Copy
+> `delta_agent_create_narrow_profile.json`, `hydrate_authoritative_same_offset.json`,
+> `hydrate_running_work_owner.json`, `hydrate_stale_first.json`, `patch_agent_create.json`,
+> `persona_chat_turn.json` and `MANIFEST.sha256` into `test/fixtures/harness_stream/`.
+
 > **CROSS-STACK COPY STATUS (w1101d-h-misc, 2026-11-01) — mirrored on launcher branch `wave/w1101d-h-misc-mirror`, landing with this one.**
 > One generated golden moved for one reason: each
 > `core.prompt_observability.chat_contexts[]` row gained `workspace_context_receipt`
