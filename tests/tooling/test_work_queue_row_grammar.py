@@ -27,6 +27,10 @@ A row is ``- **`<ID>` — <title>** · <segment> · …``, on ONE physical line,
 * at most one ``skills: `<slug>`[, `<slug>`]`` segment (slug ``[A-Za-z0-9_./-]+``), and no ``skills:``
   segment in any other shape (amendment 2026-10-19, p10-work S1);
 * an ID opening ``WORK-`` is an engine-minted ``WORK-<6>``: six base32 characters ``[A-Z2-7]``;
+* at most one ``group: <slug>`` segment (slug ``[a-z0-9][a-z0-9.-]*``, bare: lowercase so it is never an ID,
+  no code span so no pointer read sees it), and no ``group:`` segment in any other shape (amendment
+  2026-11-02, twin of launcher ADR 0025's 2026-11-01 amendment); a row citing a ``planned/`` doc names its
+  group — the rows that predate the rule are a RATCHET (``GROUP_MISSING_CEILING``) that may only fall;
 * at most one ``REQUIRES <host>[, <host>…]`` segment (host ``windows`` | ``macos`` | ``linux``, each once) —
   a record like RULED, never a status (launcher ADR 0025's 2026-10-26 amendment);
 * a lane claim dated 2026-10-27 or later names its machine:
@@ -55,6 +59,8 @@ STATUS = re.compile(r"^(READY|BLOCKED|DEFERRED|NEEDS PLAN) (\d{4}-\d{2}-\d{2})(?
 RULED = re.compile(r"^RULED \d{4}-\d{2}-\d{2}\b")
 ASSIGNEE = re.compile(r"^assignee: persona:[A-Za-z0-9_.-]+$")
 SKILLS = re.compile(r"^skills: `[A-Za-z0-9_./-]+`(?:, `[A-Za-z0-9_./-]+`)*$")
+GROUP = re.compile(r"^group: [a-z0-9][a-z0-9.-]*$")
+CODE_SPAN = re.compile(r"`([^`]+)`")
 WORK_ID = re.compile(r"^WORK-[A-Z2-7]{6}$")
 RETIRED = re.compile(r"^(VERDICT|DESIGN|OWNER|PLAN|VERIFY)\b")
 REQUIRES = re.compile(r"^REQUIRES(?:\s+(.*))?$", re.DOTALL)
@@ -70,6 +76,10 @@ CROSS_REPO = re.compile(r"^\s*\(?(launcher|backend|EterniaLauncher|eternia-backe
 #: Lane-blocked rows with no blocker ID when the rule landed (2026-10-18). Shrink-only:
 #: lower it in the commit that fills an ID; never raise it.
 BLOCKER_ID_CEILING = 0
+
+#: Rows citing a ``planned/`` doc with no ``group:`` segment when the rule landed (2026-11-02).
+#: Shrink-only: lower it in the commit that groups a row (``RT-QUEUE-ROW-GROUP-BACKFILL`` takes it to 0).
+GROUP_MISSING_CEILING = 55
 
 
 def split_segments(line: str) -> list[str]:
@@ -153,6 +163,8 @@ def row_defects(line: str) -> list[str]:
             defects.append(f"assignee shape: {segment[:40]!r}; the segment is `assignee: persona:<token>`")
         if segment.startswith("skills:") and not SKILLS.match(segment):
             defects.append(f"skills shape: {segment[:40]!r}; the segment is `skills: `<slug>`[, `<slug>`]`")
+        if segment.startswith("group:") and not GROUP.match(segment):
+            defects.append(f"group shape: {segment[:40]!r}; the segment is `group: <slug>`, slug [a-z0-9][a-z0-9.-]*")
         if (requires := REQUIRES.match(segment)) is not None:
             hosts = [part.strip() for part in (requires.group(1) or "").split(",")]
             if any(host not in HOSTS for host in hosts) or len(set(hosts)) != len(hosts):
@@ -164,6 +176,8 @@ def row_defects(line: str) -> list[str]:
         defects.append("2 skills segments; at most one")
     if sum(1 for s in segments[1:] if REQUIRES.match(s)) > 1:
         defects.append("2 REQUIRES segments; at most one")
+    if sum(1 for s in segments[1:] if s.startswith("group:")) > 1:
+        defects.append("2 group segments; at most one")
     taken = TAKEN.search(line)
     if taken is not None and taken.group(1) >= PLACE_REQUIRED_FROM:
         who = taken.group(2).strip()
@@ -172,6 +186,12 @@ def row_defects(line: str) -> list[str]:
             defects.append(f"claim dated {taken.group(1)} names no machine; a lane claim is "
                            "`**TAKEN <date> <lane> on <machine> as <git account> in <worktree>**`")
     return defects
+
+
+def cites_plan(line: str) -> bool:
+    """True when a code span on the row names a ``planned/`` doc, any repo's (the launcher's ``citesPlan``)."""
+
+    return any(span.startswith("planned/") or "/planned/" in span for span in CODE_SPAN.findall(line))
 
 
 def queue_rows(text: str) -> list[tuple[int, str, list[str]]]:
@@ -240,6 +260,7 @@ VALID = [
     "- **`RT-L2` — placed claim, spaced account** · READY 2026-10-27 · **TAKEN 2026-10-27 next-prompt on MUltiversalLabsInc as Maximus Shaban in next-prompt-20261027**",
     "- **`RT-M` — earlier bare claim** · READY 2026-10-26 · **TAKEN 2026-10-26 w1026a-x**",
     "- **`RT-N` — persona claim** · READY 2026-10-27 · **TAKEN 2026-10-27 persona:pi_alice_01**",
+    "- **`RT-O` — grouped** · group: companion-templates.tags · plan `docs/x/planned/p.md` · READY 2026-11-02",
 ]
 DEFECTS = {
     "- [ ] **`RT-A` — checkbox** · READY 2026-10-18": "checkbox",
@@ -267,6 +288,10 @@ DEFECTS = {
     "- **`RT-A` — capital host** · READY 2026-10-26 · REQUIRES Windows": "REQUIRES shape",
     "- **`RT-A` — two hosts segments** · READY 2026-10-26 · REQUIRES windows · REQUIRES linux": "2 REQUIRES",
     "- **`RT-A` — bare claim** · READY 2026-10-27 · **TAKEN 2026-10-27 w1027a-core**": "names no machine",
+    "- **`RT-A` — empty group** · group: · READY 2026-11-02": "group shape",
+    "- **`RT-A` — upper group** · group: Companion · READY 2026-11-02": "group shape",
+    "- **`RT-A` — code group** · group: `a` · READY 2026-11-02": "group shape",
+    "- **`RT-A` — two groups** · group: a · group: b · READY 2026-11-02": "2 group",
     "- **`RT-A` — claim with no on** · READY 2026-10-27 · **TAKEN 2026-10-27 w1027a-core as nekwo in wt**": "names no machine",
 }
 
@@ -372,6 +397,34 @@ def test_lane_blocked_rows_without_a_blocker_id_only_fall() -> None:
     assert len(missing) == BLOCKER_ID_CEILING, (
         f"only {len(missing)} lane-blocked rows lack a blocker ID now; lower BLOCKER_ID_CEILING to {len(missing)}"
     )
+
+
+def _plan_rows_missing_a_group() -> list[str]:
+    return sorted(
+        f"{path}:{number}"
+        for path, text in _queue_notes().items()
+        for number, line, _ in queue_rows(text)
+        if cites_plan(line) and not any(GROUP.match(s.strip()) for s in split_segments(line)[1:])
+    )
+
+
+def test_plan_rows_missing_a_group_only_fall() -> None:
+    missing = _plan_rows_missing_a_group()
+    assert len(missing) <= GROUP_MISSING_CEILING, (
+        f"{len(missing)} rows cite a `planned/` doc but name no group (ceiling {GROUP_MISSING_CEILING}); a plan row "
+        "carries ` · group: <slug>` first after its lead:\n" + "\n".join(missing)
+    )
+    assert len(missing) == GROUP_MISSING_CEILING, (
+        f"only {len(missing)} plan rows lack a group now; lower GROUP_MISSING_CEILING to {len(missing)}"
+    )
+
+
+def test_a_plan_is_cited_with_or_without_a_repo_prefix() -> None:
+    assert cites_plan("- **`A` — x** · plan `docs/agent-runtime-harness/planned/p.md` §S2 · READY 2026-11-02")
+    assert cites_plan("- **`A` — x** · plan `EterniaLauncher/docs/mission_control/planned/Q.md` · READY 2026-11-02")
+    assert cites_plan("- **`A` — x** · `planned/p.md` · READY 2026-11-02")
+    assert not cites_plan("- **`A` — x** · `docs/agent-runtime-harness/03-transport-and-wire.md` · READY 2026-11-02")
+    assert not cites_plan("- **`A` — x** · planned work · READY 2026-11-02")
 
 
 def test_blocker_ids_are_read_from_the_dash() -> None:

@@ -193,3 +193,41 @@ def test_a_lane_claim_from_2026_10_27_must_name_its_machine() -> None:
     assert placeless.value.reason is Reason.GRAMMAR_INVALID
     assert grammar.apply(line, Op.CLAIM, who="persona:pi_alice_01", date="2026-10-27", payload={}).endswith(
         "**TAKEN 2026-10-27 persona:pi_alice_01**")
+
+
+def test_group_names_the_feature_and_is_not_a_status() -> None:
+    """RT-QUEUE-ROW-GROUP-GRAMMAR (launcher plan QUEUE_ROW_GROUPS_2026-11-01 §S2). KILLING MUTATION: allow
+    uppercase in ``GROUP`` (``[A-Za-z0-9]``) -> ``group: Companion`` parses clean here and in the lint, red."""
+
+    from agent_runtime.work import store
+
+    line = "- **`RT-G` — row** · group: companion-templates · plan `docs/x/planned/p.md` · READY 2026-11-02"
+    row = grammar.parse_row(line, slot="s", note="n", line_no=1)
+    assert row.group == "companion-templates" and row.status is Status.READY and row.defects == ()
+    assert row.pointers == ("docs/x/planned/p.md",), "a group is never a pointer"
+    assert store.project(row, None, program=None)["group"] == "companion-templates"
+    for bad in ("group:", "group: Companion", "group: `a`", "group: a · group: b"):
+        parsed = grammar.parse_row(f"- **`RT-G` — x** · {bad} · READY 2026-11-02", slot="s", note="n", line_no=1)
+        assert parsed.defects and all("group" in d for d in parsed.defects), (bad, parsed.defects)
+        assert lint_defects(parsed.raw) == list(parsed.defects), bad
+    # Op.SET_GROUP: insert first after the lead, replace, remove; a bad slug is refused.
+    bare = "- **`RT-H` — row** · `agent_runtime/x.py` · READY 2026-11-02"
+    grouped = grammar.apply(bare, Op.SET_GROUP, who="operator", date=DATE, payload={"group": "eternia-lens"})
+    assert grouped == "- **`RT-H` — row** · group: eternia-lens · `agent_runtime/x.py` · READY 2026-11-02"
+    moved = grammar.apply(grouped, Op.SET_GROUP, who="operator", date=DATE, payload={"group": "git-course"})
+    assert moved.count("group:") == 1 and grammar.parse_row(moved, slot="s", note="n", line_no=1).group == "git-course"
+    assert grammar.apply(moved, Op.SET_GROUP, who="operator", date=DATE, payload={"group": None}) == bare
+    with pytest.raises(WorkRefused) as refused:
+        grammar.apply(bare, Op.SET_GROUP, who="operator", date=DATE, payload={"group": "Upper"})
+    assert refused.value.reason is Reason.INVALID
+    # runtime.work.list ``group?``: exact match keeps only the feature's rows; a bad slug is refused.
+    rows = [grammar.parse_row(text, slot="s", note="n", line_no=i) for i, text in enumerate((line, bare, moved))]
+    keep = store._row_filter({"group": "git-course"}, None)
+    assert [r.ref.id for r in rows if keep(r)] == ["RT-H"]
+    assert all(store._row_filter({}, None)(r) for r in rows)
+    with pytest.raises(WorkRefused):
+        store._row_filter({"group": "Companion"}, None)
+    # runtime.work.start ``group?``: the minted row carries it first after its lead.
+    started = store._start_row("WORK-ABCDEF", "t", None, None, "2026-11-02", group="eternia-lens")
+    assert started == "- **`WORK-ABCDEF` — t** · group: eternia-lens · READY 2026-11-02"
+    assert grammar.parse_row(started, slot="s", note="n", line_no=1).defects == ()

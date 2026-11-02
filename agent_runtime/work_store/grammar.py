@@ -1,8 +1,8 @@
 """The work-queue row grammar — the Python twin of the launcher's ``WorkQueueRowParser``.
 
 Grammar home: ``Harness_Brain/30 — Decisions/0011 — One brain per repo, one Mission Control queue
-in the launcher.md`` § Row grammar (with its 2026-10-18 Work W1 and 2026-10-19 p10-work S1 ``skills:``
-amendments). The regexes are the
+in the launcher.md`` § Row grammar (with its 2026-10-18 Work W1, 2026-10-19 p10-work S1 ``skills:``
+and 2026-11-02 ``group:`` amendments). The regexes are the
 vault lint's (``tests/tooling/test_work_queue_row_grammar.py``) and the two are proven to agree on
 the shared fixtures (``tests/fixtures/work_queue/``) by
 ``tests/agent_runtime/work_store/test_grammar.py::test_the_twin_agrees_with_the_lint_on_every_fixture_row``.
@@ -56,6 +56,10 @@ RETIRED = re.compile(r"^(VERDICT|DESIGN|OWNER|PLAN|VERIFY)\b")
 ASSIGNEE = re.compile(r"^assignee: persona:([A-Za-z0-9_.-]+)$")
 SKILLS = re.compile(r"^skills: `[A-Za-z0-9_./-]+`(?:, `[A-Za-z0-9_./-]+`)*$")
 SKILL_SLUG = re.compile(r"^[A-Za-z0-9_./-]+$")
+#: ``group: <slug>`` — the feature a row belongs to (launcher plan QUEUE_ROW_GROUPS_2026-11-01 D1): one bare
+#: lowercase slug, so it is never an ID and never a pointer.
+GROUP = re.compile(r"^group: ([a-z0-9][a-z0-9.-]*)$")
+GROUP_SLUG = re.compile(r"^[a-z0-9][a-z0-9.-]*$")
 WORK_ID = re.compile(r"^WORK-[A-Z2-7]{6}$")
 TAKEN = re.compile(r"\*\*TAKEN (\d{4}-\d{2}-\d{2}) ([^*]+?)\*\*")
 #: A lane claim's ``<who>``: ``<lane>[ on <machine>][ as <git account>][ in <worktree>]``.
@@ -93,6 +97,7 @@ class Op(StrEnum):
     DELETE = "delete"
     ASSIGN = "assign"
     SET_SKILLS = "set_skills"
+    SET_GROUP = "set_group"
     #: Not a row edit: a Project's machine-written chat logs (plan project-slots-and-shared-chats §5) —
     #: appended lines, whole files and removed folders under the writer's root, one commit.
     CHAT_TURNS_APPENDED = "chat_turns_appended"
@@ -179,6 +184,8 @@ class Row:
     skills: tuple[str, ...] = ()
     #: The hosts the row's ``REQUIRES`` segment names, in order; empty when it runs anywhere.
     requires: tuple[str, ...] = ()
+    #: The feature the row belongs to (``group:`` segment); None when it names none.
+    group: str | None = None
 
 
 def domain_of(row: Row) -> Domain:
@@ -272,6 +279,8 @@ def _segment_defects(segments: list[str]) -> list[str]:
             defects.append(f"assignee shape: {segment[:40]!r}; the segment is `assignee: persona:<token>`")
         if segment.startswith("skills:") and not SKILLS.match(segment):
             defects.append(f"skills shape: {segment[:40]!r}; the segment is `skills: `<slug>`[, `<slug>`]`")
+        if segment.startswith("group:") and not GROUP.match(segment):
+            defects.append(f"group shape: {segment[:40]!r}; the segment is `group: <slug>`, slug [a-z0-9][a-z0-9.-]*")
         if REQUIRES.match(segment) and requires_hosts(segment) is None:
             defects.append(f"REQUIRES shape: {segment[:40]!r}; the segment is `REQUIRES <host>[, <host>]`, "
                            f"each host once, from {HOSTS}")
@@ -281,6 +290,8 @@ def _segment_defects(segments: list[str]) -> list[str]:
         defects.append("2 skills segments; at most one")
     if sum(1 for s in segments[1:] if REQUIRES.match(s)) > 1:
         defects.append("2 REQUIRES segments; at most one")
+    if sum(1 for s in segments[1:] if s.startswith("group:")) > 1:
+        defects.append("2 group segments; at most one")
     return defects
 
 
@@ -317,6 +328,7 @@ def parse_row(line: str, *, slot: str, note: str, line_no: int, heading: str = "
     assignee = next((Assignee(m.group(1)) for m in map(ASSIGNEE.match, segments[1:]) if m), None)
     lent = next((s for s in segments[1:] if SKILLS.match(s)), None)
     hosts = next((h for h in map(requires_hosts, segments[1:]) if h is not None), ())
+    group = next((m.group(1) for m in map(GROUP.match, segments[1:]) if m), None)
     taken = TAKEN.search(line)
     return Row(
         ref=RowRef(slot, note, id_match.group(1) if id_match else "", project_id),
@@ -336,6 +348,7 @@ def parse_row(line: str, *, slot: str, note: str, line_no: int, heading: str = "
         defects=tuple(row_defects(line)),
         skills=tuple(CODE_SPAN.findall(lent)) if lent else (),
         requires=hosts,
+        group=group,
     )
 
 
@@ -483,6 +496,18 @@ def _set_skills(line: str, *, who: str, date: str, payload: dict) -> str:
     return SEPARATOR.join(segments).rstrip()
 
 
+def _set_group(line: str, *, who: str, date: str, payload: dict) -> str:
+    """Drop any ``group:`` segment; with ``payload["group"]`` (a slug), set one first after the bold lead."""
+
+    group = payload.get("group")
+    if group is not None and not GROUP_SLUG.match(str(group)):
+        raise WorkRefused(Reason.INVALID, "payload.group is a slug [a-z0-9][a-z0-9.-]*")
+    segments = [s for i, s in enumerate(split_segments(line)) if not (i and s.strip().startswith("group:"))]
+    if group is not None:
+        segments.insert(1, f"group: {group}")
+    return SEPARATOR.join(segments).rstrip()
+
+
 def _append(line: str, *, who: str, date: str, payload: dict) -> str:
     raise WorkRefused(Reason.INVALID, "APPEND is not a line edit; the caller appends payload.row under the note's last heading")
 
@@ -499,6 +524,7 @@ _EDITS: dict[Op, Callable[..., str | None]] = {
     Op.APPEND: _append,
     Op.ASSIGN: _assign,
     Op.SET_SKILLS: _set_skills,
+    Op.SET_GROUP: _set_group,
     Op.CHAT_TURNS_APPENDED: _not_a_line_edit,
 }
 

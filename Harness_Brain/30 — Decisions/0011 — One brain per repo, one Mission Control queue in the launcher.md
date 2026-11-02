@@ -41,6 +41,14 @@ Identical in the launcher, this repo and the backend; do not diverge.
   skills to whoever works the row; each slug is a code span of `[A-Za-z0-9_./-]+`; at most one such
   segment; a segment opening `skills:` in any other shape is a defect. The launcher's twin is ADR 0025
   "Amendment 2026-10-19".
+- **Group (amendment 2026-11-02, twin of launcher ADR 0025's 2026-11-01 amendment):** an optional segment
+  `group: <slug>` names the feature a row belongs to, the same slug in all three brains; the slug is bare
+  (no code span) `[a-z0-9][a-z0-9.-]*`, written first after the bold lead. At most one such segment; a
+  segment opening `group:` empty or in any other shape is a defect. A row citing a `planned/` doc carries
+  one; the rows that predate the rule are a shrink-only ceiling (`GROUP_MISSING_CEILING` in the lint). The
+  Work engine reads it as `Row.group`, serves it on every `runtime.work.list` row, filters by `group?`,
+  writes it from `runtime.work.start`'s `group?` and re-files a row with `Op.SET_GROUP`. Plan:
+  `EterniaLauncher/docs/mission_control/planned/QUEUE_ROW_GROUPS_2026-11-01.md`.
 - **Claim place (amendment 2026-10-27, twin of launcher ADR 0025's 2026-10-26 amendment):** a lane claim is
   `**TAKEN <date> <lane> on <machine> as <git account> in <worktree>**`; one dated 2026-10-27 or later with no
   `on <machine>` is a defect. Persona claims and earlier marks are exempt.

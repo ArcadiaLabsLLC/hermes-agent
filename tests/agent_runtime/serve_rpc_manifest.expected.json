@@ -1109,6 +1109,7 @@
       "assignee",
       "client_scope",
       "conversation",
+      "group",
       "install_id",
       "kind",
       "observe",

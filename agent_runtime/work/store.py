@@ -26,7 +26,7 @@ from agent_runtime.work_store.default_brain import (
     QUEUE_DIR, QUEUE_NOTE, QUEUE_TEMPLATE, TODO_TEMPLATE, retire_binding, this_machine,
 )
 from agent_runtime.work_store.grammar import (
-    ASSIGNEE, STATUS, Assignee, Op, Row, RowRef, find, mint_id, parse_note,
+    ASSIGNEE, GROUP_SLUG, STATUS, Assignee, Op, Row, RowRef, find, mint_id, parse_note,
 )
 from agent_runtime.work_store.writer import OPERATOR, Writer, RowOp
 
@@ -252,7 +252,7 @@ def project(row: Row, writer: Writer | None, *, context=None, detail: bool = Fal
         "status": status_word(row), "status_word": row.status.value if row.status else None,
         "status_date": row.status_date, "status_body": row.status_body, "recommend": row.recommend,
         "assignee": f"persona:{row.assignee.token}" if row.assignee else None,
-        "skills": list(row.skills),
+        "skills": list(row.skills), "group": row.group,
         "taken": {"date": taken.date, "who": taken.who, "persona_instance_id": taken.persona_instance_id}
         if taken else None,
         "rulings": list(row.rulings), "pointers": list(row.pointers), "heading": row.heading, "raw": row.raw,
@@ -299,13 +299,22 @@ def _task(writer: Writer, ref: RowRef, context) -> dict[str, Any] | None:
 
 def _row_filter(params: Mapping[str, Any], context, assignees: frozenset[str] | None = None):
     status = params.get("status")
+    group = None if params.get("group") is None else _group_slug(params["group"])
     if assignees is None and params.get("assignee") is not None:
         assignees = frozenset({_assignee_token(params["assignee"])})
     in_view = params.get("view", "all") == "conversation"
     return lambda row: ((status is None or status_word(row) == status)
+                        and (group is None or row.group == group)
                         and (assignees is None or (row.assignee is not None and row.assignee.token in assignees))
                         and (not in_view or bool(context and context.assignee and row.taken
                                                  and row.taken.who == context.assignee)))
+
+
+def _group_slug(value: Any) -> str:
+    slug = text(value, maximum=120)
+    if GROUP_SLUG.match(slug) is None:
+        raise WorkRefused(Reason.INVALID, "a group is a slug [a-z0-9][a-z0-9.-]*")
+    return slug
 
 
 def list_work(scope, params, *, context=None, assignees: frozenset[str] | None = None):
@@ -384,8 +393,9 @@ def _first_note(board: Board, params: Mapping[str, Any]) -> str:
 
 
 def _start_row(row_id: str, title: str, brief: str | None, token: str | None, date: str,
-               taken_by: str | None = None) -> str:
+               taken_by: str | None = None, group: str | None = None) -> str:
     segments = [f"- **`{row_id}` — {title}**"]
+    segments += [f"group: {group}"] if group else []
     segments += [f"brief: `{brief}`"] if brief else []
     segments += [f"assignee: persona:{token}"] if token else []
     segments += [f"READY {date}"]
@@ -397,6 +407,7 @@ def start(scope, params, actor, *, context=None):
     title = text(params.get("title"), maximum=160).strip()
     if any(mark in title for mark in _TITLE_FORBIDDEN):
         raise WorkRefused(Reason.INVALID, "a title carries no backtick, `*` or ` · `")
+    group = None if params.get("group") is None else _group_slug(params["group"])
     body = params.get("body") or ""
     if body:
         body = text(body, maximum=BODY_LIMIT, multiline=True)
@@ -412,7 +423,7 @@ def start(scope, params, actor, *, context=None):
     writer = view.writers[board.key]
     row_id = mint_id()
     brief = f"{writer.brain_root}/{BRIEF_DIR}/{row_id}.md" if body else None
-    line = _start_row(row_id, title, brief, token, _now().date().isoformat(), taken_by)
+    line = _start_row(row_id, title, brief, token, _now().date().isoformat(), taken_by, group)
     payload = {"row": line, "files": {f"{BRIEF_DIR}/{row_id}.md": body} if body else {}}
     ref = RowRef(board.slot, _first_note(board, params), row_id, board.project_id)
     receipt = writer.apply(RowOp(ref, Op.APPEND, actor, request, payload))
