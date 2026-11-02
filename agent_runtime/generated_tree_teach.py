@@ -33,6 +33,8 @@ import os
 from collections.abc import Callable
 from typing import Any
 
+from agent_runtime.redaction import GENERATED_TREE_ROOTS, generated_tree_path
+
 __layer__ = "policy"
 
 __all__ = [
@@ -42,8 +44,9 @@ __all__ = [
     "generated_tree_write_refusal",
 ]
 
-#: The generated-document tree's top-level segments (case-exact).
-GENERATED_ROOTS = ("doc", "runtime", "ref")
+#: The generated-document tree's top-level segments (case-exact); the one
+#: definition lives with the display redactor, which keeps these paths as labels.
+GENERATED_ROOTS = GENERATED_TREE_ROOTS
 
 #: The host's miss prefixes, as ``tools/file_tools.py`` spells them.
 _READ_MISS = "File not found:"
@@ -64,17 +67,6 @@ _WRITE_TWINS = {"write_file": _WRITE_VERB, "patch": _PATCH_VERB}
 
 Offered = Callable[[str], bool]
 HostHas = Callable[[str], bool]
-
-
-def generated_tree_path(path: Any) -> str | None:
-    """The path's tree root (``doc`` / ``runtime`` / ``ref``) when it is shaped like a
-    generated-tree path as given, else None. ``doc/x``, ``./doc/x``, ``C:\\doc\\x``,
-    ``/Doc/x`` and ``//doc`` never match."""
-
-    if not isinstance(path, str) or not path.startswith("/"):
-        return None
-    first = path[1:].split("/", 1)[0]
-    return first if first in GENERATED_ROOTS else None
 
 
 def _why(path: str, verb: str, filter_hint: str = "") -> str:

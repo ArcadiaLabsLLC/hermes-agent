@@ -8,7 +8,12 @@ import json
 from typing import Any
 import re
 
-from agent_runtime.redaction import safe_file_labels, scrub_secret_value_tree, scrub_secret_values
+from agent_runtime.redaction import (
+    generated_tree_path,
+    safe_file_labels,
+    scrub_secret_value_tree,
+    scrub_secret_values,
+)
 from agent_runtime.serde import strict_int
 __layer__ = "policy"
 
@@ -325,6 +330,10 @@ def _safe_operator_target(invocation: Any) -> str | None:
         text = scrub_secret_values(" ".join(str(value).strip().split()).replace("\\", "/"))
         if not text:
             return None
+        if generated_tree_path(text):
+            # A generated-tree path (``/ref/examples/web-counter/``) is a label,
+            # not a machine path: kept as written, bar a trailing slash.
+            return text.rstrip("/") or None
         if _ABSOLUTE_PATHISH_RE.match(text):
             segments = [segment for segment in text.split("/") if segment]
             if len(segments) < 2:

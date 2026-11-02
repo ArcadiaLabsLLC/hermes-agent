@@ -566,7 +566,9 @@ a secret VALUE in place (an assignment, a bearer/header credential, a signed URL
 a token shape) and keeps every word around it; `has_secret_value` is the test a
 lane asks before refusing an opaque id or a label (a scrubbed id is a wrong id);
 `mask_local_paths` shortens an absolute path to a root-relative label or
-`…/<name>`; `scrub_display_text` is the two together. No lane withholds a field
+`…/<name>`, once — a path already shortened by another lane (`…/a/b/c`) is not cut again,
+and a generated-tree path (`/doc/…`, `/runtime/…`, `/ref/…`) is a label it keeps as written,
+as the operator tool target does; `scrub_display_text` is the two together. No lane withholds a field
 because a word like "token" or "password" appears in it, and none drops a field
 for a slash (2026-10-16, plan `docs/agent-runtime-harness/archive/redaction-one-value-redactor-2026-10-15.md`).
 Observe mode (`HERMES_REDACTION_MODE=observe`) marks `would_redact` where the value

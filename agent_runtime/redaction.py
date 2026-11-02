@@ -412,17 +412,39 @@ def has_secret_value(text: str) -> bool:
 #: URL's ``//host/path`` and a relative ``a/b`` out. A space stays inside the
 #: path when the next word carries a separator (``C:\Users\Jo Smith\x``), so a
 #: name with a space is not cut in half and half-leaked.
+#: The look-behind also holds ``…``: a token right after one is the tail of a
+#: path some lane ALREADY shortened (``…/ref/examples/web-counter``), and cutting
+#: it again emitted ``……/web-counter`` (RT-TOOL-TARGET-DOUBLE-SHORTENED). A path
+#: is shortened once, by whichever lane saw it whole.
 _LOCAL_PATH_RE = re.compile(
-    r"(?<![\w.:/\\~-])"
+    r"(?<![\w.:/\\~…-])"
     r"(?:[A-Za-z]:[\\/]|\\\\|//|~[\\/]|/(?=[^\s/\\]+/))"
     r"(?:[^\s'\"`<>|]|[ ](?=[^\s/\\'\"`<>|]*[\\/]))*"
 )
 _PATH_TRAILING_PUNCTUATION = ".,;:)]}"
 
 
+#: The Launcher's generated-document tree's top-level segments (case-exact):
+#: ``/doc/…``, ``/runtime/…``, ``/ref/…`` are virtual tree paths a tool names,
+#: not the operator's machine, so every display lane keeps them as written.
+GENERATED_TREE_ROOTS = ("doc", "runtime", "ref")
+
+
+def generated_tree_path(path: Any) -> str | None:
+    """The path's tree root (``doc`` / ``runtime`` / ``ref``) when it is shaped like a
+    generated-tree path as given, else None. ``doc/x``, ``./doc/x``, ``C:\\doc\\x``,
+    ``/Doc/x`` and ``//doc`` never match."""
+
+    if not isinstance(path, str) or not path.startswith("/"):
+        return None
+    first = path[1:].split("/", 1)[0]
+    return first if first in GENERATED_TREE_ROOTS else None
+
+
 def mask_local_paths(text: str, *, roots: tuple[str, ...] = ()) -> str:
     """``text`` with every absolute path shortened: under one of ``roots`` it
     becomes the path relative to that root, anywhere else ``…/<last segment>``.
+    A generated-tree path (:func:`generated_tree_path`) is a label and is kept.
     Relative paths and everything else are kept. Idempotent."""
 
     normalized_roots = tuple(
@@ -434,6 +456,8 @@ def mask_local_paths(text: str, *, roots: tuple[str, ...] = ()) -> str:
         trailing = len(token) - len(token.rstrip(_PATH_TRAILING_PUNCTUATION))
         path, tail = (token[:-trailing], token[-trailing:]) if trailing else (token, "")
         posix = path.replace("\\", "/")
+        if generated_tree_path(posix):
+            return token
         for root in normalized_roots:
             if posix.lower().startswith(root) and len(posix) > len(root):
                 return posix[len(root):] + tail
