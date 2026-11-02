@@ -31,7 +31,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-11-02 (lane w1101e-h: a provider retry wait on the console)
 
-- **`RT-MC-TURN-READS-UNATTENDED` — a Mission Control chat turn reads as UNATTENDED to every `is_attended` rule: the profile runner builds its agent with `platform="agent_runtime"` (`AgentRunRequest.platform`) and nothing on the turn sets `HERMES_SESSION_SOURCE`, so `session_source_for` answers `agent_runtime`, outside `ATTENDED_SOURCES`; a person IS reading the Agent Console as the turn runs, yet the free tier's `free_tier_cooldown_ends_turn` never fires there (a free-model Mission Control turn still sleeps a 1069 s cooldown) and any other attended-only behaviour is skipped (found 2026-11-02 while building `RT-RETRY-AFTER-CAP-RETRIES-WEEK-LIMIT`, whose rule is therefore NOT gated on attendance); decide whether a streamed console turn is attended (a session source the runner sets for operator chat turns, or an attended flag on the request) and pin it with a test** · `agent/session_source.py::is_attended` · `agent_runtime/profile_runner/models.py::AgentRunRequest` · `agent/turn_recovery.py::free_tier_cooldown_ends_turn` · READY 2026-11-02 · **TAKEN 2026-11-02 w1101f-h on nekwo-ubuntu24 as nekwo in hm-w1101f-h**
 
 ### Filed on arrival — 2026-11-01 (launcher lane w1101d-p-voice: agent voice call plan)
 
