@@ -142,6 +142,9 @@ batch at its landing, never per lane.
   and the Launcher restarts it (three queue-only commits did, 2026-10-05; vault-only paths stop
   counting once `Harness_Brain/` is in `NON_RUNTIME_PREFIXES`, landing h-turn1).
 - Concurrent sessions share ONE git index: stage and commit in one breath, by pathspec.
+- Push every branch that holds unmerged work to `origin` (`git push origin HEAD:<branch>`) as
+  soon as its lane is marked done, so any machine can continue it (owner 2026-11-01: "branches with unmerged work should be pushed to remote after every lane is marked done so any machine can continue it").
+  The worktree may stay; the branch must be on the remote. Never force-push to do it.
 - Cut worktrees from a NEUTRAL cwd (the directory beside the clone, never inside the checkout):
   `git -C <clone> worktree add <beside the clone>/.worktrees/<lane> -b <branch> origin/main`. The
   clone's location differs per workstation; read it off `git worktree list`, never from this file.
