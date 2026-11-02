@@ -120,3 +120,15 @@ def replace_profile_avatar(params: dict) -> dict:
         raise ProfileAvatarRefused(AvatarRefusal.UNAVAILABLE) from exc
     return {"ok": True, "profile": profile, "handle": handle,
             "media_type": "image/png", "data_base64": base64.b64encode(data).decode("ascii")}
+
+
+def agent_portrait_asset_path(profile: str, handle: str) -> Path:
+    home = _profile_home_for_token(profile)
+    if home is None or not Path(home).is_dir() or re.fullmatch(r"sha256:[0-9a-f]{64}", handle) is None:
+        raise ProfileAvatarRefused(AvatarRefusal.UNAVAILABLE)
+    root = Path(home).resolve()
+    target = root / "assets" / "portraits" / f"{handle[7:]}.png"
+    if not target.resolve().is_relative_to(root) or any(p.is_symlink() for p in (target, target.parent, target.parent.parent)):
+        raise ProfileAvatarRefused(AvatarRefusal.UNAVAILABLE)
+    return target
+

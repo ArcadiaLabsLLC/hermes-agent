@@ -236,6 +236,17 @@ def read_remote_profile_files(
         if found is not None:
             refusals.append(Refusal(key, found[0], found[1]))
             return
+        if kind == "profile_portrait":
+            from .profile_avatar import ProfileAvatarRefused, _portrait_png
+            from .media_handles import handle_for_bytes
+            import base64
+            try:
+                _portrait_png(base64.b64encode(data).decode("ascii"))
+                if handle_for_bytes(data) != f"sha256:{Path(dest).stem}":
+                    raise ValueError("Portrait content does not match its identity.")
+            except (ProfileAvatarRefused, ValueError):
+                refusals.append(Refusal(key, "invalid_portrait", "Portrait bytes must match their bounded PNG content identity."))
+                return
         prior = entries.get(key)
         if prior is not None:
             if prior.layout == "profile_files" and layout == "legacy_profiles":

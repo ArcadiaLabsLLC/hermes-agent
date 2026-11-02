@@ -207,6 +207,33 @@ def _persona_artifacts(persona: AgentPersona) -> tuple[list[RealmSyncArtifact], 
             context = profile_home / name
             if context.exists():
                 _add("core_context", context, name)
+    # Carry only referenced agent portraits, through the existing profile-file
+    # admission and three-way merge. Never scan/publish unrelated artwork.
+    from ..persona_assignments.store import PersonaInstanceStore
+    from ..profile_avatar import AvatarRefusal, ProfileAvatarRefused, agent_portrait_asset_path
+    from .families import KIND_PROFILE_PORTRAIT
+    seen_portraits: set[tuple[str, str]] = set()
+    for instance in PersonaInstanceStore().list_all():
+        if instance.persona_id != persona.id:
+            continue
+        portrait = (instance.character_assignment or {}).get("portrait")
+        if not isinstance(portrait, dict) or portrait.get("mode") != "custom":
+            continue
+        identity = (portrait.get("profile"), portrait.get("handle"))
+        if identity in seen_portraits:
+            continue
+        seen_portraits.add(identity)
+        try:
+            source = agent_portrait_asset_path(*identity)
+            if not source.is_file():
+                raise ProfileAvatarRefused(AvatarRefusal.UNAVAILABLE)
+            destination = f"assets/portraits/{identity[1][7:]}.png"
+            artifacts.append(RealmSyncArtifact(kind=KIND_PROFILE_PORTRAIT, source=source,
+                relative_path=published_relative_path(identity[0], destination),
+                destination=source, persona_id=persona.id))
+        except (OSError, ProfileAvatarRefused, TypeError):
+            withheld.append({"persona_id": persona.id, "kind": KIND_PROFILE_PORTRAIT,
+                "reason": "unavailable", "message": "An agent portrait asset is unavailable on this runtime."})
     return artifacts, withheld
 
 

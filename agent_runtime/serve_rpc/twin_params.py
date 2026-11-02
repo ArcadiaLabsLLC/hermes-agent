@@ -38,6 +38,8 @@ PETS_METHOD_PARAMS: dict[str, tuple[str, ...]] = {"runtime.pets.thumb": ("slug",
 PROFILES_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     "runtime.profiles.avatar": ("profile",),
     "runtime.profiles.avatar.set": ("data_base64", "expected_handle", "profile"),
+    "runtime.character.appearance.set": ("asset_reference", "expected_revision", "id", "kind", "local_sources", "mode", "operation_id", "persona_id", "portrait", "source_fingerprint"),
+    "runtime.character.portrait": ("id", "kind", "persona_id"),
 }
 
 #: ``runtime.health`` (``serve_rpc/health.py``) takes none and refuses any.

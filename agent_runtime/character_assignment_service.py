@@ -50,7 +50,7 @@ def preview_character_migration(params: dict[str, Any]) -> dict[str, Any]:
         return {**result, "sources": sources, "source_fingerprint": character_source_fingerprint(sources)}
 
 
-def write_character_assignment(params: dict[str, Any], *, migrate: bool = False, restore_previous: bool = False) -> dict[str, Any]:
+def write_character_assignment(params: dict[str, Any], *, migrate: bool = False, restore_previous: bool = False, portrait: dict[str, Any] | None = None) -> dict[str, Any]:
     record = _character_subject(params)
     instance_id = record.id if params["kind"] == "instance" else None
     with character_legacy_assignment_lock(instance_id, params["persona_id"]):
@@ -70,7 +70,7 @@ def write_character_assignment(params: dict[str, Any], *, migrate: bool = False,
         elif migrate:
             # Migration retries never replay a legacy choice over a later edit.
             return current
-        change = CharacterAssignmentChange(params.get("expected_revision"), mode, asset, params.get("operation_id"), receipt, restore_previous=restore_previous)
+        change = CharacterAssignmentChange(params.get("expected_revision"), mode, asset, params.get("operation_id"), receipt, restore_previous=restore_previous, portrait=portrait)
         if instance_id is not None:
             saved = PersonaInstanceStore().set_character_assignment(instance_id, change)
         else:

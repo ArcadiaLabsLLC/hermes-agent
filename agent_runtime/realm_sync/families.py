@@ -14,6 +14,7 @@ imports no applier.
 from __future__ import annotations
 
 import hashlib
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
@@ -159,6 +160,7 @@ LEGACY_PROFILES_ROOT = "profiles"
 KIND_PROFILE_MEMORY = "profile_memory"
 KIND_CORE_CONTEXT = "core_context"
 KIND_PERSONA_PROMPT = "persona_prompt"
+KIND_PROFILE_PORTRAIT = "profile_portrait"
 
 MEMORY_DESTINATION = "memories/MEMORY.md"
 CORE_CONTEXT_FILENAMES: tuple[str, ...] = ("AGENTS.md", "CLAUDE.md", "GEMINI.md")
@@ -206,6 +208,8 @@ def classify_destination(dest_rel: str) -> str | None:
         return None
     if any(not part or part.startswith(".") for part in parts):
         return None
+    if re.fullmatch(r"assets/portraits/[0-9a-f]{64}\.png", text):
+        return KIND_PROFILE_PORTRAIT
     if text == MEMORY_DESTINATION:
         return KIND_PROFILE_MEMORY
     if len(parts) == 1 and parts[0] in CORE_CONTEXT_FILENAMES:

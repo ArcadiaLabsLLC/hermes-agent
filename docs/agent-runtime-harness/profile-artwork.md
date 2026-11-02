@@ -33,6 +33,37 @@ Artwork belongs to the runtime profile: agents using that profile share it.
 Character selection still belongs to the existing persona/instance assignment
 contract. Changing one does not migrate, clear or overwrite the other.
 
+## Exact-agent appearance
+
+`runtime.character.appearance.set` adds a portrait choice to the existing
+instance character-assignment transaction. It takes the same exact instance,
+persona, expected revision, operation id and migration receipt as character
+selection, plus `portrait: {mode: character}` or
+`portrait: {mode: custom, data_base64: ...}`. It never accepts persona scope.
+Character and portrait commit in one row write and acknowledgement; a stale
+revision commits neither. Ordinary character commands retain the portrait.
+
+The optional `portrait` field on that record stores a mode and, for custom
+artwork, its profile token and SHA-256 handle. Bytes are immutable assets under
+`assets/portraits/<digest>.png`, validated with the existing upload limits.
+Preparing an asset does not select it. A refused save can leave an unreferenced
+asset, but cannot replace another agent's portrait. No image bytes enter the
+runtime snapshot. `runtime.character.portrait` resolves the exact instance and
+returns only its referenced bytes, checked against the content identity.
+
+An absent portrait choice preserves the previous shared-profile precedence.
+It is not silently migrated or relabelled as agent-owned. Explicit `character`
+uses the resolved character's still; explicit `custom` affects only that agent.
+Neither changes the character's persona inheritance, instructions or settings.
+An older peer cannot discard existing portrait ownership during adoption.
+
+Referenced assets travel through the existing profile-file realm publisher
+and merge owner. Only digest-named, bounded PNGs are admitted; changed bytes
+under an existing identity are refused. Missing assets are reported as
+unavailable and retain the character fallback, never another agent's art.
+Shared `assets/avatar.*` files remain untouched and are never copied into an
+agent override without an explicit choice.
+
 ## Windows first-save contention
 
 The initial concurrent-write qualification exposed an existing lock-initialization
