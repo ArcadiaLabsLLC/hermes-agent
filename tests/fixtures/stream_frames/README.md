@@ -12,6 +12,14 @@ and parses them through its real decode + read-model pipeline
 split is structural, not an oversight, and the script names both halves
 (`GENERATED_FRAME_FILES` / `PINNED_ONLY_FILES`).
 
+> **CROSS-STACK COPY STATUS (w1101d-h-misc, 2026-11-01) — mirrored on launcher branch `wave/w1101d-h-misc-mirror`, landing with this one.**
+> One generated golden moved for one reason: each
+> `core.prompt_observability.chat_contexts[]` row gained `workspace_context_receipt`
+> (`null` in the fixture — no turn ran; RT-SLOT-RECEIPTS-IN-PROMPT-CONTEXT, hermes
+> `3e74d28861`). Copy `delta_agent_create_narrow_profile.json` and `MANIFEST.sha256`
+> into `test/fixtures/harness_stream/`. The same launcher change settles the
+> msg-b note's owed `work_list_empty.json` + response-envelope manifest copy.
+
 > **CROSS-STACK COPY STATUS (msg-b, 2026-10-19) — launcher copy OWED.**
 > Every core-carrying golden moved for one reason: `running_work.sources` gained
 > `messaging_turn` (p10-messaging M4). Copy the nine moved frames and

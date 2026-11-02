@@ -9,7 +9,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-11-01 (profile artwork qualification)
 
-- **`FH-STREAM-WORKSPACE-RECEIPT-GOLDENS` — Regenerate and inspect the cross-stack stream fixtures for the workspace_context_receipt added by 3e74d28861; the producer-shape check reports core.prompt_observability.chat_contexts[].workspace_context_receipt missing from delta_agent_create_narrow_profile.json, with three byte-equality checks also red; preserve both repositories' matching manifests** · `tests/agent_runtime/test_stream_contract_fixture.py` · `tests/fixtures/stream_frames/` · `EterniaLauncher/test/fixtures/harness_stream/` · READY 2026-11-01 · **TAKEN 2026-11-01 w1101d-h-misc on nekwo-ubuntu24 as nekwo in hm-w1101d-misc**
 
 ## Filed on arrival — 2026-10-30 (owner: push checks hang)
 
