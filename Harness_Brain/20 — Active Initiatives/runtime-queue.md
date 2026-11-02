@@ -43,7 +43,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-11-01 (launcher planning lane w1101d-p-groups: queue row groups)
 
-- **`RT-QUEUE-ROW-GROUP-BACKFILL` — every hermes row citing a `planned/` doc (55) gets its feature's group per the plan's slug table (`companion-templates`, `eternia-lens`, else the plan basename), `GROUP_MISSING_CEILING` lowered to 0** · group: queue-row-groups · plan `EterniaLauncher/docs/mission_control/planned/QUEUE_ROW_GROUPS_2026-11-01.md` §S6 · unblocked 2026-11-02: `RT-QUEUE-ROW-GROUP-GRAMMAR` landed (wave w1101f) — the lint reads the segment and `GROUP_MISSING_CEILING` is 55 · READY 2026-11-02
+- **`RT-QUEUE-ROW-GROUP-BACKFILL` — every hermes row citing a `planned/` doc (52) gets its feature's group per the plan's slug table (`companion-templates`, `eternia-lens`, else the plan basename), `GROUP_MISSING_CEILING` lowered to 0** · group: queue-row-groups · plan `EterniaLauncher/docs/mission_control/planned/QUEUE_ROW_GROUPS_2026-11-01.md` §S6 · unblocked 2026-11-02: `RT-QUEUE-ROW-GROUP-GRAMMAR` landed (wave w1101f) — the lint reads the segment and `GROUP_MISSING_CEILING` is 52 · READY 2026-11-02
 
 ### Filed on arrival — 2026-11-01 (lane chat-rows: Neko calculator chat, `persona chat history` transcript audit)
 
