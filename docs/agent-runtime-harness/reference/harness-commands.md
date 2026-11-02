@@ -3039,8 +3039,8 @@ usage: hermes harness persona instance create [-h] --persona PERSONA_ID --title 
                                               [--coordinator-may-kill-others]
                                               [--client-message-id CLIENT_MESSAGE_ID]
                                               [--display-name DISPLAY_NAME]
-                                              [--session-id SESSION_ID] [--kill-active]
-                                              [--add-instance] [--placement-id PLACEMENT_ID]
+                                              [--session-id SESSION_ID] [--add-instance]
+                                              [--placement-id PLACEMENT_ID]
                                               [--workspace-id WORKSPACE_ID] [--realm-id REALM_ID]
                                               [--json]
 
@@ -3065,7 +3065,6 @@ options:
   --client-message-id CLIENT_MESSAGE_ID
   --display-name DISPLAY_NAME
   --session-id SESSION_ID
-  --kill-active         Retired: accepted and ignored
   --add-instance        Create an additional placement-backed instance instead of targeting the
                         primary placement
   --placement-id PLACEMENT_ID
@@ -3085,7 +3084,7 @@ options:
 usage: hermes harness persona instance open-chat [-h] --persona PERSONA_ID
                                                  [--persona-instance-id PERSONA_INSTANCE_ID]
                                                  [--session-id SESSION_ID] [--new-session]
-                                                 [--idempotency-key IDEMPOTENCY_KEY] [--kill-active]
+                                                 [--idempotency-key IDEMPOTENCY_KEY]
                                                  [--add-instance] [--placement-id PLACEMENT_ID]
                                                  [--workspace-id WORKSPACE_ID] [--realm-id REALM_ID]
                                                  [--display-name DISPLAY_NAME]
@@ -3107,7 +3106,6 @@ options:
   --new-session         Mint and select a fresh server-owned chat session for the target instance
   --idempotency-key IDEMPOTENCY_KEY
                         Stable retry key required with --new-session
-  --kill-active         Retired: accepted and ignored
   --add-instance        Open the chat on an additional placement-backed instance
   --placement-id PLACEMENT_ID
                         Scene itemId for an additional placement-backed instance; must end in the
