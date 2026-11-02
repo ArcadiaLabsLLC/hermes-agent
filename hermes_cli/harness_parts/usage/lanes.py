@@ -8,10 +8,11 @@ from typing import Optional
 
 from .detect import UnknownUsageLaneError, _usage_failure_reason
 from .providers import USAGE_LANES
-from .serialize import _serialize_usage_lane, _unavailable_usage_lane
+from .serialize import _serialize_usage_lane, _serialize_usage_window, _unavailable_usage_lane
 
 __layer__ = "lanes"
 __all__ = [
+    "_fetch_sourced_usage_lane",
     "_fetch_usage_lane",
     "_fetch_usage_lanes",
 ]
@@ -50,6 +51,26 @@ def _fetch_usage_lane(provider_id: str):
     return lane.fetch()
 
 
+def _fetch_sourced_usage_lane(provider_id: str):
+    """[_fetch_usage_lane] under the provider's ``credential_source``: an API key effective reads
+    no balance and the Account's plan windows instead (``agent_runtime/provider_usage_source.py``,
+    the same answer ``runtime.provider.usage`` gives)."""
+    from agent_runtime.provider_usage_source import sourced_usage
+
+    return sourced_usage(provider_id, lambda: _fetch_usage_lane(provider_id))
+
+
+def _sourced_lane(provider_id: str, sourced, *, active: bool) -> dict:
+    lane = _serialize_usage_lane(provider_id, sourced.snapshot, active=active)
+    lane["credential_source"] = sourced.credential_source
+    if sourced.spends_api_key:
+        lane["plan_windows"] = [
+            w for w in (_serialize_usage_window(win) for win in getattr(sourced.plan, "windows", ()))
+            if w is not None
+        ]
+    return lane
+
+
 def _fetch_usage_lanes(
     candidates: list[str],
     *,
@@ -66,7 +87,7 @@ def _fetch_usage_lanes(
     deadline = time.monotonic() + max(0.0, float(timeout))
     pool = concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(candidates)))
     try:
-        future_map = {pool.submit(_fetch_usage_lane, p): p for p in candidates}
+        future_map = {pool.submit(_fetch_sourced_usage_lane, p): p for p in candidates}
         for future, provider_id in future_map.items():
             active = provider_id == active_provider
             # Deadline-derived remaining bound: forwarding a shared deadline as
@@ -74,7 +95,7 @@ def _fetch_usage_lanes(
             # even though the futures run concurrently.
             remaining = max(0.0, deadline - time.monotonic())
             try:
-                snapshot = future.result(timeout=remaining)
+                sourced = future.result(timeout=remaining)
             except concurrent.futures.TimeoutError:
                 lanes_by_provider[provider_id] = _unavailable_usage_lane(
                     provider_id, "usage fetch failed (TimeoutError)", active=active
@@ -86,9 +107,7 @@ def _fetch_usage_lanes(
                     active=active,
                 )
             else:
-                lanes_by_provider[provider_id] = _serialize_usage_lane(
-                    provider_id, snapshot, active=active
-                )
+                lanes_by_provider[provider_id] = _sourced_lane(provider_id, sourced, active=active)
     finally:
         # Don't let the context-manager shutdown(wait=True) block on a hung
         # provider fetch — each underlying fetch already carries its own HTTP

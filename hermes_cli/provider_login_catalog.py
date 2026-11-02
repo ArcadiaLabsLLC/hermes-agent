@@ -158,6 +158,17 @@ PROVIDER_AUTH_MODES: dict[str, tuple[tuple[str, str, bool], ...]] = {
 }
 
 
+#: Providers whose turns can spend one of two STORED credentials, as ``(id, label)``. The chosen
+#: id is ``providers.<slug>.credential_source`` in the bound provider home's ``config.yaml``
+#: (``agent_runtime/provider_credential_source.py``, the verb ``runtime.provider.source.set``);
+#: unset keeps the provider's own ladder. Not ``PROVIDER_AUTH_MODES``: those are two ways to
+#: authenticate ONE backend and their write selects ``model.provider``; this chooses between
+#: credentials already stored and selects nothing.
+PROVIDER_CREDENTIAL_SOURCES: dict[str, tuple[tuple[str, str], ...]] = {
+    "anthropic": (("account", "Claude account"), ("api_key", "API key")),
+}
+
+
 def auth_modes_for(slug: str) -> list[dict]:
     """The catalog row's ``auth_modes``: ``[{id, label, needs_key}]``; empty = one implicit mode."""
     return [{"id": mode, "label": label, "needs_key": needs_key}

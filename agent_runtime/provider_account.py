@@ -29,6 +29,7 @@ __all__ = [
     "provider_list",
     "provider_refresh",
     "provider_signout",
+    "provider_source_set",
     "provider_usage",
 ]
 
@@ -53,6 +54,11 @@ def _iso(value: datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
 
 
+def _window_view(w: Any) -> dict:
+    return {"label": w.label, "used_percent": w.used_percent, "reset_at": _iso(w.reset_at), "detail": w.detail,
+            "scope": w.scope}
+
+
 def _usage_view(provider: str, snapshot: Any) -> dict:
     from .provider_account_view import account_view
 
@@ -66,11 +72,7 @@ def _usage_view(provider: str, snapshot: Any) -> dict:
         "title": snapshot.title,
         "plan": snapshot.plan,
         "fetched_at": _iso(snapshot.fetched_at),
-        "windows": [
-            {"label": w.label, "used_percent": w.used_percent, "reset_at": _iso(w.reset_at), "detail": w.detail,
-             "scope": w.scope}
-            for w in snapshot.windows
-        ],
+        "windows": [_window_view(w) for w in snapshot.windows],
         "details": list(snapshot.details),
         "unavailable_reason": snapshot.unavailable_reason,
     }
@@ -83,19 +85,32 @@ def _nous_snapshot() -> Any:
 
 
 def provider_usage(provider: str) -> dict:
-    """The account's limits and rate-limit windows, or ``available: false``."""
+    """The account's limits and rate-limit windows, or ``available: false``.
+
+    Every view carries ``credential_source`` (``list``'s block, null off the table); while the API
+    key is the effective source it also carries ``plan_windows``, the Account's plan windows read
+    with the stored grant (``agent_runtime/provider_usage_source.py``)."""
     from agent.account_usage import fetch_account_usage
+
+    from .provider_usage_source import sourced_usage
 
     if provider == "nous":
         try:
             snapshot = _nous_snapshot()
         except Exception as exc:  # fail open like upstream's /usage, class name only
-            return _usage_view(provider, None) | {"unavailable_reason": type(exc).__name__}
+            return _usage_view(provider, None) | {"unavailable_reason": type(exc).__name__,
+                                                   "credential_source": None}
+        sourced = None
     else:
-        snapshot = fetch_account_usage(provider)
+        sourced = sourced_usage(provider, lambda: fetch_account_usage(provider))
+        snapshot = sourced.snapshot
     from .provider_account_metadata import usage_snapshot
 
-    return _usage_view(provider, usage_snapshot(provider, snapshot))
+    view = _usage_view(provider, usage_snapshot(provider, snapshot))
+    view["credential_source"] = sourced.credential_source if sourced else None
+    if sourced is not None and sourced.spends_api_key:
+        view["plan_windows"] = [_window_view(w) for w in getattr(sourced.plan, "windows", ())]
+    return view
 
 
 def _known(provider: str) -> None:
@@ -192,3 +207,40 @@ def provider_configure(provider: str, auth_mode: str, base_url: str | None = Non
         raise ProviderRefused("configure_failed", type(exc).__name__, provider=provider) from None
     return {"provider": provider, "auth_mode": auth_mode, "base_url": url, "needs_key": modes[auth_mode],
             "written": [key for key in CONFIGURE_KEYS if key in values]}
+
+
+def provider_source_set(provider: str, source: str) -> dict:
+    """Choose which STORED credential a provider's turns spend (``providers.<id>.credential_source``).
+
+    Only a provider ``PROVIDER_CREDENTIAL_SOURCES`` declares, only a declared source, and only one
+    with a credential stored — a choice of nothing would bench the family that works. Written on
+    the bound provider home's ``config.yaml`` (where the credentials it chooses between live)
+    through the round-trip YAML writer; selects nothing else (not ``model.provider``: that is
+    :func:`provider_configure`). The answer is the fact the client re-reads, never a secret.
+    """
+    from utils import atomic_roundtrip_yaml_update
+
+    from .provider_credential_source import credential_source_block, credential_source_ids, present_credential_sources
+
+    ids = [source_id for source_id, _label in credential_source_ids(provider)]
+    if not ids:
+        raise ProviderRefused("source_unsupported", provider=provider)
+    if source not in ids:
+        raise ProviderRefused("source_unknown", provider=provider, sources=ids)
+    try:
+        stored = present_credential_sources(provider).get(source)
+    except Exception as exc:  # class name only
+        raise ProviderRefused("source_failed", type(exc).__name__, provider=provider) from None
+    if not stored:
+        raise ProviderRefused("source_absent", provider=provider, source=source)
+    path = _configure_home() / "config.yaml"
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if not path.exists():
+            path.write_text("", encoding="utf-8")
+        atomic_roundtrip_yaml_update(path, f"providers.{provider}.credential_source", source)
+        block = credential_source_block(provider) or {}
+    except Exception as exc:  # class name only
+        raise ProviderRefused("source_failed", type(exc).__name__, provider=provider) from None
+    return {"provider": provider, "source": source, "effective": block.get("effective"),
+            "sources": block.get("sources", [])}

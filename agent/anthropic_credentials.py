@@ -29,6 +29,7 @@ from typing import Any, Dict, Optional
 from hermes_constants import get_hermes_home
 from utils import atomic_json_write, base_url_hostname
 from agent.secret_scope import get_secret as _get_secret
+from agent_runtime import provider_credential_source as _fork_source  # fork seam: providers.anthropic.credential_source
 
 logger = logging.getLogger(__name__)
 
@@ -711,6 +712,8 @@ def resolve_anthropic_token(*, model: Optional[str] = None) -> Optional[str]:
 
     With *model*, a token the credential pool has benched for that model resolves to ``None``
     instead of being handed straight back to the caller that just saw it rate-limited."""
+    if (chosen := _fork_source.resolve_chosen_anthropic_token(model)) is not None:  # fork seam: an explicit
+        return chosen or None  # credential_source spends that family; unset runs the ladder below
     _read_creds = functools.cache(read_claude_code_credentials)  # read the file at most once per resolve
     token = _first_env("ANTHROPIC_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN")
     if token:
