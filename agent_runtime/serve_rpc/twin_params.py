@@ -53,7 +53,7 @@ CHAT_VERB_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     "runtime.persona.chat.delete": ("persona_id", "persona_instance_id", "requested_by", "session_id"),
     "runtime.persona.chat.history": ("before", "limit", "session_id"),
     "runtime.persona.instance.create": (
-        "add_instance", "client_message_id", "display_name", "kill_active", "persona_id", "placement_id",
+        "add_instance", "client_message_id", "display_name", "persona_id", "placement_id",
         "realm_id", "requested_by", "session_id", "title", "workspace_id"),
 }
 

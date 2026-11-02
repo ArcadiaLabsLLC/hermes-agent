@@ -1061,9 +1061,6 @@ and the final acceptance are in
 
 Each links to a `planned/` file carrying its evidence and the gate to open it.
 
-- 2026-10-27 — **`--kill-active` is accepted and ignored** (S1 shipped: no
-  `killed_previous`, no close review); refusing it waits on the launcher →
-  [planned/chat-open-kill-active-retirement-2026-10-27.md](planned/chat-open-kill-active-retirement-2026-10-27.md) S2
 - 2026-10-29 — **the writer-less lane store no longer projects onto `status`**
   (`foreground_runtime` / `runtime_instances` dropped; the docstrings were fixed
   2026-10-27); `dirty_state`'s foreground block still reads it →
