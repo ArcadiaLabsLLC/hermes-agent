@@ -17,7 +17,7 @@ from typing import Any, Dict, Optional
 
 from agent.api_error_summary import is_provider_stream_parse_error
 from agent.provider_failure import attach_provider_failure
-from agent_runtime.provider_retry_wait import emit_provider_retry_wait
+from agent_runtime.provider_retry_wait import emit_provider_retry_wait, reset_outlasts_retries
 from agent.error_classifier import RETRYABLE_CLIENT_REASONS, FailoverReason, classify_api_error
 from agent.turn_overflow import recover_from_overflow
 from agent.turn_recovery import (
@@ -364,6 +364,8 @@ def settle_unrecovered_error(
     if is_rate_limited and retry_count < max_retries and free_tier_cooldown_ends_turn(agent, api_error, _base):
         logger.info("%sFree-tier cooldown outlasts the attended wait — ending retries after attempt %s",
                     agent.log_prefix, retry_count)
+        retry_count = max_retries
+    if is_rate_limited and retry_count < max_retries and reset_outlasts_retries(api_error, error_context, retry_count=retry_count, max_retries=max_retries):
         retry_count = max_retries
     if retry_count >= max_retries:
         # Before fallback, rebuild the primary client once per API call block for

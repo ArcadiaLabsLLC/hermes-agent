@@ -16,6 +16,7 @@ it) → the run's progress callback → ``ChatProgressSink`` (live stream only, 
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Optional
 
 from agent_runtime.receipt_sink import agent_receipt_callback
@@ -27,6 +28,8 @@ __all__ = [
     "PROVIDER_RETRY_WAIT_PHASE",
     "emit_provider_retry_wait",
     "provider_retry_wait_payload",
+    "provider_reset_seconds",
+    "reset_outlasts_retries",
     "safe_provider_retry_wait",
 ]
 
@@ -36,6 +39,8 @@ PROVIDER_RETRY_WAIT_PHASE = "provider_retry_wait"
 PROVIDER_RETRY_WAIT_FRAME = "provider.retry_wait"
 
 _COUNT_FIELDS = ("retry_in_seconds", "attempt", "max_attempts")
+
+_logger = logging.getLogger(__name__)
 
 
 def _whole(value: Any) -> Optional[int]:
@@ -129,3 +134,45 @@ def safe_provider_retry_wait(payload: Any) -> Optional[dict[str, Any]]:
     if refusal is not None:
         safe["provider_refusal"] = refusal
     return safe
+
+
+def provider_reset_seconds(api_error: Any, error_context: Optional[dict[str, Any]]) -> Optional[float]:
+    """Seconds until the provider says it accepts again: the LATER of its uncapped ``Retry-After``
+    and its ``reset_at`` (read as the settled refusal reads it), or ``None`` when it named neither."""
+
+    from agent.retry_utils import provider_retry_after_seconds
+    from agent_runtime.mission_chat_outcome import ProviderRefusal
+
+    candidates = [provider_retry_after_seconds(api_error)]
+    reset_at = (error_context or {}).get("reset_at")
+    if reset_at not in (None, ""):
+        candidates.append(ProviderRefusal(status_code=0, reset_at=reset_at).resets_in_seconds())
+    known = [float(value) for value in candidates if value is not None and value > 0]
+    return max(known) if known else None
+
+
+def reset_outlasts_retries(
+    api_error: Any, error_context: Optional[dict[str, Any]], *, retry_count: int, max_retries: int,
+) -> bool:
+    """True when no retry left in this cycle can reach the provider's reset, so the caller ends
+    the attempt cycle now — fallback first, else the terminal result whose ``provider_error``
+    settles as a typed refusal carrying the reset (runtime row RT-RETRY-AFTER-CAP-RETRIES-WEEK-LIMIT).
+
+    Each wait is capped at ``RETRY_AFTER_CAP_S`` (600 s) and ``max_retries - retry_count`` waits
+    remain, so a reset beyond their sum is a wall every retry walks into: the Anthropic Account's
+    used week limit ("resets in 3d 6h") slept 600 s three times into the same 429 (live
+    2026-11-01). A reset the remaining waits DO reach is still waited out — a paid bucket reopens
+    on time, and ``fallback.min_switch_reset_seconds`` relies on that wait. The attended free
+    tier's shorter rule is ``agent.turn_recovery.free_tier_cooldown_ends_turn``."""
+
+    from agent.retry_utils import RETRY_AFTER_CAP_S
+
+    reset = provider_reset_seconds(api_error, error_context)
+    remaining_waits = max(int(max_retries) - int(retry_count), 0)
+    if reset is None or reset <= RETRY_AFTER_CAP_S * remaining_waits:
+        return False
+    _logger.info(
+        "Provider reset in %.0fs outlasts the %d remaining capped retry wait(s) — ending retries after attempt %s",
+        reset, remaining_waits, retry_count,
+    )
+    return True

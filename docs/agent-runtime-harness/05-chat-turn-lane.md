@@ -1008,6 +1008,15 @@ element `seq`, no segment end, no EventLog row; the next frame of any kind super
 → `ChatProgressSink._forward_provider_retry_wait` → `_ChatProtocolV2Emitter._provider_retry_wait`;
 every hop re-reads it through `safe_provider_retry_wait`'s closed set.
 
+**A reset no retry can reach ends the cycle instead** (row `RT-RETRY-AFTER-CAP-RETRIES-WEEK-LIMIT`):
+each wait is capped at `RETRY_AFTER_CAP_S` (600 s), so a 429 whose reset (the later of its uncapped
+`Retry-After` and its `reset_at`) lies beyond `600 s × (max_retries − retry_count)` is a wall every
+retry walks into — the Anthropic Account's used week limit slept 600 s three times into the same 429.
+`provider_retry_wait.reset_outlasts_retries` (one seam `if` in `settle_unrecovered_error`, beside the
+attended free tier's `free_tier_cooldown_ends_turn`) ends it: fallback first, else the terminal
+result whose `provider_error` settles as a typed refusal with `reset_at` / `resets_in_seconds`, and
+no `provider.retry_wait` frame is sent. A reset the remaining waits do reach is still waited out.
+
 ## 6. Terminal envelope grants
 
 `agent_runtime/terminal_envelope/` is the ONE deterministic answer to "may this command run on

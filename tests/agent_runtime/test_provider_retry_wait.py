@@ -54,6 +54,7 @@ class _Agent:
     _credential_pool = None
     _current_streamed_assistant_text = ""
     _interrupt_requested = False
+    _auto_recovery_cycles = 5
 
     def __init__(self, status_callback=None):
         self.status_callback = status_callback
@@ -167,3 +168,100 @@ def test_a_failing_receipt_door_never_fails_the_turn():
 
     agent = SimpleNamespace(status_callback=ReceiptSink(boom))
     emit_provider_retry_wait(agent, None, {}, wait_seconds=5, attempt=1, max_attempts=3)
+
+
+# ── RT-RETRY-AFTER-CAP-RETRIES-WEEK-LIMIT: a reset no capped retry can reach ends the cycle ──
+
+_WEEK_LIMIT_S = 3 * 86400 + 6 * 3600  # the live "resets in 3d 6h"
+
+
+class _FallbackAgent(_Agent):
+    def __init__(self, status_callback=None, *, fallback_left=False):
+        super().__init__(status_callback)
+        self._fallback_left = fallback_left
+        self.activated: list[dict] = []
+
+    def _has_pending_fallback(self):
+        return self._fallback_left
+
+    def _try_activate_fallback(self, **kwargs):
+        self.activated.append(kwargs)
+        return self._fallback_left
+
+    def _try_recover_primary_transport(self, *a, **k):
+        return False
+
+
+def _settle_exhaustible(agent, err, *, retry_count=1):
+    exhausted = {"failed": True, "failure_reason": "rate_limit", "error": "rate limited"}
+    with patch("agent.conversation_loop._arm_fallback_restart", lambda a, m, s, r: s), \
+            patch("agent.turn_api_error.max_retries_exhausted_result", lambda *a, **k: dict(exhausted)):
+        return _settle_backoff(agent, err, retry_count=retry_count)
+
+
+def test_a_week_limit_429_ends_the_cycle_with_a_typed_refusal_naming_the_reset(stream, frames):
+    from agent_runtime.mission_chat_outcome import provider_refusal_from_block
+
+    agent, _, _ = stream
+    agent.__class__ = _FallbackAgent
+    agent._fallback_left, agent.activated = False, []
+    verdict = _settle_exhaustible(agent, _anthropic_429(_WEEK_LIMIT_S))
+
+    assert verdict.action == "return", "no 600 s sleep into a wall days away"
+    assert _of_type(frames, "provider.retry_wait") == []
+    # handle_api_error's own _verdict stamps the terminal result on the way out; do the same here.
+    from agent.agent_runtime_helpers import extract_api_error_context
+    from agent.provider_failure import attach_provider_failure
+
+    err = _anthropic_429(_WEEK_LIMIT_S)
+    classified = classify_api_error(err, provider=agent.provider, model=agent.model, base_url=agent.base_url)
+    attach_provider_failure(verdict.result, classified, extract_api_error_context(err))
+    refusal = provider_refusal_from_block(verdict.result["provider_error"])
+    assert refusal is not None and refusal.status_code == 429 and refusal.reason == "rate_limit_error"
+    assert _WEEK_LIMIT_S - 60 <= refusal.resets_in_seconds() <= _WEEK_LIMIT_S
+
+
+def test_a_reset_named_only_by_reset_at_counts_too():
+    import time
+    from datetime import datetime, timezone
+
+    agent = _FallbackAgent()
+    reset = datetime.fromtimestamp(time.time() + _WEEK_LIMIT_S, tz=timezone.utc).isoformat()
+    body = {"type": "error", "error": {"type": "rate_limit_error", "message": "week limit"}}
+    verdict = _settle_exhaustible(agent, _Err(429, body, {"anthropic-ratelimit-tokens-reset": reset}))
+    assert verdict.action == "return"
+
+
+def test_fallback_runs_first_and_carries_the_reset():
+    agent = _FallbackAgent(fallback_left=True)
+    verdict = _settle_exhaustible(agent, _anthropic_429(_WEEK_LIMIT_S))
+    assert verdict.action == "break"
+    [call] = agent.activated
+    assert call["reset_at"] is not None
+
+
+@pytest.mark.parametrize(
+    "retry_after,retry_count,ends",
+    [
+        (900, 1, False),  # two capped waits (1200 s) reach a 15 min reset: wait it out
+        (1300, 1, True),  # they do not reach 1300 s
+        (900, 2, True),  # one wait left (600 s) cannot reach 900 s
+        (60, 2, False),  # an ordinary per-minute throttle
+    ],
+)
+def test_only_a_reset_beyond_the_remaining_capped_waits_ends_the_cycle(retry_after, retry_count, ends):
+    from agent_runtime.provider_retry_wait import reset_outlasts_retries
+
+    err = _anthropic_429(retry_after)
+    from agent.agent_runtime_helpers import extract_api_error_context
+
+    assert reset_outlasts_retries(err, extract_api_error_context(err), retry_count=retry_count, max_retries=3) is ends
+
+
+def test_a_millisecond_epoch_reset_is_not_read_as_millennia():
+    import time
+
+    from agent_runtime.mission_chat_outcome import ProviderRefusal
+
+    in_two_minutes_ms = int((time.time() + 120) * 1000)
+    assert 100 <= ProviderRefusal(status_code=429, reset_at=in_two_minutes_ms).resets_in_seconds() <= 120
