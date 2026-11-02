@@ -31,6 +31,7 @@ __layer__ = "stores"
 __all__ = [
     "ACCOUNT",
     "API_KEY",
+    "account_usage_token",
     "benched_entry_ids",
     "chosen_credential_source",
     "credential_source_block",
@@ -259,3 +260,21 @@ def credential_source_block(provider: str) -> Optional[dict]:
         "sources": [{"id": source_id, "label": label, "present": bool(present.get(source_id))}
                     for source_id, label in table],
     }
+
+
+def account_usage_token() -> Optional[str]:
+    """The Claude account's stored token for a USAGE read, with no refresh and no pool lease.
+
+    While the API key is effective the pool benches (or, unset, prunes) the account rows, so
+    the grant is read where it is stored: env account token, the Hermes PKCE file, then the
+    borrowed Claude Code login when adoption is on. An expired token simply reads no windows."""
+    from agent import anthropic_credentials as creds
+    from agent.credential_sources import adopt_external_logins_enabled
+
+    token = creds._first_env("ANTHROPIC_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN")
+    if token:
+        return token
+    stored = (creds.read_hermes_oauth_credentials() or {}).get("accessToken")
+    if not stored and adopt_external_logins_enabled():
+        stored = (creds.read_claude_code_credentials() or {}).get("accessToken")
+    return str(stored or "").strip() or None
