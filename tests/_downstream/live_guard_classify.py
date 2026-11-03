@@ -47,12 +47,31 @@ def strip_shell_comments(script: str) -> str:
     return "\n".join(kept)
 
 
+# A grep-family PATTERN is data: ``grep -q "hermes gateway restart"`` matches text and starts
+# nothing, yet the word scan read the quoted pattern inside a ``bash -c`` script as
+# ``hermes ... gateway`` (scripts/desktop-update/posix.sh's hint block,
+# FH-HERMES-CLI-GATEWAY-UPDATE-REDS-REMAINDER). Only a quoted pattern right after the grep word
+# and its short flags is dropped, and only one carrying no quote of the other kind, no
+# ``$`` / backtick / backslash (an expansion) and no ``; | & ( ) < >`` or newline (a command
+# boundary): a span that misreads where a string ends can then only be more arguments to the
+# same grep, never a second command.
+_GREP_PATTERN_RE = re.compile(
+    r"""(?<![\w./-])([ef]?grep)((?:[ \t]+-[A-Za-z]+)*)[ \t]+("[^"'$`\\;|&()<>\n]*"|'[^'"$`\\;|&()<>\n]*')"""
+)
+
+
+def drop_grep_patterns(script: str) -> str:
+    """*script* with each grep-family quoted pattern replaced by a neutral word."""
+    return _GREP_PATTERN_RE.sub(lambda match: f"{match.group(1)}{match.group(2)} PATTERN", script)
+
+
 def script_words(token: str) -> list[str]:
     """Whitespace words of one argv token; a script token (one with a newline)
-    loses its comments first, a single-line argv token is split as it was."""
+    loses its comments first, a single-line argv token is split as it was.
+    Either loses its grep patterns (:func:`drop_grep_patterns`)."""
     if "\n" in token:
         token = strip_shell_comments(token)
-    return token.split()
+    return drop_grep_patterns(token).split()
 
 
 # ── Backend-spawn arm (ML-14 / B20(i)) ─────────────────────────────

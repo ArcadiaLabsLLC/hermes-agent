@@ -18,6 +18,7 @@ from tests._downstream.id_markers.reasons import (
     _CHILDREN_DIE_WITH_THE_TEST,
     _CLAUDE_HOME_TMP,
     _CREDENTIALS_FILE,
+    _FORK_LIVE_GUARD_ENSURE,
     _FORK_LIVE_SYSTEM_GUARD,
     _FORK_MANAGED_PYTHON,
     _fork_replaces,
@@ -160,6 +161,12 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     "tests/hermes_cli/test_dashboard_tui_backcompat.py::"
     "test_dashboard_tui_flag_is_accepted_not_rejected": (
         pytest.mark.xfail(reason=_FORK_LIVE_SYSTEM_GUARD, strict=True),
+    ),
+    # FH-HERMES-CLI-GATEWAY-UPDATE-REDS-REMAINDER: the guard is right to refuse (a broken
+    # update fence would start a real gateway against the developer's HOME).
+    "tests/hermes_cli/test_gateway_runtime_ensure.py::"
+    "test_public_ensure_json_deadline_and_invalid_invocation": (
+        pytest.mark.xfail(reason=_FORK_LIVE_GUARD_ENSURE, strict=True),
     ),
     "tests/hermes_cli/test_gateway_windows.py::"
     "test_build_gateway_argv_keeps_venv_console_python_for_uv_venv": (

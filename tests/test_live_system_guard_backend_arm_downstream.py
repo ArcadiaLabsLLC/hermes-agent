@@ -131,3 +131,27 @@ def test_the_update_import_probe_is_not_a_backend_start(tmp_path):
 def test_a_marked_probe_that_could_spawn_keeps_the_conservative_scan(tmp_path):
     argv = _update_import_probe_argv(tmp_path, "__import__('subprocess').run(['hermes', 'gateway', 'run'])\n")
     assert backend_spawn_subcommand(argv, str) == "gateway"
+
+
+# FH-HERMES-CLI-GATEWAY-UPDATE-REDS-REMAINDER: a grep-family quoted PATTERN is data. Mutation: return
+# ``script`` unchanged from ``drop_grep_patterns`` -> the first test is red (`gateway`).
+_HINT_BLOCK = ('OWED_HINT=hint\n'
+               '    if [ -n "$GW_REASONS" ] && ! printf \'%s\\n\' "$GW_REASONS" | grep -q "hermes gateway restart"; then\n'
+               '      OWED_HINT=""\n    fi\nprintf %s "$OWED_HINT"')
+
+
+def test_a_quoted_grep_pattern_in_a_script_is_not_a_backend_start():
+    assert backend_spawn_subcommand(["bash", "-c", _HINT_BLOCK], str) is None
+    assert backend_spawn_subcommand(["bash", "-c", "grep -qE 'hermes (gateway|serve)' log"], str) is None
+
+
+@pytest.mark.parametrize("script", [
+    'grep -q x\nhermes gateway run\n',                          # a second command after the grep
+    'grep "x" "$(hermes gateway run)"\n',                       # an expansion in a later word
+    "grep 'x; hermes gateway run'\n",                           # a span with a command boundary
+    'grep "$(hermes gateway run)"\n',                           # an expansion in the pattern itself
+    'grep "x" && "hermes" gateway run',                         # a quoted entry point after a boundary
+    "f() { hermes gateway run; }\ngrep -q 'hermes gateway' log && f",
+])
+def test_a_script_whose_grep_hides_nothing_still_refuses_the_real_start(script):
+    assert backend_spawn_subcommand(["bash", "-c", script], str) == "gateway"

@@ -10,6 +10,7 @@ what a reader greps for in the report. The map is
 from __future__ import annotations
 
 import importlib.util
+import shutil
 import sys
 
 import pytest
@@ -83,6 +84,11 @@ _FORK_LIVE_SYSTEM_GUARD = (
     "the fork's live-system guard (tests/conftest.py) refuses the spawn of a real "
     "`hermes dashboard` backend; the fork's in-process twin is the test's "
     "*_downstream.py sibling"
+)
+_FORK_LIVE_GUARD_ENSURE = (
+    "the fork's live-system guard (tests/conftest.py) refuses `hermes gateway ensure`: "
+    "ensure STARTS a gateway when none answers, and this child keeps the developer's HOME, "
+    "so only the live update claim the test plants keeps it from starting one"
 )
 _FORK_MANAGED_PYTHON = (
     "the fork's hermes_cli.gateway.resolve_managed_python replaces get_python_path "
@@ -169,6 +175,14 @@ _LIFECYCLE_SCAN = _up_red(
 _TCC_POSIX_VENV = _posix_xfail(
     "the fixture builds a POSIX venv (bin/, symlinked interpreters) and patches only "
     "platform.system; venv_python_path follows sys.platform to Scripts/python.exe"
+)
+
+#: A system TOOL the test drives, absent from the box: ``tmux`` (the live classic-CLI tests type
+#: into a real terminal through it). Runs again the day it is on PATH
+#: (FH-HERMES-CLI-GATEWAY-UPDATE-REDS-REMAINDER, 2026-11-02).
+_NEEDS_TMUX = pytest.mark.skipif(
+    shutil.which("tmux") is None,
+    reason="drives a real terminal through `tmux`, which is not on PATH; runs once it is installed",
 )
 
 _NEEDS_ACP = pytest.mark.skipif(
