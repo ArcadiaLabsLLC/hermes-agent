@@ -151,6 +151,10 @@ def start_serve_work_engine(session: Any) -> Any:
     start_work_engine(stop_event=session.liveness_stop, engine=session.work_engine, home=home,
                       on_tick=session.work_executor.wake_parked)
     start_serve_scheduler(session)
+    # The brains' remote check (RT-BRAIN-PATHS-PLAIN-LIST): fetch, fast-forward hermes's own, count the rest.
+    from agent_runtime.brain_remote import start_brain_remote_ticker
+
+    start_brain_remote_ticker(stop_event=session.liveness_stop, home=home)
     if shipped("agent_runtime.project_chat_fold"):
         # A realm-less Project's shared chats ride no realm pull (RT-PROJECT-CHAT-FOLD-REALMLESS).
         start_realmless_fold_ticker(stop_event=session.liveness_stop, home=home)
