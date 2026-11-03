@@ -34,7 +34,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
-- **`RT-NEXT-PROMPT-MODES` — Add Off / Manual / Auto policy and an exact-conversation one-shot generation request, with the paired Eternia Intelligence composer action** · `agent_runtime/console_suggestions/settings.py` · `agent_runtime/console_suggestions/service.py` · `EterniaLauncher/lib/features/harness/widgets/harness_suggestions_settings.dart` · RULED 2026-11-03: owner approved Off / Manual / Auto and the right-side Intelligence button; preserve default Off, map existing On to Auto, Manual generates only on click and retains draft review before sending · READY 2026-11-03 · **TAKEN 2026-11-03 codex-suggestion-modes on MUltiversalLabsInc as Maximus England in hm-suggest**
 
 ### Filed on arrival — 2026-11-03 (launcher planning lane w1103a-p-work-v1: the Work board — truth, waves, the Intelligence mount, metrics)
 
