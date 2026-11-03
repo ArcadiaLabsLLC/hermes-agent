@@ -34,6 +34,8 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+- **`RT-WORK-LOCAL-BRAIN-READ-PATH` — Publish the existing native writer worktree for local Personal/workspace brains so file-only readers see accepted tasks after reopening; original seed checkouts have no upstream and remain stale** · `agent_runtime/brain_paths.py::_default_brain` · `agent_runtime/work_store/writer.py::sync` · native Intelligence QA found seven accepted Personal rows absent from the published seed checkout · READY 2026-11-03 · **TAKEN 2026-11-03 work-v1-intelligence on MULTIVERSALLABS as MUltiversalLabsInc in work-v1-runtime**
+
 
 ### Filed on arrival — 2026-11-03 (launcher planning lane w1103a-p-work-v1: the Work board — truth, waves, the Intelligence mount, metrics)
 
