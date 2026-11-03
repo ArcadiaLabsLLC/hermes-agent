@@ -35,6 +35,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-11-02 (lane w1101h-h: FH-CORE-CACHE-REALM-BASELINE-BUNDLE)
+
+- **`RT-CORE-CACHE-SAME-TICK-REWRITE` — the core cache's input fingerprint cannot see a same-size rewrite inside one file-time tick: entries are `(path, mtime_ns, size)`, so a baseline or store file rewritten to the same length before the clock ticks keeps the digest and a core built before the change is served as current (git's "racy" stat problem); coarse file times (Windows' system-timer resolution) make the window real — the bundled red of `test_a_realm_sync_baseline_stays_inside_the_closure[office_baseline_path]` was this, replayed deterministically by pinning the second write's mtime to the first's (digest unchanged); answer git's way: an entry whose mtime is not older than the fingerprint's own start is racy and the build refuses to cache (or hashes its bytes) — test: rewrite same-size with the mtime pinned, the digest moves or the answer is None; mutation: drop the racy check → red** · `agent_runtime/core_cache/walk.py::_stat_entry` · `agent_runtime/core_cache/fingerprint.py::build_input_fingerprint` · READY 2026-11-02
+
 ### Project Slots native acceptance — 2026-11-02
 
 - **`RT-PROJECT-LOCAL-FOLDER-READINESS` — A bound local Project slot without Git remains one setup step short: the probe returns not_a_repo before checking repo.local, while the derived recipe says Clone or locate and clone_slot refuses local-only slots; make a bound existing local folder report its actual readiness and offer only meaningful local actions, without inventing a repository** · `agent_runtime/workspace_slots_probe.py::_SlotProbe.checkout` · `agent_runtime/workspace_slot_recipe.py::derived_steps` · `agent_runtime/workspace_slot_setup.py::clone_slot` · found live 2026-11-02 in Eternia Project Slots: Browse a fresh notes directory, add and bind succeeds, Open folder reads README, Re-check still says 1 step to do: Clone or locate notes; runtime b855f858a2, client b27d918672; the client preserves runtime authority rather than marking it ready · READY 2026-11-02

@@ -1123,7 +1123,13 @@ def test_a_realm_sync_baseline_stays_inside_the_closure(
         "unlabeled stale served as authoritative."
     )
 
-    path.write_text('{"card_a": "sha_two"}', encoding="utf-8")
+    # The rewrite CHANGES THE SIZE. The fingerprint is a (path, mtime_ns, size) stat set, so a
+    # same-size rewrite moves the key only when the clock ticked between the writes; on a
+    # coarse-timestamp filesystem (Windows' system-timer file times) the office case failed
+    # only in a bundled run, the fingerprint walk between the writes then fitting inside one
+    # tick (FH-CORE-CACHE-REALM-BASELINE-BUNDLE). The same-tick blindness itself is filed as
+    # RT-CORE-CACHE-SAME-TICK-REWRITE; this case claims only that the baseline is in the closure.
+    path.write_text('{"card_a": "sha_two_and_longer"}', encoding="utf-8")
     after = core_cache.build_input_fingerprint()
     assert after is not None
     assert after.digest != before.digest, (
