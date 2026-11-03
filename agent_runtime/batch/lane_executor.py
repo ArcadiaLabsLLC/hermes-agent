@@ -132,7 +132,8 @@ class BatchLaneExecutor:
         receipts.emit("batch.lane_site", batch_id=batch.id, lane=record.id, request_id=a.request_id,
                       worktrees=[str(s.worktree) for s in sites], branches=[s.branch for s in sites],
                       bases=[s.base for s in sites], merged=list(merged), conflicts=list(conflicts))
-        return self._inner.start_from(a, {"batch_lane": record.id}, message=message, workdir=str(sites[0].worktree))
+        run = self._inner.start_from(a, {"batch_lane": record.id}, message=message, workdir=str(sites[0].worktree))
+        return replace(run, worktrees=tuple(str(s.worktree) for s in sites))
 
     def status(self, run_id: str) -> RunStatus:
         return self._inner.status(run_id)

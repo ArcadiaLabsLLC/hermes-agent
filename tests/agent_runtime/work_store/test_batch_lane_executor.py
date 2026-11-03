@@ -160,6 +160,8 @@ def test_worktree_beside_clone(repo):
     assert repo.clone not in where.parents
     assert git(where, "rev-parse", "--abbrev-ref", "HEAD") == f"q/{batch.id}/{lane.id}"
     assert git(where, "rev-parse", "HEAD") == git(repo.clone, "rev-parse", "origin/main")
+    # RT-BATCH-LANE-WORKTREES-AND-USAGE: the RUNNING line names the cut worktree, so a reader sees "running".
+    assert d.load(WS, batch.id).lanes[0].worktrees == (str(where),)
     brief = turns.sent[f"{batch.id}:{lane.id}"][0]
     assert str(where) in brief and "Never push main" in brief
     assert (where.with_name(where.name + "-scratch") / "brief.md").read_text(encoding="utf-8").rstrip() == brief

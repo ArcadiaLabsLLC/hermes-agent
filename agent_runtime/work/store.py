@@ -374,13 +374,13 @@ def _first_note(board: Board, params: Mapping[str, Any]) -> str:
 
 
 def _start_row(row_id: str, title: str, brief: str | None, token: str | None, date: str,
-               taken_by: str | None = None, group: str | None = None) -> str:
+               group: str | None = None) -> str:
+    """The appended line: ``READY <date>``, never a claim mark — assignment is not execution."""
     segments = [f"- **`{row_id}` — {title}**"]
     segments += [f"group: {group}"] if group else []
     segments += [f"brief: `{brief}`"] if brief else []
     segments += [f"assignee: persona:{token}"] if token else []
     segments += [f"READY {date}"]
-    segments += [f"**TAKEN {date} {taken_by}**"] if taken_by else []
     return " · ".join(segments)
 
 
@@ -393,18 +393,18 @@ def start(scope, params, actor, *, context=None):
     if body:
         body = text(body, maximum=BODY_LIMIT, multiline=True)
     request = text(params.get("request_id"))
-    # From an operator conversation the persona instance it talks to is the default assignee, and a
-    # row assigned to that instance is taken in the conversation (``in_conversation``).
+    # From an operator conversation the persona instance it talks to is the default assignee. Start
+    # never claims (owner ruling 2026-11-02, RT-WORK-START-NEVER-CLAIMS): taking the row is
+    # ``runtime.work.claim`` or a batch, each its own explicit choice.
     here = context.assignee if context is not None else None
     assigned = params.get("assignee") or here
     token = resolve_assignee(_assignee_token(assigned)).token if assigned else None
-    taken_by = here if here and token == _assignee_token(here) else None
     view = synced(scope.workspace_id)
     board = _create_target(view, params.get("slot"), _project_param(params))
     writer = view.writers[board.key]
     row_id = mint_id()
     brief = f"{writer.brain_root}/{BRIEF_DIR}/{row_id}.md" if body else None
-    line = _start_row(row_id, title, brief, token, _now().date().isoformat(), taken_by, group)
+    line = _start_row(row_id, title, brief, token, _now().date().isoformat(), group)
     payload = {"row": line, "files": {f"{BRIEF_DIR}/{row_id}.md": body} if body else {}}
     ref = RowRef(board.slot, _first_note(board, params), row_id, board.project_id)
     receipt = writer.apply(RowOp(ref, Op.APPEND, actor, request, payload))

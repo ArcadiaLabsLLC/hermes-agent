@@ -917,6 +917,14 @@
             "palette"
           ]
         },
+        "status.spec.loopMs": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default",
+            "palette"
+          ]
+        },
         "status.spec.rows": {
           "conditional": false,
           "dynamic": false,

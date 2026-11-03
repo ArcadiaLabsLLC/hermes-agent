@@ -4,6 +4,9 @@ marks alone, the manifest lives in the workspace's default brain, written throug
 Killing mutation (plan §6 B2): ``BatchDispatcher._run`` stops appending the lane's ``RUNNING`` line →
 ``test_rebuild_from_manifest_and_rows`` red (the rebuilt lane reads ``CLAIMED`` and a second dispatcher
 would start it again).
+
+RT-BATCH-LANE-WORKTREES-AND-USAGE: drop ``worktrees`` from ``manifest._LANE_KEYS`` →
+``test_lane_worktrees_and_times_fold`` red (the RUNNING line's worktrees never reach the record).
 """
 
 from __future__ import annotations
@@ -146,3 +149,33 @@ def test_the_manifest_lives_in_the_default_brain_through_the_writer():
     lines = [entry.word for entry in parse((synced(ws).read_roots["brain"] / "Work_Brain" /
                                             manifest_path(batch.id)).read_text(encoding="utf-8"))]
     assert lines == ["STARTED", "CLAIMED", "RUNNING", "REPORTED", "READY_TO_LAND"]
+
+
+def test_lane_worktrees_and_times_fold():
+    """RT-BATCH-LANE-WORKTREES-AND-USAGE: the RUNNING line carries the lane's worktrees (the lane executor's
+    sites) and the fold keeps them and each lane state's ``at``; the wire answers both."""
+    from dataclasses import replace
+
+    source, manifests, executor = FakeSource([qrow("RT-A", assignee="inst-a")]), FakeManifests(), FakeExecutor()
+    started = executor.start
+    site = "/work/.worktrees/hermes-agent-BATCH-L1"
+    executor.start = lambda a: replace(started(a), worktrees=(site,))
+    d = dispatcher(source, manifests=manifests, executor=executor, roster=ROSTER)
+    batch = d.start(WS, d.plan(WS).id)
+    stamp = "2026-10-18T12:00:00+00:00"
+    running = d.load(WS, batch.id).lanes[0]
+    assert running.state is LaneState.RUNNING and running.worktrees == (site,)
+    assert running.at == {"CLAIMED": stamp, "RUNNING": stamp}
+    later = "2026-10-18T13:30:00+00:00"
+    text = manifests.notes[WS][batch.id] + entry_line(later, "lane L1", "REPORTED", {"verdict": "done"}) + "\n"
+    settled = fold(text).lanes[0]
+    assert settled.state is LaneState.REPORTED and settled.worktrees == (site,)
+    assert settled.at == {"CLAIMED": stamp, "RUNNING": stamp, "REPORTED": later}
+    wire = settled.wire()
+    assert (wire["worktrees"], wire["claimed_at"], wire["running_at"], wire["settled_at"]) == (
+        [site], stamp, stamp, later)
+    assert running.wire()["settled_at"] is None
+    # A lane executor that cut no site writes no ``worktrees`` key; the fold reads an empty tuple.
+    plain = dispatcher(FakeSource([qrow("RT-B", assignee="inst-a")]), roster=ROSTER)
+    plain_batch = plain.start(WS, plain.plan(WS).id)
+    assert plain.load(WS, plain_batch.id).lanes[0].worktrees == ()

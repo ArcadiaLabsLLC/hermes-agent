@@ -130,9 +130,11 @@ def test_operator_reference_is_the_assignee(work, monkeypatch):
     assert context["assignee"] == "persona:pi_alice_01" and context["can_start"] is True
 
 
-def test_start_from_an_operator_conversation_assigns_and_takes_the_row_there(work, monkeypatch):
-    """RT-WORK-START-CONVERSATION-LINK. Mutation: drop ``or here`` from ``start``'s assignee default
-    -> the row has no assignee, no TAKEN mark, and ``in_conversation`` is False."""
+def test_start_from_a_conversation_assigns_and_never_claims(work, monkeypatch):
+    """RT-WORK-START-NEVER-CLAIMS (owner ruling 2026-11-02: adding a task never claims it, from a chat
+    or anywhere). Mutations: restore ``taken_by = here`` in ``start`` (and its mark in ``_start_row``)
+    -> the line carries ``**TAKEN`` and the task is TAKEN, red; drop ``or here`` from the assignee
+    default -> the row has no assignee, red."""
     from agent_runtime import operator_conversation
 
     alice, bob = mint_free_floating("alice"), mint_free_floating("bob")
@@ -140,11 +142,19 @@ def test_start_from_an_operator_conversation_assigns_and_takes_the_row_there(wor
     reference = {"kind": "operator", "workspace_id": work.ws, "persona_id": "alice",
                  "persona_instance_id": alice.id, "session_id": "s1"}
     task = start(work, "v1", conversation=reference)["task"]
-    assert task["assignee"] == f"persona:{alice.id}" and task["status"] == "TAKEN"
-    assert task["taken"]["persona_instance_id"] == alice.id and task["in_conversation"] is True
+    assert task["assignee"] == f"persona:{alice.id}" and task["status"] == "READY"
+    assert task["taken"] is None and task["in_conversation"] is False
+    line = call(work, "inspect", slot="brain", task_id=task["id"])["task"]["raw"]
+    assert f"assignee: persona:{alice.id}" in line and " · READY " in line and "**TAKEN" not in line
+    # Nothing runs it: the conversation's view holds only rows taken there.
+    assert rows_of(call(work, "list", view="conversation", conversation=reference)) == []
+    # Taking it is its own explicit choice.
+    claimed = call(work, "claim", request_id="v1c", slot="brain", task_id=task["id"],
+                   conversation=reference)["task"]
+    assert claimed["status"] == "TAKEN" and claimed["in_conversation"] is True
     listed = rows_of(call(work, "list", view="conversation", conversation=reference))
     assert [row["id"] for row in listed] == [task["id"]]
-    # Started here but handed to someone else: assigned, not taken in this conversation.
+    # Started here but handed to someone else: assigned, not taken.
     other = start(work, "v2", title="Hand off", conversation=reference, assignee=f"persona:{bob.id}")["task"]
     assert other["assignee"] == f"persona:{bob.id}" and other["status"] == "READY"
     assert other["taken"] is None and other["in_conversation"] is False

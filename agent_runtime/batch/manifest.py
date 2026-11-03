@@ -11,6 +11,10 @@ ONE line per lane per state, appended, never rewritten::
 
     - <utc> · batch · STARTED · `{"plan": {…}}`
     - <utc> · lane L1 · CLAIMED · `{"rows": [[slot, note, id], …], "persona": "…"}`
+    - <utc> · lane L1 · RUNNING · `{"run_id": "<root>/<cmid>", "worktrees": ["<abs path>", …]}`
+
+The fold keeps each lane state's ``<utc>`` (``LaneRecord.at``) and the RUNNING line's ``worktrees``
+(RT-BATCH-LANE-WORKTREES-AND-USAGE).
 
 Every line goes through the W2 writer as an ``append`` op whose ``appends`` payload is read at the tip
 (a lost race replays onto the newer tip), keyed by a request id derived from the batch, the lane and
@@ -160,6 +164,7 @@ _LANE_KEYS: dict[str, Callable[[Any], tuple[str, Any]]] = {
     "tool_calls": lambda v: ("tool_calls", v if isinstance(v, int) else None),
     "commits": lambda v: ("commits", tuple(map(str, v or ()))),
     "done_rows": lambda v: ("done_rows", int(v or 0)),
+    "worktrees": lambda v: ("worktrees", tuple(map(str, v or ()))),
 }
 
 
@@ -204,7 +209,8 @@ class _Fold:
             record = replace(record, stop_requested=True)
         elif entry.word in LaneState._value2member_map_:
             fields = dict(_LANE_KEYS[key](value) for key, value in entry.data.items() if key in _LANE_KEYS)
-            record = replace(record, state=LaneState(entry.word), **fields)
+            times = (*((state, at) for state, at in record.times if state != entry.word), (entry.word, entry.at))
+            record = replace(record, state=LaneState(entry.word), times=times, **fields)
         if self.landing is not None and record.id == self.landing.id:
             self.landing = record
         else:

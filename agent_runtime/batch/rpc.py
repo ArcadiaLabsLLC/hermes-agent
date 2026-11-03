@@ -5,8 +5,9 @@ Dispatcher plan §3 (B2). Console tier, registered like ``work/rpc.py::register`
 opaque ``owner`` (``work.model.WorkScope``). A refusal is error 4090 ``{"reason", "detail"}`` with a
 ``work_store.reasons.Reason`` word. Every reply carries ``version`` and ``install_id``.
 
-Params beyond scope: ``plan`` none; ``start`` ``batch_id`` (the plan's id) and ``personas?``
-(``{lane_id: instance_id}``, the operator's answer to ``asks``); ``status`` ``batch_id?``; ``stop``
+Params beyond scope: ``plan`` ``rows?`` (``[[slot, note, id, project_id?]]``: plan ONLY those READY rows,
+RT-BATCH-PLAN-ROWS); ``start`` ``batch_id`` (the plan's id), ``personas?`` (``{lane_id: instance_id}``,
+the operator's answer to ``asks``) and ``rows?`` (the same set ``plan`` was given); ``status`` ``batch_id?``; ``stop``
 ``batch_id``, ``lane?`` (omitted: abort the batch); ``land`` ``batch_id``, ``persona?``; ``approve``
 ``batch_id``. The dispatcher is the serve session's (``RpcContext.batch_dispatcher``); with no serve
 session behind the call every method refuses ``door_unbound``. These calls are the operator's: a scheduler fire reaches ``start`` / ``plan`` through
@@ -43,6 +44,27 @@ def _personas(params: Mapping[str, Any]) -> dict[str, str]:
     return {text(lane, maximum=16): text(who, maximum=256) for lane, who in raw.items()}
 
 
+def _rows(params: Mapping[str, Any]) -> dict[str, Any]:
+    """``rows?`` — ``[[slot, note, id] | [slot, note, id, project_id]]``, the chosen set to plan
+    (RT-BATCH-PLAN-ROWS); absent: no keyword, so the dispatcher plans every READY row."""
+
+    from agent_runtime.work.model import text
+    from agent_runtime.work_store.grammar import RowRef
+
+    raw = params.get("rows")
+    if raw is None:
+        return {}
+    if not isinstance(raw, list) or not raw:
+        raise WorkRefused(Reason.INVALID, "rows is a non-empty list of [slot, note, id, project_id?]")
+    refs = []
+    for item in raw:
+        ref = RowRef.of([text(part, maximum=1024) for part in item]) if isinstance(item, list) else None
+        if ref is None:
+            raise WorkRefused(Reason.INVALID, "a row is [slot, note, id] or [slot, note, id, project_id]")
+        refs.append(ref)
+    return {"rows": tuple(dict.fromkeys(refs))}
+
+
 def _optional(params: Mapping[str, Any], key: str) -> str | None:
     from agent_runtime.work.model import text
 
@@ -51,8 +73,8 @@ def _optional(params: Mapping[str, Any], key: str) -> str | None:
 
 #: operation → what it runs on the dispatcher for one workspace; the result's wire.
 _OPS: dict[str, Callable[[Any, str, Mapping[str, Any]], dict[str, Any]]] = {
-    "plan": lambda d, ws, p: {"plan": d.plan(ws).wire()},
-    "start": lambda d, ws, p: {"batch": d.start(ws, _batch_id(p), personas=_personas(p)).wire()},
+    "plan": lambda d, ws, p: {"plan": d.plan(ws, **_rows(p)).wire()},
+    "start": lambda d, ws, p: {"batch": d.start(ws, _batch_id(p), personas=_personas(p), **_rows(p)).wire()},
     "status": lambda d, ws, p: d.status(ws, _optional(p, "batch_id")),
     "stop": lambda d, ws, p: {"batch": d.stop(ws, _batch_id(p), _optional(p, "lane")).wire()},
     "land": lambda d, ws, p: {"batch": d.land(ws, _batch_id(p), persona=_optional(p, "persona")).wire()},

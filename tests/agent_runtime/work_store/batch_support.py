@@ -81,7 +81,8 @@ class FakeLander:
 def dispatcher(source: FakeSource, *, manifests: FakeManifests | None = None, executor: FakeExecutor | None = None,
                machine: str = "m-1", roster: Sequence[Member] = (), budget: Budget | None = None,
                box_idle: bool = True, lander: Any = None, slot_roles: Mapping[str, str] | None = None,
-               slot_gates: Mapping[str, tuple[str, ...] | None] | None = None) -> BatchDispatcher:
+               slot_gates: Mapping[str, tuple[str, ...] | None] | None = None,
+               turn_records: Any = None, price: Any = None) -> BatchDispatcher:
     manifests = manifests if manifests is not None else FakeManifests()
     executor = executor or FakeExecutor()
     built = BatchDispatcher(
@@ -89,7 +90,8 @@ def dispatcher(source: FakeSource, *, manifests: FakeManifests | None = None, ex
         roster=lambda _ws: list(roster), slot_roles=lambda _ws: dict(slot_roles or {}),
         slot_gates=lambda _ws: dict(SLOT_GATES if slot_gates is None else slot_gates),
         budget_for=lambda _ws: budget or Budget(), box_idle=lambda: box_idle, lander=lander,
-        workspaces=lambda: [WS], now=lambda: datetime(2026, 10, 18, 12, tzinfo=UTC))
+        workspaces=lambda: [WS], now=lambda: datetime(2026, 10, 18, 12, tzinfo=UTC),
+        turn_records=turn_records or (lambda: []), price=price or (lambda _usage: None))
     executor.on_settle(built.settled)
     return built
 

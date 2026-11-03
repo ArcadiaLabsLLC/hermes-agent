@@ -58,6 +58,7 @@ from .manifest import (
     fold, head, manifest_path,
 )
 from .planner import LANDING_ID, Budget, LaneKind, Member, Plan, plan as make_plan
+from .usage import lane_usage, usage_index
 
 __layer__ = "lanes"
 __all__ = ["ROW_ENDINGS", "BatchDispatcher", "Lander", "UnbuiltLander", "default_dispatcher", "idle_box"]
@@ -117,6 +118,34 @@ def idle_box(*, cpu_max: float = 50.0, python_max: int = 20) -> bool:
     return psutil.cpu_percent(interval=0.5) < cpu_max and pythons < python_max
 
 
+def _all_turn_records() -> list[dict[str, Any]]:
+    from ..mission_chat_turns import all_mission_chat_turn_records
+
+    return all_mission_chat_turn_records()
+
+
+def _turn_audit_price(usage: dict[str, Any]) -> dict[str, Any] | None:
+    """``chat_verbs.turn_audit``'s pricer: the one price list (Eternia never prices)."""
+
+    from ..chat_verbs.turn_audit import _price_usage
+
+    return _price_usage(usage)
+
+
+def _chosen(ready: list[Any], refs: tuple[RowRef, ...]) -> list[Any]:
+    """The READY rows the refs name, in board order. A ref names ``(slot, note, id)`` and its Project
+    only when it carries one; a ref no READY, unclaimed row answers refuses ``invalid`` naming it."""
+
+    def names(ref: RowRef, row: Any) -> bool:
+        return ((row.ref.slot, row.ref.note, row.ref.id) == (ref.slot, ref.note, ref.id)
+                and (ref.project_id is None or row.ref.project_id == ref.project_id))
+
+    missing = [ref.id for ref in refs if not any(names(ref, row) for row in ready)]
+    if missing:
+        raise WorkRefused(Reason.INVALID, "not a READY, unclaimed row of this workspace: " + ", ".join(missing))
+    return [row for row in ready if any(names(ref, row) for ref in refs)]
+
+
 def _stamp(now: datetime) -> str:
     return now.isoformat(timespec="seconds")
 
@@ -139,6 +168,8 @@ class BatchDispatcher:
         lander: Lander | None = None,
         workspaces: Callable[[], list[str]] = list,
         now: Callable[[], datetime] | None = None,
+        turn_records: Callable[[], list[dict[str, Any]]] | None = None,
+        price: Callable[[dict[str, Any]], dict[str, Any] | None] | None = None,
     ) -> None:
         self._source_for = source_for
         self.manifests = manifests
@@ -152,13 +183,21 @@ class BatchDispatcher:
         self._lander = lander or UnbuiltLander()
         self._workspaces = workspaces
         self._now = now or (lambda: datetime.now(UTC))
+        self._turn_records = turn_records or _all_turn_records
+        self._price = price or _turn_audit_price
 
     # ── reads ────────────────────────────────────────────────────────────
 
-    def plan(self, workspace_id: str, *, scheduled: bool = False) -> Plan:
+    def plan(self, workspace_id: str, *, scheduled: bool = False,
+             rows: tuple[RowRef, ...] | None = None) -> Plan:
+        """The workspace's READY rows as lanes; with ``rows``, ONLY those refs (RT-BATCH-PLAN-ROWS) —
+        a ref that is not a READY, unclaimed row of the workspace refuses ``invalid`` naming it."""
+
         if scheduled:
             automation_allows(self.automation(workspace_id), BatchAction.PLAN)
-        rows = self._source_for(workspace_id).ready(workspace_id)
+        source = self._source_for(workspace_id)
+        ready = source.ready(workspace_id)
+        rows = ready if rows is None else _chosen(ready, rows)
         planned = make_plan(rows, workspace_id=workspace_id, roster=self._roster(workspace_id),
                             slot_roles=self._slot_roles(workspace_id), budget=self._budget_for(workspace_id),
                             slot_gates=self._slot_gates(workspace_id))
@@ -177,7 +216,8 @@ class BatchDispatcher:
         return batch
 
     def status(self, workspace_id: str, batch_id: str | None = None) -> dict[str, Any]:
-        """Every batch of the workspace (or one), each lane's rows with their marks at the tip."""
+        """Every batch of the workspace (or one), each lane's rows with their marks at the tip, and each
+        lane's ``usage`` — its run's turn-record tokens priced now (RT-BATCH-LANE-WORKTREES-AND-USAGE)."""
 
         texts = self.manifests.texts(workspace_id)
         if batch_id is not None and batch_id not in texts:
@@ -186,18 +226,30 @@ class BatchDispatcher:
         rows = {row.ref: row for row in self._source_for(workspace_id).rows(workspace_id)}
         marks = lambda ref: ("gone" if ref not in rows else
                              rows[ref].taken.who if rows[ref].taken else (rows[ref].status or Status.READY).value)
+        runs = any(lane.run_id for b in batches for lane in (*b.lanes, b.landing))
+        index = usage_index(self._turn_records()) if runs else {}
+
+        def batch_wire(b: Batch) -> dict[str, Any]:
+            wire = b.wire()
+            for lane_wire, lane in zip((*wire["lanes"], wire["landing"]), (*b.lanes, b.landing), strict=True):
+                lane_wire["usage"] = lane_usage(lane.run_id, index, self._price)
+            return {**wire, "marks": {f"{r.slot}/{r.id}": marks(r) for lane in b.lanes
+                                      for r in (lane.rows or lane.lane.rows)}}
+
         return {"automation": self.automation(workspace_id).value, "machine": self._machine(),
-                "batches": [{**b.wire(), "marks": {f"{r.slot}/{r.id}": marks(r) for lane in b.lanes
-                                                   for r in (lane.rows or lane.lane.rows)}} for b in batches]}
+                "batches": [batch_wire(b) for b in batches]}
 
     # ── start ────────────────────────────────────────────────────────────
 
     def start(self, workspace_id: str, plan_id: str, *, personas: Mapping[str, str] | None = None,
-              scheduled: bool = False) -> Batch:
+              scheduled: bool = False, rows: tuple[RowRef, ...] | None = None) -> Batch:
+        """``rows`` is the chosen set ``plan`` was given (RT-BATCH-PLAN-ROWS): start re-plans the same set
+        so the plan id still detects a moved board."""
+
         if scheduled:
             automation_allows(self.automation(workspace_id), BatchAction.START)
         if plan_id not in self.manifests.texts(workspace_id):
-            self._open(workspace_id, plan_id, personas or {})
+            self._open(workspace_id, plan_id, personas or {}, rows)
         batch = self.load(workspace_id, plan_id)
         self._own(batch)
         for record in batch.lanes:
@@ -206,8 +258,9 @@ class BatchDispatcher:
         receipts.emit("batch.started", workspace_id=workspace_id, batch_id=plan_id, scheduled=scheduled)
         return self.advance(workspace_id, plan_id)
 
-    def _open(self, workspace_id: str, plan_id: str, personas: Mapping[str, str]) -> None:
-        planned = self.plan(workspace_id)
+    def _open(self, workspace_id: str, plan_id: str, personas: Mapping[str, str],
+              rows: tuple[RowRef, ...] | None = None) -> None:
+        planned = self.plan(workspace_id, rows=rows)
         if planned.id != plan_id:
             raise WorkRefused(Reason.CONFLICT, f"the board moved since {plan_id} was planned (now {planned.id})")
         planned = planned.with_personas(personas)
@@ -285,7 +338,10 @@ class BatchDispatcher:
             receipts.emit("batch.lane_refused", workspace_id=workspace_id, batch_id=batch.id, lane=record.id,
                           reason=refused.reason.value, detail=refused.detail)
             return
-        line = self._lane_line(record.id, move(LANE_MOVES, record.state, LaneEvent.RUN), {"run_id": run.run_id})
+        data: dict[str, Any] = {"run_id": run.run_id}
+        if getattr(run, "worktrees", ()):
+            data["worktrees"] = list(run.worktrees)  # RT-BATCH-LANE-WORKTREES-AND-USAGE: "running" is readable
+        line = self._lane_line(record.id, move(LANE_MOVES, record.state, LaneEvent.RUN), data)
         self.manifests.append(workspace_id, batch.id, [line], f"{a.request_id}:running")
 
     def settled(self, run: Run, outcome: Outcome) -> None:

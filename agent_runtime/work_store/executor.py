@@ -112,6 +112,8 @@ class Run:
     client_message_id: str
     started_at: str
     status: RunStatus
+    #: Where the run works, when its executor cut a site for it (a batch lane's worktrees, absolute paths).
+    worktrees: tuple[str, ...] = ()
 
 
 class Executor(Protocol):

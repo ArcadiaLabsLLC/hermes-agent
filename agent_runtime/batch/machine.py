@@ -166,16 +166,29 @@ class LaneRecord:
     tool_calls: int | None = None
     commits: tuple[str, ...] = ()
     done_rows: int = 0
+    #: The lane's worktrees (absolute paths), from its RUNNING line (RT-BATCH-LANE-WORKTREES-AND-USAGE).
+    worktrees: tuple[str, ...] = ()
+    #: ``(state, utc)`` per lane state its lines reached, the latest line's ``at`` for each; read as :attr:`at`.
+    times: tuple[tuple[str, str], ...] = ()
 
     @property
     def id(self) -> str:
         return self.lane.id
 
+    @property
+    def at(self) -> dict[str, str]:
+        """``{state: utc}`` — when the lane's lines reached each state."""
+        return dict(self.times)
+
     def wire(self) -> dict[str, Any]:
+        at = self.at
         return {"id": self.id, "kind": self.lane.kind.value, "state": self.state.value, "persona": self.persona,
                 "rows": [r.items() for r in self.rows], "run_id": self.run_id or None,
                 "stop_requested": self.stop_requested, "verdict": self.verdict.value if self.verdict else None,
                 "tool_calls": self.tool_calls, "commits": list(self.commits), "done_rows": self.done_rows,
+                "worktrees": list(self.worktrees), "claimed_at": at.get(LaneState.CLAIMED.value),
+                "running_at": at.get(LaneState.RUNNING.value),
+                "settled_at": at.get(self.state.value) if self.state in _SETTLED else None,
                 "heavy": self.lane.heavy, "quiet_box": self.lane.quiet_box, "after": list(self.lane.after),
                 "effort": self.lane.effort,
                 "domain": None if self.lane.domain is None else [
