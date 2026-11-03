@@ -4,6 +4,7 @@ worktree, and a second clone playing "the other machine" (plan §5, §6.2)."""
 from __future__ import annotations
 
 import hashlib
+import os
 from dataclasses import replace
 import subprocess
 from pathlib import Path
@@ -312,7 +313,66 @@ def test_an_index_that_stays_corrupt_refuses_index_corrupt_not_branch_missing(re
     assert refused.value.reason is Reason.INDEX_CORRUPT and "index file corrupt" in refused.value.detail
     # Positive control: an ordinary reset failure keeps its own word.
     other = Writer(repo.board, machine_id="m1", run=recording([], lambda a: subprocess.CompletedProcess(
-        a, 128, "", "fatal: ambiguous argument 'origin/main'\n") if a[:1] == ["reset"] else None))
+        a, 128, "", "fatal: ambiguous argument 'origin/main'\n")
+        if a[:1] == ["reset"] or a[:3] == ["rev-parse", "-q", "--verify"] else None))
     with pytest.raises(WorkRefused) as plain:
         other.apply(op(Op.CLAIM, rid="r2"))
     assert plain.value.reason is Reason.BRANCH_MISSING
+
+
+def test_a_reset_git_fails_with_the_tip_present_is_worktree_failed_not_branch_missing(repo):
+    """RT-WORK-WRITER-LONGPATHS. Mutation: drop the tip check in ``_reset_to_tip`` -> branch_missing."""
+    Writer(repo.board, machine_id="m1").sync()
+    long = Writer(repo.board, machine_id="m1", run=recording([], lambda a: subprocess.CompletedProcess(
+        a, 128, "", "error: unable to create file X: Filename too long\n") if a[:1] == ["reset"] else None))
+    with pytest.raises(WorkRefused) as refused:
+        long.apply(op(Op.CLAIM))
+    assert refused.value.reason is Reason.WORKTREE_FAILED and "Filename too long" in refused.value.detail
+
+
+def test_every_writer_git_call_carries_core_longpaths(repo):
+    """RT-WORK-WRITER-LONGPATHS. Mutation: drop ``_REPO_CONFIG`` from ``Writer._git`` -> red."""
+    seen: list[tuple[list[str], tuple[str, ...]]] = []
+
+    def run(args, **kwargs):
+        seen.append((list(args), tuple(kwargs.get("config") or ())))
+        return run_git(args, **kwargs)
+
+    Writer(repo.board, machine_id="m1", run=run).apply(op(Op.CLAIM))
+    # ``checkout_token``'s common-dir probe is the module's, not ``Writer._git``'s, and reads no tree path.
+    door = [(args, config) for args, config in seen if "--git-common-dir" not in args]
+    assert door and all("core.longpaths=true" in config for _args, config in door), \
+        [args for args, config in door if "core.longpaths=true" not in config]
+
+
+def _write_long(path: Path, text: str) -> None:
+    """Write past Windows' 260-character limit (the ``\\\\?\\`` prefix), anywhere else plainly."""
+
+    name = "\\\\?\\" + str(path) if os.name == "nt" else str(path)
+    os.makedirs(os.path.dirname(name), exist_ok=True)
+    with open(name, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write(text)
+
+
+def test_a_brain_note_past_260_characters_syncs(tmp_path, workspace):
+    """RT-WORK-WRITER-LONGPATHS: a tip holding a note whose worktree path passes 260 characters resets and
+    lands (behaviour proof; a box whose git sets core.longpaths system-wide passes it either way —
+    the killing test is test_every_writer_git_call_carries_core_longpaths)."""
+    origin = tmp_path / "o.git"
+    git("init", "-q", "--bare", "-b", "main", str(origin), cwd=tmp_path)
+    seed = tmp_path / "s"
+    git("clone", "-q", str(origin), str(seed), cwd=tmp_path)
+    _write_long(seed / NOTE, HEAD + ROWS)
+    deep = "Harness_Brain/50 — Agent Handoffs/" + "/".join(["a-rather-long-folder-name-for-a-handoff"] * 5)
+    _write_long(seed / deep / "Hermes handoff — a deep note.md", "deep\n")
+    git("-c", "core.longpaths=true", "add", "-A", cwd=seed)
+    git("-c", "core.longpaths=true", "commit", "-q", "-m", "seed", cwd=seed)
+    git("push", "-q", "origin", "main", cwd=seed)
+    clone = tmp_path / "c"
+    git("-c", "core.longpaths=true", "clone", "-q", "-c", "core.longpaths=true", str(origin), str(clone), cwd=tmp_path)
+    declare_slots(workspace, slot_decl("hermes"))
+    bind_here(workspace, hermes=clone)
+    board = next(b for b in boards(workspace) if b.slot == "hermes")
+    writer = Writer(board, machine_id="m1")
+    assert writer.apply(op(Op.CLAIM)).commit
+    assert len(str(writer.worktree / deep / "Hermes handoff — a deep note.md")) > 260

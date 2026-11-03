@@ -54,6 +54,8 @@ _NON_FAST_FORWARD = ("! [rejected]", "fetch first", "non-fast-forward", "[remote
 _CREDENTIAL = re.compile(r"://[^/@\s]+@")
 #: git's words for an unreadable index (a zeroed ``.git/worktrees/<name>/index``, RT-WORK-INDEX-SELF-HEAL).
 _INDEX_CORRUPT = "index file corrupt"
+#: Carried on every Writer git call (``realm_sync/git.py::_REPO_CONFIG``; RT-WORK-WRITER-LONGPATHS).
+_REPO_CONFIG = ("core.longpaths=true",)
 #: git's words for a held ``index.lock`` (RT-WORK-LIST-ONE-BOARD-REFUSAL): "Unable to create '….lock': File exists".
 _INDEX_LOCKED = re.compile(r"Unable to create '([^']*index\.lock)': File exists")
 #: A lock older than this is stale: every git call the writer makes times out at 120 s, so none of ours holds it.
@@ -264,7 +266,9 @@ class Writer:
         return (brain.parent if str(brain.parent) != "." else brain).as_posix()
 
     def _git(self, args: list[str], *, repo: Path, config: tuple[str, ...] = ()) -> subprocess.CompletedProcess[str]:
-        return self._run(args, repo=repo, config=config, encoding="utf-8", errors="replace",
+        # ``core.longpaths`` on every call (as ``realm_sync/git.py::_REPO_CONFIG``): a brain under hermes's
+        # worktree path passes Windows' 260-character limit and ``reset --hard`` fails "Filename too long".
+        return self._run(args, repo=repo, config=(*_REPO_CONFIG, *config), encoding="utf-8", errors="replace",
                          timeout=120, stdin=subprocess.DEVNULL)
 
     def _must(self, args: list[str], reason: Reason, *, repo: Path, config: tuple[str, ...] = ()) -> str:
@@ -392,16 +396,29 @@ class Writer:
     def _dirty(self) -> bool:
         return bool(self._must(["status", "--porcelain"], Reason.WORKTREE_DIRTY, repo=self.worktree).strip())
 
-    def _reset(self) -> None:
+    def _reset_to_tip(self) -> None:
+        """``reset --hard`` to the tip; a failure is ``branch_missing`` only when the tip does not resolve —
+        a tip that resolves and still will not check out is ``worktree_failed`` with git's own words."""
+
         try:
             self._must(["reset", "-q", "--hard", self.tip], Reason.BRANCH_MISSING, repo=self.worktree)
+        except WorkRefused as refused:
+            if refused.reason is not Reason.BRANCH_MISSING:
+                raise
+            if self._git(["rev-parse", "-q", "--verify", self.tip], repo=self.worktree).returncode == 0:
+                raise WorkRefused(Reason.WORKTREE_FAILED, refused.detail) from refused
+            raise
+
+    def _reset(self) -> None:
+        try:
+            self._reset_to_tip()
         except WorkRefused as refused:
             # A corrupt index or a stale lock: moved aside and the reset retried ONCE; a second failure
             # is the refusal (a held lock stays ``index_locked``, never ``branch_missing``).
             heal = {Reason.INDEX_CORRUPT: self._heal_index, Reason.INDEX_LOCKED: self._heal_lock}.get(refused.reason)
             if heal is None or not heal():
                 raise
-            self._must(["reset", "-q", "--hard", self.tip], Reason.BRANCH_MISSING, repo=self.worktree)
+            self._reset_to_tip()
         if self._dirty():
             self._git(["clean", "-fdq"], repo=self.worktree)
             if self._dirty():
