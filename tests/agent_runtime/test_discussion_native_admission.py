@@ -10,8 +10,9 @@ from agent_runtime.auxiliary_chat import auxiliary_chat, is_auxiliary_chat
 from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.mission_chat_turns import mission_chat_turn_record
 from tests.agent_runtime.test_persona_assignments import (
-    _assignment_config, _TranscriptDB, _mission_chat_test_args, _persona,
+    _assignment_config, _TranscriptDB, _persona,
 )
+from tests.agent_runtime.test_persona_assignments_chat_history import _mission_chat_test_args
 from hermes_cli.harness_parts.persona import chat_turn_message
 from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run, settle as commit_settle
 
