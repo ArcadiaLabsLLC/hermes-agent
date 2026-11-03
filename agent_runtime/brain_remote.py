@@ -3,7 +3,8 @@
 RT-BRAIN-PATHS-PLAIN-LIST slice 4 (owner sitting 2026-11-02, launcher plan
 ``EterniaLauncher/docs/mission_control/planned/THREE_BRAINS_ONE_READER_2026-11-02.md`` § Rulings, "Freshness"):
 
-* every :data:`REMOTE_TICK_S` the serve's ticker checks up to :data:`BRAINS_PER_TICK` brains of
+* every :data:`REMOTE_TICK_S` the serve's ticker (``hermes_cli/harness_parts/serve/queued_turns.py::
+  start_brain_remote_ticker``) checks up to :data:`BRAINS_PER_TICK` brains of
   ``brain_paths.json`` (round robin, one checkout once however many slots bind it), one git process at a time;
 * a brain whose branch has an upstream is fetched (bounded by :data:`FETCH_TIMEOUT_S`, never a prompt) and its
   ``HEAD..@{u}`` count measured;
@@ -27,8 +28,7 @@ from typing import Any
 from .brain_paths import brains, held_counts, read_brain_paths, write_brain_paths
 
 __layer__ = "stores"
-__all__ = ["BRAINS_PER_TICK", "FETCH_TIMEOUT_S", "REMOTE_TICK_S", "RemoteCheck", "check_brain",
-           "start_brain_remote_ticker"]
+__all__ = ["BRAINS_PER_TICK", "FETCH_TIMEOUT_S", "REMOTE_TICK_S", "RemoteCheck", "check_brain"]
 
 logger = logging.getLogger(__name__)
 
@@ -129,25 +129,3 @@ class RemoteCheck:
         measured = {path: count for path, count in self.counts.items() if path in here}
         return {"checked": checked, "written": write_brain_paths(behind={**held_counts(), **measured})}
 
-
-def start_brain_remote_ticker(*, stop_event: Any, interval_s: float | None = None, home: Any = None,
-                              check: RemoteCheck | None = None) -> threading.Thread:
-    """Tick :class:`RemoteCheck` every ``interval_s`` on a daemon thread until ``stop_event``; a failed tick is
-    logged, never fatal. ``home`` is bound around every tick like the schedule ticker's."""
-
-    from .work_store.engine import home_scope
-
-    wait = REMOTE_TICK_S if interval_s is None else interval_s
-    state = check or RemoteCheck()
-
-    def _loop() -> None:
-        while not stop_event.wait(wait):
-            try:
-                with home_scope(home):
-                    state.tick()
-            except Exception:
-                logger.warning("brain remote check failed", exc_info=True)
-
-    thread = threading.Thread(target=_loop, name="harness-brain-remote", daemon=True)
-    thread.start()
-    return thread

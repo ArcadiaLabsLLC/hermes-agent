@@ -151,6 +151,8 @@ def test_the_ticker_ticks_until_stopped(monkeypatch):
             if len(ticks) >= 2:
                 stop.set()
 
-    thread = brain_remote.start_brain_remote_ticker(stop_event=stop, interval_s=0.01, check=_Check())
+    from hermes_cli.harness_parts.serve.queued_turns import start_brain_remote_ticker
+
+    thread = start_brain_remote_ticker(stop_event=stop, interval_s=0.01, check=_Check())
     thread.join(timeout=5)
     assert not thread.is_alive() and len(ticks) >= 2

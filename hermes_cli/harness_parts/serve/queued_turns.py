@@ -23,7 +23,8 @@ from hermes_cli.harness_parts.serve.frames import _request_id, _request_sink
 
 __layer__ = "lanes"
 
-__all__ = ["QueuedTurnStream", "queued_turn_runner_policy", "start_realmless_fold_ticker", "start_serve_scheduler",
+__all__ = ["QueuedTurnStream", "queued_turn_runner_policy", "start_brain_remote_ticker", "start_realmless_fold_ticker",
+           "start_serve_scheduler",
            "start_serve_work_engine"]
 
 
@@ -152,8 +153,6 @@ def start_serve_work_engine(session: Any) -> Any:
                       on_tick=session.work_executor.wake_parked)
     start_serve_scheduler(session)
     # The brains' remote check (RT-BRAIN-PATHS-PLAIN-LIST): fetch, fast-forward hermes's own, count the rest.
-    from agent_runtime.brain_remote import start_brain_remote_ticker
-
     start_brain_remote_ticker(stop_event=session.liveness_stop, home=home)
     if shipped("agent_runtime.project_chat_fold"):
         # A realm-less Project's shared chats ride no realm pull (RT-PROJECT-CHAT-FOLD-REALMLESS).
@@ -183,6 +182,35 @@ def start_serve_scheduler(session: Any) -> Any:
                                                can_dispatch=lambda: session.drain_state is None)
     start_schedule_ticker(stop_event=session.liveness_stop, scheduler=session.scheduler, home=home)
     return session.scheduler
+
+
+def start_brain_remote_ticker(*, stop_event: Any, interval_s: float | None = None, home: Any = None,
+                              check: Any = None) -> Any:
+    """Tick ``agent_runtime.brain_remote.RemoteCheck`` every ``interval_s`` on a daemon thread until ``stop_event``.
+
+    A failed tick is logged, never fatal; ``home`` is the serve's request home, bound around every tick.
+    """
+
+    import logging
+    import threading
+
+    from agent_runtime.brain_remote import REMOTE_TICK_S, RemoteCheck
+    from agent_runtime.work_store.engine import home_scope
+
+    wait = REMOTE_TICK_S if interval_s is None else interval_s
+    state = check or RemoteCheck()
+
+    def _loop() -> None:
+        while not stop_event.wait(wait):
+            try:
+                with home_scope(home):
+                    state.tick()
+            except Exception:
+                logging.getLogger(__name__).warning("brain remote check failed", exc_info=True)
+
+    thread = threading.Thread(target=_loop, name="harness-brain-remote", daemon=True)
+    thread.start()
+    return thread
 
 
 def start_realmless_fold_ticker(*, stop_event: Any, interval_s: float | None = None, home: Any = None) -> Any:
