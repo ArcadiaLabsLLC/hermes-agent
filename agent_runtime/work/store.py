@@ -605,4 +605,7 @@ def create_brain(scope, params, actor, *, context=None):
     files = {"TODO.md": TODO_TEMPLATE, f"{PurePosixPath(QUEUE_DIR).name}/{QUEUE_NOTE}": QUEUE_TEMPLATE}
     ref = RowRef(board.slot, f"{QUEUE_DIR}/{QUEUE_NOTE}", "BRAIN", board.project_id)
     receipt = writer.apply(RowOp(ref, Op.APPEND, actor, request, {"files": files}))
+    from agent_runtime.brain_paths import changed
+
+    changed("work.brain_created")
     return {"board": board_wire(board, writer), "receipt": receipt.wire()}

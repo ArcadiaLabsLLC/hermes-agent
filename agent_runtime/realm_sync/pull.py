@@ -109,6 +109,10 @@ def pull_realm_sync(
     for applier in PULL_APPLIERS:
         if applier.apply(run):
             run.changed = True
+    if run.changed:
+        from ..brain_paths import changed
+
+        changed("realm.pulled")
     install_results = [
         *install_harness_skills(skills=sorted(HARNESS_SKILLS)),
         *install_harness_skills_for_personas(ensure_persisted_personas(load_agent_runtime_config())),

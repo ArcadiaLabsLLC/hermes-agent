@@ -217,6 +217,9 @@ def write_document(workspace_id: str, document: dict[str, Any]) -> None:
     target = paths.workspace_slots_path(workspace_id)
     target.parent.mkdir(parents=True, exist_ok=True)
     atomic_json_write(target, document, indent=2, sort_keys=True)
+    from .brain_paths import changed
+
+    changed("workspace_slots.written")
 
 
 def live_slots(document: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -646,6 +649,9 @@ def _write_fill(slot: str, path: str, *, workspace_id: str | None = None, projec
     else:
         scoped.setdefault(str(workspace_id), {})[slot] = path
     write_machine_roots(dict(current.roots), workspace_roots=scoped, project_roots=projects, dry_run=False)
+    from .brain_paths import changed
+
+    changed("slot.bound")
 
 
 def bind_project(project_id: str, slot: str, path: str, *, issued_at: str) -> dict[str, Any]:

@@ -173,6 +173,9 @@ def _write_binding(workspace_id: str, record: dict[str, Any]) -> None:
     temp = path.with_name(f".{path.name}.tmp")
     temp.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     os.replace(temp, path)
+    from ..brain_paths import changed
+
+    changed("default_brain.binding")
 
 
 def retire_binding(workspace_id: str, *, into: str, at: str, moved: list[str]) -> None:

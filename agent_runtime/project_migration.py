@@ -160,6 +160,9 @@ def _copy_path_fills(workspace_id: str, project_id: str) -> None:
     projects[project_id] = {**copying, **projects.get(project_id, {})}
     write_machine_roots(dict(current.roots), workspace_roots=current.workspace_roots, project_roots=projects,
                         dry_run=False)
+    from .brain_paths import changed
+
+    changed("project_migration.fills_copied")
 
 
 def _copy_worktree_records(workspace_id: str, project_id: str) -> int:

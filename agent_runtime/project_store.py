@@ -99,6 +99,9 @@ def write_project(project_id: str, record: dict[str, Any]) -> None:
     target = paths.project_path(project_id)
     target.parent.mkdir(parents=True, exist_ok=True)
     atomic_json_write(target, record, indent=2, sort_keys=True)
+    from .brain_paths import changed
+
+    changed("project.written")
 
 
 def source_controlled(record: dict[str, Any], slot: Any) -> bool:

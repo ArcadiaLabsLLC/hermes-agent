@@ -49,6 +49,15 @@ class BootPhases:
             self.store_root_path = None
             self.runtime_root = None
         self.timeline.mark("store_root_ms")
+        # The brain-path list Eternia reads without a serve call (RT-BRAIN-PATHS-PLAIN-LIST): rewritten
+        # here, BEFORE any heavy boot work, so it is fresh however slowly the rest of the boot goes.
+        if self.store_root_path is not None:
+            try:
+                from agent_runtime.brain_paths import changed as _brain_paths_changed
+
+                _brain_paths_changed("serve.boot")
+            except Exception:  # bookkeeping never fails a boot (a bundle that does not ship it)
+                pass
         # ── Durable-service foundations (slice 2) ───────────────────────────
         #
         # These three run BEFORE ``ready`` because ``ready`` is the frame that

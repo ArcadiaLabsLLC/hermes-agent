@@ -35,6 +35,14 @@ from .realms import RealmStore
 __layer__ = "stores"
 
 
+def _brain_paths_changed(reason: str) -> None:
+    """The workspace half of ``agent_runtime.brain_paths.changed`` (RT-BRAIN-PATHS-PLAIN-LIST)."""
+
+    from ..brain_paths import changed
+
+    changed(reason)
+
+
 class WorkspaceStore:
     def __init__(self, event_log: EventLog | None = None):
         self.event_log = event_log or EventLog()
@@ -74,6 +82,7 @@ class WorkspaceStore:
         if path.exists():
             raise AlreadyExists(item.id)
         _write_model(path, item)
+        _brain_paths_changed("workspace.created")
         emit_store_event(
             self.event_log,
             "workspace.created",
@@ -116,6 +125,7 @@ class WorkspaceStore:
         append their own, more specific event — never for skipping emission."""
         item.updated_at = now()
         _write_model(paths.workspace_path(item.id), item)
+        _brain_paths_changed("workspace.updated")
         if emit_event:
             emit_store_event(
                 self.event_log,
@@ -327,6 +337,7 @@ class WorkspaceStore:
             )
 
         paths.workspace_path(item.id).unlink(missing_ok=True)
+        _brain_paths_changed("workspace.deleted")
         if self.active_id() == item.id:
             # Clear the dangling pointer; verb-layer callers may re-reconcile
             # to the realm's default afterwards.
