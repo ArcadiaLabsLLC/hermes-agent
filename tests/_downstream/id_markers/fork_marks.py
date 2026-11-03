@@ -238,6 +238,18 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     },
     "tests/test_live_system_guard_self_test.py::"
     "test_subprocess_run_gateway_status_passes_through": (_LOOKALIKE,),
+    # The same fork arm refuses the host start first, with its own message, so upstream's
+    # "REAL hermes gateway runtime" match fails off Windows too (seen red on Linux main, lane
+    # w1101h-h); on win32 the v0.22.4 upstream-red row already xfails it.
+    **({} if _WIN else {
+        "tests/test_live_system_guard_self_test.py::"
+        "test_host_gateway_start_blocked_but_container_exec_allowed": (
+            _fork_replaces(
+                "_live_system_guard backend-spawn arm (tests/conftest.py)",
+                "tests/test_live_system_guard_downstream.py",
+            ),
+        ),
+    }),
     # An argless SessionDB() must resolve through the profile scope; the hermetic
     # DEFAULT_DB_PATH pin (set only once hermes_state is imported) beat it whenever an
     # earlier test in the process imported it (tests/_downstream/state_db_scope.py).
