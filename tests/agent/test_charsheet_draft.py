@@ -50,6 +50,7 @@ from agent.charsheet.draft import (
 )
 from agent.charsheet.revisions import STATE_FILENAME, ImageRevisionStore
 from agent.charsheet.spec import CHAR8, EIGHT_WAY, FOUR_WAY, SheetSpec, StateSpec
+from agent.pet.constants import LOOP_MS
 from hermes_constants import get_hermes_home
 from tests.agent.test_charsheet_pipeline import load_fixture_sheet
 
@@ -520,6 +521,21 @@ def test_compose_installs_a_validated_sheet_and_a_manifest_carrying_the_spec(ins
     assert spec_from_dict(manifest["spec"]) == SPEC
     assert [row["key"] for row in manifest["rows"]] == [row.key for row in SPEC.rows()]
     assert (manifest["frameW"], manifest["frameH"]) == (SPEC.frame_w, SPEC.frame_h)
+
+
+def test_status_publishes_the_loop_timing_compose_writes(installed):
+    """`spec.loopMs` in the status is the number the installed manifest carries.
+
+    Studio times a draft row's frames at loopMs / frames from the STATUS, before
+    any compose; a second copy of the constant in the launcher is the drift this
+    key exists to remove, so the two hermes outputs must agree on one value.
+    """
+    directory = characters_dir() / installed["slug"]
+    manifest = json.loads((directory / MANIFEST_FILENAME).read_text(encoding="utf-8"))
+    status = CharacterDraft.load(installed["id"]).status_payload()
+
+    assert status["spec"]["loopMs"] == LOOP_MS
+    assert status["spec"]["loopMs"] == manifest["loopMs"]
 
 
 def test_reopen_returns_a_composed_draft_to_rows_for_a_fix_and_recompose_reinstalls(fake, base):
