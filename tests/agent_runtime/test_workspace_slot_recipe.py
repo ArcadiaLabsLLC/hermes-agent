@@ -259,3 +259,23 @@ def test_the_report_status_is_the_readiness_answer(tmp_path):
     subprocess.run(["git", "-C", str(repo), "remote", "set-url", "origin", CLONE_URL], check=True)
     again = call("runtime.workspace.slots.report", {"workspace_id": workspace_id})["result"]["slots"]["launcher"]
     assert again["status"] == "ready" and _show(workspace_id)["launcher"]["ready"] == "yes"
+
+
+def test_a_bound_local_folder_reports_its_real_readiness_and_offers_only_locate(tmp_path):
+    """RT-PROJECT-LOCAL-FOLDER-READINESS. Mutations: probe ``.git`` before ``repo.local`` in
+    ``_SlotProbe.checkout`` -> ``not_a_repo`` / needs_setup, red; keep ``clone`` in a local slot's
+    derived actions -> red."""
+    machine_roots_cache_clear()
+    workspace_id = WorkspaceStore().create(name="Notes").id
+    local = {"name": "notes", "repo": {"local": True}}
+    call("runtime.workspace.slots.declare", {"workspace_id": workspace_id, "slots": [local], "issued_at": ISSUED})
+    unbound = _show(workspace_id)["notes"]["steps"][0]
+    assert unbound["label"] == "Locate notes" and unbound["actions"] == ["locate"]
+    folder = tmp_path / "notes"
+    folder.mkdir()
+    (folder / "README.md").write_text("# notes\n", encoding="utf-8")
+    row = call("runtime.workspace.slot.bind", {"workspace_id": workspace_id, "slot": "notes", "path": str(folder),
+                                               "issued_at": ISSUED})["result"]["report"]
+    assert row["checkout"] == "folder" and row["status"] == "ready"
+    shown = _show(workspace_id)["notes"]
+    assert shown["ready"] == "yes" and shown["blocking"] == [] and not (folder / ".git").exists()
