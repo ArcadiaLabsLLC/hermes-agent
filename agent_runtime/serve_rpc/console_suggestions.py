@@ -48,6 +48,7 @@ _OPERATIONS = {
     "chat.subscribe": lambda service, context, params: service.subscribe(context, _subject(params)),
     "chat.unsubscribe": lambda service, context, params: service.unsubscribe(context, params.get("subscription_id")),
     "chat.dismiss": lambda service, context, params: service.dismiss(_subject(params), params),
+    "chat.request": lambda service, context, params: service.request(context, _subject(params), params),
 }
 
 

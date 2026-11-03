@@ -2035,16 +2035,31 @@ longer registers, and another process's record once that process is dead.
 `agent_runtime/serve_rpc/console_suggestions.py` advertises contract 1 through the
 existing authenticated Console method lane. `runtime.console_suggestions.settings`
 owns `get`, `set`, `subscribe`, `unsubscribe`; `runtime.operator.conversation.suggestions`
-owns `read`, `subscribe`, `unsubscribe`, `dismiss`. Each family pushes `.changed`
+owns `read`, `subscribe`, `unsubscribe`, `dismiss`, `request`. Each family pushes `.changed`
 notifications through the existing connection. The Launcher uses the same notification
 dispatcher on local serve and paired LAN routes; an older manifest has no capability.
 
 Settings require `install_id`; writes use `expected_revision` and only changed fields:
-`enabled`, `max_context_messages`, `cooldown_seconds`, `auxiliary_override` (null resets
+`mode` (`off`, `manual`, `auto`), legacy `enabled`, `max_context_messages`,
+`cooldown_seconds`, `auxiliary_override` (null resets
 provider/model/base_url while preserving the host's other task policy). The sole writer
 is `hermes_cli.plugins_state.update_plugin_configuration`, with managed-key enforcement
 and atomic config locking. Defaults are false / 4 / 3. Missing, malformed or invalid
 configuration never enables generation; invalid optional tuning remains repairable.
+With no saved mode, legacy enabled false/absent maps to Off and true maps to Auto,
+without writing on read. A mode write also sets the legacy flag true only for Auto,
+so an older runtime cannot turn Manual into background generation. The response's
+`enabled` projects any non-Off mode for observation and guarded insertion.
+
+Manual observation and source/turn notifications invalidate display state but never
+enqueue generation or read suggestion context. `request` requires the exact subject,
+`expected_policy_epoch`, Manual policy and this connection's live chat subscription.
+It returns contract 1, `accepted` and `policy_epoch`; normal `.changed` snapshots carry
+generating (queued or running) and terminal results. The existing bounded scheduler, cooldown,
+auxiliary route and durable per-source attempt receipt own the work. Duplicate clicks
+share the existing pending/running work or receipt. Queue tickets capture the policy
+epoch and trigger kind; changing mode before dispatch refuses that ticket, and changing
+policy during inference discards the result through the existing epoch fence.
 
 Chat methods use the existing exact operator subject: install, workspace (nullable),
 persona, instance, session and client_scope. Native membership and account ownership

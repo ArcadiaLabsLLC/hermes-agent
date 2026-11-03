@@ -14,7 +14,8 @@ from agent_runtime.harness_settings import SETTINGS_PATH, harness_setting
 
 __layer__ = "stores"
 TASK = "console_next_prompt"
-FIELDS = {"enabled": False, "max_context_messages": 4, "cooldown_seconds": 3}
+FIELDS = {"enabled": False, "mode": None, "max_context_messages": 4, "cooldown_seconds": 3}
+MODES = frozenset({"off", "manual", "auto"})
 ROUTE_FIELDS = frozenset({"provider", "model", "base_url"})
 
 
@@ -47,7 +48,11 @@ def policy_revision(config: dict) -> str:
 def policy_snapshot(config: dict, *, writable: bool = True) -> dict:
     values = {key: harness_setting("console_suggestions_" + key, default, config=config)
               for key, default in FIELDS.items()}
-    valid = (type(values["enabled"]) is bool
+    # Absence preserves the existing preference without writing during reads.
+    mode = values["mode"]
+    if mode is None:
+        mode = "auto" if values["enabled"] is True else "off"
+    valid = (isinstance(mode, str) and mode in MODES and type(values["enabled"]) is bool
              and type(values["max_context_messages"]) is int and 2 <= values["max_context_messages"] <= 10
              and type(values["cooldown_seconds"]) is int and 0 <= values["cooldown_seconds"])
     # Invalid optional tuning fails closed, but must remain decodable so the
@@ -65,7 +70,7 @@ def policy_snapshot(config: dict, *, writable: bool = True) -> dict:
         parsed = urlsplit(override["base_url"])
         if parsed.username or parsed.password or parsed.query:
             override["base_url"] = ""
-    return {"contract": 1, **values, "enabled": valid and values["enabled"],
+    return {"contract": 1, **values, "mode": mode if valid else "off", "enabled": valid and mode != "off",
             "settings_revision": policy_revision(config), "writable": writable,
             "reason": None if valid else "config_invalid", "routing_mode": "override" if override else "inherited",
             "auxiliary_override": override or None, "model_status": "inherited" if not override else "configured"}
@@ -80,8 +85,8 @@ class SuggestionSettings:
         with suggestion_home(self.home):
             try:
                 raw = config.read_user_config_raw()
-                writable = not config.is_managed() and not managed_scope.is_key_managed(
-                    ".".join((*SETTINGS_PATH, "console_suggestions_enabled")))
+                writable = not config.is_managed() and not any(managed_scope.is_key_managed(
+                    ".".join((*SETTINGS_PATH, "console_suggestions_" + key))) for key in ("enabled", "mode"))
                 return policy_snapshot(raw, writable=writable)
             except (OSError, ValueError, TypeError, AttributeError, YAMLError):
                 return {**policy_snapshot({}), "enabled": False, "writable": False, "reason": "config_unreadable"}
@@ -92,6 +97,10 @@ class SuggestionSettings:
         if not changes:
             raise SuggestionRefused("changes_required")
         self._validate(changes)
+        if "mode" in changes or "enabled" in changes:
+            mode = changes.get("mode", "auto" if changes.get("enabled") else "off")
+            # Compatibility for an older runtime: Manual must never become Auto.
+            changes.update(mode=mode, enabled=mode == "auto")
         paths = {(*SETTINGS_PATH, "console_suggestions_" + key) for key in changes if key in FIELDS}
         paths.add((*SETTINGS_PATH, "console_suggestions_generation"))
         if "auxiliary_override" in changes:
@@ -124,12 +133,15 @@ class SuggestionSettings:
     def _validate(changes: dict) -> None:
         validators = {
             "enabled": (lambda value: type(value) is bool, "invalid_enabled"),
+            "mode": (lambda value: isinstance(value, str) and value in MODES, "invalid_mode"),
             "max_context_messages": (lambda value: type(value) is int and 2 <= value <= 10, "invalid_context_window"),
             "cooldown_seconds": (lambda value: type(value) is int and value >= 0, "invalid_cooldown"),
         }
         for key, (validate, reason) in validators.items():
             if key in changes and not validate(changes[key]):
                 raise SuggestionRefused(reason)
+        if "mode" in changes and "enabled" in changes and changes["enabled"] != (changes["mode"] == "auto"):
+            raise SuggestionRefused("invalid_mode")
         _validate_suggestion_route(changes.get("auxiliary_override"))
 
 

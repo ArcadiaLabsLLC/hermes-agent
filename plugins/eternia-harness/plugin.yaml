@@ -27,7 +27,10 @@ config_schema:
   console_suggestions_enabled:
     type: bool
     default: false
-    description: Suggest editable follow-up messages in visible Agent Console chats
+    description: Legacy automatic follow-up preference; absent mode maps false to Off and true to Auto
+  console_suggestions_mode:
+    type: str
+    description: Follow-up suggestions mode (off, manual, auto); absent preserves the legacy enabled preference
   console_suggestions_max_context_messages:
     type: int
     default: 4

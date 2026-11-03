@@ -248,3 +248,91 @@ def test_task_registration_uses_host_defaults_without_model_override(tmp_path):
         register_suggestion_task(context)
     assert calls[0][0] == ("console_next_prompt",)
     assert "defaults" not in calls[0][1]
+
+
+@pytest.mark.parametrize("saved,expected", [(None, "off"), (False, "off"), (True, "auto")])
+def test_modes_preserve_legacy_preferences_without_writing(tmp_path, saved, expected):
+    path = tmp_path / "config.yaml"
+    if saved is not None:
+        path.write_text("plugins:\n  entries:\n    eternia-harness:\n      settings:\n        console_suggestions_enabled: " + str(saved).lower() + "\n", encoding="utf-8")
+    before = path.read_bytes() if path.exists() else None
+    assert SuggestionSettings(tmp_path).read()["mode"] == expected
+    assert (path.read_bytes() if path.exists() else None) == before
+
+
+def test_manual_mode_persists_and_old_enabled_writes_remain_compatible(tmp_path):
+    settings = SuggestionSettings(tmp_path)
+    current = settings.write({"expected_revision": settings.read()["settings_revision"], "mode": "manual"})
+    assert current["mode"] == "manual" and current["enabled"]
+    assert SuggestionSettings(tmp_path).read()["mode"] == "manual"
+    from hermes_cli.config import read_user_config_raw
+    with suggestion_home(tmp_path):
+        raw = read_user_config_raw()
+    assert raw["plugins"]["entries"]["eternia-harness"]["settings"]["console_suggestions_enabled"] is False
+    current = settings.write({"expected_revision": current["settings_revision"], "enabled": True})
+    assert current["mode"] == "auto"
+    with pytest.raises(SuggestionRefused, match="invalid_mode"):
+        settings.write({"expected_revision": current["settings_revision"], "mode": "other"})
+
+
+def test_manual_observation_and_turn_events_never_read_history_or_dispatch(service):
+    svc, _ = service
+    svc.settings_write({"expected_revision": svc.settings_read()["settings_revision"], "mode": "manual"})
+    svc.context_reader = lambda *args: pytest.fail("Manual read history without a click")
+    svc.generator = lambda *args: pytest.fail("Manual generated without a click")
+    assert svc.subscribe(caller(), subject())["state"] == "idle"
+    svc.changed()
+    svc.turn_changed(["--session-id", "chat"], started=True)
+    svc.turn_changed(["--session-id", "chat"], started=False)
+    svc.settings_read()
+    svc._work(subject())  # An automatic worker cannot spend a Manual call either.
+    assert svc.pool is None and not svc.pending and not svc.store.path.exists()
+
+
+def test_manual_request_is_connection_scoped_deduplicated_and_off_discards_inflight(service):
+    from tests.waiting import wait_until
+    svc, _ = service
+    policy = svc.settings_write({"expected_revision": svc.settings_read()["settings_revision"], "mode": "manual", "cooldown_seconds": 0})
+    svc.subscribe(caller(), subject())
+    entered, release = Event(), Event()
+    calls = []
+    def generate(messages):
+        calls.append(messages)
+        entered.set()
+        assert release.wait(5)
+        return {"text": "Next step?", "usage": {}}
+    svc.generator = generate
+    params = {"expected_policy_epoch": policy["policy_epoch"]}
+    with pytest.raises(SuggestionRefused, match="conversation_not_observed"):
+        svc.request(caller("foreign"), subject(), params)
+    with pytest.raises(SuggestionRefused, match="stale_revision"):
+        svc.request(caller(), subject(), {"expected_policy_epoch": "old"})
+    assert svc.request(caller(), subject(), params)["accepted"]
+    assert entered.wait(5)
+    assert svc.read(subject())["state"] == "generating"
+    assert svc.request(caller(), subject(), params)["accepted"]
+    assert not svc.pending and len(calls) == 1
+    svc.settings_write({"expected_revision": policy["settings_revision"], "mode": "off"})
+    release.set()
+    wait_until(lambda: not svc.running, timeout=5)
+    assert svc.read(subject())["state"] == "disabled"
+    with svc.store.transaction() as db:
+        assert tuple(db.execute("SELECT state,text FROM attempts").fetchone()) == ("none", None)
+    with pytest.raises(SuggestionRefused):
+        svc.request(caller(), subject(), params)
+
+
+def test_manual_one_click_generates_and_repeated_request_reuses_the_receipt(service):
+    from tests.waiting import wait_until
+    svc, _ = service
+    policy = svc.settings_write({"expected_revision": svc.settings_read()["settings_revision"], "mode": "manual", "cooldown_seconds": 0})
+    svc.subscribe(caller(), subject())
+    calls = []
+    svc.generator = lambda messages: calls.append(messages) or {"text": "Next step?", "usage": {}}
+    params = {"expected_policy_epoch": policy["policy_epoch"]}
+    assert svc.request(caller(), subject(), params)["accepted"]
+    wait_until(lambda: not svc.running and not svc.pending, timeout=5)
+    assert svc.read(subject())["text"] == "Next step?"
+    assert svc.request(caller(), subject(), params)["accepted"]
+    wait_until(lambda: not svc.running and not svc.pending, timeout=5)
+    assert len(calls) == 1 and svc.read(subject())["text"] == "Next step?"

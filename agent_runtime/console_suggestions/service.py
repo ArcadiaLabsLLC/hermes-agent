@@ -68,7 +68,7 @@ class ConsoleSuggestions:
         self.boot = uuid4().hex
         self.condition = Condition()
         self.subscriptions: dict[str, Subscription] = {}
-        self.pending: dict[str, tuple[dict, float]] = {}
+        self.pending: dict[str, tuple[dict, float, str, bool]] = {}
         self.running: set[str] = set()
         self.states: dict[str, dict] = {}
         self.last_dispatch: dict[str, float] = {}
@@ -206,6 +206,22 @@ class ConsoleSuggestions:
         self._publish(subject, updated)
         return updated
 
+    def request(self, context, subject, params):
+        """One explicit Manual request from this connection's exact visible chat."""
+        policy = self.settings_read()
+        with suggestion_home(self.home):
+            validate_operator_conversation(subject)
+        with self.condition:
+            if params.get("expected_policy_epoch") != self.policy["policy_epoch"]:
+                raise SuggestionRefused("stale_revision")
+            if policy["mode"] != "manual" or policy != self.policy:
+                raise SuggestionRefused("manual_mode_required")
+            if not any(sub.subject == subject and sub.context.connection_key == context.connection_key
+                       for sub in self.subscriptions.values()):
+                raise SuggestionRefused("conversation_not_observed")
+            accepted = self._enqueue(subject, requested=True)
+            return {"contract": 1, "accepted": accepted, "policy_epoch": policy["policy_epoch"]}
+
     def changed(self, session_id=None):
         """A completed native operation invalidates visible subjects; no history on the caller."""
         with self.condition:
@@ -243,21 +259,26 @@ class ConsoleSuggestions:
             else:
                 self._enqueue(subject)
 
-    def _enqueue(self, subject):
+    def _enqueue(self, subject, *, requested=False):
         with self.condition:
-            if self.closed or not self.policy or not self.policy["enabled"]:
-                return
+            if self.closed or not self.policy or self.policy["mode"] != ("manual" if requested else "auto"):
+                return False
             key = self.key(subject)
+            if requested and (key in self.pending or key in self.running):
+                return True
             if key not in self.pending and len(self.pending) >= 32:
                 self._publish(subject, self._state(subject, "none", self.policy, reason="capacity_limited"))
-                return
+                return False
             due = self.last_dispatch.get(key, 0) + self.policy["cooldown_seconds"]
-            self.pending[key] = (subject, due)
+            self.pending[key] = (subject, due, self.policy["policy_epoch"], requested)
+            if requested:
+                self._publish(subject, self._state(subject, "generating", self.policy))
             if self.pool is None:
                 self.pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="console-suggestion")
                 self.scheduler = Thread(target=self._schedule, name="console-suggestion-scheduler", daemon=True)
                 self.scheduler.start()
             self.condition.notify_all()
+            return True
 
     def _schedule(self):
         while True:
@@ -268,23 +289,25 @@ class ConsoleSuggestions:
                 if not eligible or len(self.running) >= 2:
                     self.condition.wait()
                     continue
-                key, (subject, due) = min(eligible, key=lambda item: item[1][1])
+                key, (subject, due, epoch, requested) = min(eligible, key=lambda item: item[1][1])
                 delay = due - self.clock()
                 if delay > 0:
                     self.condition.wait(min(delay, 60))
                     continue
                 self.pending.pop(key)
                 self.running.add(key)
-                self.pool.submit(self._work, subject)
+                self.pool.submit(self._work, subject, expected_epoch=epoch, requested=requested)
 
-    def _work(self, subject):
+    def _work(self, subject, *, expected_epoch=None, requested=False):
         key = self.key(subject)
         attempt = None
         owned = False
         base = None
         try:
             policy = self.settings_read()
-            if not policy["enabled"] or not self._observed(subject):
+            if (policy["mode"] != ("manual" if requested else "auto")
+                    or (expected_epoch is not None and policy["policy_epoch"] != expected_epoch)
+                    or not self._observed(subject)):
                 return
             with suggestion_home(self.home):
                 source = self.context_reader(subject, policy["max_context_messages"])
