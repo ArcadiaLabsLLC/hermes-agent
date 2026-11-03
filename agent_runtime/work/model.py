@@ -30,7 +30,7 @@ READ_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
 }
 
 #: What an owner advertises on the wire (``capabilities`` / ``context`` are not owner operations).
-OPERATIONS = ("inspect", "start", "assign", "claim", "release", "set_status", "move", "pull", "done", "create_brain", "lend_skills")
+OPERATIONS = ("inspect", "start", "edit", "assign", "claim", "release", "set_status", "move", "pull", "done", "create_brain", "lend_skills")
 
 
 KIND_WORKSPACE = "workspace"

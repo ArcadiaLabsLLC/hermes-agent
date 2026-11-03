@@ -435,8 +435,12 @@ def _row_write(scope, params, op: Op, who: str, payload: Mapping[str, Any], *, c
     row = find(boards_store.board_rows(board), text(params.get("task_id")))
     if row is None:
         raise WorkRefused(Reason.ROW_GONE, str(params.get("task_id")))
+    if op is Op.EDIT:
+        relative = f"{BRIEF_DIR}/{row.ref.id}-{fingerprint(payload['body'])[:16]}.md"
+        payload = {"title": payload["title"], "brief": f"{writer.brain_root}/{relative}",
+                   "files": {relative: payload["body"]}}
     if "expected_raw" in params:
-        if op not in (Op.SET_STATUS, Op.ASSIGN) or params.get("note") != row.ref.note:
+        if op not in (Op.SET_STATUS, Op.ASSIGN, Op.EDIT) or params.get("note") != row.ref.note:
             raise WorkRefused(Reason.ROW_CHANGED, row.ref.id)
         payload = {**payload, "expected_raw": text(params["expected_raw"], maximum=20000)}
     receipt = writer.apply(RowOp(row.ref, op, who, request or text(params.get("request_id")), payload))
@@ -447,6 +451,19 @@ def assign(scope, params, actor, *, context=None):
     token = resolve_assignee(_assignee_token(params["assignee"])).token if params.get("assignee") is not None else None
     writer, receipt = _row_write(scope, params, Op.ASSIGN, _writer_who(params, actor), {"assignee": token},
                                  context=context)
+    return {"task": _task(writer, receipt.ref, context), "receipt": receipt.wire()}
+
+
+def edit(scope, params, actor, *, context=None):
+    """Guarded title/brief edit. A new immutable brief pointer versions the row itself."""
+    title = text(params.get("title"), maximum=160).strip()
+    if any(mark in title for mark in _TITLE_FORBIDDEN):
+        raise WorkRefused(Reason.INVALID, "a title carries no backtick, `*` or ` · `")
+    text(params.get("expected_raw"), maximum=20000)
+    text(params.get("note"), maximum=2000)
+    body = text(params.get("body"), maximum=BODY_LIMIT, multiline=True)
+    writer, receipt = _row_write(scope, params, Op.EDIT, _writer_who(params, actor),
+                                 {"title": title, "body": body}, context=context)
     return {"task": _task(writer, receipt.ref, context), "receipt": receipt.wire()}
 
 

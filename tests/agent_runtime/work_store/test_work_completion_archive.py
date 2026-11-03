@@ -1,5 +1,6 @@
 """Native completions preserve a result in the real writer's archive commit."""
 from dataclasses import replace
+from types import SimpleNamespace
 import pytest
 
 from agent_runtime.batch.board_source import BoardSource
@@ -70,3 +71,34 @@ def test_guarded_status_rechecks_revision_after_remote_race(repo):
     assert fired and refused.value.reason is Reason.ROW_CHANGED
     text = note_text(repo.seed)
     assert "revised by teammate" in text and "DEFERRED" not in text
+
+
+def test_brief_edit_versions_content_preserves_identity_and_rejects_stale_or_claimed(repo, monkeypatch):
+    writer = Writer(repo.board, machine_id="m1")
+    writer.sync()
+    board = replace(repo.board, read_root=writer.worktree)
+    monkeypatch.setattr(store, "synced", lambda *a, **kw: Synced([board], {board.key: writer}, False))
+    scope = SimpleNamespace(workspace_id=repo.ws)
+    row = board_rows(board)[0]
+    params = {"request_id": "edit-1", "slot": board.slot, "task_id": row.ref.id, "note": NOTE,
+              "expected_raw": row.raw, "title": "A clear title", "body": "First complete brief"}
+    first = store.edit(scope, params, "operator")["task"]
+    assert first["title"] == "A clear title" and first["body"] == params["body"]
+    assert first["id"] == row.ref.id and first["status"] == row.status.value and first["taken"] is None
+    first_raw = first["raw"]
+    old_files = set((writer.worktree / writer.brain_root / store.BRIEF_DIR).glob("*.md"))
+    second = store.edit(scope, {**params, "request_id": "edit-2", "expected_raw": first_raw,
+                               "body": "Second complete brief"}, "operator")["task"]
+    assert second["raw"] != first_raw and second["body"] == "Second complete brief"
+    assert all(path.read_text(encoding="utf-8") == params["body"] for path in old_files)
+    with pytest.raises(WorkRefused) as stale:
+        store.edit(scope, {**params, "request_id": "edit-stale", "expected_raw": first_raw}, "operator")
+    assert stale.value.reason is Reason.ROW_CHANGED
+    with pytest.raises(WorkRefused) as foreign:
+        store.edit(scope, {**params, "request_id": "edit-foreign", "note": "elsewhere.md"}, "operator")
+    assert foreign.value.reason is Reason.ROW_CHANGED
+    writer.apply(op(Op.CLAIM, rid="hold-edit"))
+    held = board_rows(board)[0]
+    with pytest.raises(WorkRefused) as claimed:
+        store.edit(scope, {**params, "request_id": "edit-held", "expected_raw": held.raw}, "operator")
+    assert claimed.value.reason is Reason.ALREADY_TAKEN

@@ -26,7 +26,7 @@ def _work_method(operation):
     return handle
 
 
-OPERATIONS = ("capabilities", "context", "list", "inspect", "start", "assign", "claim", "release", "set_status",
+OPERATIONS = ("capabilities", "context", "list", "inspect", "start", "edit", "assign", "claim", "release", "set_status",
               "move", "pull", "done", "create_brain", "lend_skills")
 
 

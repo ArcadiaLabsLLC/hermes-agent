@@ -12,7 +12,7 @@ def test_work_family_private_deferred_and_execution_guarded(monkeypatch):
         calls.append(operation)
         return {"version": 1}
     monkeypatch.setattr(work, "execute", execute)
-    assert work.OPERATIONS == ("capabilities", "context", "list", "inspect", "start", "assign", "claim",
+    assert work.OPERATIONS == ("capabilities", "context", "list", "inspect", "start", "edit", "assign", "claim",
                                "release", "set_status", "move", "pull", "done", "create_brain", "lend_skills")
     for operation in work.OPERATIONS:
         name = "runtime.work." + operation

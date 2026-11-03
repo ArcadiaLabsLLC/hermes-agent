@@ -1182,7 +1182,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-11-02 (launcher lane w1101h-teardown)
 
-- **`RT-WORK-GUARDED-BRIEF-EDIT` — The approved Shared Work Edit task mock needs a native title/brief update: existing Work verbs only change status and assignment; add capability gated exact-note/raw edit using the existing writer, an immutable content-addressed brief and one Git commit, refusing claimed or changed rows on every replay; no execution or owner migration** · group: shared-work-v1 · `agent_runtime/work/store.py` · `agent_runtime/work_store/writer.py` · `agent_runtime/work_store/grammar.py` · client `EterniaLauncher/docs/companion/planned/SHARED_WORK_V1_BOARD_BUILD_2026-11-03.md` S3/D5 · READY 2026-11-03 · **TAKEN 2026-11-03 work-v1-intelligence on MUltiversalLabsInc as Maximus England in work-v1-runtime**
 
 
 

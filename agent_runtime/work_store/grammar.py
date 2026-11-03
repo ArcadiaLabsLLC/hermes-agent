@@ -148,6 +148,7 @@ class Op(StrEnum):
     CLAIM = "claim"
     RELEASE = "release"
     SET_STATUS = "set_status"
+    EDIT = "edit"
     DELETE = "delete"
     ASSIGN = "assign"
     SET_SKILLS = "set_skills"
@@ -592,6 +593,18 @@ def _delete(line: str, *, who: str, date: str, payload: dict) -> None:
     return None
 
 
+def _edit_task(line: str, *, who: str, date: str, payload: dict) -> str:
+    """Change title and brief pointer, preserving identity, status and all other metadata."""
+    match = TITLE.match(line)
+    if match is None:
+        raise WorkRefused(Reason.GRAMMAR_INVALID, "the row has no title")
+    title = str(payload["title"])
+    edited = line[:match.start(1)] + title + line[match.end(1):]
+    segments = [part for part in split_segments(edited) if not part.strip().startswith("brief:")]
+    segments.insert(1, f"brief: `{payload['brief']}`")
+    return SEPARATOR.join(segments)
+
+
 def _assign(line: str, *, who: str, date: str, payload: dict) -> str:
     """Drop any ``assignee:`` segment; with ``payload["assignee"]`` (a token), set one before the status."""
 
@@ -670,6 +683,7 @@ _EDITS: dict[Op, Callable[..., str | None]] = {
     Op.CLAIM: _claim_line,
     Op.RELEASE: _release,
     Op.SET_STATUS: _set_status,
+    Op.EDIT: _edit_task,
     Op.DELETE: _delete,
     Op.APPEND: _append,
     Op.ASSIGN: _assign,

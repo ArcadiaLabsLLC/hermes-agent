@@ -202,6 +202,7 @@ _PRECONDITIONS: dict[Op, Callable[[RowOp, Row | None], None]] = {
     Op.CLAIM: _claimable,
     Op.RELEASE: _held,
     Op.SET_STATUS: _present,
+    Op.EDIT: _present,
     Op.DELETE: _present,
     Op.ASSIGN: _present,
     Op.SET_SKILLS: _present,
@@ -548,8 +549,9 @@ class Writer:
         updated = "\n".join(lines)
         if updated == text:
             return []
+        written = self._write_files(op.payload.get("files") or {}) if op.op is Op.EDIT else []
         _write_atomic(path, updated)
-        return [op.ref.note]
+        return [op.ref.note, *written]
 
     def _close(self, op: RowOp) -> list[str]:
         """CLOSE: the archived line appended to its month file (created with the archive head) and the live line
