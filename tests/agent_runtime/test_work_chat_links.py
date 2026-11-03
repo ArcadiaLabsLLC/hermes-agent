@@ -62,8 +62,9 @@ def test_operator_reference_names_its_instance_as_the_assignee(work, monkeypatch
     assert context["scopes"] == ["conversation", "all"] and context["agent_profile"] is None
     assert context["assignee"] == f"persona:{alice.id}"
     assert calls == [{**reference, "install_id": work.scope["install_id"]}]
-    started = start(work, "q1", conversation=reference)["task"]  # started here: taken here
-    assert started["taken"]["who"] == f"persona:{alice.id}" and started["in_conversation"] is True
+    started = start(work, "q1", conversation=reference)["task"]  # started here: assigned, never taken
+    assert started["assignee"] == f"persona:{alice.id}" and started["taken"] is None  # RT-WORK-START-NEVER-CLAIMS
+    call(work, "claim", request_id="c0", slot="brain", task_id=started["id"], conversation=reference)
     later = start(work, "q2", title="Picked up later")["task"]["id"]
     start(work, "q3", title="Someone else's")
     claimed = call(work, "claim", request_id="c1", slot="brain", task_id=later, conversation=reference)["task"]
