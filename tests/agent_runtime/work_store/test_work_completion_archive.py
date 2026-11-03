@@ -45,6 +45,33 @@ def test_completion_commit_never_invents_delivery():
     assert Outcome(Verdict.DONE, commits=("not-a-sha", "abcdef0123")).completion_commit == "abcdef0123"
 
 
+def test_guarded_owner_completion_rejects_stale_note_and_claim_then_archives(repo, monkeypatch):
+    writer = Writer(repo.board, machine_id="m1")
+    writer.sync()
+    board = replace(repo.board, read_root=writer.worktree)
+    monkeypatch.setattr(store, "synced", lambda *a, **kw: Synced([board], {board.key: writer}, False))
+    scope = SimpleNamespace(workspace_id=repo.ws)
+    row = board_rows(board)[0]
+    params = {"request_id": "owner-done", "slot": board.slot, "task_id": row.ref.id,
+              "note": NOTE, "expected_raw": row.raw, "result": "Verified by the owner."}
+    for changed in ({"note": "wrong.md"}, {"expected_raw": "older revision"}):
+        with pytest.raises(WorkRefused) as refused:
+            store.done(scope, {**params, **changed}, "operator")
+        assert refused.value.reason is Reason.ROW_CHANGED
+    writer.apply(op(Op.CLAIM, rid="held-before-close"))
+    held = board_rows(board)[0]
+    with pytest.raises(WorkRefused) as refused:
+        store.done(scope, {**params, "expected_raw": held.raw}, "operator")
+    assert refused.value.reason is Reason.ALREADY_TAKEN
+    writer.apply(op(Op.RELEASE, rid="release-before-close"))
+    current = board_rows(board)[0]
+    answer = store.done(scope, {**params, "expected_raw": current.raw}, "operator")
+    assert answer["ending"]["outcome"] == "DONE"
+    assert params["result"] in answer["ending"]["body"]
+    assert all(r.ref.id != row.ref.id for r in board_rows(board))
+    assert archive_notes(board)
+
+
 def test_guarded_status_refuses_a_claim_even_for_operator(repo):
     writer = Writer(repo.board, machine_id="m1")
     writer.apply(op(Op.CLAIM))

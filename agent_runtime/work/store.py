@@ -440,7 +440,7 @@ def _row_write(scope, params, op: Op, who: str, payload: Mapping[str, Any], *, c
         payload = {"title": payload["title"], "brief": f"{writer.brain_root}/{relative}",
                    "files": {relative: payload["body"]}}
     if "expected_raw" in params:
-        if op not in (Op.SET_STATUS, Op.ASSIGN, Op.EDIT) or params.get("note") != row.ref.note:
+        if op not in (Op.SET_STATUS, Op.ASSIGN, Op.EDIT, Op.CLOSE) or params.get("note") != row.ref.note:
             raise WorkRefused(Reason.ROW_CHANGED, row.ref.id)
         payload = {**payload, "expected_raw": text(params["expected_raw"], maximum=20000)}
     receipt = writer.apply(RowOp(row.ref, op, who, request or text(params.get("request_id")), payload))

@@ -34,7 +34,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
-- **`RT-WORK-GUARDED-OWNER-CLOSE` — Extend the existing native done/archive action with exact note/revision and unclaimed guards for the shared board Personal completion flow** · `agent_runtime/work/store.py::_row_write` · `agent_runtime/work/service.py::capabilities` · existing writer replay guard and archive stay authoritative; no new completion engine · READY 2026-11-03 · **TAKEN 2026-11-03 work-v1-intelligence on MULTIVERSALLABS as MUltiversalLabsInc in work-v1-runtime**
 
 
 

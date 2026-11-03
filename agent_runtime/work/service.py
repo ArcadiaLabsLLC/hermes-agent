@@ -178,6 +178,7 @@ def _work_capabilities(install, *, observe=False):
     brain_state = _observed_brain_state if observe else _default_brain_state
     return {"version": VERSION, "install_id": install, "execution_identity_guard": True, "chat_scopes": True,
             "guarded_row_edits": True,
+            "guarded_completion": True,
             "guarded_task_edits": True,
             "observe": list(OBSERVE_OPERATIONS), "board_kinds": list(BOARD_KINDS),
             "owners": [scope.wire(_label(scope)) for scope in scopes(install)],
