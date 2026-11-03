@@ -119,3 +119,23 @@ def test_an_empty_default_brain_retires_without_a_commit(work, tmp_path):
     caps = service.execute("capabilities", {}, STDIO_OWNER)
     assert caps["default_brain"][work.ws] == {"state": "moved", "into": "hermes"}
     assert commits(origin) == 1 and board.default_board(work.ws) is None
+
+
+def test_a_refused_move_is_the_default_boards_answer_and_the_repo_boards_list(work, tmp_path):
+    """RT-WORK-DEFAULT-MOVE-FAILS-LIST. Mutation: re-raise in ``synced``'s move ``except`` -> the list refuses whole."""
+
+    first = start(work, "q1", title="Stays put")["task"]["id"]
+    worktree = store.synced(work.ws).writers["brain"].worktree
+    lock = Path(git("rev-parse", "--path-format=absolute", "--git-path", "index.lock", cwd=worktree).strip())
+    lock.write_bytes(b"")  # a git still holding the default brain's worktree index
+    origin, clone = repo_with_brain(tmp_path / "hermes")
+    bind(work.ws, hermes=clone)
+    listed = call(work, "list")
+    by_slot = {b["slot"]: b for b in listed["boards"]}
+    assert [row["id"] for q in by_slot["hermes"]["queues"] for row in q["rows"]] == ["RT-A"]
+    assert (by_slot["brain"]["readable"], by_slot["brain"]["queues"]) == (False, [])
+    assert by_slot["brain"]["refused"]["reason"] == "index_locked"
+    assert commits(origin) == 1 and board.default_board(work.ws) is not None
+    lock.unlink()  # the lock released: the next read moves the row
+    assert {row["id"] for row in rows_of(call(work, "list"))} == {"RT-A", first}
+    assert board.default_board(work.ws) is None

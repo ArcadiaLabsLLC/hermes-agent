@@ -21,7 +21,7 @@ from typing import Any
 
 from agent_runtime.work_store import board as boards_store
 from agent_runtime.work_store import receipts
-from agent_runtime.work_store.board import Board
+from agent_runtime.work_store.board import DEFAULT_BRAIN_SLOT, Board
 from agent_runtime.work_store.default_brain import (
     QUEUE_DIR, QUEUE_NOTE, QUEUE_TEMPLATE, TODO_TEMPLATE, retire_binding, this_machine,
 )
@@ -137,10 +137,18 @@ def worktree_brain(board: Board) -> Board:
 
 
 def synced(workspace_id: str, *, stale_ok: bool = False, slot: str | None = None) -> Synced:
-    normalize_default_brain(workspace_id)
     writers: dict[str, Writer] = {}
     refused: dict[str, WorkRefused] = {}
+    try:
+        normalize_default_brain(workspace_id)
+    except WorkRefused as refusal:
+        # The move's refusal (the default brain's sync, or an apply on either side) is the DEFAULT
+        # board's answer, never the whole read's (RT-WORK-DEFAULT-MOVE-FAILS-LIST): the move replays
+        # by request id on the next read, and every other board still syncs and lists.
+        refused[DEFAULT_BRAIN_SLOT] = refusal
     for board in map(worktree_brain, boards_store.boards(workspace_id)):
+        if board.is_default and board.key in refused:
+            continue
         if board.bound_here and board.brain_dir and slot in (None, board.slot):
             writer = writer_for(board)
             try:
