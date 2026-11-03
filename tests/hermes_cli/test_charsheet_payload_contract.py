@@ -223,6 +223,9 @@ def test_the_read_payloads_the_launcher_decodes_are_all_four(document):
     assert document["payloads"]["status"]["object"] == "status"
     assert document["payloads"]["list"]["object"] == ""
     assert "status.hermesHome" in _keys(document, "status")
+    # The row loop timing Studio's "open row on timeline" reads (never a
+    # launcher constant): a status without it refuses the open.
+    assert "status.spec.loopMs" in _keys(document, "status")
     assert "drafts[].hermesHome" in _keys(document, "list")
 
 
