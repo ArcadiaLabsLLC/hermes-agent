@@ -1,17 +1,38 @@
-"""RT-CORE-CACHE-SAME-TICK-REWRITE: a same-size rewrite inside one file-time tick moves the digest.
+"""RT-CORE-CACHE-SAME-TICK-REWRITE: a same-size rewrite inside one file-time tick is never served as current.
 
 The input fingerprint's entries are ``(path, mtime_ns, size)``. A file rewritten to the same length before
 the clock ticks keeps its triple, so — git's "racy" stat problem — a core built before the change would be
-served as current. An entry whose mtime is not older than the walk's start by ``RACY_WINDOW_NS`` is racy and
-its bytes join the digest. Replayed deterministically by pinning the second write's mtime to the first's.
+served as current. Git's answer, "smudged" entries: an entry whose mtime is within ``RACY_WINDOW_NS`` of the
+walk's start is racy, the key records its bytes digest, the sidecar persists it, and a read whose stat digest
+matches re-checks those bytes. The stat digest itself never includes them, so a later walk outside the window
+still matches. Replayed deterministically by pinning the second write's mtime to the first's.
 """
 
 from __future__ import annotations
 
 import os
 
+import pytest
+
 from agent_runtime import core_cache
 from agent_runtime.core_cache import fingerprint as fp
+from tests._downstream import _seams
+
+
+@pytest.fixture(autouse=True)
+def fresh_cache_lane(monkeypatch):
+    _seams.reset_core_cache_process_state()
+    for module in (core_cache.fingerprint, core_cache.read, core_cache.persist):
+        monkeypatch.setattr(module, "build_stamp_token", lambda: "probe:racy:clean")
+    yield
+    _seams.reset_core_cache_process_state()
+
+
+def _baseline(root):
+    baseline = root / "realm_sync" / "realm_x" / "office_baseline.json"
+    baseline.parent.mkdir(parents=True, exist_ok=True)
+    baseline.write_text('{"rev": 1}', encoding="utf-8")
+    return baseline
 
 
 def _rewrite_same_size_same_mtime(path, text):
@@ -22,45 +43,34 @@ def _rewrite_same_size_same_mtime(path, text):
     assert (after.st_mtime_ns, after.st_size) == (before.st_mtime_ns, before.st_size)
 
 
-def test_a_same_tick_same_size_rewrite_moves_the_digest(isolate_agent_runtime_root):
-    """Mutation: drop the racy hashing (``_fingerprint_over(entries)`` without ``racy_contents``) -> the
-    digest stays put across the rewrite, red."""
-    baseline = isolate_agent_runtime_root / "realm_sync" / "realm_x" / "office_baseline.json"
-    baseline.parent.mkdir(parents=True, exist_ok=True)
-    baseline.write_text('{"rev": 1}', encoding="utf-8")
-    first = core_cache.build_input_fingerprint()
-    assert first is not None and str(baseline) in dict(first.racy)
-    _rewrite_same_size_same_mtime(baseline, '{"rev": 2}')
-    second = core_cache.build_input_fingerprint()
-    assert second is not None and second.entries == first.entries
-    assert second.digest != first.digest
+def _core() -> dict:
+    return {"parity": {"watermark": {"event_offset": 0}}}
 
 
-def test_an_old_entry_is_not_racy_and_an_unchanged_racy_one_keeps_its_digest(isolate_agent_runtime_root, monkeypatch):
-    """A settled store is keyed by stat alone; an unchanged racy store keys identically twice."""
-    baseline = isolate_agent_runtime_root / "realm_sync" / "realm_x" / "office_baseline.json"
-    baseline.parent.mkdir(parents=True, exist_ok=True)
-    baseline.write_text('{"rev": 1}', encoding="utf-8")
-    assert core_cache.build_input_fingerprint().digest == core_cache.build_input_fingerprint().digest
-    monkeypatch.setattr(fp, "RACY_WINDOW_NS", -10**18)  # every mtime is older than the cutoff
-    settled = core_cache.build_input_fingerprint()
-    assert settled.racy == ()
-    assert settled.digest == fp._fingerprint_over(settled.entries).digest
-
-
-def test_a_refreshed_re_key_inside_the_window_still_matches_the_store(isolate_agent_runtime_root):
-    """The post-build re-stat (IC-2) carries each kept / adopted entry's bytes digest. Mutation: re-key with
-    ``_fingerprint_over(adopted.values())`` (no racy digests) -> the persisted key misses a fresh walk of the
-    same store inside the window, red."""
-    from tests._downstream import _seams
-    from tests.agent_runtime.test_core_cache_post_build_restat import _core, _seed_store
-    from utils import atomic_json_write
-
-    _seams.reset_core_cache_process_state()
-    row, _workspace = _seed_store(isolate_agent_runtime_root)
+def test_a_same_tick_same_size_rewrite_demotes_the_persisted_core(isolate_agent_runtime_root):
+    """Mutation: drop the ``racy_contents_moved`` check in ``_judge_persisted_pair`` -> the stale core is served
+    as matched, red."""
+    baseline = _baseline(isolate_agent_runtime_root)
     key = core_cache.build_input_fingerprint()
-    atomic_json_write(row, {"id": "inst_probe", "rev": 2})  # the build's own write: the re-stat adopts it
+    assert key is not None and str(baseline) in dict(key.racy)
     assert core_cache.write_back(_core(), fingerprint=key) is True
+    _rewrite_same_size_same_mtime(baseline, '{"rev": 2}')
     _seams.reset_core_cache_process_state()
     read = core_cache.read_persisted_core()
-    assert read.matched is True, read.demote_reason
+    assert core_cache.build_input_fingerprint().digest == key.digest  # the stat digest cannot see it
+    assert read.matched is False
+
+
+def test_an_untouched_racy_store_still_matches_inside_and_outside_the_window(isolate_agent_runtime_root, monkeypatch):
+    """The racy bytes never join the digest. Mutation: fold them into ``_fingerprint_over``'s digest -> the walk
+    outside the window keys differently and the persisted core demotes, red."""
+    _baseline(isolate_agent_runtime_root)
+    key = core_cache.build_input_fingerprint()
+    assert key.racy and core_cache.write_back(_core(), fingerprint=key) is True
+    _seams.reset_core_cache_process_state()
+    assert core_cache.read_persisted_core().matched is True
+    monkeypatch.setattr(fp, "RACY_WINDOW_NS", -10**18)  # every mtime is now "old": nothing is racy
+    _seams.reset_core_cache_process_state()
+    later = core_cache.build_input_fingerprint()
+    assert later.racy == () and later.digest == key.digest
+    assert core_cache.read_persisted_core().matched is True
