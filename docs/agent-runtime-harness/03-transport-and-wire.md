@@ -1859,8 +1859,8 @@ refusal shape are Work's; replies carry `version: 1`, `install_id`, `owner`.
 
 | Method | Input beyond scope | Result | Typed refusals |
 |---|---|---|---|
-| `runtime.batch.plan` | none | `plan {id: BATCH-<6>, lanes[], landing, budget, asks[]}` — writes nothing | `plan_refused` (`nothing_ready`, `mixed_assignees`) |
-| `runtime.batch.start` | `batch_id` (the plan's id), `personas?` | `batch` | `idempotency_conflict` (the board moved), `persona_unresolved`, `not_owner_machine`, git reasons |
+| `runtime.batch.plan` | `rows?` (`[[slot, note, id] \| [slot, note, id, project_id]]`: plan ONLY those rows — the Work board's chosen set, `RT-BATCH-PLAN-ROWS`; omitted: every READY row) | `plan {id: BATCH-<6>, lanes[], landing, budget, asks[]}` — writes nothing; the id is still the lanes' rows' hash | `plan_refused` (`nothing_ready`, `mixed_assignees`), `invalid_request` (a ref that is not a READY, unclaimed row of the workspace, named in `detail`) |
+| `runtime.batch.start` | `batch_id` (the plan's id), `personas?`, `rows?` (the same set `plan` was given: start re-plans it to detect a moved board) | `batch` | `idempotency_conflict` (the board moved), `persona_unresolved`, `not_owner_machine`, git reasons |
 | `runtime.batch.status` | `batch_id?` | `batches[] {…, lanes[], landing, marks {slot/ID: who \| status \| gone}}`, `automation`, `machine` | `batch_missing` |
 | `runtime.batch.stop` | `batch_id`, `lane?` (omitted: abort the batch) | `batch` | `state_transition_invalid`, `batch_missing` |
 | `runtime.batch.land` | `batch_id`, `persona?` | `batch` | `state_transition_invalid`, `landing_in_progress`, `not_owner_machine` |

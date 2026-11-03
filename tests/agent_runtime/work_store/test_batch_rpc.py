@@ -113,3 +113,45 @@ def test_the_persona_turn_executor_reports_every_settle_to_every_listener():
     executor.on_settle(lambda run, outcome: heard.append(("batch", run.request_id)))
     executor._report("BATCH-AAAAAA:L1", "root", "cmid", "now", (), Outcome(Verdict.DONE))
     assert heard == [("engine", "BATCH-AAAAAA:L1"), ("batch", "BATCH-AAAAAA:L1")]
+
+
+def test_plan_rows_plans_only_those(scope):
+    """RT-BATCH-PLAN-ROWS: ``runtime.batch.plan`` with ``rows`` plans ONLY the named READY rows, and
+    ``start`` with the same set re-plans it (without it the board reads as moved). Killing mutation:
+    ``BatchDispatcher.plan`` ignores ``rows`` (plans every READY row) -> the lanes hold all four, red."""
+    from dataclasses import replace
+
+    from agent_runtime.batch.planner import Member
+    from agent_runtime.work_store.grammar import Claim
+
+    from batch_support import NOTE, dispatcher, qrow
+    from contract_fakes import FakeSource
+
+    a, b, c, d_row, taken = (qrow(f"RT-{x}", assignee="inst-a") for x in ("A", "B", "C", "D", "E"))
+    source = FakeSource([a, b, c, d_row, replace(taken, taken=Claim("2026-10-18", "persona:inst-b"))])
+    d = dispatcher(source, roster=[Member("inst-a", "alice", "engineer"), Member("inst-b", "bob", "engineer")])
+    chosen = [["hermes", NOTE, "RT-A"], ["hermes", NOTE, "RT-C"]]
+    plan = batch_rpc.execute("plan", {**scope.params, "rows": chosen}, STDIO_OWNER, dispatcher=d)["plan"]
+    planned = sorted(ref[2] for lane in plan["lanes"] for ref in lane["rows"])
+    assert planned == ["RT-A", "RT-C"]
+    everything = batch_rpc.execute("plan", scope.params, STDIO_OWNER, dispatcher=d)["plan"]
+    assert sorted(ref[2] for lane in everything["lanes"] for ref in lane["rows"]) == ["RT-A", "RT-B", "RT-C", "RT-D"]
+    assert everything["id"] != plan["id"]
+    # Start without the set re-plans the whole board: the id no longer matches (the board "moved").
+    with pytest.raises(WorkRefused) as moved:
+        batch_rpc.execute("start", {**scope.params, "batch_id": plan["id"]}, STDIO_OWNER, dispatcher=d)
+    assert moved.value.reason is Reason.CONFLICT
+    batch = batch_rpc.execute("start", {**scope.params, "batch_id": plan["id"], "rows": chosen}, STDIO_OWNER,
+                              dispatcher=d)["batch"]
+    assert batch["id"] == plan["id"]
+    claimed = sorted(ref.id for ref, row in source.by_ref.items() if row.taken and row.taken.who == "persona:inst-a")
+    assert claimed == ["RT-A", "RT-C"]
+    # A ref to a row that is not READY and unclaimed (or not on the board) refuses, naming it.
+    for bad in (["hermes", NOTE, "RT-E"], ["hermes", NOTE, "RT-NOPE"]):
+        with pytest.raises(WorkRefused) as refused:
+            batch_rpc.execute("plan", {**scope.params, "rows": [bad]}, STDIO_OWNER, dispatcher=d)
+        assert refused.value.reason is Reason.INVALID and bad[2] in refused.value.detail
+    for malformed in ([], [["hermes", "RT-A"]], "RT-A"):
+        with pytest.raises(WorkRefused) as refused:
+            batch_rpc.execute("plan", {**scope.params, "rows": malformed}, STDIO_OWNER, dispatcher=d)
+        assert refused.value.reason is Reason.INVALID
