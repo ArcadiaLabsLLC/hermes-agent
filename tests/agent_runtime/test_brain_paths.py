@@ -75,6 +75,33 @@ def _placeholders(node, names: dict[str, str]):
     return node
 
 
+@pytest.mark.parametrize("owner", [PERSONAL_BOARD_ID, "ws-local"])
+def test_local_writer_publishes_accepted_rows_for_file_only_readers(owner):
+    """Mutation: publish board.checkout again -> accepted row disappears after reopen."""
+    from agent_runtime.work_store.grammar import Op, RowRef
+    from agent_runtime.work_store.writer import RowOp, Writer
+
+    if owner != PERSONAL_BOARD_ID:
+        WorkspaceStore().create(name="Local", workspace_id=owner)
+    board = ensure_default_brain(owner, issued_at=T0)
+    note = f"{board.brain_dir}/work-queue.md"
+    row = "- **`WORK-A2B3C4` — Saved task** · READY 2026-11-03"
+    writer = Writer(board, machine_id="test")
+    writer.apply(RowOp(RowRef(board.slot, note, "WORK-A2B3C4"), Op.APPEND,
+                       "operator", "saved-row", {"row": row}))
+
+    def entry(payload):
+        return payload["personal"] if owner == PERSONAL_BOARD_ID else payload["workspaces"][owner]["brain"]
+
+    # The creation chokepoint updates current readers; boot rebuilding uses the
+    # same existing worktree without creating or resetting anything.
+    current = entry(brain_paths.read_brain_paths())
+    reopened = entry(brain_paths.build_brain_paths())
+    assert current["path"] == reopened["path"] == str(writer.worktree)
+    assert row in (Path(current["path"]) / note).read_text(encoding="utf-8")
+    assert row not in (board.checkout / note).read_text(encoding="utf-8")
+
+
 def test_the_writer_output_for_the_fixture_namespace_is_the_fixture(namespace):
     """Mutations: report the queue dir instead of the brain folder -> brain_dir red; drop the ``archived``
     skip / the ``path is_dir`` gate -> red; ``behind`` keyed wrong -> red."""
@@ -224,7 +251,7 @@ def test_creating_a_slot_brain_rewrites_the_list(monkeypatch):
     from agent_runtime.work import store as work_store
 
     board = SimpleNamespace(bound_here=True, brain_dir=None, slot="s", project_id=None)
-    writer = SimpleNamespace(apply=lambda _op: SimpleNamespace(wire=lambda: {}))
+    writer = SimpleNamespace(apply=lambda _op: SimpleNamespace(wire=dict))
     monkeypatch.setattr(work_store.boards_store, "boards", lambda _ws: [board])
     monkeypatch.setattr(work_store.boards_store, "pick", lambda found, *_: found[0])
     monkeypatch.setattr(work_store, "worktree_brain", lambda found: found)

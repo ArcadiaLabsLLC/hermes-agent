@@ -369,6 +369,10 @@ class Writer:
                    Reason.WORKTREE_FAILED, repo=clone)
         self._must(["sparse-checkout", "set", "--no-cone", f"/{self.brain_root}/"], Reason.WORKTREE_FAILED,
                    repo=self.worktree)
+        if self.board.local and self.board.is_default:
+            from ..brain_paths import changed
+
+            changed("local_work_brain_created")
 
     def _fetch(self, clone: Path, *, stale_ok: bool) -> None:
         self.stale = False

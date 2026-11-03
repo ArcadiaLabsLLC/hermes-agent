@@ -93,7 +93,16 @@ def _default_brain(owner: str, behind: Mapping[str, int | None]) -> dict[str, An
     board = default_board(owner)
     if board is None:
         return _brain(None, None, behind)
-    return _brain(board.checkout, board.brain_dir, behind)
+    root = board.checkout
+    if board.local:
+        from .work_store.writer import Writer
+
+        # Local brains have no upstream to pull. Accepted writes live in the
+        # native writer's worktree; the seed checkout is only the initial view.
+        worktree = Writer(board, machine_id="brain-paths").worktree
+        if (worktree / ".git").exists():
+            root = worktree
+    return _brain(root, board.brain_dir, behind)
 
 
 def _project(project_id: str, behind: Mapping[str, int | None]) -> dict[str, Any]:
