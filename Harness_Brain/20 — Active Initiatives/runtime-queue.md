@@ -34,6 +34,8 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+- **`RT-BATCH-OWN-BRAIN-MANIFEST-READ` — Batch start writes the retained workspace brain while manifest reads still prefer a Project brain, then reports batch_missing; read new manifests from their actual owner and preserve existing Project-brain batches and held refs** · `agent_runtime/batch/manifest.py` · native Intelligence QA: plan BATCH-5ZIVKS accepted, start wrote the manifest but load could not find it after RT-WORK-WORKSPACE-BRAIN-KEPT · READY 2026-11-03 · **TAKEN 2026-11-03 work-v1-intelligence on MULTIVERSALLABS as MUltiversalLabsInc in work-v1-runtime**
+
 
 
 
