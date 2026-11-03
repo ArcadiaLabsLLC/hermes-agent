@@ -1009,3 +1009,10 @@ tests/scripts/test_agent_build.py::test_payload_smoke_uses_relocated_manifest_co
 tests/scripts/test_source_build_env.py::test_posix_build_children_stamp_old_and_new_without_changing_parent[node] · env: no Node on PATH (FileNotFoundError: 'node') · 4d04303818
 tests/scripts/test_source_driver.py::test_pm_observer_accepts_ready_fixture_and_leaves_failed_fixture_untouched · env: no Node on PATH (all seven faults red at `assert node`) · 4d04303818
 tests/scripts/test_fresh_source_install.py::test_current_installer_publishes_real_dependencies_and_warm_path[None] · env: install.sh's products stage (tui/web build) fails with no prepared Node on the box (`products_build_failed`) · 4d04303818
+
+# env: `gh auth token` answers on the Linux box (FH-HERMES-CLI-GATEWAY-UPDATE-REDS-REMAINDER, w1101h-h 2026-11-02): Copilot via gh
+# counts as a configured provider, so the real CLI passes the first-run guard and reaches the gateway (`Error: storage_unavailable`);
+# each node was run once, bare and named, on fork main ffd1a6e6b5 and seen red; re-run bare on a box with no gh login
+tests/hermes_cli/test_gateway_first_run_live.py::test_headless_first_run_exits_with_setup_guidance_before_gateway[argv0] · env: gh auth token answers, so a provider reads as configured (copilot via `gh auth token`) · 4d04303818
+tests/hermes_cli/test_gateway_first_run_live.py::test_headless_first_run_exits_with_setup_guidance_before_gateway[argv1] · env: gh auth token answers, so a provider reads as configured (copilot via `gh auth token`) · 4d04303818
+tests/hermes_cli/test_gateway_first_run_live.py::test_headless_first_run_exits_with_setup_guidance_before_gateway[argv2] · env: gh auth token answers, so a provider reads as configured (copilot via `gh auth token`) · 4d04303818

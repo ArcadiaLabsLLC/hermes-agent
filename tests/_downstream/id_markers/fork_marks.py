@@ -18,6 +18,7 @@ from tests._downstream.id_markers.reasons import (
     _CHILDREN_DIE_WITH_THE_TEST,
     _CLAUDE_HOME_TMP,
     _CREDENTIALS_FILE,
+    _FORK_LIVE_GUARD_ENSURE,
     _FORK_LIVE_SYSTEM_GUARD,
     _FORK_MANAGED_PYTHON,
     _fork_replaces,
@@ -161,6 +162,12 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     "test_dashboard_tui_flag_is_accepted_not_rejected": (
         pytest.mark.xfail(reason=_FORK_LIVE_SYSTEM_GUARD, strict=True),
     ),
+    # FH-HERMES-CLI-GATEWAY-UPDATE-REDS-REMAINDER: the guard is right to refuse (a broken
+    # update fence would start a real gateway against the developer's HOME).
+    "tests/hermes_cli/test_gateway_runtime_ensure.py::"
+    "test_public_ensure_json_deadline_and_invalid_invocation": (
+        pytest.mark.xfail(reason=_FORK_LIVE_GUARD_ENSURE, strict=True),
+    ),
     "tests/hermes_cli/test_gateway_windows.py::"
     "test_build_gateway_argv_keeps_venv_console_python_for_uv_venv": (
         pytest.mark.xfail(reason=_FORK_MANAGED_PYTHON, strict=True),
@@ -231,6 +238,18 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     },
     "tests/test_live_system_guard_self_test.py::"
     "test_subprocess_run_gateway_status_passes_through": (_LOOKALIKE,),
+    # The same fork arm refuses the host start first, with its own message, so upstream's
+    # "REAL hermes gateway runtime" match fails off Windows too (seen red on Linux main, lane
+    # w1101h-h); on win32 the v0.22.4 upstream-red row already xfails it.
+    **({} if _WIN else {
+        "tests/test_live_system_guard_self_test.py::"
+        "test_host_gateway_start_blocked_but_container_exec_allowed": (
+            _fork_replaces(
+                "_live_system_guard backend-spawn arm (tests/conftest.py)",
+                "tests/test_live_system_guard_downstream.py",
+            ),
+        ),
+    }),
     # An argless SessionDB() must resolve through the profile scope; the hermetic
     # DEFAULT_DB_PATH pin (set only once hermes_state is imported) beat it whenever an
     # earlier test in the process imported it (tests/_downstream/state_db_scope.py).

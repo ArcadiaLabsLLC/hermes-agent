@@ -17,6 +17,7 @@ import pytest
 from tests._downstream.id_markers.reasons import (
     __layer__,
     _NEEDS_ACP,
+    _NEEDS_TMUX,
 )
 
 __layer__ = "models"
@@ -34,6 +35,17 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
         for node in (
             "TestWecomCallbackEventConstruction::test_build_event_extracts_text_message",
             "TestWecomCallbackPollLoop::test_poll_loop_dispatches_handle_message",
+        )
+    },
+    # A system tool, not a distribution: the live classic-CLI tests type into tmux
+    # (FH-HERMES-CLI-GATEWAY-UPDATE-REDS-REMAINDER: red `FileNotFoundError: 'tmux'` on the Linux box).
+    "tests/hermes_cli/test_gateway_chat_native.py::test_native_classic_fresh_resume_and_oneshot": (_NEEDS_TMUX,),
+    **{
+        f"tests/hermes_cli/test_gateway_chat_commands_live.py::{node}": (_NEEDS_TMUX,)
+        for node in (
+            "test_classic_view_title_and_usage_match_main",
+            "test_classic_view_retry_undo_new_match_main",
+            "test_classic_view_plan_and_goal_run_on_the_gateway",
         )
     },
     "tests/acp_adapter/test_acp_dashboard_model_switch_validation.py": (_NEEDS_ACP,),
