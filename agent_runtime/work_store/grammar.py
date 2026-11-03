@@ -17,7 +17,7 @@ Closed rows are ARCHIVED, not deleted (RT-QUEUE-ARCHIVE-GRAMMAR; launcher plan
 holds rows whose status was replaced by ONE outcome segment — ``DONE <date> <commit>``,
 ``REFUTED <date> <commit>`` (``<commit>`` 7–40 lowercase hex, or ``here``) or ``CLOSED <date>: owner — <words>``
 — with optional ``result: <line>`` (≤ 300) and ``review: <words>`` records after it. ``Op.CLOSE`` renders
-the archived line (:func:`_close`); :func:`archive_note_for` names its month file.
+the archived line (:func:`_close_line`); :func:`archive_note_for` names its month file.
 """
 
 from __future__ import annotations
@@ -635,7 +635,7 @@ def _append(line: str, *, who: str, date: str, payload: dict) -> str:
     raise WorkRefused(Reason.INVALID, "APPEND is not a line edit; the caller appends payload.row under the note's last heading")
 
 
-def _close(line: str, *, who: str, date: str, payload: dict) -> str:
+def _close_line(line: str, *, who: str, date: str, payload: dict) -> str:
     """The archived line: the claim mark removed, the status (and any ``Recommend:`` after it) replaced in place
     by ONE outcome segment, an optional ``result:`` record appended (plan D3).
 
@@ -675,7 +675,7 @@ _EDITS: dict[Op, Callable[..., str | None]] = {
     Op.ASSIGN: _assign,
     Op.SET_SKILLS: _set_skills,
     Op.SET_GROUP: _set_group,
-    Op.CLOSE: _close,
+    Op.CLOSE: _close_line,
     Op.CHAT_TURNS_APPENDED: _not_a_line_edit,
 }
 

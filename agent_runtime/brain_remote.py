@@ -46,7 +46,7 @@ _CONFIG = ("core.longpaths=true", "credential.interactive=never")
 _ENV = {"GIT_TERMINAL_PROMPT": "0", "GCM_INTERACTIVE": "never", "GIT_ASKPASS": "", "SSH_ASKPASS": ""}
 
 
-def _git(args: list[str], repo: Path, *, timeout: float = FETCH_TIMEOUT_S) -> subprocess.CompletedProcess[str] | None:
+def _remote_git(args: list[str], repo: Path, *, timeout: float = FETCH_TIMEOUT_S) -> subprocess.CompletedProcess[str] | None:
     from .git_cmd import run_git
 
     try:
@@ -57,7 +57,7 @@ def _git(args: list[str], repo: Path, *, timeout: float = FETCH_TIMEOUT_S) -> su
 
 
 def _count(repo: Path) -> int | None:
-    done = _git(["rev-list", "--count", "HEAD..@{u}"], repo)
+    done = _remote_git(["rev-list", "--count", "HEAD..@{u}"], repo)
     if done is None or done.returncode != 0:
         return None
     try:
@@ -67,7 +67,7 @@ def _count(repo: Path) -> int | None:
 
 
 def _clean(repo: Path) -> bool:
-    done = _git(["status", "--porcelain", "--untracked-files=no"], repo)
+    done = _remote_git(["status", "--porcelain", "--untracked-files=no"], repo)
     return done is not None and done.returncode == 0 and not str(done.stdout).strip()
 
 
@@ -77,20 +77,20 @@ def check_brain(path: str, kind: str) -> int | None:
     repo = Path(path)
     if not (repo / ".git").exists():
         return None
-    upstream = _git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"], repo)
+    upstream = _remote_git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"], repo)
     if upstream is None or upstream.returncode != 0:
         return None
-    _git(["fetch", "-q", "--no-tags"], repo)  # a failed fetch still counts against what is known
+    _remote_git(["fetch", "-q", "--no-tags"], repo)  # a failed fetch still counts against what is known
     behind = _count(repo)
     if kind in FAST_FORWARD_KINDS and behind and _clean(repo):
-        merged = _git(["merge", "--ff-only", "-q", "@{u}"], repo)
+        merged = _remote_git(["merge", "--ff-only", "-q", "@{u}"], repo)
         if merged is not None and merged.returncode == 0:
             behind = _count(repo)
     return behind
 
 
 def _ahead(repo: Path) -> int | None:
-    done = _git(["rev-list", "--count", "@{u}..HEAD"], repo)
+    done = _remote_git(["rev-list", "--count", "@{u}..HEAD"], repo)
     if done is None or done.returncode != 0:
         return None
     try:
@@ -113,10 +113,10 @@ def pull_checkout(path: Path) -> dict[str, Any]:
     repo = Path(path)
     if not (repo / ".git").exists():
         raise WorkRefused(Reason.NOT_A_REPO, str(repo))
-    upstream = _git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"], repo)
+    upstream = _remote_git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"], repo)
     if upstream is None or upstream.returncode != 0:
         raise WorkRefused(Reason.REMOTE_MISSING, "the checkout's branch has no upstream")
-    fetched = _git(["fetch", "-q", "--no-tags"], repo)
+    fetched = _remote_git(["fetch", "-q", "--no-tags"], repo)
     if fetched is None or fetched.returncode != 0:
         raise WorkRefused(Reason.FETCH_FAILED, str(upstream.stdout).strip())
     behind = _count(repo)
@@ -127,11 +127,11 @@ def pull_checkout(path: Path) -> dict[str, Any]:
             raise WorkRefused(Reason.WORKTREE_DIRTY, "the checkout has uncommitted changes")
         if _ahead(repo):
             raise WorkRefused(Reason.REMOTE_DIVERGED, "the checkout has commits its upstream lacks")
-        merged = _git(["merge", "--ff-only", "-q", "@{u}"], repo)
+        merged = _remote_git(["merge", "--ff-only", "-q", "@{u}"], repo)
         if merged is None or merged.returncode != 0:
             raise WorkRefused(Reason.WORKTREE_DIRTY, "an untracked file is in the fast-forward's way")
     after = _count(repo) or 0
-    head = _git(["rev-parse", "HEAD"], repo)
+    head = _remote_git(["rev-parse", "HEAD"], repo)
     write_brain_paths(behind={**held_counts(), str(repo): after})
     return {"pulled": behind - after, "behind": after, "head": str(head.stdout).strip() if head else None}
 

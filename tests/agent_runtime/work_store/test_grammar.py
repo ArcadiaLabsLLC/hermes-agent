@@ -256,7 +256,7 @@ def test_an_archived_row_carries_its_outcome_and_records() -> None:
 
 
 def test_close_archives_the_row() -> None:
-    """The rendered line equals the launcher's fixture line. Mutation: keep the claim mark in ``_close`` -> red."""
+    """The rendered line equals the launcher's fixture line. Mutation: keep the claim mark in ``_close_line`` -> red."""
     live = ("- **`FX-ARCH-RULED` — Ruled row kept whole** · group: queue-row-archive · `tool/queue/queue_grammar.dart`"
             " · RULED 2026-11-01: one archive per queue · REQUIRES linux · READY 2026-11-01"
             " · **TAKEN 2026-11-02 w1102a-x on box-1 as nekwo in wt-x**")
