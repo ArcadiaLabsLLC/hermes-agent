@@ -644,8 +644,3 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 
 ## Filed on arrival — 2026-11-02 (landing w1101f)
-
-
-## Filed on arrival — 2026-11-02 (Eternia lane w1101h-teardown)
-
-- **`FH-LINE-ENDINGS-GATE-OVER-30S-COLD` — `tests/test_line_endings.py` timed out at pytest's 30 s per-test bound in `scripts/prepush.sh`'s gates step, twice (and on its 1-worker retry), in a fresh worktree at load ~50 on the Linux box; alone with a 400 s bound it passes in 87 s — a queue-only push was red on load alone; make the index read cheap (`git ls-files --eol` once, not per test) or give the gate its own measured bound** · `tests/test_line_endings.py` · `scripts/prepush.sh` · found 2026-11-02 pushing `RT-SERVE-STALE-ENV-AFTER-SET-KEY` · READY 2026-11-02 · **TAKEN 2026-11-03 w1103a-h1 on nekwo-ubuntu24 as nekwo in .worktrees/hm-w1103a-h1**
