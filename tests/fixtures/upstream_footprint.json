@@ -1,7 +1,7 @@
 {
-  "measured_at": "2026-10-31",
+  "measured_at": "2026-11-03",
   "base": "4d04303818",
-  "files": 244,
+  "files": 245,
   "deleted_lines": 1052,
   "heavy": 1,
   "reasons": [
@@ -1315,6 +1315,21 @@
       },
       "reason": "RT-SESSIONS-EXPORT-HOME-WRITES: an additive 2-line # fork seam guard reads hermes_read_only_invocation.is_read_only_invocation() and skips this boot writer for `hermes sessions export`, so the launcher's owner-chat import leaves a writable home untouched. Upstream PR candidate: the predicate and the four guards (with hermes_cli/config.py::ensure_hermes_home). Control: tests/hermes_cli/test_sessions_export_home_writes_downstream.py",
       "owner_ruling": "2026-10-30 \u00b7 Harness_Brain/20 \u2014 Active Initiatives/runtime-queue.md RT-SESSIONS-EXPORT-HOME-WRITES RULED (owner: \"just do the upstream edits if its safer\")"
+    },
+    {
+      "change": "RT-MC-TURN-READS-UNATTENDED (lane w1103a-h1)",
+      "before": {
+        "files": 244,
+        "deleted_lines": 1052,
+        "heavy": 1
+      },
+      "after": {
+        "files": 245,
+        "deleted_lines": 1052,
+        "heavy": 1
+      },
+      "reason": "RT-MC-TURN-READS-UNATTENDED: an additive 3-line # fork seam in is_attended reads agent_runtime.turn_attendance.attended_override() (after the subagent and finite-turn checks), so a Mission Control chat turn a person asked for reads as attended and free_tier_cooldown_ends_turn fires on the watched console. Upstream PR candidate: an attendance hook beside ATTENDED_SOURCES. Control: tests/agent_runtime/test_turn_attendance.py",
+      "owner_ruling": "2026-11-02 \u00b7 Harness_Brain/20 \u2014 Active Initiatives/runtime-queue.md RT-MC-TURN-READS-UNATTENDED RULED (owner: approved raising the upstream footprint 244 -> 245 for the 3-line attendance hook)"
     }
   ]
 }
