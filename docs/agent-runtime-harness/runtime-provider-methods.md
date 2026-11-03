@@ -29,6 +29,11 @@ moving `RPC_CONTRACT_VERSION`.
 
 `provider` is lower-cased. Unknown params are ignored.
 
+Every method first applies the bound home `.env`'s change since its last look to the serve's environment
+(`agent_runtime/home_env_freshness.py::refresh_home_env`), so a key `hermes harness auth set-key` or `auth remove`
+wrote from another process is answered at once, never after a restart; a key the serve was launched with and the
+file never named is kept.
+
 `list`, `usage`, `refresh` and `signout` run on the transport's worker lane
 when it has one (`RpcContext.spawn_reply`); the reply arrives on the same `id`.
 

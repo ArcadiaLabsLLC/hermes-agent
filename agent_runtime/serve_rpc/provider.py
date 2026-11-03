@@ -81,10 +81,14 @@ def _stamp(result: dict) -> dict:
 
 def _answer(rid: Any, method_name: str, work: Callable[[], dict]) -> dict:
     """Run ``work`` and turn every outcome into ONE frame, credential-free."""
+    from agent_runtime.home_env_freshness import refresh_home_env
     from agent_runtime.provider_account import ProviderRefused
     from agent_runtime.provider_signin import SignInRefused
 
     try:
+        # A key ``auth set-key`` / ``auth remove`` wrote from another process is seen before the read
+        # (RT-SERVE-STALE-ENV-AFTER-SET-KEY).
+        refresh_home_env()
         return ok(rid, _stamp(work()))
     except SignInRefused as refusal:
         return _refused(rid, method_name, refusal.reason, _FAMILY_CODES[refusal.code], **refusal.data)
