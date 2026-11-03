@@ -1183,6 +1183,8 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-11-02 (launcher lane w1101h-teardown)
 
+- **`RT-WORK-GUARDED-ROW-EDITS` — Shared Work status and assignment edits need an exact note/raw revision guard at every writer replay and must refuse claimed rows; advertise guarded edits as a capability so older runtimes cannot silently ignore the guard; preserve legacy callers and Agent Console behavior** · group: shared-work-v1 · `agent_runtime/work/store.py` · `agent_runtime/work_store/writer.py` · client plan `EterniaLauncher/docs/companion/planned/SHARED_WORK_V1_BOARD_BUILD_2026-11-03.md` D5/S3 · READY 2026-11-03 · **TAKEN 2026-11-03 work-v1-intelligence on MUltiversalLabsInc as Maximus England in work-v1-runtime**
+
 
 - **`RT-BATCH-LIVE-EXECUTION-READ` — Shared Work needs live execution facts for the exact native lane attempt: batch status reads its existing executor only on the owner machine, preserves unknown/queued/running/settled separately from manifest state, and supplies an exact existing session target when proven; no new execution owner or per-card polling** · group: shared-work-v1 · `agent_runtime/batch/dispatcher.py` · client `COMP-WORK-REVIEW-LIVE-EVIDENCE` and `COMP-WORK-V1-CONVERSATION-LINK`; owner authorized shared foundation and Intelligence first 2026-11-03 · READY 2026-11-03 · **TAKEN 2026-11-03 work-v1-intelligence on MUltiversalLabsInc as Maximus England in work-v1-runtime**
 
