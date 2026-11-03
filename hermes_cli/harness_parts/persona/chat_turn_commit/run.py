@@ -477,6 +477,8 @@ class _RunPhases:
                 MISSION_CHAT_TURN_PHASES_KEY: self.turn_phases.snapshot(),
                 # D2.04: stored once, here; every later persist merges it forward.
                 **({"retry_of": self.retry_of} if self.retry_of else {}),
+                # RT-CHAT-TURN-INPUT-MODE: a spoken turn stays spoken across a restart.
+                **({"input_mode": self.args.input_mode} if getattr(self.args, "input_mode", None) else {}),
             },
         )
         # C1h-bis: the turn's START, published the moment its row is real and

@@ -501,6 +501,7 @@
       "course_credential",
       "files",
       "images",
+      "input_mode",
       "intent_hint",
       "max_seconds",
       "message",

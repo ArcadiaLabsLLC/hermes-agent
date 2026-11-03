@@ -939,6 +939,12 @@ shape moved, so the integer holds, and a manifest with NO `params` block reads
 as "a runtime that predates R-C8" — the launcher falls back to the eleven keys
 it knew — rather than as "no params".
 
+**`input_mode` on `runtime.chat.message` (RT-CHAT-TURN-INPUT-MODE, 2026-11-03).** `typed` | `voice`, how the operator
+made the message; any other word refuses `input_mode_invalid` at the door. Absent means typed and lowers to no flag;
+given, it lowers to `--input-mode <mode>`, the write-ahead turn record stores `input_mode`, and the operator's row in
+`persona chat history` and the operator conversation history carries it, so a spoken turn stays spoken across a
+restart (`agent_runtime/chat_turn.py::_input_mode`).
+
 **`images` on `runtime.chat.message` (RT-OPERATOR-CHAT-SEND-PERSONA, 2026-10-18).**
 `[{media_type: image/png|image/jpeg, data_b64}]`, at most 4, each at most 5 MiB
 decoded, magic bytes matching the declared type; refusals `image_invalid` /

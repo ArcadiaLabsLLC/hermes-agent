@@ -253,6 +253,9 @@ class _OperatorCurator:
         retry_of = safe_assignment_text((record or {}).get("retry_of"), limit=240)
         if retry_of:
             row["retry_of"] = retry_of
+        input_mode = safe_assignment_text((record or {}).get("input_mode"), limit=16)
+        if input_mode:
+            row["input_mode"] = input_mode
 
 
 class _AgentCurator:

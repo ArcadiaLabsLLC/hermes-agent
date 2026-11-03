@@ -5873,6 +5873,17 @@
           "required": false,
           "type": null
         },
+        "--input-mode": {
+          "action": "store",
+          "canonical": "--input-mode",
+          "choices": [
+            "typed",
+            "voice"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
         "--intent-hint": {
           "action": "store",
           "canonical": "--intent-hint",

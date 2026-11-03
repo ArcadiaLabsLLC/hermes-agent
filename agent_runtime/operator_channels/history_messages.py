@@ -353,6 +353,10 @@ def _carry_retry_lineage(message: dict[str, Any], row: dict[str, Any]) -> None:
         value = safe_assignment_text(row.get(key), limit=240)
         if value:
             message[key] = value
+    # RT-CHAT-TURN-INPUT-MODE: a spoken turn's operator row says so (absent: typed).
+    mode = safe_assignment_text(row.get("input_mode"), limit=16)
+    if mode:
+        message["input_mode"] = mode
 
 
 def _carry_history_run_budget(message: dict[str, Any], row: dict[str, Any]) -> None:

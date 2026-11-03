@@ -53,10 +53,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 ### Filed on arrival — 2026-11-02 (launcher lane w1101f-mcq: Board › Queues after Create brain, w1101d-live)
 
 
-### Filed on arrival — 2026-11-01 (launcher lane w1101d-p-voice: agent voice call plan)
-
-- **`RT-CHAT-TURN-INPUT-MODE` — `runtime.chat.message` accepts `input_mode` ∈ {`typed`, `voice`} (argv `--input-mode`, default `typed`), recorded on the turn's operator row in the turn record and carried on `persona chat history` rows, so a spoken turn survives a restart as spoken (the launcher's microphone glyph is live-only until then); test: a `voice` turn's history row carries `input_mode: voice`, mutation: drop the field from the history projection → red** · group: agent-voice-call-contract · `agent_runtime/chat_turn.py` · `agent_runtime/mission_chat_turn_context.py` · `EterniaLauncher/docs/mission_control/planned/AGENT_VOICE_CALL_CONTRACT_2026-11-01.md` · READY 2026-11-03 · unblocked 2026-11-03: launcher `MC-AGENT-VOICE-CALL-CONTRACT` Q1 is answered — the owner approved building the agent voice call as planned on 2026-11-02 (EterniaLauncher fe6ce0c97b), its slices S3–S8 are READY; the launcher follow-up stays `MC-AGENT-VOICE-TURN-HISTORY-MARK` · **TAKEN 2026-11-03 w1103a-h1 on nekwo-ubuntu24 as nekwo in .worktrees/hm-w1103a-h1**
-
 ### Filed on arrival — 2026-11-01 (launcher planning lane w1101d-p-groups: queue row groups)
 
 

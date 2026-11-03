@@ -69,6 +69,7 @@ SEND_FLAGS: tuple[tuple[str, str, str], ...] = (
     ("client_message_id", "--client-message-id", "value"),
     ("idempotency_key", "--idempotency-key", "value"),
     ("retry_of", "--retry-of", "value"),
+    ("input_mode", "--input-mode", "value"),
     ("images", "--image", "list"),
     ("files", "--file", "list"),
     ("skills", "--skill", "list"),
