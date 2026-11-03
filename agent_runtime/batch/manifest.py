@@ -1,9 +1,9 @@
 """The batch manifest — a batch IS this note plus its rows' claim marks (dispatcher plan §3.4).
 
-Where: ``<brain>/50 — Agent Handoffs/batches/<BATCH-id>.md`` in the workspace's DEFAULT BRAIN (owner
-ruling 2026-10-18 on ``RT-DISPATCH-B2-BATCH``): the board ``default_brain.ensure_default_brain`` returns —
-the first repo brain bound here once one is, else the machine-local default brain (which normalizes
-into a repo brain when one is bound). Lane briefs sit beside it, ``batches/<BATCH-id>/<lane>.md``; the
+Where: ``<brain>/50 — Agent Handoffs/batches/<BATCH-id>.md`` in the workspace's DEFAULT BRAIN:
+the board ``default_brain.ensure_default_brain`` returns, retained beside Project brains.
+Existing manifests in older repo brains remain readable and append in their original brain.
+Lane briefs sit beside it, ``batches/<BATCH-id>/<lane>.md``; the
 workspace's ``batch_automation`` is the frontmatter of ``batches/settings.md`` (absent: ``off``).
 
 Shape: frontmatter ``type: batch`` (``batch``, ``workspace_id``, ``owner_machine``, ``created_at``), then
@@ -249,11 +249,11 @@ def _held_by(batch: Batch) -> set[RowRef]:
 
 
 def manifest_board(boards: Sequence[Board]) -> Board | None:
-    """The default brain among ``boards`` WITHOUT creating it: the first repo brain bound here, else
-    the machine-local default brain's board (what ``ensure_default_brain`` would return)."""
+    """The workspace brain without creating it; repo fallback retains older settings."""
 
-    repo = next((b for b in boards if not b.is_default and has_brain_here(b)), None)
-    return repo or next((b for b in boards if b.is_default), None)
+    own = next((b for b in boards if b.is_default), None)
+    declared = next((b for b in boards if b.slot == "brain" and b.project_id is None and has_brain_here(b)), None)
+    return own or declared or next((b for b in boards if has_brain_here(b)), None)
 
 
 def read_texts(root: Path | None, brain_dir: str | None) -> dict[str, str]:
@@ -271,11 +271,9 @@ def held_refs(workspace_id: str, view: Any) -> set[RowRef]:
     """The rows a live batch's lanes hold (planned or claimed), read from an already-synced ``view``
     (``work.store.Synced``) — the W3 engine's ``held`` hook: it never starts a per-row run for them."""
 
-    board = manifest_board(view.boards)
-    if board is None:
-        return set()
-    texts = read_texts(view.read_roots.get(board.key), board.brain_dir)
-    return {ref for text in texts.values() if (batch := fold(text)) is not None for ref in _held_by(batch)}
+    return {ref for board in view.boards
+            for text in read_texts(view.read_roots.get(board.key), board.brain_dir).values()
+            if (batch := fold(text)) is not None for ref in _held_by(batch)}
 
 
 class ManifestStore(Protocol):
@@ -317,32 +315,49 @@ class BrainManifestStore:
             self._writer_of = writer_for
         return self._writer_of(board)
 
-    def _read_root(self, workspace_id: str, fresh: bool) -> tuple[Path | None, Board | None]:
+    def _read_roots(self, workspace_id: str, fresh: bool) -> list[tuple[Path, Board]]:
         from ..work_store.board import boards
 
-        board = manifest_board(boards(workspace_id))
-        if board is None:
-            return None, None
-        writer = self._writer(board)
-        if fresh:
-            writer.sync(stale_ok=True)
-        return (writer.worktree if (writer.worktree / ".git").exists() else None), board
+        found = boards(workspace_id)
+        preferred = manifest_board(found)
+        roots = []
+        for board in sorted(found, key=lambda item: item != preferred):
+            if not board.bound_here or not board.brain_dir:
+                continue
+            writer = self._writer(board)
+            if fresh:
+                writer.sync(stale_ok=True)
+            if (writer.worktree / ".git").exists():
+                roots.append((writer.worktree, board))
+        return roots
+
+    def _locations(self, workspace_id: str, fresh: bool) -> dict[str, tuple[str, Board]]:
+        found = {}
+        for root, board in self._read_roots(workspace_id, fresh):
+            for batch_id, text in read_texts(root, board.brain_dir).items():
+                if batch_id in found:
+                    raise WorkRefused(Reason.CONFLICT, f"{batch_id} exists in more than one brain")
+                found[batch_id] = (text, board)
+        return found
 
     def texts(self, workspace_id: str, *, fresh: bool = True) -> dict[str, str]:
-        root, board = self._read_root(workspace_id, fresh)
-        return read_texts(root, board.brain_dir if board else None)
+        return {key: text for key, (text, _board) in self._locations(workspace_id, fresh).items()}
 
     def settings(self, workspace_id: str) -> str | None:
-        root, board = self._read_root(workspace_id, False)
-        path = root / _brain_root(board.brain_dir) / BATCHES_DIR / SETTINGS_NOTE if root and board else None
-        return path.read_bytes().decode("utf-8") if path is not None and path.is_file() else None
+        for root, board in self._read_roots(workspace_id, False):
+            path = root / _brain_root(board.brain_dir) / BATCHES_DIR / SETTINGS_NOTE
+            if path.is_file():
+                return path.read_bytes().decode("utf-8")
+        return None
 
     def append(self, workspace_id: str, batch_id: str, lines: Sequence[str], request_id: str, *,
                files: Mapping[str, str] | None = None) -> None:
         from ..work_store.default_brain import ensure_default_brain
         from ..work_store.writer import RowOp
 
-        board = ensure_default_brain(workspace_id, issued_at=self._now().isoformat(timespec="seconds"))
+        existing = self._locations(workspace_id, False).get(batch_id)
+        board = existing[1] if existing else ensure_default_brain(
+            workspace_id, issued_at=self._now().isoformat(timespec="seconds"))
         writer = self._writer(board)
         relative = manifest_path(batch_id)
         payload = {"appends": {relative: "".join(line + "\n" for line in lines)}, "files": dict(files or {})}
