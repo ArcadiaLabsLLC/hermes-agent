@@ -565,6 +565,71 @@ def set_status(scope, params, actor, *, context=None):
     return {"task": _task(writer, receipt.ref, context), "receipt": receipt.wire()}
 
 
+#: ``runtime.work.move``'s columns: the status words a card can be dropped on (a TAKEN column is a claim).
+MOVE_COLUMNS = ("READY", "BLOCKED", "DEFERRED", "NEEDS PLAN")
+
+
+def move(scope, params, actor, *, context=None):
+    """The Work board's drag between status columns, as one write (RT-WORK-MOVE-ROW-COLUMN).
+
+    ``to`` is a column word; the serve dates the status. ``reason`` is the status body (``BLOCKED`` needs
+    one, starting with a blocked-reason word). ``revision`` (the card's ``revision``) refuses ``row_changed``
+    when the row moved on since the card was drawn. A TAKEN row is released by the move. A drop on the
+    row's own column with nothing to change answers ``unchanged: true`` with no commit.
+    """
+
+    to = params.get("to")
+    if to not in MOVE_COLUMNS:
+        raise WorkRefused(Reason.INVALID, "to is READY | BLOCKED | DEFERRED | NEEDS PLAN")
+    reason = params.get("reason")
+    reason = None if reason is None else text(reason, maximum=900).strip()
+    segment = f"{to} {_now().date().isoformat()}" + (f": {reason}" if reason else "")
+    if to == "BLOCKED":
+        from agent_runtime.work_store.grammar import blocked_reason
+
+        if not reason or blocked_reason(reason) is None:
+            raise WorkRefused(Reason.GRAMMAR_INVALID, "a BLOCKED drop names a reason: owner decision | backend | …")
+    view = synced(scope.workspace_id, slot=params.get("slot"))
+    board = _view_board(view, params.get("slot"), _project_param(params))
+    writer = view.writers[board.key]
+    row = find(boards_store.board_rows(board), text(params.get("task_id")))
+    if row is None:
+        raise WorkRefused(Reason.ROW_GONE, str(params.get("task_id")))
+    current = project(row, writer, context=context)
+    # A card is drawn from ``list`` (no brief body) or ``inspect`` (with it): either revision is current.
+    if params.get("revision") is not None and text(params["revision"]) not in (
+            current["revision"], project(row, writer, context=context, detail=True)["revision"]):
+        raise WorkRefused(Reason.ROW_CHANGED, row.ref.id, data={"task": current})
+    if current["status"] == to and (reason is None or (row.status_body or "") == reason):
+        return {"task": _task(writer, row.ref, context), "receipt": None, "unchanged": True}
+    request = text(params.get("request_id"))
+    who = _writer_who(params, actor)
+    receipt = writer.apply(RowOp(row.ref, Op.SET_STATUS, who, f"{request}:status", {"status": segment}))
+    if row.taken is not None:
+        receipt = writer.apply(RowOp(row.ref, Op.RELEASE, who, request, {}))
+    return {"task": _task(writer, receipt.ref, context), "receipt": receipt.wire(), "unchanged": False}
+
+
+def pull(scope, params, actor, *, context=None):
+    """``runtime.work.pull``: fast-forward a bound slot's OWN checkout (the user's repo) when clean.
+
+    The one write that moves the user's checkout, and only on their ask (RT-WORK-PULL-PROJECT-CHECKOUT):
+    the remote check only counts a Project brain's ``behind``. Refusals are ``brain_remote.pull_checkout``'s
+    plus ``slot_unbound``; the answer carries ``pulled``, ``behind`` (now) and ``head``, and the brain list is
+    rewritten with the new count before the reply.
+    """
+
+    from agent_runtime.brain_remote import pull_checkout
+
+    board = boards_store.pick(boards_store.boards(scope.workspace_id), params.get("slot"), _project_param(params))
+    if board is None or not board.bound_here or board.checkout is None:
+        raise WorkRefused(Reason.SLOT_UNBOUND, str(params.get("slot")))
+    pulled = pull_checkout(board.checkout)
+    record = receipts.emit("work.pull", workspace_id=scope.workspace_id, slot=board.slot, project_id=board.project_id,
+                           who=actor, request_id=params.get("request_id"), **pulled)
+    return {"slot": board.slot, "project_id": board.project_id, **pulled, "receipt": record}
+
+
 def done(scope, params, actor, *, context=None):
     result = text(params.get("result"), maximum=RESULT_LIMIT)
     writer, receipt = _row_write(scope, params, Op.DELETE, _writer_who(params, actor), {"result": result},

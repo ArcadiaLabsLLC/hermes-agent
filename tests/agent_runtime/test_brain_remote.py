@@ -12,7 +12,10 @@ import threading
 from pathlib import Path
 
 from agent_runtime import brain_paths, brain_remote
-from agent_runtime.brain_remote import RemoteCheck, check_brain
+import pytest
+
+from agent_runtime.brain_remote import RemoteCheck, check_brain, pull_checkout
+from agent_runtime.work_store.reasons import Reason, WorkRefused
 
 ID = ("-c", "user.name=t", "-c", "user.email=t@t.invalid")
 
@@ -156,3 +159,40 @@ def test_the_ticker_ticks_until_stopped(monkeypatch):
     thread = start_brain_remote_ticker(stop_event=stop, interval_s=0.01, check=_Check())
     thread.join(timeout=5)
     assert not thread.is_alive() and len(ticks) >= 2
+
+
+# ── runtime.work.pull's git half (RT-WORK-PULL-PROJECT-CHECKOUT) ──────────────────
+
+
+def test_pull_fast_forwards_a_clean_project_checkout_and_writes_its_count(tmp_path, monkeypatch):
+    """Mutation: drop the ``merge --ff-only`` in ``pull_checkout`` -> pulled 0 / behind 2, red."""
+    brain = _behind_by_two(tmp_path, "app")
+    written: list[dict] = []
+    monkeypatch.setattr(brain_remote, "write_brain_paths", lambda behind: written.append(dict(behind)) or True)
+    monkeypatch.setattr(brain_remote, "held_counts", lambda: {})
+    answer = pull_checkout(brain)
+    assert answer["pulled"] == 2 and answer["behind"] == 0 and answer["head"] == _head(brain)
+    assert (brain / "Work_Brain" / "n3.md").is_file() and written == [{str(brain): 0}]
+    assert pull_checkout(brain)["pulled"] == 0
+
+
+def test_pull_refuses_dirty_diverged_and_upstreamless_checkouts(tmp_path, monkeypatch):
+    """Mutations: drop the ``_clean`` gate -> the dirty checkout's merge runs (git refuses or moves), the
+    reason is not worktree_dirty, red; drop the ``_ahead`` gate -> the diverged ff fails as worktree_dirty, red."""
+    monkeypatch.setattr(brain_remote, "write_brain_paths", lambda behind: True)
+    dirty = _behind_by_two(tmp_path, "dirty")
+    (dirty / "Work_Brain" / "TODO.md").write_text("# edited\n", encoding="utf-8")
+    diverged = _behind_by_two(tmp_path, "div")
+    (diverged / "local.md").write_text("mine\n", encoding="utf-8")
+    git("add", "-A", cwd=diverged)
+    git("commit", "-q", "-m", "mine", cwd=diverged)
+    lone = tmp_path / "lone"
+    lone.mkdir()
+    git("init", "-q", str(lone), cwd=tmp_path)
+    for path, reason in ((dirty, Reason.WORKTREE_DIRTY), (diverged, Reason.REMOTE_DIVERGED),
+                         (lone, Reason.REMOTE_MISSING), (tmp_path / "plain", Reason.NOT_A_REPO)):
+        before = _head(path) if (path / ".git").exists() and path is not lone else None
+        with pytest.raises(WorkRefused) as refused:
+            pull_checkout(path)
+        assert refused.value.reason is reason, path
+        assert before is None or _head(path) == before

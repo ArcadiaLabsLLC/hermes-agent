@@ -52,7 +52,7 @@ def test_capabilities_lists_one_owner_per_workspace_and_creates_the_default_brai
     owner = next(row for row in caps["owners"] if row["workspace_id"] == work.ws)
     assert owner == {"owner": WorkScope(caps["install_id"], work.ws).owner, "workspace_id": work.ws,
                      "kind": "workspace", "label": "Desk",
-                     "operations": ["inspect", "start", "assign", "claim", "release", "set_status", "done",
+                     "operations": ["inspect", "start", "assign", "claim", "release", "set_status", "move", "pull", "done",
                                     "create_brain", "lend_skills"]}
     assert len({row["owner"] for row in caps["owners"]}) == len(caps["owners"])
     assert caps["default_brain"][work.ws] == {"state": "created", "reason": "needs_git_account"}
@@ -86,6 +86,38 @@ def test_claim_release_set_status_done_through_the_writer(work):
     ending = call(work, "done", request_id="d1", result="Shipped the review.", **where)["ending"]
     assert "result: Shipped the review." in ending["body"]
     assert rows_of(call(work, "list")) == []
+
+
+def test_move_drops_a_card_on_a_status_column(work):
+    """RT-WORK-MOVE-ROW-COLUMN. Mutations: drop the RELEASE apply in ``store.move`` -> the TAKEN card stays
+    TAKEN after a drop on DEFERRED, red; drop the revision check -> the stale drop writes, red; drop the
+    ``unchanged`` early answer -> a same-column drop commits, red."""
+    alice = mint_free_floating("alice")
+    task = start(work)["task"]
+    where = {"slot": "brain", "task_id": task["id"]}
+    same = call(work, "move", request_id="m0", to="READY", **where)
+    assert same["unchanged"] is True and same["receipt"] is None
+    blocked = call(work, "move", request_id="m1", to="BLOCKED", reason="backend — `RT-X` first",
+                   revision=task["revision"], **where)
+    assert blocked["unchanged"] is False and blocked["task"]["status"] == "BLOCKED"
+    assert blocked["task"]["status_body"] == "backend — `RT-X` first"
+    with pytest.raises(WorkRefused) as stale:
+        call(work, "move", request_id="m2", to="READY", revision=task["revision"], **where)
+    assert stale.value.reason is Reason.ROW_CHANGED and stale.value.data["task"]["status"] == "BLOCKED"
+    call(work, "claim", request_id="c1", who=f"persona:{alice.id}", **where)
+    moved = call(work, "move", request_id="m3", to="DEFERRED", **where)["task"]
+    assert moved["status"] == "DEFERRED" and moved["taken"] is None
+    for bad, reason in (({"to": "TAKEN"}, Reason.INVALID), ({"to": "BLOCKED"}, Reason.GRAMMAR_INVALID),
+                        ({"to": "BLOCKED", "reason": "because"}, Reason.GRAMMAR_INVALID)):
+        with pytest.raises(WorkRefused) as refused:
+            call(work, "move", request_id="m9", **bad, **where)
+        assert refused.value.reason is reason
+
+
+def test_pull_refuses_an_unbound_slot(work):
+    with pytest.raises(WorkRefused) as refused:
+        call(work, "pull", request_id="p1", slot="nowhere")
+    assert refused.value.reason is Reason.SLOT_UNBOUND
 
 
 def test_operator_reference_is_the_assignee(work, monkeypatch):

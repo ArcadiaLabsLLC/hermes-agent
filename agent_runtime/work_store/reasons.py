@@ -79,6 +79,10 @@ class Reason(StrEnum):
     INDEX_CORRUPT = "index_corrupt"
     # Hermes's worktree ``index.lock`` is held by a live git (a stale one is moved aside; RT-WORK-LIST-ONE-BOARD-REFUSAL).
     INDEX_LOCKED = "index_locked"
+    # ``runtime.work.pull`` on a bound folder that is not a git checkout (RT-WORK-PULL-PROJECT-CHECKOUT).
+    NOT_A_REPO = "not_a_repo"
+    # ``runtime.work.move`` with a ``revision`` the row no longer carries (RT-WORK-MOVE-ROW-COLUMN).
+    ROW_CHANGED = "row_changed"
 
 
 class WorkRefused(ValueError):

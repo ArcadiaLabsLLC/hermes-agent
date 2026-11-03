@@ -27,7 +27,7 @@ def _work_method(operation):
 
 
 OPERATIONS = ("capabilities", "context", "list", "inspect", "start", "assign", "claim", "release", "set_status",
-              "done", "create_brain", "lend_skills")
+              "move", "pull", "done", "create_brain", "lend_skills")
 
 
 def register(method):

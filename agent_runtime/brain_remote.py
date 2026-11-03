@@ -13,6 +13,10 @@ RT-BRAIN-PATHS-PLAIN-LIST slice 4 (owner sitting 2026-11-02, launcher plan
   and it is never moved;
 * the counts land in the list as each brain's ``behind`` (null: no upstream, not a repo, or unmeasured), so
   Eternia reads "N new upstream" without a call.
+
+A PROJECT brain moves only when the user asks: :func:`pull_checkout` is ``runtime.work.pull``'s git half
+(RT-WORK-PULL-PROJECT-CHECKOUT) — fetch, then ``merge --ff-only`` only when the checkout is clean, refusing
+with a typed :class:`~agent_runtime.work_store.reasons.Reason` otherwise, and the new count written to the list.
 """
 
 from __future__ import annotations
@@ -28,7 +32,7 @@ from typing import Any
 from .brain_paths import brains, held_counts, read_brain_paths, write_brain_paths
 
 __layer__ = "stores"
-__all__ = ["BRAINS_PER_TICK", "FETCH_TIMEOUT_S", "REMOTE_TICK_S", "RemoteCheck", "check_brain"]
+__all__ = ["BRAINS_PER_TICK", "FETCH_TIMEOUT_S", "REMOTE_TICK_S", "RemoteCheck", "check_brain", "pull_checkout"]
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +87,53 @@ def check_brain(path: str, kind: str) -> int | None:
         if merged is not None and merged.returncode == 0:
             behind = _count(repo)
     return behind
+
+
+def _ahead(repo: Path) -> int | None:
+    done = _git(["rev-list", "--count", "@{u}..HEAD"], repo)
+    if done is None or done.returncode != 0:
+        return None
+    try:
+        return int(str(done.stdout).strip())
+    except ValueError:
+        return None
+
+
+def pull_checkout(path: Path) -> dict[str, Any]:
+    """Fast-forward one checkout to its upstream when clean; answer ``{pulled, behind, head}``.
+
+    Refusals, in the order they are checked: ``not_a_repo`` (no ``.git``), ``remote_missing`` (no upstream:
+    a detached HEAD or an untracked branch), ``fetch_failed``, ``worktree_dirty`` (tracked changes, or an
+    untracked file the merge would overwrite), ``remote_diverged`` (local commits the upstream lacks). A
+    checkout already at its upstream answers ``pulled: 0`` and moves nothing.
+    """
+
+    from .work_store.reasons import Reason, WorkRefused
+
+    repo = Path(path)
+    if not (repo / ".git").exists():
+        raise WorkRefused(Reason.NOT_A_REPO, str(repo))
+    upstream = _git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"], repo)
+    if upstream is None or upstream.returncode != 0:
+        raise WorkRefused(Reason.REMOTE_MISSING, "the checkout's branch has no upstream")
+    fetched = _git(["fetch", "-q", "--no-tags"], repo)
+    if fetched is None or fetched.returncode != 0:
+        raise WorkRefused(Reason.FETCH_FAILED, str(upstream.stdout).strip())
+    behind = _count(repo)
+    if behind is None:
+        raise WorkRefused(Reason.REMOTE_MISSING, str(upstream.stdout).strip())
+    if behind:
+        if not _clean(repo):
+            raise WorkRefused(Reason.WORKTREE_DIRTY, "the checkout has uncommitted changes")
+        if _ahead(repo):
+            raise WorkRefused(Reason.REMOTE_DIVERGED, "the checkout has commits its upstream lacks")
+        merged = _git(["merge", "--ff-only", "-q", "@{u}"], repo)
+        if merged is None or merged.returncode != 0:
+            raise WorkRefused(Reason.WORKTREE_DIRTY, "an untracked file is in the fast-forward's way")
+    after = _count(repo) or 0
+    head = _git(["rev-parse", "HEAD"], repo)
+    write_brain_paths(behind={**held_counts(), str(repo): after})
+    return {"pulled": behind - after, "behind": after, "head": str(head.stdout).strip() if head else None}
 
 
 @dataclass
