@@ -40,7 +40,10 @@ from .. import paths
 from . import receipts
 from .board import Board, ids_in_brain
 from .default_brain import IDENTITY_PAIRS
-from .grammar import Op, Row, RowRef, apply as apply_line, find, parse_note, row_defects
+from .grammar import (
+    Op, Row, RowRef, apply as apply_line, archive_note_for, archive_note_text, find, parse_note, parse_outcome,
+    row_defects, split_segments,
+)
 from .models import OPERATOR
 from .reasons import Reason, WorkRefused
 
@@ -198,6 +201,7 @@ _PRECONDITIONS: dict[Op, Callable[[RowOp, Row | None], None]] = {
     Op.ASSIGN: _present,
     Op.SET_SKILLS: _present,
     Op.SET_GROUP: _present,
+    Op.CLOSE: _present,
 }
 
 
@@ -542,6 +546,33 @@ class Writer:
         _write_atomic(path, updated)
         return [op.ref.note]
 
+    def _close(self, op: RowOp) -> list[str]:
+        """CLOSE: the archived line appended to its month file (created with the archive head) and the live line
+        dropped, both in this one commit (RT-QUEUE-ARCHIVE-GRAMMAR, launcher plan D2–D5)."""
+
+        path, text, rows = self._note_rows(op.ref)
+        row = find(rows, op.ref.id)
+        _present(op, row)
+        assert row is not None
+        archived = apply_line(row.raw, Op.CLOSE, who=op.who, date=self._now().date().isoformat(),
+                              payload=dict(op.payload))
+        assert archived is not None
+        outcome = next(o for o in map(parse_outcome, (s.strip() for s in split_segments(archived))) if o is not None)
+        note = archive_note_for(op.ref.note, outcome.date)
+        target = self.worktree / note
+        head = target.read_bytes().decode("utf-8") if target.is_file() else archive_note_text(
+            PurePosixPath(op.ref.note).name, self._program(text), outcome.date[:7])
+        _write_atomic(target, head + ("" if head.endswith("\n") else "\n") + archived + "\n")
+        lines = text.split("\n")
+        del lines[row.line_no - 1]
+        _write_atomic(path, "\n".join(lines))
+        return [op.ref.note, note]
+
+    @staticmethod
+    def _program(text: str) -> str | None:
+        front = text.split("\n---", 1)[0].split("\n")
+        return next((line.split(":", 1)[1].strip() for line in front if line.startswith("program:")), None)
+
     # ── steps 7–8: commit and push ───────────────────────────────────────
 
     def _commit(self, op: RowOp, changed: list[str]) -> str:
@@ -551,7 +582,7 @@ class Writer:
         note = PurePosixPath(op.ref.note).name
         subject = f"work: {op.op.value} {op.ref.id} {op.who} (ws {self.board.workspace_id}, {op.ref.slot}/{note})"
         body = f"request_id: {op.request_id}"
-        if op.op is Op.DELETE and op.payload.get("result"):
+        if op.op in (Op.DELETE, Op.CLOSE) and op.payload.get("result"):
             body += "\nresult: " + " ".join(str(op.payload["result"]).split())
         self._must(["commit", "-q", "-m", subject, "-m", body], Reason.COMMIT_FAILED, repo=self.worktree,
                    config=IDENTITY_PAIRS(self.machine_id))
@@ -604,6 +635,8 @@ class Writer:
             return self._chat_turns(op)
         if op.op is Op.APPEND:
             return self._append(op)
+        if op.op is Op.CLOSE:
+            return self._close(op)
         return self._bulk_delete(op) if op.op is Op.DELETE and "ids" in op.payload else self._line_edit(op)
 
     def _validate(self, op: RowOp) -> None:

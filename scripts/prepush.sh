@@ -71,6 +71,12 @@ PREPUSH_TEXT_GATES=(
 # with four rows deleted are its longest files; the runner's own start is
 # ~1.3 s), doc-cite 1.7 s. The default path (gates + doc-cite) is therefore
 # ~7 s against a 14 s budget. The touched lane is whatever the pusher touched.
+# 2026-11-03 (w1103a-h1): test_line_endings.py reads a blob-keyed memo of git's
+# --eol answer (0.6 s warm; 87 s was a cold whole-tree --eol, FH-LINE-ENDINGS-GATE-
+# OVER-30S-COLD), and the row grammar and guard read the closed-row archive within
+# the same budget: the current and previous month parsed, every month ID-scanned,
+# the guard's sha check bounded to the archive lines the push adds (RT-QUEUE-
+# ARCHIVE-GRAMMAR, launcher plan QUEUE_CLOSED_ROW_ARCHIVE_2026-11-02 D8).
 BUDGET_GATES="${PREPUSH_GATES_BUDGET:-10}"
 DEADLINE_GATES="${PREPUSH_GATES_DEADLINE:-120}"
 BUDGET_DOC_CITE="${PREPUSH_DOC_CITE_BUDGET:-4}"

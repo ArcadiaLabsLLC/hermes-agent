@@ -4,6 +4,14 @@
     python scripts/work_row.py <claim|release|set-status|delete|append> <ID> --who <lane>
         [--note <path>] [--status "<segment>"] [--row "<line>"] [--repo <checkout>] [--no-commit]
         [--machine <host>] [--account <git account>] [--worktree <folder>]
+    python scripts/work_row.py close <ID> --who <lane> (--done <sha|here> | --refuted <sha|here> | --owner "<words>")
+        [--result "<line>"] [--date YYYY-MM-DD] [--note <path>] [--repo <checkout>] [--no-commit]
+
+``close`` ARCHIVES the row (RT-QUEUE-ARCHIVE-GRAMMAR, launcher plan
+``EterniaLauncher/docs/mission_control/planned/QUEUE_CLOSED_ROW_ARCHIVE_2026-11-02.md`` D3–D5): the claim mark
+removed, the status replaced by ONE outcome, the line appended to
+``<brain>/80 — Archive/Queues/<queue stem>-<YYYY-MM>.md`` (created with its head) and dropped from the queue — both
+files in one commit, ``queue(<stem>): close <ID> <outcome>``.
 
 A claim names its place (ADR 0025's 2026-10-26 amendment): ``**TAKEN <date> <lane> on <machine> as
 <git account> in <worktree>**``. ``--machine`` defaults to the hostname, ``--account`` to the
@@ -33,11 +41,14 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from agent_runtime.work_store.grammar import Op, apply, find, is_queue, parse_note, row_defects
+from agent_runtime.work_store.grammar import (
+    Op, apply, archive_note_for, archive_note_text, find, is_queue, parse_note, parse_outcome, row_defects,
+    split_segments,
+)
 from agent_runtime.work_store.reasons import Reason, WorkRefused
 
 COMMANDS = {"claim": Op.CLAIM, "release": Op.RELEASE, "set-status": Op.SET_STATUS, "delete": Op.DELETE,
-            "append": Op.APPEND}
+            "append": Op.APPEND, "close": Op.CLOSE}
 BRAIN_GLOBS = ("*_Brain/20 — Active Initiatives/*.md", "*_brain/20 — Active Initiatives/*.md")
 NON_FAST_FORWARD = ("! [rejected]", "fetch first", "non-fast-forward")
 EXIT_REFUSED = 2
@@ -65,7 +76,43 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--machine")
     parser.add_argument("--account")
     parser.add_argument("--worktree")
+    outcome = parser.add_mutually_exclusive_group()
+    outcome.add_argument("--done", metavar="SHA")
+    outcome.add_argument("--refuted", metavar="SHA")
+    outcome.add_argument("--owner", metavar="WORDS")
+    parser.add_argument("--result")
+    parser.add_argument("--date")
     return parser.parse_args(argv)
+
+
+def close_payload(args: argparse.Namespace) -> dict:
+    """``Op.CLOSE``'s payload from ``--done`` / ``--refuted`` / ``--owner`` (exactly one), ``--result``, ``--date``."""
+
+    if args.done is not None:
+        payload = {"outcome": "DONE", "commit": args.done}
+    elif args.refuted is not None:
+        payload = {"outcome": "REFUTED", "commit": args.refuted}
+    elif args.owner is not None:
+        payload = {"outcome": "CLOSED", "words": args.owner}
+    else:
+        raise WorkRefused(Reason.INVALID, "close names --done <sha>, --refuted <sha> or --owner <words>")
+    return {**payload, "result": args.result or "", "date": args.date or date.today().isoformat()}
+
+
+def closed_texts(repo: Path, note: Path, text: str, args: argparse.Namespace) -> tuple[str, Path, str]:
+    """``(queue text without the row, archive path, archive text with it)`` for ``close``."""
+
+    row = find(parse_note(text, slot="", note=""), args.row_id)
+    archived = apply(row.raw, Op.CLOSE, who=args.who, date=date.today().isoformat(), payload=close_payload(args))
+    outcome = next(o for o in map(parse_outcome, (s.strip() for s in split_segments(archived))) if o is not None)
+    archive = repo / archive_note_for(note.relative_to(repo).as_posix(), outcome.date)
+    front = text.split("\n---", 1)[0].split("\n")
+    program = next((line.split(":", 1)[1].strip() for line in front if line.startswith("program:")), None)
+    head = archive.read_bytes().decode("utf-8") if archive.is_file() else archive_note_text(
+        note.name, program, outcome.date[:7])
+    lines = text.split("\n")
+    del lines[row.line_no - 1]
+    return "\n".join(lines), archive, head + ("" if head.endswith("\n") else "\n") + archived + "\n"
 
 
 def queue_notes(repo: Path, note: str | None) -> list[Path]:
@@ -126,10 +173,14 @@ def edited_text(text: str, args: argparse.Namespace) -> str:
     return "\n".join(lines)
 
 
-def commit_and_push(repo: Path, note: Path, args: argparse.Namespace, git: Git) -> int:
-    relative = note.relative_to(repo).as_posix()
-    for step in (["add", "--", relative],
-                 ["commit", "-q", "-m", f"queue: {COMMANDS[args.command].value} {args.row_id} {args.who}", "--", relative]):
+def commit_and_push(repo: Path, note: Path, args: argparse.Namespace, git: Git, *, also: Path | None = None) -> int:
+    relative = [note.relative_to(repo).as_posix(), *([also.relative_to(repo).as_posix()] if also else [])]
+    if also is None:
+        subject = f"queue: {COMMANDS[args.command].value} {args.row_id} {args.who}"
+    else:
+        word = f"DONE {args.done}" if args.done else f"REFUTED {args.refuted}" if args.refuted else "CLOSED by owner"
+        subject = f"queue({note.stem}): close {args.row_id} {word}"
+    for step in (["add", "--", *relative], ["commit", "-q", "-m", subject, "--", *relative]):
         done = git(step, repo)
         if done.returncode != 0:
             print(f"git {step[0]} failed: {str(done.stderr).strip()[-300:]}", file=sys.stderr)
@@ -149,13 +200,20 @@ def main(argv: list[str] | None = None, *, git: Git = run_git) -> int:
     repo = Path(args.repo).resolve()
     try:
         note, text = _note_and_text(repo, args)
-        note.write_bytes(edited_text(text, args).encode("utf-8"))
+        archive = None
+        if COMMANDS[args.command] is Op.CLOSE:
+            queue_text, archive, archive_text = closed_texts(repo, note, text, args)
+            archive.parent.mkdir(parents=True, exist_ok=True)
+            archive.write_bytes(archive_text.encode("utf-8"))
+            note.write_bytes(queue_text.encode("utf-8"))
+        else:
+            note.write_bytes(edited_text(text, args).encode("utf-8"))
     except WorkRefused as refusal:
         print(f"refused: {refusal.reason.value} {refusal.detail}".rstrip(), file=sys.stderr)
         return EXIT_REFUSED
     if args.no_commit:
         return 0
-    return commit_and_push(repo, note, args, git)
+    return commit_and_push(repo, note, args, git, also=archive)
 
 
 if __name__ == "__main__":

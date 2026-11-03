@@ -27,3 +27,4 @@ status: open
 - **`FX-UPPER-GROUP` — Uppercase group row** · group: Companion · READY 2026-11-01
 - **`FX-CODE-GROUP` — Code-span group row** · group: `a` · READY 2026-11-01
 - **`FX-TWO-GROUPS` — Two group segments row** · group: a · group: b · READY 2026-11-01
+- **`FX-CLOSED-LIVE` — Live row carrying an outcome** · READY 2026-11-02 · DONE 2026-11-02 3f9c2a1

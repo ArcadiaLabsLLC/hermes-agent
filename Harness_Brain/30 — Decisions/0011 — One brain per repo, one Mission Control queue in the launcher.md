@@ -56,6 +56,20 @@ Identical in the launcher, this repo and the backend; do not diverge.
   `REQUIRES <host>[, <host>…]` (host `windows` | `macos` | `linux`, each once) names the OS a row must be
   worked on — a record like RULED, never a status. An unknown or repeated host, no host, or a second
   `REQUIRES` segment is a defect.
+- **Closing ARCHIVES (amendment 2026-11-03, `RT-QUEUE-ARCHIVE-GRAMMAR`; launcher plan
+  `EterniaLauncher/docs/mission_control/planned/QUEUE_CLOSED_ROW_ARCHIVE_2026-11-02.md` D1–D6):** a closed row
+  is moved, never deleted, to `Harness_Brain/80 — Archive/Queues/<queue stem>-<YYYY-MM>.md` (`type:
+  queue-archive`, `queue:`, `program:`, `month:` frontmatter and one banner line; the month is the outcome's
+  date), as the live line with its `**TAKEN …**` mark removed and its status (with any `Recommend:` after it)
+  replaced by ONE outcome: `DONE <date> <commit>`, `REFUTED <date> <commit>` (`<commit>` 7–40 lowercase hex,
+  or `here` when the delivery is the close commit) or `CLOSED <date>: owner — <the owner's words>`; then at
+  most one `result: <line ≤ 300>` and one `review: <words>`. An outcome on a live row is `CLOSED ROW LIVE`; a
+  status or claim on an archived row `ARCHIVE ROW OPEN`; zero, two or a malformed outcome `BAD OUTCOME`; an
+  ID both live and archived `ARCHIVED ROW LIVE`. The close is `scripts/work_row.py close <ID> --done <sha>`
+  (or `--refuted <sha>` / `--owner "<words>"`), one queue-only commit after the delivery; the Work engine's
+  writer has `Op.CLOSE`. The lint parses the current and previous month in full and ID-scans every month; the
+  row guard refuses a row that left the live queues without an archive line (from 2026-11-04; a note
+  before), an archived row still live, and an outcome sha that is not an ancestor of the pushed head.
 - **Engine-minted IDs (amendment 2026-10-18, Work W1):** a row the Work engine appends is `WORK-<6>` —
   `WORK-` plus six base32 characters (`[A-Z2-7]{6}`), minted by the engine, unique within the brain like
   any ID. Lane rows keep their domain prefixes; nothing existing is renumbered.

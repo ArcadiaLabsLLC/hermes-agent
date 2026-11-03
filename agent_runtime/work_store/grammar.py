@@ -10,6 +10,14 @@ the shared fixtures (``tests/fixtures/work_queue/``) by
 A row is ONE physical line, ``- **`<ID>` — <title>** · <segment> · …``; segments split on `` · ``
 outside code spans. :func:`apply` is the pure one-line edit every write-back is (plan
 ``work-on-markdown-2026-10-18.md`` §5): a row is found by ID and edited alone, never text-merged.
+
+Closed rows are ARCHIVED, not deleted (RT-QUEUE-ARCHIVE-GRAMMAR; launcher plan
+``EterniaLauncher/docs/mission_control/planned/QUEUE_CLOSED_ROW_ARCHIVE_2026-11-02.md`` D1–D3): a
+``type: queue-archive`` note (:func:`is_queue_archive`) under ``<brain>/80 — Archive/Queues/<queue stem>-<YYYY-MM>.md``
+holds rows whose status was replaced by ONE outcome segment — ``DONE <date> <commit>``,
+``REFUTED <date> <commit>`` (``<commit>`` 7–40 lowercase hex, or ``here``) or ``CLOSED <date>: owner — <words>``
+— with optional ``result: <line>`` (≤ 300) and ``review: <words>`` records after it. ``Op.CLOSE`` renders
+the archived line (:func:`_close`); :func:`archive_note_for` names its month file.
 """
 
 from __future__ import annotations
@@ -27,18 +35,25 @@ from .reasons import Reason, WorkRefused
 
 __layer__ = "policy"
 __all__ = [
+    "ARCHIVE_DIR",
     "Assignee",
     "Claim",
     "Op",
+    "Outcome",
+    "OutcomeKind",
     "Row",
     "RowRef",
     "Status",
     "apply",
+    "archive_note_for",
+    "archive_note_text",
     "domain_of",
     "find",
     "is_queue",
+    "is_queue_archive",
     "mint_id",
     "parse_note",
+    "parse_outcome",
     "parse_row",
     "render_status",
     "requires_hosts",
@@ -77,6 +92,14 @@ _CLAIM_SEGMENT = re.compile(r"(?: · | )?\*\*TAKEN \d{4}-\d{2}-\d{2} [^*]+?\*\*"
 _WHO = re.compile(r"^[^*\s][^*]*$")
 _SEGMENT_FORBIDDEN = re.compile(r"[`*·]")
 
+#: A segment opening an outcome word and a date — the outcome FAMILY, well-formed or not.
+OUTCOME_OPEN = re.compile(r"^(?:DONE|REFUTED|CLOSED) \d{4}-\d{2}-\d{2}\b")
+OUTCOME = re.compile(r"^(DONE|REFUTED) (\d{4}-\d{2}-\d{2}) ([0-9a-f]{7,40}|here)$")
+CLOSED_OUTCOME = re.compile(r"^CLOSED (\d{4}-\d{2}-\d{2}):\s*owner — (.+)$", re.DOTALL)
+#: The longest ``result:`` record an archived row carries.
+RESULT_LIMIT = 300
+#: Where a brain's closed rows live, beside its queue directory (plan D1).
+ARCHIVE_DIR = "80 — Archive/Queues"
 BLOCKED_REASONS = ("owner decision", "owner sitting", "backend", "hermes", "launcher", "upstream", "another lane")
 OWNER_DECISION = BLOCKED_REASONS[0]
 SEPARATOR = " · "
@@ -89,6 +112,37 @@ class Status(StrEnum):
     NEEDS_PLAN = "NEEDS PLAN"
 
 
+class OutcomeKind(StrEnum):
+    DONE = "DONE"
+    REFUTED = "REFUTED"
+    CLOSED = "CLOSED"
+
+
+@dataclass(frozen=True)
+class Outcome:
+    """An archived row's one outcome: ``DONE`` / ``REFUTED`` with a commit (or ``here``), ``CLOSED`` with words."""
+
+    kind: OutcomeKind
+    date: str
+    commit: str | None = None
+    words: str | None = None
+
+    def render(self) -> str:
+        if self.kind is OutcomeKind.CLOSED:
+            return f"CLOSED {self.date}: owner — {self.words}"
+        return f"{self.kind.value} {self.date} {self.commit}"
+
+
+def parse_outcome(segment: str) -> Outcome | None:
+    """``segment`` as an outcome, or None when it is not one or is malformed (a bad sha, no ``owner —``)."""
+
+    closed = CLOSED_OUTCOME.match(segment)
+    if closed is not None:
+        return Outcome(OutcomeKind.CLOSED, closed.group(1), words=closed.group(2).strip())
+    match = OUTCOME.match(segment)
+    return Outcome(OutcomeKind(match.group(1)), match.group(2), commit=match.group(3)) if match else None
+
+
 class Op(StrEnum):
     APPEND = "append"
     CLAIM = "claim"
@@ -98,6 +152,8 @@ class Op(StrEnum):
     ASSIGN = "assign"
     SET_SKILLS = "set_skills"
     SET_GROUP = "set_group"
+    #: The close: the row moves to its archive month file with ONE outcome segment (RT-QUEUE-ARCHIVE-GRAMMAR).
+    CLOSE = "close"
     #: Not a row edit: a Project's machine-written chat logs (plan project-slots-and-shared-chats §5) —
     #: appended lines, whole files and removed folders under the writer's root, one commit.
     CHAT_TURNS_APPENDED = "chat_turns_appended"
@@ -186,6 +242,11 @@ class Row:
     requires: tuple[str, ...] = ()
     #: The feature the row belongs to (``group:`` segment); None when it names none.
     group: str | None = None
+    #: An archived row's one outcome (None on a live row, or when it has none or several).
+    outcome: Outcome | None = None
+    #: An archived row's ``result:`` / ``review:`` records.
+    result: str | None = None
+    review: str | None = None
 
 
 def domain_of(row: Row) -> Domain:
@@ -303,18 +364,42 @@ def _claim_defects(line: str) -> list[str]:
             "`**TAKEN <date> <lane> on <machine> as <git account> in <worktree>**`"]
 
 
-def row_defects(line: str) -> list[str]:
-    """Every grammar defect of one row line (empty when the row is canonical) — the lint's verdict."""
+def _outcome_defects(segments: list[str], line: str, *, archived: bool) -> list[str]:
+    """A live row carries no outcome (``CLOSED ROW LIVE``); an archived row carries exactly one well-formed
+    outcome, at most one ``result:`` (≤ 300) and one ``review:``, and no status or claim — the launcher's words."""
+
+    outcomes = [s for s in segments[1:] if OUTCOME_OPEN.match(s)]
+    if not archived:
+        return ["CLOSED ROW LIVE: an outcome segment on a live row; a closed row moves to the archive"] if outcomes else []
+    defects: list[str] = []
+    if any(STATUS.match(s) for s in segments[1:]) or TAKEN.search(line):
+        defects.append("ARCHIVE ROW OPEN: an archived row carries no live status and no claim")
+    results = [s[len("result:"):].strip() for s in segments[1:] if s.startswith("result:")]
+    reviews = [s[len("review:"):].strip() for s in segments[1:] if s.startswith("review:")]
+    if (len(outcomes) != 1 or parse_outcome(outcomes[0]) is None or len(results) > 1 or len(reviews) > 1
+            or any(not r or len(r) > RESULT_LIMIT for r in results) or any(not r for r in reviews)):
+        defects.append("BAD OUTCOME: exactly one DONE|REFUTED <date> <sha|here> or CLOSED <date>: owner — <words>, "
+                       f"at most one result: (≤ {RESULT_LIMIT}) and one review:")
+    return defects
+
+
+def row_defects(line: str, *, archived: bool = False) -> list[str]:
+    """Every grammar defect of one row line (empty when the row is canonical) — the lint's verdict.
+
+    ``archived``: the line is from a ``type: queue-archive`` note, so an outcome replaces the status.
+    """
 
     segments = [s.strip() for s in split_segments(line)]
-    return _lead_defects(line) + _status_defects(segments) + _segment_defects(segments) + _claim_defects(line)
+    status = [] if archived else _status_defects(segments)
+    return (_lead_defects(line) + status + _segment_defects(segments) + _outcome_defects(segments, line, archived=archived)
+            + _claim_defects(line))
 
 
 # ── parse ────────────────────────────────────────────────────────────────────
 
 
 def parse_row(line: str, *, slot: str, note: str, line_no: int, heading: str = "",
-              project_id: str | None = None) -> Row | None:
+              project_id: str | None = None, archived: bool = False) -> Row | None:
     """The row on ``line``, or None when the line is not a row. A defective row still parses."""
 
     if not ROW.match(line):
@@ -330,6 +415,9 @@ def parse_row(line: str, *, slot: str, note: str, line_no: int, heading: str = "
     hosts = next((h for h in map(requires_hosts, segments[1:]) if h is not None), ())
     group = next((m.group(1) for m in map(GROUP.match, segments[1:]) if m), None)
     taken = TAKEN.search(line)
+    outcomes = [o for o in map(parse_outcome, (s for s in segments[1:] if OUTCOME_OPEN.match(s)))]
+    result = next((s[len("result:"):].strip() for s in segments[1:] if s.startswith("result:")), None)
+    review = next((s[len("review:"):].strip() for s in segments[1:] if s.startswith("review:")), None)
     return Row(
         ref=RowRef(slot, note, id_match.group(1) if id_match else "", project_id),
         title=title.group(1).strip() if title else "",
@@ -345,10 +433,13 @@ def parse_row(line: str, *, slot: str, note: str, line_no: int, heading: str = "
         heading=heading,
         line_no=line_no,
         raw=line,
-        defects=tuple(row_defects(line)),
+        defects=tuple(row_defects(line, archived=archived)),
         skills=tuple(CODE_SPAN.findall(lent)) if lent else (),
         requires=hosts,
         group=group,
+        outcome=outcomes[0] if len(outcomes) == 1 else None,
+        result=result[:RESULT_LIMIT] if result is not None else None,
+        review=review,
     )
 
 
@@ -373,9 +464,15 @@ def _body_lines(lines: list[str]) -> Iterable[tuple[int, str]]:
             yield i, line
 
 
-def parse_note(text: str, *, slot: str, note: str, project_id: str | None = None) -> list[Row]:
-    """Every row of one queue note, each with the ``##``/``###`` heading it sits under (refs owned by ``project_id``)."""
+def parse_note(text: str, *, slot: str, note: str, project_id: str | None = None,
+               archived: bool | None = None) -> list[Row]:
+    """Every row of one queue note, each with the ``##``/``###`` heading it sits under (refs owned by ``project_id``).
 
+    ``archived`` (default: read off the note's frontmatter) parses the rows under the archive grammar.
+    """
+
+    if archived is None:
+        archived = is_queue_archive(text)
     lines = text.split("\n")
     rows: list[Row] = []
     heading = ""
@@ -383,7 +480,8 @@ def parse_note(text: str, *, slot: str, note: str, project_id: str | None = None
         if line.startswith("#"):
             heading = line.lstrip("#").strip()
             continue
-        row = parse_row(line, slot=slot, note=note, line_no=i + 1, heading=heading, project_id=project_id)
+        row = parse_row(line, slot=slot, note=note, line_no=i + 1, heading=heading, project_id=project_id,
+                        archived=archived)
         if row is None:
             continue
         following = lines[i + 1].rstrip("\r") if i + 1 < len(lines) else ""
@@ -397,17 +495,42 @@ def _with_defect(row: Row, defect: str) -> Row:
     return replace(row, defects=(*row.defects, defect))
 
 
-def is_queue(text: str) -> bool:
+def _note_type(text: str) -> str | None:
     lines = text.split("\n")
     if not lines or lines[0].rstrip() != "---":
-        return False
+        return None
     for line in lines[1:]:
         line = line.rstrip("\r")
         if line.rstrip() == "---":
-            return False
-        if line.startswith("type:") and line[5:].strip() == "queue":
-            return True
-    return False
+            return None
+        if line.startswith("type:"):
+            return line[5:].strip()
+    return None
+
+
+def is_queue(text: str) -> bool:
+    return _note_type(text) == "queue"
+
+
+def is_queue_archive(text: str) -> bool:
+    """``type: queue-archive`` — one queue's closed rows for one month (plan D2)."""
+    return _note_type(text) == "queue-archive"
+
+
+def archive_note_for(note: str, date: str) -> str:
+    """The month file a row of queue ``note`` (repo-relative, posix) closed on ``date`` is archived in:
+    ``<parent of the queue dir>/80 — Archive/Queues/<note stem>-<YYYY-MM>.md`` (plan D1)."""
+
+    parts = note.split("/")
+    stem = parts[-1].removesuffix(".md")
+    return "/".join([*parts[:-2], ARCHIVE_DIR, f"{stem}-{date[:7]}.md"])
+
+
+def archive_note_text(queue: str, program: str | None, month: str) -> str:
+    """A new month file's head: D2's frontmatter and banner (rows are appended after it)."""
+
+    return (f"---\ntype: queue-archive\nqueue: {queue}\nprogram: {program or 'work'}\nmonth: {month}\n---\n\n"
+            f"Closed rows of `{queue}` for {month}; appended by the close commits, never edited.\n\n")
 
 
 def find(rows: Iterable[Row], row_id: str) -> Row | None:
@@ -512,6 +635,33 @@ def _append(line: str, *, who: str, date: str, payload: dict) -> str:
     raise WorkRefused(Reason.INVALID, "APPEND is not a line edit; the caller appends payload.row under the note's last heading")
 
 
+def _close(line: str, *, who: str, date: str, payload: dict) -> str:
+    """The archived line: the claim mark removed, the status (and any ``Recommend:`` after it) replaced in place
+    by ONE outcome segment, an optional ``result:`` record appended (plan D3).
+
+    ``payload``: ``outcome`` (``DONE`` / ``REFUTED`` / ``CLOSED``), ``commit`` (7–40 hex or ``here``; DONE /
+    REFUTED), ``words`` (CLOSED: the owner's words), ``result`` (one line, ≤ 300 after :func:`segment_text`),
+    ``date`` (the close date; default today).
+    """
+
+    kind = str(payload.get("outcome") or "")
+    if kind not in OutcomeKind.__members__:
+        raise WorkRefused(Reason.INVALID, "payload.outcome is DONE | REFUTED | CLOSED")
+    when = str(payload.get("date") or date)
+    outcome = (Outcome(OutcomeKind.CLOSED, when, words=str(payload.get("words") or "").strip())
+               if kind == "CLOSED" else Outcome(OutcomeKind(kind), when, commit=str(payload.get("commit") or "")))
+    if parse_outcome(outcome.render()) != outcome:
+        raise WorkRefused(Reason.INVALID, f"not an outcome: {outcome.render()!r}")
+    segments = split_segments(_release(line, who=who, date=date, payload={}))
+    at = next((i for i, s in enumerate(segments) if i and STATUS.match(s.strip())), None)
+    if at is None:
+        raise WorkRefused(Reason.GRAMMAR_INVALID, "the row has no status segment to replace")
+    kept = [outcome.render() if i == at else s for i, s in enumerate(segments)
+            if i == at or not (i > at and RECOMMEND.match(s.strip()))]
+    result = segment_text(str(payload.get("result") or ""), limit=RESULT_LIMIT)
+    return SEPARATOR.join(kept).rstrip() + (f"{SEPARATOR}result: {result}" if result else "")
+
+
 def _not_a_line_edit(line: str, *, who: str, date: str, payload: dict) -> str:
     raise WorkRefused(Reason.INVALID, "chat_turns_appended edits no row; the writer appends the chat logs")
 
@@ -525,6 +675,7 @@ _EDITS: dict[Op, Callable[..., str | None]] = {
     Op.ASSIGN: _assign,
     Op.SET_SKILLS: _set_skills,
     Op.SET_GROUP: _set_group,
+    Op.CLOSE: _close,
     Op.CHAT_TURNS_APPENDED: _not_a_line_edit,
 }
 
@@ -539,6 +690,7 @@ def apply(line: str, op: Op, *, who: str, date: str, payload: dict) -> str | Non
     if not _WHO.match(who):
         raise WorkRefused(Reason.INVALID, "who is a non-empty token with no `*`")
     edited = _EDITS[Op(op)](line, who=who, date=date, payload=payload)
-    if edited is not None and not row_defects(line) and row_defects(edited):
-        raise WorkRefused(Reason.GRAMMAR_INVALID, "; ".join(row_defects(edited)))
+    archived = Op(op) is Op.CLOSE
+    if edited is not None and not row_defects(line) and row_defects(edited, archived=archived):
+        raise WorkRefused(Reason.GRAMMAR_INVALID, "; ".join(row_defects(edited, archived=archived)))
     return edited

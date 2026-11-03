@@ -376,3 +376,29 @@ def test_a_brain_note_past_260_characters_syncs(tmp_path, workspace):
     writer = Writer(board, machine_id="m1")
     assert writer.apply(op(Op.CLAIM)).commit
     assert len(str(writer.worktree / deep / "Hermes handoff — a deep note.md")) > 260
+
+
+ARCHIVE = "Harness_Brain/80 — Archive/Queues/q-2026-11.md"
+
+
+def test_a_close_creates_the_month_file_appends_the_next_and_drops_the_live_line_in_one_commit(repo):
+    """RT-QUEUE-ARCHIVE-GRAMMAR. Mutation: skip the live-line drop in ``Writer._close`` -> the row is both live
+    and archived, red; write the archive without its head -> the note is not a queue-archive, red."""
+    from agent_runtime.work_store.grammar import is_queue_archive
+
+    writer = Writer(repo.board, machine_id="m1")
+    first = writer.apply(op(Op.CLOSE, outcome="DONE", commit="3f9c2a1", date="2026-11-03", result="shipped"))
+    assert git("rev-list", "--count", f"{first.commit}^..{first.commit}", cwd=repo.origin).strip() == "1"
+    changed = git("-c", "core.quotePath=false", "show", "--name-only", "--format=", first.commit,
+                  cwd=repo.origin).split("\n")
+    assert set(filter(None, changed)) == {NOTE, ARCHIVE}
+    writer.apply(op(Op.CLOSE, row_id="RT-B", rid="r2", outcome="REFUTED", commit="here", date="2026-11-04"))
+    git("pull", "-q", "--ff-only", cwd=repo.other)
+    archive = (repo.other / ARCHIVE).read_text(encoding="utf-8")
+    assert is_queue_archive(archive) and "queue: q.md" in archive and "program: test" in archive
+    assert "month: 2026-11" in archive
+    archived = parse_note(archive, slot="hermes", note=ARCHIVE)
+    assert [(r.ref.id, r.outcome.render(), r.result, r.defects) for r in archived] == [
+        ("RT-A", "DONE 2026-11-03 3f9c2a1", "shipped", ()), ("RT-B", "REFUTED 2026-11-04 here", None, ())]
+    assert parse_note(note_text(repo.other), slot="hermes", note=NOTE) == []
+    assert "result: shipped" in git("log", "-1", "--format=%B", first.commit, cwd=repo.origin)

@@ -49,10 +49,47 @@ def test_a_status_date_rolled_back_reds():
     assert [(f.change, f.refuses) for f in found] == [(Change.STATUS_DATE_REGRESSED, True)]
 
 
-def test_a_deleted_row_says_nothing_whoever_filed_it():
-    """A row deleted whole is a close, not a change to a surviving row (ADR 0038, 2026-11-01)."""
-    assert _findings(_rows(RULED_ROW, "- **`RT-C` — c** · READY 2026-10-29"), _rows()) == []
+def test_a_deleted_row_is_only_a_note_before_the_archive_date_whoever_filed_it():
+    """Who filed it is never asked (ADR 0038, 2026-11-01); before ARCHIVE_REQUIRED_FROM a plain delete is a note."""
+    found = guard.findings(base=_rows(RULED_ROW), head=_rows(), authorized=set(), archive_required=False)
+    assert [(f.change, f.refuses) for f in found] == [(Change.CLOSED_WITHOUT_ARCHIVE, False)]
     assert not hasattr(guard, "RowOwner")
+
+
+_ARCHIVE_FILE = "Harness_Brain/80 — Archive/Queues/q-2026-11.md"
+_ARCHIVE_HEAD = "---\ntype: queue-archive\nqueue: q.md\nprogram: test\nmonth: 2026-11\n---\n\n"
+
+
+def _archived(*lines: str) -> dict:
+    return guard.archived_by_id({_ARCHIVE_FILE: _ARCHIVE_HEAD + "\n".join(lines) + "\n"})
+
+
+def test_a_row_closed_without_an_archive_line_reds_and_an_archived_close_is_clean():
+    """Mutation: skip the ``added`` lookup in the closed arm -> the archived close reds too, red."""
+    base = _rows("- **`RT-C` — c** · READY 2026-10-29")
+    found = guard.findings(base=base, head=_rows(), authorized=set())
+    assert [(f.id, f.change, f.refuses) for f in found] == [("RT-C", Change.CLOSED_WITHOUT_ARCHIVE, True)]
+    added = _archived("- **`RT-C` — c** · DONE 2026-11-04 3f9c2a1")
+    assert guard.findings(base=base, head=_rows(), authorized=set(), archived=added, added=added) == []
+    moved = guard.rows_by_id({"Harness_Brain/20 — Active Initiatives/other.md": _HEAD + "- **`RT-C` — c** · READY 2026-10-29\n"})
+    assert guard.findings(base=base, head=moved, authorized=set()) == []
+
+
+def test_an_archived_row_still_live_reds():
+    """Mutation: drop the ``archived_row_live`` loop -> red."""
+    archived = _archived("- **`RT-B` — b** · DONE 2026-11-04 here")
+    head = _rows("- **`RT-B` — b** · READY 2026-10-29")
+    found = guard.findings(base=head, head=head, authorized=set(), archived=archived)
+    assert [(f.id, f.change) for f in found] == [("RT-B", Change.ARCHIVED_ROW_LIVE)]
+
+
+def test_an_outcome_sha_that_is_not_an_ancestor_reds_and_here_is_never_looked_up():
+    """Mutation: drop the ``reachable`` check -> the rebased-away sha passes, red."""
+    added = _archived("- **`RT-D` — d** · DONE 2026-11-04 0a1b2c3", "- **`RT-E` — e** · DONE 2026-11-04 here")
+    asked: list[str] = []
+    found = guard.findings(base={}, head={}, authorized=set(), archived=added, added=added,
+                           reachable=lambda sha: asked.append(sha) or False)
+    assert [(f.id, f.change) for f in found] == [("RT-D", Change.OUTCOME_SHA_UNREACHABLE)] and asked == ["0a1b2c3"]
 
 
 def test_an_authorized_by_line_naming_the_row_passes_it_whole():
@@ -68,6 +105,6 @@ def test_this_checkout_drops_no_ruling_and_rolls_no_status_back(capsys):
     report = guard.run()
     if report.skipped:
         pytest.skip(report.skipped)
-    refused = [finding.message for finding in report.findings]
+    refused = [finding.message for finding in report.findings if finding.refuses]
     assert not refused, "\n".join(refused)
     assert report.compared > 0

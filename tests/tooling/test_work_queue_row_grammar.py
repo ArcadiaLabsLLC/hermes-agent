@@ -38,6 +38,17 @@ A row is ``- **`<ID>` — <title>** · <segment> · …``, on ONE physical line,
 
 Segments split on `` · `` outside code spans. ``**TAKEN <date> <who>**`` is a claim,
 never a status.
+
+Closed rows are ARCHIVED (RT-QUEUE-ARCHIVE-GRAMMAR; launcher plan
+``EterniaLauncher/docs/mission_control/planned/QUEUE_CLOSED_ROW_ARCHIVE_2026-11-02.md`` D1–D3, D6): a
+``type: queue-archive`` note under ``Harness_Brain/80 — Archive/Queues/<queue stem>-<YYYY-MM>.md`` holds rows whose
+status is replaced by ONE outcome — ``DONE|REFUTED <date> <7–40 hex|here>`` or ``CLOSED <date>: owner — <words>`` —
+with at most one ``result:`` (≤ 300) and one ``review:``, and no claim. An outcome on a LIVE row is
+``CLOSED ROW LIVE``; a live status or claim on an archived row ``ARCHIVE ROW OPEN``; zero, two or a malformed
+outcome ``BAD OUTCOME``; an ID both live and archived ``ARCHIVED ROW LIVE``. The walk parses the CURRENT and
+PREVIOUS month in full and ID-scans every month (D8: the gate never re-parses every month); a
+``type: queue-archive`` note outside the archive directory, or a ``type: queue`` note inside it, is a defect.
+The archive fixtures are the launcher's, byte-identical.
 """
 
 from __future__ import annotations
@@ -68,6 +79,12 @@ HOSTS = ("windows", "macos", "linux")
 TAKEN = re.compile(r"\*\*TAKEN (\d{4}-\d{2}-\d{2}) ([^*]+?)\*\*")
 CLAIM_WHO = re.compile(r"^(.+?)(?: on (\S+))?(?: as (.+?))?(?: in (\S+))?$")  # a git account may contain spaces
 PLACE_REQUIRED_FROM = "2026-10-27"
+OUTCOME_OPEN = re.compile(r"^(?:DONE|REFUTED|CLOSED) \d{4}-\d{2}-\d{2}\b")
+OUTCOME = re.compile(r"^(DONE|REFUTED) (\d{4}-\d{2}-\d{2}) ([0-9a-f]{7,40}|here)$")
+CLOSED_OUTCOME = re.compile(r"^CLOSED (\d{4}-\d{2}-\d{2}):\s*owner — (.+)$", re.DOTALL)
+RESULT_LIMIT = 300
+ARCHIVE = BRAIN / "80 — Archive" / "Queues"
+ARCHIVE_NAME = re.compile(r"^(.+)-(\d{4}-\d{2})\.md$")
 BLOCKED_REASONS = ("owner decision", "owner sitting", "backend", "hermes", "launcher", "upstream", "another lane")
 LANE_REASONS = ("backend", "hermes", "launcher", "another lane")
 BLOCKER = re.compile(r"^`([A-Z0-9][A-Z0-9._-]*)`(.*)$", re.DOTALL)
@@ -127,8 +144,8 @@ def blocker_of(line: str) -> tuple[str, str | None, str] | None:
     return None
 
 
-def row_defects(line: str) -> list[str]:
-    """Every grammar defect of one row line (empty when the row is canonical)."""
+def row_defects(line: str, *, archived: bool = False) -> list[str]:
+    """Every grammar defect of one row line (empty when the row is canonical); ``archived``: an archive note's row."""
     defects: list[str] = []
     if re.match(r"^\s*- \[[ xX]\] ", line):
         defects.append("checkbox prefix (`- [ ] `); a row opens `- **`")
@@ -144,7 +161,21 @@ def row_defects(line: str) -> list[str]:
         defects.append("the bold lead does not close on this line")
     segments = [s.strip() for s in split_segments(line)]
     statuses = [(i, STATUS.match(s)) for i, s in enumerate(segments) if STATUS.match(s)]
-    if len(statuses) != 1:
+    outcomes = [s for s in segments[1:] if OUTCOME_OPEN.match(s)]
+    if archived:
+        if statuses or TAKEN.search(line):
+            defects.append("ARCHIVE ROW OPEN: an archived row carries no live status and no claim")
+        results = [s[len("result:"):].strip() for s in segments[1:] if s.startswith("result:")]
+        reviews = [s[len("review:"):].strip() for s in segments[1:] if s.startswith("review:")]
+        if (len(outcomes) != 1 or not (OUTCOME.match(outcomes[0]) or CLOSED_OUTCOME.match(outcomes[0]))
+                or len(results) > 1 or len(reviews) > 1 or any(not r or len(r) > RESULT_LIMIT for r in results)
+                or any(not r for r in reviews)):
+            defects.append("BAD OUTCOME: exactly one DONE|REFUTED <date> <sha|here> or CLOSED <date>: owner — "
+                           f"<words>, at most one result: (≤ {RESULT_LIMIT}) and one review:")
+        statuses = []
+    elif outcomes:
+        defects.append("CLOSED ROW LIVE: an outcome segment on a live row; a closed row moves to the archive")
+    if not archived and len(statuses) != 1:
         defects.append(f"{len(statuses)} status segments; exactly one of READY / BLOCKED / DEFERRED / NEEDS PLAN <date>")
     for index, status in statuses:
         if status.group(1) != "BLOCKED":
@@ -194,8 +225,8 @@ def cites_plan(line: str) -> bool:
     return any(span.startswith("planned/") or "/planned/" in span for span in CODE_SPAN.findall(line))
 
 
-def queue_rows(text: str) -> list[tuple[int, str, list[str]]]:
-    """(line number, row line, defects) for every row of one queue note."""
+def queue_rows(text: str, *, archived: bool = False) -> list[tuple[int, str, list[str]]]:
+    """(line number, row line, defects) for every row of one queue note (``archived``: an archive note)."""
     lines = text.split("\n")
     rows: list[tuple[int, str, list[str]]] = []
     in_frontmatter = bool(lines) and lines[0].rstrip() == "---"
@@ -211,7 +242,7 @@ def queue_rows(text: str) -> list[tuple[int, str, list[str]]]:
             continue
         if in_fence or not ROW.match(line):
             continue
-        defects = row_defects(line)
+        defects = row_defects(line, archived=archived)
         following = lines[i + 1].rstrip("\r") if i + 1 < len(lines) else ""
         if following.strip() and following[:1].isspace() and not following.lstrip().startswith(("- ", "#")):
             defects.append("the row continues on the next line; a row is one physical line")
@@ -219,17 +250,25 @@ def queue_rows(text: str) -> list[tuple[int, str, list[str]]]:
     return rows
 
 
-def is_queue(text: str) -> bool:
+def note_type(text: str) -> str | None:
     lines = text.split("\n")
     if not lines or lines[0].rstrip() != "---":
-        return False
+        return None
     for line in lines[1:]:
         line = line.rstrip("\r")
         if line.rstrip() == "---":
-            return False
-        if line.startswith("type:") and line[5:].strip() == "queue":
-            return True
-    return False
+            return None
+        if line.startswith("type:"):
+            return line[5:].strip()
+    return None
+
+
+def is_queue(text: str) -> bool:
+    return note_type(text) == "queue"
+
+
+def is_queue_archive(text: str) -> bool:
+    return note_type(text) == "queue-archive"
 
 
 def _queue_notes() -> dict[str, str]:
@@ -238,6 +277,19 @@ def _queue_notes() -> dict[str, str]:
         for path in sorted(BRAIN.rglob("*.md"))
         if is_queue(text := path.read_text(encoding="utf-8"))
     }
+
+
+def months_to_parse(today: str) -> tuple[str, str]:
+    """The CURRENT and PREVIOUS ``YYYY-MM`` of ``today`` (``YYYY-MM-DD``): the months parsed in full (D8)."""
+
+    year, month = int(today[:4]), int(today[5:7])
+    previous = f"{year - 1}-12" if month == 1 else f"{year}-{month - 1:02d}"
+    return today[:7], previous
+
+
+def archive_ids(text: str) -> list[str]:
+    """Every row ID of an archive note — the cheap line scan run over EVERY month (D8)."""
+    return [m.group(1) for line in text.split("\n") if (m := ROW_ID.match(line.lstrip()))]
 
 
 # --- positive controls: each defect class is caught, the canonical shapes pass ---
@@ -448,3 +500,81 @@ def test_every_row_id_is_unique_across_the_vault() -> None:
                 duplicates.append(f"{match.group(1)}: {seen[match.group(1)]} and {where}")
             seen.setdefault(match.group(1), where)
     assert not duplicates, "\n".join(duplicates)
+
+
+# --- the closed-row archive (RT-QUEUE-ARCHIVE-GRAMMAR, launcher plan D1–D3, D6) ---
+
+
+def _archive_fixture(name: str) -> list[tuple[str | None, str, list[str]]]:
+    text = (FIXTURES / name).read_text(encoding="utf-8")
+    assert is_queue_archive(text), f"{name} must stay a type: queue-archive note"
+    return [(m.group(1) if (m := ROW_ID.match(line.lstrip())) else None, line, defects)
+            for _, line, defects in queue_rows(text, archived=True)]
+
+
+def test_the_archive_fixtures_pass_and_fail_as_the_launcher_says() -> None:
+    """Mutation: drop ``|here`` from OUTCOME -> FX-ARCH-DONE-HERE is BAD OUTCOME, red; drop the claim check in the
+    archived arm -> FX-ARCH-CLAIM passes, red."""
+    valid, broken = _archive_fixture("archive_valid.md"), _archive_fixture("archive_defects.md")
+    assert len(valid) >= 8 and len(broken) >= 7, "a moved or emptied archive fixture must not pass silently"
+    wrong = [f"valid {row_id}: {defects}" for row_id, _, defects in valid if defects]
+    wrong += [f"defect row passes: {line[:80]}" for _, line, defects in broken if not defects]
+    assert not wrong, "\n".join(wrong)
+
+
+def archived_live(live: dict[str, str], archives: dict[str, str]) -> list[str]:
+    """``ARCHIVED ROW LIVE``: every ID both in a live queue note and in an archive note (a close MOVES a row)."""
+
+    live_ids = {m.group(1) for text in live.values() for _, line, _ in queue_rows(text)
+                if (m := ROW_ID.match(line.lstrip()))}
+    return sorted(f"ARCHIVED ROW LIVE: `{row_id}` ({path})" for path, text in archives.items()
+                  for row_id in archive_ids(text) if row_id in live_ids)
+
+
+def test_an_id_both_live_and_archived_is_archived_row_live() -> None:
+    """Mutation: scan no archive IDs in ``archived_live`` -> the overlap fixture passes, red."""
+    live = {"grammar_valid.md": (FIXTURES / "grammar_valid.md").read_text(encoding="utf-8")}
+    overlap = {"archive_live_overlap.md": (FIXTURES / "archive_live_overlap.md").read_text(encoding="utf-8")}
+    assert archived_live(live, overlap) == ["ARCHIVED ROW LIVE: `FX-READY` (archive_live_overlap.md)"]
+    clean = {"archive_valid.md": (FIXTURES / "archive_valid.md").read_text(encoding="utf-8")}
+    assert archived_live(live, clean) == []
+
+
+def test_the_months_parsed_in_full_are_this_one_and_the_last() -> None:
+    assert months_to_parse("2026-11-03") == ("2026-11", "2026-10")
+    assert months_to_parse("2027-01-02") == ("2027-01", "2026-12")
+
+
+def _archive_notes() -> dict[str, str]:
+    return {path.relative_to(REPO).as_posix(): path.read_text(encoding="utf-8")
+            for path in sorted(ARCHIVE.glob("*.md"))} if ARCHIVE.is_dir() else {}
+
+
+def test_every_archive_note_sits_in_the_archive_and_names_its_month() -> None:
+    misplaced = [f"{path.relative_to(REPO).as_posix()}: a type: queue-archive note outside `80 — Archive/Queues/`"
+                 for path in sorted(BRAIN.rglob("*.md"))
+                 if path.parent != ARCHIVE and is_queue_archive(path.read_text(encoding="utf-8"))]
+    for path, text in _archive_notes().items():
+        name = ARCHIVE_NAME.match(path.rsplit("/", 1)[-1])
+        if is_queue(text):
+            misplaced.append(f"{path}: a type: queue note inside the archive directory")
+        elif not is_queue_archive(text):
+            continue
+        elif name is None or f"month: {name.group(2)}" not in text.split("\n---", 1)[0]:
+            misplaced.append(f"{path}: an archive note is <queue stem>-<YYYY-MM>.md with that `month:`")
+    assert not misplaced, "\n".join(misplaced)
+
+
+def test_the_recent_archive_months_are_in_the_archive_grammar_and_no_closed_row_is_live() -> None:
+    from datetime import date
+
+    recent = months_to_parse(date.today().isoformat())
+    archives = {path: text for path, text in _archive_notes().items() if is_queue_archive(text)}
+    bad = [f"{path}:{number}: {'; '.join(defects)}\n    {line[:120]}"
+           for path, text in archives.items()
+           if (name := ARCHIVE_NAME.match(path.rsplit("/", 1)[-1])) and name.group(2) in recent
+           for number, line, defects in queue_rows(text, archived=True) if defects]
+    ids = [row_id for text in archives.values() for row_id in archive_ids(text)]
+    bad += [f"`{row_id}` is archived twice" for row_id in sorted({i for i in ids if ids.count(i) > 1})]
+    bad += archived_live(_queue_notes(), archives)
+    assert not bad, "\n".join(bad)

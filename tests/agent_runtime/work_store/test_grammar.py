@@ -231,3 +231,52 @@ def test_group_names_the_feature_and_is_not_a_status() -> None:
     started = store._start_row("WORK-ABCDEF", "t", None, None, "2026-11-02", group="eternia-lens")
     assert started == "- **`WORK-ABCDEF` — t** · group: eternia-lens · READY 2026-11-02"
     assert grammar.parse_row(started, slot="s", note="n", line_no=1).defects == ()
+
+
+# ── the closed-row archive (RT-QUEUE-ARCHIVE-GRAMMAR) ─────────────────────────
+
+
+@pytest.mark.parametrize("name", ["archive_valid.md", "archive_defects.md", "archive_live_overlap.md"])
+def test_the_twin_agrees_with_the_lint_on_every_archive_fixture_row(name: str) -> None:
+    rows = _rows(name)
+    assert rows and all(grammar.is_queue_archive((FIXTURES / name).read_text(encoding="utf-8")) for _ in rows[:1])
+    words = [row.raw for row in rows
+             if list(row.defects) != lint_defects(row.raw, archived=True)]
+    assert not words, words
+
+
+def test_an_archived_row_carries_its_outcome_and_records() -> None:
+    by_id = {row.ref.id: row for row in _rows("archive_valid.md")}
+    assert all(row.defects == () for row in by_id.values()), {i: r.defects for i, r in by_id.items() if r.defects}
+    assert by_id["FX-ARCH-DONE-HERE"].outcome == grammar.Outcome(grammar.OutcomeKind.DONE, "2026-11-02", commit="here")
+    assert by_id["FX-ARCH-CLOSED"].outcome.words == '"drop it, the dock covers it"'
+    assert by_id["FX-ARCH-RESULT"].result.startswith("red recorded:")
+    assert by_id["FX-ARCH-REVIEW"].review == "owner looked 2026-11-03"
+    assert by_id["FX-ARCH-RULED"].rulings == ("RULED 2026-11-01: one archive per queue",)
+
+
+def test_close_archives_the_row() -> None:
+    """The rendered line equals the launcher's fixture line. Mutation: keep the claim mark in ``_close`` -> red."""
+    live = ("- **`FX-ARCH-RULED` — Ruled row kept whole** · group: queue-row-archive · `tool/queue/queue_grammar.dart`"
+            " · RULED 2026-11-01: one archive per queue · REQUIRES linux · READY 2026-11-01"
+            " · **TAKEN 2026-11-02 w1102a-x on box-1 as nekwo in wt-x**")
+    fixture = next(row.raw for row in _rows("archive_valid.md") if row.ref.id == "FX-ARCH-RULED")
+    closed = grammar.apply(live, Op.CLOSE, who="w1102a-x", date="2026-11-02",
+                           payload={"outcome": "DONE", "commit": "3f9c2a1"})
+    assert closed == fixture
+    asked = "- **`RT-A` — ask** · BLOCKED 2026-10-18: owner decision — A or B? · Recommend: A · `x.py`"
+    owner = grammar.apply(asked, Op.CLOSE, who="operator", date="2026-11-03",
+                          payload={"outcome": "CLOSED", "words": '"drop it"', "result": "folded into `RT-B`"})
+    assert owner == "- **`RT-A` — ask** · CLOSED 2026-11-03: owner — \"drop it\" · `x.py` · result: folded into -RT-B-"
+    assert grammar.row_defects(owner, archived=True) == []
+    assert any("CLOSED ROW LIVE" in d for d in grammar.row_defects(closed))  # an outcome on a live row
+    for bad in ({"outcome": "DONE", "commit": "XYZ"}, {"outcome": "SHIPPED"}, {"outcome": "CLOSED"}):
+        with pytest.raises(WorkRefused):
+            grammar.apply(live, Op.CLOSE, who="w", date="2026-11-02", payload=bad)
+
+
+def test_archive_note_for_names_the_month_file() -> None:
+    assert grammar.archive_note_for("Harness_Brain/20 — Active Initiatives/runtime-queue.md", "2026-11-03") == (
+        "Harness_Brain/80 — Archive/Queues/runtime-queue-2026-11.md")
+    assert grammar.archive_note_for("Work_Brain/20 — Active Initiatives/work-queue.md", "2026-12-01") == (
+        "Work_Brain/80 — Archive/Queues/work-queue-2026-12.md")

@@ -22,6 +22,7 @@ ADR 0011 put every Mission Control row in the launcher's queue because the domai
 - Fork-hygiene findings (CI, the suite, the mutation gate, upstream reds) go to [[fork-hygiene-queue]] whichever repo noticed them.
 - Both vaults' TODO files point at both halves. The launcher's queue header, `TODO.md`, `CLAUDE.md` and Brain Index say "the launcher half" where they said "both repos".
 - Nothing enforces this; the claim-before-start rule and the wave landings' claim-mark grep are the only readers.
+- A closed row leaves its queue for the queue's monthly archive under `Harness_Brain/80 — Archive/Queues/`, never deleted (ADR 0011 § Row grammar, amendment 2026-11-03).
 
 ## Consequences
 

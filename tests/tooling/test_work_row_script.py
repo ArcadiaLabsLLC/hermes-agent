@@ -108,3 +108,20 @@ def test_never_fetches_or_resets(clones):
     verbs = {call[0] for call in calls}
     assert verbs == {"add", "commit", "push"}
     assert not verbs & {"fetch", "reset", "stash", "pull", "merge", "rebase", "checkout"}
+
+
+def test_close_archives_the_row_and_commits_both_files(clones):
+    """RT-QUEUE-ARCHIVE-GRAMMAR. Mutation: write the queue text unchanged in ``main``'s close arm -> the row stays
+    live beside its archived copy, red."""
+    origin, mine, _ = clones
+    assert work_row.main(["close", "RT-A", "--who", "r-lane", "--done", "3f9c2a1", "--date", "2026-11-03",
+                          "--result", "shipped", "--repo", str(mine)]) == 0
+    assert git("log", "-1", "--format=%s", "main", cwd=origin).strip() == "queue(q): close RT-A DONE 3f9c2a1"
+    changed = set(filter(None, git("show", "--name-only", "--format=", "main", cwd=origin).split("\n")))
+    archive = "Harness_Brain/80 — Archive/Queues/q-2026-11.md"
+    assert changed == {NOTE, archive}
+    archived = (mine / archive).read_text(encoding="utf-8")
+    assert archived.startswith("---\ntype: queue-archive\nqueue: q.md\nprogram: test\nmonth: 2026-11\n---\n")
+    assert archived.endswith("- **`RT-A` — first** · DONE 2026-11-03 3f9c2a1 · result: shipped\n")
+    assert "RT-A" not in (mine / NOTE).read_text(encoding="utf-8")
+    assert work_row.main(["close", "RT-B", "--who", "r-lane", "--repo", str(mine), "--no-commit"]) == work_row.EXIT_REFUSED
