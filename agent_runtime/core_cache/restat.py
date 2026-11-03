@@ -273,6 +273,11 @@ def _restat_on_post_build_reality(key: CoreFingerprint) -> _RestatOutcome:
         adopted[path] = now_entry
     if not refreshed:
         return _RestatOutcome(key, 0, foreign, _RESTAT_CLEAN)
+    # A kept entry keeps the bytes digest its pre-build walk took; an adopted one takes the fresh walk's
+    # (RT-CORE-CACHE-SAME-TICK-REWRITE), so a re-key digests what each triple was measured with.
+    kept, measured = dict(key.racy), dict(fresh.racy)
+    racy = {path: sha for path, entry in adopted.items()
+            if (sha := (measured.get(path) if entry != before.get(path) else kept.get(path)))}
     return _RestatOutcome(
-        _fingerprint_over(adopted.values()), refreshed, foreign, _RESTAT_REFRESHED
+        _fingerprint_over(adopted.values(), racy), refreshed, foreign, _RESTAT_REFRESHED
     )
