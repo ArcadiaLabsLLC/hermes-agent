@@ -25,7 +25,7 @@ from typing import Any
 
 from .. import paths
 from ..workspace_slots import bound_path
-from .grammar import Row, Status, is_queue, parse_note
+from .grammar import ARCHIVE_DIR, Row, Status, is_queue, is_queue_archive, parse_note
 from .reasons import Reason, WorkRefused
 
 #: The personal board's reserved Work id (RT-GENERAL-TODO-G1, plan ``general-todo-2026-10-25.md`` §2.2):
@@ -40,6 +40,7 @@ __all__ = [
     "DEFAULT_BRAIN_SLOT",
     "PERSONAL_BOARD_ID",
     "Board",
+    "archive_notes",
     "binding_path",
     "board_rows",
     "boards",
@@ -291,6 +292,15 @@ def board_rows(board: Board) -> list[Row]:
         for row in parse_note(path.read_text(encoding="utf-8"), slot=board.slot, note=path.relative_to(root).as_posix(),
                               project_id=board.project_id)
     ]
+
+
+def archive_notes(board: Board) -> list[Path]:
+    """Declared monthly archives of this exact board, newest first. No live-note scan."""
+    if board.read_root is None or board.brain_dir is None:
+        return []
+    directory = (board.read_root / board.brain_dir).parent / ARCHIVE_DIR
+    return [path for path in sorted(directory.glob("*.md"), reverse=True)
+            if is_queue_archive(path.read_text(encoding="utf-8"))]
 
 
 def rows(

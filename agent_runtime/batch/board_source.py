@@ -91,9 +91,10 @@ class BoardSource:
         self._apply(ref, Op.SET_STATUS, who, f"{rid}:status", {"status": status})
         return self._apply(ref, Op.RELEASE, who, f"{rid}:release", {})
 
-    def done(self, ref: RowRef, who: Claimant, result: str) -> Receipt:
+    def done(self, ref: RowRef, who: Claimant, result: str, *, commit: str = "here") -> Receipt:
         text = " ".join(str(result or "done").split())[:4000]
-        return self._apply(ref, Op.DELETE, who, _derived_id("done", ref, who.who), {"result": text})
+        return self._apply(ref, Op.CLOSE, who, _derived_id("done", ref, who.who),
+                           {"outcome": "DONE", "commit": commit, "result": text})
 
     def append(self, board: Board, row: Row, request_id: str) -> Receipt:
         if board.workspace_id != self.workspace_id:

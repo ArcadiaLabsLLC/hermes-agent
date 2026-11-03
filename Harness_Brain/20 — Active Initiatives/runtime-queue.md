@@ -43,7 +43,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-11-02 (launcher planning lane w1101h-p-archive: closed rows archived, not deleted)
 
-- **`RT-WORK-ENGINE-DONE-ARCHIVES` — the Work engine closes into the archive and `inspect` reads it: `_done` emits `Op.CLOSE` with `DONE <date> <commit>` from `Outcome.commits` (the first landed commit, else `here`) and a `result:` segment (≤ 300 chars) beside the ≤ 4000-char commit body; `board.py::archive_notes`; `store.inspect` answers `ending` `{outcome, date, commit, result, archive_note}` from the archive first and falls back to `writer.history`'s git read, marked `outcome: "unrecorded"`, only for a row no archive holds (closed before the archive existed — no backfill); the `runtime.work.inspect` ending fields in the wire doc** · group: queue-row-archive · plan `EterniaLauncher/docs/mission_control/planned/QUEUE_CLOSED_ROW_ARCHIVE_2026-11-02.md` § H2 · `agent_runtime/work_store/engine.py` · `agent_runtime/work/store.py` · `docs/agent-runtime-harness/03-transport-and-wire.md` · READY 2026-11-03 · unblocked 2026-11-03: `Op.CLOSE`, the archive walk and `grammar.archive_note_for` landed with RT-QUEUE-ARCHIVE-GRAMMAR (lane w1103a-h1); `board.archive_notes` for `inspect` is still to write · **TAKEN 2026-11-03 work-v1-intelligence on MUltiversalLabsInc as Maximus England in work-v1-runtime**
 
 ### Filed on arrival — 2026-11-02 (lane w1101g-h: work.list reads every board)
 
@@ -1183,10 +1182,8 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-11-02 (launcher lane w1101h-teardown)
 
-- **`RT-WORK-GUARDED-ROW-EDITS` — Shared Work status and assignment edits need an exact note/raw revision guard at every writer replay and must refuse claimed rows; advertise guarded edits as a capability so older runtimes cannot silently ignore the guard; preserve legacy callers and Agent Console behavior** · group: shared-work-v1 · `agent_runtime/work/store.py` · `agent_runtime/work_store/writer.py` · client plan `EterniaLauncher/docs/companion/planned/SHARED_WORK_V1_BOARD_BUILD_2026-11-03.md` D5/S3 · READY 2026-11-03 · **TAKEN 2026-11-03 work-v1-intelligence on MUltiversalLabsInc as Maximus England in work-v1-runtime**
 
 
-- **`RT-BATCH-LIVE-EXECUTION-READ` — Shared Work needs live execution facts for the exact native lane attempt: batch status reads its existing executor only on the owner machine, preserves unknown/queued/running/settled separately from manifest state, and supplies an exact existing session target when proven; no new execution owner or per-card polling** · group: shared-work-v1 · `agent_runtime/batch/dispatcher.py` · client `COMP-WORK-REVIEW-LIVE-EVIDENCE` and `COMP-WORK-V1-CONVERSATION-LINK`; owner authorized shared foundation and Intelligence first 2026-11-03 · READY 2026-11-03 · **TAKEN 2026-11-03 work-v1-intelligence on MUltiversalLabsInc as Maximus England in work-v1-runtime**
 
 ## Optional suggestion post-call work — 2026-11-03
 

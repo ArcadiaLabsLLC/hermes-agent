@@ -344,7 +344,24 @@ def inspect(scope, params, *, context=None):
     row = find(boards_store.board_rows(board), task_id)
     if row is not None:
         return {"task": project(row, writer, context=context, detail=True), "ending": None}
-    return {"task": None, "ending": writer.history(RowRef(board.slot, board.brain_dir or "", task_id, board.project_id))}
+    return {"task": None, "ending": archived_ending(board, writer, task_id)}
+
+
+def archived_ending(board: Board, writer: Writer, task_id: str) -> dict[str, Any] | None:
+    """An immutable archive outcome first; pre-archive git history is explicitly unrecorded."""
+    for path in boards_store.archive_notes(board):
+        note = path.relative_to(board.read_root).as_posix()
+        row = find(parse_note(path.read_text(encoding="utf-8"), slot=board.slot, note=note,
+                              project_id=board.project_id, archived=True), task_id)
+        if row is None or row.outcome is None or row.defects:
+            continue
+        history = writer.history(row.ref) or {}
+        outcome = row.outcome
+        return {**history, "outcome": outcome.kind.value, "date": outcome.date,
+                "commit": history.get("commit") if outcome.commit == "here" else outcome.commit,
+                "result": row.result, "archive_note": note, "words": outcome.words}
+    old = writer.history(RowRef(board.slot, board.brain_dir or "", task_id, board.project_id))
+    return {**old, "outcome": "unrecorded"} if old else None
 
 
 # ── writes ─────────────────────────────────────────────────────────────────
@@ -418,6 +435,10 @@ def _row_write(scope, params, op: Op, who: str, payload: Mapping[str, Any], *, c
     row = find(boards_store.board_rows(board), text(params.get("task_id")))
     if row is None:
         raise WorkRefused(Reason.ROW_GONE, str(params.get("task_id")))
+    if "expected_raw" in params:
+        if op not in (Op.SET_STATUS, Op.ASSIGN) or params.get("note") != row.ref.note:
+            raise WorkRefused(Reason.ROW_CHANGED, row.ref.id)
+        payload = {**payload, "expected_raw": text(params["expected_raw"], maximum=20000)}
     receipt = writer.apply(RowOp(row.ref, op, who, request or text(params.get("request_id")), payload))
     return writer, receipt
 
@@ -570,9 +591,11 @@ def pull(scope, params, actor, *, context=None):
 
 def done(scope, params, actor, *, context=None):
     result = text(params.get("result"), maximum=RESULT_LIMIT)
-    writer, receipt = _row_write(scope, params, Op.DELETE, _writer_who(params, actor), {"result": result},
+    writer, receipt = _row_write(scope, params, Op.CLOSE, _writer_who(params, actor),
+                                 {"outcome": "DONE", "commit": "here", "result": result},
                                  context=context)
-    return {"ending": writer.history(receipt.ref), "receipt": receipt.wire()}
+    return {"ending": archived_ending(replace(writer.board, read_root=writer.worktree), writer, receipt.ref.id),
+            "receipt": receipt.wire()}
 
 
 def _create_default(scope, params, actor):

@@ -191,6 +191,11 @@ def _present(op: RowOp, row: Row | None) -> None:
     if row is None:
         raise WorkRefused(Reason.ROW_GONE, op.ref.id)
     _holder_or_operator(op, row)
+    if "expected_raw" in op.payload:
+        if row.raw != op.payload["expected_raw"]:
+            raise WorkRefused(Reason.ROW_CHANGED, op.ref.id)
+        if row.taken is not None:
+            raise WorkRefused(Reason.ALREADY_TAKEN, row.taken.who)
 
 
 _PRECONDITIONS: dict[Op, Callable[[RowOp, Row | None], None]] = {

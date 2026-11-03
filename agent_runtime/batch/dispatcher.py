@@ -36,6 +36,7 @@ the writer's ``work.row_*`` and the executor's ``work.exec_*``.
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -43,7 +44,7 @@ from typing import Any, Protocol
 
 from ..work_store import receipts
 from ..work_store.default_brain import this_machine
-from ..work_store.executor import Assignment, Executor, Outcome, RowEnding, Run, StopReason, Verdict
+from ..work_store.executor import Assignment, Executor, Outcome, RowEnding, Run, RunStatus, StopReason, Verdict
 from ..work_store.grammar import RowRef, Status
 from ..work_store.reasons import Reason, WorkRefused
 from ..work_store.source import Claimant, WorkSource
@@ -72,7 +73,7 @@ _GATE_TAIL = 1000
 
 #: A row's ending → the one SOURCE write it is (the W3 engine's ``WRITE_BACKS``, over the contract).
 ROW_ENDINGS: dict[Verdict, Callable[[WorkSource, RowRef, Claimant, RowEnding], Any]] = {
-    Verdict.DONE: lambda src, ref, who, e: src.done(ref, who, e.result or "done"),
+    Verdict.DONE: lambda src, ref, who, e: src.done(ref, who, e.result or "done", commit=e.commit),
     Verdict.BLOCKED: lambda src, ref, who, e: src.block(ref, who, e.question or "the lane asked no question",
                                                         e.recommend),
     Verdict.STOPPED: lambda src, ref, who, e: src.release(ref, who, Status.DEFERRED,
@@ -227,12 +228,32 @@ class BatchDispatcher:
         marks = lambda ref: ("gone" if ref not in rows else
                              rows[ref].taken.who if rows[ref].taken else (rows[ref].status or Status.READY).value)
         runs = any(lane.run_id for b in batches for lane in (*b.lanes, b.landing))
-        index = usage_index(self._turn_records()) if runs else {}
+        turns = self._turn_records() if runs else []
+        index = usage_index(turns)
+        turn_ids = {f"{r.get('root_chat_session_id')}/{r.get('client_message_id')}":
+                    r.get("turn_id") or r.get("client_message_id") for r in turns}
+        personas = {member.instance_id: member.persona_id for member in self._roster(workspace_id)} if runs else {}
 
         def batch_wire(b: Batch) -> dict[str, Any]:
             wire = b.wire()
             for lane_wire, lane in zip((*wire["lanes"], wire["landing"]), (*b.lanes, b.landing), strict=True):
                 lane_wire["usage"] = lane_usage(lane.run_id, index, self._price)
+                # Manifest RUNNING means submitted, not executing. Only this
+                # machine's executor can confirm the exact native attempt.
+                lane_wire["execution"] = None
+                lane_wire["session_id"] = None
+                lane_wire["persona_id"] = personas.get(lane.persona)
+                turn_id = turn_ids.get(lane.run_id)
+                lane_wire["turn_work_id"] = f"chat_turn:{turn_id}" if turn_id else None
+                if lane.run_id and b.owner_machine == self._machine():
+                    try:
+                        lane_wire["execution"] = self.executor.status(lane.run_id).value
+                    except Exception:
+                        logger.warning("batch execution unavailable: %s/%s", b.id, lane.id, exc_info=True)
+                    if lane_wire["execution"] in {RunStatus.QUEUED, RunStatus.RUNNING, RunStatus.SETTLED}:
+                        root, separator, message = lane.run_id.partition("/")
+                        if root and separator and message:
+                            lane_wire["session_id"] = root
             return {**wire, "marks": {f"{r.slot}/{r.id}": marks(r) for lane in b.lanes
                                       for r in (lane.rows or lane.lane.rows)}}
 
@@ -369,6 +390,7 @@ class BatchDispatcher:
         done, errors = 0, []
         for ref in record.rows:
             ending = outcome.per_row.get(ref) or RowEnding(outcome.verdict, reason="the lane named no ending")
+            ending = replace(ending, commit=outcome.completion_commit)
             if stopping and ending.verdict is not Verdict.DONE:
                 ending = RowEnding(Verdict.STOPPED, reason="operator stop")
             try:

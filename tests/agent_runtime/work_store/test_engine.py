@@ -9,6 +9,7 @@ grammar the lint runs. Run records are real files on this test's isolated home.
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -20,7 +21,7 @@ from agent_runtime.work_store.engine import RecordState, WorkEngine, records
 from agent_runtime.work_store.executor import (
     ExecutorKind, Outcome, RowEnding, Run, RunStatus, StopReason, Verdict,
 )
-from agent_runtime.work_store.grammar import Op, Status, apply as apply_line, find, parse_note, row_defects
+from agent_runtime.work_store.grammar import Op, Status, apply as apply_line, archive_note_for, find, parse_note, row_defects
 from agent_runtime.work_store.reasons import Reason, WorkRefused
 from agent_runtime.work_store.writer import Receipt
 
@@ -56,7 +57,12 @@ class FakeWriter:
         if row is None:
             raise WorkRefused(Reason.ROW_GONE, op.ref.id)
         edited = apply_line(row.raw, op.op, who=op.who, date=DATE, payload=dict(op.payload))
-        if edited is None:
+        if op.op is Op.CLOSE:
+            archive = self.worktree / archive_note_for(op.ref.note, DATE)
+            archive.parent.mkdir(parents=True, exist_ok=True)
+            archive.write_text((archive.read_text(encoding="utf-8") if archive.exists() else "") + edited + "\n", encoding="utf-8")
+            del lines[row.line_no - 1]
+        elif edited is None:
             del lines[row.line_no - 1]
         else:
             lines[row.line_no - 1] = edited
@@ -123,6 +129,7 @@ def board(tmp_path):
 def _engine(writer, board, executor=None, **kw):
     executor = executor or FakeExecutor()
     kw.setdefault("cap_for", lambda ws: 4)
+    kw.setdefault("now", lambda: datetime(2026, 10, 18, tzinfo=UTC))
     engine = WorkEngine(executor=executor, sync=lambda ws: Synced([board], {"repo": writer}, False),
                         workspaces=lambda: [WS], brief_of=lambda row, writer: "", **kw)
     return engine, executor
@@ -195,7 +202,7 @@ ENDINGS = {
 }
 
 
-def test_done_deletes_blocked_sets_owner_decision_stopped_defers_failed_needs_plan(board):
+def test_done_archives_blocked_sets_owner_decision_stopped_defers_failed_needs_plan(board):
     writer, b = board(*(_row(row_id, f"persona:inst-{row_id}") for row_id in ENDINGS))
     engine, executor = _engine(writer, b)
     engine.tick()
@@ -203,8 +210,11 @@ def test_done_deletes_blocked_sets_owner_decision_stopped_defers_failed_needs_pl
         executor.settle(assignment, ENDINGS[assignment.rows[0].id])
     rows = _rows(writer)
     assert "RT-D" not in rows
-    delete = next(op for op in writer.ops if op.op is Op.DELETE)
-    assert delete.payload == {"result": "shipped it"} and delete.who == "persona:inst-RT-D"
+    close = next(op for op in writer.ops if op.op is Op.CLOSE)
+    assert close.payload == {"result": "shipped it", "outcome": "DONE", "date": DATE, "commit": "here"}
+    assert close.who == "persona:inst-RT-D"
+    archived = (writer.worktree / archive_note_for(NOTE, DATE)).read_text(encoding="utf-8")
+    assert f"DONE {DATE} here" in archived and "result: shipped it" in archived
     for row in rows.values():
         assert row_defects(row.raw) == [] and row.taken is None, row.raw
     assert rows["RT-B"].status is Status.BLOCKED

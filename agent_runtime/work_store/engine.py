@@ -110,7 +110,8 @@ Step = tuple[str, Op, dict[str, Any]]
 
 
 def _done(record: RunRecord, ending: RowEnding, date: str) -> list[Step]:
-    return [("done", Op.DELETE, {"result": " ".join(str(ending.result or "done").split())[:4000]})]
+    return [("done", Op.CLOSE, {"outcome": "DONE", "date": date, "commit": ending.commit,
+                                "result": " ".join(str(ending.result or "done").split())[:4000]})]
 
 
 def _blocked(record: RunRecord, ending: RowEnding, date: str) -> list[Step]:
@@ -452,7 +453,8 @@ class WorkEngine:
             if record is None or record.state in (RecordState.SETTLED, RecordState.CLOSED):
                 return
             ending = next((e for ref, e in outcome.per_row.items() if ref.id == record.ref.id), None)
-            self._record_ending(record, ending or RowEnding(outcome.verdict, reason="the run named no ending"))
+            ending = ending or RowEnding(outcome.verdict, reason="the run named no ending")
+            self._record_ending(record, replace(ending, commit=outcome.completion_commit))
             self._write_back(record)
 
     def stop(self, request_id: str, reason: StopReason = StopReason.OPERATOR) -> dict[str, Any]:

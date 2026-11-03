@@ -90,6 +90,7 @@ class RowEnding:
     question: str = ""
     recommend: str = ""
     reason: str = ""
+    commit: str = "here"
 
 
 @dataclass(frozen=True)
@@ -101,6 +102,12 @@ class Outcome:
     commits: tuple[str, ...] = ()
     #: The landing lane's code-run gate, one receipt per slot (``batch.gate.GateRunner``); empty for a work lane.
     gates: tuple[GateReceipt, ...] = ()
+
+    @property
+    def completion_commit(self) -> str:
+        """The first recorded commit, or the archive commit itself. Never a guessed SHA."""
+        return next((sha for sha in self.commits if 7 <= len(sha) <= 40 and
+                     all(c in "0123456789abcdef" for c in sha)), "here")
 
 
 @dataclass(frozen=True)

@@ -37,7 +37,7 @@ RECEIPT_KINDS: dict[str, tuple[str, ...]] = {
     "claim": (f"work.row_{Op.CLAIM.value}",),
     "release": (f"work.row_{Op.RELEASE.value}", f"work.row_{Op.SET_STATUS.value}"),
     "block": (f"work.row_{Op.SET_STATUS.value}", f"work.row_{Op.RELEASE.value}"),
-    "done": (f"work.row_{Op.DELETE.value}",),
+    "done": (f"work.row_{Op.CLOSE.value}",),
     "append": (f"work.row_{Op.APPEND.value}",),
 }
 
@@ -62,8 +62,8 @@ class WorkSource(Protocol):
     def block(self, ref: RowRef, who: Claimant, question: str, recommend: str) -> Receipt:
         """``BLOCKED <date>: owner decision — <question> · Recommend: <recommend>``, then release."""
 
-    def done(self, ref: RowRef, who: Claimant, result: str) -> Receipt:
-        """Delete the row; ``result`` goes in the commit body."""
+    def done(self, ref: RowRef, who: Claimant, result: str, *, commit: str = "here") -> Receipt:
+        """Archive the row and its result; the full result also goes in the commit body."""
 
     def append(self, board: Board, row: Row, request_id: str) -> Receipt:
         """Add ``row`` to its note; ``id_exists`` when the ID is already in the brain."""
