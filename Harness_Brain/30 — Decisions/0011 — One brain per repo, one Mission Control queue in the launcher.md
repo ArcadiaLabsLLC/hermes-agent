@@ -48,7 +48,7 @@ Identical in the launcher, this repo and the backend; do not diverge.
   one; the rows that predate the rule are a shrink-only ceiling (`GROUP_MISSING_CEILING` in the lint). The
   Work engine reads it as `Row.group`, serves it on every `runtime.work.list` row, filters by `group?`,
   writes it from `runtime.work.start`'s `group?` and re-files a row with `Op.SET_GROUP`. Plan:
-  `EterniaLauncher/docs/mission_control/planned/QUEUE_ROW_GROUPS_2026-11-01.md`.
+  `EterniaLauncher/docs/mission_control/subsystems/QUEUE_ROW_GROUPS_2026-11-01.md`.
 - **Claim place (amendment 2026-10-27, twin of launcher ADR 0025's 2026-10-26 amendment):** a lane claim is
   `**TAKEN <date> <lane> on <machine> as <git account> in <worktree>**`; one dated 2026-10-27 or later with no
   `on <machine>` is a defect. Persona claims and earlier marks are exempt.
