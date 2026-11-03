@@ -1186,3 +1186,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 
 - **`RT-BATCH-LIVE-EXECUTION-READ` — Shared Work needs live execution facts for the exact native lane attempt: batch status reads its existing executor only on the owner machine, preserves unknown/queued/running/settled separately from manifest state, and supplies an exact existing session target when proven; no new execution owner or per-card polling** · group: shared-work-v1 · `agent_runtime/batch/dispatcher.py` · client `COMP-WORK-REVIEW-LIVE-EVIDENCE` and `COMP-WORK-V1-CONVERSATION-LINK`; owner authorized shared foundation and Intelligence first 2026-11-03 · READY 2026-11-03 · **TAKEN 2026-11-03 work-v1-intelligence on MUltiversalLabsInc as Maximus England in work-v1-runtime**
+
+## Optional suggestion post-call work — 2026-11-03
+
+- **`RT-SUGGESTION-POST-CALL-CONTEXT-FENCE` — Skip the post-provider context read once suggestion policy or observation already invalidates publication** · `agent_runtime/console_suggestions/service.py::_work` · existing success and failure paths refresh native context before checking the current policy after a provider call; disabling suggestions during inference discards the result correctly but still pays an avoidable history read; refresh policy/epoch/observation first, retain the durable receipt and provider-slot lifetime, and test both provider success and failure after disable · READY 2026-11-03
