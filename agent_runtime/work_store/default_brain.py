@@ -3,13 +3,14 @@
 ``ensure_default_brain`` writes a two-note skeleton under ``paths.default_brain_dir(ws)``, makes
 it a git repository with one commit under hermes's own per-machine identity (``-c`` pairs, never
 ``git config``) and records a MACHINE-LOCAL binding, ``board.binding_path(ws)``
-(``{slot, path, brain_dir, default_branch, created_at, machine, remote_url, retired_into}``). It is
+(``{slot, path, brain_dir, default_branch, created_at, machine, remote_url}``). It is
 not a declared slot in the realm-synced slot document, so it works the same in every realm and
 never needs the realm publish right (owner ruling 2026-10-18 on ``RT-WORK-DEFAULT-BRAIN-REALM``).
 It starts local-only: no remote, nothing pushed.
 
-When a repo slot with a brain is bound, ``agent_runtime/work/store.py::normalize_default_brain``
-moves the open rows into that brain and retires the binding (``retire_binding``).
+It is the WORKSPACE's own brain and stays when a repo slot with a brain is bound (owner ruling 2026-11-02,
+RT-WORK-WORKSPACE-BRAIN-KEPT, retiring the move into the first repo brain and its ``retire_binding``; a
+``retired_into`` an older build wrote is no longer read).
 
 **Promotion** (``RT-WORK-DEFAULT-BRAIN-REMOTE``, plan ``p10-work-2026-10-19.md`` §2.5; owner ruling
 2026-10-18: a connected git account means the remote is created automatically) is the one door from
@@ -23,7 +24,7 @@ credentialed ``slots.declare``. ``ensure_default_brain`` promotes on its own whe
 connected; a refusal backs the auto path off for ``PROMOTE_RETRY_S`` (the manual door,
 ``runtime.work.create_brain`` with ``promote: true``, ignores it). A SECOND machine adopts the declared
 slot instead of creating a brain: it clones the remote (``adopt_remote`` into an empty repo), binds
-it, and a local default brain's rows move in through ``normalize_default_brain``.
+it.
 Pinned by ``tests/agent_runtime/work_store/test_default_brain.py``.
 """
 
@@ -59,7 +60,6 @@ from .board import (
     declared_boards,
     default_board,
     has_brain_here,
-    needs_default_brain,
     read_binding,
 )
 from .reasons import Reason, WorkRefused
@@ -74,7 +74,6 @@ __all__ = [
     "ensure_default_brain",
     "promote_default_brain",
     "remote_state",
-    "retire_binding",
     "skeleton",
 ]
 
@@ -178,19 +177,6 @@ def _write_binding(workspace_id: str, record: dict[str, Any]) -> None:
     changed("default_brain.binding")
 
 
-def retire_binding(workspace_id: str, *, into: str, at: str, moved: list[str]) -> None:
-    """The default brain's rows now live in slot ``into``; the board stops listing it, and Hermes's worktree of
-    it is removed (plan work-slot-roots-per-workspace-2026-10-21 W3)."""
-
-    from .writer import checkout_token, remove_worktree
-
-    record = read_binding(workspace_id) or {}
-    root = Path(str(record["path"])) if record.get("path") else None
-    if root is not None and (root / ".git").exists():
-        remove_worktree(paths.work_worktree_dir(workspace_id, DEFAULT_BRAIN_SLOT, checkout_token(root)), repo=root)
-    _write_binding(workspace_id, {**record, "retired_into": into, "retired_at": at, "moved": moved})
-
-
 def brain_repo_name(workspace_id: str) -> str:
     """``eternia-work-<workspace slug>`` (else the workspace's path token), lower-case ``[a-z0-9._-]``, ≤ 100 chars."""
 
@@ -261,7 +247,7 @@ def promote_default_brain(workspace_id: str, *, issued_at: str) -> dict[str, Any
     if workspace_id == PERSONAL_BOARD_ID:
         raise WorkRefused(Reason.INVALID, "the personal board is machine-local and never gets a remote")
     record = read_binding(workspace_id)
-    if record is None or record.get("retired_into"):
+    if record is None:
         raise WorkRefused(Reason.NO_BRAIN, "no live default brain to promote")
     if record.get("remote_url"):
         return {"outcome": "already", "url": record["remote_url"], "declaration": record.get("declaration")}
@@ -301,7 +287,7 @@ def _auto_promote(workspace_id: str, issued_at: str) -> None:
     if workspace_id == PERSONAL_BOARD_ID:
         return  # machine-local by contract: never in a repo, never promoted
     record = read_binding(workspace_id)
-    if record is None or record.get("retired_into") or record.get("remote_url") or _refused_recently(record):
+    if record is None or record.get("remote_url") or _refused_recently(record):
         return
     if connected_github() is None:
         return
@@ -379,7 +365,7 @@ def remote_state(workspace_id: str) -> dict[str, Any] | None:
     from ..git_host_account import connected_github
 
     record = read_binding(workspace_id)
-    if record is None or record.get("retired_into"):
+    if record is None:
         return None
     url, state = record.get("remote_url"), declaration_state(record)
     if url and state == "declared":
@@ -399,27 +385,18 @@ def remote_state(workspace_id: str) -> dict[str, Any] | None:
 
 
 def ensure_default_brain(workspace_id: str, *, issued_at: str) -> Board:
-    """The board a workspace's work lands on, creating the default brain only when it has none.
+    """The workspace's own brain, created when it has none — whatever repo brains its slots bind
+    (RT-WORK-WORKSPACE-BRAIN-KEPT). Idempotent: a live binding returns its board."""
 
-    A workspace whose declared slots carry a brain bound here gets no default brain; that board is
-    returned instead. Idempotent: a live binding returns its board; a retired one (its rows moved
-    into a repo brain that is no longer bound here) comes back live and empty.
-    """
-
-    found = declared_boards(workspace_id)
-    if not needs_default_brain(found):
-        return next(board for board in found if has_brain_here(board))
     root = paths.default_brain_dir(workspace_id)
     record = read_binding(workspace_id)
-    if record is not None and not record.get("retired_into"):
+    if record is not None:
         _settle_pending(workspace_id, record, issued_at)
     adopted = _adopt_declared_brain(workspace_id, root, issued_at)
     if adopted is not None:
         return adopted
     record = read_binding(workspace_id)
     if record is not None and (root / ".git").exists():
-        if record.get("retired_into"):
-            _write_binding(workspace_id, {**record, "retired_into": None, "retired_at": None})
         _auto_promote(workspace_id, issued_at)
         return _default(workspace_id)
     machine = this_machine()
@@ -428,7 +405,7 @@ def ensure_default_brain(workspace_id: str, *, issued_at: str) -> Board:
     _commit_skeleton(root, workspace_id, machine)
     _write_binding(workspace_id, {"slot": DEFAULT_BRAIN_SLOT, "path": str(root), "brain_dir": QUEUE_DIR,
                                   "default_branch": "main", "created_at": issued_at, "machine": machine,
-                                  "remote_url": None, "retired_into": None})
+                                  "remote_url": None})
     _auto_promote(workspace_id, issued_at)
     return _default(workspace_id)
 

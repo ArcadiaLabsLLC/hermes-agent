@@ -51,9 +51,9 @@ def test_ensure_default_brain_inits_commits_and_records_a_machine_local_binding(
     record = json.loads(board.binding_path(workspace).read_text(encoding="utf-8"))
     assert record == {"slot": "brain", "path": str(root), "brain_dir": "Work_Brain/20 — Active Initiatives",
                       "default_branch": "main", "created_at": ISSUED, "machine": install_id(),
-                      "remote_url": None, "retired_into": None}
+                      "remote_url": None}
     assert [b.slot for b in board.boards(workspace)] == ["brain"]
-    assert not board.needs_default_brain(board.boards(workspace))
+    assert all(board.has_brain_here(b) for b in board.boards(workspace))
 
 
 def test_ensure_is_idempotent(workspace):
@@ -64,13 +64,15 @@ def test_ensure_is_idempotent(workspace):
     assert json.loads(board.binding_path(workspace).read_text(encoding="utf-8"))["created_at"] == ISSUED
 
 
-def test_a_workspace_with_a_brain_slot_gets_none(workspace, tmp_path):
+def test_a_workspace_with_a_brain_slot_still_gets_its_own(workspace, tmp_path):
+    """RT-WORK-WORKSPACE-BRAIN-KEPT. Mutation: restore the early return of the repo board -> got.slot is hermes, red."""
     declare_slots(workspace, slot_decl("hermes"))
     bind_here(workspace, hermes=checkout(tmp_path / "hermes"))
     got = default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
-    assert got.slot == "hermes"
+    assert got.slot == "brain" and got.is_default
     assert "brain" not in load_document(workspace)["slots"]
-    assert not paths.default_brain_dir(workspace).exists()
+    assert (paths.default_brain_dir(workspace) / ".git").is_dir()
+    assert [b.slot for b in board.boards(workspace)] == ["hermes", "brain"]
 
 
 def test_a_server_bound_realm_builds_its_brain_without_the_publish_right(monkeypatch):
@@ -366,7 +368,9 @@ def test_second_machine_adopts_the_declared_remote_instead_of_creating_a_brain(w
     assert "WORK-ONEAAA" in board.ids_in_brain(made)
 
 
-def test_second_machine_with_a_local_brain_moves_its_rows_in(workspace, host, tmp_path):
+def test_second_machine_with_a_local_brain_keeps_its_rows(workspace, host, tmp_path):
+    """The move is retired (RT-WORK-WORKSPACE-BRAIN-KEPT): the local brain's row is kept and listed, never
+    lost; the two ``brain`` boards' clash is ``RT-WORK-ADOPTED-BRAIN-BESIDE-LOCAL``."""
     from agent_runtime.work import store as work_store
 
     default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
@@ -383,9 +387,10 @@ def test_second_machine_with_a_local_brain_moves_its_rows_in(workspace, host, tm
     made = default_brain.ensure_default_brain(workspace, issued_at=LATER)
     assert made.slot == "brain" and made.checkout == paths.default_brain_dir(workspace).with_name("brain-remote")
     work_store.synced(workspace)
-    assert _record(workspace)["retired_into"] == "brain" and _record(workspace)["moved"] == ["WORK-TWOAAA"]
-    assert "WORK-TWOAAA" in _git(host.bare(name), "show", f"main:{QUEUE_NOTE_PATH}")
-    assert [b.slot for b in board.boards(workspace)] == ["brain"]
+    assert "retired_into" not in _record(workspace)
+    assert "WORK-TWOAAA" not in _git(host.bare(name), "show", f"main:{QUEUE_NOTE_PATH}")
+    assert [b.is_default for b in board.boards(workspace)] == [False, True]
+    assert "WORK-TWOAAA" in board.ids_in_brain(board.default_board(workspace))
 
 
 def test_the_writer_pushes_to_the_promoted_brain(workspace, host):

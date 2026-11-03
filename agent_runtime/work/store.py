@@ -5,14 +5,12 @@ write is one ``Writer.apply`` of a row operation keyed by ID. A row in the ADR 0
 task; ``project`` is its wire shape. The operator's console writes as ``who="operator"``; a paired
 device writes as ``device:<id>`` and may not claim the operator's override.
 
-The default brain is machine-local (ruling 2026-10-18): once a repo slot with a brain is bound,
-``normalize_default_brain`` moves the default board's rows into that brain's ``work-queue.md`` in ONE
-commit (IDs kept), removes them from the default brain in one local commit, and retires the binding,
-so the default board drops from the list and new rows land in the repo brain.
+The default brain is machine-local (ruling 2026-10-18) and is the WORKSPACE's own brain: it stays listed
+beside every bound repo brain (owner ruling 2026-11-02, RT-WORK-WORKSPACE-BRAIN-KEPT, retiring the move of
+its rows into the first repo brain); a slot-less ``start`` still lands in a repo brain first (``_create_target``).
 """
 from __future__ import annotations
 
-import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
@@ -21,9 +19,9 @@ from typing import Any
 
 from agent_runtime.work_store import board as boards_store
 from agent_runtime.work_store import receipts
-from agent_runtime.work_store.board import DEFAULT_BRAIN_SLOT, Board
+from agent_runtime.work_store.board import Board
 from agent_runtime.work_store.default_brain import (
-    QUEUE_DIR, QUEUE_NOTE, QUEUE_TEMPLATE, TODO_TEMPLATE, retire_binding, this_machine,
+    QUEUE_DIR, QUEUE_NOTE, QUEUE_TEMPLATE, TODO_TEMPLATE, this_machine,
 )
 from agent_runtime.work_store.grammar import (
     ASSIGNEE, GROUP_SLUG, STATUS, Assignee, Op, Row, RowRef, find, mint_id, parse_note,
@@ -65,57 +63,6 @@ def writer_for(board: Board) -> Writer:
     return Writer(board, machine_id=this_machine())
 
 
-def _token_of(workspace_id: str) -> str:
-    return re.sub(r"[^A-Za-z0-9_.-]", "-", workspace_id)[:120]
-
-
-def _default_rows(default: Board) -> tuple[Writer, dict[str, list[Row]]]:
-    source = writer_for(default)
-    source.sync()
-    view = replace(default, read_root=source.worktree)
-    by_note = {path.relative_to(source.worktree).as_posix(): parse_note(
-        path.read_bytes().decode("utf-8"), slot=default.slot, note=path.relative_to(source.worktree).as_posix())
-        for path in boards_store.notes(view)}
-    return source, {note: rows for note, rows in by_note.items() if rows}
-
-
-def _move_in(target: Board, rows: list[Row], request: str) -> str | None:
-    writer = writer_for(target)
-    writer.sync()
-    note = f"{target.brain_dir}/{QUEUE_NOTE}"
-    files = {} if (writer.worktree / note).is_file() else {
-        f"{PurePosixPath(target.brain_dir or '').name}/{QUEUE_NOTE}": QUEUE_TEMPLATE}
-    payload = {"rows": [row.raw for row in rows], "files": files}
-    ref = RowRef(target.slot, note, rows[0].ref.id, target.project_id)
-    return writer.apply(RowOp(ref, Op.APPEND, OPERATOR, request, payload)).commit
-
-
-def normalize_default_brain(workspace_id: str) -> dict[str, Any] | None:
-    """Move a live default brain's rows into the first bound repo brain, once; then retire it.
-
-    The target is ``board.first_repo_brain``: a Project's default board with a brain bound here first,
-    else the first declared board by name whose checkout has a brain.
-    Every request id is derived from the workspace, so a move interrupted half way replays.
-    """
-
-    default = boards_store.default_board(workspace_id)
-    target = boards_store.first_repo_brain(workspace_id) if default is not None else None
-    if default is None or target is None:
-        return None
-    source, by_note = _default_rows(default)
-    moved = [row for rows in by_note.values() for row in rows]
-    base = f"move-default-brain:{_token_of(workspace_id)}"
-    commit = _move_in(target, moved, f"{base}:in") if moved else None
-    for note, rows in by_note.items():
-        ids = [row.ref.id for row in rows]
-        source.apply(RowOp(RowRef(default.slot, note, ids[0]), Op.DELETE, OPERATOR, f"{base}:out:{_token_of(note)}",
-                           {"ids": ids}))
-    ids = [row.ref.id for row in moved]
-    retire_binding(workspace_id, into=target.slot, at=_now().isoformat(timespec="seconds"), moved=ids)
-    return receipts.emit("work.default_brain_move", workspace_id=workspace_id, into=target.slot, ids=ids,
-                         commit=commit)
-
-
 def worktree_brain(board: Board) -> Board:
     """``board``, its brain found in HERMES'S worktree of the slot when its checkout holds none.
 
@@ -139,16 +86,7 @@ def worktree_brain(board: Board) -> Board:
 def synced(workspace_id: str, *, stale_ok: bool = False, slot: str | None = None) -> Synced:
     writers: dict[str, Writer] = {}
     refused: dict[str, WorkRefused] = {}
-    try:
-        normalize_default_brain(workspace_id)
-    except WorkRefused as refusal:
-        # The move's refusal (the default brain's sync, or an apply on either side) is the DEFAULT
-        # board's answer, never the whole read's (RT-WORK-DEFAULT-MOVE-FAILS-LIST): the move replays
-        # by request id on the next read, and every other board still syncs and lists.
-        refused[DEFAULT_BRAIN_SLOT] = refusal
     for board in map(worktree_brain, boards_store.boards(workspace_id)):
-        if board.is_default and board.key in refused:
-            continue
         if board.bound_here and board.brain_dir and slot in (None, board.slot):
             writer = writer_for(board)
             try:
@@ -167,7 +105,7 @@ def synced(workspace_id: str, *, stale_ok: bool = False, slot: str | None = None
 def observed(workspace_id: str, *, slot: str | None = None) -> Synced:
     """An OBSERVATION read (RT-WORK-OBSERVATION-READ): the boards as hermes's worktrees hold them now.
 
-    No ``normalize_default_brain``, no ``Writer.sync`` (no worktree add, fetch, reset or clean), no row
+    No ``Writer.sync`` (no worktree add, fetch, reset or clean), no row
     write: a board is read from its existing worktree only, and one without a worktree is listed with no
     queues. ``stale`` is true unless every read worktree sits at its local tip; a remote tip is never
     fetched here, so "not stale" means "at the last fetched tip", never "at the remote".
@@ -652,7 +590,7 @@ def _promote_default(scope, params, actor):
 
     issued = _now().isoformat(timespec="seconds")
     record = boards_store.read_binding(scope.workspace_id)
-    if record is None or record.get("retired_into"):
+    if record is None:
         ensure_default_brain(scope.workspace_id, issued_at=issued)
     promotion = promote_default_brain(scope.workspace_id, issued_at=issued)
     made = ensure_default_brain(scope.workspace_id, issued_at=issued)

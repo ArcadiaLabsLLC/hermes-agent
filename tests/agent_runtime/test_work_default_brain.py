@@ -1,7 +1,7 @@
-"""The machine-local default brain normalizes into a repo brain (owner ruling 2026-10-18,
-``RT-WORK-DEFAULT-BRAIN-REALM``): every workspace with no repo brain gets one; once a repo slot with a
-brain is bound, the default board's rows move there in ONE commit with their IDs kept, the default
-board drops from the list, and new rows land in the repo brain."""
+"""The machine-local default brain is the workspace's OWN brain (owner rulings 2026-10-18,
+``RT-WORK-DEFAULT-BRAIN-REALM``, and 2026-11-02, ``RT-WORK-WORKSPACE-BRAIN-KEPT``): every workspace gets
+one, and binding a repo slot with a brain keeps it — its rows stay, its board stays listed beside the
+repo board, and a slot-less ``start`` lands in the repo brain."""
 import json
 import subprocess
 from pathlib import Path
@@ -18,7 +18,6 @@ from tests.agent_runtime.persona_instance_mint import mint_free_floating
 from tests.agent_runtime.test_work_service import call, rows_of, start, work
 
 BRAIN = "Harness_Brain/20 — Active Initiatives"
-MOVED_NOTE = f"{BRAIN}/work-queue.md"
 QUEUE = "---\ntype: queue\nprogram: test\n---\n\n## Open\n\n- **`RT-A` — repo row** · READY 2026-10-18\n"
 ID = ("-c", "user.name=Test Session", "-c", "user.email=session@test.invalid", "-c", "core.quotePath=false")
 
@@ -66,76 +65,53 @@ def test_every_workspace_without_a_repo_brain_gets_one_automatically(work):
     assert [b.slot for b in board.boards(other)] == ["brain"]
 
 
-def test_binding_a_repo_brain_moves_the_open_rows_once_and_drops_the_default_board(work, tmp_path):
+def test_binding_a_repo_brain_keeps_the_workspace_brain_and_its_rows(work, tmp_path):
+    """Mutation: restore the move (``normalize_default_brain`` in ``synced``) -> the rows land in the repo
+    brain's ``work-queue.md`` and the default board drops, red."""
     alice = mint_free_floating("alice")
     first = start(work, "q1", title="First")["task"]["id"]
     second = start(work, "q2", title="Second")["task"]["id"]
     call(work, "claim", request_id="c1", slot="brain", task_id=second, who=f"persona:{alice.id}")
     origin, clone = repo_with_brain(tmp_path / "hermes")
-    before = commits(origin)
     bind(work.ws, hermes=clone)
     listed = call(work, "list")
-    assert [b["slot"] for b in listed["boards"]] == ["hermes"]
-    assert {row["id"]: row["note"] for row in rows_of(listed)} == {"RT-A": f"{BRAIN}/q.md", first: MOVED_NOTE,
-                                                                  second: MOVED_NOTE}
-    (hermes,) = listed["boards"]
-    assert {q["note"]: (q["program"], [r["id"] for r in q["rows"]]) for q in hermes["queues"]} == {
-        f"{BRAIN}/q.md": ("test", ["RT-A"]), MOVED_NOTE: ("work", [first, second])}
+    assert [b["slot"] for b in listed["boards"]] == ["hermes", "brain"]
+    by_slot = {b["slot"]: [row["id"] for q in b["queues"] for row in q["rows"]] for b in listed["boards"]}
+    assert by_slot == {"hermes": ["RT-A"], "brain": [first, second]}
     assert next(row for row in rows_of(listed) if row["id"] == second)["taken"]["who"] == f"persona:{alice.id}"
-    assert commits(origin) == before + 1
-    moved = parse_note(git("show", f"main:{MOVED_NOTE}", cwd=origin), slot="hermes", note=MOVED_NOTE)
-    assert [row.ref.id for row in moved] == [first, second] and not any(row.defects for row in moved)
-    default_note = paths.default_brain_dir(work.ws) / "Work_Brain/20 — Active Initiatives/work-queue.md"
-    left = git("show", "main:Work_Brain/20 — Active Initiatives/work-queue.md", cwd=default_note.parents[2])
-    assert parse_note(left, slot="brain", note="q") == []
-    assert json.loads(board.binding_path(work.ws).read_text(encoding="utf-8"))["retired_into"] == "hermes"
-    call(work, "list")
-    assert commits(origin) == before + 1
+    assert commits(origin) == 1 and board.default_board(work.ws) is not None
+    caps = service.execute("capabilities", {}, STDIO_OWNER)
+    assert caps["default_brain"][work.ws] == {"state": "present", "reason": "needs_git_account"}
 
 
-def test_new_rows_go_to_the_repo_brain_even_before_the_move(work, tmp_path, monkeypatch):
-    monkeypatch.setattr(store, "normalize_default_brain", lambda ws: None)
+def test_new_slot_less_rows_go_to_the_repo_brain(work, tmp_path):
     _, clone = repo_with_brain(tmp_path / "hermes")
     bind(work.ws, hermes=clone)
     assert [b["slot"] for b in call(work, "list")["boards"]] == ["hermes", "brain"]
     assert start(work, "q1", title="Engine work")["task"]["slot"] == "hermes"
+    assert start(work, "q2", title="Desk work", slot="brain")["task"]["slot"] == "brain"
 
 
-def test_the_first_bound_slot_by_name_receives_the_move(work, tmp_path):
-    """Declared zeta-then-alpha; the slot document is keyed by name, so alpha (first by name) receives."""
+def test_a_workspace_bound_to_a_repo_brain_first_still_gets_its_own(tmp_path):
+    """Mutation: restore ``ensure_default_brain``'s early return of the repo board -> no workspace brain, red."""
+    from agent_runtime.gateway_identity import ensure_install_identity
+    from agent_runtime.machine_roots import machine_roots_cache_clear
 
-    start(work, "q1", title="Moves")
-    zeta_origin, zeta = repo_with_brain(tmp_path / "zeta")
-    alpha_origin, alpha = repo_with_brain(tmp_path / "alpha")
-    bind(work.ws, zeta=zeta, alpha=alpha)
-    call(work, "list")
-    assert commits(alpha_origin) == 2 and commits(zeta_origin) == 1
-    assert json.loads(board.binding_path(work.ws).read_text(encoding="utf-8"))["retired_into"] == "alpha"
-
-
-def test_an_empty_default_brain_retires_without_a_commit(work, tmp_path):
-    origin, clone = repo_with_brain(tmp_path / "hermes")
-    bind(work.ws, hermes=clone)
+    machine_roots_cache_clear()
+    ws = WorkspaceStore().create(name="Repo first").id
+    surface = paths.office_surface_path(ws)
+    surface.parent.mkdir(parents=True, exist_ok=True)
+    surface.write_text("{}", encoding="utf-8")
+    ensure_install_identity(paths.store_root())
+    _, clone = repo_with_brain(tmp_path / "hermes")
+    bind(ws, hermes=clone)
     caps = service.execute("capabilities", {}, STDIO_OWNER)
-    assert caps["default_brain"][work.ws] == {"state": "moved", "into": "hermes"}
-    assert commits(origin) == 1 and board.default_board(work.ws) is None
+    assert caps["default_brain"][ws] == {"state": "created", "reason": "needs_git_account"}
+    assert [b.slot for b in board.boards(ws)] == ["hermes", "brain"]
 
 
-def test_a_refused_move_is_the_default_boards_answer_and_the_repo_boards_list(work, tmp_path):
-    """RT-WORK-DEFAULT-MOVE-FAILS-LIST. Mutation: re-raise in ``synced``'s move ``except`` -> the list refuses whole."""
-
-    first = start(work, "q1", title="Stays put")["task"]["id"]
-    worktree = store.synced(work.ws).writers["brain"].worktree
-    lock = Path(git("rev-parse", "--path-format=absolute", "--git-path", "index.lock", cwd=worktree).strip())
-    lock.write_bytes(b"")  # a git still holding the default brain's worktree index
-    origin, clone = repo_with_brain(tmp_path / "hermes")
-    bind(work.ws, hermes=clone)
-    listed = call(work, "list")
-    by_slot = {b["slot"]: b for b in listed["boards"]}
-    assert [row["id"] for q in by_slot["hermes"]["queues"] for row in q["rows"]] == ["RT-A"]
-    assert (by_slot["brain"]["readable"], by_slot["brain"]["queues"]) == (False, [])
-    assert by_slot["brain"]["refused"]["reason"] == "index_locked"
-    assert commits(origin) == 1 and board.default_board(work.ws) is not None
-    lock.unlink()  # the lock released: the next read moves the row
-    assert {row["id"] for row in rows_of(call(work, "list"))} == {"RT-A", first}
-    assert board.default_board(work.ws) is None
+def test_a_binding_an_older_build_retired_is_live_again(work, tmp_path):
+    """``retired_into`` is no longer read. Mutation: restore the ``retired_into`` check in ``default_board`` -> red."""
+    record = json.loads(board.binding_path(work.ws).read_text(encoding="utf-8"))
+    board.binding_path(work.ws).write_text(json.dumps({**record, "retired_into": "hermes"}), encoding="utf-8")
+    assert board.default_board(work.ws) is not None

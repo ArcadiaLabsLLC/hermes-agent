@@ -22,7 +22,7 @@ def test_boards_one_per_live_bound_slot_with_brain_dir_discovered(workspace, tmp
     assert found["launcher"].brain_dir == "Launcher_Brain/20 — Active Initiatives"
     assert found["hermes"].bound_here and not found["hermes"].local and not found["hermes"].is_default
     assert [p.name for p in board.notes(found["hermes"])] == ["q.md"]  # the moc note is not a queue
-    assert not board.needs_default_brain(list(found.values()))
+    assert all(board.has_brain_here(b) for b in found.values())
 
 
 def test_pinned_brain_dir_wins_over_discovery(workspace, tmp_path):
@@ -41,7 +41,7 @@ def test_a_slot_without_a_brain_lists_as_no_brain(workspace, tmp_path):
     (only,) = board.boards(workspace)
     assert only.bound_here and only.brain_dir is None
     assert board.notes(only) == [] and board.rows(workspace) == []
-    assert board.needs_default_brain([only])
+    assert not board.has_brain_here(only)
 
 
 def test_rows_keyed_slot_id_never_collide_across_repos(workspace, tmp_path):
@@ -68,7 +68,7 @@ def test_unbound_slot_is_listed_not_read(workspace, tmp_path):
     declare_slots(workspace, slot_decl("hermes"))
     (only,) = board.boards(workspace)
     assert not only.bound_here and only.read_root is None and only.brain_dir is None
-    assert board.rows(workspace) == [] and board.needs_default_brain([only])
+    assert board.rows(workspace) == [] and not board.has_brain_here(only)
     # W2 reads through hermes's own worktree: a read root makes the slot readable.
     worktree = checkout(tmp_path / "worktree", rows=ROWS)
     assert [r.ref.id for r in board.rows(workspace, read_roots={"hermes": worktree})] == ["RT-A", "RT-B", "RT-C"]

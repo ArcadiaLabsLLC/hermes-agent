@@ -8,8 +8,8 @@ hermes's own worktree of the slot (§5 steps 1–3) instead of the operator's ch
 
 The default brain is NOT a declared slot (owner ruling 2026-10-18, ``RT-WORK-DEFAULT-BRAIN-REALM``):
 it is a machine-local binding, ``<work_workspace_dir(ws)>/default_brain.json``, listed as slot
-``brain`` until the move into a repo brain retires it (``agent_runtime/work/store.py::
-normalize_default_brain``). Promotion (``default_brain.promote_default_brain``, p10-work §2.5) writes
+``brain`` — the workspace's own brain, kept beside every bound repo brain (RT-WORK-WORKSPACE-BRAIN-KEPT;
+a ``retired_into`` an older build wrote is no longer read). Promotion (``default_brain.promote_default_brain``, p10-work §2.5) writes
 ``remote_url`` and a ``declaration``: while it is ``pending`` (a server-bound realm; the Launcher's next
 credentialed ``slots.declare`` carries the entry) the default board is listed with its remote
 (``local=False``: the writer fetches and pushes); once ``declared`` the declared slot ``brain`` lists it.
@@ -47,10 +47,8 @@ __all__ = [
     "declaration_state",
     "declared_boards",
     "default_board",
-    "first_repo_brain",
     "has_brain_here",
     "ids_in_brain",
-    "needs_default_brain",
     "notes",
     "pick",
     "preferred",
@@ -220,17 +218,6 @@ def pick(found: list[Board], slot: Any, project_id: Any = None) -> Board | None:
     raise WorkRefused(Reason.SLOT_AMBIGUOUS, f"{name}: " + ", ".join(board.key for board in named))
 
 
-def first_repo_brain(workspace_id: str) -> Board | None:
-    """The first declared board whose bound checkout carries a brain: a Project's default board first, else BY NAME.
-
-    The owner's rule is "the first bound slot in declaration order", but the slot document is keyed by
-    name and stored sorted, and every ``declare`` stamps one ``declared_at`` on the whole set, so the
-    name order is the only order the store records.
-    """
-
-    return next((board for board in preferred(declared_boards(workspace_id)) if has_brain_here(board)), None)
-
-
 def binding_path(workspace_id: str) -> Path:
     return paths.work_workspace_dir(workspace_id) / BINDING_FILE
 
@@ -246,10 +233,10 @@ def read_binding(workspace_id: str) -> dict[str, Any] | None:
 
 
 def default_board(workspace_id: str, *, read_roots: Mapping[str, Path] | None = None) -> Board | None:
-    """The default brain's board while its binding is live (not retired into a repo brain, not declared)."""
+    """The workspace brain's board while its binding is live (not yet declared as slot ``brain``)."""
 
     record = read_binding(workspace_id)
-    if record is None or record.get("retired_into") or declaration_state(record) == "declared":
+    if record is None or declaration_state(record) == "declared":
         return None
     root = Path(str(record["path"]))
     if not (root / ".git").exists():
@@ -344,8 +331,3 @@ def has_brain_here(board: Board) -> bool:
 
     return bool(board.bound_here and board.read_root and board.brain_dir and (board.read_root / board.brain_dir).is_dir())
 
-
-def needs_default_brain(found: list[Board]) -> bool:
-    """True when no board bound here has a brain directory — the §4 trigger (pass ``declared_boards``)."""
-
-    return not any(has_brain_here(board) for board in found)
