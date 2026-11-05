@@ -103,10 +103,6 @@ class Workspace:
     realm_id: str | None = None
     archived: bool = False
     schema_version: int = 1
-    # Launcher Project references only. Existing workspace/instance owners keep
-    # slots and access; a connection never assigns slots or shares content.
-    project_ids: list[str] = field(default_factory=list)
-    project_assignment_revision: int = 0
 
 
 @dataclass(slots=True)
@@ -573,8 +569,8 @@ class PersonaInstance:
     primary_slot: str | None = None
     slots_issued_at: datetime | None = None
     # RT-PROJECT-CHAT-RECALL-ACROSS-STORES: this agent's recall also searches the
-    # shared chat store of every Project its workspace holds whose chats are
-    # shared. Off by default; ``runtime.persona.instance.recall.set`` edits it on
+    # shared chat store of its own workspace (when that workspace shares its chats).
+    # Off by default; ``runtime.persona.instance.recall.set`` edits it on
     # the slot lane's clock (``slots_issued_at``). Memory extraction never reads it.
     recall_shared_projects: bool = False
     # RT-SLOT-CONTEXT-FILE-PICKS: a per-slot override of which context files load,

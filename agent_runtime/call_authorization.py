@@ -298,17 +298,12 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
         # its checkout paths, its environment, its own accounting row. A paired console
         # device may read a workspace's slots; it never binds the operator's disk.
         "runtime.workspace.slot.bind",
-        "runtime.project.slot.bind",
-        "runtime.project.slot.env.set",
-        "runtime.project.report",
-        "runtime.project.chat.fold",
         "runtime.workspace.slot.env.set",
         "runtime.workspace.slots.report",
+        "runtime.workspace.chat.fold",
         # Phase B (row H11): Clone and a recipe command step SPAWN on this machine.
         "runtime.workspace.slot.clone",
         "runtime.workspace.recipe.run_step",
-        "runtime.project.slot.clone",
-        "runtime.project.recipe.run_step",
         # p10-messaging §2.4: a platform bot token is a secret of THIS runtime; a paired device
         # holding ``console`` may bind chats and allow operators, never write or clear the token.
         "runtime.messaging.credential.set",

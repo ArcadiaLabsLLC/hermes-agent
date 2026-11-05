@@ -751,10 +751,9 @@ class BootPhases:
         except Exception:
             long_calls_lost = []
         self.timeline.mark("long_call_sweep_ms")
-        # Every workspace slot document becomes a Project (RT-PROJECT-SLOT-REKEY, plan
-        # project-slots-and-shared-chats §4) before the build scan reads the slots: idempotent, a
-        # no-op once every document carries ``migrated_to``, and fail-open — a store this cannot
-        # read keeps serving its workspace-keyed slots, and the next boot tries again.
+        # Every Project folds into its home workspace (RT-WS-ABSORB-MIGRATION, launcher plan
+        # WORKSPACE_ABSORBS_PROJECTS_2026-11-04 §4) before the build scan reads the slots: one plain
+        # pass, a no-op once nothing Project-keyed is left, and fail-open — the next boot tries again.
         try:
             from agent_runtime.project_migration import migrate_namespace
 
@@ -762,7 +761,7 @@ class BootPhases:
         except Exception as exc:  # fail-open, but never silent: the next boot retries
             import logging
 
-            logging.getLogger(__name__).warning("project_migration.failed: %s: %s", type(exc).__name__, exc)
+            logging.getLogger(__name__).warning("workspace_merge.failed: %s: %s", type(exc).__name__, exc)
         self.timeline.mark("project_migration_ms")
         # Builds (build plan §2, §5, §7): THIS process owns the detected-build scan, exports
         # HERMES_BUILD_REGISTRY_DIR so every child it spawns can announce, sweeps expired

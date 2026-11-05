@@ -1052,9 +1052,9 @@ def _first_turn_workspace(persona: Any, instance: Any, *, chat_session_id: str |
 
     from .mission_chat_turn_context import DEFAULT_RESOLVERS, _turn_workspace, workspace_content
 
-    slot_context, _agents, receipt, workdir, project_context = _turn_workspace(
+    slot_context, _agents, receipt, workdir, category_context = _turn_workspace(
         DEFAULT_RESOLVERS, persona, instance, None, chat_session_id=chat_session_id)
-    content = workspace_content(slot_context, None, project_context)
+    content = workspace_content(slot_context, None, category_context)
     return _FirstTurnWorkspace(content, receipt, workdir)
 
 

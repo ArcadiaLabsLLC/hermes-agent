@@ -134,12 +134,11 @@ def _turn_audit_price(usage: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _chosen(ready: list[Any], refs: tuple[RowRef, ...]) -> list[Any]:
-    """The READY rows the refs name, in board order. A ref names ``(slot, note, id)`` and its Project
-    only when it carries one; a ref no READY, unclaimed row answers refuses ``invalid`` naming it."""
+    """The READY rows the refs name, in board order. A ref names ``(slot, note, id)``; a ref no READY,
+    unclaimed row answers refuses ``invalid`` naming it."""
 
     def names(ref: RowRef, row: Any) -> bool:
-        return ((row.ref.slot, row.ref.note, row.ref.id) == (ref.slot, ref.note, ref.id)
-                and (ref.project_id is None or row.ref.project_id == ref.project_id))
+        return row.ref == ref
 
     missing = [ref.id for ref in refs if not any(names(ref, row) for row in ready)]
     if missing:
@@ -570,7 +569,7 @@ def _slot_gates(workspace_id: str) -> dict[str, tuple[str, ...] | None]:
     from ..workspace_slots import resolve_slot
 
     def declared(board) -> dict | None:
-        resolved = resolve_slot(workspace_id, board.slot, project_id=board.project_id)
+        resolved = resolve_slot(workspace_id, board.slot)
         return resolved.declaration if resolved else None
 
     return {board.slot: slot_gate(declared(board), is_default=board.is_default) for board in boards(workspace_id)}

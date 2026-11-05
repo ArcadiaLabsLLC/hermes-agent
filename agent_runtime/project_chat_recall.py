@@ -1,26 +1,27 @@
-"""Recall across the agent's own store and its Projects' shared chat stores (H-P7, plan §6).
+"""Recall across the agent's own store and its workspace's shared chat store (H-P7, plan §6).
 
-Plan ``docs/agent-runtime-harness/planned/project-slots-and-shared-chats-2026-10-29.md`` §6. An agent
-searches a Project's shared store (``project_chat_fold``) beside its own ``state.db`` only when BOTH
-switches are on: the instance's ``recall_shared_projects`` (default off;
-``runtime.persona.instance.recall.set``) and the Project's ``chats`` share. Every shared store is
-opened READ-ONLY here; the fold is its only writer, and memory extraction (``agent/background_review``)
-reads the live turn, never a store.
+Plan ``docs/agent-runtime-harness/planned/project-slots-and-shared-chats-2026-10-29.md`` §6, re-homed on the
+workspace (RT-WS-ABSORB-RETIRE-PROJECT). An agent searches its workspace's shared store
+(``project_chat_fold``) beside its own ``state.db`` only when BOTH switches are on: the instance's
+``recall_shared_projects`` (default off; ``runtime.persona.instance.recall.set``) and the workspace's
+``chats`` share. The shared store is opened READ-ONLY here; the fold is its only writer, and memory
+extraction (``agent/background_review``) reads the live turn, never a store. (The module and the
+instance field keep their Project-edition names until RT-WS-ABSORB-CHAT-NAMES-RESIDUE.)
 
-* :func:`shared_stores_for` resolves the stores for an instance; :func:`shared_stores_for_current_turn`
+* :func:`shared_stores_for` resolves the store for an instance; :func:`shared_stores_for_current_turn`
   reads the instance from the turn's ``launcher_invocation``, so ``session_search`` needs no new
   argument from upstream's tool wiring.
-* :func:`merge_discover` runs ``_discover`` in each shared store (the own store's exclusions —
+* :func:`merge_discover` runs ``_discover`` in the shared store (the own store's exclusions —
   ``current_lineage``, hidden sources — do not apply there) and merges by PER-STORE rank, round-robin,
   own store first: FTS5 BM25 scores are not comparable across databases. Every shared hit carries
-  ``shared_from {project, project_id, author, machine}`` and the link ``@project:<id>/<session>``.
+  ``shared_from {workspace, workspace_id, author, machine}`` and the link ``@workspace:<id>/<session>``.
 * :func:`recall_session_search` is the whole recall: upstream's PUBLIC ``session_search`` against the
-  own store, the same call against each enabled shared store (no current session there), the merge,
-  and an ``@project:<id>/<session>`` link resolved (read or scroll) against that store read-only —
+  own store, the same call against the enabled shared store (no current session there), the merge,
+  and an ``@workspace:<id>/<session>`` link resolved (read or scroll) against that store read-only —
   refused when the store is not enabled for this agent.
 * :func:`route_registered_handler` is the agent's door: the append-only seam at the end of
   ``tools/session_search_tool.py`` (owner ruling 2026-10-29, row RT-PROJECT-CHAT-RECALL-ACROSS-STORES)
-  wraps the registered handler, so the tool call recalls across the enabled stores while every
+  wraps the registered handler, so the tool call recalls across the enabled store while every
   direct caller of upstream's ``session_search`` keeps upstream's single-store behaviour.
 """
 
@@ -32,46 +33,46 @@ from typing import Any
 
 __layer__ = "stores"
 
-PROJECT_LINK_PREFIXES = ("@project:", "project:")
+SHARED_LINK_PREFIXES = ("@workspace:", "workspace:")
 
 
 @dataclass
 class SharedStore:
-    project_id: str
+    workspace_id: str
     name: str
     db: Any
 
 
 def shared_stores_for(persona_instance_id: str | None) -> list[SharedStore]:
-    """The shared stores this instance may recall from (empty unless both switches are on)."""
+    """The shared store this instance may recall from: its workspace's, when both switches are on."""
 
     if not persona_instance_id:
         return []
     from .errors import NotFound
     from .persona_assignments import PersonaInstanceStore
+    from .project_chat_export import ChatHome
     from .project_chat_fold import open_shared_store
-    from .project_store import category, load_project
     from .store import WorkspaceStore
+    from .workspace_categories import category
+    from .workspace_slots import load_document
 
     try:
         instance = PersonaInstanceStore().get(persona_instance_id)
     except (FileNotFoundError, KeyError, NotFound):
         return []
-    if not getattr(instance, "recall_shared_projects", False) or not instance.workspace_id:
+    workspace_id = instance.workspace_id
+    if not getattr(instance, "recall_shared_projects", False) or not workspace_id:
+        return []
+    if not category(load_document(workspace_id), "chats").get("shared"):
+        return []
+    db = open_shared_store(ChatHome(workspace_id), read_only=True)
+    if db is None:
         return []
     try:
-        held = WorkspaceStore().get(instance.workspace_id).project_ids
+        name = WorkspaceStore().get(workspace_id).name or workspace_id
     except NotFound:
-        return []
-    stores = []
-    for project_id in held:
-        record = load_project(project_id)
-        if not category(record, "chats").get("shared"):
-            continue
-        db = open_shared_store(project_id, read_only=True)
-        if db is not None:
-            stores.append(SharedStore(project_id, str(record.get("name") or project_id), db))
-    return stores
+        name = workspace_id
+    return [SharedStore(workspace_id, str(name), db)]
 
 
 def shared_stores_for_current_turn() -> list[SharedStore]:
@@ -102,8 +103,8 @@ def _author_label(db: Any, session_id: str) -> tuple[str | None, str | None]:
 
 def _labelled(entry: dict[str, Any], store: SharedStore) -> dict[str, Any]:
     author, machine = _author_label(store.db, entry["session_id"])
-    entry = {**entry, "link": f"@project:{store.project_id}/{entry['session_id']}",
-             "shared_from": {"project": store.name, "project_id": store.project_id, "author": author,
+    entry = {**entry, "link": f"@workspace:{store.workspace_id}/{entry['session_id']}",
+             "shared_from": {"workspace": store.name, "workspace_id": store.workspace_id, "author": author,
                              "machine": machine}}
     label = f"— {author or 'a teammate'}'s agent" + (f", on {machine}" if machine else "")
     entry["shared_label"] = label
@@ -130,23 +131,23 @@ def merge_discover(own_payload: str, stores: list[SharedStore], *, discover, lim
                 merged.append(results[rank])
     merged = merged[: max(limit, len(ranked[0]))]
     return json.dumps({**own, "results": merged, "count": len(merged),
-                       "shared_stores_searched": [store.project_id for store in stores]}, ensure_ascii=False)
+                       "shared_stores_searched": [store.workspace_id for store in stores]}, ensure_ascii=False)
 
 
-def project_link(session_id: Any) -> tuple[str, str] | None:
-    """``(project_id, session_id)`` of an ``@project:<id>/<session>`` link, else None."""
+def shared_link(session_id: Any) -> tuple[str, str] | None:
+    """``(workspace_id, session_id)`` of an ``@workspace:<id>/<session>`` link, else None."""
 
     if not isinstance(session_id, str):
         return None
-    for prefix in PROJECT_LINK_PREFIXES:
+    for prefix in SHARED_LINK_PREFIXES:
         if session_id.startswith(prefix):
-            project_id, _, session = session_id[len(prefix):].partition("/")
-            return (project_id, session) if project_id and session else None
+            workspace_id, _, session = session_id[len(prefix):].partition("/")
+            return (workspace_id, session) if workspace_id and session else None
     return None
 
 
-def store_for_link(project_id: str, stores: list[SharedStore]) -> SharedStore | None:
-    return next((store for store in stores if store.project_id == project_id), None)
+def store_for_link(workspace_id: str, stores: list[SharedStore]) -> SharedStore | None:
+    return next((store for store in stores if store.workspace_id == workspace_id), None)
 
 
 def close_stores(stores: list[SharedStore]) -> None:
@@ -167,11 +168,11 @@ def _recall(search, *, profile: Any, session_id: Any, limit: Any,
         return search()
     stores = shared_stores_for_current_turn() if shared_stores is None else shared_stores
     try:
-        link = project_link(session_id)
+        link = shared_link(session_id)
         if link:
             store = store_for_link(link[0], stores)
             if store is None:
-                return tool_error(f"@project:{link[0]} is not a shared chat store this agent recalls from",
+                return tool_error(f"@workspace:{link[0]} is not a shared chat store this agent recalls from",
                                   success=False)
             return search(db=store.db, current_session_id=None, session_id=link[1])
         result = search()
@@ -188,8 +189,8 @@ def _recall(search, *, profile: Any, session_id: Any, limit: Any,
 def recall_session_search(*, shared_stores: list[SharedStore] | None = None, **kwargs: Any) -> str:
     """``tools.session_search_tool.session_search(**kwargs)`` plus the agent's enabled shared stores.
 
-    ``shared_stores`` None = the current turn's (empty unless the agent enabled recall across
-    Projects). Another profile's store (``profile=``) is never mixed with a Project's.
+    ``shared_stores`` None = the current turn's (empty unless the agent enabled recall across its
+    workspace's shared chats). Another profile's store (``profile=``) is never mixed with a workspace's.
     """
 
     from tools.session_search_tool import session_search

@@ -169,6 +169,6 @@ def test_a_from_path_promotion_records_an_absolute_source(tmp_path, monkeypatch)
 
     _package(tmp_path / "skills", "1.0.0")
     monkeypatch.chdir(tmp_path)
-    source_dir, source, _ = _source_from_path(f"skills/{SKILL}", SKILL, types.SimpleNamespace())
+    _source_dir, source, _ = _source_from_path(f"skills/{SKILL}", SKILL, types.SimpleNamespace())
 
     assert Path(source["path"]).is_absolute() and Path(source["path"]) == (tmp_path / "skills" / SKILL).resolve()

@@ -34,12 +34,11 @@ _DOTENV_LINE_RE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*
 
 @dataclass(frozen=True)
 class SlotBinding:
-    """One slot bound on this machine: which workspace, which slot, the checkout — and the Project declaring it."""
+    """One slot bound on this machine: which workspace, which slot, the checkout."""
 
     workspace_id: str
     slot: str
     path: str
-    project_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -160,9 +159,8 @@ def overlay_for(binding: SlotBinding) -> SlotEnvOverlay:
     from .workspace_slot_env import slot_fill
     from .workspace_slots import resolve_slot, secret_keys
 
-    resolved = resolve_slot(binding.workspace_id, binding.slot, project_id=binding.project_id)
-    fill = slot_fill(binding.workspace_id, binding.slot,
-                     project_id=resolved.project_id if resolved else binding.project_id)
+    resolved = resolve_slot(binding.workspace_id, binding.slot)
+    fill = slot_fill(binding.workspace_id, binding.slot)
     declared = resolved.declaration if resolved else {}
     dotenv_name = (fill.dotenv if fill else None) or ((declared.get("toolchain") or {}).get("dotenv") or {}).get("path")
     dotenv = read_dotenv(Path(binding.path) / dotenv_name) if dotenv_name else {}
@@ -193,7 +191,7 @@ def env_overlay(cwd: Any, bindings: Iterable[SlotBinding] | None = None) -> Slot
         else:
             from .workspace_slots import authorized_roots_bound_here
 
-            bindings = [SlotBinding(b.workspace_id, b.slot, str(b.path), b.project_id)
+            bindings = [SlotBinding(b.workspace_id, b.slot, str(b.path))
                         for b in authorized_roots_bound_here()]
     binding = _deepest(str(cwd or ""), bindings)
     return None if binding is None else overlay_for(binding)

@@ -197,21 +197,19 @@ state, not append patches; preserve unrelated contents. Read back with
 method-only since 2026-10-02 — `runtime.level.set` / `.clear`, `runtime.map.set`
 / `.clear` / `.list`, called by the launcher's level/map authoring.
 
-## A Project's repo slots — READ, then WRITE
+## A workspace's repo slots — READ, then WRITE
 
 ```bash
-hermes harness project list --json
-hermes harness project show PROJECT_ID --json
-hermes harness project declare PROJECT_ID --slots-file slots.json --name "NAME" --json
-hermes harness project slot bind PROJECT_ID SLOT /abs/checkout --json
+hermes harness workspace slots show WORKSPACE_ID --json
+hermes harness workspace slots declare WORKSPACE_ID --slots-file slots.json --json
+hermes harness workspace slots bind WORKSPACE_ID SLOT /abs/checkout --json
 ```
 
-- Repo slots are declared on Projects; a workspace reads the slots of the Projects
-  connected to it. `project list` names each Project's slots and its workspaces.
-- `declare` REPLACES the slot set (a name left out is tombstoned) and creates the Project.
-- `slot clone` / `slot env-set` / `recipe show|set|run-step` are the rest of the
-  `runtime.project.*` verbs; `workspace slots …` on a migrated workspace answers
-  `slot_migrated` naming the Project.
+- Repo slots are declared on the workspace's own slot document (the workspace absorbed
+  Projects, RT-WS-ABSORB-RETIRE-PROJECT).
+- `declare` REPLACES the slot set (a name left out is tombstoned).
+- `slots clone` / `slots env-set` / `slots report` are the rest of the
+  `runtime.workspace.slots.*` verbs.
 
 ## Diagnose the connection and runtime — READ
 

@@ -66,8 +66,6 @@ def workspace_summary(
         "name": workspace.name,
         "slug": workspace.slug,
         "realm_id": workspace.realm_id,
-        "project_ids": list(workspace.project_ids),
-        "project_assignment_revision": workspace.project_assignment_revision,
         # Keep the legacy ``agents``/``agent_ids`` pair internally coherent:
         # both describe exact live rows placed in this workspace.  Emitting
         # roster persona ids here made pointerless canonical operator rows look
@@ -90,7 +88,7 @@ def workspace_summary(
         "active": workspace.id == active_id,
         "updated_at": workspace.updated_at,
         # Repo slots: each declared slot's name + THIS machine's last-known state, so
-        # Projects has a slots table while no serve is up (build plan §3; launcher plan §4).
+        # the workspace's 2D view has a slots table while no serve is up (build plan §3; launcher plan §4).
         # Probe-free, no path, never a value — ``slots.show`` is the live door.
         "repo_slots": snapshot_slots(workspace.id, machine=known_machine_id()),
     }

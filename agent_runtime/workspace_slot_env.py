@@ -17,10 +17,8 @@ and a key the slot declaration marks ``secret`` is REFUSED here (``secret_in_env
 belongs in the slot's ``.env`` under the bound path, read by the process that needs it,
 never copied.
 
-A Project's slot (plan project-slots-and-shared-chats §3) keeps its fill under ``projects.<project>.<slot>``
-beside ``workspaces``: one fill per Project per machine. A workspace-keyed read whose own entry is empty
-resolves through ``workspace_slots.slot_owner`` to the Project that declares the slot, so a migrated
-workspace's readers keep their environment.
+Every fill is a workspace's: ``workspaces.<ws>.<slot>`` (the Project edition's ``projects`` collection
+is folded in by the workspace merge, ``project_migration``, RT-WS-ABSORB-MIGRATION).
 """
 
 from __future__ import annotations
@@ -72,30 +70,14 @@ def _read() -> dict[str, Any]:
     return read_versioned_document(slot_env_path(), schema_version=SLOT_ENV_SCHEMA_VERSION, collection="workspaces")
 
 
-def _projects(payload: dict[str, Any]) -> dict[str, Any]:
-    """The ``projects`` collection, created on the payload when a write needs it."""
-
-    if not isinstance(payload.get("projects"), dict):
-        payload["projects"] = {}
-    return payload["projects"]
+def _fill_entry(payload: dict[str, Any], workspace_id: str | None, slot: str) -> Any:
+    return (payload["workspaces"].get(workspace_id) or {}).get(slot)
 
 
-def _fill_entry(payload: dict[str, Any], workspace_id: str | None, slot: str, project_id: str | None) -> Any:
-    if project_id is not None:
-        return (_projects(payload).get(project_id) or {}).get(slot)
-    entry = (payload["workspaces"].get(workspace_id) or {}).get(slot)
-    if entry is None and workspace_id:
-        from .workspace_slots import slot_owner
+def slot_fill(workspace_id: str | None, slot: str) -> SlotFill | None:
+    """This machine's fill for ``slot`` in ``workspace_id``, or None when none was set."""
 
-        owner = slot_owner(workspace_id, slot)
-        entry = (_projects(payload).get(owner) or {}).get(slot) if owner else None
-    return entry
-
-
-def slot_fill(workspace_id: str | None, slot: str, *, project_id: str | None = None) -> SlotFill | None:
-    """This machine's fill for ``slot`` in ``workspace_id`` (or Project ``project_id``), or None when none was set."""
-
-    entry = _fill_entry(_read(), workspace_id, slot, project_id)
+    entry = _fill_entry(_read(), workspace_id, slot)
     if not isinstance(entry, dict):
         return None
     return SlotFill(
@@ -108,7 +90,7 @@ def slot_fill(workspace_id: str | None, slot: str, *, project_id: str | None = N
     )
 
 
-def fill_shape(workspace_id: str | None, slot: str, *, project_id: str | None = None) -> dict[str, Any] | None:
+def fill_shape(workspace_id: str | None, slot: str) -> dict[str, Any] | None:
     """The fill's NON-SECRET shape for ``slots.show``: env key NAMES, tool paths, PATH head,
     ``.env``, venv — never an env VALUE. None when this machine set no fill for the slot.
 
@@ -117,7 +99,7 @@ def fill_shape(workspace_id: str | None, slot: str, *, project_id: str | None = 
     (``set_slot_fill(env_keep=…)``).
     """
 
-    fill = slot_fill(workspace_id, slot, project_id=project_id)
+    fill = slot_fill(workspace_id, slot)
     if fill is None:
         return None
     return {
@@ -150,7 +132,6 @@ def set_slot_fill(
     secret_keys: frozenset[str] = frozenset(),
     issued_at: str = "",
     env_keep: Any = None,
-    project_id: str | None = None,
 ) -> SlotFill:
     """REPLACE this slot's fill. A value for a key the declaration marks secret is refused.
 
@@ -159,7 +140,7 @@ def set_slot_fill(
     name with no stored value is simply absent from the result — the caller reports it.
     """
 
-    env_map = {**_kept_env(workspace_id, slot, env_keep, project_id), **_string_map(env, "env")}
+    env_map = {**_kept_env(workspace_id, slot, env_keep), **_string_map(env, "env")}
     leaked = sorted(key for key in env_map if key in secret_keys)
     if leaked:
         raise SlotEnvRefused(REASON_SECRET_IN_ENV, f"declared secret, belongs in the slot's .env: {', '.join(leaked)}")
@@ -176,37 +157,16 @@ def set_slot_fill(
     }
     payload = _read()
     payload["schema_version"] = SLOT_ENV_SCHEMA_VERSION
-    if project_id is not None:
-        _projects(payload).setdefault(project_id, {})[slot] = entry
-    else:
-        payload["workspaces"].setdefault(workspace_id, {})[slot] = entry
+    payload["workspaces"].setdefault(workspace_id, {})[slot] = entry
     _write(payload)
-    return slot_fill(workspace_id, slot, project_id=project_id) or SlotFill()
+    return slot_fill(workspace_id, slot) or SlotFill()
 
 
-def copy_workspace_fills(workspace_id: str, project_id: str) -> int:
-    """Copy every env fill of ``workspace_id`` under Project ``project_id`` (the migration, §4 step 2).
-
-    A Project fill already set wins, so a re-run after a crash (or after a Project edit) overwrites
-    nothing; the workspace's own entries stay for an older edition that reads only them.
-    """
-
-    payload = _read()
-    copying = {slot: entry for slot, entry in (payload["workspaces"].get(workspace_id) or {}).items()
-               if slot not in (_projects(payload).get(project_id) or {})}
-    if not copying:
-        return 0
-    payload["schema_version"] = SLOT_ENV_SCHEMA_VERSION
-    _projects(payload).setdefault(project_id, {}).update(copying)
-    _write(payload)
-    return len(copying)
-
-
-def _kept_env(workspace_id: str | None, slot: str, env_keep: Any, project_id: str | None = None) -> dict[str, str]:
+def _kept_env(workspace_id: str | None, slot: str, env_keep: Any) -> dict[str, str]:
     names = list(env_keep or [])
     if not all(isinstance(name, str) and name for name in names):
         raise SlotEnvRefused(REASON_INVALID_FILL, "env_keep must be a list of key names")
-    stored = (slot_fill(workspace_id, slot, project_id=project_id) or SlotFill()).env
+    stored = (slot_fill(workspace_id, slot) or SlotFill()).env
     return {name: stored[name] for name in names if name in stored}
 
 

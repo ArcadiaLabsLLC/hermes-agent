@@ -191,6 +191,31 @@ MIGRATION_REGISTRY: tuple[dict[str, Any], ...] = (
                   "it exactly as before",
         "pins_sha256": "471019867cdb4b16f515fbf53d6f2d2c250d78f7140b0d8ef31133475b8f7143",
     },
+    {
+        "id": "workspace-shared-chat-store",
+        "date": "2026-11-04",
+        "store": "all",
+        "breaking": False,
+        "reason": "additive (lane w1104a-wsabsorb, RT-WS-ABSORB-CONTENT-DOC): the paths table names "
+                  "store/workspace_chats/<ws>.db, workspace_chat_fold/<ws>.json and "
+                  "workspace_chat_exports/<ws>/<session>.json, a workspace's shared chat store, fold offsets "
+                  "and export cursors; the workspace slot document gains categories and guidance keys an "
+                  "older edition ignores; no existing path moves",
+        "pins_sha256": "393cfbd4701746087ff3547b907959b3d02fc43cf02ed0e6c5a7692c5e98eed7",
+    },
+    {
+        "id": "workspace-absorbs-projects",
+        "date": "2026-11-04",
+        "store": "all",
+        "breaking": False,
+        "reason": "subtractive (lane w1104a-wsabsorb2, RT-WS-ABSORB-RETIRE-PROJECT): paths.projects_dir / "
+                  "project_path / project_chat_export_path / project_chat_store_path / project_chat_fold_path "
+                  "leave the paths table and Workspace loses project_ids / project_assignment_revision; the "
+                  "first-boot merge (RT-WS-ABSORB-MIGRATION) already folded every Project into its workspace "
+                  "and removed those files and keys, machine_roots.json stays schema 3, and no existing "
+                  "workspace path moves",
+        "pins_sha256": "c1adb571eb97769c49fa7bacf4c16e33ee1afe7c77609e2410453cd578342022",
+    },
 )
 
 #: ``1 + count(breaking entries)`` — ``tests/agent_runtime/test_store_epoch_gate.py`` holds it to that.

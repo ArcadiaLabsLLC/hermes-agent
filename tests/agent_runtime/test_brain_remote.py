@@ -1,7 +1,7 @@
 """RT-BRAIN-PATHS-PLAIN-LIST slice 4: the brains' remote check against real git.
 
 A bare origin two commits ahead of a clone: hermes's own brain (workspace / personal) is fast-forwarded when
-clean and kept when dirty; a Project brain (the user's repo) is only counted; a brain with no upstream is null.
+clean and kept when dirty; a slot brain (the user's repo) is only counted; a brain with no upstream is null.
 """
 
 from __future__ import annotations
@@ -65,11 +65,11 @@ def test_a_dirty_workspace_brain_is_counted_not_moved(tmp_path):
     assert check_brain(str(brain), "personal") == 2 and _head(brain) == before
 
 
-def test_a_project_brain_is_only_counted(tmp_path):
-    """Mutation: add ``project`` to ``FAST_FORWARD_KINDS`` -> the user's repo moves, red."""
+def test_a_slot_brain_is_only_counted(tmp_path):
+    """Mutation: add ``slot`` to ``FAST_FORWARD_KINDS`` -> the user's repo moves, red."""
     brain = _behind_by_two(tmp_path, "app")
     before = _head(brain)
-    assert check_brain(str(brain), "project") == 2 and _head(brain) == before
+    assert check_brain(str(brain), "slot") == 2 and _head(brain) == before
 
 
 def test_no_upstream_or_no_repo_is_null(tmp_path):
@@ -84,23 +84,23 @@ def _listing(entries: dict[str, str]) -> dict:
     """A list whose brains are ``{path: kind}`` (each with a brain folder)."""
 
     slots = [{"slot": f"s{i}", "path": p, "brain_dir": "Work_Brain"} for i, (p, k) in enumerate(entries.items())
-             if k == "project"]
+             if k == "slot"]
     own = [p for p, k in entries.items() if k == "workspace"]
-    return {"schema_version": 1, "personal": {"path": None, "brain_dir": None},
+    return {"schema_version": 2, "personal": {"path": None, "brain_dir": None},
             "workspaces": {"ws": {"name": "W", "brain": {"path": own[0] if own else None,
                                                          "brain_dir": "Work_Brain" if own else None},
-                                  "projects": [{"project_id": "p", "name": "P", "slots": slots}]}}}
+                                  "slots": slots}}}
 
 
 def test_a_tick_is_bounded_round_robin_and_writes_the_counts(tmp_path, monkeypatch):
     """Mutations: drop the ``per_tick`` slice -> all three checked in one tick, red; drop the cursor advance ->
     the second tick re-checks the first brains, red."""
-    paths_ = {str(tmp_path / f"b{i}"): "project" for i in range(3)}
+    paths_ = {str(tmp_path / f"b{i}"): "slot" for i in range(3)}
     monkeypatch.setattr(brain_remote, "read_brain_paths", lambda: _listing(paths_))
     monkeypatch.setattr(brain_remote, "check_brain", lambda path, kind: 7)
     written: list[dict] = []
     monkeypatch.setattr(brain_remote, "write_brain_paths", lambda behind: written.append(dict(behind)) or True)
-    monkeypatch.setattr(brain_remote, "held_counts", lambda: {})
+    monkeypatch.setattr(brain_remote, "held_counts", dict)
     check = RemoteCheck(per_tick=2)
     first = check.tick()["checked"]
     second = check.tick()["checked"]
@@ -108,40 +108,37 @@ def test_a_tick_is_bounded_round_robin_and_writes_the_counts(tmp_path, monkeypat
     assert written[-1] == {path: 7 for path in paths_}
 
 
-def test_one_checkout_bound_as_project_and_own_is_never_fast_forwarded(tmp_path, monkeypatch):
+def test_one_checkout_bound_as_slot_and_own_is_never_fast_forwarded(tmp_path, monkeypatch):
     shared = str(tmp_path / "shared")
     listing = _listing({shared: "workspace"})
-    listing["workspaces"]["ws"]["projects"][0]["slots"] = [{"slot": "s", "path": shared, "brain_dir": "X_Brain"}]
+    listing["workspaces"]["ws"]["slots"] = [{"slot": "s", "path": shared, "brain_dir": "X_Brain"}]
     monkeypatch.setattr(brain_remote, "read_brain_paths", lambda: listing)
-    assert RemoteCheck().due() == [(shared, "project")]
+    assert RemoteCheck().due() == [(shared, "slot")]
 
 
 def test_a_brain_already_in_flight_is_skipped(tmp_path, monkeypatch):
     path = str(tmp_path / "b")
-    monkeypatch.setattr(brain_remote, "read_brain_paths", lambda: _listing({path: "project"}))
+    monkeypatch.setattr(brain_remote, "read_brain_paths", lambda: _listing({path: "slot"}))
     monkeypatch.setattr(brain_remote, "write_brain_paths", lambda behind: False)
-    monkeypatch.setattr(brain_remote, "held_counts", lambda: {})
+    monkeypatch.setattr(brain_remote, "held_counts", dict)
     check = RemoteCheck()
     check._inflight.add(path)
     assert check.tick()["checked"] == []
 
 
 def test_the_measured_count_reaches_the_written_list(tmp_path):
-    """End to end on the isolated home: a Project slot behind its upstream lists ``behind: 2``."""
-    from agent_runtime.project_store import ProjectStore
+    """End to end on the isolated home: a workspace slot behind its upstream lists ``behind: 2``."""
     from agent_runtime.store import WorkspaceStore
-    from agent_runtime.workspace_projects import set_project_connection
-    from agent_runtime.workspace_slots import bind_project
+    from agent_runtime.workspace_slots import bind, declare
 
     brain = _behind_by_two(tmp_path, "app")
     WorkspaceStore().create(name="R", workspace_id="ws-r")
-    ProjectStore().declare("proj-r", [{"name": "app", "repo": {"clone_url": "https://example.com/a.git"}}],
-                           issued_at="2026-11-02T22:00:00+00:00", machine="m", name="R")
-    bind_project("proj-r", "app", str(brain), issued_at="2026-11-02T22:00:00+00:00")
-    set_project_connection("ws-r", "proj-r", connected=True, expected_revision=0)
+    declare("ws-r", [{"name": "app", "repo": {"clone_url": "https://example.com/a.git"}}],
+            issued_at="2026-11-02T22:00:00+00:00", machine="m")
+    bind("ws-r", "app", str(brain), issued_at="2026-11-02T22:00:00+00:00")
     RemoteCheck().tick()
     listed = json.loads(brain_paths.brain_paths_path().read_text(encoding="utf-8"))
-    assert listed["workspaces"]["ws-r"]["projects"][0]["slots"][0]["behind"] == 2
+    assert listed["workspaces"]["ws-r"]["slots"][0]["behind"] == 2
 
 
 def test_the_ticker_ticks_until_stopped(monkeypatch):
@@ -169,7 +166,7 @@ def test_pull_fast_forwards_a_clean_project_checkout_and_writes_its_count(tmp_pa
     brain = _behind_by_two(tmp_path, "app")
     written: list[dict] = []
     monkeypatch.setattr(brain_remote, "write_brain_paths", lambda behind: written.append(dict(behind)) or True)
-    monkeypatch.setattr(brain_remote, "held_counts", lambda: {})
+    monkeypatch.setattr(brain_remote, "held_counts", dict)
     answer = pull_checkout(brain)
     assert answer["pulled"] == 2 and answer["behind"] == 0 and answer["head"] == _head(brain)
     assert (brain / "Work_Brain" / "n3.md").is_file() and written == [{str(brain): 0}]

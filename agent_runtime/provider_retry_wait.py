@@ -27,8 +27,8 @@ __all__ = [
     "PROVIDER_RETRY_WAIT_FRAME",
     "PROVIDER_RETRY_WAIT_PHASE",
     "emit_provider_retry_wait",
-    "provider_retry_wait_payload",
     "provider_reset_seconds",
+    "provider_retry_wait_payload",
     "reset_outlasts_retries",
     "safe_provider_retry_wait",
 ]
@@ -47,7 +47,7 @@ def _whole(value: Any) -> Optional[int]:
     if isinstance(value, bool):
         return None
     try:
-        number = int(round(float(value)))
+        number = round(float(value))
     except (TypeError, ValueError, OverflowError):
         return None
     return number if number >= 0 else None

@@ -86,12 +86,11 @@ class SlotRefused(ValueError):
 
 @dataclass(frozen=True)
 class BoundSlot:
-    """A slot this machine fills: which workspace, which slot, the local checkout — and which Project declares it."""
+    """A slot this machine fills: which workspace, which slot, the local checkout."""
 
     workspace_id: str
     slot: str
     path: Path
-    project_id: str | None = None
 
 
 def _now_iso() -> str:
@@ -289,7 +288,7 @@ def _context(value: Any) -> dict[str, Any]:
             raise SlotRefused(REASON_INVALID_DECLARATION, "context.brain_dir is a relative path inside the checkout")
         held["brain_dir"] = brain_dir
     for key in ("document_dirs", "adr_dirs"):
-        # A Project slot's document and ADR folders (plan project-slots-and-shared-chats §2).
+        # A slot's document and ADR folders (the documents category reads them).
         dirs = value.get(key) if isinstance(value, dict) else None
         if dirs is not None:
             if not isinstance(dirs, list) or not all(_inside_checkout(d) for d in dirs):
@@ -366,8 +365,11 @@ def declare(workspace_id: str, slots: Any, *, issued_at: str, machine: str) -> d
     The second write site is :func:`declare_one_slot` (one name, nothing tombstoned).
     """
 
+    from .workspace_categories import enforce_share_rule
+
     document = _fresh_document(workspace_id, issued_at)
     declared, tombstoned = apply_declared_set(document, slots, issued_at=issued_at, machine=machine)
+    unshared = enforce_share_rule(document)  # a slot made local or removed unshares its categories
     document["workspace_id"] = workspace_id
     write_document(workspace_id, document)
     from .persona_slots import drop_removed_slots
@@ -378,7 +380,7 @@ def declare(workspace_id: str, slots: Any, *, issued_at: str, machine: str) -> d
     for name in tombstoned:
         drop_worktrees(workspace_id, name)
     return {"document": document, "declared": sorted(declared), "tombstoned": sorted(tombstoned),
-            "assignments_dropped": dropped_from}
+            "categories_unshared": unshared, "assignments_dropped": dropped_from}
 
 
 
@@ -395,7 +397,7 @@ def refuse_stale(last_stamp: Any, issued_at: str) -> None:
 
     A stored stamp past this machine's horizon (a broken or forged clock, pulled or local) is not
     believed, so it can never wedge every later declare as ``stale_revision``; the first honest
-    declare replaces it and the check holds again from there. Shared with ``project_store``.
+    declare replaces it and the check holds again from there. Shared with ``workspace_categories``.
     """
 
     last, issued = stamp_epoch(last_stamp), stamp_epoch(issued_at)
@@ -409,7 +411,7 @@ def apply_declared_set(document: dict[str, Any], slots: Any, *, issued_at: str,
                        machine: str) -> tuple[dict[str, dict[str, Any]], list[str]]:
     """REPLACE ``document``'s declared set in place: ``(declared, tombstoned names)``.
 
-    The one declare rule for a workspace slot document and a Project record alike: names missing
+    The one declare rule for a workspace slot document: names missing
     from ``slots`` are tombstoned (revision bumped), never deleted; a tombstoned name declared again
     comes back; a slot that stays keeps its recipe. ``document["issued_at"]`` is stamped.
     """
@@ -443,14 +445,17 @@ def declare_one_slot(workspace_id: str, entry: Any, *, issued_at: str, machine: 
     revision bump when the slot's decision changed; the document's ``issued_at`` is stamped.
     """
 
+    from .workspace_categories import enforce_share_rule
+
     name, body = normalize_declaration(entry)
     document = _fresh_document(workspace_id, issued_at)
     current = document.setdefault("slots", {})
     current[name] = _declared_record(current.get(name) or {}, body, issued_at=issued_at, machine=machine)
     document["issued_at"] = issued_at
+    unshared = enforce_share_rule(document)
     document["workspace_id"] = workspace_id
     write_document(workspace_id, document)
-    return {"document": document, "declared": [name], "tombstoned": []}
+    return {"document": document, "declared": [name], "tombstoned": [], "categories_unshared": unshared}
 
 # ── this machine's fill ──────────────────────────────────────────────────────
 
@@ -522,152 +527,41 @@ def _legacy_fills(current: MachineRoots) -> tuple[dict[str, dict[str, str]], lis
     return scoped, ambiguous
 
 
-def bound_path(slot: str, *, workspace_id: str | None = None, project_id: str | None = None) -> Path | None:
-    """This machine's fill of ``slot``, when bound: the Project's (``project_roots[p][slot]``) or the workspace's.
+def bound_path(slot: str, *, workspace_id: str | None = None) -> Path | None:
+    """This machine's fill of ``slot`` in ``workspace_id`` (``slot_folders[ws][slot]``), when bound."""
 
-    A workspace-keyed read (every caller written before Projects) resolves through
-    :func:`slot_owner`: the Project of that workspace that declares ``slot`` answers with ITS fill,
-    so a migrated workspace's readers keep finding the folder. A workspace with no such Project
-    answers ``workspace_roots[ws][slot]`` as before.
-    """
-
-    roots = scoped_roots()
-    if project_id is None and workspace_id is not None:
-        project_id = slot_owner(workspace_id, slot)
-        if project_id is None:
-            return roots.workspace_root(workspace_id, slot)
-    return roots.project_root(project_id, slot) if project_id else None
-
-
-def slot_owner(workspace_id: str, slot: str) -> str | None:
-    """The Project of ``workspace_id`` that declares ``slot``: the migration's target first, else the
-    ONE assigned Project whose record declares it live; ``None`` when none does or two do (a name two
-    assigned Projects both declare is addressed as ``<project>/<slot>``, never guessed)."""
-
-    from .errors import NotFound
-    from .project_store import load_project
-    from .store import WorkspaceStore
-
-    migrated = load_document(workspace_id).get("migrated_to")
-    if isinstance(migrated, str) and migrated and slot in live_slots(load_project(migrated)):
-        return migrated
-    try:
-        held = WorkspaceStore().get(workspace_id).project_ids
-    except NotFound:  # a workspace with no record (a test fixture, a deleted one) owns no Project
+    if workspace_id is None:
         return None
-    owners = [pid for pid in held if slot in live_slots(load_project(pid))]
-    return owners[0] if len(owners) == 1 else None
-
-
-def slots_of_workspace(workspace_id: str) -> list[tuple[str | None, str]]:
-    """``(project_id | None, slot)`` for every live slot a workspace sees: its own document's (unless it
-    was migrated into a Project) and each assigned Project's, in that order."""
-
-    from .errors import NotFound
-    from .project_store import load_project
-    from .store import WorkspaceStore
-
-    document = load_document(workspace_id)
-    out: list[tuple[str | None, str]] = []
-    if not document.get("migrated_to"):
-        out.extend((None, name) for name in sorted(live_slots(document)))
-    try:
-        held = WorkspaceStore().get(workspace_id).project_ids
-    except NotFound:
-        held = []
-    for project_id in held:
-        out.extend((project_id, name) for name in sorted(live_slots(load_project(project_id))))
-    return out
-
-
-REASON_SLOT_MIGRATED = "slot_migrated"
-
-
-def require_unmigrated(workspace_id: str) -> str:
-    """``workspace_id`` while its slot document is still its own; ``slot_migrated`` naming the Project after.
-
-    The door every workspace-keyed slot verb (RPC and CLI) passes before reading or writing the
-    document itself: a document frozen at ``migrated_to`` answers where its slots went, never a
-    stale table or an edit no reader will see (plan project-slots-and-shared-chats §2).
-    """
-
-    migrated = load_document(workspace_id).get("migrated_to")
-    if migrated:
-        raise SlotRefused(REASON_SLOT_MIGRATED, str(migrated))
-    return workspace_id
+    return scoped_roots().workspace_root(workspace_id, slot)
 
 
 class ResolvedSlot(NamedTuple):
-    """A slot a reader named, with its owner: the Project that declares it, or None for the workspace's own."""
+    """A slot a reader named and its live declaration in the workspace's slot document."""
 
-    project_id: str | None
     slot: str
     declaration: dict[str, Any]
 
 
-def resolve_slot(workspace_id: str | None, slot: str, *, project_id: str | None = None) -> ResolvedSlot | None:
-    """The live declaration a reader of ``workspace_id`` sees for ``slot`` (bare, or ``<project>/<slot>``).
+def resolve_slot(workspace_id: str | None, slot: str) -> ResolvedSlot | None:
+    """The live declaration ``workspace_id``'s slot document holds for ``slot``; None when it declares none."""
 
-    The ONE reader door for a slot's declaration, owner-ordered exactly like :func:`bound_path`: an
-    explicit Project, else :func:`slot_owner`'s Project, else the workspace's own document while it is
-    not migrated. A document frozen at ``migrated_to`` is never read here, so a ``runtime.project.*``
-    edit is what every reader sees. None: nothing this workspace sees declares it live.
-    """
-
-    from .project_store import load_project, valid_project_id
-
-    if project_id is None and "/" in slot:
-        project_id, _, slot = slot.partition("/")
-    if project_id is None and workspace_id is not None:
-        project_id = slot_owner(workspace_id, slot)
-        if project_id is None:
-            document = load_document(workspace_id)
-            body = None if document.get("migrated_to") else live_slots(document).get(slot)
-            return ResolvedSlot(None, slot, body) if body is not None else None
-    if not project_id:
+    if workspace_id is None:
         return None
-    body = live_slots(load_project(valid_project_id(project_id))).get(slot)
-    return ResolvedSlot(project_id, slot, body) if body is not None else None
+    body = live_slots(load_document(workspace_id)).get(slot)
+    return ResolvedSlot(slot, body) if body is not None else None
 
 
-def slot_key(project_id: str | None, slot: str) -> str:
-    """How a slot is named where its owner matters: ``<project>/<slot>``, or the bare name for a workspace slot."""
-
-    return f"{project_id}/{slot}" if project_id else slot
-
-
-def _write_fill(slot: str, path: str, *, workspace_id: str | None = None, project_id: str | None = None) -> None:
-    """THE slot fill write: ``project_roots[p][slot]`` for a Project, else ``slot_folders[ws][slot]``.
-    It never writes a config root (plan machine-roots-two-halves §2.2): ``${roots.<slot>}`` reads the
-    slot folder itself."""
+def _write_fill(slot: str, path: str, *, workspace_id: str) -> None:
+    """THE slot fill write: ``slot_folders[ws][slot]``. It never writes a config root (plan
+    machine-roots-two-halves §2.2): ``${roots.<slot>}`` reads the slot folder itself."""
 
     current = scoped_roots()
     scoped = {ws: dict(slots) for ws, slots in current.workspace_roots.items()}
-    projects = {pid: dict(slots) for pid, slots in current.project_roots.items()}
-    if project_id is not None:
-        projects.setdefault(project_id, {})[slot] = path
-    else:
-        scoped.setdefault(str(workspace_id), {})[slot] = path
-    write_machine_roots(dict(current.roots), workspace_roots=scoped, project_roots=projects, dry_run=False)
+    scoped.setdefault(str(workspace_id), {})[slot] = path
+    write_machine_roots(dict(current.roots), workspace_roots=scoped, dry_run=False)
     from .brain_paths import changed
 
     changed("slot.bound")
-
-
-def bind_project(project_id: str, slot: str, path: str, *, issued_at: str) -> dict[str, Any]:
-    """Bind a Project's ``slot`` on THIS machine (one fill per Project, whichever workspaces hold it)."""
-
-    from .project_store import load_project, valid_project_id
-    from .workspace_slots_probe import report_project
-
-    if slot not in live_slots(load_project(valid_project_id(project_id))):
-        raise SlotRefused(REASON_SLOT_NOT_DECLARED, f"{project_id} declares no slot {slot!r}")
-    target = _bind_target(path)
-    _write_fill(slot, str(target), project_id=project_id)
-    row = report_project(project_id, fresh_binds=frozenset({slot}))["slots"].get(slot, {})
-    warnings = ["remote_mismatch"] if row.get("checkout") == "remote_mismatch" else []
-    return {"project_id": project_id, "slot": slot, "bound_here": True, "path": str(target), "report": row,
-            "warnings": warnings, "issued_at": issued_at}
 
 
 def _bind_target(path: str) -> Path:
@@ -700,6 +594,7 @@ def bind(workspace_id: str, slot: str, path: str, *, issued_at: str) -> dict[str
 def show(workspace_id: str) -> dict[str, Any]:
     """The document plus THIS machine's fill per slot — never another machine's path.
 
+    ``shared_chats`` is the sessions this machine shares into the workspace's chats folder.
     ``here.<slot>.fill`` is the fill's non-secret shape (``workspace_slot_env.fill_shape``):
     env key names, tool paths, PATH head, ``.env``, venv — never an env value; null when unset.
 
@@ -728,7 +623,9 @@ def show(workspace_id: str) -> dict[str, Any]:
                       f"{name}: bound on " + (", ".join(machines) if machines else "no reporting machine"), time.time())
             row["unknowns"] = index.wire()
         here[name] = row
-    return {"document": document, "here": here}
+    from .project_chat_export import ChatHome, shared_sessions_of
+
+    return {"document": document, "here": here, "shared_chats": shared_sessions_of(ChatHome.workspace(workspace_id))}
 
 
 def binding_machines(document: dict[str, Any], slot: str) -> list[str]:
@@ -771,34 +668,17 @@ class SlotCensus:
 
 
 def slot_census() -> SlotCensus:
-    """Every slot the active realm's workspaces see: their own documents' and their Projects'.
-
-    A migrated workspace document (``migrated_to``) is read through its Project instead, so no slot
-    counts twice; a Project held by two workspaces is declared once and bound once per workspace
-    (the attribution a build row needs), with one fill.
-    """
-
-    from .project_store import load_project
-    from .store import WorkspaceStore
+    """Every slot the active realm's workspaces declare, and the ones bound here."""
 
     declared: set[tuple[str, str]] = set()
     bound: list[BoundSlot] = []
     roots = scoped_roots()
-    held = {ws.id: ws.project_ids for ws in WorkspaceStore().list_all(include_archived=False)}
     for workspace_id in realm_workspace_ids():
-        document = load_document(workspace_id)
-        if not document.get("migrated_to"):
-            for name in live_slots(document):
-                declared.add((f"workspace:{workspace_id}", name))
-                value = roots.workspace_root(workspace_id, name)
-                if value is not None and value.is_dir():
-                    bound.append(BoundSlot(workspace_id, name, value))
-        for project_id in held.get(workspace_id, ()):
-            for name in live_slots(load_project(project_id)):
-                declared.add((f"project:{project_id}", name))
-                value = roots.project_root(project_id, name)
-                if value is not None and value.is_dir():
-                    bound.append(BoundSlot(workspace_id, name, value, project_id))
+        for name in live_slots(load_document(workspace_id)):
+            declared.add((f"workspace:{workspace_id}", name))
+            value = roots.workspace_root(workspace_id, name)
+            if value is not None and value.is_dir():
+                bound.append(BoundSlot(workspace_id, name, value))
     return SlotCensus(len(declared), tuple(bound))
 
 
@@ -834,7 +714,6 @@ __all__ = [
     "SlotRefused",
     "authorized_roots_bound_here",
     "bind",
-    "bind_project",
     "bound_path",
     "declare",
     "declare_one_slot",
@@ -845,13 +724,11 @@ __all__ = [
     "machine_id",
     "rekey_legacy_report",
     "report_namespace",
-    "require_unmigrated",
     "resolve_slot",
     "scoped_roots",
     "show",
     "slot_census",
     "slot_for_path",
-    "slot_owner",
     "write_document",
 ]
 
@@ -892,7 +769,7 @@ def known_machine_id() -> str | None:
 def snapshot_slots(workspace_id: str, *, machine: str | None) -> dict[str, Any]:
     """Each declared slot's NAME + THIS machine's last-known state, for the snapshot's workspace row.
 
-    What Projects renders while no serve is up (launcher plan §4). Read-only and probe-free —
+    What the workspace's 2D view renders while no serve is up (launcher plan §4). Read-only and probe-free —
     no git, no subprocess, no ``--version``: ``bound_here`` is the machine-root lookup plus one
     stat; ``status`` / ``checkout`` are this machine's LAST report in the document (null when it
     never reported, or its id is unreadable). No path and never a value: the frame crosses to

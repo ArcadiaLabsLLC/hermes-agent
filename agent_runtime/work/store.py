@@ -24,7 +24,7 @@ from agent_runtime.work_store.default_brain import (
     QUEUE_DIR, QUEUE_NOTE, QUEUE_TEMPLATE, TODO_TEMPLATE, this_machine,
 )
 from agent_runtime.work_store.grammar import (
-    ASSIGNEE, GROUP_SLUG, STATUS, Assignee, Op, Row, RowRef, find, mint_id, parse_note,
+    ASSIGNEE, GROUP_SLUG, STATUS, Assignee, Op, Row, RowRef, Status, find, mint_id, parse_note,
 )
 from agent_runtime.work_store.writer import OPERATOR, Writer, RowOp, checkout_token, work_worktree_for
 
@@ -45,7 +45,7 @@ class Synced:
     """A workspace's boards read from hermes's worktrees, with the writer of each readable one."""
 
     boards: list[Board]
-    #: Keyed by :attr:`Board.key` (``<project>/<slot>``, bare for the workspace's own).
+    #: Keyed by :attr:`Board.key` (the slot).
     writers: dict[str, Writer]
     stale: bool
     #: Keyed like ``writers``: the board whose sync refused, and why (RT-WORK-LIST-ONE-BOARD-REFUSAL).
@@ -75,8 +75,7 @@ def worktree_brain(board: Board) -> Board:
 
     if board.brain_dir is not None or not board.bound_here or board.checkout is None:
         return board
-    worktree = work_worktree_for(board.workspace_id, board.slot, checkout_token(board.checkout),
-                                 project_id=board.project_id)
+    worktree = work_worktree_for(board.workspace_id, board.slot, checkout_token(board.checkout))
     if not (worktree / ".git").exists():
         return board
     found = boards_store.brain_dir_of(worktree, {})
@@ -130,25 +129,17 @@ def observed(workspace_id: str, *, slot: str | None = None) -> Synced:
     return Synced(boards_store.boards(workspace_id, read_roots=roots), writers, stale)
 
 
-def _view_board(view: Synced, slot: Any, project_id: Any = None) -> Board:
-    """The board ``slot`` (+ ``project_id``, absent = the workspace's own) names; ``slot_ambiguous`` when
-    two Projects answer a bare name (``board.pick``)."""
+def _view_board(view: Synced, slot: Any) -> Board:
+    """The board ``slot`` names, bound here and readable."""
 
-    board = boards_store.pick(view.boards, slot, project_id) if slot is not None else None
+    board = boards_store.pick(view.boards, slot) if slot is not None else None
     if board is None or not board.bound_here:
-        raise WorkRefused(Reason.SLOT_UNBOUND, f"{project_id}/{slot}" if project_id else str(slot))
+        raise WorkRefused(Reason.SLOT_UNBOUND, str(slot))
     if board.key in view.refused:
         raise view.refused[board.key]
     if board.key not in view.writers:
         raise WorkRefused(Reason.NO_BRAIN, board.key)
     return board
-
-
-def _project_param(params: Mapping[str, Any]) -> str | None:
-    """``project_id`` from the params: optional; absent names the workspace's own (or the one owner)."""
-
-    value = params.get("project_id")
-    return None if value is None else text(value, maximum=200)
 
 
 def _now() -> datetime:
@@ -225,7 +216,7 @@ def project(row: Row, writer: Writer | None, *, context=None, detail: bool = Fal
         program = note_meta(writer.worktree / row.ref.note)["program"]
     taken = row.taken
     value = {
-        "id": row.ref.id, "slot": row.ref.slot, "project_id": row.ref.project_id, "program": program, "note": row.ref.note, "line": row.line_no,
+        "id": row.ref.id, "slot": row.ref.slot, "program": program, "note": row.ref.note, "line": row.line_no,
         "title": row.title,
         "status": status_word(row), "status_word": row.status.value if row.status else None,
         "status_date": row.status_date, "status_body": row.status_body, "recommend": row.recommend,
@@ -244,16 +235,13 @@ def project(row: Row, writer: Writer | None, *, context=None, detail: bool = Fal
 
 
 def board_wire(board: Board, writer: Writer | None, refusal: WorkRefused | None = None) -> dict[str, Any]:
-    """A board on the wire, with its owner: ``project_id`` / ``project_name`` (None for the workspace's
-    own), ``projects`` (every Project a merged board answers for), ``checkout`` (THIS machine's path,
-    the disclosure ``slots.show`` makes) and ``project_default`` (RT-WORK-BOARD-PER-PROJECT-SLOT).
+    """A board on the wire: ``checkout`` (THIS machine's path, the disclosure ``slots.show`` makes) and
+    ``board_default`` (the workspace's ``boards`` category slot, listed first).
     ``refused`` is ``{reason, detail}`` when the board's sync refused (``readable`` false, no queues),
     else None (RT-WORK-LIST-ONE-BOARD-REFUSAL)."""
 
     return {"slot": board.slot, "label": "Work" if board.is_default else board.slot, "brain_dir": board.brain_dir,
-            "project_id": board.project_id, "project_name": board.project_name,
-            "projects": [{"project_id": pid, "project_name": name} for pid, name in board.projects],
-            "project_default": board.project_default,
+            "board_default": board.board_default,
             "checkout": str(board.checkout) if board.checkout is not None else None,
             "bound_here": board.bound_here, "local": board.local,
             "is_default": board.is_default, "default_branch": board.default_branch,
@@ -266,8 +254,7 @@ def _row_now(writer: Writer, ref: RowRef) -> Row | None:
     path = writer.worktree / ref.note
     if not path.is_file():
         return None
-    return find(parse_note(path.read_bytes().decode("utf-8"), slot=ref.slot, note=ref.note,
-                           project_id=writer.board.project_id), ref.id)
+    return find(parse_note(path.read_bytes().decode("utf-8"), slot=ref.slot, note=ref.note), ref.id)
 
 
 def _task(writer: Writer, ref: RowRef, context) -> dict[str, Any] | None:
@@ -308,15 +295,10 @@ def list_work(scope, params, *, context=None, assignees: frozenset[str] | None =
     view = (observed(scope.workspace_id) if params.get("observe") is True
             else synced(scope.workspace_id, stale_ok=params.get("stale_ok") is True))
     keep = _row_filter(params, context, assignees)
-    slot, project_id = params.get("slot"), _project_param(params)
-    listed = [b for b in view.boards if (slot is None or b.slot == slot)
-              and (project_id is None or b.project_id == project_id or project_id in b.owners)]
-    from agent_runtime.project_categories import held_projects
-
-    projects = [p for p in held_projects(scope.workspace_id) if project_id is None or p["project_id"] == project_id]
+    slot = params.get("slot")
+    listed = [b for b in view.boards if slot is None or b.slot == slot]
     return {"boards": [{**board_wire(b, view.writer_of(b), view.refused.get(b.key)),
                         "queues": _queues(b, view.writer_of(b), keep, context)} for b in listed],
-            "projects": projects,
             "cursor": None, "read_at": _now().isoformat(timespec="seconds"), "stale": view.stale}
 
 
@@ -329,7 +311,7 @@ def _queues(board: Board, writer: Writer | None, keep, context) -> list[dict[str
     for path in boards_store.notes(board):
         note = path.relative_to(board.read_root).as_posix()
         meta = note_meta(path)
-        rows = parse_note(path.read_bytes().decode("utf-8"), slot=board.slot, note=note, project_id=board.project_id)
+        rows = parse_note(path.read_bytes().decode("utf-8"), slot=board.slot, note=note)
         out.append({"note": note, **meta, "rows": [project(row, writer, context=context, program=meta["program"])
                                                    for row in rows if keep(row)]})
     return out
@@ -339,7 +321,7 @@ def inspect(scope, params, *, context=None):
     task_id = text(params.get("task_id"))
     view = (observed(scope.workspace_id, slot=params.get("slot")) if params.get("observe") is True
             else synced(scope.workspace_id, slot=params.get("slot"), stale_ok=params.get("stale_ok") is True))
-    board = _view_board(view, params.get("slot"), _project_param(params))
+    board = _view_board(view, params.get("slot"))
     writer = view.writers[board.key]
     row = find(boards_store.board_rows(board), task_id)
     if row is not None:
@@ -351,8 +333,7 @@ def archived_ending(board: Board, writer: Writer, task_id: str) -> dict[str, Any
     """An immutable archive outcome first; pre-archive git history is explicitly unrecorded."""
     for path in boards_store.archive_notes(board):
         note = path.relative_to(board.read_root).as_posix()
-        row = find(parse_note(path.read_text(encoding="utf-8"), slot=board.slot, note=note,
-                              project_id=board.project_id, archived=True), task_id)
+        row = find(parse_note(path.read_text(encoding="utf-8"), slot=board.slot, note=note, archived=True), task_id)
         if row is None or row.outcome is None or row.defects:
             continue
         history = writer.history(row.ref) or {}
@@ -360,20 +341,19 @@ def archived_ending(board: Board, writer: Writer, task_id: str) -> dict[str, Any
         return {**history, "outcome": outcome.kind.value, "date": outcome.date,
                 "commit": history.get("commit") if outcome.commit == "here" else outcome.commit,
                 "result": row.result, "archive_note": note, "words": outcome.words}
-    old = writer.history(RowRef(board.slot, board.brain_dir or "", task_id, board.project_id))
+    old = writer.history(RowRef(board.slot, board.brain_dir or "", task_id))
     return {**old, "outcome": "unrecorded"} if old else None
 
 
 # ── writes ─────────────────────────────────────────────────────────────────
 
 
-def _create_target(view: Synced, slot: Any, project_id: Any = None) -> Board:
-    """The named board, else a Project's default board with a brain here (D1), else the first by name."""
+def _create_target(view: Synced, slot: Any) -> Board:
+    """The named board, else the workspace's default board with a brain here, else the first by name."""
 
     if slot is not None:
-        return _view_board(view, slot, project_id)
-    readable = [b for b in boards_store.preferred(view.boards) if b.key in view.writers
-                and (project_id is None or b.project_id == project_id or project_id in b.owners)]
+        return _view_board(view, slot)
+    readable = [b for b in boards_store.preferred(view.boards) if b.key in view.writers]
     chosen = next((b for b in readable if not b.is_default), readable[0] if readable else None)
     if chosen is None:
         raise WorkRefused(Reason.NO_BRAIN, "the workspace has no board with a brain on this machine")
@@ -417,20 +397,20 @@ def start(scope, params, actor, *, context=None):
     assigned = params.get("assignee") or here
     token = resolve_assignee(_assignee_token(assigned)).token if assigned else None
     view = synced(scope.workspace_id)
-    board = _create_target(view, params.get("slot"), _project_param(params))
+    board = _create_target(view, params.get("slot"))
     writer = view.writers[board.key]
     row_id = mint_id()
     brief = f"{writer.brain_root}/{BRIEF_DIR}/{row_id}.md" if body else None
     line = _start_row(row_id, title, brief, token, _now().date().isoformat(), group)
     payload = {"row": line, "files": {f"{BRIEF_DIR}/{row_id}.md": body} if body else {}}
-    ref = RowRef(board.slot, _first_note(board, params), row_id, board.project_id)
+    ref = RowRef(board.slot, _first_note(board, params), row_id)
     receipt = writer.apply(RowOp(ref, Op.APPEND, actor, request, payload))
     return {"task": _task(writer, receipt.ref, context), "disposition": "accepted", "receipt": receipt.wire()}
 
 
 def _row_write(scope, params, op: Op, who: str, payload: Mapping[str, Any], *, context, request: str | None = None):
     view = synced(scope.workspace_id, slot=params.get("slot"))
-    board = _view_board(view, params.get("slot"), _project_param(params))
+    board = _view_board(view, params.get("slot"))
     writer = view.writers[board.key]
     row = find(boards_store.board_rows(board), text(params.get("task_id")))
     if row is None:
@@ -491,7 +471,7 @@ def lend_skills(scope, params, actor, *, context=None, rejected=None):
     if refused:
         raise WorkRefused(Reason.SKILLS_NOT_LOADABLE, ", ".join(sorted(refused)), data={"rejected_skills": refused})
     view = synced(scope.workspace_id, slot=params.get("slot"))
-    board = _view_board(view, params.get("slot"), _project_param(params))
+    board = _view_board(view, params.get("slot"))
     row = find(boards_store.board_rows(board), text(params.get("task_id")))
     held = list(row.skills) if row is not None else []
     writer, receipt = _row_write(scope, params, Op.SET_SKILLS, _writer_who(params, actor),
@@ -542,7 +522,7 @@ def set_status(scope, params, actor, *, context=None):
 
 
 #: ``runtime.work.move``'s columns: the status words a card can be dropped on (a TAKEN column is a claim).
-MOVE_COLUMNS = ("READY", "BLOCKED", "DEFERRED", "NEEDS PLAN")
+MOVE_COLUMNS = tuple(status.value for status in Status)
 
 
 def move(scope, params, actor, *, context=None):
@@ -560,13 +540,13 @@ def move(scope, params, actor, *, context=None):
     reason = params.get("reason")
     reason = None if reason is None else text(reason, maximum=900).strip()
     segment = f"{to} {_now().date().isoformat()}" + (f": {reason}" if reason else "")
-    if to == "BLOCKED":
+    if to == Status.BLOCKED:
         from agent_runtime.work_store.grammar import blocked_reason
 
         if not reason or blocked_reason(reason) is None:
             raise WorkRefused(Reason.GRAMMAR_INVALID, "a BLOCKED drop names a reason: owner decision | backend | …")
     view = synced(scope.workspace_id, slot=params.get("slot"))
-    board = _view_board(view, params.get("slot"), _project_param(params))
+    board = _view_board(view, params.get("slot"))
     writer = view.writers[board.key]
     row = find(boards_store.board_rows(board), text(params.get("task_id")))
     if row is None:
@@ -597,13 +577,13 @@ def pull(scope, params, actor, *, context=None):
 
     from agent_runtime.brain_remote import pull_checkout
 
-    board = boards_store.pick(boards_store.boards(scope.workspace_id), params.get("slot"), _project_param(params))
+    board = boards_store.pick(boards_store.boards(scope.workspace_id), params.get("slot"))
     if board is None or not board.bound_here or board.checkout is None:
         raise WorkRefused(Reason.SLOT_UNBOUND, str(params.get("slot")))
     pulled = pull_checkout(board.checkout)
-    record = receipts.emit("work.pull", workspace_id=scope.workspace_id, slot=board.slot, project_id=board.project_id,
+    record = receipts.emit("work.pull", workspace_id=scope.workspace_id, slot=board.slot,
                            who=actor, request_id=params.get("request_id"), **pulled)
-    return {"slot": board.slot, "project_id": board.project_id, **pulled, "receipt": record}
+    return {"slot": board.slot, **pulled, "receipt": record}
 
 
 def done(scope, params, actor, *, context=None):
@@ -645,7 +625,7 @@ def create_brain(scope, params, actor, *, context=None):
         if params.get("promote") is True:
             return _promote_default(scope, params, actor)
         return _create_default(scope, params, actor)
-    found = boards_store.pick(boards_store.boards(scope.workspace_id), params["slot"], _project_param(params))
+    found = boards_store.pick(boards_store.boards(scope.workspace_id), params["slot"])
     if found is None or not found.bound_here:
         raise WorkRefused(Reason.SLOT_UNBOUND, str(params["slot"]))
     found = worktree_brain(found)
@@ -654,7 +634,7 @@ def create_brain(scope, params, actor, *, context=None):
     board = replace(found, brain_dir=QUEUE_DIR)
     writer = writer_for(board)
     files = {"TODO.md": TODO_TEMPLATE, f"{PurePosixPath(QUEUE_DIR).name}/{QUEUE_NOTE}": QUEUE_TEMPLATE}
-    ref = RowRef(board.slot, f"{QUEUE_DIR}/{QUEUE_NOTE}", "BRAIN", board.project_id)
+    ref = RowRef(board.slot, f"{QUEUE_DIR}/{QUEUE_NOTE}", "BRAIN")
     receipt = writer.apply(RowOp(ref, Op.APPEND, actor, request, {"files": files}))
     from agent_runtime.brain_paths import changed
 

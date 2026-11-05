@@ -58,7 +58,7 @@ def _request(instance, history):
 
 
 def _chat(tmp_path, *, change_on_turn=None):
-    workspace, roots = _slot_workspace(tmp_path, {
+    workspace, _roots = _slot_workspace(tmp_path, {
         "backend": {"AGENTS.md": BACKEND_AGENTS},
         "launcher": {"CLAUDE.md": LAUNCHER_CLAUDE, "AGENTS.md": LAUNCHER_POINTER},
     })

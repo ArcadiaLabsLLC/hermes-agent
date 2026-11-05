@@ -210,22 +210,6 @@ def report(
     return {"machine": me, **entry}
 
 
-def report_project(
-    project_id: str, *, run: Runner | None = None, now: float | None = None, fresh_binds: frozenset[str] = frozenset()
-) -> dict[str, Any]:
-    """:func:`report` for a Project's slots: ``machines.<me>`` of the Project record (plan §3)."""
-
-    from .project_store import load_project, write_project
-
-    record = load_project(project_id)
-    entry, me = _probe_into(record, lambda name: slot_fill(None, name, project_id=project_id),
-                            lambda name: bound_path(name, project_id=project_id),
-                            run=run, now=now, fresh_binds=fresh_binds)
-    record["project_id"] = project_id
-    write_project(project_id, record)
-    return {"machine": me, **entry}
-
-
 def _probe_into(document: dict[str, Any], fill_for: Callable[[str], SlotFill | None],
                 bound_for: Callable[[str], Path | None], *, run: Runner | None, now: float | None,
                 fresh_binds: frozenset[str]) -> tuple[dict[str, Any], str]:

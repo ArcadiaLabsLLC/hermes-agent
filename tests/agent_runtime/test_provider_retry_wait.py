@@ -223,10 +223,10 @@ def test_a_week_limit_429_ends_the_cycle_with_a_typed_refusal_naming_the_reset(s
 
 def test_a_reset_named_only_by_reset_at_counts_too():
     import time
-    from datetime import datetime, timezone
+    from datetime import UTC, datetime
 
     agent = _FallbackAgent()
-    reset = datetime.fromtimestamp(time.time() + _WEEK_LIMIT_S, tz=timezone.utc).isoformat()
+    reset = datetime.fromtimestamp(time.time() + _WEEK_LIMIT_S, tz=UTC).isoformat()
     body = {"type": "error", "error": {"type": "rate_limit_error", "message": "week limit"}}
     verdict = _settle_exhaustible(agent, _Err(429, body, {"anthropic-ratelimit-tokens-reset": reset}))
     assert verdict.action == "return"

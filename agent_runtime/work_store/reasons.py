@@ -73,8 +73,6 @@ class Reason(StrEnum):
     URL_MISMATCH = "url_mismatch"
     # A lent skill set with a skill that does not resolve or cannot load (p10-work S1, RT-ETERNIA-SKILLS-LENDS-SKILLS).
     SKILLS_NOT_LOADABLE = "skills_not_loadable"
-    # A ref with no Project that two of the workspace's Projects answer (RT-WORK-BOARD-PER-PROJECT-SLOT): never guessed.
-    SLOT_AMBIGUOUS = "slot_ambiguous"
     # Hermes's worktree index stays unreadable after it was moved aside once (RT-WORK-INDEX-SELF-HEAL).
     INDEX_CORRUPT = "index_corrupt"
     # Hermes's worktree ``index.lock`` is held by a live git (a stale one is moved aside; RT-WORK-LIST-ONE-BOARD-REFUSAL).
