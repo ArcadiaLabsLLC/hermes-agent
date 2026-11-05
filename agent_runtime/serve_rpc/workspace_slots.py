@@ -265,3 +265,109 @@ def _instance_recall_set(params):
 
     return set_instance_recall(str(params.get("persona_instance_id") or ""), params.get("enabled"),
                                issued_at=str(params.get("issued_at") or ""))
+
+
+# ── the workspace's content: categories, guidance, artifacts, shared chats (RT-WS-ABSORB-CONTENT-DOC) ──
+
+_CONTENT_WRITE = ("workspace_id", "issued_at", "credential")
+#: The honoured keys of the workspace content verbs (the manifest's ``params``, the launcher mirror).
+WORKSPACE_CONTENT_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
+    "runtime.workspace.category.set": (*_CONTENT_WRITE, "category", "slot", "subpath", "shared", "context_files"),
+    "runtime.workspace.guidance.set": (*_CONTENT_WRITE, "description", "instructions"),
+    "runtime.workspace.artifacts.list": ("workspace_id",),
+    "runtime.workspace.chat.share": ("workspace_id", "session_id", "shared", "credential"),
+    "runtime.workspace.chat.fold": ("workspace_id",),
+}
+
+# The content refusals beside the slot ones; ``category_not_shared`` / ``chats_folder_unbound`` /
+# ``guidance_not_shared`` / ``stale_revision`` / ``slot_migrated`` ride ERR_CONFLICT.
+_REFUSAL_CODES.update({
+    "unknown_category": ERR_INVALID_PARAMS,
+    "guidance_too_long": ERR_INVALID_PARAMS,
+    "category_not_source_controlled": ERR_INVALID_PARAMS,
+    "session_not_found": ERR_NOT_FOUND,
+})
+
+
+def _inline_credential(params: dict):
+    from agent_runtime.realm_membership import RealmSyncCredential
+    from agent_runtime.realm_sync.models import RealmSyncError
+    from agent_runtime.workspace_slots import SlotRefused
+
+    raw = params.get("credential")
+    try:
+        return None if raw is None else RealmSyncCredential.parse(raw)
+    except RealmSyncError as exc:
+        raise SlotRefused("invalid_declaration", "credential") from exc
+
+
+def _content_verb(handler):
+    """:func:`_guarded`, plus the chats folder's git publication refusal (push, worktree, fence)."""
+
+    def run(rid, params, context=None):
+        from agent_runtime.work_store.reasons import WorkRefused
+
+        try:
+            return _guarded(handler)(rid, params, context)
+        except WorkRefused as exc:
+            return err(rid, ERR_CONFLICT, "The workspace's chats folder could not publish.",
+                       {"reason": getattr(getattr(exc, "reason", None), "value", "work_refused"), "detail": str(exc)})
+    return run
+
+
+@method("runtime.workspace.category.set", tier=TIER_CONSOLE)
+@_content_verb
+def _category_set(params):
+    from agent_runtime.workspace_categories import set_category
+
+    return set_category(_workspace(params), str(params.get("category") or ""), slot=params.get("slot"),
+                        subpath=params.get("subpath"), shared=params.get("shared"), issued_at=_issued_at(params),
+                        context_files=params.get("context_files"), credential=_inline_credential(params))
+
+
+@method("runtime.workspace.guidance.set", tier=TIER_CONSOLE)
+@_content_verb
+def _guidance_set(params):
+    from agent_runtime.workspace_categories import set_guidance
+
+    return set_guidance(_workspace(params), description=params.get("description"),
+                        instructions=params.get("instructions"), issued_at=_issued_at(params),
+                        credential=_inline_credential(params))
+
+
+@method("runtime.workspace.artifacts.list", tier=TIER_CONSOLE)
+@_content_verb
+def _artifacts_list(params):
+    """The artifacts folder's names and sizes on this machine; hermes never writes there."""
+
+    from agent_runtime.workspace_categories import artifacts_list
+
+    return artifacts_list(_workspace(params))
+
+
+@method("runtime.workspace.chat.share", tier=TIER_CONSOLE)
+@_content_verb
+def _chat_share(params):
+    """Share one chat into the workspace's chats folder (backfill, then every turn end) or stop sharing it."""
+
+    from agent_runtime.chat_session_scope import SessionDbAccess, open_chat_session_db, resolve_chat_session_scope
+    from agent_runtime.project_chat_export import ChatHome, share
+
+    workspace_id = _unmigrated(_workspace(params))
+    credential = _inline_credential(params)
+    session_id = str(params.get("session_id") or "")
+    session_db = (open_chat_session_db(resolve_chat_session_scope(session_id=session_id), access=SessionDbAccess.READ)
+                  if session_id and params.get("shared") is True else None)
+    return share(ChatHome.workspace(workspace_id), session_id, params.get("shared"), session_db=session_db,
+                 credentials={credential.realm_id: credential} if credential else None)
+
+
+@method("runtime.workspace.chat.fold", tier=TIER_CONSOLE)
+@_content_verb
+def _chat_fold(params):
+    """Fetch the workspace's chats folder to its remote tip and fold new turns into its shared store."""
+
+    from agent_runtime.project_chat_export import ChatHome
+    from agent_runtime.project_chat_fold import fold_from_remote
+
+    return fold_from_remote(ChatHome.workspace(_unmigrated(_workspace(params))))

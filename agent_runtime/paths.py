@@ -806,6 +806,30 @@ def project_chat_fold_path(project_id: str) -> Path:
     return store_root() / "project_chat_fold" / f"{safe_path_token(project_id)}.json"
 
 
+def workspace_chat_exports_dir() -> Path:
+    """Every workspace's shared-chat export cursors (RT-WS-ABSORB-CONTENT-DOC): machine-local, never synced."""
+
+    return store_root() / "workspace_chat_exports"
+
+
+def workspace_chat_export_path(workspace_id: str, session_id: str) -> Path:
+    """One chat's export cursor into a workspace's chats folder."""
+
+    return workspace_chat_exports_dir() / safe_path_token(workspace_id) / f"{safe_path_token(session_id)}.json"
+
+
+def workspace_chat_store_path(workspace_id: str) -> Path:
+    """A workspace's SHARED chat store, folded from its chats folder: never a chat head."""
+
+    return store_root() / "workspace_chats" / f"{safe_path_token(workspace_id)}.db"
+
+
+def workspace_chat_fold_path(workspace_id: str) -> Path:
+    """The fold's per-file byte offsets for one workspace's chats folder (machine-local, never synced)."""
+
+    return store_root() / "workspace_chat_fold" / f"{safe_path_token(workspace_id)}.json"
+
+
 def slot_worktrees_path(owner_id: str, slot: str) -> Path:
     """The git worktrees seen cut from one repo slot's folder on THIS machine (RT-WORKTREE-RECORDED-ON-SLOT).
 

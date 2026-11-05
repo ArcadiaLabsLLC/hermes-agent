@@ -24,20 +24,15 @@ Each reader runs for the Projects the instance's WORKSPACE holds (``Workspace.pr
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any, NamedTuple
 
-from .project_store import GUIDANCE, category, load_project, valid_project_id
+from .project_store import load_project, valid_project_id
+from .workspace_categories import ARTIFACTS, BOARDS, DOCUMENTS, GUIDANCE, category, folder_under, list_folder
 from .workspace_slots import _inside_checkout, live_slots
 
 __layer__ = "stores"
 
-DOCUMENTS = "documents"
-BOARDS = "boards"
-ARTIFACTS = "artifacts"
-#: The artifacts listing's bound; a folder past it answers ``truncated: true`` (never a silent cap).
-ARTIFACTS_LIST_LIMIT = 2000
 
 
 def category_folder(project_id: str, name: str, record: dict[str, Any] | None = None) -> Path | None:
@@ -46,13 +41,7 @@ def category_folder(project_id: str, name: str, record: dict[str, Any] | None = 
     from .workspace_slots import bound_path
 
     record = load_project(project_id) if record is None else record
-    held = category(record, name)
-    slot, subpath = held.get("slot"), held.get("subpath")
-    if not isinstance(slot, str) or slot not in live_slots(record) or not _inside_checkout(subpath):
-        return None
-    root = bound_path(slot, project_id=project_id)
-    folder = root / subpath if root is not None else None
-    return folder if folder is not None and folder.is_dir() else None
+    return folder_under(category(record, name), live_slots(record), lambda slot: bound_path(slot, project_id=project_id))
 
 
 def _label(record: dict[str, Any], project_id: str) -> str:
@@ -165,23 +154,4 @@ def artifacts_list(project_id: str) -> dict[str, Any]:
     """The artifacts folder's files on this machine: ``{files: [{name, size}], here, truncated}``."""
 
     record = load_project(valid_project_id(project_id))
-    folder = category_folder(project_id, ARTIFACTS, record)
-    if folder is None:
-        return {"project_id": project_id, "here": False, "files": [], "truncated": False}
-    files: list[dict[str, Any]] = []
-    truncated = False
-    for root, dirs, names in os.walk(folder):
-        dirs[:] = sorted(d for d in dirs if not d.startswith("."))
-        for name in sorted(names):
-            if len(files) >= ARTIFACTS_LIST_LIMIT:
-                truncated = True
-                break
-            path = Path(root) / name
-            try:
-                size = path.stat().st_size
-            except OSError:
-                continue
-            files.append({"name": path.relative_to(folder).as_posix(), "size": size})
-        if truncated:
-            break
-    return {"project_id": project_id, "here": True, "files": files, "truncated": truncated}
+    return {"project_id": project_id, **list_folder(category_folder(project_id, ARTIFACTS, record))}

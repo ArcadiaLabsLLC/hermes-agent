@@ -9,6 +9,11 @@ key-wise, never whole-document HOLD — a HOLD would block a realm's detection o
   holds the slot live loses to the newer removal instead of resurrecting it.
 * **Inside a slot**, ``repo`` / ``toolchain`` / ``context`` / ``recipe`` travel together as
   the winning record — a declaration is one decision, never spliced from two.
+* **``categories.<name>`` and ``guidance``** (RT-WS-ABSORB-CONTENT-DOC): one side's whole entry,
+  the newer ``revision`` then the newer ``issued_at`` — a folder declaration is one decision, never
+  spliced. After the merge ``workspace_categories.enforce_share_rule`` runs, so a peer's share beside
+  a local slot made local (or removed) cannot leave a non-source-controlled category shared, and
+  guidance stays only while its switch is on.
 * **``machines`` by machine id**: disjoint by construction (each machine writes only its own
   key). This machine's own key is authored HERE ONLY: a peer's copy of ``machines.<me>`` is
   this machine's report echoed back and is ignored on pull, never merged over the local row,
@@ -26,6 +31,9 @@ for each stored recipe step — one entry at a time:
   there is one, stays as it was;
 * a recipe STEP that fails (a credential-shaped argv / label / hint / url, a field a stored step
   never carries, a malformed command) is dropped ALONE: its slot and the slot's other steps merge;
+* a category that is not one of the five, or whose slot / subpath / switch / stamps fail, drops
+  ALONE (``invalid_category``); guidance past ``GUIDANCE_MAX_CHARS`` or with a non-text field drops
+  (``invalid_guidance``);
 * a document filed under another workspace's name is refused whole (``slot_document_misfiled``);
 * another machine's report (``machines.<id>``) is shape-checked against what
   ``workspace_slots_probe.report`` writes — statuses from its vocabularies, versions as versions,
@@ -66,6 +74,7 @@ from .workspace_slots import (
     REASON_INVALID_DECLARATION,
     REASON_INVALID_SLOT_NAME,
     SlotRefused,
+    _inside_checkout,
     known_machine_id,
     load_document_from,
     normalize_declaration,
@@ -100,6 +109,9 @@ REASON_DOCUMENT_MISFILED = "slot_document_misfiled"
 REASON_INVALID_MACHINE_REPORT = "invalid_machine_report"
 #: A peer stamp past this machine's clock plus ``STAMP_SKEW_SECONDS``.
 REASON_STAMP_IN_FUTURE = "stamp_in_future"
+#: A peer category declaration or guidance entry that fails the checks a local write runs.
+REASON_INVALID_CATEGORY = "invalid_category"
+REASON_INVALID_GUIDANCE = "invalid_guidance"
 
 #: The report vocabularies (``workspace_slots_probe``): a peer row speaks only these words.
 _ROW_STATUSES = frozenset({STATUS_READY, STATUS_NEEDS_SETUP, STATUS_NOT_CLONED, STATUS_PATH_MISSING, STATUS_UNKNOWN})
@@ -147,6 +159,10 @@ def merge_documents(local: dict[str, Any], remote: dict[str, Any]) -> dict[str, 
     for machine in sorted(set(local_machines) | set(remote_machines)):
         machines[machine] = _newer(local_machines.get(machine), remote_machines.get(machine), _report_rank)
     issued = max((local.get("issued_at") or "", remote.get("issued_at") or ""), key=lambda s: stamp_epoch(s) or 0.0)
+    categories = {}
+    local_categories, remote_categories = local.get("categories") or {}, remote.get("categories") or {}
+    for name in sorted(set(local_categories) | set(remote_categories)):
+        categories[name] = _newer_decision(local_categories.get(name), remote_categories.get(name))
     merged = {
         "schema_version": local.get("schema_version") or remote.get("schema_version"),
         "workspace_id": local.get("workspace_id") or remote.get("workspace_id"),
@@ -154,12 +170,34 @@ def merge_documents(local: dict[str, Any], remote: dict[str, Any]) -> dict[str, 
         "slots": slots,
         "machines": machines,
     }
+    if categories:
+        merged["categories"] = categories
+    guidance = _newer_decision(local.get("guidance"), remote.get("guidance"))
+    if isinstance(guidance, dict):
+        merged["guidance"] = guidance
     # A document moved into a Project (``project_migration``, plan project-slots-and-shared-chats §4)
     # stays moved whichever side moved it: the stamp is never lost to a merge with an unmigrated peer.
     migrated = local.get("migrated_to") or remote.get("migrated_to")
     if isinstance(migrated, str) and migrated and paths.safe_path_token(migrated) == migrated:
         merged["migrated_to"] = migrated
+    from .workspace_categories import enforce_share_rule
+
+    # A peer's share beside a local slot made local (or removed) cannot leave a category shared.
+    enforce_share_rule(merged)
     return merged
+
+
+def _decision_rank(entry: dict[str, Any]) -> tuple[int, float]:
+    revision = entry.get("revision")
+    return (revision if type(revision) is int else 0), stamp_epoch(entry.get("issued_at")) or 0.0
+
+
+def _newer_decision(a: Any, b: Any) -> Any:
+    """A category or the guidance: one side's whole entry, the newer ``revision`` then the newer ``issued_at``."""
+
+    if not isinstance(a, dict) or not isinstance(b, dict):
+        return a if not isinstance(b, dict) else b
+    return b if _decision_rank(b) > _decision_rank(a) else a
 
 
 # ── a peer's document, validated entry by entry ──────────────────────────────
@@ -355,6 +393,75 @@ def _held_machines(raw: Any, *, me: str | None, now: float, refused: list[dict[s
     return machines
 
 
+def _held_category(name: str, entry: Any, now: float) -> dict[str, Any] | None:
+    """One peer category declaration rebuilt from its checked fields, or None (drop it)."""
+
+    from .workspace_categories import CATEGORIES, DOCUMENTS, GUIDANCE
+
+    if name not in CATEGORIES or not isinstance(entry, dict):
+        return None
+    slot, subpath, shared, revision = entry.get("slot"), entry.get("subpath"), entry.get("shared"), entry.get("revision")
+    issued_at = entry.get("issued_at")
+    if (not (slot is None or (isinstance(slot, str) and _ROOT_NAME_RE.match(slot))) or not isinstance(shared, bool)
+            or type(revision) is not int or revision < 0 or not isinstance(issued_at, (str, type(None)))
+            or stamp_in_future(issued_at, now=now)):
+        return None
+    if name == GUIDANCE:
+        if slot is not None or subpath is not None:
+            return None
+    elif not _inside_checkout(subpath):
+        return None
+    held = {"slot": slot, "subpath": subpath, "shared": shared, "issued_at": issued_at, "revision": revision}
+    files = entry.get("context_files")
+    if files is not None:
+        if name != DOCUMENTS or not isinstance(files, list) or not all(_inside_checkout(f) for f in files):
+            return None
+        held["context_files"] = list(files)
+    return held
+
+
+def _held_guidance(entry: Any, now: float) -> dict[str, Any] | None:
+    from .workspace_categories import GUIDANCE_MAX_CHARS
+
+    if not isinstance(entry, dict):
+        return None
+    texts = {key: entry.get(key) for key in ("description", "instructions")}
+    revision, issued_at = entry.get("revision"), entry.get("issued_at")
+    if (not all(isinstance(v, str) and len(v) <= GUIDANCE_MAX_CHARS for v in texts.values())
+            or type(revision) is not int or revision < 0 or not isinstance(issued_at, (str, type(None)))
+            or stamp_in_future(issued_at, now=now)):
+        return None
+    return {**texts, "issued_at": issued_at, "revision": revision}
+
+
+def _held_content(remote: dict[str, Any], now: float, refused: list[dict[str, str]]) -> dict[str, Any]:
+    """The peer's ``categories`` and ``guidance``, each entry checked alone (``invalid_category`` / ``invalid_guidance``)."""
+
+    from .workspace_categories import CATEGORIES
+
+    out: dict[str, Any] = {}
+    raw = remote.get("categories")
+    if raw is not None:
+        categories = {}
+        if not isinstance(raw, dict):
+            refused.append({"field": "categories", "reason": REASON_INVALID_CATEGORY})
+            raw = {}
+        for name in sorted(raw, key=str):
+            entry = _held_category(name, raw[name], now) if isinstance(name, str) else None
+            if entry is None:
+                refused.append({"category": name if name in CATEGORIES else "unknown", "reason": REASON_INVALID_CATEGORY})
+                continue
+            categories[name] = entry
+        out["categories"] = categories
+    if "guidance" in remote:
+        guidance = _held_guidance(remote["guidance"], now)
+        if guidance is None:
+            refused.append({"field": "guidance", "reason": REASON_INVALID_GUIDANCE})
+        else:
+            out["guidance"] = guidance
+    return out
+
+
 def held_document(remote: dict[str, Any], *, me: str | None = None,
                   now: float | None = None) -> tuple[dict[str, Any], list[dict[str, str]]]:
     """``(document, refused)``: a peer's slot document with every invalid entry dropped.
@@ -367,6 +474,7 @@ def held_document(remote: dict[str, Any], *, me: str | None = None,
 
     now = time.time() if now is None else now
     refused: list[dict[str, str]] = []
+    raw_remote = remote
     issued = remote.get("issued_at")
     if stamp_in_future(issued, now=now):
         refused.append({"field": "issued_at", "reason": REASON_STAMP_IN_FUTURE})
@@ -386,7 +494,9 @@ def held_document(remote: dict[str, Any], *, me: str | None = None,
             refused.append({"slot": name, "reason": exc.reason})
             continue
         refused.extend(steps_refused)
-    return {**remote, "issued_at": issued, "slots": slots, "machines": machines}, refused
+    remote = {key: value for key, value in remote.items() if key not in ("categories", "guidance")}
+    return {**remote, **_held_content(raw_remote, now, refused), "issued_at": issued, "slots": slots,
+            "machines": machines}, refused
 
 
 @dataclass

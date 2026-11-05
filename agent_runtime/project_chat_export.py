@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import threading
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -56,33 +57,144 @@ def _refused(reason: str, detail: str = ""):
     return SlotRefused(reason, detail)
 
 
-def load_cursor(project_id: str, session_id: str) -> dict[str, Any] | None:
-    return _shared_record(paths.project_chat_export_path(project_id, session_id))
+@dataclass(frozen=True)
+class ChatHome:
+    """Where a shared chat lives: a workspace (its slot document's ``chats`` category) or a Project.
+
+    ``kind`` is ``workspace`` or ``project``; every store, cursor and fold path, the content record,
+    the slot fill and the publish decision are the home's. A bare string is a Project id
+    (:func:`home_of`), the shape every caller written before the workspace held its chats passes.
+    """
+
+    kind: str
+    id: str
+
+    @classmethod
+    def workspace(cls, workspace_id: str) -> ChatHome:
+        from .workspace_slots import REASON_INVALID_DECLARATION
+
+        if not isinstance(workspace_id, str) or not workspace_id:
+            raise _refused(REASON_INVALID_DECLARATION, "workspace_id")
+        return cls(WORKSPACE, workspace_id)
+
+    @classmethod
+    def project(cls, project_id: str) -> ChatHome:
+        from .project_store import valid_project_id
+
+        return cls(PROJECT, valid_project_id(project_id))
+
+    @property
+    def field(self) -> str:
+        """The result key that names the home: ``workspace_id`` or ``project_id``."""
+
+        return f"{self.kind}_id"
+
+    def tag(self) -> dict[str, str]:
+        return {self.field: self.id}
+
+    def record(self) -> dict[str, Any]:
+        """The content record: the workspace slot document, or the Project record."""
+
+        if self.kind == WORKSPACE:
+            from .workspace_slots import load_document
+
+            return load_document(self.id)
+        from .project_store import load_project
+
+        return load_project(self.id)
+
+    def bound(self, slot: str) -> Path | None:
+        """This machine's fill of one of the home's own slots."""
+
+        if self.kind == WORKSPACE:
+            from .workspace_slots import scoped_roots
+
+            return scoped_roots().workspace_root(self.id, slot)
+        from .workspace_slots import bound_path
+
+        return bound_path(slot, project_id=self.id)
+
+    def exports_dir(self) -> Path:
+        root = paths.workspace_chat_exports_dir() if self.kind == WORKSPACE else paths.store_root() / "project_chat_exports"
+        return root / paths.safe_path_token(self.id)
+
+    def export_path(self, session_id: str) -> Path:
+        if self.kind == WORKSPACE:
+            return paths.workspace_chat_export_path(self.id, session_id)
+        return paths.project_chat_export_path(self.id, session_id)
+
+    def fold_path(self) -> Path:
+        if self.kind == WORKSPACE:
+            return paths.workspace_chat_fold_path(self.id)
+        return paths.project_chat_fold_path(self.id)
+
+    def writer_workspace(self) -> str:
+        """The Work writer's pseudo-workspace: its own worktree and sparse root, never a board's."""
+
+        prefix = "workspace_chats" if self.kind == WORKSPACE else "project"
+        return f"{prefix}_{paths.safe_path_token(self.id)}"
+
+    def require_publish(self, credentials: dict[str, Any] | None) -> None:
+        """The realm PUBLISH decision: the workspace's realm, or every realm holding the Project."""
+
+        if self.kind == WORKSPACE:
+            from .store import WorkspaceStore
+            from .workspace_slots import require_publish_right
+
+            realm_id = WorkspaceStore().get(self.id).realm_id
+            require_publish_right(self.id, (credentials or {}).get(realm_id) if realm_id else None)
+            return
+        from .project_store import require_project_publish_rights
+
+        require_project_publish_rights(self.id, credentials)
 
 
-def _write_cursor(project_id: str, session_id: str, record: dict[str, Any]) -> None:
-    target = paths.project_chat_export_path(project_id, session_id)
+WORKSPACE, PROJECT = "workspace", "project"
+
+
+def home_of(home: ChatHome | str) -> ChatHome:
+    """``home`` as a :class:`ChatHome`; a bare string is a Project id."""
+
+    return home if isinstance(home, ChatHome) else ChatHome.project(home)
+
+
+def load_cursor(home: ChatHome | str, session_id: str) -> dict[str, Any] | None:
+    return _shared_record(home_of(home).export_path(session_id))
+
+
+def _write_cursor(home: ChatHome, session_id: str, record: dict[str, Any]) -> None:
+    target = home.export_path(session_id)
     target.parent.mkdir(parents=True, exist_ok=True)
     atomic_json_write(target, record, indent=2, sort_keys=True)
+
+
+def shared_homes_of(session_id: str) -> list[ChatHome]:
+    """Every home this machine exports ``session_id`` into (a cursor with ``shared: true``): workspaces first."""
+
+    name = f"{paths.safe_path_token(session_id)}.json"
+    homes = []
+    for kind, root in ((WORKSPACE, paths.workspace_chat_exports_dir()),
+                       (PROJECT, paths.store_root() / "project_chat_exports")):
+        if root.is_dir():
+            homes.extend(ChatHome(kind, path.parent.name) for path in sorted(root.glob(f"*/{name}"))
+                         if _shared_record(path) is not None)
+    return homes
 
 
 def shared_projects_of(session_id: str) -> list[str]:
     """The Projects this machine exports ``session_id`` into (a cursor with ``shared: true``)."""
 
-    root = paths.store_root() / "project_chat_exports"
-    name = f"{paths.safe_path_token(session_id)}.json"
-    return sorted(path.parent.name for path in root.glob(f"*/{name}")
-                  if _shared_record(path) is not None) if root.is_dir() else []
+    return sorted(home.id for home in shared_homes_of(session_id) if home.kind == PROJECT)
 
 
-def shared_sessions_of(project_id: str) -> list[str]:
-    """The sessions this machine exports into ``project_id`` — ``runtime.project.show``'s ``shared_chats``.
+def shared_sessions_of(home: ChatHome | str) -> list[str]:
+    """The sessions this machine exports into a home — ``slots.show`` / ``project.show``'s ``shared_chats``.
 
     Read from the record's own ``session_id`` (the file name is a lossy path token), so the launcher's
     shared badge and "Stop sharing" survive a relaunch.
     """
 
-    folder = paths.store_root() / "project_chat_exports" / paths.safe_path_token(project_id)
+    folder = home_of(home).exports_dir()
     if not folder.is_dir():
         return []
     sessions = (str(record["session_id"]) for record in map(_shared_record, folder.glob("*.json"))
@@ -222,36 +334,37 @@ def pending_lines(session_db: Any, session_id: str, cursor: dict[str, Any], *,
 # ── publication through the Work writer ──────────────────────────────────────
 
 
-def chats_writer(project_id: str) -> tuple[Any, str]:
+def chats_writer(home: ChatHome | str) -> tuple[Any, str]:
     """``(Writer, path of the chats folder relative to the writer's root)`` or a typed refusal."""
 
-    from .project_store import category, load_project, source_controlled
     from .work_store.board import Board
     from .work_store.writer import Writer
-    from .workspace_slots import bound_path, live_slots, machine_id
+    from .workspace_categories import category, source_controlled
+    from .workspace_slots import live_slots, machine_id
 
-    record = load_project(project_id)
+    home = home_of(home)
+    record = home.record()
     held = category(record, CHATS)
     if not held.get("shared") or not source_controlled(record, held.get("slot")):
-        raise _refused(REASON_CATEGORY_NOT_SHARED, f"{project_id} does not share its chats")
+        raise _refused(REASON_CATEGORY_NOT_SHARED, f"{home.id} does not share its chats")
     slot = held["slot"]
-    checkout = bound_path(slot, project_id=project_id)
+    checkout = home.bound(slot)
     if checkout is None or not (checkout / ".git").exists():
-        raise _refused(REASON_CHATS_FOLDER_UNBOUND, f"{project_id}/{slot} is not bound here")
+        raise _refused(REASON_CHATS_FOLDER_UNBOUND, f"{home.id}/{slot} is not bound here")
     repo = live_slots(record)[slot].get("repo") or {}
-    board = Board(workspace_id=f"project_{paths.safe_path_token(project_id)}", slot=slot, read_root=None,
+    board = Board(workspace_id=home.writer_workspace(), slot=slot, read_root=None,
                   brain_dir=str(held["subpath"]), default_branch=str(repo.get("default_branch") or "main"),
                   clone_url=repo.get("clone_url"), local=False, bound_here=True, is_default=False,
-                  checkout=checkout, project_id=project_id)
+                  checkout=checkout, project_id=home.id if home.kind == PROJECT else None)
     writer = Writer(board, machine_id=machine_id())
     return writer, PurePosixPath(str(held["subpath"])).relative_to(writer.brain_root).as_posix()
 
 
-def _publish_chat_turns(project_id: str, session_id: str, request_id: str, payload: dict[str, Any]) -> Any:
+def _publish_chat_turns(home: ChatHome, session_id: str, request_id: str, payload: dict[str, Any]) -> Any:
     from .work_store.grammar import Op, RowRef
     from .work_store.writer import RowOp
 
-    writer, folder = chats_writer(project_id)
+    writer, folder = chats_writer(home)
     rooted = {key: {f"{folder}/{rel}" if folder != "." else rel: body for rel, body in value.items()}
               for key, value in payload.items() if key in ("appends", "files")}
     if payload.get("remove"):
@@ -265,18 +378,19 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def export_session(project_id: str, session_id: str, session_db: Any, *,
+def export_session(home: ChatHome | str, session_id: str, session_db: Any, *,
                    persona_instance_id: str | None = None) -> dict[str, Any]:
     """Append this chat's new active messages to this writer's file and publish them; the counts."""
 
     from .work_store import receipts
 
-    cursor = load_cursor(project_id, session_id)
+    home = home_of(home)
+    cursor = load_cursor(home, session_id)
     if cursor is None:
-        return {"project_id": project_id, "session_id": session_id, "exported": 0, "shared": False}
+        return {**home.tag(), "session_id": session_id, "exported": 0, "shared": False}
     lines, following = pending_lines(session_db, session_id, cursor, persona_instance_id=persona_instance_id)
     if not lines:
-        return {"project_id": project_id, "session_id": session_id, "exported": 0, "shared": True}
+        return {**home.tag(), "session_id": session_id, "exported": 0, "shared": True}
     body = "".join(json.dumps(line, sort_keys=True, ensure_ascii=False) + "\n" for line in lines)
     payload: dict[str, Any] = {"appends": {f"{paths.safe_path_token(session_id)}/{writer_file_name()}": body}}
     if not cursor.get("chat_written"):
@@ -285,59 +399,58 @@ def export_session(project_id: str, session_id: str, session_db: Any, *,
             "format": EXPORT_FORMAT, "session_id": session_id, "title": session.get("title"),
             "persona_instance_id": lines[0]["author"].get("persona_instance_id"),
             "mission_chat_root_id": session_id, "first_turn_at": lines[0]["ts"]}, indent=2, sort_keys=True) + "\n"}
-    receipt = _publish_chat_turns(project_id, session_id, f"chat.{paths.safe_path_token(session_id)}.{lines[-1]['turn_uid']}",
-                       payload)
-    _write_cursor(project_id, session_id, {**following, "chat_written": True, "updated_at": _now()})
-    receipts.emit("project_chat.exported", project_id=project_id, session_id=session_id, lines=len(lines),
+    receipt = _publish_chat_turns(home, session_id, f"chat.{paths.safe_path_token(session_id)}.{lines[-1]['turn_uid']}",
+                                  payload)
+    _write_cursor(home, session_id, {**following, "chat_written": True, "updated_at": _now()})
+    receipts.emit("project_chat.exported", **home.tag(), session_id=session_id, lines=len(lines),
                   commit=receipt.commit, pushed=receipt.pushed)
-    return {"project_id": project_id, "session_id": session_id, "exported": len(lines), "shared": True,
+    return {**home.tag(), "session_id": session_id, "exported": len(lines), "shared": True,
             "commit": receipt.commit, "pushed": receipt.pushed}
 
 
-def share(project_id: str, session_id: str, shared: Any, *, session_db: Any,
+def share(home: ChatHome | str, session_id: str, shared: Any, *, session_db: Any,
           credentials: dict[str, Any] | None = None) -> dict[str, Any]:
-    """``runtime.project.chat.share``: start (and backfill) or stop exporting one chat into a Project."""
+    """``runtime.workspace.chat.share`` / ``runtime.project.chat.share``: start (and backfill) or stop exporting one chat."""
 
-    from .project_store import require_project_publish_rights, valid_project_id
     from .workspace_slots import REASON_INVALID_DECLARATION
 
-    valid_project_id(project_id)
+    home = home_of(home)
     if not isinstance(session_id, str) or not session_id or not isinstance(shared, bool):
         raise _refused(REASON_INVALID_DECLARATION, "session_id and shared are required")
-    require_project_publish_rights(project_id, credentials)
+    home.require_publish(credentials)
     if not shared:
-        return _unshare(project_id, session_id)
-    chats_writer(project_id)  # refuses before anything is recorded when the chats folder cannot publish
+        return _unshare(home, session_id)
+    chats_writer(home)  # refuses before anything is recorded when the chats folder cannot publish
     if session_db is None or not session_db.get_session(session_id):
         raise _refused(REASON_SESSION_NOT_FOUND, session_id)
-    if load_cursor(project_id, session_id) is None:
-        _write_cursor(project_id, session_id, {"project_id": project_id, "session_id": session_id, "shared": True,
-                                               "last_id": 0, "seq": 0, "shared_at": _now()})
-    return export_session(project_id, session_id, session_db)
+    if load_cursor(home, session_id) is None:
+        _write_cursor(home, session_id, {**home.tag(), "session_id": session_id, "shared": True,
+                                         "last_id": 0, "seq": 0, "shared_at": _now()})
+    return export_session(home, session_id, session_db)
 
 
-def _unshare(project_id: str, session_id: str) -> dict[str, Any]:
+def _unshare(home: ChatHome, session_id: str) -> dict[str, Any]:
     from .work_store import receipts
 
     receipt = None
-    if load_cursor(project_id, session_id) is not None:
+    if load_cursor(home, session_id) is not None:
         stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%f")
-        receipt = _publish_chat_turns(project_id, session_id, f"chat.{paths.safe_path_token(session_id)}.unshare.{stamp}",
-                           {"remove": [paths.safe_path_token(session_id)]})
-    paths.project_chat_export_path(project_id, session_id).unlink(missing_ok=True)
-    receipts.emit("project_chat.unshared", project_id=project_id, session_id=session_id,
+        receipt = _publish_chat_turns(home, session_id, f"chat.{paths.safe_path_token(session_id)}.unshare.{stamp}",
+                                      {"remove": [paths.safe_path_token(session_id)]})
+    home.export_path(session_id).unlink(missing_ok=True)
+    receipts.emit("project_chat.unshared", **home.tag(), session_id=session_id,
                   commit=receipt.commit if receipt else None)
-    return {"project_id": project_id, "session_id": session_id, "shared": False,
+    return {**home.tag(), "session_id": session_id, "shared": False,
             "commit": receipt.commit if receipt else None,
             "note": "git history and copies other machines already pulled remain"}
 
 
 def export_after_turn(session_db: Any, session_id: str | None, *, persona_instance_id: str | None = None,
                       background: bool = True) -> threading.Thread | None:
-    """The turn-end hook: export ``session_id`` into every Project it is shared into, off the turn thread."""
+    """The turn-end hook: export ``session_id`` into every home it is shared into, off the turn thread."""
 
-    projects = shared_projects_of(session_id) if session_id else []
-    if not projects:
+    homes = shared_homes_of(session_id) if session_id else []
+    if not homes:
         return None
 
     def run() -> None:
@@ -345,12 +458,12 @@ def export_after_turn(session_db: Any, session_id: str | None, *, persona_instan
 
         from .project_chat_fold import fold_from_remote
 
-        for project_id in projects:
+        for home in homes:
             try:
-                export_session(project_id, str(session_id), session_db, persona_instance_id=persona_instance_id)
-                fold_from_remote(project_id)  # the store carries this machine's turns and every peer's pushed ones
+                export_session(home, str(session_id), session_db, persona_instance_id=persona_instance_id)
+                fold_from_remote(home)  # the store carries this machine's turns and every peer's pushed ones
             except Exception as exc:  # a failed export retries from its cursor on the next turn end
-                receipts.emit("project_chat.export_failed", project_id=project_id, session_id=session_id,
+                receipts.emit("project_chat.export_failed", **home.tag(), session_id=session_id,
                               error=type(exc).__name__, reason=getattr(exc, "reason", None))
 
     if not background:
@@ -361,5 +474,5 @@ def export_after_turn(session_db: Any, session_id: str | None, *, persona_instan
     return thread
 
 
-def cursor_path(project_id: str, session_id: str) -> Path:
-    return paths.project_chat_export_path(project_id, session_id)
+def cursor_path(home: ChatHome | str, session_id: str) -> Path:
+    return home_of(home).export_path(session_id)

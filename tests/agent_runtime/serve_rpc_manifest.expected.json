@@ -373,8 +373,13 @@
     "runtime.work.restart",
     "runtime.work.set_status",
     "runtime.work.start",
+    "runtime.workspace.artifacts.list",
+    "runtime.workspace.category.set",
+    "runtime.workspace.chat.fold",
+    "runtime.workspace.chat.share",
     "runtime.workspace.conversations",
     "runtime.workspace.create",
+    "runtime.workspace.guidance.set",
     "runtime.workspace.project.set",
     "runtime.workspace.recipe.run_step",
     "runtime.workspace.recipe.set",
@@ -1142,6 +1147,35 @@
       "status",
       "view"
     ],
+    "runtime.workspace.artifacts.list": [
+      "workspace_id"
+    ],
+    "runtime.workspace.category.set": [
+      "workspace_id",
+      "issued_at",
+      "credential",
+      "category",
+      "slot",
+      "subpath",
+      "shared",
+      "context_files"
+    ],
+    "runtime.workspace.chat.fold": [
+      "workspace_id"
+    ],
+    "runtime.workspace.chat.share": [
+      "workspace_id",
+      "session_id",
+      "shared",
+      "credential"
+    ],
+    "runtime.workspace.guidance.set": [
+      "workspace_id",
+      "issued_at",
+      "credential",
+      "description",
+      "instructions"
+    ],
     "runtime.workspace.project.set": [
       "workspace_id",
       "project_id",
@@ -1504,8 +1538,13 @@
     "runtime.work.restart": "console",
     "runtime.work.set_status": "console",
     "runtime.work.start": "console",
+    "runtime.workspace.artifacts.list": "console",
+    "runtime.workspace.category.set": "console",
+    "runtime.workspace.chat.fold": "console",
+    "runtime.workspace.chat.share": "console",
     "runtime.workspace.conversations": "console",
     "runtime.workspace.create": "console",
+    "runtime.workspace.guidance.set": "console",
     "runtime.workspace.project.set": "console",
     "runtime.workspace.recipe.run_step": "console",
     "runtime.workspace.recipe.set": "console",

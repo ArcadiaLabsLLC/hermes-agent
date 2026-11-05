@@ -984,6 +984,29 @@ merged round-robin by per-store rank with the own store first; each shared hit c
 ``@project:<id>/<session>``, which read and scroll resolve against that store. The own
 store's current-lineage exclusion is unchanged. Memory extraction opens no shared store.
 
+54 KEPT (workspace content, 2026-11-04, RT-WS-ABSORB-CONTENT-DOC) — no snapshot key moved. The
+workspace slot document (``store/workspace_slots/<ws>.json``, family ``WORKSPACE_SLOTS``) carries
+``categories.<chats | documents | boards | artifacts | guidance>`` (``{slot, subpath, shared,
+issued_at, revision[, context_files]}``) and, only while ``categories.guidance.shared``,
+``guidance {description, instructions, issued_at, revision}`` beside ``slots`` and ``machines``
+(``agent_runtime/workspace_categories.py``). The merge takes one side's whole category or guidance
+by newer ``revision`` then ``issued_at``; a peer entry that fails drops alone (``invalid_category``
+/ ``invalid_guidance``); ``enforce_share_rule`` runs after every declare (``slots.declare``
+answers ``categories_unshared``) and every merge. Console verbs, each refusal a typed
+``data.reason``: ``runtime.workspace.category.set {workspace_id, category, slot, subpath, shared,
+issued_at, context_files?, credential?}`` → ``{workspace_id, category, record}``;
+``runtime.workspace.guidance.set {workspace_id, description, instructions, issued_at,
+credential?}`` → ``{workspace_id, guidance}``; ``runtime.workspace.artifacts.list
+{workspace_id}`` → ``{workspace_id, here, files: [{name, size}], truncated}``;
+``runtime.workspace.chat.share {workspace_id, session_id, shared, credential?}`` → ``{workspace_id,
+session_id, exported, shared, commit?, pushed?}`` (stop: ``{workspace_id, session_id, shared:
+false, commit, note}``); ``runtime.workspace.chat.fold {workspace_id}`` (local console) →
+``{workspace_id, inserted, skipped, malformed, sessions, stale}``. ``runtime.workspace.slots.show``
+answers ``shared_chats``. A workspace's shared chats live at ``store/workspace_chats/<ws>.db``,
+``workspace_chat_fold/<ws>.json`` and ``workspace_chat_exports/<ws>/<session>.json``, published by
+the Work writer under pseudo-workspace ``workspace_chats_<ws>``; the realm pull and the realm-less
+tick fold every shared workspace as they fold Projects.
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.

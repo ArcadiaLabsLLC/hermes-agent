@@ -366,8 +366,11 @@ def declare(workspace_id: str, slots: Any, *, issued_at: str, machine: str) -> d
     The second write site is :func:`declare_one_slot` (one name, nothing tombstoned).
     """
 
+    from .workspace_categories import enforce_share_rule
+
     document = _fresh_document(workspace_id, issued_at)
     declared, tombstoned = apply_declared_set(document, slots, issued_at=issued_at, machine=machine)
+    unshared = enforce_share_rule(document)  # a slot made local or removed unshares its categories
     document["workspace_id"] = workspace_id
     write_document(workspace_id, document)
     from .persona_slots import drop_removed_slots
@@ -378,7 +381,7 @@ def declare(workspace_id: str, slots: Any, *, issued_at: str, machine: str) -> d
     for name in tombstoned:
         drop_worktrees(workspace_id, name)
     return {"document": document, "declared": sorted(declared), "tombstoned": sorted(tombstoned),
-            "assignments_dropped": dropped_from}
+            "categories_unshared": unshared, "assignments_dropped": dropped_from}
 
 
 
@@ -443,14 +446,17 @@ def declare_one_slot(workspace_id: str, entry: Any, *, issued_at: str, machine: 
     revision bump when the slot's decision changed; the document's ``issued_at`` is stamped.
     """
 
+    from .workspace_categories import enforce_share_rule
+
     name, body = normalize_declaration(entry)
     document = _fresh_document(workspace_id, issued_at)
     current = document.setdefault("slots", {})
     current[name] = _declared_record(current.get(name) or {}, body, issued_at=issued_at, machine=machine)
     document["issued_at"] = issued_at
+    unshared = enforce_share_rule(document)
     document["workspace_id"] = workspace_id
     write_document(workspace_id, document)
-    return {"document": document, "declared": [name], "tombstoned": []}
+    return {"document": document, "declared": [name], "tombstoned": [], "categories_unshared": unshared}
 
 # ── this machine's fill ──────────────────────────────────────────────────────
 
@@ -700,6 +706,7 @@ def bind(workspace_id: str, slot: str, path: str, *, issued_at: str) -> dict[str
 def show(workspace_id: str) -> dict[str, Any]:
     """The document plus THIS machine's fill per slot — never another machine's path.
 
+    ``shared_chats`` is the sessions this machine shares into the workspace's chats folder.
     ``here.<slot>.fill`` is the fill's non-secret shape (``workspace_slot_env.fill_shape``):
     env key names, tool paths, PATH head, ``.env``, venv — never an env value; null when unset.
 
@@ -728,7 +735,9 @@ def show(workspace_id: str) -> dict[str, Any]:
                       f"{name}: bound on " + (", ".join(machines) if machines else "no reporting machine"), time.time())
             row["unknowns"] = index.wire()
         here[name] = row
-    return {"document": document, "here": here}
+    from .project_chat_export import ChatHome, shared_sessions_of
+
+    return {"document": document, "here": here, "shared_chats": shared_sessions_of(ChatHome.workspace(workspace_id))}
 
 
 def binding_machines(document: dict[str, Any], slot: str) -> list[str]:

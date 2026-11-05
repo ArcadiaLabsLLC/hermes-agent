@@ -33,13 +33,23 @@ from utils import atomic_json_write
 
 from . import paths
 from .machine_roots import _ROOT_NAME_RE
+from .workspace_categories import (
+    CATEGORIES,
+    FOLDER_CATEGORIES,
+    GUIDANCE,
+    GUIDANCE_MAX_CHARS,
+    apply_category,
+    apply_guidance,
+    category,
+    enforce_share_rule,
+    source_controlled,
+)
 from .workspace_slots import (
     REASON_INVALID_DECLARATION,
     REASON_REALM_PUBLISH_DENIED,
     REASON_SLOT_NOT_DECLARED,
     SlotRefused,
     _declared_record,
-    _inside_checkout,
     apply_declared_set,
     live_slots,
     normalize_declaration,
@@ -50,20 +60,9 @@ from .workspace_slots import (
 __layer__ = "stores"
 
 PROJECT_SCHEMA_VERSION = 1
-#: The four categories that are a folder inside one of the Project's slots.
-FOLDER_CATEGORIES = ("chats", "documents", "boards", "artifacts")
-#: The fifth category: description + instructions, in the record, its own switch (plan §12.4).
-GUIDANCE = "guidance"
-CATEGORIES = (*FOLDER_CATEGORIES, GUIDANCE)
-#: The launcher's ``Project.instructions`` bound, and the description's.
-GUIDANCE_MAX_CHARS = 32000
 NAME_MAX_CHARS = 200
 
 REASON_INVALID_REFERENCE = "invalid_reference"
-REASON_UNKNOWN_CATEGORY = "unknown_category"
-REASON_CATEGORY_NOT_SOURCE_CONTROLLED = "category_not_source_controlled"
-REASON_GUIDANCE_NOT_SHARED = "guidance_not_shared"
-REASON_GUIDANCE_TOO_LONG = "guidance_too_long"
 
 
 def valid_project_id(project_id: Any) -> str:
@@ -102,43 +101,6 @@ def write_project(project_id: str, record: dict[str, Any]) -> None:
     from .brain_paths import changed
 
     changed("project.written")
-
-
-def source_controlled(record: dict[str, Any], slot: Any) -> bool:
-    """True when ``slot`` is a live slot of the record with a clone URL (not ``repo.local``)."""
-
-    held = live_slots(record).get(slot) if isinstance(slot, str) else None
-    repo = (held or {}).get("repo") or {}
-    return bool(repo.get("clone_url")) and not repo.get("local")
-
-
-def category(record: dict[str, Any], name: str) -> dict[str, Any]:
-    """The category's declaration, or the unset default (no folder, not shared)."""
-
-    held = (record.get("categories") or {}).get(name)
-    if isinstance(held, dict):
-        return held
-    return {"slot": None, "subpath": None if name == GUIDANCE else f".eternia/{name}", "shared": False,
-            "issued_at": None, "revision": 0}
-
-
-def enforce_share_rule(record: dict[str, Any]) -> list[str]:
-    """Unshare every folder category whose slot is not source-controlled; drop unshared guidance.
-
-    Runs after a declare (a slot made local or removed) and after a merge (a peer's share beside a
-    local slot change), so the owner's rule holds for the record whatever wrote it. Returns the
-    categories it unshared.
-    """
-
-    unshared = []
-    for name, held in sorted((record.get("categories") or {}).items()):
-        if name in FOLDER_CATEGORIES and isinstance(held, dict) and held.get("shared") \
-                and not source_controlled(record, held.get("slot")):
-            record["categories"][name] = {**held, "shared": False}
-            unshared.append(name)
-    if not category(record, GUIDANCE).get("shared"):
-        record.pop("guidance", None)
-    return unshared
 
 
 # ── who may write: the publish right of every realm the Project is assigned into ──
@@ -250,66 +212,31 @@ class ProjectStore:
 
     def set_category(self, project_id: str, name: str, *, slot: Any, subpath: Any, shared: Any,
                      issued_at: str, context_files: Any = None) -> dict[str, Any]:
-        """Declare one category's folder and its share switch (``category_not_source_controlled``).
+        """Declare one category's folder and its share switch (``workspace_categories.apply_category``)."""
 
-        ``context_files`` (documents only) REPLACES the files offered as context, relative to the
-        folder; ``None`` keeps the list the record holds.
-        """
-
-        if name not in CATEGORIES:
-            raise SlotRefused(REASON_UNKNOWN_CATEGORY, str(name))
-        if not isinstance(shared, bool):
-            raise SlotRefused(REASON_INVALID_DECLARATION, "shared is a boolean")
-        record = load_project(valid_project_id(project_id))
-        held = category(record, name)
-        record = self._open(project_id, issued_at, last_stamp=held.get("issued_at"))
-        if name == GUIDANCE:
-            slot, subpath = None, None
-        else:
-            if slot is not None and slot not in live_slots(record):
-                raise SlotRefused(REASON_SLOT_NOT_DECLARED, f"{project_id} declares no slot {slot!r}")
-            subpath = f".eternia/{name}" if subpath in (None, "") else subpath
-            if not _inside_checkout(subpath):
-                raise SlotRefused(REASON_INVALID_DECLARATION, "subpath is a relative path inside the slot")
-            if shared and not source_controlled(record, slot):
-                raise SlotRefused(REASON_CATEGORY_NOT_SOURCE_CONTROLLED,
-                                  f"{name} sits in no source-controlled slot; only a cloned slot is shared")
-        extra = {k: v for k, v in held.items() if k not in {"slot", "subpath", "shared", "issued_at", "revision"}}
-        if context_files is not None:
-            if name != "documents":
-                raise SlotRefused(REASON_INVALID_DECLARATION, "context_files belong to the documents category")
-            if not isinstance(context_files, list) or not all(_inside_checkout(f) for f in context_files):
-                raise SlotRefused(REASON_INVALID_DECLARATION, "context_files are relative paths inside the folder")
-            extra["context_files"] = list(dict.fromkeys(context_files))
-        record.setdefault("categories", {})[name] = {
-            **extra, "slot": slot, "subpath": subpath, "shared": shared, "issued_at": issued_at,
-            "revision": int(held.get("revision") or 0) + 1}
+        valid_project_id(project_id)
+        require_project_publish_rights(project_id, self._credentials)
+        record = load_project(project_id)
+        held = apply_category(record, name, slot=slot, subpath=subpath, shared=shared, issued_at=issued_at,
+                              context_files=context_files, owner=project_id)
         self._commit(project_id, record, issued_at=None)
         if name == "chats" and held.get("shared") and not shared:
-            from .project_chat_fold import drop_project_chats
+            from .project_chat_export import ChatHome
+            from .project_chat_fold import drop_chats
 
             # Unsharing the chats drops the shared store and nothing else (plan §6).
-            drop_project_chats(project_id, reason="chats_unshared")
+            drop_chats(ChatHome.project(project_id), reason="chats_unshared")
         return {"project_id": project_id, "category": name, "record": record["categories"][name]}
 
     def set_guidance(self, project_id: str, *, description: Any, instructions: Any, issued_at: str) -> dict[str, Any]:
         """The Project's description + instructions; refused ``guidance_not_shared`` while the switch is off."""
 
-        record = load_project(valid_project_id(project_id))
-        held = record.get("guidance") if isinstance(record.get("guidance"), dict) else {}
-        last = (held or {}).get("issued_at")
-        record = self._open(project_id, issued_at, last_stamp=last)
-        if not category(record, GUIDANCE).get("shared"):
-            raise SlotRefused(REASON_GUIDANCE_NOT_SHARED, "turn the guidance share on before writing it")
-        texts = {"description": description or "", "instructions": instructions or ""}
-        for key, value in texts.items():
-            if not isinstance(value, str):
-                raise SlotRefused(REASON_INVALID_DECLARATION, f"{key} is text")
-            if len(value) > GUIDANCE_MAX_CHARS:
-                raise SlotRefused(REASON_GUIDANCE_TOO_LONG, f"{key} is over {GUIDANCE_MAX_CHARS} characters")
-        record["guidance"] = {**texts, "issued_at": issued_at, "revision": int((held or {}).get("revision") or 0) + 1}
+        valid_project_id(project_id)
+        require_project_publish_rights(project_id, self._credentials)
+        record = load_project(project_id)
+        guidance = apply_guidance(record, description=description, instructions=instructions, issued_at=issued_at)
         self._commit(project_id, record, issued_at=None)
-        return {"project_id": project_id, "guidance": record["guidance"]}
+        return {"project_id": project_id, "guidance": guidance}
 
 
     def adopt_workspace_document(self, project_id: str, *, name: str, document: dict[str, Any],
