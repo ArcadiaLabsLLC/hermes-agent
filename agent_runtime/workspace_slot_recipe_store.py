@@ -65,8 +65,7 @@ def set_recipe(workspace_id: str | None, slot: str, steps: Any, *, base_revision
     """Replace ``slot``'s owner steps where it is declared — the workspace's own document or its Project's record.
 
     ``base_revision`` must be the revision the editor read. A workspace-keyed edit of a slot a
-    Project declares (a migrated workspace) lands in that Project's record, so no edit is ever
-    written into a document frozen at ``migrated_to``.
+    Project declares lands in that Project's record.
     """
 
     resolved = resolve_slot(workspace_id, slot, project_id=project_id)

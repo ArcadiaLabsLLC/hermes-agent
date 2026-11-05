@@ -175,11 +175,6 @@ def merge_documents(local: dict[str, Any], remote: dict[str, Any]) -> dict[str, 
     guidance = _newer_decision(local.get("guidance"), remote.get("guidance"))
     if isinstance(guidance, dict):
         merged["guidance"] = guidance
-    # A document moved into a Project (``project_migration``, plan project-slots-and-shared-chats §4)
-    # stays moved whichever side moved it: the stamp is never lost to a merge with an unmigrated peer.
-    migrated = local.get("migrated_to") or remote.get("migrated_to")
-    if isinstance(migrated, str) and migrated and paths.safe_path_token(migrated) == migrated:
-        merged["migrated_to"] = migrated
     from .workspace_categories import enforce_share_rule
 
     # A peer's share beside a local slot made local (or removed) cannot leave a category shared.

@@ -15,7 +15,7 @@ from agent_runtime.call_authorization import LOCAL_CONSOLE_METHODS
 from agent_runtime.project_chat_export import ChatHome, share
 from agent_runtime.project_chat_fold import open_shared_store
 from agent_runtime.store import WorkspaceStore
-from agent_runtime.workspace_slots import bind, declare, load_document, write_document
+from agent_runtime.workspace_slots import bind, declare, load_document
 from agent_runtime.workspace_slots_sync import apply_workspace_slots_pull, merge_documents
 
 OLD = "2026-11-04T10:00:00+00:00"
@@ -139,14 +139,6 @@ def test_the_newer_revision_wins_a_category_and_the_share_rule_runs_after_the_me
     # Positive control: with the guidance switch on, the peer's guidance merges in.
     remote["categories"]["guidance"] = {"slot": None, "subpath": None, "shared": True, "issued_at": NEW, "revision": 1}
     assert merge_documents(local, remote)["guidance"]["instructions"] == "x"
-
-
-def test_a_migrated_document_refuses_the_content_verbs():
-    ws = _workspace()
-    document = load_document(ws)
-    write_document(ws, {**document, "migrated_to": "ws-x"})
-    reply = _rpc("runtime.workspace.category.set", workspace_id=ws, category="boards", shared=False, issued_at=NEW)
-    assert reply["error"]["data"]["reason"] == "slot_migrated"
 
 
 def test_artifacts_list_names_the_folders_files_on_this_machine(tmp_path):

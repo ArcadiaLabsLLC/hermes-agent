@@ -546,17 +546,14 @@ def bound_path(slot: str, *, workspace_id: str | None = None, project_id: str | 
 
 
 def slot_owner(workspace_id: str, slot: str) -> str | None:
-    """The Project of ``workspace_id`` that declares ``slot``: the migration's target first, else the
-    ONE assigned Project whose record declares it live; ``None`` when none does or two do (a name two
-    assigned Projects both declare is addressed as ``<project>/<slot>``, never guessed)."""
+    """The ONE assigned Project of ``workspace_id`` whose record declares ``slot`` live; ``None`` when
+    none does or two do (a name two assigned Projects both declare is addressed as ``<project>/<slot>``,
+    never guessed)."""
 
     from .errors import NotFound
     from .project_store import load_project
     from .store import WorkspaceStore
 
-    migrated = load_document(workspace_id).get("migrated_to")
-    if isinstance(migrated, str) and migrated and slot in live_slots(load_project(migrated)):
-        return migrated
     try:
         held = WorkspaceStore().get(workspace_id).project_ids
     except NotFound:  # a workspace with no record (a test fixture, a deleted one) owns no Project
@@ -566,17 +563,15 @@ def slot_owner(workspace_id: str, slot: str) -> str | None:
 
 
 def slots_of_workspace(workspace_id: str) -> list[tuple[str | None, str]]:
-    """``(project_id | None, slot)`` for every live slot a workspace sees: its own document's (unless it
-    was migrated into a Project) and each assigned Project's, in that order."""
+    """``(project_id | None, slot)`` for every live slot a workspace sees: its own document's and each
+    assigned Project's, in that order."""
 
     from .errors import NotFound
     from .project_store import load_project
     from .store import WorkspaceStore
 
     document = load_document(workspace_id)
-    out: list[tuple[str | None, str]] = []
-    if not document.get("migrated_to"):
-        out.extend((None, name) for name in sorted(live_slots(document)))
+    out: list[tuple[str | None, str]] = [(None, name) for name in sorted(live_slots(document))]
     try:
         held = WorkspaceStore().get(workspace_id).project_ids
     except NotFound:
@@ -584,23 +579,6 @@ def slots_of_workspace(workspace_id: str) -> list[tuple[str | None, str]]:
     for project_id in held:
         out.extend((project_id, name) for name in sorted(live_slots(load_project(project_id))))
     return out
-
-
-REASON_SLOT_MIGRATED = "slot_migrated"
-
-
-def require_unmigrated(workspace_id: str) -> str:
-    """``workspace_id`` while its slot document is still its own; ``slot_migrated`` naming the Project after.
-
-    The door every workspace-keyed slot verb (RPC and CLI) passes before reading or writing the
-    document itself: a document frozen at ``migrated_to`` answers where its slots went, never a
-    stale table or an edit no reader will see (plan project-slots-and-shared-chats §2).
-    """
-
-    migrated = load_document(workspace_id).get("migrated_to")
-    if migrated:
-        raise SlotRefused(REASON_SLOT_MIGRATED, str(migrated))
-    return workspace_id
 
 
 class ResolvedSlot(NamedTuple):
@@ -615,9 +593,8 @@ def resolve_slot(workspace_id: str | None, slot: str, *, project_id: str | None 
     """The live declaration a reader of ``workspace_id`` sees for ``slot`` (bare, or ``<project>/<slot>``).
 
     The ONE reader door for a slot's declaration, owner-ordered exactly like :func:`bound_path`: an
-    explicit Project, else :func:`slot_owner`'s Project, else the workspace's own document while it is
-    not migrated. A document frozen at ``migrated_to`` is never read here, so a ``runtime.project.*``
-    edit is what every reader sees. None: nothing this workspace sees declares it live.
+    explicit Project, else :func:`slot_owner`'s Project, else the workspace's own document. None:
+    nothing this workspace sees declares it live.
     """
 
     from .project_store import load_project, valid_project_id
@@ -627,8 +604,7 @@ def resolve_slot(workspace_id: str | None, slot: str, *, project_id: str | None 
     if project_id is None and workspace_id is not None:
         project_id = slot_owner(workspace_id, slot)
         if project_id is None:
-            document = load_document(workspace_id)
-            body = None if document.get("migrated_to") else live_slots(document).get(slot)
+            body = live_slots(load_document(workspace_id)).get(slot)
             return ResolvedSlot(None, slot, body) if body is not None else None
     if not project_id:
         return None
@@ -782,9 +758,8 @@ class SlotCensus:
 def slot_census() -> SlotCensus:
     """Every slot the active realm's workspaces see: their own documents' and their Projects'.
 
-    A migrated workspace document (``migrated_to``) is read through its Project instead, so no slot
-    counts twice; a Project held by two workspaces is declared once and bound once per workspace
-    (the attribution a build row needs), with one fill.
+    A Project held by two workspaces is declared once and bound once per workspace (the attribution a
+    build row needs), with one fill.
     """
 
     from .project_store import load_project
@@ -795,13 +770,11 @@ def slot_census() -> SlotCensus:
     roots = scoped_roots()
     held = {ws.id: ws.project_ids for ws in WorkspaceStore().list_all(include_archived=False)}
     for workspace_id in realm_workspace_ids():
-        document = load_document(workspace_id)
-        if not document.get("migrated_to"):
-            for name in live_slots(document):
-                declared.add((f"workspace:{workspace_id}", name))
-                value = roots.workspace_root(workspace_id, name)
-                if value is not None and value.is_dir():
-                    bound.append(BoundSlot(workspace_id, name, value))
+        for name in live_slots(load_document(workspace_id)):
+            declared.add((f"workspace:{workspace_id}", name))
+            value = roots.workspace_root(workspace_id, name)
+            if value is not None and value.is_dir():
+                bound.append(BoundSlot(workspace_id, name, value))
         for project_id in held.get(workspace_id, ()):
             for name in live_slots(load_project(project_id)):
                 declared.add((f"project:{project_id}", name))
@@ -854,7 +827,6 @@ __all__ = [
     "machine_id",
     "rekey_legacy_report",
     "report_namespace",
-    "require_unmigrated",
     "resolve_slot",
     "scoped_roots",
     "show",

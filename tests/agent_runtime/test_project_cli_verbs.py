@@ -13,12 +13,12 @@ from argparse import Namespace
 
 import pytest
 
-from agent_runtime import project_migration, serve_rpc
+from agent_runtime import serve_rpc
 from agent_runtime.machine_roots import load_machine_roots, machine_roots_cache_clear
 from agent_runtime.project_store import ProjectStore, list_projects, load_project
 from agent_runtime.store import WorkspaceStore
 from agent_runtime.workspace_projects import set_project_connection
-from agent_runtime.workspace_slots import declare
+
 
 T0 = "2026-10-31T10:00:00+00:00"
 T1 = "2026-10-31T11:00:00+00:00"
@@ -105,24 +105,6 @@ def test_project_list_names_each_projects_slots_and_workspaces(capsys):
 
     assert project_commands._cmd_project_list(_args()) == 0
     assert {row["project_id"] for row in _printed(capsys)["projects"]} >= {"p-conn", "p-loose", "p-ref"}
-
-
-def test_a_migrated_workspace_names_the_project_and_the_verb_to_use(capsys):
-    from hermes_cli.harness_parts.workspace_slots_commands import _cmd_workspace_slots_show
-
-    workspace = WorkspaceStore().create(name="QA Fixture").id
-    declare(workspace, [_slot("launcher")], issued_at=T0, machine="m")
-    project_migration.migrate_namespace()
-    project = project_migration.migrated_project_id(workspace)
-
-    rc = _cmd_workspace_slots_show(_args(workspace_id=workspace))
-    out = capsys.readouterr().out
-    assert rc != 0
-    assert "slot_migrated" in out and f"hermes harness project show {project}" in out
-    assert load_project(project)["name"] in out
-    # The RPC detail stays the bare Project id the launcher parses.
-    reply = _rpc("runtime.workspace.slots.show", {"workspace_id": workspace})
-    assert reply["error"]["data"]["detail"] == project
 
 
 @pytest.mark.parametrize(("argv", "handler"), [

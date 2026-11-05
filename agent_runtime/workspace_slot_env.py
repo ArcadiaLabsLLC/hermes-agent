@@ -184,24 +184,6 @@ def set_slot_fill(
     return slot_fill(workspace_id, slot, project_id=project_id) or SlotFill()
 
 
-def copy_workspace_fills(workspace_id: str, project_id: str) -> int:
-    """Copy every env fill of ``workspace_id`` under Project ``project_id`` (the migration, §4 step 2).
-
-    A Project fill already set wins, so a re-run after a crash (or after a Project edit) overwrites
-    nothing; the workspace's own entries stay for an older edition that reads only them.
-    """
-
-    payload = _read()
-    copying = {slot: entry for slot, entry in (payload["workspaces"].get(workspace_id) or {}).items()
-               if slot not in (_projects(payload).get(project_id) or {})}
-    if not copying:
-        return 0
-    payload["schema_version"] = SLOT_ENV_SCHEMA_VERSION
-    _projects(payload).setdefault(project_id, {}).update(copying)
-    _write(payload)
-    return len(copying)
-
-
 def _kept_env(workspace_id: str | None, slot: str, env_keep: Any, project_id: str | None = None) -> dict[str, str]:
     names = list(env_keep or [])
     if not all(isinstance(name, str) and name for name in names):

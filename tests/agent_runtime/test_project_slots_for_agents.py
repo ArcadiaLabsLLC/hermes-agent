@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from hermes_time import now
 
-from agent_runtime import paths, project_migration, serve_rpc
+from agent_runtime import paths, serve_rpc
 from agent_runtime.models import PersonaInstance
 from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.persona_slots import load_slot_context, set_instance_slots
@@ -12,7 +12,7 @@ from agent_runtime.project_store import ProjectStore
 from agent_runtime.states import WorkerSessionState
 from agent_runtime.store import WorkspaceStore
 from agent_runtime.workspace_projects import set_project_connection
-from agent_runtime.workspace_slots import bind_project, declare
+from agent_runtime.workspace_slots import bind_project
 
 T0 = "2026-10-29T10:00:00+00:00"
 T1 = "2026-10-29T11:00:00+00:00"
@@ -86,20 +86,3 @@ def test_disconnecting_a_project_drops_only_its_slots_from_only_that_workspace(t
     assert PersonaInstanceStore().get(there).assigned_slots == ["p1/launcher"]
 
 
-def test_the_migration_rekeys_assignments_and_the_workspace_verbs_answer_slot_migrated(tmp_path):
-    workspace = WorkspaceStore().create(name="Team").id
-    declare(workspace, [_slot("launcher"), _slot("backend")], issued_at=T0, machine="mach")
-    one, two = _instance("personainst_one", workspace), _instance("personainst_two", workspace)
-    set_instance_slots(one, ["launcher", "backend"], "backend", issued_at=T0)
-    set_instance_slots(two, ["launcher"], issued_at=T0)
-    receipt = project_migration.migrate_namespace()
-    assert receipt["migrated"][0]["instances"] == 2
-    project = f"ws-{workspace}"
-    assert PersonaInstanceStore().get(one).assigned_slots == [f"{project}/launcher", f"{project}/backend"]
-    assert PersonaInstanceStore().get(one).primary_slot == f"{project}/backend"
-    assert project_migration.migrate_namespace()["migrated"] == []
-    assert PersonaInstanceStore().get(two).assigned_slots == [f"{project}/launcher"]
-    for verb in ("runtime.workspace.slots.show", "runtime.workspace.slots.declare", "runtime.workspace.slot.bind"):
-        reply = serve_rpc.handle_request({"jsonrpc": "2.0", "id": "t", "method": verb, "params": {
-            "workspace_id": workspace, "slots": [], "slot": "launcher", "path": str(tmp_path), "issued_at": T1}})
-        assert reply["error"]["data"] == {"reason": "slot_migrated", "detail": project, "project_id": project}, verb

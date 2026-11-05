@@ -4259,6 +4259,43 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "runtime_instance_path",
         scope=("agent_runtime.paths",),
     ),
+    *rows(
+        "s-w1104a-wsabsorb",
+        "HEAD",
+        Form.ATTR,
+        "RT-WS-ABSORB-MIGRATION: the Project edition's workspace-to-Project slot migration and its "
+        "frozen-document door went with the migration that folds every Project back into its workspace",
+        "require_unmigrated",
+        "REASON_SLOT_MIGRATED",
+        scope=("agent_runtime.workspace_slots",),
+    ),
+    *rows(
+        "s-w1104a-wsabsorb",
+        "HEAD",
+        Form.ATTR,
+        "RT-WS-ABSORB-MIGRATION: the old migration's fill copy and assignment re-key",
+        "copy_workspace_fills",
+        scope=("agent_runtime.workspace_slot_env",),
+    ),
+    *rows(
+        "s-w1104a-wsabsorb",
+        "HEAD",
+        Form.ATTR,
+        "RT-WS-ABSORB-MIGRATION: the old migration's assignment re-key into <project>/<slot>",
+        "rekey_workspace_assignments",
+        scope=("agent_runtime.persona_slots",),
+    ),
+    *rows(
+        "s-w1104a-wsabsorb",
+        "HEAD",
+        Form.ATTR,
+        "RT-WS-ABSORB-MIGRATION: the ws-<workspace> Project naming of the old migration",
+        "migrated_project_id",
+        "migrated_project_name",
+        "legacy_migrated_project_name",
+        "migrate_workspace",
+        scope=("agent_runtime.project_migration",),
+    ),
 )
 
 

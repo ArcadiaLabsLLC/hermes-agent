@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from hermes_time import now
 
-from agent_runtime import paths, project_migration, serve_rpc
+from agent_runtime import paths, serve_rpc
 from agent_runtime.models import PersonaInstance
 from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.persona_slots import ProjectContext, load_project_context, set_instance_slots
@@ -64,8 +64,7 @@ def test_guidance_loads_only_while_shared(tmp_path):
     assert _context().sections == ()
 
 
-def test_every_project_slot_is_a_board_the_boards_slot_is_its_default_and_a_migrated_document_lists_none_twice(
-        tmp_path):
+def test_every_project_slot_is_a_board_the_boards_slot_is_its_default(tmp_path):
     """RT-WORK-BOARD-PER-PROJECT-SLOT H1: the boards category names the default board, never a filter."""
     workspace = _setup(tmp_path, "launcher", "backend")
     assert [(b.slot, b.project_id, b.project_default) for b in declared_boards(workspace)] == [
@@ -76,8 +75,6 @@ def test_every_project_slot_is_a_board_the_boards_slot_is_its_default_and_a_migr
     legacy = WorkspaceStore().create(name="Legacy").id
     declare(legacy, [{"name": "brain", "repo": {"local": True}}], issued_at=T0, machine="m")
     assert [(b.slot, b.project_id) for b in declared_boards(legacy)] == [("brain", None)]
-    project_migration.migrate_namespace()
-    assert [(b.slot, b.project_id) for b in declared_boards(legacy)] == [("brain", f"ws-{legacy}")]
 
 
 def test_the_artifacts_folder_is_listed_never_written(tmp_path):

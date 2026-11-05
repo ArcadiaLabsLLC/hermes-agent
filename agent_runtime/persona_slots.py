@@ -311,28 +311,35 @@ def _drop_where(owns, drops) -> list[str]:
     return touched
 
 
-def rekey_workspace_assignments(workspace_id: str, project_id: str, names: set[str] | frozenset[str]) -> list[str]:
-    """The slot migration's step 3 (plan §4): bare names of a migrated document become ``<project>/<slot>``.
+def rekey_project_assignments(project_id: str, home: str | None, rename: dict[str, str]) -> list[str]:
+    """The workspace merge's instance step (RT-WS-ABSORB-MIGRATION): ``<project>/<slot>`` keys become bare.
 
-    Set-to-value per instance (a key already re-keyed is left as it is), ``slots_issued_at`` stamped.
+    In the Project's home workspace a key takes its (renamed) slot name; in any other workspace, or for a
+    slot that did not move, it is dropped — the Project is no longer seen there. ``slots_issued_at`` stamped.
     """
 
+    prefix = f"{project_id}/"
     store = _store()
     touched = []
     stamp = datetime.now().astimezone()
     for instance in store.list_all():
         keys = list(instance.assigned_slots or [])
-        if instance.workspace_id != workspace_id or not any(key in names for key in keys):
+        owned = [key for key in (*keys, instance.primary_slot or "", *(instance.slot_context_files or {}),
+                                 *(instance.slot_context_custom or {})) if key.startswith(prefix)]
+        if not owned:
             continue
+
+        def moved(key: str) -> str | None:
+            if not key.startswith(prefix):
+                return key
+            return rename.get(key[len(prefix):]) if home is not None and instance.workspace_id == home else None
+
         store.patch_fields(
             instance.id,
-            assigned_slots=list(dict.fromkeys(f"{project_id}/{key}" if key in names else key for key in keys)),
-            primary_slot=(f"{project_id}/{instance.primary_slot}" if instance.primary_slot in names
-                          else instance.primary_slot),
-            slot_context_files={(f"{project_id}/{k}" if k in names else k): v
-                                for k, v in (instance.slot_context_files or {}).items()},
-            slot_context_custom={(f"{project_id}/{k}" if k in names else k): v
-                                 for k, v in (instance.slot_context_custom or {}).items()},
+            assigned_slots=list(dict.fromkeys(key for key in map(moved, keys) if key)),
+            primary_slot=moved(instance.primary_slot) if instance.primary_slot else instance.primary_slot,
+            slot_context_files={moved(k): v for k, v in (instance.slot_context_files or {}).items() if moved(k)},
+            slot_context_custom={moved(k): v for k, v in (instance.slot_context_custom or {}).items() if moved(k)},
             slots_issued_at=stamp,
         )
         touched.append(instance.id)

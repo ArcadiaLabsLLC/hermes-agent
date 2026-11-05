@@ -1007,6 +1007,22 @@ answers ``shared_chats``. A workspace's shared chats live at ``store/workspace_c
 the Work writer under pseudo-workspace ``workspace_chats_<ws>``; the realm pull and the realm-less
 tick fold every shared workspace as they fold Projects.
 
+54 KEPT (workspace merge, 2026-11-04, RT-WS-ABSORB-MIGRATION) — no snapshot key moved. On every serve
+boot ``project_migration.migrate_namespace`` folds each Project into ONE home workspace — its
+``ws-<ws>`` origin, else the first workspace (by id) listing it, else a new workspace in the default
+realm named after it; a reference with no record and no listing workspace is dropped — and is a
+no-op once nothing Project-keyed is left. The origin Project replaces its frozen document's slots and
+reports; another Project's live slot whose name the home already holds becomes
+``<project_slug>_<slot>`` (a root name has no ``-``); a held category keeps the workspace's own;
+guidance moves only into a document without one. Rekeyed to the home: ``project_roots`` →
+``slot_folders``, env ``projects`` → ``workspaces``, ``slot_worktrees/<project>/``, the shared chat
+store / fold offsets / export cursors, instance keys ``<project>/<slot>`` (dropped outside the
+home), Work run records' and schedules' row refs; ``<project>/<slot>`` Work worktrees and the chats
+writer's ``project_<id>`` ones are removed for a recut. Then ``store/projects/``, the workspace
+records' ``project_ids`` / ``project_assignment_revision`` and every ``migrated_to`` stamp go, with
+``require_unmigrated`` and the ``slot_migrated`` refusal. Receipt ``workspace_merge.completed
+{merged: [{project_id, workspace_id, created, renamed, …counts}], dropped, stamps_removed}``.
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.

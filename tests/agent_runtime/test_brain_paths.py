@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_runtime import brain_paths
+from agent_runtime import brain_paths, paths
 from agent_runtime.machine_roots import machine_roots_cache_clear
 from agent_runtime.project_store import ProjectStore
 from agent_runtime.store import WorkspaceStore
@@ -201,17 +201,26 @@ def test_a_slot_document_write_rewrites_the_list(monkeypatch):
     assert seen == ["w"]
 
 
-def test_copying_path_fills_in_the_project_migration_rewrites_the_list(monkeypatch, tmp_path):
-    """Mutation: drop ``changed`` from ``project_migration._copy_path_fills`` -> red."""
+def test_the_workspace_merge_rewrites_the_list(monkeypatch, tmp_path):
+    """Mutation: drop ``changed`` from ``project_migration.migrate_namespace`` -> red.
+
+    A Project a workspace lists with no record and only a fill: the merge rewrites the fills and no
+    slot document, so the merge's own notice is the only writer of the list.
+    """
     from agent_runtime import project_migration
     from agent_runtime.machine_roots import load_machine_roots, write_machine_roots
+    from agent_runtime.store import WorkspaceStore
 
+    workspace = WorkspaceStore().create(name="Team").id
+    raw = json.loads(paths.workspace_path(workspace).read_text(encoding="utf-8"))
+    paths.workspace_path(workspace).write_text(json.dumps({**raw, "project_ids": ["p1"]}), encoding="utf-8")
     current = load_machine_roots(refresh=True)
-    write_machine_roots(dict(current.roots), workspace_roots={"ws-x": {"s": str(tmp_path)}}, dry_run=False)
+    write_machine_roots(dict(current.roots), workspace_roots={}, project_roots={"p1": {"s": str(tmp_path)}},
+                        dry_run=False)
     seen: list[str] = []
     monkeypatch.setattr(brain_paths, "write_brain_paths", lambda **_: seen.append("w") or True)
-    project_migration._copy_path_fills("ws-x", "ws-ws-x")
-    assert seen == ["w"]
+    project_migration.migrate_namespace()
+    assert seen == ["w"] and load_machine_roots(refresh=True).project_roots == {}
 
 
 def test_the_list_is_written_once_at_serve_boot_before_the_heavy_steps(monkeypatch):

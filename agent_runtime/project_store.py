@@ -37,7 +37,6 @@ from .workspace_categories import (
     CATEGORIES,
     FOLDER_CATEGORIES,
     GUIDANCE,
-    GUIDANCE_MAX_CHARS,
     apply_category,
     apply_guidance,
     category,
@@ -239,53 +238,6 @@ class ProjectStore:
         return {"project_id": project_id, "guidance": guidance}
 
 
-    def adopt_workspace_document(self, project_id: str, *, name: str, document: dict[str, Any],
-                                 migrated_from: dict[str, Any] | None = None) -> dict[str, Any]:
-        """The slot migration's write (plan §4 step 1): ``document``'s slots VERBATIM (tombstones included)
-        and its machine reports into ``project_id``, set-to-value so a retried migration writes the same
-        bytes. This machine's own write — no realm right is asked; the record syncs under it afterwards.
-        ``migrated_from`` (:func:`migration_origin`) records the workspace the slots came from."""
-
-        import copy
-
-        record = load_project(valid_project_id(project_id))
-        if valid_migration_origin(migrated_from) is not None:
-            record["migrated_from"] = valid_migration_origin(migrated_from)
-        record.update({"project_id": project_id, "name": record.get("name") or _project_name(name[:NAME_MAX_CHARS]),
-                       "slots": copy.deepcopy(document.get("slots") or {}),
-                       "machines": copy.deepcopy(document.get("machines") or {}),
-                       "issued_at": document.get("issued_at") or record.get("issued_at") or ""})
-        record.setdefault("categories", {})
-        self._commit(project_id, record, issued_at=None)
-        return record
-
-
-    def rename_legacy_migrated(self, project_id: str, *, legacy_name: str, name: str,
-                               migrated_from: dict[str, Any]) -> bool:
-        """A Project the slot migration made before RT-MIGRATED-PROJECT-NAME: still named ``legacy_name``
-        (``"<workspace> slots"``) takes ``name`` and its ``migrated_from``. A name anyone changed since
-        is theirs and stays; True when the record was rewritten. Like the migration, this machine's
-        own set-to-value write (every machine of the realm runs it, so the copies converge)."""
-
-        if not paths.project_path(valid_project_id(project_id)).is_file():
-            return False  # nothing to rename; never write an empty record into being
-        record = load_project(project_id)
-        if record.get("name") != legacy_name and record.get("migrated_from") is not None:
-            return False
-        if record.get("name") == legacy_name:
-            record["name"] = _project_name(name[:NAME_MAX_CHARS])
-        if record.get("migrated_from") is None and valid_migration_origin(migrated_from) is not None:
-            record["migrated_from"] = valid_migration_origin(migrated_from)
-        self._commit(project_id, record, issued_at=None)
-        return True
-
-
-def migration_origin(workspace: Any) -> dict[str, str]:
-    """``migrated_from`` for a Project the slot migration makes from ``workspace``: its id and its name then."""
-
-    return {"workspace_id": str(workspace.id), "workspace_name": str(workspace.name or "")[:NAME_MAX_CHARS]}
-
-
 def valid_migration_origin(value: Any) -> dict[str, str] | None:
     """``value`` as a ``migrated_from`` record (a safe-token ``workspace_id`` and a short name), or None."""
 
@@ -363,18 +315,6 @@ def valid_root_name(value: Any) -> bool:
     return isinstance(value, str) and bool(_ROOT_NAME_RE.match(value))
 
 
-def migrated_next_step(project_id: Any) -> str:
-    """A ``slot_migrated`` refusal's detail for a CLI reader: the Project's id FIRST (what the RPC
-    detail carries), then its name and the verbs that now read and edit those slots."""
-
-    project_id = str(project_id)
-    name = load_project(project_id).get("name") if paths.safe_path_token(project_id) == project_id else ""
-    named = f" ({name!r})" if name else ""
-    return (f"{project_id} — this workspace's slots moved to Project {project_id}{named}; read them with "
-            f"`hermes harness project show {project_id}` and edit them with `hermes harness project declare` / "
-            f"`project slot bind|clone|env-set` (`hermes harness project list` shows every Project and its workspaces)")
-
-
 __all__ = [
     "CATEGORIES",
     "FOLDER_CATEGORIES",
@@ -384,8 +324,6 @@ __all__ = [
     "enforce_share_rule",
     "list_projects",
     "load_project",
-    "migrated_next_step",
-    "migration_origin",
     "project_realms",
     "project_workspaces",
     "require_project_publish_rights",

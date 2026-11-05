@@ -44,34 +44,24 @@ def _emit_workspace_slot_verb(args, kind: str, action) -> int:
     slot document read from a wrong root is an empty document, not a refusal (D3.17)."""
     from agent_runtime.root_observability import attach_root_observability
     from agent_runtime.workspace_slot_env import SlotEnvRefused
-    from agent_runtime.workspace_slots import REASON_SLOT_MIGRATED, SlotRefused
+    from agent_runtime.workspace_slots import SlotRefused
 
-    def guided():
-        try:
-            return action()
-        except SlotRefused as exc:  # a migrated document: name the Project and the verbs that now answer
-            if exc.reason != REASON_SLOT_MIGRATED:
-                raise
-            from agent_runtime.project_store import migrated_next_step
-
-            raise SlotRefused(exc.reason, migrated_next_step(exc.detail)) from exc
-
-    return run_refusing_verb(args, kind, guided, refusals=(SlotRefused, SlotEnvRefused), plain=(ValueError,),
+    return run_refusing_verb(args, kind, action, refusals=(SlotRefused, SlotEnvRefused), plain=(ValueError,),
                              stamp=lambda envelope: attach_root_observability(envelope))
 
 
 def _cmd_workspace_slots_show(args) -> int:
-    from agent_runtime.workspace_slots import require_unmigrated, show
+    from agent_runtime.workspace_slots import show
 
-    return _emit_workspace_slot_verb(args, "workspace_slots", lambda: show(require_unmigrated(str(args.workspace_id))))
+    return _emit_workspace_slot_verb(args, "workspace_slots", lambda: show(str(args.workspace_id)))
 
 
 def _cmd_workspace_slots_declare(args) -> int:
-    from agent_runtime.workspace_slots import declare, machine_id, require_publish_right, require_unmigrated
+    from agent_runtime.workspace_slots import declare, machine_id, require_publish_right
 
     def action():
         slots = json.loads(Path(str(args.slots_file)).read_text(encoding="utf-8-sig"))
-        workspace_id = require_unmigrated(str(args.workspace_id))
+        workspace_id = str(args.workspace_id)
         require_publish_right(workspace_id)
         return declare(workspace_id, slots, issued_at=_issued_at(args), machine=machine_id())
 
@@ -79,21 +69,21 @@ def _cmd_workspace_slots_declare(args) -> int:
 
 
 def _cmd_workspace_slots_bind(args) -> int:
-    from agent_runtime.workspace_slots import bind, require_unmigrated
+    from agent_runtime.workspace_slots import bind
 
     return _emit_workspace_slot_verb(args, "workspace_slot_bind",
-                lambda: bind(require_unmigrated(str(args.workspace_id)), str(args.slot), str(args.path),
+                lambda: bind(str(args.workspace_id), str(args.slot), str(args.path),
                              issued_at=_issued_at(args)))
 
 
 def _cmd_workspace_slots_env_set(args) -> int:
     from agent_runtime.workspace_slot_env import set_slot_fill
     from agent_runtime.workspace_slots import (REASON_SLOT_NOT_DECLARED, SlotRefused, live_slots, load_document,
-                                               require_unmigrated, secret_keys)
+                                               secret_keys)
     from agent_runtime.workspace_slots_probe import report
 
     def action():
-        workspace_id, slot = require_unmigrated(str(args.workspace_id)), str(args.slot)
+        workspace_id, slot = str(args.workspace_id), str(args.slot)
         declared = live_slots(load_document(workspace_id)).get(slot)
         if declared is None:
             raise SlotRefused(REASON_SLOT_NOT_DECLARED, slot)
@@ -109,11 +99,10 @@ def _cmd_workspace_slots_env_set(args) -> int:
 
 
 def _cmd_workspace_slots_report(args) -> int:
-    from agent_runtime.workspace_slots import require_unmigrated
     from agent_runtime.workspace_slots_probe import report
 
     return _emit_workspace_slot_verb(args, "workspace_slots_report",
-                                     lambda: report(require_unmigrated(str(args.workspace_id))))
+                                     lambda: report(str(args.workspace_id)))
 
 
 def _cmd_workspace_slots_clone(args) -> int:

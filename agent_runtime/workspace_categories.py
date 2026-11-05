@@ -14,8 +14,8 @@ workspace is the one record, and everything that merges key by key lives in its 
   ONLY while ``categories.guidance.shared`` is true, so unshared guidance never syncs (it stays in the
   account's workspace overlay, launcher-side).
 
-Every write passes ``workspace_slots.require_unmigrated`` and the realm PUBLISH decision of the
-workspace's realm (``require_publish_right``), exactly like ``runtime.workspace.slots.declare``.
+Every write passes the realm PUBLISH decision of the workspace's realm (``require_publish_right``),
+exactly like ``runtime.workspace.slots.declare``.
 The record helpers (:func:`category`, :func:`source_controlled`, :func:`enforce_share_rule`,
 :func:`apply_category`, :func:`apply_guidance`) are pure over a record dict.
 """
@@ -35,7 +35,6 @@ from .workspace_slots import (
     load_document,
     refuse_stale,
     require_publish_right,
-    require_unmigrated,
     write_document,
 )
 
@@ -165,7 +164,6 @@ def set_category(workspace_id: str, name: str, *, slot: Any, subpath: Any, share
     every agent's own ``state.db`` and every other workspace's store stay).
     """
 
-    require_unmigrated(workspace_id)
     require_publish_right(workspace_id, credential)
     document = load_document(workspace_id)
     held = apply_category(document, name, slot=slot, subpath=subpath, shared=shared, issued_at=issued_at,
@@ -185,7 +183,6 @@ def set_guidance(workspace_id: str, *, description: Any, instructions: Any, issu
                  credential: Any = None) -> dict[str, Any]:
     """``runtime.workspace.guidance.set``: the workspace's shared description + instructions."""
 
-    require_unmigrated(workspace_id)
     require_publish_right(workspace_id, credential)
     document = load_document(workspace_id)
     guidance = apply_guidance(document, description=description, instructions=instructions, issued_at=issued_at)
@@ -245,7 +242,6 @@ def list_folder(folder: Path | None) -> dict[str, Any]:
 def artifacts_list(workspace_id: str) -> dict[str, Any]:
     """``runtime.workspace.artifacts.list``: the artifacts folder's files on this machine."""
 
-    require_unmigrated(workspace_id)
     return {"workspace_id": workspace_id, **list_folder(category_folder(workspace_id, ARTIFACTS))}
 
 

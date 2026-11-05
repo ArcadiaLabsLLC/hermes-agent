@@ -47,21 +47,7 @@ _REFUSAL_CODES = {
 def _refused(rid, exc) -> dict:
     reason = getattr(exc, "reason", "invalid_request")
     data = {"reason": reason, "detail": getattr(exc, "detail", "")}
-    if reason == "slot_migrated":
-        data["project_id"] = data["detail"]  # read and edit the slots through ``runtime.project.*``
     return err(rid, _REFUSAL_CODES.get(reason, ERR_CONFLICT), "The slot request was refused.", data)
-
-
-def _unmigrated(workspace_id: str) -> str:
-    """``workspace_id`` while its slot document is still its own; ``slot_migrated`` naming the Project after.
-
-    The workspace-keyed slot verbs stay registered through the cutover (plan project-slots-and-shared-chats
-    §2): an older launcher gets a typed answer naming where the slots went, never a silent empty table.
-    """
-
-    from agent_runtime.workspace_slots import require_unmigrated
-
-    return require_unmigrated(workspace_id)
 
 
 def _workspace(params: dict) -> str:
@@ -103,7 +89,7 @@ def _guarded(handler):
 def _slots_show(params):
     from agent_runtime.workspace_slots import show
 
-    return show(_unmigrated(_workspace(params)))
+    return show(_workspace(params))
 
 
 @method("runtime.workspace.slots.declare", tier=TIER_CONSOLE)
@@ -112,7 +98,7 @@ def _slots_declare(params):
     from agent_runtime.realm_membership import RealmSyncCredential
     from agent_runtime.workspace_slots import declare, machine_id, require_publish_right
 
-    workspace_id = _unmigrated(_workspace(params))
+    workspace_id = _workspace(params)
     raw = params.get("credential")
     require_publish_right(workspace_id, None if raw is None else RealmSyncCredential.parse(raw))
     return declare(workspace_id, params.get("slots"), issued_at=_issued_at(params), machine=machine_id())
@@ -123,7 +109,7 @@ def _slots_declare(params):
 def _slots_report(params):
     from agent_runtime.workspace_slots_probe import report
 
-    return report(_unmigrated(_workspace(params)))
+    return report(_workspace(params))
 
 
 @method("runtime.workspace.slot.bind", tier=TIER_CONSOLE)
@@ -131,7 +117,7 @@ def _slots_report(params):
 def _slot_bind(params):
     from agent_runtime.workspace_slots import bind
 
-    return bind(_unmigrated(_workspace(params)), str(params.get("slot") or ""), str(params.get("path") or ""),
+    return bind(_workspace(params), str(params.get("slot") or ""), str(params.get("path") or ""),
                 issued_at=_issued_at(params))
 
 
@@ -142,7 +128,7 @@ def _slot_env_set(params):
     from agent_runtime.workspace_slots import REASON_SLOT_NOT_DECLARED, SlotRefused, live_slots, load_document, secret_keys
     from agent_runtime.workspace_slots_probe import report
 
-    workspace_id, slot = _unmigrated(_workspace(params)), str(params.get("slot") or "")
+    workspace_id, slot = _workspace(params), str(params.get("slot") or "")
     declared = live_slots(load_document(workspace_id)).get(slot)
     if declared is None:
         raise SlotRefused(REASON_SLOT_NOT_DECLARED, slot)
@@ -280,7 +266,7 @@ WORKSPACE_CONTENT_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
 }
 
 # The content refusals beside the slot ones; ``category_not_shared`` / ``chats_folder_unbound`` /
-# ``guidance_not_shared`` / ``stale_revision`` / ``slot_migrated`` ride ERR_CONFLICT.
+# ``guidance_not_shared`` / ``stale_revision`` ride ERR_CONFLICT.
 _REFUSAL_CODES.update({
     "unknown_category": ERR_INVALID_PARAMS,
     "guidance_too_long": ERR_INVALID_PARAMS,
@@ -353,7 +339,7 @@ def _chat_share(params):
     from agent_runtime.chat_session_scope import SessionDbAccess, open_chat_session_db, resolve_chat_session_scope
     from agent_runtime.project_chat_export import ChatHome, share
 
-    workspace_id = _unmigrated(_workspace(params))
+    workspace_id = _workspace(params)
     credential = _inline_credential(params)
     session_id = str(params.get("session_id") or "")
     session_db = (open_chat_session_db(resolve_chat_session_scope(session_id=session_id), access=SessionDbAccess.READ)
@@ -370,4 +356,4 @@ def _chat_fold(params):
     from agent_runtime.project_chat_export import ChatHome
     from agent_runtime.project_chat_fold import fold_from_remote
 
-    return fold_from_remote(ChatHome.workspace(_unmigrated(_workspace(params))))
+    return fold_from_remote(ChatHome.workspace(_workspace(params)))
