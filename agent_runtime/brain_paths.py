@@ -1,8 +1,8 @@
 """The brain-path list Eternia reads: ONE file naming, for this machine, every brain (RT-BRAIN-PATHS-PLAIN-LIST).
 
 Contract: ``EterniaLauncher/docs/mission_control/planned/THREE_BRAINS_ONE_READER_2026-11-02.md`` ("The one
-list") and the shared w1102c contract; fixture ``tests/fixtures/brain_paths_v1.json`` (identical bytes in the
-launcher's ``test/fixtures/mission_control/brain_paths_v1.json``). Hermes writes
+list") and the shared w1102c contract; fixture ``tests/fixtures/brain_paths_v2.json`` (identical bytes in the
+launcher's ``test/fixtures/mission_control/brain_paths_v2.json``, MC-WS-ABSORB-CONSOLE-SLOTS). Hermes writes
 ``<namespace>/agent-runtime/brain_paths.json`` atomically; Eternia only reads it, so a to-do read needs no serve
 call, no git and no booted runtime.
 
@@ -12,8 +12,8 @@ Three brains, one shape (``{path, brain_dir, behind}``):
   ``work/personal/brain``, which carries ``Work_Brain/``): null until it is created.
 * ``workspaces.<id>.brain`` — the workspace's own brain, its default brain while that binding is live
   (``work_store.board.default_board``); null when it has none here.
-* ``workspaces.<id>.projects[].slots[]`` — every live folder slot of every Project the workspace holds, in the
-  workspace's ``project_ids`` order, slots in the order the store records them (by name). ``path`` is this
+* ``workspaces.<id>.slots[]`` — every live folder slot of the workspace's own slot document, by name
+  (schema 2, RT-WS-ABSORB-RETIRE-PROJECT: the workspace absorbed Projects, so ``projects[]`` is gone). ``path`` is this
   machine's fill (null: not bound here); ``brain_dir`` comes from :func:`work_store.board.brain_dir_of` — the
   declared ``context.brain_dir``, else the work store's own detection — as the brain FOLDER (``Launcher_Brain``,
   the folder holding ``TODO.md`` and ``20 — Active Initiatives/``), null when there is none.
@@ -21,8 +21,7 @@ Three brains, one shape (``{path, brain_dir, behind}``):
 ``brain_dir`` is relative to ``path``; ``behind`` is the upstream commit count the remote check
 (:mod:`agent_runtime.brain_remote`) last measured, null when unmeasured or the brain has no upstream.
 
-:func:`changed` is the one call every write chokepoint makes (workspaces, Projects, slot fills, slot
-documents, default-brain bindings, brain creation, a realm pull) and the serve calls once at boot before any
+:func:`changed` is the one call every write chokepoint makes (workspaces, slot fills, slot documents, default-brain bindings, brain creation, a realm pull) and the serve calls once at boot before any
 heavy boot work. It never raises into its caller; an unchanged list is not rewritten (``written_at`` aside).
 """
 
@@ -57,7 +56,7 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 BRAIN_PATHS_FILENAME = "brain_paths.json"
-BRAIN_PATHS_SCHEMA_VERSION = 1
+BRAIN_PATHS_SCHEMA_VERSION = 2
 #: The queue folder under a brain (``work_store.board._BRAIN_GLOBS``' tail).
 QUEUE_FOLDER = "20 — Active Initiatives"
 
@@ -105,18 +104,16 @@ def _default_brain(owner: str, behind: Mapping[str, int | None]) -> dict[str, An
     return _brain(root, board.brain_dir, behind)
 
 
-def _project(project_id: str, behind: Mapping[str, int | None]) -> dict[str, Any]:
-    from .project_store import load_project
+def _slots(workspace_id: str, behind: Mapping[str, int | None]) -> list[dict[str, Any]]:
     from .work_store.board import brain_dir_of
-    from .workspace_slots import bound_path, live_slots
+    from .workspace_slots import bound_path, live_slots, load_document
 
-    record = load_project(project_id)
     slots = []
-    for name, declaration in sorted(live_slots(record).items()):
-        path = bound_path(name, project_id=project_id)
+    for name, declaration in sorted(live_slots(load_document(workspace_id)).items()):
+        path = bound_path(name, workspace_id=workspace_id)
         here = path if path is not None and path.is_dir() else None
         slots.append({"slot": name, **_brain(here, brain_dir_of(here, declaration) if here else None, behind)})
-    return {"project_id": project_id, "name": str(record.get("name") or "").strip() or project_id, "slots": slots}
+    return slots
 
 
 def build_brain_paths(*, behind: Mapping[str, int | None] | None = None, now: datetime | None = None) -> dict[str, Any]:
@@ -131,7 +128,7 @@ def build_brain_paths(*, behind: Mapping[str, int | None] | None = None, now: da
         workspaces[workspace.id] = {
             "name": workspace.name,
             "brain": _default_brain(workspace.id, counts),
-            "projects": [_project(project_id, counts) for project_id in workspace.project_ids],
+            "slots": _slots(workspace.id, counts),
         }
     stamp = (now or datetime.now(UTC)).astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     return {"schema_version": BRAIN_PATHS_SCHEMA_VERSION, "written_at": stamp,
@@ -147,7 +144,7 @@ def read_brain_paths() -> dict[str, Any] | None:
 
 
 def brains(payload: Mapping[str, Any] | None) -> list[tuple[str, dict[str, Any]]]:
-    """``(kind, entry)`` for every brain in a list: ``personal`` / ``workspace`` / ``project``."""
+    """``(kind, entry)`` for every brain in a list: ``personal`` / ``workspace`` / ``slot``."""
 
     if not payload:
         return []
@@ -157,8 +154,7 @@ def brains(payload: Mapping[str, Any] | None) -> list[tuple[str, dict[str, Any]]
     for workspace in (payload.get("workspaces") or {}).values():
         if isinstance(workspace.get("brain"), dict):
             out.append(("workspace", workspace["brain"]))
-        for project in workspace.get("projects") or []:
-            out.extend(("project", slot) for slot in project.get("slots") or [])
+        out.extend(("slot", slot) for slot in workspace.get("slots") or [])
     return out
 
 
@@ -185,7 +181,7 @@ def write_brain_paths(*, behind: Mapping[str, int | None] | None = None, now: da
 
 
 def changed(reason: str) -> bool:
-    """A chokepoint changed a workspace, Project, slot, binding or brain: rewrite the list. Never raises.
+    """A chokepoint changed a workspace, slot, binding or brain: rewrite the list. Never raises.
 
     Re-entrant calls (a read inside the build that upgrades a legacy registry and writes it) are dropped: the
     outer build reads the upgraded state.

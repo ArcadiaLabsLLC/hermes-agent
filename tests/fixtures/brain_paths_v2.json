@@ -1,24 +1,21 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "written_at": "2026-11-02T23:00:00Z",
   "personal": {"path": "/home/user/.hermes/hermes-namespaces/ns/personal-brain", "brain_dir": "Work_Brain", "behind": null},
   "workspaces": {
     "ws-alpha": {
       "name": "Alpha",
       "brain": {"path": "/home/user/.hermes/hermes-namespaces/ns/workspace-brains/ws-alpha", "brain_dir": "Work_Brain", "behind": 0},
-      "projects": [
-        {"project_id": "proj-app", "name": "App",
-         "slots": [
-           {"slot": "backend", "path": null, "brain_dir": null, "behind": null},
-           {"slot": "hermes", "path": "/home/user/src/hermes", "brain_dir": null, "behind": null},
-           {"slot": "launcher", "path": "/home/user/src/launcher", "brain_dir": "Launcher_Brain", "behind": 2}
-         ]}
+      "slots": [
+        {"slot": "backend", "path": null, "brain_dir": null, "behind": null},
+        {"slot": "hermes", "path": "/home/user/src/hermes", "brain_dir": null, "behind": null},
+        {"slot": "launcher", "path": "/home/user/src/launcher", "brain_dir": "Launcher_Brain", "behind": 2}
       ]
     },
     "ws-beta": {
       "name": "Beta",
       "brain": {"path": null, "brain_dir": null, "behind": null},
-      "projects": []
+      "slots": []
     }
   }
 }

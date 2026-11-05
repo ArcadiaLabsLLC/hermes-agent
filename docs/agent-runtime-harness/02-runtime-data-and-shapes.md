@@ -838,7 +838,7 @@ carries a ``messaging`` block (``running_work/lanes_messaging.py``). A row adds
 ruling: nothing left the wire. The goldens and ``work_list_empty.json`` moved; the
 launcher mirror is owed (``tests/fixtures/stream_frames/README.md``).
 
-54 KEPT (Projects connections, 2026-10-28) — ``workspaces[]`` gains
+54 KEPT (Projects connections, 2026-10-28) [RETIRED 2026-11-04 by RT-WS-ABSORB-RETIRE-PROJECT, below] — ``workspaces[]`` gains
 ``project_ids`` and ``project_assignment_revision``. These are references to
 Launcher Projects, not a Project manifest, agent roster, slot declaration or
 content export. Existing records default to an empty list and revision zero.
@@ -853,7 +853,7 @@ Deleting an account-local Launcher Project does not cascade into a shared or
 offline workspace: an orphaned opaque reference is inert. Connections grant no
 content access and do not alter slots or agent assignments.
 
-54 KEPT (Projects record, 2026-10-29, RT-PROJECT-RECORD-STORE) — no snapshot key
+54 KEPT (Projects record, 2026-10-29, RT-PROJECT-RECORD-STORE) [RETIRED 2026-11-04 by RT-WS-ABSORB-RETIRE-PROJECT, below] — no snapshot key
 moved. Hermes now keeps a Project's record at ``store/projects/<token>.json``
 (``paths.project_path``): ``slots`` in the workspace slot document's exact shape
 (``workspace_slots.apply_declared_set``; ``context`` may carry ``document_dirs`` /
@@ -871,7 +871,7 @@ publish decision for each realm whose workspace holds the Project
 in ``test/fixtures/harness_stream/``). Plan
 [project-slots-and-shared-chats-2026-10-29.md](planned/project-slots-and-shared-chats-2026-10-29.md) §2.
 
-54 KEPT (Project slot fill, 2026-10-29, RT-PROJECT-SLOT-REKEY) — no snapshot key
+54 KEPT (Project slot fill, 2026-10-29, RT-PROJECT-SLOT-REKEY) [RETIRED 2026-11-04 by RT-WS-ABSORB-RETIRE-PROJECT, below] — no snapshot key
 moved. A slot is named ``<project>/<slot>``. ``machine_roots.json`` schema 4 adds
 ``project_roots.<project>.<slot>`` (one fill per Project per machine, kept by every
 write that does not pass it) and ``machine_slot_env.json`` a ``projects`` collection;
@@ -883,7 +883,7 @@ fills COPIED (an older edition keeps its own) and the document stamped ``migrate
 which the slot merge carries. Verbs ``runtime.project.slot.bind`` / ``.slot.env.set`` /
 ``.report`` are local-console only, like their workspace twins.
 
-54 KEPT (Project slots for agents, 2026-10-29, RT-PROJECT-SLOTS-FOR-AGENTS) — no
+54 KEPT (Project slots for agents, 2026-10-29, RT-PROJECT-SLOTS-FOR-AGENTS) [RETIRED 2026-11-04 by RT-WS-ABSORB-RETIRE-PROJECT, below] — no
 snapshot key moved. ``PersonaInstance.assigned_slots`` / ``primary_slot`` hold
 ``<project>/<slot>`` for a Project's slot (a bare name stays a slot of the workspace's
 own, unmigrated document); ``persona_slots.visible_slots`` is what an instance may be
@@ -906,7 +906,7 @@ keys a Project's slot ``<project>/<slot>``; ``recipe.set`` on one edits the Proj
 ``runtime.project.slot.clone`` / ``.recipe.run_step`` (local console; the run record
 carries ``project_id`` and a clone binds the Project's fill).
 
-54 KEPT (Project category folders, 2026-10-29, RT-PROJECT-CATEGORY-FOLDERS) — no
+54 KEPT (Project category folders, 2026-10-29, RT-PROJECT-CATEGORY-FOLDERS) [RETIRED 2026-11-04 by RT-WS-ABSORB-RETIRE-PROJECT, below] — no
 snapshot key moved. ``categories.documents`` may carry ``context_files`` (relative
 paths; ``runtime.project.category.set`` key ``context_files``); every instance of a
 workspace holding the Project — assigned or not — gets the turn's ``project_context``
@@ -915,7 +915,7 @@ supersedes the ``--agents-file`` alias; RT-PROJECT-CONTEXT-WITHOUT-ASSIGNMENT): 
 file from this machine's documents folder as ``## <Project>/documents — <file>`` and, while
 the guidance share is on, one ``## <Project> — guidance`` section, after the slot (or alias)
 content, with ``kind: project_context`` receipts under the workspace receipt's
-``projects`` key (``agent_runtime/project_categories.py``). Work boards: ``Board.project_id``; a Project
+``projects`` key (``project_categories``). Work boards: ``Board.project_id``; a Project
 lists a board per live slot, keyed ``(project, slot)`` — its boards category names
 the Project's default board, never a filter (RT-WORK-BOARD-PER-PROJECT-SLOT,
 2026-10-31; ``RowRef.project_id`` defaulted, so saved refs load) — and a migrated
@@ -1022,6 +1022,32 @@ writer's ``project_<id>`` ones are removed for a recut. Then ``store/projects/``
 records' ``project_ids`` / ``project_assignment_revision`` and every ``migrated_to`` stamp go, with
 ``require_unmigrated`` and the ``slot_migrated`` refusal. Receipt ``workspace_merge.completed
 {merged: [{project_id, workspace_id, created, renamed, …counts}], dropped, stamps_removed}``.
+
+54 KEPT (Projects retired, 2026-11-04, RT-WS-ABSORB-RETIRE-PROJECT) — the workspace is the one record
+(launcher plan ``WORKSPACE_ABSORBS_PROJECTS_2026-11-04.md``). ``workspaces[]`` rows lose ``project_ids``
+and ``project_assignment_revision`` (``Workspace`` drops both fields); the Launcher's decode of them
+already tolerates absence, so rule (a) does not bump, as for RT-TASK-BOUND-WIRE-PRUNE. Deleted with no
+transition (every realm peer moves together): ``runtime.workspace.project.set``, every
+``runtime.project.*`` verb and ``harness project …``; the realm family ``project`` with its pull and
+publish legs; ``project_store`` / ``project_sync`` / ``project_categories`` / ``workspace_projects``;
+``paths.projects_dir`` / ``project_path`` / ``project_chat_*_path``; the address ``project:`` chain
+(``Kind.PROJECT``; ``slot-folder``'s pair is ``<ws>/<slot>``). Every slot is the workspace's own:
+``machine_roots.json`` stays schema 3 with no ``project_roots``; ``BoundSlot`` / ``ResolvedSlot`` /
+``VisibleSlot`` carry no ``project_id``; an instance's slot keys are bare. Work: ``Board`` has no
+``project_id`` / ``project_name`` / ``projects`` / ``project_default`` — its key is its slot and
+``board_default`` marks the ``boards`` category's slot, listed first; ``RowRef`` is ``(slot, note,
+id)`` (list form ``[slot, note, id]``; ``runtime.batch.plan`` ``rows`` refuses a fourth item); the
+``project_id`` param leaves ``runtime.work.list`` / ``.inspect`` / every row-addressed verb, task and
+receipt refs carry none, ``runtime.work.list`` answers no ``projects``, ``runtime.work.pull`` answers
+no ``project_id``, and the ``slot_ambiguous`` refusal is gone. The turn's category block is
+``category_context`` (``persona_slots.CategoryContext`` from ``workspace_categories.category_context``:
+``## <workspace>/documents — <file>`` and ``## <workspace> — guidance``), its receipts
+``kind: workspace_category`` under the workspace receipt's ``categories`` key. Recall searches the
+instance's own workspace's shared store: a hit carries ``shared_from {workspace, workspace_id, author,
+machine}`` and the link ``@workspace:<id>/<session>``; the pull envelope's fold row is
+``workspace_chat_fold {folded: [{workspace_id, inserted, stale}], skipped, deferred}``. ``brain_paths.json``
+is schema 2: ``workspaces.<id>.slots[]`` (``{slot, path, brain_dir, behind}``) replaces
+``projects[].slots[]``, fixture ``tests/fixtures/brain_paths_v2.json``.
 
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead

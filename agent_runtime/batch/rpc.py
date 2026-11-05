@@ -5,7 +5,7 @@ Dispatcher plan §3 (B2). Console tier, registered like ``work/rpc.py::register`
 opaque ``owner`` (``work.model.WorkScope``). A refusal is error 4090 ``{"reason", "detail"}`` with a
 ``work_store.reasons.Reason`` word. Every reply carries ``version`` and ``install_id``.
 
-Params beyond scope: ``plan`` ``rows?`` (``[[slot, note, id, project_id?]]``: plan ONLY those READY rows,
+Params beyond scope: ``plan`` ``rows?`` (``[[slot, note, id]]``: plan ONLY those READY rows,
 RT-BATCH-PLAN-ROWS); ``start`` ``batch_id`` (the plan's id), ``personas?`` (``{lane_id: instance_id}``,
 the operator's answer to ``asks``) and ``rows?`` (the same set ``plan`` was given); ``status`` ``batch_id?``; ``stop``
 ``batch_id``, ``lane?`` (omitted: abort the batch); ``land`` ``batch_id``, ``persona?``; ``approve``
@@ -45,7 +45,7 @@ def _personas(params: Mapping[str, Any]) -> dict[str, str]:
 
 
 def _rows(params: Mapping[str, Any]) -> dict[str, Any]:
-    """``rows?`` — ``[[slot, note, id] | [slot, note, id, project_id]]``, the chosen set to plan
+    """``rows?`` — ``[[slot, note, id]]``, the chosen set to plan
     (RT-BATCH-PLAN-ROWS); absent: no keyword, so the dispatcher plans every READY row."""
 
     from agent_runtime.work.model import text
@@ -55,12 +55,12 @@ def _rows(params: Mapping[str, Any]) -> dict[str, Any]:
     if raw is None:
         return {}
     if not isinstance(raw, list) or not raw:
-        raise WorkRefused(Reason.INVALID, "rows is a non-empty list of [slot, note, id, project_id?]")
+        raise WorkRefused(Reason.INVALID, "rows is a non-empty list of [slot, note, id]")
     refs = []
     for item in raw:
         ref = RowRef.of([text(part, maximum=1024) for part in item]) if isinstance(item, list) else None
         if ref is None:
-            raise WorkRefused(Reason.INVALID, "a row is [slot, note, id] or [slot, note, id, project_id]")
+            raise WorkRefused(Reason.INVALID, "a row is [slot, note, id]")
         refs.append(ref)
     return {"rows": tuple(dict.fromkeys(refs))}
 

@@ -808,7 +808,7 @@ class _RunPhases:
         watch = getattr(self, "worktree_watch", None)
         if watch is not None:
             watch.finish()
-        # RT-PROJECT-CHAT-TURN-LOGS: a chat shared into a Project appends this turn's lines to its
+        # RT-PROJECT-CHAT-TURN-LOGS: a chat shared into a workspace appends this turn's lines to its
         # turn log, off this thread; never raises, a failure retries from its cursor next turn.
         try:
             from agent_runtime.project_chat_export import export_after_turn

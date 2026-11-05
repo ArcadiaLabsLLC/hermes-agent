@@ -203,6 +203,19 @@ MIGRATION_REGISTRY: tuple[dict[str, Any], ...] = (
                   "older edition ignores; no existing path moves",
         "pins_sha256": "393cfbd4701746087ff3547b907959b3d02fc43cf02ed0e6c5a7692c5e98eed7",
     },
+    {
+        "id": "workspace-absorbs-projects",
+        "date": "2026-11-04",
+        "store": "all",
+        "breaking": False,
+        "reason": "subtractive (lane w1104a-wsabsorb2, RT-WS-ABSORB-RETIRE-PROJECT): paths.projects_dir / "
+                  "project_path / project_chat_export_path / project_chat_store_path / project_chat_fold_path "
+                  "leave the paths table and Workspace loses project_ids / project_assignment_revision; the "
+                  "first-boot merge (RT-WS-ABSORB-MIGRATION) already folded every Project into its workspace "
+                  "and removed those files and keys, machine_roots.json stays schema 3, and no existing "
+                  "workspace path moves",
+        "pins_sha256": "c1adb571eb97769c49fa7bacf4c16e33ee1afe7c77609e2410453cd578342022",
+    },
 )
 
 #: ``1 + count(breaking entries)`` — ``tests/agent_runtime/test_store_epoch_gate.py`` holds it to that.

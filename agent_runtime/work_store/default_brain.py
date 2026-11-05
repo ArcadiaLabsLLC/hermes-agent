@@ -286,22 +286,18 @@ def _auto_promote(workspace_id: str, issued_at: str) -> None:
 
 
 def _declared_brain(workspace_id: str) -> dict[str, Any]:
-    """The live ``brain`` declaration this workspace sees — its own document's, or its Project's after migration."""
+    """The live ``brain`` declaration of the workspace's slot document."""
 
     resolved = resolve_slot(workspace_id, DEFAULT_BRAIN_SLOT)
     return resolved.declaration if resolved else {}
 
 
 def _bind_declared_brain(workspace_id: str, path: str, issued_at: str) -> None:
-    """Bind the declared ``brain`` where its readers look: the owning Project's fill, else the workspace's."""
+    """Bind the declared ``brain`` on this machine (the workspace's slot fill)."""
 
-    from ..workspace_slots import bind, bind_project
+    from ..workspace_slots import bind
 
-    resolved = resolve_slot(workspace_id, DEFAULT_BRAIN_SLOT)
-    if resolved is not None and resolved.project_id:
-        bind_project(resolved.project_id, DEFAULT_BRAIN_SLOT, path, issued_at=issued_at)
-    else:
-        bind(workspace_id, DEFAULT_BRAIN_SLOT, path, issued_at=issued_at)
+    bind(workspace_id, DEFAULT_BRAIN_SLOT, path, issued_at=issued_at)
 
 
 def _settle_pending(workspace_id: str, record: dict[str, Any], issued_at: str) -> None:
@@ -379,7 +375,7 @@ def _fold_local_brain(workspace_id: str, issued_at: str) -> Board | None:
         first = next((row.ref.id for row in board_rows(local) if row.ref.id), None)
         machine = this_machine()
         request = re.sub(r"[^A-Za-z0-9_.:-]+", "-", f"brain-fold.{paths.safe_path_token(workspace_id)}.{machine}")[:200]
-        ref = RowRef(DEFAULT_BRAIN_SLOT, f"{QUEUE_DIR}/{QUEUE_NOTE}", str(first or ""), adopted.project_id)
+        ref = RowRef(DEFAULT_BRAIN_SLOT, f"{QUEUE_DIR}/{QUEUE_NOTE}", str(first or ""))
         try:
             receipt = Writer(adopted, machine_id=machine).apply(
                 RowOp(ref, Op.APPEND, "harness", request, {"rows": lines, "files": {}}))

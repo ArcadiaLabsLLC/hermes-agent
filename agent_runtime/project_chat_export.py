@@ -1,10 +1,10 @@
-"""A chat shared into a Project travels as append-only turn logs in the Project's chats folder (H-P5).
+"""A chat shared into a workspace travels as append-only turn logs in the workspace's chats folder.
 
-Plan ``docs/agent-runtime-harness/planned/project-slots-and-shared-chats-2026-10-29.md`` §5. Linking a
-chat to a Project in the launcher is organisation and shares nothing; sharing is the explicit
-``runtime.project.chat.share`` (:func:`share`), refused unless the Project's ``chats`` category is
-shared (hence source-controlled) and the caller holds the publish right of every realm the Project is
-assigned into.
+Plan ``docs/agent-runtime-harness/planned/project-slots-and-shared-chats-2026-10-29.md`` §5, re-homed on
+the workspace (``EterniaLauncher/docs/mission_control/planned/WORKSPACE_ABSORBS_PROJECTS_2026-11-04.md``).
+Sharing is the explicit ``runtime.workspace.chat.share`` (:func:`share`), refused unless the workspace's
+``chats`` category is shared (hence source-controlled) and the caller holds the publish right of the
+workspace's realm. (The module keeps its Project-edition name until RT-WS-ABSORB-CHAT-NAMES-RESIDUE.)
 
 * **File form.** ``<chats folder>/<session>/<machine>.<namespace>.jsonl`` — one append-only file PER CHAT
   PER WRITER, so two machines continuing one chat never write the same file and git never conflicts —
@@ -14,11 +14,11 @@ assigned into.
   ``redaction.scrub_secret_values`` / ``scrub_secret_value_tree``, and an attachment declaration
   (``MEDIA:`` / ``FILE:`` path line) leaves only as its ``media_handles`` handle
   (:func:`shared_attachments`). A line is never rewritten.
-* **Cursor.** ``paths.project_chat_export_path(project, session)``: the last exported message id and uid,
+* **Cursor.** ``paths.workspace_chat_export_path(workspace, session)``: the last exported message id and uid,
   advanced only after the lines are PUBLISHED, so a failed push re-exports from the old cursor and the
   Work writer's ``request_id`` replay keeps the retry from doubling a line.
 * **Publication.** The Work writer's ``chat_turns_appended`` operation in Hermes's own worktree of the
-  category's slot (pseudo-workspace ``project_<id>``, its own worktree and sparse root, never the
+  category's slot (pseudo-workspace ``workspace_chats_<id>``, its own worktree and sparse root, never the
   operator's checkout), pushed fast-forward with replay: the files are machine-written logs, so they
   publish without an operator commit.
 * **When.** On every turn end of a shared session (:func:`export_after_turn`, from the turn's commit
@@ -59,14 +59,12 @@ def _refused(reason: str, detail: str = ""):
 
 @dataclass(frozen=True)
 class ChatHome:
-    """Where a shared chat lives: a workspace (its slot document's ``chats`` category) or a Project.
+    """Where a shared chat lives: a workspace, through its slot document's ``chats`` category.
 
-    ``kind`` is ``workspace`` or ``project``; every store, cursor and fold path, the content record,
-    the slot fill and the publish decision are the home's. A bare string is a Project id
-    (:func:`home_of`), the shape every caller written before the workspace held its chats passes.
+    Every store, cursor and fold path, the content record, the slot fill and the publish decision are
+    the workspace's. A bare string is a workspace id (:func:`home_of`).
     """
 
-    kind: str
     id: str
 
     @classmethod
@@ -75,87 +73,53 @@ class ChatHome:
 
         if not isinstance(workspace_id, str) or not workspace_id:
             raise _refused(REASON_INVALID_DECLARATION, "workspace_id")
-        return cls(WORKSPACE, workspace_id)
-
-    @classmethod
-    def project(cls, project_id: str) -> ChatHome:
-        from .project_store import valid_project_id
-
-        return cls(PROJECT, valid_project_id(project_id))
-
-    @property
-    def field(self) -> str:
-        """The result key that names the home: ``workspace_id`` or ``project_id``."""
-
-        return f"{self.kind}_id"
+        return cls(workspace_id)
 
     def tag(self) -> dict[str, str]:
-        return {self.field: self.id}
+        return {"workspace_id": self.id}
 
     def record(self) -> dict[str, Any]:
-        """The content record: the workspace slot document, or the Project record."""
+        """The content record: the workspace slot document."""
 
-        if self.kind == WORKSPACE:
-            from .workspace_slots import load_document
+        from .workspace_slots import load_document
 
-            return load_document(self.id)
-        from .project_store import load_project
-
-        return load_project(self.id)
+        return load_document(self.id)
 
     def bound(self, slot: str) -> Path | None:
-        """This machine's fill of one of the home's own slots."""
+        """This machine's fill of one of the workspace's slots."""
 
-        if self.kind == WORKSPACE:
-            from .workspace_slots import scoped_roots
-
-            return scoped_roots().workspace_root(self.id, slot)
         from .workspace_slots import bound_path
 
-        return bound_path(slot, project_id=self.id)
+        return bound_path(slot, workspace_id=self.id)
 
     def exports_dir(self) -> Path:
-        root = paths.workspace_chat_exports_dir() if self.kind == WORKSPACE else paths.store_root() / "project_chat_exports"
-        return root / paths.safe_path_token(self.id)
+        return paths.workspace_chat_exports_dir() / paths.safe_path_token(self.id)
 
     def export_path(self, session_id: str) -> Path:
-        if self.kind == WORKSPACE:
-            return paths.workspace_chat_export_path(self.id, session_id)
-        return paths.project_chat_export_path(self.id, session_id)
+        return paths.workspace_chat_export_path(self.id, session_id)
 
     def fold_path(self) -> Path:
-        if self.kind == WORKSPACE:
-            return paths.workspace_chat_fold_path(self.id)
-        return paths.project_chat_fold_path(self.id)
+        return paths.workspace_chat_fold_path(self.id)
 
     def writer_workspace(self) -> str:
         """The Work writer's pseudo-workspace: its own worktree and sparse root, never a board's."""
 
-        prefix = "workspace_chats" if self.kind == WORKSPACE else "project"
-        return f"{prefix}_{paths.safe_path_token(self.id)}"
+        return f"workspace_chats_{paths.safe_path_token(self.id)}"
 
     def require_publish(self, credentials: dict[str, Any] | None) -> None:
-        """The realm PUBLISH decision: the workspace's realm, or every realm holding the Project."""
+        """The realm PUBLISH decision of the workspace's realm (``credentials`` keyed by realm id)."""
 
-        if self.kind == WORKSPACE:
-            from .store import WorkspaceStore
-            from .workspace_slots import require_publish_right
+        from .store import WorkspaceStore
+        from .workspace_slots import require_publish_right
 
-            realm_id = WorkspaceStore().get(self.id).realm_id
-            require_publish_right(self.id, (credentials or {}).get(realm_id) if realm_id else None)
-            return
-        from .project_store import require_project_publish_rights
-
-        require_project_publish_rights(self.id, credentials)
-
-
-WORKSPACE, PROJECT = "workspace", "project"
+        realm_id = WorkspaceStore().get(self.id).realm_id
+        require_publish_right(self.id, (credentials or {}).get(realm_id) if realm_id else None)
 
 
 def home_of(home: ChatHome | str) -> ChatHome:
-    """``home`` as a :class:`ChatHome`; a bare string is a Project id."""
+    """``home`` as a :class:`ChatHome`; a bare string is a workspace id."""
 
-    return home if isinstance(home, ChatHome) else ChatHome.project(home)
+    return home if isinstance(home, ChatHome) else ChatHome.workspace(home)
 
 
 def load_cursor(home: ChatHome | str, session_id: str) -> dict[str, Any] | None:
@@ -169,26 +133,16 @@ def _write_cursor(home: ChatHome, session_id: str, record: dict[str, Any]) -> No
 
 
 def shared_homes_of(session_id: str) -> list[ChatHome]:
-    """Every home this machine exports ``session_id`` into (a cursor with ``shared: true``): workspaces first."""
+    """Every workspace this machine exports ``session_id`` into (a cursor with ``shared: true``)."""
 
+    root = paths.workspace_chat_exports_dir()
     name = f"{paths.safe_path_token(session_id)}.json"
-    homes = []
-    for kind, root in ((WORKSPACE, paths.workspace_chat_exports_dir()),
-                       (PROJECT, paths.store_root() / "project_chat_exports")):
-        if root.is_dir():
-            homes.extend(ChatHome(kind, path.parent.name) for path in sorted(root.glob(f"*/{name}"))
-                         if _shared_record(path) is not None)
-    return homes
-
-
-def shared_projects_of(session_id: str) -> list[str]:
-    """The Projects this machine exports ``session_id`` into (a cursor with ``shared: true``)."""
-
-    return sorted(home.id for home in shared_homes_of(session_id) if home.kind == PROJECT)
+    return [ChatHome(path.parent.name) for path in sorted(root.glob(f"*/{name}"))
+            if _shared_record(path) is not None] if root.is_dir() else []
 
 
 def shared_sessions_of(home: ChatHome | str) -> list[str]:
-    """The sessions this machine exports into a home — ``slots.show`` / ``project.show``'s ``shared_chats``.
+    """The sessions this machine exports into a workspace — ``slots.show``'s ``shared_chats``.
 
     Read from the record's own ``session_id`` (the file name is a lossy path token), so the launcher's
     shared badge and "Stop sharing" survive a relaunch.
@@ -355,7 +309,7 @@ def chats_writer(home: ChatHome | str) -> tuple[Any, str]:
     board = Board(workspace_id=home.writer_workspace(), slot=slot, read_root=None,
                   brain_dir=str(held["subpath"]), default_branch=str(repo.get("default_branch") or "main"),
                   clone_url=repo.get("clone_url"), local=False, bound_here=True, is_default=False,
-                  checkout=checkout, project_id=home.id if home.kind == PROJECT else None)
+                  checkout=checkout)
     writer = Writer(board, machine_id=machine_id())
     return writer, PurePosixPath(str(held["subpath"])).relative_to(writer.brain_root).as_posix()
 
@@ -410,7 +364,7 @@ def export_session(home: ChatHome | str, session_id: str, session_db: Any, *,
 
 def share(home: ChatHome | str, session_id: str, shared: Any, *, session_db: Any,
           credentials: dict[str, Any] | None = None) -> dict[str, Any]:
-    """``runtime.workspace.chat.share`` / ``runtime.project.chat.share``: start (and backfill) or stop exporting one chat."""
+    """``runtime.workspace.chat.share``: start (and backfill) or stop exporting one chat into a workspace."""
 
     from .workspace_slots import REASON_INVALID_DECLARATION
 

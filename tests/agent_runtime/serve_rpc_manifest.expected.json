@@ -296,20 +296,6 @@
     "runtime.prefab.set",
     "runtime.profiles.avatar",
     "runtime.profiles.avatar.set",
-    "runtime.project.artifacts.list",
-    "runtime.project.category.set",
-    "runtime.project.chat.fold",
-    "runtime.project.chat.share",
-    "runtime.project.declare",
-    "runtime.project.guidance.set",
-    "runtime.project.recipe.run_step",
-    "runtime.project.recipe.set",
-    "runtime.project.recipe.show",
-    "runtime.project.report",
-    "runtime.project.show",
-    "runtime.project.slot.bind",
-    "runtime.project.slot.clone",
-    "runtime.project.slot.env.set",
     "runtime.prompt_context.show",
     "runtime.provider.configure",
     "runtime.provider.dependency.install",
@@ -380,7 +366,6 @@
     "runtime.workspace.conversations",
     "runtime.workspace.create",
     "runtime.workspace.guidance.set",
-    "runtime.workspace.project.set",
     "runtime.workspace.recipe.run_step",
     "runtime.workspace.recipe.set",
     "runtime.workspace.recipe.show",
@@ -955,94 +940,6 @@
       "expected_handle",
       "profile"
     ],
-    "runtime.project.artifacts.list": [
-      "project_id"
-    ],
-    "runtime.project.category.set": [
-      "project_id",
-      "issued_at",
-      "credential",
-      "credentials",
-      "category",
-      "slot",
-      "subpath",
-      "shared",
-      "context_files"
-    ],
-    "runtime.project.chat.fold": [
-      "project_id"
-    ],
-    "runtime.project.chat.share": [
-      "project_id",
-      "session_id",
-      "shared",
-      "credential",
-      "credentials"
-    ],
-    "runtime.project.declare": [
-      "project_id",
-      "issued_at",
-      "credential",
-      "credentials",
-      "name",
-      "slots"
-    ],
-    "runtime.project.guidance.set": [
-      "project_id",
-      "issued_at",
-      "credential",
-      "credentials",
-      "description",
-      "instructions"
-    ],
-    "runtime.project.recipe.run_step": [
-      "project_id",
-      "slot",
-      "step_id",
-      "issued_at"
-    ],
-    "runtime.project.recipe.set": [
-      "project_id",
-      "issued_at",
-      "credential",
-      "credentials",
-      "slot",
-      "steps",
-      "revision",
-      "persona_instance_id"
-    ],
-    "runtime.project.recipe.show": [
-      "project_id"
-    ],
-    "runtime.project.report": [
-      "project_id"
-    ],
-    "runtime.project.show": [
-      "project_id"
-    ],
-    "runtime.project.slot.bind": [
-      "project_id",
-      "slot",
-      "path",
-      "issued_at"
-    ],
-    "runtime.project.slot.clone": [
-      "project_id",
-      "slot",
-      "dest_path",
-      "issued_at"
-    ],
-    "runtime.project.slot.env.set": [
-      "project_id",
-      "slot",
-      "env",
-      "env_keep",
-      "tool_paths",
-      "path_prepend",
-      "dotenv",
-      "venv",
-      "issued_at"
-    ],
     "runtime.realm.adopt": [
       "credential",
       "dry_run",
@@ -1127,7 +1024,6 @@
       "kind",
       "observe",
       "owner",
-      "project_id",
       "slot",
       "stale_ok",
       "task_id"
@@ -1141,7 +1037,6 @@
       "kind",
       "observe",
       "owner",
-      "project_id",
       "slot",
       "stale_ok",
       "status",
@@ -1175,13 +1070,6 @@
       "credential",
       "description",
       "instructions"
-    ],
-    "runtime.workspace.project.set": [
-      "workspace_id",
-      "project_id",
-      "connected",
-      "expected_revision",
-      "credential"
     ]
   },
   "tiers": {
@@ -1461,20 +1349,6 @@
     "runtime.prefab.set": "console",
     "runtime.profiles.avatar": "read",
     "runtime.profiles.avatar.set": "console",
-    "runtime.project.artifacts.list": "console",
-    "runtime.project.category.set": "console",
-    "runtime.project.chat.fold": "console",
-    "runtime.project.chat.share": "console",
-    "runtime.project.declare": "console",
-    "runtime.project.guidance.set": "console",
-    "runtime.project.recipe.run_step": "console",
-    "runtime.project.recipe.set": "console",
-    "runtime.project.recipe.show": "console",
-    "runtime.project.report": "console",
-    "runtime.project.show": "console",
-    "runtime.project.slot.bind": "console",
-    "runtime.project.slot.clone": "console",
-    "runtime.project.slot.env.set": "console",
     "runtime.prompt_context.show": "console",
     "runtime.provider.configure": "console",
     "runtime.provider.dependency.install": "console",
@@ -1545,7 +1419,6 @@
     "runtime.workspace.conversations": "console",
     "runtime.workspace.create": "console",
     "runtime.workspace.guidance.set": "console",
-    "runtime.workspace.project.set": "console",
     "runtime.workspace.recipe.run_step": "console",
     "runtime.workspace.recipe.set": "console",
     "runtime.workspace.recipe.show": "console",

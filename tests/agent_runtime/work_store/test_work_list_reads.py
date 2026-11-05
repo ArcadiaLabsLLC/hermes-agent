@@ -13,10 +13,8 @@ import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
-from agent_runtime.project_store import ProjectStore
 from agent_runtime.work import store as work_store
-from agent_runtime.workspace_projects import set_project_connection
-from agent_runtime.workspace_slots import bind_project
+from agent_runtime.workspace_slots import bind, declare
 
 T0 = "2026-11-02T10:00:00+00:00"
 NOTE = "Launcher_Brain/20 — Active Initiatives/q.md"
@@ -46,11 +44,13 @@ def _repo(tmp_path: Path, name: str, row_id: str | None) -> SimpleNamespace:
     return SimpleNamespace(origin=origin, clone=clone, url=f"https://example.com/{name}.git")
 
 
-def _project(workspace: str, project_id: str, repo: SimpleNamespace, *, revision: int) -> None:
-    ProjectStore().declare(project_id, [{"name": "launcher", "repo": {"clone_url": repo.url, "default_branch": "main"}}],
-                           issued_at=T0, machine="m", name=project_id.upper())
-    bind_project(project_id, "launcher", str(repo.clone), issued_at=T0)
-    set_project_connection(workspace, project_id, connected=True, expected_revision=revision)
+def _slots(workspace: str, **repos: SimpleNamespace) -> None:
+    """Declare one slot per repo on the workspace and bind each to its clone here."""
+
+    declare(workspace, [{"name": name, "repo": {"clone_url": repo.url, "default_branch": "main"}}
+                        for name, repo in repos.items()], issued_at=T0, machine="m")
+    for name, repo in repos.items():
+        bind(workspace, name, str(repo.clone), issued_at=T0)
 
 
 def _rows(board: dict) -> list[str]:
@@ -60,9 +60,9 @@ def _rows(board: dict) -> list[str]:
 def test_a_brain_create_brain_made_lists_at_once(tmp_path, workspace):
     """Mutation: drop the worktree arm (``worktree_brain`` returns ``board``) -> the board lists no queue."""
     repo = _repo(tmp_path, "bare", None)
-    _project(workspace, "p1", repo, revision=0)
+    _slots(workspace, launcher=repo)
     scope = SimpleNamespace(workspace_id=workspace)
-    made = work_store.create_brain(scope, {"request_id": "brain-1", "slot": "launcher", "project_id": "p1"}, "operator")
+    made = work_store.create_brain(scope, {"request_id": "brain-1", "slot": "launcher"}, "operator")
     assert made["receipt"]["pushed"] is True
     # The operator's checkout never holds the brain: it lives in hermes's worktree and at the origin's tip.
     assert not (repo.clone / "Work_Brain").exists()
@@ -70,16 +70,15 @@ def test_a_brain_create_brain_made_lists_at_once(tmp_path, workspace):
     assert (board["brain_dir"], board["readable"]) == ("Work_Brain/20 — Active Initiatives", True)
     assert [queue["note"] for queue in board["queues"]] == ["Work_Brain/20 — Active Initiatives/work-queue.md"]
     # A second create answers the brain it already made, writing nothing.
-    again = work_store.create_brain(scope, {"request_id": "brain-2", "slot": "launcher", "project_id": "p1"}, "operator")
+    again = work_store.create_brain(scope, {"request_id": "brain-2", "slot": "launcher"}, "operator")
     assert again["receipt"] is None
 
 
 def _two(tmp_path: Path, workspace: str) -> SimpleNamespace:
     alpha, beta = _repo(tmp_path, "alpha", "AL-1"), _repo(tmp_path, "beta", "BE-1")
-    _project(workspace, "p1", alpha, revision=0)
-    _project(workspace, "p2", beta, revision=1)
+    _slots(workspace, alpha=alpha, beta=beta)
     scope = SimpleNamespace(workspace_id=workspace)
-    worktree = work_store.synced(workspace).writers["p2/launcher"].worktree
+    worktree = work_store.synced(workspace).writers["beta"].worktree
     lock = Path(git("rev-parse", "--path-format=absolute", "--git-path", "index.lock", cwd=worktree).strip())
     lock.write_bytes(b"")  # a git that crashed (or still runs) holding beta's worktree index
     return SimpleNamespace(scope=scope, lock=lock)
@@ -89,12 +88,12 @@ def test_one_boards_refusal_is_that_boards_answer_and_every_other_board_lists(tm
     """Mutation: re-raise in ``synced``'s per-board ``except`` -> the whole list refuses."""
     two = _two(tmp_path, workspace)
     alpha, beta = work_store.list_work(two.scope, {})["boards"]
-    assert (alpha["project_id"], _rows(alpha), alpha["refused"]) == ("p1", ["AL-1"], None)
-    assert (beta["project_id"], beta["readable"], beta["queues"]) == ("p2", False, [])
+    assert (alpha["slot"], _rows(alpha), alpha["refused"]) == ("alpha", ["AL-1"], None)
+    assert (beta["slot"], beta["readable"], beta["queues"]) == ("beta", False, [])
     assert beta["refused"]["reason"] == "index_locked" and "index.lock" in beta["refused"]["detail"]
     # A write naming the refused board answers its refusal, not ``no_brain``.
     try:
-        work_store.inspect(two.scope, {"slot": "launcher", "project_id": "p2", "task_id": "BE-1"})
+        work_store.inspect(two.scope, {"slot": "beta", "task_id": "BE-1"})
     except work_store.WorkRefused as refused:
         assert refused.reason.value == "index_locked"
     else:

@@ -253,7 +253,7 @@ def manifest_board(boards: Sequence[Board]) -> Board | None:
     """The workspace brain without creating it; repo fallback retains older settings."""
 
     own = next((b for b in boards if b.is_default), None)
-    declared = next((b for b in boards if b.slot == "brain" and b.project_id is None and has_brain_here(b)), None)
+    declared = next((b for b in boards if b.slot == "brain" and has_brain_here(b)), None)
     return own or declared or next((b for b in boards if has_brain_here(b)), None)
 
 
@@ -366,5 +366,5 @@ class BrainManifestStore:
         writer = self._writer(board)
         relative = manifest_path(batch_id)
         payload = {"appends": {relative: "".join(line + "\n" for line in lines)}, "files": dict(files or {})}
-        ref = RowRef(board.slot, f"{_brain_root(board.brain_dir)}/{relative}", batch_id, board.project_id)
+        ref = RowRef(board.slot, f"{_brain_root(board.brain_dir)}/{relative}", batch_id)
         writer.apply(RowOp(ref, Op.APPEND, DISPATCHER, request_id, payload))

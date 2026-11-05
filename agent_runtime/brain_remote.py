@@ -9,12 +9,12 @@ RT-BRAIN-PATHS-PLAIN-LIST slice 4 (owner sitting 2026-11-02, launcher plan
 * a brain whose branch has an upstream is fetched (bounded by :data:`FETCH_TIMEOUT_S`, never a prompt) and its
   ``HEAD..@{u}`` count measured;
 * a WORKSPACE or PERSONAL brain (hermes's own repositories) that is behind and clean is fast-forwarded
-  (``merge --ff-only``) and re-measured; a PROJECT brain is the user's working repo — only its count is kept,
+  (``merge --ff-only``) and re-measured; a SLOT brain (a bound folder) is the user's working repo — only its count is kept,
   and it is never moved;
 * the counts land in the list as each brain's ``behind`` (null: no upstream, not a repo, or unmeasured), so
   Eternia reads "N new upstream" without a call.
 
-A PROJECT brain moves only when the user asks: :func:`pull_checkout` is ``runtime.work.pull``'s git half
+A SLOT brain moves only when the user asks: :func:`pull_checkout` is ``runtime.work.pull``'s git half
 (RT-WORK-PULL-PROJECT-CHECKOUT) — fetch, then ``merge --ff-only`` only when the checkout is clean, refusing
 with a typed :class:`~agent_runtime.work_store.reasons.Reason` otherwise, and the new count written to the list.
 """
@@ -40,7 +40,7 @@ REMOTE_TICK_S = 5.0
 #: A tick's bound: at most this many checkouts are fetched per tick; the rest wait for the next.
 BRAINS_PER_TICK = 4
 FETCH_TIMEOUT_S = 30
-#: The brains hermes owns and may fast-forward; a ``project`` brain is the user's repo and only counted.
+#: The brains hermes owns and may fast-forward; a ``slot`` brain is the user's repo and only counted.
 FAST_FORWARD_KINDS = frozenset({"personal", "workspace"})
 _CONFIG = ("core.longpaths=true", "credential.interactive=never")
 _ENV = {"GIT_TERMINAL_PROMPT": "0", "GCM_INTERACTIVE": "never", "GIT_ASKPASS": "", "SSH_ASKPASS": ""}
@@ -153,8 +153,8 @@ class RemoteCheck:
         for kind, entry in brains(read_brain_paths()):
             path = entry.get("path")
             if isinstance(path, str) and path and entry.get("brain_dir"):
-                # One checkout bound by a Project and hermes's own: never fast-forwarded (the user's wins).
-                seen[path] = "project" if "project" in (kind, seen.get(path)) else kind
+                # One checkout bound as a workspace slot and hermes's own: never fast-forwarded (the user's wins).
+                seen[path] = "slot" if "slot" in (kind, seen.get(path)) else kind
         return sorted(seen.items())
 
     def tick(self) -> dict[str, Any]:

@@ -97,8 +97,7 @@ class Receipt:
     kind: str
 
     def wire(self) -> dict[str, Any]:
-        return {"kind": self.kind, "ref": {"slot": self.ref.slot, "note": self.ref.note, "id": self.ref.id,
-                                           "project_id": self.ref.project_id},
+        return {"kind": self.kind, "ref": {"slot": self.ref.slot, "note": self.ref.note, "id": self.ref.id},
                 "op": self.op.value, "who": self.who, "request_id": self.request_id, "commit": self.commit,
                 "replays": self.replays, "pushed": self.pushed, "replayed": self.replayed}
 
@@ -138,24 +137,10 @@ def remove_worktree(worktree: Path, *, repo: Path | None) -> None:
         run_git(["worktree", "prune"], repo=repo, timeout=60, stdin=subprocess.DEVNULL)
 
 
-_OWNER_RULE = object()
+def work_worktree_for(workspace_id: str, slot: str, token: str) -> Path:
+    """Hermes's worktree of a workspace slot's checkout (``<slot>-<checkout token>``)."""
 
-
-def work_worktree_for(workspace_id: str, slot: str, token: str, *, project_id: Any = _OWNER_RULE) -> Path:
-    """Hermes's worktree of a slot's checkout, keyed by ``<project>/<slot>`` when a Project declares it.
-
-    ``project_id`` is the board's owner (``Board.project_id``, None for the workspace's own); left out,
-    the owner is ``slot_owner``'s answer. A worktree cut before the slot moved into a Project sits at
-    the bare-slot key and stays in use there until it is recut (a live git worktree is never renamed
-    under git's feet — plan §4 step 2).
-    """
-
-    from ..workspace_slots import slot_key, slot_owner
-
-    owner = slot_owner(workspace_id, slot) if project_id is _OWNER_RULE else project_id
-    keyed = paths.work_worktree_dir(workspace_id, slot_key(owner, slot), token)
-    legacy = paths.work_worktree_dir(workspace_id, slot, token)
-    return legacy if not keyed.exists() and legacy.exists() else keyed
+    return paths.work_worktree_dir(workspace_id, slot, token)
 
 
 def drop_worktrees(workspace_id: str, slot: str) -> list[Path]:
@@ -356,7 +341,7 @@ class Writer:
             raise WorkRefused(Reason.SLOT_UNBOUND, self.board.slot)
         if self._worktree is None:
             self._worktree = work_worktree_for(self.board.workspace_id, self.board.slot,
-                                               checkout_token(clone, run=self._run), project_id=self.board.project_id)
+                                               checkout_token(clone, run=self._run))
         return clone
 
     def _common_dir(self, repo: Path) -> str:
@@ -693,9 +678,7 @@ class Writer:
     def _validate(self, op: RowOp) -> None:
         if not REQUEST_ID.match(op.request_id):
             raise WorkRefused(Reason.INVALID, "request_id is [A-Za-z0-9_.:-]{1,200}")
-        if op.ref.slot != self.board.slot or (
-                op.ref.project_id is not None and op.ref.project_id != self.board.project_id
-                and op.ref.project_id not in self.board.owners):
+        if op.ref.slot != self.board.slot:
             raise WorkRefused(Reason.INVALID, "the op's slot is not this writer's board")
 
     def apply(self, op: RowOp) -> Receipt:

@@ -239,6 +239,61 @@ def list_folder(folder: Path | None) -> dict[str, Any]:
     return {"here": True, "files": files, "truncated": truncated}
 
 
+def _category_label(workspace_id: str) -> str:
+    from .errors import NotFound
+    from .store import WorkspaceStore
+
+    try:
+        return str(WorkspaceStore().get(workspace_id).name or "").strip() or workspace_id
+    except NotFound:
+        return workspace_id
+
+
+def category_context(workspace_id: str) -> tuple[list[tuple[str, str, str]], list[dict[str, Any]]]:
+    """``(sections, receipts)`` the workspace offers its agents: the documents' listed files, then guidance.
+
+    A section is ``(heading, file, content)`` — :class:`persona_slots.SlotContextSection`'s fields. Only
+    the files ``categories.documents.context_files`` names load, each headed ``<workspace>/documents``;
+    the guidance loads as one section headed by the workspace's name, only while its share is on.
+    """
+
+    from .prompt_observability.workspace_agents import load_workspace_agents_context
+
+    document = load_document(workspace_id)
+    label = _category_label(workspace_id)
+    sections: list[tuple[str, str, str]] = []
+    receipts: list[dict[str, Any]] = []
+    listed = [f for f in (category(document, DOCUMENTS).get("context_files") or []) if _inside_checkout(f)]
+    folder = category_folder(workspace_id, DOCUMENTS, document) if listed else None
+    for file in listed:
+        base = {"workspace_id": workspace_id, "category": DOCUMENTS, "file": file, "kind": "workspace_category",
+                "label": f"{label}/documents/{file}"}
+        if folder is None:
+            receipts.append({**base, "included": False, "status": "folder_not_here"})
+            continue
+        loaded = load_workspace_agents_context(str(folder / file), allowed_names=None)
+        receipt = dict(getattr(loaded, "receipt", None) or {})
+        receipt.pop("preview", None)
+        receipts.append({**receipt, **base})
+        if getattr(loaded, "content", None):
+            sections.append((f"{label}/documents", file, loaded.content))
+    guidance = document.get("guidance") if category(document, GUIDANCE).get("shared") else None
+    if isinstance(guidance, dict) and (guidance.get("description") or guidance.get("instructions")):
+        text = "\n\n".join(part for part in (guidance.get("description"), guidance.get("instructions")) if part)
+        sections.append((label, "guidance", text))
+        receipts.append({"workspace_id": workspace_id, "category": GUIDANCE, "kind": "workspace_category",
+                         "label": f"{label}/guidance", "included": True, "status": "loaded",
+                         "revision": guidance.get("revision")})
+    return sections, receipts
+
+
+def default_board_slot(document: dict[str, Any]) -> str | None:
+    """The ``boards`` category's slot: the workspace's default board, where a slot-less start lands."""
+
+    slot = category(document, BOARDS).get("slot")
+    return slot if isinstance(slot, str) and slot in live_slots(document) else None
+
+
 def artifacts_list(workspace_id: str) -> dict[str, Any]:
     """``runtime.workspace.artifacts.list``: the artifacts folder's files on this machine."""
 
@@ -258,7 +313,9 @@ __all__ = [
     "apply_guidance",
     "artifacts_list",
     "category",
+    "category_context",
     "category_folder",
+    "default_board_slot",
     "enforce_share_rule",
     "folder_under",
     "list_folder",

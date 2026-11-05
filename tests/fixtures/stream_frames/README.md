@@ -12,6 +12,11 @@ and parses them through its real decode + read-model pipeline
 split is structural, not an oversight, and the script names both halves
 (`GENERATED_FRAME_FILES` / `PINNED_ONLY_FILES`).
 
+> **CROSS-STACK COPY STATUS (w1104a-wsabsorb2, 2026-11-04) — launcher copy OWED (launcher row `MC-WS-ABSORB-WIRE`).**
+> One generated golden moved for one reason: the workspace row lost `project_ids` and
+> `project_assignment_revision` (RT-WS-ABSORB-RETIRE-PROJECT — the workspace absorbed Projects). Copy
+> `delta_agent_create_narrow_profile.json` and `MANIFEST.sha256` into `test/fixtures/harness_stream/`.
+
 > **CROSS-STACK COPY STATUS (w1101f-h, 2026-11-02) — launcher copy OWED (launcher row `MC-HARNESS-STREAM-TASK-BOUND-PRUNE-MIRROR`).**
 > Six generated goldens moved for one reason: RT-TASK-BOUND-WIRE-PRUNE took
 > `current_task_id` off `persona_instances` rows, `kind` / `live_mission` off

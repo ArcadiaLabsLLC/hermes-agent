@@ -1,8 +1,8 @@
 """RT-BRAIN-PATHS-PLAIN-LIST: the brain-path list hermes writes and Eternia reads (the w1102c contract).
 
-The contract test builds the fixture's namespace — two workspaces (Alpha with its own brain and a Project
-holding a bound slot with a brain, an unbound slot and a bound slot with no brain; Beta with nothing), and a
-personal brain — and asserts the writer's output equals ``tests/fixtures/brain_paths_v1.json`` once each
+The contract test builds the fixture's namespace — two workspaces (Alpha with its own brain and its slots: a
+bound slot with a brain, an unbound slot and a bound slot with no brain; Beta with nothing), and a
+personal brain — and asserts the writer's output equals ``tests/fixtures/brain_paths_v2.json`` once each
 real path is named by its placeholder. The rest pin the chokepoints: each write rewrites the file.
 """
 
@@ -17,14 +17,12 @@ import pytest
 
 from agent_runtime import brain_paths, paths
 from agent_runtime.machine_roots import machine_roots_cache_clear
-from agent_runtime.project_store import ProjectStore
 from agent_runtime.store import WorkspaceStore
 from agent_runtime.work_store.board import PERSONAL_BOARD_ID
 from agent_runtime.work_store.default_brain import ensure_default_brain
-from agent_runtime.workspace_projects import set_project_connection
-from agent_runtime.workspace_slots import bind_project
+from agent_runtime.workspace_slots import bind, declare
 
-FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "brain_paths_v1.json"
+FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "brain_paths_v2.json"
 T0 = "2026-11-02T22:00:00+00:00"
 WRITTEN = datetime(2026, 11, 2, 23, 0, tzinfo=UTC)
 
@@ -51,16 +49,14 @@ def namespace(tmp_path: Path) -> dict[str, str]:
     WorkspaceStore().create(name="Alpha", workspace_id="ws-alpha")
     WorkspaceStore().create(name="Beta", workspace_id="ws-beta")
     personal = ensure_default_brain(PERSONAL_BOARD_ID, issued_at=T0)
-    # Alpha's own brain is made while it holds no Project brain: today's work store retires a default brain
+    # Alpha's own brain is made while it holds no slot brain: today's work store retires a default brain
     # into the first bound repo brain (``work/store.py::normalize_default_brain``), so it is never made after.
     alpha = ensure_default_brain("ws-alpha", issued_at=T0)
-    ProjectStore().declare("proj-app", [_slot("launcher"), _slot("backend"), _slot("hermes")],
-                           issued_at=T0, machine="m", name="App")
+    declare("ws-alpha", [_slot("launcher"), _slot("backend"), _slot("hermes")], issued_at=T0, machine="m")
     launcher = _checkout(tmp_path / "src" / "launcher", "Launcher_Brain")
     hermes = _checkout(tmp_path / "src" / "hermes", None)
-    bind_project("proj-app", "launcher", str(launcher), issued_at=T0)
-    bind_project("proj-app", "hermes", str(hermes), issued_at=T0)
-    set_project_connection("ws-alpha", "proj-app", connected=True, expected_revision=0)
+    bind("ws-alpha", "launcher", str(launcher), issued_at=T0)
+    bind("ws-alpha", "hermes", str(hermes), issued_at=T0)
     return {str(personal.checkout): "/home/user/.hermes/hermes-namespaces/ns/personal-brain",
             str(alpha.checkout): "/home/user/.hermes/hermes-namespaces/ns/workspace-brains/ws-alpha",
             str(launcher): "/home/user/src/launcher", str(hermes): "/home/user/src/hermes"}
@@ -132,7 +128,7 @@ def test_a_held_behind_count_survives_a_rewrite_that_does_not_measure(namespace)
     brain_paths.write_brain_paths(behind={launcher: 3})
     WorkspaceStore().rename("ws-beta", "Beta two")
     held = json.loads(brain_paths.brain_paths_path().read_text(encoding="utf-8"))
-    slot = next(s for s in held["workspaces"]["ws-alpha"]["projects"][0]["slots"] if s["slot"] == "launcher")
+    slot = next(s for s in held["workspaces"]["ws-alpha"]["slots"] if s["slot"] == "launcher")
     assert held["workspaces"]["ws-beta"]["name"] == "Beta two" and slot["behind"] == 3
 
 
@@ -163,23 +159,21 @@ def test_deleting_a_workspace_rewrites_the_list():
     assert "ws-gamma" not in _listed()["workspaces"]
 
 
-def test_writing_a_project_rewrites_the_list(namespace):
-    """Mutation: drop ``changed`` from ``project_store.write_project`` -> red."""
-    ProjectStore().declare("proj-app", [_slot("launcher"), _slot("hermes")], issued_at="2026-11-02T22:30:00+00:00",
-                           machine="m", name="App renamed")
-    project = _listed()["workspaces"]["ws-alpha"]["projects"][0]
-    assert project["name"] == "App renamed" and [s["slot"] for s in project["slots"]] == ["hermes", "launcher"]
+def test_declaring_slots_rewrites_the_list(namespace):
+    """Mutation: drop ``changed`` from ``workspace_slots.write_document`` -> red."""
+    declare("ws-alpha", [_slot("launcher"), _slot("hermes")], issued_at="2026-11-02T22:30:00+00:00", machine="m")
+    assert [s["slot"] for s in _listed()["workspaces"]["ws-alpha"]["slots"]] == ["hermes", "launcher"]
 
 
 def test_binding_a_slot_rewrites_the_list(namespace, tmp_path, monkeypatch):
     """Mutation: drop ``changed`` from ``workspace_slots._write_fill`` -> red (the bind's machine report, which
-    also writes the Project record, is stubbed so only the fill's own call can rewrite the list)."""
+    also writes the slot document, is stubbed so only the fill's own call can rewrite the list)."""
     from agent_runtime import workspace_slots_probe
 
-    monkeypatch.setattr(workspace_slots_probe, "report_project", lambda *_a, **_k: {"slots": {}})
+    monkeypatch.setattr(workspace_slots_probe, "report", lambda *_a, **_k: {"slots": {}})
     backend = _checkout(tmp_path / "src" / "backend", "EterniaBackend_Brain")
-    bind_project("proj-app", "backend", str(backend), issued_at=T0)
-    slot = next(s for s in _listed()["workspaces"]["ws-alpha"]["projects"][0]["slots"] if s["slot"] == "backend")
+    bind("ws-alpha", "backend", str(backend), issued_at=T0)
+    slot = next(s for s in _listed()["workspaces"]["ws-alpha"]["slots"] if s["slot"] == "backend")
     assert slot == {"slot": "backend", "path": str(backend), "brain_dir": "EterniaBackend_Brain", "behind": None}
 
 
@@ -208,19 +202,22 @@ def test_the_workspace_merge_rewrites_the_list(monkeypatch, tmp_path):
     slot document, so the merge's own notice is the only writer of the list.
     """
     from agent_runtime import project_migration
-    from agent_runtime.machine_roots import load_machine_roots, write_machine_roots
+    from agent_runtime.machine_roots import machine_roots_registry_paths
     from agent_runtime.store import WorkspaceStore
 
     workspace = WorkspaceStore().create(name="Team").id
     raw = json.loads(paths.workspace_path(workspace).read_text(encoding="utf-8"))
     paths.workspace_path(workspace).write_text(json.dumps({**raw, "project_ids": ["p1"]}), encoding="utf-8")
-    current = load_machine_roots(refresh=True)
-    write_machine_roots(dict(current.roots), workspace_roots={}, project_roots={"p1": {"s": str(tmp_path)}},
-                        dry_run=False)
+    registry = machine_roots_registry_paths()[0]
+    registry.parent.mkdir(parents=True, exist_ok=True)
+    registry.write_text(json.dumps({"schema_version": 4, "roots": {}, "config_roots": {}, "workspace_roots": {},
+                                    "slot_folders": {}, "project_roots": {"p1": {"s": str(tmp_path)}}}),
+                        encoding="utf-8")
+    machine_roots_cache_clear()
     seen: list[str] = []
     monkeypatch.setattr(brain_paths, "write_brain_paths", lambda **_: seen.append("w") or True)
     project_migration.migrate_namespace()
-    assert seen == ["w"] and load_machine_roots(refresh=True).project_roots == {}
+    assert seen == ["w"] and "project_roots" not in json.loads(registry.read_text(encoding="utf-8"))
 
 
 def test_the_list_is_written_once_at_serve_boot_before_the_heavy_steps(monkeypatch):
@@ -259,7 +256,7 @@ def test_creating_a_slot_brain_rewrites_the_list(monkeypatch):
 
     from agent_runtime.work import store as work_store
 
-    board = SimpleNamespace(bound_here=True, brain_dir=None, slot="s", project_id=None)
+    board = SimpleNamespace(bound_here=True, brain_dir=None, slot="s")
     writer = SimpleNamespace(apply=lambda _op: SimpleNamespace(wire=dict))
     monkeypatch.setattr(work_store.boards_store, "boards", lambda _ws: [board])
     monkeypatch.setattr(work_store.boards_store, "pick", lambda found, *_: found[0])
@@ -298,14 +295,13 @@ def test_a_realm_pull_that_changed_the_store_rewrites_the_list(tmp_path):
 
 def test_a_declared_brain_dir_wins_over_detection(tmp_path):
     """Slice 2: the work store's one rule (``board.brain_dir_of``). Mutation: hand it ``{}`` instead of the
-    declaration in ``brain_paths._project`` -> detection picks ``Alpha_Brain``, red."""
+    declaration in ``brain_paths._slots`` -> detection picks ``Alpha_Brain``, red."""
     WorkspaceStore().create(name="Delta", workspace_id="ws-delta")
     root = _checkout(tmp_path / "two", "Alpha_Brain")
     (root / "Zed_Brain" / "20 — Active Initiatives").mkdir(parents=True)
     pinned = {**_slot("two"), "context": {"brain_dir": "Zed_Brain/20 — Active Initiatives"}}
-    ProjectStore().declare("proj-two", [pinned, _slot("plain")], issued_at=T0, machine="m", name="Two")
-    bind_project("proj-two", "two", str(root), issued_at=T0)
-    bind_project("proj-two", "plain", str(root), issued_at=T0)
-    set_project_connection("ws-delta", "proj-two", connected=True, expected_revision=0)
-    slots = {s["slot"]: s["brain_dir"] for s in _listed()["workspaces"]["ws-delta"]["projects"][0]["slots"]}
+    declare("ws-delta", [pinned, _slot("plain")], issued_at=T0, machine="m")
+    bind("ws-delta", "two", str(root), issued_at=T0)
+    bind("ws-delta", "plain", str(root), issued_at=T0)
+    slots = {s["slot"]: s["brain_dir"] for s in _listed()["workspaces"]["ws-delta"]["slots"]}
     assert slots == {"plain": "Alpha_Brain", "two": "Zed_Brain"}

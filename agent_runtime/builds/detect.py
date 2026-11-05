@@ -240,9 +240,9 @@ def restart_unknowns(build: DetectedBuild, *, now: float) -> UnknownsIndex:
     from agent_runtime.workspace_slots import resolve_slot
 
     index = UnknownsIndex()
-    resolved = resolve_slot(build.slot.workspace_id, build.slot.slot, project_id=build.slot.project_id)
+    resolved = resolve_slot(build.slot.workspace_id, build.slot.slot)
     declared = resolved.declaration if resolved else {}
-    fill = slot_fill(build.slot.workspace_id, build.slot.slot, project_id=resolved.project_id if resolved else None)
+    fill = slot_fill(build.slot.workspace_id, build.slot.slot)
     toolchain = declared.get("toolchain") or {}
     keys = set(TOOLCHAIN_ENV_KEYS.get(getattr(build.command, "toolchain", ""), TOOLCHAIN_ENV_KEYS["flutter"]))
     if fill is not None:

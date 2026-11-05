@@ -71,7 +71,7 @@ __all__ = [
     "_pull_persona_instances",
     "_pull_prefab",
     "_pull_profile_files",
-    "_pull_project_chats",
+    "_pull_shared_chats",
     "_pull_skill_inbox",
     "_pull_skill_tombstones",
     "_pull_workspace_tombstones",
@@ -177,8 +177,7 @@ class _PullRun:
     instance: Any = None
     flow_graph: Any = None
     workspace_slots: Any = None
-    project: Any = None
-    project_chats: dict[str, Any] | None = None
+    shared_chats: dict[str, Any] | None = None
     workspace_tombstones: dict[str, list] | None = None
 
 
@@ -261,24 +260,14 @@ def _pull_workspace_slots(run: _PullRun) -> bool:
     return bool(run.workspace_slots.changed)
 
 
-def _pull_projects(run: _PullRun) -> bool:
-    # The Project records: same exclusion (store/projects/* -> the owner applier), the slot
-    # document's key-wise merge plus the category declarations. After the generic loop: a
-    # Project is held BY a workspace's ``project_ids``.
-    from ..project_sync import apply_project_pull
-
-    run.project = apply_project_pull(run.realm.id, run.subtree)
-    return bool(run.project.changed)
-
-
-def _pull_project_chats(run: _PullRun) -> bool:
-    # The Projects' shared chats: their turn logs travel by git in each Project's chats slot,
-    # not in this subtree, so the pull fans out to a bounded fetch-and-fold of every Project a
-    # workspace of this realm holds whose chats are shared (RT-PROJECT-CHAT-FOLD-WITHOUT-SENDING).
+def _pull_shared_chats(run: _PullRun) -> bool:
+    # The workspaces' shared chats: their turn logs travel by git in each workspace's chats slot,
+    # not in this subtree, so the pull fans out to a bounded fetch-and-fold of every workspace of
+    # this realm whose chats are shared (RT-PROJECT-CHAT-FOLD-WITHOUT-SENDING).
     # It changes no realm artifact, so it never marks the pull changed.
-    from ..project_chat_fold import fold_realm_projects
+    from ..project_chat_fold import fold_realm_workspaces
 
-    run.project_chats = fold_realm_projects(run.realm.id)
+    run.shared_chats = fold_realm_workspaces(run.realm.id)
     return False
 
 
@@ -395,8 +384,7 @@ PULL_APPLIERS: Final[tuple[PullApplier, ...]] = (
     PullApplier("map_sync", _pull_map),
     PullApplier("prefab_sync", _pull_prefab),
     PullApplier("workspace_slots_sync", _pull_workspace_slots),
-    PullApplier("project_sync", _pull_projects),
-    PullApplier("project_chat_fold", _pull_project_chats),
+    PullApplier("workspace_chat_fold", _pull_shared_chats),
     PullApplier("skill_sync", _pull_skill_inbox),
     PullApplier("skill_tombstones", _pull_skill_tombstones),
     PullApplier("persona_config_sync", _pull_persona_config),
@@ -430,10 +418,8 @@ def _pull_accounting(run: _PullRun, install_results: list[Any]) -> dict[str, Any
         # Unconditional for the reason the two rows above are: ``source: null`` says
         # "this realm publishes no slot document" rather than "an older hermes".
         "workspace_slots_sync": run.workspace_slots.as_dict(),
-        # Unconditional for the same reason: ``source: null`` = no Project record travelled.
-        "project_sync": run.project.as_dict(),
         # Unconditional: an empty ``folded`` says "no shared chats here", not "an older hermes".
-        "project_chat_fold": run.project_chats or {"folded": [], "skipped": [], "deferred": []},
+        "workspace_chat_fold": run.shared_chats or {"folded": [], "skipped": [], "deferred": []},
         "profile_artifact_sync": run.profile_files.as_dict(),
         # THE contract seam with the launcher (plan §6). Emitted UNCONDITIONALLY,
         # carrying ``source: null`` when the peer published no projection,
