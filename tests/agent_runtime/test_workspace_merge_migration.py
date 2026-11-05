@@ -15,7 +15,7 @@ import pytest
 from hermes_time import now
 
 from agent_runtime import paths, project_migration
-from agent_runtime.machine_roots import load_machine_roots, write_machine_roots
+from agent_runtime.machine_roots import load_machine_roots, machine_roots_cache_clear, machine_roots_registry_paths
 from agent_runtime.models import PersonaInstance
 from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.states import WorkerSessionState
@@ -51,6 +51,19 @@ def _list(workspace_id, *project_ids):
     raw = json.loads(path.read_text(encoding="utf-8"))
     path.write_text(json.dumps({**raw, "project_ids": list(project_ids), "project_assignment_revision": 2}),
                     encoding="utf-8")
+
+
+def _registry(slot_folders, project_roots):
+    """A Project edition's schema-4 registry: slot folders beside ``project_roots``."""
+
+    _write(machine_roots_registry_paths()[0], {"schema_version": 4, "roots": {}, "config_roots": {},
+                                                "workspace_roots": slot_folders, "slot_folders": slot_folders,
+                                                "project_roots": project_roots})
+    machine_roots_cache_clear()
+
+
+def _registry_project_roots():
+    return json.loads(machine_roots_registry_paths()[0].read_text(encoding="utf-8")).get("project_roots")
 
 
 def _instance(instance_id, workspace_id, slots, primary=None):
@@ -94,12 +107,10 @@ def edition(tmp_path):
     folders = {name: tmp_path / name for name in ("own", "shared_launcher", "tools")}
     for folder in folders.values():
         folder.mkdir()
-    current = load_machine_roots(refresh=True)
-    write_machine_roots(dict(current.roots), workspace_roots={a: {"launcher": str(tmp_path)}},
-                        project_roots={own: {"launcher": str(folders["own"])},
-                                       shared: {"launcher": str(folders["shared_launcher"]),
-                                                "tools": str(folders["tools"])},
-                                       "p_ghost": {"x": str(tmp_path)}}, dry_run=False)
+    _registry({a: {"launcher": str(tmp_path)}},
+              {own: {"launcher": str(folders["own"])},
+               shared: {"launcher": str(folders["shared_launcher"]), "tools": str(folders["tools"])},
+               "p_ghost": {"x": str(tmp_path)}})
     env = read_env_fills()
     env["projects"] = {shared: {"tools": {"env": {"TOOLS_HOME": "/opt/tools"}, "tool_paths": {}, "path_prepend": [],
                                           "dotenv": None, "venv": None, "bound_at": T1}}}
@@ -146,7 +157,7 @@ def test_every_project_lands_in_its_home_and_every_keyed_store_follows(edition):
     assert sorted(live_slots(load_document(b))) == ["brain"]
 
     roots = load_machine_roots(refresh=True)
-    assert roots.project_roots == {}
+    assert _registry_project_roots() is None and roots.schema_version == 3
     assert roots.workspace_roots[a] == {"launcher": str(folders["own"]), "shared_tools_launcher":
                                         str(folders["shared_launcher"]), "tools": str(folders["tools"])}
     assert slot_fill(a, "tools").env == {"TOOLS_HOME": "/opt/tools"} and "projects" not in read_env_fills()
@@ -201,14 +212,12 @@ def test_a_namespace_that_never_held_a_project_is_untouched():
 
 
 def test_a_reference_with_no_record_and_no_workspace_is_dropped_with_its_fills(tmp_path):
-    current = load_machine_roots(refresh=True)
-    write_machine_roots(dict(current.roots), workspace_roots={}, project_roots={"p_orphan": {"x": str(tmp_path)}},
-                        dry_run=False)
+    _registry({}, {"p_orphan": {"x": str(tmp_path)}})
     workspace = WorkspaceStore().create(name="Holder").id
     _instance("personainst_c", workspace, ["p_orphan/x"])
     _write(paths.store_root() / "projects" / "p_orphan.json", {"not": "a record"})
     receipt = project_migration.migrate_namespace()
     assert receipt["dropped"] == ["p_orphan"] and receipt["merged"] == []
-    assert load_machine_roots(refresh=True).project_roots == {}
+    assert _registry_project_roots() is None
     assert PersonaInstanceStore().get("personainst_c").assigned_slots == []
     assert not (paths.store_root() / "projects").exists()
