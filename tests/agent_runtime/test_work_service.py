@@ -52,7 +52,7 @@ def test_capabilities_lists_one_owner_per_workspace_and_creates_the_default_brai
     owner = next(row for row in caps["owners"] if row["workspace_id"] == work.ws)
     assert owner == {"owner": WorkScope(caps["install_id"], work.ws).owner, "workspace_id": work.ws,
                      "kind": "workspace", "label": "Desk",
-                     "operations": ["inspect", "start", "assign", "claim", "release", "set_status", "move", "pull", "done",
+                     "operations": ["inspect", "start", "edit", "assign", "claim", "release", "set_status", "move", "pull", "done",
                                     "create_brain", "lend_skills"]}
     assert len({row["owner"] for row in caps["owners"]}) == len(caps["owners"])
     assert caps["default_brain"][work.ws] == {"state": "created", "reason": "needs_git_account"}
@@ -197,7 +197,7 @@ def test_inspect_of_a_gone_row_carries_its_ending(work):
     assert call(work, "inspect", **where)["task"]["id"] == task_id
     call(work, "done", request_id="d1", result="Nothing left.", **where)
     gone = call(work, "inspect", **where)
-    assert gone["task"] is None and gone["ending"]["subject"].startswith(f"work: delete {task_id} operator")
+    assert gone["task"] is None and gone["ending"]["subject"].startswith(f"work: close {task_id} operator")
 
 
 def test_list_filters_slot_status_assignee(work):
