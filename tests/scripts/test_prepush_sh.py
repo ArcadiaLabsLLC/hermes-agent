@@ -200,3 +200,28 @@ def test_a_step_at_its_deadline_is_killed_with_its_tree_and_the_run_fails_naming
 def test_a_budget_that_is_not_a_whole_number_of_seconds_refuses_before_running(repo: Path):
     proc, calls = _run(repo, env_extra={"PREPUSH_GATES_BUDGET": "1.5"})
     assert proc.returncode == 2 and calls == ""
+
+
+def test_without_an_explicit_interpreter_the_doc_cite_step_finds_the_shared_venv_then_python3(repo: Path):
+    """FH-PREPUSH-BARE-PYTHON-LINUX: a bare `python` is absent on the Linux box. Mutation: default `PY`
+    back to `python` -> neither stub runs the doc-cite step (exit 127 or the wrong interpreter), red."""
+    log = repo.parent / "calls.log"
+    venv = repo.parent / "venv"
+    (venv / "bin").mkdir(parents=True)
+    _stub(venv / "bin" / "python", 0, log, 'echo "venv-python" >> "%s"' % log)
+    env = {key: value for key, value in os.environ.items() if key not in {"PREPUSH_PYTHON", "HERMES_PYTHON"}}
+    env = {**env, "PREPUSH_RUNNER": str(_stub(repo.parent / "runner.sh", 0, log)),
+           "PREPUSH_NOTIFY": str(_stub(repo.parent / "notify.sh", 0, repo.parent / "notified.log")),
+           "HERMES_TEST_VENV": str(venv)}
+    run = lambda env: subprocess.run(["bash", str(repo / "scripts" / "prepush.sh")], cwd=repo, env=env,
+                                     capture_output=True, text=True, stdin=subprocess.DEVNULL, check=False)
+    proc = run(env)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "venv-python" in log.read_text(encoding="utf-8")
+    log.unlink()
+    shims = repo.parent / "shims"
+    shims.mkdir()
+    _stub(shims / "python3", 0, log, 'echo "python3-on-path" >> "%s"' % log)
+    proc = run({**env, "HERMES_TEST_VENV": str(repo.parent / "no-venv"), "PATH": f"{shims}{os.pathsep}{env['PATH']}"})
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "python3-on-path" in log.read_text(encoding="utf-8")

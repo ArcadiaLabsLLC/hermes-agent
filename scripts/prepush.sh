@@ -158,7 +158,19 @@ echo "    symbol you changed unless you named them above"
 [ "$PLAN_ONLY" = 1 ] && exit 0
 
 RUNNER="${PREPUSH_RUNNER:-$SCRIPT_DIR/run_tests.sh}"
-PY="${PREPUSH_PYTHON:-${HERMES_PYTHON:-python}}"
+# The doc-cite interpreter: an explicit one, else the shared test venv the runners already find
+# (`_fork_test_env.sh`: HERMES_TEST_VENV, else ~/.venvs/hermes-test), else python3, else python.
+# A bare `python` is absent on the Linux box, which redded every push `exit 127`
+# (FH-PREPUSH-BARE-PYTHON-LINUX).
+_default_python() {
+  local venv="${HERMES_TEST_VENV:-$HOME/.venvs/hermes-test}" candidate
+  for candidate in "$venv/Scripts/python.exe" "$venv/bin/python"; do
+    [ -x "$candidate" ] && { echo "$candidate"; return; }
+  done
+  command -v python3 >/dev/null 2>&1 && { echo python3; return; }
+  echo python
+}
+PY="${PREPUSH_PYTHON:-${HERMES_PYTHON:-$(_default_python)}}"
 
 # ── the notification adapter: one function, three OSes, never waited on ─────
 # Each notifier is started in its own process group, detached from every
