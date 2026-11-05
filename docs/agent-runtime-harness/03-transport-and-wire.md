@@ -1400,6 +1400,16 @@ never parks the harness pointer" (the launcher plan's R-B). Both verbs share
 one implementation with the argv CLI (`agent_runtime/scope_activation.py`);
 neither joins `PEER_METHOD_ALLOWLIST`.
 
+`runtime.workspace.assign_realm` (`console` tier; RT-WORKSPACE-REALM-ASSIGN-VERB) homes a realm-less
+workspace: params exactly `workspace_id`, `realm_id`; the answer is the workspace row (`realm_id` now set)
+plus `assigned` (false when that realm already owned it whole; a missing forward entry is healed and
+answers true). It writes the workspace's `realm_id` back-reference, then the realm's `workspace_ids`
+forward entry (lifting a delete-ledger entry for it), under one lock
+(`agent_runtime/workspace_create.py::assign_workspace_realm`). Refusals ride `error.data.reason`:
+`invalid_request` (-32602), `workspace_not_found` / `realm_not_found` (4001), `workspace_archived` and
+`workspace_owned_by_other_realm` (4090, with `owner_realm_id` — owned means the workspace's `realm_id` or
+any realm's `workspace_ids` names another realm; it is never moved).
+
 ## 5. Attachment receipts
 
 `log_stream_attach` (`agent_runtime/stream/build_policy.py::log_stream_denied`) writes ONE line per attachment to the

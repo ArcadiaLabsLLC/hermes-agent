@@ -234,6 +234,13 @@ def workspace_create_lock(key_digest: str) -> Iterator[None]:
 
 
 @contextlib.contextmanager
+def workspace_realm_assign_lock() -> Iterator[None]:
+    """Serialize ``runtime.workspace.assign_realm``: the realm-ownership read and both writes are one step."""
+    with _file_lock(paths.lock_dir() / "workspace_realm_assign.lock"):
+        yield
+
+
+@contextlib.contextmanager
 def chat_turn_reservation_lock(key_digest: str) -> Iterator[None]:
     """Serialize one ``turn_request_id``'s ACCEPT decision across processes.
 
