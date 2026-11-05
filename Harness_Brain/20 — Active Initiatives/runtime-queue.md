@@ -34,6 +34,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-11-04 (launcher lane w1104a-mc-runtime: `MC-REALMLESS-WORKSPACE-UNREACHABLE`)
+
+- **`RT-WORKSPACE-REALM-ASSIGN-VERB` — a workspace with no realm (`realm_id: null`, in no realm's `workspace_ids` — every QA namespace seeded before 6a3134bea4 holds one, `QA Fixture`) can be listed by the launcher (it now shows realm-less workspaces under whichever realm is shown, launcher `MC-REALMLESS-WORKSPACE-UNREACHABLE`) but never ADOPTED: `runtime.workspace.*` is create / use / conversations only, so no verb sets a workspace's realm; add `runtime.workspace.assign_realm` (workspace id, realm id; refuses a workspace already owned by another realm, writes the back-reference and the realm's forward list in one commit) or a one-pass migration that homes every realm-less workspace in the default realm** · `agent_runtime/workspace_create.py` · launcher `lib/features/mission_control/state/mission_scope_policy.dart::MissionScopePolicy.workspaceListedUnderRealm` · found 2026-11-04 by launcher lane w1104a-mc-runtime · READY 2026-11-04
+
 
 
 
