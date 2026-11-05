@@ -656,7 +656,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 
 - **`FH-WORK-V1-CLAIM-GATES-WINDOWS-BUDGET` — Measure the cold Windows prepush queue/text gate batch and remove startup overhead without raising the budget** · `scripts/prepush.sh` · work-v1-intelligence claim 54f3445bd9: gates 14.3s against 10s budget, doc-cite 1.2s, freshly prepared Python 3.14 test environment; no other test process launched by this lane · READY 2026-11-03
-- **`FH-PREPUSH-BARE-PYTHON-LINUX` — `scripts/prepush.sh` defaults its interpreter to a bare `python` (`PY="${PREPUSH_PYTHON:-${HERMES_PYTHON:-python}}"`), which does not exist on the Linux box (only `python3` and the test venv), so the doc-cite step reds `exit 127` "python: command not found" on every push that does not export one — default to the shared test venv the runners already find (`HERMES_TEST_VENV`, `~/.venvs/hermes-test`), else `python3`** · `scripts/prepush.sh` · found 2026-11-04 by lane w1104a-work on nekwo-ubuntu24 (green with the venv on `PATH`) · READY 2026-11-04 · **TAKEN 2026-11-05 w1105b-work on nekwo-ubuntu24 as nekwo in .worktrees/hm-w1104a-work**
 
 ## Filed on arrival — 2026-11-04 (landing hm-land-w1104a)
 
