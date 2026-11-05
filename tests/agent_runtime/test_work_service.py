@@ -114,6 +114,25 @@ def test_move_drops_a_card_on_a_status_column(work):
         assert refused.value.reason is reason
 
 
+def test_move_guards_on_the_line_the_board_drew(work):
+    """RT-WORK-MOVE-LINE-GUARD: a board reading the user's checkout holds the row's raw line, not ``revision``.
+    Mutation: drop the ``line`` check in ``store.move`` -> the stale-line drop writes BLOCKED, red."""
+    task = start(work)["task"]
+    where = {"slot": "brain", "task_id": task["id"]}
+    with pytest.raises(WorkRefused) as stale:
+        call(work, "move", request_id="l0", to="DEFERRED", line=task["raw"].replace("READY", "BLOCKED"), **where)
+    assert stale.value.reason is Reason.ROW_CHANGED and stale.value.data["task"]["raw"] == task["raw"]
+    assert rows_of(call(work, "list"))[0]["status"] == "READY"
+    moved = call(work, "move", request_id="l1", to="DEFERRED", line=task["raw"] + "\r", **where)
+    assert moved["unchanged"] is False and moved["task"]["status"] == "DEFERRED"
+    with pytest.raises(WorkRefused) as behind:
+        call(work, "move", request_id="l2", to="READY", line=task["raw"], **where)
+    assert behind.value.reason is Reason.ROW_CHANGED and behind.value.data["task"]["status"] == "DEFERRED"
+    with pytest.raises(WorkRefused) as bad:
+        call(work, "move", request_id="l3", to="READY", line=7, **where)
+    assert bad.value.reason is Reason.INVALID
+
+
 def test_pull_refuses_an_unbound_slot(work):
     with pytest.raises(WorkRefused) as refused:
         call(work, "pull", request_id="p1", slot="nowhere")

@@ -530,8 +530,11 @@ def move(scope, params, actor, *, context=None):
 
     ``to`` is a column word; the serve dates the status. ``reason`` is the status body (``BLOCKED`` needs
     one, starting with a blocked-reason word). ``revision`` (the card's ``revision``) refuses ``row_changed``
-    when the row moved on since the card was drawn. A TAKEN row is released by the move. A drop on the
-    row's own column with nothing to change answers ``unchanged: true`` with no commit.
+    when the row moved on since the card was drawn. ``line`` (the row's raw line as a board drew it off the
+    user's checkout, which never holds ``revision``: launcher ``MC-BRAINS-ONE-READER``) refuses ``row_changed``
+    when hermes's worktree row reads otherwise (RT-WORK-MOVE-LINE-GUARD); a trailing CR is not a change.
+    A TAKEN row is released by the move. A drop on the row's own column with nothing to change answers
+    ``unchanged: true`` with no commit.
     """
 
     to = params.get("to")
@@ -555,6 +558,10 @@ def move(scope, params, actor, *, context=None):
     # A card is drawn from ``list`` (no brief body) or ``inspect`` (with it): either revision is current.
     if params.get("revision") is not None and text(params["revision"]) not in (
             current["revision"], project(row, writer, context=context, detail=True)["revision"]):
+        raise WorkRefused(Reason.ROW_CHANGED, row.ref.id, data={"task": current})
+    line = params.get("line")
+    if line is not None and text(line.removesuffix("\r") if isinstance(line, str) else line,
+                                 maximum=20000) != row.raw:
         raise WorkRefused(Reason.ROW_CHANGED, row.ref.id, data={"task": current})
     if current["status"] == to and (reason is None or (row.status_body or "") == reason):
         return {"task": _task(writer, row.ref, context), "receipt": None, "unchanged": True}
