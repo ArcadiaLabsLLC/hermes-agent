@@ -42,7 +42,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-11-03 (lane w1103a-h1: RT-WORK-WORKSPACE-BRAIN-KEPT)
 
-- **`RT-WORK-ADOPTED-BRAIN-BESIDE-LOCAL` — a second machine that made its own local workspace brain before the promoted `brain` slot's declaration synced in now lists TWO `brain` boards (the adopted declared slot and the live local binding, both with no Project): the retired move used to fold the local rows into the adopted brain, now `board.pick` answers the first by name and the local board's rows are listed but unreachable by slot; decide: fold the local rows into the adopted brain once at adoption (one commit, IDs kept), or key the local board apart** · `agent_runtime/work_store/default_brain.py::_adopt_declared_brain` · `agent_runtime/work_store/board.py::pick` · evidence `tests/agent_runtime/work_store/test_default_brain.py::test_second_machine_with_a_local_brain_keeps_its_rows` · READY 2026-11-03 · **TAKEN 2026-11-04 w1104a-work on nekwo-ubuntu24 as nekwo in .worktrees/hm-w1104a-work**
 
 ### Filed on arrival — 2026-11-02 (launcher planning lane w1101h-p-archive: closed rows archived, not deleted)
 
@@ -1191,11 +1190,8 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Optional suggestion post-call work — 2026-11-03
 
-- **`RT-SUGGESTION-POST-CALL-CONTEXT-FENCE` — Skip the post-provider context read once suggestion policy or observation already invalidates publication** · `agent_runtime/console_suggestions/service.py::_work` · existing success and failure paths refresh native context before checking the current policy after a provider call; disabling suggestions during inference discards the result correctly but still pays an avoidable history read; refresh policy/epoch/observation first, retain the durable receipt and provider-slot lifetime, and test both provider success and failure after disable · READY 2026-11-03 · **TAKEN 2026-11-04 w1104a-work on nekwo-ubuntu24 as nekwo in .worktrees/hm-w1104a-work**
 
-- **`RT-WORK-BATCH-WRITER-CONTENTION` — Serialize Work writer sync/apply against batch manifest reads for the same owned checkout; preserve guarded replay and bounded refusal** · `agent_runtime/work_store/writer.py::sync` · `agent_runtime/work/store.py::writer_for` · `agent_runtime/batch/manifest.py::_read_roots` · Native Intelligence restart on c1519fad5d recovered the own-brain wave, then batch tick hit INDEX_LOCKED while other Work reads were active; workspace Add destinations and agent reads failed. Investigate the exact RPC refusal and shared writer admission before claiming native start/stop acceptance; do not remove a live Git lock or hide partial state · READY 2026-11-03 · **TAKEN 2026-11-04 w1104a-work on nekwo-ubuntu24 as nekwo in .worktrees/hm-w1104a-work**
 
-- **`RT-BATCH-PLANNED-STOP-SCOPE` — Supply exact planned task refs for a STARTED wave whose lane is still PLANNED, so shared Work can review the complete Stop scope before any claim** · `agent_runtime/batch/machine.py::LaneRecord.wire` · `agent_runtime/batch/manifest.py::_Fold.batch_line` · Native 2c26c0c271 with runtime c1519fad5d: persisted BATCH-5ZIVKS plan holds one four-part ref, status rows is empty until claim; Intelligence Stop confirmation therefore had no task list. Client now refuses empty reviewed scope; expose planned refs distinctly and consume only for PLANNED lanes, preserving claimed-row truth and exact project/note identity · READY 2026-11-03 · **TAKEN 2026-11-04 w1104a-work on nekwo-ubuntu24 as nekwo in .worktrees/hm-w1104a-work**
 
 ## Filed on arrival — 2026-11-04 (owner via Eternia: the workspace absorbs Projects; plan w1104-wsmerge)
 

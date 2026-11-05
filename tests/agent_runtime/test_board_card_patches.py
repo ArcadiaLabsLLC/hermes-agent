@@ -294,7 +294,7 @@ def test_a_rebalancing_move_emits_one_row_per_rewritten_card_and_promotes(
     store, board, first_id, second_id = seeded_board
     third = store.add_card(board_id=board.board_id, title="third")
     set_delta_patches(True)
-    import agent_runtime.board_order as board_order
+    from agent_runtime import board_order
 
     real = board_order.allocate_between
     calls = {"n": 0}

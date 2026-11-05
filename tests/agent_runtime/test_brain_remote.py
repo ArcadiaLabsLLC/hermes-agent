@@ -100,7 +100,7 @@ def test_a_tick_is_bounded_round_robin_and_writes_the_counts(tmp_path, monkeypat
     monkeypatch.setattr(brain_remote, "check_brain", lambda path, kind: 7)
     written: list[dict] = []
     monkeypatch.setattr(brain_remote, "write_brain_paths", lambda behind: written.append(dict(behind)) or True)
-    monkeypatch.setattr(brain_remote, "held_counts", lambda: {})
+    monkeypatch.setattr(brain_remote, "held_counts", dict)
     check = RemoteCheck(per_tick=2)
     first = check.tick()["checked"]
     second = check.tick()["checked"]
@@ -120,7 +120,7 @@ def test_a_brain_already_in_flight_is_skipped(tmp_path, monkeypatch):
     path = str(tmp_path / "b")
     monkeypatch.setattr(brain_remote, "read_brain_paths", lambda: _listing({path: "project"}))
     monkeypatch.setattr(brain_remote, "write_brain_paths", lambda behind: False)
-    monkeypatch.setattr(brain_remote, "held_counts", lambda: {})
+    monkeypatch.setattr(brain_remote, "held_counts", dict)
     check = RemoteCheck()
     check._inflight.add(path)
     assert check.tick()["checked"] == []
@@ -169,7 +169,7 @@ def test_pull_fast_forwards_a_clean_project_checkout_and_writes_its_count(tmp_pa
     brain = _behind_by_two(tmp_path, "app")
     written: list[dict] = []
     monkeypatch.setattr(brain_remote, "write_brain_paths", lambda behind: written.append(dict(behind)) or True)
-    monkeypatch.setattr(brain_remote, "held_counts", lambda: {})
+    monkeypatch.setattr(brain_remote, "held_counts", dict)
     answer = pull_checkout(brain)
     assert answer["pulled"] == 2 and answer["behind"] == 0 and answer["head"] == _head(brain)
     assert (brain / "Work_Brain" / "n3.md").is_file() and written == [{str(brain): 0}]

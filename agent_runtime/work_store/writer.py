@@ -21,16 +21,24 @@ is never touched. Steps, in the §5 table's numbering:
 9. the replay budget (8) exhausted → ``push_contended``, the tips seen in the detail.
 
 A local slot (the default brain) has no remote: steps 2 and 8 become a local tip and a CAS.
+
+Steps 0–3 (``sync``) and 0–9 (``apply``) run under ONE admission per hermes worktree
+(:meth:`Writer.admitted`, RT-WORK-BATCH-WRITER-CONTENTION): a cross-process lock keyed by the worktree,
+reentrant within a thread, waited for a bounded time and refused ``index_locked`` ("writer busy") past it.
+Two Writer instances of one worktree (the batch manifest's and a Work request's) used to run ``reset
+--hard`` at once, and the second met the first's live ``index.lock``.
 """
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import os
 import re
 import shutil
 import subprocess
-from collections.abc import Callable, Mapping
+import threading
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -63,6 +71,8 @@ _REPO_CONFIG = ("core.longpaths=true",)
 _INDEX_LOCKED = re.compile(r"Unable to create '([^']*index\.lock)': File exists")
 #: A lock older than this is stale: every git call the writer makes times out at 120 s, so none of ours holds it.
 STALE_LOCK_SECONDS = 300
+#: The worktrees this thread already holds the writer admission of (reentrancy across Writer instances).
+_ADMITTED = threading.local()
 
 
 @dataclass(frozen=True)
@@ -446,14 +456,44 @@ class Writer:
         tip = self._git(["rev-parse", "-q", "--verify", self.tip], repo=self.worktree)
         return head.returncode == 0 and tip.returncode == 0 and head.stdout.strip() == tip.stdout.strip()
 
+    @contextlib.contextmanager
+    def admitted(self) -> Iterator[Path]:
+        """Hold this worktree's writer admission (module docstring); yields the worktree.
+
+        Reentrant within a thread whatever Writer instance holds it; another thread or process waits the
+        lock budget, then the call refuses ``index_locked`` naming the worktree — never a removed live lock.
+        """
+
+        from ..locks import HarnessLockUnavailable, board_lock
+
+        self._clone()
+        key = str(self.worktree)
+        held: set[str] = getattr(_ADMITTED, "keys", None) or set()
+        _ADMITTED.keys = held
+        if key in held:
+            yield self.worktree
+            return
+        name = "work-writer-" + hashlib.sha256(key.encode("utf-8")).hexdigest()[:32]
+        with contextlib.ExitStack() as stack:
+            try:
+                stack.enter_context(board_lock(name))
+            except HarnessLockUnavailable as busy:
+                raise WorkRefused(Reason.INDEX_LOCKED, f"writer busy: {self.worktree.name}") from busy
+            held.add(key)
+            try:
+                yield self.worktree
+            finally:
+                held.discard(key)
+
     def sync(self, *, stale_ok: bool = False) -> Path:
         """Steps 0–3: the worktree at the tip; ``stale`` is set when a tolerated fetch failed."""
 
-        clone = self._clone()
-        self._ensure_worktree(clone)
-        self._fetch(clone, stale_ok=stale_ok)
-        self._reset()
-        return self.worktree
+        with self.admitted():
+            clone = self._clone()
+            self._ensure_worktree(clone)
+            self._fetch(clone, stale_ok=stale_ok)
+            self._reset()
+            return self.worktree
 
     # ── step 4: idempotency ──────────────────────────────────────────────
 
@@ -663,6 +703,10 @@ class Writer:
 
         self._validate(op)
         self._qa_fence(self._clone())
+        with self.admitted():
+            return self._apply(op)
+
+    def _apply(self, op: RowOp) -> Receipt:
         tips: list[str] = []
         for replays in range(self._budget):
             self.sync()

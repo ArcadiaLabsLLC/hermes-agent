@@ -18,7 +18,7 @@ import pytest
 from agent.session_source import is_attended
 from agent_runtime.persona_runtime import PERSONA_CHAT_SCRATCH_SOURCE
 from agent_runtime.turn_attendance import attended_for_requester, attended_override, attended_turn
-from tests.hermes_cli.test_mission_chat_turn_phases import isolate_agent_runtime_root  # noqa: F401  (fixture)
+from tests.hermes_cli.test_mission_chat_turn_phases import isolate_agent_runtime_root
 
 
 @pytest.mark.parametrize("requested_by", ["launcher", "operator", "cli", "dev_0a1b2c3d4e5f6071"])

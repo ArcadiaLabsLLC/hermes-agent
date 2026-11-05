@@ -5,6 +5,9 @@ Killing mutation (plan §6 B2): ``BatchDispatcher._run`` stops appending the lan
 ``test_rebuild_from_manifest_and_rows`` red (the rebuilt lane reads ``CLAIMED`` and a second dispatcher
 would start it again).
 
+RT-BATCH-PLANNED-STOP-SCOPE: ``LaneRecord.wire`` answering ``planned_rows`` from ``self.rows`` →
+``test_a_started_lane_still_planned_answers_its_planned_refs`` red (empty scope before the claim).
+
 RT-BATCH-LANE-WORKTREES-AND-USAGE: drop ``worktrees`` from ``manifest._LANE_KEYS`` →
 ``test_lane_worktrees_and_times_fold`` red (the RUNNING line's worktrees never reach the record).
 """
@@ -179,3 +182,21 @@ def test_lane_worktrees_and_times_fold():
     plain = dispatcher(FakeSource([qrow("RT-B", assignee="inst-a")]), roster=ROSTER)
     plain_batch = plain.start(WS, plain.plan(WS).id)
     assert plain.load(WS, plain_batch.id).lanes[0].worktrees == ()
+
+
+def test_a_started_lane_still_planned_answers_its_planned_refs():
+    """RT-BATCH-PLANNED-STOP-SCOPE: a STARTED wave whose lane has no CLAIMED line yet answers the plan's exact
+    four-part refs as ``planned_rows`` (``rows`` stays the claim's truth, empty); once claimed, ``planned_rows``
+    is empty and ``rows`` carries the claim."""
+    source, manifests = FakeSource([qrow("RT-A", assignee="inst-a")]), FakeManifests()
+    d = dispatcher(source, manifests=manifests, roster=ROSTER)
+    batch = d.start(WS, d.plan(WS).id)
+    text = manifests.notes[WS][batch.id]
+    started = "".join(line + "\n" for line in text.split("\n") if line and " CLAIMED " not in line
+                      and " RUNNING " not in line)
+    planned = fold(started).lanes[0]
+    assert planned.state is LaneState.PLANNED and planned.rows == ()
+    wire = planned.wire()
+    assert wire["rows"] == [] and wire["planned_rows"] == [ref.items() for ref in planned.lane.rows] != []
+    claimed = d.load(WS, batch.id).lanes[0].wire()
+    assert claimed["planned_rows"] == [] and claimed["rows"] == wire["planned_rows"]

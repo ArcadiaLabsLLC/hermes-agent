@@ -402,3 +402,36 @@ def test_a_close_creates_the_month_file_appends_the_next_and_drops_the_live_line
         ("RT-A", "DONE 2026-11-03 3f9c2a1", "shipped", ()), ("RT-B", "REFUTED 2026-11-04 here", None, ())]
     assert parse_note(note_text(repo.other), slot="hermes", note=NOTE) == []
     assert "result: shipped" in git("log", "-1", "--format=%B", first.commit, cwd=repo.origin)
+
+
+def test_two_writers_of_one_worktree_are_admitted_one_at_a_time(repo, monkeypatch):
+    """RT-WORK-BATCH-WRITER-CONTENTION: a second Writer of the same worktree (the batch manifest's beside a Work
+    request's) waits for the first's admission and, past the bound, refuses ``index_locked`` "writer busy" — it
+    never runs ``reset --hard`` beside a live one. Killing mutation: ``sync`` without ``with self.admitted()``
+    — the busy sync lands while the first writer holds the worktree."""
+    import threading
+
+    from agent_runtime import locks
+
+    monkeypatch.setattr(locks, "_lock_timeout_seconds", lambda _value: 0.2)
+    first, second = Writer(repo.board, machine_id="m1"), Writer(repo.board, machine_id="m1")
+    first.sync()
+    seen: list[object] = []
+
+    def other_thread() -> None:
+        try:
+            second.sync()
+            seen.append("synced")
+        except WorkRefused as refused:
+            seen.append(refused)
+
+    with first.admitted():
+        worker = threading.Thread(target=other_thread)
+        worker.start()
+        worker.join(10)
+        # the same thread stays admitted: another instance of the worktree is reentrant here
+        Writer(repo.board, machine_id="m1").apply(op(Op.CLAIM))
+    assert len(seen) == 1 and isinstance(seen[0], WorkRefused)
+    assert seen[0].reason is Reason.INDEX_LOCKED and seen[0].detail.startswith("writer busy: ")
+    assert second.sync() == second.worktree  # released: the next sync is admitted
+    assert taken_count(note_text(repo.other)) == 1

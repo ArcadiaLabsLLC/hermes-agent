@@ -662,7 +662,7 @@ def _close_line(line: str, *, who: str, date: str, payload: dict) -> str:
         raise WorkRefused(Reason.INVALID, "payload.outcome is DONE | REFUTED | CLOSED")
     when = str(payload.get("date") or date)
     outcome = (Outcome(OutcomeKind.CLOSED, when, words=str(payload.get("words") or "").strip())
-               if kind == "CLOSED" else Outcome(OutcomeKind(kind), when, commit=str(payload.get("commit") or "")))
+               if kind == OutcomeKind.CLOSED.name else Outcome(OutcomeKind(kind), when, commit=str(payload.get("commit") or "")))
     if parse_outcome(outcome.render()) != outcome:
         raise WorkRefused(Reason.INVALID, f"not an outcome: {outcome.render()!r}")
     segments = split_segments(_release(line, who=who, date=date, payload={}))

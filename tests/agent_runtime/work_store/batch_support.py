@@ -91,7 +91,7 @@ def dispatcher(source: FakeSource, *, manifests: FakeManifests | None = None, ex
         slot_gates=lambda _ws: dict(SLOT_GATES if slot_gates is None else slot_gates),
         budget_for=lambda _ws: budget or Budget(), box_idle=lambda: box_idle, lander=lander,
         workspaces=lambda: [WS], now=lambda: datetime(2026, 10, 18, 12, tzinfo=UTC),
-        turn_records=turn_records or (lambda: []), price=price or (lambda _usage: None))
+        turn_records=turn_records or (list), price=price or (lambda _usage: None))
     executor.on_settle(built.settled)
     return built
 
