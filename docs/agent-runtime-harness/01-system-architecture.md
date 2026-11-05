@@ -284,7 +284,7 @@ Realms own what publishes: `skill_publish_mode`
 (`all` | `selected`) and `agent_publish_mode` (`workspace` | `selected`), with
 personas required by a roster or an Office placement pinned regardless, so a
 pulled workspace can never point at an absent persona definition. Stores:
-`WorkspaceStore` (`store/workspaces.py:36`), `RealmStore` (`store/realms.py:42`); active pointers are
+`WorkspaceStore` (`store/workspaces.py:45`), `RealmStore` (`store/realms.py:42`); active pointers are
 single files (`paths.active_workspace_path()` / `active_realm_path()`).
 Server-bound realms authorize every sync action against the Eternia backend and
 **fail closed** (`realm_membership.py:1-12`) — which half of which verb that
