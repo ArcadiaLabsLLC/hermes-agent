@@ -36,7 +36,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-11-04 (launcher lane w1104a-mc-board: `MC-BOARD-DRAG-USE-WORK-MOVE`)
 
-- **`RT-WORK-MOVE-LINE-GUARD` — give `runtime.work.move` a guard Eternia's Board can hold: the Board reads rows off the user's checkout (`MC-BRAINS-ONE-READER`, no hermes call on the read), so it never holds the `revision` fingerprint `project()` hashes (status, taken, `updated_at`, `in_conversation` …) and cannot send one; accept `line` (the row's raw line as the board drew it) and refuse `row_changed` carrying the current task when the store's row line differs — a checkout behind hermes' worktree is exactly the stale view the guard is for** · `agent_runtime/work/store.py::move` · launcher `lib/features/mission_control/work_queue/widgets/work_queue_board_moves.dart::runWorkQueueBoardMove` · found 2026-11-04 (launcher w1104a-mc-board) · READY 2026-11-04 · **TAKEN 2026-11-05 w1105b-work on nekwo-ubuntu24 as nekwo in .worktrees/hm-w1104a-work**
 
 ### Filed on arrival — 2026-11-04 (launcher lane w1104a-mc-runtime: `MC-REALMLESS-WORKSPACE-UNREACHABLE`)
 
