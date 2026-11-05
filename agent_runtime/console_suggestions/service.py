@@ -337,10 +337,7 @@ class ConsoleSuggestions:
             # releases an outstanding provider slot early or closes a shared client.
             with suggestion_home(self.home):
                 generated = self.generator(source["messages"])
-                fresh = self.context_reader(subject, policy["max_context_messages"])
-            current = self.settings_read()
-            valid = (current["enabled"] and current["policy_epoch"] == policy["policy_epoch"]
-                     and fresh.get("source_revision") == source["source_revision"] and self._observed(subject))
+            valid = self._source_current(subject, policy, source)
             self.store.finish(attempt, text=generated.get("text") if valid else None,
                               usage={"provider": generated.get("provider"), "model": generated.get("model"),
                                      **generated.get("usage", {})})
@@ -352,10 +349,7 @@ class ConsoleSuggestions:
             if owned:
                 try:
                     self.store.finish(attempt, reason=reason)
-                    self.settings_read()
-                    with suggestion_home(self.home):
-                        fresh = self.context_reader(subject, policy["max_context_messages"])
-                    if fresh.get("source_revision") == source["source_revision"]:
+                    if self._source_current(subject, policy, source):
                         self._publish(subject, {**base, **self.store.read(attempt)})
                 except Exception:  # health: allow BLE001 -- failed receipt storage must not escape the optional worker or expose source text
                     logger.info("console_suggestion_receipt_unavailable")
@@ -364,6 +358,17 @@ class ConsoleSuggestions:
                 self.running.discard(key)
                 self._trim_unobserved()
                 self.condition.notify_all()
+
+    def _source_current(self, subject, policy, source):
+        """After a provider call: still enabled, same policy epoch, still observed — checked FIRST — and only
+        then the native context re-read to see the source unchanged (RT-SUGGESTION-POST-CALL-CONTEXT-FENCE:
+        a publication the policy or observation already invalidates pays no history read)."""
+        current = self.settings_read()
+        if not (current["enabled"] and current["policy_epoch"] == policy["policy_epoch"] and self._observed(subject)):
+            return False
+        with suggestion_home(self.home):
+            fresh = self.context_reader(subject, policy["max_context_messages"])
+        return fresh.get("source_revision") == source["source_revision"]
 
     def _observed(self, subject):
         with self.condition:

@@ -336,3 +336,27 @@ def test_manual_one_click_generates_and_repeated_request_reuses_the_receipt(serv
     assert svc.request(caller(), subject(), params)["accepted"]
     wait_until(lambda: not svc.running and not svc.pending, timeout=5)
     assert len(calls) == 1 and svc.read(subject())["text"] == "Next step?"
+
+
+@pytest.mark.parametrize("fails", [False, True], ids=["provider-success", "provider-failure"])
+def test_disable_during_call_skips_the_post_call_context_read(service, fails):
+    """RT-SUGGESTION-POST-CALL-CONTEXT-FENCE: once the policy is off after the provider call, the result is
+    discarded WITHOUT re-reading native history; the durable receipt is still finished. Killing mutation:
+    ``_source_current`` reading the context before its policy check — two reads, not one."""
+    svc, source = service
+    enable(svc)
+    observed(svc, subject())
+    reads = []
+    svc.context_reader = lambda *a: reads.append(a) or deepcopy(source)
+
+    def generate(messages):
+        svc.settings_write({"expected_revision": svc.settings_read()["settings_revision"], "enabled": False})
+        if fails:
+            raise RuntimeError("provider down")
+        return {"text": "Should never appear", "usage": {}}
+
+    svc.generator = generate
+    svc._work(subject())
+    assert len(reads) == 1, "a disabled publication paid a post-call history read"
+    with svc.store.transaction() as db:
+        assert db.execute("SELECT state FROM attempts").fetchone()[0] in ("none", "unavailable")
