@@ -655,6 +655,5 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Baseline gates observed during suggestion modes — 2026-11-03
 
-- **`FH-RUFF-BASELINE-20261103` — Clear the fourteen existing fork-line Ruff findings exposed by the current lint census** · `scripts/check` · `agent_runtime/provider_retry_wait.py` · `tests/agent_runtime/test_brain_remote.py` · census on main e689847b48 sources: RUF022/RUF046 in provider_retry_wait; PLR0402/PIE807/UP017/RUF059/RUF100 in board_card_patches, brain_paths, brain_remote, home_env_freshness, provider_retry_wait, skill_freshness, slot_context_cache_prefix, subagent_operator_ownership, turn_attendance and work_store/batch_support; suggestion files are clean after removing one new unused noqa · READY 2026-11-03 · **TAKEN 2026-11-04 w1104a-work on nekwo-ubuntu24 as nekwo in .worktrees/hm-w1104a-work**
 
 - **`FH-WORK-V1-CLAIM-GATES-WINDOWS-BUDGET` — Measure the cold Windows prepush queue/text gate batch and remove startup overhead without raising the budget** · `scripts/prepush.sh` · work-v1-intelligence claim 54f3445bd9: gates 14.3s against 10s budget, doc-cite 1.2s, freshly prepared Python 3.14 test environment; no other test process launched by this lane · READY 2026-11-03
