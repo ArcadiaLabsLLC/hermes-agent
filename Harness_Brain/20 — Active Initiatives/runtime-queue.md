@@ -42,7 +42,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-11-03 (lane w1103a-h1: RT-WORK-WORKSPACE-BRAIN-KEPT)
 
-- **`RT-WORK-ADOPTED-BRAIN-BESIDE-LOCAL` — a second machine that made its own local workspace brain before the promoted `brain` slot's declaration synced in now lists TWO `brain` boards (the adopted declared slot and the live local binding, both with no Project): the retired move used to fold the local rows into the adopted brain, now `board.pick` answers the first by name and the local board's rows are listed but unreachable by slot; decide: fold the local rows into the adopted brain once at adoption (one commit, IDs kept), or key the local board apart** · `agent_runtime/work_store/default_brain.py::_adopt_declared_brain` · `agent_runtime/work_store/board.py::pick` · evidence `tests/agent_runtime/work_store/test_default_brain.py::test_second_machine_with_a_local_brain_keeps_its_rows` · READY 2026-11-03 · **TAKEN 2026-11-04 w1104a-work on nekwo-ubuntu24 as nekwo in .worktrees/hm-w1104a-work**
 
 ### Filed on arrival — 2026-11-02 (launcher planning lane w1101h-p-archive: closed rows archived, not deleted)
 
