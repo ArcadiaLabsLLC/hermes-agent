@@ -67,7 +67,7 @@ def test_an_unchanged_file_is_not_re_read(env_file, monkeypatch):
     """Mutation: drop the signature early return -> load_env runs on the second look, red."""
     refresh_home_env()
     calls = []
-    import hermes_cli.config as config
+    from hermes_cli import config
 
     real = config.load_env
     monkeypatch.setattr(config, "load_env", lambda: calls.append(1) or real())
