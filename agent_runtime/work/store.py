@@ -24,7 +24,7 @@ from agent_runtime.work_store.default_brain import (
     QUEUE_DIR, QUEUE_NOTE, QUEUE_TEMPLATE, TODO_TEMPLATE, this_machine,
 )
 from agent_runtime.work_store.grammar import (
-    ASSIGNEE, GROUP_SLUG, STATUS, Assignee, Op, Row, RowRef, find, mint_id, parse_note,
+    ASSIGNEE, GROUP_SLUG, STATUS, Assignee, Op, Row, RowRef, Status, find, mint_id, parse_note,
 )
 from agent_runtime.work_store.writer import OPERATOR, Writer, RowOp, checkout_token, work_worktree_for
 
@@ -542,7 +542,7 @@ def set_status(scope, params, actor, *, context=None):
 
 
 #: ``runtime.work.move``'s columns: the status words a card can be dropped on (a TAKEN column is a claim).
-MOVE_COLUMNS = ("READY", "BLOCKED", "DEFERRED", "NEEDS PLAN")
+MOVE_COLUMNS = tuple(status.value for status in Status)
 
 
 def move(scope, params, actor, *, context=None):
@@ -560,7 +560,7 @@ def move(scope, params, actor, *, context=None):
     reason = params.get("reason")
     reason = None if reason is None else text(reason, maximum=900).strip()
     segment = f"{to} {_now().date().isoformat()}" + (f": {reason}" if reason else "")
-    if to == "BLOCKED":
+    if to == Status.BLOCKED:
         from agent_runtime.work_store.grammar import blocked_reason
 
         if not reason or blocked_reason(reason) is None:
