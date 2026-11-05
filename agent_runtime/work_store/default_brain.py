@@ -24,7 +24,9 @@ credentialed ``slots.declare``. ``ensure_default_brain`` promotes on its own whe
 connected; a refusal backs the auto path off for ``PROMOTE_RETRY_S`` (the manual door,
 ``runtime.work.create_brain`` with ``promote: true``, ignores it). A SECOND machine adopts the declared
 slot instead of creating a brain: it clones the remote (``adopt_remote`` into an empty repo), binds
-it.
+it. A machine that had already made its own LOCAL brain folds that brain's rows into the adopted one once,
+in one commit with the IDs kept, and its binding then records the remote as declared
+(``_fold_local_brain``, RT-WORK-ADOPTED-BRAIN-BESIDE-LOCAL).
 Pinned by ``tests/agent_runtime/work_store/test_default_brain.py``.
 """
 
@@ -56,6 +58,7 @@ from .board import (
     DEFAULT_BRAIN_SLOT,
     Board,
     binding_path,
+    board_rows,
     declaration_state,
     declared_boards,
     default_board,
@@ -350,8 +353,63 @@ def _adopt_declared_brain(workspace_id: str, root: Path, issued_at: str) -> Boar
         return None
     _bind_declared_brain(workspace_id, str(target), issued_at)
     receipts.emit("work.brain_adopted", workspace_id=workspace_id, url=url, path=target.name)
+    return _fold_local_brain(workspace_id, issued_at) or _declared_brain_board(workspace_id, url)
+
+
+def _declared_brain_board(workspace_id: str, url: str) -> Board | None:
+    """The declared ``brain`` board over ``url``, bound here with its brain (None: not here)."""
+
     return next((board for board in declared_boards(workspace_id)
-                 if board.slot == DEFAULT_BRAIN_SLOT and has_brain_here(board)), None)
+                 if board.slot == DEFAULT_BRAIN_SLOT and board.clone_url == url and has_brain_here(board)), None)
+
+
+def _fold_local_brain(workspace_id: str, issued_at: str) -> Board | None:
+    """Fold a LOCAL-ONLY workspace brain's rows into the adopted declared ``brain`` (RT-WORK-ADOPTED-BRAIN-BESIDE-LOCAL).
+
+    A machine that made its own local brain before the promoted declaration synced in would otherwise list two
+    ``brain`` boards, the local one's rows unreachable by slot. Once a declared ``brain`` is bound here, every
+    local row is appended to the adopted brain's queue note in ONE writer commit, IDs and lines kept, and the
+    binding then records the remote as declared (as on the promoting machine), so the local board is no
+    longer listed. A refusal (an ID already in the adopted brain, a grammar defect, a push failure) is a
+    receipt, backs the fold off for ``PROMOTE_RETRY_S`` and leaves both boards as they were: no row is dropped.
+    None when there is nothing to fold.
+    """
+
+    from .grammar import Op, RowRef
+    from .writer import RowOp, Writer
+
+    record = read_binding(workspace_id)
+    local = default_board(workspace_id)
+    url = (_declared_brain(workspace_id).get("repo") or {}).get("clone_url")
+    if record is None or record.get("remote_url") or local is None or not url:
+        return None
+    refused_at = stamp_epoch((record.get("fold_refused") or {}).get("at"))
+    if refused_at is not None and time.time() - refused_at < PROMOTE_RETRY_S:
+        return None
+    adopted = _declared_brain_board(workspace_id, url)
+    if adopted is None:
+        return None
+    lines = [row.raw for row in board_rows(local)]
+    commit = None
+    if lines:
+        first = next((row.ref.id for row in board_rows(local) if row.ref.id), None)
+        machine = this_machine()
+        request = re.sub(r"[^A-Za-z0-9_.:-]+", "-", f"brain-fold.{paths.safe_path_token(workspace_id)}.{machine}")[:200]
+        ref = RowRef(DEFAULT_BRAIN_SLOT, f"{QUEUE_DIR}/{QUEUE_NOTE}", str(first or ""), adopted.project_id)
+        try:
+            receipt = Writer(adopted, machine_id=machine).apply(
+                RowOp(ref, Op.APPEND, "harness", request, {"rows": lines, "files": {}}))
+        except WorkRefused as refused:
+            _write_binding(workspace_id, {**record, "fold_refused": {"reason": refused.reason.value, "at": issued_at}})
+            receipts.emit("work.brain_fold_refused", workspace_id=workspace_id, reason=refused.reason.value,
+                          detail=refused.detail)
+            return None
+        commit = receipt.commit
+    _write_binding(workspace_id, {**record, "remote_url": url, "declaration": {"state": "declared"},
+                                  "folded_into": url, "folded_at": issued_at, "fold_commit": commit,
+                                  "fold_refused": None})
+    receipts.emit("work.brain_folded", workspace_id=workspace_id, url=url, rows=len(lines), commit=commit)
+    return _declared_brain_board(workspace_id, url)
 
 
 def remote_state(workspace_id: str) -> dict[str, Any] | None:
@@ -392,7 +450,7 @@ def ensure_default_brain(workspace_id: str, *, issued_at: str) -> Board:
     record = read_binding(workspace_id)
     if record is not None:
         _settle_pending(workspace_id, record, issued_at)
-    adopted = _adopt_declared_brain(workspace_id, root, issued_at)
+    adopted = _adopt_declared_brain(workspace_id, root, issued_at) or _fold_local_brain(workspace_id, issued_at)
     if adopted is not None:
         return adopted
     record = read_binding(workspace_id)

@@ -368,9 +368,11 @@ def test_second_machine_adopts_the_declared_remote_instead_of_creating_a_brain(w
     assert "WORK-ONEAAA" in board.ids_in_brain(made)
 
 
-def test_second_machine_with_a_local_brain_keeps_its_rows(workspace, host, tmp_path):
-    """The move is retired (RT-WORK-WORKSPACE-BRAIN-KEPT): the local brain's row is kept and listed, never
-    lost; the two ``brain`` boards' clash is ``RT-WORK-ADOPTED-BRAIN-BESIDE-LOCAL``."""
+def test_second_machine_with_a_local_brain_folds_its_rows_into_the_adopted_brain(workspace, host, tmp_path):
+    """RT-WORK-ADOPTED-BRAIN-BESIDE-LOCAL: a machine that made its own local brain before the declaration synced
+    in folds the local rows into the adopted ``brain`` once, in ONE commit, IDs kept; one ``brain`` board is
+    listed after. Killing mutation: ``_adopt_declared_brain`` returning the declared board without
+    ``_fold_local_brain`` — two ``brain`` boards, ``WORK-TWOAAA`` never reaches the remote."""
     from agent_runtime.work import store as work_store
 
     default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
@@ -383,14 +385,43 @@ def test_second_machine_with_a_local_brain_keeps_its_rows(workspace, host, tmp_p
     local = default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
     assert local.is_default and local.local
     _commit_row(local.checkout, "WORK-TWOAAA", push=False)
+    _commit_row(local.checkout, "WORK-TWOBBB", push=False)
     slots_file.write_text(declared, encoding="utf-8")
+    before = len(_git(host.bare(name), "rev-list", "main").split())
     made = default_brain.ensure_default_brain(workspace, issued_at=LATER)
-    assert made.slot == "brain" and made.checkout == paths.default_brain_dir(workspace).with_name("brain-remote")
+    assert made.slot == "brain" and not made.is_default
+    assert made.checkout == paths.default_brain_dir(workspace).with_name("brain-remote")
+    remote = _git(host.bare(name), "show", f"main:{QUEUE_NOTE_PATH}")
+    assert "- **`WORK-TWOAAA` — carried** · READY 2026-10-19" in remote and "`WORK-TWOBBB`" in remote
+    assert len(_git(host.bare(name), "rev-list", "main").split()) == before + 1  # one commit
+    assert [b.is_default for b in board.boards(workspace)] == [False]
+    record = _record(workspace)
+    assert record["folded_into"] == record["remote_url"] and record["declaration"] == {"state": "declared"}
     work_store.synced(workspace)
-    assert "retired_into" not in _record(workspace)
-    assert "WORK-TWOAAA" not in _git(host.bare(name), "show", f"main:{QUEUE_NOTE_PATH}")
+    again = default_brain.ensure_default_brain(workspace, issued_at=LATER)
+    assert again.checkout == made.checkout and len(board.boards(workspace)) == 1
+    assert len(_git(host.bare(name), "rev-list", "main").split()) == before + 1  # folded once
+
+
+def test_a_fold_that_clashes_keeps_both_boards_and_backs_off(workspace, host, tmp_path):
+    """An ID already in the adopted brain refuses the fold whole: both boards stay listed, no row lost."""
+
+    made = default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
+    name = default_brain.brain_repo_name(workspace)
+    _commit_row(made.checkout, "WORK-SAMEAA", push=True)
+    _become_a_second_machine(workspace, tmp_path)
+    slots_file = paths.workspace_slots_path(workspace)
+    declared = slots_file.read_text(encoding="utf-8")
+    slots_file.unlink()
+    host.connected = False
+    local = default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
+    _commit_row(local.checkout, "WORK-SAMEAA", push=False)
+    slots_file.write_text(declared, encoding="utf-8")
+    default_brain.ensure_default_brain(workspace, issued_at=LATER)
     assert [b.is_default for b in board.boards(workspace)] == [False, True]
-    assert "WORK-TWOAAA" in board.ids_in_brain(board.default_board(workspace))
+    assert _record(workspace)["fold_refused"]["reason"] == "id_exists"
+    assert "WORK-SAMEAA" in board.ids_in_brain(board.default_board(workspace))
+    assert _git(host.bare(name), "show", f"main:{QUEUE_NOTE_PATH}").count("`WORK-SAMEAA`") == 1
 
 
 def test_the_writer_pushes_to_the_promoted_brain(workspace, host):
