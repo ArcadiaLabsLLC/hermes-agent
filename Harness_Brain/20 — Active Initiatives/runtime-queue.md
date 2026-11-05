@@ -1190,7 +1190,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Optional suggestion post-call work — 2026-11-03
 
-- **`RT-SUGGESTION-POST-CALL-CONTEXT-FENCE` — Skip the post-provider context read once suggestion policy or observation already invalidates publication** · `agent_runtime/console_suggestions/service.py::_work` · existing success and failure paths refresh native context before checking the current policy after a provider call; disabling suggestions during inference discards the result correctly but still pays an avoidable history read; refresh policy/epoch/observation first, retain the durable receipt and provider-slot lifetime, and test both provider success and failure after disable · READY 2026-11-03 · **TAKEN 2026-11-04 w1104a-work on nekwo-ubuntu24 as nekwo in .worktrees/hm-w1104a-work**
 
 
 
