@@ -647,7 +647,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-11-03 (lane w1103a-h1)
 
-- **`FH-STREAM-CONTRACT-FIXTURE-COLLECT-TIMEOUT` — `tests/agent_runtime/test_stream_contract_fixture.py` times out before collection under `scripts/run_tests.sh` (its bounded 1-worker retry too, 44 s) at load ~70–100 on the Linux box: collection reads the tree through `tests/agent_runtime/_tree_index.py::text` for every file (`stream_frames` grep); alone with a 600 s bound it passes 25 in 19.8 s — make the walk one indexed read (or a memo like the line-endings gate's) so a loaded box is not a red** · `tests/agent_runtime/test_stream_contract_fixture.py` · `tests/agent_runtime/_tree_index.py::text` · found 2026-11-03 by lane w1103a-h1 running the core cache importers · READY 2026-11-03 · **TAKEN 2026-11-04 w1104a-work on nekwo-ubuntu24 as nekwo in .worktrees/hm-w1104a-work**
 
 ## Windows cold EOL census — 2026-11-03
 
