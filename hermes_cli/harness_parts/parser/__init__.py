@@ -56,7 +56,7 @@ from .machine import (
     add_worktree,
 )
 from .persona import add_agent, add_mission_chat, add_persona, add_persona_instance, add_query
-from .scope import add_project, add_realm, add_workspace
+from .scope import add_realm, add_workspace
 from .execution_identity import add_execution_identity
 from .lazy import LazyHandlerParser
 from .surfaces import (
@@ -81,7 +81,6 @@ PARSER_FAMILIES: Final[tuple[Callable[[object], None], ...]] = (
     add_roots,
     add_gateway,
     add_workspace,
-    add_project,
     add_realm,
     add_flow,
     add_checkpoint,

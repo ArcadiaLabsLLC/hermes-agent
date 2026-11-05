@@ -260,8 +260,6 @@ def manifest() -> dict[str, Any]:
     WORK_READ_METHOD_PARAMS: dict[str, tuple[str, ...]] = {}
     if shipped("agent_runtime.work"):
         from ..work.model import READ_METHOD_PARAMS as WORK_READ_METHOD_PARAMS
-    from .workspace import PROJECT_CONNECTION_METHOD, PROJECT_CONNECTION_PARAMS
-    from .project import PROJECT_METHOD_PARAMS
     from .workspace_slots import WORKSPACE_CONTENT_METHOD_PARAMS
 
     return {
@@ -282,9 +280,9 @@ def manifest() -> dict[str, Any]:
                 **BOARD_METHOD_PARAMS,
                 **SUBAGENT_METHOD_PARAMS,
                 **WORK_READ_METHOD_PARAMS,
-                PROJECT_CONNECTION_METHOD: PROJECT_CONNECTION_PARAMS,
-                **PROJECT_METHOD_PARAMS,
                 **WORKSPACE_CONTENT_METHOD_PARAMS,
+                # Listed with the workspace content contract the launcher mirrors.
+                "runtime.persona.instance.recall.set": ("persona_instance_id", "enabled", "issued_at"),
                 MIGRATE_METHOD: MIGRATE_PARAMS,
             }.items())
         },

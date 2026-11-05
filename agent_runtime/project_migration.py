@@ -58,7 +58,8 @@ def migrate_namespace() -> dict[str, Any]:
     """Fold every Project of this namespace into its home workspace; the receipt (empty on a no-op)."""
 
     workspaces = _workspace_records()
-    projects = _project_ids(workspaces)
+    fills = _project_fills()
+    projects = _project_ids(workspaces, fills)
     stamped = _stamped_documents()
     retired_keys = any(raw.get("project_ids") or raw.get("project_assignment_revision")
                        for raw in workspaces.values())
@@ -69,11 +70,11 @@ def migrate_namespace() -> dict[str, Any]:
     for project_id in sorted(projects, key=lambda pid: (not pid.startswith(PROJECT_PREFIX), pid)):
         home, created = _home(project_id, workspaces)
         if home is None:
-            _forget(project_id)
+            _forget(fills, project_id)
             dropped.append(project_id)
             continue
         merged.append({"project_id": project_id, "workspace_id": home, "created": created,
-                       **_merge_one(project_id, home, workspaces)})
+                       **_merge_one(fills, project_id, home, workspaces)})
     for workspace_id in stamped:
         document = _load_document(workspace_id)
         if document.pop("migrated_to", None) is not None:
@@ -116,9 +117,17 @@ def _workspace_records() -> dict[str, dict[str, Any]]:
     return out
 
 
-def _project_ids(workspaces: dict[str, dict[str, Any]]) -> list[str]:
+def _project_ids(workspaces: dict[str, dict[str, Any]], fills: dict[str, dict[str, str]]) -> list[str]:
+    """Every Project id there is a trace of: a record, a workspace's reference, a path or env fill."""
+
+    from .workspace_slot_env import _read
+
     folder = paths.store_root() / "projects"
     found = {path.stem for path in folder.glob("*.json")} if folder.is_dir() else set()
+    found.update(fills)
+    env = _read().get("projects")
+    if isinstance(env, dict):
+        found.update(str(pid) for pid in env)
     for raw in workspaces.values():
         found.update(pid for pid in raw.get("project_ids") or [] if isinstance(pid, str))
     return sorted(pid for pid in found if pid and paths.safe_path_token(pid) == pid)
@@ -191,13 +200,14 @@ def _write_document(workspace_id: str, document: dict[str, Any]) -> None:
     write_document(workspace_id, document)
 
 
-def _merge_one(project_id: str, home: str, workspaces: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def _merge_one(fills: dict[str, dict[str, str]], project_id: str, home: str,
+               workspaces: dict[str, dict[str, Any]]) -> dict[str, Any]:
     record = _project_record(project_id)
     rename = _merge_content(project_id, home, record) if record is not None else {}
     holders = sorted(ws for ws, raw in workspaces.items() if project_id in (raw.get("project_ids") or []))
     # The Work worktrees first: pruning them reads the Project's fill, which the move below takes away.
-    worktrees = _remove_work_worktrees(project_id, sorted({home, *holders}), record)
-    fills = _move_path_fills(project_id, home, rename)
+    worktrees = _remove_work_worktrees(fills.get(project_id) or {}, project_id, sorted({home, *holders}), record)
+    moved_fills = _move_path_fills(fills, project_id, home, rename)
     env_fills = _move_env_fills(project_id, home, rename)
     worktree_records = _move_worktree_records(project_id, home, rename)
     chats = _move_chats(project_id, home)
@@ -206,7 +216,7 @@ def _merge_one(project_id: str, home: str, workspaces: dict[str, dict[str, Any]]
     instances = rekey_project_assignments(project_id, home, rename)
     refs = _rekey_row_refs(project_id, rename)
     return {"renamed": {old: new for old, new in sorted(rename.items()) if old != new},
-            "slots": len(rename), "fills": fills, "env_fills": env_fills, "worktree_records": worktree_records,
+            "slots": len(rename), "fills": moved_fills, "env_fills": env_fills, "worktree_records": worktree_records,
             "chats": chats, "worktrees_removed": worktrees, "instances": len(instances), "row_refs": refs}
 
 
@@ -277,21 +287,36 @@ def _merge_reports(document: dict[str, Any], record: dict[str, Any], rename: dic
 # ── the Project-keyed stores ─────────────────────────────────────────────────
 
 
-def _move_path_fills(project_id: str, home: str | None, rename: dict[str, str]) -> int:
-    """``project_roots[project]`` → ``slot_folders[home]`` (the Project's fill wins); the slots moved."""
+def _project_fills() -> dict[str, dict[str, str]]:
+    """The Project edition's ``project_roots`` (``{project: {slot: path}}``), read raw from the registry file."""
+
+    from .machine_roots import machine_roots_registry_paths
+
+    raw = _read_json(machine_roots_registry_paths()[0])
+    held = raw.get("project_roots") if isinstance(raw, dict) else None
+    return {str(pid): {str(k): str(v) for k, v in slots.items()} for pid, slots in (held or {}).items()
+            if isinstance(slots, dict)} if isinstance(held, dict) else {}
+
+
+def _move_path_fills(fills: dict[str, dict[str, str]], project_id: str, home: str | None,
+                     rename: dict[str, str]) -> int:
+    """``project_roots[project]`` → ``slot_folders[home]`` (the Project's fill wins); the slots moved.
+
+    The registry is rewritten through its one write site, which writes no ``project_roots``: the first
+    move drops every Project's fill from the file, so ``fills`` is the snapshot read before any move.
+    """
 
     from .machine_roots import load_machine_roots, write_machine_roots
 
-    current = load_machine_roots(refresh=True)
-    if project_id not in current.project_roots:
+    if project_id not in fills:
         return 0
-    moving = dict(current.project_roots.get(project_id) or {})
+    moving = fills.pop(project_id) or {}
+    current = load_machine_roots(refresh=True)
     scoped = {ws: dict(slots) for ws, slots in current.workspace_roots.items()}
     moved = [slot for slot in moving if slot in rename and home]
     for slot in moved:
         scoped.setdefault(str(home), {})[rename[slot]] = moving[slot]
-    projects = {pid: dict(slots) for pid, slots in current.project_roots.items() if pid != project_id}
-    write_machine_roots(dict(current.roots), workspace_roots=scoped, project_roots=projects, dry_run=False)
+    write_machine_roots(dict(current.roots), workspace_roots=scoped, dry_run=False)
     return len(moved)
 
 
@@ -379,13 +404,11 @@ def _move_chats(project_id: str, home: str | None) -> dict[str, Any]:
     return {"store": moved_store, "cursors": moved_cursors}
 
 
-def _remove_work_worktrees(project_id: str, workspaces: list[str], record: dict[str, Any] | None) -> int:
+def _remove_work_worktrees(fills: dict[str, str], project_id: str, workspaces: list[str],
+                           record: dict[str, Any] | None) -> int:
     """Hermes's Work worktrees keyed ``<project>/<slot>``, and the chats writer's ``project_<id>`` ones."""
 
-    from .machine_roots import load_machine_roots
     from .work_store.writer import remove_worktree
-
-    fills = load_machine_roots(refresh=True).project_roots.get(project_id) or {}
 
     def clone(slot: str) -> Path | None:
         return Path(fills[slot]) if fills.get(slot) else None
@@ -446,11 +469,11 @@ def _rekeyed_lists(node: Any, project_id: str, rename: dict[str, str]) -> tuple[
     return node, 0
 
 
-def _forget(project_id: str) -> None:
+def _forget(fills: dict[str, dict[str, str]], project_id: str) -> None:
     """A reference with no home: its fills, stores and assignment keys go with it."""
 
-    _remove_work_worktrees(project_id, [], None)
-    _move_path_fills(project_id, None, {})
+    _remove_work_worktrees(fills.get(project_id) or {}, project_id, [], None)
+    _move_path_fills(fills, project_id, None, {})
     _move_env_fills(project_id, None, {})
     _move_worktree_records(project_id, None, {})
     _move_chats(project_id, None)

@@ -192,11 +192,9 @@ def _recipe_set(params):
     raw = params.get("credential")
     credential = None if raw is None else RealmSyncCredential.parse(raw)
     require_publish_right(workspace_id, credential)
-    # A slot a Project declares is edited in that Project's record, under its own publish decision.
     return set_recipe(workspace_id, str(params.get("slot") or ""), params.get("steps"),
                       base_revision=params.get("revision"), issued_at=_issued_at(params), machine=machine_id(),
-                      persona_instance_id=params.get("persona_instance_id"),
-                      credentials={credential.realm_id: credential} if credential else None)
+                      persona_instance_id=params.get("persona_instance_id"))
 
 
 # ── the per-instance assignment (the Agent Console's editor — owner correction 2026-10-04) ──
@@ -245,7 +243,7 @@ def _instance_slots_set(params):
 @method("runtime.persona.instance.recall.set", tier=TIER_CONSOLE)
 @_assignment
 def _instance_recall_set(params):
-    """Turn this agent's recall across its Projects' shared chat stores on or off (default off)."""
+    """Turn this agent's recall across its workspace's shared chat store on or off (default off)."""
 
     from agent_runtime.persona_slots import set_instance_recall
 
