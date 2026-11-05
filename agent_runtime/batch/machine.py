@@ -181,9 +181,14 @@ class LaneRecord:
         return dict(self.times)
 
     def wire(self) -> dict[str, Any]:
+        """``rows`` is what the lane CLAIMED (empty until its CLAIMED line); ``planned_rows`` is the plan's exact
+        refs while the lane is still ``PLANNED`` (empty after), so a Stop of a started wave can review the whole
+        scope before any claim (RT-BATCH-PLANNED-STOP-SCOPE)."""
         at = self.at
+        planned = self.lane.rows if self.state is LaneState.PLANNED else ()
         return {"id": self.id, "kind": self.lane.kind.value, "state": self.state.value, "persona": self.persona,
-                "rows": [r.items() for r in self.rows], "run_id": self.run_id or None,
+                "rows": [r.items() for r in self.rows], "planned_rows": [r.items() for r in planned],
+                "run_id": self.run_id or None,
                 "stop_requested": self.stop_requested, "verdict": self.verdict.value if self.verdict else None,
                 "tool_calls": self.tool_calls, "commits": list(self.commits), "done_rows": self.done_rows,
                 "worktrees": list(self.worktrees), "claimed_at": at.get(LaneState.CLAIMED.value),
