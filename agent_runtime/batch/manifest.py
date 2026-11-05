@@ -24,9 +24,10 @@ no SQLite, no in-memory truth.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import re
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -315,39 +316,43 @@ class BrainManifestStore:
             self._writer_of = writer_for
         return self._writer_of(board)
 
-    def _read_roots(self, workspace_id: str, fresh: bool) -> list[tuple[Path, Board]]:
+    def _read_roots(self, workspace_id: str, fresh: bool) -> Iterator[tuple[Path, Board]]:
+        """Each bound brain's hermes worktree, yielded while its writer admission is held, so a read never
+        sees another Writer's reset or edit half done (RT-WORK-BATCH-WRITER-CONTENTION)."""
+
         from ..work_store.board import boards
 
         found = boards(workspace_id)
         preferred = manifest_board(found)
-        roots = []
         for board in sorted(found, key=lambda item: item != preferred):
             if not board.bound_here or not board.brain_dir:
                 continue
             writer = self._writer(board)
-            if fresh:
-                writer.sync(stale_ok=True)
-            if (writer.worktree / ".git").exists():
-                roots.append((writer.worktree, board))
-        return roots
+            with writer.admitted():
+                if fresh:
+                    writer.sync(stale_ok=True)
+                if (writer.worktree / ".git").exists():
+                    yield writer.worktree, board
 
     def _locations(self, workspace_id: str, fresh: bool) -> dict[str, tuple[str, Board]]:
         found = {}
-        for root, board in self._read_roots(workspace_id, fresh):
-            for batch_id, text in read_texts(root, board.brain_dir).items():
-                if batch_id in found:
-                    raise WorkRefused(Reason.CONFLICT, f"{batch_id} exists in more than one brain")
-                found[batch_id] = (text, board)
+        with contextlib.closing(self._read_roots(workspace_id, fresh)) as roots:
+            for root, board in roots:
+                for batch_id, text in read_texts(root, board.brain_dir).items():
+                    if batch_id in found:
+                        raise WorkRefused(Reason.CONFLICT, f"{batch_id} exists in more than one brain")
+                    found[batch_id] = (text, board)
         return found
 
     def texts(self, workspace_id: str, *, fresh: bool = True) -> dict[str, str]:
         return {key: text for key, (text, _board) in self._locations(workspace_id, fresh).items()}
 
     def settings(self, workspace_id: str) -> str | None:
-        for root, board in self._read_roots(workspace_id, False):
-            path = root / _brain_root(board.brain_dir) / BATCHES_DIR / SETTINGS_NOTE
-            if path.is_file():
-                return path.read_bytes().decode("utf-8")
+        with contextlib.closing(self._read_roots(workspace_id, False)) as roots:
+            for root, board in roots:
+                path = root / _brain_root(board.brain_dir) / BATCHES_DIR / SETTINGS_NOTE
+                if path.is_file():
+                    return path.read_bytes().decode("utf-8")
         return None
 
     def append(self, workspace_id: str, batch_id: str, lines: Sequence[str], request_id: str, *,
