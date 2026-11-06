@@ -174,6 +174,7 @@ def _history_row(
     return {
         "session_id": session_id,
         **({"client_scope": owner} if (owner := session_client_scope(raw)) is not None else {}),
+        **_channel_origin(raw),
         "persona_id": persona_id,
         "persona_instance_id": safe_assignment_text(
             instance_id or persona_instance_id_for(persona_id),
@@ -331,6 +332,15 @@ def _chat_model_fields(raw: dict[str, Any]) -> dict[str, Any]:
         "effective_provider": provider or fallback_provider,
         "effective_model": model or fallback_model,
     }
+
+
+def _channel_origin(raw: dict[str, Any]) -> dict[str, str]:
+    """``channel_source`` / ``channel_key`` from the session meta ``runtime.channel.message`` stamps
+    (RT-CONVERSATION-ROW-CHANNEL-SOURCE); absent on every conversation no channel opened."""
+
+    config = _model_config(raw.get("model_config"))
+    origin = {key: safe_assignment_text(config.get(key), limit=200) for key in ("channel_source", "channel_key")}
+    return {key: value for key, value in origin.items() if value}
 
 
 def _model_config(value: Any) -> dict[str, Any]:
