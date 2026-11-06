@@ -212,6 +212,12 @@ def _terminal_turn_marker_rows(
                         "This request never left Hermes because the model provider was unavailable. "
                         "Review this profile's provider setup, then send a new message."
                     )
+                elif refusal.get("reason") == "model_unset":
+                    # RT-NO-MODEL-CHAT-SENDS-AND-404S (``provider_dependency_error.MODEL_UNSET_REASON``).
+                    marker_row["text"] = (
+                        "This request never left Hermes because no model is chosen for this chat. "
+                        "Choose a model, then send a new message."
+                    )
         if client_message_id in retried_as:
             marker_row["retried_as"] = retried_as[client_message_id]
         _carry_run_budget(marker_row, record)

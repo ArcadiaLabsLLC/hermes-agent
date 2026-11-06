@@ -415,6 +415,14 @@ class ProviderRefusal:
                 f"repair the runtime dependencies: {self.repair_hint}; send a NEW "
                 "client_message_id; this turn is settled and needs NO turn-resolve"
             )
+        from .provider_dependency_error import MODEL_UNSET_REASON
+
+        if self.status_code == PROVIDER_UNAVAILABLE_STATUS_CODE and self.reason == MODEL_UNSET_REASON:
+            return (
+                "no model is chosen for this chat and the request never left Hermes; choose a "
+                "model for this chat or agent, then send a NEW client_message_id — this turn is "
+                "settled and needs NO turn-resolve"
+            )
         if self.status_code == PROVIDER_UNAVAILABLE_STATUS_CODE:
             return (
                 "no model provider could take this request and it never left Hermes; "
@@ -659,8 +667,16 @@ def classify_turn_failure(
     absent ``request_sent``. It settles :data:`REQUEST_UNSENT_OUTCOME`.
     """
 
-    from .provider_dependency_error import ProviderDependencyError
+    from .provider_dependency_error import ChatModelUnsetError, ProviderDependencyError
 
+    if isinstance(exc, ChatModelUnsetError):
+        return replace(
+            PROVIDER_UNAVAILABLE_OUTCOME,
+            provider_refusal=ProviderRefusal(
+                status_code=PROVIDER_UNAVAILABLE_STATUS_CODE, reason=exc.reason,
+                message=stripped_str(str(exc)), provider=exc.provider,
+            ),
+        )
     if isinstance(exc, ProviderDependencyError):
         return replace(
             PROVIDER_UNAVAILABLE_OUTCOME,

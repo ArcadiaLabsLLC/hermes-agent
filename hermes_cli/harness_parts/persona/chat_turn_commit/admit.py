@@ -19,6 +19,7 @@ from agent_runtime.mission_chat_outcome import (
     ExecutionState,
 )
 from agent_runtime.mission_chat_turns.journal import transition_mission_chat_turn
+from agent_runtime.provider_dependency_error import MODEL_UNSET_REASON
 from agent_runtime.mission_chat_turns.reads import mission_chat_turn_record
 from agent_runtime.mission_chat_turns.states import (
     REPLY_RECOVERABLE_TURN_STATES,
@@ -97,6 +98,15 @@ def _provider_refused_payload(turn) -> dict[str, Any]:
                     "error_kind": ChatErrorKind.CHAT_TURN_PROVIDER_UNAVAILABLE,
                     "error": "no model provider could take this turn and it never ran; it is settled and needs no resolution",
                     "next_expected": "configure a provider for this profile, then send a new client_message_id; no turn-resolve is required",
+                }
+            )
+        elif refusal_block.get("reason") == MODEL_UNSET_REASON:
+            # RT-NO-MODEL-CHAT-SENDS-AND-404S: the first attempt settled the unavailable pair too.
+            data.update(
+                {
+                    "error_kind": ChatErrorKind.CHAT_TURN_PROVIDER_UNAVAILABLE,
+                    "error": "no model is chosen for this chat and the turn never ran; it is settled and needs no resolution",
+                    "next_expected": "choose a model for this chat or agent, then send a new client_message_id; no turn-resolve is required",
                 }
             )
     return data

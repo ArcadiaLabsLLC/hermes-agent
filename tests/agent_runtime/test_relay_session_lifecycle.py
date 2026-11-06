@@ -933,6 +933,8 @@ def test_mission_chat_reply_puts_the_marker_on_the_run_request(monkeypatch):
             root_chat_session_id="persona_chat_personainst_qa_deadbeef",
             client_message_id="cm-relay-wire",
             relay_sender_marker="relay_from:neko:personainst_neko",
+            # A turn with no model is refused before the runner (RT-NO-MODEL-CHAT-SENDS-AND-404S).
+            model_override="test-model",
         )
     assert captured["request"].persona_chat_user_finish_reason == (
         "relay_from:neko:personainst_neko"
