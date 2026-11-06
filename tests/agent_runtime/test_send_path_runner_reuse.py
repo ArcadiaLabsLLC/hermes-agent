@@ -368,6 +368,11 @@ def test_a_run_with_no_chat_registry_REPORTS_that_it_constructed(stub_runtime):
     result = ProfileAgentRunner(agent_factory=_BoundaryAgent).run(_request())
 
     assert result.profile_timing["resident_actor_reused"] == 0
+    # ...and why nothing was reused, in a key the durable record admits.
+    from agent_runtime.mission_chat_turns import safe_turn_profile_timing
+
+    assert result.profile_timing["resident_registry_absent"] == 1
+    assert safe_turn_profile_timing(result.profile_timing)["resident_registry_absent"] == 1
     assert isinstance(result.profile_timing["agent_construct_ms"], int), (
         "the branch that reports 'not reused' must be the branch that BUILT one"
     )

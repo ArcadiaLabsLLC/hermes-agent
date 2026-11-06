@@ -748,6 +748,9 @@ class _RunPhases:
             if "resident_actor_reused" in _profile_timing
             else None,
         )
+        # Which construction the flag reports (RT-TURN-AGENT-INIT-COLD-ALWAYS-TRUE): a turn with no
+        # resident registry reads cold every time, and says so here.
+        turn_phases.label("agent_init_source", _agent_init_source(_profile_timing))
         turn_phases.count(
             "builds_overlapped",
             _snapshot_builds_overlapped(
@@ -826,3 +829,14 @@ class _RunPhases:
                 **prompt_context,
                 "observability_persist_error": safe_assignment_text(type(persist_exc).__name__, limit=80),
             }
+
+
+def _agent_init_source(profile_timing: dict) -> str | None:
+    """``agent_init_source`` off the runner's timing; ``None`` (absent) when it reported nothing."""
+
+    if "resident_actor_reused" not in profile_timing:
+        return None
+    if profile_timing.get("resident_actor_reused"):
+        return "resident"
+    # MUTATION: return "constructed" here and test_mission_chat_turn_phase_attribution's no-registry turn reddens.
+    return "constructed_no_registry" if profile_timing.get("resident_registry_absent") else "constructed"

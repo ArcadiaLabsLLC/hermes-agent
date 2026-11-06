@@ -305,6 +305,8 @@ def test_a_freshly_constructed_agent_is_reported_COLD(attributed_turn):
     """``resident_actor_reused: 0`` is the runner saying it built one."""
 
     assert attributed_turn["agent_init_cold"] is True
+    # A registry was asked and built one (RT-TURN-AGENT-INIT-COLD-ALWAYS-TRUE).
+    assert attributed_turn["agent_init_source"] == "constructed"
 
 
 @pytest.fixture
@@ -326,6 +328,34 @@ def warm_turn(monkeypatch, capsys, isolate_agent_runtime_root, empty_ledger):
 
 def test_a_reused_resident_actor_is_reported_WARM(warm_turn):
     assert warm_turn["agent_init_cold"] is False
+    assert warm_turn["agent_init_source"] == "resident"
+
+
+@pytest.fixture
+def no_registry_turn(monkeypatch, capsys, isolate_agent_runtime_root, empty_ledger):
+    """The stock serve: ``persona_chat.hot_sessions_enabled`` off, so the runner had no registry."""
+
+    monkeypatch.setattr(
+        mission_chat_phases,
+        "TurnPhaseMarks",
+        lambda: TurnPhaseMarks(monotonic=_TickClock(), wall_now=lambda: "stamp"),
+    )
+    _seed(
+        monkeypatch,
+        _streaming_provider(profile_timing={"resident_actor_reused": 0, "resident_registry_absent": 1}),
+    )
+    chat_turn_message._cmd_mission_chat_message(_args("stage4_no_registry", stream=True))
+    capsys.readouterr()
+    return _record_on_disk(isolate_agent_runtime_root, "stage4_no_registry")
+
+
+def test_a_turn_with_no_resident_registry_says_why_it_is_cold(no_registry_turn):
+    """RT-TURN-AGENT-INIT-COLD-ALWAYS-TRUE: every turn of a hot-sessions-off chat reads cold, warm
+    caches or not; the record now says there was nothing to reuse, and keeps the runner's fact."""
+
+    phases = no_registry_turn[TURN_PHASES_KEY]
+    assert phases["agent_init_cold"] is True
+    assert phases["agent_init_source"] == "constructed_no_registry"
 
 
 @pytest.fixture
@@ -347,6 +377,7 @@ def test_an_unreported_cold_warm_fact_is_ABSENT_not_false(unattributable_turn):
     """``False`` would claim the turn reused a resident actor. Nobody said that."""
 
     assert "agent_init_cold" not in unattributable_turn
+    assert "agent_init_source" not in unattributable_turn
 
 
 def test_an_unobservable_build_lane_is_ABSENT_not_zero(unattributable_turn):

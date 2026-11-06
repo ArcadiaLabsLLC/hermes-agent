@@ -110,14 +110,25 @@ PHASE_ORDER: tuple[str, ...] = (
 )
 
 #: Booleans. Absent when the turn could not establish the fact honestly.
+#:
+#: ``agent_init_cold`` is NARROWER than its name: ``true`` means this turn CONSTRUCTED its agent
+#: object (no resident actor was reused), nothing more. Process-level caches under construction
+#: (tool definitions, the restored system prompt) can be warm on a ``true`` turn, and with
+#: ``persona_chat.hot_sessions_enabled`` off (the default) there is no resident registry, so every
+#: turn reads ``true``. ``agent_init_source`` below says which (RT-TURN-AGENT-INIT-COLD-ALWAYS-TRUE).
 PHASE_FLAGS: tuple[str, ...] = ("agent_init_cold",)
 
 #: Closed-set labels: name -> the values it may take. Absent when the turn did not establish it.
 #: ``context_native_history_source`` says where ``_build_context`` got the native history:
 #: ``resident`` (the resident actor's lineage-stamped copy, lineage-stamp S3) or ``read``
 #: (SessionDB). Before it, "reused or read" was inferred from ``context_native_history_ms``.
+#: ``agent_init_source`` qualifies ``agent_init_cold``: ``resident`` (a resident actor was reused),
+#: ``constructed`` (a resident registry was asked and built one: a miss or a rebuild, named by the
+#: ``resident_rebuild_*`` timing keys), ``constructed_no_registry`` (hot sessions are off, or the turn
+#: has no chat root: nothing could have been reused).
 PHASE_LABELS: dict[str, frozenset[str]] = {
     "context_native_history_source": frozenset({"resident", "read"}),
+    "agent_init_source": frozenset({"resident", "constructed", "constructed_no_registry"}),
 }
 
 #: Non-negative counts (Stage 4 attribution). Absent when unobservable — see
@@ -161,6 +172,7 @@ _BLOCK_ORDER: tuple[str, ...] = (
     "write_ahead",
     "agent_ready",
     "agent_init_cold",
+    "agent_init_source",
     "provider_request_started",
     "conversation_started",
     "turn_context_built",

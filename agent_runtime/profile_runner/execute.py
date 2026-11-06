@@ -790,6 +790,8 @@ class AgentRunExecution:
             # `agent_init_cold` while every one of those turns had paid full
             # cold construction.
             timing["resident_actor_reused"] = 0
+            # Why nothing was reused: there was nothing to reuse from (RT-TURN-AGENT-INIT-COLD-ALWAYS-TRUE).
+            timing["resident_registry_absent"] = 1
             return
         active_id = request.session_id or request.root_chat_session_id
         runtime_revision = resolved_runtime_revision(self.runtime)

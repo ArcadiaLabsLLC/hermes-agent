@@ -187,7 +187,7 @@ TURN_PROFILE_TIMING_KEY = "profile_timing"
 #: corrupt row, not a slow one. Same reasoning as ``mission_chat_phases``.
 _PROFILE_TIMING_MAX_MS = 24 * 60 * 60 * 1000
 _PROFILE_TIMING_MAX_KEYS = 64
-_PROFILE_TIMING_FLAG_KEYS = frozenset({"resident_actor_reused", "mcp_admission_reused"})
+_PROFILE_TIMING_FLAG_KEYS = frozenset({"resident_actor_reused", "resident_registry_absent", "mcp_admission_reused"})
 _PROFILE_TIMING_REBUILD_PREFIX = "resident_rebuild_"
 
 #: chat-turn-prep Stage 6's two additional 0/1 shapes.
