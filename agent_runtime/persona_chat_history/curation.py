@@ -47,6 +47,7 @@ from .vocabulary import (
     PERSONA_PRE_TRACE_ACK_FINISH_REASON,
     PERSONA_PRE_TRACE_ACK_KIND,
     PERSONA_RELAYED_MESSAGE_KIND,
+    PERSONA_RUNTIME_NOTICE_KIND,
     canonical_persona_chat_turn_id,
     logical_persona_chat_client_message_id,
 )
@@ -243,7 +244,16 @@ class _OperatorCurator:
                 row["turn_seq"] = metadata["turn_seq"]
             if not row["steered"]:
                 row["role"] = MessageRole.SYSTEM
-                row["kind"] = "system_message"
+                # MUTATION: always "system_message" and test_persona_chat_history_curation's
+                # "a runtime notice is typed and titled" reddens.
+                row["kind"] = (PERSONA_RUNTIME_NOTICE_KIND
+                               if ctx.raw.get("display_kind") == PERSONA_RUNTIME_NOTICE_KIND else "system_message")
+                title = safe_assignment_text(metadata.get("display_text"), limit=160)
+                if title:
+                    row["display_title"] = title
+                category = safe_assignment_token(metadata.get("notification_category"))
+                if category:
+                    row["notification_category"] = category
             return
         # D2.04: the turn this message re-ran, read off its own journal record.
         record = state.turn_records_by_message.get(str(ctx.logical_client_message_id or ""))
@@ -400,6 +410,11 @@ class CurationState:
         if raw.get("display_kind") == "steer":
             display = raw.get("display_metadata") or {}
             raw_content = display.get("display_text") or raw_content
+        elif (raw.get("display_metadata") or {}).get("steering") and isinstance(raw_content, str):
+            # A harness notice: the note, without the envelope the model reads it in.
+            from agent.steering import RUNTIME_NOTE_ENVELOPE
+
+            raw_content = raw_content.removeprefix(RUNTIME_NOTE_ENVELOPE)
         curated = _curate_chat_message_text(ctx.role, raw_content)
         if not curated:
             self._silent_candidate(ctx, raw_content)

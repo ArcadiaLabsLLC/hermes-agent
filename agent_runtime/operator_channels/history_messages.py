@@ -18,6 +18,7 @@ from ..persona_chat_history.vocabulary import (
     PERSONA_LENS_EPISODE_KIND,
     PERSONA_PRE_TRACE_ACK_KIND,
     PERSONA_RELAYED_MESSAGE_KIND,
+    PERSONA_RUNTIME_NOTICE_KIND,
     MessageRole,
     canonical_persona_chat_turn_id,
 )
@@ -101,6 +102,13 @@ def _operator_shape(row: dict[str, Any], persona_id: str, instance_id: str | Non
     return RowShape("operator_message", "operator", None)
 
 
+def _runtime_notice_shape(row: dict[str, Any], persona_id: str, instance_id: str | None) -> RowShape:
+    # A harness notice steered into a turn: the runtime wrote it, so the actor is
+    # the harness, like a delivery; a consumer that ignores the kind still has a
+    # system row (RT-RUNTIME-NOTICE-ROW-SHIPS-RAW-NOTE).
+    return RowShape(PERSONA_RUNTIME_NOTICE_KIND, "harness", None)
+
+
 def _system_shape(row: dict[str, Any], persona_id: str, instance_id: str | None) -> RowShape:
     return RowShape("system_message", persona_id, instance_id)
 
@@ -112,6 +120,7 @@ HISTORY_ROW_SHAPES: tuple[tuple[Callable[[str, str], bool], ShapeBuilder], ...] 
     (lambda role, kind: role == OPERATOR and kind == PERSONA_LENS_EPISODE_KIND, _lens_episode_shape),
     (lambda role, kind: role == OPERATOR and kind == PERSONA_RELAYED_MESSAGE_KIND, _relayed_shape),
     (lambda role, kind: role == AGENT and kind == PERSONA_PRE_TRACE_ACK_KIND, _pre_trace_ack_shape),
+    (lambda role, kind: role == SYSTEM and kind == PERSONA_RUNTIME_NOTICE_KIND, _runtime_notice_shape),
     (lambda role, kind: role == AGENT, _reply_shape),
     (lambda role, kind: role == OPERATOR, _operator_shape),
 )
@@ -284,6 +293,14 @@ class HistoryMessage:
             }
         if shape.kind == PERSONA_HARNESS_DELIVERY_KIND:
             message["delivery"] = _delivery_block(row)
+        # A titled notice (a runtime notice, any steered timeline notification) keeps
+        # its operator title and category; the body is the note.
+        title = safe_assignment_text(row.get("display_title"), limit=160) if self.role == SYSTEM else ""
+        if title:
+            message["display_title"] = title
+        category = safe_assignment_token(row.get("notification_category")) if self.role == SYSTEM else ""
+        if category:
+            message["notification_category"] = category
         if shape.kind == PERSONA_LENS_EPISODE_KIND:
             # The receipt (runtime.lens.receipt) is keyed by this id.
             message["lens"] = {"episode_id": safe_assignment_token(row.get("lens_episode_id")) or ""}

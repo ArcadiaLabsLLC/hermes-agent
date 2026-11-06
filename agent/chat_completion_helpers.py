@@ -2293,7 +2293,12 @@ def handle_max_iterations(agent, messages: list, api_call_count: int) -> str:
     # Shared constant so compaction recognizers can identify this runtime nudge by its stable
     # content after SessionDB projection strips metadata flags.
     from agent.context_compressor import MAX_ITERATIONS_SUMMARY_REQUEST
-    nudge = append_message(messages, {"role": "user", "content": MAX_ITERATIONS_SUMMARY_REQUEST})
+    # Fork: typed as a runtime notice, so the transcript never shows it as the operator's own
+    # message (RT-ITERATION-LIMIT-NUDGE-STORED-AS-USER); the content stays the recognizers' key.
+    nudge = append_message(messages, {
+        "role": "user", "content": MAX_ITERATIONS_SUMMARY_REQUEST, "display_kind": "runtime_notice",
+        "display_metadata": {"display_text": "Tool-iteration limit reached",
+                             "notification_category": "diagnostic", "steering": True}})
 
     try:
         api_messages = _iteration_summary_api_messages(agent, messages)

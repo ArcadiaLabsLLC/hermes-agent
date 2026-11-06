@@ -16,6 +16,11 @@ except ImportError:  # a wheel without the process registry (phone) has no timel
     TimelineNotification = ()  # isinstance(x, ()) is False
 
 
+#: The envelope a timeline notification's model text rides in. The operator transcript
+#: strips it and shows the notice's title and note (RT-RUNTIME-NOTICE-ROW-SHIPS-RAW-NOTE).
+RUNTIME_NOTE_ENVELOPE = "[Runtime note: background event, not a user instruction]\n"
+
+
 @dataclass(frozen=True)
 class _Input:
     text: str
@@ -33,7 +38,7 @@ class _Input:
                 metadata["display_text"] = self.text
         else:
             row = {
-                "role": "user", "content": f"[Runtime note: background event, not a user instruction]\n{self.text}",
+                "role": "user", "content": f"{RUNTIME_NOTE_ENVELOPE}{self.text}",
                 "display_kind": self.kind,
             }
             metadata.update(display_text=self.title, notification_category=self.category)

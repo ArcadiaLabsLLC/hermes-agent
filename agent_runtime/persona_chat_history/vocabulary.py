@@ -31,6 +31,7 @@ __all__ = [
     "PERSONA_CHAT_MESSAGE_TEXT_LIMIT",
     "PERSONA_HARNESS_DELIVERY_KIND",
     "PERSONA_LENS_EPISODE_KIND",
+    "PERSONA_RUNTIME_NOTICE_KIND",
     "PERSONA_PRE_TRACE_ACK_FINISH_REASON",
     "PERSONA_PRE_TRACE_ACK_KIND",
     "PERSONA_RELAYED_MESSAGE_KIND",
@@ -102,6 +103,14 @@ PERSONA_HARNESS_DELIVERY_KIND = "harness_delivery"
 # its chat with (finish_reason=lens_episode:<episode_id>). The watcher sent it,
 # not the operator and not an agent (plan p10-agent-2026-10-19 §5.2 decision 3).
 PERSONA_LENS_EPISODE_KIND = "lens_episode"
+
+
+# Typed kind for a harness notice steered into a running turn (``display_kind:
+# runtime_notice``: the wall-budget checkpoint, an MCP availability update, the
+# tool-iteration limit). The runtime wrote it, nobody typed it; the transcript
+# carries its operator title (``display_title``) and its note without the model
+# envelope (RT-RUNTIME-NOTICE-ROW-SHIPS-RAW-NOTE).
+PERSONA_RUNTIME_NOTICE_KIND = "runtime_notice"
 
 
 # ── terminal-turn marker vocabulary (ONE table, keyed on the turn state) ─────
