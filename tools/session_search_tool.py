@@ -806,7 +806,7 @@ registry.register(
     check_fn=check_session_search_requirements,
     emoji="🔍")
 
-# fork seam: RT-PROJECT-CHAT-RECALL-ACROSS-STORES — the agent's call also recalls its enabled Projects' shared stores
+# fork seam: RT-PROJECT-CHAT-RECALL-ACROSS-STORES — the agent's call also recalls its workspace's shared store
 from agent_runtime.workspace_chat_recall import route_registered_handler
 
 route_registered_handler(registry)

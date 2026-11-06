@@ -5,8 +5,9 @@ workspace (RT-WS-ABSORB-RETIRE-PROJECT). An agent searches its workspace's share
 (``workspace_chat_fold``) beside its own ``state.db`` only when BOTH switches are on: the instance's
 ``recall_shared_projects`` (default off; ``runtime.persona.instance.recall.set``) and the workspace's
 ``chats`` share. The shared store is opened READ-ONLY here; the fold is its only writer, and memory
-extraction (``agent/background_review``) reads the live turn, never a store. (The module and the
-instance field keep their Project-edition names until RT-WS-ABSORB-CHAT-NAMES-RESIDUE.)
+extraction (``agent/background_review``) reads the live turn, never a store. (The instance
+field ``recall_shared_projects`` is persisted, synced and on the wire, so it keeps its Project-edition name
+until RT-WS-ABSORB-PERSISTED-NAMES-MIGRATE.)
 
 * :func:`shared_stores_for` resolves the store for an instance; :func:`shared_stores_for_current_turn`
   reads the instance from the turn's ``launcher_invocation``, so ``session_search`` needs no new
@@ -200,7 +201,7 @@ def recall_session_search(*, shared_stores: list[SharedStore] | None = None, **k
                    limit=kwargs.get("limit"), shared_stores=shared_stores)
 
 
-_ROUTED = "_project_chat_recall_routed"
+_ROUTED = "_workspace_chat_recall_routed"
 
 
 def routed_handler(handler: Any) -> Any:

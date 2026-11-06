@@ -2,11 +2,12 @@
 
 Plan ``docs/agent-runtime-harness/planned/project-slots-and-shared-chats-2026-10-29.md`` §6, re-homed on the
 workspace (RT-WS-ABSORB-RETIRE-PROJECT). Shared chats never enter an agent's own ``state.db``: they are
-folded into ``paths.workspace_chat_store_path(workspace)``, a :class:`ProjectSharedSessionDB` (a
+folded into ``paths.workspace_chat_store_path(workspace)``, a :class:`WorkspaceSharedSessionDB` (a
 ``SessionDB`` at that path — schema, FTS and ``search_messages`` come with it) that is NEVER a chat head:
 ``chat_session_scope`` cannot resolve to it and ``is_canonical_session_persistence`` answers False for
-it, so no turn guard, writer or memory pass treats it as an agent's chat persistence. (The module and
-class keep their Project-edition names until RT-WS-ABSORB-CHAT-NAMES-RESIDUE.)
+it, so no turn guard, writer or memory pass treats it as an agent's chat persistence. The session
+source ``project_shared`` and the index ``project_shared_message_uid_unique`` are ON-DISK names in every
+existing shared store and keep their Project-edition spelling (RT-WS-ABSORB-PERSISTED-NAMES-MIGRATE).
 
 * **The fold** (:func:`fold`) reads every ``<session>/<writer>.jsonl`` of the chats folder from the byte
   offset it recorded last time (``paths.workspace_chat_fold_path``; complete lines only) and inserts each
@@ -46,20 +47,20 @@ SHARED_SOURCE = "project_shared"
 UNIQUE_UID_INDEX = "project_shared_message_uid_unique"
 
 
-class ProjectSharedSessionDB(SessionDB):
+class WorkspaceSharedSessionDB(SessionDB):
     """A workspace's shared chat store: a ``SessionDB`` that is never canonical chat persistence."""
 
     __hermes_canonical_session_persistence__ = False
 
 
-def open_shared_store(home: Any, *, read_only: bool) -> ProjectSharedSessionDB | None:
+def open_shared_store(home: Any, *, read_only: bool) -> WorkspaceSharedSessionDB | None:
     """The home's shared store; ``None`` for a read of a store that does not exist (a read creates nothing)."""
 
     target = _store_path(_home(home))
     if read_only and not target.is_file():
         return None
     target.parent.mkdir(parents=True, exist_ok=True)
-    db = ProjectSharedSessionDB(db_path=target, read_only=read_only)
+    db = WorkspaceSharedSessionDB(db_path=target, read_only=read_only)
     if not read_only:
         db._execute_write(lambda conn: conn.execute(
             f"CREATE UNIQUE INDEX IF NOT EXISTS {UNIQUE_UID_INDEX} ON messages(message_uid)"))
@@ -172,7 +173,7 @@ def fold(home: Any, folder: Path) -> dict[str, Any]:
     result = {**home.tag(), "inserted": inserted, "skipped": skipped, "malformed": malformed,
               "sessions": sorted(sessions)}
     if inserted or malformed:
-        receipts.emit("project_chat.folded", **result)
+        receipts.emit("workspace_chat.folded", **result)
     return result
 
 
@@ -294,5 +295,5 @@ def drop_chats(home: Any, *, reason: str) -> dict[str, Any]:
     if cursors.is_dir():
         shutil.rmtree(cursors)
         removed.append(cursors.name + "/")
-    receipts.emit("project_chat.store_dropped", **home.tag(), reason=reason, removed=removed)
+    receipts.emit("workspace_chat.store_dropped", **home.tag(), reason=reason, removed=removed)
     return {**home.tag(), "removed": removed}

@@ -107,7 +107,7 @@ def test_no_module_but_the_fold_and_recall_opens_the_shared_stores():
 
     Positive control: the walk finds the two modules that ARE allowed, so it is reading the tree.
     """
-    pattern = re.compile(r"\b(?:workspace_chat_store_path|open_shared_store|ProjectSharedSessionDB)\b")
+    pattern = re.compile(r"\b(?:workspace_chat_store_path|open_shared_store|WorkspaceSharedSessionDB)\b")
     allowed = {"agent_runtime/workspace_chat_fold.py", "agent_runtime/workspace_chat_recall.py", "agent_runtime/paths.py",
                "agent_runtime/project_migration.py"}  # the merge moves a Project's store file, never opens it
     hits = set()

@@ -818,7 +818,7 @@ class _RunPhases:
         except Exception as exc:
             import logging
 
-            logging.getLogger(__name__).warning("project_chat.export_hook_failed: %s", type(exc).__name__)
+            logging.getLogger(__name__).warning("workspace_chat.export_hook_failed: %s", type(exc).__name__)
         try:
             persist_prompt_observability_context(prompt_context)
         except Exception as persist_exc:

@@ -4,7 +4,7 @@ Plan ``docs/agent-runtime-harness/planned/project-slots-and-shared-chats-2026-10
 the workspace (``EterniaLauncher/docs/mission_control/planned/WORKSPACE_ABSORBS_PROJECTS_2026-11-04.md``).
 Sharing is the explicit ``runtime.workspace.chat.share`` (:func:`share`), refused unless the workspace's
 ``chats`` category is shared (hence source-controlled) and the caller holds the publish right of the
-workspace's realm. (The module keeps its Project-edition name until RT-WS-ABSORB-CHAT-NAMES-RESIDUE.)
+workspace's realm.
 
 * **File form.** ``<chats folder>/<session>/<machine>.<namespace>.jsonl`` — one append-only file PER CHAT
   PER WRITER, so two machines continuing one chat never write the same file and git never conflicts —
@@ -356,7 +356,7 @@ def export_session(home: ChatHome | str, session_id: str, session_db: Any, *,
     receipt = _publish_chat_turns(home, session_id, f"chat.{paths.safe_path_token(session_id)}.{lines[-1]['turn_uid']}",
                                   payload)
     _write_cursor(home, session_id, {**following, "chat_written": True, "updated_at": _now()})
-    receipts.emit("project_chat.exported", **home.tag(), session_id=session_id, lines=len(lines),
+    receipts.emit("workspace_chat.exported", **home.tag(), session_id=session_id, lines=len(lines),
                   commit=receipt.commit, pushed=receipt.pushed)
     return {**home.tag(), "session_id": session_id, "exported": len(lines), "shared": True,
             "commit": receipt.commit, "pushed": receipt.pushed}
@@ -392,7 +392,7 @@ def _unshare(home: ChatHome, session_id: str) -> dict[str, Any]:
         receipt = _publish_chat_turns(home, session_id, f"chat.{paths.safe_path_token(session_id)}.unshare.{stamp}",
                                       {"remove": [paths.safe_path_token(session_id)]})
     home.export_path(session_id).unlink(missing_ok=True)
-    receipts.emit("project_chat.unshared", **home.tag(), session_id=session_id,
+    receipts.emit("workspace_chat.unshared", **home.tag(), session_id=session_id,
                   commit=receipt.commit if receipt else None)
     return {**home.tag(), "session_id": session_id, "shared": False,
             "commit": receipt.commit if receipt else None,
@@ -417,7 +417,7 @@ def export_after_turn(session_db: Any, session_id: str | None, *, persona_instan
                 export_session(home, str(session_id), session_db, persona_instance_id=persona_instance_id)
                 fold_from_remote(home)  # the store carries this machine's turns and every peer's pushed ones
             except Exception as exc:  # a failed export retries from its cursor on the next turn end
-                receipts.emit("project_chat.export_failed", **home.tag(), session_id=session_id,
+                receipts.emit("workspace_chat.export_failed", **home.tag(), session_id=session_id,
                               error=type(exc).__name__, reason=getattr(exc, "reason", None))
 
     if not background:

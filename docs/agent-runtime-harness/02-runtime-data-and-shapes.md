@@ -1049,6 +1049,15 @@ machine}`` and the link ``@workspace:<id>/<session>``; the pull envelope's fold 
 is schema 2: ``workspaces.<id>.slots[]`` (``{slot, path, brain_dir, behind}``) replaces
 ``projects[].slots[]``, fixture ``tests/fixtures/brain_paths_v2.json``.
 
+54 KEPT (chat names, 2026-11-05, RT-WS-ABSORB-CHAT-NAMES-RESIDUE) — no snapshot key or wire name moved.
+The chat modules are ``agent_runtime/workspace_chat_export`` / ``workspace_chat_fold`` /
+``workspace_chat_recall`` (the ``tools/session_search_tool.py`` seam imports the last), the store class
+is ``workspace_chat_fold.WorkspaceSharedSessionDB``, and the log receipts are ``workspace_chat.exported``
+/ ``.unshared`` / ``.export_failed`` / ``.folded`` / ``.store_dropped`` / ``.export_hook_failed``. Kept
+spelled Project because they are persisted or on the wire: the session source ``project_shared``, the
+index ``project_shared_message_uid_unique``, ``PersonaInstance.recall_shared_projects`` (synced) and its
+``runtime.persona.instance.slots.show`` key (RT-WS-ABSORB-PERSISTED-NAMES-MIGRATE).
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.
