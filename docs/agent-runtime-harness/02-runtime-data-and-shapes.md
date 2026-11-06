@@ -1058,6 +1058,17 @@ spelled Project because they are persisted or on the wire: the session source ``
 index ``project_shared_message_uid_unique``, ``PersonaInstance.recall_shared_projects`` (synced) and its
 ``runtime.persona.instance.slots.show`` key (RT-WS-ABSORB-PERSISTED-NAMES-MIGRATE).
 
+54 KEPT (persisted names, 2026-11-05, RT-WS-ABSORB-PERSISTED-NAMES-MIGRATE) — no snapshot key moved.
+The shared store's session source is ``workspace_shared`` and its UNIQUE index
+``workspace_shared_message_uid_unique``; a store a Project edition wrote is migrated in place on its next
+writable open (``workspace_chat_fold._migrate_project_names``: the old source UPDATEd, the old index
+dropped, the new one created, one write; a read-only open migrates nothing). ``runtime.persona.instance.slots.show``
+(and the ``.recall.set`` reply, which is its shape) answers ``recall_shared_workspaces`` beside
+``recall_shared_projects``, one value, until the launcher reads the new key (MC-RECALL-SWITCH-KEY-REPOINT);
+``.recall.set`` still takes ``{persona_instance_id, enabled, issued_at}``. ``PersonaInstance.recall_shared_projects``
+keeps its name: it is persisted and in the sync allowlist, so a rename is a cross-edition sync change
+(RT-WS-ABSORB-RECALL-FIELD-RENAME).
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.

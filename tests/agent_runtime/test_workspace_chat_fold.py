@@ -7,7 +7,9 @@ import json
 
 from agent_runtime import paths
 from agent_runtime.chat_session_scope import is_canonical_session_persistence
-from agent_runtime.workspace_chat_fold import SHARED_SOURCE, drop_chats, fold, open_shared_store
+from agent_runtime.workspace_chat_fold import (
+    LEGACY_SHARED_SOURCE, LEGACY_UNIQUE_UID_INDEX, SHARED_SOURCE, UNIQUE_UID_INDEX, drop_chats, fold,
+    open_shared_store)
 from agent_runtime.store import WorkspaceStore
 from agent_runtime.workspace_categories import set_category
 from agent_runtime.workspace_slots import bind, declare
@@ -214,3 +216,46 @@ def test_the_serve_starts_a_realmless_fold_ticker_that_folds(tmp_path):
         stop.set()
         thread.join(timeout=5)
     assert _messages(solo, "chat_s") == [("u1", "ticked")]
+
+
+def _store_names(workspace_id):
+    import sqlite3
+
+    conn = sqlite3.connect(paths.workspace_chat_store_path(workspace_id))
+    try:
+        sources = sorted({row[0] for row in conn.execute("SELECT source FROM sessions")})
+        indexes = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'index'")}
+        return sources, {LEGACY_UNIQUE_UID_INDEX, UNIQUE_UID_INDEX} & indexes
+    finally:
+        conn.close()
+
+
+def test_a_project_edition_store_is_migrated_in_place_on_its_next_writable_open(tmp_path):
+    """RT-WS-ABSORB-PERSISTED-NAMES-MIGRATE: the old source and index are read and renamed, turns kept."""
+    import sqlite3
+
+    folder = tmp_path / "chats"
+    _write(folder, "chat_1", "mach_a", _line("u1", 100.0, 1, "user", "a1", "mach_a"))
+    ws = _team()
+    assert fold(ws, folder)["inserted"] == 1
+    # Rewind the store to what a Project-edition fold left on disk.
+    conn = sqlite3.connect(paths.workspace_chat_store_path(ws))
+    conn.execute("UPDATE sessions SET source = ?", (LEGACY_SHARED_SOURCE,))
+    conn.execute(f"DROP INDEX {UNIQUE_UID_INDEX}")
+    conn.execute(f"CREATE UNIQUE INDEX {LEGACY_UNIQUE_UID_INDEX} ON messages(message_uid)")
+    conn.commit()
+    conn.close()
+    assert _store_names(ws) == ([LEGACY_SHARED_SOURCE], {LEGACY_UNIQUE_UID_INDEX})
+    # A read-only open reads the old store as it is and migrates nothing.
+    db = open_shared_store(ws, read_only=True)
+    assert db.get_session("chat_1")["source"] == LEGACY_SHARED_SOURCE
+    db.close()
+    assert _store_names(ws) == ([LEGACY_SHARED_SOURCE], {LEGACY_UNIQUE_UID_INDEX})
+    # The next fold (a writable open) migrates; the turn is held, a new one folds, a replay inserts nothing.
+    _write(folder, "chat_2", "mach_b", _line("u2", 200.0, 1, "user", "b1", "mach_b"))
+    assert fold(ws, folder)["inserted"] == 1
+    assert _store_names(ws) == ([SHARED_SOURCE], {UNIQUE_UID_INDEX})
+    assert _messages(ws, "chat_1") == [("u1", "a1")]
+    paths.workspace_chat_fold_path(ws).unlink()  # every line read again: the new UNIQUE index holds
+    again = fold(ws, folder)
+    assert again["inserted"] == 0 and again["skipped"] == 2

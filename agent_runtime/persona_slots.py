@@ -229,7 +229,7 @@ def set_instance_recall(instance_id: str, enabled: Any, *, issued_at: str) -> di
 
 def show_instance_slots(instance_id: str) -> dict[str, Any]:
     """``{workspace_id, slots: [{name, slot, bound_here, path, status, context_files}], primary_slot,
-    primary_source}`` — ``context_files`` is the slot's override (:func:`context_files_override`, ``null`` =
+    primary_source, recall_shared_workspaces, recall_shared_projects}`` (the last two one value) — ``context_files`` is the slot's override (:func:`context_files_override`, ``null`` =
     today's ruling)."""
 
     instance = _slot_instance(instance_id)
@@ -244,9 +244,12 @@ def show_instance_slots(instance_id: str) -> dict[str, Any]:
                      "path": str(path) if bound else None, "status": status,
                      "context_files": context_files_override(instance, name)})
     primary, source = resolve_primary(instance)
+    recall = bool(getattr(instance, "recall_shared_projects", False))
     return {"persona_instance_id": instance.id, "workspace_id": instance.workspace_id, "slots": rows,
             "primary_slot": primary, "primary_source": source,
-            "recall_shared_projects": bool(getattr(instance, "recall_shared_projects", False))}
+            # The workspace absorbed Projects (RT-WS-ABSORB-PERSISTED-NAMES-MIGRATE): both keys, one value,
+            # until the launcher's recall switch reads the new one (MC-RECALL-SWITCH-KEY-REPOINT).
+            "recall_shared_workspaces": recall, "recall_shared_projects": recall}
 
 
 def _bound(held: VisibleSlot, workspace_id: str) -> Path | None:

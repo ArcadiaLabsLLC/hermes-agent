@@ -6,15 +6,17 @@ folded into ``paths.workspace_chat_store_path(workspace)``, a :class:`WorkspaceS
 ``SessionDB`` at that path — schema, FTS and ``search_messages`` come with it) that is NEVER a chat head:
 ``chat_session_scope`` cannot resolve to it and ``is_canonical_session_persistence`` answers False for
 it, so no turn guard, writer or memory pass treats it as an agent's chat persistence. The session
-source ``project_shared`` and the index ``project_shared_message_uid_unique`` are ON-DISK names in every
-existing shared store and keep their Project-edition spelling (RT-WS-ABSORB-PERSISTED-NAMES-MIGRATE).
+source is ``workspace_shared`` and the UNIQUE index ``workspace_shared_message_uid_unique``; a store
+written before the rename carries the Project-edition ``project_shared`` /
+``project_shared_message_uid_unique``, and its next writable open migrates it in place, in one write
+(:func:`_migrate_project_names`, RT-WS-ABSORB-PERSISTED-NAMES-MIGRATE). A read-only open migrates nothing.
 
 * **The fold** (:func:`fold`) reads every ``<session>/<writer>.jsonl`` of the chats folder from the byte
   offset it recorded last time (``paths.workspace_chat_fold_path``; complete lines only) and inserts each
   line whose ``turn_uid`` the store does not hold yet — idempotent BY TURN, never by session, so a chat
   continued on two machines folds turn by turn in ``(ts, seq)`` order and a re-pull folds nothing twice.
   A UNIQUE index on ``messages.message_uid`` backs the check. A session row is created on its first
-  turn with ``source = "project_shared"`` and the author's ``persona_instance_id`` in ``model_config``.
+  turn with ``source = "workspace_shared"`` and the author's ``persona_instance_id`` in ``model_config``.
 * **The folder** is the chats folder as this machine sees it at the remote tip: Hermes's own worktree
   of the chats slot (``workspace_chat_export.chats_writer``), synced before a fold — which carries every
   writer's pushed lines, this machine's own included, so the store is complete on every machine.
@@ -43,8 +45,11 @@ from . import paths
 
 __layer__ = "stores"
 
-SHARED_SOURCE = "project_shared"
-UNIQUE_UID_INDEX = "project_shared_message_uid_unique"
+SHARED_SOURCE = "workspace_shared"
+UNIQUE_UID_INDEX = "workspace_shared_message_uid_unique"
+#: The Project-edition on-disk names, read only by :func:`_migrate_project_names`.
+LEGACY_SHARED_SOURCE = "project_shared"
+LEGACY_UNIQUE_UID_INDEX = "project_shared_message_uid_unique"
 
 
 class WorkspaceSharedSessionDB(SessionDB):
@@ -62,9 +67,16 @@ def open_shared_store(home: Any, *, read_only: bool) -> WorkspaceSharedSessionDB
     target.parent.mkdir(parents=True, exist_ok=True)
     db = WorkspaceSharedSessionDB(db_path=target, read_only=read_only)
     if not read_only:
-        db._execute_write(lambda conn: conn.execute(
-            f"CREATE UNIQUE INDEX IF NOT EXISTS {UNIQUE_UID_INDEX} ON messages(message_uid)"))
+        db._execute_write(_migrate_project_names)
     return db
+
+
+def _migrate_project_names(conn: sqlite3.Connection) -> None:
+    """Rename the Project-edition source and index in place; a no-op on a store already migrated."""
+
+    conn.execute("UPDATE sessions SET source = ? WHERE source = ?", (SHARED_SOURCE, LEGACY_SHARED_SOURCE))
+    conn.execute(f"DROP INDEX IF EXISTS {LEGACY_UNIQUE_UID_INDEX}")
+    conn.execute(f"CREATE UNIQUE INDEX IF NOT EXISTS {UNIQUE_UID_INDEX} ON messages(message_uid)")
 
 
 def _store_path(home: Any) -> Path:
