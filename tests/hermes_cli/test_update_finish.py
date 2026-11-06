@@ -47,9 +47,6 @@ def completion(tmp_path, monkeypatch):
     for name in ("hermes_cli", "hermes_platform", "pm", "agent", "gateway", "tools", "cron"):
         shutil.copytree(ROOT / name, source / name,
                         ignore=shutil.ignore_patterns("__pycache__", "web_dist", "tui_dist"))
-    # fork: hermes_cli imports the fork runtime package, so a selected checkout carries it too.
-    shutil.copytree(ROOT / "agent_runtime", source / "agent_runtime",
-                    ignore=shutil.ignore_patterns("__pycache__"))
     shutil.copytree(ROOT / "scripts/build", source / "scripts/build",
                     ignore=shutil.ignore_patterns("__pycache__"))
     _put(source, "pyproject.toml", '[project]\nname="takeover-fixture"\nversion="2.0"\n')
@@ -379,8 +376,6 @@ def _npm_graph(source):
     # while npm itself installs a tiny, entirely local workspace graph.
     tools = {}
     node = shutil.which("node")
-    if not node:  # fork: skip by name, never fail, on a box without the tool
-        pytest.skip("source completion acceptance requires Node and npm; this host has no node/npm on PATH (FH-LINUX-SOURCE-UPDATE-FILES-RED-ON-MAIN)")
     assert node, "source completion acceptance requires Node and npm"
     for name in ("esbuild", "typescript", "vite"):
         probe = subprocess.run([node, "-p", f"require.resolve('{name}/package.json')"],

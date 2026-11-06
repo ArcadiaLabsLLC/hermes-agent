@@ -164,8 +164,6 @@ def test_pm_observer_accepts_ready_fixture_and_leaves_failed_fixture_untouched(t
     env.pop("HERMES_INSTALL_ROOT", None)
     path = os.pathsep.join(p for p in os.get_exec_path() if ".hermes" not in Path(p).parts)
     node = shutil.which("node", path=path)
-    if not node:  # fork: skip by name, never fail, on a box without the tool
-        pytest.skip("the PM observer fixture runs node; this host has no node/npm on PATH (FH-LINUX-SOURCE-UPDATE-FILES-RED-ON-MAIN)")
     assert node
     setup = '''import sys
 from pathlib import Path

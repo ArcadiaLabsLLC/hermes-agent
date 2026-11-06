@@ -95,8 +95,6 @@ def test_installed_npm_does_not_authorize_missing_workspace_dependencies(source_
 @pytest.fixture
 def source_checkout(tmp_path, monkeypatch):
     node, npm = shutil.which("node"), shutil.which("npm")
-    if not (node and npm):  # fork: skip by name, never fail, on a box without the tool
-        pytest.skip("source-build integration requires node and npm; this host has no node/npm on PATH (FH-LINUX-SOURCE-UPDATE-FILES-RED-ON-MAIN)")
     assert node and npm, "source-build integration requires node and npm"
     home = tmp_path / "home"
     home.mkdir()
