@@ -280,3 +280,34 @@ def test_archive_note_for_names_the_month_file() -> None:
         "Harness_Brain/80 — Archive/Queues/runtime-queue-2026-11.md")
     assert grammar.archive_note_for("Work_Brain/20 — Active Initiatives/work-queue.md", "2026-12-01") == (
         "Work_Brain/80 — Archive/Queues/work-queue-2026-12.md")
+
+
+def test_a_claim_account_with_a_space_still_names_its_machine() -> None:
+    """RT-WORK-GRAMMAR-CLAIM-ACCOUNT-SPACES. KILLING MUTATION: put ``as (\\S+)`` back in
+    ``CLAIM_WHO`` → the machine reads None and the row carries "names no machine"."""
+
+    line = ("- **`A-1` — x** · READY 2026-11-02 · **TAKEN 2026-11-02 profile-final-acceptance on "
+            "MUltiversalLabsInc as Maximus Shaban in profile-final-acceptance**")
+    row = grammar.parse_row(line, slot="s", note="n", line_no=1)
+    assert row.taken.machine == "MUltiversalLabsInc" and row.defects == ()
+    who = grammar.CLAIM_WHO.match(row.taken.who)
+    assert who.groups() == ("profile-final-acceptance", "MUltiversalLabsInc", "Maximus Shaban",
+                            "profile-final-acceptance")
+    assert grammar.CLAIM_WHO.match("w1 on box-1 as Maximus Shaban").group(3) == "Maximus Shaban"
+
+
+def test_a_claim_mark_quoted_in_the_title_or_a_code_span_is_not_the_rows_claim() -> None:
+    """KILLING MUTATIONS: read the claim with ``TAKEN.search(line)`` in ``claim_mark`` (no scan
+    mask) → the quoted mark reads as the row's claim and ``taken is None`` reds; put ``(.*?)`` back
+    in ``TITLE`` → the title is cut at the quoted stars and the title assertion reds."""
+
+    quoted = "**TAKEN 2026-11-02 lane-q on box-q as A B in wt-q**"
+    in_title = f"- **`A-2` — the mark `{quoted}` trips it** · READY 2026-11-06"
+    assert grammar.parse_row(in_title, slot="s", note="n", line_no=1).title == f"the mark `{quoted}` trips it"
+    for line in (in_title, f"- **`A-2` — a title** · `{quoted}` · READY 2026-11-06"):
+        row = grammar.parse_row(line, slot="s", note="n", line_no=1)
+        assert row.taken is None and row.defects == (), line
+        claimed = grammar.apply(line, grammar.Op.CLAIM, who="w1 on box-1 as nekwo in wt", date="2026-11-06", payload={})
+        assert grammar.parse_row(claimed, slot="s", note="n", line_no=1).taken.who == "w1 on box-1 as nekwo in wt"
+        released = grammar.apply(claimed, grammar.Op.RELEASE, who="w1", date="2026-11-06", payload={})
+        assert released == line
