@@ -27,6 +27,7 @@ import os
 import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
+from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
@@ -572,6 +573,13 @@ def segment_text(value: str, limit: int = 300) -> str:
     """One grammar-safe segment text: no code span, bold or separator can leak into the row."""
 
     return " ".join(_SEGMENT_FORBIDDEN.sub("-", str(value or "")).split())[:limit]
+
+
+def local_day(moment: datetime) -> str:
+    """The calendar day a row write stamps: ``moment`` on THIS machine's clock, never UTC's
+    (RT-WORK-DATES-LOCAL-DAY — a 22:53 EST move wrote tomorrow's UTC date). A naive moment is local already."""
+
+    return (moment.astimezone() if moment.tzinfo is not None else moment).date().isoformat()
 
 
 def mint_id(rand: bytes | None = None) -> str:
