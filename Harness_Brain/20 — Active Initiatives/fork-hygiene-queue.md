@@ -7,6 +7,10 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+## Filed on arrival — 2026-11-05 (lane w1105h-hm)
+
+- **`FH-LINUX-SOURCE-UPDATE-FILES-RED-ON-MAIN` — five source/update test files are red ALONE on `origin/main` 2f5f1a9079 on the Linux box (nekwo-ubuntu24, run under `unshare --user --pid`): `tests/hermes_cli/test_source_build.py` (13, setup: `source-build integration requires node and npm` — no node on the scrubbed PATH), `tests/scripts/test_source_driver.py` (7, `assert node`), `tests/hermes_cli/test_update_finish.py` (13, `Update completion failed: No module named 'agent_runtime'` from the minted update tree), `tests/pm/test_environment_build.py::test_first_bundle_extension_preserves_shipped_extras` (pm worker `sync_venv` readline timeout) and `tests/e2e/core/upgrade/test_upgrade_path.py` (`template_home` seed run timeout); either provision/skip by name what the host lacks or fix the minted tree, so a lane's blast-radius run reads green** · fork / the suite · `--confirm-red` verdict pre-existing for each (lane w1105h-hm) · filed by lane w1105h-hm 2026-11-05 · READY 2026-11-05
+
 ## Filed on arrival — 2026-11-02 (appearance acceptance)
 
 - **`FH-WINDOWS-PRECOMPILE-SHELL` — The precompile-scope fixtures select the Windows WSL bash shim instead of Git Bash and fail both small-run classification checks; preserve their assertions while qualifying shell resolution** · `tests/scripts/test_run_tests_precompile_scope.py` · candidate and unchanged 07ce68314d reproduce the same two failed nodes and WSL startup failure · READY 2026-11-02 · REQUIRES windows
