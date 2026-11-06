@@ -77,6 +77,10 @@ DEPENDENCY_ENV = "HERMES_DEPENDENCY_ROOT"
 #: The QA provider pool (RT-QA-SHARED-PROVIDER-POOL, owner ruling 2026-11-06): the id of the QA
 #: namespace whose head home holds the provider sign-ins EVERY QA namespace in the same folder uses.
 QA_POOL_ENV = "HERMES_QA_PROVIDER_POOL"
+#: The folder the pool namespace lives in, when it is not this namespace's own (RT-QA-POOL-FOLLOWS-MOVED-NAMESPACE):
+#: a QA namespace the launcher MOVED out of its launch folder names the launch folder here. Absolute, QA-only,
+#: launcher-spawned, a folder holding no account namespace — the same admission as the pool id.
+QA_POOL_DIR_ENV = "HERMES_QA_PROVIDER_POOL_DIR"
 #: The shared-auth home a bound process reads and writes its provider credentials at
 #: (``agent_runtime.profile_home.get_hermes_auth_home``); the QA pool binds it.
 AUTH_HOME_ENV = "HERMES_AUTH_HOME"
@@ -484,7 +488,10 @@ def qa_provider_pool_home(item: Layout, env: Mapping[str, str]) -> Path | None:
     (:data:`QA_PREFIX`), the process launcher-spawned, and the folder they share must hold no account
     namespace — a folder with one is the owner's data root, which a QA pool never reads or writes. An
     id is resolved in this namespace's own folder, so the pool can never name the base root (``base``
-    is reserved), ``~/.hermes`` or another folder. Unset, or naming this namespace itself: ``None``,
+    is reserved) or ``~/.hermes``. A namespace the launcher moved out of the pool's folder names that
+    folder in :data:`QA_POOL_DIR_ENV` (RT-QA-POOL-FOLLOWS-MOVED-NAMESPACE): absolute, never containing
+    or inside the base root, and admitted like the id — QA namespaces only, launcher-spawned, a folder
+    holding no account namespace. Unset, or naming this namespace itself: ``None``,
     nothing read. An admitted pool is initialized through the same manifest lifecycle as the lane,
     so its first launch already shares the provider store. Existing credentials are never reseeded.
     """
@@ -494,6 +501,7 @@ def qa_provider_pool_home(item: Layout, env: Mapping[str, str]) -> Path | None:
     pool_id = validate_id(raw)
     if pool_id == item.id:
         return None
+    pool_dir = _qa_pool_dir(item, env)
     # MUTATION: drop the `item.id` half and test_qa_provider_pool's "a non-QA namespace may not join
     # the pool" reddens.
     if not (item.id.startswith(QA_PREFIX) and pool_id.startswith(QA_PREFIX)):
@@ -504,19 +512,37 @@ def qa_provider_pool_home(item: Layout, env: Mapping[str, str]) -> Path | None:
         raise NamespaceRefused(Reason.QA_POOL_REFUSED, f"{QA_POOL_ENV} is a launcher hand-off ({LAUNCHER_ENV}=1)")
     # MUTATION: drop this check and test_qa_provider_pool's "a folder holding an account namespace is
     # the owner's: no pool" reddens.
-    try:
-        owner = sorted(entry.name for entry in os.scandir(item.namespaces_dir)
-                       if entry.is_dir() and namespace_kind(entry.name) != KIND_PROFILE)
-    except FileNotFoundError:
-        owner = []
-    if owner:
-        raise NamespaceRefused(
-            Reason.QA_POOL_REFUSED,
-            f"{item.namespaces_dir} holds account namespace {owner[0]!r}: it is the owner's data root, "
-            "and a QA provider pool lives only in a QA folder")
-    pool = Layout(pool_id, item.base_root, item.namespaces_dir, item.namespaces_dir / pool_id)
+    # MUTATION: check only `item.namespaces_dir` and test_qa_provider_pool's "a named pool folder holding
+    # an account namespace is the owner's" reddens.
+    for folder in dict.fromkeys((item.namespaces_dir, pool_dir)):
+        try:
+            owner = sorted(entry.name for entry in os.scandir(folder)
+                           if entry.is_dir() and namespace_kind(entry.name) != KIND_PROFILE)
+        except FileNotFoundError:
+            owner = []
+        if owner:
+            raise NamespaceRefused(
+                Reason.QA_POOL_REFUSED,
+                f"{folder} holds account namespace {owner[0]!r}: it is the owner's data root, "
+                "and a QA provider pool lives only in a QA folder")
+    pool = Layout(pool_id, item.base_root, pool_dir, pool_dir / pool_id)
     ensure_manifest(pool, ORIGIN_LAUNCHER_PROFILE)
     return pool.head_home
+
+
+def _qa_pool_dir(item: Layout, env: Mapping[str, str]) -> Path:
+    """The folder the QA pool namespace lives in: :data:`QA_POOL_DIR_ENV`, else *item*'s own folder."""
+    raw = str(env.get(QA_POOL_DIR_ENV) or "").strip()
+    if not raw:
+        return item.namespaces_dir
+    folder = Path(raw).expanduser()
+    if not folder.is_absolute():
+        raise NamespaceRefused(Reason.QA_POOL_REFUSED, f"{QA_POOL_DIR_ENV} must be absolute, got {raw!r}")
+    if is_inside(folder, item.base_root) or is_inside(item.base_root, folder):
+        raise NamespaceRefused(
+            Reason.QA_POOL_REFUSED,
+            f"{QA_POOL_DIR_ENV}={folder} and the base root {item.base_root} may not contain each other")
+    return folder
 
 
 def env_updates(res: CliResolution, env: Mapping[str, str]) -> dict[str, str]:

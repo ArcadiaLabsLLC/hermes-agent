@@ -211,3 +211,62 @@ def test_two_lanes_take_one_auth_lock(base: Path, folder: Path, monkeypatch):
     free = subprocess.run([sys.executable, "-c", _HOLD_LOCK], env=child, cwd=str(REPO),
                           capture_output=True, text=True, timeout=120, check=False)
     assert free.stdout.strip().splitlines()[-1:] == ["acquired"], free.stderr[-2000:]
+
+
+# -- a lane moved out of the pool's folder names that folder (RT-QA-POOL-FOLLOWS-MOVED-NAMESPACE) -------
+
+
+@pytest.fixture
+def moved(tmp_path: Path) -> Path:
+    """The folder a QA lane namespace was moved to (Eternia's agent-data-folder Move): no pool in it."""
+    path = tmp_path / "moved-elsewhere" / "hermes-namespaces"
+    (path / LANE / "profiles" / "base").mkdir(parents=True)
+    return path
+
+
+def test_a_moved_lane_binds_the_pool_in_the_folder_it_names(base: Path, folder: Path, moved: Path):
+    updates = _updates(_env(base, moved, HERMES_QA_PROVIDER_POOL_DIR=str(folder)))
+    assert updates["HERMES_AUTH_HOME"] == str(folder / POOL / "profiles" / "base")
+    # The lane's own data stays in the folder it was moved to; nothing is created beside it.
+    assert updates["HERMES_HOME"] == str(moved / LANE / "profiles" / "base")
+    assert not (moved / POOL).exists()
+
+
+def test_a_moved_lane_without_the_pool_folder_binds_its_own_folder(base: Path, moved: Path):
+    updates = _updates(_env(base, moved))
+    assert updates["HERMES_AUTH_HOME"] == str(moved / POOL / "profiles" / "base")
+
+
+def test_a_named_pool_folder_holding_an_account_namespace_is_the_owners(base: Path, folder: Path, moved: Path):
+    (folder / "acct-0123456789abcdef").mkdir()
+    manifest = folder / POOL / "namespace.json"
+    manifest.unlink()
+    with pytest.raises(ns.NamespaceRefused) as caught:
+        _updates(_env(base, moved, HERMES_QA_PROVIDER_POOL_DIR=str(folder)))
+    assert caught.value.reason is ns.Reason.QA_POOL_REFUSED
+    assert "owner" in caught.value.detail
+    assert not manifest.exists()
+
+
+@pytest.mark.parametrize("which", ["relative", "base", "inside-base"])
+def test_a_pool_folder_must_be_absolute_and_clear_of_the_base_root(base: Path, moved: Path, which: str):
+    value = {"relative": "qa-sandbox/hermes-namespaces", "base": str(base),
+             "inside-base": str(base / "hermes-namespaces")}[which]
+    with pytest.raises(ns.NamespaceRefused) as caught:
+        _updates(_env(base, moved, HERMES_QA_PROVIDER_POOL_DIR=value))
+    assert caught.value.reason is ns.Reason.QA_POOL_REFUSED
+
+
+def test_a_named_pool_folder_is_qa_only_and_a_launcher_hand_off(base: Path, folder: Path, moved: Path):
+    manifest = folder / POOL / "namespace.json"
+    manifest.unlink()
+    env = _env(base, moved, namespace="qa", HERMES_QA_PROVIDER_POOL_DIR=str(folder))
+    with pytest.raises(ns.NamespaceRefused) as caught:
+        _updates(env)
+    assert caught.value.reason is ns.Reason.QA_POOL_REFUSED
+    env = _env(base, moved, HERMES_QA_PROVIDER_POOL_DIR=str(folder))
+    del env["HERMES_LAUNCHER_SPAWNED"]
+    with pytest.raises(ns.NamespaceRefused) as caught:
+        ns.qa_provider_pool_home(ns.layout(LANE, env), env)
+    assert caught.value.reason is ns.Reason.QA_POOL_REFUSED
+    assert not manifest.exists()
