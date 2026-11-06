@@ -59,6 +59,7 @@ __all__ = [
     "_status_repo",
     "_status_store_drift",
     "realm_sync_status",
+    "store_drift_family_counts",
 ]
 
 
@@ -244,6 +245,14 @@ def _status_store_drift(realm_id: str, workspaces: list[Workspace]) -> dict[str,
     """
 
     drift_items = store_drift_items(realm_id, workspaces)
+    return {**store_drift_family_counts(drift_items), "items": [item.as_dict() for item in drift_items]}
+
+
+def store_drift_family_counts(drift_items: list) -> dict[str, Any]:
+    """The per-family counts of one drift walk: ONE table for ``store_drift`` (status) and
+    ``store_drift_after`` (both revert verbs), so a revert answers for every family it can
+    revert (RT-REVERT-DRIFT-AFTER-OMITS-FAMILIES)."""
+
     return {
         "boards": _drift_counts(drift_items, _BOARD_DRIFT_COUNTS),
         "office": _drift_counts(drift_items, _OFFICE_DRIFT_COUNTS),
@@ -274,7 +283,6 @@ def _status_store_drift(realm_id: str, workspaces: list[Workspace]) -> dict[str,
         # the workspace LEVEL, with its revert arm. The top-level ``levels`` row
         # stays for one release so an older launcher keeps its count.
         "levels": _drift_counts(drift_items, LEVEL_DRIFT_COUNTS),
-        "items": [item.as_dict() for item in drift_items],
     }
 
 
