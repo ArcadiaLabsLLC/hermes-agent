@@ -12,8 +12,8 @@ import pytest
 
 from agent_runtime import paths, serve_rpc
 from agent_runtime.call_authorization import LOCAL_CONSOLE_METHODS
-from agent_runtime.project_chat_export import ChatHome, share
-from agent_runtime.project_chat_fold import open_shared_store
+from agent_runtime.workspace_chat_export import ChatHome, share
+from agent_runtime.workspace_chat_fold import open_shared_store
 from agent_runtime.store import WorkspaceStore
 from agent_runtime.workspace_slots import bind, declare, load_document
 from agent_runtime.workspace_slots_sync import apply_workspace_slots_pull, merge_documents

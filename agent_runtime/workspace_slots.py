@@ -623,7 +623,7 @@ def show(workspace_id: str) -> dict[str, Any]:
                       f"{name}: bound on " + (", ".join(machines) if machines else "no reporting machine"), time.time())
             row["unknowns"] = index.wire()
         here[name] = row
-    from .project_chat_export import ChatHome, shared_sessions_of
+    from .workspace_chat_export import ChatHome, shared_sessions_of
 
     return {"document": document, "here": here, "shared_chats": shared_sessions_of(ChatHome.workspace(workspace_id))}
 

@@ -2,7 +2,7 @@
 
 Plan ``docs/agent-runtime-harness/planned/project-slots-and-shared-chats-2026-10-29.md`` §6, re-homed on the
 workspace (RT-WS-ABSORB-RETIRE-PROJECT). An agent searches its workspace's shared store
-(``project_chat_fold``) beside its own ``state.db`` only when BOTH switches are on: the instance's
+(``workspace_chat_fold``) beside its own ``state.db`` only when BOTH switches are on: the instance's
 ``recall_shared_projects`` (default off; ``runtime.persona.instance.recall.set``) and the workspace's
 ``chats`` share. The shared store is opened READ-ONLY here; the fold is its only writer, and memory
 extraction (``agent/background_review``) reads the live turn, never a store. (The module and the
@@ -50,8 +50,8 @@ def shared_stores_for(persona_instance_id: str | None) -> list[SharedStore]:
         return []
     from .errors import NotFound
     from .persona_assignments import PersonaInstanceStore
-    from .project_chat_export import ChatHome
-    from .project_chat_fold import open_shared_store
+    from .workspace_chat_export import ChatHome
+    from .workspace_chat_fold import open_shared_store
     from .store import WorkspaceStore
     from .workspace_categories import category
     from .workspace_slots import load_document

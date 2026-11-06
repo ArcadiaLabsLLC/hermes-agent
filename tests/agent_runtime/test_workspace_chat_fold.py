@@ -7,7 +7,7 @@ import json
 
 from agent_runtime import paths
 from agent_runtime.chat_session_scope import is_canonical_session_persistence
-from agent_runtime.project_chat_fold import SHARED_SOURCE, drop_chats, fold, open_shared_store
+from agent_runtime.workspace_chat_fold import SHARED_SOURCE, drop_chats, fold, open_shared_store
 from agent_runtime.store import WorkspaceStore
 from agent_runtime.workspace_categories import set_category
 from agent_runtime.workspace_slots import bind, declare
@@ -117,7 +117,7 @@ def _git(*args, cwd):
 
 
 def test_a_realm_pull_folds_a_peers_shared_turns_on_a_machine_that_sent_none(tmp_path):
-    """RT-PROJECT-CHAT-FOLD-WITHOUT-SENDING: the pull's project_chat_fold applier fetches and folds.
+    """RT-PROJECT-CHAT-FOLD-WITHOUT-SENDING: the pull's workspace_chat_fold applier fetches and folds.
 
     Positive control: before the applier runs, the reader machine's store holds nothing.
     """
@@ -172,7 +172,7 @@ def _shared_workspace_with_a_peer_turn(tmp_path, name, text, realm_id=None):
 def test_a_realmless_shared_workspace_folds_on_the_serve_tick_and_a_realm_held_one_is_left_to_the_pull(tmp_path):
     """RT-PROJECT-CHAT-FOLD-REALMLESS. Positive control: the realm-held workspace's turn IS there to fold."""
 
-    from agent_runtime.project_chat_fold import fold_from_remote, fold_realmless_workspaces, realmless_shared_homes
+    from agent_runtime.workspace_chat_fold import fold_from_remote, fold_realmless_workspaces, realmless_shared_homes
     from agent_runtime.store import RealmStore
 
     solo = _shared_workspace_with_a_peer_turn(tmp_path, "solo", "no realm")
@@ -186,7 +186,7 @@ def test_a_realmless_shared_workspace_folds_on_the_serve_tick_and_a_realm_held_o
 
 
 def test_the_realmless_tick_is_bounded_and_round_robin(tmp_path):
-    from agent_runtime.project_chat_fold import fold_realmless_workspaces
+    from agent_runtime.workspace_chat_fold import fold_realmless_workspaces
 
     first_ws, second_ws = sorted(_shared_workspace_with_a_peer_turn(tmp_path, name, name) for name in ("pa", "pb"))
     first = fold_realmless_workspaces(limit=1)

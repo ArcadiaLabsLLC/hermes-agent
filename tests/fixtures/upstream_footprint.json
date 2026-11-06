@@ -1253,7 +1253,7 @@
         "deleted_lines": 1060,
         "heavy": 1
       },
-      "reason": "Append-only seam: three lines after upstream's registry.register hand the registered session_search handler to agent_runtime/project_chat_recall.py::route_registered_handler, so the agent's tool call also recalls the shared store of every Project its instance enabled (recall_shared_projects + the Project's chats share); direct callers of session_search keep upstream's single-store behaviour. NO DOOR YET: no hook may wrap a built-in tool's handler. PR candidate: a wrap_dispatch plugin hook around ToolRegistry.dispatch (the tools/registry.py row's candidate).",
+      "reason": "Append-only seam: three lines after upstream's registry.register hand the registered session_search handler to agent_runtime/workspace_chat_recall.py::route_registered_handler, so the agent's tool call also recalls the shared store of every Project its instance enabled (recall_shared_projects + the Project's chats share); direct callers of session_search keep upstream's single-store behaviour. NO DOOR YET: no hook may wrap a built-in tool's handler. PR candidate: a wrap_dispatch plugin hook around ToolRegistry.dispatch (the tools/registry.py row's candidate).",
       "owner_ruling": "2026-10-29 \u00b7 Harness_Brain/20 \u2014 Active Initiatives/runtime-queue.md RT-PROJECT-CHAT-RECALL-ACROSS-STORES RULED: owner \"sounds good yea we need that\" \u2014 allow the append-only seam in tools/session_search_tool.py"
     },
     {

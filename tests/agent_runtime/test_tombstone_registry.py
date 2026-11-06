@@ -4360,7 +4360,7 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "fold_realm_projects",
         "fold_realmless_projects",
         "realmless_shared_projects",
-        scope=("agent_runtime.project_chat_fold",),
+        scope=("agent_runtime.workspace_chat_fold",),
     ),
     *rows(
         "s-w1104a-wsabsorb2",

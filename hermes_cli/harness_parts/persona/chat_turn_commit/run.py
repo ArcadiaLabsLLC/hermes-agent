@@ -811,7 +811,7 @@ class _RunPhases:
         # RT-PROJECT-CHAT-TURN-LOGS: a chat shared into a workspace appends this turn's lines to its
         # turn log, off this thread; never raises, a failure retries from its cursor next turn.
         try:
-            from agent_runtime.project_chat_export import export_after_turn
+            from agent_runtime.workspace_chat_export import export_after_turn
 
             export_after_turn(self.session_db, self.session_id,
                               persona_instance_id=getattr(self.instance, "id", None))

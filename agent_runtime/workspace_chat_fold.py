@@ -15,7 +15,7 @@ class keep their Project-edition names until RT-WS-ABSORB-CHAT-NAMES-RESIDUE.)
   A UNIQUE index on ``messages.message_uid`` backs the check. A session row is created on its first
   turn with ``source = "project_shared"`` and the author's ``persona_instance_id`` in ``model_config``.
 * **The folder** is the chats folder as this machine sees it at the remote tip: Hermes's own worktree
-  of the chats slot (``project_chat_export.chats_writer``), synced before a fold — which carries every
+  of the chats slot (``workspace_chat_export.chats_writer``), synced before a fold — which carries every
   writer's pushed lines, this machine's own included, so the store is complete on every machine.
 * **When**: after every local export (the turn-end hook), on ``runtime.workspace.chat.fold``, after each
   realm pull (:func:`fold_realm_workspaces`), and — for a workspace in no realm — on the serve's bounded
@@ -73,7 +73,7 @@ def _store_path(home: Any) -> Path:
 
 
 def _home(home: Any):
-    from .project_chat_export import home_of
+    from .workspace_chat_export import home_of
 
     return home_of(home)
 
@@ -188,7 +188,7 @@ def _ensure_session(db: SessionDB, session_id: str, line: dict[str, Any]) -> Non
 def fold_from_remote(home: Any) -> dict[str, Any]:
     """Sync Hermes's worktree of the chats slot to the remote tip, then fold its chats folder."""
 
-    from .project_chat_export import chats_writer
+    from .workspace_chat_export import chats_writer
 
     home = _home(home)
     writer, folder = chats_writer(home)
@@ -211,7 +211,7 @@ def fold_realm_workspaces(realm_id: str, *, limit: int = FOLD_ON_PULL_LIMIT) -> 
     a fold never fails the pull.
     """
 
-    from .project_chat_export import ChatHome
+    from .workspace_chat_export import ChatHome
     from .store import WorkspaceStore
 
     live = sorted(ws.id for ws in WorkspaceStore().list_all(include_archived=False) if ws.realm_id == realm_id)
@@ -222,7 +222,7 @@ def fold_realm_workspaces(realm_id: str, *, limit: int = FOLD_ON_PULL_LIMIT) -> 
 def realmless_shared_homes() -> list[Any]:
     """The shared-chat workspaces of this namespace in no realm — no realm pull ever folds them, sorted."""
 
-    from .project_chat_export import ChatHome
+    from .workspace_chat_export import ChatHome
     from .store import WorkspaceStore
 
     return _chats_shared([ChatHome(ws.id) for ws in sorted(WorkspaceStore().list_all(include_archived=False),

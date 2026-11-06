@@ -172,8 +172,8 @@ def set_category(workspace_id: str, name: str, *, slot: Any, subpath: Any, share
     document["workspace_id"] = workspace_id
     write_document(workspace_id, document)
     if name == CHATS and held.get("shared") and not shared:
-        from .project_chat_fold import drop_chats
-        from .project_chat_export import ChatHome
+        from .workspace_chat_fold import drop_chats
+        from .workspace_chat_export import ChatHome
 
         drop_chats(ChatHome.workspace(workspace_id), reason="chats_unshared")
     return {"workspace_id": workspace_id, "category": name, "record": document["categories"][name]}

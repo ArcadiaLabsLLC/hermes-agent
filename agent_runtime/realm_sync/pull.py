@@ -265,7 +265,7 @@ def _pull_shared_chats(run: _PullRun) -> bool:
     # not in this subtree, so the pull fans out to a bounded fetch-and-fold of every workspace of
     # this realm whose chats are shared (RT-PROJECT-CHAT-FOLD-WITHOUT-SENDING).
     # It changes no realm artifact, so it never marks the pull changed.
-    from ..project_chat_fold import fold_realm_workspaces
+    from ..workspace_chat_fold import fold_realm_workspaces
 
     run.shared_chats = fold_realm_workspaces(run.realm.id)
     return False

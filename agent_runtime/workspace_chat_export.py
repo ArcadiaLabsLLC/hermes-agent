@@ -410,7 +410,7 @@ def export_after_turn(session_db: Any, session_id: str | None, *, persona_instan
     def run() -> None:
         from .work_store import receipts
 
-        from .project_chat_fold import fold_from_remote
+        from .workspace_chat_fold import fold_from_remote
 
         for home in homes:
             try:

@@ -335,7 +335,7 @@ def _chat_share(params):
     """Share one chat into the workspace's chats folder (backfill, then every turn end) or stop sharing it."""
 
     from agent_runtime.chat_session_scope import SessionDbAccess, open_chat_session_db, resolve_chat_session_scope
-    from agent_runtime.project_chat_export import ChatHome, share
+    from agent_runtime.workspace_chat_export import ChatHome, share
 
     workspace_id = _workspace(params)
     credential = _inline_credential(params)
@@ -351,7 +351,7 @@ def _chat_share(params):
 def _chat_fold(params):
     """Fetch the workspace's chats folder to its remote tip and fold new turns into its shared store."""
 
-    from agent_runtime.project_chat_export import ChatHome
-    from agent_runtime.project_chat_fold import fold_from_remote
+    from agent_runtime.workspace_chat_export import ChatHome
+    from agent_runtime.workspace_chat_fold import fold_from_remote
 
     return fold_from_remote(ChatHome.workspace(_workspace(params)))

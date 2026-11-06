@@ -14,10 +14,10 @@ from agent_runtime import paths, serve_rpc
 from agent_runtime.launcher_invocation import launcher_invocation
 from agent_runtime.models import PersonaInstance
 from agent_runtime.persona_assignments import PersonaInstanceStore
-from agent_runtime.project_chat_fold import fold
+from agent_runtime.workspace_chat_fold import fold
 from agent_runtime.states import WorkerSessionState
 from agent_runtime.store import WorkspaceStore
-from agent_runtime.project_chat_recall import recall_session_search
+from agent_runtime.workspace_chat_recall import recall_session_search
 from agent_runtime.workspace_categories import set_category
 from agent_runtime.workspace_slots import declare
 
@@ -108,14 +108,14 @@ def test_no_module_but_the_fold_and_recall_opens_the_shared_stores():
     Positive control: the walk finds the two modules that ARE allowed, so it is reading the tree.
     """
     pattern = re.compile(r"\b(?:workspace_chat_store_path|open_shared_store|ProjectSharedSessionDB)\b")
-    allowed = {"agent_runtime/project_chat_fold.py", "agent_runtime/project_chat_recall.py", "agent_runtime/paths.py",
+    allowed = {"agent_runtime/workspace_chat_fold.py", "agent_runtime/workspace_chat_recall.py", "agent_runtime/paths.py",
                "agent_runtime/project_migration.py"}  # the merge moves a Project's store file, never opens it
     hits = set()
     for root in ("agent_runtime", "agent", "tools", "hermes_cli", "plugins"):
         for path in (REPO / root).rglob("*.py"):
             if pattern.search(path.read_text(encoding="utf-8", errors="replace")):
                 hits.add(path.relative_to(REPO).as_posix())
-    assert {"agent_runtime/project_chat_fold.py", "agent_runtime/project_chat_recall.py"} <= hits
+    assert {"agent_runtime/workspace_chat_fold.py", "agent_runtime/workspace_chat_recall.py"} <= hits
     assert hits <= allowed, sorted(hits - allowed)
     assert "agent/background_review.py" not in hits
 

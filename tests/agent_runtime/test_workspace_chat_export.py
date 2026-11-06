@@ -9,7 +9,7 @@ from contextlib import closing
 
 import pytest
 
-from agent_runtime import project_chat_export as export
+from agent_runtime import workspace_chat_export as export
 from agent_runtime.store import WorkspaceStore
 from agent_runtime.workspace_categories import set_category
 from agent_runtime.workspace_slots import SlotRefused, bind, declare, show
