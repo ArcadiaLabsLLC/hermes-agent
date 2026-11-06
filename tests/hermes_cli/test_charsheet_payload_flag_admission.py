@@ -78,6 +78,12 @@ ADMITTED: dict[str, Guarantee | Data] = {
     "thumb.ok": Data(why="the CLI envelope's own success flag"),
     "status.ok": Data(why="the CLI envelope's own success flag"),
     "list.ok": Data(why="the CLI envelope's own success flag"),
+    "cells.ok": Data(why="the CLI envelope's own success flag"),
+    # RT-CHARS-CELLS-PAYLOAD-CONTRACT-KIND: what the cells were built FROM, not a claim about them.
+    "cells.paletteLocked": Data(
+        why="whether every authored direction had an approved reference, so compose's palette "
+        "lock was applied to these cells — a report of the inputs, not a promise about the pixels"
+    ),
     # ── the two crop bounds: the instances that taught the class ──
     "thumb.withinConsoleBudget": Guarantee(
         predicate="agent.charsheet.pipeline:fits_console_budget",
