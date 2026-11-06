@@ -34,6 +34,7 @@ map                      lanes   ``runtime.map.*``
 prefab                   lanes   ``runtime.prefab.*`` (a profile's prefab shelf)
 agent                    lanes   ``runtime.agent.create/retire``
 chat                     lanes   open_chat, prewarm, ``runtime.chat.message/steer``
+channel                  lanes   ``runtime.channel.message`` (the owner's external gateways)
 operator_conversation    lanes   exact-session read, message, Stop and execution status
 operator_inspection      lanes   native session model controls, usage and skills
 instance_history         lanes   account-scoped native conversation directory
@@ -109,6 +110,7 @@ from agent_runtime.serve_rpc import (
     prefab,
     agent,
     chat,
+    channel,
     operator_conversation,
     operator_history,
     operator_inspection,

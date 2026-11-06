@@ -47,6 +47,7 @@
     "runtime.board.card.move",
     "runtime.board.card.restore",
     "runtime.board.resolve_conflict",
+    "runtime.channel.message",
     "runtime.character.appearance.set",
     "runtime.character.assignment.get",
     "runtime.character.assignment.migrate",
@@ -447,6 +448,14 @@
       "card_id",
       "correlation_id",
       "take"
+    ],
+    "runtime.channel.message": [
+      "channel_key",
+      "correlation_id",
+      "persona_instance_id",
+      "sender",
+      "text",
+      "turn_request_id"
     ],
     "runtime.character.appearance.set": [
       "asset_reference",
@@ -1101,6 +1110,7 @@
     "runtime.board.card.move": "console",
     "runtime.board.card.restore": "console",
     "runtime.board.resolve_conflict": "console",
+    "runtime.channel.message": "console",
     "runtime.character.appearance.set": "console",
     "runtime.character.assignment.get": "read",
     "runtime.character.assignment.migrate": "console",

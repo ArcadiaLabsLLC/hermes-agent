@@ -130,6 +130,36 @@ aimed at a remote install therefore cannot move that install's active scope
 and cannot read its peer directory as a device; it reads its OWN runtime's
 directory instead, which is what the launcher's namespaced roster does.
 
+### Channel credentials: the owner's own external gateways
+
+A paired device row has a `kind` (owner ruling C, 2026-11-05; plan
+[external-gateway-namespace-access](planned/external-gateway-namespace-access-2026-11-05.md)). `device` is a person's
+screen and every row written before the rule reads as one. `channel` is the owner's own external
+gateway — a bot process, in any language, that relays a platform's messages over this lane and keeps
+its own bot token; hermes never holds one. `harness gateway pair --kind channel --instance <id>`
+(repeatable) mints it; the row carries `bound_instances`, written by the ceremony and never by a hello.
+
+- **What it may call.** A channel holds `console` (a chat turn runs tools) and
+  `call_authorization.CHANNEL_METHOD_ALLOWLIST` narrows it to `runtime.channel.message`,
+  `runtime.chat.message`, `runtime.chat.steer` and `runtime.persona.instance.open_chat`; every other
+  verb, read verbs included, refuses `scope_denied`, and the arm runs before the read opening. The
+  stream `subscribe` op refuses `channel_credential`.
+- **Which agent.** `gateway_channel.channel_target_refusal` runs at dispatch: a chat verb whose
+  `persona_instance_id`, or the owner of whose `session_id`, is not bound refuses
+  `channel_instance_not_bound`; naming no instance refuses too.
+- **When.** Only while `<base>/namespace-active.json` names this serve's namespace (the "Allow agent
+  use outside the launcher" switch, D5): read after the proof at the hello (`hello_rejected` reason
+  `external_access_off`, said only to a holder of the credential and not charged to the auth limiter)
+  and again on every call. A code redeemed while the switch is off is revoked in the same breath.
+  `pair --kind channel` refuses `external_access_off` before minting.
+- **One verb for an inbound message.** `runtime.channel.message {channel_key, text, turn_request_id,
+  sender?, persona_instance_id?, correlation_id?}` maps `(the proven device, channel_key)` to ONE
+  independent chat root of the bound instance (default: the first bound), minted by open-chat's
+  `new_session` door under `gateway_channel.channel_session_key` and replayed after, stamped
+  `channel_source: "channel:<device name>"` / `channel_key` in its meta and titled with both. The turn
+  is `runtime.chat.message`'s own accept; the reply rides the per-request frame lane. `attachments`
+  refuses `channel_attachments_unsupported`.
+
 ### Pairing without a code: introduce, and the account's grant
 
 The manual ceremonies (`harness gateway pair` for a device, `harness gateway

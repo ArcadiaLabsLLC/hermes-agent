@@ -1,7 +1,7 @@
 # Planned — how the owner's own external gateways reach an account namespace (RT-EXTERNAL-GATEWAY-NAMESPACE-ACCESS, 2026-11-05)
 
-**Status:** options and a recommendation, written by lane w1105g-hm-plan; **the shape is the owner's call**
-(`RT-EXTERNAL-GATEWAY-SHAPE-RULING`, BLOCKED owner decision). Build rows in §5 wait on that ruling. Group:
+**Status:** RULED C 2026-11-05 and built (§6, lane w1105h-hm2); options and recommendation by lane w1105g-hm-plan
+(`RT-EXTERNAL-GATEWAY-SHAPE-RULING`, closed). Group:
 `external-gateway-access`.
 **Owner domain:** the namespace boundary ([04-boot-and-lifecycle.md](../04-boot-and-lifecycle.md) § the profile
 namespace) and the serve's transports ([03-transport-and-wire.md](../03-transport-and-wire.md) §1.1, §1.4;
@@ -113,3 +113,23 @@ regenerate with `scripts/gen_gateway_contracts.py`.
   the channel hello refuses; naming this one admits. Killing mutation: skip the record read → the refusal reds.
 - `RT-EXTERNAL-GATEWAY-RETIRE-UPSTREAM` — owner sitting, after the owner's first gateway answers: stop the alice
   upstream gateway, remove its logon task, delete the bot token from the eight profile `.env` files. No code.
+
+## 6. Built (lane w1105h-hm2, 2026-11-05)
+
+The owner ruled C, D5 yes, D7 owner-supervised first, local first. Built as ruled, with three calls the
+plan left open, each recorded here:
+
+- **A channel gets no read verbs.** D1 said "every non-chat console verb refuses"; the build refuses
+  read verbs too and answers the kind from `CHANNEL_METHOD_ALLOWLIST` before the read opening (the peer
+  arm's reason: a bot after the read arm would inherit the office core and every instance's history).
+  The stream `subscribe` op refuses `channel_credential` for the same reason.
+- **The switch is read at the hello AND on every call** (`gateway_channel.external_access_on`), so
+  switching it off stops a connected gateway at its next turn; a code redeemed while it is off is
+  revoked at once rather than leaving a live row nobody holds.
+- **The conversation map is the mint receipt.** No new store: the open-chat idempotency key is
+  derived from `(device_id, channel_key)` (`gateway_channel.channel_session_key`), so the existing
+  reserve-then-create receipt is the map, and its replay is the reuse.
+
+Not built, filed: an account-scoped conversation list omits channel conversations, because a channel
+credential carries no `client_scope` (they list under `all_accounts`) — `RT-EXTERNAL-GATEWAY-CHANNEL-CLIENT-SCOPE`.
+Attachments are refused, not relayed. Serve-supervised gateways (D7a) and remote gateways are later slices.

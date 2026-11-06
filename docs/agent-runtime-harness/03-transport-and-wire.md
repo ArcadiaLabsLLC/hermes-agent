@@ -390,7 +390,10 @@ the device it just created with the token riding that one `hello_ok` and never
 again. Every credential failure on this lane — no id, unknown id, revoked row,
 wrong proof, wrong code — collapses into ONE `bad_proof` rejection, so a peer
 that has proven nothing cannot enumerate device ids by watching the reason
-change.
+change. The one exception is said only AFTER a proof verifies: a `channel` credential (the owner's
+own external gateway, [09](09-multi-device-runtime.md) § Channel credentials) is rejected
+`external_access_off` while the namespace's external-access switch is off — not an auth failure,
+so it charges nothing.
 
 **Neither door accepts the other's credential**, in both directions: the root
 token is refused on the gateway lane, a pairing code is refused on loopback.
