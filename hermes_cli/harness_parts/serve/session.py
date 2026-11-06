@@ -630,12 +630,12 @@ class ServeSession(
         #: Windows often no process at all. Published on the greeting frames and the
         #: registry row so an attaching client can tell "the launcher I am running
         #: in started this" from "this was already here", which is the difference
-        #: between RL-4's ``started by this launcher`` and ``attached``.
-        self.starter_pid: int | None
-        try:
-            self.starter_pid = int(os.getppid())
-        except Exception:  # pragma: no cover - os.getppid exists everywhere we run
-            self.starter_pid = None
+        #: between RL-4's ``started by this launcher`` and ``attached``. ``None`` when
+        #: the parent at boot only ADOPTED this process (a POSIX subreaper or init,
+        #: after a detached spawn's starter exited): ``agent_runtime.serve_starter``.
+        from agent_runtime.serve_starter import boot_starter_pid
+
+        self.starter_pid: int | None = boot_starter_pid()
         #: The service park's only wakeup. Set by the drain's terminal path, by
         #: SIGTERM where the platform delivers one, and by nothing else.
         self.service_stop = threading.Event()

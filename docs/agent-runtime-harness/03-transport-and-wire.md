@@ -811,7 +811,10 @@ PRESENCE says this runtime understands `--service` at all — a hermes predating
 the flag carries no `service` key anywhere, which is the launcher's membership
 gate for falling back to the stdio-pipe transport — and its VALUE says whether
 this process is running as one. The same fact, plus `starter_pid` (the parent at
-BOOT; a detached service is reparented the moment its starter exits), rides all
+BOOT; a detached service is reparented the moment its starter exits, and `null`
+on POSIX when the parent at boot only ADOPTED the process — a subreaper such as
+`systemd --user`, or init — told by the session: `agent_runtime.serve_starter`,
+RT-SERVE-STARTER-PID-NOT-THE-SUBREAPER), rides all
 three greeting frames as top-level keys beside `pid` and `boot_id`, and the
 registry row. The contract integer did not move: an added key on an existing
 block is the set-plus-integer rule these manifests already use.
