@@ -8,6 +8,7 @@ import json
 
 from agent_runtime.gateway_endpoints import SOURCE_CONFIG, SOURCE_LIVE, listener_endpoint
 from agent_runtime.root_observability import attach_root_observability
+from hermes_cli.flag_binding import list_flag_or_empty
 from hermes_cli.harness_support import (
     _list_envelope,
     _object_envelope,
@@ -41,7 +42,8 @@ def cmd_gateway_pair(args) -> int:
     tier = str(getattr(args, "tier", None) or "console")
     name = getattr(args, "name", None)
     kind = str(getattr(args, "kind", None) or "device")
-    instances = list(getattr(args, "instances", None) or [])
+    # Iterated into the pairing entry: absent and empty both bind nothing.
+    instances = list_flag_or_empty(args, "instances")
     client_scope = getattr(args, "client_scope", None) or None
     refused = _channel_pair_refusal(kind, args)
     if refused is not None:
