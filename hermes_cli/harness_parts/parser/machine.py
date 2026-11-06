@@ -436,6 +436,7 @@ def add_observe(subs) -> None:
     )
     builds.add_argument("--since", default="1h", help="Window back from now: 90s, 30m, 2h, 1d (default 1h)")
     builds.add_argument("--log", default=None, help="agent.log to read (default <HERMES_HOME>/logs/agent.log, rotations included)")
+    builds.add_argument("--qa-namespace-root", default=None, help="A QA lane namespace's folder (<QA folder>/hermes-namespaces/stagec-*) to read instead of this process's: its profiles/base/logs/agent.log and its agent-runtime store, read only; no namespace is resolved, so it works from outside the launcher")
     builds.add_argument("--json", action="store_true")
     builds.set_defaults(func=observe_commands._cmd_observe_snapshot_builds)
     timing = observe_subs.add_parser(
@@ -446,6 +447,7 @@ def add_observe(subs) -> None:
     timing.add_argument("--log", default=None, help="agent.log to read (default: the live serve's <home>/logs/agent.log)")
     timing.add_argument("--launcher-log", default=None, help="Launcher diag log (default: newest <temp>/eternia_launcher_diag*.log)")
     timing.add_argument("--baseline", default=None, help="Baseline JSON (default tests/fixtures/turn_timing_baseline.json)")
+    timing.add_argument("--qa-namespace-root", default=None, help="A QA lane namespace's folder (<QA folder>/hermes-namespaces/stagec-*) to read instead of this process's: its profiles/base/logs/agent.log and its agent-runtime store, read only; no namespace is resolved, so it works from outside the launcher")
     timing.add_argument("--json", action="store_true")
     timing.add_argument("--check", action="store_true",
                         help="Judge the last N turns' receipts against agent_runtime/turn_latency_budgets.json; exit 1 on any FAIL")

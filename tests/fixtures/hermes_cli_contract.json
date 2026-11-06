@@ -6436,6 +6436,14 @@
           "required": false,
           "type": null
         },
+        "--qa-namespace-root": {
+          "action": "store",
+          "canonical": "--qa-namespace-root",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
         "--since": {
           "action": "store",
           "canonical": "--since",
@@ -6531,6 +6539,14 @@
         "--log": {
           "action": "store",
           "canonical": "--log",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--qa-namespace-root": {
+          "action": "store",
+          "canonical": "--qa-namespace-root",
           "choices": null,
           "nargs": 1,
           "required": false,

@@ -12,7 +12,31 @@ from pathlib import Path
 from agent_runtime.root_observability import attach_root_observability
 
 __layer__ = "wiring"
-__all__ = ["_cmd_observe_snapshot_builds", "_cmd_observe_turn_check", "_cmd_observe_turn_timing"]
+__all__ = ["_cmd_observe_snapshot_builds", "_cmd_observe_turn_check", "_cmd_observe_turn_timing", "qa_namespace_paths"]
+
+
+def qa_namespace_paths(raw: str | None) -> tuple[Path, Path] | None:
+    """``(agent.log, store root)`` of the QA lane namespace folder *raw*, or ``None`` when not given.
+
+    RT-OBSERVE-QA-LANE-NAMESPACE-REFUSED: ``--namespace stagec-*`` from outside the launcher is refused
+    (only the signed-in account's namespace is reachable there), so a perf recipe on a QA serve had no
+    observe read. The read verbs take the lane's FOLDER instead and resolve no namespace: they only
+    read its head home's ``logs/agent.log`` and its ``agent-runtime`` store. QA namespaces only — the
+    folder's name carries the QA prefix — and it must exist. Raises ``ValueError`` otherwise.
+    """
+
+    if not raw:
+        return None
+    from hermes_cli._namespace_bootstrap import BASE_PROFILE, QA_PREFIX, STORE_DIRNAME
+    from hermes_cli.logs import LOG_FILES
+
+    root = Path(raw).expanduser()
+    # MUTATION: drop the prefix check and test_observe_qa_namespace_root's non-QA case reddens.
+    if not root.name.startswith(QA_PREFIX):
+        raise ValueError(f"--qa-namespace-root reads a QA lane namespace ({QA_PREFIX}*), not {root.name!r}")
+    if not root.is_dir():
+        raise ValueError(f"--qa-namespace-root {root} is not a folder")
+    return root / "profiles" / BASE_PROFILE / "logs" / LOG_FILES["agent"], root / STORE_DIRNAME
 
 
 def _cmd_observe_snapshot_builds(args) -> int:
@@ -30,9 +54,16 @@ def _cmd_observe_snapshot_builds(args) -> int:
     from agent_runtime.turn_timing_census import live_serve_home
     from hermes_cli.logs import LOG_FILES
 
-    home, serve_pid = live_serve_home(paths.store_root())
+    try:
+        qa = qa_namespace_paths(getattr(args, "qa_namespace_root", None))
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    home, serve_pid = (None, None) if qa is not None else live_serve_home(paths.store_root())
     if getattr(args, "log", None):
         log, source = Path(args.log), "--log"
+    elif qa is not None:
+        log, source = qa[0], "--qa-namespace-root"
     elif home is not None:
         log, source = home / "logs" / LOG_FILES["agent"], f"live serve pid {serve_pid}"
     else:
@@ -78,10 +109,17 @@ def _cmd_observe_turn_timing(args) -> int:
     except (OSError, ValueError) as exc:
         print(f"baseline unreadable: {baseline_path}: {exc}", file=sys.stderr)
         return 2
-    store_root = paths.store_root()
+    try:
+        qa = qa_namespace_paths(getattr(args, "qa_namespace_root", None))
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    store_root = qa[1] if qa is not None else paths.store_root()
     home, serve_pid = live_serve_home(store_root)
     if getattr(args, "log", None):
         log, source = Path(args.log), "--log"
+    elif qa is not None and home is None:
+        log, source = qa[0], "--qa-namespace-root"
     elif home is not None:
         log, source = home / "logs" / LOG_FILES["agent"], f"live serve pid {serve_pid}"
     else:
@@ -117,9 +155,16 @@ def _cmd_observe_turn_check(args) -> int:
     except (OSError, ValueError) as exc:
         print(f"turn-timing --check: {exc}", file=sys.stderr)
         return 2
-    store_root = paths.store_root()
+    try:
+        qa = qa_namespace_paths(getattr(args, "qa_namespace_root", None))
+    except ValueError as exc:
+        print(f"turn-timing --check: {exc}", file=sys.stderr)
+        return 2
+    store_root = qa[1] if qa is not None else paths.store_root()
     if getattr(args, "log", None):
         logs = [Path(args.log)]
+    elif qa is not None and live_serve_home(store_root)[0] is None:
+        logs = agent_logs(qa[0].parent.parent)
     else:
         home, _pid = live_serve_home(store_root)
         logs = agent_logs(home) if home is not None else agent_logs(default_log_path().parent.parent)

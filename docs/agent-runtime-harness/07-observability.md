@@ -247,6 +247,13 @@ read-only, from `agent.log` and its rotations: builds (led / shadow), total and 
 line written before these fields existed), worker fallbacks, and the distinct turns
 affected (`agent_runtime/snapshot_build_census.py::census_builds`).
 
+On a QA serve both observe verbs take `--qa-namespace-root <QA folder>/hermes-namespaces/stagec-…`
+(RT-OBSERVE-QA-LANE-NAMESPACE-REFUSED): `--namespace stagec-*` is refused from outside the launcher
+(only the signed-in account's namespace is reachable there), so the verbs read the lane's FOLDER
+instead, resolving no namespace: its `profiles/base/logs/agent.log` and its `agent-runtime` store,
+read only, QA namespaces only (`hermes_cli/harness_parts/observe_commands.py::qa_namespace_paths`).
+That is the QA recipe for a perf row whose read is an observe verb; never grep `agent.log` by hand.
+
 `hermes harness observe turn-timing --since 2h [--json] [--log PATH] [--launcher-log PATH]
 [--baseline PATH]` joins, read-only and per turn on the client message id, the turn record's
 `phases` (cut into consecutive segments: anchor -> write-ahead -> agent ready -> request sent ->
