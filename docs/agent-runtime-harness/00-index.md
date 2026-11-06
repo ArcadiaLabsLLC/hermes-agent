@@ -47,6 +47,12 @@ Read in this order for a full picture; each stands alone for its own territory.
 - [Agent Console suggestion completion](planned/console-next-prompt-completion-2026-10-27.md) — 2026-10-27 completion recommendations; documentation only, implementation deferred by the owner.
 
 - [Agent Console follow-up suggestions](05-chat-turn-lane.md#opt-in-follow-up-drafts) — implemented through existing native owners; off by default. Historical design is archived and live qualification remains named in the domain queue.
+- [QA checkout dependency identity](planned/qa-checkout-dependency-identity-2026-11-05.md) — a pinned QA
+  worktree borrows the lender CHECKOUT's environment (`HERMES_DEPENDENCY_CHECKOUT` beside
+  `HERMES_DEPENDENCY_ROOT`), refused when the dependency inputs differ. Build rows `RT-QA-CHECKOUT-BORROW-*`.
+- [External gateway namespace access](planned/external-gateway-namespace-access-2026-11-05.md) — the owner's own
+  gateways as serve clients over the gateway lane with a per-gateway `channel` credential (recommended; the
+  shape is the owner's ruling, `RT-EXTERNAL-GATEWAY-SHAPE-RULING`). Build rows `RT-EXTERNAL-GATEWAY-*`.
 - [Generated-tree host-path teach](planned/generated-tree-host-path-teach-2026-10-31.md) — a host file
   tool handed a `/doc` · `/runtime` · `/ref` path answers the `launcher_generated_*` verb to use (teach,
   never route); how a generated path is told from a real host one. Build rows `RT-GENERATED-TREE-TEACH-*`.
