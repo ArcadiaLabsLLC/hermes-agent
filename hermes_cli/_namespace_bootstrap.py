@@ -74,6 +74,15 @@ ORIGIN_ENV = "HERMES_NAMESPACE_ORIGIN"
 ORIGIN_ACCOUNT, ORIGIN_LAUNCHER_PROFILE = "account", "launcher-profile"
 ORIGINS = (ORIGIN_ACCOUNT, ORIGIN_LAUNCHER_PROFILE)
 DEPENDENCY_ENV = "HERMES_DEPENDENCY_ROOT"
+#: The QA provider pool (RT-QA-SHARED-PROVIDER-POOL, owner ruling 2026-11-06): the id of the QA
+#: namespace whose head home holds the provider sign-ins EVERY QA namespace in the same folder uses.
+QA_POOL_ENV = "HERMES_QA_PROVIDER_POOL"
+#: The shared-auth home a bound process reads and writes its provider credentials at
+#: (``agent_runtime.profile_home.get_hermes_auth_home``); the QA pool binds it.
+AUTH_HOME_ENV = "HERMES_AUTH_HOME"
+#: The Launcher's QA namespaces (``stagec-smoke``, ``stagec-*``) — the one prefix both the QA push fence
+#: (``agent_runtime.namespace.qa_namespace``) and the QA provider pool read.
+QA_PREFIX = "stagec-"
 FLAG = "--namespace"
 #: ``base-root``: the reserved id naming the install's own data root — never a namespace.
 BASE_ID = "base"
@@ -161,6 +170,7 @@ class Reason(StrEnum):
     INVALID_ORIGIN = "namespace_invalid_origin"
     EPOCH_NEWER = "namespace_epoch_newer"
     EPOCH_CONSENT_REQUIRED = "namespace_epoch_consent_required"
+    QA_POOL_REFUSED = "namespace_qa_pool_refused"
 
 
 class NamespaceRefused(RuntimeError):
@@ -459,12 +469,67 @@ def resolve_cli(argv: Sequence[str], env: Mapping[str, str]) -> CliResolution:
     return CliResolution(item, source, rest, requested)
 
 
+def qa_provider_pool_home(item: Layout, env: Mapping[str, str]) -> Path | None:
+    """The head home of the QA provider pool *item* shares, or ``None`` (RT-QA-SHARED-PROVIDER-POOL).
+
+    Owner ruling 2026-11-06: every QA lane runs its own namespace, and every QA namespace in ONE QA
+    folder shares ONE provider credential pool, so a provider signed in once serves every lane. The
+    pool is a sibling QA namespace NAMED by id in :data:`QA_POOL_ENV` (never a path): its head home
+    becomes this process's shared-auth home (:data:`AUTH_HOME_ENV`), the binding persona profiles
+    already share their head's store through (``agent_runtime/provider_credentials.py``). One
+    ``auth.json`` and its one ``auth.lock`` then serve every lane, so a token refresh stays
+    single-writer across them (``hermes_cli/auth.py::_auth_store_lock``).
+
+    QA-only, refused otherwise: this namespace and the pool must both be QA namespaces
+    (:data:`QA_PREFIX`), the process launcher-spawned, and the folder they share must hold no account
+    namespace — a folder with one is the owner's data root, which a QA pool never reads or writes. An
+    id is resolved in this namespace's own folder, so the pool can never name the base root (``base``
+    is reserved), ``~/.hermes`` or another folder. Unset, or naming this namespace itself: ``None``,
+    nothing read. A pool that does not exist yet (no manifest) binds nothing: the lane keeps its own
+    store until the pool namespace is created.
+    """
+    raw = str(env.get(QA_POOL_ENV) or "").strip()
+    if not raw:
+        return None
+    pool_id = validate_id(raw)
+    if pool_id == item.id:
+        return None
+    # MUTATION: drop the `item.id` half and test_qa_provider_pool's "a non-QA namespace may not join
+    # the pool" reddens.
+    if not (item.id.startswith(QA_PREFIX) and pool_id.startswith(QA_PREFIX)):
+        raise NamespaceRefused(
+            Reason.QA_POOL_REFUSED,
+            f"{QA_POOL_ENV}={pool_id!r} in namespace {item.id!r}: only QA namespaces ({QA_PREFIX}*) share a pool")
+    if not launcher_spawned(env):
+        raise NamespaceRefused(Reason.QA_POOL_REFUSED, f"{QA_POOL_ENV} is a launcher hand-off ({LAUNCHER_ENV}=1)")
+    # MUTATION: drop this check and test_qa_provider_pool's "a folder holding an account namespace is
+    # the owner's: no pool" reddens.
+    try:
+        owner = sorted(entry.name for entry in os.scandir(item.namespaces_dir)
+                       if entry.is_dir() and namespace_kind(entry.name) != KIND_PROFILE)
+    except FileNotFoundError:
+        owner = []
+    if owner:
+        raise NamespaceRefused(
+            Reason.QA_POOL_REFUSED,
+            f"{item.namespaces_dir} holds account namespace {owner[0]!r}: it is the owner's data root, "
+            "and a QA provider pool lives only in a QA folder")
+    pool = Layout(pool_id, item.base_root, item.namespaces_dir, item.namespaces_dir / pool_id)
+    return pool.head_home if pool.manifest_path.is_file() else None
+
+
 def env_updates(res: CliResolution, env: Mapping[str, str]) -> dict[str, str]:
     """The environment a resolved namespace gives this process and every child it spawns."""
     if res.layout is None:
         return {ENV: BASE_ID, SOURCE_ENV: res.source} if res.source in ("env", "argv") else {}
     item = res.layout
     out = {ENV: item.id, SOURCE_ENV: res.source}
+    # The QA pool REPLACES any inherited shared-auth home: a QA lane's credentials are the pool's.
+    # MUTATION: drop this assignment and test_qa_provider_pool's "a QA lane binds the pool's head home"
+    # reddens.
+    pool = qa_provider_pool_home(item, env)
+    if pool is not None:
+        out[AUTH_HOME_ENV] = str(pool)
     home = str(env.get("HERMES_HOME") or "").strip()
     if not home or _norm(Path(home).expanduser()) == _norm(item.base_root):
         out["HERMES_HOME"] = str(item.home())
@@ -562,12 +627,13 @@ def apply_cli_namespace(argv: list[str] | None = None, environ: MutableMapping[s
         res = resolve_cli(args, target)
         if res.layout is not None:
             ensure_manifest(res.layout, requested_origin(target))
+        updates = env_updates(res, target)
     except NamespaceRefused as exc:
         sys.stderr.write(json.dumps(exc.payload()) + "\n")
         sys.stderr.flush()
         raise SystemExit(2) from exc
     args[:] = res.argv
-    target.update(env_updates(res, target))
+    target.update(updates)
     if res.layout is not None and environ is None:
         from hermes_cli import _registry_write_fence
 
