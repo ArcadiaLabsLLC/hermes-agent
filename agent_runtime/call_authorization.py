@@ -571,6 +571,29 @@ class CallAuthorization:
         return {"reason": self.reason, "tier": self.tier, "caller": self.caller_kind}
 
 
+def _channel_arm(resolved: RpcCaller, name: str, tier: str) -> CallAuthorization | None:
+    """The channel arm (RT-EXTERNAL-GATEWAY-CHANNEL-CREDENTIAL), ``None`` for any other caller.
+
+    Asked BEFORE the read opening, for the peer arm's reason — a bot answered after it would
+    inherit the whole read surface. Which INSTANCE a chat verb names is
+    ``gateway_channel.channel_target_refusal``'s, at dispatch.
+    """
+
+    if resolved.device_kind != DEVICE_KIND_CHANNEL or resolved.kind != CALLER_DEVICE:
+        return None
+    admitted = bool(name) and name in CHANNEL_METHOD_ALLOWLIST and resolved.device_tier == TIER_CONSOLE
+    return CallAuthorization(
+        ok=admitted,
+        reason="channel_allowlisted" if admitted else REASON_SCOPE_DENIED,
+        tier=tier,
+        caller_kind=resolved.kind,
+        detail=None if admitted else (
+            f"{name or 'this call'} is not a chat verb; a channel credential may only relay "
+            "chat turns to the persona instances it is bound to"
+        ),
+    )
+
+
 def authorize_call(
     tier: str, caller: RpcCaller | None, *, method: str | None = None
 ) -> CallAuthorization:
@@ -657,11 +680,9 @@ def authorize_call(
     # ``console`` device compares equal and returns), which is the bug the
     # comment on :data:`LOCAL_CONSOLE_METHODS` records.
     #
-    # A caller with no method name is NOT restricted here, and that is not a
-    # hole: the CLI mirror (Stage A4) asks "may the console run a console verb"
-    # with no method in it, and it is already the machine owner. Every caller
-    # this set exists to refuse arrives through :func:`serve_rpc.handle_request`,
-    # which passes the name unconditionally.
+    # No method name is NOT a hole: the CLI mirror (Stage A4) asks with none and is
+    # already the machine owner; every caller this set refuses arrives through
+    # :func:`serve_rpc.handle_request`, which passes the name unconditionally.
     if name and name in LOCAL_CONSOLE_METHODS and resolved.kind not in _CONSOLE_KINDS:
         return CallAuthorization(
             ok=False,
@@ -673,21 +694,8 @@ def authorize_call(
                 f"a {resolved.kind} caller is refused however it is paired"
             ),
         )
-    # The channel arm (RT-EXTERNAL-GATEWAY-CHANNEL-CREDENTIAL): BEFORE the read opening, for the
-    # peer arm's reason — a bot answered after it would inherit the whole read surface. Which
-    # INSTANCE a chat verb names is ``gateway_channel.channel_target_refusal``'s, at dispatch.
-    if resolved.kind == CALLER_DEVICE and resolved.device_kind == DEVICE_KIND_CHANNEL:
-        admitted = bool(name) and name in CHANNEL_METHOD_ALLOWLIST and resolved.device_tier == TIER_CONSOLE
-        return CallAuthorization(
-            ok=admitted,
-            reason="channel_allowlisted" if admitted else REASON_SCOPE_DENIED,
-            tier=normalized,
-            caller_kind=resolved.kind,
-            detail=None if admitted else (
-                f"{name or 'this call'} is not a chat verb; a channel credential may only relay "
-                "chat turns to the persona instances it is bound to"
-            ),
-        )
+    if (channel := _channel_arm(resolved, name, normalized)) is not None:
+        return channel
     if resolved.kind == CALLER_PEER:
         if name and name in PEER_METHOD_ALLOWLIST:
             return CallAuthorization(

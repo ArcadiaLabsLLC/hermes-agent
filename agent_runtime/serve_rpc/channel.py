@@ -43,7 +43,7 @@ def _refuse(rid: Any, code: int, reason: str, message: str) -> dict:
     return err(rid, code, message, {"reason": reason})
 
 
-def _text(params: dict, key: str, limit: int) -> str | None:
+def _channel_param(params: dict, key: str, limit: int) -> str | None:
     value = params.get(key)
     if not isinstance(value, str):
         return None
@@ -73,19 +73,19 @@ def _runtime_channel_message(rid: Any, params: dict, context: RpcContext | None 
     if params.get("attachments"):
         return _refuse(rid, ERR_INVALID_PARAMS, "channel_attachments_unsupported",
                        "attachments are not relayed yet; send text")
-    channel_key = _text(params, "channel_key", _CHANNEL_KEY_LIMIT)
-    text = _text(params, "text", 100_000)
+    channel_key = _channel_param(params, "channel_key", _CHANNEL_KEY_LIMIT)
+    text = _channel_param(params, "text", 100_000)
     if channel_key is None or text is None:
         return _refuse(rid, ERR_INVALID_PARAMS, "invalid_params", "channel_key and text are required strings")
     if not caller.bound_instances:
         return _refuse(rid, ERR_HANDLER_FAILED, "channel_instance_not_bound",
                        "this channel credential is bound to no persona instance")
-    instance_id = _text(params, "persona_instance_id", 200) or caller.bound_instances[0]
+    instance_id = _channel_param(params, "persona_instance_id", 200) or caller.bound_instances[0]
     opened = _open_conversation(rid, caller, instance_id, channel_key)
     if "error" in opened:
         return opened
     session = opened["result"]
-    sender = _text(params, "sender", _SENDER_LIMIT)
+    sender = _channel_param(params, "sender", _SENDER_LIMIT)
     return _send_turn(rid, params, context, session, f"{sender}: {text}" if sender else text, channel_key)
 
 

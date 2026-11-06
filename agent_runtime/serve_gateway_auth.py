@@ -967,16 +967,10 @@ def redeem_pairing_code(
                 # entry. A label — see :class:`DeviceRecord` — and the join key
                 # the launcher's sheet and S3's Unpair relate this row by.
                 "account_device_id": _clean_name(matched.get("for_device_id")) or None,
-                # Copied through from the pending entry the operator minted; absent → ``device``.
                 **_kind_fields(matched),
             }
             _write_devices(store_root, rows)
-            record = _decode_device(rows[device_id])
-            return DeviceCredential(
-                device_id=device_id, token=token, tier=tier, name=name,
-                kind=record.kind if record else DEVICE_KIND_DEVICE,
-                bound_instances=record.bound_instances if record else (),
-            )
+            return _issued(device_id, token, tier, name, rows[device_id])
     except (OSError, HarnessLockUnavailable) as exc:
         return StoreRefusal(_os_reason(exc), str(exc))
 
@@ -999,7 +993,18 @@ def _channel_mint_refusal(kind: str, tier: str, bound: tuple[str, ...]) -> Store
     return None
 
 
+def _issued(device_id: str, token: str, tier: str, name: str, row: dict[str, Any]) -> DeviceCredential:
+    record = _decode_device(row)
+    return DeviceCredential(
+        device_id=device_id, token=token, tier=tier, name=name,
+        kind=record.kind if record else DEVICE_KIND_DEVICE,
+        bound_instances=record.bound_instances if record else (),
+    )
+
+
 def _kind_fields(matched: dict[str, Any]) -> dict[str, Any]:
+    # A channel's kind and binding, copied through from the pending entry; absent → ``device``.
+
     if matched.get("device_kind") != DEVICE_KIND_CHANNEL:
         return {}
     return {"kind": DEVICE_KIND_CHANNEL, "bound_instances": list(clean_bound_instances(matched.get("bound_instances")))}

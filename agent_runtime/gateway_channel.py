@@ -98,7 +98,7 @@ def _refuse(reason: str, detail: str, caller: Any) -> CallAuthorization:
     return CallAuthorization(ok=False, reason=reason, tier="console", caller_kind=str(caller.kind), detail=detail)
 
 
-def _targets(method: str, params: dict) -> list[str]:
+def _aimed_instances(method: str, params: dict) -> list[str]:
     from .persona_assignments.identity import chat_session_owner_instance_id
 
     targets: list[str] = []
@@ -128,7 +128,7 @@ def channel_target_refusal(caller: Any, method: str, params: Any) -> CallAuthori
             "external agent access is off for this namespace; turn on \"Allow agent use outside the launcher\"",
             caller,
         )
-    targets = _targets(method, params if isinstance(params, dict) else {})
+    targets = _aimed_instances(method, params if isinstance(params, dict) else {})
     if method == CHANNEL_MESSAGE_METHOD and not targets:
         return None
     bound = set(getattr(caller, "bound_instances", ()) or ())
