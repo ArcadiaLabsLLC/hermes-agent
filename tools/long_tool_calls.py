@@ -206,6 +206,12 @@ def _take_inline(call: _Call) -> Any:
 
 
 def _work(call: _Call, run: Callable[[], Any]) -> None:
+    # The worker names itself to the live-turn registry BEFORE the dispatch runs: the starter's
+    # own ``_note_worker`` comes after ``start()``, and a worker scheduled first beat with the
+    # call still joined to the starter's thread (no MCP progress, no foreground) —
+    # FH-CHAT-TOOL-PROGRESS-BUNDLE-LEAK.
+    call.worker_tid = threading.get_ident()
+    _note_worker(call)
     try:
         result = run()
     except BaseException as exc:  # the dispatch normalizes; this is the last guard
