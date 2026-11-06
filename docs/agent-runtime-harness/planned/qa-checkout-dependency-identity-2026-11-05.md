@@ -1,6 +1,6 @@
 # Planned — a pinned QA checkout borrows the lender CHECKOUT's environment, not only the lender root (RT-QA-CHECKOUT-DEPENDENCY-IDENTITY, 2026-11-05)
 
-**Status:** plan written by lane w1105g-hm-plan; build rows in §4. Group: `qa-runtime-checkout`.
+**Status:** plan written by lane w1105g-hm-plan; built by lane w1105h-hm (2026-11-05, D1–D4 as decided; refusals carry `BorrowedEnvironmentReadOnly.reason`). Group: `qa-runtime-checkout`.
 **Owner domain:** pm / the dependency borrow ([04-boot-and-lifecycle.md](../04-boot-and-lifecycle.md) § the profile
 namespace), and the launcher's Stage C QA launch (`hermes_checkout`).
 **Read (code, no live run):** hermes `origin/main` `864cf9b45c` — `pm/environments.py::install_key` /
