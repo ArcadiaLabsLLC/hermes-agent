@@ -76,7 +76,10 @@ def _decode_stored_instance(raw: dict[str, Any]) -> PersonaInstance:
     on a level by following a pointer an old bind stamped
     (RT-GLOBAL-SINGLETON-CANONICAL; plan ``canonical-channel-global-storage-2026-10-27``).
     """
-    instance = from_jsonable(PersonaInstance, raw)
+    from agent_runtime.persona_instance_sync.contract import canonical_instance_body
+
+    # A row written by an edition that stores the next spelling (RT-WS-RECALL-RENAME-S1-ALIAS).
+    instance = from_jsonable(PersonaInstance, canonical_instance_body(raw))
     if instance.mode == "task_bound":
         # ``task_bound`` is stored-only: nothing writes it, so no reader branches on it
         # (RT-TASK-BOUND-MISSION-LANES). A STEER-shaped row (its task IS its goal, a

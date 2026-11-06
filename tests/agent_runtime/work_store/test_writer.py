@@ -435,3 +435,25 @@ def test_two_writers_of_one_worktree_are_admitted_one_at_a_time(repo, monkeypatc
     assert seen[0].reason is Reason.INDEX_LOCKED and seen[0].detail.startswith("writer busy: ")
     assert second.sync() == second.worktree  # released: the next sync is admitted
     assert taken_count(note_text(repo.other)) == 1
+
+
+def test_a_claim_stamps_the_local_day_not_the_utc_one(repo):
+    """RT-WORK-DATES-LOCAL-DAY: 03:53 UTC on 2026-11-06 is 22:53 on 2026-11-05 in New York. KILLING
+    MUTATION: ``self._now().date().isoformat()`` back in ``Writer._line_edit`` → TAKEN 2026-11-06."""
+
+    import time
+    from datetime import UTC, datetime
+
+    before = os.environ.get("TZ")
+    os.environ["TZ"] = "America/New_York"
+    time.tzset()
+    try:
+        moment = datetime(2026, 11, 6, 3, 53, tzinfo=UTC)
+        Writer(repo.board, machine_id="m1", now=lambda: moment).apply(op(Op.CLAIM))
+    finally:
+        if before is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = before
+        time.tzset()
+    assert "· **TAKEN 2026-11-05 persona:pi_a**" in note_text(repo.other)

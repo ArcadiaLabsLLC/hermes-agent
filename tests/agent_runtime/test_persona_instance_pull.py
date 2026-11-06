@@ -766,3 +766,41 @@ def test_the_pull_ack_carries_the_summary_under_the_contract_key():
     ]
     assert shape["source"] is None
     assert all(shape[key] == [] for key in shape if key != "source")
+
+
+def test_a_body_spelled_with_the_next_editions_recall_key_replicates_as_this_ones(tmp_path):
+    """RT-WS-RECALL-RENAME-S1-ALIAS (plan recall-field-rename-mixed-editions-2026-11-06 S1). KILLING
+    MUTATION: drop the ``canonical_instance_body`` call in ``PullPass._row_context`` → the new-key
+    body refuses ``unexpected_key`` and ``replicated`` is empty."""
+
+    realm_id, ws = _realm_workspace()
+    newer = _body(workspace_id=ws, recall_shared_workspaces=True)
+    _write_remote(tmp_path, newer)
+    summary = apply_persona_instance_pull(realm_id, tmp_path)
+    assert summary.replicated == [INSTANCE_ID] and summary.refused == []
+    minted = PersonaInstanceStore().get(INSTANCE_ID)
+    assert minted.recall_shared_projects is True
+    # Zero drift: the baseline is the CANONICAL body's hash, which is what this edition projects.
+    older = _body(workspace_id=ws, recall_shared_projects=True)
+    from agent_runtime.persona_instance_sync import project_persona_instance
+
+    assert read_persona_instance_baseline(realm_id)[instance_baseline_key(INSTANCE_ID)] == (
+        persona_instance_def_hash(older)) == persona_instance_def_hash(project_persona_instance(minted))
+
+
+def test_two_spellings_disagreeing_are_refused_and_a_stored_new_spelling_loads(tmp_path):
+    """KILLING MUTATION: drop ``canonical_instance_body`` from ``store._decode_stored_instance`` →
+    the stored new spelling loads recall OFF and the last assertion reds."""
+
+    realm_id, ws = _realm_workspace()
+    _write_remote(tmp_path, _body(workspace_id=ws, recall_shared_workspaces=True, recall_shared_projects=False))
+    summary = apply_persona_instance_pull(realm_id, tmp_path)
+    assert summary.replicated == [] and [r["code"] for r in summary.refused] == ["unexpected_key"]
+
+    from agent_runtime.persona_assignments.store import _decode_stored_instance
+
+    from agent_runtime.serde import to_jsonable
+
+    stored = {k: v for k, v in to_jsonable(_local()).items() if k != "recall_shared_projects"}
+    stored["recall_shared_workspaces"] = True
+    assert _decode_stored_instance(stored).recall_shared_projects is True

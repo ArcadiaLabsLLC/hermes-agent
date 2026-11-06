@@ -27,6 +27,7 @@ import os
 import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
+from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
@@ -77,15 +78,17 @@ GROUP = re.compile(r"^group: ([a-z0-9][a-z0-9.-]*)$")
 GROUP_SLUG = re.compile(r"^[a-z0-9][a-z0-9.-]*$")
 WORK_ID = re.compile(r"^WORK-[A-Z2-7]{6}$")
 TAKEN = re.compile(r"\*\*TAKEN (\d{4}-\d{2}-\d{2}) ([^*]+?)\*\*")
-#: A lane claim's ``<who>``: ``<lane>[ on <machine>][ as <git account>][ in <worktree>]``.
-CLAIM_WHO = re.compile(r"^(.+?)(?: on (\S+))?(?: as (\S+))?(?: in (\S+))?$")
+#: A lane claim's ``<who>``: ``<lane>[ on <machine>][ as <git account>][ in <worktree>]``. The account may
+#: hold spaces (``as Maximus Shaban``): it spans to `` in <worktree>`` or the end (RT-WORK-GRAMMAR-CLAIM-ACCOUNT-SPACES).
+CLAIM_WHO = re.compile(r"^(.+?)(?: on (\S+))?(?: as (.+?))?(?: in (\S+))?$")
 #: The first claim date that must name its machine (launcher ADR 0025's 2026-10-26 amendment).
 PLACE_REQUIRED_FROM = "2026-10-27"
 #: ``REQUIRES <host>[, <host>…]`` — the OS a row must be worked on; a record, never a status.
 REQUIRES = re.compile(r"^REQUIRES(?:\s+(.*))?$", re.DOTALL)
 HOSTS = ("windows", "macos", "linux")
 RECOMMEND = re.compile(r"^Recommend:\s*(.*)$", re.DOTALL)
-TITLE = re.compile(r"^\s*- (?:\[[ xX]\] )?\*\*`[^`]*` — (.*?)\*\*")
+#: The title spans code spans whole: a title quoting ``**…**`` in backticks is not cut at its stars.
+TITLE = re.compile(r"^\s*- (?:\[[ xX]\] )?\*\*`[^`]*` — ((?:`[^`]*`|[^`])*?)\*\*")
 CODE_SPAN = re.compile(r"`([^`]+)`")
 #: A claim and the separator that set it off, as :func:`apply` removes it.
 _CLAIM_SEGMENT = re.compile(r"(?: · | )?\*\*TAKEN \d{4}-\d{2}-\d{2} [^*]+?\*\*")
@@ -356,8 +359,32 @@ def _segment_defects(segments: list[str]) -> list[str]:
     return defects
 
 
+def _claim_scan_text(line: str) -> str:
+    """``line`` with its lead segment (the ID and title) and every code span blanked, length kept.
+
+    A claim is a segment AFTER the title: a title or a pointer that QUOTES a claim mark is not one."""
+
+    lead = len(split_segments(line)[0])
+    chars = ["\0"] * lead + list(line[lead:])
+    in_code = False
+    for i in range(lead, len(line)):
+        if line[i] == "`":
+            in_code = not in_code
+            chars[i] = "\0"
+        elif in_code:
+            chars[i] = "\0"
+    return "".join(chars)
+
+
+def claim_mark(line: str) -> re.Match | None:
+    """The row's own ``**TAKEN <date> <who>**`` mark (:data:`TAKEN` groups), never one quoted in its title."""
+
+    found = TAKEN.search(_claim_scan_text(line))
+    return TAKEN.match(line, found.start()) if found else None
+
+
 def _claim_defects(line: str) -> list[str]:
-    taken = TAKEN.search(line)
+    taken = claim_mark(line)
     if taken is None or not Claim(taken.group(1), taken.group(2).strip()).missing_place:
         return []
     return [f"claim dated {taken.group(1)} names no machine; a lane claim is "
@@ -372,7 +399,7 @@ def _outcome_defects(segments: list[str], line: str, *, archived: bool) -> list[
     if not archived:
         return ["CLOSED ROW LIVE: an outcome segment on a live row; a closed row moves to the archive"] if outcomes else []
     defects: list[str] = []
-    if any(STATUS.match(s) for s in segments[1:]) or TAKEN.search(line):
+    if any(STATUS.match(s) for s in segments[1:]) or claim_mark(line):
         defects.append("ARCHIVE ROW OPEN: an archived row carries no live status and no claim")
     results = [s[len("result:"):].strip() for s in segments[1:] if s.startswith("result:")]
     reviews = [s[len("review:"):].strip() for s in segments[1:] if s.startswith("review:")]
@@ -414,7 +441,7 @@ def parse_row(line: str, *, slot: str, note: str, line_no: int, heading: str = "
     lent = next((s for s in segments[1:] if SKILLS.match(s)), None)
     hosts = next((h for h in map(requires_hosts, segments[1:]) if h is not None), ())
     group = next((m.group(1) for m in map(GROUP.match, segments[1:]) if m), None)
-    taken = TAKEN.search(line)
+    taken = claim_mark(line)
     outcomes = [o for o in map(parse_outcome, (s for s in segments[1:] if OUTCOME_OPEN.match(s)))]
     result = next((s[len("result:"):].strip() for s in segments[1:] if s.startswith("result:")), None)
     review = next((s[len("review:"):].strip() for s in segments[1:] if s.startswith("review:")), None)
@@ -548,6 +575,13 @@ def segment_text(value: str, limit: int = 300) -> str:
     return " ".join(_SEGMENT_FORBIDDEN.sub("-", str(value or "")).split())[:limit]
 
 
+def local_day(moment: datetime) -> str:
+    """The calendar day a row write stamps: ``moment`` on THIS machine's clock, never UTC's
+    (RT-WORK-DATES-LOCAL-DAY — a 22:53 EST move wrote tomorrow's UTC date). A naive moment is local already."""
+
+    return (moment.astimezone() if moment.tzinfo is not None else moment).date().isoformat()
+
+
 def mint_id(rand: bytes | None = None) -> str:
     """``WORK-`` + six base32 characters; a collision is the writer's ``id_exists``, never a retry here."""
 
@@ -555,14 +589,15 @@ def mint_id(rand: bytes | None = None) -> str:
 
 
 def _claim_line(line: str, *, who: str, date: str, payload: dict) -> str:
-    held = TAKEN.search(line)
+    held = claim_mark(line)
     if held:
         raise WorkRefused(Reason.ALREADY_TAKEN, held.group(2))
     return f"{line.rstrip()}{SEPARATOR}**TAKEN {date} {who}**"
 
 
 def _release(line: str, *, who: str, date: str, payload: dict) -> str:
-    return _CLAIM_SEGMENT.sub("", line, count=1).rstrip()
+    found = _CLAIM_SEGMENT.search(_claim_scan_text(line))
+    return (line[:found.start()] + line[found.end():] if found else line).rstrip()
 
 
 def _set_status(line: str, *, who: str, date: str, payload: dict) -> str:
@@ -570,7 +605,7 @@ def _set_status(line: str, *, who: str, date: str, payload: dict) -> str:
     new = STATUS.match(wanted[0])
     if new is None:
         raise WorkRefused(Reason.INVALID, "payload.status is not a READY / BLOCKED / DEFERRED / NEEDS PLAN <date> segment")
-    claim = TAKEN.search(line)
+    claim = claim_mark(line)
     segments = split_segments(_release(line, who=who, date=date, payload={}))
     at = next((i for i, s in enumerate(segments) if i and STATUS.match(s.strip())), None)
     if at is None:

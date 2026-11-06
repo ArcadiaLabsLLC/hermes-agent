@@ -104,6 +104,10 @@ def test_the_session_lists_in_the_instances_conversations(placed_agent):
         serve_rpc.RpcContext(caller=LOCAL_CONSOLE))
     rows = {row["session_id"]: row for row in reply["result"]["conversations"]}
     assert sent["session_id"] in rows and rows[sent["session_id"]]["persona_instance_id"] == instance
+    # RT-CONVERSATION-ROW-CHANNEL-SOURCE. Killing mutation: drop ``**_channel_origin(raw)`` from
+    # ``history_rows._history_row`` → the row carries neither key and this reds.
+    assert {key: rows[sent["session_id"]].get(key) for key in ("channel_source", "channel_key")} == {
+        "channel_source": "channel:dev_bot_a", "channel_key": "telegram:42"}
 
 
 def test_refusals_are_typed(placed_agent):

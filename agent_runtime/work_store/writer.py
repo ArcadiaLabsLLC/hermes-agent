@@ -49,7 +49,7 @@ from . import receipts
 from .board import Board, ids_in_brain
 from .default_brain import IDENTITY_PAIRS
 from .grammar import (
-    Op, Row, RowRef, apply as apply_line, archive_note_for, archive_note_text, find, parse_note, parse_outcome,
+    Op, Row, RowRef, apply as apply_line, archive_note_for, archive_note_text, find, local_day, parse_note, parse_outcome,
     row_defects, split_segments,
 )
 from .models import OPERATOR
@@ -569,7 +569,7 @@ class Writer:
         assert row is not None
         lines = text.split("\n")
         carriage = "\r" if lines[row.line_no - 1].endswith("\r") else ""
-        date = self._now().date().isoformat()
+        date = local_day(self._now())
         edited = apply_line(row.raw, op.op, who=op.who, date=date, payload=dict(op.payload))
         if edited is None:
             del lines[row.line_no - 1]
@@ -590,7 +590,7 @@ class Writer:
         row = find(rows, op.ref.id)
         _present(op, row)
         assert row is not None
-        archived = apply_line(row.raw, Op.CLOSE, who=op.who, date=self._now().date().isoformat(),
+        archived = apply_line(row.raw, Op.CLOSE, who=op.who, date=local_day(self._now()),
                               payload=dict(op.payload))
         assert archived is not None
         outcome = next(o for o in map(parse_outcome, (s.strip() for s in split_segments(archived))) if o is not None)

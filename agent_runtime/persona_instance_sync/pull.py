@@ -16,7 +16,7 @@ from ..sync_merge import (
     PullAction,
     classify_three_way_pull,
 )
-from .contract import PROJECTION_RELATIVE_PATH, PersonaInstancePullSummary
+from .contract import PROJECTION_RELATIVE_PATH, PersonaInstancePullSummary, canonical_instance_body
 from .projection import persona_instance_def_hash, project_persona_instance, refuse_persona_instance
 from ..store_conflicts import park_conflict_sidecar
 from .sidecars import (
@@ -274,6 +274,8 @@ class PullPass:
         """The row, or ``None`` when it was refused or is the upstream-absent arm."""
 
         if remote_body is not None:
+            # The next edition's spelling read as this one's, BEFORE the door and the hash.
+            remote_body = canonical_instance_body(remote_body)
             refusal = refuse_persona_instance(instance_id, remote_body)
             if refusal is not None:
                 # Untouched, named, and the pull continues — the store never

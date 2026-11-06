@@ -24,7 +24,7 @@ from agent_runtime.work_store.default_brain import (
     QUEUE_DIR, QUEUE_NOTE, QUEUE_TEMPLATE, TODO_TEMPLATE, this_machine,
 )
 from agent_runtime.work_store.grammar import (
-    ASSIGNEE, GROUP_SLUG, STATUS, Assignee, Op, Row, RowRef, Status, find, mint_id, parse_note,
+    ASSIGNEE, GROUP_SLUG, STATUS, Assignee, Op, Row, RowRef, Status, find, local_day, mint_id, parse_note,
 )
 from agent_runtime.work_store.writer import OPERATOR, Writer, RowOp, checkout_token, work_worktree_for
 
@@ -401,7 +401,7 @@ def start(scope, params, actor, *, context=None):
     writer = view.writers[board.key]
     row_id = mint_id()
     brief = f"{writer.brain_root}/{BRIEF_DIR}/{row_id}.md" if body else None
-    line = _start_row(row_id, title, brief, token, _now().date().isoformat(), group)
+    line = _start_row(row_id, title, brief, token, local_day(_now()), group)
     payload = {"row": line, "files": {f"{BRIEF_DIR}/{row_id}.md": body} if body else {}}
     ref = RowRef(board.slot, _first_note(board, params), row_id)
     receipt = writer.apply(RowOp(ref, Op.APPEND, actor, request, payload))
@@ -542,7 +542,7 @@ def move(scope, params, actor, *, context=None):
         raise WorkRefused(Reason.INVALID, "to is READY | BLOCKED | DEFERRED | NEEDS PLAN")
     reason = params.get("reason")
     reason = None if reason is None else text(reason, maximum=900).strip()
-    segment = f"{to} {_now().date().isoformat()}" + (f": {reason}" if reason else "")
+    segment = f"{to} {local_day(_now())}" + (f": {reason}" if reason else "")
     if to == Status.BLOCKED:
         from agent_runtime.work_store.grammar import blocked_reason
 
