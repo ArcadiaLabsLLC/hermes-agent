@@ -65,6 +65,7 @@ __all__ = [
     "PROVIDER_REFUSED_OUTCOME",
     "PROVIDER_UNAVAILABLE_OUTCOME",
     "PROVIDER_UNAVAILABLE_REASON",
+    "refusal_never_left_hermes",
     "PROVIDER_UNAVAILABLE_STATUS_CODE",
     "ChatErrorKind",
     "ExecutionState",
@@ -321,6 +322,21 @@ PROVIDER_REFUSAL_STATUS_CODES = frozenset({401, 402, 403, 404, 429})
 #: exists — the provider was never asked — so no consumer can read it as one.
 PROVIDER_UNAVAILABLE_REASON = "provider_unavailable"
 PROVIDER_UNAVAILABLE_STATUS_CODE = 0
+
+
+def refusal_never_left_hermes(block: object) -> bool:
+    """A persisted ``provider_refusal`` block the HARNESS authored: the request never left Hermes.
+
+    Keyed on the harness-authored status code (:data:`PROVIDER_UNAVAILABLE_STATUS_CODE`), never on
+    the reason: a dependency refusal carries its own ``runtime_dependency_*`` reason and settled
+    ``chat_turn_provider_unavailable`` just like ``provider_unavailable`` and ``model_unset``
+    (RT-DEPENDENCY-REFUSAL-RESEND-REPLAYS-REFUSED).
+    """
+
+    if not isinstance(block, dict):
+        return False
+    code = block.get("status_code")
+    return type(code) is int and code == PROVIDER_UNAVAILABLE_STATUS_CODE
 
 #: A 400 is the one status that is a refusal on the WIRE and not a refusal in
 #: MEANING. These classified reasons say the request as SENT was malformed or

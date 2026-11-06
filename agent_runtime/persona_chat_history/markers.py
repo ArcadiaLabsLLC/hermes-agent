@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..clock import iso_timestamp
+from ..mission_chat_outcome import refusal_never_left_hermes
 from ..mission_chat_turns.reads import mission_chat_turn_records
 from ..serde import safe_assignment_text, safe_assignment_token
 from ..run_budget import ACCOUNTING_KEY as RUN_BUDGET_ACCOUNTING_KEY
@@ -207,16 +208,18 @@ def _terminal_turn_marker_rows(
             refusal = record.get("provider_refusal")
             if isinstance(refusal, dict):
                 marker_row["provider_refusal"] = dict(refusal)
-                if refusal.get("reason") == "provider_unavailable":
-                    marker_row["text"] = (
-                        "This request never left Hermes because the model provider was unavailable. "
-                        "Review this profile's provider setup, then send a new message."
-                    )
-                elif refusal.get("reason") == "model_unset":
+                if refusal.get("reason") == "model_unset":
                     # RT-NO-MODEL-CHAT-SENDS-AND-404S (``provider_dependency_error.MODEL_UNSET_REASON``).
                     marker_row["text"] = (
                         "This request never left Hermes because no model is chosen for this chat. "
                         "Choose a model, then send a new message."
+                    )
+                elif refusal_never_left_hermes(refusal):
+                    # Harness-authored (status 0): provider unavailable or a runtime dependency
+                    # missing (RT-DEPENDENCY-REFUSAL-RESEND-REPLAYS-REFUSED).
+                    marker_row["text"] = (
+                        "This request never left Hermes because the model provider was unavailable. "
+                        "Review this profile's provider setup, then send a new message."
                     )
         if client_message_id in retried_as:
             marker_row["retried_as"] = retried_as[client_message_id]
