@@ -7,6 +7,10 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+## Filed on arrival — 2026-11-06 (lane w1106b-hm)
+
+- **`FH-PREPUSH-GATES-GATE-DIRECTORY-OVER-BUDGET` — `scripts/prepush.sh` gates step ran 13.9 s against its 10 s budget, 12.0 s of it one file: `tests/tooling/test_gate_directory_current.py` (box load ~54 with other lanes; the next slowest gate 4.7 s); speed that gate (or measure it on an idle box before touching the budget)** · fork / prepush · `tests/tooling/test_gate_directory_current.py` · seen by lane w1106b-hm 2026-11-06 (prepush before landing the observe/split/EOL batch) · READY 2026-11-06
+
 ## Filed on arrival — 2026-11-06 (lane w1106a-hm)
 
 
