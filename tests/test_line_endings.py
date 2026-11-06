@@ -67,8 +67,36 @@ CARRIES_CR = frozenset({"i/crlf", "i/mixed"})
 #: The blob-keyed memo of ``git ls-files --eol``'s index states, beside the clone's object store
 #: (``git rev-parse --git-common-dir``), shared by every worktree (FH-LINE-ENDINGS-GATE-OVER-30S-COLD).
 EOL_MEMO_NAME = "hermes-eol-memo.json"
-#: Paths per ``git ls-files --eol`` call for blobs the memo has not seen (argv stays far under any limit).
+#: Paths per ``git ls-files --eol`` call for blobs the memo has not seen, at most.
 _EOL_BATCH = 500
+#: Characters of command line per ``git ls-files --eol`` call (FH-WINDOWS-EOL-COLD-ARGV): Windows'
+#: ``CreateProcess`` takes 32,767 at most, and 500 literal deep paths overran it (WinError 206 in all five
+#: EOL gates). Half of it leaves room for the interpreter's own quoting.
+_EOL_ARGV_BUDGET = 16_000
+#: Per-argument overhead counted against the budget: the separating space and a quote pair.
+_ARGV_ARG_OVERHEAD = 3
+
+
+def _argv_chunks(paths: list[str], *, fixed: list[str], budget: int = _EOL_ARGV_BUDGET,
+                 most: int = _EOL_BATCH) -> list[list[str]]:
+    """``paths`` cut into consecutive runs whose command line (``fixed`` + the run) stays within
+    ``budget`` characters and ``most`` paths. A path too long to share a call goes alone."""
+
+    base = sum(len(arg) + _ARGV_ARG_OVERHEAD for arg in fixed)
+    chunks: list[list[str]] = []
+    current: list[str] = []
+    used = base
+    for path in paths:
+        cost = len(path) + _ARGV_ARG_OVERHEAD
+        # MUTATION: drop the `used + cost > budget` half and test_argv_chunks_stay_within_the_budget reddens.
+        if current and (used + cost > budget or len(current) >= most):
+            chunks.append(current)
+            current, used = [], base
+        current.append(path)
+        used += cost
+    if current:
+        chunks.append(current)
+    return chunks
 
 
 def _git(*args: str, env: dict | None = None) -> subprocess.CompletedProcess:
@@ -96,9 +124,9 @@ def _eol_states(paths: list[str]) -> dict[str, str]:
     """``{path: i/<state>}`` from git's own classifier, for ``paths`` only (literal pathspecs)."""
 
     states: dict[str, str] = {}
-    for start in range(0, len(paths), _EOL_BATCH):
-        done = _git("ls-files", "--eol", "-z", "--", *paths[start:start + _EOL_BATCH],
-                    env={"GIT_LITERAL_PATHSPECS": "1"})
+    fixed = ["git", "ls-files", "--eol", "-z", "--"]
+    for chunk in _argv_chunks(paths, fixed=fixed):
+        done = _git(*fixed[1:], *chunk, env={"GIT_LITERAL_PATHSPECS": "1"})
         if done.returncode != 0:
             pytest.skip(f"git ls-files --eol failed: {done.stderr.strip()}")
         for record in done.stdout.split("\0"):
@@ -241,3 +269,49 @@ def test_a_blob_the_memo_has_seen_is_not_classified_again(endings, monkeypatch):
 
     monkeypatch.setitem(globals(), "_eol_states", tripwire)
     assert _index_line_endings() == endings
+
+
+# -- the argv budget (FH-WINDOWS-EOL-COLD-ARGV): pure, so it is proven on every host --------------
+
+
+def _line(fixed: list[str], chunk: list[str]) -> int:
+    return sum(len(arg) + _ARGV_ARG_OVERHEAD for arg in [*fixed, *chunk])
+
+
+def test_argv_chunks_stay_within_the_budget():
+    fixed = ["git", "ls-files", "--eol", "-z", "--"]
+    deep = [f"tests/{'very_deep_directory/' * 8}file_{index:04d}.py" for index in range(500)]
+    chunks = _argv_chunks(deep, fixed=fixed)
+    assert len(chunks) > 1, "500 deep paths fit one call: the fixture no longer exercises the budget"
+    assert all(_line(fixed, chunk) <= _EOL_ARGV_BUDGET for chunk in chunks)
+    assert [path for chunk in chunks for path in chunk] == deep  # every path, once, in order
+
+
+def test_argv_chunks_cap_the_path_count_and_isolate_an_oversized_path():
+    short = [f"p{index}" for index in range(1201)]
+    assert [len(chunk) for chunk in _argv_chunks(short, fixed=[])] == [500, 500, 201]
+    huge = "x" * 40
+    chunks = _argv_chunks(["a", huge, "b"], fixed=["git"], budget=20)
+    assert chunks == [["a"], [huge], ["b"]]
+    assert _argv_chunks([], fixed=["git"]) == []
+
+
+def test_an_oversized_first_path_opens_no_empty_call():
+    assert _argv_chunks(["x" * 40, "a"], fixed=["git"], budget=20) == [["x" * 40], ["a"]]
+
+
+def test_the_classifier_calls_git_within_the_budget(monkeypatch):
+    """The call site rides the chunks: no ``git ls-files --eol`` command line over the budget."""
+
+    import subprocess
+
+    lines: list[int] = []
+
+    def fake_git(*args, env=None):
+        lines.append(_line(["git", *args], []))
+        return subprocess.CompletedProcess(["git", *args], 0, stdout="", stderr="")
+
+    monkeypatch.setitem(globals(), "_git", fake_git)
+    deep = [f"tests/{'very_deep_directory/' * 8}file_{index:04d}.py" for index in range(500)]
+    assert _eol_states(deep) == {}
+    assert len(lines) > 1 and max(lines) <= _EOL_ARGV_BUDGET
