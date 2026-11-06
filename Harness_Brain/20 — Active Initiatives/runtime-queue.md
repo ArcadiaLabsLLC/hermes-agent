@@ -1185,7 +1185,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-11-01 (lane w1101b-perf, the first idle-box run)
 
-- **`RT-TURN0-REQUEST-SENT-IDLE-RED` — the cause is cut (turn 0's write-ahead resolved `run_provenance.ran_by` cold — the build stamp's git probes and the ~400 ms `build-stamp-code-tree` digest — plus five first-write imports; the prewarm now pays both, and the counts guard reds on either); left: one idle-box run of `scripts/run_tests_idle.sh` showing turn 0 within the slowest warm turn + 100 (the lane's box was at load 11)** · `tests/agent_runtime/test_turn_cost_guard_downstream.py::test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard` · `agent_runtime/profile_runner/execute.py::_warm_run_provenance` · `scripts/run_tests_idle.sh` · READY 2026-11-01 · **TAKEN 2026-11-06 w1106a-perf on nekwo-ubuntu24 as nekwo in w1104a-qa-gates**
 
 ## Filed on arrival — 2026-11-02 (launcher lane w1101h-teardown)
 
