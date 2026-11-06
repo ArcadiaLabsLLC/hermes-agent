@@ -659,4 +659,3 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-11-04 (landing hm-land-w1104a)
 
-- **`FH-CHAT-TOOL-PROGRESS-BUNDLE-LEAK` — `tests/hermes_cli/test_chat_tool_progress_stream.py::test_an_mcp_call_with_no_report_still_beats_as_none_reported` reds in a bundle (`progress_state` is None, expected `none_reported`) after 19 earlier `tests/hermes_cli/` members and passes alone: an isolation leak; find the earlier member that leaves heartbeat/progress state behind and reset it in a fixture, or list the file in `scripts/test_bundles_unbundled.txt`** · `tests/hermes_cli/test_chat_tool_progress_stream.py` · `hermes_cli/harness_parts/persona/chat_events.py` · found 2026-11-05 by the w1105b hermes landing gate (bundle #69, green on the re-run alone) · READY 2026-11-05 · **TAKEN 2026-11-05 w1105g-hm-runtime on nekwo-ubuntu24 as nekwo in hm-w1104a-work**
