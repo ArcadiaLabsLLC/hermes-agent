@@ -154,7 +154,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .call_authorization import TIER_CONSOLE, TIER_READ, TIERS
+from .call_authorization import (
+    DEVICE_KIND_CHANNEL,
+    DEVICE_KIND_DEVICE,
+    DEVICE_KINDS,
+    TIER_CONSOLE,
+    TIER_READ,
+    TIERS,
+)
 from .clock import iso_stamp as _iso
 from .clock import stamp_passed as _stamp_passed
 from .gateway_pairing_codes import (
@@ -173,6 +180,7 @@ from .gateway_pairing_codes import (
     pending_codes,
     supersede_pending,
 )
+from .gateway_channel import clean_bound_instances
 from .paths import gateway_dir
 from .store_file_io import HarnessLockUnavailable
 from .store_file_io import os_error_reason as _os_reason
@@ -360,6 +368,8 @@ class DeviceCredential:
     token: str
     tier: str
     name: str
+    kind: str = DEVICE_KIND_DEVICE
+    bound_instances: tuple[str, ...] = ()
 
     @property
     def ok(self) -> bool:
@@ -405,6 +415,11 @@ class DeviceRecord:
     #: names its successor turns a column of dead credentials into one device's
     #: history.
     superseded_by: str | None = None
+    #: TRUST, written by the ceremony (``RT-EXTERNAL-GATEWAY-CHANNEL-CREDENTIAL``): ``device`` —
+    #: every row written before the rule — or ``channel``, the owner's own external gateway,
+    #: which may only relay chat turns to :attr:`bound_instances` (``gateway_channel``).
+    kind: str = DEVICE_KIND_DEVICE
+    bound_instances: tuple[str, ...] = ()
 
     @property
     def expired(self) -> bool:
@@ -435,6 +450,9 @@ class DeviceRecord:
             "account_device_id": self.account_device_id,
             "revoked_reason": self.revoked_reason,
             "superseded_by": self.superseded_by,
+            # ``device_kind`` on the surface: a CLI envelope's own ``kind`` sits beside these keys.
+            "device_kind": self.kind,
+            "bound_instances": list(self.bound_instances),
         }
 
 
@@ -740,6 +758,8 @@ def mint_pairing_code(
     credential_ttl_seconds: int | None = None,
     for_device_id: str | None = None,
     correlation: str | None = None,
+    kind: str = DEVICE_KIND_DEVICE,
+    bound_instances: Any = (),
     now: float | None = None,
 ) -> PairingCode | StoreRefusal:
     """Mint a short-TTL pairing code. The plaintext is returned, never stored.
@@ -757,6 +777,10 @@ def mint_pairing_code(
             "invalid_tier",
             f"tier must be one of {', '.join(TIERS)}; got {tier!r}",
         )
+    bound = clean_bound_instances(list(bound_instances or ()))
+    refusal = _channel_mint_refusal(kind, tier, bound)
+    if refusal is not None:
+        return refusal
     stamp = now if now is not None else time.time()
     requester = _clean_name(for_device_id) or None
     try:
@@ -809,6 +833,10 @@ def mint_pairing_code(
                     ),
                     "for_device_id": requester,
                     "correlation": _clean_name(correlation) or None,
+                    # Absent on a plain device code, so its pending entry is byte-identical.
+                    # ``device_kind``, never ``kind``: the pending entry's ``kind`` is the
+                    # ceremony's (device | peer) and ``mint_into`` keeps it over ``extra``.
+                    **({"device_kind": kind, "bound_instances": list(bound)} if kind == DEVICE_KIND_CHANNEL else {}),
                 },
                 now=stamp,
             )
@@ -939,16 +967,42 @@ def redeem_pairing_code(
                 # entry. A label — see :class:`DeviceRecord` — and the join key
                 # the launcher's sheet and S3's Unpair relate this row by.
                 "account_device_id": _clean_name(matched.get("for_device_id")) or None,
+                # Copied through from the pending entry the operator minted; absent → ``device``.
+                **_kind_fields(matched),
             }
             _write_devices(store_root, rows)
+            record = _decode_device(rows[device_id])
             return DeviceCredential(
-                device_id=device_id, token=token, tier=tier, name=name
+                device_id=device_id, token=token, tier=tier, name=name,
+                kind=record.kind if record else DEVICE_KIND_DEVICE,
+                bound_instances=record.bound_instances if record else (),
             )
     except (OSError, HarnessLockUnavailable) as exc:
         return StoreRefusal(_os_reason(exc), str(exc))
 
 
 # ── internals ────────────────────────────────────────────────────────────────
+
+
+def _channel_mint_refusal(kind: str, tier: str, bound: tuple[str, ...]) -> StoreRefusal | None:
+    """A channel code needs ``console`` (a bot that cannot chat is nothing) and one bound instance."""
+
+    if kind not in DEVICE_KINDS:
+        return StoreRefusal("invalid_kind", f"kind must be one of {', '.join(DEVICE_KINDS)}; got {kind!r}")
+    if kind != DEVICE_KIND_CHANNEL:
+        return None if not bound else StoreRefusal(
+            "invalid_bound_instances", "only a channel credential is bound to persona instances")
+    if tier != TIER_CONSOLE:
+        return StoreRefusal("invalid_tier", "a channel credential holds console: it relays chat turns")
+    if not bound:
+        return StoreRefusal("bound_instances_required", "a channel credential must be bound to a persona instance")
+    return None
+
+
+def _kind_fields(matched: dict[str, Any]) -> dict[str, Any]:
+    if matched.get("device_kind") != DEVICE_KIND_CHANNEL:
+        return {}
+    return {"kind": DEVICE_KIND_CHANNEL, "bound_instances": list(clean_bound_instances(matched.get("bound_instances")))}
 
 
 def _clean_name(value: Any) -> str:
@@ -1002,7 +1056,17 @@ def _decode_device(row: Any) -> DeviceRecord | None:
             str(row["revoked_reason"]) if row.get("revoked_reason") else None
         ),
         superseded_by=(str(row["superseded_by"]) if row.get("superseded_by") else None),
+        # Absent reads ``device`` (every row before the rule); a word this build does not know
+        # reads ``channel`` — the NARROWER kind — for the unknown-tier rule's reason.
+        kind=_decode_kind(row.get("kind")),
+        bound_instances=clean_bound_instances(row.get("bound_instances")),
     )
+
+
+def _decode_kind(value: Any) -> str:
+    if value in (None, ""):
+        return DEVICE_KIND_DEVICE
+    return value if value in DEVICE_KINDS else DEVICE_KIND_CHANNEL
 
 
 def _read_devices(store_root: Path | str) -> dict[str, Any]:

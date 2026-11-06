@@ -524,6 +524,7 @@ options:
 
 ```text
 usage: hermes harness gateway pair [-h] [--name NAME] [--tier {console,read}]
+                                   [--kind {device,channel}] [--instance INSTANCES]
                                    [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
                                    [--fields FIELDS]
 
@@ -533,6 +534,11 @@ options:
   --tier {console,read}
                         What the paired device may do. console: run console verbs (create/retire
                         agents). read: view only.
+  --kind {device,channel}
+                        device: a person's screen. channel: your own external gateway (a bot), which
+                        may only relay chat turns to the --instance agents
+  --instance INSTANCES  A persona instance id a channel credential is bound to (repeatable; required
+                        with --kind channel)
   -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet

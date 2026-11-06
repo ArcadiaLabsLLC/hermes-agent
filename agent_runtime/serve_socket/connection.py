@@ -46,6 +46,9 @@ class SocketConnection:
     #: other. Set once, in ``_handshake``, after the proof verified.
     device_id: str | None = None
     device_tier: str | None = None
+    #: ``device`` | ``channel`` and a channel's bound instances, stamped beside the tier.
+    device_kind: str | None = None
+    bound_instances: tuple[str, ...] = ()
     #: WHICH paired INSTALL this is (gateway Stage 6), or ``None`` on every
     #: other connection this runtime ever accepts. ``caller_for_connection``
     #: reads it through ``getattr`` to mint a ``peer`` caller, and reads it
@@ -144,6 +147,9 @@ class SocketConnection:
                 # answer once there is more than one client.
                 payload["device_id"] = self.device_id
                 payload["device_tier"] = self.device_tier
+                if self.device_kind == "channel":
+                    payload["device_kind"] = self.device_kind
+                    payload["bound_instances"] = list(self.bound_instances)
             if self.peer_install_id is not None:
                 # Additive on a PEER row only, same rule and same reason: an
                 # install id is not a secret (the peer names it in its own

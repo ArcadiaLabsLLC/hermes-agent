@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 from agent_runtime.call_authorization import authorize_call
+from agent_runtime.gateway_channel import channel_target_refusal
 from agent_runtime.execution_identity import execution_identity
 
 from agent_runtime.serve_rpc.protocol import (
@@ -147,6 +148,11 @@ def handle_request(req: Any, context: RpcContext | None = None) -> dict:
     # the caller happened to reach, which is the shape this module exists to
     # retire.
     decision = authorize_call(method_tier(name), context.caller, method=name)
+    if decision.ok:
+        # A channel credential's instance binding and the external-access switch
+        # (RT-EXTERNAL-GATEWAY-CHANNEL-CREDENTIAL / -SWITCH-GATE): the only rule that
+        # reads which instance the request AIMS at; authority stays the caller's.
+        decision = channel_target_refusal(context.caller, name, params) or decision
     if not decision.ok:
         # ``detail`` when the policy supplied one, the tier sentence otherwise.
         # The dispatcher still does not KNOW any policy — it renders whichever

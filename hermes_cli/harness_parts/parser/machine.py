@@ -156,6 +156,19 @@ def _add_gateway_pairing_verbs(gateway_subs) -> None:
         default="console",
         help="What the paired device may do. console: run console verbs (create/retire agents). read: view only.",
     )
+    gateway_pair.add_argument(
+        "--kind",
+        choices=["device", "channel"],
+        default="device",
+        help="device: a person's screen. channel: your own external gateway (a bot), which may only relay chat turns to the --instance agents",
+    )
+    gateway_pair.add_argument(
+        "--instance",
+        dest="instances",
+        action="append",
+        default=None,
+        help="A persona instance id a channel credential is bound to (repeatable; required with --kind channel)",
+    )
     _add_stage42_global_args(gateway_pair)
     gateway_pair.set_defaults(func=gateway_commands.cmd_gateway_pair)
     # S2. `introduce` sits under `gateway` rather than under `peers`, and that

@@ -44,6 +44,7 @@ __all__ = [
     "OWNER_STATE_UNREADABLE",
     "REJECT_BAD_PROOF",
     "REJECT_DRAINING",
+    "REJECT_EXTERNAL_ACCESS_OFF",
     "REJECT_HANDSHAKE_THROTTLED",
     "REJECT_HELLO_MALFORMED",
     "REJECT_HELLO_REQUIRED",
@@ -156,6 +157,13 @@ class RejectReason(StrEnum):
     #: TLS handshake is exactly that.
     TLS_HANDSHAKE_FAILED = "tls_handshake_failed"
 
+    #: A ``channel`` credential whose proof VERIFIED, refused because this namespace's
+    #: external-access switch is off (RT-EXTERNAL-GATEWAY-SWITCH-GATE, owner ruling D5).
+    #: Distinct from ``bad_proof`` because it is said only to a holder that proved the
+    #: credential (nobody else learns the row exists), and NOT an auth failure: the gateway
+    #: is right about its credential and backs off until the owner turns the switch on.
+    EXTERNAL_ACCESS_OFF = "external_access_off"
+
 
 #: The module-level names every importer and test reads — aliases of the members.
 REJECT_TOO_MANY_CONNECTIONS = RejectReason.TOO_MANY_CONNECTIONS
@@ -169,6 +177,7 @@ REJECT_HELLO_MALFORMED = RejectReason.HELLO_MALFORMED
 REJECT_HELLO_TOO_LONG = RejectReason.HELLO_TOO_LONG
 REJECT_BAD_PROOF = RejectReason.BAD_PROOF
 REJECT_TLS_HANDSHAKE_FAILED = RejectReason.TLS_HANDSHAKE_FAILED
+REJECT_EXTERNAL_ACCESS_OFF = RejectReason.EXTERNAL_ACCESS_OFF
 
 
 #: The ONLY reasons that charge the auth rate limiter: a peer that presented a

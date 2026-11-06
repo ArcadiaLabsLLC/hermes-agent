@@ -95,6 +95,13 @@ def _pairing_block(connection: Any) -> dict[str, Any]:
                 # Store it now — this is the only time it is ever sent, and the
                 # install itself keeps only a digest of it.
                 "device_token": token,
+                # Additive, on a channel credential only (RT-EXTERNAL-GATEWAY-CHANNEL-CREDENTIAL):
+                # the gateway learns which agents it may relay to from the install that decided it.
+                **(
+                    {"kind": "channel", "bound_instances": list(connection.bound_instances)}
+                    if getattr(connection, "device_kind", None) == "channel"
+                    else {}
+                ),
             }
         }
     secret = getattr(connection, "peer_secret", None)

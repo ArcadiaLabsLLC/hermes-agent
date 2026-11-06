@@ -231,6 +231,26 @@ def test_a_read_tier_pairing_is_representable_from_the_command_line(capsys):
     assert json.loads(payload["qr_payload"])["code"] == payload["code"]
 
 
+def test_a_channel_pairing_is_bound_and_refused_while_the_external_switch_is_off(capsys, monkeypatch):
+    """RT-EXTERNAL-GATEWAY-CHANNEL-CREDENTIAL / -SWITCH-GATE: ``--kind channel --instance`` mints a
+    bound code only while the switch names this namespace (D5); off, it refuses before minting."""
+
+    from agent_runtime import gateway_channel
+    from agent_runtime.serve_gateway_auth import pending_codes, read_pairing
+
+    monkeypatch.setattr(gateway_channel, "external_access_on", lambda env=None: False)
+    code = _dispatch(["harness", "gateway", "pair", "--kind", "channel", "--instance", "personainst_qa", "--json"])
+    refusal = json.loads(capsys.readouterr().out)
+    assert code != 0 and refusal["error"]["reason"] == "external_access_off", refusal
+    assert not pending_codes(read_pairing(paths.store_root()))
+
+    monkeypatch.setattr(gateway_channel, "external_access_on", lambda env=None: True)
+    _code, payload = _run(capsys, "pair", "--kind", "channel", "--instance", "personainst_qa")
+    assert (payload["device_kind"], payload["bound_instances"]) == ("channel", ["personainst_qa"])
+    [entry] = pending_codes(read_pairing(paths.store_root())).values()
+    assert (entry["device_kind"], entry["bound_instances"]) == ("channel", ["personainst_qa"])
+
+
 def test_the_fourth_outstanding_code_is_refused_as_a_precondition(capsys):
     """A store refusal becomes an exit family, never a traceback — and the
     family is chosen on the operator's next MOVE. "You already have three" is

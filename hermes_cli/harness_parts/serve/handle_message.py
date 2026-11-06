@@ -263,6 +263,9 @@ class MessageHandling:
         if lane != "stream":
             self._deny_subscribe(sink, connection, lane, "unsupported_lane")
             return None
+        if getattr(connection, "device_kind", None) == "channel":  # a bot relays chat; it never watches the office
+            self._deny_subscribe(sink, connection, "stream", "channel_credential")
+            return None
         if self.drain_state is not None:
             self._deny_subscribe(sink, connection, "stream", "draining")
             return None

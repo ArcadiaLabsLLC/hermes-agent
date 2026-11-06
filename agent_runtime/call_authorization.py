@@ -99,6 +99,10 @@ __all__ = [
     "TIER_READ",
     "TRANSPORT_GATEWAY",
     "UNKNOWN_CALLER",
+    "CHANNEL_METHOD_ALLOWLIST",
+    "DEVICE_KIND_CHANNEL",
+    "DEVICE_KIND_DEVICE",
+    "DEVICE_KINDS",
     "CallAuthorization",
     "RpcCaller",
     "authorize_call",
@@ -311,6 +315,31 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
     }
 )
 
+#: **What a paired device row IS** (``RT-EXTERNAL-GATEWAY-CHANNEL-CREDENTIAL``, plan
+#: ``planned/external-gateway-namespace-access-2026-11-05.md`` §2 D1, owner ruling C 2026-11-05).
+#: ``device`` is a person's screen (every row written before the rule reads as one); ``channel``
+#: is the owner's own external gateway — a bot process that relays a platform's messages to the
+#: persona instances it was bound to at pairing. A channel holds ``console`` (a chat turn runs
+#: tools; ``serve_rpc/chat.py`` says why nothing lower is honest), and its KIND narrows it twice:
+#: to :data:`CHANNEL_METHOD_ALLOWLIST`, and (``agent_runtime.gateway_channel``) to its bound
+#: instances. Scope narrows WHICH agent, never what the agent may do.
+DEVICE_KIND_DEVICE = "device"
+DEVICE_KIND_CHANNEL = "channel"
+DEVICE_KINDS: tuple[str, ...] = (DEVICE_KIND_DEVICE, DEVICE_KIND_CHANNEL)
+
+#: **Exactly what a ``channel`` credential may call** — the chat verbs, and nothing else: no
+#: read verb either (a bot has no business with the office core, another instance's history or
+#: the subscribe lanes), so the arm sits before the read-tier opening for the peer arm's reason.
+#: A membership test: a future verb joins only by an edit here.
+CHANNEL_METHOD_ALLOWLIST: frozenset[str] = frozenset(
+    {
+        "runtime.channel.message",
+        "runtime.chat.message",
+        "runtime.chat.steer",
+        "runtime.persona.instance.open_chat",
+    }
+)
+
 #: The transport name the gateway listener tags its connections with. Named here
 #: rather than imported from ``serve_socket`` for the reason
 #: :func:`caller_for_connection` is duck-typed: this module must not import the
@@ -354,6 +383,10 @@ class RpcCaller:
     #: fixed at the pairing ceremony, read off the authenticated connection,
     #: never off anything the request carries.
     device_tier: str | None = None
+    #: Set only for :data:`CALLER_DEVICE`: the row's :data:`DEVICE_KINDS` word, and — for a
+    #: ``channel`` — the persona instance ids it was bound to at pairing (TRUST, off the row).
+    device_kind: str | None = None
+    bound_instances: tuple[str, ...] = ()
     #: Set only for :data:`CALLER_PEER`. The OTHER install's id, as its row in
     #: ``gateway/peers.json`` names it — so a refusal can say which paired
     #: install was turned away, which is the fact an operator auditing a
@@ -381,6 +414,9 @@ class RpcCaller:
             payload["device_id"] = self.device_id
         if self.device_tier is not None:
             payload["device_tier"] = self.device_tier
+        if self.device_kind == DEVICE_KIND_CHANNEL:
+            payload["device_kind"] = self.device_kind
+            payload["bound_instances"] = list(self.bound_instances)
         if self.peer_install_id is not None:
             payload["peer_install_id"] = self.peer_install_id
         return payload
@@ -468,12 +504,19 @@ def caller_for_connection(connection: Any) -> RpcCaller:
             peer_install_id=peer_install_id,
         )
     if device_id is not None and device_tier is not None:
+        # An unrecognised kind word reads as ``channel`` — the NARROWER one — never as a plain
+        # device: least privilege, ``_decode_device``'s rule for an unknown tier.
+        kind = getattr(connection, "device_kind", None) or DEVICE_KIND_DEVICE
+        kind = kind if kind in DEVICE_KINDS else DEVICE_KIND_CHANNEL
+        bound = getattr(connection, "bound_instances", None) or ()
         return RpcCaller(
             kind=CALLER_DEVICE,
             connection_key=key,
             transport=transport,
             device_id=device_id,
             device_tier=device_tier,
+            device_kind=kind,
+            bound_instances=tuple(str(item) for item in bound if isinstance(item, str) and item),
         )
     if transport == TRANSPORT_GATEWAY:
         return RpcCaller(kind=CALLER_UNKNOWN, connection_key=key, transport=transport)
@@ -628,6 +671,21 @@ def authorize_call(
             detail=(
                 f"{name} is answerable only to this install's own console; "
                 f"a {resolved.kind} caller is refused however it is paired"
+            ),
+        )
+    # The channel arm (RT-EXTERNAL-GATEWAY-CHANNEL-CREDENTIAL): BEFORE the read opening, for the
+    # peer arm's reason — a bot answered after it would inherit the whole read surface. Which
+    # INSTANCE a chat verb names is ``gateway_channel.channel_target_refusal``'s, at dispatch.
+    if resolved.kind == CALLER_DEVICE and resolved.device_kind == DEVICE_KIND_CHANNEL:
+        admitted = bool(name) and name in CHANNEL_METHOD_ALLOWLIST and resolved.device_tier == TIER_CONSOLE
+        return CallAuthorization(
+            ok=admitted,
+            reason="channel_allowlisted" if admitted else REASON_SCOPE_DENIED,
+            tier=normalized,
+            caller_kind=resolved.kind,
+            detail=None if admitted else (
+                f"{name or 'this call'} is not a chat verb; a channel credential may only relay "
+                "chat turns to the persona instances it is bound to"
             ),
         )
     if resolved.kind == CALLER_PEER:
