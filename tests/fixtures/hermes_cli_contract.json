@@ -4290,6 +4290,14 @@
     "harness gateway pair": {
       "exclusive_groups": [],
       "options": {
+        "--client-scope": {
+          "action": "store",
+          "canonical": "--client-scope",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
         "--fields": {
           "action": "store",
           "canonical": "--fields",

@@ -420,6 +420,12 @@ class DeviceRecord:
     #: which may only relay chat turns to :attr:`bound_instances` (``gateway_channel``).
     kind: str = DEVICE_KIND_DEVICE
     bound_instances: tuple[str, ...] = ()
+    #: A channel's owning account namespace (the launcher's 64-hex client-scope digest), written
+    #: at ``pair --kind channel --client-scope`` (``RT-EXTERNAL-GATEWAY-CHANNEL-CLIENT-SCOPE``):
+    #: every conversation the channel mints is stamped with it, so the account-filtered
+    #: ``runtime.operator.conversation.list`` lists it. ``None`` — every row before the rule, or
+    #: an unreadable value — mints unscoped conversations (they list under ``all_accounts``).
+    client_scope: str | None = None
 
     @property
     def expired(self) -> bool:
@@ -453,6 +459,7 @@ class DeviceRecord:
             # ``device_kind`` on the surface: a CLI envelope's own ``kind`` sits beside these keys.
             "device_kind": self.kind,
             "bound_instances": list(self.bound_instances),
+            "client_scope": self.client_scope,
         }
 
 
@@ -760,6 +767,7 @@ def mint_pairing_code(
     correlation: str | None = None,
     kind: str = DEVICE_KIND_DEVICE,
     bound_instances: Any = (),
+    client_scope: str | None = None,
     now: float | None = None,
 ) -> PairingCode | StoreRefusal:
     """Mint a short-TTL pairing code. The plaintext is returned, never stored.
@@ -778,7 +786,7 @@ def mint_pairing_code(
             f"tier must be one of {', '.join(TIERS)}; got {tier!r}",
         )
     bound = clean_bound_instances(list(bound_instances or ()))
-    refusal = _channel_mint_refusal(kind, tier, bound)
+    refusal = _channel_mint_refusal(kind, tier, bound) or _client_scope_refusal(kind, client_scope)
     if refusal is not None:
         return refusal
     stamp = now if now is not None else time.time()
@@ -837,6 +845,7 @@ def mint_pairing_code(
                     # ``device_kind``, never ``kind``: the pending entry's ``kind`` is the
                     # ceremony's (device | peer) and ``mint_into`` keeps it over ``extra``.
                     **({"device_kind": kind, "bound_instances": list(bound)} if kind == DEVICE_KIND_CHANNEL else {}),
+                    **({"client_scope": client_scope} if kind == DEVICE_KIND_CHANNEL and client_scope else {}),
                 },
                 now=stamp,
             )
@@ -993,6 +1002,31 @@ def _channel_mint_refusal(kind: str, tier: str, bound: tuple[str, ...]) -> Store
     return None
 
 
+def _client_scope_refusal(kind: str, value: str | None) -> StoreRefusal | None:
+    """Only a channel carries an account namespace, and only the launcher's 64-hex digest form."""
+
+    from .conversation_owner import ConversationOwnerError, client_scope
+
+    if value is None:
+        return None
+    if kind != DEVICE_KIND_CHANNEL:
+        return StoreRefusal("invalid_client_scope", "only a channel credential carries a client scope")
+    try:
+        client_scope(value)
+    except ConversationOwnerError:
+        return StoreRefusal("invalid_client_scope", "client_scope must be the 64-character lowercase hex digest")
+    return None
+
+
+def _decode_client_scope(value: Any) -> str | None:
+    from .conversation_owner import ConversationOwnerError, client_scope
+
+    try:
+        return client_scope(value)
+    except ConversationOwnerError:
+        return None
+
+
 def _issued(device_id: str, token: str, tier: str, name: str, row: dict[str, Any]) -> DeviceCredential:
     record = _decode_device(row)
     return DeviceCredential(
@@ -1007,7 +1041,9 @@ def _kind_fields(matched: dict[str, Any]) -> dict[str, Any]:
 
     if matched.get("device_kind") != DEVICE_KIND_CHANNEL:
         return {}
-    return {"kind": DEVICE_KIND_CHANNEL, "bound_instances": list(clean_bound_instances(matched.get("bound_instances")))}
+    scope = _decode_client_scope(matched.get("client_scope"))
+    return {"kind": DEVICE_KIND_CHANNEL, "bound_instances": list(clean_bound_instances(matched.get("bound_instances"))),
+            **({"client_scope": scope} if scope else {})}
 
 
 def _clean_name(value: Any) -> str:
@@ -1065,6 +1101,7 @@ def _decode_device(row: Any) -> DeviceRecord | None:
         # reads ``channel`` — the NARROWER kind — for the unknown-tier rule's reason.
         kind=_decode_kind(row.get("kind")),
         bound_instances=clean_bound_instances(row.get("bound_instances")),
+        client_scope=_decode_client_scope(row.get("client_scope")),
     )
 
 

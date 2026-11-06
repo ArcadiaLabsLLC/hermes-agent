@@ -141,3 +141,50 @@ def test_a_channel_message_over_the_real_gateway_lane(gateway_on, placed_agent):
     result = frame["result"]
     assert result["accepted"] is True and result["request_id"] and result["session_created"] is True
     assert _meta(result["session_id"])["channel_source"] == "channel:tg-bot"
+
+
+_ACCOUNT = "a" * 64
+
+
+def _scoped_list(instance: str, client_scope: str) -> set[str]:
+    from agent_runtime.gateway_identity import ensure_install_identity
+
+    reply = serve_rpc.handle_request(
+        {"jsonrpc": "2.0", "id": "scoped", "method": "runtime.operator.conversation.list",
+         "params": {"install_id": ensure_install_identity(paths.store_root()).install_id,
+                    "client_scope": client_scope, "persona_instance_id": instance}},
+        serve_rpc.RpcContext(caller=LOCAL_CONSOLE))
+    return {row["session_id"] for row in reply["result"]["conversations"]}
+
+
+def test_a_scoped_channel_conversation_lists_under_its_account(placed_agent):
+    """RT-EXTERNAL-GATEWAY-CHANNEL-CLIENT-SCOPE. Killing mutation: drop the ``client_scope`` key
+    from ``_open_conversation``'s open-chat params → the minted root is unscoped, the account-
+    filtered list omits it and the ``in listed`` assertion reds."""
+
+    instance = placed_agent["persona_instance_id"]
+    root = paths.store_root()
+    scoped = redeem_pairing_code(root, mint_pairing_code(
+        root, name="tg-bot", kind=DEVICE_KIND_CHANNEL, bound_instances=[instance], client_scope=_ACCOUNT).code)
+    plain = redeem_pairing_code(root, mint_pairing_code(
+        root, name="tg-old", kind=DEVICE_KIND_CHANNEL, bound_instances=[instance]).code)
+    first = _send(_channel(instance, scoped.device_id), channel_key="telegram:42", turn="s-1")
+    assert "result" in first, first
+    sent = first["result"]
+    again = _send(_channel(instance, scoped.device_id), channel_key="telegram:42", turn="s-2")["result"]
+    legacy = _send(_channel(instance, plain.device_id), channel_key="telegram:42", turn="s-3")["result"]
+
+    assert sent["client_scope"] == _ACCOUNT and again["session_id"] == sent["session_id"]
+    listed = _scoped_list(instance, _ACCOUNT)
+    assert sent["session_id"] in listed
+    # A channel paired without a scope keeps today's answer: listed only under all_accounts.
+    assert legacy["session_id"] not in listed and "client_scope" not in legacy
+    assert sent["session_id"] not in _scoped_list(instance, "b" * 64)
+
+
+def test_a_client_scope_is_a_channel_digest_or_refused():
+    root = paths.store_root()
+    wrong_kind = mint_pairing_code(root, name="phone", client_scope=_ACCOUNT)
+    malformed = mint_pairing_code(root, name="bot", kind=DEVICE_KIND_CHANNEL,
+                                  bound_instances=["personainst_x"], client_scope="Not-A-Digest")
+    assert (wrong_kind.reason, malformed.reason) == ("invalid_client_scope", "invalid_client_scope")

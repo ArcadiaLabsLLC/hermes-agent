@@ -42,6 +42,7 @@ def cmd_gateway_pair(args) -> int:
     name = getattr(args, "name", None)
     kind = str(getattr(args, "kind", None) or "device")
     instances = list(getattr(args, "instances", None) or [])
+    client_scope = getattr(args, "client_scope", None) or None
     refused = _channel_pair_refusal(kind, args)
     if refused is not None:
         return refused
@@ -81,7 +82,8 @@ def cmd_gateway_pair(args) -> int:
     if failure:
         return failure
 
-    code = mint_pairing_code(root, tier=tier, name=name, kind=kind, bound_instances=instances)
+    code = mint_pairing_code(root, tier=tier, name=name, kind=kind, bound_instances=instances,
+                             client_scope=client_scope)
     if isinstance(code, StoreRefusal):
         # R-D14: a pairing.json this machine cannot write is not the network's
         # fault, and the refusal now says which file to fix.
@@ -111,7 +113,7 @@ def cmd_gateway_pair(args) -> int:
         "device_name": code.name,
         # ``device_kind``: the envelope's own ``kind`` is ``gateway_pairing``.
         "device_kind": kind,
-        **({"bound_instances": instances} if kind == "channel" else {}),
+        **({"bound_instances": instances, "client_scope": client_scope} if kind == "channel" else {}),
         "install_id": identity.install_id,
         "cert_fingerprint": certificate.fingerprint,
         "endpoint": endpoint,
