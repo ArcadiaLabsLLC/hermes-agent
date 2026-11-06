@@ -779,7 +779,7 @@ def test_a_body_spelled_with_the_next_editions_recall_key_replicates_as_this_one
     summary = apply_persona_instance_pull(realm_id, tmp_path)
     assert summary.replicated == [INSTANCE_ID] and summary.refused == []
     minted = PersonaInstanceStore().get(INSTANCE_ID)
-    assert minted.recall_shared_projects is True
+    assert minted.recall_shared_workspaces is True
     # Zero drift: the baseline is the CANONICAL body's hash, which is what this edition projects.
     older = _body(workspace_id=ws, recall_shared_projects=True)
     from agent_runtime.persona_instance_sync import project_persona_instance
@@ -789,8 +789,8 @@ def test_a_body_spelled_with_the_next_editions_recall_key_replicates_as_this_one
 
 
 def test_two_spellings_disagreeing_are_refused_and_a_stored_new_spelling_loads(tmp_path):
-    """KILLING MUTATION: drop ``canonical_instance_body`` from ``store._decode_stored_instance`` →
-    the stored new spelling loads recall OFF and the last assertion reds."""
+    """KILLING MUTATION: drop ``stored_instance_body`` from ``store._decode_stored_instance`` →
+    a row an S1-or-older edition stored (the Project spelling) loads recall OFF and the last assertion reds."""
 
     realm_id, ws = _realm_workspace()
     _write_remote(tmp_path, _body(workspace_id=ws, recall_shared_workspaces=True, recall_shared_projects=False))
@@ -801,6 +801,29 @@ def test_two_spellings_disagreeing_are_refused_and_a_stored_new_spelling_loads(t
 
     from agent_runtime.serde import to_jsonable
 
-    stored = {k: v for k, v in to_jsonable(_local()).items() if k != "recall_shared_projects"}
-    stored["recall_shared_workspaces"] = True
-    assert _decode_stored_instance(stored).recall_shared_projects is True
+    stored = {k: v for k, v in to_jsonable(_local()).items() if k != "recall_shared_workspaces"}
+    assert _decode_stored_instance({**stored, "recall_shared_workspaces": True}).recall_shared_workspaces is True
+    assert _decode_stored_instance({**stored, "recall_shared_projects": True}).recall_shared_workspaces is True
+
+
+def test_the_renamed_field_is_stored_new_and_published_old_with_the_hash_unmoved(tmp_path):
+    """RT-WS-RECALL-RENAME-S2-FIELD (plan S2): the store writes ``recall_shared_workspaces``, the
+    projection still publishes ``recall_shared_projects``, and a recall-on instance hashes exactly
+    as the Project edition's body. KILLING MUTATION: publish the field under its own name (drop
+    ``published_key`` in ``project_persona_instance``) → the field is withheld as an unknown name,
+    the body loses the key and the hash moves."""
+
+    import json
+
+    from agent_runtime import paths
+    from agent_runtime.persona_instance_sync import project_persona_instance
+
+    realm_id, ws = _realm_workspace()
+    _write_remote(tmp_path, _body(workspace_id=ws, recall_shared_projects=True))
+    assert apply_persona_instance_pull(realm_id, tmp_path).replicated == [INSTANCE_ID]
+    stored = json.loads(paths.persona_instance_path(INSTANCE_ID).read_text(encoding="utf-8"))
+    assert stored["recall_shared_workspaces"] is True and "recall_shared_projects" not in stored
+    body = project_persona_instance(PersonaInstanceStore().get(INSTANCE_ID))
+    assert body["recall_shared_projects"] is True and "recall_shared_workspaces" not in body
+    assert persona_instance_def_hash(body) == persona_instance_def_hash(
+        _body(workspace_id=ws, recall_shared_projects=True))

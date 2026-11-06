@@ -130,7 +130,9 @@ def _decode_instance(path: Path) -> PersonaInstance | None:
     """The record at ``path`` through the model's decoder, or ``None`` when it is not one (or is misfiled)."""
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
-        record = from_jsonable(PersonaInstance, raw) if isinstance(raw, dict) else None
+        from agent_runtime.persona_instance_sync.contract import stored_instance_body
+
+        record = from_jsonable(PersonaInstance, stored_instance_body(raw)) if isinstance(raw, dict) else None
     except (OSError, ValueError, TypeError, KeyError):
         return None
     if record is None or not looks_like_persona_instance_id(record.id):

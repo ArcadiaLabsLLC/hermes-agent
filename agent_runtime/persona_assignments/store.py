@@ -76,10 +76,10 @@ def _decode_stored_instance(raw: dict[str, Any]) -> PersonaInstance:
     on a level by following a pointer an old bind stamped
     (RT-GLOBAL-SINGLETON-CANONICAL; plan ``canonical-channel-global-storage-2026-10-27``).
     """
-    from agent_runtime.persona_instance_sync.contract import canonical_instance_body
+    from agent_runtime.persona_instance_sync.contract import stored_instance_body
 
-    # A row written by an edition that stores the next spelling (RT-WS-RECALL-RENAME-S1-ALIAS).
-    instance = from_jsonable(PersonaInstance, canonical_instance_body(raw))
+    # A row written by an edition that stored the Project spelling (RT-WS-RECALL-RENAME-S2-FIELD).
+    instance = from_jsonable(PersonaInstance, stored_instance_body(raw))
     if instance.mode == "task_bound":
         # ``task_bound`` is stored-only: nothing writes it, so no reader branches on it
         # (RT-TASK-BOUND-MISSION-LANES). A STEER-shaped row (its task IS its goal, a
@@ -329,7 +329,7 @@ class PersonaInstanceStore:
 
     #: The repo-slot assignment (build plan §3.3) and its clock, ``slots_issued_at``.
     _SLOT_LANE_FIELDS: tuple[str, ...] = ("assigned_slots", "primary_slot", "slots_issued_at",
-                                          "recall_shared_projects", "slot_context_files",
+                                          "recall_shared_workspaces", "slot_context_files",
                                           "slot_context_custom")
 
     def _keep_newer_slot_assignment(self, instance: PersonaInstance) -> None:
@@ -343,8 +343,8 @@ class PersonaInstanceStore:
         from agent_runtime.persona_assignments.profile import _as_utc
 
         try:
-            stored = from_jsonable(
-                PersonaInstance, json.loads(paths.persona_instance_path(instance.id).read_text(encoding="utf-8"))
+            stored = _decode_stored_instance(
+                json.loads(paths.persona_instance_path(instance.id).read_text(encoding="utf-8"))
             )
         except Exception:  # absent/unreadable: no baseline to defend
             return
@@ -655,9 +655,9 @@ class PersonaInstanceStore:
                 # A character-only edit never writes a stale chat/profile row.
                 instance = _decode_stored_instance(stored)
             elif isinstance(character_change, CharacterAssignmentReplication) and stored:
-                from agent_runtime.persona_instance_sync.contract import PERSONA_INSTANCE_ALLOWED_KEYS
+                from agent_runtime.persona_instance_sync.contract import PERSONA_INSTANCE_TRAVEL_FIELDS
                 fresh = _decode_stored_instance(stored)
-                for name in PERSONA_INSTANCE_ALLOWED_KEYS - {"id", "persona_id", "steered_by"}:
+                for name in PERSONA_INSTANCE_TRAVEL_FIELDS - {"id", "persona_id", "steered_by"}:
                     setattr(fresh, name, getattr(instance, name))
                 fresh.updated_at = instance.updated_at
                 instance = fresh

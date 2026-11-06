@@ -67,12 +67,13 @@ def _recall(enabled):
     reply = serve_rpc.handle_request({"jsonrpc": "2.0", "id": "t", "method": "runtime.persona.instance.recall.set",
                                       "params": {"persona_instance_id": "personainst_me", "enabled": enabled,
                                                  "issued_at": T0}})
-    # RT-WS-ABSORB-PERSISTED-NAMES-MIGRATE: the reply (the slots.show shape) answers the new key and the old.
+    # RT-WS-RECALL-RENAME-S4-DROP-REPLY-KEY: the reply (the slots.show shape) answers the new key only.
+    # KILLING MUTATION: put ``recall_shared_projects`` back in ``show_instance_slots`` → both asserts red.
     assert reply["result"]["recall_shared_workspaces"] is enabled
-    assert reply["result"]["recall_shared_projects"] is enabled
+    assert "recall_shared_projects" not in reply["result"]
     shown = serve_rpc.handle_request({"jsonrpc": "2.0", "id": "s", "method": "runtime.persona.instance.slots.show",
                                       "params": {"persona_instance_id": "personainst_me"}})["result"]
-    assert (shown["recall_shared_workspaces"], shown["recall_shared_projects"]) == (enabled, enabled)
+    assert shown["recall_shared_workspaces"] is enabled and "recall_shared_projects" not in shown
 
 
 def test_with_the_switch_off_a_shared_hit_never_appears(world):

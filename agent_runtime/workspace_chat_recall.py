@@ -3,11 +3,10 @@
 Plan ``docs/agent-runtime-harness/planned/project-slots-and-shared-chats-2026-10-29.md`` §6, re-homed on the
 workspace (RT-WS-ABSORB-RETIRE-PROJECT). An agent searches its workspace's shared store
 (``workspace_chat_fold``) beside its own ``state.db`` only when BOTH switches are on: the instance's
-``recall_shared_projects`` (default off; ``runtime.persona.instance.recall.set``) and the workspace's
+``recall_shared_workspaces`` (default off; ``runtime.persona.instance.recall.set``) and the workspace's
 ``chats`` share. The shared store is opened READ-ONLY here; the fold is its only writer, and memory
-extraction (``agent/background_review``) reads the live turn, never a store. (The instance
-field ``recall_shared_projects`` is persisted, synced and on the wire, so it keeps its Project-edition name
-until RT-WS-ABSORB-PERSISTED-NAMES-MIGRATE.)
+extraction (``agent/background_review``) reads the live turn, never a store. (The sync projection still
+publishes the field as ``recall_shared_projects`` until RT-WS-RECALL-RENAME-S3-PUBLISH.)
 
 * :func:`shared_stores_for` resolves the store for an instance; :func:`shared_stores_for_current_turn`
   reads the instance from the turn's ``launcher_invocation``, so ``session_search`` needs no new
@@ -62,7 +61,7 @@ def shared_stores_for(persona_instance_id: str | None) -> list[SharedStore]:
     except (FileNotFoundError, KeyError, NotFound):
         return []
     workspace_id = instance.workspace_id
-    if not getattr(instance, "recall_shared_projects", False) or not workspace_id:
+    if not getattr(instance, "recall_shared_workspaces", False) or not workspace_id:
         return []
     if not category(load_document(workspace_id), "chats").get("shared"):
         return []

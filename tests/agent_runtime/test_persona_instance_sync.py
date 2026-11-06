@@ -27,6 +27,7 @@ from agent_runtime.persona_instance_sync import (
     PERSONA_INSTANCE_DERIVED_KEYS,
     PERSONA_INSTANCE_LOCAL_ONLY_KEYS,
     PERSONA_INSTANCE_NEVER_TRAVELS_KEYS,
+    PERSONA_INSTANCE_TRAVEL_FIELDS,
     PROJECTION_KIND,
     PROJECTION_RELATIVE_PATH,
     REFUSAL_CANONICAL_CHANNEL,
@@ -82,8 +83,10 @@ def test_every_persona_instance_field_is_classified():
     # slot_context_custom (a local path) is local-only.
     assert len(names) == 40, "the contract classifies the slot context picks with the existing 38 fields"
 
+    # Fields, so the travelling set in FIELD names (S2: ``recall_shared_workspaces`` publishes
+    # ``recall_shared_projects``, ``contract.PERSONA_INSTANCE_PUBLISHED_KEYS``).
     unclassified = names - (
-        PERSONA_INSTANCE_ALLOWED_KEYS
+        PERSONA_INSTANCE_TRAVEL_FIELDS
         | PERSONA_INSTANCE_DERIVED_KEYS
         | PERSONA_INSTANCE_LOCAL_ONLY_KEYS
     )
@@ -94,7 +97,7 @@ def test_every_persona_instance_field_is_classified():
     )
 
     invented = (
-        PERSONA_INSTANCE_ALLOWED_KEYS
+        PERSONA_INSTANCE_TRAVEL_FIELDS
         | PERSONA_INSTANCE_DERIVED_KEYS
         | PERSONA_INSTANCE_LOCAL_ONLY_KEYS
     ) - names
@@ -136,7 +139,7 @@ def test_every_travelling_field_has_a_cleared_value_for_the_adopt_arm():
     publisher cleared must be clearable here. ``id``/``persona_id`` are excluded
     by construction — an admitted body must carry both."""
 
-    for name in sorted(PERSONA_INSTANCE_ALLOWED_KEYS - {"id", "persona_id"}):
+    for name in sorted(PERSONA_INSTANCE_TRAVEL_FIELDS - {"id", "persona_id"}):
         cleared_travel_value(name)  # raises if a field has no defined cleared value
     assert cleared_travel_value("display_name") == ""
     assert cleared_travel_value("steered_by") == []

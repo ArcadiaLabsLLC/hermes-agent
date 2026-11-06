@@ -1069,6 +1069,15 @@ dropped, the new one created, one write; a read-only open migrates nothing). ``r
 keeps its name: it is persisted and in the sync allowlist, so a rename is a cross-edition sync change
 (RT-WS-ABSORB-RECALL-FIELD-RENAME).
 
+54 KEPT (recall field renamed locally, 2026-11-06, RT-WS-RECALL-RENAME-S2-FIELD / -S4-DROP-REPLY-KEY) — no
+snapshot key moved. The field is ``PersonaInstance.recall_shared_workspaces``; the store writes that key and
+reads either (``persona_instance_sync.contract.stored_instance_body``). The sync projection still PUBLISHES
+``recall_shared_projects`` (``PERSONA_INSTANCE_PUBLISHED_KEYS``, field → published key; the allowlist is spelled
+in published keys, ``PERSONA_INSTANCE_TRAVEL_FIELDS`` in field names), so the wire bytes and the projection hash
+are unchanged until RT-WS-RECALL-RENAME-S3-PUBLISH. ``runtime.persona.instance.slots.show`` and the ``.recall.set``
+reply answer ``recall_shared_workspaces`` only: the launcher's switch reads it since its
+MC-RECALL-SWITCH-KEY-REPOINT (`053567a7ed`); a launcher build older than that reads the switch as off.
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.

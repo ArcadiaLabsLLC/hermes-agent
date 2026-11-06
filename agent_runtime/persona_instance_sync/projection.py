@@ -17,6 +17,7 @@ from agent_runtime import yaml_io
 from ..models import looks_like_persona_instance_id
 from .contract import (
     PERSONA_INSTANCE_ALLOWED_KEYS,
+    published_key,
     PROJECTION_KIND,
     PROJECTION_SCHEMA_VERSION,
     REFUSAL_CANONICAL_CHANNEL,
@@ -183,16 +184,19 @@ def project_persona_instance(record: Any, *, dropped: list[str] | None = None) -
         names = sorted(name for name in dir(record) if not name.startswith("_"))
     body: dict[str, Any] = {}
     for name in names:
-        if name not in PERSONA_INSTANCE_ALLOWED_KEYS:
+        # The PUBLISHED spelling of the field (S2: ``recall_shared_workspaces`` still publishes
+        # ``recall_shared_projects``), so the wire and the hash are the Project edition's.
+        key = published_key(name)
+        if key not in PERSONA_INSTANCE_ALLOWED_KEYS:
             accounting.append(f"instances.{instance_id}.{name}")
             continue
         value = getattr(record, name, None)
-        if name not in ("id", "persona_id") and (value is None or value == [] or value == {}):
+        if key not in ("id", "persona_id") and (value is None or value == [] or value == {}):
             continue
-        if name in _OMITTED_WHEN_OFF and value is False:
+        if key in _OMITTED_WHEN_OFF and value is False:
             continue
         try:
-            body[name] = _wire_value(value)
+            body[key] = _wire_value(value)
         except TypeError:
             accounting.append(f"instances.{instance_id}.{name}")
     return body
