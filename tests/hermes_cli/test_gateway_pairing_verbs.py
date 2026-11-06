@@ -251,6 +251,30 @@ def test_a_channel_pairing_is_bound_and_refused_while_the_external_switch_is_off
     assert (entry["device_kind"], entry["bound_instances"]) == ("channel", ["personainst_qa"])
 
 
+def test_a_channel_pairing_carries_its_account_client_scope_to_the_device_row(capsys, monkeypatch):
+    """RT-EXTERNAL-GATEWAY-CHANNEL-CLIENT-SCOPE: ``--client-scope`` rides the pending entry to the
+    redeemed row, and a malformed digest refuses before minting. Killing mutation: drop the
+    ``client_scope`` copy in ``serve_gateway_auth._kind_fields`` → the redeemed row reads ``None``."""
+
+    from agent_runtime import gateway_channel
+    from agent_runtime.serve_gateway_auth import lookup_device, pending_codes, read_pairing, redeem_pairing_code
+
+    monkeypatch.setattr(gateway_channel, "external_access_on", lambda env=None: True)
+    scope = "c" * 64
+    code = _dispatch(["harness", "gateway", "pair", "--kind", "channel", "--instance", "personainst_qa",
+                      "--client-scope", "nope", "--json"])
+    refusal = json.loads(capsys.readouterr().out)
+    assert code == 2 and refusal["error"]["reason"] == "invalid_client_scope", refusal
+    assert not pending_codes(read_pairing(paths.store_root()))
+
+    _code, payload = _run(capsys, "pair", "--kind", "channel", "--instance", "personainst_qa",
+                          "--client-scope", scope)
+    assert payload["client_scope"] == scope
+    credential = redeem_pairing_code(paths.store_root(), payload["code"])
+    record = lookup_device(paths.store_root(), credential.device_id)
+    assert record.client_scope == scope and record.payload()["client_scope"] == scope
+
+
 def test_the_fourth_outstanding_code_is_refused_as_a_precondition(capsys):
     """A store refusal becomes an exit family, never a traceback — and the
     family is chosen on the operator's next MOVE. "You already have three" is

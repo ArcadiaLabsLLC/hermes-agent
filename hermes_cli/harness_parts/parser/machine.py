@@ -169,6 +169,12 @@ def _add_gateway_pairing_verbs(gateway_subs) -> None:
         default=None,
         help="A persona instance id a channel credential is bound to (repeatable; required with --kind channel)",
     )
+    gateway_pair.add_argument(
+        "--client-scope",
+        dest="client_scope",
+        default=None,
+        help="The owning account's client-scope digest (64 hex; --kind channel only): the channel's conversations list under that account",
+    )
     _add_stage42_global_args(gateway_pair)
     gateway_pair.set_defaults(func=gateway_commands.cmd_gateway_pair)
     # S2. `introduce` sits under `gateway` rather than under `peers`, and that

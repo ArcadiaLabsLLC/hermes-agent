@@ -2095,6 +2095,7 @@
         "auto",
         "backfill-home",
         "base",
+        "cells",
         "compose",
         "list",
         "migrate-home",
@@ -2380,6 +2381,58 @@
         "harness",
         "characters",
         "base"
+      ],
+      "positionals": [],
+      "subcommands": []
+    },
+    "harness characters cells": {
+      "exclusive_groups": [],
+      "options": {
+        "--draft": {
+          "action": "store",
+          "canonical": "--draft",
+          "choices": null,
+          "nargs": 1,
+          "required": true,
+          "type": null
+        },
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--row": {
+          "action": "store",
+          "canonical": "--row",
+          "choices": null,
+          "nargs": 1,
+          "required": true,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "characters",
+        "cells"
       ],
       "positionals": [],
       "subcommands": []
@@ -4290,6 +4343,14 @@
     "harness gateway pair": {
       "exclusive_groups": [],
       "options": {
+        "--client-scope": {
+          "action": "store",
+          "canonical": "--client-scope",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
         "--fields": {
           "action": "store",
           "canonical": "--fields",

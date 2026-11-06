@@ -55,6 +55,7 @@
     "runtime.character.assignment.restore_previous",
     "runtime.character.assignment.set",
     "runtime.character.portrait",
+    "runtime.characters.cells",
     "runtime.characters.list",
     "runtime.characters.recolour",
     "runtime.characters.sprite",
@@ -473,6 +474,10 @@
       "id",
       "kind",
       "persona_id"
+    ],
+    "runtime.characters.cells": [
+      "draft",
+      "row"
     ],
     "runtime.characters.list": [],
     "runtime.characters.recolour": [
@@ -1118,6 +1123,7 @@
     "runtime.character.assignment.restore_previous": "console",
     "runtime.character.assignment.set": "console",
     "runtime.character.portrait": "read",
+    "runtime.characters.cells": "read",
     "runtime.characters.list": "read",
     "runtime.characters.recolour": "console",
     "runtime.characters.sprite": "read",

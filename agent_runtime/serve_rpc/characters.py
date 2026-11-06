@@ -1,4 +1,4 @@
-"""``runtime.characters.list/status/thumb/sprite`` — the character-sheet read twins; ``recolour``, the first write.
+"""``runtime.characters.list/status/thumb/cells/sprite`` — the character-sheet read twins; ``recolour``, the first write.
 
 Argv census rows 16-19 (launcher ``argv-census-full-2026-10-03.md``): the four
 ``harness characters`` read verbs rode ``dispatch_argv``, so their payloads were
@@ -11,6 +11,8 @@ in the ``runtime.media.get`` block shape (:func:`serve_rpc.media.media_block`).
 * ``thumb`` adds ``media``: the crop's block when ``withinConsoleBudget``, else
   ``null`` beside the existing ``path`` and the two bound booleans that say which
   bound was missed.
+* ``cells`` (``RT-CHARS-APPROVED-ROW-CELLS``) adds ``media``: the approved row's registered
+  ``frames × frameW`` by ``frameH`` strip, ``null`` past the media lane's fetch cap.
 * ``sprite`` returns the METADATA-ONLY ``character`` (the ``--no-sheet`` shape)
   and, when ``include_sheet`` is true, ``sheet_media`` as a block in place of the
   bare ``spritesheetBase64`` string — ``null`` past the media lane's fetch cap.
@@ -46,6 +48,7 @@ from agent_runtime.serve_rpc.registry import method
 __layer__ = "lanes"
 
 __all__ = [
+    "_runtime_characters_cells",
     "_runtime_characters_list",
     "_runtime_characters_recolour",
     "_runtime_characters_sprite",
@@ -191,6 +194,33 @@ def _thumb_media(result: dict) -> dict | None:
         return None
     data = Path(result["path"]).read_bytes()
     return media_block(handle_for_bytes(data), "image/png", data)
+
+
+@method("runtime.characters.cells", tier=TIER_READ)
+def _runtime_characters_cells(rid: Any, params: dict, context=None) -> dict:
+    """``harness characters cells --draft <id> --row <key> --json`` plus ``media``.
+
+    Params: ``draft``, ``row`` (both required).
+    """
+    from pathlib import Path
+
+    from agent_runtime.media_handles import MAX_FETCH_BYTES, handle_for_bytes
+    from agent_runtime.serve_rpc.media import media_block
+
+    params = _params(params)
+    try:
+        draft_id = read_text(params, "draft", refuse=_invalid_param, required=True)
+        row_key = read_text(params, "row", refuse=_invalid_param, required=True)
+    except _Invalid as exc:
+        return _charsheet_refusal(rid, exc)
+
+    def call(draft) -> dict:
+        result = draft.row_cells(row_key)
+        data = Path(result["path"]).read_bytes()
+        fits = len(data) <= MAX_FETCH_BYTES
+        return {**result, "media": media_block(handle_for_bytes(data), "image/png", data) if fits else None}
+
+    return _draft_verb(rid, draft_id, call)
 
 
 @method("runtime.characters.sprite", tier=TIER_READ)

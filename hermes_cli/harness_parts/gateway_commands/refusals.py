@@ -45,6 +45,7 @@ _REFUSAL_FAMILIES = {
     "invalid_kind": "invalid_payload",
     "invalid_bound_instances": "invalid_payload",
     "bound_instances_required": "invalid_payload",
+    "invalid_client_scope": "invalid_payload",
     "invalid_device_id": "invalid_payload",
     "invalid_code": "invalid_payload",
     "unknown_device": "not_found",

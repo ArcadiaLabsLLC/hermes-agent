@@ -32,6 +32,7 @@ __all__ = [
     "_cmd_characters_start",
     "_cmd_characters_status",
     "_cmd_characters_thumb",
+    "_cmd_characters_cells",
 ]
 
 
@@ -275,6 +276,21 @@ def _cmd_characters_thumb(args) -> int:
             f"{frames}"
             f"cropped at {result['width']}x{result['height']} "
             f"({result['scale']}x{shape}) → {result['path']}{weight}"
+        )
+
+    return _characters_verb(args, call)
+
+
+def _cmd_characters_cells(args) -> int:
+    # RT-CHARS-APPROVED-ROW-CELLS: a path, never bytes, for `thumb`'s reason.
+    row_key = str(getattr(args, "row", "") or "").strip()
+
+    def call(draft):
+        result = draft.row_cells(row_key)
+        return result, (
+            f"Draft {draft.id}: row {result['row']} approved attempt {result['attempt'] + 1}, "
+            f"{result['frames']} cells of {result['frameW']}x{result['frameH']} "
+            f"({result['width']}x{result['height']}) → {result['path']}"
         )
 
     return _characters_verb(args, call)

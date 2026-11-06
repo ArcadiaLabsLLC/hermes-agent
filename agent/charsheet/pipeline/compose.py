@@ -59,24 +59,54 @@ def compose_draft_frames(
     generation time (a strip only became approvable by slicing), so compose must
     be deterministic and total, not a second chance to fail.
     """
-    frames_by_key: dict[str, list] = {}
-    for row in spec.authored_rows():
-        strip = strips_by_key.get(row.key)
-        if strip is None:
-            raise ValueError(
-                f"no strip for authored row {row.key!r}; rows present: "
-                f"{sorted(strips_by_key)}"
-            )
-        frames_by_key[row.key] = extract_strip_frames(
-            Path(strip), row.frames, method="auto", fit=False
+    missing = [row.key for row in spec.authored_rows() if strips_by_key.get(row.key) is None]
+    if missing:
+        raise ValueError(
+            f"no strip for authored row {missing[0]!r}; rows present: "
+            f"{sorted(strips_by_key)}"
         )
+    return register_row_cells(spec, strips_by_key, palette_sources)
 
+
+def register_row_cells(
+    spec: SheetSpec,
+    strips_by_key: dict[str, Path],
+    palette_sources: list[Path] | None,
+) -> dict[str, list]:
+    """Approved strips → registered cells for the authored rows *strips_by_key* names.
+
+    :func:`compose_draft_frames`' three steps over a SUBSET of the rows: the
+    shared scale is measured over every strip given, so given every authored
+    row the cells are exactly the ones compose packs. *palette_sources* ``None``
+    skips the palette lock (no approved reference set to take a palette from).
+    A key the sheet does not author is ignored.
+    """
+    frames_by_key: dict[str, list] = {
+        row.key: extract_strip_frames(Path(strips_by_key[row.key]), row.frames, method="auto", fit=False)
+        for row in spec.authored_rows()
+        if strips_by_key.get(row.key) is not None
+    }
     normalized = normalize_cells(frames_by_key)
+    if palette_sources is None:
+        return normalized
     palette = build_sheet_palette(palette_sources)
     return {
         key: [lock_to_palette(cell, palette) for cell in cells]
         for key, cells in normalized.items()
     }
+
+
+def pack_row_strip(spec: SheetSpec, cells: list):
+    """One row's cells side by side: ``len(cells) * frameW`` by ``frameH`` (RGBA, residue cleared)."""
+    from PIL import Image
+
+    strip = Image.new("RGBA", (spec.frame_w * len(cells), spec.frame_h), (0, 0, 0, 0))
+    for column, frame in enumerate(cells):
+        cell = frame.convert("RGBA")
+        if cell.size != (spec.frame_w, spec.frame_h):
+            cell = fit_to_cell(cell)
+        strip.alpha_composite(cell, (column * spec.frame_w, 0))
+    return clear_transparent_rgb(strip)
 
 
 def compose_sheet(spec: SheetSpec, cells_by_key: dict[str, list]):

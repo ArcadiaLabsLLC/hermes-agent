@@ -61,7 +61,8 @@ def _runtime_channel_message(rid: Any, params: dict, context: RpcContext | None 
     ``attachments`` is refused ``channel_attachments_unsupported`` rather than ignored.
 
     Result: ``runtime.chat.message``'s ack plus ``session_id``, ``persona_instance_id``,
-    ``channel_key`` and ``session_created`` (false when the conversation already existed).
+    ``channel_key`` and ``session_created`` (false when the conversation already existed), and
+    ``client_scope`` when the channel was paired with one (its conversations list under that account).
     """
 
     from agent_runtime.gateway_channel import is_channel_caller
@@ -89,7 +90,13 @@ def _runtime_channel_message(rid: Any, params: dict, context: RpcContext | None 
     return _send_turn(rid, params, context, session, f"{sender}: {text}" if sender else text, channel_key)
 
 
-def _device_name(device_id: str) -> str:
+def _device_identity(device_id: str) -> tuple[str, str | None]:
+    """The paired row's name and owning account scope (``RT-EXTERNAL-GATEWAY-CHANNEL-CLIENT-SCOPE``).
+
+    Read from the device store, never the request: the scope a channel's conversations carry is
+    what the owner bound at pairing, so a gateway cannot file its chats under another account.
+    """
+
     try:
         from agent_runtime.gateway_targets import peer_store_root
         from agent_runtime.serve_gateway_auth import lookup_device
@@ -97,7 +104,9 @@ def _device_name(device_id: str) -> str:
         record = lookup_device(peer_store_root(), device_id)
     except Exception:
         record = None
-    return record.name if record is not None else device_id
+    if record is None:
+        return device_id, None
+    return record.name, record.client_scope
 
 
 def _open_conversation(rid: Any, caller: Any, instance_id: str, channel_key: str) -> dict:
@@ -112,7 +121,8 @@ def _open_conversation(rid: Any, caller: Any, instance_id: str, channel_key: str
     except Exception:
         return _refuse(rid, ERR_INVALID_PARAMS, "persona_instance_not_found",
                        f"persona instance not found: {instance_id}")
-    source = f"channel:{_device_name(caller.device_id)}"
+    name, client_scope = _device_identity(caller.device_id)
+    source = f"channel:{name}"
     outcome = perform_persona_instance_open_chat(
         {
             "persona_id": instance.persona_id,
@@ -121,6 +131,7 @@ def _open_conversation(rid: Any, caller: Any, instance_id: str, channel_key: str
             "idempotency_key": channel_session_key(caller.device_id, channel_key),
             "title": f"{source} · {channel_key}",
             "requested_by": source,
+            **({"client_scope": client_scope} if client_scope else {}),
         },
         caller=caller,
         select_session=False,
@@ -130,6 +141,8 @@ def _open_conversation(rid: Any, caller: Any, instance_id: str, channel_key: str
     result = dict(outcome.result or {})
     result["persona_id"] = instance.persona_id
     result["session_created"] = not bool(result.get("idempotent_replay"))
+    if client_scope:
+        result["client_scope"] = client_scope
     _stamp_source(instance, result.get("session_id"), source, channel_key)
     return {"result": result}
 
@@ -175,4 +188,5 @@ def _send_turn(rid: Any, params: dict, context: RpcContext | None, session: dict
         "persona_instance_id": session.get("persona_instance_id"),
         "channel_key": channel_key,
         "session_created": session["session_created"],
+        **({"client_scope": session["client_scope"]} if session.get("client_scope") else {}),
     })
