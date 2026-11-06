@@ -68,6 +68,7 @@ five objects it composes.
       directions.py  lanes    DirectionStage: base image, turnaround, re-roll/approve directions
       rows.py        lanes    RowStage: run_rows, reroll_row, add_state
       thumbs.py      lanes    Thumbs: row_thumb, direction_thumb, _finish_thumb
+      cells.py       lanes    RowCells: row_cells (an approved row's registered frameW x frameH strip)
       compose.py     lanes    Composer: compose (collect -> validate -> guard_slug -> write_sheet -> manifest), reopen
       recolour.py    lanes    PaletteOps: the palette op log (draft.json `palette_ops`), recolour, replay
       status.py      lanes    StatusReport: status_payload, _item_status
@@ -79,6 +80,7 @@ five objects it composes.
     run_turnaround / reroll_direction / approve_*   draft -> directions -> layout
     run_rows / reroll_row / add_state               draft -> rows -> layout
     row_thumb / direction_thumb                     draft -> thumbs -> layout
+    row_cells                                       draft -> cells -> pipeline, layout
     compose / reopen                                draft -> compose -> installed, recolour
     recolour / palette_ops                          draft -> recolour -> palette, installed
     status_payload                                  draft -> status -> layout
@@ -121,6 +123,7 @@ from .layout import (
     STAGE_ORDER,
     Stage,
     THUMBS_DIRNAME,
+    CELLS_DIRNAME,
     VERB_STAGES,
     characters_dir,
     drafts_dir,

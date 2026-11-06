@@ -53,6 +53,7 @@ Layers point down (models <- policy <- stores <- lanes <- wiring); this map is
     generate_turnaround / _direction_view / _row_strip     generate -> provider -> grounding
     frame_cell, face_offset, reference_cell                grounding -> geometry
     compose_sheet / compose_draft_frames / build_palette   compose -> grounding
+    register_row_cells / pack_row_strip                    compose (``characters cells``)
     validate_sheet                                         compose -> handedness -> handedness_report
     detect_mirrored_art                                    handedness -> registration -> geometry
     mirrored_art_error / handedness_summary                handedness_report -> findings
@@ -75,6 +76,8 @@ from .compose import (
     build_sheet_palette,
     compose_draft_frames,
     compose_sheet,
+    pack_row_strip,
+    register_row_cells,
     validate_sheet,
 )
 from .findings import (
@@ -151,6 +154,8 @@ __all__ = [
     "atlas_to_webp_bytes",
     "build_sheet_palette",
     "compose_draft_frames",
+    "pack_row_strip",
+    "register_row_cells",
     "compose_sheet",
     "fits_console_budget",
     "fits_own_sheet",
