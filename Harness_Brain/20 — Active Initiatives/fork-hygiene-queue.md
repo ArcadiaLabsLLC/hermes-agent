@@ -9,7 +9,7 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-11-06 (lane w1106a-hm)
 
-- **`FH-PREPUSH-TOUCHED-RELAY-LIFECYCLE-OVER-BUDGET` — `scripts/prepush.sh` touched step ran 65.6 s against its 60 s budget, all of it one file: `tests/agent_runtime/test_relay_session_lifecycle.py` alone took 64.3 s (64 tests, 8 workers, box load ~21 with other lanes); gates ran 10.1 s against 10 s. Split or speed the relay-lifecycle file so a pusher who names it stays inside the touched budget; measure on an idle box before touching a budget** · fork / prepush · `tests/agent_runtime/test_relay_session_lifecycle.py` · seen by lane w1106a-hm 2026-11-06 · READY 2026-11-06
+- **`FH-PREPUSH-TOUCHED-RELAY-LIFECYCLE-OVER-BUDGET` — `scripts/prepush.sh` touched step ran 65.6 s against its 60 s budget, all of it one file: `tests/agent_runtime/test_relay_session_lifecycle.py` alone took 64.3 s (64 tests, 8 workers, box load ~21 with other lanes); gates ran 10.1 s against 10 s. Split or speed the relay-lifecycle file so a pusher who names it stays inside the touched budget; measure on an idle box before touching a budget** · fork / prepush · `tests/agent_runtime/test_relay_session_lifecycle.py` · seen by lane w1106a-hm 2026-11-06 · READY 2026-11-06 · **TAKEN 2026-11-06 w1106b-hm on nekwo-ubuntu24 as nekwo in hm-w1104a-work**
 
 ## Filed on arrival — 2026-11-05 (lane w1105h-hm)
 
@@ -658,7 +658,7 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Windows cold EOL census — 2026-11-03
 
-- **`FH-WINDOWS-EOL-COLD-ARGV` — Bound the cold EOL classifier batch by the native Windows command-line limit** · `tests/test_line_endings.py::_eol_states` · 500 literal paths exceed CreateProcess limits on Windows and all five EOL gates error with WinError 206; use a bounded argv or smaller cross-platform batch, retain git classification and all assertions; warming the existing blob memo with one git ls-files --eol census lets the unchanged gate run · READY 2026-11-03 · REQUIRES windows
+- **`FH-WINDOWS-EOL-COLD-ARGV` — Bound the cold EOL classifier batch by the native Windows command-line limit** · `tests/test_line_endings.py::_eol_states` · 500 literal paths exceed CreateProcess limits on Windows and all five EOL gates error with WinError 206; use a bounded argv or smaller cross-platform batch, retain git classification and all assertions; warming the existing blob memo with one git ls-files --eol census lets the unchanged gate run · READY 2026-11-03 · REQUIRES windows · **TAKEN 2026-11-06 w1106b-hm on nekwo-ubuntu24 as nekwo in hm-w1104a-work**
 
 ## Baseline gates observed during suggestion modes — 2026-11-03
 
