@@ -667,3 +667,5 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-11-04 (landing hm-land-w1104a)
 
+
+- **`FH-WINDOWS-UPDATE-RESTART-RECEIPT-FALSE-SUCCESS` — managed Windows update reports EXIT=0 and latest receipt outcome success with restart stage success while its own completion warns gateway_restart and windows_resume did not finish and the gateway is absent; propagate unverified or failed restart obligations into a partial outcome and non-success command status, with a regression covering a successful code/dependency update and failed gateway relaunch** · `hermes_cli/update_cmd.py::_complete_source_update` · `hermes_cli/update_receipt.py::committed_success` · found live 2026-11-06 codex-qa-isolation-finish updating f636f93a0c to 075b73fe50; gateway manually recovered through republished native entry point · READY 2026-11-06 · REQUIRES windows
