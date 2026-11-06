@@ -225,3 +225,20 @@ def test_without_an_explicit_interpreter_the_doc_cite_step_finds_the_shared_venv
     proc = run({**env, "HERMES_TEST_VENV": str(repo.parent / "no-venv"), "PATH": f"{shims}{os.pathsep}{env['PATH']}"})
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "python3-on-path" in log.read_text(encoding="utf-8")
+
+
+def test_a_name_census_gate_runs_in_its_own_step_never_the_touched_lane(repo: Path):
+    """FH-PREPUSH-TOUCHED-BUDGET-VS-NAME-CENSUS. KILLING MUTATION: route every path to ``LANE`` (drop
+    the ``PREPUSH_CENSUS_GATES`` case) → the census gates ride the touched lane's argv and no census
+    step runs: the plan line and the argv assertions red."""
+
+    census = ("tests/tooling/test_no_ladder_routing.py", "tests/agent_runtime/test_duplicate_helper_bodies.py")
+    for path in census:
+        (repo / path).parent.mkdir(parents=True, exist_ok=True)
+        (repo / path).write_text("x = 5\n", encoding="utf-8")
+    proc, calls = _run(repo, *census)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "step census — budget 75s, deadline 600s" in proc.stdout and "✔ census" in proc.stdout
+    _gates, _cite, census_argv, lane_argv = (line.split() for line in calls.splitlines())
+    assert sorted(p for p in census_argv if p.startswith("tests/")) == sorted(census)
+    assert not set(census) & set(lane_argv) and "tests/a/test_committed.py" in lane_argv

@@ -8,6 +8,10 @@
 #   gates    the queue gates (row grammar, row-history guard — ADR 0038) and the
 #            cheap whole-tree text gates, in one `scripts/run_tests.sh` run;
 #   doc-cite `scripts/doc_cite_adjacency.py` over the ruled scope;
+#   census   the two name census gates (`Running the tests.md` asks a lane that touched Python to
+#            run them), when touched or named: their own step and budget, because together they
+#            are ~55 s of whole-tree walk and sank the touched lane's 60 s on their own
+#            (FH-PREPUSH-TOUCHED-BUDGET-VS-NAME-CENSUS);
 #   touched  the pusher's touched tests (every `tests/**/test_*.py` that differs
 #            from merge-base(HEAD, origin/main), committed, staged, unstaged or
 #            untracked) plus any test paths given as arguments — pass here every
@@ -34,7 +38,7 @@
 #   PREPUSH_NOTIFY        `off`, or a command run as `<cmd> <title> <body>`
 #                         instead of the OS adapter (notify-send, osascript,
 #                         the Windows toast).
-#   PREPUSH_<STEP>_BUDGET / PREPUSH_<STEP>_DEADLINE   (STEP = GATES, DOC_CITE,
+#   PREPUSH_<STEP>_BUDGET / PREPUSH_<STEP>_DEADLINE   (STEP = GATES, DOC_CITE, CENSUS,
 #                         TOUCHED; whole seconds) override one step's numbers.
 #   PREPUSH_HEARTBEAT     seconds between heartbeats past budget (default 5).
 #   PREPUSH_RUNNER / PREPUSH_PYTHON   the test runner (default
@@ -66,6 +70,12 @@ PREPUSH_TEXT_GATES=(
   tests/scripts/test_check_no_tmp_literals.py
 )
 
+# The name census gates: a touched or named one runs in the census step, never the touched lane.
+PREPUSH_CENSUS_GATES=(
+  tests/tooling/test_no_ladder_routing.py
+  tests/agent_runtime/test_duplicate_helper_bodies.py
+)
+
 # The budgets, measured 2026-10-30 on nekwo-ubuntu24 (52 cores), each step run
 # alone: gates 5.5 s wall (test_line_endings.py 4.0 s and the row guard 3.2 s
 # with four rows deleted are its longest files; the runner's own start is
@@ -81,6 +91,11 @@ BUDGET_GATES="${PREPUSH_GATES_BUDGET:-10}"
 DEADLINE_GATES="${PREPUSH_GATES_DEADLINE:-120}"
 BUDGET_DOC_CITE="${PREPUSH_DOC_CITE_BUDGET:-4}"
 DEADLINE_DOC_CITE="${PREPUSH_DOC_CITE_DEADLINE:-60}"
+# census: the pair ran 67.9 s wall at -j 8 on 2026-11-06 (nekwo-ubuntu24, load 42-49 on 52 cores,
+# NOT idle; ladder 66.1 s of it, ~30 s of which is pytest start-up under that load). Re-measure on an
+# idle box before moving this number.
+BUDGET_CENSUS="${PREPUSH_CENSUS_BUDGET:-75}"
+DEADLINE_CENSUS="${PREPUSH_CENSUS_DEADLINE:-600}"
 BUDGET_TOUCHED="${PREPUSH_TOUCHED_BUDGET:-60}"
 DEADLINE_TOUCHED="${PREPUSH_TOUCHED_DEADLINE:-900}"
 HEARTBEAT="${PREPUSH_HEARTBEAT:-5}"
@@ -92,7 +107,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --plan) PLAN_ONLY=1 ;;
     -j|--jobs) shift; JOBS="${1:?-j needs a number}" ;;
-    -h|--help) sed -n '2,44p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    -h|--help) sed -n '2,48p' "${BASH_SOURCE[0]}"; exit 0 ;;
     -*) echo "prepush: unknown option $1" >&2; exit 2 ;;
     *) EXTRA+=("$1") ;;
   esac
@@ -100,7 +115,7 @@ while [ $# -gt 0 ]; do
 done
 
 for value in "$BUDGET_GATES" "$DEADLINE_GATES" "$BUDGET_DOC_CITE" "$DEADLINE_DOC_CITE" \
-    "$BUDGET_TOUCHED" "$DEADLINE_TOUCHED" "$HEARTBEAT"; do
+    "$BUDGET_CENSUS" "$DEADLINE_CENSUS" "$BUDGET_TOUCHED" "$DEADLINE_TOUCHED" "$HEARTBEAT"; do
   case "$value" in
     ''|*[!0-9]*|0) echo "prepush: a budget, deadline or heartbeat is not a positive whole number of seconds: '$value'" >&2; exit 2 ;;
   esac
@@ -126,6 +141,7 @@ done
 
 # Each file once, in plan order: a gate is never re-run in the touched lane.
 GATES=()
+CENSUS=()
 LANE=()
 SEEN=$'\n'
 for path in "${PREPUSH_QUEUE_GATES[@]}" "${PREPUSH_TEXT_GATES[@]}"; do
@@ -135,7 +151,10 @@ done
 for path in ${TOUCHED[@]+"${TOUCHED[@]}"} ${EXTRA[@]+"${EXTRA[@]}"}; do
   case "$SEEN" in *$'\n'"$path"$'\n'*) continue ;; esac
   SEEN="$SEEN$path"$'\n'
-  LANE+=("$path")
+  case " ${PREPUSH_CENSUS_GATES[*]} " in
+    *" $path "*) CENSUS+=("$path") ;;
+    *) LANE+=("$path") ;;
+  esac
 done
 
 _list() { local label="$1"; shift; echo "  $label ($#):"; for p in "$@"; do echo "    $p"; done; }
@@ -146,6 +165,10 @@ _list "queue gates" "${PREPUSH_QUEUE_GATES[@]}"
 _list "text gates" "${PREPUSH_TEXT_GATES[@]}"
 echo "  step doc-cite — budget ${BUDGET_DOC_CITE}s, deadline ${DEADLINE_DOC_CITE}s"
 echo "    scripts/doc_cite_adjacency.py --exclude archive --exclude planned"
+if [ "${#CENSUS[@]}" -gt 0 ]; then
+  echo "  step census — budget ${BUDGET_CENSUS}s, deadline ${DEADLINE_CENSUS}s"
+  _list "name census gates" "${CENSUS[@]}"
+fi
 if [ "${#LANE[@]}" -gt 0 ]; then
   echo "  step touched (the slower lane) — budget ${BUDGET_TOUCHED}s, deadline ${DEADLINE_TOUCHED}s"
 else
@@ -287,6 +310,9 @@ _step() {
 _step gates "$BUDGET_GATES" "$DEADLINE_GATES" bash "$RUNNER" -j "$JOBS" "${GATES[@]}"
 _step doc-cite "$BUDGET_DOC_CITE" "$DEADLINE_DOC_CITE" \
   "$PY" "$SCRIPT_DIR/doc_cite_adjacency.py" --exclude archive --exclude planned
+if [ "${#CENSUS[@]}" -gt 0 ]; then
+  _step census "$BUDGET_CENSUS" "$DEADLINE_CENSUS" bash "$RUNNER" -j "$JOBS" "${CENSUS[@]}"
+fi
 if [ "${#LANE[@]}" -gt 0 ]; then
   _step touched "$BUDGET_TOUCHED" "$DEADLINE_TOUCHED" bash "$RUNNER" -j "$JOBS" "${LANE[@]}"
 fi
