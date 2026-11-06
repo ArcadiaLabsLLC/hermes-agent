@@ -64,3 +64,23 @@ starting on them, so a message sent in the first seconds after boot paid them it
 
 S1: one fork module (`boot.py`), boot-time threading only; the in-process path is byte-identical.
 S2: the snapshot worker's spawn point (`agent_runtime/snapshot_worker/`), fork-owned.
+
+## S2 read — 2026-11-06 (w1106a-perf, Linux, idle box)
+
+Linux nekwo-ubuntu24 (52-core Virtio VM), a QA lane namespace's serve (not the owner serve: the owner's serve and
+home are off limits to lanes), six serve boots spawned by a profile Eternia build, read from that home's
+`logs/agent.log`:
+
+| serve boot | prewarm `snapshot_build_core caller=prewarm` build_ms | `agents_readiness` ms |
+|---|---|---|
+| first ever in the namespace | 1,756 | 1,603 |
+| 2–5 (SIGTERM between) | 1,129 / 1,261 / 1,164 / 1,386 | 869 / 884 / 890 / 1,058 |
+| 6, 7 | 1,440 / 1,602 | 1,025 / 1,033 |
+
+Against 5.0–13.3 s (`agents_readiness` 2.9–7.8 s) in October, every build `executor=worker`. (a) The send-prep of
+the first turn on a fresh serve: 1,236 ms and 711 ms (`send_prep_receipt total_ms`; QA fixture model, sent ~55–60 s
+after ready — the QA drive could not land a send 4 s after ready: the console's composer is not registered until
+~10 s after launch); warm turns 167–291 ms. (b) — the worker spawned at bind with `model_tools` and plugin discovery
+pre-imported — was NOT prototyped. Read: with S1 on an idle box the cold first build is ~1.1–1.6 s, so (b) can buy at
+most ~1 s and decision 3's persisted catalog has nothing left to earn; recommend closing S2 on these numbers and
+keeping decision 3 deferred (not needed).

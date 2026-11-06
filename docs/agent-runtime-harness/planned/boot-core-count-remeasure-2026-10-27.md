@@ -76,3 +76,27 @@ count is the only open evidence.
 ## Open questions
 
 None for the owner.
+
+## Result — L1 read 2026-11-06 (w1106a-perf, Linux), NOT met
+
+Linux nekwo-ubuntu24 (52-core Virtio VM, no GPU), a profile Eternia build driven through `launcher_qa` on the
+QA lane namespace `stagec-smoke-lane-c2a94b3927` (its own `profiles/base` home; the external
+`hermes harness observe snapshot-builds` refuses a lane namespace — `namespace_external_disabled` — so the count
+was read from that home's `logs/agent.log`, the same `snapshot_build_core` lines the census parses). Five warm
+desktop boots of the launcher on one running serve (pid unchanged):
+
+| boot | `snapshot_build_core role=led` in the boot window | subscribes (`stream_attach op=subscribe purpose=stream_lane`) |
+|---|---|---|
+| w1 | 3 (hub ×3, `reason=hydrate`) | 3 |
+| w2 | 4 (hub ×3, cli ×1) | 3 |
+| w3 | 2 | 2 |
+| w4 | 3 | 3 |
+| w5 | 3 | 3 |
+
+Every extra build follows a fresh `subscribe` from the SAME client (`eternia-launcher-local-console`) on the SAME
+connection within ~3 s, each `reason=hydrate`, 37–67 ms, the same core fingerprint and offset (the core cache
+writes it each time; no cache-hit read is logged). So the count is 2–4, not 1: a warm boot hydrates once per
+launcher subscribe. The launcher side (why it subscribes 2–3 times) is Eternia's
+`MC-BOOT-THREE-STREAM-SUBSCRIBES-PER-ATTACH`; the serve side is whether a second subscribe at an unchanged offset
+should ride the first's hydrate build instead of leading its own. The builds are cheap now (≤ 67 ms, worker
+executor), so this is waste, not a stall.
