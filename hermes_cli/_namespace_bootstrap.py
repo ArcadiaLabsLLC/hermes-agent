@@ -485,8 +485,8 @@ def qa_provider_pool_home(item: Layout, env: Mapping[str, str]) -> Path | None:
     namespace — a folder with one is the owner's data root, which a QA pool never reads or writes. An
     id is resolved in this namespace's own folder, so the pool can never name the base root (``base``
     is reserved), ``~/.hermes`` or another folder. Unset, or naming this namespace itself: ``None``,
-    nothing read. A pool that does not exist yet (no manifest) binds nothing: the lane keeps its own
-    store until the pool namespace is created.
+    nothing read. An admitted pool is initialized through the same manifest lifecycle as the lane,
+    so its first launch already shares the provider store. Existing credentials are never reseeded.
     """
     raw = str(env.get(QA_POOL_ENV) or "").strip()
     if not raw:
@@ -515,7 +515,8 @@ def qa_provider_pool_home(item: Layout, env: Mapping[str, str]) -> Path | None:
             f"{item.namespaces_dir} holds account namespace {owner[0]!r}: it is the owner's data root, "
             "and a QA provider pool lives only in a QA folder")
     pool = Layout(pool_id, item.base_root, item.namespaces_dir, item.namespaces_dir / pool_id)
-    return pool.head_home if pool.manifest_path.is_file() else None
+    ensure_manifest(pool, ORIGIN_LAUNCHER_PROFILE)
+    return pool.head_home
 
 
 def env_updates(res: CliResolution, env: Mapping[str, str]) -> dict[str, str]:

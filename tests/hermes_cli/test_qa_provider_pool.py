@@ -73,9 +73,35 @@ def test_the_pool_namespace_itself_and_an_unset_pool_bind_nothing(base: Path, fo
     assert "HERMES_AUTH_HOME" not in _updates(env)
 
 
-def test_a_pool_that_does_not_exist_yet_binds_nothing(base: Path, folder: Path):
-    (folder / POOL / "namespace.json").unlink()
-    assert "HERMES_AUTH_HOME" not in _updates(_env(base, folder))
+@pytest.mark.parametrize("has_credentials", [False, True])
+def test_first_lane_initializes_the_pool_without_reseeding_credentials(base: Path, tmp_path: Path,
+                                                                     has_credentials: bool):
+    folder = tmp_path / "fresh-qa" / "hermes-namespaces"
+    auth = folder / POOL / "profiles" / "base" / "auth.json"
+    original_auth = b'{"version": 1, "providers": {"example": {"token": "fake"}}}'
+    if has_credentials:
+        auth.parent.mkdir(parents=True)
+        auth.write_bytes(original_auth)
+    env = _env(base, folder)
+
+    ns.apply_cli_namespace(["hermes", "harness", "serve"], env)
+
+    assert env["HERMES_AUTH_HOME"] == str(auth.parent)
+    manifest = folder / POOL / "namespace.json"
+    original_manifest = manifest.read_bytes()
+    record = json.loads(original_manifest)
+    assert record["id"] == POOL
+    assert record["origin"] == ns.ORIGIN_LAUNCHER_PROFILE
+    assert record["epoch"]
+    assert auth.exists() is has_credentials
+    if has_credentials:
+        assert auth.read_bytes() == original_auth
+    # Another lane uses the same pool; it neither replaces its manifest nor seeds auth.
+    second = _updates(_env(base, folder, namespace="stagec-smoke-lane-abcdefabcd"))
+    assert second["HERMES_AUTH_HOME"] == str(auth.parent)
+    assert manifest.read_bytes() == original_manifest
+    if has_credentials:
+        assert auth.read_bytes() == original_auth
 
 
 @pytest.mark.parametrize("namespace, pool", [("qa", POOL), (LANE, "qa-pool")])
@@ -90,19 +116,25 @@ def test_a_non_qa_namespace_may_not_join_the_pool(base: Path, folder: Path, name
 
 def test_a_folder_holding_an_account_namespace_is_the_owners_no_pool(base: Path, folder: Path):
     (folder / "acct-0123456789abcdef").mkdir()
+    manifest = folder / POOL / "namespace.json"
+    manifest.unlink()
     with pytest.raises(ns.NamespaceRefused) as caught:
         _updates(_env(base, folder))
     assert caught.value.reason is ns.Reason.QA_POOL_REFUSED
     assert "owner" in caught.value.detail
+    assert not manifest.exists()
 
 
 def test_the_pool_is_a_launcher_hand_off(base: Path, folder: Path):
     item = ns.layout(LANE, _env(base, folder))
     env = _env(base, folder)
     del env["HERMES_LAUNCHER_SPAWNED"]
+    manifest = folder / POOL / "namespace.json"
+    manifest.unlink()
     with pytest.raises(ns.NamespaceRefused) as caught:
         ns.qa_provider_pool_home(item, env)
     assert caught.value.reason is ns.Reason.QA_POOL_REFUSED
+    assert not manifest.exists()
 
 
 def test_a_pool_id_is_an_id_never_a_path(base: Path, folder: Path):
@@ -123,12 +155,16 @@ def test_a_refused_pool_stops_the_process_with_exit_2(base: Path, folder: Path):
 # -- end to end: the lane reads the pool's sign-in, and a refresh is single-writer across lanes ---------
 
 
-def test_a_lane_reads_the_sign_in_the_pool_holds(base: Path, folder: Path, monkeypatch):
+@pytest.mark.parametrize("manifest_present", [False, True])
+def test_a_lane_reads_the_sign_in_the_pool_holds(base: Path, folder: Path, monkeypatch,
+                                              manifest_present: bool):
     pool_home = folder / POOL / "profiles" / "base"
     (pool_home / "auth.json").write_text(json.dumps({"version": 1, "credential_pool": {"openai-codex": [{
         "id": "qa-codex", "label": "qa", "auth_type": "oauth", "priority": 0, "source": "device_code",
         "access_token": "fake-access", "refresh_token": "fake-refresh",
         "base_url": "https://chatgpt.com/backend-api/codex"}]}}), encoding="utf-8")
+    if not manifest_present:
+        (folder / POOL / "namespace.json").unlink()
     env = _env(base, folder)
     ns.apply_cli_namespace(["hermes", "harness", "serve"], env)
     for key in ("HERMES_HOME", "HERMES_AUTH_HOME"):
