@@ -208,3 +208,60 @@ def test_parse_is_defensive_against_extra_colons():
     # two segments and drops the remainder (the frozen split(":", 2) contract).
     parsed = parse_relay_sender_marker(f"{RELAY_SENDER_FINISH_REASON_PREFIX}neko:personainst_x:extra")
     assert parsed == RelaySender(persona_id="neko", instance_id="personainst_x")
+
+
+# ── instance keys (RT-RELAY-CYCLE-SAME-PROFILE-INSTANCES) ───────────
+
+
+def test_two_instances_of_one_profile_relay_to_each_other():
+    # Base -> QA Agent A, both profile_base: the chain holds Base's INSTANCE.
+    decision = evaluate_relay(
+        chain=("personainst_profile_base",),
+        target_persona_id="profile_base",
+        target_instance_id="personainst_qa_agent_a",
+    )
+    assert decision.allowed is True
+    assert decision.chain == ("personainst_profile_base", "personainst_qa_agent_a")
+
+
+def test_the_same_instance_is_still_a_cycle():
+    decision = evaluate_relay(
+        chain=("personainst_qa_agent_a", "personainst_profile_base"),
+        target_persona_id="profile_base",
+        target_instance_id="personainst_qa_agent_a",
+    )
+    assert decision.allowed is False
+    assert decision.error_kind == "relay_cycle"
+
+
+def test_a_bare_persona_entry_stands_for_every_instance_of_it():
+    decision = evaluate_relay(
+        chain=("profile_base",), target_persona_id="profile_base", target_instance_id="personainst_qa_agent_a"
+    )
+    assert decision.error_kind == "relay_cycle"
+
+
+def test_bind_turn_instance_rekeys_the_running_turn_onto_its_instance():
+    decision = relay_policy.bind_turn_instance(
+        chain_in=("personainst_profile_base",),
+        turn_chain=("personainst_profile_base", "profile_base"),
+        instance_id="personainst_QA_agent_a",
+    )
+    assert decision.allowed is True
+    assert decision.chain == ("personainst_profile_base", "personainst_qa_agent_a")
+
+
+def test_a_bare_persona_that_resolves_onto_a_speaking_instance_is_a_cycle():
+    decision = relay_policy.bind_turn_instance(
+        chain_in=("personainst_profile_base", "personainst_qa_agent_a"),
+        turn_chain=("personainst_profile_base", "personainst_qa_agent_a", "profile_base"),
+        instance_id="personainst_profile_base",
+    )
+    assert decision.allowed is False
+    assert decision.error_kind == "relay_cycle"
+    assert decision.chain == ("personainst_profile_base", "personainst_qa_agent_a")
+
+
+def test_bind_turn_instance_without_an_instance_keeps_the_chain():
+    decision = relay_policy.bind_turn_instance(chain_in=(), turn_chain=("dev",), instance_id=None)
+    assert decision.allowed is True and decision.chain == ("dev",)

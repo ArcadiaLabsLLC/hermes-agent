@@ -15,8 +15,11 @@ running turn into its tool worker threads (the concurrent tool executor runs
 workers under ``contextvars.copy_context``); the handler seeds them from the
 envelope at turn start and resets them when the turn settles.
 
-Chain semantics: entries are canonical persona ids, outermost speaker first,
-INCLUDING the persona whose turn is currently running. Hops-so-far is
+Chain semantics: entries are speaker keys (:func:`relay_key`: the persona
+INSTANCE id once the turn has resolved it, else the canonical persona id),
+outermost speaker first, INCLUDING the speaker whose turn is currently running.
+Two instances of one profile are two speakers (RT-RELAY-CYCLE-SAME-PROFILE-INSTANCES:
+Base -> QA Agent A, both ``profile_base``, is a hop, not a cycle). Hops-so-far is
 therefore ``len(chain) - 1``; ``max_depth`` caps chained relay hops
 (default 3: operator -> A -> B -> C -> D refuses the D->E hop).
 
@@ -106,6 +109,7 @@ def evaluate_relay(
     *,
     chain,
     target_persona_id: str,
+    target_instance_id: str | None = None,
     max_depth: int | None = None,
     deadline_epoch: float | None = None,
     now: float | None = None,
@@ -115,10 +119,15 @@ def evaluate_relay(
     ``chain`` is the envelope chain (personas already speaking on this relay,
     outermost first, including the immediate caller). ``target_persona_id``
     must already be CANONICAL — evaluate at the persona chokepoint, not on
-    raw model-supplied ids.
+    raw model-supplied ids. ``target_instance_id`` is the instance the caller
+    named, when it named one: the target is on the chain when that instance is,
+    or when its bare persona id is (an entry written before the speaker's
+    instance was known stands for every instance of that persona). The hop's
+    chain entry is :func:`relay_key` of the two.
     """
     normalized = normalize_chain(chain)
-    target = str(target_persona_id or "").strip().lower()
+    persona = str(target_persona_id or "").strip().lower()
+    target = relay_key(persona, target_instance_id)
     limit = max_relay_depth() if max_depth is None else max_depth
 
     hops_so_far = max(0, len(normalized) - 1)
@@ -133,7 +142,9 @@ def evaluate_relay(
             ),
             chain=normalized,
         )
-    if target and target in normalized:
+    # MUTATION: key `target` on `persona` alone (drop target_instance_id) and
+    # test_relay_policy's "two instances of one profile relay to each other" reddens.
+    if target and (target in normalized or persona in normalized):
         return RelayDecision(
             allowed=False,
             error_kind="relay_cycle",
@@ -158,6 +169,41 @@ def evaluate_relay(
             chain=normalized,
         )
     return RelayDecision(allowed=True, chain=normalized + ((target,) if target else ()))
+
+
+def relay_key(persona_id, instance_id=None) -> str:
+    """The chain key of one speaker: its persona INSTANCE id when known, else its persona id."""
+    return (str(instance_id or "").strip() or str(persona_id or "").strip()).lower()
+
+
+def bind_turn_instance(*, chain_in, turn_chain, instance_id) -> RelayDecision:
+    """Re-key the running turn's chain entry onto the instance the turn resolved to.
+
+    :func:`evaluate_relay` runs before the target instance is known (a bare persona
+    id, or an omitted session, resolves to a placement or the canonical row later),
+    so it keys the target on what the caller named. Once the turn's instance is
+    final, the turn's own entry becomes that instance, and a target that resolves
+    onto an instance already speaking on the chain is the cycle the bare key hid.
+    No instance (never expected on a mission-chat turn): the chain is unchanged.
+    """
+    key = relay_key(None, instance_id)
+    if not key:
+        return RelayDecision(allowed=True, chain=normalize_chain(turn_chain))
+    normalized = normalize_chain(chain_in)
+    # MUTATION: drop this check and test_relay_policy's "a bare persona that
+    # resolves onto a speaking instance is a cycle" reddens.
+    if key in normalized:
+        return RelayDecision(
+            allowed=False,
+            error_kind="relay_cycle",
+            reason=(
+                f"relay cycle detected: '{key}' is already on this relay chain "
+                f"({' -> '.join(normalized)}). Answer your caller directly instead of "
+                "relaying back around the loop."
+            ),
+            chain=normalized,
+        )
+    return RelayDecision(allowed=True, chain=normalized + (key,))
 
 
 # ── Relayed-message sender attribution ──────────────────────────────

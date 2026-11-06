@@ -218,9 +218,12 @@ def _cmd_mission_chat_message(args) -> int:
 
     relay_chain_in = relay_policy.normalize_chain(getattr(args, "relay_chain", None))
     relay_deadline = relay_policy.parse_deadline_epoch(getattr(args, "relay_deadline_epoch", None))
+    # Keyed on the INSTANCE the caller named when it named one: two instances of
+    # one profile are two speakers (RT-RELAY-CYCLE-SAME-PROFILE-INSTANCES).
     relay_decision = relay_policy.evaluate_relay(
         chain=relay_chain_in,
         target_persona_id=normalized_persona,
+        target_instance_id=_caller_instance_pin(args, normalized_persona),
         deadline_epoch=relay_deadline,
     )
     if not relay_decision.allowed:
@@ -530,6 +533,20 @@ def _cmd_mission_chat_message(args) -> int:
             _mission_chat_emit(args, data)
             return 2
         persona_instance_id = owner
+    # The turn's instance is final here: its chain entry becomes that instance, and
+    # a bare target that resolved onto an instance already on the chain is a cycle.
+    relay_decision = relay_policy.bind_turn_instance(
+        chain_in=relay_chain_in, turn_chain=turn_relay_chain, instance_id=persona_instance_id)
+    if not relay_decision.allowed:
+        _mission_chat_emit(args, {
+            "ok": False, "capability_id": "mission.chat.message", "execution_state": ExecutionState.REJECTED,
+            "error_kind": relay_decision.error_kind, "error": safe_assignment_text(relay_decision.reason, limit=400),
+            "persona_id": normalized_persona, "persona_instance_id": persona_instance_id,
+            "relay_chain": list(relay_decision.chain),
+            "next_expected": "answer your caller directly; do not relay onward on this chain",
+        })
+        return 2
+    turn_relay_chain = relay_decision.chain
     if not session_id:
         # Omitted session (agent_chat_send dispatch lane, and any first-turn
         # open): the thread target is decided by policy below, not by this

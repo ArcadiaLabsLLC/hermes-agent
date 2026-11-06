@@ -320,3 +320,36 @@ def test_handler_no_longer_mints_a_fresh_session_per_send():
         "sessions through the default resolver and receipt-backed mint service"
     )
     assert "persona_chat_session_id_for" not in calls
+
+
+# --------------------------------------------------------------------------- #
+# Instance keys (RT-RELAY-CYCLE-SAME-PROFILE-INSTANCES)                         #
+# --------------------------------------------------------------------------- #
+
+
+def _send(monkeypatch, tmp_path, capsys, persona, chain):
+    monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "runtime"))
+    args = parser().parse_args(
+        ["harness", "mission-chat", "message", "--persona", persona, "--message", "hi", "--json",
+         "--relay-chain", chain]
+    )
+    exit_code = args.func(args)
+    return exit_code, _json_documents(capsys.readouterr().out)
+
+
+def test_the_same_instance_named_by_handle_is_a_cycle(tmp_path, monkeypatch, capsys):
+    exit_code, payloads = _send(monkeypatch, tmp_path, capsys, "personainst_dev_a", "personainst_dev_a")
+    assert exit_code == 2
+    assert [d["error_kind"] for d in payloads] == ["relay_cycle"]
+
+
+def test_a_sibling_instance_of_the_speaking_profile_is_not_a_cycle(tmp_path, monkeypatch, capsys):
+    # The chain holds dev's OTHER instance; the guard lets the hop through and the
+    # send dies later on the absent persona store, never on the relay lane.
+    exit_code, payloads = _send(monkeypatch, tmp_path, capsys, "personainst_dev_a", "personainst_dev_b")
+    kinds = [d.get("error_kind") for d in payloads]
+    assert exit_code == 2 and kinds and not any(str(k).startswith("relay_") for k in kinds), kinds
+
+
+def test_the_handler_rekeys_the_turn_onto_its_resolved_instance():
+    assert "bind_turn_instance" in _mission_chat_message_call_names()
