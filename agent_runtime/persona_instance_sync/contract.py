@@ -78,6 +78,32 @@ PERSONA_INSTANCE_ALLOWED_KEYS: frozenset[str] = frozenset(
     }
 )
 
+#: A field's NEXT spelling → the spelling this edition stores and publishes. Read at the pull door
+#: and the store decoder, never written: an edition that publishes the new spelling is read here as
+#: the old fact (plan ``docs/agent-runtime-harness/planned/recall-field-rename-mixed-editions-2026-11-06.md``
+#: S1, ``RT-WS-RECALL-RENAME-S1-ALIAS``). Publishing keeps the old spelling until S3.
+PERSONA_INSTANCE_KEY_ALIASES: dict[str, str] = {"recall_shared_workspaces": "recall_shared_projects"}
+
+
+def canonical_instance_body(body: Any) -> Any:
+    """``body`` with each :data:`PERSONA_INSTANCE_KEY_ALIASES` spelling read as its canonical key.
+
+    A body carrying BOTH spellings with different values is returned unchanged, so the alias stays
+    outside the allowlist and the door refuses it ``unexpected_key`` — two answers for one fact.
+    A non-mapping is returned as is (the door refuses it)."""
+
+    if not isinstance(body, dict) or not any(alias in body for alias in PERSONA_INSTANCE_KEY_ALIASES):
+        return body
+    canonical = dict(body)
+    for alias, key in PERSONA_INSTANCE_KEY_ALIASES.items():
+        if alias not in canonical:
+            continue
+        if key in canonical and canonical[key] != canonical[alias]:
+            return body
+        canonical[key] = canonical.pop(alias)
+    return canonical
+
+
 #: Never travels, and RE-DERIVED locally by the mint (plan §1.3).
 #:
 #: Distinct from :data:`PERSONA_INSTANCE_LOCAL_ONLY_KEYS` because these six are
