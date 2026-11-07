@@ -95,7 +95,9 @@ def test_local_writer_publishes_accepted_rows_for_file_only_readers(owner):
     reopened = entry(brain_paths.build_brain_paths())
     assert current["path"] == reopened["path"] == str(writer.worktree)
     assert row in (Path(current["path"]) / note).read_text(encoding="utf-8")
-    assert row not in (board.checkout / note).read_text(encoding="utf-8")
+    # The default brain's own directory has ``main`` checked out: the write fast-forwards it too
+    # (RT-CREATE-BRAIN-MOVES-CHECKED-OUT-BRANCH), never leaving its files behind the moved branch.
+    assert row in (board.checkout / note).read_text(encoding="utf-8")
 
 
 def test_the_writer_output_for_the_fixture_namespace_is_the_fixture(namespace):

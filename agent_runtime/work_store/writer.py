@@ -17,7 +17,8 @@ is never touched. Steps, in the §5 table's numbering:
 6. the one-line edit, written temp + ``os.replace``;
 7. ``add`` + ``commit`` under hermes's identity as ``-c`` pairs (never ``git config``);
 8. ``push origin work/<machine>:<branch>`` (fast-forward only); a local slot moves its branch with a
-   compare-and-swap ``update-ref``. A non-fast-forward replays from step 2;
+   compare-and-swap ``update-ref``, or — when a worktree (the user's checkout) has it checked out — a
+   ``merge --ff-only`` in THAT worktree (``checked_out.advance``). A non-fast-forward replays from step 2;
 9. the replay budget (8) exhausted → ``push_contended``, the tips seen in the detail.
 
 A local slot (the default brain) has no remote: steps 2 and 8 become a local tip and a CAS.
@@ -47,6 +48,7 @@ from typing import Any
 from .. import paths
 from . import receipts
 from .board import Board, ids_in_brain
+from .checked_out import advance
 from .default_brain import IDENTITY_PAIRS
 from .grammar import (
     Op, Row, RowRef, apply as apply_line, archive_note_for, archive_note_text, find, local_day, parse_note, parse_outcome,
@@ -628,8 +630,8 @@ class Writer:
         """True when the commit is the tip now; False on a non-fast-forward (the caller replays)."""
 
         if self.board.local:
-            ref = f"refs/heads/{self.board.default_branch}"
-            return self._git(["update-ref", ref, commit, self._tip_sha or ""], repo=self.worktree).returncode == 0
+            # Through the worktree that has the branch checked out, never under it (``checked_out``).
+            return advance(self._git, self.worktree, self.board.default_branch, commit, self._tip_sha or "")
         done = self._git(["push", "-q", "origin", f"HEAD:{self.board.default_branch}"], repo=self.worktree)
         if done.returncode == 0:
             return True

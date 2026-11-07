@@ -1832,6 +1832,11 @@ logs each move), `index_locked` (hermes's worktree `index.lock` is held by a liv
 300 s — longer than any writer git call — is moved aside once, logged `work.index_lock_healed`; the detail
 names the lock file), `note_missing`, `grammar_invalid`, `commit_failed`, `push_refused`, `push_contended` —
 one per failure branch of the plan's §5 step table.
+A local board's write moves its branch THROUGH the worktree that has it checked out (the user's checkout,
+or the default brain's own directory): a `merge --ff-only` there, so its HEAD, index and files move together
+and every unrelated local change stays; a change in the fast-forward's way, or the branch mid-rebase, is
+`worktree_dirty` naming that checkout, with the branch unmoved. A branch no worktree holds moves by
+compare-and-swap `update-ref` (`agent_runtime/work_store/checked_out.py`, RT-CREATE-BRAIN-MOVES-CHECKED-OUT-BRANCH).
 Every write logs one receipt line `work.row_<op>` (`agent_runtime/work_store/receipts.py`); the serve log
 is the receipt log.
 
