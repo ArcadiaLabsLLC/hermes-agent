@@ -80,7 +80,7 @@ ask one question per decision, and hand back an installed sheet.
 
 **Where the rulings live.** Citations of the form **§13.n** are owner decisions
 recorded once, in the launcher companion
-`docs/mission_control/planned/console-character-authoring-architecture.md` §13.
+`EterniaLauncher/docs/mission_control/subsystems/console-character-authoring-architecture.md` §13.
 This file carries the operative half only and never restates the reasoning — if
 the two ever disagree, the register is right.
 

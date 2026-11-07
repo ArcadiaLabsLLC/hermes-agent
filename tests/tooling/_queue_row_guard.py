@@ -14,7 +14,7 @@ filed them do them all if they are ready") retired that rule, and its filer arm 
 (``FH-QUEUE-GUARD-FILER-ARM-RETIRE``).
 
 Closed rows are ARCHIVED (RT-QUEUE-ARCHIVE-GRAMMAR, launcher plan
-``EterniaLauncher/docs/mission_control/planned/QUEUE_CLOSED_ROW_ARCHIVE_2026-11-02.md`` D6), and three more arms
+``EterniaLauncher/docs/mission_control/subsystems/QUEUE_CLOSED_ROW_ARCHIVE_2026-11-02.md`` D6), and three more arms
 read the archive: ``closed_without_archive`` — a row live at the base and gone from the live queues is in no
 archive line this push added (a row MOVED to another queue is still live by ID); it refuses for a push whose
 newest commit is dated :data:`ARCHIVE_REQUIRED_FROM` or later and is a NOTE before, so lanes dispatched under

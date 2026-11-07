@@ -57,7 +57,7 @@ Identical in the launcher, this repo and the backend; do not diverge.
   worked on — a record like RULED, never a status. An unknown or repeated host, no host, or a second
   `REQUIRES` segment is a defect.
 - **Closing ARCHIVES (amendment 2026-11-03, `RT-QUEUE-ARCHIVE-GRAMMAR`; launcher plan
-  `EterniaLauncher/docs/mission_control/planned/QUEUE_CLOSED_ROW_ARCHIVE_2026-11-02.md` D1–D6):** a closed row
+  `EterniaLauncher/docs/mission_control/subsystems/QUEUE_CLOSED_ROW_ARCHIVE_2026-11-02.md` D1–D6):** a closed row
   is moved, never deleted, to `Harness_Brain/80 — Archive/Queues/<queue stem>-<YYYY-MM>.md` (`type:
   queue-archive`, `queue:`, `program:`, `month:` frontmatter and one banner line; the month is the outcome's
   date), as the live line with its `**TAKEN …**` mark removed and its status (with any `Recommend:` after it)

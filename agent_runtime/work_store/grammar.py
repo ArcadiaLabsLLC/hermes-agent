@@ -12,7 +12,7 @@ outside code spans. :func:`apply` is the pure one-line edit every write-back is 
 ``work-on-markdown-2026-10-18.md`` §5): a row is found by ID and edited alone, never text-merged.
 
 Closed rows are ARCHIVED, not deleted (RT-QUEUE-ARCHIVE-GRAMMAR; launcher plan
-``EterniaLauncher/docs/mission_control/planned/QUEUE_CLOSED_ROW_ARCHIVE_2026-11-02.md`` D1–D3): a
+``EterniaLauncher/docs/mission_control/subsystems/QUEUE_CLOSED_ROW_ARCHIVE_2026-11-02.md`` D1–D3): a
 ``type: queue-archive`` note (:func:`is_queue_archive`) under ``<brain>/80 — Archive/Queues/<queue stem>-<YYYY-MM>.md``
 holds rows whose status was replaced by ONE outcome segment — ``DONE <date> <commit>``,
 ``REFUTED <date> <commit>`` (``<commit>`` 7–40 lowercase hex, or ``here``) or ``CLOSED <date>: owner — <words>``

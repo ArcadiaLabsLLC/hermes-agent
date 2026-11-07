@@ -40,7 +40,7 @@ Segments split on `` · `` outside code spans. ``**TAKEN <date> <who>**`` is a c
 never a status.
 
 Closed rows are ARCHIVED (RT-QUEUE-ARCHIVE-GRAMMAR; launcher plan
-``EterniaLauncher/docs/mission_control/planned/QUEUE_CLOSED_ROW_ARCHIVE_2026-11-02.md`` D1–D3, D6): a
+``EterniaLauncher/docs/mission_control/subsystems/QUEUE_CLOSED_ROW_ARCHIVE_2026-11-02.md`` D1–D3, D6): a
 ``type: queue-archive`` note under ``Harness_Brain/80 — Archive/Queues/<queue stem>-<YYYY-MM>.md`` holds rows whose
 status is replaced by ONE outcome — ``DONE|REFUTED <date> <7–40 hex|here>`` or ``CLOSED <date>: owner — <words>`` —
 with at most one ``result:`` (≤ 300) and one ``review:``, and no claim. An outcome on a LIVE row is

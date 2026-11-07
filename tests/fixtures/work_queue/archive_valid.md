@@ -6,7 +6,7 @@ month: 2026-11
 ---
 
 <!-- The closed-row archive grammar (plan
-docs/mission_control/planned/QUEUE_CLOSED_ROW_ARCHIVE_2026-11-02.md D2/D3):
+docs/mission_control/subsystems/QUEUE_CLOSED_ROW_ARCHIVE_2026-11-02.md D2/D3):
 one valid archived row per outcome shape and record, each the live line with
 its status replaced by ONE outcome segment and its claim mark removed. Shared
 contract: hermes and backend copy these lines byte-identically to gate their

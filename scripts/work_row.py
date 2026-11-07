@@ -8,7 +8,7 @@
         [--result "<line>"] [--date YYYY-MM-DD] [--note <path>] [--repo <checkout>] [--no-commit]
 
 ``close`` ARCHIVES the row (RT-QUEUE-ARCHIVE-GRAMMAR, launcher plan
-``EterniaLauncher/docs/mission_control/planned/QUEUE_CLOSED_ROW_ARCHIVE_2026-11-02.md`` D3–D5): the claim mark
+``EterniaLauncher/docs/mission_control/subsystems/QUEUE_CLOSED_ROW_ARCHIVE_2026-11-02.md`` D3–D5): the claim mark
 removed, the status replaced by ONE outcome, the line appended to
 ``<brain>/80 — Archive/Queues/<queue stem>-<YYYY-MM>.md`` (created with its head) and dropped from the queue — both
 files in one commit, ``queue(<stem>): close <ID> <outcome>``.
