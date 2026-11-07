@@ -379,14 +379,83 @@ def _resolve_turn_model_selection(
     override = _resolve_chat_model_override(
         session_db=session_db, session_id=session_id, requested_override=requested_override,
     )
+    lineage = _dispatch_lineage(session_db, session_id) if not (override or {}).get("model") else {}
+    own_effort = (override or {}).get("reasoning_effort")
+    inherited = _predecessor_override(session_db, lineage.get("predecessor_chat_session_id"))
+    if inherited is not None:
+        override = {**inherited, "reasoning_effort": own_effort or inherited.get("reasoning_effort")}
     selection = _chat_effective_model_payload(
         persona=persona, config=config, override=override, instance=instance,
     )
+    if not selection.get("effective_model"):
+        # The last tier, below the profile's: the dispatcher's own chat model, so a relay from an agent
+        # that has one never fails ``model_unset`` on a target whose every tier is empty.
+        dispatcher = _lineage_override(session_db, lineage.get("requested_by_session"), "dispatcher")
+        if dispatcher is not None:
+            override = {**dispatcher, "reasoning_effort": own_effort}
+            selection = _chat_effective_model_payload(
+                persona=persona, config=config, override=override, instance=instance,
+            )
     _logger.info(
         TURN_MODEL_RECEIPT, session_id or "-", selection.get("effective_provider") or "-",
-        selection.get("effective_model") or "-", chat_model_source(selection),
+        selection.get("effective_model") or "-",
+        (override or {}).get("source") if (override or {}).get("source") in _LINEAGE_SOURCES else chat_model_source(selection),
     )
     return selection
+
+
+#: The cascade tiers a dispatched thread inherits (``_lineage_override``), named in the turn's model receipt.
+_LINEAGE_SOURCES = ("dispatch_predecessor", "dispatcher")
+
+
+def _dispatch_lineage(session_db, session_id: str | None) -> dict[str, str]:
+    """A dispatched thread's ``_dispatched_from`` (``predecessor_chat_session_id``, ``requested_by_session``)."""
+
+    stored = _session_model_config(session_db, session_id).get("_dispatched_from")
+    if not isinstance(stored, dict):
+        return {}
+    return {key: text for key in ("predecessor_chat_session_id", "requested_by_session")
+            if (text := safe_assignment_text(stored.get(key), limit=240))}
+
+
+def _lineage_override(session_db, session_id: str | None, source: str) -> dict[str, object] | None:
+    """The chat-model override stored on ``session_id`` (a dispatch lineage session), sourced ``source``.
+
+    RT-RELAY-DISPATCH-THREAD-NO-MODEL (found live 2026-11-06): a dispatch mints a FRESH thread for its
+    target (``dispatch_session_policy``), so the model the operator chose on the target's console thread
+    stayed behind and the thread refused ``model_unset``. The thread it supersedes is the one the sticky
+    policy would have continued: its chat model ranks where the thread's own would (above the instance's).
+    Read every turn, never copied, so a later pick on that thread reaches the next dispatch.
+    """
+
+    if not session_id:
+        return None
+    found = _chat_model_override_from_config(_session_model_config(session_db, session_id))
+    if not found or not found.get("model"):
+        return None
+    return {**found, "source": source}
+
+
+#: How far back a dispatched thread follows its predecessors for a chat model (a cycle stops sooner).
+_LINEAGE_HOPS = 32
+
+
+def _predecessor_override(session_db, session_id: str | None) -> dict[str, object] | None:
+    """The first chat model found walking ``_dispatched_from`` predecessors from ``session_id``.
+
+    Every fresh dispatch repoints the target's default thread at itself, so the next dispatch's
+    predecessor is the LAST dispatched thread, which holds no model of its own; the walk reaches the
+    console thread the operator chose the model on.
+    """
+
+    seen: set[str] = set()
+    while session_id and session_id not in seen and len(seen) < _LINEAGE_HOPS:
+        seen.add(session_id)
+        found = _lineage_override(session_db, session_id, "dispatch_predecessor")
+        if found is not None:
+            return found
+        session_id = _dispatch_lineage(session_db, session_id).get("predecessor_chat_session_id")
+    return None
 
 
 #: One INFO line per run that holds an agent: the effort its next request

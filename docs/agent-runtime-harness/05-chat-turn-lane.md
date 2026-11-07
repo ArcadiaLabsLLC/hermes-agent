@@ -597,6 +597,15 @@ Four tiers, highest wins, resolved once in `_chat_effective_model_payload`
 chat-session override  >  instance override  >  persona default  >  config default
 ```
 
+A DISPATCHED thread (minted fresh per task, `agent_runtime/dispatch_session_policy.py`) with no override
+of its own takes the override of the thread it supersedes, walking `_dispatched_from` predecessors
+(every mint repoints the default thread, so the console thread the operator chose a model on can sit
+several dispatches back) — the model the sticky policy would have continued with — at the chat-session
+tier; and, when every tier is still empty, the dispatcher's own chat override (`requested_by_session`)
+as the last tier, so a relay never refuses `model_unset` while its sender has a model. Read every turn,
+never copied; the turn's model receipt names the tier `dispatch_predecessor` / `dispatcher`
+(`agent_runtime/persona_chat_session.py::_resolve_turn_model_selection`, RT-RELAY-DISPATCH-THREAD-NO-MODEL).
+
 The chat-session override persists under `mission_control_chat_model_override`
 (`agent_runtime/persona_chat_session.py::_resolve_chat_model_override`, key spelled once as `agent_runtime/persona_chat_history/vocabulary.py::_CHAT_MODEL_OVERRIDE_CONFIG_KEY`) via
 `_resolve_chat_model_override`. Its scope is literally
