@@ -2,7 +2,8 @@
 
 Status: PLAN — written and ruled 2026-10-26 by lane w1025b-h-stream ("go with recommendations",
 the wave brief's rule for NEEDS PLAN rows). Row: runtime-queue `RT-PREWARM-BUILD-AGENTS-READINESS-COLD`.
-S0 measured offline, S1 BUILT; S2 waits on the wave's idle-box perf phase.
+S0 measured offline, S1 BUILT; S2 CLOSED 2026-11-06 on the w1106a-perf read below (owner ruling 2026-11-06,
+"recoomendations are good"): (b) not built, decision 3 kept deferred — build (b) only if the last ~1 s matters later.
 
 ## In plain English
 
@@ -44,7 +45,8 @@ starting on them, so a message sent in the first seconds after boot paid them it
 3. **A persisted tool catalog** (tool names per toolset keyed by the code tree, so a cold process
    reads names without importing plugins — the CF-2 frontmatter cache's shape). Recommend: not now;
    it is a new derived cache with an invalidation story, and S1 + S2 may make it unnecessary. **Ruled:
-   deferred until S2's number.**
+   deferred until S2's number.** **Ruled 2026-11-06: kept deferred** — S2's cold first build is 1.1–1.6 s,
+   nothing left for the catalog to earn.
 
 ## Slices
 
