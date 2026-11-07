@@ -64,7 +64,7 @@ def agent_chat_send(
 
 class Send:
     """``agent_chat_send`` as phases (W0-G7): ``validate -> target -> envelope ->
-    remote -> admit_detached -> budget`` each answer a refusal or ``None``;
+    remote -> local_target -> admit_detached -> budget`` each answer a refusal or ``None``;
     then ``relay_args`` and either ``dispatch`` (``wait=false``) or ``relay``
     (inline, through the Q10 door) and ``reply``. The fields are the locals the
     422-line function carried, so each phase keeps the names its comments use.
@@ -107,6 +107,7 @@ class Send:
             or self.target()
             or self.envelope()
             or self.remote()
+            or self.local_target()
             or self.admit_detached()
             or self.budget()
         )
@@ -247,6 +248,15 @@ class Send:
                 )
         self.remote_target = remote_target
         return None
+
+    def local_target(self):
+        """A local target must address a teammate NOW, not fail in the background (``addressing``)."""
+        if self.install_qualifier is not None:
+            return None
+        from .addressing import resolve_send_target
+
+        self.persona_id, refusal = resolve_send_target(self.persona_id, requested_by_session=self.requested_by_session)
+        return refusal
 
     def admit_detached(self):
         """The three preconditions a ``wait=false`` promise needs before any work starts."""
