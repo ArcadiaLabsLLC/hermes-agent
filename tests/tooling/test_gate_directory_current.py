@@ -26,6 +26,7 @@ Killing mutations (2026-10-18): delete the ``test_no_ladder_routing.py`` row ->
 from __future__ import annotations
 
 import ast
+import functools
 import re
 import subprocess
 from pathlib import Path
@@ -47,8 +48,12 @@ def _named() -> set[str]:
     return {p for p in _NAMED.findall(PAGE.read_text(encoding="utf-8")) if "*" not in p}
 
 
-def _marked(root: Path = REPO) -> set[str]:
-    """Every tracked test file carrying the ``gate`` mark, by its ``pytestmark`` or by an id row."""
+@functools.cache
+def _marked(root: Path = REPO) -> frozenset[str]:
+    """Every tracked test file carrying the ``gate`` mark, by its ``pytestmark`` or by an id row.
+
+    Walked ONCE per process (FH-PREPUSH-GATES-GATE-DIRECTORY-OVER-BUDGET): three tests asked it, each
+    reading ~8,000 tracked test files — 12.0 s of the prepush gates step at box load ~54."""
     out = subprocess.run(["git", "ls-files", "-z", "--", "tests"], cwd=root, capture_output=True, check=True)
     marked = {node for node in ids_marked(GATE_MARK) if "::" not in node}
     for rel in out.stdout.decode("utf-8").split("\0"):
@@ -57,7 +62,7 @@ def _marked(root: Path = REPO) -> set[str]:
         path = root / rel
         if path.is_file() and carries_gate_mark(path):
             marked.add(rel)
-    return marked
+    return frozenset(marked)
 
 
 def _enumerated() -> set[str]:
