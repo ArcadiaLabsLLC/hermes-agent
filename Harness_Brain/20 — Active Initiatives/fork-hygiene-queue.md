@@ -19,7 +19,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-11-02 (appearance acceptance)
 
-- **`FH-WINDOWS-PRECOMPILE-SHELL` — The precompile-scope fixtures select the Windows WSL bash shim instead of Git Bash and fail both small-run classification checks; preserve their assertions while qualifying shell resolution** · `tests/scripts/test_run_tests_precompile_scope.py` · candidate and unchanged 07ce68314d reproduce the same two failed nodes and WSL startup failure · READY 2026-11-02 · REQUIRES windows · **TAKEN 2026-11-08 w1108b-hfh on DESKTOP-QJ7DDV2 as nekwo in h1108b-fh**
 
 ## Filed on arrival — 2026-11-02 (landing w1101e, hermes)
 
@@ -639,14 +638,11 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-30 (character migration validation)
 
-- **`FH-WINDOWS-PREPUSH-SHELL` — Qualify the pre-push script test harness on native Windows without selecting WSL through a bare executable name** · `tests/scripts/test_prepush_sh.py::_run` · isolated unmodified main `19e49b3c57` reproduces 12 failures; the fixture invokes bare `bash` while its availability check uses `shutil.which`, and Windows selects the System32 WSL shim; the actual migration pre-push invocation uses explicit Git Bash · preserve every deadline, notification and selection assertion; qualify shell resolution and generated script line endings · READY 2026-10-30 · REQUIRES windows · **TAKEN 2026-11-08 w1108b-hfh on DESKTOP-QJ7DDV2 as nekwo in h1108b-fh**
 
 
 
 ## Character completion qualification findings — 2026-10-31
 
-- **`FH-SCHEDULER-CONFIG-TEST-STABILITY` — Qualify the scheduler root-config knob test against repeated same-process rewrites on Windows** · `tests/agent_runtime/work_store/test_serve_tick_scheduler.py::test_max_parallel_is_the_root_config_knob_read_each_tick` · initial bundle failed then passed alone; one subsequent isolated comparison failed on candidate while base passed, and the next isolated candidate passed without a production repair; preserve the call-time config guarantee and identify the unstable fixture/cache boundary · READY 2026-10-31 · REQUIRES windows · **TAKEN 2026-11-08 w1108b-hfh on DESKTOP-QJ7DDV2 as nekwo in h1108b-fh**
-- **`FH-CHILD-JOB-COLLECTION-ROOT` — Keep child-process test collection scoped to its intended test root** · `tests/test_child_job_downstream.py::test_a_marked_tests_child_dies_with_its_os_exit_and_an_unmarked_ones_survives` · the wider character gate collected an unrelated disappearing Flutter temp directory and failed before the child PID evidence existed; qualify explicit collection roots while preserving the real-process kill/survival assertions; the profile artwork gate also exposed `tests/scripts/test_run_tests_tmp_root.py` collecting a disappearing Flutter temporary directory in a bundle, with canonical isolated confirmation returning load (HEAD green alone); evidence `docs/agent-runtime-harness/profile-artwork.md` · READY 2026-10-31 · REQUIRES windows · **TAKEN 2026-11-08 w1108b-hfh on DESKTOP-QJ7DDV2 as nekwo in h1108b-fh**
 
 ## Filed on arrival — 2026-11-01 (owner ruling, launcher ADR 0038 amendment)
 
@@ -671,3 +667,7 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 
 - **`FH-WINDOWS-UPDATE-RESTART-RECEIPT-FALSE-SUCCESS` — managed Windows update reports EXIT=0 and latest receipt outcome success with restart stage success while its own completion warns gateway_restart and windows_resume did not finish and the gateway is absent; propagate unverified or failed restart obligations into a partial outcome and non-success command status, with a regression covering a successful code/dependency update and failed gateway relaunch** · `hermes_cli/update_cmd.py::_complete_source_update` · `hermes_cli/update_receipt.py::committed_success` · found live 2026-11-06 codex-qa-isolation-finish updating f636f93a0c to 075b73fe50; gateway manually recovered through republished native entry point · READY 2026-11-06 · REQUIRES windows · **TAKEN 2026-11-08 w1108b-hfh on DESKTOP-QJ7DDV2 as nekwo in h1108b-fh**
+
+## Filed on arrival — 2026-11-08 (lane w1108b-hfh)
+
+- **`FH-TEST-BASH-RESOLVER-DUPLICATES` — at least six test-side resolvers answer "which bash really runs scripts here" (`tests/conftest.py::real_bash`, `tests/scripts/test_classify_reds_on_tag.py::_bash`, `tests/scripts/test_rerere_train_downstream.py::_bash`, `tests/scripts/test_run_tests_bundled_reexec_downstream.py::_msys_bash`, `tests/scripts/test_run_tests_idle.py::_git_bash`, `tests/pm/activation_support.py::bash`) and fork-owned files still spawn a bare `bash` that Windows resolves to the WSL launcher; fold them into one importable fork-owned resolver the fixture delegates to, and add a census that refuses a bare `bash` argv in a fork-owned test** · `tests/conftest.py::real_bash` · found 2026-11-08 w1108b-hfh fixing FH-WINDOWS-PREPUSH-SHELL · READY 2026-11-08
