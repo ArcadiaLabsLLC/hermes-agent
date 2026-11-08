@@ -401,6 +401,10 @@ def _verify_fleet_after_update(restart, *, _pre_update_plan, _windows_gateway_re
         # A gateway stopped with no successor is owed a restart, not "accounted for": keep the
         # fleet obligation armed so the startup warning names it until someone restarts it.
         restart.incomplete = _gateway_owed = True
+    with _best_effort('Owed restart not settled: %s'):  # fork seam: FH-WINDOWS-UPDATE-RESTART-RECEIPT-FALSE-SUCCESS
+        from hermes_cli.update_restart_truth import settle_owed_restart
+        settle_owed_restart(restart, gateway_owed=_gateway_owed, stale_serves=_stale_serves_owed,
+                            down_serves=_dashboards_down or ())
     if restart.incomplete:
         # Code is committed (contract C3): a gateway that may still run stale modules is a
         # follow-up, never a failed update. The fleet obligation stays armed, every CLI start
