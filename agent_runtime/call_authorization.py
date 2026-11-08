@@ -579,7 +579,8 @@ def _channel_arm(resolved: RpcCaller, name: str, tier: str) -> CallAuthorization
     ``gateway_channel.channel_target_refusal``'s, at dispatch.
     """
 
-    if resolved.device_kind != DEVICE_KIND_CHANNEL or resolved.kind != CALLER_DEVICE:
+    # ``kind`` first: a caller that is no device need not carry ``device_kind`` at all.
+    if resolved.kind != CALLER_DEVICE or resolved.device_kind != DEVICE_KIND_CHANNEL:
         return None
     admitted = bool(name) and name in CHANNEL_METHOD_ALLOWLIST and resolved.device_tier == TIER_CONSOLE
     return CallAuthorization(
