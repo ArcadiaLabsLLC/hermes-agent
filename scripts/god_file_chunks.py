@@ -24,7 +24,7 @@ from typing import Iterable
 _FUNCS = (ast.FunctionDef, ast.AsyncFunctionDef)
 
 
-def _probe():
+def _probe_module():
     try:  # imported as ``scripts.god_file_chunks`` (the gates)
         from scripts import god_file_probe as probe
     except ImportError:  # run as a script: ``scripts/`` is sys.path[0]
@@ -34,7 +34,7 @@ def _probe():
 
 def vocabulary_chunk(paths: Iterable[str], root: Path) -> set[str]:
     """``god_file_probe.vocabulary`` over one chunk: every word its files declare."""
-    probe = _probe()
+    probe = _probe_module()
     words: set[str] = set()
     for path in paths:
         tree = probe._tree(root, path)
@@ -45,14 +45,14 @@ def vocabulary_chunk(paths: Iterable[str], root: Path) -> set[str]:
 
 def declared_chunk(paths: Iterable[str], root: Path) -> dict[str, frozenset[str]]:
     """``ladder_census``'s first pass over one chunk: what each module declares."""
-    return _probe()._scope.declared_vocabularies(root, paths)
+    return _probe_module()._scope.declared_vocabularies(root, paths)
 
 
 def ladder_chunk(
     paths: Iterable[str], root: Path, declared: dict[str, frozenset[str]]
 ) -> dict[tuple[str, str, str, str], int]:
     """``ladder_census``'s rows for one chunk, the vocabularies in reach read off ``declared``."""
-    probe = _probe()
+    probe = _probe_module()
     scope_of = probe._scope
     out: dict[tuple[str, str, str, str], int] = {}
     for path in paths:
@@ -73,7 +73,7 @@ def ladder_chunk(
 def duplicate_chunk(paths: Iterable[str], root: Path) -> list[tuple[str, str, str, str]]:
     """``(digest, path, qualname, helper)`` per hashed unit of a chunk; ``helper`` is the name of a
     private module-level helper (``_x``, not dunder), else empty."""
-    probe = _probe()
+    probe = _probe_module()
     out: list[tuple[str, str, str, str]] = []
     for path in paths:
         tree = probe._tree(root, path)
