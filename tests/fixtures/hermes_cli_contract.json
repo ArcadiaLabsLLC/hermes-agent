@@ -6035,6 +6035,30 @@
           "required": false,
           "type": null
         },
+        "--qa-checkpoint-after-seconds": {
+          "action": "store",
+          "canonical": "--qa-checkpoint-after-seconds",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": "float"
+        },
+        "--qa-max-iterations": {
+          "action": "store",
+          "canonical": "--qa-max-iterations",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": "int"
+        },
+        "--qa-silence-seconds": {
+          "action": "store",
+          "canonical": "--qa-silence-seconds",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": "float"
+        },
         "--relay-chain": {
           "action": "store",
           "canonical": "--relay-chain",

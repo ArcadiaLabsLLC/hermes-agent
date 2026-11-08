@@ -181,6 +181,10 @@ class ChatErrorKind(StrEnum):
     #: images/files; one of them is no longer stored. ``safe_details.missing`` names the basenames
     #: (RT-PENDING-ATTACHMENTS-NO-READER). Refused before the write-ahead: nothing ran.
     ATTACHMENT_MISSING = "attachment_missing"
+    #: A QA limit override (``--qa-*``, ``agent_runtime.qa_turn_overrides``) sent outside a QA
+    #: namespace under a QA provider pool, or out of its bounds. Refused before the write-ahead.
+    QA_TURN_OVERRIDES_REFUSED = "qa_turn_overrides_refused"
+    QA_TURN_OVERRIDES_INVALID = "qa_turn_overrides_invalid"
 
     # -- chat-root ownership / concurrency -----------------------------------
     UNKNOWN_CHAT_SESSION = "unknown_chat_session"
@@ -242,6 +246,8 @@ ADMISSION_ERROR_KINDS = frozenset(
         ChatErrorKind.VISION_UNSUPPORTED,
         ChatErrorKind.FILE_INVALID,
         ChatErrorKind.ATTACHMENT_MISSING,
+        ChatErrorKind.QA_TURN_OVERRIDES_REFUSED,
+        ChatErrorKind.QA_TURN_OVERRIDES_INVALID,
     }
 )
 CHAT_ROOT_ERROR_KINDS = frozenset(

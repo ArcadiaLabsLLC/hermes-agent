@@ -455,6 +455,10 @@ def add_mission_chat(subs) -> None:
     mission_chat_message.add_argument("--compression-threshold-tokens", type=int, default=None, help="One-turn native-compression proof seam; overrides the compressor token threshold without changing profile config")
     mission_chat_message.add_argument("--compression-protect-first-n", type=int, default=None, help="One-turn native-compression proof seam; override protected head messages")
     mission_chat_message.add_argument("--compression-protect-last-n", type=int, default=None, help="One-turn native-compression proof seam; override protected tail messages")
+    # QA-only seams (agent_runtime.qa_turn_overrides): refused outside a QA namespace under a QA provider pool.
+    mission_chat_message.add_argument("--qa-checkpoint-after-seconds", type=float, default=None, help="QA only (a stagec-* namespace under HERMES_QA_PROVIDER_POOL; refused elsewhere): open this turn's wall-budget checkpoint this many seconds in (1-600)")
+    mission_chat_message.add_argument("--qa-max-iterations", type=int, default=None, help="QA only (refused outside a QA provider pool): this turn's tool-iteration limit (1-90; default 90)")
+    mission_chat_message.add_argument("--qa-silence-seconds", type=float, default=None, help="QA only (refused outside a QA provider pool): wait this many seconds before the first provider call, a model silence the turn heartbeat beats through (0-300)")
     mission_chat_message.add_argument("--relay-chain", default=None, help="Comma-separated canonical persona ids already on the agent-relay chain (envelope provenance for chained agent_chat_send hops)")
     mission_chat_message.add_argument("--relay-deadline-epoch", type=float, default=None, help="Absolute unix-epoch deadline shared by every hop on the relay chain")
     # Sender provenance, not guard logic: the sender's chat-root session id

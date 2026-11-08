@@ -3177,6 +3177,9 @@ usage: hermes harness mission-chat message [-h] --persona PERSONA_ID
                                            [--compression-threshold-tokens COMPRESSION_THRESHOLD_TOKENS]
                                            [--compression-protect-first-n COMPRESSION_PROTECT_FIRST_N]
                                            [--compression-protect-last-n COMPRESSION_PROTECT_LAST_N]
+                                           [--qa-checkpoint-after-seconds QA_CHECKPOINT_AFTER_SECONDS]
+                                           [--qa-max-iterations QA_MAX_ITERATIONS]
+                                           [--qa-silence-seconds QA_SILENCE_SECONDS]
                                            [--relay-chain RELAY_CHAIN]
                                            [--relay-deadline-epoch RELAY_DEADLINE_EPOCH]
                                            [--requested-by-session REQUESTED_BY_SESSION]
@@ -3236,6 +3239,17 @@ options:
                         One-turn native-compression proof seam; override protected head messages
   --compression-protect-last-n COMPRESSION_PROTECT_LAST_N
                         One-turn native-compression proof seam; override protected tail messages
+  --qa-checkpoint-after-seconds QA_CHECKPOINT_AFTER_SECONDS
+                        QA only (a stagec-* namespace under HERMES_QA_PROVIDER_POOL; refused
+                        elsewhere): open this turn's wall-budget checkpoint this many seconds in
+                        (1-600)
+  --qa-max-iterations QA_MAX_ITERATIONS
+                        QA only (refused outside a QA provider pool): this turn's tool-iteration
+                        limit (1-90; default 90)
+  --qa-silence-seconds QA_SILENCE_SECONDS
+                        QA only (refused outside a QA provider pool): wait this many seconds before
+                        the first provider call, a model silence the turn heartbeat beats through
+                        (0-300)
   --relay-chain RELAY_CHAIN
                         Comma-separated canonical persona ids already on the agent-relay chain
                         (envelope provenance for chained agent_chat_send hops)

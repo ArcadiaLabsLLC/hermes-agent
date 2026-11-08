@@ -71,6 +71,8 @@ CHAT_ERROR_KIND_WIRE = {
     "FILE_INVALID": "file_invalid",
     # RT-PENDING-ATTACHMENTS-NO-READER: a retry's re-attached file is no longer stored.
     "ATTACHMENT_MISSING": "attachment_missing",
+    "QA_TURN_OVERRIDES_REFUSED": "qa_turn_overrides_refused",
+    "QA_TURN_OVERRIDES_INVALID": "qa_turn_overrides_invalid",
     "UNKNOWN_CHAT_SESSION": "unknown_chat_session",
     "FOREIGN_CHAT_SESSION": "foreign_chat_session",
     "CHAT_BUSY": "chat_busy",

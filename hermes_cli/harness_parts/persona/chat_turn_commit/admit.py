@@ -333,7 +333,32 @@ class _AdmitPhases:
             return 2
         self.message = message
         refused = self._admit_images()
-        return refused if refused is not None else self._admit_files()
+        if refused is None:
+            refused = self._admit_files()
+        return refused if refused is not None else self._admit_qa_overrides()
+
+    def _admit_qa_overrides(self) -> int | None:
+        """RT-QA-TURN-LIMIT-OVERRIDES: the ``--qa-*`` limits, honoured only in a QA namespace under a QA pool."""
+
+        from agent_runtime.qa_turn_overrides import INVALID, QaTurnOverridesRefused, qa_turn_overrides
+
+        args = self.args
+        try:
+            self.qa_turn_overrides = qa_turn_overrides(
+                checkpoint_after_seconds=getattr(args, "qa_checkpoint_after_seconds", None),
+                max_iterations=getattr(args, "qa_max_iterations", None),
+                silence_seconds=getattr(args, "qa_silence_seconds", None),
+            )
+        except QaTurnOverridesRefused as exc:
+            kind = (ChatErrorKind.QA_TURN_OVERRIDES_INVALID if exc.error_kind == INVALID
+                    else ChatErrorKind.QA_TURN_OVERRIDES_REFUSED)
+            _mission_chat_emit(args, {
+                "ok": False, "capability_id": "mission.chat.message", "execution_state": ExecutionState.REJECTED,
+                "persona_id": self.normalized_persona, "persona_instance_id": self.instance.id,
+                "session_id": self.session_id, "error_kind": kind, "error": str(exc),
+                "next_expected": "send the message without the --qa-* flags; nothing was run"})
+            return 2
+        return None
 
     def _admit_images(self) -> int | None:
         """Pasted images: resolve the references, and refuse a model without vision before any token."""

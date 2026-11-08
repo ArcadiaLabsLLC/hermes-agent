@@ -34,6 +34,20 @@ from .tool_permissions import ChatToolPermissionStore
 __layer__ = "lanes"
 
 
+
+def _qa_request_fields(overrides) -> dict:
+    """The runner fields a QA turn's admitted overrides set (none on a real turn)."""
+
+    if overrides is None:
+        return {}
+    fields: dict = {
+        "qa_checkpoint_after_seconds": overrides.checkpoint_after_seconds,
+        "qa_silence_seconds": overrides.silence_seconds,
+    }
+    if overrides.max_iterations is not None:
+        fields["max_iterations"] = overrides.max_iterations
+    return fields
+
 class GPTPersonaRuntime:
     def __init__(
         self,
@@ -121,6 +135,9 @@ class GPTPersonaRuntime:
         compression_threshold_tokens_override: int | None = None,
         compression_protect_first_n_override: int | None = None,
         compression_protect_last_n_override: int | None = None,
+        # QA-only limit overrides (``agent_runtime.qa_turn_overrides``), already admitted by the
+        # caller; ``None`` on every real turn.
+        qa_turn_overrides=None,
     ) -> AgentRunResult:
         """Run the canonical Mission Control chat path.
 
@@ -261,6 +278,7 @@ class GPTPersonaRuntime:
                     max_wall_seconds=max_wall_seconds,
                     max_api_calls=max_api_calls,
                     max_total_tokens=max_total_tokens,
+                    **_qa_request_fields(qa_turn_overrides),
                     # Byte-stable system prompt (T5 + T9a): the volatile Runtime
                     # Situation HUD *and* the queued-skill preload ride the operator's
                     # user turn, not the codex ``instructions``, so the cross-turn
