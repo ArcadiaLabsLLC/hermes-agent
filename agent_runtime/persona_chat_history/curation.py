@@ -224,6 +224,8 @@ class _OperatorCurator:
             row["delivery_dispatch_id"] = delivery.dispatch_id
             row["delivery_notify_operator"] = delivery.notify_operator
             row["delivery_state"] = delivery.state
+            row["delivery_target_session_id"] = delivery.target_session_id
+            row["delivery_target_name"] = delivery.target_name
         elif relay_sender is not None:
             row["kind"] = PERSONA_RELAYED_MESSAGE_KIND
             row["relay_sender_persona_id"] = relay_sender.persona_id

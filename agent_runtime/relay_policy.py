@@ -33,6 +33,7 @@ import os
 import time
 from contextvars import ContextVar
 from dataclasses import dataclass
+from urllib.parse import quote, unquote
 
 __layer__ = "models"
 
@@ -311,12 +312,35 @@ class HarnessDeliveryOrigin:
     #: ``dispatch_store.TERMINAL_STATES`` vocabulary). Never ``running`` — a
     #: delivery only exists once the work settled.
     state: str = HARNESS_DELIVERY_UNKNOWN_STATE
+    #: The thread the dispatch ran in (the dispatch row's ``target_session_id``)
+    #: and the name its target is known by, so a consumer can open that thread
+    #: from the typed marker instead of parsing the prose "Their thread:" line
+    #: (RT-DELIVERY-MARKER-NO-TARGET-SESSION). ``None`` when the marker
+    #: predates them or the dispatch never opened a thread.
+    target_session_id: str | None = None
+    target_name: str | None = None
+
+
+def encode_delivery_segment(value: str | None) -> str:
+    """One free-text marker segment, percent-encoded so a ``:`` inside a
+    session id or a display name can never shift the segments after it."""
+
+    return quote((value or "").strip(), safe="")
+
+
+def decode_delivery_segment(value: str | None) -> str | None:
+    """The inverse of :func:`encode_delivery_segment`; ``None`` when empty."""
+
+    text = unquote((value or "").strip()).strip()
+    return text or None
 
 
 def build_harness_delivery_marker(
     dispatch_id: str | None,
     notify_operator: bool = False,
     state: str | None = None,
+    target_session_id: str | None = None,
+    target_name: str | None = None,
 ) -> str:
     """Encode a forged delivery turn's origin into a ``finish_reason`` marker.
 
@@ -325,14 +349,23 @@ def build_harness_delivery_marker(
     consumer never has to infer "not flagged" from a missing field; the state is
     the settled outcome, defaulting to the honest ``unknown``.
 
-    The state segment is emitted LAST so a parser written against the earlier
-    three-segment shape keeps reading the first two correctly."""
+    Each later segment is appended AFTER the ones before it, so a parser
+    written against an earlier shape keeps reading its segments correctly:
+    the state came third, then the target thread and the target's
+    name (percent-encoded, :func:`encode_delivery_segment`), emitted only when
+    a target thread is known so a marker without one keeps its old bytes."""
     dispatch = (dispatch_id or "").strip()
     settled = (state or "").strip() or HARNESS_DELIVERY_UNKNOWN_STATE
-    return (
+    marker = (
         f"{HARNESS_DELIVERY_FINISH_REASON_PREFIX}{dispatch}:"
         f"{'1' if notify_operator else '0'}:{settled}"
     )
+    if (target_session_id or "").strip():
+        marker += (
+            f":{encode_delivery_segment(target_session_id)}"
+            f":{encode_delivery_segment(target_name)}"
+        )
+    return marker
 
 
 def parse_harness_delivery_marker(value) -> HarnessDeliveryOrigin | None:
@@ -350,7 +383,13 @@ def parse_harness_delivery_marker(value) -> HarnessDeliveryOrigin | None:
     ):
         return None
     remainder = value[len(HARNESS_DELIVERY_FINISH_REASON_PREFIX):]
-    parts = remainder.split(":", 3)
+    return harness_delivery_origin_from_segments(remainder.split(":", 5))
+
+
+def harness_delivery_origin_from_segments(parts: list[str]) -> HarnessDeliveryOrigin:
+    """The one reading of a delivery's segments, shared by the ``finish_reason``
+    marker and the ``requested_by`` provenance (same order, same encoding)."""
+
     dispatch_id = parts[0].strip() if parts else ""
     flag = parts[1].strip() if len(parts) > 1 else ""
     state = parts[2].strip() if len(parts) > 2 else ""
@@ -358,6 +397,8 @@ def parse_harness_delivery_marker(value) -> HarnessDeliveryOrigin | None:
         dispatch_id=dispatch_id or None,
         notify_operator=flag == "1",
         state=state or HARNESS_DELIVERY_UNKNOWN_STATE,
+        target_session_id=decode_delivery_segment(parts[3]) if len(parts) > 3 else None,
+        target_name=decode_delivery_segment(parts[4]) if len(parts) > 4 else None,
     )
 
 
