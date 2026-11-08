@@ -56,7 +56,7 @@ def resolve_runtime(env: Mapping[str, str] | None = None) -> RuntimeResolution:
         return RuntimeResolution(root, "env", str(hermes_home), str(config_path), tuple(trace))
     trace.append("env HERMES_AGENT_RUNTIME_ROOT skipped: unset")
 
-    configured = _configured_store_root(config_path)
+    configured = _configured_store_root(config_path, own_home=env is None)
     if configured:
         root = Path(configured).expanduser()
         trace.append(f"config agent_runtime.store_root won: {root}")
@@ -129,7 +129,7 @@ def resolution_table(env: Mapping[str, str] | None = None) -> list[dict[str, obj
     resolution = resolve_runtime(env)
     source = os.environ if env is None else env
     config_path = Path(resolution.config_path)
-    configured = _configured_store_root(config_path)
+    configured = _configured_store_root(config_path, own_home=env is None)
     rows = [
         _table_row("env", source.get("HERMES_AGENT_RUNTIME_ROOT"), winner=resolution.layer == "env"),
         _table_row("config", configured, winner=resolution.layer == "config"),
@@ -161,11 +161,22 @@ def suspect_default_root(resolution: RuntimeResolution | None = None) -> bool:
     return not any((item.store_root / marker).is_dir() for marker in STORE_MARKER_DIRS)
 
 
-def _configured_store_root(config_path: Path) -> str:
-    raw = cached_yaml_file(config_path, default=None)
+def _configured_store_root(config_path: Path, *, own_home: bool = False) -> str:
+    """``agent_runtime.store_root`` from this process's config: a managed worker's frozen session
+    config when one is bound (``agent.safe_worker_policy`` — a bypass worker never opens the
+    user's ``config.yaml``), else the file. *own_home* is False for a caller-supplied env."""
+    raw = _worker_config_snapshot() if own_home else None
+    if raw is None:
+        raw = cached_yaml_file(config_path, default=None)
     if isinstance(raw, dict):
         return str((raw.get("agent_runtime") or {}).get("store_root") or "").strip()
     return ""
+
+
+def _worker_config_snapshot() -> dict | None:
+    from agent.safe_worker_policy import worker_config_snapshot
+
+    return worker_config_snapshot()
 
 
 def _table_row(layer: str, value: object, *, winner: bool) -> dict[str, object]:
