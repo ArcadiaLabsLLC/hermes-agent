@@ -42,6 +42,8 @@ def stamped_config_text(config_module) -> str | None:
 BARE_HOME_FILES = frozenset({
     "tests/agent_runtime/test_dirty_state.py",
     "tests/agent_runtime/test_root_config_hermetic.py",
+    # Searches ``tmp_path`` itself: grep's count mode lists the stamped config.yaml (2026-11-08).
+    "tests/tools/test_search_giant_line_containment.py",
 })
 
 #: Test files that write a PARTIAL ``config.yaml`` into the home through the lossless writer
@@ -49,6 +51,7 @@ BARE_HOME_FILES = frozenset({
 #: so the writer refuses it ("would lose settings omitted by this write"). Upstream tests,
 #: untouched; they get the home bare, as upstream mints it (FH-MAIN-IMPORTER-REDS-1021).
 PARTIAL_WRITER_FILES = frozenset({
+    "tests/agent/test_mcp_execution_deadline.py",
     "tests/hermes_cli/test_models_relay_base_url.py",
 })
 
