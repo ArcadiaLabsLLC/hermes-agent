@@ -381,7 +381,9 @@ def propose_monitor(args: Any, *, store: LensStore | None = None, client: Any = 
     else:
         raise LensStoreError(StoreRefusal.EXISTS)
     preview = preview_reads(manifest, client=client, resolver=resolver)
-    monitor = store.create(manifest, proposal=True, proposer=_calling_persona())
+    from .store_scope import active_workspace_id
+
+    monitor = store.create(manifest, proposal=True, proposer=_calling_persona(), workspace_id=active_workspace_id())
     if evidence:
         record_evidence(store, monitor_id, draft_digest(manifest), evidence)
     return {"monitor_id": monitor_id, "state": monitor["state"], "sealed": False,

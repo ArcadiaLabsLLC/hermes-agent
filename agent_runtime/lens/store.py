@@ -54,6 +54,9 @@ from .manifest import read_manifest
 from .seal import SealedManifest, seal_manifest
 from .wire_value import WireError, WireRefusal, canonical_bytes
 
+#: The served rows' workspace filter: a monitor's own ``workspace_id`` (``store_scope``).
+_IN_WORKSPACE = "monitor_id IN (SELECT monitor_id FROM monitors WHERE workspace_id = ?)"
+
 __layer__ = "stores"
 
 MAXIMUM_MONITORS = 64
@@ -249,6 +252,7 @@ class LensStore:
                 _add_proposal_columns(conn)
                 _add_observation_revision(conn)
                 _add_receipt_digest(conn)
+                _add_workspace_column(conn)
                 with conn:
                     yield conn
             finally:
@@ -260,14 +264,16 @@ class LensStore:
         conn.row_factory = sqlite3.Row
         return conn.execute("SELECT * FROM monitors WHERE monitor_id = ?", (monitor_id,)).fetchone()
 
-    def create(self, manifest: Any, *, proposal: bool = False, proposer: str | None = None) -> dict[str, Any]:
+    def create(self, manifest: Any, *, proposal: bool = False, proposer: str | None = None,
+               workspace_id: str | None = None) -> dict[str, Any]:
         """Write ``manifest`` as the monitor's DRAFT (new, or over an existing draft).
 
         ``proposal`` (``lens_propose``): a NEW monitor is also refused ``proposals_full`` while
         :data:`MAXIMUM_PROPOSALS` never-sealed drafts stand, or while ``proposer`` (the calling
         persona instance, when the turn names one) holds :data:`MAXIMUM_PROPOSALS_PER_PERSONA`,
         in the same transaction. Every create first retires the proposals older than
-        :data:`PROPOSAL_TTL_MS`; the operator's write over a proposal adopts it (no expiry)."""
+        :data:`PROPOSAL_TTL_MS`; the operator's write over a proposal adopts it (no expiry).
+        A NEW monitor belongs to ``workspace_id`` (``store_scope``); a rewrite keeps its own."""
 
         doc = read_manifest(manifest)
         with self._db() as conn:
@@ -279,10 +285,10 @@ class LensStore:
                     raise LensStoreError(StoreRefusal.CAPACITY)
                 if proposal:
                     _proposal_room(conn, proposer)
-                conn.execute("INSERT INTO monitors (monitor_id, state, draft, updated_ms, proposed, proposed_by) "
-                             "VALUES (?, ?, ?, ?, ?, ?)",
+                conn.execute("INSERT INTO monitors (monitor_id, state, draft, updated_ms, proposed, proposed_by, "
+                             "workspace_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
                              (doc["monitor_id"], MonitorState.DRAFT.value, canonical_bytes(doc), _now_ms(),
-                              int(proposal), proposer if proposal else None))
+                              int(proposal), proposer if proposal else None, workspace_id))
             elif row["state"] == MonitorState.RETIRED.value:
                 raise LensStoreError(StoreRefusal.RETIRED)
             elif proposal:
@@ -333,6 +339,10 @@ class LensStore:
             conn.execute("UPDATE monitors SET state = ?, updated_ms = ? WHERE monitor_id = ?",
                          (state.value, _now_ms(), monitor_id))
         self._changed("lens.monitor.changed", monitor_id=monitor_id, change="state", state=state.value)
+        if state is MonitorState.RETIRED:  # stopped for good: its open Episodes can never move again
+            from .store_scope import close_orphans
+
+            close_orphans(self, datetime.now(UTC), monitor_ids=(monitor_id,))
         return self.get(monitor_id)
 
     def _required(self, conn: sqlite3.Connection, monitor_id: str) -> sqlite3.Row:
@@ -365,6 +375,7 @@ class LensStore:
             "sealed": None if sealed is None else {**sealed.reference(), "manifest": sealed.manifest()},
             "draft": None if row["draft"] is None else json.loads(row["draft"]),
             "updated_at_ms": int(row["updated_ms"]),
+            "workspace_id": row["workspace_id"],
         }
 
     def monitors(self, *, states: tuple[MonitorState, ...] | None = None) -> list[dict[str, Any]]:
@@ -504,7 +515,7 @@ class LensStore:
                       state=episode.state.value, rule_id=episode.rule_id, ordinal=episode.ordinal)
 
     def episodes(self, *, monitor_id: str | None = None, states: tuple[str, ...] | None = None,
-                 limit: int = 256) -> list[dict[str, Any]]:
+                 limit: int = 256, workspace_id: str | None = None) -> list[dict[str, Any]]:
         if not self.exists():
             return []
         sql, args = "SELECT body FROM episodes", []
@@ -515,6 +526,9 @@ class LensStore:
         if states:
             clauses.append(f"state IN ({','.join('?' * len(states))})")
             args.extend(states)
+        if workspace_id is not None:
+            clauses.append(_IN_WORKSPACE)
+            args.append(workspace_id)
         if clauses:
             sql += " WHERE " + " AND ".join(clauses)
         sql += " ORDER BY monitor_id, rule_id, ordinal DESC LIMIT ?"
@@ -602,14 +616,19 @@ class LensStore:
         with self._db() as conn:
             return conn.execute("SELECT 1 FROM receipts WHERE episode_id = ?", (episode_id,)).fetchone() is not None
 
-    def receipts(self, *, monitor_id: str | None = None, limit: int = 32) -> list[dict[str, Any]]:
-        """Newest first."""
+    def receipts(self, *, monitor_id: str | None = None, limit: int = 32,
+                 workspace_id: str | None = None) -> list[dict[str, Any]]:
+        """Newest first; only ``workspace_id``'s monitors when it is given."""
 
         if not self.exists():
             return []
-        sql, args = _RECEIPT_READ, []
+        clauses, args = [], []
         if monitor_id is not None:
-            sql, args = sql + " WHERE r.monitor_id = ?", [monitor_id]
+            clauses, args = ["r.monitor_id = ?"], [monitor_id]
+        if workspace_id is not None:
+            clauses.append("r." + _IN_WORKSPACE)
+            args.append(workspace_id)
+        sql = _RECEIPT_READ + (" WHERE " + " AND ".join(clauses) if clauses else "")
         with self._db() as conn:
             rows = conn.execute(sql + " ORDER BY r.started_ms DESC, r.episode_id LIMIT ?",
                                 [*args, int(limit)]).fetchall()
@@ -721,6 +740,12 @@ def _expire_proposals(conn: sqlite3.Connection, now_ms: int) -> None:
     conn.executemany("UPDATE monitors SET state = ?, updated_ms = ? WHERE monitor_id = ?",
                      [(MonitorState.RETIRED.value, now_ms, monitor_id) for monitor_id in expired])
     logger.info(PROPOSALS_EXPIRED_RECEIPT, len(expired), ",".join(expired[:16]))
+
+
+def _add_workspace_column(conn: sqlite3.Connection) -> None:
+    from .store_scope import add_workspace_column
+
+    add_workspace_column(conn)
 
 
 def _add_receipt_digest(conn: sqlite3.Connection) -> None:

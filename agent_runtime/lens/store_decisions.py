@@ -8,6 +8,8 @@ time:
 * ``snooze15m`` also suppresses the rule for ``episode.SNOOZE`` (``suppressed_until``);
 * ``dismiss`` of a ``recovered`` Episode closes it (``closed_recovered``): recovery plus the
   operator's word is the settle ``episode.observe`` makes for an open, dismissed one;
+* ``dismiss`` of an ORPHANED Episode (its monitor gone, retired or paused: nothing will observe it
+  again, ``store_scope``) resolves it, so a Dismiss never leaves an Episode open forever;
 * an Episode already ``closed_recovered`` or ``resolved`` is refused ``episode_settled``;
 * a decided Episode is no longer owed its turn (``episode.needs_admission``).
 
@@ -26,6 +28,7 @@ from typing import Any
 
 from .episode import EPISODE_WRITE_ATTEMPTS, SNOOZE, Decision, Episode, EpisodeState
 from .store import LensStore, LensStoreError, StoreRefusal
+from .store_scope import is_orphaned
 
 __layer__ = "stores"
 
@@ -47,6 +50,8 @@ def decide_episode(store: LensStore, episode_id: str, decision: Decision, now: d
             decided = replace(decided, suppressed_until=now + SNOOZE)
         if decision is Decision.DISMISS and episode.state is EpisodeState.RECOVERED:
             decided = replace(decided, state=EpisodeState.CLOSED_RECOVERED)
+        elif decision is Decision.DISMISS and is_orphaned(store, episode):
+            decided = replace(decided, state=EpisodeState.RESOLVED)
         # Compare-and-set: a poller tick between the read and the write is re-read, never undone.
         if store.move_episode(episode, decided, announce=True):
             return decided.to_json()
@@ -63,17 +68,21 @@ def _stored(store: LensStore, episode_id: str) -> Episode:
     return Episode.from_json(json.loads(row[0]))
 
 
-def open_episodes(store: LensStore, *, limit: int) -> list[dict[str, Any]]:
-    """The fold's open Episodes, newest ordinal first per rule, at most ``limit`` (see the module)."""
+def open_episodes(store: LensStore, *, limit: int, workspace_id: str | None = None) -> list[dict[str, Any]]:
+    """The fold's open Episodes, newest ordinal first per rule, at most ``limit`` (see the module);
+    only ``workspace_id``'s when it is given."""
 
     if not store.exists():
         return []
     marks = ",".join("?" * len(_OPEN))
     settling = ",".join("?" * len(_SETTLING))
+    scope, scoped = ("", ()) if workspace_id is None else (
+        "AND monitor_id IN (SELECT monitor_id FROM monitors WHERE workspace_id = ?) ", (workspace_id,))
     with store.connection() as conn:
         rows = conn.execute(
             f"SELECT body FROM episodes WHERE state IN ({marks}) AND NOT (state IN (?, ?) AND "
-            f"COALESCE(json_extract(body, '$.decision'), '') IN ({settling})) "
+            f"COALESCE(json_extract(body, '$.decision'), '') IN ({settling})) {scope}"
             "ORDER BY monitor_id, rule_id, ordinal DESC LIMIT ?",
-            (*_OPEN, EpisodeState.RECOVERED.value, EpisodeState.MISSED.value, *_SETTLING, int(limit))).fetchall()
+            (*_OPEN, EpisodeState.RECOVERED.value, EpisodeState.MISSED.value, *_SETTLING, *scoped,
+             int(limit))).fetchall()
     return [json.loads(row[0]) for row in rows]
