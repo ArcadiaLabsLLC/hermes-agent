@@ -41,7 +41,7 @@ _STUDIO_TOOL = {
     "description": "List Studio projects.",
     "parameters": {"type": "object", "properties": {}},
 }
-#: The Launcher's eight refusals and the JSON-RPC code each carries.
+#: The Launcher's typed refusals and the JSON-RPC code each carries.
 _LAUNCHER_REFUSALS = {
     "unknown_function": -32601,
     "invalid_arguments": -32602,
@@ -51,6 +51,7 @@ _LAUNCHER_REFUSALS = {
     "confirmation_declined": -32004,
     "unavailable": -32005,
     "failed": -32006,
+    "unmigrated": -32012,
 }
 
 
@@ -381,6 +382,25 @@ def test_an_unlisted_launcher_word_is_still_handed_to_the_model():
     laf.refresh_app_function_tools(link)
     result = _call("launcher_navigation_open", {}, link)
     assert result["refusal"] == "rate_limited" and result["retry"] == answers.RETRY_LATER
+
+
+def test_an_unmigrated_press_is_final_and_points_at_the_function():
+    # RT-UNMIGRATED-REFUSAL-UNKNOWN: a real Haiku turn heard "a reason this
+    # runtime does not know" + retry later for a control with no door yet.
+    launcher = _TypedLauncher(refusals={"launcher.navigation.open": ("unmigrated", -32012)})
+    link = laf.LauncherLink(launcher, laf.ORIGIN_LOCAL)
+    laf.refresh_app_function_tools(link)
+    result = _call("launcher_navigation_open", {"page": "library"}, link)
+    assert (result["refusal"], result["retry"]) == ("unmigrated", answers.RETRY_NEVER)
+    assert "app function" in result["detail"] and "does not know" not in result["detail"]
+
+
+def test_the_unknown_reason_names_eternia_not_the_launcher():
+    launcher = _TypedLauncher(refusals={"launcher.navigation.open": ("rate_limited", -32099)})
+    link = laf.LauncherLink(launcher, laf.ORIGIN_LOCAL)
+    laf.refresh_app_function_tools(link)
+    detail = _call("launcher_navigation_open", {}, link)["detail"]
+    assert detail.startswith("Eternia refused") and "Launcher" not in detail
 
 
 def test_no_launcher_on_the_turn_is_a_typed_refusal():

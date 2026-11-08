@@ -1,7 +1,7 @@
 """What a Launcher app-function answer means to the model (Stage 7, harness half).
 
 The Launcher's dispatcher answers a call with ``{"data": …}`` or with a JSON-RPC
-error whose ``data.refusal`` is one of eight typed refusals
+error whose ``data.refusal`` is one of its typed refusals
 (``EterniaLauncher/lib/features/mission_control/data/app_functions/
 app_function_dispatcher.dart``, ``AppFunctionRefusal``); the runtime adds three
 of its own for a Launcher that is absent, gone or silent. This module is the
@@ -66,6 +66,14 @@ LAUNCHER_REFUSALS: Mapping[str, RefusalMeaning] = {
         RETRY_LATER, "the Launcher could not reach what this function needs right now"),
     "failed": RefusalMeaning(
         RETRY_LATER, "the function ran and failed; inspect the message before retrying"),
+    # A native control whose press does not end at a checked door yet (eternia
+    # `AppFunctionRefusal.unmigrated`, -32012; ruling
+    # OR-2026-11-06-native-controls-press-by-tag): pressing it again can never
+    # run it, but the function its controls-list line names can.
+    "unmigrated": RefusalMeaning(
+        RETRY_NEVER,
+        "this control cannot be pressed by an agent yet; do not press it again — call the app function"
+        " its launcher.ui.controls.list line names instead, or ask the person to press it"),
 }
 
 #: What this runtime answers on its own, when no Launcher answer exists.
@@ -78,7 +86,7 @@ RUNTIME_REFUSALS: Mapping[str, RefusalMeaning] = {
         RETRY_LATER, "the Launcher did not answer in time"),
 }
 
-_UNKNOWN = RefusalMeaning(RETRY_LATER, "the Launcher refused with a reason this runtime does not know")
+_UNKNOWN = RefusalMeaning(RETRY_LATER, "Eternia refused with a reason this runtime does not know")
 #: The Launcher's word for the person saying no at the approval card.
 _CONFIRMATION_DECLINED = "confirmation_declined"
 
