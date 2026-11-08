@@ -91,11 +91,13 @@ LAUNCHER_REFUSALS: Mapping[str, RefusalMeaning] = {
     # A native control whose press does not end at a checked door yet (eternia
     # `AppFunctionRefusal.unmigrated`, -32012; ruling
     # OR-2026-11-06-native-controls-press-by-tag): pressing it again can never
-    # run it, but the function its controls-list line names can.
+    # run it, but the function its controls-list line names can. The text
+    # names no entry id (R10, tests/tooling/test_no_launcher_entry_id_literals.py):
+    # the controls list's own id is read from the listed catalog, never spelled.
     "unmigrated": RefusalMeaning(
         RETRY_NEVER,
         "this control cannot be pressed by an agent yet; do not press it again — call the app function"
-        " its launcher.ui.controls.list line names instead, or ask the person to press it"),
+        " its line in the controls list names instead, or ask the person to press it"),
 }
 
 #: What this runtime answers on its own, when no Eternia answer exists.
