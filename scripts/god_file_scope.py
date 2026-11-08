@@ -169,7 +169,10 @@ def _import_from(root: Path, path: str, node: ast.ImportFrom) -> dict[str, Bindi
 def _imported(root: Path, base: str, origin: str | None, name: str) -> Binding | None:
     if module_path(root, f"{base}.{name}"):
         return ("module", "", f"{base}.{name}")
-    if origin is None or origin in _READING:
+    if origin is None:
+        return None
+    if origin in _READING:
+        _CUTS[0] += 1
         return None
     return module_bindings(root, origin).get(name)
 
@@ -189,9 +192,31 @@ def statement_bindings(root: Path, path: str, node: ast.AST) -> dict[str, Bindin
     return binder(root, path, node) if binder else {}
 
 
-@cache
+#: ``module_bindings`` answers that read no cut: the same from every caller, so shared.
+_CLEAN: dict[tuple[Path, str], Mapping[str, Binding]] = {}
+#: Answers to a top-level ask (nothing being read) that crossed a cut: the walk from THIS
+#: module, the same whichever file asked first.
+_TOP: dict[tuple[Path, str], Mapping[str, Binding]] = {}
+#: How many times an import cycle was cut (``_imported`` met a module being read).
+_CUTS = [0]
+
+
 def module_bindings(root: Path, path: str) -> Mapping[str, Binding]:
-    """What ``path`` binds at top level that G5 can reason about, re-exports followed."""
+    """What ``path`` binds at top level that G5 can reason about, re-exports followed.
+
+    Order-independent (FH-PREPUSH-CAP-TIGHT): an answer that crossed an import-cycle cut
+    depends on which module the walk entered by, so it is cached only for a top-level ask,
+    never served to a nested one. A chunked census (``scripts/census_pool.py``) therefore
+    reads exactly what the serial walk reads, whichever file each worker reaches first.
+    """
+    key = (root, path)
+    clean = _CLEAN.get(key)
+    if clean is not None:
+        return clean
+    top = not _READING
+    if top and key in _TOP:
+        return _TOP[key]
+    cuts = _CUTS[0]
     parsed = tree(root, path)
     out: dict[str, Binding] = {}
     _READING.add(path)
@@ -200,6 +225,10 @@ def module_bindings(root: Path, path: str) -> Mapping[str, Binding]:
             out.update(statement_bindings(root, path, node))
     finally:
         _READING.discard(path)
+    if _CUTS[0] == cuts:
+        _CLEAN[key] = out
+    elif top:
+        _TOP[key] = out
     return out
 
 
@@ -405,26 +434,40 @@ def visible_vocabularies(root: Path, files: Iterable[str]) -> dict[str, frozense
     vocabulary only where that vocabulary is in reach — the declaring module and
     its importers.
     """
-    trees = {path: tree(root, path) for path in files}
-    declared = {
-        module_name(path): frozenset(w for w in vocabulary_strings(parsed) if w)
-        for path, parsed in trees.items()
-        if parsed is not None
-    }
-    declared = {module: words for module, words in declared.items() if words}
+    files = list(files)
+    declared = declared_vocabularies(root, files)
     out: dict[str, frozenset[str]] = {}
-    for path, parsed in trees.items():
-        if parsed is None:
-            continue
-        seen: set[str] = set(declared.get(module_name(path), ()))
-        for module, name, _ in imports_of(path, parsed):
-            origin = _declaring_module(root, module, name, declared)
-            seen |= declared.get(origin, frozenset()) if origin else frozenset()
-        out[path] = frozenset(seen)
+    for path in files:
+        words = visible_words(root, path, declared)
+        if words is not None:
+            out[path] = words
     return out
 
 
-def _declaring_module(root: Path, module: str, name: str | None, declared: dict[str, frozenset[str]]) -> str | None:
+def declared_vocabularies(root: Path, files: Iterable[str]) -> dict[str, frozenset[str]]:
+    """``{module: words}`` — the non-empty vocabulary each of ``files`` declares itself."""
+    declared: dict[str, frozenset[str]] = {}
+    for path in files:
+        parsed = tree(root, path)
+        words = frozenset(w for w in vocabulary_strings(parsed) if w) if parsed is not None else frozenset()
+        if words:
+            declared[module_name(path)] = words
+    return declared
+
+
+def visible_words(root: Path, path: str, declared: Mapping[str, frozenset[str]]) -> frozenset[str] | None:
+    """One module's share of :func:`visible_vocabularies`; ``None`` when it does not parse."""
+    parsed = tree(root, path)
+    if parsed is None:
+        return None
+    seen: set[str] = set(declared.get(module_name(path), ()))
+    for module, name, _ in imports_of(path, parsed):
+        origin = _declaring_module(root, module, name, declared)
+        seen |= declared.get(origin, frozenset()) if origin else frozenset()
+    return frozenset(seen)
+
+
+def _declaring_module(root: Path, module: str, name: str | None, declared: Mapping[str, frozenset[str]]) -> str | None:
     """The declaring module an import reaches: the module itself, ``module.name``, or a re-export's origin."""
     for candidate in (f"{module}.{name}" if name else module, module):
         if candidate in declared:

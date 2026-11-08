@@ -53,8 +53,12 @@ from pathlib import Path
 from typing import Callable, Iterable, Iterator
 
 try:  # imported as ``scripts.god_file_probe`` (the gates)
+    from scripts import census_pool as _pool
+    from scripts import god_file_chunks as _chunks
     from scripts import god_file_scope as _scope
 except ImportError:  # run as a script: ``scripts/`` is sys.path[0]
+    import census_pool as _pool
+    import god_file_chunks as _chunks
     import god_file_scope as _scope
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -405,11 +409,11 @@ _enum_strings = _scope.enum_strings
 def vocabulary(root: Path = ROOT) -> frozenset[str]:
     """The union of every fork vocabulary, enumerated from its declarations."""
     words: set[str] = set()
-    for path in fork_production_files(root):
-        tree = _tree(root, path)
-        if tree is not None:
-            words |= _vocabulary_strings(tree)
+    for part in _pool.map_chunks(_chunks.vocabulary_chunk, fork_production_files(root), root):
+        words |= part
     return frozenset(w for w in words if w)
+
+
 
 
 def visible_vocabularies(root: Path = ROOT) -> dict[str, frozenset[str]]:
@@ -468,21 +472,16 @@ def ladder_census(root: Path = ROOT) -> dict[tuple[str, str, str, str], int]:
     (:func:`visible_vocabularies`), never the fork-wide union. Ladders and the
     alias arm read the file's :func:`god_file_scope.file_scope`.
     """
-    visible = visible_vocabularies(root)
+    files = fork_production_files(root)
+    declared: dict[str, frozenset[str]] = {}
+    for part in _pool.map_chunks(_chunks.declared_chunk, files, root):
+        declared.update(part)
     out: dict[tuple[str, str, str, str], int] = {}
-    for path in fork_production_files(root):
-        tree = _tree(root, path)
-        if tree is None:
-            continue
-        words = visible.get(path, frozenset())
-        scope = _scope.file_scope(root, path)
-        for unit in iter_units(path, tree):
-            for kind, subject, arms in _ladders_in(unit.node.body, scope.strlike):
-                key = (path, unit.qualname, kind, subject)
-                out[key] = max(out.get(key, 0), arms)
-            for word, hits in _unit_vocab(unit, words, scope).items():
-                out[(path, unit.qualname, "vocab", word)] = hits
+    for part in _pool.map_chunks(_chunks.ladder_chunk, files, root, declared):
+        out.update(part)
     return out
+
+
 
 
 def _unit_vocab(unit: Unit, words: frozenset[str], scope: _scope.FileScope | None = None) -> dict[str, int]:
@@ -597,21 +596,16 @@ def duplicate_census(root: Path = ROOT) -> tuple[set[tuple[str, ...]], dict[str,
     """
     bodies: dict[str, list[str]] = defaultdict(list)
     names: dict[str, set[str]] = defaultdict(set)
-    for path in fork_production_files(root):
-        tree = _tree(root, path)
-        if tree is None:
-            continue
-        for unit in iter_units(path, tree):
-            digest = normalized_body_hash(unit.node)
-            if digest is None:
-                continue
-            bodies[digest].append(f"{path}::{unit.qualname}")
-            name = unit.node.name
-            if unit.module_level and name.startswith("_") and not name.startswith("__"):
-                names[name].add(path)
+    for part in _pool.map_chunks(_chunks.duplicate_chunk, fork_production_files(root), root):
+        for digest, path, qualname, helper in part:
+            bodies[digest].append(f"{path}::{qualname}")
+            if helper:
+                names[helper].add(path)
     body_groups = {tuple(sorted(m)) for m in bodies.values() if len(m) > 1}
     name_groups = {n: tuple(sorted(p)) for n, p in names.items() if len(p) > 1}
     return body_groups, name_groups
+
+
 
 
 # ── W0-G6: import layers ────────────────────────────────────────────────────
