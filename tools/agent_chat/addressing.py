@@ -11,7 +11,8 @@ background delivery refused ``unknown persona QA_Agent_A``, after the sender had
 - a ``personainst_*`` handle, or an id naming a configured persona, passes as given;
 - otherwise a display name naming exactly ONE addressable instance (case and spacing ignored) is
   rewritten to that instance's handle;
-- two or more → refused ``ambiguous_persona`` with the candidates' handles;
+- two or more → refused ``ambiguous_target`` (the word and candidate shape
+  :mod:`agent_runtime.target_policy` owns) with the candidates' handles;
 - none → refused ``unsupported_persona`` listing the addressable handles — except an id-shaped target
   when NO teammate is addressable (a bare home has no roster to judge it by; the handler decides).
 """
@@ -68,10 +69,15 @@ def resolve_send_target(persona_id: str, *, requested_by_session=None) -> tuple[
     if len(matches) == 1:
         return matches[0].id, None
     if matches:
-        handles = [instance.id for instance in matches][:_LISTED]
+        from agent_runtime.target_policy import AMBIGUOUS_TARGET, TargetCandidate
+
+        listed = [TargetCandidate(instance.id, getattr(instance, "display_name", None) or instance.id)
+                  for instance in matches][:_LISTED]
         return persona_id, refusal_json(
-            f"{persona_id!r} names {len(matches)} teammates; send to one of their handles: {', '.join(handles)}.",
-            error_kind="ambiguous_persona", target_persona=persona_id, candidates=handles,
+            f"{persona_id!r} names {len(matches)} teammates; send to one of their handles: "
+            + ", ".join(candidate.instance_id for candidate in listed) + ".",
+            error_kind=AMBIGUOUS_TARGET, target_persona=persona_id,
+            candidates=[candidate.as_dict() for candidate in listed],
         )
     if not roster and safe_assignment_token(persona_id) == persona_id:
         # No roster to judge an id-shaped target against (a bare home): the handler's own check decides.
