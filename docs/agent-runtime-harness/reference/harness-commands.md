@@ -211,6 +211,7 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness characters migrate-home](#hermes-harness-characters-migrate-home)
 - [hermes harness characters status](#hermes-harness-characters-status)
 - [hermes harness characters thumb](#hermes-harness-characters-thumb)
+- [hermes harness characters cells](#hermes-harness-characters-cells)
 - [hermes harness characters base](#hermes-harness-characters-base)
 - [hermes harness characters turnaround](#hermes-harness-characters-turnaround)
 - [hermes harness characters reroll-direction](#hermes-harness-characters-reroll-direction)
@@ -525,8 +526,8 @@ options:
 ```text
 usage: hermes harness gateway pair [-h] [--name NAME] [--tier {console,read}]
                                    [--kind {device,channel}] [--instance INSTANCES]
-                                   [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
-                                   [--fields FIELDS]
+                                   [--client-scope CLIENT_SCOPE] [-o {json,table,yaml,wide}]
+                                   [--json] [-q] [--no-color] [--fields FIELDS]
 
 options:
   -h, --help            show this help message and exit
@@ -539,6 +540,9 @@ options:
                         may only relay chat turns to the --instance agents
   --instance INSTANCES  A persona instance id a channel credential is bound to (repeatable; required
                         with --kind channel)
+  --client-scope CLIENT_SCOPE
+                        The owning account's client-scope digest (64 hex; --kind channel only): the
+                        channel's conversations list under that account
   -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
@@ -3537,12 +3541,18 @@ options:
 ## hermes harness observe snapshot-builds
 
 ```text
-usage: hermes harness observe snapshot-builds [-h] [--since SINCE] [--log LOG] [--json]
+usage: hermes harness observe snapshot-builds [-h] [--since SINCE] [--log LOG]
+                                              [--qa-namespace-root QA_NAMESPACE_ROOT] [--json]
 
 options:
-  -h, --help     show this help message and exit
-  --since SINCE  Window back from now: 90s, 30m, 2h, 1d (default 1h)
-  --log LOG      agent.log to read (default <HERMES_HOME>/logs/agent.log, rotations included)
+  -h, --help            show this help message and exit
+  --since SINCE         Window back from now: 90s, 30m, 2h, 1d (default 1h)
+  --log LOG             agent.log to read (default <HERMES_HOME>/logs/agent.log, rotations included)
+  --qa-namespace-root QA_NAMESPACE_ROOT
+                        A QA lane namespace's folder (<QA folder>/hermes-namespaces/stagec-*) to
+                        read instead of this process's: its profiles/base/logs/agent.log and its
+                        agent-runtime store, read only; no namespace is resolved, so it works from
+                        outside the launcher
   --json
 ```
 
@@ -3551,8 +3561,9 @@ options:
 ```text
 usage: hermes harness observe turn-timing [-h] [--since SINCE] [--log LOG]
                                           [--launcher-log LAUNCHER_LOG] [--baseline BASELINE]
-                                          [--json] [--check] [--last LAST] [--from FROM_TIME]
-                                          [--to TO_TIME] [--budgets BUDGETS]
+                                          [--qa-namespace-root QA_NAMESPACE_ROOT] [--json] [--check]
+                                          [--last LAST] [--from FROM_TIME] [--to TO_TIME]
+                                          [--budgets BUDGETS]
 
 options:
   -h, --help            show this help message and exit
@@ -3561,6 +3572,11 @@ options:
   --launcher-log LAUNCHER_LOG
                         Launcher diag log (default: newest <temp>/eternia_launcher_diag*.log)
   --baseline BASELINE   Baseline JSON (default tests/fixtures/turn_timing_baseline.json)
+  --qa-namespace-root QA_NAMESPACE_ROOT
+                        A QA lane namespace's folder (<QA folder>/hermes-namespaces/stagec-*) to
+                        read instead of this process's: its profiles/base/logs/agent.log and its
+                        agent-runtime store, read only; no namespace is resolved, so it works from
+                        outside the launcher
   --json
   --check               Judge the last N turns' receipts against
                         agent_runtime/turn_latency_budgets.json; exit 1 on any FAIL
@@ -4090,10 +4106,10 @@ options:
 
 ```text
 usage: hermes harness characters [-h]
-                                 {start,list,backfill-home,migrate-home,status,thumb,base,turnaround,reroll-direction,approve-direction,rows,reroll-row,compose,auto,reopen,recolour,add-state,sprite,payload-contract} ...
+                                 {start,list,backfill-home,migrate-home,status,thumb,cells,base,turnaround,reroll-direction,approve-direction,rows,reroll-row,compose,auto,reopen,recolour,add-state,sprite,payload-contract} ...
 
 positional arguments:
-  {start,list,backfill-home,migrate-home,status,thumb,base,turnaround,reroll-direction,approve-direction,rows,reroll-row,compose,auto,reopen,recolour,add-state,sprite,payload-contract}
+  {start,list,backfill-home,migrate-home,status,thumb,cells,base,turnaround,reroll-direction,approve-direction,rows,reroll-row,compose,auto,reopen,recolour,add-state,sprite,payload-contract}
     start               Create a character draft at stage 'turnaround' (offline; generates nothing)
     list                List character drafts and installed characters
     backfill-home       Record `hermes_home` on library drafts that carry no home, and on no others.
@@ -4118,6 +4134,11 @@ positional arguments:
     status              Full draft state: stage, spec, per-item QA history
     thumb               Write a card-size QA crop of ONE FRAME of one row attempt (chroma keyed out,
                         NEAREST upscale on a flat dark backdrop) and return its path
+    cells               Write an APPROVED row's registered frameW x frameH cells as one strip
+                        (frames x frameW by frameH) and return its path: the cells compose packs for
+                        that row (same extraction, shared scale over every approved row, palette
+                        lock once every direction is approved), where status's approvedPath is the
+                        raw roll
     base                Set or replace the draft's base identity image
     turnaround          Generate the authored direction references (stage 'turnaround')
     reroll-direction    Re-generate ONE direction reference, with an optional operator note
@@ -4264,6 +4285,18 @@ options:
                         says square: true. Both budget booleans are weighed on the padded output.
                         Use it for a hero card; take the bare crop for a compare pair, whose panes
                         align on today's shapes
+  --json
+```
+
+## hermes harness characters cells
+
+```text
+usage: hermes harness characters cells [-h] --draft DRAFT --row ROW [--json]
+
+options:
+  -h, --help     show this help message and exit
+  --draft DRAFT
+  --row ROW      An authored row key with an approved strip, e.g. walk-e
   --json
 ```
 
