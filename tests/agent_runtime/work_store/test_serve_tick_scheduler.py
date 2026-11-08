@@ -12,6 +12,7 @@ Killing mutations (each recorded red in the B4 commit body):
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
@@ -326,7 +327,12 @@ def test_max_parallel_is_the_root_config_knob_read_each_tick(raw, cap):
     path.write_text(body, encoding="utf-8")
     scheduler, _ = _scheduler()
     assert scheduler._cap() == cap
+    first = path.stat()
     path.write_text("agent_runtime:\n  scheduler:\n    max_parallel: 2\n", encoding="utf-8")
+    # The edit lands a tick later, as a real one does (FH-SCHEDULER-CONFIG-TEST-STABILITY): the knob is
+    # read through ``parse_cache``'s (mtime, size) stamp, and a same-size rewrite inside one Windows
+    # clock tick (~15.6 ms) keeps the stamp, so the ``1``/``0`` rows read the stale parse at random.
+    os.utime(path, ns=(first.st_atime_ns, first.st_mtime_ns + 1_000_000_000))
     assert scheduler._cap() == 2  # call time: the next tick reads the edit
 
 
