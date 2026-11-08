@@ -439,6 +439,15 @@ class ProviderRefusal:
                 "model for this chat or agent, then send a NEW client_message_id — this turn is "
                 "settled and needs NO turn-resolve"
             )
+        from agent.auxiliary_unavailable import LOGIN_EXPIRED_REASON
+
+        if (self.status_code == PROVIDER_UNAVAILABLE_STATUS_CODE and self.provider
+                and self.failure_reason == LOGIN_EXPIRED_REASON):
+            return (
+                f"the {self.provider} sign-in has expired and the request never left Hermes; sign in "
+                f"again (`hermes auth add {self.provider}`), then send a NEW client_message_id — this "
+                "turn is settled and needs NO turn-resolve"
+            )
         if self.status_code == PROVIDER_UNAVAILABLE_STATUS_CODE:
             return (
                 "no model provider could take this request and it never left Hermes; "
@@ -718,12 +727,18 @@ def classify_turn_failure(
                 request_dispatched is False and isinstance(exc, ProviderNotConfiguredError)
             )
         ):
+            # The provider init resolved and found unusable rides the exception (agent_init names
+            # it, and an expired sign-in as the credentials reason): the console names that
+            # provider's sign-in door, not "no provider is configured"
+            # (RT-EXPIRED-LOGIN-REFUSAL-UNNAMED).
             return replace(
                 PROVIDER_UNAVAILABLE_OUTCOME,
                 provider_refusal=ProviderRefusal(
                     status_code=PROVIDER_UNAVAILABLE_STATUS_CODE,
                     reason=PROVIDER_UNAVAILABLE_REASON,
                     message=stripped_str(str(exc)),
+                    provider=stripped_str(getattr(exc, "provider", None)),
+                    failure_reason=stripped_str(getattr(exc, "credentials_reason", None)),
                 ),
             )
         if request_dispatched is not True and request_unsent:
