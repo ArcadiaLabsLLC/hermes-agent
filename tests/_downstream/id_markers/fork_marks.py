@@ -478,11 +478,18 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "test_follow_session_runs_the_profiles_current_toolsets_and_a_frozen_one_does_not",
             "tests/gateway/test_desktop_process_verbs.py::"
             "test_desktop_process_kill_stop_and_mcp_reload_reach_only_this_session",
-            # The lens tools defer, so the probe's no-tools request carries the bridge (as on the
-            # test_local_session_recovery row above).
-            "tests/gateway/test_local_session_lineage.py::test_real_local_lineage_survives_cold_daemon",
         )
     },
+    # The lens tools defer, so the probe's no-tools request carries the bridge (as on the
+    # test_local_session_recovery row above). Two real daemon boots: 22 s alone, past the fork's
+    # --timeout=30 under the prepush's -j 8 (a pytest-timeout kill is no xfail).
+    "tests/gateway/test_local_session_lineage.py::test_real_local_lineage_survives_cold_daemon": (
+        _fork_replaces(
+            "plugins/eternia-lens toolset 'lens' (a default-on plugin toolset whose deferred tools add the bridge)",
+            "tests/hermes_cli/test_plugin_toolset_defaults_downstream.py",
+        ),
+        pytest.mark.timeout(90),
+    ),
     # The FH-DEFER-PR-128649-SHARED-TLS carry: with no TLS setting, resolve_httpx_verify hands
     # one shared truststore context instead of ``True`` (the probe's urllib call keeps
     # upstream's no-context shape: hermes_cli.models._custom_provider_ssl_context's seam).
