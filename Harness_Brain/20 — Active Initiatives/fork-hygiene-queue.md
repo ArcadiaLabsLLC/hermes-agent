@@ -7,6 +7,11 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+## Filed on arrival — 2026-11-08 (lane w1108a-land-hm)
+
+- **`FH-SERVE-GATEWAY-AUTH-OVER-CEILING` — `agent_runtime/serve_gateway_auth.py` is 1171 lines, over the 800-code-line fork size ceiling and not grandfathered, so `tests/tooling/test_downstream_size_ceiling.py` reds on origin/main for every lane; split it to a layout (program rule 1), never a grandfather row** · `agent_runtime/serve_gateway_auth.py` · `tests/tooling/test_downstream_size_ceiling.py` · red on origin/main since `285ae65b43` (RT-EXTERNAL-GATEWAY-CHANNEL-CLIENT-SCOPE), seen by w1108b-hfh on Windows and by w1108a-land-hm on Linux 2026-11-08 · READY 2026-11-08
+- **`FH-CONTROLS-LIST-ENTRY-ID-LITERAL` — `agent_runtime/launcher_app_function_answers.py` names `launcher.ui.controls.list` in the `unmigrated` refusal text, outside `tests/tooling/test_no_launcher_entry_id_literals.py`'s ALLOWED list, so that gate reds on origin/main; either read the name from the listed catalog or add it to ALLOWED with its reason (it is the press tools' own protocol verb)** · `agent_runtime/launcher_app_function_answers.py` · `tests/tooling/test_no_launcher_entry_id_literals.py` · red on origin/main since `90896d6053` (RT-UNMIGRATED-REFUSAL-UNKNOWN), found 2026-11-08 by w1108a-land-hm · READY 2026-11-08
+
 ## Filed on arrival — 2026-11-06 (lane w1106b-hm)
 
 
