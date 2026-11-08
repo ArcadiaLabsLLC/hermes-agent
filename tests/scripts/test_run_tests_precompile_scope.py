@@ -16,6 +16,7 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -26,6 +27,15 @@ RUNNER = (REPO / "scripts" / "run_tests.sh").read_text(encoding="utf-8")
 
 pytestmark = pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
 
+#: The bash each test runs: the root conftest's ``real_bash``, never a bare ``bash`` that
+#: Windows resolves to System32's WSL launcher (FH-WINDOWS-PRECOMPILE-SHELL).
+_BASH = "bash"
+
+
+@pytest.fixture(autouse=True)
+def _real_bash(monkeypatch, real_bash):
+    monkeypatch.setattr(sys.modules[__name__], "_BASH", real_bash)
+
 
 def _function() -> str:
     match = re.search(r"^_is_small_file_run\(\) \{\n.*?^\}\n", SCRIPT, re.MULTILINE | re.DOTALL)
@@ -34,7 +44,7 @@ def _function() -> str:
 
 
 def _small(*args: str, env: dict | None = None) -> bool:
-    proc = subprocess.run(["bash", "-c", _function() + '_is_small_file_run "$@"', "_", *args],
+    proc = subprocess.run([_BASH, "-c", _function() + '_is_small_file_run "$@"', "_", *args],
                           cwd=REPO, env={"PATH": "/usr/bin:/bin", **(env or {})}, check=False)
     return proc.returncode == 0
 
