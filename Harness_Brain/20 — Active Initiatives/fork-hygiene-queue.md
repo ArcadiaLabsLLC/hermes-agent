@@ -21,7 +21,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-11-08 (lane w1108a-land-hm)
 
-- **`FH-LINUX-BOX-SCRIPTS-NEED-NODE` — on nekwo-ubuntu24 `tests/scripts` reds where the box has no Node/npm (`test_bundle_npm`, `test_desktop_build_cache`, `test_agent_build`, `test_source_build_env`, `test_source_driver` x7, `test_icon_flavors` exit, `smoke-payload.sh` exit 127), and `desktop_update/test_desktop_update_shim_profile_cleanup.py` x2 cannot read the shim's `launched-profile` (unread: may be the same prerequisite); give the Linux lanes a prepared Node or mark these gates REQUIRES node so a land lane's `tests/scripts` run reads only real reds** · `tests/scripts/` · found 2026-11-08 by w1108a-land-hm (same 17 reds on origin/main f9c9849f04 and on the rebased w1108b-hfh) · READY 2026-11-08 · REQUIRES linux · **TAKEN 2026-11-08 w1108c-hm-fh on nekwo-ubuntu24 as nekwo in hm-w1108c-fh**
 
 ## Filed on arrival — 2026-11-06 (lane w1106b-hm)
 
