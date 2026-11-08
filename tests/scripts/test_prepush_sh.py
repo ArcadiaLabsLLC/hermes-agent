@@ -1,5 +1,7 @@
 """`scripts/prepush.sh` — the one pre-push command (FH-PREPUSH-ONE-COMMAND), with a budget,
-a heartbeat, a deadline and a notification per step (FH-PREPUSH-PROGRESS-BUDGET).
+a heartbeat, a deadline and a notification per step (FH-PREPUSH-PROGRESS-BUDGET), one
+whole-run cap and sharded touched files (FH-PREPUSH-CAP-TIGHT), and an overrun ledger
+(FH-PREPUSH-OVERRUN-LEDGER).
 
 Each test copies the script into a throwaway git repository whose
 `origin/main` is pinned by `update-ref`, so the touched-test selection and the
@@ -9,6 +11,7 @@ and the doc-cite interpreter are stubs that record their argv and exit as told.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -170,10 +173,11 @@ def _wait_for(path: Path, seconds: float = 5.0) -> str:
 
 def test_the_plan_declares_every_steps_budget_and_deadline(repo: Path):
     proc, _ = _run(repo, "--plan")
-    assert "step gates — budget 10s, deadline 120s" in proc.stdout
-    assert "step doc-cite — budget 4s, deadline 60s" in proc.stdout
-    assert "step touched (the slower lane) — budget 60s, deadline 900s" in proc.stdout
+    assert "step gates — budget 10s, deadline 20s" in proc.stdout
+    assert "step doc-cite — budget 4s, deadline 10s" in proc.stdout
+    assert "step touched (the slower lane) — budget 60s, deadline 120s" in proc.stdout
     assert "default path: gates + doc-cite, budget 14s" in proc.stdout
+    assert "whole-run cap 240s" in proc.stdout
 
 
 # Mutation: delete the heartbeat ``echo`` (or the ``_notify``) in ``_watch`` -> this reds. Positive
@@ -257,7 +261,109 @@ def test_a_name_census_gate_runs_in_its_own_step_never_the_touched_lane(repo: Pa
         (repo / path).write_text("x = 5\n", encoding="utf-8")
     proc, calls = _run(repo, *census)
     assert proc.returncode == 0, proc.stdout + proc.stderr
-    assert "step census — budget 75s, deadline 600s" in proc.stdout and "✔ census" in proc.stdout
+    assert "step census — budget 30s, deadline 60s" in proc.stdout and "✔ census" in proc.stdout
     _gates, _cite, census_argv, lane_argv = (line.split() for line in calls.splitlines())
     assert sorted(p for p in census_argv if p.startswith("tests/")) == sorted(census)
     assert not set(census) & set(lane_argv) and "tests/a/test_committed.py" in lane_argv
+
+
+def _ledger(repo: Path) -> list[dict]:
+    path = repo / "_lane_logs" / "prepush_overruns.jsonl"
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()] if path.exists() else []
+
+
+# FH-PREPUSH-CAP-TIGHT. KILLING MUTATION: lift the whole-run cap (``left`` never shortens the
+# deadline) -> the 30 s sleep runs to its 60 s deadline, the run takes > 20 s and exits 1, not 3.
+@pytest.mark.timeout(60)
+def test_the_whole_run_cap_kills_the_running_step_starts_no_other_and_exits_3(repo: Path):
+    started = time.monotonic()
+    proc, calls = _run(repo, runner_body="sleep 30", env_extra={
+        "PREPUSH_CAP": "3", "PREPUSH_GATES_BUDGET": "1", "PREPUSH_GATES_DEADLINE": "60",
+        "PREPUSH_HEARTBEAT": "1", "PREPUSH_LIVE_LANES": "12"})
+    assert time.monotonic() - started < 20, proc.stdout
+    assert proc.returncode == 3, proc.stdout
+    assert "✘ prepush: gates killed at the 3s whole-run cap" in proc.stdout
+    assert "✘ prepush: doc-cite not started — the 3s whole-run cap is spent (during gates)" in proc.stdout
+    assert "touched not started" in proc.stdout
+    assert len(calls.splitlines()) == 1, calls  # only the capped step ever ran
+    last = proc.stdout.rstrip().splitlines()[-1]
+    assert last.startswith("✘ prepush: CAPPED") and "do not push" in last
+    (row,) = _ledger(repo)
+    assert row["step"] == "gates" and row["outcome"] == "capped" and row["cap_s"] == 3
+    assert row["deadline_s"] == 3 and row["live_lanes"] == 12
+    # The landing chain gates on the exit: a capped run never reaches the push.
+    chain = subprocess.run([_BASH, "-c", f'"{_BASH}" scripts/prepush.sh && echo PUSHED'], cwd=repo,
+                           env={**os.environ, "PREPUSH_CAP": "2", "PREPUSH_GATES_DEADLINE": "60",
+                                "PREPUSH_RUNNER": str(repo.parent / "runner.sh"),
+                                "PREPUSH_PYTHON": str(repo.parent / "cite.sh"), "PREPUSH_NOTIFY": "off"},
+                           capture_output=True, text=True, encoding="utf-8", stdin=subprocess.DEVNULL, check=False)
+    assert chain.returncode == 3 and "PUSHED" not in chain.stdout, chain.stdout
+
+
+def test_a_cap_that_is_not_a_whole_number_refuses_before_running(repo: Path):
+    proc, calls = _run(repo, env_extra={"PREPUSH_CAP": "0"})
+    assert proc.returncode == 2 and calls == ""
+
+
+# FH-PREPUSH-OVERRUN-LEDGER. KILLING MUTATION: skip the ledger write on a kill (drop the ``killed``
+# outcome's ``_ledger`` call) -> the kill leaves no line and the summary names no overrun.
+@pytest.mark.timeout(60)
+def test_every_overrun_and_kill_is_a_ledger_line_and_the_summary_names_its_row(repo: Path):
+    proc, _ = _run(repo, runner_body="sleep 3", env_extra={
+        "PREPUSH_GATES_BUDGET": "1", "PREPUSH_GATES_DEADLINE": "30",
+        "PREPUSH_TOUCHED_BUDGET": "1", "PREPUSH_TOUCHED_DEADLINE": "2", "PREPUSH_HEARTBEAT": "1",
+        "PREPUSH_LIVE_LANES": "7"})
+    assert proc.returncode == 1, proc.stdout
+    rows = _ledger(repo)
+    assert [(r["step"], r["outcome"]) for r in rows] == [("gates", "slow"), ("touched", "killed")], rows
+    slow, killed = rows
+    assert slow["budget_s"] == 1 and slow["deadline_s"] == 30 and slow["wall_s"] >= 3 and slow["exit"] == 0
+    assert killed["deadline_s"] == 2 and killed["exit"] != 0
+    head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=repo, capture_output=True, text=True,
+                          check=True).stdout.strip()
+    for row in rows:
+        assert row["head"] == head and row["live_lanes"] == 7 and row["cap_s"] == 240
+        assert row["load"] is None or isinstance(row["load"], float | int)
+        assert row["ts"].endswith("Z")
+    assert "prepush: 2 overrun(s)" in proc.stdout
+    assert "overrun: gates slow:" in proc.stdout and "owes row FH-PREPUSH-GATES-OVER-BUDGET" in proc.stdout
+    assert "overrun: touched killed:" in proc.stdout and "owes row FH-PREPUSH-TOUCHED-OVER-BUDGET" in proc.stdout
+    # The ledger only grows: a second run appends, never rewrites.
+    _run(repo, runner_body="sleep 2", env_extra={"PREPUSH_GATES_BUDGET": "1", "PREPUSH_HEARTBEAT": "1"})
+    assert len(_ledger(repo)) == 3
+
+
+def test_a_green_run_inside_budget_writes_no_ledger_line(repo: Path):
+    proc, _ = _run(repo)
+    assert proc.returncode == 0, proc.stdout
+    assert _ledger(repo) == [] and "overrun(s)" not in proc.stdout and "overrun:" not in proc.stdout
+
+
+# FH-PREPUSH-CAP-TIGHT, the touched lane's shards. KILLING MUTATION: send every file to ``PLAIN``
+# (drop the ``SHARD_FILES`` branch) -> the slow file runs once whole and the shard argv never appears.
+def test_a_touched_file_last_run_slow_runs_as_node_id_shards_unless_listed_unsharded(repo: Path):
+    (repo / "test_durations.json").write_text(json.dumps({
+        "tests/a/test_committed.py": 25.4, "tests/a/test_untracked.py": 3.0}), encoding="utf-8")
+    proc, calls = _run(repo)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "sharded: tests/a/test_committed.py into 3 (last run 26s)" in proc.stdout
+    lanes = calls.splitlines()[2:]
+    shards = sorted(line for line in lanes if "--hermes-shard=" in line)
+    assert shards == [f"-j 1 tests/a/test_committed.py -- -p scripts._bundle_plugin.hermes_shard --hermes-shard={i}/3"
+                      for i in range(3)], lanes
+    (plain,) = [line for line in lanes if "--hermes-shard=" not in line]
+    assert "tests/a/test_untracked.py" in plain.split() and "tests/a/test_committed.py" not in plain.split()
+    # A file whose tests depend on each other's order is never split.
+    (repo / "scripts" / "test_files_unsharded.txt").write_text(
+        "# header\ntests/a/test_committed.py  # shard 1 red\n", encoding="utf-8")
+    (repo.parent / "calls.log").unlink()
+    proc, calls = _run(repo)
+    assert proc.returncode == 0 and "sharded:" not in proc.stdout
+    assert "--hermes-shard" not in calls and "tests/a/test_committed.py" in calls.splitlines()[-1].split()
+
+
+def test_a_red_shard_reds_the_touched_step(repo: Path):
+    (repo / "test_durations.json").write_text(json.dumps({"tests/a/test_committed.py": 40}), encoding="utf-8")
+    proc, _ = _run(repo, runner_body='case "$*" in *--hermes-shard=2/4*) exit 1 ;; esac')
+    assert proc.returncode == 1, proc.stdout
+    assert "touched (exit 1)" in proc.stdout.splitlines()[-1]

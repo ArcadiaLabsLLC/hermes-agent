@@ -313,7 +313,8 @@ five habits cost about 390 minutes a day.
   gates, the docs gates or the contract dumps; those are the landing's job, once.
 - **One exception: a lane that touched Python adds the two name census gates to that same run** —
   `tests/agent_runtime/test_duplicate_helper_bodies.py` and `tests/tooling/test_no_ladder_routing.py`
-  (~50–70 s each). They walk the whole fork, so no importer `grep` and no `--affected` run reaches
+  (~7 s and ~14 s at load ~23 since their walks run in chunks over worker processes,
+  `scripts/census_pool.py`; 44 s and 62 s before, FH-PREPUSH-CAP-TIGHT). They walk the whole fork, so no importer `grep` and no `--affected` run reaches
   them from a new module, and only the lane can cheaply rename its own new names: two landings
   (f9ef5d33aa; hermes 76a5a16158, land/w1020-estore) found a lane's NEW `_read` /
   `_namespace_manifest` duplicate or NEW ladder only at the landing gate, each a fix-and-regate
@@ -338,6 +339,39 @@ five habits cost about 390 minutes a day.
 - **A CHANGE commit carries its positive control:** the defect planted on a throwaway copy, the red
   pasted into the commit body, reverted. A new gate lands with its killing mutation recorded. A
   control that has not been run is a belief.
+
+## prepush: budgets, deadlines, the whole-run cap and the overrun ledger
+
+`bash scripts/prepush.sh <tests>` (every push to `main`, CLAUDE.md § Git discipline) runs its steps under
+budgets and deadlines set from this box's measurements (FH-PREPUSH-CAP-TIGHT, w1108c-hm-prepush,
+nekwo-ubuntu24, 52 cores, 12 live lanes across the three repos, load 22–31). Each deadline is about
+twice the step's measured wall under that load; one whole-run cap bounds the run.
+
+| step | before (wall) | after (wall) | budget | deadline |
+|---|---|---|---|---|
+| gates | 4.9 s (load 31) | 4.6 s (load 22), 6.1 s (load 16) | 10 s | 20 s (was 120) |
+| doc-cite | 2.1 s (load 31) | 1.7–1.9 s | 4 s | 10 s (was 60) |
+| census (both name census gates) | 62.9 s (load 29) | 13.2 s (load 16) | 30 s (was 75) | 60 s (was 600) |
+| touched (`test_prepush_sh.py`) | 21.9 s, 14 tests (load 29) | 27.9 s, 20 tests in 4 shards (load 16) | 60 s | 120 s (was 900) |
+| **whole run** | — | — | — | **cap 240 s** (none before: up to ~28 min) |
+
+- **The cap**: a step still running when the cap is spent is killed (its process group), the steps
+  after it do not start, and the run exits **3** naming the step (`✘ prepush: CAPPED …`), so
+  `prepush.sh && git push` never pushes. A red or a deadline kill exits 1; usage 2.
+- **The census** is fast because its walks are chunked over worker processes
+  (`scripts/census_pool.py`, `HERMES_CENSUS_JOBS`, default 8; `1` = serial), never cached:
+  `god_file_scope.module_bindings` is order-independent, so a chunk reads what the serial walk reads.
+- **The touched lane shards**: a file this tree last ran in `PREPUSH_SHARD_MIN` (20) s or more runs as
+  `ceil(last / 10)` node-id shards (at most 4) side by side, by `scripts/_bundle_plugin/hermes_shard.py`,
+  unless `scripts/test_files_unsharded.txt` lists it. The record is the runner's own
+  `test_durations.json` (git-ignored), so a fresh tree's first push runs whole.
+- **The overrun ledger** (FH-PREPUSH-OVERRUN-LEDGER): every step past its budget (`slow`), killed at its
+  deadline (`killed`) or stopped by the cap (`capped`) appends one JSON line to
+  `_lane_logs/prepush_overruns.jsonl` (untracked; `PREPUSH_LEDGER` moves it): `ts`, `step`, `outcome`,
+  `budget_s`, `deadline_s`, `wall_s`, `exit`, `load`, `live_lanes` (from `PREPUSH_LIVE_LANES`, else
+  null), `head`, `cap_s`. The run ends with `prepush: N overrun(s) …` and one `overrun:` line each,
+  naming the row it owes (`FH-PREPUSH-<STEP>-OVER-BUDGET`). A lane's landing report carries those lines
+  and the row is filed the same hour; a budget moves only on an idle-box measurement.
 
 ## What a landing runs, once
 

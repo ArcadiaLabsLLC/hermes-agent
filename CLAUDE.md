@@ -135,7 +135,10 @@ batch at its landing, never per lane.
   prints its plan, then runs the queue gates, the cheap whole-tree text gates and every test file
   the branch touched, and exits non-zero on any red. Each step declares a budget and a deadline:
   past budget it heartbeats and raises a desktop notification, at the deadline it is killed and
-  named (owner 2026-10-30, `FH-PREPUSH-PROGRESS-BUDGET`). Any red is fixed before the push (owner
+  named (owner 2026-10-30, `FH-PREPUSH-PROGRESS-BUDGET`); one whole-run cap bounds the run (exit 3,
+  the push never runs) and every overrun is a line in `_lane_logs/prepush_overruns.jsonl`
+  (owner 2026-11-08, `FH-PREPUSH-CAP-TIGHT`, `FH-PREPUSH-OVERRUN-LEDGER`; the numbers:
+  `Running the tests.md` § prepush). Any red is fixed before the push (owner
   2026-10-29, adopting the launcher's 2026-10-27 rule). It is a command, not a hook.
 - A prepush step or test lane that runs past its budget gets a row in the fork-hygiene queue the
   moment it is seen (check, budget, measured time, box load) and the next wave optimises the check;

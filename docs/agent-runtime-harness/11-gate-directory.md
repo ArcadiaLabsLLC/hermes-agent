@@ -25,7 +25,7 @@ or registry entry names something real).
 
 | run | command | role |
 | --- | --- | --- |
-| pre-push | `scripts/prepush.sh [tests]` | the queue gates, the cheap text gates and the branch's touched tests, before every push to `main` (owner 2026-10-29); each step prints its budget and deadline, heartbeats and notifies past budget, is killed at its deadline (owner 2026-10-30) |
+| pre-push | `scripts/prepush.sh [tests]` | the queue gates, the cheap text gates and the branch's touched tests, before every push to `main` (owner 2026-10-29); each step prints its budget and deadline, heartbeats and notifies past budget, is killed at its deadline (owner 2026-10-30); one whole-run cap exits 3 so the push never runs, and each overrun appends a JSON line to `_lane_logs/prepush_overruns.jsonl` (owner 2026-11-08) |
 | landing gate | `scripts/run_tests_bundled.sh tests` (`--scope fork`) | every fork test plus the upstream tests the change reaches; once per batch |
 | release merge | `scripts/run_tests_bundled.sh --since-merge <merge> tests` | what the merge produced |
 | dev loop | `scripts/run_tests_bundled.sh --affected` | never a gate; skips whole-tree source walkers |
