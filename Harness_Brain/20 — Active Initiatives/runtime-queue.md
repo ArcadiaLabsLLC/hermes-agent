@@ -32,6 +32,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-11-08 (launcher lane w1108c-work: `COMP-WORK-ADD-TASK-HARNESS-NOT-CONFIRMED`)
+
+- **`RT-WORK-START-SYNCS-EVERY-BOARD` — `runtime.work.start` calls `synced(scope.workspace_id)` with no slot, so one Add fully syncs (worktree add, fetch origin, reset, stale_ok False) every bound board of the workspace before writing to one; a workspace with several remote-backed boards pays a fetch per board inside the client's reply budget (Eternia COMP-WORK-ADD-TASK-HARNESS-NOT-CONFIRMED: Add timed out at 10 s and the row still landed); sync only the target slot (`_create_target`'s board), as `_row_write` already does with `slot=`** · fork-owned · `agent_runtime/work/store.py` · found 2026-11-08 by Eternia w1108c-work (code read) · READY 2026-11-08
+
 ### Filed on arrival — 2026-11-08 (launcher lane w1108c-mc-console: `MC-USAGE-PROBE-PROCESS-PROFILE-NOT-AGENT`)
 
 - **`RT-PROVIDER-USAGE-PER-AGENT-PROFILE` — `runtime.provider.list` and `runtime.provider.usage` answer for the serve's own home only (`bound_provider_home() or get_hermes_home()`), so Eternia's Usage & limits chip asks one process-wide profile for every agent; an agent whose own `hermes_profile` holds a live login (Neko Mission Lead on the owner's Claude subscription) gets the base profile's accounts and no lane for its provider. Accept an optional agent identity (`persona_instance_id`, or `persona_id`) on both methods, resolve that persona's provider home the way a turn does (`resolve_persona_profile` + `persona_profile_context`), answer under it, and echo the resolved profile in the reply; leave the reply unchanged when the param is absent; refuse an unknown agent with a closed reason** · `agent_runtime/serve_rpc/provider.py::_runtime_provider_usage` · `agent_runtime/provider_account.py::provider_usage` · Eternia `MC-USAGE-PROBE-PROCESS-PROFILE-NOT-AGENT` waits on it · found 2026-11-08 w1108c-mc-console · READY 2026-11-08
