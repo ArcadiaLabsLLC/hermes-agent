@@ -236,7 +236,8 @@ def test_a_channel_pairing_is_bound_and_refused_while_the_external_switch_is_off
     bound code only while the switch names this namespace (D5); off, it refuses before minting."""
 
     from agent_runtime import gateway_channel
-    from agent_runtime.serve_gateway_auth import pending_codes, read_pairing
+    from agent_runtime.gateway_pairing_codes import pending_codes
+    from agent_runtime.serve_gateway_auth import read_pairing
 
     monkeypatch.setattr(gateway_channel, "external_access_on", lambda env=None: False)
     code = _dispatch(["harness", "gateway", "pair", "--kind", "channel", "--instance", "personainst_qa", "--json"])
@@ -257,7 +258,8 @@ def test_a_channel_pairing_carries_its_account_client_scope_to_the_device_row(ca
     ``client_scope`` copy in ``serve_gateway_auth._kind_fields`` → the redeemed row reads ``None``."""
 
     from agent_runtime import gateway_channel
-    from agent_runtime.serve_gateway_auth import lookup_device, pending_codes, read_pairing, redeem_pairing_code
+    from agent_runtime.gateway_pairing_codes import pending_codes
+    from agent_runtime.serve_gateway_auth import lookup_device, read_pairing, redeem_pairing_code
 
     monkeypatch.setattr(gateway_channel, "external_access_on", lambda env=None: True)
     scope = "c" * 64

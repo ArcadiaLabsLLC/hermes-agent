@@ -51,7 +51,7 @@ asked.
 
 **Stage A5 is that new caller, and the promise held: it is an edit to this file
 and not an architecture change.** A paired device (gateway plan Stage 1,
-``serve_gateway_auth.py``) arrives as :data:`CALLER_DEVICE` carrying the tier its
+``serve_gateway_auth``) arrives as :data:`CALLER_DEVICE` carrying the tier its
 record holds, and :func:`authorize_call` compares that stored word against the
 verb's declared tier. Everything A3 grandfathered is grandfathered still —
 ``_CONSOLE_KINDS`` was not touched — because a device's authority was added

@@ -79,7 +79,7 @@ profile matrix and its stages are
   it and a dead owner yields (R-L2).
 - **Paired device** — `gateway/devices.json`, one row per credential a
   LAUNCHER holds: `{device_id, name, tier, verifier, …, account_device_id}`
-  (`agent_runtime/serve_gateway_auth.py`). A launcher on another machine is a
+  (`agent_runtime/serve_gateway_auth/`). A launcher on another machine is a
   DEVICE to this runtime, at `console` tier, and that is the credential the
   cockpit's remote aim rides. One live row per account device (RL-23): a
   redeem scoped to an `account_device_id` supersedes every earlier live row

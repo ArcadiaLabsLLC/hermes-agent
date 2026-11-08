@@ -708,7 +708,7 @@ a server constructed without them is byte-identical to the one that shipped:
   fingerprint pinned by the client).
 * ``authenticator`` — ``None`` means the per-root token, i.e. the code that was
   inline here before the seam existed. The gateway lane injects a per-DEVICE
-  check (``serve_gateway_auth.py``), which is the only way a connection ever
+  check (``serve_gateway_auth/``), which is the only way a connection ever
   gets a ``device_id``/``device_tier`` stamp, which is in turn the only way
   ``call_authorization`` mints a ``device`` caller.
 

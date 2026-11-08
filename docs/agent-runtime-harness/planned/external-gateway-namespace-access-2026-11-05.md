@@ -8,7 +8,7 @@ namespace) and the serve's transports ([03-transport-and-wire.md](../03-transpor
 [09-multi-device-runtime.md](../09-multi-device-runtime.md) § Credentials, § The operator's remote turn).
 **Owner, 2026-11-05:** "im going to build my own external gateways … we need to think about how it will use it."
 **Read (code, no live run):** hermes `origin/main` `864cf9b45c` — `hermes_cli/_namespace_bootstrap.py` (the
-outside-launcher rule, the fences); `agent_runtime/serve_gateway_auth.py` (per-device credentials, tiers,
+outside-launcher rule, the fences); `agent_runtime/serve_gateway_auth/` (per-device credentials, tiers,
 revocation); `agent_runtime/call_authorization.py` (the tier is read off the caller); `agent_runtime/serve_rpc/
 chat.py::_runtime_chat_message` (a chat turn is `console` tier, and why); `gateway/platforms/base.py::
 _acquire_platform_lock` (upstream's one-holder-per-token lock); the archived row `RT-GATEWAY-SERVICE-OUTSIDE-
@@ -92,7 +92,7 @@ serve-supervised or owner-supervised? 4. Local only for now, or remote gateways 
 
 ## 4. Where it lives (under C)
 
-`agent_runtime/serve_gateway_auth.py` (the row fields; additive, an older row reads `kind: device`);
+`agent_runtime/serve_gateway_auth/` (the row fields; additive, an older row reads `kind: device`);
 `agent_runtime/call_authorization.py` (the channel rule, beside the tier predicate — the gate still reads the
 caller, never the request); a new `agent_runtime/serve_rpc/channel.py` (D2) reusing `_runtime_chat_message`'s
 admission; `hermes_cli/harness_parts/gateway_commands/` (`pair --kind channel --instance …`). Contracts
