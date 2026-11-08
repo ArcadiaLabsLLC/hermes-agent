@@ -199,8 +199,10 @@ def placed_agent(isolate_agent_runtime_root, head_home):
             id=PERSONA,
             display_name="QA Agent",
             role="qa",
-            model=None,
-            provider=None,
+            # A model the turn resolves: a model-less turn is refused before the runner since
+            # b05af3ebef (RT-NO-MODEL-CHAT-SENDS-AND-404S), and this file measures the reply lanes.
+            model="scripted-model",
+            provider="scripted",
             api_mode=None,
             system_prompt_path="",
         )
