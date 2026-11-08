@@ -10,8 +10,10 @@ what a reader greps for in the report. The map is
 from __future__ import annotations
 
 import importlib.util
+import os
 import shutil
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -183,6 +185,35 @@ _TCC_POSIX_VENV = _posix_xfail(
 _NEEDS_TMUX = pytest.mark.skipif(
     shutil.which("tmux") is None,
     reason="drives a real terminal through `tmux`, which is not on PATH; runs once it is installed",
+)
+
+#: ``node`` (Node.js), absent from the Linux box's test PATH: upstream's desktop/web build tests
+#: ``assert shutil.which("node")`` (or spawn it), so they red for the host, not the code. Runs
+#: again the day Node is on PATH (FH-LINUX-BOX-SCRIPTS-NEED-NODE, 2026-11-08).
+_NEEDS_NODE = pytest.mark.skipif(
+    shutil.which("node") is None,
+    reason="REQUIRES node: drives Node.js (`node`/`npm`), which is not on PATH; runs once it is",
+)
+
+
+def _chrome_desktop_entry_installed() -> bool:
+    data_dirs = [os.environ.get("XDG_DATA_HOME", ""),
+                 *(os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share").split(os.pathsep)]
+    return any(d and (Path(d) / "applications" / "google-chrome.desktop").is_file() for d in data_dirs)
+
+
+#: The desktop-update shim renders its UI only when ``xdg-settings get default-web-browser``
+#: names a Chromium-family browser. The test points ``mimeapps.list`` at
+#: ``google-chrome.desktop`` and puts a stub ``google-chrome`` on PATH, but both ``xdg-mime``
+#: and GNOME's ``gio`` honour a default only for an INSTALLED desktop entry: on a box with no
+#: ``google-chrome.desktop`` they answer the host's real default (Firefox, Brave), the shim
+#: skips its UI and the stub never writes ``launched-profile``. Measured 2026-11-08 on the Linux
+#: box: no entry -> ``firefox_firefox.desktop``; an entry under a prepended ``XDG_DATA_DIRS`` ->
+#: ``google-chrome.desktop`` (FH-LINUX-BOX-SCRIPTS-NEED-NODE).
+_NEEDS_CHROME_DESKTOP_ENTRY = pytest.mark.skipif(
+    shutil.which("xdg-settings") is not None and not _chrome_desktop_entry_installed(),
+    reason="REQUIRES google-chrome.desktop: xdg-settings honours the test's mimeapps.list default only for "
+    "an installed google-chrome.desktop, and this host has none, so it names the host's own browser",
 )
 
 _NEEDS_ACP = pytest.mark.skipif(
