@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -21,6 +22,15 @@ REPO = Path(__file__).resolve().parents[2]
 SCRIPT = REPO / "scripts" / "prepush.sh"
 
 pytestmark = pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
+
+#: The bash each test runs: the root conftest's ``real_bash``, never a bare ``bash`` that
+#: Windows resolves to System32's WSL launcher (FH-WINDOWS-PREPUSH-SHELL).
+_BASH = "bash"
+
+
+@pytest.fixture(autouse=True)
+def _real_bash(monkeypatch, real_bash):
+    monkeypatch.setattr(sys.modules[__name__], "_BASH", real_bash)
 
 
 def _git(root: Path, *args: str) -> None:
@@ -34,7 +44,8 @@ def _git(root: Path, *args: str) -> None:
 
 
 def _stub(path: Path, code: int, log: Path, body: str = "") -> Path:
-    path.write_text(f'#!/usr/bin/env bash\necho "$@" >> "{log}"\n{body}\nexit {code}\n', encoding="utf-8")
+    path.write_text(f'#!/usr/bin/env bash\necho "$@" >> "{log}"\n{body}\nexit {code}\n', encoding="utf-8",
+                    newline="\n")  # LF on Windows too: a stub is a bash script, never CRLF
     path.chmod(0o755)
     return path
 
@@ -69,11 +80,12 @@ def _run(repo: Path, *args: str, runner_code: int = 0, cite_code: int = 0, runne
         **(env_extra or {}),
     }
     proc = subprocess.run(
-        ["bash", str(repo / "scripts" / "prepush.sh"), *args],
+        [_BASH, str(repo / "scripts" / "prepush.sh"), *args],
         cwd=repo,
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         stdin=subprocess.DEVNULL,
         check=False,
     )
@@ -83,10 +95,11 @@ def _run(repo: Path, *args: str, runner_code: int = 0, cite_code: int = 0, runne
 
 def test_plan_names_the_queue_gates_and_every_gate_exists_in_this_repo():
     proc = subprocess.run(
-        ["bash", str(SCRIPT), "--plan"],
+        [_BASH, str(SCRIPT), "--plan"],
         cwd=REPO,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         stdin=subprocess.DEVNULL,
         check=False,
     )
@@ -167,7 +180,9 @@ def test_the_plan_declares_every_steps_budget_and_deadline(repo: Path):
 # control: the green run inside budget in ``test_exit_code_is_red_on_any_red`` prints none.
 @pytest.mark.timeout(60)
 def test_a_step_past_its_budget_heartbeats_and_notifies_once_and_still_passes(repo: Path):
-    proc, _ = _run(repo, runner_body="sleep 3", env_extra={
+    # The step outlives the 2 s heartbeat by 4 s: under Git Bash each watchdog fork costs real time
+    # the nominal ``elapsed`` does not count (FH-WINDOWS-PREPUSH-SHELL).
+    proc, _ = _run(repo, runner_body="sleep 6", env_extra={
         "PREPUSH_GATES_BUDGET": "1", "PREPUSH_GATES_DEADLINE": "30", "PREPUSH_HEARTBEAT": "1"})
     assert proc.returncode == 0, proc.stdout
     assert "… prepush: gates still running past its 1s budget (deadline 30s)" in proc.stdout
@@ -192,8 +207,11 @@ def test_a_step_at_its_deadline_is_killed_with_its_tree_and_the_run_fails_naming
     assert "gates (killed at its 2s deadline)" in proc.stdout.splitlines()[-1]
     grandchild = int(pid_file.read_text(encoding="utf-8").split()[0])
     time.sleep(0.2)
-    with pytest.raises(ProcessLookupError):
-        os.kill(grandchild, 0)
+    # ``$!`` is a pid in the SHELL's namespace (an MSYS pid under Git Bash, not a Windows one), so
+    # the shell that spoke it answers whether it lives (FH-WINDOWS-PREPUSH-SHELL).
+    probe = subprocess.run([_BASH, "-c", f"kill -0 {grandchild}"], capture_output=True,
+                           stdin=subprocess.DEVNULL, check=False)
+    assert probe.returncode != 0, f"grandchild {grandchild} survived the deadline kill"
     assert "prepush: RED" in _wait_for(repo.parent / "notified.log")
 
 
@@ -213,8 +231,9 @@ def test_without_an_explicit_interpreter_the_doc_cite_step_finds_the_shared_venv
     env = {**env, "PREPUSH_RUNNER": str(_stub(repo.parent / "runner.sh", 0, log)),
            "PREPUSH_NOTIFY": str(_stub(repo.parent / "notify.sh", 0, repo.parent / "notified.log")),
            "HERMES_TEST_VENV": str(venv)}
-    run = lambda env: subprocess.run(["bash", str(repo / "scripts" / "prepush.sh")], cwd=repo, env=env,
-                                     capture_output=True, text=True, stdin=subprocess.DEVNULL, check=False)
+    run = lambda env: subprocess.run([_BASH, str(repo / "scripts" / "prepush.sh")], cwd=repo, env=env,
+                                     capture_output=True, text=True, encoding="utf-8",
+                                     stdin=subprocess.DEVNULL, check=False)
     proc = run(env)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "venv-python" in log.read_text(encoding="utf-8")
