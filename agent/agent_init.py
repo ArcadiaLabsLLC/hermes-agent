@@ -947,21 +947,14 @@ def _routed_client_kwargs(agent, fallback_model, _provider_timeout) -> Optional[
         if _exhausted_message:
             raise ProviderCredentialsExhaustedError(_exhausted_message, provider=_explicit)
     if _explicit and _explicit not in {"auto", "openrouter", "custom"}:
-        # Explicit non-OpenRouter provider with no creds and no usable fallback: fail fast, naming
-        # the provider (and an expired sign-in) so the refusal is not read as "nothing configured".
-        from agent.auxiliary_unavailable import (
-            LOGIN_EXPIRED_REASON,
-            ProviderNotConfiguredError,
-            expired_login_message,
-            missing_provider_credentials_message,
-            pool_login_expired,
-        )
-        if _pool_exhausted and pool_login_expired(_pool):
-            raise ProviderNotConfiguredError(
-                expired_login_message(_explicit), provider=_explicit,
-                credentials_reason=LOGIN_EXPIRED_REASON,
-            )
-        raise ProviderNotConfiguredError(missing_provider_credentials_message(_explicit), provider=_explicit)
+        # fork seam: RT-EXPIRED-LOGIN-REFUSAL-UNNAMED — the refusal names the provider (and an expired
+        # sign-in), so it is not read as "nothing configured"; upstream's raise below stays as the
+        # merge anchor and is not reached.
+        from agent_runtime.provider_login_expiry import named_missing_provider_error
+        raise named_missing_provider_error(_explicit, _pool if _pool_exhausted else None)
+        # Explicit non-OpenRouter provider with no creds and no usable fallback: fail fast.
+        from agent.auxiliary_unavailable import ProviderNotConfiguredError, missing_provider_credentials_message
+        raise ProviderNotConfiguredError(missing_provider_credentials_message(_explicit))
     from hermes_constants import profile_cli_selector
     from agent.auxiliary_unavailable import ProviderNotConfiguredError
     _sel = profile_cli_selector()

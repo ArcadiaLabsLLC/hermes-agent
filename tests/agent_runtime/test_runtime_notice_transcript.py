@@ -78,12 +78,19 @@ def test_the_iteration_limit_nudge_is_a_runtime_notice_not_an_operator_message(m
         helpers.handle_max_iterations(agent, messages, 3)
     except Exception:
         pass
+    # Upstream appends the nudge as a plain role-user row (its own bytes); the transcript types it
+    # on read, by its content (FH-UPSTREAM-FOOTPRINT-UNLEDGERED-AUX-UNAVAILABLE).
     nudge = next(m for m in messages if m.get("content") == MAX_ITERATIONS_SUMMARY_REQUEST)
     assert nudge["role"] == "user"
-    assert nudge["display_kind"] == "runtime_notice"
-    assert nudge["display_metadata"] == {"display_text": "Tool-iteration limit reached",
-                                         "notification_category": "diagnostic", "steering": True}
     projected = _project([messages[0], nudge])
     assert [m["kind"] for m in projected] == ["operator_message", "runtime_notice"]
     assert projected[1]["display_title"] == "Tool-iteration limit reached"
     assert projected[1]["display_text"] == MAX_ITERATIONS_SUMMARY_REQUEST
+
+
+def test_an_operator_row_that_only_resembles_the_nudge_stays_the_operators():
+    from agent.context_compressor import MAX_ITERATIONS_SUMMARY_REQUEST
+
+    projected = _project([{"role": "user", "content": MAX_ITERATIONS_SUMMARY_REQUEST + " please",
+                           "platform_message_id": "prompt"}])
+    assert [m["kind"] for m in projected] == ["operator_message"]

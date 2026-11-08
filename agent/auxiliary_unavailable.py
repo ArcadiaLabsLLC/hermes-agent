@@ -177,40 +177,6 @@ def pool_billing_message(
     )
 
 
-#: The credentials reason of a refusal whose provider's sign-in itself is gone: every usable entry
-#: is spent and an OAuth login in the pool went DEAD when its refresh grant was rejected terminally
-#: (``invalid_grant`` and kin). Rides the refusal block's ``failure_reason``
-#: (RT-EXPIRED-LOGIN-REFUSAL-UNNAMED), so a client can say "sign in again", not "configure one".
-LOGIN_EXPIRED_REASON = "login_expired"
-
-
-def pool_login_expired(pool: Optional[Any]) -> bool:
-    """True when ``pool`` has no usable entry and holds an OAuth login that went DEAD.
-
-    DEAD is the pool's word for a credential rejected permanently server-side; on an OAuth row it
-    is the refresh grant (``_mark_dead_refresh_grant``) or a terminal 401 reason, both "the login
-    expired". An API-key row going DEAD is a rejected key, not an expired sign-in, so it does not
-    count. Never raises: a pool that cannot be read is not proof of anything.
-    """
-    if pool is None:
-        return False
-    from agent.credential_pool import AUTH_TYPE_OAUTH, STATUS_DEAD
-
-    try:
-        if pool.has_available():
-            return False
-        return any(e.auth_type == AUTH_TYPE_OAUTH and e.last_status == STATUS_DEAD for e in pool.entries())
-    except Exception:
-        return False
-
-
-def expired_login_message(provider_id: str) -> str:
-    """The "Provider 'X' sign-in has expired" error for a pool whose login went DEAD."""
-    return (f"Provider '{provider_id}' sign-in has expired: its refresh token was rejected. "
-            f"Run `hermes auth add {provider_id}` to sign in again, or switch to a different "
-            "provider with `hermes model`.")
-
-
 class ProviderNotConfiguredError(RuntimeError):
     """Agent init found no usable inference provider: nothing is configured, or the explicitly
     configured one has no credentials.
@@ -219,18 +185,7 @@ class ProviderNotConfiguredError(RuntimeError):
     setup / onboarding flow. The wording of the two messages has changed more than once, so a
     client that recognises this failure by matching their text silently stops routing (#119232's
     sibling); the type and the gateway's ``code`` survive rewording.
-
-    ``provider`` is the explicitly configured provider that has no usable credential (``None`` when
-    nothing is configured at all), and ``credentials_reason`` is :data:`LOGIN_EXPIRED_REASON` when
-    its sign-in expired: the turn's refusal block carries both, so the console names the provider
-    and its sign-in door instead of "no provider is configured" (RT-EXPIRED-LOGIN-REFUSAL-UNNAMED).
     """
-
-    def __init__(self, message: str, *, provider: Optional[str] = None,
-                 credentials_reason: Optional[str] = None):
-        super().__init__(message)
-        self.provider = provider
-        self.credentials_reason = credentials_reason
 
 
 def missing_provider_credentials_message(provider_id: str) -> str:

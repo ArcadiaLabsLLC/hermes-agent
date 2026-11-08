@@ -40,7 +40,7 @@ def _refuse(monkeypatch, pool):
 
 
 def test_a_dead_oauth_login_is_refused_named_and_expired(monkeypatch):
-    from agent.auxiliary_unavailable import LOGIN_EXPIRED_REASON
+    from agent_runtime.provider_login_expiry import LOGIN_EXPIRED_REASON
 
     dead = _credential("oauth", last_status=STATUS_DEAD, last_error_reason="invalid_grant")
     exc = _refuse(monkeypatch, CredentialPool("anthropic", [dead]))
@@ -64,10 +64,10 @@ def test_no_credential_at_all_still_names_the_configured_provider(monkeypatch):
 
 
 def test_the_turn_refusal_block_carries_the_provider_and_the_expiry():
-    from agent.auxiliary_unavailable import LOGIN_EXPIRED_REASON, ProviderNotConfiguredError
     from agent_runtime.mission_chat_outcome import ChatErrorKind, classify_turn_failure
+    from agent_runtime.provider_login_expiry import LOGIN_EXPIRED_REASON, NamedProviderNotConfiguredError
 
-    exc = ProviderNotConfiguredError("expired", provider="anthropic", credentials_reason=LOGIN_EXPIRED_REASON)
+    exc = NamedProviderNotConfiguredError("expired", provider="anthropic", credentials_reason=LOGIN_EXPIRED_REASON)
     outcome = classify_turn_failure(exc, provider_submitted=True, request_started=False)
 
     assert outcome.error_kind == ChatErrorKind.CHAT_TURN_PROVIDER_UNAVAILABLE

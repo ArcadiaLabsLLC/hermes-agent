@@ -439,7 +439,7 @@ class ProviderRefusal:
                 "model for this chat or agent, then send a NEW client_message_id — this turn is "
                 "settled and needs NO turn-resolve"
             )
-        from agent.auxiliary_unavailable import LOGIN_EXPIRED_REASON
+        from agent_runtime.provider_login_expiry import LOGIN_EXPIRED_REASON
 
         if (self.status_code == PROVIDER_UNAVAILABLE_STATUS_CODE and self.provider
                 and self.failure_reason == LOGIN_EXPIRED_REASON):

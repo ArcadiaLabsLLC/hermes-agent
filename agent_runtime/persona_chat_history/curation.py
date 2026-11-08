@@ -118,6 +118,7 @@ def _safe_curated_messages(
     for index, raw in enumerate(raw_messages or []):
         if not isinstance(raw, dict):
             continue
+        raw = _typed_iteration_limit_nudge(raw)
         role = MessageRole.from_wire(raw.get("role"))
         curator = ROLE_CURATORS.get(role) if role is not None else None
         if curator is not None:
@@ -125,6 +126,31 @@ def _safe_curated_messages(
     # Third element ``None``: the transcript WAS read, so "safe" here is an
     # observation about content that actually passed through the redactor.
     return state.finish(), "redacted" if state.redacted else "safe", None
+
+
+#: How the tool-iteration limit's summary request reads in the transcript: a harness notice, not
+#: the operator's own message (RT-ITERATION-LIMIT-NUDGE-STORED-AS-USER).
+_ITERATION_LIMIT_NOTICE = MappingProxyType({
+    "display_text": "Tool-iteration limit reached", "notification_category": "diagnostic", "steering": True,
+})
+
+
+def _typed_iteration_limit_nudge(raw: dict[str, Any]) -> dict[str, Any]:
+    """The iteration-limit nudge row, typed as a runtime notice; any other row unchanged.
+
+    Upstream ``handle_max_iterations`` appends the nudge as a plain role-user row whose content is
+    :data:`agent.context_compressor.MAX_ITERATIONS_SUMMARY_REQUEST` — the stable key the compaction
+    recognizers read it by, too. Typing it here, on read, keeps the upstream file at its own bytes
+    (FH-UPSTREAM-FOOTPRINT-UNLEDGERED-AUX-UNAVAILABLE); a row already typed is left alone.
+    """
+
+    if raw.get("display_kind") or raw.get("role") != "user":
+        return raw
+    from agent.context_compressor import MAX_ITERATIONS_SUMMARY_REQUEST
+
+    if raw.get("content") != MAX_ITERATIONS_SUMMARY_REQUEST:
+        return raw
+    return {**raw, "display_kind": PERSONA_RUNTIME_NOTICE_KIND, "display_metadata": dict(_ITERATION_LIMIT_NOTICE)}
 
 
 def _read_raw_messages(session_db: Any, session_id: str) -> Any:
