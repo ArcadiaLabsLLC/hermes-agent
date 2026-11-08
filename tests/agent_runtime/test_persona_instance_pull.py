@@ -418,6 +418,34 @@ def test_the_store_door_cannot_express_importing_a_live_binding():
     assert after.default_chat_session_id == local.default_chat_session_id
 
 
+def test_the_mint_arm_cannot_express_importing_a_live_binding_either():
+    """The same contract on the MINT arm, where it is the door's alone.
+
+    On the adopt arm the store's replication write re-reads the stored row and copies only the
+    travel allowlist onto it, so the door's own allowlist is shadowed there; a minted row has no
+    stored row yet, so the door's allowlist is the one thing between a peer's run binding and this
+    machine (claim ``ir-h3-the-store-door-writes-the-whole-remote-body``,
+    FH-MUTATION-CLAIM-IR-H3-UNANCHORED).
+    """
+
+    _realm_workspace()
+    minted = PersonaInstanceStore().replicate_instance(
+        {
+            **_body(),
+            "active_run_id": "run_from_a_peer",
+            "chat_head_home": "somebody_elses_profile",
+            "token_budget_used": 999999,
+        },
+        realm_id="realm_home",
+    )
+
+    after = PersonaInstanceStore().get(INSTANCE_ID)
+    assert minted.display_name == after.display_name == "Neko", "the travelling surface did not land"
+    assert after.active_run_id is None
+    assert after.chat_head_home != "somebody_elses_profile"
+    assert after.token_budget_used != 999999
+
+
 # ── §3.4 the ordering hazard ──────────────────────────────────────────────
 
 
