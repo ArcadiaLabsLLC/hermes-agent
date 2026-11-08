@@ -116,6 +116,15 @@ def _shared_context(ca_path: str | None, union: bool = False) -> ssl.SSLContext:
         return ctx
 
 
+def is_carried_default_context(verify: Any) -> bool:
+    """True for the one context :func:`resolve_httpx_verify` hands a caller with no TLS setting under
+    truststore (the FH-DEFER-PR-128649-SHARED-TLS carry: certifi unioned onto the platform store, so
+    httpx shares one transport pool). It is ``verify=True``'s trust, so a urllib caller that keyed on
+    ``verify is True`` keeps upstream's call shape (no ``ssl_context``); retires with the carry."""
+    with _CA_CONTEXTS_LOCK:
+        return any(ctx is verify for (_, union), ctx in _CA_CONTEXTS.items() if union)
+
+
 def platform_ssl_context() -> ssl.SSLContext:
     """The process-wide client context (cheap after the first call).
 

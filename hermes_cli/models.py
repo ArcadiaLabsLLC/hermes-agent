@@ -132,6 +132,8 @@ def _custom_provider_ssl_context(base_url: str):
     from agent.model_metadata_http import resolve_verify
 
     verify = resolve_verify(base_url)
+    from agent.ssl_verify import is_carried_default_context  # fork seam: FH-W1108C-WAVE-END-REDS
+    verify = True if is_carried_default_context(verify) else verify  # fork seam: the shared default is verify=True
     if verify is True:
         return None
     if verify is False:
