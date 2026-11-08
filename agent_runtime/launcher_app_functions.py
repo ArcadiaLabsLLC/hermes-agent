@@ -213,7 +213,7 @@ class AppFunctionEntry:
 
         description = self.description
         if self.requires_confirmation:
-            description = (f"{description} Needs the person's approval at the Launcher before it "
+            description = (f"{description} Needs the person's approval in Eternia before it "
                            "runs; the call waits for their answer.").strip()
         return {"name": self.name, "description": description, "parameters": self.parameters}
 
@@ -224,7 +224,7 @@ def call_app_function(entry: AppFunctionEntry, args: Mapping[str, Any]) -> str:
     link = current_launcher_link()
     if link is None:
         answer = refusal_result(refusal="no_launcher", code=_NO_LAUNCHER_CODE,
-                                message="no Launcher is attached to this turn; app functions are unavailable",
+                                message="Eternia is not attached to this turn; app functions are unavailable",
                                 requires_confirmation=entry.requires_confirmation)
         return json.dumps(answer, ensure_ascii=False)
     try:
