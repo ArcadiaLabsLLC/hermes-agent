@@ -209,11 +209,18 @@ def note_meta(path: Path) -> dict[str, Any]:
     return {"program": program or None, "title": title}
 
 
+#: ``project``'s "read the note's commit time yourself" default; a caller listing a whole note passes
+#: the one value every row of it shares.
+_READ_COMMITTED_AT: Any = object()
+
+
 def project(row: Row, writer: Writer | None, *, context=None, detail: bool = False,
-            program: str | None = None) -> dict[str, Any]:
+            program: str | None = None, committed_at: Any = _READ_COMMITTED_AT) -> dict[str, Any]:
     body = brief_text(row, writer.worktree if writer else None) if detail else ""
     if program is None and writer is not None:
         program = note_meta(writer.worktree / row.ref.note)["program"]
+    if committed_at is _READ_COMMITTED_AT:
+        committed_at = writer.note_committed_at(row.ref.note) if writer else None
     taken = row.taken
     value = {
         "id": row.ref.id, "slot": row.ref.slot, "program": program, "note": row.ref.note, "line": row.line_no,
@@ -228,7 +235,7 @@ def project(row: Row, writer: Writer | None, *, context=None, detail: bool = Fal
         "body": body[:BODY_LIMIT], "body_truncated": len(body) > BODY_LIMIT, "result": "",
         "result_truncated": False,
         "in_conversation": bool(context and context.assignee and taken and taken.who == context.assignee),
-        "updated_at": writer.note_committed_at(row.ref.note) if writer else None,
+        "updated_at": committed_at,
     }
     value["revision"] = fingerprint(value)
     return value
@@ -303,7 +310,10 @@ def list_work(scope, params, *, context=None, assignees: frozenset[str] | None =
 
 
 def _queues(board: Board, writer: Writer | None, keep, context) -> list[dict[str, Any]]:
-    """One entry per ``type: queue`` note (a domain), its rows filtered; an empty domain is still listed."""
+    """One entry per ``type: queue`` note (a domain), its rows filtered; an empty domain is still listed.
+
+    Every row of a note shares the note's commit time, so it is read ONCE per note, not once per row:
+    the per-row ``git log`` was the ~5 s of a 622-row board's list (RT-WORK-LIST-OWNER-SIZE-5S)."""
 
     if writer is None or board.read_root is None:
         return []
@@ -311,9 +321,11 @@ def _queues(board: Board, writer: Writer | None, keep, context) -> list[dict[str
     for path in boards_store.notes(board):
         note = path.relative_to(board.read_root).as_posix()
         meta = note_meta(path)
-        rows = parse_note(path.read_bytes().decode("utf-8"), slot=board.slot, note=note)
-        out.append({"note": note, **meta, "rows": [project(row, writer, context=context, program=meta["program"])
-                                                   for row in rows if keep(row)]})
+        rows = [row for row in parse_note(path.read_bytes().decode("utf-8"), slot=board.slot, note=note)
+                if keep(row)]
+        committed_at = writer.note_committed_at(note) if rows else None
+        out.append({"note": note, **meta, "rows": [project(row, writer, context=context, program=meta["program"],
+                                                           committed_at=committed_at) for row in rows]})
     return out
 
 

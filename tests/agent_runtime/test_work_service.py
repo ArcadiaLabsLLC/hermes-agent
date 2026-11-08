@@ -375,3 +375,23 @@ def test_an_agents_todo_is_a_view_over_every_board_it_can_see(work):
     with pytest.raises(WorkRefused) as no_one:
         service.execute("list", {**work.scope, "kind": "agent"}, STDIO_OWNER)
     assert no_one.value.reason is Reason.INVALID
+
+
+def test_list_reads_a_notes_commit_time_once_not_once_per_row(work, monkeypatch):
+    # RT-WORK-LIST-OWNER-SIZE-5S: a `git log` per ROW was ~5 s on a 622-row board; every row of a
+    # note shares the note's commit time, so the list asks once per note (plus the board's own).
+    from agent_runtime.work_store.writer import Writer
+
+    ids = [start(work, f"q{n}", title=f"Row {n}")["task"]["id"] for n in range(4)]
+    asked = []
+    real = Writer.note_committed_at
+    monkeypatch.setattr(Writer, "note_committed_at", lambda self, note: asked.append(note) or real(self, note))
+    listed = call(work, "list")
+    (board,) = listed["boards"]
+    (queue,) = board["queues"]
+    assert [row["id"] for row in queue["rows"]] == ids
+    assert sorted(asked) == sorted([board["brain_dir"], queue["note"]])
+    inspected = call(work, "inspect", slot="brain", task_id=ids[0])["task"]
+    assert {row["updated_at"] for row in queue["rows"]} == {inspected["updated_at"]} != {None}
+    assert queue["rows"][0]["revision"] == next(
+        row for row in rows_of(call(work, "list", status="READY")) if row["id"] == ids[0])["revision"]
