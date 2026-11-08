@@ -56,6 +56,16 @@ from agent_runtime.store import WorkspaceStore
 from tests._downstream import _seams
 
 
+@pytest.fixture(autouse=True)
+def _fresh_stamps_memoize(monkeypatch):
+    """These rows pin how often a file is parsed, on files written a moment ago: the racy-stamp
+    window (``parse_cache.RACY_STAMP_NS``, RT-PARSE-CACHE-SAME-TICK-REWRITE) is closed for them;
+    ``test_parse_cache`` proves the window itself."""
+    from agent_runtime import parse_cache as _parse_cache
+
+    monkeypatch.setattr(_parse_cache, "RACY_STAMP_NS", 0)
+
+
 # --------------------------------------------------------------------------- #
 # Drivers — the REAL writers, each left in its post-write state inside the block
 # --------------------------------------------------------------------------- #
