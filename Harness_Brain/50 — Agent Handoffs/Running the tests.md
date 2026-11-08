@@ -373,6 +373,17 @@ twice the step's measured wall under that load; one whole-run cap bounds the run
   naming the row it owes (`FH-PREPUSH-<STEP>-OVER-BUDGET`). A lane's landing report carries those lines
   and the row is filed the same hour; a budget moves only on an idle-box measurement.
 
+## The daily full run
+
+`bash scripts/daily_full_run.sh --out=<dir>` (FH-DAILY-FULL-RUN, owner 2026-11-08) is the once-a-day
+breadth run; Eternia's daily run (`tool/daily/full_run.dart`, row `QA-DAILY-RUN-HERMES-STEPS`) calls it.
+Steps: `suite` (`scripts/run_tests.sh`, every file once), `gates` and `census` (the lists
+`scripts/prepush.sh --list-gates` / `--list-census` print, so a push and the daily run hold the same
+gates), `doc-cite`, `tooling` (`tests/tooling`). Each writes `<dir>/<step>.log` ending `EXIT=<code>`
+under its own timeout (`DAILY_<STEP>_TIMEOUT`); every step runs after a red; `<dir>/summary.txt`
+names each red, the red files its log names, and the row it owes. Every red is filed and fixed the
+same day, on `main` already or not. `--dry-run` prints the plan; `--only=<step>,…` runs a subset.
+
 ## What a landing runs, once
 
 **One landing gate (`--scope fork`) per BATCH, never per lane** (owner ruling 2026-10-06, after waves 11–13 each paid a

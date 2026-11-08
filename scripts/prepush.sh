@@ -53,6 +53,8 @@
 #   scripts/prepush.sh tests/foo/test_x.py  # plus the tests that use your symbol
 #   scripts/prepush.sh --plan               # print the plan and exit 0
 #   scripts/prepush.sh -j 4 ...             # worker cap (default 8)
+#   scripts/prepush.sh --list-gates         # the gates step's files, one per line (and
+#   scripts/prepush.sh --list-census        #   the census gates): scripts/daily_full_run.sh reads them
 #
 # Environment:
 #   PREPUSH_NOTIFY        `off`, or a command run as `<cmd> <title> <body>`
@@ -148,8 +150,10 @@ EXTRA=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --plan) PLAN_ONLY=1 ;;
+    --list-gates) printf '%s\n' "${PREPUSH_QUEUE_GATES[@]}" "${PREPUSH_TEXT_GATES[@]}"; exit 0 ;;
+    --list-census) printf '%s\n' "${PREPUSH_CENSUS_GATES[@]}"; exit 0 ;;
     -j|--jobs) shift; JOBS="${1:?-j needs a number}" ;;
-    -h|--help) sed -n '2,79p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    -h|--help) sed -n '2,75p' "${BASH_SOURCE[0]}"; exit 0 ;;
     -*) echo "prepush: unknown option $1" >&2; exit 2 ;;
     *) EXTRA+=("$1") ;;
   esac
