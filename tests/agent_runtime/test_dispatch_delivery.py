@@ -146,6 +146,40 @@ def test_the_forged_turn_carries_the_dispatch_identity_for_attribution(
     assert call["notify_operator"] is True
 
 
+def test_the_forged_turn_carries_the_target_thread(
+    store_home, resolvable_sender, idle_sender
+):
+    """RT-DELIVERY-MARKER-NO-TARGET-SESSION: the thread rides typed, not in prose."""
+
+    _completed()
+    forge = _Forge()
+
+    drain_once(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender), forge=forge)
+
+    assert forge.calls[0]["target_session_id"] == "persona_chat_personainst_dev_bbbbbbbbbbbb"
+    assert "target_name" in forge.calls[0]
+
+
+def test_the_forge_stamps_the_target_thread_on_the_turns_provenance(monkeypatch):
+    from agent_runtime.dispatch_delivery import forge as forge_module
+
+    seen = {}
+
+    def _turn(args):
+        seen["requested_by"] = args.requested_by
+        return 0, {"ok": True}
+
+    monkeypatch.setattr(forge_module, "run_mission_chat_turn", _turn)
+    forge_module.forge_delivery_turn(
+        root_session_id=SENDER_ROOT, persona_id="neko_supervisor", persona_instance_id="personainst_neko",
+        message="done", client_message_id="cm-1", dispatch_id="dispatch-abc", state="completed",
+        target_session_id="persona_chat_personainst_dev_b", target_name="Dev",
+    )
+
+    origin = dispatch_delivery.parse_delivery_requested_by(seen["requested_by"])
+    assert (origin.target_session_id, origin.target_name) == ("persona_chat_personainst_dev_b", "Dev")
+
+
 def test_an_unflagged_dispatch_forges_an_unflagged_delivery(
     store_home, resolvable_sender, idle_sender
 ):

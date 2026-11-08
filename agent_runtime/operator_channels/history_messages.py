@@ -354,6 +354,12 @@ def _delivery_block(row: dict[str, Any]) -> dict[str, Any]:
         "dispatch_id": safe_assignment_text(row.get("delivery_dispatch_id"), limit=200) or "",
         "notify_operator": bool(row.get("delivery_notify_operator")),
         "state": safe_assignment_token(row.get("delivery_state")) or HARNESS_DELIVERY_UNKNOWN_STATE,
+        # RT-DELIVERY-MARKER-NO-TARGET-SESSION: the thread the dispatch ran in
+        # and its target's name, so the row can open that thread without
+        # parsing the prose "Their thread:" line. "" when the marker predates
+        # them or the dispatch never opened a thread.
+        "target_session_id": safe_assignment_text(row.get("delivery_target_session_id"), limit=200) or "",
+        "target_name": safe_assignment_text(row.get("delivery_target_name"), limit=160) or "",
     }
 
 

@@ -181,7 +181,9 @@ def test_the_read_side_types_a_delivery_row_and_leaves_the_others_alone():
                 "id": "m1",
                 "role": "user",
                 "content": "[BACKGROUND DISPATCH COMPLETE — dispatch-abc123]",
-                "finish_reason": build_harness_delivery_marker("dispatch-abc123", True),
+                "finish_reason": build_harness_delivery_marker(
+                    "dispatch-abc123", True, None, "persona_chat_personainst_dev_b", "Dev"
+                ),
                 "platform_message_id": "dispatch-delivery-dispatch-abc123",
                 "created_at": "2026-08-03T00:00:00Z",
             },
@@ -213,6 +215,8 @@ def test_the_read_side_types_a_delivery_row_and_leaves_the_others_alone():
     assert delivered[0]["role"] == "operator"
     assert delivered[0]["delivery_dispatch_id"] == "dispatch-abc123"
     assert delivered[0]["delivery_notify_operator"] is True
+    assert delivered[0]["delivery_target_session_id"] == "persona_chat_personainst_dev_b"
+    assert delivered[0]["delivery_target_name"] == "Dev"
     # A delivery is NOT a relay and must not acquire a sending agent.
     assert "relay_sender_persona_id" not in delivered[0]
 
@@ -273,7 +277,52 @@ def test_a_delivery_projects_as_a_delivery_not_as_the_operator():
         "dispatch_id": "dispatch-abc123",
         "notify_operator": True,
         "state": "unknown",
+        "target_session_id": "",
+        "target_name": "",
     }
+
+
+def test_a_delivery_serves_its_target_thread_in_the_block():
+    """RT-DELIVERY-MARKER-NO-TARGET-SESSION: Open thread from the block, not prose."""
+
+    message = _project(
+        _history_row(
+            kind=PERSONA_HARNESS_DELIVERY_KIND,
+            delivery_dispatch_id="dispatch-abc123",
+            delivery_target_session_id="persona_chat_personainst_dev_b",
+            delivery_target_name="Dev: Backend",
+        )
+    )
+
+    assert message["delivery"]["target_session_id"] == "persona_chat_personainst_dev_b"
+    assert message["delivery"]["target_name"] == "Dev: Backend"
+
+
+def test_the_target_thread_survives_forge_to_marker_to_row():
+    """The whole chain: requested_by -> handler marker -> parsed origin. A colon
+    inside a name or a session id must not shift any segment."""
+
+    marker = _marker_for(
+        dispatch_delivery.delivery_requested_by(
+            "dispatch-abc123",
+            notify_operator=True,
+            state="error",
+            target_session_id="persona_chat:dev:b",
+            target_name="Dev: Backend",
+        )
+    )
+
+    origin = parse_harness_delivery_marker(marker)
+    assert (origin.dispatch_id, origin.notify_operator, origin.state) == ("dispatch-abc123", True, "error")
+    assert origin.target_session_id == "persona_chat:dev:b"
+    assert origin.target_name == "Dev: Backend"
+
+
+def test_a_delivery_with_no_target_thread_keeps_its_old_marker_bytes():
+    assert build_harness_delivery_marker("dispatch-abc123", True, "error") == (
+        "harness_delivery:dispatch-abc123:1:error"
+    )
+    assert parse_harness_delivery_marker("harness_delivery:dispatch-abc123:1:error").target_session_id is None
 
 
 def test_an_unflagged_delivery_says_so_explicitly():

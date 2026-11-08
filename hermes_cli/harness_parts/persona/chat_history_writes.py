@@ -155,7 +155,11 @@ def _resolve_relay_sender_marker(
     delivery = _dispatch_delivery.parse_delivery_requested_by(requested_by)
     if delivery is not None:
         return _relay_policy.build_harness_delivery_marker(
-            delivery.dispatch_id, delivery.notify_operator, delivery.state
+            delivery.dispatch_id,
+            delivery.notify_operator,
+            delivery.state,
+            delivery.target_session_id,
+            delivery.target_name,
         )
     from agent_runtime.lens.provenance import parse_lens_requested_by
 

@@ -19,7 +19,13 @@ from .accounting import (
     read_delivery_drain_state,
 )
 from .completions import drain_background_completions
-from .forge import DEFAULT_DRAIN_POLICY, DrainPolicy, forge_delivery_turn, format_dispatch_delivery
+from .forge import (
+    DEFAULT_DRAIN_POLICY,
+    DrainPolicy,
+    dispatch_target_name,
+    forge_delivery_turn,
+    format_dispatch_delivery,
+)
 from .vocabulary import (
     DEFAULT_DRAIN_INTERVAL_SECONDS,
     DRAIN_MIRROR_HEARTBEAT_SECONDS,
@@ -206,6 +212,10 @@ class DispatchDrain:
                 dispatch_id=dispatch_id,
                 notify_operator=bool(row.get("notify_operator")),
                 state=str(row.get("state") or ""),
+                # RT-DELIVERY-MARKER-NO-TARGET-SESSION: the thread the
+                # delivered row's "Open thread" opens, typed, not in prose.
+                target_session_id=str(row.get("target_session_id") or ""),
+                target_name=dispatch_target_name(row),
             )
         except Exception as exc:
             logger.warning("dispatch %s delivery turn failed", dispatch_id, exc_info=True)
