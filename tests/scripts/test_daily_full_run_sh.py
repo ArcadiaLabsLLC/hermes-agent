@@ -8,6 +8,7 @@ real script without running the suite.
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -30,8 +31,8 @@ def _real_bash(monkeypatch, real_bash):
     monkeypatch.setattr(sys.modules[__name__], "_BASH", real_bash)
 
 
-def _stub(path: Path, log: Path, body: str = "") -> Path:
-    path.write_text(f'#!/usr/bin/env bash\necho "$@" >> "{log}"\n{body}\nexit 0\n', encoding="utf-8", newline="\n")
+def _stub(path: Path, log: Path, body: str = "", prelude: str = "") -> Path:
+    path.write_text(f'#!/usr/bin/env bash\n{prelude}\necho "$@" >> "{log}"\n{body}\nexit 0\n', encoding="utf-8", newline="\n")
     path.chmod(0o755)
     return path
 
@@ -46,11 +47,18 @@ def tree(tmp_path: Path) -> Path:
     return root
 
 
-def _run(tree: Path, *args: str, runner_body: str = "", cite_body: str = "", env_extra: dict[str, str] | None = None):
+#: the stub interpreter's answer for ``scripts/daily_suite_files.py <list-out>``: a one-file list and
+#: one node row's ``--deselect``; it is not logged, so ``calls`` holds only the steps.
+_SUITE_LIST = ('case "$1" in *daily_suite_files.py) printf \'tests/a/test_x.py\\n\' > "$2";'
+               ' echo "--deselect=tests/n/test_z.py::test_flaky[p0]"; exit 0 ;; esac')
+
+
+def _run(tree: Path, *args: str, runner_body: str = "", cite_body: str = "", suite_list: str = _SUITE_LIST,
+         env_extra: dict[str, str] | None = None):
     log = tree.parent / "calls.log"
     env = {**os.environ,
            "DAILY_RUNNER": str(_stub(tree.parent / "runner.sh", log, runner_body)),
-           "DAILY_PYTHON": str(_stub(tree.parent / "cite.sh", log, cite_body)),
+           "DAILY_PYTHON": str(_stub(tree.parent / "cite.sh", log, cite_body, prelude=suite_list)),
            **(env_extra or {})}
     proc = subprocess.run([_BASH, str(tree / "scripts" / "daily_full_run.sh"), *args], cwd=tree, env=env,
                           capture_output=True, text=True, encoding="utf-8", stdin=subprocess.DEVNULL, check=False)
@@ -82,7 +90,7 @@ def test_a_green_run_exits_0_with_one_log_per_step_and_a_summary(tree: Path):
 # loop's top) -> only the suite runs, four logs are missing and this reds.
 def test_every_step_runs_after_a_red_and_the_summary_names_each_red_and_its_files(tree: Path):
     out = tree.parent / "out"
-    body = ('case "$*" in *tests/tooling*|*tests/*) ;; *) echo "FAILED tests/a/test_x.py::test_one - boom";'
+    body = ('case "$*" in *--files-from=*) echo "FAILED tests/a/test_x.py::test_one - boom";'
             ' echo "  ║ FAILED tests/b/test_y.py::test_two"; exit 1 ;; esac')
     proc, calls = _run(tree, f"--out={out}", runner_body=body, cite_body="exit 3")
     assert proc.returncode == 1, proc.stdout
@@ -121,3 +129,48 @@ def test_only_runs_the_named_steps_and_refuses_an_unknown_one(tree: Path):
     assert proc.returncode == 2
     proc, _ = _run(tree, "--bogus")
     assert proc.returncode == 2
+
+
+# KILLING MUTATION: the suite step without its list (``suite) CMD=(bash "$RUNNER" -j "$JOBS") ;;``, the
+# 2026-11-08 shape that ran all 902 skip-listed files and reported 12 of them red) -> this reds.
+def test_the_suite_runs_the_skip_list_free_list_and_deselects_each_node_row(tree: Path):
+    out = tree.parent / "out"
+    proc, calls = _run(tree, f"--out={out}", "--only=suite")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert calls == [f"-j 24 --files-from={out}/suite.files --deselect=tests/n/test_z.py::test_flaky[p0]"]
+    assert (out / "suite.files").read_text(encoding="utf-8") == "tests/a/test_x.py\n"
+
+
+# KILLING MUTATION: the suite step's no-list guard off (``if [ "$step" = suite ] && [ "$SUITE_PLAN_RC"
+# -ne 0 ]; then`` -> ``if false; then``) -> the runner runs with an unbuilt list and this reds.
+def test_a_suite_list_that_cannot_be_built_reds_the_suite_and_never_runs_it(tree: Path):
+    out = tree.parent / "out"
+    proc, calls = _run(tree, f"--out={out}", "--only=suite,tooling",
+                       suite_list='case "$1" in *daily_suite_files.py) exit 2 ;; esac')
+    assert proc.returncode == 1, proc.stdout
+    assert calls == ["-j 24 tests/tooling"], calls  # the suite never ran; the next step still did
+    assert (out / "suite.log").read_text(encoding="utf-8").rstrip().endswith("EXIT=2")
+    assert "✘ suite red (no suite list, exit 2)" in (out / "summary.txt").read_text(encoding="utf-8")
+
+
+def _suite_files_module():
+    spec = importlib.util.spec_from_file_location("daily_suite_files", REPO / "scripts" / "daily_suite_files.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+# KILLING MUTATION: keep every discovered file (``if rel in listed:`` -> ``if False:`` in
+# scripts/daily_suite_files.py) -> the skip-listed files are back in the list and this reds.
+def test_the_suite_list_is_the_runners_discovery_minus_every_skip_list_file_row():
+    module = _suite_files_module()
+    kept, deselects, dropped = module.suite_plan(REPO)
+    plan = sys.modules["run_tests_bundled_plan"]
+    rows = plan.load_skip_list(REPO / plan.SKIP_LIST)
+    file_rows = {row.file for row in rows.values() if not row.node}
+    discovered = [p.relative_to(REPO).as_posix() for p in sys.modules["run_tests_parallel"]._discover_files([REPO / "tests"])]
+    assert dropped > 0 and not file_rows & set(kept)
+    assert sorted(kept + [rel for rel in discovered if rel in file_rows]) == sorted(discovered)
+    assert "tests/scripts/test_daily_full_run_sh.py" in kept  # a fork file always runs
+    assert "tests/hermes_cli/test_source_check.py" not in kept  # a P0 freeze file never does
+    assert deselects == [f"--deselect={row.path}" for row in rows.values() if row.node]

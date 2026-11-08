@@ -377,7 +377,7 @@ twice the step's measured wall under that load; one whole-run cap bounds the run
 
 `bash scripts/daily_full_run.sh --out=<dir>` (FH-DAILY-FULL-RUN, owner 2026-11-08) is the once-a-day
 breadth run; Eternia's daily run (`tool/daily/full_run.dart`, row `QA-DAILY-RUN-HERMES-STEPS`) calls it.
-Steps: `suite` (`scripts/run_tests.sh`, every file once), `gates` and `census` (the lists
+Steps: `suite` (`scripts/run_tests.sh`, every file once, minus the skip list: `scripts/daily_suite_files.py` writes the runner's own discovery less every skip-list file row to `<dir>/suite.files` for `--files-from`, and a `--deselect` per node row; a list it cannot build reds the step, never falls back to every file — the bare runner ran all 902 listed files on 2026-11-08, P0 freeze files among them, and reported 12 red), `gates` and `census` (the lists
 `scripts/prepush.sh --list-gates` / `--list-census` print, so a push and the daily run hold the same
 gates), `doc-cite`, `tooling` (`tests/tooling`). Each writes `<dir>/<step>.log` ending `EXIT=<code>`
 under its own timeout (`DAILY_<STEP>_TIMEOUT`); every step runs after a red; `<dir>/summary.txt`

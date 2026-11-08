@@ -5,7 +5,10 @@
 # run covers both repos. It is a COMMAND, not a hook, and never pushes anything.
 #
 # Steps, in order, each its own log (`<out>/<step>.log`, ending `EXIT=<code>`) and timeout:
-#   suite     the whole fork suite, every file once: `scripts/run_tests.sh`
+#   suite     the whole fork suite, every file once: `scripts/run_tests.sh`, minus the upstream skip
+#             list (`tests/fixtures/upstream_skip_list.txt`: P0 freeze files, proven reds, ADR 0015
+#             unused features), which no scope runs unnamed — `scripts/daily_suite_files.py` writes
+#             `<out>/suite.files` (`--files-from`) and a `--deselect` per node row
 #   gates     the prepush queue and text gates, in full (`scripts/prepush.sh --list-gates`)
 #   doc-cite  `scripts/doc_cite_adjacency.py --exclude archive --exclude planned`
 #   census    both name census gates whatever was touched (`scripts/prepush.sh --list-census`)
@@ -24,7 +27,7 @@
 #   DAILY_<STEP>_TIMEOUT  whole seconds (STEP = SUITE, GATES, DOC_CITE, CENSUS, TOOLING).
 #   DAILY_JOBS            the runner's worker cap (default 24, the box's measured best).
 #   DAILY_RUNNER / DAILY_PYTHON   the test runner (default scripts/run_tests.sh) and the
-#                         doc-cite interpreter; both exist so the script's own test can drive it
+#                         doc-cite and suite-list interpreter; both exist so the script's own test can drive it
 #                         without running the suite.
 
 set -uo pipefail
@@ -53,7 +56,7 @@ for arg in "$@"; do
     --out=*) OUT="${arg#--out=}" ;;
     --dry-run) DRY=1 ;;
     --only=*) ONLY="${arg#--only=}" ;;
-    -h|--help) sed -n '2,28p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    -h|--help) sed -n '2,31p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) echo "daily_full_run: unknown argument $arg (use --out=<dir>, --dry-run, --only=<steps>)" >&2; exit 2 ;;
   esac
 done
@@ -99,7 +102,7 @@ fi
 
 _command() {
   case "$1" in
-    suite) CMD=(bash "$RUNNER" -j "$JOBS") ;;
+    suite) CMD=(bash "$RUNNER" -j "$JOBS" --files-from="$OUT/suite.files" ${SUITE_DESELECTS[@]+"${SUITE_DESELECTS[@]}"}) ;;
     gates) CMD=(bash "$RUNNER" -j "$JOBS" "${GATES[@]}") ;;
     doc-cite) CMD=("$PY" "$SCRIPT_DIR/doc_cite_adjacency.py" --exclude archive --exclude planned) ;;
     census) CMD=(bash "$RUNNER" -j "$JOBS" "${CENSUS[@]}") ;;
@@ -107,6 +110,8 @@ _command() {
   esac
 }
 
+SUITE_DESELECTS=()
+SUITE_PLAN_RC=0
 echo "daily_full_run — HEAD $(git rev-parse --short HEAD 2>/dev/null), logs in $OUT"
 for step in "${SELECTED[@]}"; do
   _command "$step"
@@ -124,9 +129,26 @@ fi
 
 REDS=()
 SUMMARY=()
+case " ${SELECTED[*]} " in
+  *" suite "*)
+    # The suite list honours the skip list; a list that cannot be built reds the suite step
+    # instead of falling back to every file (the P0 freeze files among them).
+    plan_out="$("$PY" "$SCRIPT_DIR/daily_suite_files.py" "$OUT/suite.files")" || SUITE_PLAN_RC=$?
+    while IFS= read -r arg; do [ -n "$arg" ] && SUITE_DESELECTS+=("$arg"); done <<<"$plan_out"
+    [ -s "$OUT/suite.files" ] || [ "$SUITE_PLAN_RC" -ne 0 ] || SUITE_PLAN_RC=2
+    ;;
+esac
 for step in "${SELECTED[@]}"; do
   _command "$step"
   log="$OUT/$step.log"
+  if [ "$step" = suite ] && [ "$SUITE_PLAN_RC" -ne 0 ]; then
+    echo "daily_full_run: scripts/daily_suite_files.py could not build the suite list (exit $SUITE_PLAN_RC); the suite did not run" >"$log"
+    echo "EXIT=$SUITE_PLAN_RC" >>"$log"
+    REDS+=("$step")
+    SUMMARY+=("✘ suite red (no suite list, exit $SUITE_PLAN_RC) — log $log — owes a row filed today in its domain queue (fork-hygiene for a gate or the runner)")
+    echo "✘ suite: no suite list"
+    continue
+  fi
   started=$SECONDS
   echo "▶ $step (timeout $(_timeout_of "$step")s) → $log"
   {
