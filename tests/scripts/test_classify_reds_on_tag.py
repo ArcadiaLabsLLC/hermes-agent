@@ -8,7 +8,6 @@ and the runner call on a scratch git clone whose ``scripts/run_tests.sh`` is a s
 from __future__ import annotations
 
 import importlib.util
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -16,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from scripts import classify_reds_on_tag as crt
+from tests._downstream.real_bash import real_bash_or_skip
 
 V = crt.Verdict
 
@@ -153,12 +153,7 @@ exit 1
 
 
 def _bash() -> Path:
-    if crt.GIT_BASH.is_file():
-        return crt.GIT_BASH
-    found = shutil.which("bash")
-    if found is None or "system32" in found.lower():  # WSL's launcher is not the repo's shell
-        pytest.skip("no POSIX bash")
-    return Path(found)
+    return Path(real_bash_or_skip())
 
 
 def _git(cwd: Path, *args: str) -> str:

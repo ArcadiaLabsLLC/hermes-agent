@@ -50,6 +50,7 @@ or registry entry names something real).
 | `tests/tooling/test_seam_local_imports_resolve.py` | fence | a deferred fork import inside an upstream file resolves |
 | `tests/tooling/test_plugin_imports_public_surface.py` | fence | `plugins/eternia-harness/` never imports the fork's edits to upstream files |
 | `tests/tooling/test_fork_modules_do_not_import_pyyaml.py` | fence | YAML goes through `agent_runtime.yaml_io`, never `yaml` |
+| `tests/tooling/test_fork_tests_spawn_no_bare_bash.py` | fence | a fork-owned test spawns bash through `tests/_downstream/real_bash.py`, never a bare `bash` |
 | `tests/tooling/test_no_secret_word_decisions.py` | fence | no "is this a secret?" decision by looking for a word |
 | `tests/tooling/test_no_launcher_entry_id_literals.py` | fence | no hermes code names a Launcher entry id |
 | `tests/tooling/test_no_launcher_tool_name_literals.py` | fence | no hermes code names a Launcher tool (the underscore spelling), by the vendored catalog |

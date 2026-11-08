@@ -15,11 +15,13 @@ from pathlib import Path
 
 import pytest
 
+from tests._downstream.real_bash import resolve_real_bash
+
 WRAPPER = Path(__file__).resolve().parents[2] / "scripts" / "run_tests_bundled.sh"
 
 
 def _msys_bash() -> str | None:
-    bash = shutil.which("bash")
+    bash = resolve_real_bash()
     if bash is None:
         return None
     probe = subprocess.run([bash, "-c", "uname -o"], capture_output=True, text=True, timeout=30, check=False)

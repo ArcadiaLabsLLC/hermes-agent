@@ -7,24 +7,19 @@ used to die there (`git show` under `set -e`, 2026-10-14 at deleted `tools/tirit
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 
+from tests._downstream.real_bash import real_bash_or_skip
+
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "rerere_train.sh"
-_GIT_BASH = Path("C:/Program Files/Git/bin/bash.exe")
 
 
 def _bash() -> str:
-    if _GIT_BASH.is_file():
-        return str(_GIT_BASH)
-    found = shutil.which("bash")
-    if found is None or "system32" in found.lower():  # WSL's launcher is not the repo's shell
-        pytest.skip("no POSIX bash")
-    return found
+    return real_bash_or_skip()
 
 
 def _git(cwd: Path, *args: str) -> str:
