@@ -22,6 +22,7 @@ moving `RPC_CONTRACT_VERSION`.
 | `runtime.provider.signin.cancel` | console | `login_id` | kills the child |
 | `runtime.provider.refresh` | console | `provider`; `credential?` (index, id or label) | `hermes auth refresh` (`auth_refresh_command`) |
 | `runtime.provider.signout` | console | `provider` | `hermes auth logout` (`auth_logout_command`) |
+| `runtime.provider.env_token.remove` | console | `provider`, `variable` | upstream's `env:*` removal (`remove_env_value` + pool `remove_index`), once per home whose `.env` sets it |
 | `runtime.provider.configure` | console | `provider`, `auth_mode`; `base_url?` | `agent_runtime/provider_account.py::provider_configure`: writes `model.provider`, `model.auth_mode` (and `model.base_url`) on the bound provider home's `config.yaml` through the round-trip YAML writer — only a provider `PROVIDER_AUTH_MODES` declares, only a declared mode, no secret (a `needs_key` mode is keyed through `auth set-key`); it selects the provider because the mode is read only for the selected one |
 | `runtime.provider.source.set` | console | `provider`, `source` | `agent_runtime/provider_account.py::provider_source_set`: writes `providers.<provider>.credential_source` on the bound provider home's `config.yaml` through the round-trip YAML writer — only a provider `PROVIDER_CREDENTIAL_SOURCES` declares, only a declared source with a credential stored; chooses which STORED credential turns spend (`agent_runtime/provider_credential_source.py`) and selects nothing else (not `model.provider`: that is `configure`) |
 | `runtime.provider.dependency.install` | console | `provider` | `agent_runtime/provider_dependencies.py`: `uv pip install` of the provider's one extra into this runtime's environment; `pm` sync (new generation) only on a resolver conflict |
@@ -50,6 +51,7 @@ table (`HermesProviderMethod.timeoutFor`).
 | `runtime.provider.usage` | every usage fetch in `agent/account_usage.py` is an HTTP call with `timeout=15.0`; Nous reads `hermes_cli/nous_account.py` with `timeout=8` | 20 s |
 | `runtime.provider.refresh` | `hermes auth refresh`: token endpoint calls under upstream's HTTP timeouts; no single bound, and a lost reply leaves the outcome unknown | 30 s |
 | `runtime.provider.signout` | `hermes auth logout`: as refresh | 30 s |
+| `runtime.provider.env_token.remove` | a few `.env` rewrites and pool loads, one per home | 30 s |
 | `runtime.provider.configure` | up to three round-trip YAML writes of one local file | 10 s |
 | `runtime.provider.source.set` | local credential-presence reads and one round-trip YAML write of one local file | 10 s |
 | `runtime.provider.signin.begin` | spawns the login child and answers in state `starting` without waiting on it | 15 s |
@@ -183,6 +185,14 @@ the namespace root (the root's and each profile's, paths relative to the root) t
 a `.env` line re-seeds the pool on every load, so sign-out cannot clear it. Names only,
 never a value.
 
+**env_token.remove** — `{contract, provider, variable, removed_from, signed_in, env_tokens}`.
+`variable` must be one the signout answer reported (else `env_token_unknown`: the verb
+cannot erase an arbitrary setting). For each file sign-out
+named it deletes the `VAR=` lines under that file's home (and this process's environment)
+and removes the `env:VAR` pool entry, as `hermes auth remove` does for that source;
+`removed_from` lists the files done. A locked `.env` or a raise answers
+`env_token_remove_failed` with `removed_from` so far. Names only, never a value.
+
 ## Errors
 
 `error.data.reason` is the branch point.
@@ -203,6 +213,9 @@ never a value.
 | 4090 | `login_not_awaiting_code` (+`state`) | `signin.complete` |
 | -32000 | `refresh_refused` / `signout_refused` | upstream refused; `message` is its operator text |
 | -32000 | `refresh_failed` / `signout_failed` | upstream raised; `message` is the exception class |
+| -32602 | `variable_required` | `env_token.remove` |
+| 4090 | `env_token_unknown` (+`provider`, `variable`) | `env_token.remove`: no `env:<variable>` entry in this provider's pool |
+| -32000 | `env_token_remove_failed` (+`provider`, `variable`, `removed_from`; `message` is the exception class) | `env_token.remove` |
 | -32000 | `sdk_free_edition` (+`provider`) | `dependency.install` on an SDK-free profile |
 | -32000 | `dependency_not_installable` (+`provider`, `missing`) | `dependency.install`: no single extra installs it, or the platform excludes it |
 | -32000 | `environment_busy` (+`provider`, `extra`) | `dependency.install`: still `os error 32` after the retries |

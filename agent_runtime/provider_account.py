@@ -10,6 +10,8 @@ for the wire; none decides anything an upstream function already decides:
 * refresh   -> ``hermes auth refresh`` (``auth_refresh_command``), whose pool
                refresh dispatches to the per-provider refreshers
 * sign-out  -> ``hermes auth logout`` (``auth_logout_command``)
+* env token -> upstream's ``env:*`` removal (``remove_env_value`` + the pool's
+               ``remove_index``), run once per home whose ``.env`` sets the variable
 
 No credential value crosses this module's return: usage drops the snapshot's
 ``raw`` body, refresh and sign-out answer with booleans, and a raised error is
@@ -26,6 +28,7 @@ __layer__ = "stores"
 
 __all__ = [
     "ProviderRefused",
+    "provider_env_token_remove",
     "provider_list",
     "provider_refresh",
     "provider_signout",
@@ -183,6 +186,52 @@ def _env_files_defining(variable: str) -> list[str]:
                 found.append(path.relative_to(root).as_posix())
                 break
     return found
+
+
+def _remove_env_token_in_home(provider: str, variable: str, home) -> None:
+    """Upstream's ``env:<VAR>`` removal under one home: the ``.env`` line (and this process's
+    environment), then the pool entry it seeded — what ``hermes auth remove`` does for that source."""
+    from agent.credential_pool import load_pool
+    from hermes_cli.config import remove_env_value, require_env_writable
+    from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+
+    token = set_hermes_home_override(str(home))
+    try:
+        require_env_writable(variable, "remove")  # a locked .env refuses instead of reading as done
+        remove_env_value(variable)
+        pool = load_pool(provider)
+        for index, entry in enumerate(pool.entries(), start=1):
+            if entry.source == f"env:{variable}":
+                pool.remove_index(index)
+                break
+    finally:
+        reset_hermes_home_override(token)
+
+
+def provider_env_token_remove(provider: str, variable: str) -> dict:
+    """Delete a stale env token's ``VAR=`` lines from every ``.env`` under the namespace root
+    (RT-SIGNOUT-ENV-TOKEN-REMOVE) and drop the ``env:VAR`` pool entry each seeded.
+
+    Only a variable sign-out reported (an ``env:*`` entry still in this provider's pool) may
+    be removed, so the verb cannot erase an arbitrary setting. Answers file names, never a value.
+    """
+    from hermes_constants import get_default_hermes_root, get_hermes_home
+
+    _known(provider)
+    left = {row["variable"]: row["files"] for row in _env_tokens_left(provider)}
+    if variable not in left:
+        raise ProviderRefused("env_token_unknown", provider=provider, variable=variable)
+    root = get_default_hermes_root(home=get_hermes_home())
+    removed = []
+    for relative in left[variable]:
+        try:
+            _remove_env_token_in_home(provider, variable, (root / relative).parent)
+        except Exception as exc:  # class name only, never the message
+            raise ProviderRefused("env_token_remove_failed", type(exc).__name__, provider=provider,
+                                  variable=variable, removed_from=removed) from None
+        removed.append(relative)
+    return {"provider": provider, "variable": variable, "removed_from": removed,
+            "signed_in": _signed_in(provider), "env_tokens": _env_tokens_left(provider)}
 
 
 def _env_tokens_left(provider: str) -> list[dict]:

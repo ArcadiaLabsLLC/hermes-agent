@@ -38,6 +38,7 @@ __all__ = [
     "PROVIDER_CONTRACT",
     "_runtime_provider_configure",
     "_runtime_provider_dependency_install",
+    "_runtime_provider_env_token_remove",
     "_runtime_provider_list",
     "_runtime_provider_pack_activate",
     "_runtime_provider_refresh",
@@ -64,7 +65,7 @@ _INVALID_PARAM_REASONS = frozenset({"provider_unknown", "auth_mode_unsupported",
 _NOT_FOUND_REASONS = frozenset({"agent_unknown"})
 
 #: Provider refusals that name a state of the home rather than a bad request.
-_CONFLICT_REASONS = frozenset({"source_absent", "agent_profile_unavailable"})
+_CONFLICT_REASONS = frozenset({"source_absent", "agent_profile_unavailable", "env_token_unknown"})
 
 _FAMILY_CODES = {"invalid_params": ERR_INVALID_PARAMS, "conflict": ERR_CONFLICT, "not_found": ERR_NOT_FOUND}
 
@@ -254,6 +255,22 @@ def _runtime_provider_refresh(rid: Any, params: dict, context: RpcContext | None
     credential = _text_param(params, "credential")
     return _off_reader(rid, "runtime.provider.refresh", context,
                        lambda: provider_account.provider_refresh(provider, credential))
+
+
+@method("runtime.provider.env_token.remove", tier=TIER_CONSOLE)
+def _runtime_provider_env_token_remove(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """Remove a stale env token sign-out reported. Params: ``provider``, ``variable`` (one of the
+    signout answer's ``env_tokens[].variable``)."""
+    from agent_runtime import provider_account
+
+    provider, refusal = _provider_or_refuse(rid, "runtime.provider.env_token.remove", params)
+    if refusal is not None:
+        return refusal
+    variable = _text_param(params, "variable")
+    if variable is None:
+        return _refused(rid, "runtime.provider.env_token.remove", "variable_required", ERR_INVALID_PARAMS)
+    return _off_reader(rid, "runtime.provider.env_token.remove", context,
+                       lambda: provider_account.provider_env_token_remove(provider, variable))
 
 
 @method("runtime.provider.signout", tier=TIER_CONSOLE)

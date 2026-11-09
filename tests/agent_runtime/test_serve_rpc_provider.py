@@ -331,6 +331,7 @@ def test_every_provider_method_is_registered_with_its_tier():
         "runtime.provider.refresh": "console", "runtime.provider.signout": "console",
         "runtime.provider.dependency.install": "console", "runtime.provider.pack.activate": "console",
         "runtime.provider.configure": "console", "runtime.provider.source.set": "console",
+        "runtime.provider.env_token.remove": "console",
     }
 
 
