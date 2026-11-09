@@ -55,6 +55,7 @@ SEND_FLAGS: tuple[tuple[str, str, str], ...] = (
     ("persona_id", "--persona", "value"),
     ("persona_instance_id", "--persona-instance-id", "value"),
     ("session_id", "--session-id", "value"),
+    ("client_scope", "--client-scope", "value"),
     ("new_session", "--new-session", "flag"),
     ("clarify_token", "--clarify-token", "value"),
     ("title", "--title", "value"),

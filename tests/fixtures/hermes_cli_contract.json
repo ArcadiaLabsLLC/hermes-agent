@@ -5880,6 +5880,14 @@
           "required": false,
           "type": null
         },
+        "--client-scope": {
+          "action": "store",
+          "canonical": "--client-scope",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
         "--compression-protect-first-n": {
           "action": "store",
           "canonical": "--compression-protect-first-n",

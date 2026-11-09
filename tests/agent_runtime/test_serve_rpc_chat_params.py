@@ -80,6 +80,16 @@ def test_retired_workspace_hints_are_ignored_and_not_advertised():
 
 
 
+def test_a_client_scope_rides_the_turn_so_a_minted_root_is_owned():
+    """RT-CHAT-MESSAGE-MINT-UNSCOPED: a scoped send that names no session mints the chat on the
+    argv lane; without ``--client-scope`` that root carried no owner and dropped out of the
+    account's chat list after a relaunch (Eternia MC-CONSOLE-FIRST-SEND-CHAT-UNSCOPED-DROPS-FROM-DIRECTORY)."""
+
+    scope = "a" * 64
+    assert _message(client_scope=scope) == BASE_ARGV + ["--client-scope", scope]
+    assert _message() == BASE_ARGV  # absent, never a blank flag
+
+
 def test_a_provider_override_rides_the_turn():
     assert _message(provider="anthropic") == BASE_ARGV + ["--provider", "anthropic"]
 

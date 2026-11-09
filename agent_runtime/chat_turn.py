@@ -480,6 +480,10 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
     ]
     if session_id:
         argv += ["--session-id", session_id]
+    # The owner a root this send MINTS is stamped with (RT-CHAT-MESSAGE-MINT-UNSCOPED); validated
+    # by ``request_client_scope`` before any turn is admitted.
+    if owner := request_client_scope(params):
+        argv += ["--client-scope", owner]
     argv += skill_argv
     if persona_instance_id:
         argv += ["--persona-instance-id", persona_instance_id]
@@ -525,7 +529,7 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
         argv=argv,
         correlation_id=correlation_id,
         delivery_flags=("--stream",) if stream else (),
-        client_scope=request_client_scope(params),
+        client_scope=owner,
         secrets=_course_secrets(params),
     )
 
