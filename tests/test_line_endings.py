@@ -257,7 +257,12 @@ def test_the_blob_memo_answers_what_git_answers(endings):
     """FH-LINE-ENDINGS-GATE-OVER-30S-COLD: the memo is git's own classification keyed by blob, never a guess.
     Mutation: key the memo by path instead of blob sha -> the memo answers nothing, red."""
 
-    sample = sorted(endings)[:: max(1, len(endings) // 200)]
+    from gateway.status import gateway_spawn_intent_subcommand
+
+    # The live-system guard reads any argv holding `gateway/run.py` as `gateway run` and blocks it, so a stride
+    # that lands on such a path reds this test whenever a file is added above it (FH-LIVE-GUARD-PATH-READ-AS-SPAWN).
+    sample = [path for path in sorted(endings)[:: max(1, len(endings) // 200)]
+              if gateway_spawn_intent_subcommand(f"git ls-files -- {path}") is None]
     assert _eol_states(sample) == {path: endings[path] for path in sample}
 
 
