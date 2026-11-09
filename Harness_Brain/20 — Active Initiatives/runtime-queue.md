@@ -56,7 +56,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-11-08 (launcher lane w1108c-mc-console: `MC-USAGE-PROBE-PROCESS-PROFILE-NOT-AGENT`)
 
-- **`RT-PROVIDER-USAGE-PER-AGENT-PROFILE` — `runtime.provider.list` and `runtime.provider.usage` answer for the serve's own home only (`bound_provider_home() or get_hermes_home()`), so Eternia's Usage & limits chip asks one process-wide profile for every agent; an agent whose own `hermes_profile` holds a live login (Neko Mission Lead on the owner's Claude subscription) gets the base profile's accounts and no lane for its provider. Accept an optional agent identity (`persona_instance_id`, or `persona_id`) on both methods, resolve that persona's provider home the way a turn does (`resolve_persona_profile` + `persona_profile_context`), answer under it, and echo the resolved profile in the reply; leave the reply unchanged when the param is absent; refuse an unknown agent with a closed reason** · group: provider-api-key-and-usage-source · `agent_runtime/serve_rpc/provider.py::_runtime_provider_usage` · `agent_runtime/provider_account.py::provider_usage` · Eternia `MC-USAGE-PROBE-PROCESS-PROFILE-NOT-AGENT` waits on it · found 2026-11-08 w1108c-mc-console · READY 2026-11-08 · **TAKEN 2026-11-09 w1109a-provider on nekwo-ubuntu24 as nekwo in hm-w1109a-provider**
 
 ### Filed on arrival — 2026-11-06 (lane w1106a-hm: RT-NO-MODEL-CHAT-SENDS-AND-404S)
 
