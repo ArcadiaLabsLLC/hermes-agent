@@ -125,3 +125,34 @@ def test_close_archives_the_row_and_commits_both_files(clones):
     assert archived.endswith("- **`RT-A` — first** · DONE 2026-11-03 3f9c2a1 · result: shipped\n")
     assert "RT-A" not in (mine / NOTE).read_text(encoding="utf-8")
     assert work_row.main(["close", "RT-B", "--who", "r-lane", "--repo", str(mine), "--no-commit"]) == work_row.EXIT_REFUSED
+
+
+def test_close_wakes_the_rows_blocked_on_it_and_commits_their_note(clones):
+    """BRAIN-QUEUE-CLOSE-WAKES-DEPENDENTS. Mutation: skip ``wake_dependents`` in ``main``'s close arm -> RT-W stays
+    BLOCKED and its note is not in the commit, red."""
+    origin, mine, _ = clones
+    waiting = (HEAD + "- **`RT-W` — waits** · BLOCKED 2026-11-01: another lane — `RT-A` the fix\n"
+               "- **`RT-L` — waits on the launcher** · BLOCKED 2026-11-01: launcher — `RT-A`\n")
+    other_note = "Harness_Brain/20 — Active Initiatives/w.md"
+    (mine / other_note).write_text(waiting, encoding="utf-8", newline="\n")
+    git("add", "-A", cwd=mine)
+    git("commit", "-q", "-m", "waiting", cwd=mine)
+    git("push", "-q", cwd=mine)
+    assert work_row.main(["close", "RT-A", "--who", "r-lane", "--done", "3f9c2a1", "--date", "2026-11-03",
+                          "--repo", str(mine)]) == 0
+    woken = (mine / other_note).read_text(encoding="utf-8")
+    assert ("- **`RT-W` — waits** · READY 2026-11-03 · unblocked 2026-11-03: `RT-A` closed DONE 3f9c2a1\n"
+            in woken)
+    assert "BLOCKED 2026-11-01: launcher — `RT-A`" in woken
+    changed = set(filter(None, git("show", "--name-only", "--format=", "main", cwd=origin).split("\n")))
+    assert other_note in changed
+
+
+def test_no_wake_leaves_them_blocked(clones):
+    _, mine, _ = clones
+    waiting = HEAD + "- **`RT-W` — waits** · BLOCKED 2026-11-01: hermes — `RT-A`\n"
+    other_note = "Harness_Brain/20 — Active Initiatives/w.md"
+    (mine / other_note).write_text(waiting, encoding="utf-8", newline="\n")
+    assert work_row.main(["close", "RT-A", "--who", "r-lane", "--owner", "not needed", "--no-wake",
+                          "--repo", str(mine), "--no-commit"]) == 0
+    assert (mine / other_note).read_text(encoding="utf-8") == waiting

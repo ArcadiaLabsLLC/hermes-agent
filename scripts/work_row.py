@@ -5,13 +5,17 @@
         [--note <path>] [--status "<segment>"] [--row "<line>"] [--repo <checkout>] [--no-commit]
         [--machine <host>] [--account <git account>] [--worktree <folder>]
     python scripts/work_row.py close <ID> --who <lane> (--done <sha|here> | --refuted <sha|here> | --owner "<words>")
-        [--result "<line>"] [--date YYYY-MM-DD] [--note <path>] [--repo <checkout>] [--no-commit]
+        [--result "<line>"] [--date YYYY-MM-DD] [--note <path>] [--repo <checkout>] [--no-wake] [--no-commit]
 
 ``close`` ARCHIVES the row (RT-QUEUE-ARCHIVE-GRAMMAR, launcher plan
 ``EterniaLauncher/docs/mission_control/subsystems/QUEUE_CLOSED_ROW_ARCHIVE_2026-11-02.md`` D3–D5): the claim mark
 removed, the status replaced by ONE outcome, the line appended to
 ``<brain>/80 — Archive/Queues/<queue stem>-<YYYY-MM>.md`` (created with its head) and dropped from the queue — both
-files in one commit, ``queue(<stem>): close <ID> <outcome>``.
+files in one commit, ``queue(<stem>): close <ID> <outcome>``. Every row of this brain BLOCKED on ``<ID>`` (reason
+``hermes`` or ``another lane``) is woken in the same commit: back to ``READY <date>`` with an ``unblocked`` segment
+naming the close (``agent_runtime/work_store/wake.py``; launcher row BRAIN-QUEUE-CLOSE-WAKES-DEPENDENTS);
+``--no-wake`` leaves them. Rows in the launcher or backend brains are theirs to wake — the launcher's
+``dart tool/queue/waits_on.dart <ID> --in hermes`` lists them.
 
 A claim names its place (ADR 0025's 2026-10-26 amendment): ``**TAKEN <date> <lane> on <machine> as
 <git account> in <worktree>**``. ``--machine`` defaults to the hostname, ``--account`` to the
@@ -46,6 +50,7 @@ from agent_runtime.work_store.grammar import (
     split_segments,
 )
 from agent_runtime.work_store.reasons import Reason, WorkRefused
+from agent_runtime.work_store.wake import wake_dependents
 
 COMMANDS = {"claim": Op.CLAIM, "release": Op.RELEASE, "set-status": Op.SET_STATUS, "delete": Op.DELETE,
             "append": Op.APPEND, "close": Op.CLOSE}
@@ -73,6 +78,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--row")
     parser.add_argument("--repo", default=".")
     parser.add_argument("--no-commit", action="store_true")
+    parser.add_argument("--no-wake", action="store_true")
     parser.add_argument("--machine")
     parser.add_argument("--account")
     parser.add_argument("--worktree")
@@ -173,8 +179,10 @@ def edited_text(text: str, args: argparse.Namespace) -> str:
     return "\n".join(lines)
 
 
-def commit_and_push(repo: Path, note: Path, args: argparse.Namespace, git: Git, *, also: Path | None = None) -> int:
-    relative = [note.relative_to(repo).as_posix(), *([also.relative_to(repo).as_posix()] if also else [])]
+def commit_and_push(repo: Path, note: Path, args: argparse.Namespace, git: Git, *, also: Path | None = None,
+                    woken: tuple[Path, ...] = ()) -> int:
+    relative = [note.relative_to(repo).as_posix(), *([also.relative_to(repo).as_posix()] if also else []),
+                *(path.relative_to(repo).as_posix() for path in woken if path != note)]
     if also is None:
         subject = f"queue: {COMMANDS[args.command].value} {args.row_id} {args.who}"
     else:
@@ -201,11 +209,27 @@ def main(argv: list[str] | None = None, *, git: Git = run_git) -> int:
     try:
         note, text = _note_and_text(repo, args)
         archive = None
+        woken: dict[Path, list[str]] = {}
         if COMMANDS[args.command] is Op.CLOSE:
             queue_text, archive, archive_text = closed_texts(repo, note, text, args)
+            texts = {note: queue_text}
+            if not args.no_wake:
+                payload = close_payload(args)
+                how = "CLOSED" if payload["outcome"] == "CLOSED" else f"{payload['outcome']} {payload['commit']}"
+                for path in queue_notes(repo, None):
+                    before = texts.get(path, path.read_bytes().decode("utf-8"))
+                    after, ids = wake_dependents(before, args.row_id, payload["date"], how)
+                    if ids:
+                        texts[path] = after
+                        woken[path] = ids
             archive.parent.mkdir(parents=True, exist_ok=True)
+            # The archive first: a failed write must never lose the row.
             archive.write_bytes(archive_text.encode("utf-8"))
-            note.write_bytes(queue_text.encode("utf-8"))
+            for path, new in texts.items():
+                path.write_bytes(new.encode("utf-8"))
+            for ids in woken.values():
+                for woke in ids:
+                    print(f"woke `{woke}`: READY (it waited on `{args.row_id}`)")
         else:
             note.write_bytes(edited_text(text, args).encode("utf-8"))
     except WorkRefused as refusal:
@@ -213,7 +237,7 @@ def main(argv: list[str] | None = None, *, git: Git = run_git) -> int:
         return EXIT_REFUSED
     if args.no_commit:
         return 0
-    return commit_and_push(repo, note, args, git, also=archive)
+    return commit_and_push(repo, note, args, git, also=archive, woken=tuple(woken))
 
 
 if __name__ == "__main__":
