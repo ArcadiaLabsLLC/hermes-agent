@@ -2,7 +2,7 @@
 
 **Status:** RULED C 2026-11-05 and built (§6, lane w1105h-hm2); options and recommendation by lane w1105g-hm-plan
 (`RT-EXTERNAL-GATEWAY-SHAPE-RULING`, closed). Group:
-`external-gateway-access`.
+`remote-parity-and-two-machine-proof.external-gateway-access`.
 **Owner domain:** the namespace boundary ([04-boot-and-lifecycle.md](../04-boot-and-lifecycle.md) § the profile
 namespace) and the serve's transports ([03-transport-and-wire.md](../03-transport-and-wire.md) §1.1, §1.4;
 [09-multi-device-runtime.md](../09-multi-device-runtime.md) § Credentials, § The operator's remote turn).
