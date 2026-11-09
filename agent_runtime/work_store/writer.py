@@ -47,7 +47,7 @@ from typing import Any
 
 from .. import paths
 from . import receipts
-from .board import Board, ids_in_brain
+from .board import Board, board_rows, ids_in_brain
 from .checked_out import advance
 from .default_brain import IDENTITY_PAIRS
 from .grammar import (
@@ -56,6 +56,7 @@ from .grammar import (
 )
 from .models import OPERATOR
 from .reasons import Reason, WorkRefused
+from .tasks import sibling_rows, siblings_visible, write_task_defects
 
 __layer__ = "stores"
 __all__ = ["OPERATOR", "REPLAY_BUDGET", "Receipt", "RowOp", "Writer", "checkout_token", "drop_worktrees", "remove_worktree",
@@ -691,6 +692,26 @@ class Writer:
         with self.admitted():
             return self._apply(op)
 
+    def _refuse_task_defects(self, changed: list[str]) -> None:
+        """Refuse an edit whose CHANGED rows break the task rules, before the commit, the worktree put back to its
+        tip (RT-QUEUE-TASK-RULES-AT-WRITE; :func:`agent_runtime.work_store.tasks.write_task_defects`)."""
+
+        written: dict[str, tuple[str, str]] = {}
+        for note in changed:
+            path = self.worktree / note
+            if not path.is_file():
+                continue
+            prior = self._git(["show", f"HEAD:{note}"], repo=self.worktree)
+            written[note] = (prior.stdout if prior.returncode == 0 else "", path.read_bytes().decode("utf-8"))
+        brain = [row for row in board_rows(replace(self.board, read_root=self.worktree)) if row.ref.note not in written]
+        siblings = sibling_rows(self.board.checkout or self.worktree)
+        defects = write_task_defects(written, brain, [row for rows in siblings.values() for row in rows],
+                                     siblings_visible=siblings_visible(siblings))
+        if defects:
+            self._reset_to_tip()
+            self._git(["clean", "-fdq"], repo=self.worktree)
+            raise WorkRefused(Reason.GRAMMAR_INVALID, "the write breaks the task rules: " + "; ".join(defects))
+
     def _apply(self, op: RowOp) -> Receipt:
         tips: list[str] = []
         for replays in range(self._budget):
@@ -701,6 +722,7 @@ class Writer:
             changed = self._edit(op)
             if not changed:
                 return self._receipt(op, None, replays=replays, pushed=False, replayed=False)
+            self._refuse_task_defects(changed)
             commit = self._commit(op, changed)
             if self._push(commit):
                 return self._receipt(op, commit, replays=replays, pushed=not self.board.local, replayed=False)

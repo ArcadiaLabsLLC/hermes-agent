@@ -63,7 +63,7 @@ from agent_runtime.work_store.grammar import (
 from agent_runtime.work_store.reasons import Reason, WorkRefused
 from agent_runtime.work_store.tasks import (
     SIBLING_QUEUE_DIRS, archived_rows, owning_task, parked_task, sibling_rows, siblings_visible, subtasks_of, task_of,
-    task_refuses_done, task_status_after_close,
+    task_refuses_done, task_status_after_close, write_task_defects,
 )
 from agent_runtime.work_store.wake import unblocked_segment, wake_dependents
 
@@ -149,6 +149,20 @@ def _brains(texts: dict[Path, str], siblings: dict[str, list[Row]]) -> list[Row]
     """Every live row of this brain (slot ``hermes``) then of each sibling brain read — work order."""
 
     return _live_rows(texts) + [row for rows in siblings.values() for row in rows]
+
+
+def refuse_task_defects(repo: Path, written: dict[Path, tuple[str, str]], texts: dict[Path, str],
+                        siblings: dict[str, list[Row]]) -> None:
+    """Refuse a write whose CHANGED rows break the task rules, naming each defect, before anything is written
+    (RT-QUEUE-TASK-RULES-AT-WRITE; :func:`agent_runtime.work_store.tasks.write_task_defects`)."""
+
+    brain = _live_rows({path: text for path, text in texts.items() if path not in written})
+    defects = write_task_defects({str(path): pair for path, pair in written.items()}, brain,
+                                 [row for rows in siblings.values() for row in rows],
+                                 siblings_visible=siblings_visible(siblings))
+    if defects:
+        shown = [d.replace(f"{repo}/", "", 1) for d in defects]
+        raise WorkRefused(Reason.GRAMMAR_INVALID, "the write breaks the task rules: " + "; ".join(shown))
 
 
 def refuse_claim_of_parked(repo: Path, note: Path, text: str, row_id: str) -> None:
@@ -367,6 +381,7 @@ def main(argv: list[str] | None = None, *, git: Git = run_git) -> int:
             said = task_step(repo, closed, [i for ids in woken.values() for i in ids], texts, archives, payload,
                              siblings, args.who, how)
             touched = [path for path in texts if texts[path] != before.get(path)]
+            refuse_task_defects(repo, {path: (before[path], texts[path]) for path in touched}, texts, siblings)
             # The archives first: a failed write must never lose a row.
             for archive, archive_text in archives.items():
                 archive.parent.mkdir(parents=True, exist_ok=True)
@@ -381,7 +396,10 @@ def main(argv: list[str] | None = None, *, git: Git = run_git) -> int:
         else:
             if COMMANDS[args.command] is Op.CLAIM:
                 refuse_claim_of_parked(repo, note, text, args.row_id)
-            note.write_bytes(edited_text(text, args).encode("utf-8"))
+            new = edited_text(text, args)
+            others = {path: path.read_bytes().decode("utf-8") for path in queue_notes(repo, None) if path != note}
+            refuse_task_defects(repo, {note: (text, new)}, others, sibling_rows(repo))
+            note.write_bytes(new.encode("utf-8"))
     except WorkRefused as refusal:
         print(f"refused: {refusal.reason.value} {refusal.detail}".rstrip(), file=sys.stderr)
         return EXIT_REFUSED

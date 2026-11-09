@@ -284,3 +284,31 @@ def task_status_after_close(task: Row, subtasks: list[Row], *, all_visible: bool
     block = (f"BLOCKED {date}: {reason} — `{first.ref.id}` every live subtask waits ({mix}); the task turns READY "
              "when one of them does")
     return None if block in task.segments else [block]
+
+
+# ── the rules where rows are written (RT-QUEUE-TASK-RULES-AT-WRITE; launcher tool/queue/queue_write_check.dart) ──
+
+
+def write_task_defects(written: Mapping[str, tuple[str, str]], brain: Iterable[Row], siblings: Iterable[Row], *,
+                       siblings_visible: bool) -> list[str]:
+    """The task defects of the rows a write CHANGES — ``BAD TASK`` and :func:`task_defects` — or ``[]`` when it may
+    land. ``written`` maps each queue note the write touches to ``(prior text, new text)``; a row whose exact line is
+    in the prior text is unchanged, so a defect the note already carried is never refused here (the vault lint's
+    business). ``brain`` is the live rows of this brain's notes the write leaves alone; ``siblings`` the sibling
+    brains' (``GROUP HAS NO TASK`` is judged only when ``siblings_visible``). A brain none of whose live rows is a
+    task (a workspace's own Work brain) does not use tasks, and is held to none of these rules."""
+
+    changed: list[Row] = []
+    unchanged: list[Row] = []
+    for note, (prior, new) in written.items():
+        if not is_queue(new):
+            continue
+        before = {line.rstrip("\r") for line in prior.split("\n")}
+        for row in parse_note(new, slot="hermes", note=note):
+            (unchanged if row.raw in before else changed).append(row)
+    others = [*unchanged, *brain]
+    if not changed or not any(row.task is not None for row in [*changed, *others]):
+        return []
+    bad = [f"{row.ref.note}:{row.line_no}  {row.ref.id}  ({defect})" for row in changed for defect in row.defects
+           if defect.startswith("BAD TASK")]
+    return bad + task_defects(changed, [*others, *siblings], siblings_visible=siblings_visible)

@@ -158,3 +158,23 @@ def test_sibling_rows_reads_both_brains_beside_a_worktree_and_origin_main_when_i
     assert sorted(r.ref.id for r in found["launcher"]) == ["L-NEW", "LAUNCHER-T"]
     assert [r.task for r in found["backend"]] == ["backend"]
     assert tasks.sibling_rows(tmp_path / "lanes" / "nowhere", environ={}) == {}
+
+
+def test_write_task_defects_holds_only_the_rows_a_write_changes() -> None:
+    """RT-QUEUE-TASK-RULES-AT-WRITE. KILLING MUTATIONS: treat every row as changed (drop the prior filter) -> the
+    carried RT-OLD is refused, red; drop the uses-no-tasks exemption -> the Work brain's untasked append is refused,
+    red; drop the BAD TASK arm -> the task beside a group passes, red."""
+
+    head = "---\ntype: queue\nprogram: t\n---\n\n"
+    prior = head + ("- **`TASK-P` — Pills on the board** · task: p · READY 2026-11-09\n"
+                    "- **`RT-OLD` — carried, no task** · READY 2026-11-09\n")
+    def defects(*lines: str, before: str = prior) -> list[str]:
+        return tasks.write_task_defects({"q.md": (before, before + "".join(line + "\n" for line in lines))}, [], [],
+                                        siblings_visible=True)
+    assert defects() == [], "a defect the note already carried is not refused"
+    assert defects("- **`RT-SUB` — slice** · group: p.x · READY 2026-11-09") == []
+    assert "ROW HAS NO TASK" in defects("- **`RT-NEW` — new** · READY 2026-11-09")[0]
+    assert "GROUP HAS NO TASK" in defects("- **`RT-G` — g** · group: nowhere · READY 2026-11-09")[0]
+    assert "BAD TASK" in defects("- **`TASK-X` — X** · task: x · group: p · READY 2026-11-09")[0]
+    work = head + "- **`WORK-ABCDEF` — t** · READY 2026-11-09\n"
+    assert defects("- **`WORK-BCDEFG` — u** · READY 2026-11-09", before=work) == [], "a brain using no tasks"

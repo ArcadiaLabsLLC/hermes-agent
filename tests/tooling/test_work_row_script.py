@@ -301,3 +301,25 @@ def test_an_owner_block_of_the_tasks_own_stays_when_a_subtask_wakes(clones, tmp_
                           "--no-commit"]) == 0
     text = (mine / NOTE).read_text(encoding="utf-8")
     assert OWED in text and "- **`RT-S1` — waits** · group: p · READY" in text
+
+
+def test_a_write_whose_changed_rows_break_the_task_rules_is_refused(clones, tmp_path, monkeypatch, capsys):
+    """RT-QUEUE-TASK-RULES-AT-WRITE. KILLING MUTATIONS: drop ``refuse_task_defects`` in ``main``'s edit arm ->
+    RT-LONE is appended, red; drop it in the close arm -> the close whose task step rewrites TASK-Q's line (a
+    technical title it carried) lands, red."""
+    monkeypatch.delenv("ETERNIA_WORKSPACE_ROOTS", raising=False)
+    _, mine, _ = clones
+    _siblings(tmp_path)
+    _seed(mine, "- **`TASK-P` — Pills on the board** · task: p · READY 2026-11-09\n")
+    lone = "- **`RT-LONE` — lone** · READY 2026-11-09"
+    assert work_row.main(["append", "RT-LONE", "--who", "r", "--row", lone, "--repo", str(mine),
+                          "--no-commit"]) == work_row.EXIT_REFUSED
+    assert "(ROW HAS NO TASK" in capsys.readouterr().err and "RT-LONE" not in (mine / NOTE).read_text(encoding="utf-8")
+    sub = "- **`RT-SUB` — slice** · group: p · READY 2026-11-09"
+    assert work_row.main(["append", "RT-SUB", "--who", "r", "--row", sub, "--repo", str(mine), "--no-commit"]) == 0
+    # A close whose task step rewrites a task line carrying an old TASK TITLE defect: the changed line is refused.
+    _seed(mine, "- **`TASK-Q` — Fix `x.py` here** · task: q · READY 2026-11-09\n" + SUBTASK.replace("group: p", "group: q")
+          + "- **`RT-S2` — waits** · group: q · BLOCKED 2026-11-09: another lane — `RT-B` first\n")
+    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--repo", str(mine),
+                          "--no-commit"]) == work_row.EXIT_REFUSED
+    assert "(TASK TITLE" in capsys.readouterr().err and "RT-S1" in (mine / NOTE).read_text(encoding="utf-8")

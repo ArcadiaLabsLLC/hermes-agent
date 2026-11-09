@@ -457,3 +457,28 @@ def test_a_claim_stamps_the_local_day_not_the_utc_one(repo):
             os.environ["TZ"] = before
         time.tzset()
     assert "· **TAKEN 2026-11-05 persona:pi_a**" in note_text(repo.other)
+
+
+def test_a_write_whose_changed_rows_break_the_task_rules_is_refused_and_nothing_lands(repo):
+    """RT-QUEUE-TASK-RULES-AT-WRITE (launcher tool/queue/queue_write_check.dart). In a brain that uses tasks, an
+    APPEND of a row under no task, or of a task with a technical title, refuses ``grammar_invalid`` naming the defect,
+    nothing committed; a defect the note already carried (RT-A, RT-B have no task) does not refuse an edit of
+    another row. KILLING MUTATION: drop ``self._refuse_task_defects(changed)`` in ``_apply`` -> RT-LONE lands, red."""
+    edit_and_push(repo.other, "- **`RT-B` — second** · READY 2026-10-18\n",
+                  "- **`RT-B` — second** · READY 2026-10-18\n"
+                  "- **`TASK-P` — Pills on the board** · task: p · READY 2026-11-09\n")
+    writer = Writer(repo.board, machine_id="m1")
+    before = git("rev-parse", "origin/main", cwd=repo.other)
+    for row_id, line, defect in (
+            ("RT-LONE", "- **`RT-LONE` — lone** · READY 2026-11-09", "ROW HAS NO TASK"),
+            ("TASK-T", "- **`TASK-T` — Fix `x.py` for tasks** · task: t · READY 2026-11-09", "TASK TITLE"),
+            ("TASK-Q", "- **`TASK-Q` — Pills again** · task: p · READY 2026-11-09", "TWO TASKS")):
+        with pytest.raises(WorkRefused) as refused:
+            writer.apply(op(Op.APPEND, row_id, rid=f"a-{row_id}", row=line))
+        assert refused.value.reason is Reason.GRAMMAR_INVALID and defect in refused.value.detail
+    git("fetch", "-q", cwd=repo.other)
+    assert git("rev-parse", "origin/main", cwd=repo.other) == before
+    assert not git("status", "--porcelain", cwd=writer.worktree).strip()
+    writer.apply(op(Op.APPEND, "RT-SUB", rid="a-ok", row="- **`RT-SUB` — slice** · group: p · READY 2026-11-09"))
+    writer.apply(op(Op.CLAIM, "RT-SUB", rid="c-ok"))
+    assert "`RT-SUB` — slice** · group: p · READY 2026-11-09 · **TAKEN" in note_text(repo.clone)
