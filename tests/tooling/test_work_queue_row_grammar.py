@@ -31,6 +31,12 @@ A row is ``- **`<ID>` — <title>** · <segment> · …``, on ONE physical line,
   no code span so no pointer read sees it), and no ``group:`` segment in any other shape (amendment
   2026-11-02, twin of launcher ADR 0025's 2026-11-01 amendment); a row citing a ``planned/`` doc names its
   group — the rows that predate the rule are a RATCHET (``GROUP_MISSING_CEILING``) that may only fall;
+* at most one ``task: <slug>`` segment (same slug shape), never beside a ``group:`` — the row is the TASK of
+  that slug, the parent of every row whose ``group:`` is the slug or a dotted ``<slug>.<sub>`` (``BAD TASK``
+  otherwise; amendment 2026-11-09, twin of launcher ADR 0025's 2026-11-09 amendment). Every row is a task or a
+  subtask: across the vault and the sibling brains checked out beside it, ``TWO TASKS`` / ``GROUP HAS NO TASK``
+  / ``ROW HAS NO TASK`` / ``TASK TITLE`` (``agent_runtime/work_store/tasks.py::task_defects``) sit under the
+  shrink-only ``TASK_DEFECT_CEILING``;
 * at most one ``REQUIRES <host>[, <host>…]`` segment (host ``windows`` | ``macos`` | ``linux``, each once) —
   a record like RULED, never a status (launcher ADR 0025's 2026-10-26 amendment);
 * a lane claim dated 2026-10-27 or later names its machine:
@@ -71,6 +77,7 @@ RULED = re.compile(r"^RULED \d{4}-\d{2}-\d{2}\b")
 ASSIGNEE = re.compile(r"^assignee: persona:[A-Za-z0-9_.-]+$")
 SKILLS = re.compile(r"^skills: `[A-Za-z0-9_./-]+`(?:, `[A-Za-z0-9_./-]+`)*$")
 GROUP = re.compile(r"^group: [a-z0-9][a-z0-9.-]*$")
+TASK = re.compile(r"^task: [a-z0-9][a-z0-9.-]*$")
 CODE_SPAN = re.compile(r"`([^`]+)`")
 WORK_ID = re.compile(r"^WORK-[A-Z2-7]{6}$")
 RETIRED = re.compile(r"^(VERDICT|DESIGN|OWNER|PLAN|VERIFY)\b")
@@ -97,6 +104,12 @@ BLOCKER_ID_CEILING = 0
 #: Rows citing a ``planned/`` doc with no ``group:`` segment when the rule landed (2026-11-02).
 #: Shrink-only; ``RT-QUEUE-ROW-GROUP-BACKFILL`` took it to 0 (2026-11-02): every plan row now names its group.
 GROUP_MISSING_CEILING = 0
+
+#: Live rows under no task (``ROW HAS NO TASK``) or in a group no visible brain has a task for (``GROUP HAS NO
+#: TASK``) when RT-QUEUE-TASKS-GRAMMAR landed (2026-11-09). Shrink-only; 0 from the start: the 2026-11-09 dry run
+#: (launcher plan QUEUE_TASKS_AND_SUBTASKS_2026-11-09 § 7) put every hermes row under a task. ``TWO TASKS`` and
+#: ``TASK TITLE`` have no ceiling.
+TASK_DEFECT_CEILING = 0
 
 
 def split_segments(line: str) -> list[str]:
@@ -209,6 +222,13 @@ def row_defects(line: str, *, archived: bool = False) -> list[str]:
         defects.append("2 REQUIRES segments; at most one")
     if sum(1 for s in segments[1:] if s.startswith("group:")) > 1:
         defects.append("2 group segments; at most one")
+    tasks = [s for s in segments[1:] if s.startswith("task:")]
+    defects += [f"BAD TASK: {s[:40]!r}; the segment is `task: <slug>`, slug [a-z0-9][a-z0-9.-]*"
+                for s in tasks if not TASK.match(s)]
+    if len(tasks) > 1:
+        defects.append(f"BAD TASK: {len(tasks)} task segments; at most one")
+    if tasks and any(s.startswith("group:") for s in segments[1:]):
+        defects.append("BAD TASK: a task row carries no `group:` segment")
     taken = TAKEN.search(line)
     if taken is not None and taken.group(1) >= PLACE_REQUIRED_FROM:
         who = taken.group(2).strip()
@@ -313,6 +333,7 @@ VALID = [
     "- **`RT-M` — earlier bare claim** · READY 2026-10-26 · **TAKEN 2026-10-26 w1026a-x**",
     "- **`RT-N` — persona claim** · READY 2026-10-27 · **TAKEN 2026-10-27 persona:pi_alice_01**",
     "- **`RT-O` — grouped** · group: companion-templates.tags · plan `docs/x/planned/p.md` · READY 2026-11-02",
+    "- **`TASK-PILLS` — Pills on the board** · task: board-pills · READY 2026-11-09",
 ]
 DEFECTS = {
     "- [ ] **`RT-A` — checkbox** · READY 2026-10-18": "checkbox",
@@ -344,6 +365,10 @@ DEFECTS = {
     "- **`RT-A` — upper group** · group: Companion · READY 2026-11-02": "group shape",
     "- **`RT-A` — code group** · group: `a` · READY 2026-11-02": "group shape",
     "- **`RT-A` — two groups** · group: a · group: b · READY 2026-11-02": "2 group",
+    "- **`RT-A` — empty task** · task: · READY 2026-11-09": "BAD TASK",
+    "- **`RT-A` — upper task** · task: Pills · READY 2026-11-09": "BAD TASK",
+    "- **`RT-A` — two tasks** · task: a · task: b · READY 2026-11-09": "BAD TASK: 2 task",
+    "- **`RT-A` — task in a group** · task: a · group: b · READY 2026-11-09": "carries no `group:`",
     "- **`RT-A` — claim with no on** · READY 2026-10-27 · **TAKEN 2026-10-27 w1027a-core as nekwo in wt**": "names no machine",
 }
 
@@ -469,6 +494,30 @@ def test_plan_rows_missing_a_group_only_fall() -> None:
     assert len(missing) == GROUP_MISSING_CEILING, (
         f"only {len(missing)} plan rows lack a group now; lower GROUP_MISSING_CEILING to {len(missing)}"
     )
+
+
+def _task_defects() -> list[str]:
+    from agent_runtime.work_store import grammar, tasks
+
+    rows = [row for path, text in _queue_notes().items() for row in grammar.parse_note(text, slot="hermes", note=path)]
+    found = tasks.sibling_rows(REPO)
+    return tasks.task_defects(rows, [row for brain in found.values() for row in brain],
+                              siblings_visible=tasks.siblings_visible(found))
+
+
+def test_every_row_is_a_task_or_a_subtask_and_a_task_is_one_per_slug_with_a_plain_title() -> None:
+    """RT-QUEUE-TASKS-GRAMMAR. KILLING MUTATION: TASK_DEFECT_CEILING = 1 -> the equality arm reds ("lower it")."""
+
+    defects = _task_defects()
+    under_no_task = [d for d in defects if "(ROW HAS NO TASK:" in d or "(GROUP HAS NO TASK:" in d]
+    hard = [d for d in defects if d not in under_no_task]
+    assert not hard, "tasks the board cannot show (one task per slug, a plain-English title):\n" + "\n".join(hard)
+    assert len(under_no_task) <= TASK_DEFECT_CEILING, (
+        f"{len(under_no_task)} rows under no task (ceiling {TASK_DEFECT_CEILING}); file a row under a task "
+        "(`group: <slug>`, find one with `git grep -h \"task: \"` over the three brains) or as a task:\n"
+        + "\n".join(under_no_task))
+    assert len(under_no_task) == TASK_DEFECT_CEILING, (
+        f"only {len(under_no_task)} rows lack a task now; lower TASK_DEFECT_CEILING to {len(under_no_task)}")
 
 
 def test_a_plan_is_cited_with_or_without_a_repo_prefix() -> None:

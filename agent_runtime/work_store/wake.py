@@ -13,6 +13,8 @@ import re
 
 from agent_runtime.work_store.grammar import SEPARATOR, STATUS, Status, parse_note, split_segments
 
+__layer__ = "policy"
+
 #: The reasons whose blocker ID resolves in this brain.
 OWN_BRAIN_REASONS = ("hermes", "another lane")
 _BLOCKER_ID = re.compile(r"^`([A-Z0-9][A-Z0-9._-]*)`")

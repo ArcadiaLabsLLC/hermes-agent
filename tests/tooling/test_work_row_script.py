@@ -156,3 +156,78 @@ def test_no_wake_leaves_them_blocked(clones):
     assert work_row.main(["close", "RT-A", "--who", "r-lane", "--owner", "not needed", "--no-wake",
                           "--repo", str(mine), "--no-commit"]) == 0
     assert (mine / other_note).read_text(encoding="utf-8") == waiting
+
+
+TASK_ROWS = ("- **`TASK-P` — Pills on the board** · task: p · READY 2026-11-09\n"
+             "- **`RT-S1` — first slice** · group: p · READY 2026-11-09\n"
+             "- **`RT-S2` — second slice** · group: p.x · READY 2026-11-09\n")
+
+
+def _siblings(tmp_path: Path, launcher_rows: str = "") -> None:
+    for relative in work_row.SIBLING_QUEUE_DIRS.values():
+        (tmp_path / relative).mkdir(parents=True, exist_ok=True)
+    note = tmp_path / work_row.SIBLING_QUEUE_DIRS["launcher"] / "mission-control-queue.md"
+    note.write_text(HEAD + launcher_rows, encoding="utf-8", newline="\n")
+
+
+def _seed(mine: Path, rows: str) -> None:
+    (mine / NOTE).write_text(HEAD + ROWS + rows, encoding="utf-8", newline="\n")
+    git("commit", "-q", "-am", "tasks", cwd=mine)
+    git("push", "-q", cwd=mine)
+
+
+def test_the_last_subtask_closing_closes_its_task(clones, tmp_path, monkeypatch, capsys):
+    """RT-QUEUE-TASKS-GRAMMAR (launcher plan QUEUE_TASKS_AND_SUBTASKS_2026-11-09 D7). KILLING MUTATION: skip
+    ``close_task`` in ``main`` -> TASK-P stays live after RT-S2 closes, red."""
+    monkeypatch.delenv("ETERNIA_WORKSPACE_ROOTS", raising=False)
+    origin, mine, _ = clones
+    _siblings(tmp_path)
+    _seed(mine, TASK_ROWS)
+    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--date", "2026-11-09",
+                          "--repo", str(mine)]) == 0
+    assert "`TASK-P` — Pills" in (mine / NOTE).read_text(encoding="utf-8"), "RT-S2 is still open"
+    assert work_row.main(["close", "RT-S2", "--who", "r", "--done", "5d6e7f8", "--date", "2026-11-09",
+                          "--repo", str(mine)]) == 0
+    assert "closed task `TASK-P`: DONE, all 2 subtasks closed" in capsys.readouterr().out
+    assert "TASK-P" not in (mine / NOTE).read_text(encoding="utf-8")
+    archive = (mine / "Harness_Brain/80 — Archive/Queues/q-2026-11.md").read_text(encoding="utf-8")
+    assert archive.endswith("- **`RT-S2` — second slice** · group: p.x · DONE 2026-11-09 5d6e7f8\n"
+                            "- **`TASK-P` — Pills on the board** · task: p · DONE 2026-11-09 5d6e7f8 · "
+                            "result: all 2 subtasks closed\n")
+    assert git("log", "-1", "--format=%s", "main", cwd=origin).strip() == "queue(q): close RT-S2 DONE 5d6e7f8"
+
+
+def test_a_subtask_open_in_a_sibling_brain_or_a_sibling_not_checked_out_keeps_the_task_open(
+        clones, tmp_path, monkeypatch, capsys):
+    """KILLING MUTATIONS: drop the sibling rows from ``subtasks_of``'s input in ``close_task`` -> TASK-P closes with
+    L-S open, red; drop the ``siblings_visible`` arm -> TASK-P closes with no siblings checked out, red."""
+    monkeypatch.delenv("ETERNIA_WORKSPACE_ROOTS", raising=False)
+    _, mine, _ = clones
+    _seed(mine, TASK_ROWS.replace("- **`RT-S2` — second slice** · group: p.x · READY 2026-11-09\n", ""))
+    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--repo", str(mine),
+                          "--no-commit"]) == 0
+    assert "brain is not checked out beside this repository: left open" in capsys.readouterr().out
+    assert "TASK-P" in (mine / NOTE).read_text(encoding="utf-8")
+    git("checkout", "-q", "--", ".", cwd=mine)
+    git("clean", "-qfd", cwd=mine)
+    _siblings(tmp_path, "- **`L-S` — launcher slice** · group: p · READY 2026-11-09\n")
+    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--repo", str(mine),
+                          "--no-commit"]) == 0
+    assert "TASK-P" in (mine / NOTE).read_text(encoding="utf-8")
+
+
+def test_a_woken_subtask_sets_its_blocked_task_ready(clones, tmp_path, monkeypatch, capsys):
+    """D3 amended. KILLING MUTATION: skip ``wake_tasks`` in ``main`` -> TASK-W stays BLOCKED, red."""
+    monkeypatch.delenv("ETERNIA_WORKSPACE_ROOTS", raising=False)
+    origin, mine, _ = clones
+    _siblings(tmp_path)
+    _seed(mine, "- **`TASK-W` — Wait for the fix** · task: w · BLOCKED 2026-11-09: another lane — `RT-W1` first\n"
+                "- **`RT-W1` — the slice** · group: w · BLOCKED 2026-11-09: another lane — `RT-A` the fix\n")
+    assert work_row.main(["close", "RT-A", "--who", "r", "--done", "3f9c2a1", "--date", "2026-11-09",
+                          "--repo", str(mine)]) == 0
+    text = (mine / NOTE).read_text(encoding="utf-8")
+    assert ("- **`TASK-W` — Wait for the fix** · task: w · READY 2026-11-09 · unblocked 2026-11-09: subtask `RT-W1` "
+            "woke when `RT-A` closed\n") in text
+    assert "- **`RT-W1` — the slice** · group: w · READY 2026-11-09 · unblocked" in text
+    assert "task `TASK-W`: READY (its subtask `RT-W1` woke)" in capsys.readouterr().out
+    assert NOTE in git("show", "--name-only", "--format=", "main", cwd=origin)

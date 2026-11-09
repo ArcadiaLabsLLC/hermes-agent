@@ -395,3 +395,41 @@ def test_list_reads_a_notes_commit_time_once_not_once_per_row(work, monkeypatch)
     assert {row["updated_at"] for row in queue["rows"]} == {inspected["updated_at"]} != {None}
     assert queue["rows"][0]["revision"] == next(
         row for row in rows_of(call(work, "list", status="READY")) if row["id"] == ids[0])["revision"]
+
+
+def _commit_row(work, line):
+    """Append ``line`` to the default brain's work queue as one commit in the brain itself (a teammate's push)."""
+    import subprocess
+
+    root = paths.default_brain_dir(work.ws)
+    subprocess.run(["git", "-C", str(root), "checkout", "-q", "--", "."], check=True, capture_output=True)
+    note = root / "Work_Brain" / "20 — Active Initiatives" / "work-queue.md"
+    note.write_text(note.read_text(encoding="utf-8").rstrip("\n") + "\n" + line + "\n", encoding="utf-8", newline="\n")
+    for args in (["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@t.invalid", "commit", "-q", "-m", "row"]):
+        subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
+
+
+def test_claim_refuses_a_subtask_whose_task_is_not_ready(work):
+    """RT-QUEUE-TASKS-GRAMMAR (launcher plan QUEUE_TASKS_AND_SUBTASKS_2026-11-09 D3). KILLING MUTATIONS: drop the
+    ``task.status is not Status.READY`` raise in ``store.parent_task`` -> the DEFERRED task's subtask is claimed,
+    red; drop the ``gate`` call in ``_row_write`` -> the same, red."""
+    alice = mint_free_floating("alice")
+    sub = start(work, request_id="sub", group="pills.hermes")["task"]["id"]
+    where = {"slot": "brain", "task_id": sub}
+    lone = call(work, "claim", request_id="c0", who=f"persona:{alice.id}", **where)
+    assert lone["task"]["status"] == "TAKEN"
+    assert lone["parent_task"]["checked"] is False and "no visible brain has a task for `pills.hermes`" in (
+        lone["parent_task"]["detail"])
+    call(work, "release", request_id="r0", **where)
+    _commit_row(work, "- **`TASK-PILLS` — Pills on the board** · task: pills · DEFERRED 2026-11-09: after release")
+    with pytest.raises(WorkRefused) as refused:
+        call(work, "claim", request_id="c1", who=f"persona:{alice.id}", **where)
+    assert refused.value.reason is Reason.TASK_NOT_READY and "`TASK-PILLS`" in refused.value.detail
+    assert refused.value.data == {"task_id": "TASK-PILLS", "task_status": "DEFERRED"}
+    call(work, "set_status", request_id="s1", status="READY 2026-11-09", slot="brain", task_id="TASK-PILLS")
+    claimed = call(work, "claim", request_id="c2", who=f"persona:{alice.id}", **where)
+    assert claimed["task"]["status"] == "TAKEN"
+    assert claimed["parent_task"] == {"group": "pills.hermes", "task_id": "TASK-PILLS", "task_status": "READY",
+                                      "checked": True}
+    task = call(work, "claim", request_id="c3", who=f"persona:{alice.id}", slot="brain", task_id="TASK-PILLS")
+    assert task["parent_task"] is None, "a task row is not a subtask"

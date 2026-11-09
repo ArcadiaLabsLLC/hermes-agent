@@ -11,7 +11,7 @@ its rows into the first repo brain); a slot-less ``start`` still lands in a repo
 """
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -26,6 +26,7 @@ from agent_runtime.work_store.default_brain import (
 from agent_runtime.work_store.grammar import (
     ASSIGNEE, GROUP_SLUG, STATUS, Assignee, Op, Row, RowRef, Status, find, local_day, mint_id, parse_note,
 )
+from agent_runtime.work_store.tasks import task_of
 from agent_runtime.work_store.writer import OPERATOR, Writer, RowOp, checkout_token, work_worktree_for
 
 from agent_runtime.errors import NotFound
@@ -420,13 +421,16 @@ def start(scope, params, actor, *, context=None):
     return {"task": _task(writer, receipt.ref, context), "disposition": "accepted", "receipt": receipt.wire()}
 
 
-def _row_write(scope, params, op: Op, who: str, payload: Mapping[str, Any], *, context, request: str | None = None):
+def _row_write(scope, params, op: Op, who: str, payload: Mapping[str, Any], *, context, request: str | None = None,
+               gate: Callable[[Row], None] | None = None):
     view = synced(scope.workspace_id, slot=params.get("slot"))
     board = _view_board(view, params.get("slot"))
     writer = view.writers[board.key]
     row = find(boards_store.board_rows(board), text(params.get("task_id")))
     if row is None:
         raise WorkRefused(Reason.ROW_GONE, str(params.get("task_id")))
+    if gate is not None:
+        gate(row)
     if op is Op.EDIT:
         relative = f"{BRIEF_DIR}/{row.ref.id}-{fingerprint(payload['body'])[:16]}.md"
         payload = {"title": payload["title"], "brief": f"{writer.brain_root}/{relative}",
@@ -497,8 +501,38 @@ def claim(scope, params, actor, *, context=None):
     if instance is None:
         raise WorkRefused(Reason.INVALID, "a claim names who: persona:<instance_id>")
     _instance_exists(instance)
-    writer, receipt = _row_write(scope, params, Op.CLAIM, f"persona:{instance}", {}, context=context)
-    return {"task": _task(writer, receipt.ref, context), "receipt": receipt.wire()}
+    parent: dict[str, Any] = {}
+
+    def gate(row: Row) -> None:
+        parent.update(parent_task(scope.workspace_id, row) or {})
+
+    writer, receipt = _row_write(scope, params, Op.CLAIM, f"persona:{instance}", {}, context=context, gate=gate)
+    return {"task": _task(writer, receipt.ref, context), "receipt": receipt.wire(), "parent_task": parent or None}
+
+
+def parent_task(workspace_id: str, row: Row) -> dict[str, Any] | None:
+    """The claim door's task check (RT-QUEUE-TASKS-GRAMMAR; launcher plan QUEUE_TASKS_AND_SUBTASKS_2026-11-09 D3).
+
+    A subtask (a row with ``group:``) is claimable only while its task is READY: a DEFERRED, BLOCKED or NEEDS PLAN
+    task refuses ``task_not_ready``, naming the task. The task is looked for in every brain the workspace's boards
+    read (the slug or a dotted prefix of it); a task no visible brain holds lets the claim through, and the answer
+    says so (``checked: false``). None for a row that is not a subtask.
+    """
+
+    if row.group is None:
+        return None
+    candidates = [r for board in observed(workspace_id).boards for r in boards_store.board_rows(board)]
+    task = task_of(row, candidates)
+    if task is None:
+        return {"group": row.group, "task_id": None, "task_status": None, "checked": False,
+                "detail": f"no visible brain has a task for `{row.group}`: the claim was not checked against one"}
+    status = task.status.value if task.status is not None else None
+    if task.status is not Status.READY:
+        raise WorkRefused(Reason.TASK_NOT_READY,
+                          f"`{row.ref.id}` is a subtask of `{task.ref.id}`, which is {status or 'without a status'}: "
+                          "a subtask is claimed only while its task is READY",
+                          data={"task_id": task.ref.id, "task_status": status})
+    return {"group": row.group, "task_id": task.ref.id, "task_status": status, "checked": True}
 
 
 def _instance_exists(instance: str) -> None:

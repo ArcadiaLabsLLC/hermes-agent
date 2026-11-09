@@ -56,7 +56,8 @@ def test_every_defect_fixture_row_is_a_defect() -> None:
     assert not clean, clean
 
 
-@pytest.mark.parametrize("name", ["grammar_valid.md", "grammar_defects.md"])
+@pytest.mark.parametrize("name", ["grammar_valid.md", "grammar_defects.md", "grammar_tasks.md",
+                                  "grammar_task_defects.md"])
 def test_the_twin_agrees_with_the_lint_on_every_fixture_row(name: str) -> None:
     rows = _rows(name)
     disagree = [row.raw for row in rows if bool(grammar.row_defects(row.raw)) != bool(lint_defects(row.raw))]
@@ -231,6 +232,23 @@ def test_group_names_the_feature_and_is_not_a_status() -> None:
     started = store._start_row("WORK-ABCDEF", "t", None, None, "2026-11-02", group="eternia-lens")
     assert started == "- **`WORK-ABCDEF` — t** · group: eternia-lens · READY 2026-11-02"
     assert grammar.parse_row(started, slot="s", note="n", line_no=1).defects == ()
+
+
+def test_task_names_the_slug_and_never_sits_beside_a_group() -> None:
+    """RT-QUEUE-TASKS-GRAMMAR (launcher plan QUEUE_TASKS_AND_SUBTASKS_2026-11-09 D1). KILLING MUTATIONS: drop the
+    ``task=`` read in ``parse_row`` -> ``row.task`` is None, red; drop the task-beside-group arm of
+    ``_task_defects`` -> the grouped task row parses clean, red."""
+
+    line = "- **`TASK-PILLS` — Pills on the board** · task: board-pills · READY 2026-11-09"
+    row = grammar.parse_row(line, slot="s", note="n", line_no=1)
+    assert (row.task, row.group, row.defects, row.pointers) == ("board-pills", None, (), ())
+    sub = grammar.parse_row("- **`RT-S` — sub** · group: board-pills.hermes · READY 2026-11-09", slot="s", note="n",
+                            line_no=2)
+    assert (sub.task, sub.group) == (None, "board-pills.hermes")
+    for bad in ("task:", "task: Pills", "task: `a`", "task: a · task: b", "task: a · group: a"):
+        parsed = grammar.parse_row(f"- **`RT-T` — x** · {bad} · READY 2026-11-09", slot="s", note="n", line_no=1)
+        assert parsed.defects and all(d.startswith("BAD TASK") for d in parsed.defects), (bad, parsed.defects)
+        assert lint_defects(parsed.raw) == list(parsed.defects), bad
 
 
 # ── the closed-row archive (RT-QUEUE-ARCHIVE-GRAMMAR) ─────────────────────────

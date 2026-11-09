@@ -81,6 +81,9 @@ class Reason(StrEnum):
     NOT_A_REPO = "not_a_repo"
     # ``runtime.work.move`` with a ``revision`` the row no longer carries (RT-WORK-MOVE-ROW-COLUMN).
     ROW_CHANGED = "row_changed"
+    # ``runtime.work.claim`` of a subtask whose task is not READY (RT-QUEUE-TASKS-GRAMMAR; launcher plan
+    # QUEUE_TASKS_AND_SUBTASKS_2026-11-09 D3): the task's status is the owner's lever over every subtask.
+    TASK_NOT_READY = "task_not_ready"
 
 
 class WorkRefused(ValueError):

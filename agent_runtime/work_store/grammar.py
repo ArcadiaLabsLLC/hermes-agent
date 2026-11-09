@@ -76,6 +76,9 @@ SKILL_SLUG = re.compile(r"^[A-Za-z0-9_./-]+$")
 #: lowercase slug, so it is never an ID and never a pointer.
 GROUP = re.compile(r"^group: ([a-z0-9][a-z0-9.-]*)$")
 GROUP_SLUG = re.compile(r"^[a-z0-9][a-z0-9.-]*$")
+#: ``task: <slug>`` — the row IS the task of that slug, the plain-English parent of every row whose ``group:`` is the
+#: slug or a dotted ``<slug>.<sub>`` under it (launcher plan QUEUE_TASKS_AND_SUBTASKS_2026-11-09 D1); same slug shape.
+TASK = re.compile(r"^task: ([a-z0-9][a-z0-9.-]*)$")
 WORK_ID = re.compile(r"^WORK-[A-Z2-7]{6}$")
 TAKEN = re.compile(r"\*\*TAKEN (\d{4}-\d{2}-\d{2}) ([^*]+?)\*\*")
 #: A lane claim's ``<who>``: ``<lane>[ on <machine>][ as <git account>][ in <worktree>]``. The account may
@@ -245,6 +248,8 @@ class Row:
     requires: tuple[str, ...] = ()
     #: The feature the row belongs to (``group:`` segment); None when it names none.
     group: str | None = None
+    #: The slug this row is the TASK of (``task:`` segment); None on a subtask or an untasked row.
+    task: str | None = None
     #: An archived row's one outcome (None on a live row, or when it has none or several).
     outcome: Outcome | None = None
     #: An archived row's ``result:`` / ``review:`` records.
@@ -356,6 +361,21 @@ def _segment_defects(segments: list[str]) -> list[str]:
         defects.append("2 REQUIRES segments; at most one")
     if sum(1 for s in segments[1:] if s.startswith("group:")) > 1:
         defects.append("2 group segments; at most one")
+    defects += _task_defects(segments)
+    return defects
+
+
+def _task_defects(segments: list[str]) -> list[str]:
+    """``BAD TASK``: an empty or malformed ``task:``, a second one, or a ``task:`` beside a ``group:`` — a task row
+    names its slug once and belongs to no group (the launcher's ``WorkQueueRowDefect.badTask``)."""
+
+    tasks = [s for s in segments[1:] if s.startswith("task:")]
+    defects = [f"BAD TASK: {s[:40]!r}; the segment is `task: <slug>`, slug [a-z0-9][a-z0-9.-]*"
+               for s in tasks if not TASK.match(s)]
+    if len(tasks) > 1:
+        defects.append(f"BAD TASK: {len(tasks)} task segments; at most one")
+    if tasks and any(s.startswith("group:") for s in segments[1:]):
+        defects.append("BAD TASK: a task row carries no `group:` segment")
     return defects
 
 
@@ -441,6 +461,7 @@ def parse_row(line: str, *, slot: str, note: str, line_no: int, heading: str = "
     lent = next((s for s in segments[1:] if SKILLS.match(s)), None)
     hosts = next((h for h in map(requires_hosts, segments[1:]) if h is not None), ())
     group = next((m.group(1) for m in map(GROUP.match, segments[1:]) if m), None)
+    task = next((m.group(1) for m in map(TASK.match, segments[1:]) if m), None)
     taken = claim_mark(line)
     outcomes = [o for o in map(parse_outcome, (s for s in segments[1:] if OUTCOME_OPEN.match(s)))]
     result = next((s[len("result:"):].strip() for s in segments[1:] if s.startswith("result:")), None)
@@ -464,6 +485,7 @@ def parse_row(line: str, *, slot: str, note: str, line_no: int, heading: str = "
         skills=tuple(CODE_SPAN.findall(lent)) if lent else (),
         requires=hosts,
         group=group,
+        task=task,
         outcome=outcomes[0] if len(outcomes) == 1 else None,
         result=result[:RESULT_LIMIT] if result is not None else None,
         review=review,

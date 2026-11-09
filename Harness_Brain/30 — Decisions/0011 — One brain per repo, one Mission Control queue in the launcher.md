@@ -49,6 +49,17 @@ Identical in the launcher, this repo and the backend; do not diverge.
   Work engine reads it as `Row.group`, serves it on every `runtime.work.list` row, filters by `group?`,
   writes it from `runtime.work.start`'s `group?` and re-files a row with `Op.SET_GROUP`. Plan:
   `EterniaLauncher/docs/mission_control/subsystems/QUEUE_ROW_GROUPS_2026-11-01.md`.
+- **Task (amendment 2026-11-09, `RT-QUEUE-TASKS-GRAMMAR`, twin of launcher ADR 0025's 2026-11-09 amendment):**
+  `task: <slug>` (same slug shape) makes the row the TASK of that slug, the plain-English parent of every row
+  whose `group:` is the slug or a dotted `<slug>.<sub>`; a task row carries no `group:`, and an empty,
+  malformed or second `task:`, or one beside a `group:`, is `BAD TASK`. Every row is a task or a subtask; across
+  this vault and the sibling brains checked out beside it the lint names `TWO TASKS`, `GROUP HAS NO TASK`
+  (only with both siblings visible), `ROW HAS NO TASK` and `TASK TITLE` (a code span, path or row ID in the
+  title, or over 100 characters) — `agent_runtime/work_store/tasks.py::task_defects`, the no-task pair under
+  the shrink-only `TASK_DEFECT_CEILING` (0). `runtime.work.claim` refuses a subtask whose task is not READY
+  (`task_not_ready`); `scripts/work_row.py close` archives a task with its last subtask and sets a BLOCKED task
+  READY when a close wakes one of its subtasks. Plan:
+  `EterniaLauncher/docs/mission_control/planned/QUEUE_TASKS_AND_SUBTASKS_2026-11-09.md` D1–D4, D7.
 - **Claim place (amendment 2026-10-27, twin of launcher ADR 0025's 2026-10-26 amendment):** a lane claim is
   `**TAKEN <date> <lane> on <machine> as <git account> in <worktree>**`; one dated 2026-10-27 or later with no
   `on <machine>` is a defect. Persona claims and earlier marks are exempt.

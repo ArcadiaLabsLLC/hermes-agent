@@ -17,6 +17,14 @@ naming the close (``agent_runtime/work_store/wake.py``; launcher row BRAIN-QUEUE
 ``--no-wake`` leaves them. Rows in the launcher or backend brains are theirs to wake — the launcher's
 ``dart tool/queue/waits_on.dart <ID> --in hermes`` lists them.
 
+A close also moves the row's TASK (launcher plan ``EterniaLauncher/docs/mission_control/planned/
+QUEUE_TASKS_AND_SUBTASKS_2026-11-09.md`` D3 amended, D7; ``agent_runtime/work_store/tasks.py``): when the closed
+row was a task's last open subtask in every brain (the launcher's and the backend's queues checked out beside this
+repository), a task in this brain is archived in the same commit, ``DONE <date> <the subtask's sha>`` with
+``result: all N subtasks closed``; and a woken subtask whose task here is BLOCKED sets that task ``READY``. A task in
+a sibling brain is that brain's to move — the close prints what it would have done; with a sibling brain not checked
+out the task is left open and the close says so.
+
 A claim names its place (ADR 0025's 2026-10-26 amendment): ``**TAKEN <date> <lane> on <machine> as
 <git account> in <worktree>**``. ``--machine`` defaults to the hostname, ``--account`` to the
 checkout's ``git config user.name``, ``--worktree`` to the checkout's folder name; a part that cannot
@@ -46,10 +54,13 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from agent_runtime.work_store.grammar import (
-    Op, apply, archive_note_for, archive_note_text, find, is_queue, parse_note, parse_outcome, row_defects,
-    split_segments,
+    SEPARATOR, STATUS, Op, OutcomeKind, Row, Status, apply, archive_note_for, archive_note_text, find, is_queue,
+    parse_note, parse_outcome, row_defects, split_segments,
 )
 from agent_runtime.work_store.reasons import Reason, WorkRefused
+from agent_runtime.work_store.tasks import (
+    SIBLING_QUEUE_DIRS, archived_rows, sibling_rows, siblings_visible, subtasks_of, task_of,
+)
 from agent_runtime.work_store.wake import wake_dependents
 
 COMMANDS = {"claim": Op.CLAIM, "release": Op.RELEASE, "set-status": Op.SET_STATUS, "delete": Op.DELETE,
@@ -105,20 +116,93 @@ def close_payload(args: argparse.Namespace) -> dict:
     return {**payload, "result": args.result or "", "date": args.date or date.today().isoformat()}
 
 
-def closed_texts(repo: Path, note: Path, text: str, args: argparse.Namespace) -> tuple[str, Path, str]:
-    """``(queue text without the row, archive path, archive text with it)`` for ``close``."""
+def archive_row(repo: Path, note: Path, text: str, row_id: str, who: str, payload: dict,
+                archives: dict[Path, str]) -> tuple[str, Path]:
+    """``note``'s text without ``row_id``, and the archive month file its closed line was appended to in
+    ``archives`` (path -> text, read from disk the first time a path is met)."""
 
-    row = find(parse_note(text, slot="", note=""), args.row_id)
-    archived = apply(row.raw, Op.CLOSE, who=args.who, date=date.today().isoformat(), payload=close_payload(args))
+    row = find(parse_note(text, slot="", note=""), row_id)
+    archived = apply(row.raw, Op.CLOSE, who=who, date=date.today().isoformat(), payload=payload)
     outcome = next(o for o in map(parse_outcome, (s.strip() for s in split_segments(archived))) if o is not None)
     archive = repo / archive_note_for(note.relative_to(repo).as_posix(), outcome.date)
-    front = text.split("\n---", 1)[0].split("\n")
-    program = next((line.split(":", 1)[1].strip() for line in front if line.startswith("program:")), None)
-    head = archive.read_bytes().decode("utf-8") if archive.is_file() else archive_note_text(
-        note.name, program, outcome.date[:7])
+    if archive not in archives:
+        front = text.split("\n---", 1)[0].split("\n")
+        program = next((line.split(":", 1)[1].strip() for line in front if line.startswith("program:")), None)
+        archives[archive] = archive.read_bytes().decode("utf-8") if archive.is_file() else archive_note_text(
+            note.name, program, outcome.date[:7])
+    head = archives[archive]
+    archives[archive] = head + ("" if head.endswith("\n") else "\n") + archived + "\n"
     lines = text.split("\n")
     del lines[row.line_no - 1]
-    return "\n".join(lines), archive, head + ("" if head.endswith("\n") else "\n") + archived + "\n"
+    return "\n".join(lines), archive
+
+
+def _live_rows(texts: dict[Path, str]) -> list[Row]:
+    return [row for path, text in texts.items() for row in parse_note(text, slot="hermes", note=str(path))]
+
+
+def close_task(repo: Path, closed: Row, texts: dict[Path, str], archives: dict[Path, str], payload: dict,
+               siblings: dict[str, list[Row]], who: str) -> list[str]:
+    """D7: archive the task of ``closed`` when no subtask of it is open in any brain; what was done, as lines.
+
+    ``texts`` (every queue note of this brain, the closed row already gone) and ``archives`` are edited in place.
+    """
+
+    own = _live_rows(texts)
+    others = [row for rows in siblings.values() for row in rows]
+    task = task_of(closed, own + others)
+    if task is None:
+        return []
+    still_open = subtasks_of(task, own + others)
+    if still_open:
+        return []
+    if not siblings_visible(siblings):
+        missing = ", ".join(sorted(set(SIBLING_QUEUE_DIRS) - set(siblings)))
+        return [f"task `{task.ref.id}` has no open subtask here, but the {missing} brain is not checked out beside "
+                "this repository: left open"]
+    if task.ref.slot != "hermes":
+        return [f"task `{task.ref.id}` ({task.ref.slot}) has no open subtask left: close it there with its close tool"]
+    counted = archived_rows(repo / "Harness_Brain" / "20 — Active Initiatives") + [
+        row for text in archives.values() for row in parse_note(text, slot="", note="", archived=True)]
+    done = len({row.ref.id for row in subtasks_of(task, counted)} | {closed.ref.id})
+    commit = payload.get("commit") if payload["outcome"] != OutcomeKind.CLOSED.name else None
+    task_payload = {"outcome": "DONE", "commit": commit or "here", "result": f"all {done} subtasks closed",
+                    "date": payload["date"]}
+    note = Path(task.ref.note)
+    texts[note], _ = archive_row(repo, note, texts[note], task.ref.id, who, task_payload, archives)
+    return [f"closed task `{task.ref.id}`: DONE, all {done} subtasks closed"]
+
+
+def wake_tasks(woken: dict[Path, list[str]], texts: dict[Path, str], siblings: dict[str, list[Row]],
+               closed_id: str, close_date: str) -> list[str]:
+    """D3 amended: a woken subtask's BLOCKED task in this brain goes READY (``texts`` edited in place); what was
+    done, as lines."""
+
+    own = _live_rows(texts)
+    others = [row for rows in siblings.values() for row in rows]
+    by_id = {row.ref.id: row for row in own}
+    said: list[str] = []
+    for subtask_id in (row_id for ids in woken.values() for row_id in ids):
+        task = task_of(by_id[subtask_id], own + others)
+        if task is None or task.status is not Status.BLOCKED:
+            continue
+        if task.ref.slot != "hermes":
+            said.append(f"task `{task.ref.id}` ({task.ref.slot}) is BLOCKED while its subtask `{subtask_id}` woke: "
+                        "set it READY there")
+            continue
+        note = Path(task.ref.note)
+        lines = texts[note].split("\n")
+        line = lines[task.line_no - 1]
+        carriage = "\r" if line.endswith("\r") else ""
+        segments = split_segments(line.rstrip("\r"))
+        at = next(i for i, segment in enumerate(segments) if i and STATUS.match(segment.strip()))
+        segments[at:at + 1] = [f"READY {close_date}",
+                               f"unblocked {close_date}: subtask `{subtask_id}` woke when `{closed_id}` closed"]
+        lines[task.line_no - 1] = SEPARATOR.join(segments) + carriage
+        texts[note] = "\n".join(lines)
+        own = _live_rows(texts)
+        said.append(f"task `{task.ref.id}`: READY (its subtask `{subtask_id}` woke)")
+    return said
 
 
 def queue_notes(repo: Path, note: str | None) -> list[Path]:
@@ -179,11 +263,11 @@ def edited_text(text: str, args: argparse.Namespace) -> str:
     return "\n".join(lines)
 
 
-def commit_and_push(repo: Path, note: Path, args: argparse.Namespace, git: Git, *, also: Path | None = None,
+def commit_and_push(repo: Path, note: Path, args: argparse.Namespace, git: Git, *, also: tuple[Path, ...] = (),
                     woken: tuple[Path, ...] = ()) -> int:
-    relative = [note.relative_to(repo).as_posix(), *([also.relative_to(repo).as_posix()] if also else []),
-                *(path.relative_to(repo).as_posix() for path in woken if path != note)]
-    if also is None:
+    relative = list(dict.fromkeys([note.relative_to(repo).as_posix(), *(path.relative_to(repo).as_posix()
+                                                                         for path in (*also, *woken))]))
+    if not also:
         subject = f"queue: {COMMANDS[args.command].value} {args.row_id} {args.who}"
     else:
         word = f"DONE {args.done}" if args.done else f"REFUTED {args.refuted}" if args.refuted else "CLOSED by owner"
@@ -208,28 +292,37 @@ def main(argv: list[str] | None = None, *, git: Git = run_git) -> int:
     repo = Path(args.repo).resolve()
     try:
         note, text = _note_and_text(repo, args)
-        archive = None
-        woken: dict[Path, list[str]] = {}
+        archives: dict[Path, str] = {}
+        touched: list[Path] = []
         if COMMANDS[args.command] is Op.CLOSE:
-            queue_text, archive, archive_text = closed_texts(repo, note, text, args)
-            texts = {note: queue_text}
+            payload = close_payload(args)
+            closed = find(parse_note(text, slot="hermes", note=str(note)), args.row_id)
+            texts = {path: path.read_bytes().decode("utf-8") for path in queue_notes(repo, None)}
+            before = {**texts, note: text}
+            texts[note], _ = archive_row(repo, note, text, args.row_id, args.who, payload, archives)
+            siblings = sibling_rows(repo) if closed.group is not None or not args.no_wake else {}
+            said = close_task(repo, closed, texts, archives, payload, siblings, args.who)
+            woken: dict[Path, list[str]] = {}
             if not args.no_wake:
-                payload = close_payload(args)
                 how = "CLOSED" if payload["outcome"] == "CLOSED" else f"{payload['outcome']} {payload['commit']}"
-                for path in queue_notes(repo, None):
-                    before = texts.get(path, path.read_bytes().decode("utf-8"))
-                    after, ids = wake_dependents(before, args.row_id, payload["date"], how)
+                for path in texts:
+                    after, ids = wake_dependents(texts[path], args.row_id, payload["date"], how)
                     if ids:
                         texts[path] = after
                         woken[path] = ids
-            archive.parent.mkdir(parents=True, exist_ok=True)
-            # The archive first: a failed write must never lose the row.
-            archive.write_bytes(archive_text.encode("utf-8"))
-            for path, new in texts.items():
-                path.write_bytes(new.encode("utf-8"))
+                said += wake_tasks(woken, texts, siblings, args.row_id, payload["date"])
+            touched = [path for path in texts if texts[path] != before.get(path)]
+            # The archives first: a failed write must never lose a row.
+            for archive, archive_text in archives.items():
+                archive.parent.mkdir(parents=True, exist_ok=True)
+                archive.write_bytes(archive_text.encode("utf-8"))
+            for path in touched:
+                path.write_bytes(texts[path].encode("utf-8"))
             for ids in woken.values():
                 for woke in ids:
                     print(f"woke `{woke}`: READY (it waited on `{args.row_id}`)")
+            for line in said:
+                print(line)
         else:
             note.write_bytes(edited_text(text, args).encode("utf-8"))
     except WorkRefused as refusal:
@@ -237,7 +330,7 @@ def main(argv: list[str] | None = None, *, git: Git = run_git) -> int:
         return EXIT_REFUSED
     if args.no_commit:
         return 0
-    return commit_and_push(repo, note, args, git, also=archive, woken=tuple(woken))
+    return commit_and_push(repo, note, args, git, also=tuple(archives), woken=tuple(touched))
 
 
 if __name__ == "__main__":
