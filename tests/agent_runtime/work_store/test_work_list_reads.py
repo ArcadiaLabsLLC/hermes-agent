@@ -109,3 +109,42 @@ def test_a_held_lock_is_index_locked_and_a_stale_one_is_moved_aside(tmp_path, wo
     alpha, beta = work_store.list_work(two.scope, {})["boards"]
     assert (_rows(alpha), _rows(beta), beta["refused"]) == (["AL-1"], ["BE-1"], None)
     assert not two.lock.exists() and list(two.lock.parent.glob("index.lock.stale-*"))
+
+
+def _synced_slots(monkeypatch) -> list[str]:
+    """Every ``Writer.sync`` from here on, by the board's slot (a sync is a worktree add, fetch and reset)."""
+
+    seen: list[str] = []
+    real = work_store.Writer.sync
+
+    def sync(self, *args, **kwargs):
+        seen.append(self.board.slot)
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(work_store.Writer, "sync", sync)
+    return seen
+
+
+def test_a_start_syncs_only_the_board_it_writes(tmp_path, workspace, monkeypatch):
+    """RT-WORK-START-SYNCS-EVERY-BOARD. Mutation: ``_create_target`` syncs ``synced(workspace_id)`` (every board)
+    -> beta is synced too, red."""
+    alpha, beta = _repo(tmp_path, "alpha", "AL-1"), _repo(tmp_path, "beta", "BE-1")
+    _slots(workspace, alpha=alpha, beta=beta)
+    scope = SimpleNamespace(workspace_id=workspace)
+    seen = _synced_slots(monkeypatch)
+    made = work_store.start(scope, {"request_id": "s1", "title": "One"}, "operator")
+    assert made["task"]["slot"] == "alpha" and set(seen) == {"alpha"}
+    seen.clear()
+    named = work_store.start(scope, {"request_id": "s2", "title": "Two", "slot": "beta"}, "operator")
+    assert named["task"]["slot"] == "beta" and set(seen) == {"beta"}
+
+
+def test_a_start_passes_a_refused_board_to_the_next(tmp_path, workspace):
+    """Mutation: return the first candidate whatever its sync answered -> the start refuses ``no_brain``, red."""
+    alpha, beta = _repo(tmp_path, "alpha", "AL-1"), _repo(tmp_path, "beta", "BE-1")
+    _slots(workspace, alpha=alpha, beta=beta)
+    worktree = work_store.synced(workspace).writers["alpha"].worktree
+    lock = Path(git("rev-parse", "--path-format=absolute", "--git-path", "index.lock", cwd=worktree).strip())
+    lock.write_bytes(b"")
+    made = work_store.start(SimpleNamespace(workspace_id=workspace), {"request_id": "s1", "title": "One"}, "operator")
+    assert made["task"]["slot"] == "beta"

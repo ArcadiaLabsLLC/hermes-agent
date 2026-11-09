@@ -361,16 +361,21 @@ def archived_ending(board: Board, writer: Writer, task_id: str) -> dict[str, Any
 # ── writes ─────────────────────────────────────────────────────────────────
 
 
-def _create_target(view: Synced, slot: Any) -> Board:
-    """The named board, else the workspace's default board with a brain here, else the first by name."""
+def _create_target(workspace_id: str, slot: Any) -> tuple[Synced, Board]:
+    """The named board, else the workspace's default board with a brain here, else the first by name — with the
+    view of THAT board alone synced: a start never syncs (worktree add, fetch, reset) every bound board of the
+    workspace to write one (RT-WORK-START-SYNCS-EVERY-BOARD). A candidate whose sync refuses yields to the next."""
 
     if slot is not None:
-        return _view_board(view, slot)
-    readable = [b for b in boards_store.preferred(view.boards) if b.key in view.writers]
-    chosen = next((b for b in readable if not b.is_default), readable[0] if readable else None)
-    if chosen is None:
-        raise WorkRefused(Reason.NO_BRAIN, "the workspace has no board with a brain on this machine")
-    return chosen
+        view = synced(workspace_id, slot=slot)
+        return view, _view_board(view, slot)
+    found = [b for b in map(worktree_brain, boards_store.preferred(boards_store.boards(workspace_id)))
+             if b.bound_here and b.brain_dir]
+    for candidate in [*(b for b in found if not b.is_default), *(b for b in found if b.is_default)]:
+        view = synced(workspace_id, slot=candidate.slot)
+        if candidate.key in view.writers:
+            return view, next(b for b in view.boards if b.key == candidate.key)
+    raise WorkRefused(Reason.NO_BRAIN, "the workspace has no board with a brain on this machine")
 
 
 def _first_note(board: Board, params: Mapping[str, Any]) -> str:
@@ -409,8 +414,7 @@ def start(scope, params, actor, *, context=None):
     here = context.assignee if context is not None else None
     assigned = params.get("assignee") or here
     token = resolve_assignee(_assignee_token(assigned)).token if assigned else None
-    view = synced(scope.workspace_id)
-    board = _create_target(view, params.get("slot"))
+    view, board = _create_target(scope.workspace_id, params.get("slot"))
     writer = view.writers[board.key]
     row_id = mint_id()
     brief = f"{writer.brain_root}/{BRIEF_DIR}/{row_id}.md" if body else None
