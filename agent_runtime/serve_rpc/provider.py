@@ -60,8 +60,11 @@ MAX_CODE_CHARS = 2048
 _INVALID_PARAM_REASONS = frozenset({"provider_unknown", "auth_mode_unsupported", "auth_mode_unknown",
                                     "base_url_invalid", "source_unsupported", "source_unknown"})
 
+#: Provider refusals that name an agent this runtime cannot answer for (RT-PROVIDER-USAGE-PER-AGENT-PROFILE).
+_NOT_FOUND_REASONS = frozenset({"agent_unknown"})
+
 #: Provider refusals that name a state of the home rather than a bad request.
-_CONFLICT_REASONS = frozenset({"source_absent"})
+_CONFLICT_REASONS = frozenset({"source_absent", "agent_profile_unavailable"})
 
 _FAMILY_CODES = {"invalid_params": ERR_INVALID_PARAMS, "conflict": ERR_CONFLICT, "not_found": ERR_NOT_FOUND}
 
@@ -94,6 +97,7 @@ def _answer(rid: Any, method_name: str, work: Callable[[], dict]) -> dict:
         return _refused(rid, method_name, refusal.reason, _FAMILY_CODES[refusal.code], **refusal.data)
     except ProviderRefused as refusal:
         code = (ERR_INVALID_PARAMS if refusal.reason in _INVALID_PARAM_REASONS
+                else ERR_NOT_FOUND if refusal.reason in _NOT_FOUND_REASONS
                 else ERR_CONFLICT if refusal.reason in _CONFLICT_REASONS else ERR_HANDLER_FAILED)
         return _refused(rid, method_name, refusal.reason, code, refusal.message, **refusal.data)
     except Exception as exc:  # class name only, never the message
@@ -119,26 +123,40 @@ def _login_id_or_refuse(rid: Any, method_name: str, params: dict) -> tuple[str |
     return login_id, None
 
 
+def _agent_target(params: dict):
+    from agent_runtime.provider_agent_scope import AgentProviderTarget
+
+    return AgentProviderTarget(_text_param(params, "persona_instance_id"), _text_param(params, "persona_id"))
+
+
 # ── catalog / usage ──────────────────────────────────────────────────────────
 
 
 @method("runtime.provider.list", tier=TIER_READ)
 def _runtime_provider_list(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
-    """The real provider catalog with pools, logins and sign-in methods. Params: none."""
+    """The real provider catalog with pools, logins and sign-in methods.
+    Params: ``persona_instance_id`` / ``persona_id`` optional — answer under that agent's profile."""
     from agent_runtime import provider_account
+    from agent_runtime.provider_agent_scope import answer_for_agent
 
-    return _off_reader(rid, "runtime.provider.list", context, provider_account.provider_list)
+    target = _agent_target(params)
+    return _off_reader(rid, "runtime.provider.list", context,
+                       lambda: answer_for_agent(target, provider_account.provider_list))
 
 
 @method("runtime.provider.usage", tier=TIER_READ)
 def _runtime_provider_usage(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
-    """Account limits / rate-limit windows. Params: ``provider``."""
+    """Account limits / rate-limit windows. Params: ``provider``; ``persona_instance_id`` /
+    ``persona_id`` optional — answer under that agent's profile, the way its turn runs."""
     from agent_runtime import provider_account
+    from agent_runtime.provider_agent_scope import answer_for_agent
 
     provider, refusal = _provider_or_refuse(rid, "runtime.provider.usage", params)
     if refusal is not None:
         return refusal
-    return _off_reader(rid, "runtime.provider.usage", context, lambda: provider_account.provider_usage(provider))
+    target = _agent_target(params)
+    return _off_reader(rid, "runtime.provider.usage", context,
+                       lambda: answer_for_agent(target, lambda: provider_account.provider_usage(provider)))
 
 
 @method("runtime.provider.dependency.install", tier=TIER_CONSOLE)

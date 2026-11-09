@@ -14,8 +14,8 @@ moving `RPC_CONTRACT_VERSION`.
 
 | method | tier | params | wraps |
 |---|---|---|---|
-| `runtime.provider.list` | read | — | `build_provider_visibility()` (`hermes harness providers --json`) |
-| `runtime.provider.usage` | read | `provider` | `agent.account_usage.fetch_account_usage`; Nous via `get_nous_portal_account_info` + `build_nous_credits_snapshot` |
+| `runtime.provider.list` | read | `persona_instance_id?` / `persona_id?` | `build_provider_visibility()` (`hermes harness providers --json`) |
+| `runtime.provider.usage` | read | `provider`; `persona_instance_id?` / `persona_id?` | `agent.account_usage.fetch_account_usage`; Nous via `get_nous_portal_account_info` + `build_nous_credits_snapshot` |
 | `runtime.provider.signin.begin` | console | `provider`; `flow?`, `profile?` | one `hermes harness auth login <provider> --json --flow <flow>` child (`hermes_cli/provider_browser_login.py` driver table) |
 | `runtime.provider.signin.poll` | console | `login_id` | the session the child's NDJSON feeds |
 | `runtime.provider.signin.complete` | console | `login_id`, `code` | writes `code` as one line to the child's stdin |
@@ -195,6 +195,8 @@ from `get_auth_status` before and after).
 | -32000 | `pack_not_found` | `pack.activate`: not an absolute directory with an `engine-pack.json` one level up |
 | -32000 | `pack_unknown` (+`pack`) | `pack.activate`: a pack this bundle does not offer |
 | -32000 | `pack_mismatch` (+`pack`) | `pack.activate`: built from another commit than this bundle |
+| 4001 | `agent_unknown` (+`persona_instance_id` / `persona_id`) | `list`, `usage`: the named agent is not one this runtime knows (or the two ids disagree) |
+| 4090 | `agent_profile_unavailable` (+`persona_id`, `profile`) | `list`, `usage`: the agent's Hermes profile does not exist |
 | -32000 | `handler_failed` (+`method`, `error_class`) | anything else |
 
 ## Credentials
@@ -224,7 +226,14 @@ not auto-opened; the client opens `verification_uri`.
 
 `signin.begin`'s `profile` becomes the child's `--profile` (the same resolution
 as `hermes harness auth login --profile`); the child otherwise runs under the serve's
-`HERMES_HOME`. The other methods act on the serve's own home.
+`HERMES_HOME`. The other methods act on the serve's own home, except that `list`
+and `usage` given an agent (`persona_instance_id`, or `persona_id`) answer under
+that agent's profile: the read runs inside the same `resolve_persona_profile` +
+`persona_profile_context` binding a turn of that agent runs in
+(`agent_runtime/provider_agent_scope.py`), so it sees the accounts that turn
+spends, and the result gains `agent: {persona_id, persona_instance_id, profile}`
+(`profile` is the bound Hermes profile, or the serve's own for an agent that
+binds none). Without either id the result is unchanged and has no `agent` key.
 
 The sign-in child is a subprocess; a profile that cannot spawn one binds a
 different runner through `ProviderSignIns(spawn=…)`.
