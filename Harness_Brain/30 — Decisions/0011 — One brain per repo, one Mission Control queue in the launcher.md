@@ -59,7 +59,7 @@ Identical in the launcher, this repo and the backend; do not diverge.
   the shrink-only `TASK_DEFECT_CEILING` (0). `runtime.work.claim` refuses a subtask whose task is not READY
   (`task_not_ready`); `scripts/work_row.py close` archives a task with its last subtask and sets a BLOCKED task
   READY when a close wakes one of its subtasks. Plan:
-  `EterniaLauncher/docs/mission_control/planned/QUEUE_TASKS_AND_SUBTASKS_2026-11-09.md` D1–D4, D7.
+  `EterniaLauncher/docs/mission_control/subsystems/QUEUE_TASKS_AND_SUBTASKS_2026-11-09.md` D1–D4, D7.
 - **Claim place (amendment 2026-10-27, twin of launcher ADR 0025's 2026-10-26 amendment):** a lane claim is
   `**TAKEN <date> <lane> on <machine> as <git account> in <worktree>**`; one dated 2026-10-27 or later with no
   `on <machine>` is a defect. Persona claims and earlier marks are exempt.

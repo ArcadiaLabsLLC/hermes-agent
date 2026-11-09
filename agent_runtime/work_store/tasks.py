@@ -1,6 +1,6 @@
 """Tasks and subtasks across the three brains — the hermes twin of the launcher's ``taskDefects``.
 
-Launcher plan ``EterniaLauncher/docs/mission_control/planned/QUEUE_TASKS_AND_SUBTASKS_2026-11-09.md`` D1–D4, D7
+Launcher plan ``EterniaLauncher/docs/mission_control/subsystems/QUEUE_TASKS_AND_SUBTASKS_2026-11-09.md`` D1–D4, D7
 (reference: ``EterniaLauncher/tool/queue/queue_grammar.dart``). A row with ``task: <slug>`` is the TASK of that
 slug (:attr:`grammar.Row.task`); a row with ``group: <slug>`` is a SUBTASK of the task that owns the slug — its own
 slug or a dotted prefix of it (a task owns ``<slug>`` and every ``<slug>.<sub>``). One task per slug across the

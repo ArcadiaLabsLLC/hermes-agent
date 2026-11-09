@@ -1,5 +1,5 @@
 """Tasks and subtasks across the brains (RT-QUEUE-TASKS-GRAMMAR; launcher plan
-``EterniaLauncher/docs/mission_control/planned/QUEUE_TASKS_AND_SUBTASKS_2026-11-09.md`` D1, D2, D4).
+``EterniaLauncher/docs/mission_control/subsystems/QUEUE_TASKS_AND_SUBTASKS_2026-11-09.md`` D1, D2, D4).
 
 The fixtures ``grammar_tasks.md`` / ``grammar_task_defects.md`` are the launcher's, byte-identical, and the
 expectations are its ``test/tool/queue_grammar_tasks_test.dart``'s.
