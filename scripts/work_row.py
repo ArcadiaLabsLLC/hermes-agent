@@ -304,7 +304,8 @@ def main(argv: list[str] | None = None, *, git: Git = run_git) -> int:
             said = close_task(repo, closed, texts, archives, payload, siblings, args.who)
             woken: dict[Path, list[str]] = {}
             if not args.no_wake:
-                how = "CLOSED" if payload["outcome"] == "CLOSED" else f"{payload['outcome']} {payload['commit']}"
+                closed_by_owner = payload["outcome"] == OutcomeKind.CLOSED
+                how = OutcomeKind.CLOSED.value if closed_by_owner else f"{payload['outcome']} {payload['commit']}"
                 for path in texts:
                     after, ids = wake_dependents(texts[path], args.row_id, payload["date"], how)
                     if ids:

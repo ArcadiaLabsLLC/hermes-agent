@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 
-from agent_runtime.work_store.grammar import SEPARATOR, STATUS, Status, parse_note, split_segments
+from agent_runtime.work_store.grammar import SEPARATOR, STATUS, OutcomeKind, Status, parse_note, split_segments
 
 __layer__ = "policy"
 
@@ -38,7 +38,7 @@ def unblocked_segment(closed_id: str, close_date: str, how: str) -> str:
     """The record a wake leaves beside the new READY status; ``how`` is ``DONE <sha>`` / ``REFUTED <sha>`` /
     ``CLOSED``."""
 
-    said = "closed by the owner" if how == "CLOSED" else f"closed {how}"
+    said = "closed by the owner" if how == OutcomeKind.CLOSED else f"closed {how}"
     return f"unblocked {close_date}: `{closed_id}` {said}"
 
 
