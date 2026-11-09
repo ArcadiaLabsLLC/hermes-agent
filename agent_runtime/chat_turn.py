@@ -813,7 +813,8 @@ def perform_chat_turn(
             raise ChatTurnInvalid("unknown_chat_verb", f"unknown chat verb: {verb}")
         if request.client_scope is not None:
             validate_conversation_access({"client_scope": request.client_scope,
-                                         "session_id": params.get("session_id")})
+                                         "session_id": params.get("session_id"),
+                                         "new_session": params.get("new_session") is True})
     except ConversationOwnerError as exc:
         return ChatTurnOutcome(refusal=ChatTurnRefusal(
             code=ERR_CONFLICT, message="This conversation is unavailable for this account.",

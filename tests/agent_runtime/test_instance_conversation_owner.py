@@ -123,3 +123,34 @@ def test_global_instance_opens_without_fabricated_workspace_and_checks_install(p
     wrong = serve_rpc.handle_request(dict(jsonrpc="2.0", id="wrong", method="runtime.operator.conversation.read",
                                          params={**target, "workspace_id": WORKSPACE}), serve_rpc.RpcContext())
     assert wrong["error"]["data"]["reason"] == "workspace_changed"
+
+
+def test_a_scoped_first_send_that_mints_is_admitted_and_never_reaches_another_chat(placed_agent):
+    """RT-CHAT-MESSAGE-SCOPE-WITHOUT-SESSION: a console's first send names no chat yet; with
+    ``new_session`` it mints one stamped with its scope, so it has nothing to guard and is
+    admitted. A session-less send without ``new_session`` may continue the agent's current
+    chat, and a send naming another account's chat is refused even when it asks to mint
+    (Eternia MC-CONSOLE-FIRST-SEND-CHAT-UNSCOPED-DROPS-FROM-DIRECTORY).
+
+    Reds: dropping the ``new_session`` arm in ``validate_conversation_access`` refuses the
+    first send ``conversation_identity_required``; moving that arm ahead of the session check
+    admits OTHER's send into OWNER's chat."""
+    effects = []
+    context = serve_rpc.RpcContext(spawn_chat_turn=lambda *a: effects.append(a))
+
+    def send(**values):
+        params = dict(persona_id=PERSONA, persona_instance_id=placed_agent["persona_instance_id"],
+                      message="Reply with the single word FIRST.", **values)
+        return serve_rpc.handle_request(dict(jsonrpc="2.0", id="send", method="runtime.chat.message",
+                                             params=params), context)
+
+    first = send(turn_request_id="first-send", client_scope=OWNER, new_session=True)
+    assert first["result"]["accepted"], first
+    argv = effects[-1][1]
+    assert argv[argv.index("--client-scope") + 1] == OWNER and "--new-session" in argv
+    continued = send(turn_request_id="continue-send", client_scope=OWNER)
+    assert continued["error"]["data"]["reason"] == "conversation_identity_required"
+    owned = _call(open_params(placed_agent))["result"]["session_id"]
+    foreign = send(turn_request_id="foreign-send", client_scope=OTHER, session_id=owned, new_session=True)
+    assert foreign["error"]["data"]["reason"] == "conversation_owner_changed"
+    assert len(effects) == 1
