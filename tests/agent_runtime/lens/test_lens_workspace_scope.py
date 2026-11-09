@@ -16,7 +16,13 @@ Gates and their killing mutations (each red recorded in the row's commit):
 * retiring a monitor resolves its open Episodes — killed by dropping the ``close_orphans``
   call from ``LensStore.set_state``;
 * a Dismiss of an orphan resolves it while a Dismiss on an observed Episode keeps it active —
-  killed by dropping the orphan branch from ``decide_episode``.
+  killed by dropping the orphan branch from ``decide_episode``;
+* ``episode.close`` resolves the ONE orphan it names and leaves its sibling orphan open —
+  killed by closing every orphan instead of the named row (RT-LENS-EPISODE-CLOSE-ONE);
+* ``episode.close`` refuses an Episode its monitor still observes ``episode_not_orphaned`` and
+  leaves it active — killed by dropping the ``orphan_reason`` guard from ``close_orphan``;
+* a second Close is ``episode_settled``, an unknown id or one outside the given workspace
+  ``episode_not_found`` — killed by dropping the ``workspace_id`` check from ``close_orphan``.
 """
 
 from __future__ import annotations
@@ -163,3 +169,53 @@ def test_a_dismissed_orphan_is_resolved_and_a_dismissed_observed_episode_stays_o
 
     assert (dismissed["state"], dismissed["decision"]) == ("resolved", "dismiss")
     assert (kept["state"], kept["decision"]) == ("active", "dismiss")
+
+
+def _refusal(method: str, params: dict) -> tuple[int, str]:
+    from agent_runtime import serve_rpc
+
+    reply = serve_rpc.handle_request({"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
+    assert "error" in reply, reply
+    return reply["error"]["code"], reply["error"]["data"]["reason"]
+
+
+def test_episode_close_resolves_only_the_one_orphan_it_names():
+    _monitor("paused", "ws_a", MonitorState.PAUSED)
+    named = _episode("paused")
+    sibling = _episode("gone")
+
+    closed = _rpc("runtime.lens.episode.close", {"episode_id": named.id})["closed"]
+
+    assert [(row["id"], row["state"], row["decision"]) for row in closed] == [(named.id, "resolved", "dismiss")]
+    assert {name: (row["state"], row["orphan"]) for name, row in _episodes().items()} == {
+        "paused": ("resolved", None), "gone": ("active", "monitor_gone")}, sibling.id
+
+
+def test_episode_close_refuses_an_observed_episode_and_leaves_it_active():
+    from agent_runtime.serve_rpc.protocol import ERR_CONFLICT
+
+    _monitor("watched", "ws_a")
+    observed = _episode("watched")
+
+    assert _refusal("runtime.lens.episode.close", {"episode_id": observed.id}) == (ERR_CONFLICT, "episode_not_orphaned")
+    assert _episodes()["watched"]["state"] == "active"
+
+
+def test_episode_close_refuses_a_second_close_an_unknown_id_and_another_workspace():
+    from agent_runtime.lens.episode import episode_id
+    from agent_runtime.serve_rpc.protocol import ERR_CONFLICT, ERR_NOT_FOUND
+
+    _monitor("here", "ws_a", MonitorState.PAUSED)
+    _monitor("there", "ws_b", MonitorState.PAUSED)
+    here = _episode("here")
+    there = _episode("there")
+
+    assert _refusal("runtime.lens.episode.close", {"episode_id": there.id, "workspace_id": "ws_a"}) == (
+        ERR_NOT_FOUND, "episode_not_found")
+    assert _episodes()["there"]["state"] == "active"
+    unknown = episode_id("nobody", "slow", 1)
+    assert _refusal("runtime.lens.episode.close", {"episode_id": unknown}) == (ERR_NOT_FOUND, "episode_not_found")
+
+    assert _rpc("runtime.lens.episode.close", {"episode_id": here.id, "workspace_id": "ws_a"})["closed"][0]["id"] \
+        == here.id
+    assert _refusal("runtime.lens.episode.close", {"episode_id": here.id}) == (ERR_CONFLICT, "episode_settled")

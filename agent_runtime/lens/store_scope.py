@@ -12,7 +12,8 @@ nothing will ever move it again, so it would stay open forever — the five the 
 showed on 2026-11-08, left by a live-proof sitting that paused and retired its monitors with
 their Episodes still ``active``. :func:`orphan_reason` names why (:class:`Orphan`), every
 served row says so (``orphan``: the reason, or None), and :func:`close_orphans` settles them
-in one call as ``resolved``: the operator's word on a breach that can no longer be watched.
+in one call as ``resolved``: the operator's word on a breach that can no longer be watched, and
+:func:`close_orphan` settles ONE of them — the per-pill Close (row ``RT-LENS-EPISODE-CLOSE-ONE``).
 Retiring a monitor closes its open Episodes at once (``LensStore.set_state``), and a
 ``dismiss`` of an orphan closes it (``store_decisions.decide_episode``), so Dismiss is never
 recorded on an Episode that then stays open.
@@ -27,8 +28,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Iterable
 
-from .episode import Decision, Episode, EpisodeState
-from .store import LensStore, MonitorState
+from .episode import EPISODE_WRITE_ATTEMPTS, Decision, Episode, EpisodeState
+from .store import LensStore, LensStoreError, MonitorState, StoreRefusal
 
 __layer__ = "stores"
 
@@ -165,3 +166,34 @@ def close_orphans(store: LensStore, now: datetime, *, workspace_id: str | None =
         if store.move_episode(episode, settled, announce=True):
             closed.append(settled.to_json())
     return closed
+
+
+def close_orphan(store: LensStore, episode_id: str, now: datetime, *,
+                 workspace_id: str | None = None) -> list[dict[str, Any]]:
+    """Resolve ONE orphaned open Episode, under :func:`close_orphans`' guards; returns it as stored
+    (a one-row ``closed`` list). Refused ``episode_not_found`` for an id no Episode carries (or one
+    outside ``workspace_id`` when given), ``episode_settled`` for one already closed or resolved
+    (a second Close), ``episode_not_orphaned`` for one its monitor still observes, and
+    ``episode_contended`` when every compare-and-set loses to another writer."""
+
+    for _ in range(EPISODE_WRITE_ATTEMPTS):
+        row = None
+        if store.exists():
+            with store.connection() as conn:
+                row = conn.execute("SELECT body FROM episodes WHERE id = ?", (episode_id,)).fetchone()
+        if row is None:
+            raise LensStoreError(StoreRefusal.EPISODE_NOT_FOUND)
+        body = json.loads(row[0])
+        monitors = _monitors(store)
+        if workspace_id is not None and (monitors.get(body["monitor_id"]) or (None, None))[1] != workspace_id:
+            raise LensStoreError(StoreRefusal.EPISODE_NOT_FOUND)
+        if body.get("state") not in _OPEN:
+            raise LensStoreError(StoreRefusal.EPISODE_SETTLED)
+        if orphan_reason(monitors, body) is None:
+            raise LensStoreError(StoreRefusal.EPISODE_NOT_ORPHANED)
+        episode = Episode.from_json(body)
+        settled = resolved(episode, now)
+        # Compare-and-set: a writer that moved the row first is re-read, never overwritten.
+        if store.move_episode(episode, settled, announce=True):
+            return [settled.to_json()]
+    raise LensStoreError(StoreRefusal.EPISODE_CONTENDED)

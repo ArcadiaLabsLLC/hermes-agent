@@ -150,6 +150,8 @@ class StoreRefusal(str, Enum):
     DRAFT_PENDING = "draft_pending"
     #: ``runtime.lens.episode.decide`` lost every compare-and-set to other writers of the Episode.
     EPISODE_CONTENDED = "episode_contended"
+    #: ``runtime.lens.episode.close`` on an open Episode whose monitor still observes it.
+    EPISODE_NOT_ORPHANED = "episode_not_orphaned"
 
 
 #: The refusals a reader answers as "not found" (the rest are conflicts).

@@ -36,6 +36,11 @@ episode.decide         {episode_id, decision: dismiss|investigate|snooze15m} -> 
                        closed or resolved)
 episodes.close_orphans {workspace_id?} -> {closed: [Episode]} (every orphaned open Episode
                        resolved in one call, ``lens.store_scope``)
+episode.close          {episode_id, workspace_id?} -> {closed: [Episode]} (ONE orphaned open
+                       Episode resolved, the per-pill Close; ``episode_not_found`` for an id
+                       no Episode carries or one outside ``workspace_id``, ``episode_settled``
+                       for one already closed or resolved, ``episode_not_orphaned`` for one
+                       its monitor still observes, ``episode_contended``)
 fold                   {workspace_id?} -> the Mission Control fold (``lens.snapshot_fold``)
 credential.set         {ref, scheme, secret, username?} -> {ref, set, rotated_at}
                        (write-only: no verb returns a credential value)
@@ -246,6 +251,21 @@ def _runtime_lens_episodes_close_orphans(rid: Any, params: dict, context: RpcCon
         from agent_runtime.lens.store_scope import close_orphans, workspace_param
 
         return {"closed": close_orphans(_store(), datetime.now(UTC), workspace_id=workspace_param(params))}
+
+    return _lens_call(rid, body)
+
+
+@method("runtime.lens.episode.close", tier=TIER_CONSOLE)
+def _runtime_lens_episode_close(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    def body() -> dict:
+        from datetime import UTC, datetime
+
+        from agent_runtime.lens.store_scope import close_orphan, workspace_param
+        from agent_runtime.lens.wire_value import checked_object, digest_value
+
+        m = checked_object(params or {}, {"episode_id"}, {"workspace_id"})
+        return {"closed": close_orphan(_store(), digest_value(m["episode_id"]), datetime.now(UTC),
+                                       workspace_id=workspace_param(m))}
 
     return _lens_call(rid, body)
 
