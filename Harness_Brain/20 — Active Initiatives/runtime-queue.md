@@ -42,7 +42,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-11-09 (lane w1109a-hm-2: live check of `RT-WORK-DEFAULT-BRAIN-HEAL-STALE-CHECKOUT`)
 
-- **`RT-WORK-DEFAULT-BRAIN-HEAL-LIVE-CHECK` — A Work board that a past landing left out of step is shown to take a write again on a real copy, not only in tests** · group: board-pill-redesign · fork-owned · `agent_runtime/work_store/checked_out.py` · live check of d62f2cb2aa (`RT-WORK-DEFAULT-BRAIN-HEAL-STALE-CHECKOUT`, closed): copy a lane namespace's drifted `agent-runtime/work/ws_default/brain` (or make one drift as w1106d did), run one Work write against the copy, see the checkout heal to HEAD and the write land; never on the owner's real namespaces · READY 2026-11-09 · **TAKEN 2026-11-09 w1109a-hm-2 on nekwo-ubuntu24 as nekwo in hm-w1109a-2**
 
 ### Filed on arrival — 2026-11-08 (lane w1108c-hm-reds-fork: daily full-run load flakes, `FH-W1108C-WAVE-END-REDS`)
 
