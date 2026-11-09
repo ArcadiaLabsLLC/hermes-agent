@@ -130,3 +130,35 @@ def test_a_hard_wall_turn_keeps_the_iteration_limit_notice(monkeypatch):
 
     titles = [m["display_title"] for m in _checkpoint_turn(monkeypatch, "wall_budget_hard_wall")]
     assert "Tool-iteration limit reached" in titles
+
+
+def test_a_notice_sits_where_it_was_stored_in_its_turn_not_after_the_reply():
+    """RT-RUNTIME-NOTICE-OUTSIDE-ITS-TURN-POSITION (live 2026-11-09): the checkpoint notice stored as
+    ``<turn>:input:11`` projected a turn of its own and, on a clock 8 ms later than the reply's,
+    ordered after it; the iteration-limit nudge, carrying the operator's id, sorted beside the
+    operator row above the agent's tool-call step.
+
+    MUTATION: stamp TURN_SEQ_TERMINAL for every member in ``_place_by_stored_position`` and this
+    reddens (the notice sorts after the reply); drop the ``_STEERED_INPUT_ID`` arm and it reddens
+    the same way (the notice is a turn of its own, ``turn1_input_3``, ordered after the reply)."""
+
+    from agent.context_compressor import MAX_ITERATIONS_SUMMARY_REQUEST
+
+    stamp = "2026-11-09T12:00:{}Z".format
+    rows = [
+        {"role": "user", "content": "do the work", "platform_message_id": "turn1", "timestamp": stamp("01.000")},
+        {"role": "assistant", "content": "Looking at the files first.", "platform_message_id": "turn1:assistant:1",
+         "timestamp": stamp("02.000")},
+        {"role": "user", "content": MAX_ITERATIONS_SUMMARY_REQUEST, "platform_message_id": "turn1",
+         "timestamp": stamp("03.000")},
+        {**_notice_row(), "platform_message_id": "turn1:input:3", "timestamp": stamp("24.500")},
+        {"role": "assistant", "content": "Here is where I got to.", "platform_message_id": "turn1:assistant:5",
+         "timestamp": stamp("24.492")},
+    ]
+    messages = _project(rows)
+    assert [m["display_title"] or m["display_text"] for m in messages] == [
+        "do the work", "Looking at the files first.", "Tool-iteration limit reached", "Time budget checkpoint",
+        "Here is where I got to.",
+    ]
+    assert {m["turn_id"] for m in messages} == {"turn1"}
+    assert messages[-1]["turn_seq"] == 1_000_000

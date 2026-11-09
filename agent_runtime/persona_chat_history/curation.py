@@ -11,6 +11,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any, Mapping, Protocol
@@ -286,8 +287,14 @@ class _OperatorCurator:
             row["steered"] = ctx.raw.get("display_kind") == "steer"
             if metadata.get("turn_id"):
                 row["turn_id"] = safe_assignment_token(metadata["turn_id"])
+            elif ctx.client_message_id and (steered_into := _STEERED_INPUT_ID.fullmatch(ctx.client_message_id)):
+                # ``native_persistence`` ids an unaddressed steer row ``<turn>:input:<n>``: it is a row OF
+                # that turn, never a turn of its own (RT-RUNTIME-NOTICE-OUTSIDE-ITS-TURN-POSITION).
+                row["turn_id"] = safe_assignment_token(steered_into.group(1))
             if isinstance(metadata.get("turn_seq"), int):
                 row["turn_seq"] = metadata["turn_seq"]
+            elif not row["steered"]:
+                row[_PLACE_BY_POSITION] = ctx.index
             if not row["steered"]:
                 row["role"] = MessageRole.SYSTEM
                 # MUTATION: always "system_message" and test_persona_chat_history_curation's
@@ -352,6 +359,8 @@ class _AgentCurator:
         return None if is_pre_trace_ack else TURN_SEQ_TERMINAL
 
     def after_row(self, state: CurationState, row: dict[str, Any], ctx: RowContext) -> None:
+        if row.get("turn_seq") == TURN_SEQ_TERMINAL:
+            row[_PLACE_BY_POSITION] = ctx.index
         if not ctx.client_message_id:
             return
         elements = state.turn_elements_for(ctx.logical_client_message_id)
@@ -543,6 +552,7 @@ class CurationState:
         return True
 
     def finish(self) -> list[dict[str, Any]]:
+        _place_by_stored_position(self.rows)
         rows = list(self.rows)
         rows.extend(
             marker
@@ -561,6 +571,38 @@ class CurationState:
             )
         )
         return _ordered_message_rows(rows)
+
+
+#: A steer row ``native_persistence`` stored without a platform id of its own: ``<turn>:input:<n>``.
+_STEERED_INPUT_ID = re.compile(r"^(.+):input:\d+$")
+#: Transient (popped by :func:`_place_by_stored_position`): the stored index of a row placed by it.
+_PLACE_BY_POSITION = "_stored_index"
+
+
+def _place_by_stored_position(rows: list[dict[str, Any]]) -> None:
+    """Order a turn's agent rows and harness notices by where SessionDB stored them.
+
+    Every agent row closes its turn (``TURN_SEQ_TERMINAL``) and a notice had no position at all, so
+    a notice steered between two agent steps sorted beside the operator row or, on a clock later than
+    the reply's, after the reply (RT-RUNTIME-NOTICE-OUTSIDE-ITS-TURN-POSITION). Inside one turn these
+    rows now take ``TURN_SEQ_TERMINAL - k`` in stored order, k counting the rows stored after it — the
+    last stays terminal, and all stay after the turn's content rows (``TURN_SEQ_CONTENT``).
+    """
+
+    by_turn: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        if _PLACE_BY_POSITION in row:
+            anchor = safe_assignment_token(row.get("turn_id")) or canonical_persona_chat_turn_id(
+                row.get("client_message_id"))
+            by_turn.setdefault(anchor or "", []).append(row)
+    for anchor, members in by_turn.items():
+        members.sort(key=lambda member: member[_PLACE_BY_POSITION])
+        for after, member in enumerate(reversed(members)):
+            del member[_PLACE_BY_POSITION]
+            # MUTATION: stamp TURN_SEQ_TERMINAL for every member and test_runtime_notice_transcript's
+            # in-turn notice row reddens (the notice sorts after the reply).
+            if anchor:
+                member["turn_seq"] = TURN_SEQ_TERMINAL - after
 
 
 def _message_row(ctx: RowContext, *, session_id: str, text: str, status: str) -> dict[str, Any]:
