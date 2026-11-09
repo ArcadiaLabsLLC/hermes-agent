@@ -336,3 +336,46 @@ def refuse_backend_spawn(name, cmd, cmd_to_string, lookalike_ok, kwargs=None) ->
             "needs a real child — and say in a comment WHAT it spawns and "
             "how the child's root is sandboxed."
         )
+
+
+def _is_gateway_run_script(token: str) -> bool:
+    normalized = token.replace("\\", "/").lower()
+    return normalized == "gateway/run.py" or normalized.endswith("/gateway/run.py")
+
+
+def _runs_as_program(tokens: list, index: int) -> bool:
+    """True when ``tokens[index]`` is what the OS or an interpreter executes: argv[0], or the
+    SCRIPT of a ``python [opts] SCRIPT`` anywhere in argv (``env X=1 python gateway/run.py``)."""
+    if index == 0:
+        return True
+    for start, token in enumerate(tokens[:index]):
+        if not _PYTHON_BASENAME_RE.match(token.replace("\\", "/").rsplit("/", 1)[-1].lower()):
+            continue
+        cursor = start + 1
+        while cursor < len(tokens) and tokens[cursor].startswith("-"):
+            if tokens[cursor] in ("-c", "-m"):
+                break
+            cursor += 2 if tokens[cursor] in ("-X", "-W") else 1
+        if cursor == index:
+            return True
+    return False
+
+
+def gateway_run_path_is_only_data(cmd_str: str) -> bool:
+    """True when the only gateway in *cmd_str* is a ``gateway/run.py`` PATH the program reads as
+    data (``git ls-files -- gateway/run.py``), never one it executes (FH-LIVE-GUARD-PATH-READ-AS-SPAWN).
+
+    ``gateway.status.gateway_spawn_intent_subcommand`` (upstream) answers ``run`` for any argv
+    holding that path, because a PID record renders a running gateway's argv that way. A spawn
+    runs that script only as argv[0] or a Python interpreter's SCRIPT; anywhere else it is an
+    operand, so the spawn intent is re-read with those operands dropped."""
+    try:
+        raw = shlex.split(cmd_str, posix=False)
+    except ValueError:
+        raw = cmd_str.split()
+    tokens = [token.strip("\"'") for token in raw]
+    operands = [i for i, token in enumerate(tokens) if _is_gateway_run_script(token)]
+    if not operands or any(_runs_as_program(tokens, i) for i in operands):
+        return False
+    kept = " ".join(token for i, token in enumerate(raw) if i not in operands)
+    return gateway.status.gateway_spawn_intent_subcommand(kept) is None

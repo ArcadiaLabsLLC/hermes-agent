@@ -83,7 +83,7 @@ def _live_system_guard(request, monkeypatch):
     import signal as _signal
     import re as _re
     import shlex as _shlex
-    from tests._downstream.live_guard_classify import refuse_backend_spawn
+    from tests._downstream.live_guard_classify import gateway_run_path_is_only_data, refuse_backend_spawn
     import subprocess as _subprocess
 
     test_pid = _os.getpid()
@@ -453,6 +453,7 @@ def _live_system_guard(request, monkeypatch):
             not lookalike_ok
             and not in_container
             and gateway_spawn_intent_subcommand(cmd_str) in ("run", "start", "restart")
+            and not gateway_run_path_is_only_data(cmd_str)  # fork: FH-LIVE-GUARD-PATH-READ-AS-SPAWN
             and not _sandboxed_gateway_child(cmd_str, (kwargs or {}).get("env"))
         ):
             raise RuntimeError(

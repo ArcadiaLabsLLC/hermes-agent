@@ -155,3 +155,22 @@ def test_a_quoted_grep_pattern_in_a_script_is_not_a_backend_start():
 ])
 def test_a_script_whose_grep_hides_nothing_still_refuses_the_real_start(script):
     assert backend_spawn_subcommand(["bash", "-c", script], str) == "gateway"
+
+
+# FH-LIVE-GUARD-PATH-READ-AS-SPAWN: upstream's spawn-intent matcher answers ``run`` for any argv
+# holding ``gateway/run.py``. A program that reads the path as data runs; one that executes it
+# (argv[0], or a Python interpreter's SCRIPT) is still refused. Mutation: drop the guard's
+# ``gateway_run_path_is_only_data`` clause -> the git pathspec spawn is blocked, red.
+def test_a_git_pathspec_naming_gateway_run_py_is_not_a_gateway_spawn():
+    subprocess.run(["git", "ls-files", "--", "gateway/run.py"], check=True, timeout=30,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+@pytest.mark.parametrize("argv", [
+    lambda tmp: [sys.executable, str(tmp / "gateway" / "run.py")],
+    lambda tmp: ["env", "HERMES_X=1", sys.executable, "-X", "utf8", str(tmp / "gateway" / "run.py")],
+    lambda tmp: [str(tmp / "gateway" / "run.py"), "--replace"],
+], ids=["python-script", "env-wrapped-python-with-options", "script-as-program"])
+def test_a_gateway_run_py_the_program_executes_is_still_refused(tmp_path, argv):
+    with pytest.raises(RuntimeError, match="spawn a REAL hermes gateway"):
+        subprocess.Popen(argv(tmp_path), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
