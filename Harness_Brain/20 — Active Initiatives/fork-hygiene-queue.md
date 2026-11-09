@@ -24,7 +24,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-11-09 (stale-headers lane)
 
-- **`FH-ISO-CERTIFY-DEAD-PRD-CITE` — The dashboard isolation check's instructions point at a design note that no longer exists** · group: docs-pointers · `scripts/iso-certify.py` · found 2026-11-09 by the stale-headers lane: its docstring cites `docs/desktop/2026-07-04-dashboard-process-isolation-PRD.md` (AC-4), which is not in the tree — repoint it at where AC-4 lives now (git log the path) or drop the cite · handoff 2026-11-09: the PRD path has no history in any repo; the cite came in with `7d27a31ce7` (feat(dashboard): isolate turns in compute host, 2026-07-16); fix = drop the cite or point at `7d27a31ce7`'s AC-4 description · READY 2026-11-09 · **TAKEN 2026-11-09 w1109a-hm-misc on nekwo-ubuntu24 as nekwo in hm-w1109a-misc**
 
 ## Filed on arrival — 2026-11-08 (lane w1108c-hm-reds-upstream)
 
