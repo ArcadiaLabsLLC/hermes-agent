@@ -17,6 +17,11 @@ tags: [queue, program/fork-hygiene]
 ## Owner request — 2026-11-08 (hermes prepush: a tight cap, an overrun report, fast)
 
 
+## Filed on arrival — 2026-11-09 (lane w1109a-hm-iso)
+
+- **`FH-WORK-ROW-CLOSE-PUSH-FROM-LANE-BRANCH` — Closing a queue row from a lane's own branch commits the close but never pushes it, so the lane has to push it by hand** · group: prepush · `scripts/work_row.py` · READY 2026-11-09 · handoff 2026-11-09: found by w1109a-hm-iso; `work_row.py close` ran from branch `wave/w1109a-hm-iso` (no upstream set) committed ec8391414d and exited 4 with git's "no upstream branch" hint; the push is a bare `git push -q` (the `pushed = git(["push", "-q"], repo)` line); likely fix: push `HEAD:main` (or `HEAD:<the branch's upstream>` when one is set), as CLAUDE.md tells lanes to land
+- **`FH-PREPUSH-TEMP-HOME-NO-VENV` — The pre-push check cannot find the test environment when it runs under a temporary home folder, so it goes red before testing anything** · group: prepush · `scripts/prepush.sh` · `scripts/_fork_test_env.sh` · READY 2026-11-09 · handoff 2026-11-09: found by w1109a-hm-iso; `HOME=$(mktemp -d) bash scripts/prepush.sh …` (the isolated-HOME habit lanes are told to use) reds the gates and touched steps with "no shared test venv with pytest at <tmp>/.venvs/hermes-test", because the venv default is `${HERMES_TEST_VENV:-$HOME/.venvs/hermes-test}`; setting HERMES_PYTHON works around it; likely fix: resolve the default from the real user home (`getent passwd`/`~$USER`, or `os.path.expanduser` before HOME is swapped) or have the error name HERMES_PYTHON as the fix
+
 ## Filed on arrival — 2026-11-09 (stale-headers lane)
 
 - **`FH-ISO-CERTIFY-DEAD-PRD-CITE` — The dashboard isolation check's instructions point at a design note that no longer exists** · group: docs-pointers · `scripts/iso-certify.py` · found 2026-11-09 by the stale-headers lane: its docstring cites `docs/desktop/2026-07-04-dashboard-process-isolation-PRD.md` (AC-4), which is not in the tree — repoint it at where AC-4 lives now (git log the path) or drop the cite · handoff 2026-11-09: the PRD path has no history in any repo; the cite came in with `7d27a31ce7` (feat(dashboard): isolate turns in compute host, 2026-07-16); fix = drop the cite or point at `7d27a31ce7`'s AC-4 description · READY 2026-11-09
