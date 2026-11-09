@@ -32,6 +32,10 @@ __all__ = [
     "PERSONA_HARNESS_DELIVERY_KIND",
     "PERSONA_LENS_EPISODE_KIND",
     "PERSONA_RUNTIME_NOTICE_KIND",
+    "RUNTIME_NOTICE_CODES",
+    "RUNTIME_NOTICE_ITERATION_LIMIT",
+    "RUNTIME_NOTICE_TOOL_AVAILABILITY",
+    "RUNTIME_NOTICE_WALL_CHECKPOINT",
     "PERSONA_PRE_TRACE_ACK_FINISH_REASON",
     "PERSONA_PRE_TRACE_ACK_KIND",
     "PERSONA_RELAYED_MESSAGE_KIND",
@@ -110,7 +114,36 @@ PERSONA_LENS_EPISODE_KIND = "lens_episode"
 # tool-iteration limit). The runtime wrote it, nobody typed it; the transcript
 # carries its operator title (``display_title``) and its note without the model
 # envelope (RT-RUNTIME-NOTICE-ROW-SHIPS-RAW-NOTE).
+#
+# Wire fields of a projected ``runtime_notice`` row (role ``system``, actor
+# ``harness``): ``display_title`` (the operator title), ``display_text`` (the note),
+# ``notification_category``, ``turn_id`` / ``turn_seq``, and ``notice_code`` — WHICH
+# notice it is, one of ``RUNTIME_NOTICE_CODES``, so a client places it without
+# matching its title (RT-RUNTIME-NOTICE-CODE-ON-ROW). ``notice_code`` is additive: a
+# client reads a row without it as an unclassified notice. A stored row written
+# before the code existed gets it from its stored title on read.
 PERSONA_RUNTIME_NOTICE_KIND = "runtime_notice"
+
+#: The turn's wall-budget checkpoint engaged (``profile_runner/budget.py``).
+RUNTIME_NOTICE_WALL_CHECKPOINT = "wall_checkpoint"
+#: An MCP server's tools went unavailable mid-turn (``profile_runner/mcp_lane.py``).
+RUNTIME_NOTICE_TOOL_AVAILABILITY = "tool_availability"
+#: The tool-calling loop hit its iteration limit (typed on read, ``curation.py``).
+RUNTIME_NOTICE_ITERATION_LIMIT = "iteration_limit"
+RUNTIME_NOTICE_CODES = frozenset({
+    RUNTIME_NOTICE_WALL_CHECKPOINT, RUNTIME_NOTICE_TOOL_AVAILABILITY, RUNTIME_NOTICE_ITERATION_LIMIT,
+})
+
+
+def runtime_notice(text: str, *, title: str, code: str):
+    """A harness notice to steer into a running turn: a diagnostic ``runtime_notice``
+    TimelineNotification carrying its ``notice_code`` (read by ``agent.steering``)."""
+
+    from tools.process_registry_notifications import TimelineNotification
+
+    notice = TimelineNotification(text, title, PERSONA_RUNTIME_NOTICE_KIND, "diagnostic")
+    notice.notice_code = code
+    return notice
 
 
 # ── terminal-turn marker vocabulary (ONE table, keyed on the turn state) ─────

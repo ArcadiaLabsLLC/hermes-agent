@@ -162,3 +162,74 @@ def test_a_notice_sits_where_it_was_stored_in_its_turn_not_after_the_reply():
     ]
     assert {m["turn_id"] for m in messages} == {"turn1"}
     assert messages[-1]["turn_seq"] == 1_000_000
+
+
+def _coded_row(text, title, code):
+    from agent_runtime.persona_chat_history.vocabulary import runtime_notice
+
+    return PendingSteer.from_text(runtime_notice(text, title=title, code=code)).rows()[0]
+
+
+def test_each_runtime_notice_says_which_notice_it_is(monkeypatch):
+    """RT-RUNTIME-NOTICE-CODE-ON-ROW: Eternia placed the wall checkpoint in the turn's Harness card by
+    matching the title "Time budget checkpoint", the only mark on the wire; every runtime notice now
+    carries a typed ``notice_code``.
+
+    MUTATION: drop the ``notice_code`` arm in ``_OperatorCurator.after_row`` and this reddens (no
+    ``notice_code`` on any row); drop the ``code=`` read in ``PendingSteer.from_text`` and the stored row
+    carries no code (the stored-row assertion reddens)."""
+
+    from agent.context_compressor import MAX_ITERATIONS_SUMMARY_REQUEST
+
+    stored = _coded_row(NOTE, "Time budget checkpoint", "wall_checkpoint")
+    assert stored["display_metadata"]["notice_code"] == "wall_checkpoint"
+    messages = _project([
+        {"role": "user", "content": "do the work", "platform_message_id": "turn1"},
+        {**stored, "platform_message_id": "turn1:input:2"},
+        {**_coded_row("[harness] qa server unavailable", "Tool availability update", "tool_availability"),
+         "platform_message_id": "turn1:input:3"},
+        {"role": "user", "content": MAX_ITERATIONS_SUMMARY_REQUEST, "platform_message_id": "turn1"},
+    ])
+    assert [m.get("notice_code") for m in messages] == [None, "wall_checkpoint", "tool_availability",
+                                                       "iteration_limit"]
+
+
+def test_the_engaged_checkpoint_and_the_mcp_notice_steer_their_codes(monkeypatch):
+    """The two runtime emitters stamp their codes: ``WallBudgetCheckpoint.engage`` and the MCP lane's
+    execution-time admission notice.
+
+    MUTATION: pass ``RUNTIME_NOTICE_TOOL_AVAILABILITY`` in ``budget.py``'s engage and this reddens
+    (recorded red 2026-11-09); drop the ``code=`` read in ``PendingSteer.from_text`` and it reddens too."""
+
+    from agent_runtime import mcp_admission
+    from agent_runtime.profile_runner.budget import WallBudgetCheckpoint
+    from agent_runtime.profile_runner.mcp_lane import _steer_mcp_admission_notice
+    from agent_runtime.turn_budget import TurnWallBudget
+
+    steered = []
+    agent = SimpleNamespace(steer=steered.append)
+    checkpoint = WallBudgetCheckpoint(TurnWallBudget(total_seconds=540.0, deadline_epoch=1_540.0),
+                                      clock=lambda: 1_500.0)
+    checkpoint.bind(agent)
+    assert checkpoint.engage(trigger="wall_budget_tool_gate")
+    monkeypatch.setattr(mcp_admission, "render_mcp_admission_line", lambda *_a, **_k: "- qa: unavailable")
+    assert _steer_mcp_admission_notice(agent, None, SimpleNamespace(degraded=True))
+    assert [(n.display_text, n.notice_code) for n in steered] == [
+        ("Time budget checkpoint", "wall_checkpoint"), ("Tool availability update", "tool_availability")]
+    assert [PendingSteer.from_text(n).rows()[0]["display_metadata"]["notice_code"] for n in steered] == [
+        "wall_checkpoint", "tool_availability"]
+
+
+def test_a_notice_stored_before_the_code_reads_its_code_from_its_title():
+    """An older stored row (no ``notice_code``) still reads, and gets the code its title names."""
+
+    messages = _project([_notice_row(), _notice_row(title="Tool availability update"),
+                         _notice_row(title="Something new")])
+    assert [m.get("notice_code") for m in messages] == ["wall_checkpoint", "tool_availability", None]
+    assert [m["kind"] for m in messages] == ["runtime_notice"] * 3
+
+
+def test_a_steered_notification_that_is_not_a_runtime_notice_carries_no_code():
+    messages = _project([_notice_row(kind="process_completed", title="Time budget checkpoint")])
+    assert messages[0]["kind"] == "system_message"
+    assert "notice_code" not in messages[0]

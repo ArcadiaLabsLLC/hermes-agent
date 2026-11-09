@@ -27,6 +27,7 @@ class _Input:
     kind: str = "steer"
     title: str = ""
     category: str = ""
+    code: str = ""
     platform_id: str | None = None
     metadata: dict[str, Any] | None = None
 
@@ -42,6 +43,8 @@ class _Input:
                 "display_kind": self.kind,
             }
             metadata.update(display_text=self.title, notification_category=self.category)
+            if self.code:  # which harness notice (RT-RUNTIME-NOTICE-CODE-ON-ROW)
+                metadata["notice_code"] = self.code
         if metadata or self.platform_id:
             row["display_metadata"] = {**metadata, "steering": True}
         if self.platform_id:
@@ -67,7 +70,7 @@ class PendingSteer(str):
         item = _Input(str(text).strip(), platform_id=platform_id, metadata=metadata)
         if isinstance(text, TimelineNotification):
             item = replace(item, kind=text.display_kind, title=text.display_text,
-                           category=text.notification_category)
+                           category=text.notification_category, code=getattr(text, "notice_code", ""))
         return cls((item,))
 
     @property

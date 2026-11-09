@@ -301,6 +301,10 @@ class HistoryMessage:
         category = safe_assignment_token(row.get("notification_category")) if self.role == SYSTEM else ""
         if category:
             message["notification_category"] = category
+        # Which harness notice (RT-RUNTIME-NOTICE-CODE-ON-ROW); absent on a row that is none.
+        notice_code = safe_assignment_token(row.get("notice_code")) if shape.kind == PERSONA_RUNTIME_NOTICE_KIND else ""
+        if notice_code:
+            message["notice_code"] = notice_code
         if shape.kind == PERSONA_LENS_EPISODE_KIND:
             # The receipt (runtime.lens.receipt) is keyed by this id.
             message["lens"] = {"episode_id": safe_assignment_token(row.get("lens_episode_id")) or ""}

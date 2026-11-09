@@ -50,6 +50,10 @@ from .vocabulary import (
     PERSONA_PRE_TRACE_ACK_KIND,
     PERSONA_RELAYED_MESSAGE_KIND,
     PERSONA_RUNTIME_NOTICE_KIND,
+    RUNTIME_NOTICE_CODES,
+    RUNTIME_NOTICE_ITERATION_LIMIT,
+    RUNTIME_NOTICE_TOOL_AVAILABILITY,
+    RUNTIME_NOTICE_WALL_CHECKPOINT,
     canonical_persona_chat_turn_id,
     logical_persona_chat_client_message_id,
 )
@@ -134,7 +138,24 @@ def _safe_curated_messages(
 #: the operator's own message (RT-ITERATION-LIMIT-NUDGE-STORED-AS-USER).
 _ITERATION_LIMIT_NOTICE = MappingProxyType({
     "display_text": "Tool-iteration limit reached", "notification_category": "diagnostic", "steering": True,
+    "notice_code": RUNTIME_NOTICE_ITERATION_LIMIT,
 })
+
+#: A runtime notice stored before ``notice_code`` existed carries only its title; this reads the code
+#: off it, so a stored chat answers the same as a new one (RT-RUNTIME-NOTICE-CODE-ON-ROW). Frozen: a
+#: new notice carries its code from birth and never joins this table.
+_LEGACY_NOTICE_CODES = MappingProxyType({
+    "Time budget checkpoint": RUNTIME_NOTICE_WALL_CHECKPOINT,
+    "Tool availability update": RUNTIME_NOTICE_TOOL_AVAILABILITY,
+})
+
+
+def _notice_code(metadata: Mapping[str, Any], title: str) -> str:
+    """The row's ``notice_code``: its stored code when it names a known notice, else (an older row)
+    the code its stored title reads as, else none."""
+
+    code = safe_assignment_token(metadata.get("notice_code")) or ""
+    return code if code in RUNTIME_NOTICE_CODES else _LEGACY_NOTICE_CODES.get(title, "")
 
 
 #: The journal's ``budget_trigger`` values that say the turn's wall-budget CHECKPOINT engaged — and with
@@ -307,6 +328,9 @@ class _OperatorCurator:
                 category = safe_assignment_token(metadata.get("notification_category"))
                 if category:
                     row["notification_category"] = category
+                # MUTATION: drop this and test_runtime_notice_transcript's notice-code rows redden.
+                if row["kind"] == PERSONA_RUNTIME_NOTICE_KIND and (code := _notice_code(metadata, title)):
+                    row["notice_code"] = code
             return
         # D2.04: the turn this message re-ran, read off its own journal record.
         record = state.turn_records_by_message.get(str(ctx.logical_client_message_id or ""))
