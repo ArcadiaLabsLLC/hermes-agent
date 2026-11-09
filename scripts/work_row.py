@@ -7,6 +7,8 @@
     python scripts/work_row.py close <ID> --who <lane> (--done <sha|here> | --refuted <sha|here> | --owner "<words>")
         [--result "<line>"] [--date YYYY-MM-DD] [--note <path>] [--repo <checkout>] [--no-wake] [--no-commit]
 
+A finished row is CLOSED, never deleted: ``delete`` only drops a line (to move a row, with ``append`` in
+its new queue), and the row guard refuses a row that left the live queues without an archive line (ADR 0011).
 ``close`` ARCHIVES the row (RT-QUEUE-ARCHIVE-GRAMMAR, launcher plan
 ``EterniaLauncher/docs/mission_control/subsystems/QUEUE_CLOSED_ROW_ARCHIVE_2026-11-02.md`` D3–D5): the claim mark
 removed, the status replaced by ONE outcome, the line appended to
