@@ -9,10 +9,10 @@ tags: [queue, program/fork-hygiene]
 
 ## Tasks — 2026-11-09 (owner: every row belongs to a task; plan QUEUE_TASKS_AND_SUBTASKS)
 
-- **`TASK-HERMES-TEST-ISOLATION` — Agent engine tests: a run never hangs, leaks onto your machine or breaks on Windows** · task: hermes-test-isolation · 15 subtasks on 2026-11-09 (2 ready, 2 blocked, 11 deferred) · READY 2026-11-09
+- **`TASK-HERMES-TEST-ISOLATION` — Agent engine tests: a run never hangs, leaks onto your machine or breaks on Windows** · task: hermes-test-isolation · 15 subtasks on 2026-11-09 (2 ready, 2 blocked, 11 deferred) · READY 2026-11-09 · **TAKEN 2026-11-09 w1109a-hm-iso on nekwo-ubuntu24 as nekwo in hm-w1109a-iso**
 - **`TASK-PREPUSH` — Agent engine checks: pre-push, CI and the full suite run fast and alike on every machine** · task: prepush · 17 subtasks on 2026-11-09 (2 ready, 1 blocked, 14 deferred) · READY 2026-11-09
 - **`TASK-UPSTREAM-FOOTPRINT-LEDGER` — Agent engine: carry as little as possible on top of upstream, fixing bugs where they live** · task: upstream-footprint-ledger · 28 subtasks on 2026-11-09 (1 blocked, 27 deferred) · BLOCKED 2026-11-09: another lane — `FORK-HERMES-GH-AUTH-STATUS` every live subtask waits (1 on other work); the task turns READY when one of them does
-- **`TASK-UPSTREAM-LOAD-FLAKES` — Agent engine tests: every test passes on main, even when the machine is busy** · task: upstream-load-flakes · 27 subtasks on 2026-11-09 (2 ready, 25 deferred) · READY 2026-11-09
+- **`TASK-UPSTREAM-LOAD-FLAKES` — Agent engine tests: every test passes on main, even when the machine is busy** · task: upstream-load-flakes · 27 subtasks on 2026-11-09 (2 ready, 25 deferred) · READY 2026-11-09 · **TAKEN 2026-11-09 w1109a-hm-flakes on nekwo-ubuntu24 as nekwo in hm-w1109a-flakes**
 
 ## Owner request — 2026-11-08 (hermes prepush: a tight cap, an overrun report, fast)
 
