@@ -54,10 +54,15 @@ ingress.register       {monitor_id, kind, mapping?, auth?} -> {route_id, url, se
                        only in the home's credential file as ``ingress:<route_id>``;
                        ``auth: bearer``, alertmanager and a local bind only, is ``weaker``)
 ingress.list           {monitor_id?} -> {routes, listener} (never a secret; listener =
-                       {host, port, listening, url_base, maximum_body_bytes})
+                       {host, port, listening, bound_since_ms, url_base, maximum_body_bytes,
+                       bind_error}; bind_error is null or, while a route wants the door and
+                       the last bind failed, {reason: address_in_use | permission_denied |
+                       other, host, port, errno, at_ms})
 ingress.revoke         {route_id} -> the route + revoked (its secret is forgotten)
 ingress.bind           {host, port} -> listener (loopback or a private address only; the
-                       running listener moves; written to ``lens/ingress.json``)
+                       running listener moves, a door whose bind failed is retried there;
+                       written to the head home's ``lens/ingress.json``, so each serve's
+                       home holds its own port — the default is 127.0.0.1:47652)
 =====================  ================================================================
 
 ``workspace_id`` (RT-LENS-WORKSPACE-SCOPE-AND-ORPHANS): given, a read answers only that

@@ -40,6 +40,10 @@ Gates and their killing mutations (each red was recorded in the stage's commit):
   leaves the door closed — killed by dropping ``_sync_listener`` from
   ``register_route``; the last revoke leaves it bound — killed by dropping it from
   ``revoke_route``.
+* bind error on the read (RT-LENS-LISTENER-BIND-ERROR-ON-READ): a held port reads as
+  ``bind_error: null`` — killed by not recording ``_bind_failure`` in ``_start_listener``;
+  a move to a free port leaves the door off — killed by dropping the failed-door retry
+  in ``bind_ingress``.
 * bearer routes (RT-LENS-ALERTMANAGER-UNSIGNED): a wrong bearer secret is accepted —
   killed by skipping the ``compare_digest`` refusal in ``verify_bearer`` (202 == 401);
   a replayed body within the window is accepted — killed by dropping the ring admit
@@ -447,6 +451,52 @@ def test_the_serve_door_binds_only_while_a_route_exists(monkeypatch):
         assert _rpc("runtime.lens.ingress.list", {})["result"]["listener"]["listening"] is False
     finally:
         _stopped(stop)
+
+
+def test_a_held_port_reads_as_bind_error_and_a_move_off_it_recovers(monkeypatch):
+    """RT-LENS-LISTENER-BIND-ERROR-ON-READ: a route wants the door, another program holds its
+    port — the listener read says ``bind_error: address_in_use`` with the port (no stack, no
+    message); ``ingress.bind`` to a free port binds and clears it; revoking clears it too."""
+
+    import socket
+
+    from agent_runtime.lens import ingress
+    from agent_runtime.lens.ingress_routes import revoke_route
+
+    _enabled()
+    holder = socket.socket()
+    holder.bind(("127.0.0.1", 0))
+    holder.listen(1)
+    held = holder.getsockname()[1]
+    try:
+        stop, _, _ = _armed_door(monkeypatch)
+        try:
+            assert ingress.ingress_state()["bind_error"] is None, "no route: nothing tried, nothing failed"
+            _rpc("runtime.lens.ingress.bind", {"host": "127.0.0.1", "port": held})
+            path, _ = _registered()
+            listener = _rpc("runtime.lens.ingress.list", {})["result"]["listener"]
+            assert listener["listening"] is False
+            error = listener["bind_error"]
+            assert error is not None
+            assert (error["reason"], error["host"], error["port"]) == ("address_in_use", "127.0.0.1", held)
+            assert isinstance(error["errno"], int) and isinstance(error["at_ms"], int)
+            assert set(error) == {"reason", "host", "port", "errno", "at_ms"}, "never a stack or OS text"
+
+            probe = socket.socket()
+            probe.bind(("127.0.0.1", 0))
+            free = probe.getsockname()[1]
+            probe.close()
+            moved = _rpc("runtime.lens.ingress.bind", {"host": "127.0.0.1", "port": free})["result"]
+            assert (moved["listening"], moved["port"], moved["bind_error"]) == (True, free, None)
+
+            _rpc("runtime.lens.ingress.bind", {"host": "127.0.0.1", "port": held})
+            assert ingress.ingress_state()["bind_error"]["port"] == held, "a move onto a held port says so"
+            revoke_route(path.rsplit("/", 1)[1])
+            assert ingress.ingress_state()["bind_error"] is None, "no route: the door is off, not failed"
+        finally:
+            _stopped(stop)
+    finally:
+        holder.close()
 
 
 # --- bearer routes (RT-LENS-ALERTMANAGER-UNSIGNED, owner ruling 2026-10-19) ------------
