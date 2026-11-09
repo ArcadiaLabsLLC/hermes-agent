@@ -16,6 +16,7 @@ from types import MappingProxyType
 from typing import Any, Mapping, Protocol
 
 from ..clock import iso_timestamp
+from ..turn_budget import CHECKPOINT_TRIGGER_TIMER, CHECKPOINT_TRIGGER_TOOL_GATE
 from ..mission_chat_turns.reads import (
     mission_chat_turn_elements,
     mission_chat_turn_records,
@@ -118,7 +119,7 @@ def _safe_curated_messages(
     for index, raw in enumerate(raw_messages or []):
         if not isinstance(raw, dict):
             continue
-        raw = _typed_iteration_limit_nudge(raw)
+        raw = _typed_iteration_limit_nudge(raw, state.turn_records_by_message)
         role = MessageRole.from_wire(raw.get("role"))
         curator = ROLE_CURATORS.get(role) if role is not None else None
         if curator is not None:
@@ -135,13 +136,25 @@ _ITERATION_LIMIT_NOTICE = MappingProxyType({
 })
 
 
-def _typed_iteration_limit_nudge(raw: dict[str, Any]) -> dict[str, Any]:
+#: The journal's ``budget_trigger`` values that say the turn's wall-budget CHECKPOINT engaged — and with
+#: it ``turn_budget.drain_iteration_budget``, which is what makes upstream ask for the iteration-limit
+#: summary (``settle._budget_metadata``; ``wall_budget_checkpoint`` is its fallback spelling).
+_CHECKPOINT_TRIGGERS = frozenset({CHECKPOINT_TRIGGER_TIMER, CHECKPOINT_TRIGGER_TOOL_GATE, "wall_budget_checkpoint"})
+
+
+def _typed_iteration_limit_nudge(
+    raw: dict[str, Any], turn_records_by_message: Mapping[str, Mapping[str, Any]] = MappingProxyType({}),
+) -> dict[str, Any]:
     """The iteration-limit nudge row, typed as a runtime notice; any other row unchanged.
 
     Upstream ``handle_max_iterations`` appends the nudge as a plain role-user row whose content is
     :data:`agent.context_compressor.MAX_ITERATIONS_SUMMARY_REQUEST` — the stable key the compaction
     recognizers read it by, too. Typing it here, on read, keeps the upstream file at its own bytes
     (FH-UPSTREAM-FOOTPRINT-UNLEDGERED-AUX-UNAVAILABLE); a row already typed is left alone.
+
+    A turn whose wall-budget checkpoint engaged drained its iteration budget to stop new tool work,
+    so the summary request is the checkpoint's mechanism, not a limit the turn hit: it is hidden, and
+    the checkpoint's own notice is the turn's account (RT-CHECKPOINT-DRAIN-NUDGE-TYPED-AS-ITERATION-LIMIT).
     """
 
     if raw.get("display_kind") or raw.get("role") != "user":
@@ -150,6 +163,11 @@ def _typed_iteration_limit_nudge(raw: dict[str, Any]) -> dict[str, Any]:
 
     if raw.get("content") != MAX_ITERATIONS_SUMMARY_REQUEST:
         return raw
+    turn = logical_persona_chat_client_message_id(safe_assignment_text(raw.get("platform_message_id"), limit=240))
+    record = turn_records_by_message.get(str(turn or "")) or {}
+    # MUTATION: drop this arm and test_runtime_notice_transcript's checkpoint-drain row reddens.
+    if record.get("budget_trigger") in _CHECKPOINT_TRIGGERS:
+        return {**raw, "display_kind": "hidden"}
     return {**raw, "display_kind": PERSONA_RUNTIME_NOTICE_KIND, "display_metadata": dict(_ITERATION_LIMIT_NOTICE)}
 
 

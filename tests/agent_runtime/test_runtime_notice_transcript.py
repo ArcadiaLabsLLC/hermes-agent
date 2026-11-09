@@ -94,3 +94,39 @@ def test_an_operator_row_that_only_resembles_the_nudge_stays_the_operators():
     projected = _project([{"role": "user", "content": MAX_ITERATIONS_SUMMARY_REQUEST + " please",
                            "platform_message_id": "prompt"}])
     assert [m["kind"] for m in projected] == ["operator_message"]
+
+
+def _checkpoint_turn(monkeypatch, trigger):
+    from agent.context_compressor import MAX_ITERATIONS_SUMMARY_REQUEST
+    from agent_runtime.persona_chat_history import history_evidence
+
+    record = {"client_message_id": "turn1", "turn_id": "turn1", "state": "projected", "budget_exhausted": True,
+              "budget_trigger": trigger}
+    monkeypatch.setattr(history_evidence, "mission_chat_turn_records", lambda **_: [record])
+    notice = {**_notice_row(), "platform_message_id": "turn1:input:3"}
+    return _project([
+        {"role": "user", "content": "do the work", "platform_message_id": "turn1"},
+        notice,
+        {"role": "user", "content": MAX_ITERATIONS_SUMMARY_REQUEST, "platform_message_id": "turn1"},
+        {"role": "assistant", "content": "Here is where I got to.", "platform_message_id": "turn1:assistant:5"},
+    ])
+
+
+def test_a_checkpoint_drained_turn_does_not_also_say_it_hit_the_iteration_limit(monkeypatch):
+    """RT-CHECKPOINT-DRAIN-NUDGE-TYPED-AS-ITERATION-LIMIT: the checkpoint drains the iteration budget to
+    stop new tool work; the summary request that follows is its mechanism, hidden. The checkpoint's own
+    notice stays the turn's account.
+
+    MUTATION: drop the ``_CHECKPOINT_TRIGGERS`` arm in ``_typed_iteration_limit_nudge`` and this reddens
+    (a "Tool-iteration limit reached" notice beside "Time budget checkpoint")."""
+
+    titles = [m["display_title"] for m in _checkpoint_turn(monkeypatch, "wall_budget_tool_gate")]
+    assert "Time budget checkpoint" in titles
+    assert "Tool-iteration limit reached" not in titles
+
+
+def test_a_hard_wall_turn_keeps_the_iteration_limit_notice(monkeypatch):
+    """Only a checkpoint trigger hides it: a turn the wall killed outright drained nothing."""
+
+    titles = [m["display_title"] for m in _checkpoint_turn(monkeypatch, "wall_budget_hard_wall")]
+    assert "Tool-iteration limit reached" in titles
