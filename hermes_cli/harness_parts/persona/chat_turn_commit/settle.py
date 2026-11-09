@@ -18,7 +18,9 @@ from agent_runtime.mission_chat_outcome import (
     ExecutionState,
     FinalizationWarningKind,
     classify_turn_failure,
+    refusal_never_left_hermes,
 )
+from agent_runtime.operator_images import with_media_lines
 from agent_runtime.mission_chat_phases import (
     TURN_PHASES_KEY as MISSION_CHAT_TURN_PHASES_KEY,
     TURN_TIMING_KEY as MISSION_CHAT_TURN_TIMING_KEY,
@@ -50,7 +52,9 @@ from ..chat_events import (
     _publish_persona_chat_projection_event,
 )
 from ..chat_history_writes import (
+    _append_persona_operator_turn,
     _chat_turn_tool_names,
+    _persona_chat_existing_turn,
     _mirror_persona_chat_message,
     _persona_chat_fault_injection,
     _redact_persona_chat_text,
@@ -158,6 +162,28 @@ class _SettlePhases:
         attempts.log_receipt(self.stream_emitter.turn_id)
         return attempts.proven_unsent()
 
+    def _keep_refused_message(self) -> None:
+        """RT-REFUSED-CHAT-MESSAGE-NOT-STORED: a turn refused before any provider call keeps its message.
+
+        The runtime writes the operator row with the turn (native continuity), so a turn that never
+        reached an agent (``model_unset``, no provider) left only its refusal and a relaunch showed the
+        refusal alone. Owner RULED 2026-11-09: the refused message is stored beside its refusal, by the
+        explicit-append seam, once (a row the runtime already wrote for this id is kept as it is).
+        """
+
+        session_id = getattr(self, "active_session_id", None) or self.session_id
+        if _persona_chat_existing_turn(
+            session_db=self.session_db, session_id=session_id, client_message_id=self.client_message_id,
+        ).get("operator"):
+            return
+        _append_persona_operator_turn(
+            session_db=self.session_db,
+            session_id=session_id,
+            message=with_media_lines(self.chat_message, getattr(self, "user_image_paths", ())),
+            client_message_id=self.client_message_id,
+            relay_marker=getattr(self, "relay_sender_marker", None),
+        )
+
     def _settle_failure(self, exc) -> int:
         """A raised run: settle it as the typed terminal state it is, and say so."""
 
@@ -196,6 +222,8 @@ class _SettlePhases:
         refusal = turn_outcome.provider_refusal
         provider_refused = refusal is not None
         failed_outcome = self._record_failure(exc, turn_outcome)
+        if provider_refused and refusal_never_left_hermes(refusal.as_dict()):
+            self._keep_refused_message()
         if self.runtime_registry is not None:
             self.runtime_registry.transition(self.session_id, "failed")
         data = {

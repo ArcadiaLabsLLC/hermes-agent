@@ -107,3 +107,68 @@ def test_the_transcript_marker_says_choose_a_model(monkeypatch, capsys, isolate_
     (marker,) = _terminal_turn_marker_rows(session_id=_SESSION_ID, assistant_client_message_ids=set())
     assert marker["provider_refusal"]["reason"] == MODEL_UNSET_REASON
     assert "no model is chosen" in marker["text"]
+
+
+def _send_on_one_db(monkeypatch, capsys, model, client_message_id="no_model_turn"):
+    from .test_mission_chat_budget_payload import _TranscriptDB
+
+    _RunnerMustNotRun.calls = 0
+    _seed(monkeypatch, _RealRuntime)
+    db = _TranscriptDB()
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
+    _save_dev(model)
+    code = chat_turn_message._cmd_mission_chat_message(_args(client_message_id))
+    capsys.readouterr()
+    return code, db
+
+
+def _operator_rows(db, client_message_id="no_model_turn"):
+    return [row for rows in db.messages.values() for row in rows
+            if row["role"] == "user" and row.get("platform_message_id") == client_message_id]
+
+
+def test_the_refused_message_is_stored_beside_its_refusal(monkeypatch, capsys, isolate_agent_runtime_root):
+    """RT-REFUSED-CHAT-MESSAGE-NOT-STORED (owner RULED 2026-11-09): the message survives a relaunch.
+
+    MUTATION: drop the ``_keep_refused_message()`` call in ``_SettlePhases._settle_failure`` and the
+    first assert reddens (no operator row: SessionDB held only the refusal's journal record).
+    """
+
+    code, db = _send_on_one_db(monkeypatch, capsys, None)
+    assert code == 2 and _RunnerMustNotRun.calls == 0
+    (row,) = _operator_rows(db)
+    assert row["content"] == "please answer"
+    # A resend of the same id replays the refusal and stores nothing twice.
+    chat_turn_message._cmd_mission_chat_message(_args("no_model_turn"))
+    capsys.readouterr()
+    assert len(_operator_rows(db)) == 1
+
+
+class _RunnerWritesItsRowThenFails:
+    db = None
+
+    def run(self, request, **kwargs):
+        type(self).db.append_message("persona_chat_personainst_dev", "user", "please answer",
+                                     platform_message_id="native_turn")
+        raise RuntimeError("the agent never sent a request")
+
+
+class _NativeRowRuntime(GPTPersonaRuntime):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs, agent_runner=_RunnerWritesItsRowThenFails())
+
+
+def test_a_row_the_runtime_already_wrote_is_not_written_twice(monkeypatch, capsys, isolate_agent_runtime_root):
+    """MUTATION: drop the ``.get("operator")`` early return in ``_keep_refused_message`` and this
+    reddens (two operator rows for one id)."""
+
+    from .test_mission_chat_budget_payload import _TranscriptDB
+
+    _seed(monkeypatch, _NativeRowRuntime)
+    db = _RunnerWritesItsRowThenFails.db = _TranscriptDB()
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
+    _save_dev("claude-test")
+    code = chat_turn_message._cmd_mission_chat_message(_args("native_turn"))
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 2 and payload["provider_refusal"]["status_code"] == 0
+    assert len(_operator_rows(db, "native_turn")) == 1
