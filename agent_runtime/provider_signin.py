@@ -42,6 +42,7 @@ __all__ = [
     "SignInRefused",
     "registry",
     "run_login_in_process",
+    "prewarm_signin",
     "select_login_runner",
     "spawn_login_child",
 ]
@@ -206,6 +207,21 @@ def subprocess_signin_enabled() -> bool:
 
 def select_login_runner() -> Callable[[str, str, str | None], LoginChild]:
     return spawn_login_child if subprocess_signin_enabled() else run_login_in_process
+
+
+def prewarm_signin() -> bool:
+    """Start a warm sign-in child ahead of the press (RT-PROVIDER-SIGNIN-COLD-CHILD); True when one started.
+
+    Only where sign-in runs as a child: the in-process runner has nothing to warm. Never raises.
+    """
+    if not subprocess_signin_enabled():
+        return False
+    try:
+        from .provider_signin_child import prewarm_login_child
+
+        return prewarm_login_child()
+    except Exception:
+        return False
 
 
 def _advertised_methods(provider: str) -> list[str]:

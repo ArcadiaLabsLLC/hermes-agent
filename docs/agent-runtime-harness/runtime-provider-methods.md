@@ -14,7 +14,7 @@ moving `RPC_CONTRACT_VERSION`.
 
 | method | tier | params | wraps |
 |---|---|---|---|
-| `runtime.provider.list` | read | `persona_instance_id?` / `persona_id?` | `build_provider_visibility()` (`hermes harness providers --json`) |
+| `runtime.provider.list` | read | `persona_instance_id?` / `persona_id?`; `prewarm_signin?` | `build_provider_visibility()` (`hermes harness providers --json`) |
 | `runtime.provider.usage` | read | `provider`; `persona_instance_id?` / `persona_id?` | `agent.account_usage.fetch_account_usage`; Nous via `get_nous_portal_account_info` + `build_nous_credits_snapshot` |
 | `runtime.provider.signin.begin` | console | `provider`; `flow?`, `profile?` | one `hermes harness auth login <provider> --json --flow <flow>` child (`hermes_cli/provider_browser_login.py` driver table) |
 | `runtime.provider.signin.poll` | console | `login_id` | the session the child's NDJSON feeds |
@@ -167,6 +167,14 @@ poll. Finished sessions stay pollable for 10 minutes. One active session per
 provider.
 
 **refresh** — `{contract, provider, credential, refreshed: true}`.
+
+**list `prewarm_signin: true`** (send it when Connections opens) also starts ONE warm
+sign-in child for the serve's home (`agent_runtime/provider_signin_warm.py`): it has already
+paid the cold child's 3.7–4.4 s of imports and waits on one stdin line `{provider, flow,
+profile}`, then runs the same `auth_login_command` NDJSON. The next `signin.begin` whose
+target home matches takes it (single use); another home discards it and starts cold. It is
+a process, so a cancel still kills it whole; unused, it exits after 600 s or when the serve
+closes its stdin. Profiles with `auth.subprocess_signin: false` warm nothing.
 
 **signout** — `{contract, provider, was_signed_in, signed_in, env_tokens}` (booleans read
 from `get_auth_status` before and after). `env_tokens` is `[{variable, files}]`: each
