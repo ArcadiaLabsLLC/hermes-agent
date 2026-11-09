@@ -12,7 +12,7 @@ through the W2 writer before or after the side effect it records:
   batch whose manifest exists is a replay that finishes any claim a crash left;
 * a lane runs as ONE ``Executor`` assignment of all its rows; its settle writes every row's ending
   (``ROW_ENDINGS``) and the lane line, then advances the batch (``READY_TO_LAND`` when every lane settled
-  with work);
+  with work, ``ABORTED`` with reason ``nothing to land`` when every lane settled with none);
 * ``stop`` releases a lane that has not begun and WAITS for a running turn (owner ruling 2026-10-18):
   the lane line records ``STOP_REQUESTED`` and the settle ends the lane ``STOPPED``; ``stop`` with no lane
   aborts the batch (every claim released ``DEFERRED``);
@@ -52,7 +52,7 @@ from .gate import is_green, require_green, slot_gate
 from .lane_git import slots_of
 from .machine import (
     BATCH_MOVES, LANE_MOVES, Automation, Batch, BatchAction, BatchEvent, BatchState, LaneEvent, LaneRecord,
-    LaneState, automation_allows, move, ready_to_land, startable,
+    LaneState, automation_allows, move, nothing_to_land, ready_to_land, startable,
 )
 from .manifest import (
     BATCH_SUBJECT, LANE_PREFIX, STOP_REQUESTED, ManifestStore, automation_of, brief_path, entry_line, find_batch,
@@ -68,6 +68,8 @@ logger = logging.getLogger(__name__)
 
 _REPORTED = frozenset({Verdict.DONE, Verdict.BLOCKED})
 _SETTLED = frozenset({LaneState.REPORTED, LaneState.STOPPED})
+#: The ``ABORTED`` line's reason when every lane settled with nothing to land (RT-BATCH-SETTLE-WHEN-EVERY-LANE-STOPPED).
+NOTHING_TO_LAND_REASON = "nothing to land"
 _HOLDING_LANDING = frozenset({BatchState.LANDING, BatchState.AWAITING_APPROVAL})
 _GATE_TAIL = 1000
 
@@ -338,6 +340,12 @@ class BatchDispatcher:
             self.manifests.append(workspace_id, batch_id, [self._batch_line(state, {})], f"{batch_id}:ready_to_land")
             receipts.emit("batch.ready_to_land", workspace_id=workspace_id, batch_id=batch_id)
             batch = self.load(workspace_id, batch_id)
+        elif nothing_to_land(batch.lanes):
+            state = move(BATCH_MOVES, batch.state, BatchEvent.NOTHING_TO_LAND)
+            line = self._batch_line(state, {"reason": NOTHING_TO_LAND_REASON})
+            self.manifests.append(workspace_id, batch_id, [line], f"{batch_id}:aborted")
+            receipts.emit("batch.aborted", workspace_id=workspace_id, batch_id=batch_id, reason=NOTHING_TO_LAND_REASON)
+            batch = self.load(workspace_id, batch_id)
         return batch
 
     def _assignment(self, batch_id: str, rows: tuple[RowRef, ...], persona: str, lane: Any, request: str) -> Assignment:
@@ -432,7 +440,7 @@ class BatchDispatcher:
         batch = self.load(workspace_id, batch_id)
         if lane_id is not None:
             self._stop_lane(workspace_id, batch, batch.lane(lane_id))
-            return self.load(workspace_id, batch_id)
+            return self.advance(workspace_id, batch_id)  # the last lane's stop settles the batch
         state = move(BATCH_MOVES, batch.state, BatchEvent.ABORT)
         for record in (*batch.lanes, batch.landing):
             if record.state not in _SETTLED and not (record.lane.kind is LaneKind.LANDING

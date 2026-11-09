@@ -7,7 +7,9 @@ and nothing automates ``LAND`` or ``APPROVE`` (``AUTOMATABLE``; owner ruling 202
 The tree, where it differs from the plan's table: a lane is ``PLANNED`` between the manifest's
 ``STARTED`` line and its rows' claims (a start that crashed half way resumes there); a landing lane
 that does not report green moves the batch back to ``READY_TO_LAND`` (``LANDING_RED``), so the
-operator can land again — the plan's table names no red edge.
+operator can land again — the plan's table names no red edge. A started batch whose every lane settled
+with nothing to land (every lane stopped, or reported no commit and no done row) ends ``ABORTED`` by
+itself (``NOTHING_TO_LAND``, RT-BATCH-SETTLE-WHEN-EVERY-LANE-STOPPED) instead of staying ``STARTED``.
 """
 
 from __future__ import annotations
@@ -38,6 +40,7 @@ __all__ = [
     "LaneState",
     "automation_allows",
     "move",
+    "nothing_to_land",
     "ready_to_land",
     "startable",
 ]
@@ -56,6 +59,7 @@ class BatchState(StrEnum):
 class BatchEvent(StrEnum):
     START = "start"
     LANES_SETTLED = "lanes_settled"
+    NOTHING_TO_LAND = "nothing_to_land"
     LAND = "land"
     LANDING_GREEN = "landing_green"
     LANDING_RED = "landing_red"
@@ -83,6 +87,7 @@ _ABORTABLE = (BatchState.STARTED, BatchState.READY_TO_LAND, BatchState.LANDING, 
 BATCH_MOVES: dict[tuple[BatchState, BatchEvent], BatchState] = {
     (BatchState.PLANNED, BatchEvent.START): BatchState.STARTED,
     (BatchState.STARTED, BatchEvent.LANES_SETTLED): BatchState.READY_TO_LAND,
+    (BatchState.STARTED, BatchEvent.NOTHING_TO_LAND): BatchState.ABORTED,
     (BatchState.READY_TO_LAND, BatchEvent.LAND): BatchState.LANDING,
     (BatchState.LANDING, BatchEvent.LANDING_GREEN): BatchState.AWAITING_APPROVAL,
     (BatchState.LANDING, BatchEvent.LANDING_RED): BatchState.READY_TO_LAND,
@@ -276,3 +281,9 @@ def ready_to_land(lanes: Sequence[LaneRecord]) -> bool:
     """Every lane settled and at least one carries work (plan §3.2 ``READY_TO_LAND``)."""
 
     return bool(lanes) and all(lane.state in _SETTLED for lane in lanes) and any(map(_has_work, lanes))
+
+
+def nothing_to_land(lanes: Sequence[LaneRecord]) -> bool:
+    """Every lane settled and none carries work: the batch can never land, so it ends (``NOTHING_TO_LAND``)."""
+
+    return bool(lanes) and all(lane.state in _SETTLED for lane in lanes) and not any(map(_has_work, lanes))
