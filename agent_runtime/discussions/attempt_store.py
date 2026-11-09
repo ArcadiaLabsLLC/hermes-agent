@@ -63,7 +63,9 @@ class AttemptStore:
         self.db_path = db_path
 
     def connect(self) -> sqlite3.Connection:
-        return connect(self.db_path, db_label="discussion-attempts", ready=_ready, initialize=_initialize, lock_retries=4)
+        # Receipts stay FULL (owner RULED 2026-11-09): a rolled-back claim would let a turn run twice.
+        return connect(self.db_path, db_label="discussion-attempts", ready=_ready, initialize=_initialize, lock_retries=4,
+                       synchronous="FULL")
 
     def get(self, run: str, task: str, generation: int) -> dict[str, Any] | None:
         with closing(self.connect()) as conn:

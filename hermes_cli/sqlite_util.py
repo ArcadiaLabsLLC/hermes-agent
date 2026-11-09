@@ -27,6 +27,7 @@ def open_db(
     check_same_thread: bool = True,
     wal_lock_retries: int = 1,
     initialize: Callable[[sqlite3.Connection], None] | None = None,
+    synchronous: str | None = None,
 ) -> sqlite3.Connection:
     """Open ``path`` (parent created), apply the PRAGMA set, run ``initialize``; closed if anything raises.
 
@@ -36,6 +37,8 @@ def open_db(
     fallback and the never-live-downgrade invariant; a raw ``PRAGMA journal_mode=WAL`` bypasses all
     three. Only the transient ``database is locked`` from that pragma is retried (``wal_lock_retries``):
     a first opener initializing a shared DB can make it ignore the busy timeout, notably on Windows.
+    ``synchronous`` (``"NORMAL"`` / ``"FULL"`` / …) sets this connection's level after WAL, never below FULL on
+    macOS; ``None`` leaves the build default.
     """
     from hermes_state_wal import apply_wal_with_fallback
 
@@ -59,6 +62,10 @@ def open_db(
             conn.execute("PRAGMA foreign_keys=ON")
         if synchronous_full:
             conn.execute("PRAGMA synchronous=FULL")
+        if synchronous is not None:
+            from hermes_state_wal import _apply_synchronous_pragma
+
+            _apply_synchronous_pragma(conn, synchronous, db_label=db_label)
         if initialize is not None:
             initialize(conn)
     except BaseException:
