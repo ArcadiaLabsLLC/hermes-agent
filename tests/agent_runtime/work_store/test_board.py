@@ -72,3 +72,18 @@ def test_unbound_slot_is_listed_not_read(workspace, tmp_path):
     # W2 reads through hermes's own worktree: a read root makes the slot readable.
     worktree = checkout(tmp_path / "worktree", rows=ROWS)
     assert [r.ref.id for r in board.rows(workspace, read_roots={"hermes": worktree})] == ["RT-A", "RT-B", "RT-C"]
+
+
+def test_ready_never_offers_a_subtask_of_a_task_that_is_not_ready(workspace, tmp_path):
+    """RT-QUEUE-TASKS-DOORS (launcher plan QUEUE_TASKS_AND_SUBTASKS_2026-11-09 D3): the batch path's ``ready`` reads
+    the task across every board. KILLING MUTATION: drop ``parked_task(...) is None`` in ``claimable`` -> RT-SUB-P is
+    offered, red."""
+    declare_slots(workspace, slot_decl("hermes"), slot_decl("launcher"))
+    hermes_rows = ("- **`RT-SUB-P` — parked slice** · group: parked.hermes · READY 2026-11-09\n"
+                   "- **`RT-SUB-L` — live slice** · group: live · READY 2026-11-09\n"
+                   "- **`RT-LONE` — no task visible** · group: elsewhere · READY 2026-11-09\n")
+    launcher_rows = ("- **`TASK-PARKED` — Parked work** · task: parked · DEFERRED 2026-11-09: after release\n"
+                     "- **`TASK-LIVE` — Live work** · task: live · READY 2026-11-09\n")
+    bind_here(workspace, hermes=checkout(tmp_path / "hermes", rows=hermes_rows),
+              launcher=checkout(tmp_path / "launcher", brain="Launcher_Brain", rows=launcher_rows))
+    assert sorted(r.ref.id for r in board.ready(workspace)) == ["RT-LONE", "RT-SUB-L", "TASK-LIVE"]

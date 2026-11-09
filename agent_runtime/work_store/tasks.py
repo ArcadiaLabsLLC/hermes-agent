@@ -16,7 +16,7 @@ import subprocess
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
-from .grammar import ARCHIVE_DIR, Row, is_queue, is_queue_archive, parse_note
+from .grammar import ARCHIVE_DIR, OWNER_DECISION, Row, Status, blocked_reason, is_queue, is_queue_archive, parse_note
 
 __layer__ = "policy"
 
@@ -209,3 +209,78 @@ def archived_rows(brain_queue_dir: Path) -> list[Row]:
     archive = brain_queue_dir.parent / ARCHIVE_DIR
     return [row for path in sorted(archive.glob("*.md")) if is_queue_archive(text := path.read_text(encoding="utf-8"))
             for row in parse_note(text, slot="", note=path.name, archived=True)] if archive.is_dir() else []
+
+
+# ── the doors (RT-QUEUE-TASKS-DOORS; launcher ``tool/queue/queue_wake.dart`` at 41b1ed9d4f) ──────────
+
+#: The BLOCKED reasons that wait on the owner (the launcher's ``WorkQueueBlockedReason.needsOwner``).
+OWNER_REASONS = (OWNER_DECISION, "owner sitting")
+_BLOCKER_ID = re.compile(r"`([A-Z0-9][A-Z0-9._-]*)`")
+
+
+def _reason(row: Row) -> str | None:
+    return blocked_reason(row.status_body) if row.status is Status.BLOCKED else None
+
+
+def blocked_on_id(row: Row) -> str | None:
+    """The row ID a BLOCKED row names first after its `` — ``, whatever its reason; else None."""
+
+    if row.status is not Status.BLOCKED or " — " not in row.status_body:
+        return None
+    match = _BLOCKER_ID.match(row.status_body.split(" — ", 1)[1].strip())
+    return match.group(1) if match else None
+
+
+def parked_task(row: Row, candidates: Iterable[Row]) -> Row | None:
+    """The task of subtask ``row`` among ``candidates`` when it is not READY (the claim doors refuse then); None for
+    a row that is not a subtask, a task no candidate holds, or a READY task."""
+
+    task = task_of(row, candidates) if row.task is None else None
+    return task if task is not None and task.status is not Status.READY else None
+
+
+def task_refuses_done(task: Row) -> str | None:
+    """Why a DONE close of a subtask of ``task`` must not go: the owner parked it (DEFERRED) or owes it a decision
+    (BLOCKED owner decision). None when the close may go ahead (the launcher's ``taskRefusesDone``)."""
+
+    if task.status is Status.DEFERRED:
+        return f"DEFERRED {task.status_date}"
+    if task.status is Status.BLOCKED and _reason(task) == OWNER_DECISION:
+        return f"BLOCKED {task.status_date}: owner decision"
+    return None
+
+
+def task_status_after_close(task: Row, subtasks: list[Row], *, all_visible: bool, closed_id: str, date: str,
+                            unblocked: str) -> list[str] | None:
+    """The status segments ``task`` should carry once ``closed_id`` closed, judged from its live ``subtasks`` (in
+    work order, each with its brain in ``ref.slot``), or None to leave it (the launcher's ``taskStatusAfterClose``):
+
+    - a BLOCKED task with a READY or NEEDS PLAN subtask turns READY with ``unblocked`` — unless the owner blocked it
+      on a decision of their own (an owner reason naming none of its subtasks);
+    - a READY task, or one BLOCKED on one of its own subtasks, with none startable turns ``BLOCKED <date>: <brain> —
+      `<first waiting subtask>` …`` (``another lane`` for its own brain) — judged only when ``all_visible``;
+    - DEFERRED and NEEDS PLAN tasks never change, and a DEFERRED subtask is neither startable nor waiting.
+    """
+
+    live = [s for s in subtasks if s.status is not Status.DEFERRED]
+    startable = any(s.status in (Status.READY, Status.NEEDS_PLAN) for s in live)
+    on_own = task.status is Status.BLOCKED and blocked_on_id(task) in {closed_id, *(s.ref.id for s in subtasks)}
+    if task.status is Status.BLOCKED and startable:
+        if _reason(task) in OWNER_REASONS and not on_own:
+            return None
+        return [f"READY {date}", unblocked]
+    if startable or not all_visible:
+        return None
+    if task.status is not Status.READY and not on_own:
+        return None
+    waiting = [s for s in live if s.status is Status.BLOCKED and s.ref.id]
+    if not waiting:
+        return None
+    owner = sum(1 for s in waiting if _reason(s) in OWNER_REASONS)
+    mix = ", ".join(part for part in (f"{owner} on the owner" if owner else "",
+                                      f"{len(waiting) - owner} on other work" if len(waiting) > owner else "") if part)
+    first = waiting[0]
+    reason = "another lane" if first.ref.slot == task.ref.slot else first.ref.slot
+    block = (f"BLOCKED {date}: {reason} — `{first.ref.id}` every live subtask waits ({mix}); the task turns READY "
+             "when one of them does")
+    return None if block in task.segments else [block]

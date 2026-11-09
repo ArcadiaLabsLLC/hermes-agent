@@ -26,6 +26,7 @@ from typing import Any
 from .. import paths
 from ..workspace_slots import bound_path
 from .grammar import ARCHIVE_DIR, Row, Status, is_queue, is_queue_archive, parse_note
+from .tasks import parked_task
 
 #: The personal board's reserved Work id (RT-GENERAL-TODO-G1, plan ``general-todo-2026-10-25.md`` §2.2):
 #: one per operator per namespace, a machine-local default brain under ``work/personal/`` that never
@@ -253,9 +254,18 @@ def rows(
 
 
 def ready(workspace_id: str, *, read_roots: Mapping[str, Path] | None = None) -> list[Row]:
-    """The rows a claim may take: ``READY`` and not ``TAKEN``."""
+    """The rows a claim may take (:func:`claimable`) across the workspace's boards."""
 
-    return [row for row in rows(workspace_id, status=Status.READY, read_roots=read_roots) if row.taken is None]
+    return claimable(rows(workspace_id, read_roots=read_roots))
+
+
+def claimable(every: list[Row]) -> list[Row]:
+    """Of ``every`` row the boards read (all statuses, so tasks are visible), those a claim may take: ``READY``, not
+    ``TAKEN``, and not a subtask of a task that is not READY (RT-QUEUE-TASKS-DOORS; launcher plan
+    QUEUE_TASKS_AND_SUBTASKS_2026-11-09 D3: the task's status is the owner's lever over every subtask)."""
+
+    return [row for row in every
+            if row.status is Status.READY and row.taken is None and parked_task(row, every) is None]
 
 
 def ids_in_brain(board: Board) -> set[str]:

@@ -72,7 +72,8 @@ class BoardSource:
         return boards_store.rows(workspace_id, status=status, slot=slot, assignee=assignee, read_roots=view.read_roots)
 
     def ready(self, workspace_id: str) -> list[Row]:
-        return [row for row in self.rows(workspace_id, status=Status.READY) if row.taken is None]
+        """READY, untaken rows — never a subtask of a parked task (``boards_store.claimable``)."""
+        return boards_store.claimable(self.rows(workspace_id))
 
     def claim(self, ref: RowRef, who: Claimant, request_id: str) -> Receipt:
         return self._apply(ref, Op.CLAIM, who, request_id, {})
