@@ -41,7 +41,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 ## Fork-owned
 
 ### Filed on arrival — 2026-11-09 (Eternia lane w1109a-console3: the Harness card places notices by their title)
-- **`RT-RUNTIME-NOTICE-CODE-ON-ROW` — A harness notice in a chat says which notice it is, so the app can place it without matching its wording** · group: console-transcript-truthful · a typed `notice_code` (`wall_checkpoint`, `tool_availability`, `iteration_limit`) from the TimelineNotification (`agent_runtime/profile_runner/budget.py` engage, `mcp_lane.py`) through `agent/steering.py` to `agent_runtime/persona_chat_history/curation.py` `_OperatorCurator.after_row` and the history wire; additive, old rows still read · found 2026-11-09 by w1109a-console3: Eternia folds the wall checkpoint into the turn's Harness card by matching the title "Time budget checkpoint", the only mark on the wire · READY 2026-11-09 · **TAKEN 2026-11-09 w1109a-hm-console3 on nekwo-ubuntu24 as nekwo in .worktrees/hm-w1109a-console2**
 
 ### Filed on arrival — 2026-11-09 (lane w1109a-hm-2: live check of `RT-WORK-DEFAULT-BRAIN-HEAL-STALE-CHECKOUT`)
 
