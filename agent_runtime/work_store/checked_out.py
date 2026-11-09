@@ -15,6 +15,13 @@ refuses "used by worktree"); ``update-ref`` is plumbing and does.
 - being rebased in a worktree (HEAD detached, the branch named by ``rebase-*/head-name``) → refused
   ``worktree_dirty``: moving it would break the user's rebase.
 
+A checkout that already DRIFTED — its HEAD moved by an older ``update-ref`` while its index and files stayed
+at an earlier tip of the branch (RT-WORK-DEFAULT-BRAIN-HEAL-STALE-CHECKOUT; the source was batch
+``LaneGit.push_ff`` before RT-WORK-DEFAULT-BRAIN-CHECKOUT-STALE-INDEX) — is healed first by :func:`heal_drift`
+when the drift is provably git's and not the user's: the index tree is the tree of an ancestor of HEAD and the
+files match the index; the two-tree ``read-tree -m -u`` from that ancestor to HEAD then moves both, refusing
+(nothing moved) when an untracked file is in the way. Anything else is left for the ``--ff-only`` to judge.
+
 The compare-and-swap holds on the checkout arm too: the holder's HEAD must still be ``expected`` (else
 ``False`` and the writer replays), and ``--ff-only`` can never drop a commit.
 """
@@ -29,10 +36,12 @@ from pathlib import Path
 from .reasons import Reason, WorkRefused
 
 __layer__ = "stores"
-__all__ = ["advance", "holder_of"]
+__all__ = ["advance", "heal_drift", "holder_of"]
 
 Git = Callable[..., subprocess.CompletedProcess[str]]
 _REBASE_HEADS = ("rebase-merge/head-name", "rebase-apply/head-name")
+#: How far back an index may lag HEAD and still be healed as drift.
+DRIFT_DEPTH = 500
 #: The fast-forward runs no hook of the user's repository (``post-merge`` would fire on it).
 _NO_HOOKS = (f"core.hooksPath={os.devnull}",)
 
@@ -71,6 +80,33 @@ def _rebasing(git: Git, worktree: Path) -> str | None:
     return None
 
 
+def _out(git: Git, args: list[str], checkout: Path) -> str | None:
+    done = git(args, repo=checkout)
+    return str(done.stdout or "").strip() if done.returncode == 0 else None
+
+
+def heal_drift(git: Git, checkout: Path) -> bool:
+    """Move ``checkout``'s index and files to its HEAD when they sit at an earlier tip of it and hold no change
+    of the user's; True when it healed. A staged change of the user's makes an index tree no ancestor has, an
+    unstaged one fails ``diff --quiet``: either leaves the checkout untouched (False)."""
+
+    index, head = _out(git, ["write-tree"], checkout), _out(git, ["rev-parse", "HEAD^{tree}"], checkout)
+    if index is None or head is None or index == head:
+        return False
+    if git(["diff", "--quiet"], repo=checkout).returncode != 0:
+        return False
+    listed = _out(git, ["log", f"-n{DRIFT_DEPTH}", "--format=%H %T", "HEAD"], checkout) or ""
+    base = next((commit for commit, tree in (line.split() for line in listed.splitlines() if " " in line)
+                 if tree == index), None)
+    if base is None:
+        return False
+    moved = git(["read-tree", "-m", "-u", base, "HEAD"], repo=checkout)
+    if moved.returncode != 0:
+        raise WorkRefused(Reason.WORKTREE_DIRTY,
+                          f"{checkout} drifted from HEAD and cannot be healed: {_tail(moved.stderr)}")
+    return True
+
+
 def advance(git: Git, repo: Path, branch: str, commit: str, expected: str) -> bool:
     """Move ``refs/heads/<branch>`` of ``repo``'s clone from ``expected`` to ``commit`` (a child of it).
 
@@ -88,6 +124,7 @@ def advance(git: Git, repo: Path, branch: str, commit: str, expected: str) -> bo
     head = git(["rev-parse", "-q", "--verify", "HEAD"], repo=checkout)
     if head.returncode != 0 or str(head.stdout).strip() != expected:
         return False
+    heal_drift(git, checkout)
     merged = git(["merge", "--ff-only", "-q", commit], repo=checkout, config=_NO_HOOKS)
     if merged.returncode == 0:
         return True

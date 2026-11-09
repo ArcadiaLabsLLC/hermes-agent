@@ -116,3 +116,46 @@ def test_a_branch_no_worktree_holds_still_moves_by_compare_and_swap(user):
     assert git(user.repo, "rev-parse", "main").strip() == made["receipt"]["commit"]
     assert git(user.repo, "rev-parse", "HEAD") == user.seed
     assert status(user.repo) == [] and not (user.repo / "Work_Brain").exists()
+
+
+def _drift(user: SimpleNamespace, tmp_path: Path) -> str:
+    """``main`` moved by a bare ``update-ref`` under the checkout (the pre-fee09198e1 batch landing): HEAD at the
+    new tip, the index and files at the seed, so ``drift.txt`` reads as a staged deletion."""
+
+    side = tmp_path / "side"
+    git(user.repo, "worktree", "add", "-q", "--detach", str(side), "main")
+    (side / "drift.txt").write_text("landed\n", encoding="utf-8")
+    git(side, "add", "drift.txt")
+    git(side, "commit", "-q", "-m", "landing")
+    tip = git(side, "rev-parse", "HEAD").strip()
+    git(user.repo, "update-ref", "refs/heads/main", tip)
+    assert status(user.repo) == ["D  drift.txt"]
+    return tip
+
+
+def test_a_drifted_checkout_is_healed_and_the_write_lands(user, tmp_path):
+    """RT-WORK-DEFAULT-BRAIN-HEAL-STALE-CHECKOUT. Killing mutation: drop ``heal_drift`` from ``advance`` -> the
+    write refuses ``worktree_dirty`` on the staged deletion, red."""
+
+    _drift(user, tmp_path)
+    made = create(user)
+    assert git(user.repo, "rev-parse", "HEAD").strip() == made["receipt"]["commit"]
+    assert status(user.repo) == []
+    assert (user.repo / "drift.txt").read_text(encoding="utf-8") == "landed\n" and (user.repo / TODO).is_file()
+
+
+def test_a_drifted_checkout_keeps_the_users_own_changes(user, tmp_path):
+    """A staged and an unstaged edit of the user's on top of the drift: the heal never drops either (a staged one
+    means no ancestor's tree, so no heal; the ff keeps both). Killing mutation: ``heal_drift`` with its
+    ``diff --quiet`` and ancestor-tree checks dropped, healing by ``read-tree -u --reset HEAD`` -> the user's
+    edits are gone, red. (Either check alone still holds this case.)"""
+
+    _drift(user, tmp_path)
+    (user.repo / "notes.txt").write_text("staged\n", encoding="utf-8")
+    git(user.repo, "add", "notes.txt")
+    (user.repo / "README.md").write_text("unstaged\n", encoding="utf-8")
+    made = create(user)
+    assert git(user.repo, "rev-parse", "HEAD").strip() == made["receipt"]["commit"]
+    assert (user.repo / "notes.txt").read_text(encoding="utf-8") == "staged\n"
+    assert (user.repo / "README.md").read_text(encoding="utf-8") == "unstaged\n"
+    assert status(user.repo) == [" M README.md", "D  drift.txt", "M  notes.txt"]
