@@ -15,9 +15,9 @@ tags: [queue, program/mission-control, runtime]
 
 ## Tasks — 2026-11-09 (owner: every row belongs to a task; plan QUEUE_TASKS_AND_SUBTASKS)
 
-- **`TASK-AGENT-CONFIG-CLEANUP` — Agent settings: each agent's folders, data, options and abilities live in one clear place** · task: agent-config-cleanup · 10 subtasks on 2026-11-09 (1 blocked, 9 deferred) · READY 2026-11-09
+- **`TASK-AGENT-CONFIG-CLEANUP` — Agent settings: each agent's folders, data, options and abilities live in one clear place** · task: agent-config-cleanup · 10 subtasks on 2026-11-09 (1 blocked, 9 deferred) · BLOCKED 2026-11-09: launcher — `MC-OWNER-NAMESPACES-ADOPT` every live subtask waits (1 on the owner); the task turns READY when one of them does
 - **`TASK-AGENT-START-UP-COST` — Agents: start up and reply faster because each turn prepares and re-reads less** · task: agent-start-up-cost · 18 subtasks on 2026-11-09 (18 deferred) · DEFERRED 2026-11-09: owner triage — every subtask is deferred; until the owner reopens it
-- **`TASK-DISCUSSION-ROOMS-RELIABILITY` — Discussion tables: group rooms of agents keep running, explain refusals and work in release builds** · task: discussion-rooms-reliability · 3 subtasks on 2026-11-09 (1 blocked, 2 deferred) · READY 2026-11-09
+- **`TASK-DISCUSSION-ROOMS-RELIABILITY` — Discussion tables: group rooms of agents keep running, explain refusals and work in release builds** · task: discussion-rooms-reliability · 3 subtasks on 2026-11-09 (1 blocked, 2 deferred) · BLOCKED 2026-11-09: another lane — `RT-ROOM-LEASE-LAPSES-MID-CYCLE` every live subtask waits (1 on other work); the task turns READY when one of them does
 - **`TASK-ETERNIA-LENS` — Lens: agents watch your sources and report what changed** · task: eternia-lens · 15 subtasks on 2026-11-09 (1 ready, 14 deferred) · READY 2026-11-09
 
 ## Ownership refresh — 2026-10-08
