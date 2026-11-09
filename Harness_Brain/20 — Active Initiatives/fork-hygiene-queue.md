@@ -17,6 +17,10 @@ tags: [queue, program/fork-hygiene]
 ## Owner request — 2026-11-08 (hermes prepush: a tight cap, an overrun report, fast)
 
 
+## Filed on arrival — 2026-11-09 (stale-headers lane)
+
+- **`FH-ISO-CERTIFY-DEAD-PRD-CITE` — The dashboard isolation check's instructions point at a design note that no longer exists** · group: docs-pointers · `scripts/iso-certify.py` · found 2026-11-09 by the stale-headers lane: its docstring cites `docs/desktop/2026-07-04-dashboard-process-isolation-PRD.md` (AC-4), which is not in the tree — repoint it at where AC-4 lives now (git log the path) or drop the cite · READY 2026-11-09
+
 ## Filed on arrival — 2026-11-08 (lane w1108c-hm-reds-upstream)
 
 - **`FH-FLAKE-API-ADMISSION-OFF-LOOP-UNDER-LOAD` — `tests/gateway/test_api_admission_off_loop.py::test_admission_waits_for_the_writer_off_the_owner_loop[chat]` is a load flake — red in the w1108c verification daily run on hermes main 3615f904bc (quiet box, suite at -j 24), green alone on the same commit; find what it waits on under -j 24 and wait on that event, never a bare retry** · group: upstream-load-flakes · `tests/gateway/test_api_admission_off_loop.py` · found 2026-11-08 by the w1108c orchestrator (FH-W1108C-WAVE-END-REDS verification run) · DEFERRED 2026-11-09: owner triage — Test-only timing flake; the product itself is not shown broken; until the owner reopens it
