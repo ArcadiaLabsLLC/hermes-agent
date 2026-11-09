@@ -18,8 +18,13 @@ from gateway.platforms.base import BasePlatformAdapter, MessageEvent, MessageTyp
 from gateway.profile_routing import parse_profile_routes
 from gateway.run import GatewayRunner
 from hermes_cli.plugins import PluginContext, PluginManager, PluginManifest
+from tests.waiting import async_wait_until
 
 PLUGIN = "desk"
+
+# The session's 30 s default covers a cold state.db schema init plus four turns on a quiet box only;
+# at 2 cores under load the cold run took 27-31 s (w1109a stress, FH-FLAKE-PLUGIN-ORIGIN-PROFILE-PATH).
+pytestmark = pytest.mark.timeout(120)
 
 
 class _RecordingAdapter(BasePlatformAdapter):
@@ -119,11 +124,18 @@ async def _publish(runner):
     runner._install_plugin_message_injector()
 
 
-async def _settle(runner, adapter, rounds: int = 200):
-    for _ in range(rounds):
-        await asyncio.sleep(0.01)
-        if not runner._background_tasks and not adapter._session_tasks and not adapter._active_sessions:
-            return
+#: A deadline, not a delay: only a hang waits this long. Under a 2-core load one injected turn took
+#: up to 12 s to reach its reply (w1109a, FH-FLAKE-PLUGIN-ORIGIN-PROFILE-PATH).
+_SETTLE_DEADLINE_S = 60.0
+
+
+async def _settle(runner, adapter, *, sent: int):
+    """Wait until ``adapter`` has sent ``sent`` replies and nothing is in flight. The reply is the
+    last thing a turn does, so the next injection can never overtake this one; a hang raises."""
+    await async_wait_until(
+        lambda: (len(adapter.sent) >= sent and not runner._background_tasks
+                 and not adapter._session_tasks and not adapter._active_sessions),
+        timeout=_SETTLE_DEADLINE_S, what=f"{adapter.label} to send {sent} repl(ies) and go idle")
 
 
 @pytest.mark.asyncio
@@ -137,11 +149,11 @@ async def test_origin_creates_session_in_own_profile_and_replies_to_origin(gatew
     with patch("hermes_cli.plugins._known_plugin_managers", return_value=[mgr_alpha, mgr_beta]):
         await _publish(runner)
         assert ctx_alpha.inject_message("Kick off the review", origin=_origin("100")) is True
-        await _settle(runner, alpha)
+        await _settle(runner, alpha, sent=1)
         assert ctx_beta.inject_message("Beta's own post", origin=_origin("200")) is True
-        await _settle(runner, beta)
+        await _settle(runner, beta, sent=1)
         assert ctx_alpha.inject_message("Second post", origin=_origin("101")) is True
-        await _settle(runner, alpha)
+        await _settle(runner, alpha, sent=2)
 
     first, middle, last = gateway.turns
     assert (first.home, first.marker) == (gateway.homes["alpha"], "alpha")
@@ -165,7 +177,7 @@ async def test_origin_creates_session_in_own_profile_and_replies_to_origin(gatew
     reply = alpha.build_source(chat_id="100", chat_type="group", thread_id="7", user_id="u1")
     async with gateway_run._async_profile_runtime_scope(gateway.homes["alpha"]):
         await alpha.handle_message(MessageEvent(text="thanks", message_type=MessageType.TEXT, source=reply))
-    await _settle(runner, alpha)
+    await _settle(runner, alpha, sent=3)
     assert gateway.turns[-1].session_id == first.session_id
     assert alpha.sent[-1] == ("100", "reply-4")
 
@@ -181,7 +193,7 @@ async def test_origin_cannot_reach_another_profile(gateway):
         assert ctx_alpha.inject_message("x", origin=_origin("100", profile="beta")) is False
         assert ctx_alpha.inject_message("x", origin=_origin("999")) is False  # routed to beta
         assert ctx_alpha.inject_message("x", origin={"platform": "telegram"}) is False  # malformed
-        await _settle(runner, alpha)
+        await _settle(runner, alpha, sent=0)
 
     assert gateway.turns == [] and alpha.sent == [] and gateway.adapters["beta"].sent == []
     assert runner.session_store._entries == {}
