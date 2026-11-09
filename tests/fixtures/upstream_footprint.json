@@ -1,8 +1,8 @@
 {
-  "measured_at": "2026-11-08",
+  "measured_at": "2026-11-09",
   "base": "4d04303818",
-  "files": 246,
-  "deleted_lines": 1052,
+  "files": 248,
+  "deleted_lines": 1055,
   "heavy": 1,
   "reasons": [
     {
@@ -1345,6 +1345,21 @@
       },
       "reason": "NO DOOR YET: a post-restart settle hook before the owed-restart follow-up. One guarded call hands the restart outcome to hermes_cli/update_restart_truth.py::settle_owed_restart: an owed gateway is retried once and the restart stage never stays success while a gateway restart is owed (the update stays a success, C3). PR candidate: record the restart stage after verification, upstream.",
       "owner_ruling": "2026-11-08 \u00b7 fork-hygiene-queue FH-WINDOWS-UPDATE-RESTART-RECEIPT-FALSE-SUCCESS (RULED)"
+    },
+    {
+      "change": "RT-FLAKE-NATIVE-DISCUSSION-ROOM-DB-LOCKED (lane w1109a-hm-2, bfabe63fb5): additive synchronous= keyword in hermes_cli/sqlite_util.open_db and gateway/hosted_rooms_common.connect (default NORMAL); policy checkpoint passes NORMAL",
+      "before": {
+        "files": 246,
+        "deleted_lines": 1052,
+        "heavy": 1
+      },
+      "after": {
+        "files": 248,
+        "deleted_lines": 1055,
+        "heavy": 1
+      },
+      "reason": "The room and run stores commit at synchronous=NORMAL so a WAL fsync no longer holds state.db's write lock past the 10 s busy timeout under a disk storm; attempt receipts pass FULL. The stores live in upstream gateway modules, so the level is set where they connect; no upstream call site changed. 9f1b9a5e26's upstream test edit was moved out to the fork's tests/gateway/test_plugin_origin_settled.py (upstream node skip-listed), so it adds nothing here.",
+      "owner_ruling": "2026-11-09 \u00b7 Harness_Brain/20 \u2014 Active Initiatives/runtime-queue.md RT-FLAKE-NATIVE-DISCUSSION-ROOM-DB-LOCKED RULED (owner: synchronous=NORMAL for the room and run stores, FULL kept for attempt receipts)"
     }
   ]
 }
