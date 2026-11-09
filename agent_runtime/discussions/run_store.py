@@ -44,6 +44,22 @@ class RunStore:
             pass
         return connect(self.db_path, db_label="native-discussions", ready=run_schema_ready, initialize=initialize_runs, lock_retries=4)
 
+    def keep_wal(self) -> sqlite3.Connection:
+        """An idle connection the caller holds for the store's life (RT-FLAKE-NATIVE-DISCUSSION-ROOM-DB-LOCKED).
+
+        Every store op opens and closes its own connection, so each close was the LAST one: it checkpointed and
+        deleted the WAL, and the next open re-created it, its first commit allocating blocks behind the
+        filesystem journal (a 12.3 s NORMAL commit under a disk storm). One read leaves this connection's
+        SHARED lock on the file for its life, so no op's close is the last; it holds no transaction, so
+        checkpoints still run."""
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        try:
+            conn.execute("SELECT count(*) FROM sqlite_master").fetchone()
+        except BaseException:
+            conn.close()
+            raise
+        return conn
+
     def get(self, run_id: str, workspace_id: str | None = None) -> dict[str, Any]:
         identifier(run_id, "run_id")
         with closing(self.connect()) as conn:
