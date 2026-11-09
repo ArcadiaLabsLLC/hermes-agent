@@ -440,3 +440,52 @@ def test_a_qa_namespace_landing_never_pushes_to_a_network_remote(tmp_path, monke
     calls.clear()
     LaneGit(run=stub).push_ff(site, "abc123")
     assert ["push", "-q", "origin", "abc123:refs/heads/main"] in calls
+
+
+def _local_landing(tmp_path: Path) -> SimpleNamespace:
+    """A local clone with ``main`` checked out (the default brain's own checkout) and a landing worktree one
+    commit ahead of it."""
+
+    ident = ("-c", "user.name=t", "-c", "user.email=t@t.invalid")
+
+    def git(repo: Path, *args: str) -> str:
+        return subprocess.run(["git", *ident, "-C", str(repo), *args], check=True, capture_output=True,
+                              text=True).stdout
+
+    clone, land = tmp_path / "brain", tmp_path / "land"
+    clone.mkdir()
+    git(clone, "init", "-q", "-b", "main")
+    (clone / "q.md").write_text("row\n", encoding="utf-8")
+    git(clone, "add", "q.md")
+    git(clone, "commit", "-q", "-m", "seed")
+    git(clone, "worktree", "add", "-q", "-b", "land/B", str(land), "main")
+    (land / "batch.md").write_text("landed\n", encoding="utf-8")
+    git(land, "add", "batch.md")
+    git(land, "commit", "-q", "-m", "landing")
+    site = Site("brain", Clone(clone, local=True), land, "land/B", "main")
+    return SimpleNamespace(git=git, clone=clone, site=site, head=git(land, "rev-parse", "HEAD").strip(),
+                           seed=git(clone, "rev-parse", "main").strip())
+
+
+def test_a_local_landing_moves_main_through_the_checkout_that_holds_it(tmp_path):
+    """RT-WORK-DEFAULT-BRAIN-CHECKOUT-STALE-INDEX: a landing on a local board moved ``main`` with ``update-ref``
+    under the default brain's checkout, whose index and files stayed at the old tip (the w1106d rows read as
+    staged deletions) and every later Work write refused ``worktree_dirty``. Killing mutation: ``push_ff``'s local
+    arm back to a bare ``update-ref`` -> the checkout reads ``D  batch.md`` and the file is absent, red."""
+
+    landing = _local_landing(tmp_path)
+    LaneGit().push_ff(landing.site, landing.head)
+    assert landing.git(landing.clone, "rev-parse", "HEAD").strip() == landing.head
+    assert landing.git(landing.clone, "status", "--porcelain") == ""
+    assert (landing.clone / "batch.md").read_text(encoding="utf-8") == "landed\n"
+
+
+def test_a_local_landing_refuses_when_the_checkout_cannot_fast_forward(tmp_path):
+    """The user's own untracked ``batch.md`` is in the way: refused ``worktree_dirty``, ``main`` unmoved."""
+
+    landing = _local_landing(tmp_path)
+    (landing.clone / "batch.md").write_text("mine\n", encoding="utf-8")
+    with pytest.raises(WorkRefused) as refused:
+        LaneGit().push_ff(landing.site, landing.head)
+    assert refused.value.reason is Reason.WORKTREE_DIRTY
+    assert landing.git(landing.clone, "rev-parse", "main").strip() == landing.seed
