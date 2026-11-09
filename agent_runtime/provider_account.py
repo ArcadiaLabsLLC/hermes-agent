@@ -155,7 +155,51 @@ def provider_signout(provider: str) -> dict:
         raise ProviderRefused("signout_refused", str(exit_.code or ""), provider=provider) from None
     except Exception as exc:  # class name only, never the message
         raise ProviderRefused("signout_failed", type(exc).__name__, provider=provider) from None
-    return {"provider": provider, "was_signed_in": was, "signed_in": _signed_in(provider)}
+    return {"provider": provider, "was_signed_in": was, "signed_in": _signed_in(provider),
+            "env_tokens": _env_tokens_left(provider)}
+
+
+def _env_files_defining(variable: str) -> list[str]:
+    """The ``.env`` files under the namespace root that set ``variable``, relative to the root.
+
+    Only the variable's NAME is matched (``VAR=`` or ``export VAR=``); no value is read out.
+    """
+    from hermes_constants import get_default_hermes_root, get_hermes_home
+
+    root = get_default_hermes_root(home=get_hermes_home())
+    candidates = [root / ".env"]
+    profiles = root / "profiles"
+    if profiles.is_dir():
+        candidates += [child / ".env" for child in sorted(profiles.iterdir()) if child.is_dir()]
+    found = []
+    for path in candidates:
+        try:
+            lines = path.read_text(encoding="utf-8-sig").splitlines()
+        except (OSError, ValueError):
+            continue
+        for line in lines:
+            name = line.strip().removeprefix("export ").split("=", 1)[0].strip()
+            if "=" in line and name == variable:
+                found.append(path.relative_to(root).as_posix())
+                break
+    return found
+
+
+def _env_tokens_left(provider: str) -> list[dict]:
+    """``[{variable, files}]`` — the env tokens sign-out cannot clear (RT-CONNECTIONS-SHOWS-EXPIRED-LOGIN-CONNECTED).
+
+    ``hermes auth logout`` clears stored logins; a ``.env`` line re-seeds the pool on the
+    next load, so the answer names where each one lives instead of calling it a sign-in.
+    A failure answers ``[]``: it never turns a done sign-out into a refusal.
+    """
+    try:
+        from agent.credential_pool import load_pool
+
+        variables = sorted({entry.source.removeprefix("env:") for entry in load_pool(provider).entries()
+                            if str(entry.source or "").startswith("env:")})
+        return [{"variable": variable, "files": _env_files_defining(variable)} for variable in variables]
+    except Exception:
+        return []
 
 
 #: ``runtime.provider.configure``'s writes, in order, on the bound provider home's ``config.yaml``.

@@ -68,6 +68,12 @@ source, selected, health, token_preview}]}], environment?, api_keys?,
 auth_logins?, local_llama?, catalog?, block_errors?}`. `catalog` rows are the
 real login catalog plus `browser_login: bool` and `browser_login_methods:
 [flow…]`. `token_preview` is at most the last four characters.
+An `env:*` credential whose token any profile under the namespace root recorded dead or
+`auth_failed` (401/403; a 429 does not count) reads `health: {state: "dead", reason:
+"login_expired", …}` in every profile: one `.env` token copied into several profiles is
+one credential (`refused_tokens` in `hermes_cli/harness_parts/provider_visibility.py`,
+matched by a sha256 digest held in memory only). The `api_keys` Anthropic row carries
+`expired` from the same fold.
 Each `providers[]` row carries `credential_source`: for a provider
 `PROVIDER_CREDENTIAL_SOURCES` declares (today `anthropic`: `account` "Claude
 account", `api_key` "API key") `{chosen, effective, sources: [{id, label,
@@ -162,8 +168,12 @@ provider.
 
 **refresh** — `{contract, provider, credential, refreshed: true}`.
 
-**signout** — `{contract, provider, was_signed_in, signed_in}` (booleans read
-from `get_auth_status` before and after).
+**signout** — `{contract, provider, was_signed_in, signed_in, env_tokens}` (booleans read
+from `get_auth_status` before and after). `env_tokens` is `[{variable, files}]`: each
+`env:<VAR>` entry still in the provider's pool after the logout, and the `.env` files under
+the namespace root (the root's and each profile's, paths relative to the root) that set it —
+a `.env` line re-seeds the pool on every load, so sign-out cannot clear it. Names only,
+never a value.
 
 ## Errors
 
