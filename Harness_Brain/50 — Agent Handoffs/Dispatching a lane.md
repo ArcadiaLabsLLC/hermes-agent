@@ -19,7 +19,7 @@ differs here, each rule with the incident that bought it.
 ## 1. Cut lanes thick, by domain
 
 One Opus lane per DOMAIN (a plan section, a queue heading, a set of files that move together), never
-one lane per queue row. The 2026-10-16 queue sweep cut twelve thin lanes; with a peer session's lanes
+one lane per queue row (since 2026-11-09 a task may run several lanes at once, one per set of its rows that touches different files — never one per row; `EterniaLauncher/docs/agent_context/WORK_TRACKING.md`, "A task runs several lanes at once…"). The 2026-10-16 queue sweep cut twelve thin lanes; with a peer session's lanes
 the box sat at 100% CPU over 16 cores and ~100 python processes, and four red-triage lanes had to be
 stopped because nothing they measured could be trusted. Thick lanes mean fewer worktrees, fewer setups,
 one owner who can tell load from a real red across a whole domain.
