@@ -159,6 +159,9 @@ class Op(StrEnum):
     ASSIGN = "assign"
     SET_SKILLS = "set_skills"
     SET_GROUP = "set_group"
+    #: The owner's answer to an owner decision: a ``RULED`` record before the status, the status READY
+    #: (RT-WORK-ANSWER-VERB).
+    ANSWER = "answer"
     #: The close: the row moves to its archive month file with ONE outcome segment (RT-QUEUE-ARCHIVE-GRAMMAR).
     CLOSE = "close"
     #: Not a row edit: a workspace's machine-written chat logs (plan project-slots-and-shared-chats §5) —
@@ -698,6 +701,26 @@ def _set_group(line: str, *, who: str, date: str, payload: dict) -> str:
     return SEPARATOR.join(segments).rstrip()
 
 
+def _answer(line: str, *, who: str, date: str, payload: dict) -> str:
+    """An owner decision answered (RT-WORK-ANSWER-VERB): ``RULED <date>: owner — <answer>`` inserted before the
+    status, the status replaced by ``READY <date>`` and its ``Recommend:`` dropped, the claim (if any) kept.
+    A row that is not ``BLOCKED <date>: owner decision`` refuses ``invalid``."""
+
+    answer = segment_text(str(payload.get("answer") or ""), limit=900)
+    if not answer:
+        raise WorkRefused(Reason.INVALID, "payload.answer is the owner's answer, one non-empty line")
+    claim = claim_mark(line)
+    segments = split_segments(_release(line, who=who, date=date, payload={}))
+    at = next((i for i, s in enumerate(segments) if i and STATUS.match(s.strip())), None)
+    status = STATUS.match(segments[at].strip()) if at is not None else None
+    if status is None or Status(status.group(1)) is not Status.BLOCKED or blocked_reason(
+            (status.group(3) or "").strip()) != OWNER_DECISION:
+        raise WorkRefused(Reason.INVALID, "the row is not BLOCKED on an owner decision")
+    edited = [*segments[:at], f"RULED {date}: owner — {answer}", f"READY {date}"]
+    edited += [s for s in segments[at + 1:] if not RECOMMEND.match(s.strip())]
+    return SEPARATOR.join(edited).rstrip() + (f"{SEPARATOR}{claim.group(0)}" if claim else "")
+
+
 def _append(line: str, *, who: str, date: str, payload: dict) -> str:
     raise WorkRefused(Reason.INVALID, "APPEND is not a line edit; the caller appends payload.row under the note's last heading")
 
@@ -743,6 +766,7 @@ _EDITS: dict[Op, Callable[..., str | None]] = {
     Op.ASSIGN: _assign,
     Op.SET_SKILLS: _set_skills,
     Op.SET_GROUP: _set_group,
+    Op.ANSWER: _answer,
     Op.CLOSE: _close_line,
     Op.CHAT_TURNS_APPENDED: _not_a_line_edit,
 }

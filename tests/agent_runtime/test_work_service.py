@@ -52,8 +52,8 @@ def test_capabilities_lists_one_owner_per_workspace_and_creates_the_default_brai
     owner = next(row for row in caps["owners"] if row["workspace_id"] == work.ws)
     assert owner == {"owner": WorkScope(caps["install_id"], work.ws).owner, "workspace_id": work.ws,
                      "kind": "workspace", "label": "Desk",
-                     "operations": ["inspect", "start", "edit", "assign", "claim", "release", "set_status", "move", "pull", "done",
-                                    "create_brain", "lend_skills"]}
+                     "operations": ["inspect", "start", "edit", "assign", "claim", "release", "set_status", "move", "answer", "pull",
+                                    "done", "close", "create_brain", "lend_skills"]}
     assert len({row["owner"] for row in caps["owners"]}) == len(caps["owners"])
     assert caps["default_brain"][work.ws] == {"state": "created", "reason": "needs_git_account"}
     assert (paths.default_brain_dir(work.ws) / ".git").is_dir()
@@ -131,6 +131,58 @@ def test_move_guards_on_the_line_the_board_drew(work):
     with pytest.raises(WorkRefused) as bad:
         call(work, "move", request_id="l3", to="READY", line=7, **where)
     assert bad.value.reason is Reason.INVALID
+
+
+def _owner_decision(work, request_id="q0"):
+    task = start(work)["task"]
+    where = {"slot": "brain", "task_id": task["id"]}
+    asked = call(work, "set_status", request_id=request_id,
+                 status="BLOCKED 2026-11-08: owner decision — ship it? · Recommend: yes", **where)["task"]
+    return asked, where
+
+
+def test_answer_rules_an_owner_decision_and_readies_the_row(work):
+    """RT-WORK-ANSWER-VERB. Mutations: drop the RULED segment in ``grammar._answer`` -> no ruling on the row, red;
+    drop the owner-decision check -> answering a READY row writes, red; drop the gate in ``store._guarded_write``
+    -> the stale-line answer writes, red."""
+    asked, where = _owner_decision(work)
+    with pytest.raises(WorkRefused) as stale:
+        call(work, "answer", request_id="a0", answer="yes", line=asked["raw"].replace("ship", "drop"), **where)
+    assert stale.value.reason is Reason.ROW_CHANGED and stale.value.data["task"]["raw"] == asked["raw"]
+    with pytest.raises(WorkRefused) as unguarded:
+        call(work, "answer", request_id="a1", answer="yes", **where)
+    assert unguarded.value.reason is Reason.INVALID
+    answered = call(work, "answer", request_id="a2", answer="yes, ship `it` today", line=asked["raw"] + "\r",
+                    **where)["task"]
+    assert answered["status"] == "READY" and answered["recommend"] is None
+    day = answered["status_date"]
+    assert answered["rulings"] == [f"RULED {day}: owner — yes, ship -it- today"]
+    assert answered["raw"].endswith(f" · RULED {day}: owner — yes, ship -it- today · READY {day}")
+    with pytest.raises(WorkRefused) as ready:
+        call(work, "answer", request_id="a3", answer="no", line=answered["raw"], **where)
+    assert ready.value.reason is Reason.INVALID and "owner decision" in ready.value.detail
+
+
+def test_close_archives_a_row_with_the_owners_outcome(work):
+    """RT-WORK-OWNER-CLOSE-VERB. Mutations: write ``DONE`` for ``CLOSED`` in ``store.close`` -> the outcome reads
+    DONE here, red; drop the gate in ``store._guarded_write`` -> the stale-line close archives, red."""
+    alice = mint_free_floating("alice")
+    task = start(work)["task"]
+    where = {"slot": "brain", "task_id": task["id"]}
+    claimed = call(work, "claim", request_id="c1", who=f"persona:{alice.id}", **where)["task"]
+    with pytest.raises(WorkRefused) as stale:
+        call(work, "close", request_id="x0", line=task["raw"], **where)
+    assert stale.value.reason is Reason.ROW_CHANGED and stale.value.data["task"]["status"] == "TAKEN"
+    closed = call(work, "close", request_id="x1", line=claimed["raw"], result="Done by hand.", **where)
+    ending = closed["ending"]
+    assert ending["outcome"] == "CLOSED" and ending["words"] == "done" and ending["result"] == "Done by hand."
+    assert ending["archive_note"].endswith(f"-{ending['date'][:7]}.md") and closed["receipt"]["commit"]
+    assert rows_of(call(work, "list")) == []
+    assert call(work, "inspect", slot="brain", task_id=task["id"])["ending"]["outcome"] == "CLOSED"
+    other = start(work, request_id="request-2", title="Other")["task"]
+    worded = call(work, "close", request_id="x2", slot="brain", task_id=other["id"], line=other["raw"],
+                  words="not needed any more")["ending"]
+    assert worded["words"] == "not needed any more" and worded["result"] in ("", None)
 
 
 def test_pull_refuses_an_unbound_slot(work):

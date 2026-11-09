@@ -38,8 +38,8 @@ def _lend_skills(scope, params, actor, *, context=None):
 
 #: The owner operations; each takes ``(scope, params, actor, *, context)``.
 _WRITES = {"start": store.start, "edit": store.edit, "assign": store.assign, "claim": store.claim, "release": store.release,
-           "set_status": store.set_status, "move": store.move, "pull": store.pull, "done": store.done, "create_brain": store.create_brain,
-           "lend_skills": _lend_skills}
+           "set_status": store.set_status, "move": store.move, "answer": store.answer, "pull": store.pull, "done": store.done,
+           "close": store.close, "create_brain": store.create_brain, "lend_skills": _lend_skills}
 _READS = {"list": store.list_work, "inspect": store.inspect}
 #: The operations that take ``observe: true`` — a read with no provisioning, promotion,
 #: worktree sync or row write (RT-WORK-OBSERVATION-READ); advertised as ``capabilities.observe``.

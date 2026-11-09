@@ -605,10 +605,7 @@ def move(scope, params, actor, *, context=None):
     if params.get("revision") is not None and text(params["revision"]) not in (
             current["revision"], project(row, writer, context=context, detail=True)["revision"]):
         raise WorkRefused(Reason.ROW_CHANGED, row.ref.id, data={"task": current})
-    line = params.get("line")
-    if line is not None and text(line.removesuffix("\r") if isinstance(line, str) else line,
-                                 maximum=20000) != row.raw:
-        raise WorkRefused(Reason.ROW_CHANGED, row.ref.id, data={"task": current})
+    _line_guard(params.get("line"), row, lambda: current)
     if current["status"] == to and (reason is None or (row.status_body or "") == reason):
         return {"task": _task(writer, row.ref, context), "receipt": None, "unchanged": True}
     request = text(params.get("request_id"))
@@ -617,6 +614,52 @@ def move(scope, params, actor, *, context=None):
     if row.taken is not None:
         receipt = writer.apply(RowOp(row.ref, Op.RELEASE, who, request, {}))
     return {"task": _task(writer, receipt.ref, context), "receipt": receipt.wire(), "unchanged": False}
+
+
+def _line_guard(line: Any, row: Row, current: Callable[[], Mapping[str, Any]]) -> None:
+    """``line`` (the row's raw line as a board drew it; one trailing CR ignored) must read as hermes's worktree row
+    does, else ``row_changed`` with ``task`` (``current()``, the row as it is now); None checks nothing
+    (RT-WORK-MOVE-LINE-GUARD)."""
+
+    if line is not None and text(line.removesuffix("\r") if isinstance(line, str) else line,
+                                 maximum=20000) != row.raw:
+        raise WorkRefused(Reason.ROW_CHANGED, row.ref.id, data={"task": dict(current())})
+
+
+def _guarded_write(scope, params, actor, op: Op, payload: Mapping[str, Any], *, context):
+    """One write of ``op`` onto the row ``task_id`` names, refused ``row_changed`` unless the row reads as ``line``
+    (required: the board's raw line) — ``answer`` and ``close``, the Mission Board's pill doors."""
+
+    line = params.get("line")
+    if not isinstance(line, str):
+        raise WorkRefused(Reason.INVALID, "line is the row's raw line as the board drew it")
+
+    def gate(row: Row) -> None:
+        _line_guard(line, row, lambda: project(row, None, context=context))
+
+    return _row_write(scope, params, op, _writer_who(params, actor), payload, context=context, gate=gate)
+
+
+def answer(scope, params, actor, *, context=None):
+    """``runtime.work.answer`` (RT-WORK-ANSWER-VERB): the owner answers an owner-decision row from its pill —
+    ``RULED <date>: owner — <answer>`` before the status and the row READY, ONE write guarded on ``line``."""
+
+    reply = text(params.get("answer"), maximum=900).strip()
+    writer, receipt = _guarded_write(scope, params, actor, Op.ANSWER, {"answer": reply}, context=context)
+    return {"task": _task(writer, receipt.ref, context), "receipt": receipt.wire()}
+
+
+def close(scope, params, actor, *, context=None):
+    """``runtime.work.close`` (RT-WORK-OWNER-CLOSE-VERB): the owner marks a row done themselves — archived with
+    ``CLOSED <date>: owner — <words>`` (default ``done``; ``scripts/work_row.py close --owner``) and an optional
+    ``result:``, ONE write guarded on ``line``; a claimed row closes too (the operator's override)."""
+
+    words = "done" if params.get("words") is None else text(params["words"], maximum=300).strip()
+    result = "" if params.get("result") is None else text(params["result"], maximum=RESULT_LIMIT)
+    writer, receipt = _guarded_write(scope, params, actor, Op.CLOSE,
+                                     {"outcome": "CLOSED", "words": words, "result": result}, context=context)
+    return {"ending": archived_ending(replace(writer.board, read_root=writer.worktree), writer, receipt.ref.id),
+            "receipt": receipt.wire()}
 
 
 def pull(scope, params, actor, *, context=None):

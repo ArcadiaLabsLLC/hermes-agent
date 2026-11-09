@@ -205,6 +205,7 @@ _PRECONDITIONS: dict[Op, Callable[[RowOp, Row | None], None]] = {
     Op.ASSIGN: _present,
     Op.SET_SKILLS: _present,
     Op.SET_GROUP: _present,
+    Op.ANSWER: _present,
     Op.CLOSE: _present,
 }
 
