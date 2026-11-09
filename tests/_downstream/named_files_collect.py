@@ -65,3 +65,44 @@ def pytest_ignore_collect_named_files(collection_path, config):  # pytest hook
         return None
     return True
 
+
+
+def contiguous_args(args, invocation_dir) -> list[str]:
+    """*args* regrouped so every directory's arguments are adjacent, in first-appearance order
+    (FH-WORK-STORE-FIXTURE-LOST-IN-ONE-PROCESS).
+
+    pytest 9.1 parses a directory conftest's fixtures onto the FIRST ``Dir`` node collected for that
+    directory (``FixtureManager._pending_conftests`` is popped once). Arguments that leave a directory
+    and come back (``work_store/a.py agent_runtime/b.py work_store/c.py``) build a second ``Dir`` node
+    for it, and every test under that node errors ``fixture '…' not found``. Grouping by the path tree
+    gives each directory one node; the relative order inside a directory is kept."""
+
+    tree: dict = {}
+    for arg in args:
+        base = str(arg).split("::", 1)[0]
+        path = Path(base) if os.path.isabs(base) else Path(invocation_dir) / base
+        node = tree
+        for part in Path(_norm(path)).parts:
+            node = node.setdefault(part, {})
+        node.setdefault(None, []).append(str(arg))
+
+    ordered: list[str] = []
+
+    def emit(node: dict) -> None:
+        for key, child in node.items():
+            if key is None:
+                ordered.extend(child)
+            else:
+                emit(child)
+
+    emit(tree)
+    return ordered
+
+
+@pytest.hookimpl(specname="pytest_collection", tryfirst=True)
+def pytest_collection_contiguous_args(session):  # pytest hook
+    config = session.config
+    if config.getoption("pyargs", False):
+        return None
+    config.args[:] = contiguous_args(config.args, config.invocation_params.dir)
+    return None
