@@ -228,9 +228,12 @@ class PersonaTurnExecutor:
     def _open(self, instance: Any, request_id: str) -> str:
         from ..mission_chat_door import MissionChatDoorUnbound, run_open_chat
 
+        # No chat root yet (an agent that has never chatted): MINT the instance's own root and select it as its
+        # default. ``new_session=False`` without a ``session_id`` is refused by the verb ("session_id is required
+        # unless add_instance is true"), so such a lane sat CLAIMED forever (RT-WORK-LANE-NO-CHAT-ROOT-REFUSED).
         args = SimpleNamespace(
-            persona_id=instance.persona_id, persona_instance_id=instance.id, session_id=None, new_session=False,
-            client_scope=None, idempotency_key=f"work-open-{request_id}",
+            persona_id=instance.persona_id, persona_instance_id=instance.id, session_id=None, new_session=True,
+            select_session=True, client_scope=None, idempotency_key=f"work-open-{request_id}",
             requested_by=f"work:{request_id}", add_instance=False, placement_id=None, display_name=None,
             workspace_id=None, realm_id=None, coordinator_id=None, coordinator_max_spawns=None,
             coordinator_spawns_used=0, coordinator_may_kill_own=None, coordinator_no_kill_own=None,

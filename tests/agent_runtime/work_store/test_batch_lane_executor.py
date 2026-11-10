@@ -185,6 +185,19 @@ def test_brief_cap(repo):
     assert any(str(site.worktree) in line for line in lines) and any("git push -u origin q/B/L1" in line for line in lines)
 
 
+def test_a_lane_on_a_slot_with_no_remote_is_never_told_to_push(repo):
+    """RT-WORK-LANE-BRIEF-PUSH-WITH-NO-REMOTE: a lane on the local default brain was told ``git push -u origin …``,
+    committed, then reported ``blocked`` "what remote URL?". Killing mutation: the brief's push line without
+    its ``clone.local`` arm -> the push line is back, red."""
+
+    site = Site("brain", Clone(repo.clone, local=True), repo.tmp / ".worktrees" / "clone-b-l1", "q/B/L1", "main")
+    brief = Brief(title="lane L1", objective="do it")
+    text = render_lane_brief(Assignment((RowRef("brain", "q.md", "RT-1"),), "inst-a", brief, "B:L1"), [site],
+                             landing=False)
+    assert "git push" not in text and "origin" not in text
+    assert "there is no remote, so never push" in text
+
+
 def test_settle_reports_the_lanes_commits_and_a_sequenced_lane_is_cut_from_its_predecessor(repo):
     rows = [qrow("RT-A", heading="One", files=["pkg/shared.py"], assignee="inst-a"),
             qrow("RT-B", heading="Two", files=["pkg/shared.py"], assignee="inst-a")]
@@ -255,6 +268,79 @@ def test_approve_refuses_a_moved_main_and_pushes_nothing(repo):
     assert refused.value.reason is Reason.PUSH_CONTENDED
     assert git(repo.origin, "rev-parse", "main") == moved
     assert d.load(WS, batch.id).state is BatchState.AWAITING_APPROVAL
+
+
+def test_approve_lands_over_the_dispatchers_own_bookkeeping_on_main(repo):
+    """RT-WORK-APPROVE-REFUSED-BY-OWN-BOOKKEEPING: on a brain slot the dispatcher appends the batch's own manifest
+    lines to ``main`` after ``land/<batch>`` was cut, and Approve answered "main moved; land again" forever.
+    A tip that gained only ``…/50 — Agent Handoffs/batches/…`` commits is merged onto the gated HEAD and pushed;
+    the landing worktree stays at the gated HEAD. Killing mutation: ``check_ff`` without its
+    ``_tip_moved_by_bookkeeping_only`` arm -> refused ``push_contended``, red."""
+
+    d, turns, batch, _shas = _land(repo)
+    d.land(WS, batch.id)
+    land = worktree_of(turns, f"{batch.id}:LAND:1")
+    turns.settle(f"{batch.id}:LAND:1", Outcome(Verdict.DONE, report="green"))
+    d.executor.wait_for_gates(120)
+    gated = git(land, "rev-parse", "HEAD")
+    other = repo.tmp / "other"
+    subprocess.run(["git", "clone", "-q", str(repo.origin), str(other)], check=True, capture_output=True)
+    manifest = Path("Brain") / "50 — Agent Handoffs" / "batches"
+    (other / manifest).mkdir(parents=True)
+    moved = commit_in(other, (manifest / f"{batch.id}.md").as_posix(), "awaiting approval\n")
+    git(other, "push", "-q", "origin", "HEAD:main")
+    landed = d.approve(WS, batch.id)
+    assert landed.state is BatchState.LANDED
+    main = git(repo.origin, "rev-parse", "main")
+    assert landed.landing_sha == main
+    assert git(repo.origin, "rev-list", "--parents", "-n", "1", "main").split()[1:] == [gated, moved]
+    assert git(land, "rev-parse", "HEAD") == gated
+    assert git(repo.origin, "show", f"main:{(manifest / f'{batch.id}.md').as_posix()}") == "awaiting approval"
+
+
+def test_approve_still_refuses_a_tip_that_moved_beside_the_bookkeeping(repo):
+    """A bookkeeping commit AND anyone else's file: still ``push_contended``, nothing pushed. Killing mutation:
+    ``is_bookkeeping`` answering True for every path -> approved, red."""
+
+    d, turns, batch, _shas = _land(repo)
+    d.land(WS, batch.id)
+    turns.settle(f"{batch.id}:LAND:1", Outcome(Verdict.DONE, report="green"))
+    d.executor.wait_for_gates(120)
+    other = repo.tmp / "other"
+    subprocess.run(["git", "clone", "-q", str(repo.origin), str(other)], check=True, capture_output=True)
+    (other / "50 — Agent Handoffs" / "batches").mkdir(parents=True)
+    commit_in(other, f"50 — Agent Handoffs/batches/{batch.id}.md", "landing\n")
+    moved = commit_in(other, "batches.txt", "someone else\n")
+    git(other, "push", "-q", "origin", "HEAD:main")
+    with pytest.raises(WorkRefused) as refused:
+        d.approve(WS, batch.id)
+    assert refused.value.reason is Reason.PUSH_CONTENDED
+    assert git(repo.origin, "rev-parse", "main") == moved
+
+
+def test_a_local_landing_lands_over_bookkeeping_through_the_checkout(tmp_path, monkeypatch):
+    """The default brain (no remote, ``main`` checked out): the manifest commit on ``main`` after the cut is merged
+    and ``main`` fast-forwards through its checkout to the merge, clean. Killing mutation: ``check_ff``
+    without its ``_tip_moved_by_bookkeeping_only`` arm -> refused ``push_contended``, red."""
+
+    for key in ("GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME"):
+        monkeypatch.setenv(key, "t")
+    for key in ("GIT_AUTHOR_EMAIL", "GIT_COMMITTER_EMAIL"):
+        monkeypatch.setenv(key, "t@t.invalid")
+    landing = _local_landing(tmp_path)
+    batches = landing.clone / "Brain" / "50 — Agent Handoffs" / "batches"
+    batches.mkdir(parents=True)
+    (batches / "B.md").write_text("awaiting approval\n", encoding="utf-8")
+    landing.git(landing.clone, "add", "Brain")
+    landing.git(landing.clone, "commit", "-q", "-m", "B:awaiting_approval")
+    lane_git = LaneGit()
+    assert lane_git.check_ff(landing.site) == landing.head
+    pushed = lane_git.catch_up(landing.site, landing.head)
+    lane_git.push_ff(landing.site, pushed)
+    assert landing.git(landing.clone, "rev-parse", "HEAD").strip() == pushed != landing.head
+    assert landing.git(landing.clone, "status", "--porcelain") == ""
+    assert (landing.clone / "batch.md").read_text(encoding="utf-8") == "landed\n"
+    assert (batches / "B.md").read_text(encoding="utf-8") == "awaiting approval\n"
 
 
 def test_a_red_gate_returns_the_batch_whatever_the_persona_said(repo, monkeypatch):

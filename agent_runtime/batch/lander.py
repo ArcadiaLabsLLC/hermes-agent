@@ -3,7 +3,9 @@
 The landing lane merged the batch into ``land/<batch>`` per slot and its gate came back green; the
 operator approves; this pushes each landing worktree's HEAD onto its repo's default branch,
 FAST-FORWARD only. Every slot is checked first (clean tree, the fetched tip an ancestor of HEAD), so a
-refusal pushes nothing; a tip that moved since the merge refuses ``push_contended`` (land again), and a HEAD
+refusal pushes nothing; a tip that moved since the merge refuses ``push_contended`` (land again) unless every
+commit it gained is the dispatcher's own batch bookkeeping, which is merged onto the gated HEAD and pushed with
+it (RT-WORK-APPROVE-REFUSED-BY-OWN-BOOKKEEPING), and a HEAD
 no green gate receipt names refuses ``gate_not_green`` (RT-BATCH-GATE-RECEIPT: a commit after the gate). The
 caller (``BatchDispatcher.approve``) holds ``locks.batch_landing_lock`` around it: one landing per machine.
 """
@@ -35,6 +37,7 @@ class GitLander:
             raise WorkRefused(Reason.WORKTREE_FAILED, f"{batch.id}: no landing worktree for {missing or 'any slot'}")
         heads = [(site, self._git.check_ff(site)) for site in sites]
         require_green(batch.gate_receipts, [site.slot for site in sites], {site.slot: head for site, head in heads})
-        for site, head in heads:
+        pushes = [(site, self._git.catch_up(site, head)) for site, head in heads]
+        for site, head in pushes:
             self._git.push_ff(site, head)
-        return heads[0][1] if len(heads) == 1 else " ".join(f"{site.slot}={head}" for site, head in heads)
+        return pushes[0][1] if len(pushes) == 1 else " ".join(f"{site.slot}={head}" for site, head in pushes)
