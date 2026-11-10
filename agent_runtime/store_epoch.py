@@ -216,6 +216,17 @@ MIGRATION_REGISTRY: tuple[dict[str, Any], ...] = (
                   "workspace path moves",
         "pins_sha256": "c1adb571eb97769c49fa7bacf4c16e33ee1afe7c77609e2410453cd578342022",
     },
+    {
+        "id": "upstream-v0.23.1-state-schema-33",
+        "date": "2026-11-10",
+        "store": "state.db",
+        "breaking": False,
+        "reason": "upstream v0.23.1 (f483ce2667, #150198) bumps hermes_state SCHEMA_VERSION 32 -> 33 for a "
+                  "data-only migration that re-tags delegate subagent rows missing _delegate_from; no table or "
+                  "column moves, and an older edition only upgrades a lower schema_version, never refuses a "
+                  "higher one",
+        "pins_sha256": "a905a503745d5a1d7657d8c0e2f21e556de132bdcc297869f55c9721636721be",
+    },
 )
 
 #: ``1 + count(breaking entries)`` — ``tests/agent_runtime/test_store_epoch_gate.py`` holds it to that.
