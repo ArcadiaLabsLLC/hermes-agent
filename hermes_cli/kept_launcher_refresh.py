@@ -29,7 +29,13 @@ def refresh_kept_launcher(name: str, root: Path, local: Path, kept: Path) -> Pat
     if python is None or not python.is_file():
         return kept
     try:
-        minted = _launchers.mint_launcher(name, root, local, python, None)
+        if kept.suffix.lower() == ".cmd":
+            # A kept .cmd is refreshed AS a .cmd. mint_launcher prefers distlib's .exe on Windows,
+            # which published a second command beside the kept one and left its stale script on
+            # disk (Windows 2026-11-10: test_dead_exe_never_shadows_kept_cmd red).
+            minted = _remint_cmd(name, root, local, python)
+        else:
+            minted = _launchers.mint_launcher(name, root, local, python, None)
     except Exception:  # health: allow BLE001 -- a kept launcher still runs; never fail publication over a refresh
         return kept
     if minted is None:
@@ -42,3 +48,15 @@ def refresh_kept_launcher(name: str, root: Path, local: Path, kept: Path) -> Pat
         except OSError:
             return kept
     return minted
+
+
+def _remint_cmd(name: str, root: Path, local: Path, python: Path) -> Path | None:
+    """The ``.cmd`` mint_launcher writes without distlib: *python*, today's script."""
+    import base64
+
+    from hermes_cli import _launchers
+
+    script = _launchers._launcher_script(name, root, None)
+    encoded = base64.b64encode(script.encode("utf-8")).decode("ascii")
+    body = f'@echo off\r\n"{python}" -I -c "import base64; exec(base64.b64decode(\'{encoded}\'))" %*\r\n'
+    return _launchers._write_atomic(local / f"{name}.cmd", lambda p: p.write_text(body, encoding="utf-8"))
