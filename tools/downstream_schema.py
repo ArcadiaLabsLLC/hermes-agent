@@ -22,10 +22,9 @@ from typing import Any, Dict, Iterable, Optional
 
 #: The one table of hand-written wire text: one sentence each, except the tools in
 #: :data:`KEEP_FULL_WIRE_DESCRIPTIONS`. An entry exists only while it is shorter than the
-#: text ``tool_describe`` serves (``vision_analyze`` left 2026-09-24, lane REDS3).
+#: text ``tool_describe`` serves (``vision_analyze`` left 2026-09-24, lane REDS3; the ten
+#: ``browser_navigate``/``snapshot``/``click``/... rows left with the tools, v0.23.1 68500d9ff9).
 BRIEF_DESCRIPTIONS = {
-    "browser_navigate": "Load a URL before other browser_* calls and get a compact snapshot with ref IDs; "
-                        "prefer web_extract or terminal for plain text and API endpoints.",
     "write_file": "Replace a whole file (creating parent directories) after reading it; use patch for "
                   "targeted edits.",
     # Kept multi-sentence (KEEP_FULL_WIRE_DESCRIPTIONS): background/pty semantics.
@@ -47,19 +46,6 @@ BRIEF_DESCRIPTIONS = {
              "returning a diff and a syntax check; use instead of sed/awk.",
     "search_files": "Search file contents (target='content', ripgrep regex) or find files by name/glob "
                     "(target='files'); use instead of grep/rg/find/ls.",
-    "browser_snapshot": "Get a text accessibility-tree snapshot of the current page with ref IDs (@e1...) "
-                        "for browser_click/type.",
-    "browser_click": "Click an element by its snapshot ref ID (@e5), after a browser_snapshot.",
-    "browser_type": "Type text into an input field by its snapshot ref ID (clears the field first).",
-    "browser_scroll": "Scroll the page up or down to reveal content outside the viewport.",
-    "browser_back": "Go back to the previous page in browser history.",
-    "browser_press": "Press a keyboard key (Enter to submit, Tab to navigate, or a shortcut).",
-    "browser_get_images": "List all images on the current page with URLs and alt text (find images to "
-                          "analyze with vision_analyze).",
-    "browser_vision": "Screenshot the current page to inspect it visually (layout, CAPTCHAs, visual checks); "
-                      "returns screenshot_path.",
-    "browser_console": "Read the current page's console output and JS errors, or evaluate JS via "
-                       "`expression` (after browser_navigate).",
     # Kept multi-sentence (KEEP_FULL_WIRE_DESCRIPTIONS): who confirms a dangerous command.
     "clarify": "Ask 1-5 independent questions in one call. Put options only in choices, recommended first; omit for free text. Responses preserve order. Decide low-stakes matters yourself; terminal owns dangerous-command confirmation.",
     "execute_code": "Run Python in a persistent kernel that calls Hermes tools via `from hermes_tools import "
