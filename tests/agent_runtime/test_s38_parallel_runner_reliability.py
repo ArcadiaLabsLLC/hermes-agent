@@ -25,8 +25,8 @@ def test_adaptive_worker_default_respects_cpu_without_oversubscribing() -> None:
 def test_timeout_formatter_handles_missing_subprocess_output() -> None:
     rendered = _RUNNER._format_timeout_output(None, 120.0)
 
-    assert "timed out after 120s" in rendered
-    assert "process tree terminated" in rendered
+    assert "120s exceeded" in rendered
+    assert "process tree SIGKILL'd" in rendered
     assert "captured output unavailable" in rendered
     assert "None" not in rendered
 
@@ -40,6 +40,11 @@ def test_only_timeout_shaped_nonzero_results_are_retryable() -> None:
     assert _RUNNER._is_retryable_timeout_result(
         124,
         "(timed out after 300s; process tree terminated)",
+        {},
+    )
+    assert _RUNNER._is_retryable_timeout_result(
+        124,
+        "(300s exceeded; process tree SIGKILL'd)",
         {},
     )
     assert not _RUNNER._is_retryable_timeout_result(
