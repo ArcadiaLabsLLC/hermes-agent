@@ -47,8 +47,6 @@ import pytest
 from tests._env_gap_fence import KnownDefectTracker, apply_skips, is_owned
 from tests._downstream.hermes_cli_conftest.fences import (
     _gateway_fence_is_armed_for_this_test,
-    _AGENT_BROWSER_PROBE_BINDINGS,
-    _agent_browser_probe_never_spawns,
     _no_windows_gateway_pause_token,
     _empty_process_iter,
     _no_live_process_table,

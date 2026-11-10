@@ -23,4 +23,3 @@ def test_the_per_test_timeout_defaults_to_the_fork_cap(request):
 def test_the_fork_markers_are_registered(request):
     registered = " ".join(request.config.getini("markers"))
     assert "real_venv_pip:" in registered
-    assert "real_agent_browser_probe:" in registered

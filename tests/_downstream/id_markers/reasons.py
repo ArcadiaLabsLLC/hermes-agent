@@ -35,6 +35,9 @@ CHILDREN_DIE_WITH_THE_TEST_MARK = "children_die_with_the_test"
 CLAUDE_HOME_IS_TMP_PATH_MARK = "claude_home_is_tmp_path"
 HOST_DISK_HAS_ROOM_MARK = "host_disk_has_room"
 NO_REAL_ORPHAN_REAP_MARK = "no_real_orphan_reap"
+#: Opts out of ``tests/hermes_cli``'s ``_no_live_process_table`` (an empty
+#: ``psutil.process_iter``) for a test that scans for a child it spawned itself.
+REAL_PROCESS_TABLE_MARK = "real_process_table"
 SCOPED_MONKEYPATCH_UNDO_MARK = "scoped_monkeypatch_undo"
 STRIP_REAL_HOME_PATH_MARK = "strip_real_home_path"
 STATE_DB_RESOLVES_THROUGH_SCOPE_MARK = "state_db_resolves_through_scope"
@@ -119,6 +122,11 @@ def _posix_only(detail: str) -> pytest.MarkDecorator:
 
 
 _LOOKALIKE = getattr(pytest.mark, SPAWNS_GATEWAY_LOOKALIKE_MARK)
+_REAL_PROCESS_TABLE = getattr(pytest.mark, REAL_PROCESS_TABLE_MARK)
+#: Upstream's own opt-out of the whole live-system guard (``tests/_fixtures/live_system_guard.py``,
+#: which registers it); applied by id only where the fork's backend-spawn arm is the only refusal
+#: and the "backend" is a test-owned stand-in script.
+_LIVE_GUARD_BYPASS = pytest.mark.live_system_guard_bypass
 
 # Upstream tests that call monkeypatch.undo() mid-body run upstream's bytes with
 # undo narrowed to their own patches (conftest_plugin.pytest_pyfunc_call, lane

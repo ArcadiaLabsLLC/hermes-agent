@@ -27,10 +27,12 @@ from tests._downstream.id_markers.reasons import (
     _GATE,
     _HOST_DISK_HAS_ROOM,
     __layer__,
+    _LIVE_GUARD_BYPASS,
     _LOOKALIKE,
     _NO_LIVE_GATEWAY,
     _NO_REAL_ORPHAN_REAP,
     _REAL_PAUSE,
+    _REAL_PROCESS_TABLE,
     _STATE_DB_THROUGH_SCOPE,
     _STRIP_REAL_HOME_PATH,
     _UPSTREAM_WIRE_UNBRIEFED,
@@ -263,6 +265,21 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     },
     "tests/test_live_system_guard_self_test.py::"
     "test_subprocess_run_gateway_status_passes_through": (_LOOKALIKE,),
+    # v0.23.1's ssh spawn tests run the remote spawn script in a local sh against a test-owned
+    # ``hermes`` stand-in (a sleeper script under tmp_path, HOME=tmp_path). The tests/hermes_cli
+    # gateway fence reads ``hermes ... serve`` in it as a backend start; the lookalike mark is the
+    # fence's exemption for a test-owned stand-in. Upstream already bypasses the root guard on the
+    # two that detach; the update-marker one never reaches the stand-in, but the root guard's
+    # backend-spawn arm (fork) refuses the script before it can refuse, so it takes the bypass too.
+    "tests/hermes_cli/test_gateway_connections_ssh.py::"
+    "test_spawn_command_detaches_serve_and_publishes_its_pid": (_LOOKALIKE,),
+    "tests/hermes_cli/test_gateway_connections_ssh.py::"
+    "test_a_quote_in_the_hermes_path_still_proves_ownership_of_our_serve": (_LOOKALIKE,),
+    "tests/hermes_cli/test_gateway_connections_ssh.py::"
+    "test_spawn_command_refuses_while_an_update_marker_is_live": (_LOOKALIKE, _LIVE_GUARD_BYPASS),
+    # v0.23.1's holder scan finds a sleeper the test spawned with its cwd in tmp_path's release
+    # dir; tests/hermes_cli's _no_live_process_table empties psutil.process_iter, so it found none.
+    "tests/hermes_cli/test_desktop_release_holders.py": (_REAL_PROCESS_TABLE,),
     # The same fork arm refuses the host start first, with its own message, so upstream's
     # "REAL hermes gateway runtime" match fails off Windows too (seen red on Linux main, lane
     # w1101h-h); on win32 the v0.22.4 upstream-red row already xfails it.
@@ -369,6 +386,22 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "test_non_preview_relayed_reply_is_forwarded_untouched",
         )
     },
+    # v0.23.1's body undoes its `ssh` fixture's fake backend with monkeypatch.undo(); the fork
+    # narrows that undo to the body's own patches, so the fake survives and the stream 404s.
+    "tests/hermes_cli/test_web_server_ssh_media_stream.py::test_a_down_ssh_host_is_unavailable_to_the_stream": (
+        _fork_replaces(
+            "scoped_monkeypatch_undo (tests/_downstream/body_patch_scope.py keeps the fixture's fake _fs_backend)",
+            "tests/hermes_cli/test_web_server_ssh_media_stream_downstream.py",
+        ),
+    ),
+    # v0.23.1 pins the startup checkout-SHA read to one `git rev-parse HEAD`; the fork's q-version
+    # seam answers it from the git files, so it spawns none.
+    "tests/hermes_cli/test_version_info_startup_git.py::test_startup_checkout_sha_read_is_one_rev_parse": (
+        _fork_replaces(
+            "hermes_cli.version_info_cache.memoize_run_git (rev-parse HEAD read from the git files)",
+            "tests/hermes_cli/test_version_info_startup_git_downstream.py",
+        ),
+    ),
     # v0.23.1: upstream's BRIDGE counts tool_describe, which the fork's standalone tool_describe
     # keeps in every non-empty tool list; the fork half runs these bodies with the search bridge.
     **{

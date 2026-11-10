@@ -1,18 +1,16 @@
 """Fixtures that keep every test in ``tests/hermes_cli`` off THIS MACHINE.
 
 The gateway fence (installed at import, armed per test, latched at session
-finish by ``hooks``), the Windows gateway-pause token, the live process table
-and the agent-browser ``--version`` probe. Each is autouse and bound by name on
-the package ``__init__``, which is the object pytest registers. The map is
+finish by ``hooks``), the Windows gateway-pause token and the live process
+table. Each is autouse and bound by name on the package ``__init__``, which is the object pytest registers. The map is
 ``tests/_downstream/hermes_cli_conftest/__init__.py``.
 """
 
 from __future__ import annotations
 
-import sys
-
 import pytest
 
+from tests._downstream.id_markers.reasons import REAL_PROCESS_TABLE_MARK
 from tests.hermes_cli import _gateway_fence
 
 __layer__ = "lanes"
@@ -74,59 +72,6 @@ def _gateway_fence_is_armed_for_this_test(request):
     finally:
         _gateway_fence.disarm()
 
-#: Every module that binds :func:`hermes_constants.agent_browser_runnable` by
-#: value at IMPORT time. Patching ``hermes_constants`` alone reaches the ones
-#: that import it inside a function (``nous_subscription._has_agent_browser``)
-#: and every module imported AFTER the fixture runs, but not a module already
-#: in ``sys.modules`` holding its own reference.
-_AGENT_BROWSER_PROBE_BINDINGS = (
-    "hermes_constants",
-    "tools.browser_tool_install",
-)
-
-
-@pytest.fixture(autouse=True)
-def _agent_browser_probe_never_spawns(monkeypatch, request):
-    """The agent-browser ``--version`` probe does not run a real binary here.
-
-    ``hermes_constants.agent_browser_runnable`` tells a working agent-browser
-    from a dangling npm symlink (#48521) by EXECUTING the candidate. The
-    candidate comes from ``shutil.which("agent-browser")`` — the operator's
-    PATH, which ``run_tests.sh`` forwards verbatim and no ``HERMES_HOME``
-    redirection can touch — so on a developer box the suite was exec'ing a
-    binary out of a live profile home, and the gateway fence carried a
-    standing exemption for that argv shape from 2026-08-31 to 2026-09-04.
-
-    The exemption was a hole in the fence's real-store rule kept open because
-    the probe had no single seam. Individual seams were tried and did not close
-    the class: the reachers are a FAMILY (``doctor``, ``dep_ensure`` via
-    ``cmd_postinstall`` until pm replaced it on 2026-09-25, ``nous_subscription`` via ``tools_config``'s
-    ``tools_command`` / ``_visible_providers`` / picker surfaces), several of
-    them in tests that do not even take ``monkeypatch``. One fixture over the
-    probe itself is the owner the class wanted.
-
-    Default answer is ``False`` — "no runnable agent-browser" — which is the
-    deterministic one. Whether the developer's machine happens to have the CLI
-    installed is not a thing any test in this directory means to assert; a test
-    that genuinely probes the real binary marks itself
-    ``@pytest.mark.real_agent_browser_probe``.
-    """
-
-    if "real_agent_browser_probe" in request.keywords:
-        return
-
-    def _no_agent_browser(_candidate) -> bool:
-        return False
-
-    for module_name in _AGENT_BROWSER_PROBE_BINDINGS:
-        module = sys.modules.get(module_name)
-        if module is not None and hasattr(module, "agent_browser_runnable"):
-            monkeypatch.setattr(module, "agent_browser_runnable", _no_agent_browser)
-    # ``hermes_constants`` is imported by this conftest's own imports, so the
-    # loop above always reaches it; assert rather than hope, because a miss here
-    # is silent and the fence only notices on a box that HAS agent-browser.
-    assert sys.modules.get("hermes_constants") is not None
-
 @pytest.fixture(autouse=True)
 def _no_windows_gateway_pause_token(request, monkeypatch):
     """L1 of the gateway fence: no test drives the REAL Windows gateway pause.
@@ -173,7 +118,7 @@ def _empty_process_iter(*_args, **_kwargs):
 
 
 @pytest.fixture(autouse=True)
-def _no_live_process_table(monkeypatch):
+def _no_live_process_table(monkeypatch, request):
     """No test in this directory reads this machine's real process table.
 
     ``hermes profile delete`` scans for backends bound to the profile being
@@ -195,7 +140,14 @@ def _no_live_process_table(monkeypatch):
 
     ``raising`` stays True: if ``psutil`` ever loses ``process_iter`` this
     fixture must fail loudly rather than silently stop guarding.
+
+    A test that scans for a child IT spawned (upstream's
+    ``test_desktop_release_holders.py``, v0.23.1: the holder is a sleeper whose cwd is the
+    test's own release dir) carries ``real_process_table``, applied by id. The scan still
+    reads the box's table; what it acts on is filtered to the test's own paths.
     """
+    if request.node.get_closest_marker(REAL_PROCESS_TABLE_MARK) is not None:
+        return
     try:
         import psutil  # type: ignore
     except Exception:

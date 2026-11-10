@@ -91,6 +91,7 @@ from tests._downstream.id_markers.reasons import (
     ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK as _ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK,
     CLAUDE_HOME_IS_TMP_PATH_MARK as _CLAUDE_HOME_IS_TMP_PATH_MARK,
     NO_REAL_ORPHAN_REAP_MARK as _NO_REAL_ORPHAN_REAP_MARK,
+    REAL_PROCESS_TABLE_MARK as _REAL_PROCESS_TABLE_MARK,
     SCOPED_MONKEYPATCH_UNDO_MARK as _SCOPED_MONKEYPATCH_UNDO_MARK,
     STATE_DB_RESOLVES_THROUGH_SCOPE_MARK as _STATE_DB_RESOLVES_THROUGH_SCOPE_MARK,
     STRIP_REAL_HOME_PATH_MARK as _STRIP_REAL_HOME_PATH_MARK,
@@ -924,11 +925,6 @@ def pytest_configure(config):  # pytest hook
     )
     config.addinivalue_line(
         "markers",
-        "real_agent_browser_probe: opt out of the autouse stub that stops "
-        "hermes_constants.agent_browser_runnable from EXECUTING an agent-browser off the operator PATH",
-    )
-    config.addinivalue_line(
-        "markers",
         "gate: a file the gate directory (docs/agent-runtime-harness/11-gate-directory.md) lists; "
         "tests/tooling/test_gate_directory_current.py enumerates every file that carries it",
     )
@@ -963,6 +959,12 @@ def pytest_configure(config):  # pytest hook
         f"{_NO_REAL_ORPHAN_REAP_MARK}: the gateway orphan reap finds nothing, so the "
         "test never waits on this machine's real unsupervised gateways (applied by "
         "id from tests/_downstream/id_markers/).",
+    )
+    config.addinivalue_line(
+        "markers",
+        f"{_REAL_PROCESS_TABLE_MARK}: tests/hermes_cli's psutil.process_iter stays the real one, "
+        "for a test that finds a child it spawned itself (applied by id from "
+        "tests/_downstream/id_markers/).",
     )
     config.addinivalue_line(
         "markers",

@@ -348,9 +348,54 @@ def _as_executed(cmd, kwargs):
     return cmd
 
 
+_POSIX_SHELL_BASENAMES = frozenset({"sh", "dash", "bash", "zsh", "ksh", "ash", "mksh"})
+_SHORT_OPTIONS_RE = re.compile(r"^-[A-Za-z]+$")
+
+
+def _is_parse_only_shell(cmd) -> bool:
+    """True for ``sh -n [-c] SCRIPT``: ``-n`` (noexec) reads commands without running any.
+
+    Upstream's ssh spawn test syntax-checks its remote ``hermes serve`` script under ``sh`` and
+    ``dash`` that way (v0.23.1, ``test_spawn_command_parses_under_posix_sh``). Only the leading
+    short-option clusters of an argv LIST count: a command string is not split into a shell's
+    options here, so ``bash -c "sh -n x; hermes serve"`` keeps the conservative scan."""
+    if not isinstance(cmd, (list, tuple)) or not cmd:
+        return False
+    if str(cmd[0]).replace("\\", "/").rsplit("/", 1)[-1].lower() not in _POSIX_SHELL_BASENAMES:
+        return False
+    letters = ""
+    for token in cmd[1:]:
+        text = str(token)
+        if not _SHORT_OPTIONS_RE.match(text):
+            break
+        letters += text[1:]
+    # An interactive shell (``-i``) ignores ``-n``.
+    return "n" in letters and "i" not in letters
+
+
+#: Flags that make ``hermes gateway attach`` ENSURE (start) the owner; without them it only discovers.
+_ATTACH_STARTING_FLAGS = ("--start", "--recover")
+
+
+def _is_discovery_only_attach(rest: list) -> bool:
+    """True when *rest* (the tokens after ``gateway``) is ``attach`` with no starting flag.
+
+    ``hermes gateway attach`` (v0.23.1, #142159) prints a ready owner's URL and a ticket, or the
+    bootstrap's verdict; it ensures the owner only under ``--start`` or ``--recover``
+    (``hermes_cli.gateway_runtime_attach.attach_gateway``)."""
+    words = [str(token) for token in rest if not str(token).startswith("-")]
+    if not words or words[0].lower() != "attach":
+        return False
+    return not any(str(token).split("=", 1)[0] in _ATTACH_STARTING_FLAGS for token in rest)
+
+
 def backend_spawn_subcommand(cmd, cmd_to_string, kwargs=None):
     """Which backend subcommand this argv would START, or ``None``."""
-    tokens = _cmd_tokens(_as_executed(cmd, kwargs), cmd_to_string, (kwargs or {}).get("cwd"))
+    executed = _as_executed(cmd, kwargs)
+    # MUTATION: drop this early return and test_a_parse_only_shell_is_not_a_backend_start reddens.
+    if _is_parse_only_shell(executed):
+        return None
+    tokens = _cmd_tokens(executed, cmd_to_string, (kwargs or {}).get("cwd"))
     entry = None
     for index, token in enumerate(tokens):
         normalized = str(token).replace("\\", "/").lower()
@@ -364,11 +409,15 @@ def backend_spawn_subcommand(cmd, cmd_to_string, kwargs=None):
             break
     if entry is None:
         return None
-    for token in tokens[entry + 1:]:
+    rest = tokens[entry + 1:]
+    for index, token in enumerate(rest):
         text = str(token)
         if text.startswith("-"):
             continue
         if text.lower() in _BACKEND_SUBCOMMANDS:
+            # MUTATION: drop this check and test_gateway_attach_without_start_is_not_a_backend_start reddens.
+            if text.lower() == "gateway" and _is_discovery_only_attach(rest[index + 1:]):
+                return None
             return text.lower()
     return None
 

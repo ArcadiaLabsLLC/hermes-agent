@@ -14,8 +14,6 @@ import importlib
 
 import pytest
 
-from tests._downstream.hermes_cli_conftest import _AGENT_BROWSER_PROBE_BINDINGS
-
 
 @pytest.mark.parametrize(
     ("module_name", "attribute"),
@@ -23,9 +21,6 @@ from tests._downstream.hermes_cli_conftest import _AGENT_BROWSER_PROBE_BINDINGS
         ("hermes_cli.main", "_pause_windows_gateways_for_update"),
         ("hermes_cli.kanban_db_dispatch", "_live_worker_procs"),
         ("gateway.pairing", "PAIRING_DIR"),
-        # Enumerated from the fixture's OWN tuple, never retyped here: a module
-        # in it that no longer binds the probe is a patch that lands nowhere.
-        *((module, "agent_browser_runnable") for module in _AGENT_BROWSER_PROBE_BINDINGS),
     ],
 )
 def test_the_seam_a_fixture_patches_still_exists(module_name, attribute):

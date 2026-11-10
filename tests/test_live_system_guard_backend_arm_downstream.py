@@ -188,3 +188,23 @@ def test_a_git_pathspec_with_backend_words_in_its_name_is_not_a_spawn(tmp_path):
 
 def test_a_wrapper_command_string_that_names_no_file_is_still_split(tmp_path):
     assert backend_spawn_subcommand(["bash", "-c", "hermes serve"], str, {"cwd": tmp_path}) == "serve"
+
+
+# v0.23.1's ssh spawn test syntax-checks the remote ``hermes serve`` script with ``sh -n -c``:
+# noexec reads the script and runs nothing. An interactive shell ignores ``-n``.
+def test_a_parse_only_shell_is_not_a_backend_start():
+    assert backend_spawn_subcommand(["sh", "-n", "-c", "hermes serve"], str) is None
+    assert backend_spawn_subcommand(["/bin/dash", "-nc", "hermes serve"], str) is None
+    assert backend_spawn_subcommand(["sh", "-c", "hermes serve"], str) == "serve"
+    assert backend_spawn_subcommand(["bash", "-i", "-n", "-c", "hermes serve"], str) == "serve"
+    assert backend_spawn_subcommand("sh -n -c 'hermes serve'", str) == "serve"
+
+
+# ``hermes gateway attach`` (v0.23.1) only discovers the owner unless ``--start`` / ``--recover``.
+def test_gateway_attach_without_start_is_not_a_backend_start():
+    attach = [sys.executable, "-m", "hermes_cli.main", "gateway", "attach", "--json"]
+    assert backend_spawn_subcommand(attach, str) is None
+    assert backend_spawn_subcommand([*attach, "--start"], str) == "gateway"
+    assert backend_spawn_subcommand([*attach, "--recover"], str) == "gateway"
+    assert backend_spawn_subcommand(["hermes", "gateway", "run"], str) == "gateway"
+    assert backend_spawn_subcommand(["hermes", "gateway"], str) == "gateway"
