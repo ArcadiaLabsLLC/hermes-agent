@@ -1,8 +1,13 @@
 """Fork-owned tests moved out of ``tests/tools/test_browser_orphan_reaper.py``.
 
-They pin the reaper's environ binding as an IDENTITY question
-(``path_identity.denotes_same_file``). ``_FakeProc`` / ``_run`` and the autouse
-``_isolate_sessions`` fixture are upstream's, imported by name.
+They pin the reaper's binding of a live pid to its recorded profile dir as an IDENTITY
+question, not a spelling one. Up to v0.22.5 the binding was the agent-browser daemon's
+``AGENT_BROWSER_SOCKET_DIR`` environ entry, asked through ``path_identity.denotes_same_file``;
+v0.23.1 retired that daemon and binds a recorded Chromium through its argv's
+``--user-data-dir=`` token (``tools.browser_launcher._cmdline_names_dir``, ``realpath`` on both
+sides). The same two guarantees are pinned on the new anchor: a symlinked spelling of our dir
+binds, and nothing beyond it (a suffix, a truncation, the parent) does. ``_FakeProc`` / ``_run``
+are upstream's, imported by name.
 """
 
 from __future__ import annotations
@@ -11,7 +16,6 @@ import pytest
 
 from tests.tools.test_browser_orphan_reaper import (  # upstream names the moved tests use
     TestReaperIdentityGuard as _UpstreamReaperIdentityGuard,
-    _isolate_sessions,
 )
 
 
@@ -19,61 +23,44 @@ class TestReaperIdentityGuard:
     _FakeProc = _UpstreamReaperIdentityGuard._FakeProc
     _run = _UpstreamReaperIdentityGuard._run
 
-    def test_daemon_bound_via_a_symlinked_socket_dir_is_reapable(self, tmp_path):
-        """The environ binding is an identity question, not a spelling one.
+    def test_browser_bound_via_a_symlinked_profile_dir_is_reapable(self, tmp_path):
+        """The binding is an identity question, not a spelling one.
 
-        The daemon publishes whatever spelling it was started with; the reaper
-        builds its own. ``normpath(a) == normpath(b)`` folds neither symlinks
-        nor (on Windows) case, so the reaper could refuse to clean up its own
-        daemon and leave the socket dir behind forever. It now asks
-        ``path_identity.denotes_same_file``.
+        The browser publishes whatever spelling it was started with; the reaper holds its own.
+        A string compare folds neither symlinks nor (on Windows) case, so the reaper could refuse
+        to clean up its own browser and leave the profile behind forever.
         """
-        real = tmp_path / "agent-browser-h_sess123456"
+        real = tmp_path / "chromium-abc"
         real.mkdir()
-        link = tmp_path / "linked-socket-dir"
+        link = tmp_path / "linked-profile-dir"
         try:
             link.symlink_to(real, target_is_directory=True)
         except (OSError, NotImplementedError):
             pytest.skip("symlink creation unavailable for this user")
 
-        proc = self._FakeProc(
-            name="agent-browser-linux-x64",
-            cmdline=["agent-browser-linux-x64", "daemon"],  # no dir in cmd
-            environ={"AGENT_BROWSER_SOCKET_DIR": str(link)},
-        )
-        assert self._run(proc, str(real)) is True
+        assert self._run(["chrome", f"--user-data-dir={link}"], str(real)) is True
+
     @pytest.mark.parametrize(
-        "env_value,why",
+        "token,why",
         [
             ("", "no binding published at all"),
-            ("/tmp/agent-browser-h_OTHER999", "another session's dir"),
-            ("/tmp/agent-browser-h_sess123456-evil", "extends our name; not our dir"),
-            ("/tmp/agent-browser-h_sess12345", "our name truncated; not our dir"),
-            ("/tmp", "our dir's parent, not our dir"),
+            ("--user-data-dir={base}-OTHER999", "another profile's dir"),
+            ("--user-data-dir={base}-evil", "extends our name; not our dir"),
+            ("--user-data-dir={trunc}", "our name truncated; not our dir"),
+            ("--user-data-dir={parent}", "our dir's parent, not our dir"),
         ],
     )
-    def test_environ_binding_rejection_table(self, env_value, why):
+    def test_binding_rejection_table(self, tmp_path, token, why):
         """Nothing beyond the intended spelling became reapable.
 
-        Resolution-based identity matches MORE spellings than a string compare
-        by construction, so the whole refusal set is re-pinned here — including
-        the two shapes a prefix-flavoured implementation would wave through
-        (``<dir>-evil`` and a truncation of ``<dir>``), and the parent
-        directory, which contains our dir but is not it.
+        Resolution-based identity matches MORE spellings than a string compare by construction,
+        so the whole refusal set is re-pinned here — including the two shapes a prefix-flavoured
+        implementation would wave through (``<dir>-evil`` and a truncation of ``<dir>``), and the
+        parent directory, which contains our dir but is not it.
         """
-        socket_dir = "/tmp/agent-browser-h_sess123456"
-        proc = self._FakeProc(
-            name="agent-browser",
-            cmdline=["agent-browser", "daemon"],  # deliberately no dir in cmd
-            environ={"AGENT_BROWSER_SOCKET_DIR": env_value},
-        )
-        assert self._run(proc, socket_dir) is False, why
-    def test_unreadable_environ_still_fails_closed(self):
-        """``environ()`` can be denied even same-user; ambiguity means refuse."""
-        socket_dir = "/tmp/agent-browser-h_sess123456"
-        proc = self._FakeProc(
-            name="agent-browser",
-            cmdline=["agent-browser", "daemon"],
-            raise_environ=True,
-        )
-        assert self._run(proc, socket_dir) is False
+        udd = tmp_path / "chromium-abc1234567"
+        udd.mkdir()
+        argv = ["chrome", "--remote-debugging-port=0"]
+        if token:
+            argv.append(token.format(base=udd, trunc=str(udd)[:-1], parent=tmp_path))
+        assert self._run(argv, str(udd)) is False, why
