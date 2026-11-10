@@ -269,15 +269,8 @@ def _file_version(resolved: str) -> tuple | None:
             after = os.stat(resolved)
             handle_after = os.fstat(stream.fileno())  # fork seam: the handle clock, ditto
         fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
-        # fork seam: Windows Python can report creation time through stat(path).ctime and change
-        # time through fstat(fd).ctime. Compare each clock to itself; identity, size and mtime
-        # still bind the opened bytes to the path. Upstream's compare below then reads the path.
-        def _view(st, names=fields):
-            return tuple(getattr(st, name) for name in names)
-        if not (_view(path_before) == _view(after) and _view(before) == _view(handle_after)
-                and _view(path_before, fields[:-1]) == _view(before, fields[:-1])):
-            return None
-        before = path_before
+        from tools.file_version_clocks import path_clock_before  # fork seam: each clock vs itself (Windows ctime)
+        if (before := path_clock_before(path_before, before, after, handle_after)) is None: return None  # fork seam
         version = tuple(getattr(before, name) for name in fields)
         if version == tuple(getattr(after, name) for name in fields):
             return (*version, digest)
