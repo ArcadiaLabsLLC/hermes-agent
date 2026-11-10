@@ -144,7 +144,7 @@ sections — gone, not missing.
 
 <!-- BEGIN GENERATED: harness_core inventory -->
 
-34 tools · generated from the registry by `scripts/emit_harness_tool_inventory.py` · do not edit by hand. If a tool exists for it, the tool is the answer; the full table with descriptions is `references/tool-inventory.md`.
+35 tools · generated from the registry by `scripts/emit_harness_tool_inventory.py` · do not edit by hand. If a tool exists for it, the tool is the answer; the full table with descriptions is `references/tool-inventory.md`.
 
 | toolset | tools | use it for |
 |---|---|---|
@@ -155,8 +155,9 @@ sections — gone, not missing.
 | `terminal` | `process_manage` · `terminal` | run commands and manage background processes |
 | `file` | `patch` · `read_file` · `search_files` · `write_file` | read, write, patch and search files |
 | `web` | `web_extract` · `web_search` | search the web and pull a page's content |
-| `browser` | `browser_vault` | drive a real browser: navigate, click, type, read, screenshot |
+| `browser` | `browser_vault` | stored-credential browser sign-in (vault) |
 | `browser-cdp` | `browser_cdp` · `browser_dialog` | raw CDP and dialog handling for the same browser |
+| `browser-use` | `browser_exec` | drive a real browser: navigate, click, type, read, screenshot |
 | `skills` | `skill_manage` · `skill_search` · `skill_view` · `skills_list` | find, read and author skills |
 | `memory` | `memory` | durable profile memory |
 | `todo` | `todo_list` | your own in-turn checklist |

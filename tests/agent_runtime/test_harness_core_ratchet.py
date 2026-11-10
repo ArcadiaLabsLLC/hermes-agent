@@ -38,7 +38,7 @@ pytestmark = pytest.mark.gate
 
 HARNESS_CORE_MEMBERS = [
     "agent_chat", "board", "clarify", "delegation", "terminal", "file",
-    "web", "browser", "browser-cdp", "skills", "memory", "todo",
+    "web", "browser", "browser-cdp", "browser-use", "skills", "memory", "todo",
     "session_search", "vision", "code_execution", "course",
 ]
 # S2b added ``agent_chat_installs`` to the ``agent_chat`` toolset, which
@@ -53,7 +53,9 @@ HARNESS_CORE_MEMBERS = [
 # Upstream v0.23.1 (2026-11-10 release merge, 68500d9ff9) deleted the ten built-in browser_* tools
 # (navigate/snapshot/click/type/scroll/back/press/get_images/vision/console); ``browser`` keeps only
 # browser_vault: 44 -> 34, re-measured.
-DECLARED_TOOL_COUNT = 34
+# FH-HARNESS-CORE-BROWSER-AFTER-V0231 (RULED owner 2026-11-10): ``browser-use`` joins harness_core so
+# personas keep a browser through its successor ``browser_exec``: 34 -> 35, re-measured.
+DECLARED_TOOL_COUNT = 35
 # Upstream's canonical tool names and refreshed manifest: same 44 declared
 # tools, measured name/schema estimate +13 tokens (1177 -> 1190).
 # HQ1 (2026-10-01) added ``harness_query`` to ``agent_chat``: 45 tools,
@@ -80,7 +82,8 @@ DECLARED_TOOL_COUNT = 34
 # tools' descriptions (terminal, web_search, clarify, skill_view, session_search, process_manage, the
 # CDP pair), re-measured: 8205 -> 7244 (-961); the catalog-length lead sentences on nine fork tool
 # descriptions (v0.23.1 tool_search 80-char rule): 7244 -> 6988.
-DECLARED_TOKEN_ESTIMATE = 6988
+# FH-HARNESS-CORE-BROWSER-AFTER-V0231 (2026-11-10): ``browser_exec``'s schema joins, re-measured: 6988 -> 7163.
+DECLARED_TOKEN_ESTIMATE = 7163
 MISSION_PERSONAS = ("neko_supervisor", "dev", "backend_dev", "qa")
 
 

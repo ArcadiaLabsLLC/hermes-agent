@@ -72,6 +72,12 @@
       ]
     },
     {
+      "name": "browser-use",
+      "tools": [
+        "browser_exec"
+      ]
+    },
+    {
       "name": "skills",
       "tools": [
         "skill_manage",
@@ -189,6 +195,13 @@
       "mutating": false,
       "gated": true,
       "description": "Accept or dismiss a native JS dialog (alert/confirm/prompt) blocking the page. **Workflow:** when a page is blocked by a native dialog the CDP supervisor cap..."
+    },
+    {
+      "name": "browser_exec",
+      "toolset": "browser-use",
+      "mutating": false,
+      "gated": true,
+      "description": "Drive a real browser for JS pages, logins, forms and clicks (Browser Use CLI). `code` runs as full Python (stdlib available) with pre-imported browser helper..."
     },
     {
       "name": "browser_vault",
@@ -360,9 +373,9 @@
     }
   ],
   "counts": {
-    "tools": 34,
-    "toolsets": 16,
-    "token_estimate": 6988
+    "tools": 35,
+    "toolsets": 17,
+    "token_estimate": 7163
   },
   "cli_only_verbs": [
     "persona instance open-chat",

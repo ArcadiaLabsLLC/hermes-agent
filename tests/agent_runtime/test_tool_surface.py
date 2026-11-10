@@ -133,32 +133,28 @@ def test_a_faulted_assembly_is_recorded_not_swallowed(harness_lane, monkeypatch)
     assert receipt_names(receipt, "eager") == _names(before) - {"tool_search", "tool_call", "tool_describe"}
 
 
-def test_the_browser_use_swap_is_an_unavailable_row(harness_lane, monkeypatch):
-    """The recorded lane carries ``browser_exec`` (``browser.backend: browser-use``): upstream's
-    ``browser`` toolset lists every ``browser_*`` core tool by name, check_fn keeps
-    ``browser_exec`` (registered into ``browser-use``) and drops the rest. Since v0.23.1
-    (68500d9ff9 deleted browser_navigate and the other ten built-ins) the rest is the CDP pair
-    ``browser_cdp`` / ``browser_dialog``, so the floor is 2, not 11."""
+def test_the_cdp_pair_beside_browser_use_is_a_check_fn_row_and_a_swap_still_reads_as_one(harness_lane):
+    """Since FH-HARNESS-CORE-BROWSER-AFTER-V0231 (RULED owner 2026-11-10) ``harness_core`` names
+    ``browser-use``, so ``browser_exec`` is inside the enabled closure: no backend swap, and the CDP
+    pair ``browser_cdp`` / ``browser_dialog`` (``browser.backend: browser-use`` drops them) are plain
+    check_fn rows. A swap target arriving from OUTSIDE the closure still reads as a swap (positive
+    control on the classifier). Killing mutation: drop ``browser-use`` from HARNESS_CORE_INCLUDES ->
+    the first assertion reads ``backend_swap`` again."""
 
     import toolsets
-    import model_tools
+    from agent_runtime import tool_surface
 
-    swapped = sorted(
+    missing = sorted(
         name for name in set(toolsets.resolve_toolset("browser")) | set(toolsets.resolve_toolset("browser-cdp"))
         if name not in _names(harness_lane.raw)
     )
     receipt = _surface()
-    assert len(swapped) >= 2, swapped
-    assert {name: receipt["unavailable"][name]["reason"] for name in swapped} == {
-        name: "backend_swap" for name in swapped}
-    # The swap target is on the surface: Neko defers it by name (R1 of the prompt-surface plan),
-    # so it rides the listing — available, not eager (the note's "eager" predates that list).
-    assert receipt["deferred"]["browser_exec"]["reason"] == "persona_defer"
-    # Positive control: without the swap target on the surface the same names are check_fn rows.
-    raw = [td for td in harness_lane.raw if td["function"]["name"] != "browser_exec"]
-    monkeypatch.setattr(model_tools, "get_tool_definitions", lambda **_kw: list(raw))
-    control = _surface()
-    assert {control["unavailable"][name]["reason"] for name in swapped} == {"check_fn_unavailable"}
+    assert len(missing) >= 2, missing
+    assert {name: receipt["unavailable"][name]["reason"] for name in missing} == {
+        name: "check_fn_unavailable" for name in missing}
+    assert "browser_exec" in {**receipt["eager"], **receipt["deferred"]}
+    assert tool_surface._swap_families({"browser_exec"}, {"browser", "browser-cdp"}) == {"browser"}
+    assert tool_surface._swap_families({"browser_exec"}, {"browser", "browser-use"}) == set()
 
 
 def test_tool_search_off_is_a_reason_not_a_silence(harness_lane):
