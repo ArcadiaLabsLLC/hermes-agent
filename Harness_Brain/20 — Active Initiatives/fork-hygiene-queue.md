@@ -636,7 +636,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-19 (ns + rt-model landing ab8578f8f5: reds on main after land w10)
 
-- **`FORK-LENS-PULL-DOOR-BUNDLE-DEATH` — `tests/agent_runtime/lens/test_lens_pull_door.py` killed its bundle once in the lint landing gate (passed alone, 12 later members re-bundled)** · group: hermes-test-isolation · fork / suite · gate log of land/lint 2026-10-19 · DEFERRED 2026-10-19: a watch — reopen with the hang stack when a second gate sees it
 
 ## Filed on arrival — 2026-10-19 (lane rt-ns-seed)
 
